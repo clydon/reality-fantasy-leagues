@@ -1534,8 +1534,6 @@ function rulesOf(s, w) {
     // L3 part 2f part 2: a question about each game locks game by game.
     if (s.ask.some((q) => q.each === 'game')) rules.push(`Change a game's pick until that game starts: each locks on its own. Nobody sees anyone's until the ${w.part}'s last game starts.`);
     else rules.push(each ? `Change an answer until its ${w.part} starts. Nobody sees them until then.` : 'Change your answers until it starts. Nobody sees them until then.');
-    // A late lock (A7).
-    if (isObj(s.extras.lateLock)) rules.push(`Watching late? Answer before you watch: until you've seen it, up to ${s.extras.lateLock.hours} hours after it airs.`);
     // A11 part 2b: a race, cuts and lives say who wins; part 4b, head to head.
     const asks = answerParts(s);
     // A11 part 5b: a handicap.
@@ -1627,8 +1625,6 @@ function detailsOf(s, w) {
   }
   if (s.get.by === 'pick') out.push({ id: 'calls', label: 'Who goes home?', recommended: rec('calls'), value: e.calls ? `A call every ${w.part}, beside the pick` : 'Off' });
   if (countKind(s.count) === 'start') out.push({ id: 'hideStarters', label: 'Starters', recommended: rec('hideStarters'), value: e.hideStarters ? 'Hidden until the lock' : "Shown as they're set" });
-  // A game of questions' late lock (A7).
-  if (s.score.by === 'answers' && !callsAsk(s.ask)) out.push({ id: 'lateLock', label: 'Watching late', recommended: rec('lateLock'), value: isObj(e.lateLock) ? `Answer until you've seen it, up to ${e.lateLock.hours} hours after it airs` : 'Answers lock as it starts' });
   out.push({ id: 'lockedDown', label: 'Locked down', recommended: rec('lockedDown'), value: e.lockedDown ? 'Nobody new, and the rules stay as they are' : 'No' });
   // A10 part 4b: a team two people share (never beside a call or a bingo card: each person's own).
   if (!(s.score.by === 'lines' || callsAsk(s.ask) || e.calls === true)) {

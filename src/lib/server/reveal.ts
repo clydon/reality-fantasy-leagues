@@ -4,6 +4,7 @@ import type { LeagueState } from "@/lib/game/types";
 import type { SessionUser } from "./auth-helpers";
 import { pool, HttpError, withLeagueLock } from "./db";
 import { switchOn } from "./guard";
+import { LEAGUE_SEASON_JOIN } from "./league-season";
 import { revealAcrossGroup } from "./late-join";
 import { markResultsSeen } from "./results-seen";
 import { seatMark } from "./shared-seats";
@@ -22,6 +23,17 @@ import { seatMark } from "./shared-seats";
 // exception: their deliberate "jump to the latest episode". Their reveal says nothing in chat (the league can't see
 // them). It does move their other linked leagues at the same mark: one catch-up per group (revealAcrossGroup,
 // docs/PLAN-linked-late-join.md).
+/** Where this person is on the league's season (their follow's mark), `unset` when they have none: read only for a seat with no
+ *  mark of its own in a game at its own pace. */
+async function showMark(userId: string, leagueId: string, unset: number): Promise<number> {
+  const { rows } = await pool.query(
+    `SELECT f.seen_through FROM leagues l ${LEAGUE_SEASON_JOIN} JOIN show_follows f ON f.season_id = ss.id AND f.user_id = $2 WHERE l.id = $1`,
+    [leagueId, userId]
+  );
+  const mark = rows[0]?.seen_through;
+  return Number.isInteger(mark) ? (mark as number) : unset;
+}
+
 export async function markRevealed(user: SessionUser, leagueId: string, playerId: string | null, through: number, jump = false): Promise<void> {
   let n = through;
   const { rows } = await pool.query("SELECT results_seen_through FROM league_memberships WHERE league_id = $1 AND user_id = $2", [leagueId, user.id]);
@@ -36,10 +48,14 @@ export async function markRevealed(user: SessionUser, leagueId: string, playerId
     if (StateLogic.GhostLogic.needsTeam(current, playerId)) throw new HttpError(400, "Pick your team first");
     if (StateLogic.GhostLogic.draftsTogether(current) && !StateLogic.GhostLogic.draftDone(current)) throw new HttpError(400, "Draft together first");
     const latest = StateLogic.SpoilerLogic.latestWithResults(current);
-    const seen = before ?? late.startEpisode - 1;
+    // Their mark here, else the episode before their start. A game at its own pace made before it aired gives nobody a mark of
+    // their own (it's made as a live game; GhostLogic.settlePace makes its seats late joiners at its first results), so someone
+    // behind its start on the show is where the show has them: the episodes before the game's start are theirs to reveal first.
+    const seen = before ?? Math.min(late.startEpisode - 1, StateLogic.GhostLogic.ownPace(current) ? await showMark(user.id, leagueId, late.startEpisode - 1) : late.startEpisode - 1);
     if (late.catchingUp) {
       if (jump) n = latest;
-      else if (n !== seen + 1) throw new HttpError(400, `You're on episode ${seen + 1}: reveal that one first`);
+      // One at a time. An episode they've already passed here (a stale tab, a double tap) changes nothing, below.
+      else if (n > seen + 1) throw new HttpError(400, `You're on episode ${seen + 1}: reveal that one first`);
     }
     if (n <= seen) return;
     await markResultsSeen(user.id, leagueId, n);

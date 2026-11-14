@@ -144,6 +144,11 @@ export interface StartOptions {
   pace: { here: number | null; top: number; aired: number } | null;
   /** These options start with an episode that's aired: everyone in the game plays one episode at a time, whenever they watch. */
   ownPace: boolean;
+  /** How the game can run from this start (docs/PLAN-own-pace-games.md, "Pace is the game's setting"): the paces to choose from,
+   *  and the one a sheet starts on. From an episode that's aired it's at your own pace, nothing to choose. From one still to air a
+   *  show's game is at your own pace unless they say otherwise (the user, 2026-11-13); a sport's is live (sports are live). A start
+   *  with a phase runs live or strict (startGame and startFromSpec refuse own pace there, for now). */
+  runs: { choices: PaceMode[]; recommended: PaceMode };
   couch: { id: string; name: string; members: number };
   /** Run it back: the game it plays again (the same game, name and settings), and, when that was a span, the next one's last
    *  episode (to start with; null: to the season's end). `label` says which it was ("ZT Survivor 51 · Episodes 6–7"). `phase`:
@@ -161,6 +166,37 @@ export interface StartOptions {
   } | null;
   /** Once this season's over: the show's next season to run a game back on (set up, still to finish), or null. */
   nextSeason: { seasonId: string; label: string } | null;
+}
+
+/** How a game runs (StateLogic.GhostLogic.pace): at your own pace, live (a move stays open late), or strict (locks at airtime). */
+export type PaceMode = "own" | "live" | "strict";
+
+/**
+ * The pace a start asked for (`pace` in its body), checked against what these options can start: none asked is live from an
+ * episode still to air (what every caller got before the choice: a phone on an older bundle, a run back, a sport's own start), and
+ * your own pace from one that's aired.
+ */
+export function paceAsked(asked: unknown, opts: Pick<StartOptions, "ownPace">, phase: boolean): PaceMode {
+  if (asked != null && asked !== "own" && asked !== "live" && asked !== "strict") throw new HttpError(400, "pace: own, live or strict");
+  if (opts.ownPace) {
+    if (asked != null && asked !== "own") throw new HttpError(400, "A game from an episode that's aired runs at your own pace");
+    return "own";
+  }
+  // A start with a phase waits for data to say where it begins, and its draft would open mid-season for people who may be behind
+  // (BACKLOG 67, the user's to decide): live, until then.
+  if (asked === "own" && phase) throw new HttpError(400, "A game that starts with a phase runs live, for now");
+  return (asked as PaceMode | null | undefined) ?? "live";
+}
+
+/** Sets a new game's pace as it's made (after its spec): from an episode still to air, at your own pace it's made and drafted as a
+ *  live one is, and waits for people from its first results on (GhostLogic.paceTogether); strict locks at airtime. */
+export function applyPace(s: LeagueState, opts: Pick<StartOptions, "ownPace">, pace: PaceMode): void {
+  if (opts.ownPace) return;
+  if (pace === "own") StateLogic.GhostLogic.paceTogether(s);
+  else if (pace === "strict") {
+    const why = StateLogic.GhostLogic.setPace(s, "strict");
+    if (why) throw new HttpError(409, why);
+  }
 }
 
 /** A game of questions' name (league-season.ts). */
@@ -402,6 +438,7 @@ export async function startOptions(
     sport: sportLeague ? { league: sportLeague } : null,
     pace,
     ownPace,
+    runs: ownPace ? { choices: ["own"], recommended: "own" } : { choices: ["own", "live", "strict"], recommended: (blocks.kind ?? h.show.kind) === "sport" ? "live" : "own" },
     couch: { id: couchId, name: couchRows[0]?.name ?? "Your couch", members: people.length },
     again,
   };
@@ -485,7 +522,7 @@ export async function startGame(
   user: SessionUser,
   seasonId: string,
   couchId: string | null,
-  body: { game?: unknown; tell?: unknown; again?: unknown; from?: unknown; phase?: unknown; to?: unknown; bots?: unknown; level?: unknown; late?: unknown; questions?: unknown },
+  body: { game?: unknown; tell?: unknown; again?: unknown; from?: unknown; phase?: unknown; to?: unknown; bots?: unknown; level?: unknown; late?: unknown; questions?: unknown; pace?: unknown },
   now = new Date(),
   origin: string | null = null,
   /** A dev server's stand-in bot (ask-bot.ts botFor), for the season's bingo bank. */
@@ -503,6 +540,11 @@ export async function startGame(
   // Or when a phase still to come starts (step A3): it waits for it.
   const phase = body.phase == null ? null : opts.phases.find((p) => p.id === body.phase) ?? null;
   if (body.phase != null && !phase) throw new HttpError(400, "Pick a phase of the season still to come");
+  // Run it back with nothing said plays as the game it runs back did (its pace is how that couch plays it); a start with a phase is
+  // live (paceAsked).
+  const kept = opts.again ? (await leagueStates([opts.again.leagueId])).get(opts.again.leagueId)?.settings : undefined;
+  const carried = body.pace == null && kept && !opts.ownPace ? (kept.ownPace && !phase ? "own" : kept.lockAtAir ? "strict" : null) : null;
+  const pace = paceAsked(body.pace ?? carried, opts, !!phase);
   const choice = opts.games.find((g) => g.key === body.game);
   if (!choice || !choice.fits) throw new HttpError(400, choice ? `${choice.name} doesn't fit ${opts.show}: it needs ${choice.needs}` : "Pick a game");
   if (choice.soon || !choice.type) throw new HttpError(409, `${choice.name} comes with this week's episode games, soon`);
@@ -513,7 +555,7 @@ export async function startGame(
   const span = to === null ? null : spanName(opts.from, to, opts.part);
   // A season game that starts later says where ("from Episode 9"), or with a phase, which ("from when Merged starts"); one at your
   // own pace, that too.
-  const when = phase ? ` from when ${phase.name} starts` : span ? ` for ${span}` : opts.from > opts.nextEpisode ? ` from ${partAt(opts)}` : opts.ownPace ? ` from ${partAt(opts)}, at their own pace` : "";
+  const when = phase ? ` from when ${phase.name} starts` : span ? ` for ${span}` : opts.from > opts.nextEpisode ? ` from ${partAt(opts)}${pace === "own" ? ", at their own pace" : ""}` : pace === "own" ? ` from ${partAt(opts)}, at their own pace` : "";
   // Computer players in the seats (computer-players.ts), seated before anyone joins, at one level.
   const bots = typeof body.bots === "number" && Number.isInteger(body.bots) ? body.bots : 0;
   if (bots < 0 || bots > MAX_BOTS) throw new HttpError(400, `Up to ${MAX_BOTS} computer players`);
@@ -546,7 +588,6 @@ export async function startGame(
     if (!ask.length) throw new HttpError(400, "Pick at least one question");
     sheet = { ask, ctx };
   }
-  const kept = opts.again ? (await leagueStates([opts.again.leagueId])).get(opts.again.leagueId)?.settings : undefined;
   let seat = "";
   let made: string | null = null;
   let settled: number | null = null;
@@ -624,6 +665,9 @@ export async function startGame(
         // Its computer players pick their teams now, from who was in before the start (part 3a); people pick theirs on Tonight.
         Bots.paceTeams(s);
       }
+      // From an episode still to air: at your own pace (made and drafted as a live game, waiting for people from its first results
+      // on), or strict.
+      applyPace(s, opts, pace);
       await recordChange(client, id, s, {
         userId: user.id,
         kind: "game.start",
@@ -656,7 +700,7 @@ export async function startGame(
     show: opts.show,
     gameName: choice.name,
     label: opts.label,
-    from: phase ? `when ${phase.name} starts` : `${opts.part.singular === "episode" ? "Episode" : opts.part.singular.replace(/^./, (c) => c.toUpperCase())} ${opts.from}${opts.ownPace ? ", at your own pace" : ""}`,
+    from: phase ? `when ${phase.name} starts` : `${opts.part.singular === "episode" ? "Episode" : opts.part.singular.replace(/^./, (c) => c.toUpperCase())} ${opts.from}${pace === "own" ? ", at your own pace" : ""}`,
     span,
   });
   return { leagueId, name, gameName: choice.name, from: phase ? settled : opts.from, phase: phase?.id ?? null, to, linked, told: audience.length };

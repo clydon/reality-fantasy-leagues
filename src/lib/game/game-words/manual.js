@@ -314,7 +314,6 @@ const FIELDS = {
   card: "{ from, each, of }: a new card (a sheet of objectives) each episode, not only bingo: each lines drawn from of (the show's moment ids), picked by the AI (from 'bot') or in turn ('moments'); questions on it are ask.card, the moments that count score.only 'card'",
   'extras.waivers': "replacements and swaps mid-season: { replace: 'always' | 'never', windows: { schedule, every, swaps }, own: { replace, swap } }",
   'extras.seats': '{ people }: up to that many of you share one team',
-  'extras.lateLock': '{ hours }: someone who watches later locks that many hours after the episode airs',
 };
 
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);

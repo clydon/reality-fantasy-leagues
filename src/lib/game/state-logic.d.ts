@@ -485,10 +485,21 @@ declare const StateLogic: {
     /** Runs a late joiner's own move against their view; a reason on refusal, else null. `opts.late`: a live seat at their own
      *  pace, on the copy where episode seenThrough+1 is still open (lateCopy); marks ep.lateSet when anything of theirs changed. */
     applyAs(state: LeagueState, playerId: string, seenThrough: number, epId: string, fn: (view: LeagueState) => unknown, opts?: { late?: boolean }): string | null;
-    /** One person at their own pace on a live game (player.ownPace, a live seat). */
+    /** A seat whose moves stay open after an episode airs (lateWindow): any in a game that isn't strict, unless it's catching up. */
     playsOwnPace(state: LeagueState, playerId: string | null | undefined): boolean;
     /** The Commissioner's switch; a reason on refusal, else null. */
-    setPlaysOwnPace(state: LeagueState, playerId: string, on: boolean): string | null;
+    /** The game's pace (docs/PLAN-own-pace-games.md, "Pace is the game's setting"): at your own pace, live (a move stays open late: the
+     *  default), or strict (everything locks at airtime). */
+    pace(state: LeagueState): "own" | "live" | "strict";
+    /** A game at your own pace keeps waiting: seats that new results have left behind are catching up again (after every write);
+     *  a game made before it aired (paceTogether) has its seats made late joiners here, at its first results. */
+    settlePace(state: LeagueState): boolean;
+    /** Sets a game at its own pace before its first episode airs: made and drafted as a live one (settings.startedTogether). */
+    paceTogether(state: LeagueState): void;
+    /** Shared teams at your own pace where each seat picks its own (a game made on an aired episode): no draft room. */
+    ownTeams(state: LeagueState): boolean;
+    /** Whoever runs the game chooses live or strict. A reason, or null. */
+    setPace(state: LeagueState, mode: string): string | null;
     /** The aired episode their moves are open late for at `now`, given their mark (Infinity: sees results as they come). */
     lateWindow(state: LeagueState, playerId: string, mark: number | null | undefined, now?: number): { episode: number; epId: string; until: string | null } | null;
     /** The league going into episode `n`, with `n` still open (its results hidden, the teams as they are). */
@@ -1282,8 +1293,8 @@ declare const StateLogic: {
    * before the league's start episode).
    */
   currentEpisode(state: LeagueState): Episode | null;
-  /** opts.second: a pool's second pick, beside a first already made (step A10 part 2). */
-  setPickEmPick(state: LeagueState, epId: string, playerId: string, castawayId: string, opts?: { second?: boolean; picks?: string[] }): void;
+  /** opts.second: a pool's second pick, beside a first already made (step A10 part 2). opts.now: an explicit clock for deadline checks. */
+  setPickEmPick(state: LeagueState, epId: string, playerId: string, castawayId: string, opts?: { second?: boolean; picks?: string[]; now?: number }): void;
   /** opts.second: only the second pick; else the whole pick. */
   removePickEmPick(state: LeagueState, epId: string, playerId: string, opts?: { second?: boolean; castawayId?: string }): void;
   /** Whether this Survival Pool takes a weekly Who goes home? call (settings.calls): the person's Call it (calls.ts). */

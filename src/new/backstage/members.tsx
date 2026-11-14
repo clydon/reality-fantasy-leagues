@@ -14,7 +14,6 @@ import { EmptyState, SectionHead } from "../ui/parts";
 import { openCouchSheet } from "../couch/couch-sheets";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
-import { SwitchRow } from "../settings/controls";
 import { ComputerPlayers } from "./computer-players";
 
 // Backstage › Members & roles (the mock's backstage.js bsMembers and guards.js memberSheet, docs/PLAN-new-design.md step 6a):
@@ -187,70 +186,6 @@ function GameSheet({ seasonId, couchId, game, members, onClose }: { seasonId: st
   );
 }
 
-/**
- * Plays at their own pace (docs/PLAN-own-pace-games.md, the user, 2026-11-09): for someone who doesn't always watch live, a switch
- * per game, a Commissioner's. On, their moves for an episode that's aired stay open until they've watched it or the next one airs.
- * Whoever doesn't run a game reads where it's on, in words. Someone who sees results as they come in is never behind: the line says
- * the switch waits on that.
- */
-function OwnPace({ seasonId, couchId, member, games }: { seasonId: string; couchId: string; member: Member; games: MemberGame[] }) {
-  const after = useAfter();
-  const [busy, setBusy] = useState<string | null>(null);
-  const mine = games.filter((g) => g.yours);
-  const read = games.filter((g) => !g.yours && member.pace.includes(g.leagueId));
-  if (!mine.length && !read.length) return null;
-  const who = member.you ? "you" : "they";
-  const line = member.seesAll
-    ? `${member.you ? "You see" : "They see"} results as soon as they're in, so nothing stays open until ${member.you ? "you hide them" : "they hide them"}`
-    : `After an episode airs, ${member.you ? "your" : "their"} moves stay open until ${who} watch it or the next one airs`;
-  const flip = async (g: MemberGame, on: boolean) => {
-    setBusy(g.leagueId);
-    try {
-      await gameAdmin.pace(seasonId, couchId, member.userId, g.leagueId, on);
-      await after();
-      const words = (now: boolean) => `${member.you ? "You play" : `${member.name} plays`} ${g.gameName} ${now ? `at ${member.you ? "your" : "their"} own pace` : "live"}`;
-      toast(words(on), {
-        undo: async () => {
-          try {
-            await gameAdmin.pace(seasonId, couchId, member.userId, g.leagueId, !on);
-            await after();
-            toast(words(!on));
-          } catch (e) {
-            toast.quiet((e as Error).message);
-          }
-        },
-      });
-    } catch (e) {
-      toast.quiet((e as Error).message);
-    } finally {
-      setBusy(null);
-    }
-  };
-  return (
-    <section data-own-pace className="mt-3 border-t border-border pt-3">
-      <p className="type-caption text-[14px] tracking-[0.02em] text-muted-foreground">Plays at {member.you ? "your" : "their"} own pace</p>
-      {/* One game: its row says what it does. Several: said once, each row the game and its name here. */}
-      {mine.length > 1 && <p data-own-pace-line className="mt-1 text-[13px] leading-snug text-muted-foreground">{line}.</p>}
-      {mine.map((g) => (
-        <SwitchRow
-          key={g.leagueId}
-          data={`pace-${g.leagueId}`}
-          on={member.pace.includes(g.leagueId)}
-          disabled={busy === g.leagueId}
-          title={g.gameName}
-          line={mine.length > 1 ? g.name : line}
-          onChange={(on) => void flip(g, on)}
-        />
-      ))}
-      {read.map((g) => (
-        <p key={g.leagueId} className="mt-2 text-[13px] text-muted-foreground">
-          {g.gameName}: on. Only its Commissioner changes it.
-        </p>
-      ))}
-    </section>
-  );
-}
-
 async function undo(seasonId: string, couchId: string, batch: string, after: () => Promise<unknown>) {
   try {
     await backstage.undo(seasonId, couchId, batch);
@@ -338,7 +273,6 @@ function MemberSheet({
             );
           })}
           {theirs.length > 1 && <p className="text-[13px] text-muted-foreground">In {yours.length === theirs.length ? `all ${theirs.length} of their games here` : yours.map((g) => g.gameName).join(" and ")}.</p>}
-          <OwnPace seasonId={seasonId} couchId={couchId} member={member} games={theirs.filter((g) => g.pace)} />
           {(member.you || yours.length > 0) && (
             <button type="button" data-out onClick={askOut} className="mt-2 flex min-h-[56px] flex-col justify-center rounded-[3px] border-t border-border text-left">
               <b className="text-[15px] text-live">{member.you ? "Leave these games" : "Remove from this show's games"}</b>

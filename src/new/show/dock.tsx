@@ -180,13 +180,20 @@ export function MovesSheet({ show, seasonId }: { show: ShowData; seasonId: strin
   const { open, tab, leagueId } = useMovesSheet();
   const up = show.upNext;
   const until = up?.airAt ? airTime(Date.parse(up.airAt)) : null;
+  // Your episode, not the season's: someone catching up sets their own next episode's moves, open until they reveal it
+  // (the game page's words). Games on different episodes are each named (the gameplay bench's behind-viewer case, 2026-11-12).
+  const yours = [...new Set((show.play ?? []).flatMap((g) => [g.lineup?.episode, g.pick?.episode]).filter((n): n is number => Number.isInteger(n)))].sort((a, b) => a - b);
+  const behind = !!up && yours.length > 0 && yours[yours.length - 1] < up.number;
+  const subtitle =
+    yours.length > 1
+      ? `Episodes ${yours.join(" and ")}`
+      : yours.length === 1
+        ? `Episode ${yours[0]}${behind ? " · change it until you reveal it" : until ? ` · change anything until ${until}` : ""}`
+        : up
+          ? `Episode ${up.number}${until ? ` · change anything until ${until}` : ""}`
+          : undefined;
   return (
-    <Sheet
-      open={open}
-      onOpenChange={(o) => !o && closeMoves()}
-      title="Your moves"
-      subtitle={up ? `Episode ${up.number}${until ? ` · change anything until ${until}` : ""}` : undefined}
-    >
+    <Sheet open={open} onOpenChange={(o) => !o && closeMoves()} title="Your moves" subtitle={subtitle}>
       {show.play ? (
         // A fresh body each time it opens, at the tab it was opened for, from what's saved.
         <MovesBody key={`${open}-${tab}-${leagueId}`} show={show} play={show.play} initial={tab} initialLeague={leagueId} seasonId={seasonId} until={until} />
@@ -224,7 +231,8 @@ function MovesBody({
     () => (tabs.find((t) => t.kind === initial && (!initialLeague || !t.leagueId || t.leagueId === initialLeague)) ?? tabs.find((t) => t.kind === initial) ?? tabs[0])?.key
   );
   const [lineups, setLineups] = useState<Record<string, string[]>>(() => Object.fromEntries(play.filter((g) => g.lineup).map((g) => [g.leagueId, g.lineup!.starters])));
-  const [picks, setPicks] = useState<Record<string, string | null>>(() => Object.fromEntries(play.filter((g) => g.pick).map((g) => [g.leagueId, g.pick!.pick])));
+  // Each game's whole pick, in order: one for a pool, up to `each` for a game that picks several.
+  const [picks, setPicks] = useState<Record<string, string[]>>(() => Object.fromEntries(play.filter((g) => g.pick).map((g) => [g.leagueId, g.pick!.picks.length ? g.pick!.picks : g.pick!.pick ? [g.pick!.pick] : []])));
   const [guesses, setGuesses] = useState<Record<string, string>>(() =>
     Object.fromEntries(play.flatMap((g) => g.predictions.map((q) => [guessKey(g, q.betId), q.guess?.text ?? ""])))
   );
@@ -239,7 +247,7 @@ function MovesBody({
     const g = game(t.leagueId);
     if (g && pickup(g.leagueId)) return true;
     if (t.kind === "lineup") return !!g && lineupOpen(g) && (lineups[g.leagueId]?.length ?? 0) < g.lineup!.need;
-    if (t.kind === "pool") return !!g && pickOpen(g) && !picks[g.leagueId];
+    if (t.kind === "pool") return !!g && pickOpen(g) && (picks[g.leagueId]?.length ?? 0) < (g.pick?.each ?? 1);
     if (t.kind === "predict") return play.some((x) => x.predictions.some((q) => !(guesses[guessKey(x, q.betId)] ?? "").trim()));
     return false;
   };
@@ -255,9 +263,9 @@ function MovesBody({
       }
       const p = g.pick;
       const chosen = picks[g.leagueId];
-      if (p && pickOpen(g) && chosen && chosen !== p.pick) {
+      if (p && pickOpen(g) && chosen?.length && !sameSet(chosen, p.picks.length ? p.picks : p.pick ? [p.pick] : [])) {
         kinds.add("pick");
-        jobs.push(() => write.pick(g.leagueId, p.epId, g.playerId, chosen));
+        jobs.push(() => write.pick(g.leagueId, p.epId, g.playerId, p.each > 1 ? chosen : chosen[0]));
       }
       for (const q of g.predictions) {
         const now = (guesses[guessKey(g, q.betId)] ?? "").trim();
@@ -293,7 +301,25 @@ function MovesBody({
     const g = game(t.leagueId);
     if (t.kind === "lineup" && g)
       return <LineupPanel g={g} starters={lineups[g.leagueId] ?? []} onStarters={(s) => setLineups((x) => ({ ...x, [g.leagueId]: s }))} pickup={pickup(g.leagueId)} seasonId={seasonId} />;
-    if (t.kind === "pool" && g) return <PoolPanel g={g} pick={picks[g.leagueId] ?? null} onPick={(id) => setPicks((x) => ({ ...x, [g.leagueId]: id }))} />;
+    if (t.kind === "pool" && g)
+      return (
+        <PoolPanel
+          g={g}
+          chosen={picks[g.leagueId] ?? []}
+          onPick={(id) =>
+            setPicks((x) => {
+              const now = x[g.leagueId] ?? [], each = g.pick?.each ?? 1;
+              if (each === 1) return { ...x, [g.leagueId]: [id] };
+              if (now.includes(id)) return { ...x, [g.leagueId]: now.filter((c) => c !== id) };
+              if (now.length >= each) {
+                toast.quiet(`${each} at most: take one off first`);
+                return x;
+              }
+              return { ...x, [g.leagueId]: [...now, id] };
+            })
+          }
+        />
+      );
     if (t.kind === "predict") return <PredictPanel play={play} guesses={guesses} onGuess={(k, v) => setGuesses((x) => ({ ...x, [k]: v }))} />;
     if (t.kind === "outlast" && g) return <OutlastPanel g={g} pickup={pickup(g.leagueId)} seasonId={seasonId} />;
     return null;
@@ -337,8 +363,12 @@ function MovesBody({
   }, [index]);
 
   if (!tabs.length) return <p className="mt-3 text-sm text-muted-foreground">Nothing to set here.</p>;
+  // Moves still open after their episode aired (a live game's, while you haven't watched it): said once for the sheet, since
+  // watching an episode is across all your games.
+  const lateMoves = play.filter((g) => g.late && (g.lineup?.episode === g.late.episode || g.pick?.episode === g.late.episode));
   return (
     <>
+      {lateMoves.length > 0 && <OnYourHonour seasonId={seasonId} episode={lateMoves[0].late!.episode} many={lateMoves.length > 1} />}
       {tabs.length > 1 && (
         <div ref={bar} className="relative mb-3.5 flex gap-[3px] overflow-x-auto rounded-[3px] bg-background p-[3px] [scrollbar-width:none]" role="tablist">
           <span ref={lit} data-tabs-lit aria-hidden className="pointer-events-none absolute left-0 top-[3px] h-9 rounded-[2px] bg-foreground" />
@@ -376,7 +406,18 @@ function MovesBody({
       <Btn tone="must" wide className="mt-3.5" disabled={saving} onClick={save}>
         {saving ? "Saving…" : "Save"}
       </Btn>
-      <p className="mt-2 text-center text-[13px] text-muted-foreground">Saving doesn&rsquo;t lock anything. Airtime does.</p>
+      <p className="mt-2 text-center text-[13px] text-muted-foreground">
+        Saving doesn&rsquo;t lock anything.{" "}
+        {(() => {
+          // Catching up, an episode locks when you reveal it, not at its airtime (it's aired already).
+          const up = show.upNext?.number ?? Infinity;
+          const eps = play.map((g) => g.lineup?.episode ?? g.pick?.episode).filter((n): n is number => Number.isInteger(n));
+          const behind = eps.filter((n) => n < up).length;
+          // A live game's episode that aired and you haven't watched (OnYourHonour): watching it is what locks it.
+          if (lateMoves.length) return "Watching it does.";
+          return !behind ? "Airtime does." : behind === eps.length ? "Revealing the episode does." : "Airtime does, or revealing an episode you’re catching up on.";
+        })()}
+      </p>
     </>
   );
 }
@@ -398,6 +439,36 @@ function RevealFirst({ episode, what }: { episode: number; what: string }) {
       >
         Reveal Episode {episode}
       </Btn>
+    </div>
+  );
+}
+
+/**
+ * A move still open after its episode aired (docs/PLAN-own-pace-games.md, "Pace is the game's setting": a live game's moves stay
+ * open until you've watched). It runs on the honour system, so the sheet says it once, above its games (watching an episode is
+ * across all of them), and gives whoever has watched the
+ * honest way out: leave the move as it stood and reveal (the user, 2026-11-13). Nothing is saved by that: anything changed here and
+ * not saved is dropped, and the reveal closes the move with what was there (a lineup carried in, a pick, or none).
+ */
+function OnYourHonour({ seasonId, episode, many }: { seasonId: string; episode: number; many: boolean }) {
+  return (
+    <div data-honour={episode} className="mb-3 rounded-[4px] bg-background p-3 outline-1 -outline-offset-1 outline-border">
+      <b className="block text-[15px]">
+        Episode {episode} has aired
+      </b>
+      <small className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">
+        {many ? "These are" : "It’s"} still open because you haven&rsquo;t watched it. Seen it already? Leave {many ? "them as they are" : "this as it is"}.
+      </small>
+      {/* A link, not the reveal opened in place: the reveal doesn't open over a game's own page (BACKLOG 66), and Tonight is where
+          someone who has watched goes next anyway. */}
+      <NavLink
+        href={paths.reveal(seasonId, episode)}
+        data-honour-watched
+        onClick={() => closeMoves()}
+        className="nd-press mt-1 inline-flex min-h-11 items-center text-[15px] font-bold underline decoration-border underline-offset-4"
+      >
+        I&rsquo;ve watched it
+      </NavLink>
     </div>
   );
 }
@@ -510,13 +581,13 @@ function ReplaceRow({ pickup, seasonId }: { pickup: Move; seasonId: string }) {
   );
 }
 
-function PoolPanel({ g, pick, onPick }: { g: GameView; pick: string | null; onPick: (id: string) => void }) {
+function PoolPanel({ g, chosen, onPick }: { g: GameView; chosen: string[]; onPick: (id: string) => void }) {
   const p = g.pick;
   if (g.revealFirst) return <RevealFirst episode={g.revealFirst} what="who you can pick" />;
   if (!p) return <Note>No episode to pick for yet.</Note>;
   if (!p.open) {
-    const c = p.pick ? faceIn(g, p.pick) : undefined;
-    return <Note>Picks are closed for Episode {p.episode}{c ? `: you picked ${first(c.name)}` : ""}.</Note>;
+    const names = (p.picks.length ? p.picks : p.pick ? [p.pick] : []).map((id) => faceIn(g, id)?.name).filter((n): n is string => !!n).map(first);
+    return <Note>Picks are closed for Episode {p.episode}{names.length ? `: you picked ${names.join(", ")}` : ""}.</Note>;
   }
   if (!p.available.length) return <Note>Nobody&rsquo;s left you can pick for Episode {p.episode}.</Note>;
   const blocked = new Map(p.blocked.map((b) => [b.id, b]));
@@ -524,12 +595,20 @@ function PoolPanel({ g, pick, onPick }: { g: GameView; pick: string | null; onPi
   return (
     <>
       <p className="mb-2.5 text-[13px] text-muted-foreground">
-        Who survives Episode {p.episode}? {p.streak ? `Streak ${p.streak}. ` : ""}Not someone you&rsquo;ve used.
+        {p.each > 1 ? (
+          <>
+            Pick {p.each} for Episode {p.episode} · {chosen.length} of {p.each} chosen.
+          </>
+        ) : (
+          <>
+            Who survives Episode {p.episode}? {p.streak ? `Streak ${p.streak}. ` : ""}Not someone you&rsquo;ve used.
+          </>
+        )}
       </p>
       <div className="grid grid-cols-4 gap-2">
         {choices.map((c) => {
           const no = blocked.get(c.id);
-          const on = pick === c.id;
+          const on = chosen.includes(c.id);
           return (
             <button
               key={c.id}

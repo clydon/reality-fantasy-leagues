@@ -20,7 +20,7 @@ import { leaguePhases, scheduleOf, settleIn } from "./phase-starts";
 import { queueSeasonBingo } from "./desk-research";
 import { madeGames, type MadeGame } from "./made-games";
 import { notifyGameStarted } from "./push-events";
-import { couchGamesOn, freeName, linkIn, startOptions, watchersOf, type StartOptions } from "./start-game";
+import { applyPace, couchGamesOn, freeName, linkIn, paceAsked, startOptions, watchersOf, type StartOptions } from "./start-game";
 
 // Start a game, the wizard (docs/PLAN-start-a-game-gpt.md U1; U0's settled board "B, settled"). The sheet rolls, checks and words
 // every game on the phone (the engine's rollSpec, specProblems and describeSpec, bundled for the browser) from the page this reads:
@@ -100,7 +100,7 @@ export async function startFromSpec(
   user: SessionUser,
   seasonId: string,
   couchId: string | null,
-  body: { spec?: unknown; name?: unknown; tell?: unknown; bots?: unknown; level?: unknown; late?: unknown; made?: unknown },
+  body: { spec?: unknown; name?: unknown; tell?: unknown; bots?: unknown; level?: unknown; late?: unknown; made?: unknown; pace?: unknown },
   now = new Date(),
   o: { origin?: string; bot?: string } = {}
 ): Promise<SpecStarted> {
@@ -130,6 +130,8 @@ export async function startFromSpec(
     throw new HttpError(400, `Pick a start the listing has, from ${opts.part.singular} ${opts.from} on`);
   }
   if (typeof span.to === "number" && typeof span.from === "number" && span.to < span.from) throw new HttpError(400, "It ends before it starts");
+  // How it runs (docs/PLAN-own-pace-games.md, "Pace is the game's setting"): the sheet's choice, checked against this start.
+  const pace = paceAsked(body.pace, opts, !!fromPhase);
 
   const problems = Spec.specProblems(spec, ctx);
   if (problems.length) throw new HttpError(409, problems[0].problem);
@@ -204,11 +206,14 @@ export async function startFromSpec(
         );
         Bots.paceTeams(s);
       }
+      // From an episode still to air: at your own pace (made and drafted as a live game, waiting for people from its first results
+      // on), or strict.
+      applyPace(s, opts, pace);
       await recordChange(client, id, s, {
         userId: user.id,
         kind: "game.start",
         tier: 1,
-        text: `${starter} started ${name}${when}${opts.ownPace ? ", at their own pace" : ""}${bots ? ` with ${bots} computer ${bots === 1 ? "player" : "players"}` : ""}`,
+        text: `${starter} started ${name}${when}${pace === "own" ? ", at their own pace" : ""}${bots ? ` with ${bots} computer ${bots === 1 ? "player" : "players"}` : ""}`,
         detail: { spec: true, from: fromPhase ? settled : span.from, ...(fromPhase ? { phase: fromPhase } : {}), to, bots, ...(made ? { made } : {}) },
       });
     },

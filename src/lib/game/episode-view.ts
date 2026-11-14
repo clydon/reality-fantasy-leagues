@@ -225,7 +225,7 @@ export interface RevealTable {
 export interface RevealPart {
   leagueId: string;
   gameType: string;
-  /** Step R1: how the game scores (its spec's score.by), which picks the reveal's main table (season-episodes.ts mainTable). */
+  /** Step R1: how the game scores (its spec's score.by), which picks the reveal's main table (mainRevealTable below). */
   scores: GamePieces["scores"];
   stage: "early" | "final";
   out: OutFace[];
@@ -317,4 +317,25 @@ export function revealIn(game: GameRefIn, full: LeagueState, me: string, n: numb
   };
 
   return { leagueId: game.leagueId, gameType: game.gameType, scores: pieces.scores, stage, out: outsOf(after, ep), happened: happenedIn(after, ep), lineup, game: part, predictions, table };
+}
+
+/** The reveal's main table across every game's part: a lineup's final table first, else a pool's, a placement game's, an early lineup's. */
+export function mainRevealTable(parts: RevealPart[]): RevealTable | null {
+  const by = (scores: RevealPart["scores"]) => parts.find((p) => p.scores === scores);
+  const lineup = by("moments");
+  return (lineup?.stage === "final" ? lineup.table : null) ?? by("survive")?.table ?? by("place")?.table ?? lineup?.table ?? null;
+}
+
+/** The one reveal's beats from every game's part of episode n (season-episodes.ts revealSeason; the gameplay bench composes it too). */
+export function revealAcross(parts: RevealPart[]) {
+  const first = parts.find((p) => p.out.length || p.happened.length) ?? parts[0];
+  return {
+    stage: parts.some((p) => p.stage === "early") ? ("early" as const) : ("final" as const),
+    out: first.out,
+    happened: first.happened,
+    lineup: parts.find((p) => p.lineup)?.lineup ?? null,
+    games: parts.map((p) => p.game).filter((g) => !!g),
+    predictions: parts.map((p) => p.predictions).filter((g) => !!g),
+    table: mainRevealTable(parts),
+  };
 }

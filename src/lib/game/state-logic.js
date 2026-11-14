@@ -5049,7 +5049,7 @@ class PickEmLogic {
     const c = Core.getCastaway(state, castawayId);
     const player = Core.getPlayer(state, playerId);
     if(!ep || !c || !player || c.status!=='active' || !inPlay(state, ep.number)) return;
-    if(closedForPlay(ep) || PickEmLogic.decided(ep, state)) return; // picks close when the episode starts (or its lock says)
+    if(closedForPlay(ep, opts && opts.now) || PickEmLogic.decided(ep, state)) return; // picks close when the episode starts (or its lock says)
     const available = PickEmLogic.eligibility(state, epId, playerId).available;
     if(!available.includes(castawayId)) return;
     ep.picks = ep.picks || [];
@@ -8364,10 +8364,11 @@ class AnswerLogic {
   // doesn't play. Nothing settles a question before it closes (each episode's closes at its start; one asked once at the
   // game's first, or, for who wins or makes the final few, the season's last: specProblems), so the lock never needs the
   // results, and says nothing of them to someone who hasn't seen them. A finale nobody's listed yet: at the game's end.
-  // A game with a late lock (A7: extras.lateLock) keeps a question open for someone who hasn't seen the episode that closes it
-  // (`mark`, their spoiler mark, before it) until its air time plus the lock's hours: they answer before they watch.
-  // One person at their own pace (docs/PLAN-own-pace-games.md: `player`, the one answering, with the Commissioner's switch on) keeps
-  // the episode that aired open the same way, until they've watched it or the next one airs (GhostLogic.lateWindow).
+  // The game's pace decides who it stays open for after that (docs/PLAN-own-pace-games.md, "Pace is the game's setting"): in a game
+  // that isn't strict, the one answering (`player`, with `mark`, their spoiler mark) keeps the episode that aired open until they've
+  // watched it, or in a live game the next one airs (GhostLogic.lateWindow). A game of questions' late lock in hours (A7:
+  // extras.lateLock) did this for one kind of game before the pace was the game's; it's retired (BACKLOG 64, 2026-11-13): a spec
+  // that still carries one is valid and nothing reads it.
   //   o: { now, finale (the season's last episode, from its schedule), airAt, mark (the one answering's; null: sees all),
   //        lastStart (a question about each game: its episode's last game's start), player (the one answering's seat) }
   static closed(state, q, episode, o){
@@ -8382,29 +8383,20 @@ class AnswerLogic {
     }
     const ep = state.episodes.find(e => e.number === at) || { number: at };
     const airsAt = ep.airsAt || (RevealLogic.isCatchingUp(state) ? null : opt.airAt || null);
-    const late = gameOf(state).extras.lateLock;
-    if(late && Number.isInteger(opt.mark) && opt.mark < at && airsAt && !ep.lineupsLocked){
-      const now = opt.now !== undefined ? Number(opt.now) : Date.now();
-      if(now < Date.parse(airsAt) + late.hours * 3600 * 1000) return false;
-    }
     // L3 part 2f part 2: a question about each game closes as the episode's last game starts (`o.lastStart`, the server's; each
     // pick locks at its own game's start before then: answers.ts), whoever runs the game's overrides as they are.
     if(q.each === 'game' && opt.lastStart) return EpisodeLogic.hasResults(ep) || closedForPlay({ ...ep, airsAt: opt.lastStart, locksAt: undefined }, opt.now);
     return EpisodeLogic.hasResults(ep) || closedForPlay({ ...ep, airsAt }, opt.now);
   }
-  // The episode someone answers for now with a late lock (A7): the one after their mark while it's still open for them, else
-  // this week's (episodeNow).
-  //   o: { now, airAtOf (an episode's air time from the schedule, for one the league hasn't stamped) }
+  // The episode someone answers for now: the one that aired while they haven't watched it, while the game's pace keeps it open for
+  // them (GhostLogic.lateWindow), else this week's (episodeNow).
+  //   o: { now, player (the one answering's seat) }
   static lateEpisode(state, mark, o){
     const now = AnswerLogic.episodeNow(state);
     // Playing at your own pace (docs/PLAN-own-pace-games.md: `o.player`): the episode that aired while you haven't watched it.
     const own = o && o.player && Number.isInteger(mark) ? GhostLogic.lateWindow(state, o.player, mark, o.now) : null;
     if(own && own.episode === mark + 1 && now !== null && own.episode <= now) return own.episode;
-    if(!gameOf(state).extras.lateLock || !Number.isInteger(mark) || now === null || mark + 1 >= now) return now;
-    const next = mark + 1;
-    const opt = { now: o && o.now, airAt: o && o.airAtOf ? o.airAtOf(next) : null, mark };
-    const open = AnswerLogic.questions(state).some(q => q.asked !== 'once' && AnswerLogic.opensAt(state, q, next) && !AnswerLogic.closed(state, q, next, opt));
-    return open ? next : now;
+    return now;
   }
   // The episode a question asked each episode is answered for now: this week's (currentEpisodeNumber: the one picks and
   // lineups are for), or null (waiting for its phase, past its end).
@@ -9291,10 +9283,53 @@ class GhostLogic {
     // blind draft reads as revealed, so no draft room or Your move ever asks for one.
     if(BlindDraftLogic.on(state) && !BlindDraftLogic.isRevealed(state)) state.blindDraft = { lockedPlayerIds: [], revealedAt: new Date().toISOString() };
   }
+  // ---- At your own pace from an episode still to air (the plan's "Pace is the game's setting", step 2: the user, 2026-11-13) ----
+  // A game set at its own pace before its first episode airs is made and drafted as a live one is: everyone starts on the same
+  // episode, so the draft stays together (the user: a draft that isn't private needs everyone there; a private one is each
+  // person's in their own time, revealed together). Nothing is put on its seats here: settlePace makes each a late joiner when its
+  // first results are in. settings.startedTogether says which kind it is (set true, never stored false), for whatever would
+  // otherwise read "shared teams at your own pace" as "each seat picks its own" (ownTeams).
+  static paceTogether(state){
+    state.settings.ownPace = true;
+    state.settings.startedTogether = true;
+    delete state.settings.lockAtAir;
+  }
+  // Shared teams where each seat picks its own, whenever it starts (a game made on an episode that had aired: paceAll): no draft
+  // room, no draft together.
+  static ownTeams(state){
+    return GhostLogic.ownPace(state) && GhostLogic.sharedJoin(state) && GhostLogic.teamSize(state) > 0 && !(state.settings && state.settings.startedTogether);
+  }
+  // A game at your own pace keeps waiting all season (the user, 2026-11-13: "just because they catch up to live at one point in the
+  // season doesn't mean they won't fall back behind"). markCaughtUp ends a seat's catching up when its mark reaches the latest
+  // results; this starts it again when results arrive that it hasn't seen (its mark is in the state: lateJoin.seenThrough, moved by
+  // each reveal), so its copy ends at its own episode again and its moves for it stay open until it reveals. Run after every write
+  // to the league (db.ts withLeagueLock), as the other settles are. It is also what makes a seat a late joiner in a game made at
+  // its own pace before it aired (paceTogether), once its first results are in. Never past the game's own last episode, nor a seat
+  // still choosing where to start. Whether anything changed.
+  static settlePace(state){
+    if(!GhostLogic.ownPace(state)) return false;
+    const start = startEpisode(state);
+    if(start === null) return false;
+    const end = lastEpisode(state);
+    const latest = Math.min(SpoilerLogic.latestWithResults(state), end === null ? Infinity : end);
+    if(latest < start) return false;
+    let changed = false;
+    (state.players || []).forEach(p => {
+      if(p.disabled || isGhost(p) || p.active === false) return;
+      const lj = p.lateJoin;
+      if(!lj){ p.lateJoin = { startEpisode: start, catchingUp: true, seenThrough: start - 1 }; changed = true; return; }
+      if(!Number.isInteger(lj.startEpisode) || lj.catchingUp) return;
+      const seen = Number.isInteger(lj.seenThrough) ? lj.seenThrough : lj.startEpisode - 1;
+      if(seen < latest){ lj.catchingUp = true; changed = true; }
+    });
+    return changed;
+  }
   // A seat at your own pace in a game with teams that has none yet (the starter and its computer players: paceAll set their
-  // start; a joiner picks theirs as they join, begin).
+  // start; a joiner picks theirs as they join, begin). Never while a private draft is still to be revealed (a game made before it
+  // aired: its teams come from that).
   static needsTeam(state, playerId){
     const p = Core.getPlayer(state, playerId);
+    if(BlindDraftLogic.on(state) && !BlindDraftLogic.isRevealed(state)) return false;
     return !!p && GhostLogic.ownPace(state) && GhostLogic.sharedJoin(state) && !!p.lateJoin && GhostLogic.teamSize(state) > 0 && !Core.ownedCastawayIds(state, playerId).length;
   }
   // Exclusive teams at your own pace draft together at the game's start (sync point 1: docs/PLAN-own-pace-games.md): nobody plays
@@ -9328,39 +9363,54 @@ class GhostLogic {
     GhostLogic.takeTeam(state, p, team);
     return null;
   }
-  // ---- One person at their own pace on a live game (docs/PLAN-own-pace-games.md, the user, 2026-11-09) ----
-  // Backstage › Members › a person: "Plays at their own pace" (player.ownPace), set by the game's Commissioner, for someone who
-  // doesn't always watch live. After an episode airs, their moves for it stay open until they've watched it (their spoiler mark
+  // ---- The game's pace (docs/PLAN-own-pace-games.md, "Pace is the game's setting": the user, 2026-11-13) ----
+  // One setting per game, for everyone in it:
+  //   'own'     at your own pace (settings.ownPace): the game waits for people.
+  //   'live'    the calendar runs it, and a move stays open late (below). The default: nothing is stored for it, so every live game
+  //             made before the setting plays this way.
+  //   'strict'  live, and everything locks at airtime (settings.lockAtAir; set true, never stored false).
+  // It replaced a switch on each seat (player.ownPace, 2026-11-09: "Plays at their own pace", set per game by its Commissioner): how
+  // late someone watches is already theirs on the show (their mark), so the game only says what it does about it. A seat still
+  // carrying the old flag is covered by 'live'; setPace clears them.
+  static pace(state){ return GhostLogic.ownPace(state) ? 'own' : state && state.settings && state.settings.lockAtAir ? 'strict' : 'live'; }
+  // Whoever runs the game chooses between live and strict (a Commissioner's write: backstage-games.ts paceWrite). A reason, or null.
+  // Own pace is chosen when the game starts (the user, 2026-11-13: a game that starts live stays live).
+  static setPace(state, mode){
+    if(mode !== 'live' && mode !== 'strict') return mode === 'own' ? 'A game is set at your own pace when it starts' : 'Choose live or strict';
+    if(GhostLogic.ownPace(state)) return 'Everyone plays this game at their own pace: it waits for each of you already';
+    if(mode === 'strict') state.settings.lockAtAir = true;
+    else delete state.settings.lockAtAir;
+    (state.players || []).forEach(p => { delete p.ownPace; });
+    return null;
+  }
+  // ---- A move that stays open late (the user, 2026-11-09, as one seat's; everyone's in a game that isn't strict since 2026-11-13) ----
+  // For whoever doesn't always watch live (it was Backstage › Members › a person: "Plays at their own pace", player.ownPace).
+  // After an episode airs, a seat's moves for it stay open until they've watched it (their spoiler mark
   // passes it) or the next episode airs, whichever is first; then it locks and scores as if made on time. Honour-based. League-wide
-  // windows keep their times (a draft, waivers, trades). A live seat only: a late joiner still catching up and a game at your own
-  // pace already play this way. Their move runs on a copy where the episode is still open (lateCopy, through applyAs), and the
+  // windows keep their times (a draft, waivers, trades). A seat playing live only: a late joiner still catching up plays this way
+  // already (and so does a seat catching up in a game at your own pace; one that has caught up there has this window too,
+  // between an episode airing and its results arriving, when settlePace has it catching up again). Their move runs on a copy where the episode is still open (lateCopy, through applyAs), and the
   // episode remembers it was set late (ep.lateSet), the couch's quiet marker.
   static playsOwnPace(state, playerId){
     const p = Core.getPlayer(state, playerId);
-    return !!p && p.ownPace === true && !p.disabled && !p.automated && !isGhost(p) && !GhostLogic.isCatchingUp(state, playerId) && !GhostLogic.ownPace(state);
-  }
-  // The switch. A reason, or null.
-  static setPlaysOwnPace(state, playerId, on){
-    const p = Core.getPlayer(state, playerId);
-    if(!p || p.disabled) return 'That seat isn’t in the game';
-    if(p.automated) return 'Computer players keep up by themselves';
-    if(GhostLogic.ownPace(state)) return 'Everyone plays this game at their own pace already';
-    if(on) p.ownPace = true;
-    else delete p.ownPace;
-    return null;
+    return !!p && GhostLogic.pace(state) !== 'strict' && !p.disabled && !p.automated && !isGhost(p) && !GhostLogic.isCatchingUp(state, playerId);
   }
   // The episode their moves are open late for at `now` (ms), given their mark (the episode they've watched through; Infinity for
   // someone who sees results as they come in): the latest of the game's episodes that has aired, while they haven't watched it and
-  // the next one hasn't aired. { episode, epId, until: the next episode's air time or null } or null.
+  // the next one hasn't aired. { episode, epId, until: the next episode's air time or null } or null. At your own pace nothing
+  // closes it but their watching it (the game waits): no `until`, and an episode past the game's span airing doesn't end it.
   static lateWindow(state, playerId, mark, now){
     if(!GhostLogic.playsOwnPace(state, playerId) || typeof mark !== 'number' || !Number.isFinite(mark)) return null;
     const t = now || Date.now();
     const aired = (state.episodes || []).filter(e => inPlay(state, e.number) && hasAired(e, t)).sort((a,b) => b.number - a.number)[0];
     if(!aired || mark >= aired.number) return null;
+    // Whoever runs the game locked this episode by hand (Backstage's lock): the one exception to the game's pace, for everyone.
+    if(aired.lineupsLocked) return null;
     if((GhostLogic.startFor(state, playerId) || 1) > aired.number) return null;
     const next = (state.episodes || []).find(e => e.number === aired.number + 1);
-    if(next && hasAired(next, t)) return null;
-    return { episode: aired.number, epId: aired.id, until: next && next.airsAt ? next.airsAt : null };
+    const own = GhostLogic.ownPace(state);
+    if(!own && next && hasAired(next, t)) return null;
+    return { episode: aired.number, epId: aired.id, until: !own && next && next.airsAt ? next.airsAt : null };
   }
   // The league as it stood going into episode `n`, with `n` still open: what a late move is checked against (its results hidden,
   // as they would be at airtime; who's on whose team as it is, since waivers and trades keep their times).

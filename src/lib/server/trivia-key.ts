@@ -4,6 +4,7 @@ import type { TriviaKeyItem } from "@/lib/game/game-spec/index.js";
 import type { LeagueState } from "@/lib/game/types";
 import { randomFrom, shuffled } from "@/lib/game/seeded";
 import { pool } from "./db";
+import { EVERYTHING, seenThrough } from "./guard";
 import { LEAGUE_SEASON_JOIN } from "./league-season";
 import { seasonSchedules } from "./schedule";
 
@@ -118,16 +119,21 @@ export async function playedInSheet(userId: string, seasonId: string | null, mad
 }
 
 /**
- * For the trivia sheet (trivia.ts): which researched batches to hold back from an account, as (seasonId, madeAfter) => held. A game's
- * questions and late lock are its settings' (settings.questions, lateLockHours), or its carried spec's (settings.game). A batch is
+ * For the trivia sheet (trivia.ts): which researched batches to hold back from an account, as (seasonId, madeAfter) => held. A batch is
  * the key of a game's round before episode madeAfter + 1, so while the account plays a game on its season that asks trivia, it's held
- * until that round has locked for them (the episode's air time, plus the game's late lock: someone who hasn't seen it can answer that
- * long). Nothing held for anyone who plays no such game.
+ * until that round has locked FOR THEM, by the game's pace (docs/PLAN-own-pace-games.md, "Pace is the game's setting"; BACKLOG 64): the
+ * episode's air time; then, for someone who hasn't watched it, until they do in a game at its own pace, and until they do or the next
+ * one airs in a live game (StateLogic.GhostLogic.lateWindow's rule, from the schedule). Where they've watched to is their mark on
+ * the season (guard.ts seenThrough: everything for someone who sees results as they come in). A strict game holds it to airtime
+ * only. (It was airtime plus the game's late lock in hours, A7, retired into the pace.) Nothing held for anyone who plays no such
+ * game.
  */
 export async function heldFromSheet(userId: string, seasonIds: string[], now: Date): Promise<(seasonId: string, madeAfter: number) => boolean> {
   if (!seasonIds.length) return () => false;
   const { rows } = await pool.query(
-    `SELECT ss.id AS season_id, max(COALESCE((l.state->'settings'->>'lateLockHours')::int, (l.state->'settings'->'game'->'extras'->'lateLock'->>'hours')::int, 0)) AS late
+    `SELECT ss.id AS season_id,
+            bool_or(COALESCE((l.state->'settings'->>'ownPace')::boolean, false)) AS own,
+            bool_or(NOT COALESCE((l.state->'settings'->>'ownPace')::boolean, false) AND NOT COALESCE((l.state->'settings'->>'lockAtAir')::boolean, false)) AS live
        FROM league_memberships m JOIN leagues l ON l.id = m.league_id ${LEAGUE_SEASON_JOIN}
       WHERE m.user_id = $1 AND l.deleted_at IS NULL AND ss.id = ANY($2::uuid[])
         AND (l.state->'settings'->'questions' @> '[{"answer":"trivia"}]'::jsonb OR l.state->'settings'->'game'->'ask' @> '[{"answer":"trivia"}]'::jsonb)
@@ -135,15 +141,24 @@ export async function heldFromSheet(userId: string, seasonIds: string[], now: Da
     [userId, seasonIds]
   );
   if (!rows.length) return () => false;
-  const late = new Map(rows.map((r) => [r.season_id as string, Number(r.late) || 0]));
-  const airs = new Map(await Promise.all([...late.keys()].map(async (id) => [id, await airTimes(id)] as const)));
-  // Held while the round it's the key of hasn't locked: its episode not aired (or not dated yet). A batch with no episode after it on
-  // the schedule (written after the finale) is no game's round: never held.
+  const games = new Map(rows.map((r) => [r.season_id as string, { own: !!r.own, live: !!r.live }]));
+  const [airs, marks] = await Promise.all([
+    Promise.all([...games.keys()].map(async (id) => [id, await airTimes(id)] as const)).then((x) => new Map(x)),
+    Promise.all([...games.keys()].map(async (id) => [id, await seenThrough(userId, id)] as const)).then((x) => new Map(x)),
+  ]);
+  // Held while the round it's the key of hasn't locked for them: its episode not aired (or not dated yet), or aired and still open to
+  // someone who hasn't watched it. A batch with no episode after it on the schedule (written after the finale) is no game's round:
+  // never held.
   return (seasonId, madeAfter) => {
-    if (!late.has(seasonId)) return false;
+    const g = games.get(seasonId);
     const next = airs.get(seasonId);
-    if (!next?.has(madeAfter + 1)) return false;
-    const at = next.get(madeAfter + 1);
-    return at == null || now.getTime() < at + (late.get(seasonId) ?? 0) * 3600 * 1000;
+    const ep = madeAfter + 1;
+    if (!g || !next?.has(ep)) return false;
+    const at = next.get(ep);
+    if (at == null || now.getTime() < at) return true;
+    if (!((marks.get(seasonId) ?? EVERYTHING) < ep)) return false;
+    if (g.own) return true;
+    const after = next.get(ep + 1);
+    return g.live && !(after != null && now.getTime() >= after);
   };
 }

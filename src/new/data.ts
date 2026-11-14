@@ -531,7 +531,9 @@ const episode = (leagueId: string, epId: string) => `/api/leagues/${leagueId}/ep
 export const moves = {
   lineup: (leagueId: string, epId: string, playerId: string, castawayIds: string[]) =>
     send(`${episode(leagueId, epId)}/lineups/${encodeURIComponent(playerId)}`, "PUT", { castawayIds }),
-  pick: (leagueId: string, epId: string, playerId: string, castawayId: string) => send(`${episode(leagueId, epId)}/picks`, "PUT", { playerId, castawayId }),
+  // Several at once (a game picking get.each per episode) go as castawayIds, the whole pick in order.
+  pick: (leagueId: string, epId: string, playerId: string, castawayId: string | string[]) =>
+    send(`${episode(leagueId, epId)}/picks`, "PUT", Array.isArray(castawayId) ? { playerId, castawayIds: castawayId } : { playerId, castawayId }),
   guess: (leagueId: string, epId: string, betId: string, playerId: string, guess: string) =>
     send(`${episode(leagueId, epId)}/bets/${encodeURIComponent(betId)}/predictions`, "POST", { playerId, guess }),
   unguess: (leagueId: string, epId: string, betId: string, predId: string) =>
@@ -790,9 +792,9 @@ export const gameAdmin = {
     sendJson<{ batch: string | null; games: number }>(seasonUrl(seasonId, "/backstage/settings", { couch: couchId }), "PATCH", { lockDown: on }),
   role: (seasonId: string, couchId: string, userId: string, role: LeagueRole, leagueIds?: string[]) =>
     sendJson<{ batch: string; games: number }>(seasonUrl(seasonId, `/backstage/members/${encodeURIComponent(userId)}`, { couch: couchId }), "PUT", { role, leagueIds }),
-  /** Plays at their own pace (docs/PLAN-own-pace-games.md): a Commissioner's switch for someone in one game. */
-  pace: (seasonId: string, couchId: string, userId: string, leagueId: string, on: boolean) =>
-    sendJson<{ on: boolean }>(seasonUrl(seasonId, `/backstage/members/${encodeURIComponent(userId)}/pace`, { couch: couchId }), "PUT", { leagueId, on }),
+  /** The game's pace, live or strict (docs/PLAN-own-pace-games.md, "Pace is the game's setting"): backstage-games.ts paceWrite. */
+  pace: (seasonId: string, couchId: string, leagueId: string, mode: "live" | "strict") =>
+    sendJson<{ mode: "live" | "strict" }>(seasonUrl(seasonId, "/backstage/settings", { couch: couchId }), "PATCH", { leagueId, pace: mode }),
   remove: (seasonId: string, couchId: string, userId: string, preview = false) =>
     sendJson<OutPreview & { batch: string | null }>(seasonUrl(seasonId, `/backstage/members/${encodeURIComponent(userId)}/remove`, { couch: couchId }), "POST", { preview }),
   leave: (seasonId: string, couchId: string, preview = false) => sendJson<OutPreview & { batch: string | null }>(seasonUrl(seasonId, "/leave", { couch: couchId }), "POST", { preview }),
@@ -1414,7 +1416,7 @@ export function useWizardOptions(seasonId: string | null, couchId: string | null
 
 export const wizardApi = {
   /** Start from a spec: the wizard's game, checked again on the server; the couch hears after the hold. */
-  start: (seasonId: string, couchId: string, body: { spec: unknown; name?: string; tell: boolean; bots?: number; level?: BotLevel; late?: boolean; made?: Record<string, unknown> }) =>
+  start: (seasonId: string, couchId: string, body: { spec: unknown; name?: string; tell: boolean; bots?: number; level?: BotLevel; late?: boolean; made?: Record<string, unknown>; pace?: "own" | "live" | "strict" }) =>
     post<SpecStarted>(seasonUrl(seasonId, "/start", { couch: couchId }), body),
   /** Take back a game you just started (inside the hold, nobody hears). */
   undo: (seasonId: string, couchId: string, leagueId: string) => post<{ undone: true }>(seasonUrl(seasonId, "/start", { couch: couchId }), { undo: leagueId }),

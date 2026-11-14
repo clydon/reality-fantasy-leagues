@@ -52,10 +52,13 @@ export function twistsOf(view: LeagueState, me: string, next: number, teams: Map
     pool = {
       lives: parts.lives ? (h.lives ?? parts.lives) : null,
       livesOf: parts.lives,
-      mulligans: parts.mulligans ? Math.max(0, parts.mulligans - (h.mulligans ?? 0)) : null,
+      // The history carries the mulligans LEFT (Seq.poolTally counts them down), not those used.
+      mulligans: parts.mulligans ? Math.max(0, h.mulligans ?? parts.mulligans) : null,
       mulligansOf: parts.mulligans,
       out,
-      buyBack: !!parts.buyback && out !== null && S.PickEmLogic.canBuyBack(view, parts.buyback, next),
+      // A buyback is automatic (Seq.poolEmptied, the night the lives run out): someone out had none left or was past its deadline
+      // that night, so this holds only should a buyback still be left and in time for the night they went out.
+      buyBack: !!parts.buyback && out !== null && (h.buybacks ?? 0) > 0 && S.PickEmLogic.canBuyBack(view, parts.buyback, out),
     };
   }
 

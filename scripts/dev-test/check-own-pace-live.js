@@ -1,23 +1,28 @@
-// Dev-only check of one person at their own pace on a live game (docs/PLAN-own-pace-games.md, "One person at their own pace on a
-// live game", the user's decisions 2026-11-09): Backstage › Members' "Plays at their own pace" switch, a Commissioner's, per game;
-// with it on, a live seat's moves for an aired episode stay open until they've watched it or the next one airs, then score as if
-// on time; the couch's quiet marker ("Set after it aired, before they watched"); head to head's "Waiting on jordan's lineup"; their
-// due move the yellow with the reason. On new-fixture.js's couch (ZT Survivor 51; alex runs the games, riley is a Game admin in
-// Lineup League, results through 5), with Lineup League made head to head (its round robin pairs jordan with sam in Episode 6) and
-// the season moved back four days, so Episode 6 aired a day ago (its results in) and Episode 7 is six days off. jordan, the one
-// who plays at their own pace, has watched through 5; sam has watched 6.
+// Dev-only check of a live game's pace (docs/PLAN-own-pace-games.md, "Pace is the game's setting", the user's decisions 2026-11-13;
+// it was one person's switch on Backstage › Members, 2026-11-09): Backstage › Game settings' "When moves lock", a Commissioner's,
+// per game, for everyone in it. Live (the default): a seat's moves for an aired episode stay open until they've watched it or the
+// next one airs, then score as if on time; the couch's quiet marker ("Set after it aired, before they watched"); head to head's
+// "Waiting on jordan's lineup"; their due move the yellow with the reason. Strict: everything locks at airtime. On new-fixture.js's
+// couch (ZT Survivor 51; alex runs the games, riley is a Game admin in Lineup League, results through 5), with Lineup League made
+// head to head (its round robin pairs jordan with sam in Episode 6) and the season moved back four days, so Episode 6 aired a day
+// ago (its results in) and Episode 7 is six days off. jordan has watched through 5; everyone else has watched 6.
 // In order:
-//   - API: alex switches it on for jordan in Lineup League (riley, a Game admin there, can't; nor anyone on a computer player);
-//     jordan's game view has Episode 6 open (late, no reveal first), the home's moves list the lineup as late; riley's Episode 6
-//     lineup is refused, jordan's is taken and marked late in the league's state; sam's view waits on jordan until it's set, then
-//     marks jordan's Episode 6 square; once jordan's watched 6 (or the switch is off) the lineup is refused.
-//   - A Prediction Sheet jordan starts before Episode 6 (alex and riley join; "Who goes home?" each episode): with jordan's own switch
-//     on there (jordan runs it), jordan's Episode 6 answer is taken after airtime and riley's is refused.
+//   - API: alex locks Episode 6 by hand before it airs (the one exception to the pace: no late window for anyone while it stands).
+//     alex makes Lineup League strict (riley, a Game admin there, can't): jordan's Episode 6 lineup is refused and their view
+//     says reveal first. alex makes it live again (the settings read and Recent changes say so): jordan's game view has Episode 6
+//     open (late, no reveal first), the home's moves list the lineup as late; riley's Episode 6 lineup is refused (riley has
+//     watched it), jordan's is taken and marked late in the league's state; sam's view waits on jordan until it's set, then marks
+//     jordan's Episode 6 square; once jordan's watched 6 (or the game is strict) the lineup is refused.
+//   - A Prediction Sheet jordan starts before Episode 6 (alex and riley join; "Who goes home?" each episode) is live from the
+//     start, nothing set: jordan's Episode 6 answer is taken after airtime and riley's (watched) is refused.
 //   - Head to head's records leave the waiting matchup out until it's set; Call it's Episode 6 calls are open to jordan (riley's are
 //     closed); the reminders job's after-airtime push (db/reminders.js remindLate, a dry run) goes to jordan once, until it's set.
-//   - Screens at `--width` (390 by default): alex's Members sheet for jordan with the switch (flipped there, the toast), jordan's
-//     Tonight with the late card, sam's game page waiting on jordan, then after jordan sets it the grid's marker and its foot, and
-//     jordan's week in the person sheet.
+//   - Screens at `--width` (390 by default): alex's Game settings with "When moves lock" (strict, then the tile tapped: live, the
+//     toast), the Members sheet for jordan without the old switch, jordan's Tonight with the late card and, opened from it, Your
+//     moves with the honour note ("Episode 6 has aired · still open because you haven't watched it · Seen it already? Leave this as
+//     it is"), sam's game page waiting on jordan, then after jordan sets it the grid's marker and its foot, and jordan's week in
+//     the person sheet. Last, the honest way out: jordan taps "I've watched it" there, the reveal opens, their mark moves to 6, the
+//     lineup they had stands and a later change is refused.
 //
 //   npm run dev   (or node scripts/lane.js dev; in another terminal)
 //   node scripts/dev-test/check-own-pace-live.js [<outDir>] [--width=390] [--keep]
@@ -99,6 +104,9 @@ function check(ok, label, detail) {
       check(!!QG && !qp.length, "jordan's Prediction Sheet from Episode 6 (alex and riley in)", { start: r0.body, problems: qp });
     }
 
+    // Before it airs, alex locks Episode 6's lineups by hand: the one exception to the game's pace (BACKLOG 64).
+    r0 = await as.alex.call("PATCH", `/api/seasons/${sid}/backstage/settings?couch=${couch}`, { leagueId: L, lock: true });
+    check(r0.status === 200 && r0.body.closed === true, "alex locks Episode 6's lineups by hand, before it airs", r0.body);
     // Episode 6 aired a day ago, its results in; 7 six days off.
     await pool.query("UPDATE show_seasons SET premiere_date = premiere_date - 4 WHERE id = $1", [sid]);
     st = await league();
@@ -114,7 +122,7 @@ function check(ok, label, detail) {
     delete st.episodes.find((e) => e.number === 6).resultsStage;
     await write(st);
     await seen("jordan", 5);
-    await seen("sam", 6);
+    for (const who of ["sam", "alex", "riley"]) await seen(who, 6);
     st = await league();
     const ep6 = st.episodes.find((e) => e.number === 6);
     check(!!ep6 && S.EpisodeLogic.hasResults(ep6), "Episode 6 has its results", ep6 && { airsAt: ep6.airsAt });
@@ -122,24 +130,40 @@ function check(ok, label, detail) {
     const roster = (who) => st.castaways.filter((c) => (c.ownerIds || []).includes(pids[who]) && (c.status === "active" || c.exitEpisodeId === ep6.id)).map((c) => c.id);
     const jordanLineup = roster("jordan").slice(0, slots);
     const putLineup = (who, ids) => as[who].call("PUT", `/api/leagues/${L}/episodes/${ep6.id}/lineups/${pids[who]}`, { castawayIds: ids });
-    const pace = (who, target, on) => as[who].call("PUT", `/api/seasons/${sid}/backstage/members/${fx.users[target]}/pace?couch=${couch}`, { leagueId: L, on });
+    const pace = (who, mode, leagueId = L) => as[who].call("PATCH", `/api/seasons/${sid}/backstage/settings?couch=${couch}`, { leagueId, pace: mode });
+    const settingsOf = async (who, leagueId = L) => ((await as[who].call("GET", `/api/seasons/${sid}/backstage/settings?couch=${couch}`)).body.games ?? []).find((x) => x.leagueId === leagueId) ?? null;
 
-    // ---------- before the switch ----------
-    let r = await putLineup("jordan", jordanLineup);
-    check(r.status === 400, "without the switch, jordan's Episode 6 lineup is refused (it aired)", r.body);
+    // ---------- strict: everything locks at airtime ----------
+    let r = await pace("riley", "strict");
+    check(r.status === 403, "riley, a Game admin there, can't change when moves lock", r.body);
+    check((await settingsOf("alex"))?.pace?.mode === "live", "Lineup League is live with nothing set: every live game made before the setting is", await settingsOf("alex").then((x) => x?.pace));
+    r = await pace("alex", "strict");
+    check(r.status === 200 && r.body.mode === "strict", "alex, the Commissioner, makes Lineup League strict", r.body);
+    r = await putLineup("jordan", jordanLineup);
+    check(r.status === 400, "strict: jordan's Episode 6 lineup is refused (it aired)", r.body);
     let g = await gameIn("jordan");
     check(g?.late === null && g?.revealFirst === 6, "  and jordan's view says reveal Episode 6 first", { late: g?.late, revealFirst: g?.revealFirst });
 
-    // ---------- the switch ----------
-    r = await pace("riley", "jordan", true);
-    check(r.status === 403, "riley, a Game admin there, can't switch it", r.body);
-    r = await pace("alex", "jordan", true);
-    check(r.status === 200 && r.body.on === true, "alex, the Commissioner, switches it on for jordan in Lineup League", r.body);
+    // ---------- live again: open until you've watched ----------
+    r = await pace("alex", "live");
+    check(r.status === 200 && r.body.mode === "live", "alex makes it live again", r.body);
+    check((await settingsOf("alex"))?.pace?.mode === "live", "  Game settings says so", await settingsOf("alex").then((x) => x?.pace));
     r = await as.alex.call("GET", `/api/seasons/${sid}/backstage/members?couch=${couch}`);
-    const jm = (r.body.members ?? []).find((m) => m.userId === fx.users.jordan);
-    check(!!jm && jm.pace.includes(L) && jm.seesAll === false && (r.body.games ?? []).find((x) => x.leagueId === L)?.pace === true, "  Members says so (pace), and that jordan doesn't see results as they come", jm);
+    check(r.status === 200 && !JSON.stringify(r.body).includes('"pace"'), "  Members no longer carries a switch per person", r.status);
     r = await as.alex.call("GET", `/api/seasons/${sid}/changes?couch=${couch}`);
-    check(JSON.stringify(r.body).includes("jordan plays Weekly Lineup at their own pace"), "  a line in Recent changes", r.status);
+    check(JSON.stringify(r.body).includes("Moves stay open until you've watched") && JSON.stringify(r.body).includes("Moves lock at airtime"), "  both changes are lines in Recent changes", r.status);
+    r = await pace("alex", "own");
+    check(r.status === 400, "  own pace isn't set here (chosen when a game starts)", r.body);
+
+    // ---------- locked by hand: the one exception ----------
+    g = await gameIn("jordan");
+    check(g?.late === null, "locked by hand before it aired: no late window for jordan, live game or not", g?.late);
+    r = await putLineup("jordan", jordanLineup);
+    check(r.status === 400, "  jordan's Episode 6 lineup is refused", r.body);
+    // (The lock's row can't be changed once an episode's results are in, so the check takes the hand lock off in the state.)
+    st = await league();
+    delete st.episodes.find((e) => e.number === 6).lineupsLocked;
+    await write(st);
 
     // ---------- jordan, behind ----------
     g = await gameIn("jordan");
@@ -151,7 +175,7 @@ function check(ok, label, detail) {
     check((g?.waiting ?? []).some((w) => w.playerId === pids.jordan && w.episode === 6), "sam's view waits on jordan for Episode 6", g?.waiting);
     check(g?.matchups?.last?.episode === 6 && g?.matchups?.last?.opponent === pids.jordan, "  sam's Episode 6 matchup is against jordan", g?.matchups?.last);
     r = await putLineup("riley", roster("riley").slice(0, slots));
-    check(r.status === 400, "riley's Episode 6 lineup is refused (no switch)", r.body);
+    check(r.status === 400, "riley's Episode 6 lineup is refused (riley has watched it)", r.body);
     const played = (gv, who) => {
       const rec = (gv?.table ?? []).find((x) => x.playerId === pids[who])?.record;
       return rec ? rec.wins + rec.losses + rec.ties : null;
@@ -159,7 +183,7 @@ function check(ok, label, detail) {
     check(played(g, "sam") === 5 && played(g, "jordan") === 5 && played(g, "alex") === 6 && g?.matchups?.record && g.matchups.record.wins + g.matchups.record.losses + g.matchups.record.ties === 5,
       "  sam's and jordan's records leave the waiting matchup out (5 played); alex's has 6", { sam: played(g, "sam"), jordan: played(g, "jordan"), alex: played(g, "alex"), mine: g?.matchups?.record });
 
-    // Call it: Episode 6's calls, open to jordan, who hasn't watched it; riley (no switch) is past them.
+    // Call it: Episode 6's calls, open to jordan, who hasn't watched it; riley (who has) is past them.
     r = await as.jordan.call("GET", `/api/seasons/${sid}/calls/6?couch=${couch}`);
     const q6 = (r.body?.questions ?? [])[0];
     check(r.status === 200 && r.body.status === "open" && !!q6, "jordan's Episode 6 calls are open", r.body && { status: r.body.status, questions: (r.body.questions ?? []).length });
@@ -171,9 +195,8 @@ function check(ok, label, detail) {
       check(r.status === 409, "  riley's is refused (closed when it started)", r.body);
     }
 
-    // The Prediction Sheet: jordan switches their own seat on (they run it), then answers Episode 6 after airtime; riley can't.
-    r = await as.jordan.call("PUT", `/api/seasons/${sid}/backstage/members/${fx.users.jordan}/pace?couch=${couch}`, { leagueId: QG, on: true });
-    check(r.status === 200, "jordan, its Commissioner, switches their own seat on in the Prediction Sheet", r.body);
+    // The Prediction Sheet: live from its start with nothing set, so jordan answers Episode 6 after airtime; riley (watched) can't.
+    check((await settingsOf("jordan", QG))?.pace?.mode === "live", "jordan's Prediction Sheet is live from the start, nothing set", await settingsOf("jordan", QG).then((x) => x?.pace));
     const still = st.castaways.filter((c) => c.status === "active").map((c) => c.name);
     const sheet = (await as.jordan.call("GET", `/api/seasons/${sid}/answers?league=${QG}`)).body;
     const boot = (sheet?.questions ?? []).find((x) => x.id === "boot");
@@ -200,24 +223,32 @@ function check(ok, label, detail) {
       await page.waitForTimeout(700);
       await page.screenshot({ path: path.join(outDir, `${String(++shotN).padStart(2, "0")}-${name}.png`) });
     };
-    // Switch it off by API, then on again through alex's sheet, as a Commissioner would.
-    await pace("alex", "jordan", false);
+    // Made strict by API, then live again through alex's Game settings, as a Commissioner would.
+    await pace("alex", "strict");
     const a = await open({ user: fixture.username("alex"), pass: fixture.PASSWORD, width, height: 844 });
     a.page.setDefaultTimeout(15000);
     try {
+      await a.page.goto(`${a.BASE}/show/${sid}/backstage/settings`);
+      const block = a.page.locator(`[data-settings-league='${L}'] [data-settings='pace']`);
+      await block.waitFor();
+      check((await block.getAttribute("data-pace")) === "strict" && (await block.locator("[data-pace-tile='strict']").getAttribute("aria-pressed")) === "true", "alex's Game settings: When moves lock, at airtime");
+      await block.scrollIntoViewIfNeeded();
+      await shot(a.page, "settings-pace-strict");
+      await block.locator("[data-pace-tile='live']").click();
+      await a.page.locator(`[data-settings-league='${L}'] [data-settings='pace'][data-pace='live']`).waitFor();
+      // (Waited for by its words: the status region is there before the toast is.)
+      const toast = await a.page.getByText(/Weekly Lineup · moves stay open until you've watched/).first().textContent({ timeout: 8000 }).catch(() => "");
+      check(/Weekly Lineup · moves stay open until you've watched/.test(toast || ""), "  the other tile tapped: live, the toast says so", toast);
+      await shot(a.page, "settings-pace-live");
+      const box = await block.boundingBox();
+      check(!!box && box.x >= 0 && box.x + box.width <= width, "  it fits the width", box);
+      const scrolls = await a.page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+      check(!scrolls, "  nothing scrolls sideways");
       await a.page.goto(`${a.BASE}/show/${sid}/backstage/members`);
       await a.page.locator("[data-member-menu$='jordan']").click();
-      const sw = a.page.locator(`[data-own-pace] [data-setting='pace-${L}']`);
-      await sw.waitFor();
-      check((await sw.getAttribute("data-on")) === "off", "alex's sheet for jordan: the switch, off");
-      check((await a.page.locator(`[data-own-pace] [data-setting='pace-${fx.leagues.outlast}']`).count()) === 1, "  one a game they play here");
-      await sw.click();
-      await a.page.locator(`[data-own-pace] [data-setting='pace-${L}'][data-on='on']`).waitFor();
-      const toast = await a.page.getByRole("status").first().textContent().catch(() => "");
-      check(/jordan plays Weekly Lineup at their own pace/.test(toast || ""), "  flipped on there, the toast says so", toast);
-      await shot(a.page, "members-sheet-switch");
-      const box = await a.page.locator("[data-member-sheet]").boundingBox();
-      check(!!box && box.width <= width, "  the sheet fits the width", box);
+      await a.page.locator("[data-member-sheet]").waitFor();
+      check((await a.page.locator("[data-own-pace]").count()) === 0, "the Members sheet for jordan has no switch of its own any more");
+      await shot(a.page, "members-sheet");
     } finally {
       await a.close();
     }
@@ -234,6 +265,18 @@ function check(ok, label, detail) {
       check(/Episode 6 aired · you haven't watched it · set your lineup first/.test(text), "jordan's Tonight: the lineup card says why it's still due", text);
       await card.scrollIntoViewIfNeeded();
       await shot(j.page, "jordan-tonight-late");
+      // Your moves, opened from it: the honour note, once, above the lineup.
+      await card.locator("button, a").first().click();
+      const honour = j.page.locator("[data-honour='6']");
+      await honour.waitFor();
+      const said = ((await honour.textContent()) || "").replace(/\s+/g, " ");
+      check((await j.page.locator("[data-honour]").count()) === 1, "  said once for the sheet, not once a game");
+      check(/Episode 6 has aired/.test(said) && /still open because you haven.t watched it/.test(said) && /Seen it already\? Leave (this as it is|them as they are)/.test(said), "  Your moves says why it's still open, and what to do if you've seen it", said);
+      check((await honour.locator("[data-honour-watched]").count()) === 1 && (await j.page.getByText("Watching it does").count()) >= 1, "  with the honest way out (I've watched it), and what locks it: watching it");
+      const hb = await honour.boundingBox();
+      check(!!hb && hb.x >= 0 && hb.x + hb.width <= width, "  the note fits the width", hb);
+      await shot(j.page, "jordan-moves-honour");
+      await j.page.keyboard.press("Escape");
       await j.page.goto(`${j.BASE}/show/${sid}/games`);
       const yours = j.page.locator(`[data-your-move='lineup']`).first();
       await yours.waitFor();
@@ -299,14 +342,37 @@ function check(ok, label, detail) {
       await sm2.close();
     }
 
-    // ---------- watched, or switched off: closed ----------
+    // ---------- watched, or a strict game: closed ----------
     await seen("jordan", 6);
     r = await putLineup("jordan", roster("jordan").slice(1, slots + 1));
     check(r.status === 400, "once jordan's watched 6, the lineup is closed", r.body);
     await seen("jordan", 5);
-    await pace("alex", "jordan", false);
+    await pace("alex", "strict");
     r = await putLineup("jordan", roster("jordan").slice(1, slots + 1));
-    check(r.status === 400, "switched off, closed too", r.body);
+    check(r.status === 400, "strict, closed too", r.body);
+    // ---------- the honest way out: "I've watched it" ----------
+    await pace("alex", "live");
+    await seen("jordan", 5);
+    const stood = JSON.stringify((await league()).episodes.find((e) => e.number === 6).lineups?.[pids.jordan] ?? null);
+    const h = await open({ user: fixture.username("jordan"), pass: fixture.PASSWORD, width, height: 844 });
+    h.page.setDefaultTimeout(15000);
+    try {
+      // (Their lineup is set by now, so nothing's due: Your moves opens from the game's own page.)
+      await h.page.goto(`${h.BASE}/show/${sid}/game/${L}`);
+      await h.page.locator("[data-game-strip] button, [data-game-strip] a").first().click();
+      await h.page.locator("[data-honour='6'] [data-honour-watched]").click();
+      await h.page.locator("[role=dialog][aria-label='The reveal']").waitFor({ timeout: 30000 });
+      check((await h.page.locator("[data-honour]").count()) === 0, "jordan taps I've watched it: Your moves closes and the reveal for Episode 6 opens");
+      await shot(h.page, "jordan-watched-reveal");
+      let mark = null;
+      for (let t = 0; t < 20 && !(mark >= 6); t++) { mark = (await pool.query("SELECT seen_through FROM show_follows WHERE user_id = $1 AND season_id = $2", [fx.users.jordan, sid])).rows[0]?.seen_through ?? null; if (!(mark >= 6)) await h.page.waitForTimeout(500); }
+      check(mark >= 6, "  their mark is Episode 6 now", mark);
+      check(JSON.stringify((await league()).episodes.find((e) => e.number === 6).lineups?.[pids.jordan] ?? null) === stood, "  and the lineup they had for it stands, untouched", stood);
+    } finally {
+      await h.close();
+    }
+    r = await putLineup("jordan", roster("jordan").slice(0, slots));
+    check(r.status === 400, "  a change after that is refused: they've watched it", r.body);
     console.log(`\nScreens in ${outDir}`);
   } catch (e) {
     failures++;

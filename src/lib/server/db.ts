@@ -130,6 +130,9 @@ export async function withLeagueLock(
     // taken back), so neither a seat coming in nor the season's schedule changing rewrites what's been played.
     await stampSeasonLength(client, state);
     StateLogic.MatchupLogic.settle(state);
+    // A game at your own pace keeps waiting all season (docs/PLAN-own-pace-games.md, "Pace is the game's setting" step 2): a seat that
+    // results the mutation applied have left behind is catching up again, before the waiver clock and the bots read it.
+    StateLogic.GhostLogic.settlePace(state);
     // Teams of players (step A11 part 5): a seed for the draw on the write that turns them on; once the game has started, who's on
     // which kept, a seat new to it placed, a disabled one off its team, from the first episode still to play.
     StateLogic.TeamLogic.settle(state, Date.now());

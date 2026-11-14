@@ -179,6 +179,8 @@ function GameBlock({
 
       {g.lock && <LockRow seasonId={seasonId} couchId={couchId} g={g} lock={g.lock} word={words.episode} />}
 
+      <Pace seasonId={seasonId} couchId={couchId} g={g} can={can} word={words.episode} />
+
       {L && (
         <div data-settings="lineup" className="mb-5">
           <div className="mb-2 flex items-baseline justify-between">
@@ -337,6 +339,8 @@ function LockRow({ seasonId, couchId, g, lock, word }: { seasonId: string; couch
   const ep = `${word} ${lock.episode}`;
   const at = lock.airsAt ? airTime(Date.parse(lock.airsAt)) : null;
   const final = lock.why === "results";
+  // A live game (When moves lock, below): the start locks it for whoever has watched; the rest have until they do, or the next one airs.
+  const late = g.pace.mode !== "strict";
   const line = final
     ? "Its results are in: locked for good"
     : lock.overridden
@@ -344,8 +348,8 @@ function LockRow({ seasonId, couchId, g, lock, word }: { seasonId: string; couch
         ? "Override: locked before its start"
         : "Override: open past its start, on the honour system"
       : lock.closed
-        ? `Auto: locked at its start${at ? `, ${at}` : ""}`
-        : `Auto: locks at its start${at ? `, ${at}` : ""}`;
+        ? `Auto: locked at its start${at ? `, ${at}` : ""}${late ? ", still open to anyone who hasn't watched it" : ""}`
+        : `Auto: locks at its start${at ? `, ${at}` : ""}${late ? ", later for anyone who hasn't watched it" : ""}`;
   const flip = async () => {
     if (final || busy) return;
     setBusy(true);
@@ -387,6 +391,89 @@ function LockRow({ seasonId, couchId, g, lock, word }: { seasonId: string; couch
         </span>
         <small className="type-caption text-[11px] tracking-[0.06em] text-muted-foreground">{lock.overridden ? "Override" : "Auto"}</small>
       </button>
+    </div>
+  );
+}
+
+/**
+ * When moves lock, for everyone in the game (docs/PLAN-own-pace-games.md, "Pace is the game's setting": the user, 2026-11-13; it was
+ * one person's switch on Backstage › Members). Two tiles, as Who can join: a move stays open after an episode airs until you've
+ * watched it (or the next one airs), the default and the recommended one, or everything locks at airtime. A Commissioner's, saved
+ * at once with Undo on the toast and a line in Recent changes; frozen while the game is locked down. A game at your own pace has
+ * nothing to choose (it waits for each of you), and a stage of a game in stages follows its game: each says so in a line.
+ */
+function Pace({ seasonId, couchId, g, can, word }: { seasonId: string; couchId: string; g: GameSettings; can: boolean; word: string }) {
+  const after = useAfter();
+  const [busy, setBusy] = useState(false);
+  const ep = word.toLowerCase();
+  const said = { live: "moves stay open until you've watched", strict: "moves lock at airtime" } as const;
+  const set = async (mode: "live" | "strict", undoing = false) => {
+    // (An Undo runs from the toast with this render's game: it never reads `g` for where things stand.)
+    if (busy || (!undoing && g.pace.mode === mode)) return;
+    const was = g.pace.mode === "strict" ? "strict" : "live";
+    setBusy(true);
+    try {
+      await gameAdmin.pace(seasonId, couchId, g.leagueId, mode);
+      await after();
+      toast(`${undoing ? "Back to" : "Saved"}: ${g.gameName} · ${said[mode]}`, undoing ? undefined : { undo: () => void set(was, true) });
+    } catch (e) {
+      toast.quiet((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const heading = <h3 className="type-caption mb-2 text-[15px] tracking-[0.04em] text-muted-foreground">When moves lock</h3>;
+  if (g.pace.mode === "own")
+    return (
+      <div data-settings="pace" data-pace="own" className="mb-5">
+        {heading}
+        <p className="text-[15px] leading-snug">
+          <b>When you&rsquo;ve watched it.</b>{" "}
+          <span className="text-muted-foreground">At your own pace: a move stays open until you&rsquo;ve watched that {ep}, however far behind you are. Chosen when the game started.</span>
+        </p>
+      </div>
+    );
+  const tiles = [
+    ["live", "When the next one airs", `Open after an ${ep} airs until you watch it, or the next one airs`],
+    ["strict", "At airtime", `Everything locks when the ${ep} starts`],
+  ] as const;
+  if (g.pace.of)
+    return (
+      <div data-settings="pace" data-pace={g.pace.mode} className="mb-5">
+        {heading}
+        <p className="text-[15px] leading-snug">
+          <b>{tiles.find(([mode]) => mode === g.pace.mode)?.[1]}.</b> <span className="text-muted-foreground">A stage follows its game: change it on {g.pace.of}.</span>
+        </p>
+      </div>
+    );
+  return (
+    <div data-settings="pace" data-pace={g.pace.mode} className="mb-5">
+      {heading}
+      <small className="mb-2 block text-[13px] text-muted-foreground">
+        {g.lockedDown ? "Locked down for the season: this stays as it is." : "The same for everyone in the game. Late is on the honour system: only if you haven't watched it yet."}
+      </small>
+      {tiles.map(([mode, t, d]) => (
+        <button
+          key={mode}
+          type="button"
+          data-pace-tile={mode}
+          aria-pressed={g.pace.mode === mode}
+          disabled={!can || busy}
+          onClick={() => void set(mode)}
+          className="mb-1.5 flex w-full items-center gap-3 rounded-[3px] bg-background p-2.5 text-left"
+        >
+          <i className={`grid size-5 flex-none place-items-center rounded-full border-2 ${g.pace.mode === mode ? "border-foreground" : "border-input"}`} aria-hidden>
+            {g.pace.mode === mode && <i className="size-2.5 rounded-full bg-foreground" />}
+          </i>
+          <span>
+            <b className="block text-[15px]">
+              {t}
+              {mode === "live" && <em className="type-caption ml-2 rounded-[2px] bg-secondary px-1.5 text-[11px] not-italic">Recommended</em>}
+            </b>
+            <small className="block text-[13px] leading-snug text-muted-foreground">{d}</small>
+          </span>
+        </button>
+      ))}
     </div>
   );
 }

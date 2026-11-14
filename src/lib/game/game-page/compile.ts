@@ -208,7 +208,6 @@ export function compileGame(spec: Obj): GamePage {
     if (gt.second) put("move", "second");
     if (gt.keep) put("move", "keepers");
     if (ex.waivers) put("move", "waivers");
-    if (ex.lateLock) put("lock", "late");
     if (g.card && (gt.by === "pick" || gt.by === "draft")) put("main", "weeklyCard");
   }
   // The questions, each with its control, riders, lock and section.

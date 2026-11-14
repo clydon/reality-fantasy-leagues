@@ -8,7 +8,7 @@
 //     status there ✅); a question the show's research doesn't answer is refused (the data rule); a sport's stats wait for L3;
 //     what isn't JSON is a 400. A6's: the tribe winner and who goes home, and who finds an idol, play there; a Traitors
 //     question is refused (no secret roles on this show), and so is each couple's judges' score (Dancing with the Stars').
-//     A7's: a question every two episodes, a late lock (in its details), which episode the merge happens in. A8's: the boot
+//     A7's: a question every two episodes, a late lock (retired: still valid, said nowhere), which episode the merge happens in. A8's: the boot
 //     order, the week's points leaderboard, a wager, the jury vote split. A9's: a pot split, only the only one, a jackpot, a
 //     parlay, a winner call that shrinks, any of your points staked, points per bingo line (each said in its sentence); a parlay
 //     of a question the game doesn't ask is refused. A9 part 2's: a captain, best ball, Outlast in reverse, the finale counting
@@ -115,7 +115,8 @@ function check(ok, what, detail = "") {
     r = await labCheck({ spec: JSON.stringify(rowSpec("when.everyN")), row: "when.everyN" });
     check(r.status === 200 && r.body.startable && r.body.row?.state === "yes" && /every two episodes/.test(r.body.describe?.sentence ?? ""), "A7: a question every two episodes plays on ZT Survivor 51", JSON.stringify({ s: r.body.describe?.sentence, p: r.body.problems }));
     r = await labCheck({ spec: JSON.stringify(rowSpec("when.ownLock")), row: "when.ownLock" });
-    check(r.status === 200 && r.body.startable && r.body.describe?.details?.some((d) => d.id === "lateLock" && /24 hours/.test(d.value)), "  a late lock plays, said in its details", JSON.stringify(r.body.describe?.details));
+    // The late lock is retired into the game's pace (BACKLOG 64): a spec that carries one still plays, and nothing describes it.
+    check(r.status === 200 && r.body.startable && !r.body.describe?.details?.some((d) => d.id === "lateLock"), "  a spec that still carries a late lock plays, with nothing said of it (the game's pace decides)", JSON.stringify(r.body.describe?.details));
     r = await labCheck({ spec: JSON.stringify(rowSpec("what.whichEpisode")), row: "what.whichEpisode" });
     check(r.status === 200 && r.body.startable, "  which episode the merge happens in plays", JSON.stringify(r.body.problems));
     // A8: an order, a points leaderboard, a wager, the jury's split.

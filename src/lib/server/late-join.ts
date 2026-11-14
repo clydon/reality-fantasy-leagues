@@ -1,4 +1,5 @@
 import StateLogic from "@/lib/game/state-logic.js";
+import Bots from "@/lib/game/bot-logic.js";
 import type { LeagueState } from "@/lib/game/types";
 import { pool, HttpError, withLeagueLock } from "./db";
 import { groupLeagueIds, groupOrder } from "./league-groups";
@@ -55,6 +56,10 @@ export async function revealAcrossGroup(userId: string, fromLeagueId: string, pr
       await markResultsSeen(userId, id, n);
       continue;
     }
+    // A game at your own pace: its team or its draft comes first, as its own reveal holds (reveal.ts markRevealed); a reveal
+    // elsewhere never carries them past either.
+    const G = StateLogic.GhostLogic;
+    if (G.needsTeam(r.state, playerId) || (G.draftsTogether(r.state) && !G.draftDone(r.state))) continue;
     const seen: number = r.results_seen_through ?? (late.startEpisode as number) - 1;
     if (prev === null || seen !== prev) continue;
     const latest = StateLogic.SpoilerLogic.latestWithResults(r.state);
@@ -65,6 +70,9 @@ export async function revealAcrossGroup(userId: string, fromLeagueId: string, pr
       StateLogic.GhostLogic.markCaughtUp(s, playerId, to);
       const lj = StateLogic.GhostLogic.lateJoinOf(s, playerId);
       if (lj) lj.seenThrough = to;
+      // Its computer players keep pace with whoever reveals first, here as in its own reveal (found 2026-11-13: a game at its
+      // own pace linked to the couch's others was only ever reached this way, so its computer players never moved).
+      if (StateLogic.GhostLogic.ownPace(s)) Bots.catchUpTo(s, to);
     });
   }
 }

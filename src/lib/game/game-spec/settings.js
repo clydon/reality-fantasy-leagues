@@ -53,6 +53,9 @@ const OUTSIDE = [
   'perHolderFrom', // when a game made before the per-holder rule took it (migration 0207, WaiverLogic.perHolderFrom): history
   'bonusCategories', // pre-bets predictions, removed by migrateLeagueState
   'shadowOf', 'shadowFrom', // a local shadow league's source (scripts/dev-test/shadow-leagues.js)
+  'ownPace', // how it's run: at each person's own pace (GhostLogic.ownPace; set true, never stored false), not what the game is
+  'lockAtAir', // how it's run: live and strict, everything locks at airtime (GhostLogic.pace; set true, never stored false)
+  'startedTogether', // how it's run: at its own pace, made before it aired, so drafted as a live game is (GhostLogic.paceTogether)
   'game', // the spec itself, once A2 stores it
 ];
 

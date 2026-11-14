@@ -1,5 +1,5 @@
 import StateLogic from "@/lib/game/state-logic.js";
-import { episodesSeen, revealIn, seasonEpisodesSeen, type EpisodeSeen, type Happened, type OutFace, type RevealGame, type RevealPart, type RevealSheet, type RevealTable } from "@/lib/game/episode-view";
+import { episodesSeen, revealAcross, revealIn, seasonEpisodesSeen, type EpisodeSeen, type Happened, type OutFace, type RevealGame, type RevealPart, type RevealSheet, type RevealTable } from "@/lib/game/episode-view";
 import { publicMediaSrc } from "@/lib/game/selectors";
 import { latestIn, resultsDue, stageAcross } from "@/lib/game/results-due";
 import type { SessionUser } from "./auth-helpers";
@@ -275,12 +275,6 @@ function earlyNight(parts: RevealPart[]): EarlyNight | null {
 
 /** The game whose table moves: a lineup's (scored by moments) once its scores are final; else the pool's (who survives); else
  *  Outlast's (the boot order); else whatever. Step R1: by how each game scores, never a type compared by name. */
-function mainTable(parts: RevealPart[]): RevealTable | null {
-  const by = (scores: RevealPart["scores"]) => parts.find((p) => p.scores === scores);
-  const lineup = by("moments");
-  return (lineup?.stage === "final" ? lineup.table : null) ?? by("survive")?.table ?? by("place")?.table ?? lineup?.table ?? null;
-}
-
 /**
  * Reveals episode `n` in every game you play on this season, then returns its beats from `couchId`'s games. An
  * episode you've already revealed comes back as it is now (again: true): its final scores, after an early reveal.
@@ -314,7 +308,8 @@ export async function revealSeason(user: SessionUser, seasonId: string, couchId:
   const { here } = await gamesHere(user, seasonId, couchId);
   const parts = (await Promise.all(here.filter((h) => h.mark === null || h.mark >= n).map(async (h: GameHere) => revealIn(h.ref, h.state, h.playerId, n, h.userOf, await revealSheet(h, n))))).filter((p) => !!p);
   if (!parts.length) throw new HttpError(400, "Nothing to reveal for that episode yet");
-  const stage = parts.some((p) => p.stage === "early") ? "early" : "final";
+  const beats = revealAcross(parts);
+  const stage = beats.stage;
   const states = here.map((h) => h.state);
   // Seen early: the morning update waits for its final scores. Seen final: the one waiting is done if its own
   // final scores are in too (it's this episode, or an earlier one that has since been finished).
@@ -333,12 +328,11 @@ export async function revealSeason(user: SessionUser, seasonId: string, couchId:
   }
   // The final scores of the episode you revealed early: the table moves from where it stood that night.
   const soFar = again && stage === "final" && waitingOn === n ? kept : null;
-  let table = mainTable(parts);
+  let table = beats.table;
   if (soFar && table?.leagueId === soFar.leagueId) {
     const then = new Map(soFar.table.map((r) => [r.playerId, r]));
     table = { ...table, rows: table.rows.map((r) => ({ ...r, before: then.get(r.playerId) ?? r.before })) };
   }
-  const first = parts.find((p) => p.out.length || p.happened.length) ?? parts[0];
   const nextUp = latestIn(states) > n ? n + 1 : null;
   const finalAt = finalAtOf((await seasonSchedules([seasonId])).get(seasonId))(n);
   return {
@@ -346,11 +340,11 @@ export async function revealSeason(user: SessionUser, seasonId: string, couchId:
     stage,
     finalAt,
     again,
-    out: first.out,
-    happened: first.happened,
-    lineup: parts.find((p) => p.lineup)?.lineup ?? null,
-    games: parts.map((p) => p.game).filter((g) => !!g),
-    predictions: parts.map((p) => p.predictions).filter((g) => !!g),
+    out: beats.out,
+    happened: beats.happened,
+    lineup: beats.lineup,
+    games: beats.games,
+    predictions: beats.predictions,
     table,
     next: nextUp && stageAcross(states, nextUp) ? nextUp : null,
     soFar,

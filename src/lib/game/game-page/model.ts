@@ -489,7 +489,6 @@ function chipsOf(page: GamePage, line: string, twists?: GameView["twists"], word
   add(has(page, "move", "waivers"), "Waivers");
   add(has(page, "rider", "beat"), "Beat the bot");
   add(has(page, "rider", "stake") && !!f.bank, `A bank of ${f.bank}`);
-  add(has(page, "lock", "late"), "Late lock");
   // A tag the short line already says goes ("3 lives" beside "· 3 lives", "The cut" beside "Lowest score is cut", "Buy back in"
   // beside "Buyback"; "Blind draft" stays beside "Draft 5"): every word of it that carries meaning, or the whole of it run
   // together, found in the line.
@@ -552,7 +551,7 @@ export const DRAWN = new Map<string, "view" | "spec">([
   ...(["points", "streak", "stillIn", "worth", "shared", "wl", "weeks", "roto", "overall", "teams", "handicap"] as const).map((k) => [`table:${k}`, "view"] as [string, "view"]),
   // A bank is your points (AnswerLogic grades it as everyone's opening line); a budget, a cap's room or a market's cash; the cut's line.
   ...(["bank", "budget", "cut", "reverse"] as const).map((k) => [`table:${k}`, "view"] as [string, "view"]),
-  ...(["start", "finale", "daily", "weekly", "game", "late"] as const).map((k) => [`lock:${k}`, "view"] as [string, "view"]),
+  ...(["start", "finale", "daily", "weekly", "game"] as const).map((k) => [`lock:${k}`, "view"] as [string, "view"]),
 ]);
 
 // ---------- a made-up game, for the census: every spec's page drawn at each phase ----------

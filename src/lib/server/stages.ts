@@ -46,6 +46,16 @@ export async function lateStages(db: Queryable, parentId: string, parent: League
   return { late, picks };
 }
 
+/** The game's pace is its stages' too (docs/PLAN-own-pace-games.md, "Pace is the game's setting"): live or strict, set once on the
+ *  game and mirrored here with its seats (it was one seat's switch, which reached no stage when set on the game). Whether it changed. */
+const strict = (s: LeagueState) => !!s.settings?.lockAtAir;
+function mirrorPace(parent: LeagueState, stage: LeagueState): boolean {
+  if (strict(parent) === strict(stage)) return false;
+  if (strict(parent)) stage.settings.lockAtAir = true;
+  else delete stage.settings.lockAtAir;
+  return true;
+}
+
 /** The fields of a seat that are the seat's, not the game's: what a stage's copy of it mirrors. */
 const SEAT_FIELDS = ["name", "disabled", "formerName", "disabledFromUserId", "automated"] as const;
 type Fields = Record<string, unknown>;
@@ -122,6 +132,7 @@ export async function seatStage(client: Queryable, parentId: string, parent: Lea
       changed = true;
     }
   }
+  if (mirrorPace(parent, stage)) changed = true;
   await mirrorMemberships(client, parentId, stageId, seatedIds(parent, stage));
   return changed;
 }
@@ -173,6 +184,8 @@ export async function stagesToSeat(db: Queryable, parentId: string, parent: Leag
   return stages
     .filter(({ id, state }) => {
       if (state.players.some((q) => !all.has(q.id) && !q.disabled)) return true;
+      // The game's pace, where a stage's differs (mirrorPace).
+      if (strict(parent) !== strict(state)) return true;
       // Step A12 part 4c: as seatStage reads them (a stage that's over seats nobody new; a seat that left goes from one not begun).
       const shut = seatsNobody(state);
       const begun = begunIn(state);

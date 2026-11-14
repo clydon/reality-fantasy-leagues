@@ -811,7 +811,9 @@ const JOINS = ['open', 'ask', 'locked'];
 //                 castaways can be on several teams, else ask)
 //   hideStarters  a lineup's starters stay hidden until the lock
 //   lockedDown    Lock it down: nobody new joins and the rules don't change for the season
-//   lateLock      (A7) a game of questions' late lock: { hours: 12 | 24 | 48 | 72 }, or null. Someone who hasn't seen an
+//   lateLock      RETIRED (BACKLOG 64, 2026-11-13): the game's pace decides who a move stays open for (GhostLogic.pace: how it's
+//                 run, not part of the spec). A spec that carries one is still valid; nothing reads, describes or offers it.
+//                 It was (A7) a game of questions' late lock: { hours: 12 | 24 | 48 | 72 }, or null. Someone who hasn't seen an
 //                 episode can still answer its questions after it starts, until they've seen it, up to that many hours past
 //                 its air time; everyone else's answers stay hidden from them until then
 //   seats         (A10 part 4b) a team two people share: { people: 2 to MAX_SEAT_PEOPLE }, how many accounts can hold one seat

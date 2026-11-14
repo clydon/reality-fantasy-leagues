@@ -71,6 +71,8 @@ export const paths = {
   game: (seasonId: string, leagueId: string, ep?: number | null) => `/show/${seasonId}/games?game=${encodeURIComponent(leagueId)}${ep ? `&ep=${ep}` : ""}`,
   /** The show's Tonight with its watch along open (step 13): your next episode, or `ep`; a planned night's, together (`plan`). */
   watch: (seasonId: string, ep?: number | null, plan?: string | null) => `/show/${seasonId}/tonight?page=watch${ep ? `&ep=${ep}` : ""}${plan ? `&plan=${plan}` : ""}`,
+  /** The show's Tonight with the reveal of episode `ep` open (reveal.tsx reads a link's `ep` first): from anywhere on the show. */
+  reveal: (seasonId: string, ep: number) => `/show/${seasonId}/tonight?page=reveal&ep=${ep}`,
   backstage: (seasonId: string, page?: string) => `/show/${seasonId}/backstage${page ? `/${page}` : ""}`,
   showPage: (seasonId: string, page: "draft" | "blind" | "waivers" | "scoring") => `/show/${seasonId}/${page}`,
   /** A game's own page (U1), over the show: its title card, your move, where you stand, the couch, what happened, how it plays. */

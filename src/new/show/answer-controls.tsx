@@ -17,6 +17,18 @@ type Value = unknown;
 type Props = { q: QuestionView; value: Value; onValue: (v: Value) => void; others?: QuestionView[] };
 
 const first = (name: string) => name.split(" ")[0];
+/** Short names for the people in one control: first names, unless two share one (a cast can: two Mikes); then the first name and
+ *  last initial, and if even that's shared, the whole name. So no two choices ever read the same (the gameplay bench's
+ *  indistinct-choices check, 2026-11-12). */
+function shortNames(faces: { name: string }[]): (name: string) => string {
+  const initialed = (n: string) => {
+    const w = n.trim().split(/\s+/);
+    return w.length > 1 ? `${w[0]} ${w[w.length - 1][0]}.` : n;
+  };
+  const tally = (f: (n: string) => string) => faces.reduce((m, x) => m.set(f(x.name), (m.get(f(x.name)) ?? 0) + 1), new Map<string, number>());
+  const firsts = tally(first), initials = tally(initialed);
+  return (name) => ((firsts.get(first(name)) ?? 0) <= 1 ? first(name) : (initials.get(initialed(name)) ?? 0) <= 1 ? initialed(name) : name);
+}
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const idsOf = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]) : typeof v === "string" && v ? [v] : []);
 
@@ -92,13 +104,14 @@ function Options({ q, value, onValue }: Props) {
 }
 
 /** A face to tap: its photo, its name and qualifier under it, a badge in its corner (a tick, a rank). */
-function FaceButton({ f, on, dim, badge, onClick, group }: { f: QuestionFace; on: boolean; dim?: boolean; badge?: string | null; onClick: () => void; group?: boolean }) {
+function FaceButton({ f, on, dim, badge, onClick, group, label }: { f: QuestionFace; on: boolean; dim?: boolean; badge?: string | null; onClick: () => void; group?: boolean; label?: string }) {
   return (
     <button
       type="button"
       aria-pressed={on}
       data-answer-face={f.id}
       data-answer-name={f.name}
+      aria-label={f.name}
       onClick={onClick}
       className={`nd-press relative min-w-0 rounded-[3px] text-left ${on ? "outline-2 outline-offset-1 outline-foreground" : ""}`}
     >
@@ -108,7 +121,7 @@ function FaceButton({ f, on, dim, badge, onClick, group }: { f: QuestionFace; on
           {badge === "✓" ? <Check className="size-3.5" strokeWidth={3} aria-hidden /> : badge}
         </span>
       )}
-      <b className="type-caption mt-1 block truncate text-[14px]">{group ? f.name : first(f.name)}</b>
+      <b className="type-caption mt-1 block truncate text-[14px]">{group ? f.name : (label ?? first(f.name))}</b>
     </button>
   );
 }
@@ -116,6 +129,7 @@ function FaceButton({ f, on, dim, badge, onClick, group }: { f: QuestionFace; on
 /** Someone, or a group (A6): faces. Naming more than one, up to its pick. */
 function Faces({ q, value, onValue }: Props) {
   const pick = q.pick ?? 1;
+  const short = shortNames(q.faces ?? []);
   const chosen = idsOf(value);
   const tap = (id: string) => {
     if (chosen.includes(id)) return onValue(pick === 1 ? null : chosen.filter((x) => x !== id));
@@ -128,7 +142,7 @@ function Faces({ q, value, onValue }: Props) {
       {q.from === "team" && <p className="mb-2 text-[13px] text-muted-foreground">From your team</p>}
       <div className="grid grid-cols-4 gap-2" role="group" aria-label={q.ask}>
         {(q.faces ?? []).map((f) => (
-          <FaceButton key={f.id} f={f} on={chosen.includes(f.id)} dim={!!chosen.length && !chosen.includes(f.id)} badge={chosen.includes(f.id) ? "✓" : null} onClick={() => tap(f.id)} group={q.answer === "group"} />
+          <FaceButton key={f.id} f={f} label={short(f.name)} on={chosen.includes(f.id)} dim={!!chosen.length && !chosen.includes(f.id)} badge={chosen.includes(f.id) ? "✓" : null} onClick={() => tap(f.id)} group={q.answer === "group"} />
         ))}
       </div>
       {pick > 1 && <p className="mt-2 text-[13px] text-muted-foreground" data-answer-count>{`${chosen.length} of ${pick} named`}</p>}
@@ -166,6 +180,7 @@ function Step({ label, disabled, onClick, icon }: { label: string; disabled?: bo
 /** An order (who goes in what order) or confidence (your surest first): tap faces in turn; a tap again takes one out. */
 function Order({ q, value, onValue }: Props) {
   const most = q.pick ?? (q.faces?.length ?? 1);
+  const short = shortNames(q.faces ?? []);
   const order = idsOf(value);
   const tap = (id: string) => {
     if (order.includes(id)) {
@@ -183,7 +198,7 @@ function Order({ q, value, onValue }: Props) {
       <div className="grid grid-cols-4 gap-2" role="group" aria-label={q.ask}>
         {(q.faces ?? []).map((f) => {
           const at = order.indexOf(f.id);
-          return <FaceButton key={f.id} f={f} on={at >= 0} dim={at < 0 && order.length >= most} badge={at >= 0 ? String(at + 1) : null} onClick={() => tap(f.id)} />;
+          return <FaceButton key={f.id} f={f} label={short(f.name)} on={at >= 0} dim={at < 0 && order.length >= most} badge={at >= 0 ? String(at + 1) : null} onClick={() => tap(f.id)} />;
         })}
       </div>
     </>
@@ -200,6 +215,7 @@ function Chips({ q, value, onValue }: Props) {
     if (n <= 0) delete next[id];
     onValue(Object.keys(next).length ? next : null);
   };
+  const shortChips = shortNames(q.faces ?? []);
   return (
     <div data-answer-chips>
       <p className="mb-1 text-[13px] text-muted-foreground" aria-live="polite">{`${total - used} of ${total} chips left`}</p>
@@ -208,10 +224,10 @@ function Chips({ q, value, onValue }: Props) {
         return (
           <div key={f.id} className="flex min-h-[52px] items-center gap-3 border-b border-border last:border-b-0">
             <Face src={f.photo} name={f.name} className="size-9 flex-none rounded-[3px] text-sm" />
-            <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{first(f.name)}</span>
-            <Step label={`One less on ${first(f.name)}`} disabled={!n} onClick={() => set(f.id, n - 1)} icon="minus" />
+            <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{shortChips(f.name)}</span>
+            <Step label={`One less on ${f.name}`} disabled={!n} onClick={() => set(f.id, n - 1)} icon="minus" />
             <b className="type-num w-8 text-center text-[24px]">{n}</b>
-            <Step label={`One more on ${first(f.name)}`} disabled={used >= total} onClick={() => set(f.id, n + 1)} icon="plus" />
+            <Step label={`One more on ${f.name}`} disabled={used >= total} onClick={() => set(f.id, n + 1)} icon="plus" />
           </div>
         );
       })}
@@ -256,6 +272,7 @@ function Pairs({ q, value, onValue }: Props) {
     else next[key] = id;
     onValue(Object.keys(next).length ? next : null);
   };
+  const shortPairs = shortNames((q.pairs ?? []).flatMap((p) => p.faces));
   return (
     <div data-answer-pairs>
       {(q.pairs ?? []).map((p) => (
@@ -265,7 +282,7 @@ function Pairs({ q, value, onValue }: Props) {
               {i === 1 && <span className="flex-none px-1 text-[13px] text-muted-foreground">or</span>}
               <button type="button" aria-pressed={v[p.key] === f.id} data-answer-pair={`${p.key}:${f.id}`} onClick={() => set(p.key, f.id)} className={`nd-press flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-[3px] px-1.5 ${v[p.key] === f.id ? "bg-foreground text-background" : "bg-secondary"}`}>
                 <Face src={f.photo} name={f.name} className="size-8 flex-none rounded-[2px] text-xs" />
-                <b className="type-caption truncate text-[16px]">{first(f.name)}</b>
+                <b className="type-caption truncate text-[16px]">{shortPairs(f.name)}</b>
               </button>
             </span>
           ))}
@@ -347,12 +364,13 @@ function EachPerson({ q, value, onValue }: Props) {
     else next[id] = a;
     onValue(Object.keys(next).length ? next : null);
   };
+  const shortEach = shortNames(q.faces ?? []);
   return (
     <div data-answer-each="person">
       {(q.faces ?? []).map((f) => (
         <div key={f.id} className="flex min-h-[60px] flex-wrap items-center gap-x-3 gap-y-2 border-b border-border py-2 last:border-b-0">
           <Face src={f.photo} name={f.name} className="size-9 flex-none rounded-[3px] text-sm" />
-          <b className="type-caption min-w-0 flex-1 truncate text-[17px]">{first(f.name)}</b>
+          <b className="type-caption min-w-0 flex-1 truncate text-[17px]">{shortEach(f.name)}</b>
           <span className="flex-none">{base.answer === "number" ? <NumberStep value={typeof v[f.id] === "number" ? (v[f.id] as number) : null} max={100000} onValue={(a) => set(f.id, a)} /> : <Options q={base} value={v[f.id] ?? null} onValue={(a) => set(f.id, a)} />}</span>
         </div>
       ))}

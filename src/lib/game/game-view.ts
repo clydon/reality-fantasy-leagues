@@ -111,6 +111,10 @@ export interface PickMove {
   airsAt: string | null;
   open: boolean;
   pick: string | null;
+  /** How many you pick for this episode (the spec's get.each; 1 for a pool) and your whole pick, in order (C5; the gameplay
+   *  bench's three-pick case, 2026-11-12). `pick` stays the first of them. */
+  each: number;
+  picks: string[];
   /** Who you may pick. */
   available: string[];
   /** Still in, but not pickable this time, and why. */
@@ -371,8 +375,8 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
   const everyone = tableOf(view, me, userOf, calls?.right).map((r) => (weekly ? { ...r, weeks: weeksOf(view, r.playerId) } : r));
   const table = isPublic ? poolTop(everyone) : everyone;
   const catchUp = catchingUp ? { week: (seen as number) + 1, latest: StateLogic.SpoilerLogic.latestWithResults(full) } : null;
-  const lineup = seat && pieces.hasActiveRoster ? lineupOf(view, me) : null;
-  const pick = seat && pieces.hasWeeklyPicks ? pickOf(view, me) : null;
+  const lineup = seat && pieces.hasActiveRoster ? lineupOf(view, me, now) : null;
+  const pick = seat && pieces.hasWeeklyPicks ? pickOf(view, me, now) : null;
   const next = lineup?.episode ?? pick?.episode ?? StateLogic.SpoilerLogic.latestWithResults(view) + 1;
   const through = pieces.hasCalls || pieces.hasBingo ? (calls?.through ?? 0) : StateLogic.SpoilerLogic.latestWithResults(view);
   const progress = catchingUp ? null : weekProgress(full, playerId, userOf, { counts: isPublic });
@@ -600,7 +604,7 @@ export function castOf(view: LeagueState): CastFace[] {
   });
 }
 
-function lineupOf(view: LeagueState, me: string): LineupMove | null {
+function lineupOf(view: LeagueState, me: string, now?: number): LineupMove | null {
   const ep = StateLogic.currentEpisode(view);
   if (!ep) return null;
   const AR = StateLogic.ActiveRosterLogic;
@@ -613,7 +617,7 @@ function lineupOf(view: LeagueState, me: string): LineupMove | null {
     epId: ep.id,
     episode: ep.number,
     airsAt: ep.airsAt ?? null,
-    locked: AR.isLineupLocked(view, ep.id),
+    locked: AR.isLineupLocked(view, ep.id, now),
     slots: activeSlots,
     need,
     starters,
@@ -623,16 +627,19 @@ function lineupOf(view: LeagueState, me: string): LineupMove | null {
   };
 }
 
-function pickOf(view: LeagueState, me: string): PickMove | null {
-  const { ep, open } = pickWindow(view);
+function pickOf(view: LeagueState, me: string, now?: number): PickMove | null {
+  const { ep, open } = pickWindow(view, now);
   if (!ep) return null;
   const { available, blocked } = StateLogic.pickEmEligibility(view, ep.id, me);
+  const mine = StateLogic.pickEmPickFor(view, ep.id, me);
   return {
     epId: ep.id,
     episode: ep.number,
     airsAt: ep.airsAt ?? null,
     open,
-    pick: StateLogic.pickEmPickFor(view, ep.id, me)?.castawayId ?? null,
+    pick: mine?.castawayId ?? null,
+    each: (() => { const get = StateLogic.gameOf(view).get; return Math.max(1, "each" in get && typeof get.each === "number" ? get.each : 1); })(),
+    picks: StateLogic.PickEmLogic.picked(mine),
     available,
     blocked: Object.entries(blocked).map(([id, b]) => ({ id, ...b })),
     streak: StateLogic.pickEmHistory(view, me).currentStreak,

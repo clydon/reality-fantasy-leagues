@@ -157,6 +157,31 @@ live. im okay letting her pick late if she hasnt watched the episode yet"
   next episode's air time.
 - **Backlogged** (the user, "the former is simpler"): no limit, open until they watch even past the next airtime (BACKLOG 44).
 
+## Pace is the game's setting, not a person's (the user, 2026-11-13)
+
+Found while connecting stages in the gameplay explorer: the per-person switch above had to be set stage by stage and did
+nothing on the staged game itself. The underlying flaw: how late someone watches is already tracked per person per show (one
+reveal moves it for all their games), so a second per-person flag, set per game by the Commissioner, duplicated it; and the
+person who watches late had to ask someone to find a switch. The user agreed, and decided:
+
+- **One setting per game, three values** (`GhostLogic.pace`):
+  - **Own pace**: the game waits for people. A move stays open until you've watched that episode, however far behind you are;
+    drafts and waivers on exclusive teams wait at their sync points (above).
+  - **Live**: the calendar runs it. A move stays open after an episode airs until you've watched it or the next one airs,
+    whichever is first (the per-person switch's rule, now everyone's). Honour-based.
+  - **Live, strict**: everything locks at airtime.
+- **Running games: Live for all** (the user's pick): every live game already running gets the late window for everyone at
+  once. In the data that's the default: only a strict game stores anything (`settings.lockAtAir`), so nothing is migrated, and
+  a seat still carrying the old per-person flag is simply covered.
+- **The control: tiles** (the user's pick) in Backstage › Game settings, one set per game, under the episode's lock row. A
+  Commissioner's; frozen in Competitive mode. A game in stages sets it once, and its stages follow.
+- **Order of building.** (1) The setting, the late window for everyone, the per-person switch gone, stages inheriting, the
+  tiles. (2) Own pace as a choice when a game starts on a season still airing, and a game that stays at its own pace as new
+  episodes air (today a seat that catches up plays live from then on).
+- **Open, for the user** (found while reading the start code, not decided): with Own pace the default on a season still
+  airing, a shared-team draft (Weekly Lineup) would lose its blind draft revealed together, because a game at its own pace has
+  each seat pick its own team whenever they start. See "Step 2, and what it waits on" under this step's As built.
+
 ## How it reuses the engine
 
 | Need | What exists | What's new |
@@ -368,7 +393,209 @@ The user's decisions above, built and checked (no migration: the switch rides on
   `check-own-pace-live.js` now also proves a Prediction Sheet answer and a Call it call taken after airtime (and refused without
   the switch), the records, the reminder (a dry run), and the Members sheet's read-only line for a game you don't run.
 
+## As built: pace is the game's setting, step 1 (2026-11-13; uncommitted, not pushed)
+
+The user's decisions above ("Pace is the game's setting"), the first of the two steps. The second is built too: "As built: … step 2"
+below.
+
+- **Engine** (`state-logic.js GhostLogic`): `pace(state)` is `'own'` (`settings.ownPace`), `'strict'` (`settings.lockAtAir`, set
+  true, never stored false; in `settings.js` OUTSIDE, so setting the game keeps it) or `'live'` (nothing stored: the default, so
+  every live game already running is live with no migration). `setPace(state, 'live' | 'strict')` is the Commissioner's write: it
+  refuses on a game at your own pace and for `'own'` ("when it starts, for now"), and clears any seat's old `player.ownPace`.
+  `playsOwnPace(state, seat)` (the name kept: lanes may call it) now reads the game: a seat playing live in a game that's
+  `'live'`, never a computer player or one still catching up. `setPlaysOwnPace` is gone. Everything downstream is unchanged and
+  follows by itself: `lateWindow`, `lateCopy`, `applyAs` late, `lateWaiting`, answers' `closed` and `lateEpisode`, the routes'
+  `lateMark`, due moves, Call it's `lateOn`, the reminders job.
+- **Server:** `backstage-games.ts` `GameSettings.pace` (`{ mode, of }`: `of` names the game a stage follows) and `paceWrite` (a
+  Commissioner's; refused while locked down, on a stage, and on a game at your own pace; a line in Recent changes: "Moves stay
+  open until you've watched, or the next episode airs" / "Moves lock at airtime"); `PATCH /api/seasons/[id]/backstage/settings
+  { leagueId, pace }`. `backstage-members.ts` lost `Member.pace`, `Member.seesAll`, `MemberGame.pace` and `setMemberPace`; the
+  route `backstage/members/[userId]/pace` is deleted.
+- **A game in stages sets it once** (`stages.ts` `mirrorPace`, in `seatStage`; `stagesToSeat` notices a stage that differs): the
+  write to the game commits, then each stage follows in its own write, as its seats do. A stage made later follows at the game's
+  next write.
+- **Screens** (through impeccable; 390 first): Backstage › Game settings, under the episode's lock row: **When moves lock**, two
+  tiles as Who can join ("When you've watched it", Recommended: "Open after an episode airs until you watch it, or the next one
+  airs" / "At airtime": "Everything locks when the episode starts"), "The same for everyone in the game. Late is on the honour
+  system: only if you haven't watched it yet.", saved at once with Undo on the toast. A game at your own pace and a stage read as
+  one line each (nothing to choose there). The lock row's Auto line now agrees with it in a live game ("locks at its start, Fri
+  8:00 PM, later for anyone who hasn't watched it"). Backstage › Members › a person: the "Plays at their own pace" section is gone.
+- **The explorer:** its `live-only` timing is live and strict (`runtime-data.cjs` `syncMarks` stores `lockAtAir`;
+  `core-runtime-28`), as a live game always was there. A live game with late moves isn't a timing yet (its late moves need the
+  routes' late path as actions).
+- **Checked:** `tests/own-pace.test.js` and `tests/answers-time.test.js` (the live cases moved to the game's setting: live by
+  default for every human seat, strict locks, the old flag cleared, own pace refuses); `npm test` 2,141 pass; type check and
+  eslint clean; `node scripts/dev-test/check-own-pace-live.js` (API, then 390: ALL PASS; strict refuses, live opens for whoever
+  hasn't watched, the settings tiles and their toast, the Members sheet without the switch, the late card, the couch's marker);
+  `node scripts/dev-test/check-stages-explorer.js --case=pace` (a game in stages on the real routes: strict refuses Bo's late
+  lineup in a stage, a stage refuses the setting, live on the game and both stages follow and take it, strict again and they
+  follow back).
+- **The honour note** (the user, 2026-11-13: "a slight UI hint/warn to ensure we keep the honours system alive", so someone can
+  set a late move in good faith, or say they've watched and keep what they had). Your moves, once for the sheet, above its games
+  (watching an episode is across all of them): "Episode 6 has aired · It's still open because you haven't watched it. Seen it
+  already? Leave this as it is." and **I've watched it**, a link to Tonight with that episode's reveal open
+  (`paths.reveal`): nothing is saved, anything changed and unsaved is dropped, and the reveal closes the move with what stood.
+  The sheet's foot says what locks it: "Watching it does." The couch's marker ("Set after it aired, before they watched") was
+  there already and is the other half of the honour system. `dock.tsx` `OnYourHonour`; checked in `check-own-pace-live.js`
+  (the note once for the sheet, its words, the way out: the reveal opens, the mark moves to 6, the lineup they had stands, a
+  later change is refused).
+- **What changes for people on the next push** (the user's "turn it on for all"): in every live game, anyone who hasn't watched an
+  episode can still set its lineup, pick or answers after it airs, until they watch it or the next one airs; the couch sees the
+  quiet marker; the after-airtime reminder ("episode 6 has aired: set your lineup before you watch it") now goes to everyone in
+  that position, once an episode, not to one switched person. A Commissioner who wants the old behaviour picks At airtime.
+
+### Step 2: the user's decisions (2026-11-13)
+
+- **The draft stays together.** A draft that isn't private needs everyone there (a snake's turns); a private draft is each
+  person's in their own time, revealed together, as now. Own pace begins after the draft. So starting a game at its own pace on
+  a season still airing must not use today's "each seat picks its own team" (that stays for a season that has aired, where
+  everyone starts on a different episode).
+- **It keeps waiting all season.** Catching up to the calendar once doesn't end own pace: someone can fall behind again, and the
+  game waits for them again.
+- **The pace family is chosen at the start.** A game that starts live stays live (it can still be made strict or back); own
+  pace to live isn't offered.
+- **The four late rules become one** (the user: "I'd go with your call"; BACKLOG 64). The game's pace is the rule. The episode's
+  lock override stays as the one exception, by hand, for one episode. A game of questions' late lock in hours
+  (`extras.lateLock`) is retired into the pace: live already does what it did, capped by the next airing instead of by hours.
+  BACKLOG 44 (no limit) is own pace. Built with step 2.
+- **A draft that opens mid-season** (a later stage's; the user asked for an honest view, nothing decided): see BACKLOG 67.
+
+### Step 2, and what it waited on
+
+Own pace as a choice when a game starts on a season still airing, and as the default. Not built: it turned out to carry a
+decision of the user's, found only once the start code was read (their ground rule, 2026-11-13: bring a design flaw up, don't
+design around it).
+
+- **What a game at its own pace does today that a new game on an airing season wouldn't expect.** `paceAll` makes every seat a
+  late joiner and marks a private draft as revealed, so **shared teams are never drafted together**: each seat picks its own
+  team whenever it starts (right for a season that has aired, where everyone is on a different episode). On a season still
+  airing, where everyone starts on the same episode, that would quietly take away the blind draft revealed together, the most
+  common game's first night. Options: keep the draft together when everyone starts on the same episode and let own pace begin
+  after it (recommended; needs a variant of `paceAll` that leaves the draft to be played); each picks their own, as now; or keep
+  Live the default and make Own pace a choice.
+- **A game at its own pace stops waiting once you catch up.** `markCaughtUp` ends catching up for good, so on a season still
+  airing a caught-up seat plays strictly live from then on (it doesn't even get the live game's late window: `playsOwnPace`
+  leaves own-pace games out, as before). Step 2 needs the seat to catch up again when a new episode's results arrive (its mark
+  is in the state, `lateJoin.seenThrough`, so a settle after results can do it), and the late window between airtime and
+  results. The explorer's own-pace games already behave this way (its `syncMarks`), which is evidence the reads cope; the
+  server's write path has never done it.
+- **Turning a running game to or from own pace** isn't a flag flip: every seat needs a mark, exclusive teams switch to their
+  sync points, and seats mid catch-up need somewhere to land. Start-only is the safe first cut.
+- **Where it's chosen:** the wizard's sheet (a control there is a U0-level decision) and the old list.
+- BACKLOG 56 and 57 are own-pace bugs still open; BACKLOG 52 (the twist) too.
+
+## As built: pace is the game's setting, step 2 (2026-11-13; uncommitted, not pushed)
+
+Own pace as a choice when a game starts on an episode still to air, the default for a show, and a game that keeps waiting all
+season. The user's three decisions above ("Step 2: the user's decisions") are what it does.
+
+- **Made and drafted as a live game** (`GhostLogic.paceTogether`): a start on an episode still to air sets `settings.ownPace`
+  and `settings.startedTogether` (both in `settings.js` OUTSIDE) and nothing else. No seat is a late joiner yet, so the draft
+  is the game's ordinary one: a private draft locked by each person and revealed for everyone at once, a draft with turns in
+  the draft room. (A start on an episode that has aired is unchanged: `paceAll`, each seat picks its own team.)
+  `GhostLogic.ownTeams` is the one question "does each seat pick its own team here?" (`season-draft.ts` read the ownership
+  alone before, which would have hidden this game's draft room); `needsTeam` is never true while a private draft is still to
+  be revealed.
+- **It waits from its first results on, and keeps waiting** (`GhostLogic.settlePace`, run after every write to a league in
+  `db.ts withLeagueLock`, beside the other settles): in a game at its own pace, once results exist in its span, a seat with no
+  late-join record gets one (`{ startEpisode: the game's, catchingUp: true, seenThrough: start - 1 }`), and a seat that had
+  caught up is catching up again when results arrive past its mark (`lateJoin.seenThrough`). Never past the game's last
+  episode; never a seat that left, a ghost, or one still choosing its start. Computer players too: they keep pace with the
+  first person to reveal, as before. This also fixes the older gap for a game made on an aired episode of a season still
+  airing: a seat that caught up used to play strictly live from then on.
+- **Between airtime and the results** a caught-up seat has the live game's late window (`playsOwnPace` is now "any seat in a
+  game that isn't strict, unless it's catching up"), with no closing time at its own pace (`lateWindow`: `until: null`, and an
+  episode past the game's span airing doesn't end it). So the honour note, the couch's marker and "Waiting on" all apply.
+- **The reveal** (`reveal.ts markRevealed`): a seat with no mark of its own in a game at its own pace is where the show has the
+  person, never past the episode before its start (`showMark`), so someone behind the game's start reveals the earlier episodes
+  first instead of being told they're on the game's first one; an episode already passed changes nothing (it was refused).
+  **A bug found by the new check and fixed:** a reveal that reaches a game through its linked group (`late-join.ts
+  revealAcrossGroup`, the usual way on a couch with several games on one season) never moved the game's computer players, and
+  skipped the team-first and draft-first lines its own reveal holds. Both are held there now.
+- **The start** (`start-game.ts`): `StartOptions.runs { choices, recommended }` (from an aired episode: own only; from one
+  still to air: own, live, strict, recommended own for a show and **live for a sport**, which stays live as decided 2026-11-09);
+  `paceAsked` checks a start's `pace` (none sent is live from an episode still to air, so a phone on an older bundle, a
+  sport's own start and every test fixture start what they always did; from an aired episode it's own); `applyPace` sets it.
+  Both starts take it (`startGame`, `startFromSpec`). Run it back with nothing said plays at the pace of the game it runs
+  back. **A start with a phase runs live or strict**: own pace is refused there for now (its draft would open mid-season for
+  people who may be behind: BACKLOG 67, the user's to decide). The pace family is fixed at the start: `setPace` still refuses
+  own, without "for now".
+- **Screens** (through impeccable; 390 first): Start a game's sheet, under When it runs: **When moves lock**, one line that says
+  what the game will do ("When you've watched it. However late that is: the game waits for each of you.") with **Change**
+  behind it: three choices named by the latest moment a move can be made, so the heading reads on into the answer (When you've
+  watched it, Recommended / When the next one airs: "Or sooner, once you've watched it." / At airtime: "Everything locks when
+  the episode starts."), and the honour line. The recommended one is already chosen, so the one-tap start costs nothing extra.
+  Hidden on a start from an aired episode (the switch above it says it already). Backstage › Game settings uses the same three
+  names: its live tile is now "When the next one airs" (it was "When you've watched it", which is own pace's name now), the
+  own-pace line reads "When you've watched it. At your own pace: …", and the lock row's Auto line says who it stays open for
+  at own pace too.
+- **Checked:** `tests/own-pace.test.js` (three new: made and drafted as a live game then late joiners from its first results,
+  the window with no end, catching up again; the settle's limits; a private draft still to be revealed and `ownTeams`);
+  `npm test` 2,144 pass; type check clean; `node scripts/dev-test/check-own-pace-start.js` (new, reusable; on the real
+  routes: the options and refusals, the game made as a live one, the private draft revealed together with a computer player,
+  a late lineup between airtime and results with no closing time, every seat catching up at the results, the reveal, a lineup
+  set after the results by someone who hasn't watched, Episode 7's results leaving everyone behind again; then 390: the sheet's
+  line, Change, the three choices, Game settings); `check-own-pace-live.js` and `check-own-pace.js` run again after it (ALL
+  PASS, both); a 30-case explorer campaign on the real routes (`.ui-atlas/campaigns/pace2-api`: 30 of 30, known findings only), so
+  the server's new settle agrees with the explorer's own-pace games.
+- **What changes for people on the next push:** a new game on a show still airing starts at its own pace unless whoever
+  starts it changes When moves lock. Every seat reveals each episode to move on (as on any season you play), a move for an
+  episode stays open until that person has watched it, and standings show through each person's own episode. Exclusive teams
+  with waivers wait at their waiver moment for everyone (sync point 2, words only). Games already running don't change.
+
+## As built: the late lock retired into the pace (2026-11-14; BACKLOG 64; uncommitted, not pushed)
+
+The last of "the four late rules become one". After it, two things decide whether a move is taken after airtime: the game's pace,
+and whoever runs the game locking or opening one episode by hand.
+
+- **Nothing reads `extras.lateLock`** (a game of questions' "until you've seen it, up to 12 to 72 hours", A7).
+  `AnswerLogic.closed` and `lateEpisode` go by the game's pace alone (`GhostLogic.lateWindow`): in a live game the pace's window
+  already covered what the hours did (until you've watched, capped by the next airing instead of by hours); in a strict game the
+  hours contradicted the setting.
+- **Nothing describes or offers it:** `describe.js` lost its rule line ("Watching late? …") and its "Watching late" setting; the
+  drafter's manual no longer lists the field; the game page no longer tags "Late lock". **A spec that carries one is still
+  valid** (`schema.js` keeps its check, marked retired; `settings.js` still round-trips `lateLockHours`), so no stored game is
+  touched and nothing is migrated.
+- **A hand lock beats the late window** (`lateWindow` returns nothing for an episode locked by hand, `ep.lineupsLocked`): the
+  hours' path honoured it, and the pace's window didn't, so retiring the hours would have lost it. It's the one exception. That's
+  a lock set **before the episode starts** (Backstage's row stores one only then). Once an episode has started the row can open
+  it to everyone, but has no "locked for everyone" (noticed below).
+- **The trivia sheet's key** (`trivia-key.ts heldFromSheet`) is held until the round locks for that person by the game's pace:
+  to airtime; then, for someone who hasn't watched it, until they do at own pace, and until they do or the next one airs in a
+  live game; a strict game, to airtime only. It was airtime plus the hours.
+- **Checked:** `tests/answers-time.test.js` (the late lock's case rewritten: a spec that carries one is valid and kept, the
+  hours alone open nothing, live goes past them, strict locks at airtime, a hand lock closes it) and `tests/own-pace.test.js`
+  (a hand lock: no late window); `npm test`; on the real routes `check-trivia-game.js` (updated: the sheet holds the batch
+  from someone who hasn't watched, and gives it once they have), `check-questions-time.js`, `check-engine-lab.js --api`
+  (a spec with a late lock plays, said nowhere), `check-own-pace-live.js` (now also: alex locks Episode 6 by hand before it
+  airs, and jordan, who hasn't watched it, has no late window in a live game).
+- **Found on the way:** `check-trivia-game.js` had been failing since step 1 (it expected a round to close at airtime for
+  someone who hadn't watched; nobody reran it). Only checks the change could affect are run each step, and that one was missed:
+  any check that asserts a lock at airtime belongs on that list from now on.
+
 ## Noticed, not fixed
+- (2026-11-14) **After an episode has started, whoever runs the game can't close it for people who haven't watched.** The lock
+  row is a switch: open to everyone, or back to the pace's rule. With the pace, an aired episode has three states (open to
+  everyone / open to whoever hasn't watched / locked for everyone) and the row shows two. Making the game At airtime for a week
+  is the workaround. docs/UX-IDEAS.md "The lock row says who it's open for".
+- (2026-11-13, step 2) **Own pace is now the default path, and BACKLOG 56 and 57 are own-pace bugs** (Run now, Open a window and
+  Undo acting on the season as it stands; a replacement rewriting weeks already played). Both waited on the user's decision
+  when they were rarely reached. A couch's next Weekly Lineup or Outlast with waivers will reach them. Decide them before this
+  is pushed, or start those games with When the next one airs until then.
+- (2026-11-13, step 2) Exclusive teams at your own pace take anyone on the couch until the draft starts and nobody after
+  (`GhostLogic.joinMode`, sync point 1's rule from 2026-11-06). A live game's "Ask me first, then free agents" isn't there.
+  Right for a season that had aired; on a season still airing it's a restriction the couch hasn't met before.
+- (2026-11-13, step 2) A seat created by the settle starts with `seenThrough: start - 1` in the state even when the person is
+  further back on the show (the server reads their real mark where it matters: `markFor`, `markRevealed`). "Where the others
+  are" (`othersIn`) can read one episode generous for such a seat until its first reveal.
+- (2026-11-13, step 2) When an episode's results are late enough that the next one airs first, the late window is on the
+  latest aired episode only (as live); the earlier one is closed to a caught-up seat until its results land.
+- (2026-11-13, step 2) The explorer doesn't make late moves yet (its lineup, pick and group-slot actions don't take the routes'
+  late path), so a caught-up seat's window between airtime and results is covered by unit tests and the new check, not by
+  campaigns. Its own-pace timing is otherwise this one (it already re-entered catching up at each result).
+- (2026-11-13; done 2026-11-14, "As built: the late lock retired") Three other "late" rules overlapped the game's pace: a game of questions' late lock in hours
+  (`extras.lateLock`, A7), the per-episode lock override ("open past its start, on the honour system") and BACKLOG 44 (no
+  limit). BACKLOG 64.
 - Head to head's ranks still order by the engine's records, which count a waiting matchup as scored with the carried lineup; the
   W–L shown leaves it out. Two seats can look out of order by one result until it's set.
 - The hero's matchup line also says "waiting on" (model.ts), but today's game page shows head to head in the grid, not the hero.

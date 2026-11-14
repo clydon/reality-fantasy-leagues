@@ -512,6 +512,10 @@ export interface GameSettings {
   waivers: string | null;
   /** Lock it down (step 15 part 4): competitive mode, nobody new, rules frozen for the season. */
   lockedDown: boolean;
+  /** The game's pace (docs/PLAN-own-pace-games.md, "Pace is the game's setting"; StateLogic.GhostLogic.pace): at your own pace (it
+   *  waits for people), live (a move stays open after an episode airs until you've watched it or the next one airs: the default) or
+   *  strict (everything locks at airtime). `of`: a stage of a game in stages follows that game's, by its name (changed there). */
+  pace: { mode: "own" | "live" | "strict"; of: string | null };
   /** How long it runs (step 6 of docs/PLAN-sports-data.md) and where it starts (step A3 of docs/PLAN-start-a-game-gpt.md): from
    *  its start to its last episode (null: the season's end); `over` once that's in, when its end doesn't change; `ends`: the
    *  episodes still to come, from its start, it can end with instead (none while it waits for its phase); `started` once its
@@ -653,6 +657,28 @@ export async function lockWrite(scope: BackstageScope, leagueId: unknown, closed
 }
 
 /**
+ * The game's pace, live or strict (docs/PLAN-own-pace-games.md, "Pace is the game's setting"; a Commissioner's, tier 1, a line in
+ * Recent changes): whether a move stays open after an episode airs until you've watched it (or the next one airs), for everyone in
+ * the game, or everything locks at airtime. Not while it's locked down, nor on a game at your own pace (it waits for each of you
+ * already). A game in stages sets it once: its stages follow (stages.ts seatStage, after this write commits), so a stage refuses it.
+ */
+export async function paceWrite(scope: BackstageScope, leagueId: unknown, mode: unknown): Promise<{ mode: "live" | "strict" }> {
+  if (mode !== "live" && mode !== "strict") throw new HttpError(400, "pace: live or strict");
+  const game = gameIn(scope, leagueId, { commissioner: true });
+  if (game.stageOf) throw new HttpError(409, "A stage follows its game: change it there");
+  await withLeagueLock(
+    game.leagueId,
+    (s) => {
+      if (StateLogic.GhostLogic.lockedDown(s)) throw new HttpError(409, FROZEN);
+      const problem = StateLogic.GhostLogic.setPace(s, mode);
+      if (problem) throw new HttpError(409, problem);
+    },
+    () => plainChange(scope.user.id, "settings", mode === "live" ? "Moves stay open until you've watched, or the next episode airs" : "Moves lock at airtime")
+  );
+  return { mode };
+}
+
+/**
  * Where a game is on its season for How long: the latest episode it's played (a game scored outside its state, Weekly Calls and
  * Weekly Bingo, by what's aired), whether it's over, and the episodes it could end with: still to come, from its start, listed.
  * Whether it's started (its first episode has aired, or has results), and until then the episodes it could start with: still to
@@ -721,6 +747,7 @@ export async function gameSettings(scope: BackstageScope): Promise<{ games: Game
         joining: { mode: StateLogic.GhostLogic.joinMode(s), rec: StateLogic.GhostLogic.recommendedJoinMode(s) },
         waivers: c ? `${RULE_WORDS[c.replaceRule]} · ${c.waiverWindows.swaps > 0 ? `${c.waiverWindows.swaps} optional swap${c.waiverWindows.swaps === 1 ? "" : "s"} per window` : "no optional swaps"}` : null,
         lockedDown: StateLogic.GhostLogic.lockedDown(s),
+        pace: { mode: StateLogic.GhostLogic.pace(s), of: l.game.stageOf ? (loaded.find((x) => x.game.leagueId === l.game.stageOf)?.game.name ?? "its game") : null },
         span: spanState(s, schedule, phases[i]),
         lock: lockOf(s),
         questions: sheets[i],

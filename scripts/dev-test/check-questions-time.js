@@ -6,10 +6,11 @@
 //   - A game of questions: jordan starts a Survival Pool for Episode 6 on, riley and sam join it, and it's made a game of
 //     questions through RosterLogic.setGame with the show's ctx: Name someone who'll be gone in the next two (every two
 //     episodes), Will an idol be played within the next two? (over two), Which episode does the merge happen in? (once), Who
-//     finds an idol this phase? (by phase), with a late lock of 72 hours.
+//     finds an idol this phase? (by phase), with a late lock of 72 hours (retired, BACKLOG 64: the spec still carries it and
+//     nothing reads it; what keeps a round open late is the game's pace, live by default).
 //   - Answering Episode 6's: every window opens at 6; an answer for another episode is refused (409).
 //   - The desk confirms the merge at Episode 7 while 6 is still to come: the game records it (its phase window opens at 7).
-//   - The lock: Episode 6 airs. jordan, who watched it (seen 6), can't answer (409); riley, still at 5, can (the late lock),
+//   - The lock: Episode 6 airs. jordan, who watched it (seen 6), can't answer (409); riley, still at 5, can (a live game's window),
 //     and sees nobody's answers while she can; jordan sees hers.
 //   - Episode 6's results: this week is 7, and the phase question's new window (Merged) opens there; jordan answers it.
 //     Episode 7's results.

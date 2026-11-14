@@ -14,7 +14,8 @@
 //     taken); once alex has played one there, a change leaving it out keeps alex's earlier answer to it, and taking it back is refused.
 //     alex answers P1's Trivia stage too.
 //   - Two flags pull one question from the sheet, not from the game (players' flags are the couch's word); an admin's pull takes it out
-//     of the game's round. Episode 6 airs (the answers close; the sheet gives alex the batch again) and its result comes in through the
+//     of the game's round. Episode 6 airs: the game is live, so the round stays open for whoever hasn't watched it and the sheet
+//     still holds the batch from alex; once they've watched it the answers close and the sheet gives alex the batch again. Its result comes in through the
 //     season sync: graded on the two left. T's table: alex 2, jordan 1, riley 0, sam 0; as sam (seen 3), nothing; P1's overall adds
 //     alex's trivia point.
 //   - The round before Episode 7: the batch written after 6, answered by alex, then written again (new questions) before Episode 7's
@@ -192,10 +193,15 @@ const P1_SPEC = {
     tq = trivQ(await questions("alex", T));
     check(JSON.stringify(tq?.trivia?.map((t) => t.id)) === JSON.stringify([q1, q2]), "  an admin's pull takes q3 out of the round", JSON.stringify(tq?.trivia?.map((t) => t.id)));
     await k.airs(4);
-    r = await answer("riley", T, { [q2]: "7" });
-    check(r.status === 409, "Episode 6 airs: the round is closed", `${r.status} ${errorOf(r)}`);
+    // The game is live (the default: docs/PLAN-own-pace-games.md, "Pace is the game's setting"), so the round stays open for whoever
+    // hasn't watched Episode 6, and the sheet holds its key back from them for as long (trivia-key.ts heldFromSheet, BACKLOG 64).
     alexSheet = await sheet("alex", true);
-    check(alexSheet.includes(`r:${q1}`) || alexSheet.some((id) => batch5.has(id)), "  and the sheet gives alex the batch again", JSON.stringify(alexSheet));
+    check(!alexSheet.includes(`r:${q1}`) && !alexSheet.some((id) => batch5.has(id)), "Episode 6 airs: the sheet still holds the batch from alex, who hasn't watched it (the round's still open for them)", JSON.stringify(alexSheet));
+    for (const who of ["alex", "riley"]) await seen(who, 6);
+    r = await answer("riley", T, { [q2]: "7" });
+    check(r.status === 409, "  once riley has watched it, the round is closed", `${r.status} ${errorOf(r)}`);
+    alexSheet = await sheet("alex", true);
+    check(alexSheet.includes(`r:${q1}`) || alexSheet.some((id) => batch5.has(id)), "  and the sheet gives alex, who has now, the batch again", JSON.stringify(alexSheet));
     const goes = names[7];
     await decide(6, "elimination", goes);
     for (const who of ["alex", "riley", "jordan"]) await seen(who, 6);

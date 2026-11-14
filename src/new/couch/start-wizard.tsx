@@ -317,6 +317,10 @@ function Wizardly({
   const [choice, setChoice] = useState<Choice>(() => ({ ...W.fresh(), sel: practice ? "predictions" : "" }) as Choice);
   const [screen, setScreen] = useState<Screen>(firstScreen ?? "home");
   const [tell, setTell] = useState(true);
+  // When moves lock (the game's pace, chosen as it starts): the options' recommended one until they change it.
+  const [paceAsked, setPace] = useState<PaceMode>(o.runs?.recommended ?? "live");
+  // A start with a phase runs live or strict (start-game.ts paceAsked): own pace falls back to live while one is chosen.
+  const pace: PaceMode = paceAsked === "own" && typeof span.from !== "number" ? "live" : paceAsked;
   const [bots, setBots] = useState(0);
   const [level, setLevel] = useState<BotLevel>("normal");
   const [flash, setFlash] = useState("");
@@ -430,7 +434,7 @@ function Wizardly({
     if (practice) return practice.onFinish(startName);
     setBusy(true);
     try {
-      const r = await wizardApi.start(o.seasonId, couchId, { spec: startSpec, name: startName, tell, ...(bots ? { bots, level } : {}), ...(late ? { late: true } : {}), made });
+      const r = await wizardApi.start(o.seasonId, couchId, { spec: startSpec, name: startName, tell, ...(bots ? { bots, level } : {}), ...(late ? { late: true } : {}), ...(o.ownPace || !o.runs ? {} : { pace }), made });
       await refresh();
       // Start it tells the couch after a 10-second Undo (round 14's critique: one tap shouldn't ping everyone unseen).
       toast(`${r.name} started${r.told ? " · the couch hears in 10 seconds" : ""}`, {
@@ -587,6 +591,8 @@ function Wizardly({
             setCview={setCview}
             late={late}
             setLate={setLate}
+            pace={pace}
+            setPace={setPace}
             catchUp={catchUp}
             setCatchUp={setCatchUp}
             g={g}
@@ -902,6 +908,80 @@ function Tick({ on }: { on: boolean }) {
 
 const fmt = (n: number) => (n < 0 ? `−${-n}` : String(n));
 
+// ---------- when moves lock ----------
+
+type PaceMode = WizardOptions["runs"]["choices"][number];
+
+/** Each pace by the latest moment a move can be made, so the heading reads on into the choice ("When moves lock: at airtime").
+ *  Backstage > Game settings uses the same names (backstage/settings.tsx Pace). */
+const PACE_WORDS: Record<PaceMode, { title: string; line: (ep: string, drafts: boolean) => string }> = {
+  own: { title: "When you’ve watched it", line: (_ep, drafts) => `However late that is: ${drafts ? "after the draft, " : ""}the game waits for each of you.` },
+  live: { title: "When the next one airs", line: () => "Or sooner, once you’ve watched it." },
+  strict: { title: "At airtime", line: (ep) => `Everything locks when the ${ep} starts.` },
+};
+
+/**
+ * When moves lock (docs/PLAN-own-pace-games.md, "Pace is the game's setting", step 2): the game's pace, chosen as it starts and the
+ * same for everyone in it. One line that says what the game will do, the three choices behind Change: the recommended one is already
+ * chosen, so the quick path costs nothing. `phased`: a start with a phase can't wait for people yet (it runs live or strict).
+ */
+function Pace({ o, value, onChange, phased, drafts }: { o: WizardOptions; value: PaceMode; onChange: (v: PaceMode) => void; phased: boolean; drafts: boolean }) {
+  const [open, setOpen] = useState(false);
+  const ep = o.part.singular;
+  const said = PACE_WORDS[value];
+  return (
+    <div data-start-pace={value}>
+      <Label
+        aside={
+          <Link onClick={() => setOpen(!open)} data-start-pace-change={open ? "open" : "closed"}>
+            {open ? "Done" : "Change"}
+          </Link>
+        }
+      >
+        When moves lock
+      </Label>
+      {!open ? (
+        <p className="text-[15px] leading-snug">
+          <b>{said.title}.</b> <span className="text-muted-foreground">{said.line(ep, drafts)}</span>
+        </p>
+      ) : (
+        <div role="radiogroup" aria-label="When moves lock">
+          {(["own", "live", "strict"] as PaceMode[])
+            .filter((m) => o.runs.choices.includes(m))
+            .map((m) => {
+              const off = m === "own" && phased;
+              const on = value === m;
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  disabled={off}
+                  data-start-pace-choice={m}
+                  onClick={() => onChange(m)}
+                  className={`flex min-h-[56px] w-full items-center gap-3 border-b border-border py-2 text-left ${off ? "opacity-55" : ""}`}
+                >
+                  <i className={`grid size-5 flex-none place-items-center rounded-full border-2 ${on ? "border-foreground" : "border-edge"}`} aria-hidden>
+                    {on && <i className="size-2.5 rounded-full bg-foreground" />}
+                  </i>
+                  <span className="min-w-0 flex-1">
+                    <b className="block text-[16px] font-semibold">
+                      {PACE_WORDS[m].title}
+                      {m === o.runs.recommended && !off && <em className="type-caption ml-2 rounded-[2px] bg-secondary px-1.5 text-[11px] not-italic">Recommended</em>}
+                    </b>
+                    <small className="mt-[3px] block text-[13px] leading-snug text-muted-foreground">{off ? "Not for a game that starts with a phase, for now." : PACE_WORDS[m].line(ep, drafts)}</small>
+                  </span>
+                </button>
+              );
+            })}
+          <Note>The same for everyone in the game. Late is on the honour system: only if you haven’t watched it yet.</Note>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---------- home ----------
 
 type G = ReturnType<Wizard["games"]>;
@@ -923,6 +1003,8 @@ function Home(p: {
   catchUp: number | null;
   setCatchUp: (v: number | null) => void;
   setLate: (v: boolean) => void;
+  pace: PaceMode;
+  setPace: (v: PaceMode) => void;
   g: G;
   sel: string;
   pickGame: (id: string) => void;
@@ -1026,6 +1108,9 @@ function Home(p: {
             data={{ "data-start-late": p.late ? "on" : "off" }}
           />
         </div>
+      )}
+      {!o.ownPace && (o.runs?.choices.length ?? 0) > 1 && (
+        <Pace o={o} value={p.pace} onChange={p.setPace} phased={typeof span.from !== "number"} drafts={spec?.get?.by === "draft"} />
       )}
 
       <Label

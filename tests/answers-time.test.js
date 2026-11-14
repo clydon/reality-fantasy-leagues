@@ -191,53 +191,50 @@ test("the engine's windows: where each opens, which an answer is for, phase wind
   assert.deepEqual(Object.fromEntries(S.AnswerLogic.grade(S.GhostLogic.viewFor(s, "ann", 5), answers).points), { ann: 2 });
   assert.equal(S.AnswerLogic.closesAt(s, gone, 4), 4);
   assert.equal(S.AnswerLogic.closesAt(s, merge, 0), 2);
-  // How it works says each window, and the late lock.
+  // How it works says each window. A late lock a spec still carries isn't described (retired, BACKLOG 64: the game's pace says who a
+  // move stays open for, and that's how it's run, not what the game is).
   const late2 = G.describeSpec(game([GONE, WITHIN, PHASE], { extras: { lateLock: { hours: 24 } } }));
   assert.deepEqual(late2.rules.slice(1, 4), [
     "Every two episodes, before the first: Who'll be gone in the next two? 2 points if you're right.",
     "Before each episode, about it and the next two: An idol played in the next three? 1 point if you're right.",
     "Once a phase, as it begins: Who finds an idol this phase? Name two: 1 point for each one right.",
   ]);
-  assert.ok(late2.rules.includes("Watching late? Answer before you watch: until you've seen it, up to 24 hours after it airs."));
-  assert.equal(late2.details.find((d) => d.id === "lateLock").value, "Answer until you've seen it, up to 24 hours after it airs");
+  assert.ok(!late2.rules.some((r) => /Watching late|hours after it airs/.test(r)));
+  assert.equal(late2.details.find((d) => d.id === "lateLock"), undefined);
 });
 
-test("a late lock: someone who hasn't seen an episode answers until they have, up to its hours past the air time", () => {
+test("a late lock a spec still carries is retired: nothing reads it, the game's pace decides who it stays open for", () => {
   const s = league("pickem", 6);
   const OUT = { id: "out", ask: "Who goes home?", answer: "person", points: 2, asked: "each", settle: { by: "results", take: "out" } };
-  assert.deepEqual(S.setGame(s, game([OUT], { span: { from: 1, to: null }, extras: { lateLock: { hours: 24 } } }), { ctx: CTX }), []);
+  assert.deepEqual(S.setGame(s, game([OUT], { span: { from: 1, to: null }, extras: { lateLock: { hours: 24 } } }), { ctx: CTX }), [], "still a valid spec");
+  assert.deepEqual(S.gameOf(s).extras.lateLock, { hours: 24 }, "and the game keeps what it was made with");
   const q = S.AnswerLogic.questions(s)[0];
-  const e1 = ep(s, 1);
   const air = Date.parse("2026-11-01T00:00:00Z");
-  e1.airsAt = new Date(air).toISOString();
-  const closed = (mark, now) => S.AnswerLogic.closed(s, q, 1, { now, mark });
+  ep(s, 1).airsAt = new Date(air).toISOString();
+  ep(s, 2).airsAt = new Date(air + 7 * 24 * HOUR).toISOString();
+  const closed = (mark, now, player) => S.AnswerLogic.closed(s, q, 1, { now, mark, ...(player ? { player } : {}) });
   assert.equal(closed(null, air - HOUR), false, "before it airs: open for everyone");
-  assert.equal(closed(null, air + HOUR), true, "it's started: closed for whoever sees it as it airs");
-  assert.equal(closed(0, air + HOUR), false, "not seen: still open, an hour in");
-  assert.equal(closed(0, air + 23 * HOUR), false);
-  assert.equal(closed(0, air + 25 * HOUR), true, "past the late lock's hours");
-  assert.equal(closed(1, air + HOUR), true, "seen it: closed");
+  assert.equal(closed(0, air + HOUR), true, "no seat named: the hours alone keep nothing open");
+  // Live (the default): open for a seat that hasn't watched it, past the old hours, until the next one airs.
+  assert.equal(closed(0, air + HOUR, "ann"), false);
+  assert.equal(closed(0, air + 25 * HOUR, "ann"), false, "past its 24 hours: the pace's window, not the lock's");
+  assert.equal(closed(1, air + HOUR, "ann"), true, "watched it: closed");
+  assert.equal(closed(0, air + 7 * 24 * HOUR + 1, "ann"), true, "the next one aired: closed");
+  // Whoever runs the game locking the episode by hand closes it for everyone (the one exception to the pace).
+  ep(s, 1).lineupsLocked = true;
+  assert.equal(closed(0, air + HOUR, "ann"), true, "locked by hand");
+  delete ep(s, 1).lineupsLocked;
+  assert.equal(closed(0, air + HOUR, "ann"), false);
+  // Strict: at airtime, whatever the spec carries.
+  assert.equal(S.GhostLogic.setPace(s, "strict"), null);
+  assert.equal(closed(0, air + HOUR, "ann"), true, "a strict game locks at airtime, late lock or not");
+  assert.equal(S.GhostLogic.setPace(s, "live"), null);
+  // The episode they answer for now: the one that aired while they haven't watched it, for a seat; else this week's.
   results(s, 1, [0]);
-  assert.equal(closed(0, air + 2 * HOUR), false, "its results are in, but not for them: they haven't seen it");
-  // This week's for them is the one after their mark while it's open; whoever runs it locking the episode closes it.
-  ep(s, 2);
   assert.equal(S.AnswerLogic.episodeNow(s), 2);
-  assert.equal(S.AnswerLogic.lateEpisode(s, 0, { now: air + 2 * HOUR }), 1);
-  assert.equal(S.AnswerLogic.lateEpisode(s, 0, { now: air + 30 * HOUR }), 2);
-  assert.equal(S.AnswerLogic.lateEpisode(s, null, { now: air + 2 * HOUR }), 2);
-  // An air time from the schedule (the league hasn't stamped one) does the same.
-  delete e1.airsAt;
-  const airAtOf = (n) => (n === 1 ? new Date(air).toISOString() : null);
-  assert.equal(S.AnswerLogic.lateEpisode(s, 0, { now: air + 2 * HOUR }), 2, "no air time: no late lock");
-  assert.equal(S.AnswerLogic.lateEpisode(s, 0, { now: air + 2 * HOUR, airAtOf }), 1);
-  e1.airsAt = new Date(air).toISOString();
-  e1.lineupsLocked = true;
-  assert.equal(closed(0, air + HOUR), true, "locked by whoever runs it");
-  // Without a late lock nothing changes.
-  const plain = league("pickem", 6);
-  S.setGame(plain, game([OUT]), { ctx: CTX });
-  ep(plain, 1).airsAt = new Date(air).toISOString();
-  assert.equal(S.AnswerLogic.closed(plain, S.AnswerLogic.questions(plain)[0], 1, { now: air + HOUR, mark: 0 }), true);
+  assert.equal(S.AnswerLogic.lateEpisode(s, 0, { now: air + 2 * HOUR }), 2, "no seat named: this week's");
+  assert.equal(S.AnswerLogic.lateEpisode(s, 0, { now: air + 2 * HOUR, player: "ann" }), 1);
+  assert.equal(S.AnswerLogic.lateEpisode(s, 1, { now: air + 2 * HOUR, player: "ann" }), 2, "watched it: this week's");
 });
 
 test("one person at their own pace on a live game: their answers stay open until they've watched it or the next one airs", () => {
@@ -249,14 +246,17 @@ test("one person at their own pace on a live game: their answers stay open until
   ep(s, 1).airsAt = new Date(air).toISOString();
   ep(s, 2).airsAt = new Date(air + 7 * 24 * HOUR).toISOString();
   const closed = (mark, now) => S.AnswerLogic.closed(s, q, 1, { now, mark, player: "ann" });
-  assert.equal(closed(0, air + HOUR), true, "no switch, no late lock: closed at airtime");
-  assert.equal(S.GhostLogic.setPlaysOwnPace(s, "ann", true), null);
-  assert.equal(closed(0, air + HOUR), false, "on: open while she hasn't watched it");
+  assert.equal(S.GhostLogic.setPace(s, "strict"), null);
+  assert.equal(closed(0, air + HOUR), true, "a strict game, no late lock: closed at airtime");
+  assert.equal(S.GhostLogic.setPace(s, "live"), null);
+  assert.equal(closed(0, air + HOUR), false, "live: open while she hasn't watched it");
   results(s, 1, [0]);
   assert.equal(closed(0, air + 30 * HOUR), false, "results in, a day later: still open for her");
   assert.equal(closed(1, air + HOUR), true, "watched it: closed");
   assert.equal(closed(0, air + 7 * 24 * HOUR + 1), true, "the next one aired: closed");
-  assert.equal(S.AnswerLogic.closed(s, q, 1, { now: air + HOUR, mark: 0, player: "bo" }), true, "only her seat");
+  assert.equal(S.AnswerLogic.closed(s, q, 1, { now: air + HOUR, mark: 0, player: "bo" }), false, "everyone in the game, not one seat");
+  assert.equal(S.AnswerLogic.closed(s, q, 1, { now: air + HOUR, mark: 1, player: "bo" }), true, "bo has watched it: closed for him");
   assert.equal(S.AnswerLogic.lateEpisode(s, 0, { now: air + 2 * HOUR, player: "ann" }), 1, "her week is the one that aired");
-  assert.equal(S.AnswerLogic.lateEpisode(s, 0, { now: air + 2 * HOUR, player: "bo" }), 2);
+  assert.equal(S.AnswerLogic.lateEpisode(s, 0, { now: air + 2 * HOUR, player: "bo" }), 1, "bo's too, while he hasn't watched it");
+  assert.equal(S.AnswerLogic.lateEpisode(s, 1, { now: air + 2 * HOUR, player: "bo" }), 2, "watched: his week is the next one");
 });

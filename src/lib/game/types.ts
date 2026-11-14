@@ -28,7 +28,8 @@ export interface Player {
   /** Step A11 part 5c of docs/PLAN-start-a-game-gpt.md: what a team given after the draft cost under a price (a late joiner's own
    *  draft, or castaways whoever runs the game gave them): a stock market's cash counts it as it counts the draft's log. */
   joinPaid?: number;
-  /** Plays a live game at their own pace (docs/PLAN-own-pace-games.md, the Commissioner's switch on Backstage › Members): their
+  /** Before 2026-11-13, one seat's switch (Backstage › Members, "Plays at their own pace"); now the game's setting, for everyone
+   *  (StateLogic.GhostLogic.pace: any game that isn't strict). Read nowhere; a seat that still carries it is covered, and setPace clears it. It kept their
    *  moves for an aired episode stay open until they've watched it or the next one airs (StateLogic.GhostLogic.lateWindow). */
   ownPace?: boolean;
 }
@@ -355,6 +356,12 @@ export interface LeagueSettings {
   /** A game at your own pace (docs/PLAN-own-pace-games.md, StateLogic.GhostLogic.paceAll): started from an episode that had
    *  aired, every seat a late joiner from the start, each playing one episode at a time whenever they watch. */
   ownPace?: boolean;
+  /** At its own pace, made before its first episode aired (StateLogic.GhostLogic.paceTogether): everyone started on the same episode,
+   *  so it was drafted as a live game is. Set true, never stored false. */
+  startedTogether?: boolean;
+  /** Live and strict (docs/PLAN-own-pace-games.md, "Pace is the game's setting"; StateLogic.GhostLogic.pace): everything locks at
+   *  airtime. Set true, never stored false: a live game without it keeps a move open until you've watched, or the next one airs. */
+  lockAtAir?: boolean;
   /** The first episode whose exits are replaced per holder (migration 0207, a game made before that rule; none: every exit). */
   perHolderFrom?: number;
   /** Late joiners play from an episode of their choosing, unseen until added (StateLogic.GhostLogic).
