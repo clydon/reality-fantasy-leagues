@@ -8,14 +8,15 @@
 // its logs are public; backups hold real people's data). Games scored outside their state (Weekly Calls, bingo, a game of
 // questions) are compared on what their state holds, which is all the engine scores there.
 //
-//   node scripts/dev-test/compare-totals.js --backup=backups/prod-2026-10-30 [--ref=HEAD] [--detail]
+//   node scripts/dev-test/compare-totals.js --backup=backups/prod-2026-11-14 [--ref=origin/master] [--detail]
 //   node scripts/dev-test/compare-totals.js --db [--ref=HEAD] [--detail] [--all]
 //
 // --backup=<dir>  a backup made by scripts/backup-leagues.js (its leagues.json): production as it stood then, with no database
 //                 and no connection string. Take a fresh one first for a push (the user runs it; its header says how).
 // --db            the LOCAL database (.env.local AUTH_DATABASE_URL; refuses any other host). zt fixtures are left out
 //                 unless --all.
-// --ref=<ref>     the engine to compare against (default HEAD: what's committed, against what's in the tree).
+// --ref=<ref>     the engine to compare against. Default origin/master: what's live, against this tree (the question before a
+//                 push). --ref=HEAD for work not committed yet: once it's committed, HEAD is the tree and nothing can differ.
 // --detail        for each league that moves: which episodes' lineups differ for the seats that moved (a lineup game).
 //
 // Prints what it read, then each league that moves, then "no league's totals move" (exit 0) or how many do (exit 1).
@@ -28,7 +29,7 @@ const root = path.join(__dirname, "..", "..");
 const args = process.argv.slice(2);
 const arg = (k) => (args.find((a) => a.startsWith(`--${k}=`)) || "").slice(k.length + 3) || null;
 const flag = (k) => args.includes(`--${k}`);
-const ref = arg("ref") || "HEAD";
+const ref = arg("ref") || "origin/master";
 
 /** A git ref's engine: its src/lib/game in a temp folder (tests/fixtures/scoring-shapes.js engineAt's way). */
 function engineAt(at) {

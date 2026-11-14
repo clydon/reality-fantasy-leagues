@@ -48,8 +48,10 @@ the next one airs) and **At airtime** (strict). The per-person "Plays at their o
   before it (`ActiveRosterLogic.letGoBefore`; a read rule: a gap to fill, Undo brings them back).
 - **Before a push** (it changes how the couch's games lock and how lineups read: never on an episode night, and only with the
   user's OK): take the fresh backup the routine asks for and run `node scripts/dev-test/compare-totals.js
-  --backup=<that folder>`: it scores every league by the committed engine and the new one and lists any whose table would
-  change (by show, season and kind only). On production's 2026-10-30 backup none does. (One league on the LOCAL database does,
+  --backup=<that folder>`: it scores every league by the engine that's live (origin/master) and this tree's and lists any whose
+  table would change (by show, season and kind only). On production's backup of 2026-11-14 (`backups/prod-2026-11-14`, taken
+  that day through `.session-loop/backup-prod-now.ps1`: the user's Copy + Enter, production's compute only, read-only) none of
+  its ten leagues does, the couch's Survivor 51 lineup (6 moves logged) and Outlast (2) among them. (One league on the LOCAL database does,
   a Survivor 49 Weekly Lineup: local only, not production's.)
 - **The late lock in hours is retired** (BACKLOG 64, 2026-11-14): nothing reads or offers `extras.lateLock`; a stored spec that
   carries one is still valid. Two things decide a late move now: the game's pace, and a hand lock on one episode (set before it

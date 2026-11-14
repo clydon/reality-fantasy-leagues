@@ -710,8 +710,8 @@ Last updated 2026-10-27.
     the fix: a Survivor 49 Weekly Lineup (a seat saved one lineup for Episode 1, rode it through Episode 6, and replaced a
     starter after Episode 10; weeks 2 to 6 then lost that starter's points, 9 in all: second by 4 became first by 5).
     **That league is local only** (the user, 2026-11-14: "pretty sure survivor 49 doesnt exist"; right: production's backup of
-    2026-10-30 has ten leagues, none on Survivor 49), and **no production league's totals move** (the same backup, scored by
-    both engines). The check is kept for any scoring change: `node scripts/dev-test/compare-totals.js --backup=<dir>` (a backup
+    2026-10-30 has ten leagues, none on Survivor 49), and **no production league's totals move** (that backup, and a fresh one taken
+    2026-11-14: ten leagues, scored by the live engine and the fixed one; the couch's Survivor 51 lineup has 6 moves logged). The check is kept for any scoring change: `node scripts/dev-test/compare-totals.js --backup=<dir>` (a backup
     made by `scripts/backup-leagues.js`; no database, no connection string) or `--db` (local only). **Before a push:** run it on
     the fresh backup the push routine takes. As found:
     (found 2026-11-13 by the
