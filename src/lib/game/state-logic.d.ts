@@ -657,6 +657,8 @@ declare const StateLogic: {
     setLineup(state: LeagueState, epId: string, playerId: string, castawayIds: string[], now?: number): boolean;
     /** L8 part 1's engine items: a lineup locking at each game's start (closes 'game', its games stamped). */
     eachGame(state: LeagueState, ep: Episode): boolean;
+    /** The episode's last game's start (ms), or null. */
+    lastStartOf(ep: Episode): number | null;
     /** Whether a holding is locked now: one of its games in the episode has started and its day isn't over. */
     heldLocked(ep: Episode, castawayId: string, now?: number): boolean;
     /** The lineup a player had in force at instant `t` (ms). */

@@ -183,12 +183,15 @@ export function MovesSheet({ show, seasonId }: { show: ShowData; seasonId: strin
   // Your episode, not the season's: someone catching up sets their own next episode's moves, open until they reveal it
   // (the game page's words). Games on different episodes are each named (the gameplay bench's behind-viewer case, 2026-11-12).
   const yours = [...new Set((show.play ?? []).flatMap((g) => [g.lineup?.episode, g.pick?.episode]).filter((n): n is number => Number.isInteger(n)))].sort((a, b) => a - b);
-  const behind = !!up && yours.length > 0 && yours[yours.length - 1] < up.number;
+  // A lineup that locks game by game (a sport's week of several games) is open past the week's first game without anyone being
+  // behind: each player locks when their own game starts (TEMP-UI, Designs needed item 38).
+  const byGame = (show.play ?? []).some((g) => g.lineup?.eachGame);
+  const behind = !byGame && !!up && yours.length > 0 && yours[yours.length - 1] < up.number;
   const subtitle =
     yours.length > 1
       ? `Episodes ${yours.join(" and ")}`
       : yours.length === 1
-        ? `Episode ${yours[0]}${behind ? " · change it until you reveal it" : until ? ` · change anything until ${until}` : ""}`
+        ? `Episode ${yours[0]}${byGame ? " · change anyone until their game starts" : behind ? " · change it until you reveal it" : until ? ` · change anything until ${until}` : ""}`
         : up
           ? `Episode ${up.number}${until ? ` · change anything until ${until}` : ""}`
           : undefined;
@@ -411,6 +414,8 @@ function MovesBody({
         {(() => {
           // Catching up, an episode locks when you reveal it, not at its airtime (it's aired already).
           const up = show.upNext?.number ?? Infinity;
+          // A lineup that locks game by game: each player's own game does (not airtime, not a reveal).
+          if (play.some((g) => g.lineup?.eachGame)) return "Each player locks when their game starts.";
           const eps = play.map((g) => g.lineup?.episode ?? g.pick?.episode).filter((n): n is number => Number.isInteger(n));
           const behind = eps.filter((n) => n < up).length;
           // A live game's episode that aired and you haven't watched (OnYourHonour): watching it is what locks it.
@@ -502,7 +507,11 @@ function LineupPanel({
     );
   }
   const stillIn = roster.filter((c) => !c.left).length;
+  // (Game by game: whoever's game has started stays where they are until the day's over; a tap says so rather than build a save
+  // the server refuses.)
+  const stuck = new Set(l.eachGame?.locked ?? []);
   const toggle = (id: string) => {
+    if (stuck.has(id)) return toast.quiet(`${first(faceIn(g, id)?.name ?? "")}'s game has started: they stay ${starters.includes(id) ? "in" : "out"} until the day's over`);
     if (starters.includes(id)) return onStarters(starters.filter((x) => x !== id));
     if (starters.length >= l.slots) return toast.quiet("Bench someone first");
     onStarters([...starters, id]);
@@ -534,7 +543,7 @@ function LineupPanel({
               </span>
               <b className="type-caption text-[15px]">{first(c.name)}</b>
               <small className={`text-[11px] ${c.left ? "text-chyron-line" : "opacity-85"}`}>
-                {c.left ? (pickup ? "Tap to replace" : c.out ? `Out · Ep ${c.out}` : "Out") : `${c.points ?? 0} pts`}
+                {c.left ? (pickup ? "Tap to replace" : c.out ? `Out · Ep ${c.out}` : "Out") : stuck.has(c.id) ? "Locked · game on" : `${c.points ?? 0} pts`}
               </small>
             </>
           );

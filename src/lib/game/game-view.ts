@@ -108,6 +108,12 @@ export interface LineupMove {
    * closedForPlay's ep.locksAt): which. Null for an open lineup, and for one its own start or its results locked.
    */
   lockedBy: "day" | "week" | null;
+  /**
+   * A lineup that locks game by game (a sport's week of several games, the spec's closes 'game'): each player locks when their own
+   * team's game starts, for the rest of that day, and the whole lineup at the week's last game (`until`). `locked`: who is locked
+   * now (in or out of the lineup as they stand). Null for any other lineup, and once it's locked.
+   */
+  eachGame: { locked: string[]; until: string | null } | null;
 }
 
 export interface PickMove {
@@ -640,12 +646,16 @@ function lineupOf(view: LeagueState, me: string, now?: number): LineupMove | nul
   // Locked by its day or its week while its own game is still to come (BACKLOG 76: the page said "Locked at airtime").
   const closes = StateLogic.gameOf(view).closes;
   const early = locked && (closes === "daily" || closes === "weekly") && !ep.lineupsLocked && !!ep.airsAt && (now ?? Date.now()) < Date.parse(ep.airsAt) && !StateLogic.episodeHasResults(ep);
+  // Game by game (the week's games stamped: air-times.ts stampGameLocks): who is locked now, and the week's last start.
+  const last = !locked && AR.eachGame(view, ep) ? AR.lastStartOf(ep) : null;
+  const eachGame = last !== null ? { locked: mine.map((c) => c.id).filter((id) => AR.heldLocked(ep, id, now)), until: new Date(last).toISOString() } : null;
   return {
     epId: ep.id,
     episode: ep.number,
     airsAt: ep.airsAt ?? null,
     locked,
     lockedBy: early ? (closes === "daily" ? "day" : "week") : null,
+    eachGame,
     slots: activeSlots,
     need,
     starters,

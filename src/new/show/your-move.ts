@@ -167,6 +167,12 @@ export function movesOf(g: GameView, o: MoveContext): YourMove[] {
     } else if (L.locked) {
       // (Locked by its day or its week before its own game: nothing has aired yet, and there's nothing to reveal. BACKLOG 76.)
       found.push({ ...lineup, empty: 0, title, line: L.lockedBy ? `Locked when the ${L.lockedBy}'s first game began` : "Locked at airtime · scores hidden until you reveal", action: "See", due: false });
+    } else if (L.eachGame) {
+      // Game by game (TEMP-UI, Designs needed item 38): each player locks at their own game, the whole lineup by the week's last.
+      const by = L.eachGame.until ? ` · all by ${o.when(L.eachGame.until)}` : "";
+      found.push(!L.set
+        ? { ...lineup, empty: Math.max(0, L.need - faces.length), title: `Set your ${E} ${L.episode} lineup`, line: `Each player locks at their game${by}`, action: "Set", due: true }
+        : { ...lineup, empty: 0, title, line: `Each player locks at their game${by}`, action: "Edit", due: false });
     } else if (!L.set) {
       found.push({
         ...lineup,

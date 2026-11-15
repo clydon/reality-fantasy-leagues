@@ -176,7 +176,9 @@ function WeekPane({ g, r, it, next, words, onClose, onFace }: { g: GameView; r: 
   const title = `${words.episode} ${it.n}`;
   if (!w) {
     const lateYou = r.you && g.late?.episode === it.n;
-    const airs = lateYou ? "Aired · you haven't watched it" : next?.airsAt ? `Airs ${airTime(Date.parse(next.airsAt))}` : null;
+    // (A week that locks game by game, under way: its first game has begun, the rest to come. TEMP-UI, BACKLOG 80.)
+    const underWay = r.you && !!g.lineup?.eachGame && !!next?.airsAt && Date.parse(next.airsAt) <= Date.now();
+    const airs = lateYou ? "Aired · you haven't watched it" : underWay ? `Under way · all locked by ${g.lineup?.eachGame?.until ? airTime(Date.parse(g.lineup.eachGame.until)) : "its last game"}` : next?.airsAt ? `Airs ${airTime(Date.parse(next.airsAt))}` : null;
     const set = !!next?.done.get(r.playerId);
     const faces = r.you ? (g.lineup?.starters ?? []) : set ? r.team : r.last;
     const caption = r.you ? "Your lineup" : set ? "Their team" : "Stands in";
@@ -190,6 +192,11 @@ function WeekPane({ g, r, it, next, words, onClose, onFace }: { g: GameView; r: 
           set
           ? `Locked when the ${g.lineup.lockedBy}'s first game began. It plays as it stands.`
           : `Locked when the ${g.lineup.lockedBy}'s first game began. Your last lineup stands in.`
+        : g.lineup?.eachGame
+        ? // (Game by game, TEMP-UI: Designs needed item 38.)
+          set
+          ? "Each player locks when their game starts. Nobody sees it before then."
+          : "Not set yet. Each player locks when their game starts; until you set one, last week's stands in."
         : set
         ? "Yours to change until it airs. Nobody sees it before then."
         : "Not set yet. Until you set one, last week's stands in."

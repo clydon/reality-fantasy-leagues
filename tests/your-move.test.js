@@ -136,3 +136,15 @@ test("Due comes first: a claim to make beats a lineup already set; a lineup due 
   );
   assert.equal(yourMove(game({ over: true, gameType: "active-roster", lineup: lineup() }), ctx()), null, "a game that's over says nothing");
 });
+
+test("A sport's lineup that locks game by game: each player locks at their game, all by the week's last; never 'until it airs' or a reveal (BACKLOG 80)", () => {
+  const set = yourMove(game({ gameType: "active-roster", lineup: lineup({ eachGame: { locked: ["c4"], until: "Sun" } }) }), ctx());
+  assert.equal(set.line, "Each player locks at their game · all by at Sun");
+  assert.equal(set.action, "Edit");
+  assert.equal(set.due, false);
+  const due = yourMove(game({ gameType: "active-roster", lineup: lineup({ set: false, starters: ["c4"], eachGame: { locked: [], until: "Sun" } }) }), ctx());
+  assert.equal(due.title, "Set your Episode 7 lineup");
+  assert.equal(due.line, "Each player locks at their game · all by at Sun");
+  assert.equal(due.due, true);
+  assert.equal(due.empty, 2);
+});
