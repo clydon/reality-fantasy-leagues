@@ -73,6 +73,8 @@ export interface CastStat {
   how: string | null;
   /** A secret role, only once they've left by your episode. */
   role: string | null;
+  /** What they do, never a secret (season_cast.role: a crew's "Chief stew", a sport's "WR"); added by the stats read (step 5). */
+  position?: string | null;
   /** Over the range asked: points, each stat's count (nonzero only), points per episode (null once out), what was
    *  recorded each episode ([episode, stat key, what it scored, how many units], for their story). */
   points: number;

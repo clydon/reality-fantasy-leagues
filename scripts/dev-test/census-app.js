@@ -63,10 +63,11 @@ async function setup() {
       const fx = await require("./new-fixture").up(pool, { art });
       await require("./hub-fixture").up(pool, fx, { art });
       await require("./guide-fixture").up(pool, fx, { art });
+      await require("./crew-fixture").up(pool);
     }
     const q = async (sql, p) => (await pool.query(sql, p)).rows;
-    for (const r of await q(`SELECT ss.id, sh.slug, ss.season_number FROM show_seasons ss JOIN shows sh ON sh.id = ss.show_id WHERE sh.slug LIKE 'zt-nd-%' OR sh.slug LIKE 'zt-gd-%'`)) {
-      const key = r.slug === "zt-nd-survivor" ? `s${r.season_number}` : r.slug.replace(/^zt-(nd|gd)-/, "");
+    for (const r of await q(`SELECT ss.id, sh.slug, ss.season_number FROM show_seasons ss JOIN shows sh ON sh.id = ss.show_id WHERE sh.slug LIKE 'zt-nd-%' OR sh.slug LIKE 'zt-gd-%' OR sh.slug LIKE 'zt-cr-%'`)) {
+      const key = r.slug === "zt-nd-survivor" ? `s${r.season_number}` : r.slug.replace(/^zt-(nd|gd|cr)-/, "");
       ids[key] = r.id;
     }
     for (const r of await q(`SELECT id, slug FROM leagues WHERE slug LIKE 'zt-nd-%' AND deleted_at IS NULL`)) ids[r.slug.replace(/^zt-nd-/, "")] = r.id;
@@ -125,6 +126,13 @@ function situations() {
     { id: "game-person-sheet", surface: "game", who: "alex", go: () => `/show/${S51}/game/${ids.lineup}`, ready: "[data-game-page]", act: async (p) => { await tap(p, "[data-game-page] [data-sheet-open], [data-game-page] button:has-text('Your sheet'), [data-game-page] a:has-text('Your sheet')"); await sheetOpen(p); }, flavor: "competition", lens: "your sheet (the person sheet)", full: false },
     { id: "cast-alex", surface: "cast", who: "alex", go: show(S51, "cast"), ready: "[data-cast]", flavor: "competition", lens: "caught up", full: true },
     { id: "cast-sheet", surface: "cast", who: "alex", go: show(S51, "cast"), ready: "[data-cast]", act: async (p) => { await tap(p, ':is(button,a,[role=button]):has-text("JELLY")'); await sheetOpen(p); }, flavor: "competition", lens: "a castaway's sheet", full: false },
+    // Step 5's drill levels: the numbers (one table, the show's facts), a game chosen as the lens, the person sheet's numbers and
+    // games, the compare, and a game's own sheet for them opened from the person sheet.
+    { id: "cast-numbers", surface: "cast", who: "alex", go: show(S51, "cast"), ready: "[data-cast]", act: (p) => scrollTo(p, "[data-numbers]"), flavor: "competition", lens: "the numbers: counted by the show", full: false },
+    { id: "cast-lens", surface: "cast", who: "alex", go: show(S51, "cast"), ready: "[data-cast]", act: async (p) => { await tap(p, '[data-lens-option][aria-checked="false"]'); await p.locator("[data-lens-game]").first().waitFor({ timeout: 10000 }); await scrollTo(p, "[data-numbers]"); }, flavor: "competition", lens: "the numbers: a game chosen", full: false },
+    { id: "cast-sheet-more", surface: "cast", who: "alex", go: show(S51, "cast"), ready: "[data-cast]", act: async (p) => { await tap(p, ':is(button,a,[role=button]):has-text("JELLY")'); await sheetOpen(p); await p.locator("[data-their-numbers], [data-story]").first().evaluate((e) => e.scrollIntoView({ block: "start" })).catch(() => {}); await p.waitForTimeout(600); }, flavor: "competition", lens: "a castaway's sheet: their numbers and games", full: false },
+    { id: "cast-compare", surface: "cast", who: "alex", go: show(S51, "cast"), ready: "[data-cast]", act: async (p) => { await tap(p, ':is(button,a,[role=button]):has-text("JELLY")'); await sheetOpen(p); await tap(p, "[data-compare-with]"); await p.waitForTimeout(600); await tap(p, '[data-face-wall] button[data-cast="Ori"]'); await sheetOpen(p); }, flavor: "competition", lens: "two side by side", full: false },
+    { id: "cast-game-sheet", surface: "cast", who: "alex", go: show(S51, "cast"), ready: "[data-cast]", act: async (p) => { await tap(p, ':is(button,a,[role=button]):has-text("JELLY")'); await sheetOpen(p); await tap(p, "[data-person-game]"); await p.waitForTimeout(900); await sheetOpen(p); }, flavor: "competition", lens: "In your games: their sheet in one game", full: false },
     { id: "chat-alex", surface: "chat", who: "alex", go: show(S51, "chat"), ready: "[data-chat]", flavor: "competition", lens: "caught up", full: false },
     { id: "chat-sam", surface: "chat", who: "sam", go: show(S51, "chat"), ready: "[data-chat]", flavor: "competition", lens: "two behind: the fold", full: false },
     { id: "watch-alex", surface: "watch", who: "alex", go: show(S51, "tonight") + "?page=watch", ready: "[data-watch-along], [data-tab='tonight']", flavor: "competition", lens: "watch along", full: false },
@@ -139,6 +147,9 @@ function situations() {
     { id: "where-riley-traitors", surface: "episodes", who: "riley", go: show(TR, "episodes"), ready: '[data-tab="episodes"]', act: async (p) => { await tap(p, ':is([data-progress-mark], button:has-text("Spoiler-safe"))'); await p.waitForTimeout(1200); }, flavor: "competition", lens: "where you are on a show you watch: the episode ledger (step 4)", full: false },
     { id: "watchonly-riley-episodes", surface: "episodes", who: "riley", go: show(TR, "episodes"), ready: '[data-tab="episodes"]', flavor: "competition", lens: "watching only: episodes", full: true },
     { id: "watchonly-riley-cast", surface: "cast", who: "riley", go: show(TR, "cast"), ready: "[data-cast]", flavor: "competition", lens: "watching only: the cast", full: false },
+    // A crew (crew-fixture.js): each person's role under their name, grouped by department (the user, 2026-11-15).
+    { id: "crew-alex-cast", surface: "cast", who: "alex", go: () => `/show/${ids.yacht}/cast`, ready: "[data-cast]", flavor: "story", lens: "a crew: roles and departments", full: false },
+    { id: "watchonly-riley-cast-sheet", surface: "cast", who: "riley", go: show(TR, "cast"), ready: "[data-cast]", act: async (p) => { await tap(p, "[data-face-wall] button[data-cast]"); await sheetOpen(p); }, flavor: "competition", lens: "watching only: a player's sheet (a secret role)", full: false },
     { id: "watchonly-riley-chat", surface: "chat", who: "riley", go: show(TR, "chat"), ready: "[data-chat]", flavor: "competition", lens: "watching only: the chat", full: false },
     { id: "story-late-show", surface: "tonight", who: "alex", go: show(LATE, "tonight"), ready: '[data-tab="tonight"]', flavor: "story", lens: "a talk show, nightly, watching only", full: true },
     { id: "story-late-show-episodes", surface: "episodes", who: "alex", go: show(LATE, "episodes"), ready: '[data-tab="episodes"]', flavor: "story", lens: "a talk show's episodes", full: false },

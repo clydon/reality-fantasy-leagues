@@ -8,6 +8,7 @@ import { gameColour, ordinal } from "../games";
 import { Avatar } from "../ui/bars";
 import { Sheet } from "../ui/sheet";
 import type { Square } from "@/lib/game/game-plays";
+import { useWithRoles } from "../sports/faces";
 import { StoryBody } from "./cast";
 import { LATE_SET, LateMark, LineupSheet, signed } from "./lineup-sheet";
 import { castName, faceIn, first } from "./moves";
@@ -714,7 +715,7 @@ function EpisodeBody({ g, show, episode, go }: Ctx & { episode: number; go: Dril
 // ---------- a castaway in this game ----------
 
 /** A group as a small tag in its own colour (Tags Not Fills), its ink plate ink or white by contrast. */
-function TribeTag({ name, colour }: { name: string; colour: string }) {
+export function TribeTag({ name, colour }: { name: string; colour: string }) {
   const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(colour.trim());
   const lum = m ? [m[1], m[2], m[3]].map((h) => parseInt(h, 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)).reduce((t, c, i) => t + c * [0.2126, 0.7152, 0.0722][i], 0) : 0;
   return (
@@ -755,7 +756,9 @@ function CastBody({ g, show, seasonId, id, go }: Ctx & { id: string; go: Drill }
         {!sport && <span>{c.left ? `Out${c.out ? ` · ${show.words.episode} ${c.out}` : ""}` : "Still in"}</span>}
         {c.points !== null && <span>· {fmt(c.points)} pts in this game</span>}
       </div>
-      {!sport && story && stats.data && <CastChart d={stats.data} c={story} words={show.words} counted={g.you?.weeks.filter((w) => w.started.some((x) => x.id === id)).map((w) => w.episode) ?? []} />}
+      {/* Drawn only where the stats' points are this game's: a couch's Weekly Lineup lends its points to the stats read, and Outlast
+          counts differently (the cast tab's In your games opened the mismatch, step 5). */}
+      {!sport && story && stats.data && (!stats.data.pointsFrom || stats.data.pointsFrom === g.gameName) && <CastChart d={stats.data} c={story} words={show.words} counted={g.you?.weeks.filter((w) => w.started.some((x) => x.id === id)).map((w) => w.episode) ?? []} />}
       {sport && log.data?.games.length ? <AthleteChart games={log.data.games} words={show.words} /> : null}
       <Caption right={rows.length ? `${rows.length} on the couch` : undefined}>In this game</Caption>
       {rows.length === 0 && <p className="text-sm text-muted-foreground">Nobody here holds or has picked {castName(c, g)} so far.</p>}
@@ -799,7 +802,7 @@ function CastBody({ g, show, seasonId, id, go }: Ctx & { id: string; go: Drill }
       ) : (
         <>
           <Caption right="Newest first">Their story</Caption>
-          {stats.isPending ? <div aria-busy className="h-24 animate-pulse rounded-[3px] bg-background" /> : story && stats.data ? <StoryBody d={stats.data} c={story} group={false} /> : <p className="text-sm text-muted-foreground">Nothing recorded for {castName(c, g)} yet.</p>}
+          {stats.isPending ? <div aria-busy className="h-24 animate-pulse rounded-[3px] bg-background" /> : story && stats.data ? <StoryBody d={stats.data} c={story} group={false} photo={false} /> : <p className="text-sm text-muted-foreground">Nothing recorded for {castName(c, g)} yet.</p>}
         </>
       )}
     </div>
@@ -811,11 +814,17 @@ function CastBody({ g, show, seasonId, id, go }: Ctx & { id: string; go: Drill }
 export function useGameDrill(show: ShowData) {
   const drill = useDrill();
   const [id, setId] = useState<string | null>(null);
-  const g = id ? (show.play?.find((x) => x.leagueId === id) ?? null) : null;
+  // A sport's faces carry their positions (the cast tab opens a game's athletes here too).
+  const g = useWithRoles(id ? (show.play?.find((x) => x.leagueId === id) ?? null) : null, show.header?.seasonId ?? "", show.header?.show.kind === "sport");
   return {
     openPerson: (row: TableRow, game: GameView, week: number | null) => {
       setId(game.leagueId);
       drill.open({ kind: "person", playerId: row.playerId, episode: week });
+    },
+    /** Someone in that game (the cast tab's game lens and a person sheet's In your games, step 5): their sheet there. */
+    openCast: (game: GameView, castId: string) => {
+      setId(game.leagueId);
+      drill.open({ kind: "cast", id: castId });
     },
     sheets: g ? <DrillSheets drill={drill} g={g} show={show} seasonId={show.header?.seasonId ?? ""} rules={g.rules} /> : null,
   };

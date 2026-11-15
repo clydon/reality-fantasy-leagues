@@ -1164,6 +1164,23 @@ Last updated 2026-10-27.
    read their own faces, which carry none, so a sport's draft says "Jordan", "A.J." and "New" (the Patriots' defense). Fix:
    give those faces their roles the same way and pass them through `castName`; the waiver line on the game page already
    looks them up. For the sports round; no show is affected.
+89. **Cast properties: what a show sorts its people by, researched for every show and usable in a game's rules** (noticed
+   2026-11-15 by the design round's step 5, Players / Cast; widened the same day by the user: "games around Below Deck depend on
+   this: draft one deck team member, one interior", "draft two men two women", "one person from each tribe", "one veteran and one
+   newbie"). Today the cast prompt (src/lib/game/formats/cast-prompt.js) asks only a name, a photo, a starting group (when the
+   rulebook says the cast is split) and a secret role (The Traitors); only a sport's roster fills season_cast.role; the Below
+   Deck rulebook names no departments; the engine filters a pool by a sport's position or one group (PoolLogic) but has no
+   "one of each" composition rule. The direction (not yet planned in detail):
+   - the rulebook declares the show's properties (name in the show's words, values or free text, fixed or changing, public or
+     secret), asked universally by its research, never hard-coded per show;
+   - the cast prompt asks each person for those, from the show's own billing and coverage, "not stated" allowed, never
+     guessed (gender only as the show presents its cast, more than two values allowed);
+   - a changing property (tribe, department, a promotion, a firing) is a dated, spoiler-guarded fact, like a tribe swap;
+   - one engine rule: N where a property has a value, or one from each value, shared with a sport's lineup positions;
+   - the cast tab shows the main property under each name (step 5 built the line from season_cast.role) and groups or filters
+     by any; a secret property never shows or rules until revealed.
+   Planned 2026-11-15: docs/PLAN-cast-properties.md (seven chunks; its four questions decided the same day). **Waits until the
+   design round is done** (the user, 2026-11-15); the round's draft room, waivers, lineup sheet and cast tab leave room for it.
 
 ## Decided against (don't re-propose without new information)
 

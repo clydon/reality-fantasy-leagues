@@ -18,7 +18,8 @@
 // Run:   node scripts/dev-test/story-situations.js --out=.ui-atlas/stories/<design>/before [--only=<regex on the id>]
 //          [--width=390 --height=844] [--flows] [--sequences] [--dress=real] [--tab=tonight]
 // --tab=<tonight|episodes|games|cast|chat>: shoot that show tab of the situation's show, as the same viewer, instead of the game
-// page (the design round's step 3, Tonight); --flows then runs TAB_FLOWS (the strip, the ruler, a game's ledger, the reveal).
+// page (the design round's step 3, Tonight); --flows then runs TAB_FLOWS (the strip, the ruler, a game's ledger, the reveal; on Cast
+// the numbers, a game chosen as the lens, a person's sheet).
 // --dress=real: each situation on a real game's people where a recording exists (tools/gameplay-bench/explorer/dress.cjs: a real
 // season's castaways and photos, real NFL athletes and headshots, the show's art; record them first with real-dress.js and
 // espn-snapshot.js). Its frames show real people: keep them in the ignored .ui-atlas, never in the repo.
@@ -68,6 +69,10 @@ const TAB_FLOWS = [
   // The reveal (a full-screen dialog that stays in the page hidden: wait on one that's showing), then `beats` more of it, each shot
   // (<id>.reveal-2.jpg and on), tapping its stage between.
   { id: "reveal", tap: "[data-progress-reveal], [data-progress-watched], [data-progress-pace]", wait: '[role="dialog"]:not([aria-hidden="true"])', beats: 5 },
+  // Players / Cast (step 5): the numbers table, a game chosen as the lens, and a person's (or an athlete's) sheet.
+  { id: "numbers", tap: "[data-numbers-table] [data-sort]", wait: "[data-numbers-table]", scroll: "[data-numbers]" },
+  { id: "lens", tap: '[data-lens-option][aria-checked="false"]', wait: "[data-lens-game]", scroll: "[data-numbers], [data-lens]" },
+  { id: "person", tap: "[data-face-wall] button[data-cast], [data-athlete]", wait: '[role="dialog"]' },
 ];
 const READY = TAB ? "[data-progress], [data-strip], [data-last-time], main section" : "[data-game-page]";
 

@@ -11,6 +11,26 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
+## The design round's step 5, Players / Cast (2026-11-15; built on branch `explorer-sports`, not pushed; waits on the user's review)
+The cast tab (src/new/show/cast.tsx) is the show's own facts, a game's points only when chosen: the face wall first (four to a
+row by tribe, names and each person's role or position, who's out at the foot), then The numbers (one table, every stat a column,
+counts, fullest first, a tap sorts; the range folded to "Episodes 1–5 · Change"), with Counted by switching it to a game you play
+(step 2c's GameTable in place). One person sheet: the weekly graph of what they did (counts by kind, a colour per stat for the
+season), their numbers ranked, In your games (opens their sheet in that game: game-sheets.tsx `useGameDrill().openCast`), their
+story without points (`StoryBody points={false}`), Compare with... A sport is a list (search, positions, rows by team, 40 at a time)
+with the athlete's sheet. Positions and roles (the user, during the round): season-stats.ts adds `position` from season_cast.role.
+Process and evidence: `docs/design-round/step5-cast-{spec,first-view,shape,check}.md`, decisions.md; the story
+https://claude.ai/artifact/Jg8uWeG44uL5eTNCv7e5Y7 (frames in `.ui-atlas/stories/step5-cast/`: census-app.js `--only=cast
+--out=.ui-atlas/stories/step5-cast/after` (new situations cast-numbers, cast-lens, cast-sheet-more, cast-compare, cast-game-sheet,
+watchonly-riley-cast-sheet, crew-alex-cast; `--up` now brings crew-fixture.js up too), story-situations.js `--tab=cast --flows
+--dress=real` (new flows numbers, lens, person), `story-build.py .ui-atlas/stories/step5-cast/story.json`). **Waiting on the user:**
+the review, and one choice: "Your team" tags off the faces (recommended) or a quiet mark back. **Found, not fixed** (the story's
+Open): no TV cast records its properties yet (BACKLOG 89, cast properties); the game page's cast sheet's story in the stats' points and its gold tribe tag
+(step 2b ripple); the game table's look under Counted by (step 2c ripple); sports rows' "so far" line unproven on the bench.
+**Next:** step 6, the Games tab with the draft room. Its draft room (and step 8's waivers) should leave room for cast properties'
+rules, a line for what a team still needs ("Needs: 1 Interior"): docs/PLAN-cast-properties.md, planned 2026-11-15, waits until
+the design round is done.
+
 ## The design round's step 4, Episodes and the reveal (2026-11-15; built on branch `explorer-sports`, not pushed; waits on the user's review)
 The compact progress control (progress.tsx `compact`: your mark and the one action, under the bar on every tab but Tonight, in
 place of the spoiler line and the bar's chip); Episodes as one list (episodes.tsx: the next episode its top row, then Waiting for

@@ -365,3 +365,24 @@
 - Where you are's eight controls on a show you watch: unchanged this round; it goes to the separate track (settings and
   following), where Keep me live and I'm up to date are reconsidered.
 - Rests on: the story https://claude.ai/artifact/2mg9HG2CVittvFQjNgLE3Y, "Open".
+
+## 2026-11-15 · Step 5, Players / Cast: built, waiting on the user's review
+- Decided by: Claude, through the three skills in order (Intent's spec, PFD's first view, Impeccable's shape and build), one check
+  (PFD evaluate 78; Impeccable critique 26/40, a reviewer that saw neither PFD's findings nor the session's reasoning, in one
+  context, and the detector), one batch, one confirming look
+- What: the cast tab is the show's own facts (Phase 0 decision 6): a face wall first (four to a row, by tribe, names only, who's
+  out at the foot in boot order); The numbers under it, one table with every stat a column (counts, fullest first, a tap sorts),
+  the range folded to a line; Counted by switches the table to a game you play (step 2c's game table in place, named at its head);
+  one person sheet (Phase 0 decision 9) with their weekly graph (counts stacked by kind, one colour per stat for the season), their
+  numbers ranked, In your games (each opens their sheet in that game), their story without points, Compare with...; a sport is a
+  list (search and positions first, rows by team, 40 at a time) with the athlete's sheet.
+- The user, during the check: positions and roles ("NFL WR, QB; Survivor tribes; Below Deck interior, chief stew, second stew"):
+  season_cast.role rides on the stats read as `position` and shows under each name on the wall, the table and the sheet; the
+  department is the group. crew-fixture.js shows it; no TV cast records a crew role yet (BACKLOG 89).
+- Rejected: Faces / Rank / By episode as three modes (one page: faces, then the table); a points heatmap on the show's tab (By
+  episode is the game lens's weeks and the person's chart); "Your team" tags on faces (a team is a game's; a named choice in the
+  story); per-person chart colours (a key learned on one face broke on the next).
+- Also fixed: the game page's cast sheet drew another game's points as its chart (Outlast "6 pts" over Weekly Lineup's "+7.5");
+  it draws the chart only where the stats' points are that game's. Its story and tribe tag wait for the game page's ripple.
+- Rests on: docs/design-round/step5-cast-spec.md, -first-view.md, -shape.md, -check.md; the story
+  https://claude.ai/artifact/Jg8uWeG44uL5eTNCv7e5Y7 (frames in .ui-atlas/stories/step5-cast/).

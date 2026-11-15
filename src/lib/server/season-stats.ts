@@ -74,6 +74,8 @@ export interface SeasonFactsFor {
   book: StatsBook;
   colours: Record<string, string>;
   pointsFrom: string | null;
+  /** What each person does (season_cast.role), by lower-cased name: a crew's role, a sport's position. Never a secret role. */
+  positions: Record<string, string>;
 }
 
 /** A rulebook's blocks as they are at where you are: its in-force edits applied (a moment an edit added gets its stat
@@ -103,7 +105,7 @@ export async function seasonFactsFor(user: SessionUser, seasonId: string, couchI
          FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1`,
       [seasonId]
     ),
-    pool.query(`SELECT id, name, tribe_name AS "tribeName", photo_url AS "photoUrl" FROM season_cast WHERE season_id = $1 ORDER BY sort_order, name`, [seasonId]),
+    pool.query(`SELECT id, name, tribe_name AS "tribeName", photo_url AS "photoUrl", role FROM season_cast WHERE season_id = $1 ORDER BY sort_order, name`, [seasonId]),
     Number.isFinite(mark) && mark < 1 ? Promise.resolve([] as DecisionFact[]) : acceptedResults(seasonId),
   ]);
   const decisions = all.filter((d) => d.episode_number <= mark);
@@ -143,6 +145,7 @@ export async function seasonFactsFor(user: SessionUser, seasonId: string, couchI
     book,
     colours: Object.fromEntries((view?.tribes ?? []).map((t) => [t.name.toLowerCase(), t.color])),
     pointsFrom: game && moments(game) ? game.name : null,
+    positions: Object.fromEntries(cast.filter((c) => c.role).map((c) => [String(c.name).toLowerCase(), c.role as string])),
   };
 }
 
@@ -152,6 +155,7 @@ export async function seasonStats(user: SessionUser, seasonId: string, couchId: 
   const unsure = await unsettledFacts(seasonId, f.mark);
   return {
     ...stats,
+    cast: stats.cast.map((c) => ({ ...c, position: f.positions[c.name.toLowerCase()] ?? null })),
     seenThrough: Number.isFinite(f.seen) ? f.seen : null,
     pointsFrom: f.pointsFrom,
     unsure: Object.fromEntries([...unsure].map(([n, people]) => [n, Object.fromEntries(people)])),

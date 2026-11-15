@@ -52,7 +52,7 @@ function Side({ g, s, faces, small }: { g: GameView; s: WeekSide; faces: string[
 }
 
 /** A sport's positions in the order a lineup card reads them (quarterback first, defense last); anything else after, as given. */
-const POSITION_ORDER = ["QB", "RB", "WR", "TE", "FLEX", "OP", "K", "PK", "DEF", "DST", "D/ST", "PG", "SG", "G", "SF", "PF", "F", "C", "UTIL"];
+export const POSITION_ORDER = ["QB", "RB", "WR", "TE", "FLEX", "OP", "K", "PK", "DEF", "DST", "D/ST", "PG", "SG", "G", "SF", "PF", "F", "C", "UTIL"];
 const byPosition = (g: GameView, ids: string[]) =>
   [...ids].sort((a, b) => {
     const pa = POSITION_ORDER.indexOf((faceIn(g, a)?.role ?? "").toUpperCase()), pb = POSITION_ORDER.indexOf((faceIn(g, b)?.role ?? "").toUpperCase());
@@ -991,7 +991,7 @@ export function PersonSeason({ g, r, words, sport, onMatchup, onFace }: { g: Gam
   );
 }
 
-const STACK = ["#f2804b", "#a76bb0", "#5089c9", "#b9b4c8"];
+export const STACK = ["#f2804b", "#a76bb0", "#5089c9", "#b9b4c8"];
 
 /** A castaway's season, episode by episode: what they scored as signed bars on one scale, each split by what scored (the three
  *  biggest kinds and the rest), the episode they went home in marked. Stops at the viewer's mark (the stats are cut there). */
@@ -1135,7 +1135,7 @@ type Pair = { slot: string; a: Line | null; b: Line | null };
 const r1 = (n: number) => Math.round(n * 10) / 10;
 const sumShown = (xs: number[]) => r1(xs.reduce((t, x) => t + r1(x), 0));
 /** A sport's position as a lineup card says it. */
-const slotWord = (r: string) => (r === "PK" ? "K" : r === "DST" || r === "D/ST" ? "DEF" : r);
+export const slotWord = (r: string) => (r === "PK" ? "K" : r === "DST" || r === "D/ST" ? "DEF" : r);
 
 /** Pairs two lineups to read across. A sport's by position (QB with QB, your nth RB with their nth RB; anyone left without a
  *  partner as Flex); a show's by rank once scored (your best against their best, "Best", "2nd best": its slots are
