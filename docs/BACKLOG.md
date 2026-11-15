@@ -659,6 +659,7 @@ Last updated 2026-10-27.
     slot points never count. Whether a report emptied by exits alone should read as sure (everyone gone is no split), or research
     should be asked to say it, is a rule question. Proof: `.ui-atlas/campaigns/groups-200` case 177 (before the explorer's world
     learned to state the split).
+    **Decided 2026-11-14 (the user, taking Claude's recommendation): Count them: a finale emptied by exits isn't a split into individuals, so the slots held that night count (not void).** Not built yet: the rule-fixes session.
 55. **A pool's skipped night reads "No pick · missed"** (found 2026-11-13 by the gameplay explorer, a pool that skips a night
     you've used everyone). In a pool that never repeats with `get.fallback: 'skip'`, a night you'd already picked everyone still in
     counts nothing (no life lost, the streak holds), but the person sheet (`src/new/show/game-sheets.tsx`, both "No pick · missed"
@@ -745,6 +746,7 @@ Last updated 2026-10-27.
     just before that mark. Whether a window opened by hand should always leave a minimum time to claim (half the time left, say)
     is a rule question. Proof: `.ui-atlas/campaigns/commish-200` case 2, step 1 (and `commish-probe2` case 1, step 8): a window
     opened exactly a day ahead is processed in the step that opened it.
+    **Decided 2026-11-14 (the user, taking Claude's recommendation): A window opened by hand always leaves a minimum time to claim (about half the time left before the next episode, and at least a few hours), so it can't run before anyone has seen it.** Not built yet: the rule-fixes session.
 59. **After Undo, the new app still says when the week will run; it won't** (found 2026-11-13 by the gameplay explorer, the
     commissioner's waiver actions). An undone week is held: it runs on Run now, or when the next episode airs
     (`WaiverLogic.undo` sets `hold`). Classic's plate says "Claims are on hold" (`status-plate.ts`). The new app's two reads give
@@ -815,6 +817,7 @@ Last updated 2026-10-27.
     (everyone gets the same), but is it what "separate games, plus an overall winner" should mean? One option: a stage's
     Outlast counts boots from its own start. Proof: `node scripts/dev-test/check-stages-explorer.js --case=overall` (its
     second NOTE line).
+    **Decided 2026-11-14 (the user, taking Claude's recommendation): A stage's Outlast counts boots from the stage's own start: a new stage starts everyone level.** Not built yet: the rule-fixes session.
 
 63. **Own pace on a season that's still airing: a choice when a game starts, and the default** (the user's decision, 2026-11-13;
     step 2 of "Pace is the game's setting" in docs/PLAN-own-pace-games.md). Step 1 is built (pace is the game's setting: live
@@ -1086,6 +1089,7 @@ Last updated 2026-10-27.
     called off out of the episode's air time). Then `check-sports-explorer.js --case=calledoff`'s NOTE turns into a pass, and the
     campaign invariant `sport-locks` (`campaign/case.cjs`, which restates today's rule: a slate week at its air time) changes with
     it. Not fixed: found the day before the design round; nothing scores wrong.
+    **Decided 2026-11-14 (the user, taking Claude's recommendation): Fix it: a slate week whose first game is postponed locks at its first game played.** Not built yet: the rule-fixes session.
 82. **A playoff in a stage that ends at the merge is placed after its final was played as an ordinary week** (a question; found
     2026-11-14 building the design round's staged pilot, confirmed on the real routes: `node scripts/dev-test/check-stages-explorer.js
     --case=h2h`, its NOTE). Head to head on a stage that ends at a phase (`span.to: { phase: 'merged' }`) places its playoff by the
@@ -1096,6 +1100,7 @@ Last updated 2026-10-27.
     staged pilot puts its playoff in the merged stage only. **The question:** refuse a playoff on a stage whose end is a phase (the
     engine's `specProblems`), place it by a fixed episode only, or play the stage's playoffs in the next stage's first weeks? The
     runtime and the generator play it as the engine does now (`stage-matchups` allows it: the final is the stage's end).
+    **Decided 2026-11-14 (the user, taking Claude's recommendation): Refuse playoffs on a stage whose end is a phase (the engine's specProblems): a matchup is never rewritten into a final after it was played. A staged game puts its playoff in its last stage.** Not built yet: the rule-fixes session.
 83. **At its own pace with exclusive teams, a waiver week runs the moment everyone owed a replacement has claimed** (a question;
     found 2026-11-14 building the pilot with an exclusive draft and waivers; the server's own rule: `waivers.js` `syncPaced`, "settles
     as soon as everyone owed a replacement has a claim in", proven on the real routes by `check-waiver-commissioner.js
@@ -1104,6 +1109,7 @@ Last updated 2026-10-27.
     1 PM ran a week due at half past midnight. Bo's swap went in because he claimed first; had he waited, he'd have had none. The
     page says nothing of it ("Set your Episode 5 lineup"). **The question:** keep running at once (and say so on the waivers
     screen), wait for the week's time when the window has swaps, or wait until everyone has revealed the week's episode?
+    **Decided 2026-11-14 (the user, taking Claude's recommendation): When the window has swaps, the week waits for its set time; it runs early only when nobody could still use a swap. Own pace never costs someone a swap because of someone else's timing.** Not built yet: the rule-fixes session.
 84. **The overall of a game in head-to-head stages adds points, while each stage says most wins wins** (a question; found
     2026-11-14 on the staged pilot's real page, `.ui-atlas/situations/staged-merged.txt`). The overall by points
     (`overall: { by: 'points' }`, the only overall the runtime connects) adds each stage's table total, which for head to head is
@@ -1112,6 +1118,7 @@ Last updated 2026-10-27.
     every matchup can finish the overall behind one that lost them all but scored more. Server and runtime agree. **The question:**
     is points the overall a head-to-head game in stages should have (then the page has to say so), or should it be wins (an overall
     by stages won, or by places, both still gaps in the runtime: their own proof)?
+    **Decided 2026-11-14 (the user, taking Claude's recommendation): The overall of a game in head-to-head stages goes by places (each stage's finish), not points; until the runtime and engine have an overall by places, the page says plainly that the overall is points.** Not built yet: the rule-fixes session.
 85. **A failed read on Tonight never says so** (found 2026-11-14 by the design round's Phase 0 census, the Atlas's
     `tonight.error` fault case: `.ui-atlas/stories/phase0/census/atlas-tonight.error.jpg`). Fifteen seconds after the read fails
     the page still shows its loading skeleton: no message, no retry. Seen through the Atlas's injected fault only; the app's own
