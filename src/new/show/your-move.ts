@@ -178,12 +178,12 @@ export function movesOf(g: GameView, o: MoveContext): YourMove[] {
         ...lineup,
         empty: Math.max(0, L.need - faces.length),
         title: `Set your ${E} ${L.episode} lineup`,
-        line: L.airsAt ? `Locks ${o.when(L.airsAt)}${L.carried ? " · last week's stands in till then" : ""}` : g.catchingUp ? "Locks when you reveal it" : "Locks at airtime",
+        line: (L.locksAt ?? L.airsAt) ? `Locks ${o.when((L.locksAt ?? L.airsAt)!)}${L.carried ? " · last week's stands in till then" : ""}` : g.catchingUp ? "Locks when you reveal it" : "Locks at airtime",
         action: "Set",
         due: true,
       });
     } else {
-      found.push({ ...lineup, empty: 0, title, line: L.airsAt ? `Change until ${o.when(L.airsAt)}` : g.catchingUp ? "Change until you reveal it" : "Change until airtime", action: "Edit", due: false });
+      found.push({ ...lineup, empty: 0, title, line: (L.locksAt ?? L.airsAt) ? `Change until ${o.when((L.locksAt ?? L.airsAt)!)}` : g.catchingUp ? "Change until you reveal it" : "Change until airtime", action: "Edit", due: false });
     }
   }
 

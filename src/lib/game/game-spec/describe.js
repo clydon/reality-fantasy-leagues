@@ -1636,6 +1636,7 @@ function detailsOf(s, w) {
 
 const OVERALL_WORDS = {
   points: "Overall, each stage's points add up.",
+  pointsNotWins: "Overall, it's points, not wins: what you score in each stage adds up.",
   places: 'Overall, each stage you finish scores by your place',
   wins: 'Overall, the most stages won wins (ties all win a stage); level on that, by your places, then your points.',
 };
@@ -1688,7 +1689,10 @@ function describeStages(s, ctx) {
   parts.push({ text: ': ', at: null });
   each.forEach((x, i) => parts.push({ text: `${!i ? '' : i < mains ? '; then ' : i === mains ? `; and beside ${mains > 1 ? 'them' : 'it'}, ` : '; and '}${x.label}${x.on ? ` on ${x.on}` : ''}, ${x.sentence}`, at: 'span' }));
   const o = isObj(s.overall) ? s.overall : { by: 'points' };
-  const overall = o.by === 'places' ? `${OVERALL_WORDS.places}${placesWords(o)}` : OVERALL_WORDS[o.by] || OVERALL_WORDS.points;
+  // BACKLOG 84 (the user's decision, 2026-11-14): a game in head-to-head stages should go by places; until the runtime connects an
+  // overall by places, one by points says plainly it's points, beside stages that say most wins wins. Words through impeccable clarify.
+  const h2h = stages.some((st) => isObj(st.game.rank) && (st.game.rank.by === 'matchups' || st.game.rank.by === 'categories'));
+  const overall = o.by === 'places' ? `${OVERALL_WORDS.places}${placesWords(o)}` : o.by !== 'wins' && h2h ? OVERALL_WORDS.pointsNotWins : OVERALL_WORDS[o.by] || OVERALL_WORDS.points;
   parts.push({ text: `. ${overall}`, at: 'rank' });
   const rules = [overall];
   if (o.by === 'places' || o.by === 'wins') rules.push("A stage counts once it's over.");

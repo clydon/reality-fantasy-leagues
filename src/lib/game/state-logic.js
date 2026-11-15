@@ -242,13 +242,20 @@ function hasAired(ep, now){ return !!(ep && ep.airsAt) && (now || Date.now()) >=
 // system: a couch that sat down after it began, or Start a game's Include it). Results close it whatever the lock says
 // (isLineupLocked, PickEmLogic.decided).
 // L3 part 2b: a sport's game that closes daily or weekly locks each episode at its day's or week's first start (ep.locksAt, the
-// server's: air-times.ts stampSportLocks) when that's earlier than its own start (or it has none), so a day's or a week's episodes
-// lock together; the hand overrides as they are.
+// server's: air-times.ts stampSportLocks), so a day's or a week's episodes lock together; the hand overrides as they are. The
+// stamp is its first game *played* (a game called off locks nothing), so it is the lock whenever it's there, earlier than the
+// episode's own start or later: BACKLOG 81 (the user's decision, 2026-11-14), a slate week whose first game is postponed locks at
+// its first game played, not at the postponed game's start (its air time, the earliest of its games' starts, called off or not).
+function lockAt(ep){
+  if(!ep) return null;
+  const t = Date.parse(ep.locksAt || ep.airsAt || '');
+  return Number.isFinite(t) ? t : null;
+}
 function closedForPlay(ep, now){
   if(!ep) return false;
   if(ep.lineupsLocked) return true;
-  const locks = !!ep.locksAt && (!ep.airsAt || Date.parse(ep.locksAt) < Date.parse(ep.airsAt));
-  return (locks ? (now || Date.now()) >= Date.parse(ep.locksAt) : hasAired(ep, now)) && !ep.openPastAir;
+  const at = lockAt(ep);
+  return at !== null && (now || Date.now()) >= at && !ep.openPastAir;
 }
 
 // The most recent in-play episode that has actually aired/been logged (EpisodeLogic.hasResults) --
@@ -464,16 +471,27 @@ class Core {
 class EliminationOrderScoringStrategy {
   /** Whether the game scores the boot order in reverse (A9 part 2). */
   static reversed(state){ const score = gameOf(state).score; return score.by === 'place' && score.reverse === true; }
-  /** The season as this copy sees it, for a place (the sequence's mark): the cast's size, the boots so far, and the reverse. */
+  // BACKLOG 62 (the user's decision, 2026-11-14): a stage's Outlast counts boots from the stage's own start, so a new stage starts
+  // everyone level. A stage's own league says it is one (settings.stageOf, written where it's made: engine-lab.ts makeStages,
+  // change-stages.ts makeCopy); the boots before its start, or every boot so far while it hasn't started, aren't counted (the
+  // sequence's mark.base). A game of its own that starts later counts the whole season, as it always has. Never in reverse (a place
+  // there is already the cast less the boots before it).
+  static baseOf(state){
+    if(!(state.settings && state.settings.stageOf) || EliminationOrderScoringStrategy.reversed(state)) return 0;
+    const start = startEpisode(state);
+    const numberOf = new Map((state.episodes || []).map(e => [e.id, e.number]));
+    return (state.castaways || []).filter(c => c.status === 'eliminated' && typeof c.placementOrder === 'number' && (start === null || (numberOf.has(c.exitEpisodeId) ? numberOf.get(c.exitEpisodeId) : 0) < start)).length;
+  }
+  /** The season as this copy sees it, for a place (the sequence's mark): the cast's size, the boots so far, the reverse, and the boots a stage doesn't count. */
   static mark(state){
     const out = state.castaways.filter(x=>x.status==='eliminated' && typeof x.placementOrder==='number').length;
-    return { size: state.castaways.length, out, reverse: EliminationOrderScoringStrategy.reversed(state) };
+    return { size: state.castaways.length, out, reverse: EliminationOrderScoringStrategy.reversed(state), base: EliminationOrderScoringStrategy.baseOf(state) };
   }
   /** One castaway's Classic points so far, on whatever (spoiler-trimmed) state the viewer sees. */
   static castawayPoints(state, c){
     if(c.status==='eliminated'){
       if(typeof c.placementOrder!=='number') return 0;
-      return Seq.placed(c.placementOrder, { size: state.castaways.length, reverse: EliminationOrderScoringStrategy.reversed(state) });
+      return Seq.placed(c.placementOrder, { size: state.castaways.length, reverse: EliminationOrderScoringStrategy.reversed(state), base: EliminationOrderScoringStrategy.baseOf(state) });
     }
     return EliminationOrderScoringStrategy.stillInPoints(state);
   }
@@ -1050,7 +1068,9 @@ class ScoringLogic {
     // An Outlast at mark k (an episode's number, or Infinity: now). Gone by then: out in an episode up to k (one with no episode
     // recorded, from the start); a boot outlasted, gone with a place recorded.
     const goneBy = (c, k) => c.status === 'eliminated' && (numberOf.has(c.exitEpisodeId) ? numberOf.get(c.exitEpisodeId) : 0) <= k;
-    const markAt = k => ({ size: cast.length, out: cast.filter(c => goneBy(c, k) && typeof c.placementOrder === 'number').length, reverse });
+    // (BACKLOG 62: a stage's Outlast counts from its own start, EliminationOrderScoringStrategy.baseOf.)
+    const base = outlast ? EliminationOrderScoringStrategy.baseOf(state) : 0;
+    const markAt = k => ({ size: cast.length, out: cast.filter(c => goneBy(c, k) && typeof c.placementOrder === 'number').length, reverse, base });
     // C3: how each seat's holdings joined it, and each one's place as a value at a mark (out by then: their place, or nothing with
     // none recorded; still in, 1 plus the boots so far), for a multiplier on how a holding joined.
     const joined = joinedFactors(state);
@@ -6890,6 +6910,8 @@ const isId = v => typeof v === 'string' && !!v;
 const uniqIds = v => Array.isArray(v) ? [...new Set(v.filter(isId))] : [];
 const hasKey = (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k);
 class WaiverLogic {
+  /** The least time a window opened by hand leaves to claim, in hours (schedule; BACKLOG 58). */
+  static MIN_CLAIM_HOURS = 3;
   // ---- The league's settings ----
   /** The game has mid-season moves at all (a draft's, but never a shared Outlast's: game-spec waiversFit). */
   static supported(state){
@@ -7325,6 +7347,25 @@ class WaiverLogic {
     if(count && !MidSeasonLogic.availableFor(state, playerId, 'replace').length) return { ...none, nobodyFree: true };
     return { count, lossIds: losses.slice(0, count), outIds: count ? losses : [] };
   }
+  /** Whether `playerId` could still use a swap in `period`: swaps left, someone of theirs still in to drop, and a free agent to bring in. */
+  static couldSwap(state, period, playerId){
+    if(!(WaiverLogic.swapsLeft(state, period, playerId) > 0)) return false;
+    if(!inLeagueRotation(Core.getPlayer(state, playerId))) return false;
+    if(!state.castaways.some(c => c.status === 'active' && ownerListOf(c).includes(playerId))) return false;
+    return MidSeasonLogic.availableFor(state, playerId, 'swap').length > 0;
+  }
+  // At your own pace with exclusive teams, a week has no airtime of its own to wait for (the server's syncPaced runs it on the copy at
+  // everyone's episode): it runs before its time once everyone owed a replacement has a claim in. BACKLOG 83 (the user's decision,
+  // 2026-11-14): only when nobody could still use a swap, either (everyone who could has a claim in), so own pace never costs
+  // someone a swap because of someone else's timing; otherwise the week waits for its set time. A held week (an Undo) never does.
+  static runsEarly(state, period){
+    if(!period || period.phase !== 'open' || period.hold) return false;
+    const people = state.players.filter(p => !p.automated && !p.disabled);
+    const inn = new Set(period.claimsIn || []);
+    const owed = people.filter(p => WaiverLogic.replacementsOwed(state, p.id, period).count > 0);
+    if(!owed.length || !owed.every(p => inn.has(p.id))) return false;
+    return people.every(p => inn.has(p.id) || !WaiverLogic.couldSwap(state, period, p.id));
+  }
   /** replacementsOwed in the week running now (pre-v2's "pickups owed"). */
   static pickupsOwed(state, playerId){
     return WaiverLogic.replacementsOwed(state, playerId, WaiverLogic.current(state));
@@ -7337,16 +7378,27 @@ class WaiverLogic {
   // between opening and airtime); closesAt: when it airs. With no air time to go by (no schedule, a
   // catch-up league, or it already aired): processAt is waiverProcessHours after opening, and closesAt
   // is null -- free agency then runs until the next episode's results arrive.
+  // BACKLOG 58 (the user's decision, 2026-11-14): a window opened by hand (period.byHandAt: when whoever runs the game opened it,
+  // made the week a window, or opened it again) always leaves time to claim: about half the time left before the next episode, and
+  // at least MIN_CLAIM_HOURS (never past the episode's airtime, when the week closes anyway), so it can't run before anyone has seen
+  // it. A week the clock opened keeps its own time. A window opened by hand before byHandAt was kept goes by when it opened.
+  static byHandAt(period){
+    if(period.byHandAt) return Date.parse(period.byHandAt);
+    return period.openedBy === 'commissioner' && WaiverLogic.isWindow(period) ? Date.parse(period.openedAt) : NaN;
+  }
   static schedule(state, period){
     const H = WaiverLogic.processHours(state) * HOUR_MS;
+    const MIN = WaiverLogic.MIN_CLAIM_HOURS * HOUR_MS;
     const opened = Date.parse(period.openedAt);
+    const hand = WaiverLogic.byHandAt(period);
     const next = state.episodes.find(e => e.number === period.episode + 1);
     const airs = next && next.airsAt ? Date.parse(next.airsAt) : NaN;
     if(Number.isFinite(airs) && airs > opened){
-      const at = airs - H >= opened ? airs - H : opened + (airs - opened) / 2;
+      let at = airs - H >= opened ? airs - H : opened + (airs - opened) / 2;
+      if(Number.isFinite(hand) && airs > hand) at = Math.max(at, Math.min(airs, hand + Math.max((airs - hand) / 2, MIN)));
       return { processAt: new Date(at).toISOString(), closesAt: new Date(airs).toISOString() };
     }
-    return { processAt: new Date(opened + H).toISOString(), closesAt: null };
+    return { processAt: new Date(Math.max(opened + H, Number.isFinite(hand) ? hand + MIN : -Infinity)).toISOString(), closesAt: null };
   }
   // Air times are stamped fresh on every read and write, so the running week's times follow them.
   static refresh(state){
@@ -7430,7 +7482,7 @@ class WaiverLogic {
   // `swaps` (0 .. roster size, "Whole team") each player may make. The week already open for the latest
   // episode becomes a window (or changes its swaps); with none open, one opens now on the normal clock.
   // `swaps: null` turns the open week's window off: it goes on as a plain week if replacements run
-  // weekly, else it's over (closed on the spot, `turnedOff`, so the schedule doesn't open it again).
+  // weekly, else it's over (closed on the spot, `turnedOff`, so the schedule doesn't open it again; whoever runs the game can).
   // Never once the week has processed. { period, closed? } or { error }. The server trims claims that no
   // longer fit (waivers.js openWindow).
   // opts.replace (the sheet's "Replace castaways who are out"): true or false is this window's own say
@@ -7445,11 +7497,13 @@ class WaiverLogic {
     const cur = WaiverLogic.current(state);
     const done = 'This episode’s waivers have processed: open a window after the next episode';
     if(cur && cur.phase !== 'open') return { error: done };
+    const at = new Date(now === undefined ? Date.now() : now).toISOString();
     if(cur){
       if(swaps === null){
         if(!WaiverLogic.isWindow(cur)) return { error: 'There’s no waiver window to turn off' };
         Object.assign(cur, { window: false, swaps: 0, addDrop: false, openedBy: 'commissioner' });
         delete cur.replace;
+        delete cur.byHandAt;
         if(!WaiverLogic.weekly(state)){
           cur.phase = 'closed';
           cur.turnedOff = true;
@@ -7457,10 +7511,13 @@ class WaiverLogic {
         }
         return { period: cur };
       }
+      // A week becoming a window now (BACKLOG 58): its time to claim counts from here. A window changed keeps its own.
+      if(!WaiverLogic.isWindow(cur)) cur.byHandAt = at;
       Object.assign(cur, { window: true, swaps, addDrop: swaps > 0, openedBy: 'commissioner' });
       if(replace === undefined) delete cur.replace;
       else cur.replace = replace;
       delete cur.turnedOff;
+      Object.assign(cur, WaiverLogic.schedule(state, cur));
       return { period: cur };
     }
     if(swaps === null) return { error: 'There’s no waiver window to turn off' };
@@ -7469,8 +7526,22 @@ class WaiverLogic {
     if(MidSeasonLogic.seasonOver(state)) return { error: 'The season is over' };
     const ps = WaiverLogic.periods(state);
     const prev = ps[ps.length - 1];
+    // Designs needed item 32 (the user's decision, 2026-11-14): a window turned off can be opened again, for the same episode: the
+    // week it closed opens again as a window, its claims gone with it (the server dropped them), its time to claim from now.
+    if(prev && prev.turnedOff && prev.phase === 'closed' && prev.episode === last){
+      Object.assign(prev, { phase: 'open', window: true, swaps, addDrop: swaps > 0, openedBy: 'commissioner', byHandAt: at, claimsIn: [], run: null, autoFills: [] });
+      delete prev.turnedOff;
+      delete prev.hold;
+      if(replace === undefined) delete prev.replace;
+      else prev.replace = replace;
+      Object.assign(prev, WaiverLogic.schedule(state, prev));
+      return { period: prev, reopened: true };
+    }
     if(prev && prev.episode >= last) return { error: done };
-    return { period: WaiverLogic.open(state, now === undefined ? Date.now() : now, { window: true, swaps, replace, by: 'commissioner' }) };
+    const p = WaiverLogic.open(state, Date.parse(at), { window: true, swaps, replace, by: 'commissioner' });
+    p.byHandAt = p.openedAt;
+    Object.assign(p, WaiverLogic.schedule(state, p));
+    return { period: p };
   }
 
   // ---- Claims ----

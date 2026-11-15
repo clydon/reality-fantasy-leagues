@@ -92,6 +92,8 @@ export interface LineupMove {
   epId: string;
   episode: number;
   airsAt: string | null;
+  /** When it locks, where that isn't its air time: a sport's day's or week's first game played (StateLogic.lockAt; BACKLOG 81). */
+  locksAt?: string | null;
   locked: boolean;
   /** How many start. */
   slots: number;
@@ -653,6 +655,7 @@ function lineupOf(view: LeagueState, me: string, now?: number): LineupMove | nul
     epId: ep.id,
     episode: ep.number,
     airsAt: ep.airsAt ?? null,
+    locksAt: ep.locksAt && ep.locksAt !== ep.airsAt ? ep.locksAt : null,
     locked,
     lockedBy: early ? (closes === "daily" ? "day" : "week") : null,
     eachGame,

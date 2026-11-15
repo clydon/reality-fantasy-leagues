@@ -479,12 +479,16 @@ const TWISTS = [
     id: 'redraft', cost: 2, weight: 1, wraps: true,
     fits: (s, pg) => !!draftOf(s) && toEnd(s) && isInt(s.span.from, 1) && !askList(s).some((q) => q.asked === 'once') && (pg.later.length > 0 || pg.grouped),
     apply: (s, d, pg) => {
-      const { span, ...game } = s;
+      const { span, ...whole } = s;
+      // A stage that ends when a phase starts, or at a format change, plays no playoffs (BACKLOG 82): a staged game's are its last
+      // stage's, and a copy at every change has none.
+      const noPlayoffs = (g) => (isObj(g.rank) && g.rank.playoffs ? { ...g, rank: Object.fromEntries(Object.entries(g.rank).filter(([k]) => k !== 'playoffs')) } : g);
+      const game = whole;
       if (pg.later.length) {
         const ph = pg.later[0];
-        return { stages: [{ id: 'before', name: `Before ${ph.name}`.slice(0, 40), game: { ...game, span: { from: span.from } } }, { id: 'after', name: ph.name.slice(0, 40), game: { ...clone(game), span: { from: { phase: ph.id } } } }], overall: { by: 'points' } };
+        return { stages: [{ id: 'before', name: `Before ${ph.name}`.slice(0, 40), game: { ...noPlayoffs(game), span: { from: span.from } } }, { id: 'after', name: ph.name.slice(0, 40), game: { ...clone(game), span: { from: { phase: ph.id } } } }], overall: { by: 'points' } };
       }
-      return { stages: [{ id: 'draft', name: 'Draft', game: { ...game, span: { from: span.from } } }, { id: 'redraft', name: 'New draft', on: { again: true }, game: clone(game) }] };
+      return { stages: [{ id: 'draft', name: 'Draft', game: { ...noPlayoffs(game), span: { from: span.from } } }, { id: 'redraft', name: 'New draft', on: { again: true }, game: noPlayoffs(clone(game)) }] };
     },
     seen: (s) => hasStages(s) && s.stages.length === 2 && s.stages.every((x) => x && x.game && x.game.get && x.game.get.by === 'draft'),
   },

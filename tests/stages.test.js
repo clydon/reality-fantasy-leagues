@@ -405,3 +405,58 @@ test("stages one after another: a gap between them is refused, and so is an over
   assert.match(G.specProblems(two(5, 4), CTX)[0].problem, /alongside: true/);
   assert.deepEqual(G.specWaitsFor(two(5, 4)).filter((w) => w.step === "later"), [], "nothing waits for a later part");
 });
+
+// ---- The rule fixes of 2026-11-14 (the user's decisions: BACKLOG 62, 82, 84) ----
+
+test("BACKLOG 62: a stage's Outlast counts boots from the stage's own start, so it starts everyone level; a game of its own counts the season", () => {
+  const spec = { preset: "outlast", get: { by: "draft", each: 2, own: "exclusive", order: "snake" }, count: { all: true }, score: { by: "place" }, rank: { by: "total" }, span: { from: 4, to: null } };
+  const make = (stage) => {
+    const s = league(spec, { n: 12 });
+    if (stage) s.settings.stageOf = "the-game";
+    for (const k of [1, 2, 3]) gone(s, k, 12 - k);
+    snake(s);
+    return s;
+  };
+  const totals = (s) => Object.fromEntries(Object.values(S.computeScores(s)).map((r) => [r.playerId, r.total]));
+  const own = make(false);
+  const stage = make(true);
+  assert.deepEqual(totals(own), { ann: 8, bo: 8, cy: 8, di: 8 }, "a game of its own from Episode 4: each holding 1 + the three boots before it");
+  assert.deepEqual(totals(stage), { ann: 2, bo: 2, cy: 2, di: 2 }, "a stage from Episode 4: 1 a holding, level");
+  assert.equal(S.EliminationOrderScoringStrategy.baseOf(stage), 3);
+  // Its first boot: whoever went home has 1 (the stage's first out), everyone still in 2.
+  const first = stage.castaways.find((c) => c.ownerIds.includes("ann"));
+  S.addElimination(stage, ep(stage, 4).id, first.id, "Voted Out");
+  assert.equal(S.EliminationOrderScoringStrategy.castawayPoints(stage, first), 1);
+  assert.deepEqual(totals(stage), { ann: 3, bo: 4, cy: 4, di: 4 });
+  // In reverse a place is already the cast less the boots before it: a stage takes none off.
+  const rev = league({ ...spec, score: { by: "place", reverse: true } });
+  rev.settings.stageOf = "the-game";
+  gone(rev, 1, 11);
+  assert.equal(S.EliminationOrderScoringStrategy.baseOf(rev), 0);
+});
+
+test("BACKLOG 82: no playoffs on a game or stage that ends when a phase starts, or at a format change; a staged game's are its last stage's", () => {
+  const H = { preset: "weekly-lineup", get: { by: "draft", each: 3, own: "shared", order: "blind" }, count: { start: 2 }, score: { by: "moments" }, rank: { by: "matchups", playoffs: { teams: 2 } } };
+  const problems = (spec) => G.specProblems(spec, CTX).filter((p) => /playoffs/.test(p.at));
+  const staged = (first, second) => ({ stages: [{ id: "before", name: "Before the merge", game: { ...first, span: { from: 1, to: { phase: "merged" } } } }, { id: "after", name: "Merged", game: { ...second, span: { from: { phase: "merged" } } } }], overall: { by: "points" } });
+  const plain = { ...H, rank: { by: "matchups" } };
+  assert.deepEqual(problems(staged(plain, H)), [], "the playoff in the last stage plays");
+  const bad = problems(staged(H, plain));
+  assert.deepEqual(bad.map((p) => p.at), ["stages[0].game.rank.playoffs"]);
+  assert.equal(bad[0].problem, "Playoffs need a set last episode: this ends when a phase starts, so a week already played could become its final. End it at an episode, or put the playoffs in the last stage");
+  assert.deepEqual(problems({ ...H, span: { from: 1, to: { phase: "merged" } } }).map((p) => p.at), ["rank.playoffs"], "a game of its own until the merge");
+  assert.deepEqual(problems({ ...H, span: { from: 1, to: 8 } }), [], "until an episode, fine");
+  // A stage the next one's format change ends, and copies made at every change, don't know their end either.
+  const onChange = { stages: [{ id: "draft", name: "Draft", game: { ...H, span: { from: 1 } } }, { id: "redraft", name: "New draft", on: { again: true }, game: H }] };
+  assert.deepEqual(problems(onChange).map((p) => p.at).sort(), ["stages[0].game.rank.playoffs", "stages[1].game.rank.playoffs"]);
+});
+
+test("BACKLOG 84: an overall by points beside head-to-head stages says it's points, not wins", () => {
+  const H = { preset: "weekly-lineup", get: { by: "draft", each: 3, own: "shared", order: "blind" }, count: { start: 2 }, score: { by: "moments" }, rank: { by: "matchups" } };
+  const L = { ...H, rank: { by: "total" } };
+  const two = (g, overall) => ({ stages: [{ id: "a", name: "Before the merge", game: { ...g, span: { from: 1, to: { phase: "merged" } } } }, { id: "b", name: "Merged", game: { ...g, span: { from: { phase: "merged" } } } }], overall });
+  const rules = (spec) => G.describeSpec(spec, CTX).rules;
+  assert.ok(rules(two(H, { by: "points" })).includes("Overall, it's points, not wins: what you score in each stage adds up."));
+  assert.ok(rules(two(L, { by: "points" })).includes("Overall, each stage's points add up."), "stages by points say it as before");
+  assert.ok(!rules(two(H, { by: "places" })).some((r) => /not wins/.test(r)), "by places says its own");
+});

@@ -651,17 +651,87 @@ test("Open a waiver window: turns the open week into one, changes it, or turns i
   assert.match(W.openWindow(s, 1).error, /processed/, "too late once it's processed");
 });
 
-test("Open a waiver window: turned off with nothing else to run, the week ends and doesn't reopen", () => {
+test("Open a waiver window: turned off with nothing else to run, the week ends; the clock never reopens it, whoever runs the game can (Designs needed 32)", () => {
   const s = league({ settings: { replaceRule: "windows", waiverWindows: { schedule: "manual", swaps: 3 } } });
   S.addElimination(s, "ep3", "jelly", "Voted Out");
-  W.openWindow(s, 3, T0);
+  const first = W.openWindow(s, 3, T0).period;
   const r = W.openWindow(s, null, T0);
   assert.equal(r.closed, true);
   assert.deepEqual([r.period.phase, r.period.turnedOff], ["closed", true]);
-  assert.equal(W.due(s, T0 + HOUR), null);
-  assert.match(W.openWindow(s, 3, T0).error, /processed: open a window after the next episode/);
+  assert.equal(W.due(s, T0 + HOUR), null, "the clock doesn't open it again");
+  // The user's decision (2026-11-14): it can be opened again, for the same episode: the same week, open, a window, its time from now.
+  const again = W.openWindow(s, 2, T0 + 2 * HOUR, { replace: true });
+  assert.equal(again.error, undefined);
+  assert.equal(again.reopened, true);
+  assert.equal(again.period.id, first.id, "the same week");
+  assert.deepEqual([again.period.phase, again.period.window, again.period.swaps, again.period.replace, !!again.period.turnedOff, again.period.byHandAt], ["open", true, 2, true, false, new Date(T0 + 2 * HOUR).toISOString()]);
+  assert.equal(W.periods(s).length, 1);
+  assert.equal(W.current(s), again.period);
+  assert.equal(W.due(s, T0 + 3 * HOUR), null, "open, its claims to come");
+  W.process(s, {}, { now: T0 + 4 * HOUR });
+  assert.match(W.openWindow(s, 3, T0 + 5 * HOUR).error, /processed: open a window after the next episode/, "once it has run, not again");
   S.addElimination(s, "ep4", "kilby", "Voted Out");
-  assert.equal(W.openWindow(s, 3, T0 + HOUR).error, undefined, "after the next episode, fine");
+  assert.equal(W.due(s, T0 + 6 * HOUR), "close");
+  W.close(s, T0 + 6 * HOUR);
+  assert.equal(W.openWindow(s, 3, T0 + 6 * HOUR).error, undefined, "after the next episode, fine");
+});
+
+test("A window opened by hand leaves time to claim: half the time left before the next episode, at least three hours, never past it (BACKLOG 58)", () => {
+  const at = (s) => Date.parse(W.current(s).processAt);
+  const opened = (before) => {
+    const s = league({ settings: { replaceRule: "windows", waiverWindows: { schedule: "manual", swaps: 3 } } });
+    S.addElimination(s, "ep3", "jelly", "Voted Out");
+    W.openWindow(s, 1, EP4_AIRS - before);
+    return s;
+  };
+  // A day and a bit ahead: the clock's own time (24 hours before airtime) would be in 5 minutes; half the time left instead.
+  assert.equal(at(opened(24 * HOUR + 5 * 60e3)), EP4_AIRS - (24 * HOUR + 5 * 60e3) / 2);
+  // Exactly a day ahead: not in the same write.
+  let s = opened(24 * HOUR);
+  assert.equal(at(s), EP4_AIRS - 12 * HOUR);
+  assert.equal(W.due(s, EP4_AIRS - 24 * HOUR), null);
+  // Four days ahead: the clock's time is later than half, so it stands.
+  assert.equal(at(opened(96 * HOUR)), EP4_AIRS - 24 * HOUR);
+  // Four hours ahead: half would be two, so three; an hour ahead, never past airtime.
+  assert.equal(at(opened(4 * HOUR)), EP4_AIRS - HOUR);
+  assert.equal(at(opened(HOUR)), EP4_AIRS);
+  // A week the clock opened keeps its own time; made a window by hand later, it counts from then.
+  s = league({ settings: { replaceRule: "always", waiverWindows: { schedule: "manual", swaps: 0 } } });
+  S.addElimination(s, "ep3", "jelly", "Voted Out");
+  W.open(s, EP4_AIRS - 30 * HOUR);
+  assert.equal(at(s), EP4_AIRS - 24 * HOUR, "the clock's week: 24 hours before");
+  W.openWindow(s, 1, EP4_AIRS - 24 * HOUR - 60e3);
+  assert.equal(at(s), EP4_AIRS - (24 * HOUR + 60e3) / 2, "made a window a minute before its time: half what's left from then");
+  W.openWindow(s, 2, EP4_AIRS - 6 * HOUR);
+  assert.equal(at(s), EP4_AIRS - (24 * HOUR + 60e3) / 2, "a window changed keeps its time");
+  // With no air time to go by: the week's hours from opening, and at least three from being made a window.
+  s = league({ airs: false, settings: { replaceRule: "always", waiverWindows: { schedule: "manual", swaps: 0 } } });
+  S.addElimination(s, "ep3", "jelly", "Voted Out");
+  W.open(s, T0);
+  W.openWindow(s, 1, T0 + 23 * HOUR);
+  assert.equal(at(s), T0 + 26 * HOUR);
+});
+
+test("At its own pace a week runs before its time only once everyone owed has claimed and nobody could still use a swap (BACKLOG 83)", () => {
+  const s = league({ settings: { replaceRule: "always", waiverWindows: { schedule: "manual", swaps: 0 } } });
+  S.addElimination(s, "ep3", "jelly", "Voted Out");
+  W.open(s, T0);
+  const p = W.current(s);
+  assert.equal(W.runsEarly(s, p), false, "nobody owed has claimed");
+  W.setClaimsIn(s, p, ["sam"]);
+  assert.equal(W.runsEarly(s, p), true, "no swaps: everyone owed (Sam) has a claim in");
+  // With swaps, the others could still use one: it waits for its time until each has a claim in.
+  W.openWindow(s, 1, T0);
+  assert.equal(W.runsEarly(s, p), false, "Kim, Andrew, Josie and Dee could each still swap");
+  W.setClaimsIn(s, p, ["sam", "kim", "andrew", "josie"]);
+  assert.equal(W.runsEarly(s, p), false, "Dee could");
+  s.players.find((x) => x.id === "dee").automated = true;
+  assert.equal(W.runsEarly(s, p), true, "a computer player claims when the week runs, so it waits for nobody");
+  s.players.find((x) => x.id === "dee").automated = false;
+  W.setClaimsIn(s, p, ["sam", "kim", "andrew", "josie", "dee"]);
+  assert.equal(W.runsEarly(s, p), true);
+  p.hold = true;
+  assert.equal(W.runsEarly(s, p), false, "a held week waits for whoever runs the game");
 });
 
 test("Open a waiver window: any league, even one with waivers off, while it runs", () => {

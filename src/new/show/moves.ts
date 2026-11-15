@@ -96,7 +96,7 @@ export function doneCards(play: GameView[]): MoveCard[] {
     const l = g.lineup;
     if (l && !l.locked && l.set && l.starters.length) {
       const names = l.starters.map((id) => first(faceIn(g, id)?.name ?? "")).filter(Boolean);
-      const until = g.late?.episode === l.episode ? " · change until you watch it" : l.airsAt ? ` · change until ${airTime(Date.parse(l.airsAt))}` : "";
+      const until = g.late?.episode === l.episode ? " · change until you watch it" : (l.locksAt ?? l.airsAt) ? ` · change until ${airTime(Date.parse((l.locksAt ?? l.airsAt)!))}` : "";
       cards.push({ key: `lineup-done-${g.leagueId}`, title: "Your lineup is in", line: `${names.join(", ")}${until}${which}`, action: "Change", tab: "lineup", leagueId: g.leagueId });
     }
     const c = g.call;

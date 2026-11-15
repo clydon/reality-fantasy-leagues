@@ -212,9 +212,11 @@ test("a day's or a week's lock: each episode locks at its day's or week's first 
   const between = T - 86_400_000;
   assert.equal(S.closedForPlay(e2, before), false);
   assert.equal(S.closedForPlay(e2, between), true, "locked at the week's first start, before its own");
-  // A lock later than its own start is never read (its start locks it); no start, the lock alone; the hand's overrides win.
+  // BACKLOG 81 (decided 2026-11-14): the stamp is the first game played, so a lock later than its own start is the lock (its
+  // first game, the start it airs at, called off): open past its start until then. No start, the lock alone; the hand's overrides win.
   e2.locksAt = new Date(T + 60_000).toISOString();
-  assert.equal(S.closedForPlay(e2, T + 1), true);
+  assert.equal(S.closedForPlay(e2, T + 1), false, "its own first game postponed: open past its start");
+  assert.equal(S.closedForPlay(e2, T + 60_000), true, "locked at its first game played");
   delete e2.airsAt;
   assert.equal(S.closedForPlay(e2, T), false);
   assert.equal(S.closedForPlay(e2, T + 120_000), true);

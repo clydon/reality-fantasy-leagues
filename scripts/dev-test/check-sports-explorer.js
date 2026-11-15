@@ -718,10 +718,10 @@ const CASES = {
       } finally { s.dispose(); }
     }
     // 5. A slate's week whose first game is postponed, locking by the day (the NBA's rule). The server stamps the week's lock at its
-    // first game played (air-times.ts sportLocks, PLAYED), but the week's own air time is its first game's start, postponed or not
-    // (slate.ts sets season_episodes.air_at to the min of its linked games' starts; the materializer writes the same), and the
-    // engine takes a lock only when it is earlier than the air time (closedForPlay). So an hour past the postponed game's start,
-    // before any game has begun, is the week's lineup locked? The rule (Oracle.firstPlayed) says open.
+    // first game played (air-times.ts sportLocks, PLAYED), while the week's own air time is its first game's start, postponed or not
+    // (slate.ts sets season_episodes.air_at to the min of its linked games' starts; the materializer writes the same). BACKLOG 81
+    // (fixed 2026-11-14): the stamped lock is the lock (closedForPlay), so an hour past the postponed game's start, before any game
+    // has begun, the week's lineup is open (the rule, Oracle.firstPlayed), and it locks when its second game starts.
     {
       const nba = Bench.resolve('basketball/nba', 'short').row.spec, two = { ...nba, get: { by: 'draft', each: 4, order: 'snake', own: 'exclusive' }, count: { start: 2 } };
       const s = R.open(proof({ league: 'basketball/nba', game: two, closes: 'daily', slate: 3, completed: 1, events: 3, timing: 'live-only', ann: 1, bo: 1, cy: 1 }));
@@ -731,9 +731,18 @@ const CASES = {
           must(s, { type: 'calledOff', contextId: 'sport', eventId: week.id, game: g1.id, called: 'postponed' });
           await at(s, write, Date.parse(g1.airAt) + 3600000);
           const view = await serverGames(as, ids, 'bo'), runtime = s.project('g', 'bo').game.lineup, rule = Oracle.firstPlayed(Sports.gamesOf(world.context, week).map(g => ({ id: g.id, at: g.airAt })), [g1.id]) <= Date.parse(g1.airAt) + 3600000;
-          const agree = view?.lineup?.episode === runtime?.episode && !!view?.lineup?.locked === !!runtime?.locked;
-          check("a slate week's first game postponed: the server and the runtime agree on whether the week's lineup is locked an hour past it (" + (agree ? (runtime?.locked ? 'locked' : 'open') : 'they differ') + '); the routes agree', agree && !real(await routes()).length, { server: view?.lineup && [view.lineup.episode, view.lineup.locked], runtime: runtime && [runtime.episode, runtime.locked], rule: rule ? 'locked' : 'open' });
-          if (agree && runtime?.episode === 2 && runtime.locked && !rule) note("BACKLOG 81: a slate week whose first game is postponed still locks at that game's start (its air time is its first game's, postponed or not, and the engine takes a lock only when it's earlier than the air time): the second game, " + new Date(Date.parse(g2.airAt)).toISOString() + ', has not begun');
+          check("a slate week's first game postponed: an hour past it, before its second game, the week's lineup is open for the rule, the server and the runtime (BACKLOG 81); the routes agree",
+            !rule && view?.lineup?.episode === 2 && !view.lineup.locked && runtime?.episode === 2 && !runtime.locked && !real(await routes()).length, { server: view?.lineup && [view.lineup.episode, view.lineup.locked], runtime: runtime && [runtime.episode, runtime.locked], rule: rule ? 'locked' : 'open' });
+          // A lineup for the week, sent to the real route and applied in the runtime: taken while it's open, refused once it locks.
+          const send = async () => { const mine = s.snapshot().games.g.state.castaways.filter(x => x.ownerIds.includes('bo')).map(x => x.id).slice(0, 2), sent = await as('bo', 'PUT', '/api/leagues/' + ids.leagues.g + '/episodes/' + encodeURIComponent(week.id) + '/lineups/bo', { castawayIds: mine }), applied = s.apply({ type: 'lineup', gameId: 'g', personId: 'bo', eventId: week.id, ids: mine }); return { route: sent.status, said: sent.json?.error, applied: applied.status, message: applied.message }; };
+          let r = await send();
+          check("while it's open, a lineup for the week is taken by the route and the runtime", r.route === 200 && r.applied === 'accepted', r);
+          await write();
+          await at(s, write, Date.parse(g2.airAt) + 60000);
+          r = await send();
+          const view2 = await serverGames(as, ids, 'bo'), runtime2 = s.project('g', 'bo').game.lineup;
+          check("a minute past its second game's start (its first played), the week is locked: a lineup for it is refused by both, and the lineup each offers is the same; the routes agree",
+            r.route >= 400 && r.route < 500 && r.applied === 'rejected' && (view2?.lineup?.episode ?? null) === (runtime2?.episode ?? null) && !real(await routes()).length, { ...r, server: view2?.lineup && [view2.lineup.episode, view2.lineup.locked], runtime: runtime2 && [runtime2.episode, runtime2.locked] });
         });
       } finally { s.dispose(); }
     }

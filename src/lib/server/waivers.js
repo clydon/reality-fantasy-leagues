@@ -66,11 +66,6 @@ function lossAt(copy) {
   const ep = copy.episodes.find((e) => e.number === n);
   return !!ep && copy.castaways.some((c) => c.exitEpisodeId === ep.id && W.lossOpen(copy, c));
 }
-/** Everyone in the game who's owed a replacement this week has a claim in. */
-function owedIn(copy, period) {
-  const owed = copy.players.filter((p) => !p.automated && !p.disabled && W.replacementsOwed(copy, p.id, period).count > 0).map((p) => p.id);
-  return owed.length > 0 && owed.every((id) => (period.claimsIn || []).includes(id));
-}
 
 // A row as a claim: its ranked pairs (v2, db/migrations/0063) and, for one release, the pre-v2 view the
 // phase-2 screens read (pickupIds, dropId, addIds). A row saved by the old code has no pairs: with the
@@ -153,7 +148,7 @@ async function saveClaim(client, leagueId, league, playerId, input, userId) {
   const out = await saveClaimOn(client, leagueId, state, playerId, input, userId);
   if (copy && !out.error) {
     foldBack(league, copy);
-    // Everyone owed a replacement has a claim in: it settles now.
+    // Everyone owed a replacement has a claim in, and nobody could still use a swap: it settles now (WaiverLogic.runsEarly).
     await syncPaced(client, leagueId, league, Date.now());
   }
   return out;
@@ -253,10 +248,11 @@ async function syncPaced(client, leagueId, state, at) {
   for (let i = 0; i < 8; i++) {
     let step = W.due(copy, at);
     const period = W.current(copy);
-    // A week opens only at a waiver moment; and settles as soon as everyone owed a replacement has a claim in.
+    // A week opens only at a waiver moment; and settles before its time once everyone owed a replacement has a claim in and nobody
+    // could still use a swap (WaiverLogic.runsEarly: BACKLOG 83). (A week held by an Undo waits for whoever runs the game, as a live
+    // game's does: BACKLOG 56.)
     if (step === "open" && !lossAt(copy)) break;
-    // (A week held by an Undo waits for whoever runs the game, as a live game's does: BACKLOG 56.)
-    if (!step && period && period.phase === "open" && !period.hold && owedIn(copy, period)) step = "process";
+    if (!step && W.runsEarly(copy, period)) step = "process";
     if (!step) break;
     if (step === "open") {
       const p = W.open(copy, at);
