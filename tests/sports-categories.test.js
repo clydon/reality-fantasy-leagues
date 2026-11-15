@@ -279,7 +279,8 @@ test("head to head's and best ball's default specs on the recorded fixtures: eac
   // Every team sport's and golf's best ball: the season's draft and table, its starters' worth counting, no lineups.
   for (const id of ["basketball", "football", "baseball", "hockey", "soccer", "golf"]) {
     const s = defaultsFor(id).specs;
-    assert.equal(s.bestBall.spec.get.each, s.season.spec.get.each, id);
+    // (Golf's season drafts two more than it starts since BACKLOG 79, 2026-11-14; its best ball still drafts the six a lineup starts.)
+    assert.equal(s.bestBall.spec.get.each, id === 'golf' ? s.season.spec.count.start : s.season.spec.get.each, id);
     assert.deepEqual(s.bestBall.spec.score, s.season.spec.score, id);
   }
   // The 76ers' opener: a roster of thirteen, the best ten of them by the sequence's line counting.

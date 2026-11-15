@@ -1595,6 +1595,103 @@ was the next slice by the handoff's order.
   4. The campaign's walk, not the product, first left the mechanic unexercised (no mid-week lineup taken), and the counts
      caught it: generators 56 and 57.
 
+#### Sports statistics, the last slice: a game called off, and a week in progress (2026-11-14)
+
+The user, 2026-11-14: wrap sports up in one combined slice so the next session can start the design round. A linked game the
+provider says is over without being played (postponed or cancelled: `sports_events` state 'post', not final, its `called`) is, on
+the server, results in with nothing in them: an episode's one game is among the finals with no lines (`score.ts` `stampStats`:
+status 'off'), so nothing scores and the game moves on past it. It locks nothing (`air-times.ts` `PLAYED`: a day's or a week's
+lock is its first game played, a holding of its team stays free to move). A league's slate week counts only once every game in it
+is over, final or called off (`score.ts`: `done`); until then nothing of it is stamped, not even its games already final. No
+specimen needed either: they're the real schedule's.
+
+- **Runtime** (`core-runtime-40`; `runtime-sports.cjs` "Called off, and a week in progress"):
+  - **the `calledOff` action** `{ contextId, eventId, game?, called: 'postponed' | 'cancelled' }`: any time before the event's
+    results are in, before or after its start, in event order. On an episode of one game, the event's `resultStatus` becomes
+    `called` (the document's words; the server's 'canceled'), results in with nothing in them; a correction or a later box score
+    is refused. On a slate, `game` names one of the week's; the event's `calledOff` records it, and when every other game is
+    final the call-off puts the week in;
+  - **a week in progress**: a `results` action `'partial'` on a slate carries the games final so far (some of the week's games
+    played, not all, each past its start); the event stays unavailable and nothing is stamped; a game final stays final; the week
+    is in by `'final'` (every game played) or by the last call-off. An episode of one game has no partial result (the server keeps
+    a line only once its game is final): refused;
+  - **locks**: `lockTimes` reads only the games played (an episode called off is no start of its day or week; a slate's week its
+    first game played); `gameLocks` leaves a game called off out of the starts, so its holdings are free. Both are read again
+    after a call-off, so a lock can open again;
+  - `released` (runtime-data.cjs, live-db.cjs) counts 'postponed' and 'cancelled' as in. A show's event is never called off: a
+    definition that supplies a called-off event stays the profile's gap.
+- **The rule, restated apart from the engine** (`campaign/sports-oracle.cjs`): `weekIn` (every game final or off), `counted` (the
+  games whose lines count: none until the week is in), `firstPlayed` (a day's or a week's lock among the games played),
+  `holdingLocked` (a holding's game, not called off, began earlier that Eastern day).
+- **Unit tests** (`tests/gameplay-explorer-sports.test.js`, 135): the oracle by hand; a slate week in progress (refusals: before
+  its start, no game, a game dropped, a game still to play as final; nothing stamped, no reveal, nobody's total moved; then its
+  last game postponed puts it in, its two games counted, none kept for the postponed one); a slate game postponed before the
+  week (a line for it refused, a correction with the games played); an episode of one game cancelled (results in, no line,
+  nobody scores, refusals, the next game played, reveals); locks (a day's and a week's first game postponed after it began: the
+  evening's lock is its own start again and its lineup is taken; a slate's week at its first game played; a lock at each game's
+  start with no start for a game called off and its holding free past it).
+- **Generator** (`proof-family-58`, `59`): the walk calls a game off now and then (an episode's one game or a slate week's game
+  not yet final, postponed or cancelled, before or after its start; the invalid share one whose results are in, or out of order),
+  publishes a slate's week in progress between its games (the games final so far, each kept as it was), and leaves its games
+  called off out of a week's results (59: a valid lineup mid-week moves a player whose game was called off after it began).
+- **Invariants:** `stats-table` takes a slate week as in by the oracle (`weekIn` over the fact's games and those called off), never
+  the runtime's own status, and a game called off as told with nothing in it; `sport-locks` and `slate-holding-locks` restate a
+  call-off locking nothing (`firstPlayed`, `holdingLocked`); **`sport-called-off`** (new): an episode called off has its results
+  in with no line, and a week in progress has nothing stamped.
+- **Campaigns** (depth 30; seeds chosen from their definitions alone for their slates):
+  - `sport-calledoff-200` (seed 134, generator 58): **200 of 200**; 36 sports cases, 8 slates (`count.cjs`: 33 call-offs taken,
+    15 before a game's start and 18 after, 20 of an episode's one game and 13 of a slate's, 12 refused; 13 weeks in progress,
+    none moving a table; 3 weeks put in by a call-off; 8 weeks in with a game called off, 1 with every game off; 3 locks open
+    again after a call-off; 2 quiet nights from one);
+  - `sport-calledoff-200b` (seed 139, generator 59, the final code, with BACKLOG 79's benches): **200 of 200**; 44 sports cases,
+    10 slates (34 call-offs, 22 after a game's start; 14 weeks in progress; 5 weeks put in by a call-off; tables moved by a
+    call-off 4 times; 3 locks open again). **No lineup ever moved a player freed by a called-off game** (0 in both runs: only 4
+    live games lock at each game's start, and a call-off there after a game began, then a lineup, is rare): the unit test and the
+    route check's part 4 hold that rule.
+- **Positive controls** (`engine-controls.js` over `sport-calledoff-200b`'s 44 sports cases; the unedited files pass all 44; each
+  a temporary edit of the runtime, which restates the server's rule; `controls.log`):
+  - a slate game called off still a game's start for its holdings fails 2 (`sport-locks`: the week locks at its last game played);
+  - a week in progress stamped (its games final so far counted early) fails 1 (`sport-called-off`), and 6 more refuse to build
+    (their setup history breaks);
+  - a week whose last call-off never puts it in fails 2 (`stats-table`: the invariant takes a week as in by the oracle, not the
+    runtime's status);
+  - **two change nothing, and why.** A game called off still locking its day or week: no case reaches the configuration (a live
+    game locking by the day or the week, a game called off after it began, and the next one's lineup looked at before its own
+    start), so the unit test and the route check's part 3 hold it. An episode's one game called off left out of the finals: the
+    runtime's own consistency check ("Released event has no result facts") refuses the call-off itself, so the broken state never
+    forms for an invariant to see.
+
+  Both edited files came back byte for byte.
+- **Materializer** (`live-db.cjs`): a game called off is its row over without a final (state 'post', final false, `called`
+  'postponed' or 'canceled'); a slate week in progress has each game final so far written final with its box score, the rest to
+  play or being played.
+- **Real routes, directly** (`check-sports-explorer.js --case=calledoff`, 30 checks, all passing on the first run but for one
+  mistake of the check's own: the player it swapped in played in the game that had begun, and both sides refused it rightly):
+  1. a slate (the NBA's team of three), live, Ann a game behind with and without "Sports scores too": a week with one game final,
+     then two, counts nothing; its last game postponed puts it in, its two games played counted; the server's table, the
+     runtime's and the oracle's the same each time; a control: the postponed game written as still to play behind the runtime,
+     the server leaves the week out;
+  2. an episode of one game cancelled (the NFL's team of three and its head-to-head season, with and without "Sports scores
+     too"): results in with nothing in them, the next game's lineup offered, a quiet night counted for nobody;
+  3. a day's lock opened by a call-off (the NBA's rule): today's first game postponed after it began; the next game's lineup is
+     open for the server, the runtime and the oracle, and the real lineup route takes what it refused;
+  4. a lock at each game's start on a slate: a player whose game is postponed is free to move past its start, one whose game
+     began that day isn't; the week played without it, the server's tables the runtime's;
+  5. a slate week whose first game is postponed, locking by the day: server and runtime agree, and both lock the week at the
+     postponed game's start (BACKLOG 81, its NOTE).
+- **API tier:** not run as a campaign for this slice (the shared checks compare every table, grid and record already; the route
+  case drove each new path on the server directly).
+- **UI driver:** no page step (no screen changes; Designs needed item 39 records what the page doesn't say).
+- **Findings:**
+  1. No disagreement between the server and the runtime, or either and the oracle.
+  2. **BACKLOG 81:** a slate week whose first game is postponed still locks at that game's start: `air-times.ts` stamps the
+     week's lock at its first game played, but the week's air time is its first game's (`slate.ts`), and the engine takes a
+     stamped lock only when it's earlier than the air time (`closedForPlay`). `sport-locks` restates today's rule.
+  3. **Designs needed item 39:** nothing says a game was postponed or cancelled (not even the season's games route), and a week
+     in progress shows none of its games final so far.
+  4. The bench's Publish on a slate threw ("name the event"): `resultsFor` was called without the event. Fixed by moving the
+     bench's publish into `explorer/publish.cjs` (shared with the first page's situations, below).
+
 ### Product fixes from these findings (2026-11-12, uncommitted; the user asked for all four)
 
 Each was reproduced through the bench, fixed, and is now a hard assertion in `check-explorer-proof.js` or a UI oracle:

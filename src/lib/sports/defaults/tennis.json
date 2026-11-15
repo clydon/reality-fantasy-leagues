@@ -39,7 +39,7 @@
     "stats": []
   },
   "slots": {
-    "source": "DraftKings' tennis: six players (any six of a day's slate, one tour's; its $50,000 salary cap isn't a slot)",
+    "source": "DraftKings' tennis: six players (any six of a day's slate, one tour's; its $50,000 salary cap isn't a slot). The app's season game drafts two more than start (BACKLOG 79, the user's, 2026-11-14): not every one plays every event, so who you start is a real weekly call.",
     "lineup": [
       {
         "slot": "P",
@@ -49,12 +49,12 @@
         ]
       }
     ],
-    "bench": 0
+    "bench": 2
   },
   "closes": "daily",
   "specs": {
     "season": {
-      "about": "A season of events: draft 6 players, each scores in every match they play, most points over the season wins.",
+      "about": "A season of events: draft 8 players, start 6 each event, each starter scoring in every match they play, most points over the season wins.",
       "spec": {
         "spec": 1,
         "span": {
@@ -67,7 +67,7 @@
         },
         "get": {
           "by": "draft",
-          "each": 6,
+          "each": 8,
           "order": "snake",
           "own": "exclusive"
         },

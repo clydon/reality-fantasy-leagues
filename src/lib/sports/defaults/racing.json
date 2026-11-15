@@ -57,7 +57,7 @@
     "stats": []
   },
   "slots": {
-    "source": "DraftKings' NASCAR: six drivers (any six: racing has no positions; its $50,000 salary cap isn't a slot)",
+    "source": "DraftKings' NASCAR: six drivers (any six: racing has no positions; its $50,000 salary cap isn't a slot). The app's season game drafts two more than start (BACKLOG 79, the user's, 2026-11-14): not every one plays every event, so who you start is a real weekly call.",
     "lineup": [
       {
         "slot": "D",
@@ -67,12 +67,12 @@
         ]
       }
     ],
-    "bench": 0
+    "bench": 2
   },
   "closes": "event",
   "specs": {
     "season": {
-      "about": "A season of races: draft 6 drivers, all 6 score each race, most points over the season wins.",
+      "about": "A season of races: draft 8 drivers, start 6 each race, most points over the season wins.",
       "spec": {
         "spec": 1,
         "span": {
@@ -85,7 +85,7 @@
         },
         "get": {
           "by": "draft",
-          "each": 6,
+          "each": 8,
           "order": "snake",
           "own": "exclusive"
         },
@@ -288,7 +288,7 @@
         }
       },
       "slots": {
-        "source": "The official F1 Fantasy game: five drivers (its two constructors aren't drivers; its $100M budget isn't a slot)",
+        "source": "The official F1 Fantasy game: five drivers (its two constructors aren't drivers; its $100M budget isn't a slot). The app's season game drafts two more than start (BACKLOG 79, the user's, 2026-11-14): not every one plays every event, so who you start is a real weekly call.",
         "lineup": [
           {
             "slot": "D",
@@ -298,11 +298,11 @@
             ]
           }
         ],
-        "bench": 0
+        "bench": 2
       },
       "specs": {
         "season": {
-          "about": "A season of races: draft 5 drivers, all 5 score each race weekend, most points over the season wins.",
+          "about": "A season of races: draft 7 drivers, start 5 each race weekend, most points over the season wins.",
           "spec": {
             "spec": 1,
             "span": {
@@ -315,7 +315,7 @@
             },
             "get": {
               "by": "draft",
-              "each": 5,
+              "each": 7,
               "order": "snake",
               "own": "exclusive"
             },
@@ -464,7 +464,7 @@
       },
       "specs": {
         "season": {
-          "about": "A season of races: draft 6 drivers, all 6 score each race, most points over the season wins.",
+          "about": "A season of races: draft 8 drivers, start 6 each race, most points over the season wins.",
           "spec": {
             "spec": 1,
             "span": {
@@ -477,7 +477,7 @@
             },
             "get": {
               "by": "draft",
-              "each": 6,
+              "each": 8,
               "order": "snake",
               "own": "exclusive"
             },

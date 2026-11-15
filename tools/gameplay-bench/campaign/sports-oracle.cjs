@@ -21,6 +21,12 @@
 // And by a match's format (the sixth slice; score.byFormat: tennis's best of five): on a card, each match someone played scores
 // its own line at its format's points (a stat's points in the table for that many sets, else the table's own; a group's still
 // first), and whatever their day's line has besides their matches' at the table's own points.
+// And a game called off, and a week in progress (the last sports slice; the server's L3 part 3b and part 2f), from the rule alone:
+//   a week of several games is in once every game in it is over, final or called off (postponed, cancelled); until then nothing of
+//     it counts, not even its games already final;
+//   a game called off has no line and scores nothing, and locks nothing: a week's lock, a day's, is its first game played; a
+//     holding whose team's game is called off is free to move;
+//   an episode of one game called off is in, with nothing in it: everyone scores 0 for it.
 // No app code is loaded here.
 const cents = n => Math.round(n * 100) / 100, tidy = n => Math.round(n * 1e6) / 1e6;
 const groupsOf = (line, defs) => new Set(Object.keys(line).map(k => defs[k] && defs[k].group).filter(g => g !== undefined && g !== null));
@@ -113,4 +119,18 @@ function placed(counts, standing, sport) {
   if (sport === 'golf' && standing && standing.madeCut) out.CUT = 1;
   return out;
 }
-module.exports = { total, totals, better, week, quiet, roto, cents, placePoints, linePoints, placed };
+/** Whether a week of several games is in: every game (`games`, ids) final (`final`: ids with a line kept) or called off (`off`: ids). */
+const weekIn = (games, final, off) => games.every(g => final.includes(g) || off.includes(g));
+/** The games whose lines count for a week: none until it's in, then the ones final (a game called off has none). */
+const counted = (games, final, off) => (weekIn(games, final, off) ? games.filter(g => final.includes(g) && !off.includes(g)) : []);
+/** The first start (ms) among games played (`games`: [{ id, at }], `off`: ids called off), or null: a week's or a day's lock. */
+function firstPlayed(games, off) {
+  const t = games.filter(g => !off.includes(g.id)).map(g => Date.parse(g.at)).filter(Number.isFinite);
+  return t.length ? Math.min(...t) : null;
+}
+/** An Eastern calendar day, as a lock reads one (YYYY-MM-DD). */
+const easternDay = ms => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date(ms));
+/** Whether a holding is locked at `now` (ms) on a lineup that locks at each game's start: one of its team's games (`games`: [{ id,
+ *  at }], the week's its team plays) not called off began earlier that Eastern day. */
+const holdingLocked = (games, off, now) => games.some(g => !off.includes(g.id) && Date.parse(g.at) <= now && easternDay(Date.parse(g.at)) === easternDay(now));
+module.exports = { weekIn, counted, firstPlayed, easternDay, holdingLocked, total, totals, better, week, quiet, roto, cents, placePoints, linePoints, placed };

@@ -24,7 +24,7 @@
     "stats": []
   },
   "slots": {
-    "source": "DraftKings' MMA: six fighters (any six: a card has no positions; its $50,000 salary cap isn't a slot)",
+    "source": "DraftKings' MMA: six fighters (any six: a card has no positions; its $50,000 salary cap isn't a slot). The app's season game drafts two more than start (BACKLOG 79, the user's, 2026-11-14): not every one plays every event, so who you start is a real weekly call.",
     "lineup": [
       {
         "slot": "F",
@@ -34,12 +34,12 @@
         ]
       }
     ],
-    "bench": 0
+    "bench": 2
   },
   "closes": "event",
   "specs": {
     "season": {
-      "about": "A season of cards: draft 6 fighters, each scores on the nights they fight, most points over the season wins.",
+      "about": "A season of cards: draft 8 fighters, start 6 each card, each starter scoring on the nights they fight, most points over the season wins.",
       "spec": {
         "spec": 1,
         "span": {
@@ -52,7 +52,7 @@
         },
         "get": {
           "by": "draft",
-          "each": 6,
+          "each": 8,
           "order": "snake",
           "own": "exclusive"
         },

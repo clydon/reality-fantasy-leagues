@@ -31,8 +31,12 @@
 //
 // A slate, a week of several games scored game by game, and a lock at each game's start (core-runtime-39: below, "A slate").
 //
-// Not connected yet (runtime-profile.cjs says so, a gap each): a fight card's bouts (no MMA table scores by format); a week in
-// progress (some games final); a postponed or cancelled game; any other kind of game on a sport context.
+// A game called off and a week in progress (core-runtime-40: below, "Called off, and a week in progress"): the server's L3 part 3b
+// and part 2f.
+//
+// Not connected yet (runtime-profile.cjs says so, a gap each): a fight card's bouts (no MMA table scores by format); a definition
+// that supplies an event already called off (the action calls one off); a postponed game's makeup (a game of its own, a listing's);
+// a call-off out of event order; any other kind of game on a sport context.
 const S = require('../../../src/lib/game/state-logic');
 // The app's sport definitions are TypeScript (src/lib/sports), loaded through jiti by the bench's sports.cjs: only when a
 // definition has a sport context, so a show's world starts as fast as it did.
@@ -118,6 +122,26 @@ function gamesOf(context, event) {
   const t0 = event.airAt ? Date.parse(event.airAt) : null;
   return Array.from({ length: n / 2 }, (_, j) => ({ id: event.id + '-g' + (j + 1), teams: [order[j], order[n - 1 - j]], airAt: t0 === null ? null : new Date(t0 + Math.floor(j / 2) * 24 * HOUR + (j % 2) * 3 * HOUR).toISOString() }));
 }
+// ---- Called off, and a week in progress (core-runtime-40) ----
+// A linked game the provider says is over without being played (postponed or cancelled: sports_events' state 'post', not final,
+// its `called`): on the server its results are in and nothing happened (score.ts stampStats: an episode's one game 'off' is among
+// the finals, with no lines; nothing scores, the game moves on past it), and it locks nothing (air-times.ts PLAYED: a day's or a
+// week's lock is its first game played, a holding of its team stays free to move, a slate's week locks at its first game played).
+// Told any time before its results are in, before or after its start (a lock can open again once its game is called off, as the
+// server works the locks out on every read). The `calledOff` action (runtime.cjs): an episode's one game, its event's resultStatus
+// 'postponed' or 'cancelled' (the document's words; the server's 'canceled'); a slate's game, the event's `calledOff`
+// ({ [game id]: 'postponed' | 'cancelled' }).
+// A slate's week in progress (score.ts: an episode only once every game in it is over, final and kept, or off: a partial week is
+// never its results): a `results` action 'partial' carries the games final so far (`games`, some of the week's played games, not
+// all). The event stays unavailable, nothing of it is stamped, and the fact holds those games' lines for the materializer, which
+// writes each one final. Once every game is final or called off, the week is in: 'final' with every game played, or by the last
+// call-off. An episode of one game has no partial result: the server keeps a line only once its game is final.
+/** A slate week's games called off ({ [game id]: 'postponed' | 'cancelled' }). */
+const offOf = event => (event && event.calledOff) || {};
+/** Whether an event's one game is called off (an episode of one game). */
+const isOff = event => !!event && ['postponed', 'cancelled'].includes(event.resultStatus);
+/** A slate week's games still played (every game not called off), in order. */
+const playedOf = (context, event) => gamesOf(context, event).filter(g => !offOf(event)[g.id]);
 /** A slate week's results read as the server reads them: each game's lines (derived stats worked out) and the week's (added up,
  *  a rate worked out on the counts' sum, its raw counts kept apart). */
 function slateLines(c, data) {
@@ -308,12 +332,21 @@ function checkCard(world, data) {
 }
 const STATUSES = ['in', 'cut', 'wd', 'dq'];
 /** A slate week's results, checked: its games, each the lines of athletes on its two teams (and no week's line: the server adds them). */
-function checkSlate(world, data, event) {
+function checkSlate(world, data, event, partial = false) {
   if (Object.keys(data).some(k => !['events', 'scoringEvents', 'games'].includes(k))) throw Error("A slate's results are its games' lines ({ games: { [game]: { [participantId]: { STAT: number } } } })");
   if (data.events.length || data.scoringEvents.length) throw Error("A sport's results are its stat lines: nobody goes home and no moment is scored");
-  const games = gamesOf(world.context, event), g = data.games, isObj = v => v && typeof v === 'object' && !Array.isArray(v);
-  if (!isObj(g) || Object.keys(g).length !== games.length || games.some(x => !isObj(g[x.id]))) throw Error("A slate's results need each of its week's games: " + games.map(x => x.id).join(', '));
-  for (const x of games) for (const [id, line] of Object.entries(g[x.id])) {
+  // (Its games played: a game called off has no line, core-runtime-40. A week in progress has some of them, not all.)
+  const all = gamesOf(world.context, event), games = playedOf(world.context, event), g = data.games, isObj = v => v && typeof v === 'object' && !Array.isArray(v);
+  if (!isObj(g)) throw Error("A slate's results are its games' lines ({ games: { [game]: { [participantId]: { STAT: number } } } })");
+  const off = Object.keys(g).find(k => offOf(event)[k]);
+  if (off) throw Error('A game called off has no box score: ' + off);
+  if (Object.keys(g).some(k => !all.some(x => x.id === k) || !isObj(g[k]))) throw Error("A slate's results are its week's games: " + all.map(x => x.id).join(', '));
+  if (partial) {
+    const n = Object.keys(g).length;
+    if (!n) throw Error('A week in progress has a game final: publish the games final so far');
+    if (n === games.length) throw Error('A week whose every game is final is in: publish it as final');
+  } else if (Object.keys(g).length !== games.length) throw Error("A slate's results need each of its week's games played: " + games.map(x => x.id).join(', '));
+  for (const x of games.filter(y => g[y.id])) for (const [id, line] of Object.entries(g[x.id])) {
     const p = world.participants.find(q => q.id === id);
     if (!p || !x.teams.includes(p.team) || !isObj(line) || !Object.values(line).every(finite)) throw Error("A game's lines are its two teams' athletes' counts: " + x.id + ' has ' + id);
   }
@@ -321,9 +354,10 @@ function checkSlate(world, data, event) {
 /** A sport fact's data, checked: empty `events` and `scoringEvents`, and `lines` by athlete (each a record of finite counts); on a
  *  field, `standings` too: one an athlete, a place a whole number from 1 for whoever is in and none for anyone out, and no place
  *  in a line (a place is the standings'). */
-function checkData(world, data, event) {
+function checkData(world, data, event, partial = false) {
   if (!data || !Array.isArray(data.events) || !Array.isArray(data.scoringEvents)) throw Error('Event facts need events and scoringEvents arrays');
-  if (slateOf(world.context)) return checkSlate(world, data, event);
+  if (slateOf(world.context)) return checkSlate(world, data, event, partial);
+  if (partial) throw Error("One game's results are final at once (the server keeps its line only once it's final): publish final results");
   const field = isField(world.context), onCard = league(world.context).context.shape === 'card';
   if (Object.keys(data).some(k => !['events', 'scoringEvents', 'lines', ...(field ? ['standings'] : []), ...(onCard ? ['card'] : [])].includes(k))) throw Error('Event fact contains an unconnected field');
   if (data.events.length || data.scoringEvents.length) throw Error("A sport's results are its stat lines: nobody goes home and no moment is scored");
@@ -347,7 +381,8 @@ function applyFacts(world, state, released) {
     const event = world.events.find(e => e.id === ep.id);
     ep.events = []; ep.scoringEvents = []; delete ep.noExit; delete ep.resultsStage; delete ep.voteRecord;
     if (!event || !released(event)) continue;
-    if (event.resultStatus === 'partial') throw Error("A sport's week in progress (some games final) is not connected: publish final results");
+    // (An episode's one game called off: its results are in, nothing happened: among the finals, with no lines.)
+    if (isOff(event)) { finals.push(ep.number); continue; }
     const facts = world.facts.filter(f => f.eventId === event.id);
     if (facts.length !== 1) throw Error('A released event needs exactly one coherent fact bundle: ' + event.id);
     checkData(world, facts[0].data, event);
@@ -397,9 +432,12 @@ function lockTimes(world, state, shiftMs = 0) {
   const closes = S.gameOf(state).closes;
   if (closes !== 'daily' && closes !== 'weekly') return null;
   const from = S.startEpisode(state) ?? 1, to = S.endEpisode(state);
-  const starts = world.events.filter(e => e.number >= from && (to == null || e.number <= to)).map(e => ({ episode: e.number, at: e.airAt ? new Date(Date.parse(e.airAt) + shiftMs).toISOString() : null }));
-  // (A slate's episode locks at its own first game, its event's air time, whatever the cadence: locksOf's `slate`.)
-  return new Map([...Bench().locksOf(starts, closes, { slate: !!slateOf(world.context) })].map(([n, at]) => [n, new Date(Date.parse(at) - shiftMs).toISOString()]));
+  // (A game called off locks nothing, core-runtime-40: the server's PLAYED. An episode's one game, its event; a slate's, its games
+  // played, each a start, as the server reads its linked games.)
+  const slate = !!slateOf(world.context), at = t => (t ? new Date(Date.parse(t) + shiftMs).toISOString() : null);
+  const starts = world.events.filter(e => e.number >= from && (to == null || e.number <= to) && !isOff(e)).flatMap(e => (slate ? playedOf(world.context, e).map(g => ({ episode: e.number, at: at(g.airAt) })) : [{ episode: e.number, at: at(e.airAt) }]));
+  // (A slate's episode locks at its own first game played, whatever the cadence: locksOf's `slate`.)
+  return new Map([...Bench().locksOf(starts, closes, { slate })].map(([n, at]) => [n, new Date(Date.parse(at) - shiftMs).toISOString()]));
 }
 /**
  * A slate game that closes at each game's start (closes 'game', core-runtime-39): each episode's games with their starts and the end
@@ -410,7 +448,7 @@ function lockTimes(world, state, shiftMs = 0) {
 function gameLocks(world, state, shiftMs = 0) {
   if (world.context.kind !== 'sport' || S.gameOf(state).closes !== 'game' || !slateOf(world.context)) return null;
   const from = S.startEpisode(state) ?? 1, to = S.endEpisode(state), team = new Map(world.participants.map(p => [p.id, p.team]));
-  const games = world.events.filter(e => e.number >= from && (to == null || e.number <= to)).flatMap(e => gamesOf(world.context, e).map(g => ({ episode: e.number, eventId: g.id, at: g.airAt ? new Date(Date.parse(g.airAt) + shiftMs).toISOString() : null, teams: g.teams })));
+  const games = world.events.filter(e => e.number >= from && (to == null || e.number <= to)).flatMap(e => playedOf(world.context, e).map(g => ({ episode: e.number, eventId: g.id, at: g.airAt ? new Date(Date.parse(g.airAt) + shiftMs).toISOString() : null, teams: g.teams })));
   const teamOf = new Map((state.castaways || []).filter(c => team.get(c.id)).map(c => [c.id, team.get(c.id)]));
   const back = at => new Date(Date.parse(at) - shiftMs).toISOString();
   return new Map([...Bench().gameLocksOf(games, teamOf)].map(([n, l]) => [n, { gameStarts: Object.fromEntries(Object.entries(l.gameStarts).map(([id, g]) => [id, { at: back(g.at), until: back(g.until) }])), holdingGames: l.holdingGames }]));
@@ -437,4 +475,4 @@ function saved(state) {
   const keys = new Set(S.StatsLogic.stampedKeys());
   return JSON.parse(JSON.stringify(state, (k, v) => (keys.has(k) ? undefined : v)));
 }
-module.exports = { league, contextFor, assignRoles, assignTeams, slateOf, teamsOf, gamesOf, slateLines, gameLocks, linesFor, resultsFor, isField, keptLines, shapeOf, boutsOf, checkData, applyFacts, saved, guard, lockTimes, stampLocks, unstampLocks, withLocks };
+module.exports = { league, contextFor, assignRoles, assignTeams, slateOf, teamsOf, gamesOf, playedOf, offOf, isOff, slateLines, gameLocks, linesFor, resultsFor, isField, keptLines, shapeOf, boutsOf, checkData, applyFacts, saved, guard, lockTimes, stampLocks, unstampLocks, withLocks };

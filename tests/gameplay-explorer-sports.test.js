@@ -132,7 +132,7 @@ test("results arrive as a box score: the table moves by the new week's lines; a 
     assert.equal(s.apply({ type: "clock", at: new Date(Date.parse(ev.airAt) + 3600000).toISOString() }).status, "accepted");
     assert.match(send({ events: [], scoringEvents: [], noExit: true }).message, /unsupported/);
     assert.match(send({ events: [], scoringEvents: [] }).message, /need lines/);
-    assert.match(send({ events: [], scoringEvents: [], lines }, "partial").message, /in progress/);
+    assert.match(send({ events: [], scoringEvents: [], lines }, "partial").message, /final at once/);
     assert.match(send({ events: [], scoringEvents: [], lines: { nobody: { PTS: 1 } } }).message, /need lines/);
     assert.equal(send({ events: [], scoringEvents: [], lines }).status, "accepted");
     const snap = s.snapshot(), after = table(snap.games.g.state);
@@ -892,7 +892,7 @@ test("a slate's results are refused without each of its week's games, with a lin
     const stranger = world.participants.find((p) => !games[0].teams.includes(p.team)).id;
     assert.match(send({ ...good, games: { ...good.games, [games[0].id]: { ...good.games[games[0].id], [stranger]: { PTS: 3 } } } }).message, /two teams/);
     assert.match(send({ events: [], scoringEvents: [], lines: { [stranger]: { PTS: 3 } } }).message, /games' lines/);
-    assert.match(send({ ...good, games: Object.fromEntries(Object.entries(good.games).map(([id, l], i) => [i ? id : "nope", l])) }).message, /each of its week's games/);
+    assert.match(send({ ...good, games: Object.fromEntries(Object.entries(good.games).map(([id, l], i) => [i ? id : "nope", l])) }).message, /its week's games/);
     assert.equal(send(good).status, "accepted");
   } finally { s.dispose(); }
 });
@@ -912,6 +912,158 @@ test("roto on a slate: each category ranked across the seats from every game's l
       const want = Oracle.roto(Object.fromEntries(st.players.map((p) => [p.id, Oracle.totals(linesOf(p.id), spec.score.categories, defs)])), spec.score.categories, defs);
       const got = Object.fromEntries(s.project("g", "ann").game.table.map((r) => [r.playerId, round(r.total)]));
       assert.deepEqual(got, want, league);
+    } finally { s.dispose(); }
+  }
+});
+
+// ---- A game called off, and a week in progress (core-runtime-40; the server's L3 part 3b and part 2f) ----
+const send = (s, ev, resultStatus, data) => s.apply({ type: "results", contextId: "sport", eventId: ev.id, source: "provider-fixture", resultStatus, data });
+const callOff = (s, ev, o = {}) => s.apply({ type: "calledOff", contextId: "sport", eventId: ev.id, called: "postponed", ...o });
+const seeded = (s, ev) => { let k = 0; const w = s.snapshot().contexts.sport; return Sports.resultsFor(w.context, w.participants, () => (k = (k * 7919 + 104729) % 1000003), ev); };
+const at = (s, ms) => assert.equal(s.apply({ type: "clock", at: new Date(ms).toISOString() }).status, "accepted");
+
+test("the called-off and week-in-progress oracle is the rule: a week in once every game is final or off, its games final counted; a game called off locks nothing", () => {
+  assert.equal(Oracle.weekIn(["a", "b", "c"], ["a", "b"], []), false, "a game still to play");
+  assert.equal(Oracle.weekIn(["a", "b", "c"], ["a", "b"], ["c"]), true, "the last one postponed");
+  assert.deepEqual(Oracle.counted(["a", "b", "c"], ["a"], []), [], "nothing of a week in progress counts, not even its games final");
+  assert.deepEqual(Oracle.counted(["a", "b", "c"], ["a", "c"], ["b"]), ["a", "c"]);
+  assert.deepEqual(Oracle.counted(["a", "b"], [], ["a", "b"]), [], "a week whose every game is off is in, with nothing in it");
+  const games = [{ id: "a", at: "2099-01-07T18:00:00.000Z" }, { id: "b", at: "2099-01-07T23:00:00.000Z" }];
+  assert.equal(Oracle.firstPlayed(games, []), Date.parse(games[0].at));
+  assert.equal(Oracle.firstPlayed(games, ["a"]), Date.parse(games[1].at), "the day's first game postponed: the next one played");
+  assert.equal(Oracle.firstPlayed(games, ["a", "b"]), null);
+  const now = Date.parse("2099-01-07T20:00:00.000Z");
+  assert.equal(Oracle.holdingLocked([games[0]], [], now), true, "its game began earlier today");
+  assert.equal(Oracle.holdingLocked([games[0]], ["a"], now), false, "its game called off");
+  assert.equal(Oracle.holdingLocked([games[1]], [], now), false, "its game is later today");
+  assert.equal(Oracle.holdingLocked([games[0]], [], Date.parse("2099-01-08T06:00:00.000Z")), false, "the next Eastern day");
+});
+
+test("a slate week in progress counts nothing until its last game played is in; then a postponed game puts it in, its games played counted", () => {
+  const s = R.open(slateDoc({ completed: 1, events: 3, ann: 1, bo: 1, cy: 1 }));
+  try {
+    const world = s.snapshot().contexts.sport, week = world.events[1], [g1, g2, g3] = Sports.gamesOf(world.context, week), full = seeded(s, week);
+    const t0 = table(s.snapshot().games.g.state), only = (...gs) => ({ ...full, games: Object.fromEntries(gs.map((g) => [g.id, full.games[g.id]])) });
+    at(s, Date.parse(g1.airAt) - 3600000);
+    assert.match(send(s, week, "partial", only(g1)).message, /only once it has started|aired/, "a game final before it starts");
+    at(s, Date.parse(g1.airAt) + 3600000);
+    assert.match(send(s, week, "partial", only()).message, /has a game final/);
+    assert.equal(send(s, week, "partial", only(g1)).status, "accepted");
+    let snap = s.snapshot();
+    assert.equal(snap.contexts.sport.events[1].resultStatus, "unavailable", "the week stays out until every game is in or off");
+    assert.ok(!("statLines" in snap.games.g.state.episodes[1]) && !snap.games.g.state.episodes[1].gameFinal, "nothing of it is stamped");
+    assert.deepEqual(table(snap.games.g.state), t0, "nobody's total moves");
+    assert.match(s.apply({ type: "reveal", contextId: "sport", personId: "ann", episode: 2 }).message, /Reveal only/, "a week in progress isn't there to reveal");
+    at(s, Date.parse(g2.airAt) + 3600000);
+    assert.match(send(s, week, "partial", only(g2)).message, /stays in the week/, "a game final stays final");
+    assert.match(send(s, week, "final", only(g1, g2)).message, /each of its week's games played/, "a game still to play");
+    assert.equal(send(s, week, "partial", only(g1, g2)).status, "accepted");
+    assert.deepEqual(table(s.snapshot().games.g.state), t0);
+    // The last game postponed before it starts: the week is in with the two played.
+    assert.match(callOff(s, week, { game: "nope" }).message, /Name one of the week's games/);
+    assert.match(callOff(s, week, { game: g1.id }).message, /final can't be called off/);
+    assert.match(callOff(s, week, { game: g3.id, called: "rained out" }).message, /postponed' or 'cancelled/);
+    assert.equal(callOff(s, week, { game: g3.id }).status, "accepted");
+    snap = s.snapshot();
+    assert.equal(snap.contexts.sport.events[1].resultStatus, "final");
+    assert.deepEqual(snap.contexts.sport.events[1].calledOff, { [g3.id]: "postponed" });
+    const st = snap.games.g.state, want = {};
+    for (const p of st.players) {
+      const team = st.castaways.filter((x) => x.ownerIds.includes(p.id)).map((x) => x.id);
+      const counted = Oracle.counted([g1.id, g2.id, g3.id], [g1.id, g2.id], [g3.id]);
+      want[p.id] = round(slateWeek(snap, "g", p.id, world.events[0], () => team) + slateWeek(snap, "g", p.id, snap.contexts.sport.events[1], (g) => (counted.includes(g.id) ? team : [])));
+    }
+    assert.deepEqual(table(st), want, "the week is its two games played");
+    assert.notDeepEqual(table(st), t0);
+    assert.deepEqual(Object.keys(st.episodes[1].statGames).sort(), [g1.id, g2.id].sort(), "each game played kept beside the week's; none for the postponed one");
+    assert.match(callOff(s, week, { game: g2.id }).message, /results are in/, "a week in can't be called off");
+  } finally { s.dispose(); }
+});
+
+test("a slate game postponed before the week: its results are the other games', each game played's box score; a line for the postponed one is refused", () => {
+  const s = R.open(slateDoc({ completed: 1, events: 3, ann: 1, bo: 1, cy: 1 }));
+  try {
+    const world = s.snapshot().contexts.sport, week = world.events[1], [g1, g2, g3] = Sports.gamesOf(world.context, week), full = seeded(s, week);
+    assert.equal(callOff(s, week, { game: g2.id, called: "cancelled" }).status, "accepted");
+    assert.match(callOff(s, week, { game: g2.id }).message, /called off already/);
+    assert.equal(s.snapshot().contexts.sport.events[1].resultStatus, "unavailable", "two games still to play");
+    at(s, Date.parse(g3.airAt) + 3600000);
+    assert.match(send(s, week, "final", full).message, /called off has no box score/);
+    const played = { ...full, games: { [g1.id]: full.games[g1.id], [g3.id]: full.games[g3.id] } };
+    assert.equal(send(s, week, "final", played).status, "accepted");
+    assert.deepEqual(Object.keys(s.snapshot().games.g.state.episodes[1].statGames).sort(), [g1.id, g3.id].sort());
+    assert.equal(send(s, week, "corrected", played).status, "accepted", "a correction has the games played");
+  } finally { s.dispose(); }
+});
+
+test("an episode of one game called off: its results are in with nothing in them, nobody scores, the next game is the one to play; refusals", () => {
+  const s = R.open(proofOf({ league: "football/nfl", game: "short", completed: 2, events: 5, timing: "live-only", ann: 1, bo: 2, cy: 2 }));
+  try {
+    const world = s.snapshot().contexts.sport, t0 = table(s.snapshot().games.g.state), [, , e3, e4] = world.events;
+    assert.match(callOff(s, e4).message, /event order/, "an earlier game has no results yet");
+    assert.match(callOff(s, e3, { game: "x" }).message, /called off whole/);
+    at(s, Date.parse(e3.airAt) + 3600000);
+    assert.match(send(s, e3, "partial", seeded(s, e3)).message, /final at once/, "one game has no partial result");
+    assert.equal(callOff(s, e3, { called: "cancelled" }).status, "accepted");
+    const snap = s.snapshot(), ep = snap.games.g.state.episodes[2];
+    assert.equal(snap.contexts.sport.events[2].resultStatus, "cancelled");
+    assert.ok(S.EpisodeLogic.hasResults(ep) && ep.gameFinal === true && !("statLines" in ep), "its results are in, with no line");
+    assert.deepEqual(table(snap.games.g.state), t0, "nobody scores for it");
+    assert.match(callOff(s, e3).message, /results are in/);
+    assert.match(send(s, e3, "corrected", seeded(s, e3)).message, /called off has no results/);
+    at(s, Date.parse(e4.airAt) + 3600000);
+    assert.equal(send(s, e4, "final", seeded(s, e4)).status, "accepted");
+    assert.notDeepEqual(table(s.snapshot().games.g.state), t0);
+    for (const p of ["bo", "cy"]) assert.equal(s.apply({ type: "reveal", contextId: "sport", personId: p }).status, "accepted", p + " reveals the cancelled game");
+  } finally { s.dispose(); }
+});
+
+test("a game called off locks nothing: a day's and a week's lock is its first game played; a holding of its team is free past its start", () => {
+  // Wed 1 PM, Wed 7 PM (Thursday in UTC), Thu 7 PM: the afternoon game postponed, the evening's lock is its own start.
+  const DAY = ["2099-01-07T18:00:00.000Z", "2099-01-08T00:00:00.000Z", "2099-01-09T00:00:00.000Z"];
+  const nba = Bench.resolve("basketball/nba", "short").row.spec, two = { ...nba, get: { ...nba.get, each: 4 }, count: { start: 2 } };
+  for (const closes of ["daily", "weekly"]) {
+    const s = R.open(proofOf({ league: "basketball/nba", game: two, closes, schedule: DAY, completed: 0, clock: "2099-01-07T20:00:00.000Z", timing: "live-only", ann: 0, bo: 0, cy: 0 }));
+    try {
+      assert.equal(locksOfCase(s)[2], DAY[0], closes + ": the evening game locks with the afternoon's");
+      assert.equal(put(s, 2, s.project("g", "bo").game.lineup.roster.slice(2, 4)).status, "rejected");
+      const hash = s.hash();
+      assert.equal(callOff(s, s.snapshot().contexts.sport.events[0]).status, "accepted", "postponed after it began");
+      assert.notEqual(s.hash(), hash);
+      assert.equal(locksOfCase(s)[2], DAY[1], closes + ": the afternoon game postponed locks nothing");
+      assert.ok(!(1 in locksOfCase(s)));
+      const l = s.project("g", "bo").game.lineup;
+      assert.deepEqual([l.episode, l.locked], [2, false], closes + ": the evening's lineup is open again");
+      assert.equal(put(s, 2, l.roster.slice(2, 4)).status, "accepted");
+      assert.ok(s.snapshot().games.g.state.episodes.every((e) => !("locksAt" in e)), "the kept state holds no lock");
+    } finally { s.dispose(); }
+  }
+  // A slate: its week's first game postponed, the week locks at its first game played.
+  {
+    const s = R.open(slateDoc({ completed: 1, events: 3, closes: "daily", game: { ...two, get: { by: "draft", each: 4, order: "snake", own: "exclusive" } } }));
+    try {
+      const world = s.snapshot().contexts.sport, week = world.events[1], [g1, g2] = Sports.gamesOf(world.context, week);
+      assert.equal(locksOfCase(s)[2], g1.airAt);
+      assert.equal(callOff(s, week, { game: g1.id }).status, "accepted");
+      assert.equal(locksOfCase(s)[2], g2.airAt, "a slate's week locks at its first game played");
+    } finally { s.dispose(); }
+  }
+  // With a lock at each game's start the postponed game is no game's start, and its holdings are free past it.
+  {
+    const spec = { ...two, get: { by: "draft", each: 4, order: "snake", own: "exclusive" }, closes: "game" };
+    const s = R.open(slateDoc({ completed: 1, events: 3, game: spec, ann: 1, bo: 1, cy: 1 }));
+    try {
+      const world = s.snapshot().contexts.sport, week = world.events[1], [g1, g2, g3] = Sports.gamesOf(world.context, week);
+      assert.equal(callOff(s, week, { game: g1.id }).status, "accepted");
+      const snap = s.snapshot(), locks = Sports.gameLocks(snap.contexts.sport, snap.games.g.state).get(2);
+      assert.deepEqual(Object.keys(locks.gameStarts).sort(), [g2.id, g3.id].sort(), "a game called off is no game's start");
+      const teamOf = (id) => world.participants.find((p) => p.id === id).team, held = snap.games.g.state.castaways.filter((x) => x.ownerIds.includes("ann")).map((x) => x.id);
+      const E = held.find((id) => g1.teams.includes(teamOf(id))), others = held.filter((id) => id !== E && !g2.teams.includes(teamOf(id)));
+      assert.ok(E && others.length >= 2, "Ann holds someone in the postponed game and two outside the next one");
+      const lineup = (ids) => s.apply({ type: "lineup", gameId: "g", personId: "ann", eventId: week.id, ids });
+      assert.equal(lineup([E, others[0]]).status, "accepted");
+      at(s, Date.parse(g1.airAt) + 3600000);
+      assert.equal(lineup([others[1], others[0]]).status, "accepted", "an hour past its postponed game's start, E is free to move");
     } finally { s.dispose(); }
   }
 });

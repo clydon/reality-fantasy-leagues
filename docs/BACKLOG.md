@@ -1051,6 +1051,12 @@ Last updated 2026-10-27.
     **Decided (the user, 2026-11-14): give them a bench** (the example given: draft eight, start six), so who you start is a
     real weekly call. To build: each such season's defaults (`src/lib/sports/defaults/*.json`: golf's tours, F1's, NASCAR's three,
     IndyCar's, tennis's, MMA's) draft about two more than start; new games only, nobody's existing league changes.
+    **Built 2026-11-14** (branch explorer-sports): the six season specs draft two more than they start (golf's tours 8 for 6,
+    NASCAR's three series and IndyCar's 8 for 6, F1's 7 for 5, tennis's and MMA's 8 for 6) and each league's standard bench
+    (`slots.bench`) is 2, so the page's sizes say the same; their `about` lines say "start six each ...". Only the defaults a new
+    game starts from: a league keeps the spec it was made with. Golf's best ball still drafts six (its best four count; not a
+    season game). Proof: `check-sports-explorer.js --case=tables` on all 18 such pairs (95 of 95: tables, grids and privacy agree),
+    `tests/sports-spec.test.js` and `sports-categories.test.js` updated for the new sizes.
 
 80. **A lineup that locks game by game told a live player they were catching up** (**fixed 2026-11-14**, TEMP-UI; found that day
     on the real page by the explorer's seventh sports slice, a slate locking at each game's start; `sports-slate-page.json`,
@@ -1066,6 +1072,20 @@ Last updated 2026-10-27.
     hour before, says "Under way · all locked by Sun 6:36 PM". Words through the impeccable skill's clarify pass. Proof:
     `your-move.test.js`, the real page (`check-explorer-page.js --only="sports slates:"`). **Left for the sports screens
     (Designs needed item 38):** when each player plays this week, and what each game did.
+
+81. **A slate week whose first game is postponed still locks at that game's start** (found 2026-11-14 on the real routes by the
+    explorer's last sports slice, a game called off: `node scripts/dev-test/check-sports-explorer.js --case=calledoff`, part 5,
+    its NOTE). A league's slate (a week of several games) locking by the day or the week: `air-times.ts` stamps the week's lock
+    at its first game *played* (`sportLocks`, `PLAYED`: "one called off locks nothing"), but the week's own air time is its first
+    game's start, postponed or not (`slate.ts` sets `season_episodes.air_at` to the earliest of its linked games' starts), and the
+    engine takes a stamped lock only when it is earlier than the air time (`state-logic.js` `closedForPlay`). So when the week's
+    first game is postponed, everyone's lineup still locks at that game's scheduled start, hours before anything is played (in the
+    check: the second game three hours later; on a real NBA or NHL week, a day). Server and runtime agree; the code's own comment
+    says otherwise. **Why it matters:** a rained-out opener locks a week of lineups early, the night people set them. **To fix**
+    (small, the engine lane's): read a slate week's lock from `locksAt` whenever one is stamped (or have `slate.ts` leave a game
+    called off out of the episode's air time). Then `check-sports-explorer.js --case=calledoff`'s NOTE turns into a pass, and the
+    campaign invariant `sport-locks` (`campaign/case.cjs`, which restates today's rule: a slate week at its air time) changes with
+    it. Not fixed: found the day before the design round; nothing scores wrong.
 
 ## Decided against (don't re-propose without new information)
 

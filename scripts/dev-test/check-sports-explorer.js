@@ -71,6 +71,17 @@
 //               game for a holding in it; taken the next morning; refused after the last game began; the week's total counts each
 //               game's lineup at its start (not the last lineup's), on the server and the runtime. A control: one game's box
 //               score wrong behind the runtime moves the server's tables off.
+//   calledoff   a week in progress and a game called off (the last sports slice: the materializer writes each game final so far
+//               with its box score, a game called off as its row over without a final, state 'post' with its `called`). A slate (the
+//               NBA's team of three), live, Ann a game behind with and without "Sports scores too": a week with one game final, then
+//               two, counts nothing; its last game postponed puts it in, its two games played counted; the server's table, the
+//               runtime's and the rule (campaign/sports-oracle.cjs counted) the same each time; a control: the postponed game written
+//               as still to play behind the runtime, the server leaves the week out. An episode of one game cancelled (the NFL's team
+//               of three and its head-to-head season): its results are in with nothing in them, the next game's lineup offered. A
+//               day's lock opened by a call-off (the NBA's rule): today's first game postponed after it began, the next game's
+//               lineup is open for the server, the runtime and the rule, and the route takes what it refused. A lock at each game's
+//               start on a slate: a holding whose game is postponed is free to move past its start, one whose game began that day
+//               isn't; the week played without it, the server's tables the runtime's.
 // NOTE lines are recorded product findings, not disagreements (both sides do the same).
 // --verbose prints server answers; --keep leaves the rows up (remove: node tools/gameplay-bench/live-db.cjs down-all).
 // The page itself (the game page and its lineup sheet at a phone's width) is the explorer page check's sports step:
@@ -79,7 +90,7 @@
 // Needs: the app on :3000 (npm run dev; BASE to override) and the local dev database (.env.local AUTH_DATABASE_URL).
 //        (A long-running dev server can keep serving an old server module after a fix: if a case still fails, `touch
 //        next.config.ts` and run it again before doubting the fix. BACKLOG 72's note.)
-// Run:   node scripts/dev-test/check-sports-explorer.js [--case=tables|locks|matchups|categories|places|positions|formats|slates|live|sweep|control|correction|lineup|all] [--league=football/nfl] [--game=short] [--verbose] [--keep]
+// Run:   node scripts/dev-test/check-sports-explorer.js [--case=tables|locks|matchups|categories|places|positions|formats|slates|calledoff|live|sweep|control|correction|lineup|all] [--league=football/nfl] [--game=short] [--verbose] [--keep]
 const path = require('path');
 const root = path.resolve(__dirname, '../..');
 const L = require(path.join(root, 'tools/gameplay-bench/live-db.cjs')), R = require(path.join(root, 'tools/gameplay-bench/explorer/runtime.cjs'));
@@ -548,6 +559,181 @@ const CASES = {
           check("a slate's second game with a wrong box score behind the runtime: the server's tables disagree", (await routes(right)).some(x => x.signature === 'standings-disagree'));
           await write(right);
           check('the right box scores written back: clean again', !real(await routes()).length);
+        });
+      } finally { s.dispose(); }
+    }
+  },
+  async calledoff() {
+    // A week in progress and a game called off (the last sports slice, core-runtime-40: the materializer writes each game final so far
+    // with its box score, and a game called off as its row over without a final, state 'post' with its `called`). Three ways each
+    // time: the server, the runtime and the rule restated apart from the engine (campaign/sports-oracle.cjs: a week counts once every
+    // game in it is final or called off, and then only its games final; a game called off scores nothing and locks nothing).
+    const Oracle = require(path.join(root, 'tools/gameplay-bench/campaign/sports-oracle.cjs'));
+    const serverGames = async (as, ids, who) => (((await as(who, 'GET', '/api/seasons/' + ids.seasons.sport.id + '/games?couch=' + ids.couchId)).json?.games || []).find(g => g.leagueId === ids.leagues.g)) || null;
+    const serverTable = async (as, ids, who) => Object.fromEntries(((await serverGames(as, ids, who))?.table || []).map(r => [r.playerId, r.total]));
+    const same = (x, y) => JSON.stringify(Object.entries(x).sort()) === JSON.stringify(Object.entries(y).sort());
+    const mine = (s, who) => Object.fromEntries(s.project('g', who).game.table.map(r => [r.playerId, r.total]));
+    /** Each seat's points told through `upTo`, from the box scores: a week only once every game is final or called off, its games final. */
+    const ruleOf = (snap, upTo) => {
+      const st = snap.games.g.state, world = snap.contexts.sport, c = Sports.league(world.context), spec = S.gameOf(st);
+      const group = id => c.sport.position(world.participants.find(x => x.id === id).role)?.group ?? null;
+      const weekOf = (playerId, e) => {
+        if (Sports.isOff(e)) return 0;
+        const data = world.facts.find(f => f.eventId === e.id)?.data, held = spec.count.start ? S.ActiveRosterLogic.lineupFor(st, e.id, playerId) : st.castaways.filter(x => x.ownerIds.includes(playerId)).map(x => x.id);
+        if (!data) return 0;
+        if (!data.games) return Oracle.cents(held.reduce((n, id) => n + Oracle.linePoints(spec.score, c.sport.full(data.lines[id] || {}), group(id)), 0));
+        const ids = Sports.gamesOf(world.context, e).map(g => g.id), counted = Oracle.counted(ids, Object.keys(data.games), Object.keys(Sports.offOf(e)));
+        return Oracle.cents(counted.reduce((n, gid) => n + held.reduce((m, id) => m + (data.games[gid][id] ? Oracle.linePoints(spec.score, c.sport.full(data.games[gid][id]), group(id)) : 0), 0), 0));
+      };
+      return Object.fromEntries(st.players.map(p => [p.id, Oracle.cents(world.events.filter(e => e.number <= upTo).reduce((n, e) => n + weekOf(p.id, e), 0))]));
+    };
+    const data = (s, e) => { let k = 0; const w = s.snapshot().contexts.sport; return Sports.resultsFor(w.context, w.participants, () => (k = (k * 7919 + 104729) % 1000003), e); };
+    const at = async (s, write, ms) => { must(s, { type: 'clock', at: new Date(ms).toISOString() }); await write(); };
+    const said = async (as, ids, who) => /postpon|cancel|called off/i.test(JSON.stringify((await as(who, 'GET', '/api/seasons/' + ids.seasons.sport.id + '/games?couch=' + ids.couchId)).json || {}));
+    // 1. A slate (the NBA's team of three, three games a week), live, Ann a game behind with and without "Sports scores too": week 3
+    // in progress (its first game final, then its second), then its third postponed, which puts the week in.
+    for (const hides of [[], ['ann']]) {
+      const s = R.open(proof({ league: 'basketball/nba', game: 'short', slate: 3, completed: 2, events: 4, timing: 'live-only', hides, ann: 1, bo: 2, cy: 2 }));
+      try {
+        await withRows(s, async ({ ids, as, write, routes }) => {
+          const told = hides.length ? 1 : Infinity, world = s.snapshot().contexts.sport, week = world.events[2], [g1, g2, g3] = Sports.gamesOf(world.context, week), full = data(s, week);
+          const compare = async (label, extra = true) => {
+            const snap = s.snapshot(), bad = real(await routes()), want = { ann: ruleOf(snap, told), bo: ruleOf(snap, Infinity) };
+            const server = { ann: await serverTable(as, ids, 'ann'), bo: await serverTable(as, ids, 'bo') };
+            check((hides.length ? 'Ann with "Sports scores too" on' : 'nobody hiding scores') + ', ' + label + ': the routes agree with the runtime, and the server\'s table is the rule\'s for Ann and Bo', !bad.length && extra && same(server.ann, want.ann) && same(server.bo, want.bo) && same(mine(s, 'ann'), want.ann) && same(mine(s, 'bo'), want.bo), bad.length ? bad.slice(0, 2) : { server, rule: want });
+            return want;
+          };
+          const before = await compare('weeks 1 and 2 in');
+          await at(s, write, Date.parse(g1.airAt) + 3600000);
+          must(s, { type: 'results', contextId: 'sport', eventId: week.id, source: 'provider-fixture', resultStatus: 'partial', data: { ...full, games: { [g1.id]: full.games[g1.id] } } });
+          await write();
+          let now = await compare("week 3 in progress (its first game final): nothing of it counts yet", true);
+          check('week 3 in progress changes nobody\'s total (the rule)', same(now.bo, before.bo));
+          await at(s, write, Date.parse(g2.airAt) + 3600000);
+          must(s, { type: 'results', contextId: 'sport', eventId: week.id, source: 'provider-fixture', resultStatus: 'partial', data: { ...full, games: { [g1.id]: full.games[g1.id], [g2.id]: full.games[g2.id] } } });
+          await write();
+          await compare('week 3 with two games final and one to play: still nothing of it');
+          must(s, { type: 'calledOff', contextId: 'sport', eventId: week.id, game: g3.id, called: 'postponed' });
+          await write();
+          now = await compare("week 3's last game postponed: the week is in, its two games played counted");
+          check("the postponement put week 3 in for whoever is told it (Bo's table moved by its two games)", !same(now.bo, before.bo) && (hides.length ? same(now.ann, before.ann) : true), { before, now });
+          if (!hides.length && !(await said(as, ids, 'bo'))) note('nothing the season\'s games route answers says a game was postponed (Designs needed)');
+          // Control: the postponed game written as still to play behind the runtime: the server leaves the week out, so its tables
+          // disagree with the runtime's (which has the week in); written back, clean.
+          const right = s.snapshot(), wrong = clone(right);
+          delete wrong.contexts.sport.events[2].calledOff;
+          await write(wrong);
+          check("control: the postponed game written as still to play behind the runtime, the server leaves week 3 out and its tables disagree", (await routes(right)).some(x => x.signature === 'standings-disagree'));
+          await write(right);
+          check('control: the right rows written back, clean again', !real(await routes()).length);
+        });
+      } finally { s.dispose(); }
+    }
+    // 2. An episode of one game cancelled (the NFL's team of three, and its head-to-head season), live, Ann a game behind with and
+    // without "Sports scores too": its results are in with nothing in them; the next game is the one to play.
+    for (const game of ['short', 'season']) for (const hides of [[], ['ann']]) {
+      const s = R.open(proof({ league: 'football/nfl', game, completed: 2, events: 5, timing: 'live-only', hides, ann: 1, bo: 2, cy: 2 }));
+      try {
+        await withRows(s, async ({ ids, as, write, routes }) => {
+          const told = hides.length ? 1 : Infinity, before = ruleOf(s.snapshot(), Infinity), ev = s.snapshot().contexts.sport.events[2];
+          must(s, { type: 'calledOff', contextId: 'sport', eventId: ev.id, called: 'cancelled' });
+          await write();
+          const snap = s.snapshot(), bad = real(await routes()), points = !S.gameOf(snap.games.g.state).rank || S.gameOf(snap.games.g.state).rank.by === 'total';
+          const server = { ann: await serverTable(as, ids, 'ann'), bo: await serverTable(as, ids, 'bo') }, want = { ann: ruleOf(snap, told), bo: ruleOf(snap, Infinity) };
+          const view = await serverGames(as, ids, 'bo'), lineup = s.project('g', 'bo').game.lineup;
+          check('football/nfl ' + game + ', game 3 cancelled, ' + (hides.length ? 'Ann with "Sports scores too" on' : 'nobody hiding scores') + ': the routes agree with the runtime; nobody scores for it' + (points ? " (the server's table is the rule's, unchanged)" : ' (each record, last result and next opponent the same on both)') + '; the lineup offered is game 4\'s on both',
+            !bad.length && (!points || (same(server.ann, want.ann) && same(server.bo, want.bo) && same(want.bo, before))) && (!lineup || (lineup.episode === 4 && view?.lineup?.episode === 4)),
+            bad.length ? bad.slice(0, 2) : { server, rule: want, lineup: lineup && lineup.episode, serverLineup: view?.lineup?.episode });
+          if (game === 'season' && !hides.length) {
+            const last = s.project('g', 'bo').game.matchups?.last;
+            check("head to head: Bo's last matchup on the runtime is game 3, a night nobody scored that counts for nobody (the routes compare the server's)", last && last.episode === 3 && last.result === null, last);
+          }
+          if (game === 'short' && !hides.length && !(await said(as, ids, 'bo'))) note('nothing the season\'s games route answers says game 3 was cancelled (Designs needed)');
+        });
+      } finally { s.dispose(); }
+    }
+    // 3. A day's lock opened by a call-off (the NBA's rule, a lineup of two from four), live. Game 2 began earlier today (Eastern) and
+    // game 3 starts later today: game 3's lineup is locked by its day's first game. Game 2 postponed, it locks nothing: game 3's
+    // lineup is open for the server, the runtime and the rule (Oracle.firstPlayed over the day's games played), and the real
+    // lineup route takes one it refused before.
+    {
+      const etDate = ms => Oracle.easternDay(ms), HOUR = 3600000, MIN = 60000;
+      const edges = now => { let lo = now, hi = now; const k = etDate(now); while (etDate(lo - HOUR) === k) lo -= HOUR; while (etDate(lo - MIN) === k) lo -= MIN; while (etDate(hi + HOUR) === k) hi += HOUR; while (etDate(hi + MIN) === k) hi += MIN; return { since: now - lo, until: hi + MIN - now }; };
+      const { since, until } = edges(Date.now());
+      if (since < 20 * MIN || until < 20 * MIN) note('a day\'s lock: now is within twenty minutes of the Eastern day turning over; run --case=calledoff again in half an hour');
+      else {
+        const nba = Bench.resolve('basketball/nba', 'short').row.spec, spec = { ...nba, get: { ...nba.get, each: 4 }, count: { start: 2 } };
+        const CLOCK = '2099-01-10T12:00:00.000Z', t = ms => new Date(Date.parse(CLOCK) + ms).toISOString(), began = Math.min(since / 2, 3 * HOUR), ahead = Math.min(until / 2, 3 * HOUR);
+        const schedule = [t(-3 * 24 * HOUR), t(-began), t(ahead), t(ahead + 2 * 24 * HOUR)];
+        const s = R.open(proof({ league: 'basketball/nba', game: spec, closes: 'daily', schedule, completed: 1, clock: CLOCK, timing: 'live-only', ann: 1, bo: 1, cy: 1 }));
+        try {
+          await withRows(s, async ({ ids, as, write, routes }) => {
+            const ev3 = s.snapshot().contexts.sport.events[2], shift = Date.now() - Date.parse(CLOCK);
+            const ruleLocked = off => { const today = schedule.map((x, i) => ({ id: 'e' + (i + 1), at: new Date(Date.parse(x) + shift).toISOString() })).filter(g => etDate(Date.parse(g.at)) === etDate(Date.parse(schedule[2]) + shift)); const first = Oracle.firstPlayed(today, off); return first !== null && first <= Date.now(); };
+            const both = async () => { const roster = s.project('g', 'bo').game.lineup?.roster || S.ActiveRosterLogic.lineupFor(s.snapshot().games.g.state, ev3.id, 'bo'); const ids_ = s.snapshot().games.g.state.castaways.filter(x => x.ownerIds.includes('bo')).map(x => x.id).slice(1, 3); const sent = await as('bo', 'PUT', '/api/leagues/' + ids.leagues.g + '/episodes/' + encodeURIComponent(ev3.id) + '/lineups/bo', { castawayIds: ids_ }), applied = s.apply({ type: 'lineup', gameId: 'g', personId: 'bo', eventId: ev3.id, ids: ids_ }); return { route: sent.status, said: sent.json?.error, applied: applied.status, roster: !!roster }; };
+            let r = await both();
+            check("daily: game 2 began earlier today, so game 3's lineup is locked by its day for the rule, and refused by the route and the runtime", ruleLocked([]) && r.route >= 400 && r.route < 500 && r.applied === 'rejected' && /day's lineups are locked/.test(r.said || ''), r);
+            must(s, { type: 'calledOff', contextId: 'sport', eventId: s.snapshot().contexts.sport.events[1].id, called: 'postponed' });
+            await write();
+            const view = await serverGames(as, ids, 'bo'), mine3 = s.project('g', 'bo').game.lineup;
+            r = await both();
+            check("daily: game 2 postponed locks nothing, so game 3's lineup is open for the rule, the server's view and the runtime's, and the route takes one", !ruleLocked(['e2']) && view?.lineup?.episode === 3 && !view.lineup.locked && mine3?.episode === 3 && !mine3.locked && r.route === 200 && r.applied === 'accepted' && !real(await routes()).length, { rule: ruleLocked(['e2']), server: view?.lineup && [view.lineup.episode, view.lineup.locked], runtime: mine3 && [mine3.episode, mine3.locked], ...r });
+          });
+        } finally { s.dispose(); }
+      }
+    }
+    // 4. A lock at each game's start on a slate (the NBA, two of four, three games a week), live: the week's second game postponed
+    // before it starts. An hour past its start, Ann's holding in it is free to move (its game locks nothing) while her holding in the
+    // first game, which began that day, stays locked; the week locks at its last game played.
+    {
+      const nba = Bench.resolve('basketball/nba', 'short').row.spec, spec = { ...nba, get: { by: 'draft', each: 4, order: 'snake', own: 'exclusive' }, count: { start: 2 }, closes: 'game' };
+      const s = R.open(proof({ league: 'basketball/nba', game: spec, slate: 3, completed: 1, events: 3, timing: 'live-only', ann: 1, bo: 1, cy: 1 }));
+      try {
+        await withRows(s, async ({ ids, as, write, routes }) => {
+          const world = s.snapshot().contexts.sport, week = world.events[1], [g1, g2, g3] = Sports.gamesOf(world.context, week);
+          const teamOf = id => world.participants.find(p => p.id === id).team, held = s.snapshot().games.g.state.castaways.filter(x => x.ownerIds.includes('ann')).map(x => x.id);
+          const E = held.find(id => g1.teams.includes(teamOf(id))), M = held.find(id => g2.teams.includes(teamOf(id))), X = held.find(id => id !== E && id !== M && !g1.teams.includes(teamOf(id)));
+          if (!(E && M && X)) { check("Ann holds someone in the week's first game, someone in its second and another outside the first", false, { E, M, X }); return; }
+          const both = async (ids_, want) => { const sent = await as('ann', 'PUT', '/api/leagues/' + ids.leagues.g + '/episodes/' + encodeURIComponent(week.id) + '/lineups/ann', { castawayIds: ids_ }), applied = s.apply({ type: 'lineup', gameId: 'g', personId: 'ann', eventId: week.id, ids: ids_ }); return { ok: want ? sent.status === 200 && applied.status === 'accepted' : sent.status >= 400 && sent.status < 500 && applied.status === 'rejected', route: sent.status, said: sent.json?.error, applied: applied.status, message: applied.message }; };
+          let r = await both([E, M], true);
+          check('before the week, a lineup is taken by both', r.ok, r);
+          must(s, { type: 'calledOff', contextId: 'sport', eventId: week.id, game: g2.id, called: 'postponed' });
+          await write();
+          await at(s, write, Date.parse(g2.airAt) + 3600000);
+          const off = [g2.id], now = Date.parse(g2.airAt) + 3600000, gamesOf = id => Sports.gamesOf(world.context, week).filter(g => g.teams.includes(teamOf(id))).map(g => ({ id: g.id, at: g.airAt }));
+          check('the rule: an hour past the postponed game\'s start, E (first game) is locked and M (postponed game) is free', Oracle.holdingLocked(gamesOf(E), off, now) && !Oracle.holdingLocked(gamesOf(M), off, now));
+          r = await both([E, X], true);
+          check("an hour past the postponed second game's start, benching M (its game called off) is taken by both", r.ok, r);
+          r = await both([X, M], false);
+          check('benching E (the first game began today) is still refused by both', r.ok, r);
+          await at(s, write, Date.parse(g3.airAt) + 3600000);
+          r = await both([E, M], false);
+          check("after the week's last game played began, a change is refused by both", r.ok, r);
+          const full = data(s, week);
+          must(s, { type: 'results', contextId: 'sport', eventId: week.id, source: 'provider-fixture', resultStatus: 'final', data: { ...full, games: { [g1.id]: full.games[g1.id], [g3.id]: full.games[g3.id] } } });
+          await write();
+          const server = await serverTable(as, ids, 'ann'), bad = real(await routes());
+          check("the week played without its postponed game: the server's tables are the runtime's; the routes agree", !bad.length && same(server, mine(s, 'ann')), bad.length ? bad.slice(0, 2) : { server, runtime: mine(s, 'ann') });
+        });
+      } finally { s.dispose(); }
+    }
+    // 5. A slate's week whose first game is postponed, locking by the day (the NBA's rule). The server stamps the week's lock at its
+    // first game played (air-times.ts sportLocks, PLAYED), but the week's own air time is its first game's start, postponed or not
+    // (slate.ts sets season_episodes.air_at to the min of its linked games' starts; the materializer writes the same), and the
+    // engine takes a lock only when it is earlier than the air time (closedForPlay). So an hour past the postponed game's start,
+    // before any game has begun, is the week's lineup locked? The rule (Oracle.firstPlayed) says open.
+    {
+      const nba = Bench.resolve('basketball/nba', 'short').row.spec, two = { ...nba, get: { by: 'draft', each: 4, order: 'snake', own: 'exclusive' }, count: { start: 2 } };
+      const s = R.open(proof({ league: 'basketball/nba', game: two, closes: 'daily', slate: 3, completed: 1, events: 3, timing: 'live-only', ann: 1, bo: 1, cy: 1 }));
+      try {
+        await withRows(s, async ({ ids, as, write, routes }) => {
+          const world = s.snapshot().contexts.sport, week = world.events[1], [g1, g2] = Sports.gamesOf(world.context, week);
+          must(s, { type: 'calledOff', contextId: 'sport', eventId: week.id, game: g1.id, called: 'postponed' });
+          await at(s, write, Date.parse(g1.airAt) + 3600000);
+          const view = await serverGames(as, ids, 'bo'), runtime = s.project('g', 'bo').game.lineup, rule = Oracle.firstPlayed(Sports.gamesOf(world.context, week).map(g => ({ id: g.id, at: g.airAt })), [g1.id]) <= Date.parse(g1.airAt) + 3600000;
+          const agree = view?.lineup?.episode === runtime?.episode && !!view?.lineup?.locked === !!runtime?.locked;
+          check("a slate week's first game postponed: the server and the runtime agree on whether the week's lineup is locked an hour past it (" + (agree ? (runtime?.locked ? 'locked' : 'open') : 'they differ') + '); the routes agree', agree && !real(await routes()).length, { server: view?.lineup && [view.lineup.episode, view.lineup.locked], runtime: runtime && [runtime.episode, runtime.locked], rule: rule ? 'locked' : 'open' });
+          if (agree && runtime?.episode === 2 && runtime.locked && !rule) note("BACKLOG 81: a slate week whose first game is postponed still locks at that game's start (its air time is its first game's, postponed or not, and the engine takes a lock only when it's earlier than the air time): the second game, " + new Date(Date.parse(g2.airAt)).toISOString() + ', has not begun');
         });
       } finally { s.dispose(); }
     }

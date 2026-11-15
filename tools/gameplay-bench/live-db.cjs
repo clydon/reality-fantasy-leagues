@@ -26,6 +26,10 @@
 // check do.
 // A field's final (golf's, a race weekend's: 2026-11-14, points by place) is its lines with each one's place in them and its
 // standings in sports_events.shape ({ kind: 'field', event, standings }), as the app keeps one (src/lib/sports/final.ts).
+// A game called off and a week in progress (core-runtime-40): a game called off is its row over without a final (state 'post', final
+// false, `called` 'postponed' or 'canceled'), as a provider's is (src/lib/server/sports/finals.ts; air-times.ts PLAYED); a slate's
+// week in progress has each game final so far written final with its box score (the runtime's fact holds them while the week is
+// unavailable), the rest still to play or being played, so the server leaves the week out until each is over (score.ts done).
 // Not written (a gap each, as the runtime's): a team game's sides and score, a card's bouts (shape null).
 // Nor the Players tab's stat tables (game_lines: the season's stats fill, from a provider's box score in its own columns).
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env.local'), quiet: true });
@@ -41,7 +45,9 @@ function pool(url = process.env.AUTH_DATABASE_URL || '') {
 const keyOf = () => crypto.randomBytes(4).toString('hex');
 const slugOf = (key, ...parts) => ['zt-gb', key, ...parts].join('-');
 const usernameOf = (key, i, name) => ((name || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12) || 'p') + '_ztgb' + key + i;
-const released = e => ['partial', 'final', 'corrected'].includes(e.resultStatus);
+const released = e => ['partial', 'final', 'corrected', 'postponed', 'cancelled'].includes(e.resultStatus);
+/** A game called off as the server keeps it (sports_events.called: 'canceled', the provider's spelling), or null. */
+const calledOf = v => (v === 'postponed' ? 'postponed' : v === 'cancelled' ? 'canceled' : null);
 /** The provider a zt sports game is linked under (nobody's: see the header). */
 const PROVIDER = 'zt-gb';
 const isSport = world => world.context.kind === 'sport';
@@ -134,29 +140,32 @@ async function syncSport(db, season, world, clock, shiftMs) {
   if (Sp.slateOf(world.context)) {
     await db.query(`INSERT INTO sports_slates (season_id, provider, league, season, stage, cadence, windows, key) VALUES ($1, $2, $3, 2099, 'regular', 'week', '[]'::jsonb, $4) ON CONFLICT (season_id) DO NOTHING`, [season.id, PROVIDER, league, PROVIDER + ':' + events]);
     for (const e of world.events) {
-      const done = released(e), data = done ? world.facts.find(f => f.eventId === e.id)?.data : null;
-      if (done && (e.resultStatus === 'partial' || !data?.games)) throw Error("A released slate week needs each of its games' box scores: " + e.id);
+      // (A week in progress: its fact holds the games final so far while the event is unavailable. A game called off: its row over
+      // without a final.)
+      const done = released(e), data = world.facts.find(f => f.eventId === e.id)?.data || null, off = Sp.offOf(e);
+      if (done && !data?.games) throw Error("A released slate week needs each of its games' box scores: " + e.id);
       for (const [j, g] of Sp.gamesOf(world.context, e).entries()) {
-        const id = events + '-e' + e.number + '-g' + (j + 1), at = g.airAt ? new Date(Date.parse(g.airAt) + shiftMs).toISOString() : null, lines = data ? data.games[g.id] : null;
+        const id = events + '-e' + e.number + '-g' + (j + 1), at = g.airAt ? new Date(Date.parse(g.airAt) + shiftMs).toISOString() : null, lines = data?.games?.[g.id] || null, called = calledOf(off[g.id]), final = !!lines;
         const teams = JSON.stringify(g.teams.map(t => ({ id: t, name: t })));
         const who = JSON.stringify(Object.fromEntries(world.participants.filter(p => g.teams.includes(p.team)).map(p => [p.id, { team: p.team, position: p.role || null }])));
         await db.query(`INSERT INTO season_events (season_id, episode, provider, league, event_id, name, starts_at, teams, lines_at, lines_final) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, now(), true)`, [season.id, e.number, PROVIDER, league, id, (e.title || 'Week') + ' · ' + g.teams.join(' at '), at, teams]);
-        await db.query(`INSERT INTO sports_events (provider, league, event_id, name, starts_at, state, final, final_at, lines, people, lines_at) VALUES ($1, $2, $3, $4, $5, $6, $7, CASE WHEN $7 THEN now() END, $8::jsonb, $9::jsonb, CASE WHEN $7 THEN clock_timestamp() END)`,
-          [PROVIDER, league, id, g.teams.join(' at '), at, done ? 'post' : g.airAt && Date.parse(g.airAt) <= now ? 'in' : 'pre', done, lines ? JSON.stringify(lines) : null, done ? who : null]);
+        await db.query(`INSERT INTO sports_events (provider, league, event_id, name, starts_at, state, final, final_at, lines, people, lines_at, called) VALUES ($1, $2, $3, $4, $5, $6, $7, CASE WHEN $7 THEN now() END, $8::jsonb, $9::jsonb, CASE WHEN $7 THEN clock_timestamp() END, $10)`,
+          [PROVIDER, league, id, g.teams.join(' at '), at, final || called ? 'post' : g.airAt && Date.parse(g.airAt) <= now ? 'in' : 'pre', final, lines ? JSON.stringify(lines) : null, final ? who : null, called]);
       }
     }
     return;
   }
   for (const e of world.events) {
-    const id = events + '-e' + e.number, at = e.airAt ? new Date(Date.parse(e.airAt) + shiftMs).toISOString() : null, done = released(e);
+    // (An episode's one game called off: its row over without a final, no lines.)
+    const id = events + '-e' + e.number, at = e.airAt ? new Date(Date.parse(e.airAt) + shiftMs).toISOString() : null, called = Sp.isOff(e) ? calledOf(e.resultStatus) : null, done = released(e) && !called;
     const data = done ? world.facts.find(f => f.eventId === e.id)?.data : null;
     if (done && (e.resultStatus === 'partial' || !data?.lines)) throw Error('A released sport event needs its final box score: ' + e.id);
     // (A field's lines as the app keeps them, each one's place in them from the standings, and its standings in its shape.)
     const lines = data ? Sp.keptLines(world.context, data) : null, shape = data ? Sp.shapeOf(world.context, data, e.title || id) : null;
     // (lines_final on the link: the season's stats fill, stats.ts, has nothing to ask for.)
     await db.query(`INSERT INTO season_events (season_id, episode, provider, league, event_id, name, starts_at, lines_at, lines_final) VALUES ($1, $2, $3, $4, $5, $6, $7, now(), true)`, [season.id, e.number, PROVIDER, league, id, e.title || null, at]);
-    await db.query(`INSERT INTO sports_events (provider, league, event_id, name, starts_at, state, final, final_at, lines, people, shape, lines_at) VALUES ($1, $2, $3, $4, $5, $6, $7, CASE WHEN $7 THEN now() END, $8::jsonb, $9::jsonb, $10::jsonb, CASE WHEN $7 THEN clock_timestamp() END)`,
-      [PROVIDER, league, id, e.title || null, at, done ? 'post' : e.airAt && Date.parse(e.airAt) <= now ? 'in' : 'pre', done, lines ? JSON.stringify(lines) : null, done ? people : null, shape ? JSON.stringify(shape) : null]);
+    await db.query(`INSERT INTO sports_events (provider, league, event_id, name, starts_at, state, final, final_at, lines, people, shape, lines_at, called) VALUES ($1, $2, $3, $4, $5, $6, $7, CASE WHEN $7 THEN now() END, $8::jsonb, $9::jsonb, $10::jsonb, CASE WHEN $7 THEN clock_timestamp() END, $11)`,
+      [PROVIDER, league, id, e.title || null, at, done || called ? 'post' : e.airAt && Date.parse(e.airAt) <= now ? 'in' : 'pre', done, lines ? JSON.stringify(lines) : null, done ? people : null, shape ? JSON.stringify(shape) : null, called]);
   }
 }
 async function sync(ids, snap, document, shiftMs) {

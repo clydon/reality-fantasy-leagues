@@ -57,7 +57,7 @@ test("a sport's ctx: its stats with places marked, its position groups, its bout
   const f1 = specContextOf(sportOf("racing/f1"));
   for (const k of ["POS", "FIN", "GRID", "SPR", "QUAL"]) assert.ok(f1.stats.find((s) => s.key === k).place, k);
   assert.ok(!f1.stats.find((s) => s.key === "PG").place, "places gained is a count");
-  assert.deepEqual(f1.sizes, { starters: 5, bench: 0 }, "F1's own roster");
+  assert.deepEqual(f1.sizes, { starters: 5, bench: 2 }, "F1's own roster: five drivers, and the app's bench of two (BACKLOG 79)");
   assert.deepEqual(specContextOf(sportById("tennis")).formats, [{ key: "3", label: "3 sets" }, { key: "5", label: "5 sets" }]);
   assert.deepEqual(specContextOf(sportById("mma")).formats.map((f) => f.label), ["3 rounds", "5 rounds"]);
   assert.deepEqual(specContextOf(sportById("soccer")).positions.map((g) => g.key), ["GK", "DEF", "MID", "FWD"]);

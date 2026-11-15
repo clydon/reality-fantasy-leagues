@@ -225,19 +225,8 @@ function createRuntimeSession(base,input,options={}){
   async apply(action){const r=apply(action,'bench-control');if(r.status==='accepted')await resync();return r;},
   // Results for an episode, generated from the case's seed (who goes out, one moment); a correction picks a different exit.
   // The season's last episode crowns a winner and its finalists (runtime-data.cjs outcome), so the season ends.
-  async publish(eventId,status){
-   const snap=session.snapshot(),world=snap.contexts[contextId],event=world.events.find(e=>e.id===eventId);if(!event)throw Error('Unknown episode');
-   const F=require('../../src/lib/game/formats'),h=k=>parseInt(J.digest([document.seed,eventId,status,k]).slice(0,8),16);
-   // A sport's results are its box score (explorer/runtime-sports.cjs): every athlete's line, a field's with its standings, from the case's seed, the episode and the status (a correction's differ).
-   if(world.context.kind==='sport')return api.apply({type:'results',contextId,eventId,source:'provider-fixture',resultStatus:status,data:require('./explorer/runtime-sports.cjs').resultsFor(world.context,world.participants,i=>h('line:'+i))});
-   const before=world.facts.find(f=>f.eventId===eventId)?.data.events?.[0]?.castawayId,gone=new Set(world.facts.filter(f=>f.eventId!==eventId).flatMap(f=>(f.data.events||[]).map(o=>o.castawayId)));
-   const still=world.participants.filter(p=>!gone.has(p.id)&&(status!=='corrected'||p.id!==before));if(still.length<2)throw Error('Too few people still in to publish results');
-   const finale=event.number===world.events.length,format=F.formatFor(world.context.format.id);
-   const moments=(world.context.engine.moments||[]).filter(m=>!m.auto&&!m.off).map(m=>m.id),outs=require('./explorer/runtime-data.cjs').outcome(format,still.map(p=>p.id),k=>h(k==='exit'?'out':k),finale);
-   const RD=require('./explorer/runtime-data.cjs'),votes=RD.bounties(document)?RD.voteFacts(format,still.map(p=>p.id),outs,k=>h('vote:'+k)):undefined; // a bounty's votes (who voted for whom)
-   const data={events:outs,scoringEvents:moments.length?[{id:'bench-'+eventId+'-'+status,type:moments[h('moment')%moments.length],castawayId:still[h('who')%still.length].id}]:[],...(outs.length?{}:{noExit:true}),...(votes?{votes}:{})};
-   return api.apply({type:'results',contextId,eventId,source:'provider-fixture',resultStatus:status,data});
-  },
+  // (explorer/publish.cjs: the same results the first page's situations publish; a slate's week publishes its games.)
+  async publish(eventId,status){return api.apply({type:'results',contextId,eventId,source:'provider-fixture',resultStatus:status,data:require('./explorer/publish.cjs').resultsData(session.snapshot(),document,contextId,eventId,status)});},
   // The real-route checks (agreement, spoilers) for everyone, on demand (api-checks.cjs). Live tier only.
   async check(){if(!live)throw Error('Checks against real routes need the live tier');const snap=session.snapshot();const all=await require('./api-checks.cjs').checkCase({app:options.app||'http://localhost:3000',ids:live,snap,document,project:(g,p)=>session.project(g,p)});return {problems:all.filter(p=>!p.signature.startsWith('known:')),known:[...new Set(all.filter(p=>p.signature.startsWith('known:')).map(p=>p.signature))],people:snap.people.length,revision};},
   // Move an opened run to step `to` of its recorded steps (0 = its start).

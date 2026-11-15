@@ -96,6 +96,23 @@ statistics". In short:
   slates:"`. Found and fixed BACKLOG 80 (a lineup locking game by game told a live player they were catching up; TEMP-UI);
   Designs needed item 38. Lesson: count what the walk did before trusting a clean run (its first walk never changed a lineup
   mid-week).
+- **The wrap-up is DONE (2026-11-14, branch explorer-sports, not pushed): the next session starts the design round.**
+  1. **The last sports slice: a game called off and a week in progress** (the guide's "Sports statistics, the last slice"; runtime
+     `core-runtime-40`, generator `proof-family-59`): the `calledOff` action, a slate's 'partial' week, the oracle's `weekIn`,
+     `counted`, `firstPlayed`, `holdingLocked`, invariant `sport-called-off`; `check-sports-explorer.js --case=calledoff` (30, no
+     disagreement with the server); campaigns `sport-calledoff-200` and `200b` (200 of 200 each, with `count.cjs`); controls in
+     `sport-calledoff-200b/controls.log`. Found BACKLOG 81 (a slate week whose first game is postponed locks at its start: a
+     small engine fix, the user's to OK) and Designs needed item 39.
+  2. **BACKLOG 79 built:** a field's and a card's season games draft two more than start (the defaults only).
+  3. **The design round's packet:** [docs/DESIGN-ROUND-PACKET.md](DESIGN-ROUND-PACKET.md): the user's open decisions at the top,
+     then one ranked list grouped by page (the game page first: 36 of 39 findings), each with its evidence.
+  4. **The first page's situations:** [docs/GAME-PAGE-SITUATIONS.md](GAME-PAGE-SITUATIONS.md): head to head on a Weekly Lineup
+     and its NFL twin, 17 situations, each one click in the explorer page (Open… › A first-page situation;
+     `explorer/situations.cjs`, `tests/gameplay-situations.test.js`), and what the bench still can't produce.
+
+  **The next session:** the design round on the page the user picks (the packet's decision 1), through impeccable (shape, then
+  critique) at 390 px, one page with its situation variants, then a pause for the user's review. The items below are the
+  record of how the wrap-up was scoped.
 - **The user, 2026-11-14: get to the design round soon; wrap up in the next session, combining work.** So the next session is:
   (1) **one combined last sports slice**: a week in progress (some games final: the server counts a slate week only once every
   game is, and a team game's own `partial`) and a postponed or cancelled game (`sports_events` state 'post' not final: it locks

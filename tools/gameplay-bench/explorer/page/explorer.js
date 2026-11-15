@@ -179,7 +179,7 @@
   }
   const scaleFor = () => { const [w, h] = ui.size.split('x').map(Number), desk = w > 800, phoneLayout = innerWidth < 760; return { w, h, desk, s: desk ? (ui.compare ? .3 : .5) : phoneLayout ? .62 : ui.compare ? .72 : .8 }; };
   function renderStage() {
-    const open = ['a', 'b'].filter(k => sides[k]), recipe = !$('recipe').hidden;
+    const open = ['a', 'b'].filter(k => sides[k]), recipe = !$('recipe').hidden || !$('situations').hidden;
     $('empty').hidden = !!open.length || !$('gap').hidden || recipe; $('stage').hidden = !$('gap').hidden || recipe; $('same').hidden = open.length < 2;
     const { w, h, desk, s } = scaleFor();
     for (const k of ['a', 'b']) {
@@ -315,6 +315,24 @@
     for (const input of $('r-fields').querySelectorAll('input:not([readonly])')) config[input.dataset.key] = Number(input.value);
     const recipe = await api('runtime/recipe', { config });
     $('recipe').hidden = true; await openCase({ input: recipe.input, label: recipe.label, source: 'Recipe' }); if (sides.a) await frames();
+  }); };
+  // ---------- the game page's situations (explorer/situations.cjs; docs/GAME-PAGE-SITUATIONS.md) ----------
+  // Each is a definition and the runtime actions that bring it there: executed by the same runtime, opened on the game's own page
+  // (Full game) as its viewer, the steps in the step bar.
+  async function openSituations() {
+    menu(false);
+    const { situations } = await api('runtime/situations'), groups = [['show', 'Survivor · head to head'], ['sport', 'Sports · NFL and NBA']];
+    $('situation-list').innerHTML = groups.map(([page, title]) => '<div class="situations-group" role="group" aria-label="' + esc(title) + '"><h4>' + esc(title) + '</h4>' + situations.filter(x => x.page === page).map(x => '<button type="button" data-situation="' + esc(x.id) + '">' + esc(x.label) + '<small>Must show: ' + esc(x.shows) + '</small></button>').join('') + '</div>').join('');
+    $('gap').hidden = true; $('recipe').hidden = true; $('situations').hidden = false; renderStage(); $('situation-list').querySelector('button')?.focus();
+  }
+  $('open-situation').onclick = () => task(openSituations);
+  $('s-cancel').onclick = () => { $('situations').hidden = true; render(); };
+  $('situation-list').onclick = e => { const b = e.target.closest('[data-situation]'); if (!b) return; task(async () => {
+    const x = await api('runtime/situation', { id: b.dataset.situation }), run = await api('execute', { input: x.input, steps: x.steps });
+    if (!run.execution) throw Error('The situation did not run: ' + (run.message || run.status));
+    $('situations').hidden = true;
+    await openCase({ input: run.execution, label: 'Situation · ' + x.label, source: 'Situation · ' + x.id });
+    if (sides.a) { ui.surface = 'full'; ui.gameId = x.gameId; ui.viewerId = x.viewerId || ui.viewerId; await frames(); }
   }); };
   $('gap-open').onclick = () => $('file').click();
   const example = () => task(async () => { menu(false); const ex = await api('runtime/example'); await openCase({ input: ex.input, label: ex.label, source: 'Built-in example' }); await frames(); });

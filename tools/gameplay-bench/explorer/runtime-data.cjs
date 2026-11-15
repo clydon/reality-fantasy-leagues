@@ -15,7 +15,9 @@ function outcome(format, still, pick, finale) {
   const lost = (format.endgameExitMethods || []).find(m => m !== format.winnerExitMethod) || cut;
   return [...rest.map(id => ({ castawayId: id, method: cut })), ...finals.slice(1).map(id => ({ castawayId: id, method: lost })), { castawayId: finals[0], method: format.winnerExitMethod }];
 }
-const released = e => ['partial', 'final', 'corrected'].includes(e.resultStatus);
+// (A sport's game called off, core-runtime-40: its results are in and nothing happened, the server's 'off'. A show's event is never
+// called off here: a definition that supplies one is the profile's gap.)
+const released = e => ['partial', 'final', 'corrected', 'postponed', 'cancelled'].includes(e.resultStatus);
 // A bounty's votes (score.bounty, formats/votes.js): who voted for whom at an episode's vote, as research's combined answer gives
 // them. Made only for a world one of whose games has a bounty (so every other world's facts, and their hashes, stay as they were).
 // `still`: everyone at the vote; `outs`: the episode's exits. Each votes for someone voted out (most do) or someone else; their

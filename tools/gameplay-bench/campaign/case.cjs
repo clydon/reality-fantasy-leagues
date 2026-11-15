@@ -64,8 +64,11 @@ function invariants(session, document, before, record, step, inject, known = new
           return cents((spec.count.best ? [...pts].sort((a, b) => b - a).slice(0, spec.count.best) : pts).reduce((a, b) => a + b, 0));
         };
         // (A seat's points for one game, from its box score: the whole team, the starters it fielded, or its best n.)
+        // (A game called off, proof-family-58: told, with nothing in it. A slate's week counts only once it's in, and then only its
+        // games final: its fact's, a game called off has no line. Sports-oracle.cjs counted.)
         const weekOf = (playerId, e) => {
-          const data = world.facts.find(f => f.eventId === e.id).data;
+          const data = world.facts.find(f => f.eventId === e.id)?.data;
+          if (!data) return 0;
           if (data.games) return slateWeek(playerId, e, data);
           const held = spec.count.start ? S0.ActiveRosterLogic.lineupFor(full, e.id, playerId) : full.castaways.filter(x => x.ownerIds.includes(playerId)).map(x => x.id);
           // (On a card, the matches each played, as the fact keeps them: each its best of and its own line.)
@@ -73,7 +76,10 @@ function invariants(session, document, before, record, step, inject, known = new
           const pts = held.map(id => Or.linePoints(spec.score, lineOf(data, id), groupOf(id), boutsOf(id)));
           return cents((spec.count.best ? [...pts].sort((a, b) => b - a).slice(0, spec.count.best) : pts).reduce((a, b) => a + b, 0));
         };
-        const toldGames = world.events.filter(e => ['final', 'corrected'].includes(e.resultStatus) && e.number <= told);
+        // (Which weeks are in: an episode of one game by its results; a slate's week by the rule, never the runtime's own status: every
+        // game final or called off, sports-oracle.cjs weekIn over its fact's games and its games called off.)
+        const weekIn = e => { const f = world.facts.find(x => x.eventId === e.id)?.data; return !!f && Or.weekIn(Sp.gamesOf(world.context, e).map(g => g.id), Object.keys(f.games || {}), Object.keys(Sp.offOf(e))); };
+        const toldGames = world.events.filter(e => (slateOn ? weekIn(e) : ['final', 'corrected', 'postponed', 'cancelled'].includes(e.resultStatus)) && e.number <= told);
         // A game of the sport's categories (proof-family-50) has no points: its table and its weeks are the categories', recounted
         // from the box scores by the rule restated apart from the engine (sports-oracle.cjs: a count adds up; a rate is worked out
         // from the counts added up, from its own group's lines; the better value takes a category; roto ranks each category across
@@ -85,7 +91,7 @@ function invariants(session, document, before, record, step, inject, known = new
         if (catsList) {
           const Oracle = require('./sports-oracle.cjs'), defs = c.sport.categoryDefs();
           // (On a slate, every game's line of the week: a rate from the week's counts added up.)
-          const linesOf = (playerId, e) => { const data = world.facts.find(f => f.eventId === e.id).data, held = spec.count.start ? S0.ActiveRosterLogic.lineupFor(full, e.id, playerId) : full.castaways.filter(x => x.ownerIds.includes(playerId)).map(x => x.id); return data.games ? held.flatMap(id => Object.values(data.games).map(g => g[id]).filter(Boolean).map(l => c.sport.full(l))) : held.map(id => data.lines[id]).filter(Boolean).map(l => c.sport.full(l)); };
+          const linesOf = (playerId, e) => { const data = world.facts.find(f => f.eventId === e.id)?.data; if (!data) return []; const held = spec.count.start ? S0.ActiveRosterLogic.lineupFor(full, e.id, playerId) : full.castaways.filter(x => x.ownerIds.includes(playerId)).map(x => x.id); return data.games ? held.flatMap(id => Object.values(data.games).map(g => g[id]).filter(Boolean).map(l => c.sport.full(l))) : held.map(id => data.lines[id]).filter(Boolean).map(l => c.sport.full(l)); };
           const over = (playerId, events) => Oracle.totals(events.flatMap(e => linesOf(playerId, e)), catsList, defs);
           if (spec.rank.by === 'roto') {
             const wantRoto = Oracle.roto(Object.fromEntries(full.players.map(p => [p.id, over(p.id, toldGames)])), catsList, defs), gotRoto = Object.fromEntries(v.table.map(r => [r.playerId, cents(r.total)]));
@@ -124,9 +130,12 @@ function invariants(session, document, before, record, step, inject, known = new
         // pace a seat's episode stays open until they've watched it: the pace's rule, the engine's own tests).
         {
           const closes = spec.closes, key = closes === 'daily' ? etDate : closes === 'weekly' ? etWeek : null;
-          const from = S0.startEpisode(full) ?? 1, to = S0.endEpisode(full), own = world.events.filter(e => e.number >= from && (to == null || e.number <= to) && e.airAt);
-          // (A slate's week locks at its own first game whatever its cadence; one locking at each game's start, at its last game.)
-          const lockOf = n => { const e = own.find(x => x.number === n); if (!e) return null; const t = Date.parse(e.airAt); if (slateOn) return spec.closes === 'game' ? Math.max(...Sp.gamesOf(world.context, e).map(g => Date.parse(g.airAt))) : t; return key ? Math.min(...own.filter(x => key(Date.parse(x.airAt)) === key(t)).map(x => Date.parse(x.airAt))) : t; };
+          // (A game called off locks nothing, proof-family-58: it's no start of its day's or week's, the oracle's firstPlayed.)
+          const from = S0.startEpisode(full) ?? 1, to = S0.endEpisode(full), own = world.events.filter(e => e.number >= from && (to == null || e.number <= to) && e.airAt), playedEv = own.filter(e => !Sp.isOff(e));
+          // (A slate's week locks at its own air time, its first game's, whatever its cadence: called off or not, as the server's air
+          // time is its first game's and the engine takes a later lock as none: BACKLOG 81. One locking at each game's start, at its
+          // last game played, else its air time.)
+          const lockOf = n => { const e = own.find(x => x.number === n); if (!e) return null; const t = Date.parse(e.airAt); if (slateOn) { const last = Sp.playedOf(world.context, e).map(g => Date.parse(g.airAt)); return spec.closes === 'game' && last.length ? Math.max(...last) : t; } if (!key) return t; const day = playedEv.filter(x => key(Date.parse(x.airAt)) === key(t)).map(x => ({ id: x.id, at: x.airAt })); const first = Or.firstPlayed(day, []); return first === null ? t : Math.min(first, t); };
           const now = Date.parse(snap.clock);
           if (game.timing !== 'own-pace' && member && v.lineup) {
             const lock = lockOf(v.lineup.episode), shut = lock !== null && lock <= now;
@@ -143,7 +152,8 @@ function invariants(session, document, before, record, step, inject, known = new
               const e = world.events.find(x => x.id === a.eventId), had = S0.ActiveRosterLogic.lineupFor(before.games[game.id].state, a.eventId, person.id), ids = a.ids || [];
               const moved = [...had.filter(id => !ids.includes(id)), ...ids.filter(id => !had.includes(id))];
               const teamOf = id => world.participants.find(p => p.id === id)?.team;
-              const stuck = moved.filter(id => Sp.gamesOf(world.context, e).some(g => g.teams.includes(teamOf(id)) && Date.parse(g.airAt) <= now && etDate(Date.parse(g.airAt)) === etDate(now)));
+              // (A game called off locks nothing: the oracle's holdingLocked.)
+              const stuck = moved.filter(id => Or.holdingLocked(Sp.gamesOf(world.context, e).filter(g => g.teams.includes(teamOf(id))).map(g => ({ id: g.id, at: g.airAt })), Object.keys(Sp.offOf(e)), now));
               if (record.status === 'accepted' && stuck.length) throw new Violation('slate-holding-locks', person.id + "'s lineup for episode " + n + ' in ' + game.id + ' was taken at ' + snap.clock + ' moving ' + stuck.join(', ') + ', whose game began today', step);
               if (record.status !== 'accepted' && /game has started/.test(record.message || '') && !stuck.length) throw new Violation('slate-holding-locks', person.id + "'s lineup for episode " + n + ' in ' + game.id + ' was refused at ' + snap.clock + ' as a game having started, moving nobody whose game began today', step);
             }
@@ -152,6 +162,15 @@ function invariants(session, document, before, record, step, inject, known = new
         }
         const got = Object.fromEntries(v.table.map(r => [r.playerId, cents(r.total)]));
         if (!catsList && Object.keys(want).some(k => Math.abs((got[k] ?? NaN) - want[k]) > 1e-9)) throw new Violation('stats-table', person.id + ' (through ' + seen + (told === Infinity ? ', told everything' : '') + ') sees ' + game.id + ' at ' + JSON.stringify(got) + '; the box scores they have seen add up to ' + JSON.stringify(want), step);
+        // A game called off and a week in progress ('sport-called-off', proof-family-58), in the full state: an episode whose one game
+        // is called off has its results in (final) with no line; a slate's week in progress (its fact holds the games final so far,
+        // the event still unavailable) has nothing stamped, no line, no final, no game's lines.
+        for (const e of world.events) {
+          const ep = full.episodes.find(x => x.id === e.id);
+          if (!ep) continue;
+          if (Sp.isOff(e) && (ep.gameFinal !== true || ep.statLines)) throw new Violation('sport-called-off', 'episode ' + e.number + ' of ' + game.id + ' is ' + e.resultStatus + ' but its state ' + (ep.statLines ? 'holds lines' : 'has no results'), step);
+          if (!['final', 'corrected', 'postponed', 'cancelled'].includes(e.resultStatus) && (ep.statLines || ep.gameFinal || ep.statGames)) throw new Violation('sport-called-off', 'episode ' + e.number + ' of ' + game.id + " is still in progress (" + Object.keys(world.facts.find(f => f.eventId === e.id)?.data.games || {}).length + ' games final) but its state holds ' + (ep.statLines ? 'lines' : ep.gameFinal ? 'a final' : "games' lines"), step);
+        }
         const mine = S0.GhostLogic.viewFor(full, member ? person.id : null, seen);
         const leak = mine.episodes.find(e => e.number > seen && (e.statLines || e.gameFinal || e.statGames));
         if (leak) throw new Violation('stats-past-mark', person.id + ' (through ' + seen + ") holds episode " + leak.number + "'s lines in their copy of " + game.id, step);

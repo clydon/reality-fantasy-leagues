@@ -37,6 +37,7 @@
    <button role="menuitem" id="open-file">A file<small>Definition, saved run, execution or campaign reproducer (JSON)</small></button>
    <button role="menuitem" id="open-example">The three-game example<small>Lineup, three picks and a question sheet; Bo a week behind</small></button>
    <button role="menuitem" id="open-recipe">Start from a recipe<small>A familiar situation: game type, players, episodes, who's behind</small></button>
+   <button role="menuitem" id="open-situation">A game-page situation<small>Head to head on a show and the NFL: due, set, behind, results, playoffs</small></button>
   </div>
   <input id="file" type="file" accept="application/json,.json" hidden>
  </div>
@@ -117,6 +118,12 @@
    </div>
    <p class="hint" id="r-mechanic"></p>
    <div class="next"><button class="primary" type="submit"><svg><use href="#i-open"/></svg>Open this recipe</button><button type="button" id="r-cancel">Cancel</button></div>
+  </form>
+  <form class="recipe" id="situations" hidden aria-labelledby="situations-title">
+   <h3 id="situations-title">Open a game-page situation</h3>
+   <p class="small">Each opens on the game's own page as its viewer, on real routes. The steps that built it are in the step bar. What each is for: docs/GAME-PAGE-SITUATIONS.md.</p>
+   <div id="situation-list"></div>
+   <div class="next"><button type="button" id="s-cancel">Cancel</button></div>
   </form>
   <div class="gap" id="gap" role="status" hidden>
    <h3 id="gap-title"></h3>
