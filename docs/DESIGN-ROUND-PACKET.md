@@ -37,6 +37,46 @@ person has been told), so a move or a result looks the same at every layer, only
 
 The deepest layer is designed first, so the shallower ones are excerpts of it rather than new inventions.
 
+**The whole app, not only games** (the user, 2026-11-14). Every tab is redesigned and reviewed:
+- the hub and the TV guide;
+- a show's Tonight, Episodes, Games and Players / Cast;
+- Chat, which needs the least;
+- the connected flows: couches, following, onboarding, settings.
+
+The shared parts (the move, the result, the matchup, the player or cast row, the episode card, the viewing-progress control, a
+friend's face and position, the stat table, the person sheet) are decided once and used everywhere.
+
+**The order:**
+1. **Phase 0, a wide scan of the whole app:** a census of today in every situation, the system map, the shared parts, the
+   vocabulary per flavor, grey-box first views at 390, and the user's identity decision (keep the current visual world and reopen
+   density, or reopen the look).
+2. **The game page**, competition flavor.
+3. **A sports stress test** of the shared parts (300 athletes, a slate week).
+4. **Tonight**, the whole tab.
+5. **Episodes and the reveal.**
+6. **Players / Cast.**
+7. **The Games tab.**
+8. **The hub and TV guide.**
+9. **Sports flavor in full**: the game page, the draft room, Players.
+10. **Notifications**, then **waivers**.
+11. **Chat**, a light review.
+12. **Story-show flavor** across all of it.
+13. **A separate track:** the wizard, game settings, onboarding, couches, account settings.
+
+Each step is one session, with a screenshot story and a pause. A living board lists every surface's status (today's, drafted,
+approved) and its latest story, and after each round a ripple check re-renders whatever uses a part that round changed.
+
+**Soul, not sterile** (the user, 2026-11-14). The redesign must not sterilize the app's character: no AI slop, nothing clinical,
+and not wacky either.
+- **What the app is:** a third social ("what's everyone up to, let's chat about what I just saw") and two thirds game ("let's make
+  a game out of this"). The games should be entertaining.
+- **Data, shown with joy:** the app displays data, and it should be fun and informative, with many data visuals for the nerds:
+  charts, comparisons, trends, a season told in graphics. The season grid is the kind of thing that works.
+- **Social that's easy and fun:** reacting to an episode with a GIF is the model, light and expressive, with no effort to join in.
+- **How this squares with "not busy":** character comes from the show's art, the faces, the GIFs, the data visuals and one good
+  moment of motion. It doesn't come from piling elements on. The surface stays calm, and the depth behind it is rich, playful and
+  dense where the nerds go looking.
+
 **Every design is checked through five lenses:**
 1. playing at own pace (each person's own now; the waits said up front);
 2. a shared draft (no scarcity);
