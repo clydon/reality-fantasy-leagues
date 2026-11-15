@@ -338,3 +338,22 @@
   situations, `show-behind-unset` and `show-pace-ahead`.
 - Rejected: the steps bar (Pick · Watch · Reveal) on the art (a fourth line on the show bar; the strip and the control already
   are the steps); asking "Seen Ep 4 and 5?" at your own pace (behind is the point there).
+
+## 2026-11-15 · Step 4, Episodes and the reveal: built, waiting on the user's review
+- Decided by: Claude, through the three skills in order (Intent's spec, PFD's first view, Impeccable's shape and build), one check
+  (PFD evaluate 77; Impeccable critique 25/36 and the detector), one batch, one confirming look
+- What: the compact progress control on every tab but Tonight (it replaced the spoiler line and the bar's chip); Episodes as one
+  list (next episode as its top row with the couch's readiness, then Waiting for you, Out, not seen, Seen, still to air; no reveal
+  plate, no Reveal on a row); an episode's page led by who left, its top scorers under their game, Replay at the foot; Where you
+  are as data round 3's episode ledger A; the reveal opening on the show's art ("Last time on", every game named first), a beat
+  per game, a lineup as signed bars, the couch's GIFs a beat only with GIFs, one primary at the end; a game at your own pace's
+  reveal full screen (PaceRevealScreen) instead of a sheet.
+- One departure from the spec, Impeccable's: the waiting episodes stay a row each (each carries the couch's faces at its own
+  mark), the reveal still said once.
+- A disagreement settled by the rules: PFD (how much at once) took the couch's names off the rows; Impeccable's review asked for
+  a verb line ("Alex and Riley are on 5"). PFD's built; the other is a named choice in the story.
+- Rejected: a sticky compact line (a fifth of the screen at every scroll); folding the waiting rows into one (loses whose faces
+  are where); a server change for the predictions beat's questions, the own-pace table and a head-to-head opponent's lineup
+  (listed open).
+- Rests on: docs/design-round/step4-episodes-spec.md, -first-view.md, -shape.md, -check.md; the story
+  https://claude.ai/artifact/2mg9HG2CVittvFQjNgLE3Y (frames in .ui-atlas/stories/step4-episodes/).

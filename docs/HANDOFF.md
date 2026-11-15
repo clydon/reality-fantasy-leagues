@@ -11,6 +11,25 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
+## The design round's step 4, Episodes and the reveal (2026-11-15; built on branch `explorer-sports`, not pushed; waits on the user's review)
+The compact progress control (progress.tsx `compact`: your mark and the one action, under the bar on every tab but Tonight, in
+place of the spoiler line and the bar's chip); Episodes as one list (episodes.tsx: the next episode its top row, then Waiting for
+you, Out, not seen, Seen, still to air; the reveal only in the control; an own-pace game's waiting episodes added client-side);
+an episode's page led by who left, top scorers under their game, Replay at the foot; Where you are as the episode ledger
+(watching/where.tsx `EpisodeLedger`: the boundary a line, a tap moves it on a show you watch, fixed with Reveal on one you play;
+Save names the result); the reveal (reveal.tsx: the show's art and "Last time on" with every game named, a beat per game, the
+lineup as signed bars, GIFs a beat only with GIFs, one primary at the end) and a game at your own pace's reveal full screen
+(`PaceRevealScreen`). Process and evidence: `docs/design-round/step4-episodes-{spec,first-view,shape,check}.md`, decisions.md; the
+story https://claude.ai/artifact/2mg9HG2CVittvFQjNgLE3Y (frames in `.ui-atlas/stories/step4-episodes/`: census-app.js
+`--only='episode|reveal|progress-chooser|where-riley|watchonly-riley-episodes' --out=.ui-atlas/stories/step4-episodes/after`,
+story-situations.js `--tab=episodes` and `--tab=tonight --flows` (the reveal flow now shoots five beats), `story-build.py
+.ui-atlas/stories/step4-episodes/story.json`). **Waiting on the user:** the review, and two named choices in the story's Open (names
+on the episode rows' faces; Where you are's eight controls on a watched show). **Found, not fixed** (the story's Open): the
+predictions beat's questions, the own-pace reveal's table and a head-to-head beat's opponent lineup each need the reveal's data to
+carry them; the episode page's lineup as text; the Games tab's own reveal card and Chat's fold repeat the control (steps 6 and 9);
+a sport's lineup beat says "in Episode N" (step 10). check-new-reveal.js was already stale (it expects the dock); only its plate
+line was updated. **Next:** the user's review; then step 5, Players / Cast.
+
 ## The design round's step 3, Tonight (2026-11-15; built on branch `explorer-sports`, not pushed; waits on the user's review)
 Two parts now belong to the show, not to one tab: **the progress control** (`src/new/show/progress.tsx`: your mark, what's next,
 the couch's faces on an episode ruler, the one watching action: Reveal Ep N, I watched it, Watch along) at the foot of Tonight's
@@ -36,7 +55,7 @@ name. `node scripts/dev-test/check-strip-settle.js` checks the settle and the qu
 **Then (2026-11-15, later):** the own-pace plate folded into the control (the move in the strip, "Reveal Ep 4" with "2 ahead of
 Bo" in the control: pace-plate.tsx `paceReveal`/`usePaceReveal`), Not yet kept on the server (`show_follows.not_yet`), and Alex's
 strip timing found (the home read raced the games read that opens a waiver week) and fixed; decisions.md has the detail. Checks:
-check-own-pace.js and check-strip-settle.js (a second phone) pass. **Next:** step 4, Episodes and the reveal (below, when started).
+check-own-pace.js and check-strip-settle.js (a second phone) pass. Step 4 followed the same session (above).
 
 ## The design round's step 2, the game page (2026-11-15; built on branch `explorer-sports`, not pushed; waits on the user's review)
 The game page leads with this week: head to head as a matchup (you and who you play, faces and records, on the show's art or

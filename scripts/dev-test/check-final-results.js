@@ -118,8 +118,9 @@ function fullAnswer(prompt) {
     check(/Final results/i.test(stages) && /By \d{1,2}:\d{2} [AP]M (today|tomorrow)/i.test(stages), "and its stages: Final results, by when", stages);
     await shot("tonight-early");
     await page.goto(`${BASE}/show/${sid}/episodes`, { waitUntil: "load" });
-    await page.locator("[data-reveal-plate]").waitFor({ timeout: 30000 });
-    check(BY.test(await page.locator("[data-reveal-plate]").innerText()), "Episodes' plate says when too");
+    // Step 4: the waiting row says when (the reveal itself is the progress control's).
+    await page.locator("[data-ep-hidden='6']").waitFor({ timeout: 30000 });
+    check(BY.test(await page.locator("[data-ep-hidden='6']").innerText()), "Episodes' waiting row says when too");
 
     // ---------- the full results, before their time ----------
     const fullQ = await as.alex.call("GET", `/api/seasons/${sid}/backstage/prompt${q}&episode=6&kind=full`);

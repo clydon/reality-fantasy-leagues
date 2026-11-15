@@ -261,6 +261,11 @@ async function main() {
         // Names are as the couch shows them everywhere (couchMembers: the username).
         check(ahead === `2 ahead of ${RILEY}`, "the reveal button says 2 ahead of riley", ahead);
         await reveal.click();
+        // Step 4: it plays full screen, the show's reveal's beats (reveal.tsx PaceRevealScreen); its way on is the last beat's.
+        await a.page.locator("[data-pace-reveal-screen] [data-reveal-opener]").waitFor();
+        check(/Last time on/.test((await a.page.locator("[data-pace-reveal-screen] [data-reveal-opener]").textContent()) || ""), "the reveal opens full screen: Last time on");
+        await shot(a.page, "revealed-opener");
+        await a.page.locator('[data-pace-reveal-screen] button:has-text("Skip")').click();
         await a.page.locator("[data-pace-revealed='5']").waitFor();
         await shot(a.page, "revealed-sheet");
         check((await a.page.locator("[data-pace-next]").textContent())?.includes("Pick for Episode 6"), "the way on is Pick for Episode 6");

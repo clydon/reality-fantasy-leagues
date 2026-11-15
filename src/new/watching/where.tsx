@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
+import { Face } from "../show/parts";
 import { seasonChoiceLine, type SeasonChoice } from "@/lib/game/listing";
 import { useAiredEpisodes, type CatalogSeason, type KeepUp, type StepEpisode } from "../data";
 import { SwitchRow } from "../settings/controls";
@@ -30,6 +31,15 @@ export type WhereSeason = Pick<CatalogSeason, "seasonId" | "label" | "show" | "a
   episodes?: StepEpisode[];
   /** What the show calls an episode ("Game": lib/game/show-words.ts); Episode when not known. */
   episodeWord?: string;
+  /** Its short word ("Ep"), for the ledger's lines. */
+  epWord?: string;
+  /** How many episodes it has, when known, and the next to air: the ledger's Still to air. */
+  total?: number | null;
+  next?: { number: number; airAt: string | null } | null;
+  /** A season you play: results in past your mark (the next to reveal), for the ledger's one action. */
+  reveal?: number | null;
+  /** Who left in each episode you've seen (the show's own read, through your mark): the ledger's faces. */
+  outs?: Record<number, { name: string; photo: string | null }[]>;
 };
 
 const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
@@ -77,6 +87,104 @@ export function WhereRow({
   );
 }
 
+const dayOf = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : null);
+
+/**
+ * Where you are as the season's episodes (data round 3's episode ledger A, the user's pick, 2026-11-15; the design round's step 4):
+ * every episode out, oldest first, then what's still to air; your boundary a line under the last one you've seen ("You're here").
+ * A row's tap moves the boundary to it (a draft until Save); the line's tap above the first row means not started. Titles only up
+ * to `named` (your saved mark: a title can give an episode away, and a draft past it hasn't been seen yet). `fixed`: a season you
+ * play, where your mark moves with your reveals; then the rows past it read "Results in" when they're waiting for you.
+ */
+export function EpisodeLedger({
+  s,
+  seen,
+  named,
+  episodes,
+  fixed,
+  onChange,
+}: {
+  s: WhereSeason;
+  seen: number;
+  named: number;
+  episodes?: StepEpisode[];
+  fixed?: boolean;
+  onChange?: (n: number) => void;
+}) {
+  const ep = s.epWord ?? "Ep";
+  const aired = s.aired ?? 0;
+  const rows = Array.from({ length: aired }, (_, i) => i + 1);
+  const toAir = s.total && s.total > aired ? s.total - aired : 0;
+  const here = (
+    <div data-ledger-here={seen} className="flex items-center gap-2 py-1.5" aria-hidden>
+      <i className="h-[2px] flex-1 bg-chyron-line" />
+      <span className="type-caption text-[13px] tracking-[0.04em] text-chyron-line">{seen > 0 ? `You're here · through ${ep} ${seen}` : "You're here · not started"}</span>
+      <i className="h-[2px] w-4 bg-chyron-line" />
+    </div>
+  );
+  return (
+    <div data-ledger className="max-h-[46dvh] overflow-y-auto overscroll-contain pr-0.5">
+      {seen === 0 && here}
+      {rows.map((n) => {
+        const e = episodes?.find((x) => x.number === n);
+        const isSeen = n <= seen;
+        const title = n <= named ? (e?.title ?? null) : null;
+        // Who left, on one you'd seen before this sheet opened (as the Episodes row says it: the same fact, the same words).
+        const out = n <= named ? (s.outs?.[n] ?? []) : [];
+        const waiting = fixed && !isSeen && s.reveal != null && n >= s.reveal;
+        const Row = fixed ? "div" : "button";
+        return (
+          <div key={n} className="contents">
+            <Row
+              {...(fixed ? {} : { type: "button" as const, onClick: () => onChange?.(n === seen ? n - 1 : n), "aria-pressed": isSeen })}
+              data-ledger-row={n}
+              data-ledger-seen={isSeen || undefined}
+              className={`flex min-h-12 w-full items-center gap-3 border-t border-border py-1.5 text-left ${fixed ? "" : "nd-press"}`}
+            >
+              <span className={`type-num w-7 flex-none text-[22px] ${isSeen ? "" : "text-muted-foreground"}`}>{n}</span>
+              {out.length > 0 && (
+                <span className="flex flex-none">
+                  {out.slice(0, 2).map((c, i) => (
+                    <Face key={c.name} src={c.photo} name={c.name} out className={`size-8 rounded-[3px] shadow-[0_0_0_2px_var(--panel)] ${i ? "-ml-2.5" : ""}`} />
+                  ))}
+                </span>
+              )}
+              <span className="min-w-0 flex-1">
+                <b className={`block truncate text-[15px] font-semibold ${isSeen ? "" : "text-muted-foreground"}`}>
+                  {title ?? (out.length ? `${out.map((c) => c.name.split(" ")[0]).join(" and ")} out` : (dayOf(e?.airAt) ?? `${s.episodeWord ?? "Episode"} ${n}`))}
+                </b>
+                <small className="block text-[12.5px] text-muted-foreground">
+                  {[title || out.length ? dayOf(e?.airAt) : null, waiting ? "Results in · hidden" : isSeen ? "Seen" : "Out, not seen"].filter(Boolean).join(" · ")}
+                </small>
+              </span>
+              {!fixed && (
+                <span aria-hidden className={`grid size-6 flex-none place-items-center rounded-full ${isSeen ? "bg-foreground text-background" : "outline-[1.5px] -outline-offset-[1.5px] outline-input"}`}>
+                  {isSeen && <Check className="size-3.5" strokeWidth={3} />}
+                </span>
+              )}
+            </Row>
+            {n === seen && here}
+          </div>
+        );
+      })}
+      {s.next && s.next.number > aired && (
+        <div data-ledger-next={s.next.number} className="flex min-h-12 items-center gap-3 border-t border-border py-1.5 opacity-(--nd-dim)">
+          <span className="type-num w-7 flex-none text-[22px] text-muted-foreground">{s.next.number}</span>
+          <span className="min-w-0 flex-1">
+            <b className="block text-[15px] font-semibold text-foreground/85">Next</b>
+            <small className="block text-[12.5px] text-foreground/85">{dayOf(s.next.airAt) ?? "Date to come"}</small>
+          </span>
+        </div>
+      )}
+      {toAir > (s.next && s.next.number > aired ? 1 : 0) && (
+        <p className="border-t border-border py-2.5 text-[13px] text-muted-foreground">
+          + {toAir - (s.next && s.next.number > aired ? 1 : 0)} still to air
+        </p>
+      )}
+    </div>
+  );
+}
+
 /**
  * Asking where someone is before a show goes on their list, or moving it: the row, I'm up to date, Live, a line on what it
  * does, and the one button. `plays`: they play it, so there's nothing to set here. `keepUp`: how it keeps up now (a show set to
@@ -93,6 +201,8 @@ export function WhereAsk({
   pick,
   onList,
   onSave,
+  ledger,
+  onReveal,
 }: {
   s: WhereSeason;
   start: number;
@@ -109,15 +219,35 @@ export function WhereAsk({
   onList?: boolean;
   /** `episodes`: look up the ones that are out (on unless switched off). */
   onSave: (seen: number, live: boolean, episodes: boolean) => void;
+  /** Where you are on a show's page (step 4): the season as the episode ledger, not the stepper; on a season you play, the ledger
+   *  fixed with its one action (`onReveal`). */
+  ledger?: boolean;
+  onReveal?: (n: number) => void;
 }) {
   const cap = whereCap(s.aired);
   const [seen, setSeen] = useState(Math.min(start, cap));
   const [live, setLive] = useState(keepUp === "ask");
   const [lookAll, setLookAll] = useState(true);
-  const read = useAiredEpisodes(!plays && !s.episodes && isUuid(s.seasonId) && s.aired !== 0 ? s.seasonId : null);
+  const read = useAiredEpisodes((!plays || ledger) && !s.episodes && isUuid(s.seasonId) && s.aired !== 0 ? s.seasonId : null);
   const episodes = s.episodes ?? read.data?.episodes;
   // Live is for a season still on: a finished one has nothing new to ask about.
   const canLive = s.status !== "completed";
+  if (plays && ledger) {
+    const ep = s.epWord ?? "Ep";
+    return (
+      <div data-where-plays data-where-ledger>
+        <EpisodeLedger s={s} seen={start} named={start} episodes={episodes} fixed />
+        <p className="mt-3 text-[14px] leading-normal text-muted-foreground">
+          You play {s.show}, so where you are moves as you reveal each {(s.episodeWord ?? "Episode").toLowerCase()}. Nothing past it shows, here or in your games.
+        </p>
+        {s.reveal != null && onReveal && (
+          <Btn tone="ink" wide className="mt-4" data-where-reveal={s.reveal} onClick={() => onReveal(s.reveal!)}>
+            Reveal {ep} {s.reveal} · every game
+          </Btn>
+        )}
+      </div>
+    );
+  }
   if (plays) {
     return (
       <div data-where-plays>
@@ -148,7 +278,7 @@ export function WhereAsk({
   return (
     <div data-where-ask aria-busy={reading || undefined}>
       <div className={reading ? "pointer-events-none opacity-40 transition-opacity" : "transition-opacity"}>
-        <WhereRow s={s} seen={seen} onChange={setSeen} episodes={episodes} />
+        {ledger && s.aired ? <EpisodeLedger s={s} seen={seen} named={start} episodes={episodes} onChange={setSeen} /> : <WhereRow s={s} seen={seen} onChange={setSeen} episodes={episodes} />}
       </div>
       {pick && pick.seasons.length > 1 && <SeasonPicker pick={pick} />}
       {s.aired !== 0 && s.aired != null && seen < cap && (
@@ -197,8 +327,9 @@ export function WhereAsk({
         </div>
       )}
       <p className="mt-2 text-[13px] leading-normal text-muted-foreground">Nothing past where you are shows: results, stats, the couch&rsquo;s chat. Change it any time.</p>
-      <Btn tone="must" wide className="mt-4" data-where-save disabled={busy || reading} onClick={() => onSave(seen, canLive && keepUp !== "auto" && live, !!lookUp && lookAll)}>
-        {busy ? "Saving…" : cta}
+      {/* On a show's page, Save holds the yellow only once it would change something (step 4's check: no "due" colour on a no-op). */}
+      <Btn tone={ledger && seen === start && live === (keepUp === "ask") ? "optional" : "must"} wide className="mt-4" data-where-save disabled={busy || reading} onClick={() => onSave(seen, canLive && keepUp !== "auto" && live, !!lookUp && lookAll)}>
+        {busy ? "Saving…" : ledger ? `${cta} · ${seen > 0 ? `through ${s.epWord ?? "Ep"} ${seen}` : "not started"}` : cta}
       </Btn>
     </div>
   );

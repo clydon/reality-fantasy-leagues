@@ -189,9 +189,10 @@ function WaiverEpisodeRowBody({ seasonId, week, run, many }: { seasonId: string;
     <NavLink
       data-wv-ep="open"
       href={`${paths.showPage(seasonId, "waivers")}?game=${week.leagueId}`}
-      className="nd-press flex min-h-[68px] w-full items-center gap-3 border-t border-border bg-[linear-gradient(90deg,rgba(255,197,49,.09),transparent)] px-2 text-left"
+      // Step 4's check: a marker in the season's list, quiet; the strip says the move and when it's due (each fact once).
+      className="nd-press flex min-h-[60px] w-full items-center gap-3 border-t border-border text-left"
     >
-      <span className="grid w-7 place-items-center text-chyron-line">
+      <span className="grid w-7 place-items-center text-muted-foreground">
         <ArrowLeftRight className="size-5" aria-hidden />
       </span>
       <span className="min-w-0 flex-1">
@@ -199,11 +200,10 @@ function WaiverEpisodeRowBody({ seasonId, week, run, many }: { seasonId: string;
           {label} · after Episode {week.period?.episode}
         </b>
         <small className="mt-0.5 block text-[13px] text-muted-foreground">
-          Due {week.period?.due ? airTime(Date.parse(week.period.due)) : "before airtime"} ·{" "}
-          {week.replace.length ? `replace ${names(week.replace.map((id) => nm(week.team.find((f) => f.id === id)?.name ?? "someone")))}` : "optional swaps"}
+          Open · {week.replace.length ? `replace ${names(week.replace.map((id) => nm(week.team.find((f) => f.id === id)?.name ?? "someone")))}` : "optional swaps"}
         </small>
       </span>
-      <span className="text-[15px] font-semibold text-chyron-line">Open</span>
+      <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
     </NavLink>
   );
 }

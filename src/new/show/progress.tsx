@@ -76,8 +76,10 @@ export function watchAction(show: ShowData): { kind: "reveal" | "watched" | "pac
 /** Where each mark sits on the ruler, as a share of its width: 0 is "not started", `of` the last episode. */
 const at = (seen: number, of: number) => (of <= 0 ? 0 : Math.min(1, Math.max(0, seen / of)));
 
-/** Tonight's control, at the foot of the tall show bar over the art. */
-export function ProgressControl({ show }: { show: ShowData }) {
+/** Tonight's control, at the foot of the tall show bar over the art; `compact`, every other tab's line under the bar (step 3's
+ *  spec, "On the other tabs it is the compact bar's line"; built in step 4): your mark and the one watching action, no ruler, no
+ *  question (Tonight asks it). It replaces the spoiler line ("Spoiler-safe · you're up to Ep 3 · Change") and the bar's chip. */
+export function ProgressControl({ show, compact }: { show: ShowData; compact?: boolean }) {
   const me = useMe();
   const up = show.upNext;
   const t = up?.airAt ? Date.parse(up.airAt) : null;
@@ -97,7 +99,7 @@ export function ProgressControl({ show }: { show: ShowData }) {
   const others = known.filter((w) => !w.you).length;
   const onRuler = !show.solo && (others > 0 || quiet.length > 0);
   const ruler = known.length > 0 && show.latestAired + (up ? 1 : 0) > 0;
-  const openWhereAll = () => (couchId && seasonId ? openCouchSheet({ kind: "where", couchId, seasonId }) : openWhere(show));
+  const openWhereAll = () => (couchId && seasonId ? openCouchSheet({ kind: "where", couchId, seasonId }) : openWhere(show, openReveal));
   // Behind on an airing show, the control's line asks whether you've seen what's out (behind-ask.tsx: the user's pick B).
   const ep = show.words.ep;
   const latest = show.latestAired;
@@ -109,6 +111,55 @@ export function ProgressControl({ show }: { show: ShowData }) {
   const asking = behind && !later;
   const [askOpen, setAskOpen] = useState(false);
   const out = behind ? outWords(ep, seen!, latest) : "";
+  if (compact) {
+    // One action, the same one the tall control has (the behind question's Yes is the reveal's own ask here).
+    const act =
+      action?.kind === "pace" && pace ? (
+        <SmallButton primary={action.primary} data-progress-pace={action.n} disabled={paced.busy} onClick={paced.start}>
+          {paced.busy ? "Revealing…" : `Reveal ${ep} ${action.n}`}
+        </SmallButton>
+      ) : action?.kind === "reveal" ? (
+        <SmallButton primary={action.primary || behind} data-progress-reveal={action.n} onClick={() => setConfirm(true)}>
+          Reveal {ep} {action.n}
+        </SmallButton>
+      ) : action?.kind === "watched" ? (
+        <SmallButton data-progress-watched={action.n} onClick={() => setConfirm(true)}>
+          I watched {ep} {action.n}
+        </SmallButton>
+      ) : action?.kind === "live" ? (
+        <SmallButton data-progress-watch={action.n} onClick={() => openWatch(action.n)}>
+          Watch along
+        </SmallButton>
+      ) : null;
+    return (
+      <div data-progress data-progress-compact className="dark flex items-center gap-3 border-b border-border bg-background px-4 py-2 text-foreground">
+        <button
+          type="button"
+          data-progress-mark
+          onClick={() => openWhere(show, openReveal)}
+          aria-label={words.mark ? `${words.mark}: change where you are` : "Where you are"}
+          className="nd-press -mx-1 flex min-h-11 min-w-0 flex-1 items-center gap-1 px-1 text-left"
+        >
+          <span className="min-w-0">
+            {/* No mark (results show as they come: a sport by default): what's next is the line. */}
+            <b className="block truncate text-[15px] font-bold leading-tight">{words.mark ?? words.next ?? "Where you are"}</b>
+            {words.mark && words.next && (
+              <span data-progress-next className="mt-0.5 flex items-center gap-1.5 truncate text-[13px] leading-tight text-muted-foreground">
+                {words.live && <i className="size-2 flex-none animate-pulse rounded-full bg-live" aria-hidden />}
+                {words.next}
+              </span>
+            )}
+          </span>
+          <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
+        </button>
+        {act}
+        {paced.node}
+        {action && (action.kind === "reveal" || action.kind === "watched") && seasonId && (
+          <WatchedSheet open={confirm} onOpenChange={setConfirm} show={show} seasonId={seasonId} n={action.n} play={action.kind === "reveal"} onReveal={() => openReveal(action.n)} />
+        )}
+      </div>
+    );
+  }
   if (behind && later) {
     words.mark = `Catching up · through ${ep} ${seen}`;
     words.next = `${ep} ${seen! + 1} next${latest > seen! + 1 ? ` · ${latest - seen! - 1} more out` : ""}`;
@@ -117,7 +168,7 @@ export function ProgressControl({ show }: { show: ShowData }) {
     <div data-progress className="relative mx-2 mt-auto px-2 pt-3">
       {asking ? (
         <div className="flex items-center gap-3" data-ask-line>
-          <button type="button" data-progress-mark onClick={() => openWhere(show)} className="nd-press -mx-1 min-h-11 min-w-0 flex-1 px-1 text-left">
+          <button type="button" data-progress-mark onClick={() => openWhere(show, openReveal)} className="nd-press -mx-1 min-h-11 min-w-0 flex-1 px-1 text-left">
             <b className="block text-[17px] font-bold leading-tight">Seen {out}?</b>
             <span className="mt-0.5 block text-[14px] leading-tight text-white/85">You&rsquo;re through {ep} {seen}</span>
           </button>
@@ -141,7 +192,7 @@ export function ProgressControl({ show }: { show: ShowData }) {
         <button
           type="button"
           data-progress-mark
-          onClick={() => openWhere(show)}
+          onClick={() => openWhere(show, openReveal)}
           aria-label={words.mark ? `${words.mark}: change where you are` : undefined}
           disabled={!words.mark}
           className="nd-press -mx-1 flex min-h-11 min-w-0 items-center gap-1.5 px-1 text-left"
@@ -215,6 +266,21 @@ export function ProgressControl({ show }: { show: ShowData }) {
         <WatchedSheet open={confirm} onOpenChange={setConfirm} show={show} seasonId={seasonId} n={action.n} play={action.kind === "reveal"} onReveal={() => openReveal(action.n)} />
       )}
     </div>
+  );
+}
+
+/** The compact line's one action: the one yellow (`primary`), else a white outline. */
+function SmallButton({ primary, className = "", children, ...props }: React.ComponentProps<"button"> & { primary?: boolean }) {
+  return (
+    <button
+      type="button"
+      {...props}
+      className={`nd-press flex h-10 flex-none items-center whitespace-nowrap rounded-[3px] px-3.5 text-[15px] font-bold ${
+        primary ? "bg-chyron text-chyron-foreground" : "text-foreground outline-[1.5px] -outline-offset-[1.5px] outline-foreground/60"
+      } ${className}`}
+    >
+      {children}
+    </button>
   );
 }
 

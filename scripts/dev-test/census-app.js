@@ -104,7 +104,7 @@ function situations() {
     { id: "hub-profile-menu", surface: "settings", who: "alex", go: "/home", ready: "[data-hub]", act: async (p) => { await tap(p, '[data-tour="you"]'); await p.waitForTimeout(900); }, flavor: "mixed", lens: "your picture's menu", full: false },
     { id: "start-1", surface: "onboarding", who: null, go: "/start/1", ready: "body", wait: 2500, flavor: "mixed", lens: "first run, step 1: your shows", full: false },
     { id: "pace-sheet-alex", surface: "tonight", who: "alex", go: () => `/show/${ids.s51}/tonight`, ready: '[data-tab="tonight"]', act: async (p) => { await tap(p, '[aria-label^="Where everyone is"]'); await p.waitForTimeout(1000); }, flavor: "competition", lens: "where everyone is: the couch's pace", full: false },
-    { id: "progress-chooser-sam", surface: "episodes", who: "sam", go: () => `/show/${ids.s51}/episodes`, ready: '[data-tab="episodes"]', act: async (p) => { await tap(p, ':is(button,a):has-text("Spoiler-safe")'); await p.waitForTimeout(1000); }, flavor: "competition", lens: "the viewing-progress chooser (Spoiler-safe › Change)", full: false },
+    { id: "progress-chooser-sam", surface: "episodes", who: "sam", go: () => `/show/${ids.s51}/episodes`, ready: '[data-tab="episodes"]', act: async (p) => { await tap(p, ':is([data-progress-mark], button:has-text("Spoiler-safe"))'); await p.waitForTimeout(1000); }, flavor: "competition", lens: "the viewing-progress chooser (the compact control's mark since step 4; Spoiler-safe › Change before)", full: false },
 
     // A competition show, three linked games (ZT Survivor 51): alex caught up with a move due, sam two behind
     { id: "tonight-alex", surface: "tonight", who: "alex", go: show(S51, "tonight"), ready: '[data-tab="tonight"]', flavor: "competition", lens: "caught up mid-season, live, a move due", full: true },
@@ -114,6 +114,7 @@ function situations() {
     { id: "episodes-alex", surface: "episodes", who: "alex", go: show(S51, "episodes"), ready: '[data-tab="episodes"]', flavor: "competition", lens: "caught up", full: true },
     { id: "episodes-sam", surface: "episodes", who: "sam", go: show(S51, "episodes"), ready: '[data-tab="episodes"]', flavor: "competition", lens: "two behind", full: true },
     { id: "episode-page-alex", surface: "episodes", who: "alex", go: show(S51, "episodes"), ready: '[data-tab="episodes"]', act: async (p) => { await tap(p, ':is(button,a):has-text("Carter out")'); await p.waitForTimeout(900); }, flavor: "competition", lens: "one episode's page", full: true },
+    { id: "episode-page-alex-foot", surface: "episodes", who: "alex", go: show(S51, "episodes"), ready: '[data-tab="episodes"]', act: async (p) => { await p.waitForTimeout(0); await tap(p, ':is(button,a):has-text("Carter out")'); await p.waitForTimeout(900);  await p.locator("[data-replay-reveal]").last().scrollIntoViewIfNeeded().catch(() => {}); await p.waitForTimeout(600); }, flavor: "competition", lens: "one episode's page", full: false },
     { id: "games-alex", surface: "games", who: "alex", go: show(S51, "games"), ready: '[data-tab="games"]', flavor: "competition", lens: "three games, a move due", full: true },
     { id: "games-sam", surface: "games", who: "sam", go: show(S51, "games"), ready: '[data-tab="games"]', flavor: "competition", lens: "two behind", full: false },
     { id: "games-person-sheet", surface: "games", who: "alex", go: show(S51, "games"), ready: '[data-tab="games"]', act: async (p) => { await tap(p, ':is(button,a,[role=button]):has-text("jordan")'); await sheetOpen(p); }, flavor: "competition", lens: "a table row opens that player's sheet", full: false },
@@ -135,6 +136,7 @@ function situations() {
     // Watching only
     { id: "watchonly-riley-traitors", surface: "tonight", who: "riley", go: show(TR, "tonight"), ready: '[data-tab="tonight"]', flavor: "competition", lens: "watching only, no game; friends at different paces (riley 2, jordan 4)", full: true },
     { id: "watchonly-jordan-traitors", surface: "tonight", who: "jordan", go: show(TR, "tonight"), ready: '[data-tab="tonight"]', flavor: "competition", lens: "watching only, ahead of a friend, a private follow", full: false },
+    { id: "where-riley-traitors", surface: "episodes", who: "riley", go: show(TR, "episodes"), ready: '[data-tab="episodes"]', act: async (p) => { await tap(p, ':is([data-progress-mark], button:has-text("Spoiler-safe"))'); await p.waitForTimeout(1200); }, flavor: "competition", lens: "where you are on a show you watch: the episode ledger (step 4)", full: false },
     { id: "watchonly-riley-episodes", surface: "episodes", who: "riley", go: show(TR, "episodes"), ready: '[data-tab="episodes"]', flavor: "competition", lens: "watching only: episodes", full: true },
     { id: "watchonly-riley-cast", surface: "cast", who: "riley", go: show(TR, "cast"), ready: "[data-cast]", flavor: "competition", lens: "watching only: the cast", full: false },
     { id: "watchonly-riley-chat", surface: "chat", who: "riley", go: show(TR, "chat"), ready: "[data-chat]", flavor: "competition", lens: "watching only: the chat", full: false },
@@ -154,6 +156,7 @@ function situations() {
     { id: "reveal-sam-1", surface: "reveal", who: "sam", go: show(S51, "tonight") + "?page=reveal&ep=4", ready: "body", wait: 2500, flavor: "competition", lens: "the reveal, its opening", full: false },
     { id: "reveal-sam-2", surface: "reveal", who: "sam", continue: true, act: async (p) => { await p.mouse.click(W * 0.8, H * 0.5); await p.waitForTimeout(1800); await p.mouse.click(W * 0.8, H * 0.5); await p.waitForTimeout(1800); }, flavor: "competition", lens: "the reveal, two beats on", full: false },
     { id: "reveal-sam-3", surface: "reveal", who: "sam", continue: true, act: async (p) => { for (let i = 0; i < 3; i++) { await p.mouse.click(W * 0.8, H * 0.5); await p.waitForTimeout(1600); } }, flavor: "competition", lens: "the reveal, later beats", full: false },
+    { id: "reveal-sam-end", surface: "reveal", who: "sam", continue: true, act: async (p) => { for (let i = 0; i < 4; i++) { await p.mouse.click(W * 0.8, H * 0.5); await p.waitForTimeout(1600); } }, flavor: "competition", lens: "the reveal, its table and its end (step 4: one primary)", full: false },
   ];
 }
 

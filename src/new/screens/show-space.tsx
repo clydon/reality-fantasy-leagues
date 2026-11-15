@@ -172,13 +172,18 @@ export function whereTarget(show: ShowData): WhereTarget | null {
     plays: show.plays,
     keepUp: show.keepUp,
     episodeWord: show.words.episode,
+    epWord: show.words.ep,
+    total: h.episodeCount ?? null,
+    next: show.upNext && !show.upNext.live ? { number: show.upNext.number, airAt: show.upNext.airAt ?? null } : null,
+    reveal: show.plays ? (show.episodes?.reveal?.episode ?? null) : null,
+    outs: Object.fromEntries((show.episodes?.episodes ?? []).filter((e) => e.status === "seen" && e.out?.length).map((e) => [e.number, e.out!.map((c) => ({ name: c.name, photo: c.photo }))])),
   };
 }
 
 /** Open where you are (or Add to my shows, on a show you don't follow). */
-export function openWhere(show: ShowData) {
+export function openWhere(show: ShowData, openReveal?: (n: number) => void) {
   const target = whereTarget(show);
-  if (target) openWatching({ kind: "where", target });
+  if (target) openWatching({ kind: "where", target: { ...target, openReveal } });
 }
 
 /** Is this path one of this show's tabs? (Back from a page pushed over the show goes to whichever tab you left.) */
@@ -286,7 +291,8 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
                 }
           }
           // On Tonight the progress control says where the show is (step 3); the chip is the other tabs' short form of it.
-          status={fillOn ? <ReadyChip f={f} /> : tab === "tonight" ? undefined : status}
+          // The progress control says where the show is: tall on Tonight, a line under the bar elsewhere (step 4). Read-only keeps the chip.
+          status={fillOn ? <ReadyChip f={f} /> : tab === "tonight" || !ro ? undefined : status}
           progress={fillOn ? <ReadyLine f={f} /> : undefined}
           menu={ro ? <ReadOnlyMenu /> : <ShowMenu seasonId={seasonId} show={show} />}
           below={ro ? <CouchLine show={show} /> : <ProgressControl show={show} />}
@@ -295,6 +301,7 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
         <div className={`animate-pulse bg-card ${tab === "tonight" ? "h-[250px]" : "h-24"}`} aria-busy />
       )}
       <main style={{ paddingBottom: `calc(${foot}px + env(safe-area-inset-bottom, 0px))` }}>
+        {!ro && tab !== "tonight" && show.header && <ProgressControl show={show} compact />}
         {!ro && tab !== "chat" && show.header && <MovesStrip show={show} />}
         {children}
       </main>
@@ -794,7 +801,9 @@ export function TabScreen({ seasonId, tab }: { seasonId: string; tab: ShowTab })
     // The tab's sections, all at once once they're in (ui/loaded.tsx); a tab of its own each time.
     <Loaded key={tab} fallback={<TabSkeleton />}>
       <div data-tab={tab}>
-        {tab !== "tonight" && !(show.readOnly && tab === "chat") && (
+        {/* The one spoiler chip, where there's no progress control: the desk's read-only view (step 4 put the compact control on
+            every other tab in its place). */}
+        {tab !== "tonight" && show.readOnly && tab !== "chat" && (
           <div className="px-4 pt-4">
             <GuardChip seenThrough={show.seenThrough} ep={show.words.ep} onChange={() => openWhere(show)} />
           </div>

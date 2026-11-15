@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Check } from "lucide-react";
 import { couches, draftAct, gamesApi, useAfterCouch, type CatchUpReveal, type GameView } from "../data";
-import { CatchUpResult } from "../couch/join-game";
 import { aheadWords } from "../couch/pace";
 import { namesLine } from "../couch/where";
 import { ordinal } from "../games";
@@ -14,6 +13,7 @@ import { Btn } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { faceIn, first, openMoves } from "./moves";
+import { PaceRevealScreen } from "./reveal";
 import { Face } from "./parts";
 
 // A game at your own pace on Tonight (docs/PLAN-own-pace-games.md, "The UI, mocked": the user's pick, 2026-11-05). Its weekly loop
@@ -329,7 +329,8 @@ function TeamSheet({ g, open, onOpenChange }: { g: GameView; open: boolean; onOp
   );
 }
 
-/** What the reveal did, then the way on: the next episode's move, or how you finished. */
+/** The reveal, full screen (reveal.tsx PaceRevealScreen: the same beats as the show's), and its end: where each game stands now,
+ *  then the way on: the next episode's move, Done for now, or how you finished. */
 function RevealedSheet({ show, done, onClose }: { show: ShowData; done: { games: GameView[]; reveals: CatchUpReveal[] } | null; onClose: () => void }) {
   // Each game as it reads now (the reveal refreshed it), for its place.
   const now = (x: GameView) => (show.play ?? []).find((y) => y.leagueId === x.leagueId) ?? x;
@@ -340,58 +341,51 @@ function RevealedSheet({ show, done, onClose }: { show: ShowData; done: { games:
   const g = games[k] ?? null;
   const next = done?.reveals[k]?.next ?? null;
   const lineup = !!g?.lineup && !g?.pick;
-  const many = games.length > 1;
-  return (
-    <Sheet open={!!done} onOpenChange={(o) => !o && onClose()} title={r ? `Episode ${r.episode}` : ""} subtitle={many ? `${games.length} games` : g?.gameName}>
-      {r && g && (
-        <div data-pace-revealed={r.episode} className="flex flex-col gap-3 pb-1">
-          {done!.reveals.map((x, i) => (
-            <div key={x.leagueId} className="flex flex-col gap-2">
-              {many && <b className="type-caption text-[15px] tracking-[0.03em]">{games[i]?.gameName}</b>}
-              <CatchUpResult done={x} />
-              {games[i]?.you && (
-                <p className="text-[14px] text-muted-foreground">
-                  Through Episode {x.episode}: you&rsquo;re {placeWords(games[i].you!.rank)} of {games[i].players}.
-                </p>
-              )}
-            </div>
-          ))}
-          {next ? (
-            <>
-              <Btn
-                tone="must"
-                wide
-                data-pace-next
-                onClick={() => {
-                  onClose();
-                  openMoves(lineup ? "lineup" : "pool", g.leagueId);
-                }}
-              >
-                {lineup ? "Set your lineup" : "Pick"} for Episode {next}
-              </Btn>
-              <button type="button" data-pace-later onClick={onClose} className="min-h-11 text-[15px] font-semibold text-muted-foreground">
-                Done for now
-              </button>
-            </>
-          ) : games.every((x) => x.over) ? (
-            <Btn tone="must" wide data-pace-finished onClick={onClose}>
-              See how you finished
+  const end =
+    r && g ? (
+      <div data-pace-revealed={r.episode} className="flex flex-col gap-2.5">
+        {games.map((x, i) =>
+          x.you ? (
+            <p key={x.leagueId} className="text-center text-[14px] text-muted-foreground">
+              {games.length > 1 ? `${x.gameName}: through` : "Through"} Episode {done!.reveals[i]?.episode ?? r.episode}, you&rsquo;re {placeWords(x.you.rank)} of {x.players}.
+            </p>
+          ) : null
+        )}
+        {next ? (
+          <>
+            <Btn
+              tone="ink"
+              wide
+              data-pace-next
+              onClick={() => {
+                onClose();
+                openMoves(lineup ? "lineup" : "pool", g.leagueId);
+              }}
+            >
+              {lineup ? "Set your lineup" : "Pick"} for Episode {next}
             </Btn>
-          ) : (
-            // Caught up on a season still airing: you play the next one as it airs, like everyone there.
-            <>
-              <p data-pace-caught-up className="text-[14px] text-muted-foreground">
-                You&rsquo;re caught up: {show.words.ep} {r.episode + 1} is next, as it airs.
-              </p>
-              <Btn tone="ink" wide data-pace-done onClick={onClose}>
-                Done
-              </Btn>
-            </>
-          )}
-        </div>
-      )}
-    </Sheet>
-  );
+            <button type="button" data-pace-later onClick={onClose} className="h-11 text-[15px] font-semibold text-muted-foreground">
+              Done for now
+            </button>
+          </>
+        ) : games.every((x) => x.over) ? (
+          <Btn tone="ink" wide data-pace-finished onClick={onClose}>
+            See how you finished
+          </Btn>
+        ) : (
+          // Caught up on a season still airing: you play the next one as it airs, like everyone there.
+          <>
+            <p data-pace-caught-up className="text-center text-[14px] text-muted-foreground">
+              You&rsquo;re caught up: {show.words.ep} {r.episode + 1} is next, as it airs.
+            </p>
+            <Btn tone="ink" wide data-pace-done onClick={onClose}>
+              Done
+            </Btn>
+          </>
+        )}
+      </div>
+    ) : null;
+  return <PaceRevealScreen show={show} reveals={done?.reveals ?? null} end={end} onClose={onClose} />;
 }
 
 /** You've seen the last episode: how you finished, and that anyone behind still has it hidden. */

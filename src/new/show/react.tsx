@@ -303,11 +303,12 @@ export function GifsBeat({ target }: { target: GifTarget }) {
 }
 
 /** The slide's action under it: Add your GIF until yours is in. */
-export function GifsAction({ target }: { target: GifTarget }) {
+export function GifsAction({ target, quiet }: { target: GifTarget; quiet?: boolean }) {
   const v = useEpisodeGifs(target.seasonId, target.couchId, target.episode);
   if (!v.data || v.data.mine || !v.data.search) return null;
+  // `quiet`: beside Share at the reveal's end (step 4: the end has one primary).
   return (
-    <Btn tone="must" wide data-gifs-add onClick={() => openGif(target)}>
+    <Btn tone={quiet ? "optional" : "must"} wide={!quiet} className={quiet ? "flex-1" : ""} data-gifs-add onClick={() => openGif(target)}>
       Add your GIF
     </Btn>
   );

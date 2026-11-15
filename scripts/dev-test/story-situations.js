@@ -65,7 +65,9 @@ const TAB_FLOWS = [
   { id: "strip", tap: "[data-strip] button", wait: '[role="dialog"]' },
   { id: "ruler", tap: "[data-ruler]", wait: '[role="dialog"]' },
   { id: "ledger", tap: "[data-mini-ledger]", wait: "[data-ledger]", inPlace: true },
-  { id: "reveal", tap: "[data-progress-reveal], [data-progress-watched], [data-progress-pace]", wait: '[role="dialog"]' },
+  // The reveal (a full-screen dialog that stays in the page hidden: wait on one that's showing), then `beats` more of it, each shot
+  // (<id>.reveal-2.jpg and on), tapping its stage between.
+  { id: "reveal", tap: "[data-progress-reveal], [data-progress-watched], [data-progress-pace]", wait: '[role="dialog"]:not([aria-hidden="true"])', beats: 5 },
 ];
 const READY = TAB ? "[data-progress], [data-strip], [data-last-time], main section" : "[data-game-page]";
 
@@ -223,6 +225,20 @@ async function measure(p) {
               // A part that opens in place (a game's ledger): shoot it where it is, scrolled to its top.
               if (f.inPlace) await q.locator(f.wait).first().evaluate((el) => el.closest("[data-game-mini]")?.scrollIntoView({ block: "start" })).catch(() => {});
               await shoot(q, `${base}.${f.id}`, false);
+              for (let b = 2; b <= (f.beats ?? 0) + 1; b++) {
+                // A beat of a full-screen sheet: its stage (the reveal's), or whatever a confirm sheet asks first (Yes, show me).
+                const stage = q.locator('[role="dialog"]:not([aria-hidden="true"]) [data-stage]').last();
+                if (!(await stage.isVisible().catch(() => false))) {
+                  const yes = q.locator('[role="dialog"]:not([aria-hidden="true"]) :is([data-watched-yes], [data-ask-confirm-yes], button:has-text("Reveal"))').last();
+                  if (!(await yes.isVisible().catch(() => false))) break;
+                  await yes.click();
+                  await q.waitForTimeout(1500);
+                } else {
+                  await stage.click();
+                  await q.waitForTimeout(1200);
+                }
+                await shoot(q, `${base}.${f.id}-${b}`, false);
+              }
               flows.push(f.id);
               await reload();
             }

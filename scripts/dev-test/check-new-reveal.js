@@ -142,7 +142,8 @@ function check(ok, what, detail = "") {
     await shot("1-tonight-results-in");
 
     await go("episodes");
-    check(await page.locator("[data-reveal-plate]").isVisible(), "Episodes: the results-in plate");
+    // Step 4: the reveal is the compact progress control's (no plate, no Reveal on a row).
+    check(await page.locator("[data-progress-compact] [data-progress-reveal='5']").isVisible(), "Episodes: the control's Reveal Ep 5");
     check(await page.locator("[data-ep-hidden='5']").isVisible(), "Episode 5's row is hidden until you reveal");
     check((await page.locator("[data-ep]").count()) === 4, "Episodes 1 to 4 as seen rows", `${await page.locator("[data-ep]").count()}`);
     check((await page.locator("[data-dock=reveal]").count()) === 1, "the dock says Reveal");

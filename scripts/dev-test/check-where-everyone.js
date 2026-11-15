@@ -227,7 +227,8 @@ function check(ok, what, detail = "") {
     check(/bg-secondary/.test((await alex.page.locator("[data-ep='5']").getAttribute("class")) ?? ""), "your row is lifted");
     check((await whoOn(alex, "[data-ep='3']")) === name("sam"), "Episode 3 carries sam", await whoOn(alex, "[data-ep='3']"));
     check((await alex.page.locator("[data-ep='4'] [data-ep-who], [data-ep='1'] [data-ep-who]").count()) === 0, "no faces on an episode nobody's up to");
-    check((await alex.page.locator("[data-ep-legend]").count()) === 1, "the line saying what a face marks");
+    // Step 4: no legend sentence; "You're here" on your row says what a face marks.
+    check((await alex.page.locator("[data-ep-who-line]").filter({ hasText: "You're here" }).count()) >= 1, "your row says You're here");
     check(/zt_nd_jordan plays here; their place isn't shown/.test((await alex.page.locator("[data-ep-quiet]").textContent().catch(() => "")) ?? ""), "jordan plays without their place shown: said under the list");
     await alex.noOn("Episodes");
     check(/you're up to Ep 5/.test(await alex.page.evaluate(() => document.body.innerText)), "the spoiler chip says you're up to Ep 5, as the couch's words do");

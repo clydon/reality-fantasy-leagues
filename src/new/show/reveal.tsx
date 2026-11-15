@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } fro
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { ChevronRight, Eye, Send } from "lucide-react";
-import { chatCouch, postToCouch, revealEpisode, useAfterReveal, useEpisodeGifs, type SeasonReveal } from "../data";
+import { chatCouch, postToCouch, revealEpisode, useAfterReveal, useEpisodeGifs, type CatchUpReveal, type SeasonReveal } from "../data";
 import { ordinal } from "../games";
 import type { ShowData } from "../screens/show-space";
 import { Avatar } from "../ui/bars";
@@ -25,6 +25,11 @@ import { Face } from "./parts";
 // on a couch with someone else on it), your Weekly Lineup, your other games, the table moving. At the early stage (who went home only) the lineup reads "so far" and the pool's streaks move instead.
 // The last beat offers Share your night: a post to the couch, or a card for outside it that leaves out who went home
 // unless you say so. It's in the history (?page=reveal), so back closes it.
+//
+// The design round's step 4 (docs/design-round/step4-episodes-spec.md, "The reveal, beat by beat"): it opens on the show's art,
+// "Last time on" the show, with every game it covers named before the first result; the couch's GIFs are a beat only once
+// someone has added one (else the end offers yours); each game is a beat of its own, a lineup drawn as signed bars on one scale;
+// the end has one primary. A game at your own pace plays the same screen (PaceRevealScreen), from its catch-up reveal.
 //
 // The morning update (step 8; the mock's stages.js finalUpdate) is a sheet, not the reveal again: once an episode you
 // revealed early has its final scores, "So far last night +14 > Final +22", who added what this morning, and the table
@@ -100,7 +105,7 @@ export function RevealScreen({ show, seasonId }: { show: ShowData; seasonId: str
       aria-hidden={!page.open}
       aria-label="The reveal"
       // Night in both themes (step 15 part 4): the reveal is the broadcast's own moment.
-      className={`dark nd-fixed-x fixed inset-y-0 z-[75] flex flex-col bg-[#0b0a10] text-foreground transition-[opacity,visibility] duration-300 motion-reduce:transition-none ${
+      className={`dark nd-fixed-x fixed inset-y-0 z-[75] isolate flex flex-col bg-[#0b0a10] text-foreground transition-[opacity,visibility] duration-300 motion-reduce:transition-none ${
         page.open ? "visible opacity-100" : "invisible opacity-0"
       }`}
     >
@@ -121,7 +126,9 @@ function Broadcast({ show, seasonId, n, replay, onClose }: { show: ShowData; sea
   // where you are (the server sends them only to someone who's seen it).
   const label = showLabel(show);
   const gifTarget: GifTarget = { seasonId, couchId: show.couch?.id ?? null, episode: n, label, solo: show.solo };
-  useEpisodeGifs(seasonId, show.couch?.id ?? null, n, !!r);
+  const gifRead = useEpisodeGifs(seasonId, show.couch?.id ?? null, n, !!r);
+  // The couch's GIFs are a beat once someone has added one (yours, on a replay, counts); an empty slide is no beat (the end offers yours).
+  const hasGifs = !!gifRead.data && (gifRead.data.people.length > 0 || !!gifRead.data.mine);
   // No games in it (a show you only watch): nothing to share or reveal next, the end goes back.
   const games = !!r && !!(r.lineup || r.games.length || r.predictions.length || r.table);
 
@@ -151,16 +158,23 @@ function Broadcast({ show, seasonId, n, replay, onClose }: { show: ShowData; sea
         r={r}
         error={error}
         replay={replay}
-        gifs={{ node: <GifsBeat target={gifTarget} />, action: <GifsAction target={gifTarget} /> }}
+        gifs={hasGifs ? { node: <GifsBeat target={gifTarget} />, action: <GifsAction target={gifTarget} /> } : undefined}
+        art={show.header ? { seasonId, artUrl: show.header.show.backdropUrl || show.header.show.artUrl } : null}
         onClose={onClose}
         end={
           r && (
             <>
-              {games && (
-                <Btn wide onClick={() => setSharing(true)}>
-                  <Send className="size-[18px]" aria-hidden />
-                  Share your night
-                </Btn>
+              {/* Quiet, side by side: your GIF (when the couch had none to show and yours isn't in) and Share your night. */}
+              {(games || !hasGifs) && (
+                <div className="flex gap-2">
+                  {!hasGifs && <GifsAction target={gifTarget} quiet />}
+                  {games && (
+                    <Btn className="flex-1" onClick={() => setSharing(true)}>
+                      <Send className="size-[18px]" aria-hidden />
+                      Share your night
+                    </Btn>
+                  )}
+                </div>
               )}
               {/* A replay goes back: the next one isn't a replay's to reveal. */}
               {r.next && !replay ? (
@@ -200,6 +214,7 @@ function Beats({
   error,
   replay,
   gifs,
+  art,
   end,
   onClose,
 }: {
@@ -210,6 +225,8 @@ function Beats({
   error: string | null;
   replay?: boolean;
   gifs?: { node: ReactNode; action: ReactNode };
+  /** The show's art, under the first beat (step 4: "Last time on" opens on the show, not on black). */
+  art?: { seasonId: string; artUrl: string | null } | null;
   end: ReactNode;
   onClose: () => void;
 }) {
@@ -227,21 +244,36 @@ function Beats({
         ...(r.out.length || r.lineup || r.games.length || r.predictions.length || r.table ? [{ key: "out", node: <VoteCards r={r} /> }] : []),
         ...(gifs ? [{ key: "gifs", node: gifs.node, action: gifs.action }] : []),
         ...(r.lineup ? [{ key: "lineup", node: <LineupBeat r={r} /> }] : []),
-        ...(r.games.length + r.predictions.length ? [{ key: "games", node: <OtherGames r={r} /> }] : []),
+        // Each other game a beat of its own, in its own measure (never one list of everything else).
+        ...[...r.games, ...r.predictions].map((g) => ({ key: `game-${g.leagueId}-${g.gameType}`, node: <GameBeat g={g} /> })),
         ...(r.table ? [{ key: "table", node: <TableBeat r={r} /> }] : []),
       ]
     : [];
   const last = beats.length > 0 && k >= beats.length - 1;
   const at = Math.min(k, Math.max(0, beats.length - 1));
 
+  const opening = !!r && beats[at]?.key === "open" && !!art?.artUrl;
   return (
     <>
+      {art?.artUrl && (
+        <span
+          aria-hidden
+          data-reveal-art
+          className={`pointer-events-none absolute inset-0 -z-[1] transition-opacity duration-500 motion-reduce:transition-none ${opening ? "opacity-100" : "opacity-0"}`}
+        >
+          <ShowArt seasonId={art.seasonId} artUrl={art.artUrl} name={name} bare className="absolute inset-0 h-full w-full" />
+          <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(11,10,16,.55)_0%,rgba(11,10,16,.2)_30%,rgba(11,10,16,.9)_56%,#0b0a10_72%)]" />
+        </span>
+      )}
       <div className="flex h-14 flex-none items-center justify-between px-4 pt-[env(safe-area-inset-top,0px)]">
-        <span className="type-caption text-[15px] tracking-[0.04em] text-muted-foreground">{name}</span>
+        <span className={`type-caption text-[15px] tracking-[0.04em] ${opening ? "text-white/90" : "text-muted-foreground"}`}>{name}</span>
         {r && !last ? (
           <button type="button" onClick={() => setK(beats.length - 1)} className="h-11 px-2 text-[15px] font-bold">
             Skip
           </button>
+        ) : r && last ? (
+          // The end's own way back is its last button (step 4's check: one way out, not Close and Back to the show).
+          <span />
         ) : (
           <button type="button" onClick={onClose} className="h-11 px-2 text-[15px] font-bold">
             Close
@@ -286,7 +318,7 @@ function Beats({
           }
           if (!last) setK((x) => x + 1);
         }}
-        className="flex min-h-0 flex-1 touch-pan-y flex-col justify-center overflow-hidden px-4 text-left"
+        className={`flex min-h-0 flex-1 touch-pan-y flex-col overflow-hidden px-4 text-left ${opening ? "justify-end pb-6" : "justify-center"}`}
       >
         {error ? (
           <p className="text-sm text-muted-foreground">{error}</p>
@@ -312,6 +344,64 @@ function Beats({
         {last && r && end}
       </div>
     </>
+  );
+}
+
+/** What a game at your own pace's reveal returned (couches.catchUp, one per game on the episode), as the reveal's beats read it:
+ *  who left, your lineup, each game's result. No table or write-up: the catch-up reveal doesn't carry them. */
+export function paceBeats(reveals: CatchUpReveal[]): SeasonReveal {
+  const first = reveals[0];
+  return {
+    episode: first.episode,
+    stage: "final",
+    finalAt: null,
+    again: false,
+    out: first.out,
+    happened: [],
+    lineup: reveals.find((x) => x.lineup)?.lineup ?? null,
+    games: reveals.flatMap((x) => (x.game ? [x.game] : [])),
+    predictions: [],
+    table: null,
+    next: null,
+    soFar: null,
+    summary: null,
+  };
+}
+
+/**
+ * A game at your own pace's reveal, full screen (step 4: one reveal, the same showcase, not a sheet): the beats of what each
+ * game's catch-up reveal returned, and `end`, the way on (the next episode's move, Done for now, how you finished).
+ */
+export function PaceRevealScreen({ show, reveals, end, onClose }: { show: ShowData; reveals: CatchUpReveal[] | null; end: ReactNode; onClose: () => void }) {
+  const mounted = useSyncExternalStore(noop, () => true, () => false);
+  if (!mounted) return null;
+  const name = (show.header?.show.name ?? "The show").replace(/^The /, "");
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-hidden={!reveals}
+      aria-label="The reveal"
+      data-pace-reveal-screen
+      className={`dark nd-fixed-x fixed inset-y-0 z-[75] isolate flex flex-col bg-[#0b0a10] text-foreground transition-[opacity,visibility] duration-300 motion-reduce:transition-none ${
+        reveals ? "visible opacity-100" : "invisible opacity-0"
+      }`}
+    >
+      {reveals && reveals.length > 0 && (
+        <Beats
+          key={reveals[0].episode}
+          name={name}
+          season={show.header?.seasonNumber ?? null}
+          n={reveals[0].episode}
+          r={paceBeats(reveals)}
+          error={null}
+          art={show.header ? { seasonId: show.header.seasonId, artUrl: show.header.show.backdropUrl || show.header.show.artUrl } : null}
+          end={end}
+          onClose={onClose}
+        />
+      )}
+    </div>,
+    document.body
   );
 }
 
@@ -371,16 +461,23 @@ function Kicker({ children }: { children: ReactNode }) {
   return <span className="type-caption mb-3 block text-[15px] tracking-[0.06em] text-muted-foreground">{children}</span>;
 }
 
-/** The first beat: the show and episode, and "Previously on the couch" (an episode revealed early whose final scores are in now:
- *  "Final scores are in"; never in the tour's replay, which plays it as it was). */
+/** Every game an episode's reveal covers, once each, in the order its beats play. */
+export function gamesIn(r: SeasonReveal): string[] {
+  const names = [r.lineup?.gameName, ...r.games.map((g) => g.gameName), ...r.predictions.map((g) => g.gameName), r.table?.gameName];
+  return [...new Set(names.filter((x): x is string => !!x))];
+}
+
+/** The first beat, over the show's art: "Last time on" the show, the episode, and every game it covers, named before the first
+ *  result (Phase 0's R5: the consequence said, not small print). An early reveal's final scores: "Final scores are in". */
 function Opener({ r, name, season, replay }: { r: SeasonReveal; name: string; season: number | null; replay?: boolean }) {
   const finalWords = useFinalLine(r.stage, r.finalAt);
+  const games = gamesIn(r);
   return (
-    <div>
-      <Kicker>
-        {name}
-        {season ? ` ${season}` : ""} · Episode {r.episode}
-      </Kicker>
+    <div data-reveal-opener className="mt-auto pb-2 [text-shadow:0_2px_18px_rgba(0,0,0,.55)]">
+      {/* On the art: white, not the muted kicker (it fell under 4.5:1 on a bright poster). */}
+      <span className="type-caption mb-3 block text-[15px] tracking-[0.06em] text-white/90">
+        {season ? `Season ${season} · ` : ""}Episode {r.episode}
+      </span>
       {r.again && r.stage === "final" && !replay ? (
         <h2 className="type-caption text-[56px] leading-[.92]">
           Final scores
@@ -388,13 +485,17 @@ function Opener({ r, name, season, replay }: { r: SeasonReveal; name: string; se
           are in
         </h2>
       ) : (
-        <h2 className="type-caption text-[56px] leading-[.92]">
-          Previously
-          <br />
-          on the couch
+        <h2 className="type-caption leading-[.92]">
+          <span className="mb-1.5 block text-[30px] leading-none text-white/85">Last time on</span>
+          <span className="block text-[60px] [overflow-wrap:anywhere]">{name}</span>
         </h2>
       )}
-      <p className="mt-4 text-[15px] text-muted-foreground">
+      {games.length > 0 && (
+        <p data-reveal-covers className="mt-4 text-[16px] font-semibold leading-snug">
+          {games.length === 1 ? games[0] : `Every game: ${games.join(" · ")}`}
+        </p>
+      )}
+      <p className="mt-2 text-[15px] text-white/80">
         {r.stage === "early" ? `Early results: who went home. ${finalWords ? `${finalWords}.` : "Weekly Lineup's full scores come later."} ` : ""}Tap anywhere to go on
       </p>
     </div>
@@ -504,52 +605,75 @@ function VoteCards({ r }: { r: SeasonReveal }) {
   );
 }
 
+/** Your lineup's night as data (data round 3's ledger): each starter's points as a bar on one signed scale (negatives to the left
+ *  of zero, zero a dot, at least four points wide so one small week doesn't fill it), what they did under the name, the total big. */
 function LineupBeat({ r }: { r: SeasonReveal }) {
   const l = r.lineup!;
+  const [drawn, setDrawn] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setDrawn(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+  const pts = l.starters.map((s) => s.points);
+  const lo = Math.min(0, ...pts);
+  const hi = Math.max(0, ...pts);
+  const span = Math.max(4, hi - lo);
+  const zero = (-lo / span) * 100;
   return (
-    <div>
+    <div data-reveal-lineup>
       <Kicker>Your {l.gameName}</Kicker>
       <div className="flex flex-col gap-2">
-        {l.starters.map((s, i) => (
-          <div key={s.name} style={{ ["--i" as string]: i }} className="nd-beat-row flex items-center gap-3 rounded-[4px] bg-card p-2">
-            <Face src={s.photo} name={s.name} className="size-12 flex-none rounded-[3px]" />
-            <span className="min-w-0 flex-1">
-              <b className="block text-[16px]">{first(s.name)}</b>
-              <small className="block truncate text-[13px] text-muted-foreground">{s.why || "Nothing scored"}</small>
-            </span>
-            <b className={`type-num text-[26px] ${s.points > 0 ? "text-good" : s.points < 0 ? "text-live" : "text-muted-foreground"}`}>{signed(s.points)}</b>
-          </div>
-        ))}
+        {l.starters.map((s, i) => {
+          const w = (Math.abs(s.points) / span) * 100;
+          return (
+            <div key={s.name} style={{ ["--i" as string]: i }} className="nd-beat-row grid grid-cols-[48px_1fr_112px] items-center gap-3 rounded-[4px] bg-card p-2">
+              <Face src={s.photo} name={s.name} className="size-12 flex-none rounded-[3px]" />
+              <span className="min-w-0">
+                <b className="block truncate text-[16px]">{first(s.name)}</b>
+                <small className="block truncate text-[13px] text-muted-foreground">{s.why || "Nothing scored"}</small>
+              </span>
+              <span className="flex flex-col items-end gap-1">
+                <b className={`type-num text-[22px] leading-none ${s.points > 0 ? "text-good" : s.points < 0 ? "text-live" : "text-muted-foreground"}`}>{signed(s.points)}</b>
+                <span className="relative block h-2 w-full" aria-hidden data-bar={s.points}>
+                  <i className="absolute inset-y-[-2px] w-px bg-foreground/35" style={{ left: `${zero}%` }} />
+                  {s.points === 0 ? (
+                    <i className="absolute top-1/2 size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted-foreground" style={{ left: `${zero}%` }} />
+                  ) : (
+                    <i
+                      className={`absolute inset-y-0 rounded-[1px] transition-[width] duration-500 ease-[cubic-bezier(.16,1,.3,1)] motion-reduce:transition-none ${s.points > 0 ? "bg-good" : "bg-live"}`}
+                      style={{ ...(s.points > 0 ? { left: `${zero}%` } : { right: `${100 - zero}%` }), width: drawn ? `${w}%` : "0%", transitionDelay: `${120 + i * 70}ms` }}
+                    />
+                  )}
+                </span>
+              </span>
+            </div>
+          );
+        })}
         {!l.starters.length && <p className="text-[15px] text-muted-foreground">Nobody started this episode.</p>}
       </div>
       <div className="mt-5 flex items-baseline gap-3">
         <b className="type-num text-[64px] leading-none">{signed(l.total)}</b>
-        {l.soFar && <small className="text-sm text-muted-foreground">so far · full scores to come</small>}
+        <small className="text-sm text-muted-foreground">{l.soFar ? "so far · full scores to come" : `in Episode ${r.episode}`}</small>
       </div>
     </div>
   );
 }
 
-function OtherGames({ r }: { r: SeasonReveal }) {
-  const rows = [...r.games, ...r.predictions];
+/** One of your other games, its own beat: its name, its result big, a streak as numbers that move. */
+function GameBeat({ g }: { g: SeasonReveal["games"][number] }) {
   return (
-    <div>
-      <Kicker>{r.lineup ? "Your other games" : "Your games"}</Kicker>
-      {rows.map((g, i) => (
-        <div key={`${g.leagueId}-${g.gameName}`} style={{ ["--i" as string]: i }} className="nd-beat-row border-t border-border py-3.5">
-          <span className="type-caption block text-[13px] tracking-[0.06em] text-muted-foreground">{g.gameName}</span>
-          <b className="mt-0.5 block text-[24px] font-bold leading-tight">{g.title}</b>
-          {g.streak && g.streak.to > 0 ? (
-            <span className="mt-1 flex items-baseline gap-1.5 text-[15px]">
-              {g.streak.from !== g.streak.to && <s className="type-num text-[20px] text-muted-foreground">{g.streak.from}</s>}
-              <b className="type-num text-[30px] text-good">{g.streak.to}</b>
-              in a row
-            </span>
-          ) : (
-            <small className="mt-0.5 block text-[15px] text-muted-foreground">{g.line}</small>
-          )}
-        </div>
-      ))}
+    <div data-reveal-game={g.leagueId}>
+      <Kicker>Your {g.gameName}</Kicker>
+      <b className="type-caption block text-[44px] leading-[.95]">{g.title}</b>
+      {g.streak && g.streak.to > 0 ? (
+        <span className="mt-3 flex items-baseline gap-2 text-[17px]">
+          {g.streak.from !== g.streak.to && <s className="type-num text-[26px] text-muted-foreground">{g.streak.from}</s>}
+          <b className="type-num text-[48px] leading-none text-good">{g.streak.to}</b>
+          in a row
+        </span>
+      ) : (
+        g.line && <p className="mt-3 text-[17px] text-muted-foreground">{g.line}</p>
+      )}
     </div>
   );
 }

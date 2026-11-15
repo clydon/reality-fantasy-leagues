@@ -44,7 +44,14 @@ import { episodeWordFromTitles } from "@/lib/game/show-words";
 // strip, the show's name typed in for you and its row ringed, and every save (follow, add from a listing, add by name) ending in
 // the practice finish instead: nothing is written.
 
-export type WhereTarget = WhereSeason & { seen: number; following: boolean; plays: boolean; keepUp?: KeepUp };
+export type WhereTarget = WhereSeason & {
+  seen: number;
+  following: boolean;
+  plays: boolean;
+  keepUp?: KeepUp;
+  /** A show's page opened it: the reveal there (the ledger's one action on a season you play). */
+  openReveal?: (n: number) => void;
+};
 /** The tour's practice: the show to type in (null: none, search anything), the season to ring, and what to do once it closes.
  *  `demo`: after yours, the shows it adds by itself (the user, 2026-11-01: you don't need a game to add a show), each found by its
  *  listing; `onDemo` hears the ones it added, `onAdded` that you added yours. */
@@ -124,6 +131,11 @@ function WhereSheet({ target, onOpenChange }: { target: WhereTarget | null; onOp
           s={t}
           start={t.seen}
           plays={t.plays}
+          ledger
+          onReveal={(n) => {
+            close();
+            t.openReveal?.(n);
+          }}
           keepUp={t.keepUp}
           busy={busy}
           cta={t.following ? "Save" : "Add to my shows"}
