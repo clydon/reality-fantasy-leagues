@@ -1086,6 +1086,33 @@ Last updated 2026-10-27.
     called off out of the episode's air time). Then `check-sports-explorer.js --case=calledoff`'s NOTE turns into a pass, and the
     campaign invariant `sport-locks` (`campaign/case.cjs`, which restates today's rule: a slate week at its air time) changes with
     it. Not fixed: found the day before the design round; nothing scores wrong.
+82. **A playoff in a stage that ends at the merge is placed after its final was played as an ordinary week** (a question; found
+    2026-11-14 building the design round's staged pilot, confirmed on the real routes: `node scripts/dev-test/check-stages-explorer.js
+    --case=h2h`, its NOTE). Head to head on a stage that ends at a phase (`span.to: { phase: 'merged' }`) places its playoff by the
+    stage's end (`MatchupLogic.lastOf`: the span's end), and that end is known only once the merge episode's results confirm it. So
+    before those results everyone is shown the merge episode as an ordinary matchup (Ann against Bo, no round) and sets a lineup
+    for it; after them, that week *was* the final (Bo against Cy, Bo champion), and Ann's matchup that week is gone from her record.
+    Server and runtime agree (the engine's own rule). No generated specimen has one (no staged game is head to head at all): the
+    staged pilot puts its playoff in the merged stage only. **The question:** refuse a playoff on a stage whose end is a phase (the
+    engine's `specProblems`), place it by a fixed episode only, or play the stage's playoffs in the next stage's first weeks? The
+    runtime and the generator play it as the engine does now (`stage-matchups` allows it: the final is the stage's end).
+83. **At its own pace with exclusive teams, a waiver week runs the moment everyone owed a replacement has claimed** (a question;
+    found 2026-11-14 building the pilot with an exclusive draft and waivers; the server's own rule: `waivers.js` `syncPaced`, "settles
+    as soon as everyone owed a replacement has a claim in", proven on the real routes by `check-waiver-commissioner.js
+    --case=paced-undo`). With swaps in the week, anyone who isn't owed a replacement and hasn't claimed yet loses their swap the
+    moment the last owed person claims, hours before the week's own time: in the situation `xw-waivers-run`, Ann's claim at
+    1 PM ran a week due at half past midnight. Bo's swap went in because he claimed first; had he waited, he'd have had none. The
+    page says nothing of it ("Set your Episode 5 lineup"). **The question:** keep running at once (and say so on the waivers
+    screen), wait for the week's time when the window has swaps, or wait until everyone has revealed the week's episode?
+84. **The overall of a game in head-to-head stages adds points, while each stage says most wins wins** (a question; found
+    2026-11-14 on the staged pilot's real page, `.ui-atlas/situations/staged-merged.txt`). The overall by points
+    (`overall: { by: 'points' }`, the only overall the runtime connects) adds each stage's table total, which for head to head is
+    the points a seat scored, not its record. How it plays says both: "Overall, each stage's points add up" and, for the stages,
+    "Each episode you play one of the others head to head: more points wins it. Most wins at the end wins." So a seat that won
+    every matchup can finish the overall behind one that lost them all but scored more. Server and runtime agree. **The question:**
+    is points the overall a head-to-head game in stages should have (then the page has to say so), or should it be wins (an overall
+    by stages won, or by places, both still gaps in the runtime: their own proof)?
+
 
 ## Decided against (don't re-propose without new information)
 

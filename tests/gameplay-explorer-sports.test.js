@@ -1067,3 +1067,49 @@ test("a game called off locks nothing: a day's and a week's lock is its first ga
     } finally { s.dispose(); }
   }
 });
+
+test("a real-size pool (athletes 'real'): the league's own size and positions in its shares, each drafted team about its share of each, scored and replayed; every other world as it was", () => {
+  // The league's own size, every position its count, and the table only for a team sport.
+  const nfl = Sports.realPool("football/nfl");
+  assert.equal(nfl.size, 344);
+  assert.deepEqual(nfl.shares, { QB: 40, RB: 80, WR: 110, TE: 50, PK: 32, DEF: 32 });
+  for (const key of ["basketball/nba", "baseball/mlb", "hockey/nhl", "soccer/eng.1", "football/college-football", "basketball/wnba"]) assert.ok(Sports.realPool(key).size >= 300, key);
+  assert.throws(() => Sports.realPool("golf/pga"), /team sport/);
+  // The deal: each position exactly its count, and every run of fifteen within one of its share (the interleave).
+  const deal = Sports.realDeal(nfl.shares);
+  assert.equal(deal.length, 344);
+  for (const [k, n] of Object.entries(nfl.shares)) {
+    assert.equal(deal.filter((x) => x === k).length, n, k);
+    for (let i = 0; i + 15 <= deal.length; i += 15) assert.ok(Math.abs(deal.slice(i, i + 15).filter((x) => x === k).length - (15 * n) / 344) < 1.5, k + " at " + i);
+  }
+  // A world of it: 344 athletes, positions in the league's shares; three exclusive teams of fifteen, each with two or so of
+  // everyone a lineup needs; a week's box score for every athlete, the table as the oracle says; an exact replay.
+  const doc = D.create({ seed: 7, world: { contexts: [Sports.contextFor("football/nfl", { couch: 3, pool: "real" })], people: PEOPLE }, games: [{ id: "g", contextId: "sport", timing: "live-only", spec: Bench.resolve("football/nfl", "season").row.spec }], situation: { clock: "2099-01-10T12:00:00.000Z" }, content: { completedEvents: 2, eventCount: 6 } });
+  assert.equal(doc.world.contexts[0].athletes, "real");
+  assert.deepEqual(P.inspect(doc).gaps, []);
+  const s = R.open(doc);
+  try {
+    const snap = s.snapshot(), world = snap.contexts.sport, roleOf = (id) => world.participants.find((p) => p.id === id).role;
+    assert.equal(world.participants.length, 344);
+    assert.deepEqual(Object.fromEntries(Object.keys(nfl.shares).map((k) => [k, world.participants.filter((p) => p.role === k).length])), nfl.shares);
+    assert.equal(new Set(world.participants.map((p) => p.name)).size, 344, "every name distinct");
+    for (const p of PEOPLE) {
+      const team = snap.games.g.state.castaways.filter((x) => x.ownerIds.includes(p.id)).map((x) => roleOf(x.id));
+      assert.equal(team.length, 15);
+      for (const [k, least] of Object.entries({ QB: 1, RB: 2, WR: 3, TE: 1, PK: 1, DEF: 1 })) assert.ok(team.filter((x) => x === k).length >= least, p.name + " has " + least + "+ " + k + ": " + team.join(","));
+    }
+    assert.equal(Object.keys(world.facts.find((f) => f.eventId === world.events[0].id).data.lines).length, 344, "a box score line for every athlete");
+    assert.deepEqual(table(snap.games.g.state), expected(snap));
+    // (A day apart, the next game shares a locked week: a lineup for it is refused, as the weekly lock says.)
+    const l = s.project("g", "p1").game.lineup;
+    assert.equal(l.roster.length, 15);
+    assert.equal(s.apply({ type: "lineup", gameId: "g", personId: "p1", eventId: l.epId, ids: l.roster.slice(6, 6 + l.need) }).status, l.locked ? "rejected" : "accepted");
+    const exported = s.export(), again = R.resume(exported);
+    try { assert.equal(again.hash(), exported.stateHash, "exact replay"); } finally { again.dispose(); }
+  } finally { s.dispose(); }
+  // Opt-in: without it the same world deals the default lineup's slots in turn, as before; any other value is refused.
+  assert.equal(Sports.contextFor("football/nfl", { couch: 3, pool: 49 }).athletes, undefined);
+  const plain = R.open(define("football/nfl", "season"));
+  try { assert.deepEqual(plain.snapshot().contexts.sport.participants.slice(0, 10).map((p) => p.role), ["QB", "WR", "WR", "RB", "RB", "TE", "RB", "PK", "DEF", "QB"]); } finally { plain.dispose(); }
+  assert.throws(() => R.open(D.create({ ...doc, world: { ...doc.world, contexts: [{ ...doc.world.contexts[0], athletes: "most" }] } })), /athletes is 'real'/);
+});

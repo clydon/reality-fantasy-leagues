@@ -63,12 +63,12 @@ try {
     const file = write(options.out || '.ui-atlas/bench-fixture.json', data);
     console.log(JSON.stringify({ ok: session.checks().every(c => c.pass), file, format: data.kind, config: session.scenario.config, checks: session.checks(), url: 'http://127.0.0.1:4400/__atlas/bench?scenario=' + encodeURIComponent(JSON.stringify(session.initialConfig)), ...(options.format === 'document' ? { loadPolicy: 'V2 inspection/document export. The current browser replay loader still expects version 1; the URL opens its legacy pilot configuration.' } : {}) }));
   } else if (command === 'campaign') {
-    // campaign --dir=<new or existing dir> [--create=<id> --seed=<n> --cases=<n> [--depth=<n>] [--tier=engine|api [--app=http://localhost:3000]]] [--workers=<n>] [--limit=<n>] [--status=1] [--repro=<case index> --out=<new file>]
-    allow(options, ['dir', 'create', 'seed', 'cases', 'depth', 'tier', 'app', 'workers', 'limit', 'status', 'repro', 'out']);
+    // campaign --dir=<new or existing dir> [--create=<id> --seed=<n> --cases=<n> [--depth=<n>] [--timeout=<ms per case: 30000, the API tier 60000>] [--tier=engine|api [--app=http://localhost:3000]]] [--workers=<n>] [--limit=<n>] [--status=1] [--repro=<case index> --out=<new file>]
+    allow(options, ['dir', 'create', 'seed', 'cases', 'depth', 'timeout', 'tier', 'app', 'workers', 'limit', 'status', 'repro', 'out']);
     if (!options.dir) throw Error('Use campaign --dir=<dir> (see docs/GAMEPLAY-EXPLORER.md#campaigns)');
     const C = require('../tools/gameplay-bench/campaign/runner.cjs'), dir = path.resolve(root, options.dir), rel = path.relative(root, dir);
     if (rel.startsWith('..') || path.isAbsolute(rel)) throw Error('Campaign directory must be inside the workspace');
-    if (options.create) C.create(dir, { id: options.create, seed: Number(options.seed), cases: Number(options.cases), depth: options.depth ? Number(options.depth) : undefined, tier: options.tier, app: options.app });
+    if (options.create) C.create(dir, { id: options.create, seed: Number(options.seed), cases: Number(options.cases), depth: options.depth ? Number(options.depth) : undefined, caseTimeoutMs: options.timeout ? Number(options.timeout) : undefined, tier: options.tier, app: options.app });
     if (options.repro !== undefined) {
       const { manifest } = C.load(dir), Case = require('../tools/gameplay-bench/campaign/case.cjs'), index = Number(options.repro);
       const { document, steps, executeSteps } = Case.reproducer(manifest, index), result = Case.runCase(manifest, index, { steps });

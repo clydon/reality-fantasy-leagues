@@ -1373,6 +1373,70 @@ test("stages: two games split at the merge, each a game of its own; the second d
   } finally { few.dispose(); }
 });
 
+test("head to head in stages (the design round's staged pilot): each stage's own schedule, record and playoff inside its own span; the merge's week ordinary; the overall the stages' points; a playoff in a stage that ends at the merge placed by its results (BACKLOG 82); exact replay", () => {
+  const D = require('../tools/gameplay-bench/explorer/document.cjs'), Q = require('./fixtures/gameplay-explorer/questions-input.json'), P = require('../tools/gameplay-bench/explorer/runtime-profile.cjs');
+  const { resultsData } = require('../tools/gameplay-bench/explorer/publish.cjs');
+  const h2h = { get: { by: 'draft', each: 3, own: 'shared', order: 'blind' }, count: { start: 2 }, score: { by: 'moments' }, rank: { by: 'matchups', playoffs: { teams: 2 } } };
+  const staged = (first = { ...h2h, rank: { by: 'matchups' } }) => ({ stages: [{ id: 'before', name: 'Before the merge', game: { ...first, span: { from: 1, to: { phase: 'merged' } } } }, { id: 'merged', name: 'Merged', game: { ...h2h, span: { from: { phase: 'merged' } } } }], overall: { by: 'points' } });
+  const people = ['Ann', 'Bo', 'Cy', 'Di'].map((name, i) => ({ id: ['ann', 'bo', 'cy', 'di'][i], name }));
+  const define = spec => D.create({ seed: 42, world: { contexts: [{ id: 'show', kind: 'show', format: { id: 'survivor' }, engine: { ...Q.context, couch: 4, pool: 18 }, phaseStarts: { merged: 4 } }], people }, games: [{ id: 'h2h', contextId: 'show', timing: 'live-only', spec }], situation: { clock: '2099-01-10T12:00:00.000Z', marks: people.map(p => ({ personId: p.id, contextId: 'show', through: 2 })) }, content: { completedEvents: 2, eventCount: 8 } });
+  // What's connected: a Weekly Lineup's head to head on a stage; best ball's stays a gap.
+  assert.deepEqual(P.inspect(define(staged())).gaps, []);
+  assert.deepEqual(P.inspect(define(staged({ ...h2h, count: { best: 2 }, rank: { by: 'matchups' } }))).gaps.map(g => g.path), ['/games/0/spec/stages/0/game/rank/by']);
+  /** Play episode n: every open lineup set, the episode aired and published, revealed by `who`. */
+  const play = (s, n, who = ['ann', 'bo', 'cy', 'di']) => {
+    for (const [k, p] of people.entries()) for (const id of ['h2h~before', 'h2h~merged']) { const l = s.project(id, p.id).game.lineup; if (l && !l.locked && l.episode === n) assert.equal(s.apply({ type: 'lineup', gameId: id, personId: p.id, eventId: l.epId, ids: l.roster.slice(k % 2, k % 2 + l.need) }).status, 'accepted'); }
+    const e = s.snapshot().contexts.show.events.find(x => x.number === n);
+    assert.equal(s.apply({ type: 'clock', at: new Date(Date.parse(e.airAt) + 3600000).toISOString() }).status, 'accepted');
+    const snap = s.snapshot();
+    assert.equal(s.apply({ type: 'results', contextId: 'show', eventId: e.id, source: 'provider-fixture', resultStatus: 'final', data: resultsData(snap, s.export().input, 'show', e.id, 'final') }).status, 'accepted');
+    for (const p of who) assert.equal(s.apply({ type: 'reveal', contextId: 'show', personId: p }).status, 'accepted');
+  };
+  const view = (s, id, p = 'ann') => s.project(id, p).game;
+  const weeks = m => m.record.wins + m.record.losses + m.record.ties;
+  const s = R.open(define(staged()));
+  try {
+    play(s, 3);
+    // Before the merge: the first stage's week 4 an ordinary matchup, the merged stage not started.
+    const a4 = view(s, 'h2h~before');
+    assert.equal(a4.matchups.next.episode, 4); assert.equal(a4.matchups.playoffs, null);
+    assert.equal(view(s, 'h2h~merged').from, null);
+    play(s, 4);
+    // Episode 4 confirmed the merge: the first stage ends with it, its last matchup that week (no playoff), every week in its record.
+    const a = view(s, 'h2h~before'), b = view(s, 'h2h~merged');
+    assert.equal(a.to, 4); assert.ok(a.over); assert.equal(a.matchups.last.episode, 4); assert.equal(a.matchups.next, null);
+    assert.equal(weeks(a.matchups), 4, 'four weeks in the first stage');
+    // The merged stage: its own draft, its record from nothing, its schedule from its own start, its playoff not placed yet.
+    assert.equal(b.from, 5); assert.equal(b.matchups.next.episode, 5);
+    assert.equal(weeks(b.matchups), 0);
+    // Bo behind on Episode 7; nobody's record runs past the stage's own weeks.
+    for (const n of [5, 6, 7]) play(s, n, n === 7 ? ['ann', 'cy', 'di'] : undefined);
+    const b7 = view(s, 'h2h~merged');
+    assert.equal(weeks(b7.matchups), 3, 'three weeks of the merged stage');
+    assert.equal(b7.matchups.playoffs.seeds.length, 2, "the playoff of two seeded before the season's last week");
+    assert.equal(b7.matchups.playoffs.champion, null);
+    assert.equal(view(s, 'h2h~merged', 'bo').matchups.last.episode, 6, 'Bo held to his mark');
+    play(s, 8);
+    const end = view(s, 'h2h~merged'), whole = view(s, 'h2h');
+    assert.ok(end.over && end.matchups.playoffs.champion, "the merged stage's champion"); assert.ok(whole.over);
+    // The overall: each seat's two stages' points added up (by points, not by who won the stages).
+    for (const r of whole.table) assert.equal(r.total, ['h2h~before', 'h2h~merged'].reduce((n, id) => n + view(s, id).table.find(x => x.playerId === r.playerId).total, 0), r.playerId);
+    const exported = s.export(), again = R.resume(exported);
+    try { assert.equal(again.hash(), exported.stateHash, 'exact replay'); } finally { again.dispose(); }
+  } finally { s.dispose(); }
+  // BACKLOG 82 (a question): a playoff in a stage that ends at the merge is placed only by the merge's results, so the week that
+  // becomes its final is shown before it as an ordinary matchup, and someone set a lineup for an opponent they never played.
+  const t = R.open(define(staged(h2h)));
+  try {
+    play(t, 3);
+    const before = view(t, 'h2h~before');
+    assert.equal(before.matchups.next.episode, 4); assert.equal(before.matchups.next.round, null, 'shown as an ordinary week');
+    play(t, 4);
+    const after = view(t, 'h2h~before');
+    assert.ok(after.matchups.playoffs.champion, 'Episode 4 became the final'); assert.equal(after.matchups.last.episode, 3, "Ann's Episode 4 matchup is gone: she wasn't in the final");
+  } finally { t.dispose(); }
+});
+
 test("stakes with a bot: points won by beating the bot are yours to stake (the limit read them as nothing)", () => {
   const D = require('../tools/gameplay-bench/explorer/document.cjs'), Q = require('./fixtures/gameplay-explorer/questions-input.json');
   // The boot, void when the bot makes no call; "will it happen", staked from your points.

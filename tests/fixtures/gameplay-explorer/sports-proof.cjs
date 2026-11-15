@@ -7,6 +7,8 @@
 //   A schedule of your own: schedule (each game's start, an ISO instant, in order; the first `completed` have box scores) with
 //   clock (the scenario's now). closes ('start', 'daily', 'weekly': when lineups lock) and from (the game's first episode)
 //   change the game's spec ('game': at each game's start, a slate's).
+//   pool: 'real' (the league's real-size pool, its positions in the league's shares: runtime-sports.cjs REAL) or a number (that
+//   many, dealt the default lineup's slots in turn as before; with athletes: 'real', in the league's shares); left out, the teams' and four.
 //   A slate (a week of several games): slate (games a week, 2 to 6: twice as many teams, each athlete on one), its weeks seven days
 //   apart unless a schedule is given (each week's first game at its event's time; the rest a day and three hours apart).
 // Which league takes which game: node scripts/dev-test/profile-blockers.js, or the list in docs/GAMEPLAY-EXPLORER.md (sports).
@@ -25,7 +27,7 @@ module.exports = function sportsProof(options = {}) {
   const events = schedule.map((airAt, i) => ({ id: 'sport-event-' + (i + 1), contextId: 'sport', number: i + 1, title: 'Synthetic game ' + (i + 1), airAt, resultStatus: i < completed ? 'final' : 'unavailable' }));
   return D.create({
     seed: options.seed ?? 42,
-    world: { contexts: [{ ...Sports.contextFor(league, { couch: 3, pool: 3 * each + 4 }), ...(options.slate ? { slate: { games: options.slate } } : {}) }], people: [{ id: 'ann', name: 'Ann' }, { id: 'bo', name: 'Bo' }, { id: 'cy', name: 'Cy' }].map(p => ((options.hides || []).includes(p.id) ? { ...p, hidesScores: true } : p)), ...(events.length ? { events } : {}) },
+    world: { contexts: [{ ...Sports.contextFor(league, { couch: 3, pool: options.pool ?? 3 * each + 4, ...(options.athletes ? { athletes: options.athletes } : {}) }), ...(options.slate ? { slate: { games: options.slate } } : {}) }], people: [{ id: 'ann', name: 'Ann' }, { id: 'bo', name: 'Bo' }, { id: 'cy', name: 'Cy' }].map(p => ((options.hides || []).includes(p.id) ? { ...p, hidesScores: true } : p)), ...(events.length ? { events } : {}) },
     games: [{ id: 'g', contextId: 'sport', timing: options.timing || 'own-pace', spec }],
     situation: {
       clock,

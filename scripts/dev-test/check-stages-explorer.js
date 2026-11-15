@@ -32,7 +32,11 @@
 // screenshot).
 //
 // Needs: the app on :3000 (npm run dev; BASE to override) and the local dev database (.env.local AUTH_DATABASE_URL).
-// Run:   node scripts/dev-test/check-stages-explorer.js [--case=overall|draft|snake|lineup|short|pace|all] [--verbose] [--keep]
+//   h2h      head to head in stages (the design round's staged pilot, 2026-11-14): at three moments (before the merge, the merge
+//            confirmed, the season over with Bo a week behind) every person's /games equals the runtime's for each stage's matchups,
+//            table and span and for the overall; the shared route checks are clean. Then BACKLOG 82 (a NOTE): a playoff in the
+//            stage that ends at the merge is its last week, shown before the merge's results as an ordinary matchup.
+// Run:   node scripts/dev-test/check-stages-explorer.js [--case=overall|draft|snake|lineup|short|pace|h2h|all] [--verbose] [--keep]
 const path = require('path');
 const root = path.resolve(__dirname, '../..');
 const L = require(path.join(root, 'tools/gameplay-bench/live-db.cjs')), R = require(path.join(root, 'tools/gameplay-bench/explorer/runtime.cjs')), D = require(path.join(root, 'tools/gameplay-bench/explorer/document.cjs'));
@@ -277,6 +281,55 @@ const CASES = {
         check('strict again on the game: both stages follow back', back.status === 200 && (await strictIn(game)) && (await strictIn(stage)) && (await strictIn(first)), [back.status, await strictIn(stage), await strictIn(first)]);
       });
     } finally { s.dispose(); }
+  },
+  // The design round's staged pilot (2026-11-14, core-runtime-42): head to head in two stages split at the merge, each a Weekly
+  // Lineup of its own (draft 3, start 2), the playoff of two in the merged stage; four people, Bo a week behind at the end. At three
+  // moments (before the merge, the merge confirmed, the season over) every person's /games: each stage's matchups (record, last and
+  // next matchup, seeds, champion), table and span, and the overall, equal the runtime's; the shared route checks are clean.
+  // Then BACKLOG 82 on the server: a playoff in the stage that ends at the merge, before and after the merge's results.
+  async h2h() {
+    const four = [...PEOPLE, { id: 'p4', name: 'Di' }], H = { ...lineup(3), rank: { by: 'matchups', playoffs: { teams: 2 } } };
+    const pilot = { stages: [{ id: 'before', name: 'Before the merge', game: { ...H, rank: { by: 'matchups' }, span: { from: 1, to: { phase: 'merged' } } } }, { id: 'after', name: 'Merged', game: { ...H, span: { from: { phase: 'merged' } } } }], overall: { by: 'points' } };
+    const h2h = x => x && { record: x.record, last: x.last && [x.last.episode, x.last.opponent, x.last.result], next: x.next && [x.next.episode, x.next.opponent, x.next.round ?? null], seeds: x.playoffs?.seeds ?? null, champion: x.playoffs?.champion ?? null };
+    const compare = async (s, label) => {
+      const snap = s.snapshot(), doc = s.export().input;
+      await withRows(snap, doc, async (ids, as) => {
+        const url = '/api/seasons/' + ids.seasons.show.id + '/games?couch=' + ids.couchId, table = v => v.table.map(r => [r.playerId, r.total]);
+        for (const person of snap.people) {
+          const list = (await as(person.id, 'GET', url)).json?.games || [];
+          for (const g of doc.games) {
+            const real = list.find(x => x.leagueId === ids.leagues[g.id]), mine = s.project(g.id, person.id).game;
+            check(label + ': ' + person.name + ' (through ' + snap.contexts.show.marks.find(m => m.personId === person.id).through + ') sees ' + g.id + "'s matchups, table and span as the runtime does", !!real && JSON.stringify([h2h(real.matchups ?? null), table(real), real.from ?? null, real.to ?? null, !!real.over]) === JSON.stringify([h2h(mine.matchups ?? null), table(mine), mine.from ?? null, mine.to ?? null, !!mine.over]), real ? { server: [h2h(real.matchups ?? null), table(real), real.from, real.to, real.over], runtime: [h2h(mine.matchups ?? null), table(mine), mine.from, mine.to, mine.over] } : 'not listed');
+          }
+        }
+        const problems = (await checkCase({ app, ids, snap, document: doc, project: (g, p) => s.project(g, p) })).filter(p => !p.signature.startsWith('known:'));
+        check(label + ': the shared route checks (agreement, matchups and spoilers) are clean', !problems.length, problems.slice(0, 3));
+      });
+    };
+    const s = R.open(define({ pilot }, { people: four, pool: 14, events: 6 }));
+    try {
+      night(s, 1); for (const p of ['p1', 'p2', 'p3', 'p4']) reveal(s, p);
+      night(s, 2); for (const p of ['p1', 'p2', 'p3', 'p4']) reveal(s, p);
+      await compare(s, 'before the merge');
+      night(s, 3); for (const p of ['p1', 'p2', 'p3', 'p4']) reveal(s, p);
+      check('the runtime: the first stage over at the merge (3), the merged stage from 4 with a fresh record', s.project('pilot~before', 'p1').game.to === 3 && s.project('pilot~after', 'p1').game.from === 4 && s.project('pilot~after', 'p1').game.matchups.record.wins === 0, s.project('pilot~after', 'p1').game.matchups);
+      await compare(s, 'the merge');
+      for (const n of [4, 5, 6]) { night(s, n); for (const p of ['p1', 'p3', 'p4', ...(n < 6 ? ['p2'] : [])]) reveal(s, p); }
+      check('the runtime: the merged stage has a champion', !!s.project('pilot~after', 'p1').game.matchups.playoffs?.champion);
+      await compare(s, 'the season over, Bo a week behind');
+    } finally { s.dispose(); }
+    // BACKLOG 82 (a question): a playoff in the stage that ends at the merge. Before the merge's results the server, like the
+    // runtime, shows its last week as an ordinary matchup; after them, that week was the final.
+    const t = R.open(define({ pilot: { ...pilot, stages: [{ ...pilot.stages[0], game: { ...H, span: { from: 1, to: { phase: 'merged' } } } }, pilot.stages[1]] } }, { people: four, pool: 14, events: 6 }));
+    try {
+      night(t, 1); night(t, 2); for (const p of ['p1', 'p2', 'p3', 'p4']) reveal(t, p, 2);
+      const before = t.project('pilot~before', 'p1').game.matchups;
+      await compare(t, 'BACKLOG 82, before the merge');
+      night(t, 3); for (const p of ['p1', 'p2', 'p3', 'p4']) reveal(t, p);
+      const after = t.project('pilot~before', 'p1').game.matchups;
+      await compare(t, 'BACKLOG 82, the merge confirmed');
+      note('BACKLOG 82: before Episode 3 (the merge) Ann is shown ' + JSON.stringify(h2h(before).next) + " (an ordinary week, no round); after it, the first stage's playoff was that week: seeds " + JSON.stringify(after.playoffs?.seeds) + ', champion ' + after.playoffs?.champion + ", Ann's last matchup " + after.last?.episode + '. Server and runtime agree.');
+    } finally { t.dispose(); }
   },
 };
 

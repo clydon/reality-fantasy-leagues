@@ -143,6 +143,15 @@ statistics". In short:
   before its campaigns. A dev server can serve a
   stale server module after a fix (BACKLOG 72's note).
 
+**The design round's pilots (2026-11-14, done; uncommitted on branch `explorer-sports`).** Read the guide's "The design round's
+pilots". Real-size sports pools (`context.athletes: 'real'`, core-runtime-41), the head-to-head pilot with an exclusive draft and
+waivers (proof only, proof-family-61/63), and head to head in stages (core-runtime-42, the `stage-matchups` invariant,
+`check-stages-explorer.js --case=h2h`); eight new game-page situations (25 in all, docs/GAME-PAGE-SITUATIONS.md), and the page
+check now runs the route check on each. Found BACKLOG 82, 83, 84 (questions for the user) and Designs needed 40, 41. Left: the
+story-show world (the packet's fourth ask); teeth for `stage-matchups`' schedule half (no control fails it yet); later-stage weeks
+are rare in campaigns at depth 40. A design-round session may wire real ESPN rosters into the real pool
+(`tools/gameplay-bench/explorer/sports-roster.cjs`, theirs) once this is committed.
+
 **After sports: a stage a format change starts** (9 specimens, nothing else blocks them; `node scripts/dev-test/profile-blockers.js` gives the totals):
 - the specimens: a Weekly Lineup "Draft" stage and a "New draft" stage with `on: { change: [teams-formed, pairs-formed, split-into-individuals, merge, swap-all], again: true }`, `extras.changes: { ok: 'auto', unanswered: 'start' }`, overall by points (rolled from Below Deck: check the format they need before assuming Survivor's);
 - what the server does (read these first, write path before read path): `src/lib/server/change-stages.ts` (the season sync settles it after every result and research answer: `settleSeasonChanges`; a copy of the stage is a league keyed `<stage id>@<the change's id>`, made mid-season, the stage before ended where it starts; a copy whose change a corrected report no longer says is taken away; the maker's answer through the stage-changes route), `StageLogic.changePlan` and `state.changeStages` in the engine, `formats/format-timeline.js` `stageTriggers`, and `db/format-timeline.js` `timelineForShow` (the stored research answers);

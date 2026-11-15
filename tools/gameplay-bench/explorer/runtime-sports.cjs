@@ -49,10 +49,15 @@ function league(context) {
   if (typeof context.key !== 'string' || !context.key) throw Error("A sport context names its league (key: 'football/nfl')");
   return Bench().resolve(context.key);
 }
-/** A definition's sport context for a league: the app's page context for it, with the couch and the pool (its athletes). */
-function contextFor(key, { couch, pool, id = 'sport' } = {}) {
-  const c = Bench().resolve(key);
-  return { id, kind: 'sport', key, format: { id: 'generic' }, engine: { ...json(c.context), ...(couch === undefined ? {} : { couch }), ...(pool === undefined ? {} : { pool }) } };
+/**
+ * A definition's sport context for a league: the app's page context for it, with the couch and the pool (its athletes). `pool:
+ * 'real'` is the league's real-size pool (REAL, below: its size, positions in the league's own shares; the context's `athletes:
+ * 'real'`); a number with `athletes: 'real'` is that many in the same shares.
+ */
+function contextFor(key, { couch, pool, id = 'sport', athletes } = {}) {
+  const c = Bench().resolve(key), real = pool === 'real' || athletes === 'real';
+  const size = pool === 'real' ? realPool(key).size : pool;
+  return { id, kind: 'sport', key, format: { id: 'generic' }, engine: { ...json(c.context), ...(couch === undefined ? {} : { couch }), ...(size === undefined ? {} : { pool: size }) }, ...(real ? { athletes: 'real' } : {}) };
 }
 /** The positions the league's default lineup takes, slot by slot (sports.cjs make's roleFor): generated athletes take them in turn. */
 function roles(c) {
@@ -60,9 +65,44 @@ function roles(c) {
   const list = c.defaults.slots.lineup.flatMap(slot => Array(slot.n).fill(roleFor(slot.takes)));
   return list.length ? list : [c.sport.positions[0]?.key || 'Player'];
 }
-/** Each generated athlete's position, in the cast's order. */
+// ---- A real-size pool (core-runtime-41) ----
+// The bench's earlier sports worlds are small: a pool just big enough for the couch's teams, its athletes taking the default
+// lineup's slots in turn (an NFL world of 49: six or seven of everything). A draft room, waivers and a lineup sheet are designed
+// for a league's own pool: hundreds of athletes, far more receivers than kickers. A team sport's context with `athletes: 'real'`
+// (contextFor's pool 'real') deals its generated athletes positions in the league's own shares: a fantasy league's draftable pool
+// as Yahoo and ESPN list it (every team's defense and kicker, the quarterbacks a team carries, the receivers and backs who play),
+// in round numbers. They're dealt in a smooth interleave (the weighted round robin), so every run of the cast holds each position
+// in about its share: the runtime drafts each team the next of the cast in turn, so every team has about two quarterbacks, four
+// backs and five receivers of fifteen, as a real draft's do. A pool larger than the table's size repeats the deal; a smaller one
+// is its first part. A sport the table doesn't have (a field, a card: golf's and racing's competitors, tennis's draws, a fight
+// card's classes) refuses it. Opt-in, so every other world's athletes, facts and hashes are as they were.
+const REAL = {
+  football: { QB: 40, RB: 80, WR: 110, TE: 50, PK: 32, DEF: 32 }, // 344: 32 teams' defenses and kickers
+  basketball: { PG: 70, SG: 75, SF: 65, PF: 65, C: 55 }, // 330
+  baseball: { C: 35, '1B': 30, '2B': 30, '3B': 30, SS: 30, LF: 30, CF: 30, RF: 30, DH: 15, SP: 90, RP: 80 }, // 430: about half pitchers
+  hockey: { C: 80, LW: 75, RW: 75, D: 110, G: 40 }, // 380
+  soccer: { G: 40, D: 125, M: 130, F: 65 }, // 360
+};
+/** A league's real-size pool: { size, shares: { position: count } } (REAL, by its sport), or a thrown reason. */
+function realPool(key) {
+  const c = Bench().resolve(key), shares = REAL[c.sport.id];
+  if (!shares) throw Error("A real-size pool is a team sport's (football, basketball, baseball, hockey, soccer): " + key + ' is ' + c.sport.id);
+  return { size: Object.values(shares).reduce((a, b) => a + b, 0), shares: { ...shares } };
+}
+/** The deal of a pool's positions, in order: each position its count, interleaved (the smooth weighted round robin). */
+function realDeal(shares) {
+  const keys = Object.keys(shares), total = keys.reduce((n, k) => n + shares[k], 0), current = Object.fromEntries(keys.map(k => [k, 0])), out = [];
+  for (let i = 0; i < total; i++) {
+    let best = null;
+    for (const k of keys) { current[k] += shares[k]; if (best === null || current[k] > current[best]) best = k; }
+    current[best] -= total; out.push(best);
+  }
+  return out;
+}
+/** Each generated athlete's position, in the cast's order: the default lineup's slots in turn, or the league's own shares (athletes 'real'). */
 function assignRoles(context, participants) {
-  const r = roles(league(context));
+  if (context.athletes !== undefined && context.athletes !== 'real') throw Error("context.athletes is 'real' (a league's real-size pool, its positions in the league's shares) or left out");
+  const r = context.athletes === 'real' ? realDeal(realPool(context.key).shares) : roles(league(context));
   participants.forEach((p, i) => { if (typeof p.role !== 'string' || !p.role) p.role = r[i % r.length]; });
 }
 /** One released event's box score: every athlete's raw counts (the bench's seeded lines by sport and position; `pick(i)` a seeded number). */
@@ -475,4 +515,4 @@ function saved(state) {
   const keys = new Set(S.StatsLogic.stampedKeys());
   return JSON.parse(JSON.stringify(state, (k, v) => (keys.has(k) ? undefined : v)));
 }
-module.exports = { league, contextFor, assignRoles, assignTeams, slateOf, teamsOf, gamesOf, playedOf, offOf, isOff, slateLines, gameLocks, linesFor, resultsFor, isField, keptLines, shapeOf, boutsOf, checkData, applyFacts, saved, guard, lockTimes, stampLocks, unstampLocks, withLocks };
+module.exports = { league, contextFor, realPool, realDeal, assignRoles, assignTeams, slateOf, teamsOf, gamesOf, playedOf, offOf, isOff, slateLines, gameLocks, linesFor, resultsFor, isField, keptLines, shapeOf, boutsOf, checkData, applyFacts, saved, guard, lockTimes, stampLocks, unstampLocks, withLocks };

@@ -4,7 +4,9 @@ Part 4 of the design round's preparation ([the packet](DESIGN-ROUND-PACKET.md), 
 generated game's own page with its sheets, piloted on **head to head**: a Survivor Weekly Lineup (draft 3, start 2, a two-seat
 playoff, four people) and its sports twin, the NFL's own season game (head to head, a weekly lock, three people). Each situation
 below is one the fresh-start brief asks a redesign to show: who is behind, moves due or set, a week in progress, results in,
-reveals, sports and shows.
+reveals, sports and shows. Since the same day's second session the frame's variants are here too (the packet's "What the bench
+needs for the frame"): the pilot with an exclusive draft and waivers, its staged variant, and a sports world at a league's real
+size (the NFL's 344 players, positions in the league's own shares).
 
 **Open one:** Atlas (`bash scripts/dev-test/restart-atlas.sh`, then `http://127.0.0.1:4400/__atlas/bench`) › Open… › **A first-page
 situation**. It opens on the game's own page (Full game) as its viewer, on the real routes (the live tier: zt-gb rows), with every
@@ -18,8 +20,10 @@ that stops being what it says fails there. Headless: `node -e "console.log(JSON.
 `node scripts/gameplay-bench.js execute --file=s.json` takes its `input` (or open the file on the page: Open… › A file).
 
 **Checked on the real page:** `node scripts/dev-test/check-situations-page.js [--only=<regex>]` opens each one from the menu
-and checks that it lands on the game page, signed in as its viewer, with nothing scrolling sideways. It keeps a screenshot and
-the page's words for the round (`.ui-atlas/situations/<id>.png` and `.txt`). 17 of 17 passed on 2026-11-14. Those words and
+and checks that it lands on the game page, signed in as its viewer, with nothing scrolling sideways, and that the real
+routes agree with the runtime. It keeps a screenshot and
+the page's words for the round (`.ui-atlas/situations/<id>.png` and `.txt`). 25 of 25 passed on 2026-11-14, each also with the bench's route check (the real routes agree with the runtime for
+everyone in it; known findings printed apart). Those words and
 screenshots are today's page in each situation: the baseline the redesign starts from. `show-due.png`, for one, shows the
 record and the grid but nothing naming this week's opponent (Designs needed item 3).
 
@@ -48,6 +52,16 @@ id in the Open menu.
 | NFL: hides scores, a game behind | Nothing past their mark, and that the others can already see it | Route check only | `nfl-hides-behind` |
 | NFL: last week's game cancelled | The cancelled game named; a week for nobody; the next lineup open | No (today's slice) | `nfl-cancelled` |
 | NBA: a week of three games in progress | The week laid out by game, who's locked now, what's final so far marked provisional | Page check `sports slates` (no week in progress) | `nba-week-in-progress` |
+| **The pilot with an exclusive draft and waivers** (a snake: nobody's castaway on two teams; a loss replaced, one swap a week) | | | |
+| A loss to replace, the week open | Who you lost and that you're owed a replacement, your one swap, the free agents, that someone else has a claim in (not what), when claims run, that anything unclaimed is filled; this week's opponent beside it | No (no situation had waivers; the generator never made a lineup an exclusive snake) | `xw-waivers-open` |
+| Claims in, waiting (live) | Your claim, ranked; someone else's in too; when the week runs | No | `xw-claims-in` |
+| The week ran the moment you claimed (own pace) | What the week gave you (Ann lost her first choice to Bo, who was ahead of her), your team now, free agency open, the lineup due; that it ran early and why (BACKLOG 83) | No | `xw-waivers-run` |
+| NFL: a real-size pool, your lineup due | The lineup by position from a fifteen-man roster out of 344 (40 quarterbacks, 110 receivers...): who starts where, the bench, each player's line | No (the NFL world was 49 players, the lineup's slots in turn) | `nfl-real-pool-due` |
+| NFL: waivers open on a real-size pool | Some 300 free agents to find a player in (search, position, recent lines), two swaps, when claims run; Bo's claim in | No | `nfl-waivers-open` |
+| **The staged pilot** (the same head to head before and after the merge, each stage its own draft and record; the playoff in the merged stage; the overall by points) | | | |
+| Before the merge, your lineup due | This stage's opponent and record, the lineup due, that the merged stage (a new draft, a fresh record) comes with the merge, what the overall counts | No (head to head on a stage was a runtime gap) | `staged-before-merge` |
+| The merge: the first stage final, a new draft | The first stage over (its record and table), the merged stage drafted from who's still in, its first opponent, a record at 0-0, the playoff ahead, the overall so far | No | `staged-merged` |
+| The season over | The merged stage's champion, the first stage's table, the overall and what it adds up (points, not wins: BACKLOG 84) | No | `staged-champion` |
 
 ## What the bench still can't produce for this page (recorded, not built)
 
@@ -61,5 +75,10 @@ id in the Open menu.
   the page check's `cut` definition (a points game: `cut-page.json`, `05r-cut.png`), Designs needed item 10.
 - **Head to head on a field or a card** (golf, tennis): no default plays it. Points games on those are the page check's `sports
   places` and `sports formats` definitions; categories head to head is `sports categories`.
+- **The draft room itself.** Every situation starts after the draft (the runtime makes it), so the exclusive pilot's snake draft
+  and the merged stage's draft opening mid-season are never on screen (Designs needed 33). The draft room as actions is its own
+  capability.
+- **A story-show world** (the packet's fourth ask): every generated show is competition-shaped. Not built.
+- **A real-size field or card** (a golf field of 150, a tennis draw): the real pool is a team sport's.
 - **Other families as variants** (pools, questions, Outlast, stages): their page-check definitions in `.ui-atlas/explorer-page/`
   (`*-definition.json`, opened with Open… › A file) are the variants to check the design against.

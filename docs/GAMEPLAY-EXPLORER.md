@@ -1692,6 +1692,91 @@ specimen needed either: they're the real schedule's.
   4. The bench's Publish on a slate threw ("name the event"): `resultsFor` was called without the event. Fixed by moving the
      bench's publish into `explorer/publish.cjs` (shared with the first page's situations, below).
 
+### The design round's pilots: real-size sports pools, an exclusive draft with waivers, head to head in stages (2026-11-14)
+
+What the design round's frame asked the bench for (docs/DESIGN-ROUND-PACKET.md, "What the bench needs for the frame"), each as
+game-page situations (docs/GAME-PAGE-SITUATIONS.md). The story-show world it also lists is still to build.
+
+**1. Real-size sports pools** (`core-runtime-41`). A team sport's context with `athletes: 'real'` (`contextFor(key, { pool: 'real' })`;
+the sports-proof fixture's `pool: 'real'`) deals its generated athletes positions in the league's own shares (`runtime-sports.cjs`
+`REAL`, a fantasy league's draftable pool in round numbers): the NFL 344 (40 QB, 80 RB, 110 WR, 50 TE, 32 K, 32 DEF), the NBA 330,
+MLB 430 (about half pitchers), the NHL 380, soccer 360; college and the WNBA take their sport's. They're dealt in a smooth
+interleave, so any run of the cast holds each position in about its share, and since the runtime drafts each team the next of the
+cast in turn, an NFL team of fifteen comes out about two quarterbacks, four backs and five receivers. A field or a card (golf,
+racing, tennis, MMA) refuses it. Opt-in: every other world's athletes, facts and hashes are as they were. The case budget (10,000
+participant-events) holds a real pool for one game over about eight events.
+- **Unit test** (`gameplay-explorer-sports.test.js`, "a real-size pool"): the sizes and shares; every position exactly its count and
+  every run of fifteen within one and a half of its share; a world of 344 with distinct names, three teams of fifteen each with a
+  quarterback, two backs, three receivers, an end, a kicker and a defense or more, a box score line for every athlete, the table as
+  the oracle says, a lineup the weekly lock refuses, exact replay; without the opt-in the old deal; any other value refused.
+- **Generator** (`proof-family-60`): on a team sport three sports cases in ten have the real pool, from a stream of their own, with one
+  game and at most three events to come.
+- **Materializer:** the season's cast in one statement (`live-db.cjs`: hundreds of athletes was hundreds of inserts).
+- **Situations:** `nfl-real-pool-due` (the season game on 344, the others' lineups set by position) and `nfl-waivers-open` below.
+
+**2. The pilot with an exclusive draft and waivers.** No runtime change: an exclusive snake, head to head and waivers were each
+connected, and the profile took the three together. What was missing was proof they meet:
+- **Generator** (`proof-family-61`): a lineup's private draft becomes an exclusive snake on half of those that fit (a free agent left
+  over), from a stream of its own; most of those are the pilot itself, head to head (a playoff of two half the time) with waivers
+  (a loss replaced, a swap or none every episode). Before it, no generated show lineup was ever an exclusive snake. That proved
+  too rare (campaign `pilot-200`: one such game in 200 cases, no claim won in it), so `proof-family-63` also adds the pilot whole,
+  as a game of its own, on about one case in six that has none (a probe of 80 cases: 13 pilot games, 21 waiver weeks run, 9 claims
+  won).
+- **Its sports twin:** the NFL's season game with waivers every week (nobody goes home in a sport: two swaps, no replacements) on a
+  real pool: about 300 free agents, a week open after each game, claims and free agency as on a show.
+- **Situations:** `xw-waivers-open`, `xw-claims-in` (live), `xw-waivers-run` (own pace), `nfl-waivers-open`.
+- **Finding** (BACKLOG 83, a question, the server's own rule): at its own pace with exclusive teams a week runs the moment everyone
+  owed a replacement has claimed, so anyone who wanted only a swap and hadn't claimed yet loses it. `xw-waivers-run` shows it.
+
+**3. Head to head in stages** (`core-runtime-42`; the design round's variant: none of the 32 staged specimens is head to head). The
+profile takes head to head on a Weekly Lineup's stage (start N, scored by moments; best ball or Outlast head to head on a stage is a
+named gap): each stage's own league plays its own schedule, record and playoff inside its own span, as on the server; the game's
+overall is by points, as every staged game's.
+- **Unit test** (`gameplay-bench-runtime.test.js`, "head to head in stages"): best ball's stays a gap; the merge's week an ordinary
+  matchup; the first stage over at the merge with every week in its record and no playoff; the merged stage from the next episode
+  with a fresh record; three weeks of it, its playoff of two seeded before the season's last week, Bo held to his mark; a champion;
+  the overall each seat's stages' points added up; exact replay. And BACKLOG 82 pinned as the engine plays it.
+- **Generator** (`proof-family-62`, then 63): most games in stages of Weekly Lineups play them head to head (a stage counting its
+  best N starts N), an odd one out and quiet nights as drawn, a playoff on the last stage half the time and on an earlier one four
+  times in ten where its span leaves room (the engine refuses a playoff on a one-episode leg: taught, not relaxed), with two more
+  episodes so later stages play (`pilot-200` had twelve such cases that played three later-stage weeks in all).
+- **Invariant** `stage-matchups` (`case.cjs`, recounted from the stage's span and the world's results, never MatchupLogic): a viewer's
+  last and next matchup and every playoff round inside the stage's span; a record no longer than the stage's episodes with results
+  they've been told; a stage over at a known end with a playoff has its final there. The existing head-to-head and stage invariants
+  (`matchup-past-mark`, `stages-overall`, `stages-meet`, `stage-draft`) already run on every stage game.
+- **Real routes** (`node scripts/dev-test/check-stages-explorer.js --case=h2h`, reusable): the staged pilot, four people, at three
+  moments (before the merge, the merge confirmed, the season over with Bo a week behind): every person's `/games` equals the runtime
+  for each stage's matchups (record, last and next, seeds, champion), table and span, and for the overall; the shared route checks
+  (`matchups-disagree` among them) are clean. 67 of 67 pass. BACKLOG 82 confirmed there (a NOTE).
+- **Findings:** BACKLOG 82 (a question: a playoff in a stage that ends at the merge is placed after its final was played as an
+  ordinary week), BACKLOG 84 (a question: the overall adds points while each stage says most wins wins), and Designs needed 40.
+- **Situations:** `staged-before-merge`, `staged-merged`, `staged-champion`.
+
+**Checks for all three** (on the final code, 2026-11-14):
+- `node --test tests/gameplay*.test.js`: 274 of 274 (the situations suite holds all 25 situations to their claims).
+- `node scripts/dev-test/check-situations-page.js`: 25 of 25 on the real page. It now also runs the bench's route check on each
+  (the API tier's agreement and spoiler checks for everyone in the situation, known findings printed apart), so the real-size
+  pools, the waiver weeks and the staged pilot are compared with the server, not only opened.
+- `check-stages-explorer.js --case=h2h`: 67 of 67; `check-waiver-commissioner.js --case=paced` and `paced-undo`: 9 of 9, 5 of 5.
+- Campaign `pilot-200` (seed 170, `proof-family-62`): 200 of 200 pass, but its coverage was thin (above), so the generator was
+  tuned (`proof-family-63`) and run again. Campaign `pilot-200b` (seed 172, depth 40): 199 of 200 pass; one timeout, case 5, a
+  soccer season on a 360-player pool that passes alone in 27.7 s and ran past the 30-second limit with four workers sharing the
+  machine (the campaign CLI takes `--timeout=<ms>` now). Its coverage (`cover.cjs` in its folder): 2 real-size pools, 28 pilot
+  games (43 waiver weeks run, 13 claims won), 25 cases in head-to-head stages (9 earlier stages' playoffs placed, 12 later stages
+  with a playoff, 5 stage champions; only 4 later-stage weeks as the first person sees them: the walk rarely gets far past the
+  merge at depth 40).
+- API tier: campaign `pilot-api` (seed 173, depth 24, one worker, `--timeout=180000`): 30 of 30 pass (4 pilot games, 4 in
+  head-to-head stages; BACKLOG 45's `known:classic-state-spoiler` in 26). A first run failed all 30 as infrastructure: the dev
+  server had stopped (a Turbopack internal error); restarted, the same cases passed.
+- Positive controls (`node scripts/dev-test/engine-controls.js --controls=.ui-atlas/campaigns/pilot-200b/controls.json --run="node
+  .ui-atlas/campaigns/pilot-200b/control.cjs 200"`; the engine file restored byte for byte each time), over the 25 cases in
+  head-to-head stages: the unedited engine passes 25. **A stage's playoff placed by the season's end:** 9 fail `stage-matchups`,
+  exactly the cases with an earlier stage's playoff. It first failed none: a playoff placed past the stage shows no round at all,
+  and the invariant only read the rounds shown, so it now also requires the final at a stage's known end once seen. (The same edit
+  fails the unit test's BACKLOG 82 part.) **A stage's schedule started with the season:** 0 fail, with the walk's start and the
+  seats' start both broken. The engine bounds a stage's schedule a third way (its series is the stage's span), so the schedule
+  half of `stage-matchups` has no proven teeth yet; its playoff half does.
+
 ### Product fixes from these findings (2026-11-12, uncommitted; the user asked for all four)
 
 Each was reproduced through the bench, fixed, and is now a hard assertion in `check-explorer-proof.js` or a UI oracle:
@@ -1779,7 +1864,7 @@ Checks: `node --test tests/gameplay-bench-runtime.test.js` (no app or browser), 
 Chunk 4A, the engine/state tier (2026-11-12). Code: `tools/gameplay-bench/campaign/`.
 
 ```powershell
-node scripts/gameplay-bench.js campaign --dir=.ui-atlas/campaigns/<name> --create=<name> --seed=<n> --cases=<n> [--depth=12] [--workers=2] [--limit=<n>]
+node scripts/gameplay-bench.js campaign --dir=.ui-atlas/campaigns/<name> --create=<name> --seed=<n> --cases=<n> [--depth=12] [--workers=2] [--limit=<n>] [--timeout=<ms a case: 30000; a real-size sports pool can need more>]
 node scripts/gameplay-bench.js campaign --dir=.ui-atlas/campaigns/<name> [--workers=4]          # resume
 node scripts/gameplay-bench.js campaign --dir=.ui-atlas/campaigns/<name> --status=1
 node scripts/gameplay-bench.js campaign --dir=.ui-atlas/campaigns/<name> --repro=<case index> --out=<new file>

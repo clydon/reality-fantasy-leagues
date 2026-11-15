@@ -96,7 +96,9 @@ async function up(snap, document, dbUrl, onLease) {
       ids.groups[contextId] = (await one(`INSERT INTO league_groups (created_by) VALUES ($1) RETURNING id`, [owner])).id;
       // (An athlete's position and the provider's id for them: how the server knows a kept line's person, score.ts peopleOf.)
       // (A slate's athlete's team is the cast's tribe_name: how the server knows a holding's games, air-times.ts stampGameLocks.)
-      for (const [i, c] of world.participants.entries()) await db.query(`INSERT INTO season_cast (season_id, name, photo_url, sort_order, role, provider_ids, tribe_name) VALUES ($1, $2, $3, $4, $5, $6, $7)`, [season, c.name, c.photoUrl || null, i, sport ? c.role || null : null, sport ? JSON.stringify({ [PROVIDER]: c.id }) : null, sport && c.team ? c.team : null]);
+      // (In one statement: a real-size sports pool is hundreds of athletes, runtime-sports.cjs REAL.)
+      const cast = world.participants.map((c, i) => [c.name, c.photoUrl || null, i, sport ? c.role || null : null, sport ? JSON.stringify({ [PROVIDER]: c.id }) : null, sport && c.team ? c.team : null]);
+      if (cast.length) await db.query(`INSERT INTO season_cast (season_id, name, photo_url, sort_order, role, provider_ids, tribe_name) SELECT $1, x.name, x.photo_url, x.sort_order, x.role, x.provider_ids, x.tribe_name FROM unnest($2::text[], $3::text[], $4::int[], $5::text[], $6::jsonb[], $7::text[]) WITH ORDINALITY AS x(name, photo_url, sort_order, role, provider_ids, tribe_name, n) ORDER BY x.n`, [season, ...[0, 1, 2, 3, 4, 5].map(k => cast.map(r => r[k]))]);
     }
     for (const [gi, game] of document.games.entries()) {
       const state = snap.games[game.id].state, season = ids.seasons[game.contextId], slug = slugOf(key, 'g' + (gi + 1));

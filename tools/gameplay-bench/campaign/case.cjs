@@ -574,6 +574,26 @@ function invariants(session, document, before, record, step, inject, known = new
       // (A record by each of a sport's categories has as many results a week as there are categories.)
       const perWeek = Array.isArray(game.spec.score?.categories) && game.spec.rank?.by === 'categories' ? game.spec.score.categories.length : 1;
       if (h && ((h.last && h.last.episode > told) || h.record.wins + h.record.losses + h.record.ties > told * perWeek || (h.playoffs?.bracket || []).some(r => r.played && r.episode > told))) throw new Violation('matchup-past-mark', person.id + ' sees a ' + game.id + ' matchup past episode ' + told, step);
+      // Head to head on a stage (proof-family-62, core-runtime-42; 'stage-matchups'), recounted from the stage's own span and the
+      // world's results, never from MatchupLogic: a stage's schedule, record and playoff are its own. This viewer's last and next
+      // matchup and every playoff round sit inside the stage's span (its start, and its end once the season has said it); its record
+      // holds no more weeks than the stage's episodes with results they've been told; and once a stage with a playoff is over at a
+      // known end they've seen, its final is that end, not the season's (one with room for it shows no round at all if placed past
+      // the stage: positive control, a playoff placed by the season's end).
+      if (h && game.stageOf !== undefined) {
+        const SL = require('../../../src/lib/game/state-logic'), st = snap.games[game.id].state, from = SL.startEpisode(st), to = SL.endEpisode(st);
+        const inside = n => Number.isInteger(n) && from !== null && n >= from && (to === null || n <= to), rel = e => ['partial', 'final', 'corrected'].includes(e.resultStatus);
+        const weeks = world.events.filter(e => rel(e) && inside(e.number) && e.number <= told).length, rounds = h.playoffs?.bracket || [];
+        const teams = game.spec.rank?.playoffs?.teams, po = Number.isInteger(teams) && teams >= 2 ? Math.ceil(Math.log2(teams)) : 0;
+        const bad = (h.last && !inside(h.last.episode)) ? 'its last matchup is episode ' + h.last.episode : (h.next && !inside(h.next.episode)) ? 'its next matchup is episode ' + h.next.episode
+          : h.record.wins + h.record.losses + h.record.ties > weeks ? 'a record of ' + (h.record.wins + h.record.losses + h.record.ties) + ' weeks in ' + weeks
+          : rounds.some(r => !inside(r.episode)) ? 'a playoff round at episode ' + rounds.find(r => !inside(r.episode)).episode
+          : v.over && to !== null && rounds.length && rounds[rounds.length - 1].episode !== to ? 'its final at episode ' + rounds[rounds.length - 1].episode
+          // (A playoff the rule gives it, with room before it, and nothing at the stage's end: placed past the stage, so it never
+          // shows a round at all. Its absence is the failure.)
+          : po && v.over && to !== null && to <= told && to - po + 1 > from && rounds[rounds.length - 1]?.episode !== to ? 'no final at its end (a playoff of ' + po + ' round' + (po === 1 ? '' : 's') + ': ' + (rounds.length ? 'rounds at ' + rounds.map(r => r.episode).join(', ') : 'none') + ')' : null;
+        if (bad) throw new Violation('stage-matchups', person.id + ' sees ' + game.id + ' (episodes ' + from + ' to ' + (to ?? 'open') + ') with ' + bad, step);
+      }
       // Nobody sees someone else's guess on a side bet while it's still open (its episode hasn't locked or got results).
       const full = snap.games[game.id].state, now = Date.parse(snap.clock), text = JSON.stringify(v);
       for (const e of full.episodes) if (!(e.airsAt && Date.parse(e.airsAt) <= now) && !(e.events || []).length && !(e.scoringEvents || []).length)

@@ -1,7 +1,9 @@
 // The game page's situations on the explorer page (tools/gameplay-bench/explorer/situations.cjs; docs/GAME-PAGE-SITUATIONS.md):
 // for each situation, Open… › A game-page situation › its entry opens the real game page in the bench's phone frame as its
 // viewer, on the real routes (zt-gb rows the bench removes when it closes the case). Checked: the frame is signed in as the
-// situation's viewer, the game page renders, nothing scrolls sideways, and the page's own UI checks come back. A screenshot of
+// situation's viewer, the game page renders, nothing scrolls sideways, the page's own UI checks come back, and the real routes
+// agree with the runtime for everyone in it (the bench's route check: the API tier's agreement and spoiler checks; known findings
+// are printed, not failed). A screenshot of
 // each (`.ui-atlas/situations/<id>.png`) and the page's words (`<id>.txt`) are kept for the design round.
 //
 // Needs: Atlas on :4400 (bash scripts/dev-test/restart-atlas.sh) and the app on :3000 (npm run dev).
@@ -30,6 +32,12 @@ fs.mkdirSync(out, { recursive: true });
         assert.match(String(user), new RegExp('^' + (name.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12) || 'p') + '_ztgb'), 'signed in as ' + ui.viewerId + ', got ' + user);
         const page = await app.locator('body').evaluate(() => ({ text: document.body.innerText, wide: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1 }));
         assert.ok(!page.wide, 'nothing scrolls sideways');
+        // The real routes against the runtime for everyone in it (the API tier's agreement and spoiler checks: the page's Check
+        // routes), known findings counted apart.
+        const rc = await p.evaluate(async () => { const r = await fetch('/__atlas/bench/runtime/check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: window.__GAMEPLAY_EXPLORER_PAGE__.sides.a.id }) }); return r.json(); });
+        assert.ok(Array.isArray(rc.problems), 'the route check ran: ' + JSON.stringify(rc).slice(0, 200));
+        assert.deepEqual(rc.problems.map(x => x.signature + ' ' + (x.person || '') + ' ' + JSON.stringify(x.detail || '').slice(0, 160)), [], 'the real routes agree with the runtime');
+        if (rc.known.length) console.log('  known: ' + rc.known.join(', '));
         fs.writeFileSync(path.join(out, x.id + '.txt'), page.text);
         await p.locator('#device-a').screenshot({ path: path.join(out, x.id + '.png') });
         results.push({ id: x.id, ok: true }); console.log('PASS ' + x.id + ': ' + x.label);

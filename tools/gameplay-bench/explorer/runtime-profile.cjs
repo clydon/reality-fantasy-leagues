@@ -43,13 +43,18 @@ function inspect(document) {
       return;
     }
     // A stage's own game: a plain Weekly Lineup or Outlast (the specimens' shapes), each side of an episode or a phase, drafted in a
-    // snake or in private, its waivers a window opened by hand at most (replace 'never', a manual schedule). A rider on a stage (head
-    // to head, a bounty, a captain, a hat, an auction, waivers after every loss...) plays as it does alone, but needs its own proof
-    // before it's called connected.
+    // snake or in private, its waivers a window opened by hand at most (replace 'never', a manual schedule). A rider on a stage (a
+    // bounty, a captain, a hat, an auction, waivers after every loss...) plays as it does alone, but needs its own proof before it's
+    // called connected. Head to head on a Weekly Lineup's stage (core-runtime-42: the design round's staged pilot, no specimen has
+    // one) is: each stage's own schedule, record and playoffs, inside its own span, its odd one out and quiet nights as alone; best
+    // ball or Outlast head to head on a stage is still a gap.
     if (stageIndex >= 0) {
-      const plain = { get: ['by', 'each', 'own', 'order'], count: ['start', 'best', 'all'], score: ['by', 'points'], rank: ['by'] };
+      const plain = { get: ['by', 'each', 'own', 'order'], count: ['start', 'best', 'all'], score: ['by', 'points'], rank: ['by', 'odd', 'quiet', 'playoffs'] };
       const w = spec.extras?.waivers, byHand = !active(w) || (J.object(w) && w.replace === 'never' && w.windows?.schedule === 'manual');
-      if (spec.get?.by !== 'draft' || !['snake', 'blind'].includes(spec.get?.order) || !byHand || !['moments', 'place'].includes(spec.score?.by) || spec.rank?.by !== 'total' || (spec.ask || []).length || Object.entries(plain).some(([section, keys]) => Object.entries(spec[section] || {}).some(([k, v]) => !keys.includes(k) && active(v))) || Object.entries(spec.extras || {}).some(([k, v]) => active(v) && !['bets', 'waivers', 'draft', 'hideStarters'].includes(k)))
+      const h2h = spec.rank?.by === 'matchups' && J.object(spec.count) && spec.count.start !== undefined && spec.score?.by === 'moments';
+      if (spec.rank?.by === 'matchups' && !h2h) add(game.id, p + '/rank/by', 'Head to head on a stage is connected for a Weekly Lineup (start N, scored by moments); best ball or Outlast head to head on a stage needs its own proof');
+      else
+      if (spec.get?.by !== 'draft' || !['snake', 'blind'].includes(spec.get?.order) || !byHand || !['moments', 'place'].includes(spec.score?.by) || !(spec.rank?.by === 'total' || h2h) || (spec.rank?.by === 'total' && ['odd', 'quiet', 'playoffs'].some(k => active(spec.rank[k]))) || (spec.ask || []).length || Object.entries(plain).some(([section, keys]) => Object.entries(spec[section] || {}).some(([k, v]) => !keys.includes(k) && active(v))) || Object.entries(spec.extras || {}).some(([k, v]) => active(v) && !['bets', 'waivers', 'draft', 'hideStarters'].includes(k)))
         add(game.id, p, "Only a plain Weekly Lineup or Outlast is connected as a stage (the specimens' shapes); a rider on a stage needs its own proof");
     }
     if (!['draft', 'pick', 'none'].includes(spec.get?.by)) add(game.id, p + '/get/by', 'Acquisition adapter not implemented');
