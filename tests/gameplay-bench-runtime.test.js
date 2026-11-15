@@ -1223,7 +1223,8 @@ test("the commissioner's waiver actions: a manual window opens only when they op
     assert.equal(week().phase, 'closed');
     no({ type: 'waiverUndo', gameId: 'g', personId: 'p1' }, /no waiver run to undo/);
     // A game with no waivers: nothing to run, but a window whenever whoever runs it wants one. It keeps waivers on while it runs;
-    // turned off, the week is over on the spot and can't be opened again for that episode.
+    // turned off, the week is over on the spot; whoever runs the game can open it again for that episode (Designs needed 32, the
+    // user's decision 2026-11-14): the same week, keeping its id.
     assert.deepEqual([W.supported(st('plain')), W.enabled(st('plain')), 'plain' in s.snapshot().stores.waivers], [true, false, false]);
     no({ type: 'waiverRun', gameId: 'plain', personId: 'p1' }, /doesn't use waivers/);
     ok({ type: 'waiverWindow', gameId: 'plain', personId: 'p1', swaps: 1 });
@@ -1231,7 +1232,8 @@ test("the commissioner's waiver actions: a manual window opens only when they op
     ok({ type: 'claim', gameId: 'plain', personId: 'p2', spot: { dropId: c(4), addIds: [c(9)] } });
     ok({ type: 'waiverWindow', gameId: 'plain', personId: 'p1', swaps: null });
     assert.deepEqual([week('plain').phase, week('plain').turnedOff, week('plain').claimsIn, claims('plain'), W.enabled(st('plain'))], ['closed', true, [], {}, false]);
-    no({ type: 'waiverWindow', gameId: 'plain', personId: 'p1', swaps: 1 }, /have processed/);
+    ok({ type: 'waiverWindow', gameId: 'plain', personId: 'p1', swaps: 1 });
+    assert.deepEqual([week('plain').id, week('plain').phase, week('plain').turnedOff ?? false, week('plain').swaps, W.enabled(st('plain'))], ['wv-plain-1-1', 'open', false, 1, true]);
     const exported = s.export(), replay = R.resume(exported); try { assert.equal(replay.hash(), exported.stateHash); } finally { replay.dispose(); }
   } finally { s.dispose(); }
 });
@@ -1331,8 +1333,9 @@ test("stages: two games split at the merge, each a game of its own; the second d
     const sum = (a, b) => Object.fromEntries(people.map(p => [p, a[p] + b[p]]));
     assert.deepEqual(table('two', 'p1'), sum(table('two~before', 'p1'), table('two~after', 'p1')));
     assert.deepEqual(table('out', 'p1'), sum(table('out~before', 'p1'), table('out~after', 'p1')));
-    // ...and by hand for Outlast: the first stage as it stood at its end; in the second, castaway 4 went 4th, everyone else has outlasted four.
-    const after = Object.fromEntries(people.map(p => [p, team('out~after', p).reduce((n, id) => n + (id === cast(4) ? 4 : 5), 0)]));
+    // ...and by hand for Outlast: the first stage as it stood at its end; in the second (from episode 4: BACKLOG 62, it counts boots
+    // from its own start), castaway 4 went first of the stage (1), everyone else has outlasted one (2).
+    const after = Object.fromEntries(people.map(p => [p, team('out~after', p).reduce((n, id) => n + (id === cast(4) ? 1 : 2), 0)]));
     assert.deepEqual(table('out', 'p1'), { p1: 10 + after.p1, p2: 16 + after.p2, p3: 16 + after.p3 });
     assert.ok(Object.values(table('two~after', 'p1')).some(x => x !== 0), 'the second stage scored');
     // Bo (through 3) sees the first stage only; Cy (through 2) sees it as it stood after episode 2.
@@ -1373,7 +1376,7 @@ test("stages: two games split at the merge, each a game of its own; the second d
   } finally { few.dispose(); }
 });
 
-test("head to head in stages (the design round's staged pilot): each stage's own schedule, record and playoff inside its own span; the merge's week ordinary; the overall the stages' points; a playoff in a stage that ends at the merge placed by its results (BACKLOG 82); exact replay", () => {
+test("head to head in stages (the design round's staged pilot): each stage's own schedule, record and playoff inside its own span; the merge's week ordinary; the overall the stages' points; a playoff in a stage that ends at the merge refused (BACKLOG 82); exact replay", () => {
   const D = require('../tools/gameplay-bench/explorer/document.cjs'), Q = require('./fixtures/gameplay-explorer/questions-input.json'), P = require('../tools/gameplay-bench/explorer/runtime-profile.cjs');
   const { resultsData } = require('../tools/gameplay-bench/explorer/publish.cjs');
   const h2h = { get: { by: 'draft', each: 3, own: 'shared', order: 'blind' }, count: { start: 2 }, score: { by: 'moments' }, rank: { by: 'matchups', playoffs: { teams: 2 } } };
@@ -1424,17 +1427,9 @@ test("head to head in stages (the design round's staged pilot): each stage's own
     const exported = s.export(), again = R.resume(exported);
     try { assert.equal(again.hash(), exported.stateHash, 'exact replay'); } finally { again.dispose(); }
   } finally { s.dispose(); }
-  // BACKLOG 82 (a question): a playoff in a stage that ends at the merge is placed only by the merge's results, so the week that
-  // becomes its final is shown before it as an ordinary matchup, and someone set a lineup for an opponent they never played.
-  const t = R.open(define(staged(h2h)));
-  try {
-    play(t, 3);
-    const before = view(t, 'h2h~before');
-    assert.equal(before.matchups.next.episode, 4); assert.equal(before.matchups.next.round, null, 'shown as an ordinary week');
-    play(t, 4);
-    const after = view(t, 'h2h~before');
-    assert.ok(after.matchups.playoffs.champion, 'Episode 4 became the final'); assert.equal(after.matchups.last.episode, 3, "Ann's Episode 4 matchup is gone: she wasn't in the final");
-  } finally { t.dispose(); }
+  // BACKLOG 82 (decided 2026-11-14): a playoff in a stage that ends at the merge would be placed only by the merge's results, a week
+  // shown as an ordinary matchup becoming its final: the engine refuses it, so the runtime won't open it.
+  assert.throws(() => R.open(define(staged(h2h))), /engine-valid playable definition/);
 });
 
 test("stakes with a bot: points won by beating the bot are yours to stake (the limit read them as nothing)", () => {

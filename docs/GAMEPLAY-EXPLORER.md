@@ -1777,6 +1777,22 @@ overall is by points, as every staged game's.
   seats' start both broken. The engine bounds a stage's schedule a third way (its series is the stage's span), so the schedule
   half of `stage-matchups` has no proven teeth yet; its playoff half does.
 
+### The rule fixes of 2026-11-15 (BACKLOG 54, 58, 62, 81, 82, 83, 84 and Designs needed 32, the user's decisions of 2026-11-14)
+
+Built in the engine lane; what changed here, where the explorer restates a rule (`core-runtime-43`, `proof-family-64`):
+- **Runtime.** A stage's own league carries `settings.stageOf`, as the server writes it, so its Outlast counts from its start (B62).
+  The own-pace waiver sync calls `WaiverLogic.runsEarly` (B83) instead of its own copy of the rule; a week turned off and opened
+  again keeps its id (DN 32). The world's pairs state no split on a night that leaves nobody in (B54).
+- **Generator.** A staged playoff on the last stage only (B82: the engine refuses one on a stage that ends at a phase).
+- **Invariants.** `sport-locks`: a slate week locks at its first game played (B81). `stage-matchups`: a stage that ends at a phase
+  has no playoff (B82). `waivers-by-hand`: a window opened or changed by hand is open after its step (unless its episode aired) and
+  never runs in under three hours (B58).
+- **Checks.** `check-sports-explorer.js --case=calledoff` part 5 and `check-stages-explorer.js --case=overall|h2h` turned their
+  NOTEs into checks; `check-waiver-commissioner.js` gained `paced-swaps` (B83) and its `window` case reopens a window turned off.
+  The situation `xw-waivers-run` runs at its time. A 60-case campaign (`rulefix-60`, seed 1114) passed whole.
+- **Left:** B84's overall by places isn't connected in the runtime (the profile's gap stands); until it is, the page says the
+  overall is points beside head-to-head stages.
+
 ### Product fixes from these findings (2026-11-12, uncommitted; the user asked for all four)
 
 Each was reproduced through the bench, fixed, and is now a hard assertion in `check-explorer-proof.js` or a UI oracle:

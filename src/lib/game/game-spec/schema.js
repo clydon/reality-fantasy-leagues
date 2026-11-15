@@ -3603,6 +3603,7 @@ function statScoreSettles(score, ctx, stats) {
  * from? }, a round an episode over the game's last episodes (or from `from`), leaving at least one episode of matchups before them.
  * `league`: a league's own keeps what it plays (a span changed under its playoffs moves them, as the engine reads it).
  */
+const PLAYOFFS_AT_PHASE = 'Playoffs need a set last episode: this ends when a phase starts, so a week already played could become its final. End it at an episode, or put the playoffs in the last stage';
 function matchupProblems(rank, s, league) {
   const out = [];
   // L4 part 1b: head to head by categories is head to head too (its playoffs, odd one out and quiet week).
@@ -3620,7 +3621,12 @@ function matchupProblems(rank, s, league) {
   if (p !== undefined && p !== null) {
     if (!on) out.push(['rank.playoffs', "Playoffs are head to head's: rank.by 'matchups' (or 'categories')"]);
     else if (!isObj(p) || !(isInt(p.teams, 2) && p.teams <= MAX_PLAYOFF_TEAMS)) out.push(['rank.playoffs.teams', `The playoffs take the top 2 to ${MAX_PLAYOFF_TEAMS} of you`]);
-    else {
+    else if (spanEndPhase(s.span)) {
+      // BACKLOG 82 (the user's decision, 2026-11-14): a game that ends when a phase starts doesn't know its last episode until that
+      // episode's results confirm it, so a week everyone played as an ordinary matchup would become its final after the fact. A
+      // matchup is never rewritten into a final: playoffs need an end known ahead (an episode, or the season's end).
+      out.push(['rank.playoffs', PLAYOFFS_AT_PHASE]);
+    } else {
       const rounds = playoffRounds(p.teams);
       const first = isObj(s.span) ? spanStart(s.span) : null;
       const last = isObj(s.span) ? spanEnd(s.span) : null;
@@ -4613,6 +4619,10 @@ function stagedProblems(spec, s, ctx, opts, add) {
       if (ownStart(raws[i])) add(`${at}.game.span.from`, "It starts when the stage before can't be played as the groups stand (its 'next-stage' fallback): leave its start out");
     } else if (i > 0 && rawSeason === undefined && !(isObj(raw.span) && raw.span.from !== undefined)) add(`${at}.game.span.from`, 'A stage after the first says where it starts: an episode, a phase of the season, or a format change (on); or plays alongside the game\'s own (alongside: true)');
     const nextRaw = i + 1 < mains ? raws[i + 1] : undefined;
+    // BACKLOG 82: a stage the next one's format change (or its 'next-stage' fallback) ends doesn't know its last episode ahead either,
+    // nor does a copy made at every such change (on.again: the next copy ends it).
+    const changeEnds = (isObj(nextRaw) && (nextRaw.on !== undefined || fallsTo(raws, i + 1))) || (isObj(st.on) && st.on.again === true);
+    if (changeEnds && isObj(raw) && isObj(raw.rank) && raw.rank.playoffs !== undefined && raw.rank.playoffs !== null) add(`${at}.game.rank.playoffs`, PLAYOFFS_AT_PHASE);
     if (isObj(nextRaw) && (nextRaw.on !== undefined || fallsTo(raws, i + 1)) && isObj(raw.span) && raw.span.to !== undefined && raw.span.to !== null) {
       add(`${at}.game.span.to`, nextRaw.on !== undefined ? 'It ends where the next stage starts, on its format change: leave its end out' : "It ends where it can't be played as the groups stand and the next stage starts (its 'next-stage' fallback): leave its end out");
     }

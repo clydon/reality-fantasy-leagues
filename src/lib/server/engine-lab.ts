@@ -372,6 +372,8 @@ async function makeStages(user: SessionUser, parentId: string, name: string, spe
         },
         after: async (s, client, id) => {
           refused(StateLogic.setGame(s, Spec.stageLeagueGame(stage), { ctx: stageCtx }), 409);
+          // A stage's own league says it is one: its Outlast counts boots from the stage's start (BACKLOG 62).
+          s.settings.stageOf = parentId;
           await client.query("UPDATE leagues SET stage_of = $2, stage_key = $3 WHERE id = $1", [id, parentId, stage.id]);
           if (StateLogic.readsPhases(s) || StateLogic.startPhase(s) || StateLogic.endPhase(s)) settleIn(s, await leaguePhases(client, id, season.id), await scheduleOf(season.id));
           await recordChange(client, id, s, { userId: user.id, kind: "game.start", tier: 1, text: `${stage.name || `Stage ${i + 1}`} of ${name}, from the engine lab`, detail: { lab: true, stageOf: parentId } });

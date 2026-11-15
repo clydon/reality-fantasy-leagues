@@ -44,15 +44,16 @@ function researchOf(world, data, n) {
   const votes = def && Array.isArray(data.votes) ? data.votes.map(v => ({ name: name.get(v.castawayId), leftTheGame: left.has(v.castawayId) ? 'yes' : 'no', exitMethod: left.get(v.castawayId) || null, [def.key]: v.votedFor ? name.get(v.votedFor) : null, ...(def.count ? { [def.count]: v.votesReceived } : {}) })) : null;
   if (!world.context.pairs || !Number.isInteger(n)) return votes ? { castaways: votes } : null;
   const p = pairsOf(world, n), castaways = votes || [...left].map(([id, method]) => ({ name: name.get(id), leftTheGame: 'yes', exitMethod: method }));
-  return { castaways, formatState: { playedAs: 'pairs', phase: null, groups: p.groups.map(g => ({ name: null, members: g.map(id => name.get(id)) })), alone: p.alone.map(id => name.get(id)), newcomers: [], wentHomeAs: left.size ? 'individuals' : 'nobody', changes: p.groups.length < 2 && (n === 1 || pairsOf(world, n - 1).groups.length >= 2) ? [{ kind: 'split-into-individuals', when: 'end', from: n + 1, what: 'Fewer than two pairs left', sure: 'high' }] : p.repaired ? [{ kind: 'swap', when: 'end', from: n + 1, what: 'Everyone re-paired', sure: 'high' }] : [] } };
+  return { castaways, formatState: { playedAs: 'pairs', phase: null, groups: p.groups.map(g => ({ name: null, members: g.map(id => name.get(id)) })), alone: p.alone.map(id => name.get(id)), newcomers: [], wentHomeAs: left.size ? 'individuals' : 'nobody', changes: p.groups.length < 2 && (p.groups.length || p.alone.length) && (n === 1 || pairsOf(world, n - 1).groups.length >= 2) ? [{ kind: 'split-into-individuals', when: 'end', from: n + 1, what: 'Fewer than two pairs left', sure: 'high' }] : p.repaired ? [{ kind: 'swap', when: 'end', from: n + 1, what: 'Everyone re-paired', sure: 'high' }] : [] } };
 }
 // The pairs the show forms (the world's opt-in context.pairs { every }): everyone still in is paired at the premiere and again at the
 // end of every `every`th episode (re-paired: a swap going into the next), each time in a seeded order of its own; between, a pair
 // keeps its people, and one down to one is on their own (a pair down to one is no group). An odd one out is on their own too. Who is
 // with whom at episode n's end (going into the next), from the world's own exits through n: { groups: [[id, id]], alone: [id],
 // repaired }. The night the show stops being divided (fewer than two pairs left: one pair among people on their own reads as no
-// longer divided, as a merge does; a finale, everyone gone), the answer says so (a split into individuals), as research would: an
-// unstated change makes the timeline unsure of how the night was played. Pure.
+// longer divided, as a merge does), the answer says so (a split into individuals), as research would: an unstated change makes the
+// timeline unsure of how the night was played. A finale, everyone gone, it says nothing: that's no split (BACKLOG 54, decided
+// 2026-11-14), and the timeline reads it so whether research says one or not. Pure.
 function pairsOf(world, n) {
   const every = world.context.pairs.every, gone = new Map();
   for (const e of world.events) { const f = world.facts.find(x => x.eventId === e.id); if (f && released(e)) for (const x of f.data.events || []) if (!gone.has(x.castawayId)) gone.set(x.castawayId, e.number); }
@@ -270,6 +271,9 @@ function gameData(document, game, world, actors) {
   if (document.setup.gameStates[game.id]) throw Error('Head snapshot reconciliation requires its own adapter');
   let state = S.defaultState();
   Object.assign(state.settings, { showId: world.context.key || world.context.id, showFormat: world.context.format.id, setupComplete: true, bonusEnabled: false, tradeEnabled: false, replenishEnabled: false });
+  // A stage's own league says it is one, as the server writes it (engine-lab.ts makeStages): its Outlast counts boots from the stage's
+  // start (BACKLOG 62). The parent game's id here; the server's, its league id (live-db.cjs writes the runtime's state as it is).
+  if (game.stageOf !== undefined) state.settings.stageOf = game.stageOf;
   state.players = actors.filter(p => seats.includes(p.id)).map((p, i) => ({ id: p.id, name: p.name, color: p.color || ['#ce6e42', '#568f96', '#ae86b8'][i % 3], active: true }));
   state.castaways = world.participants.map(p => ({ id: p.id, name: p.name, photoUrl: document.content.images === 'missing' ? null : p.photoUrl || null, status: 'active', ownerIds: [], acquiredVia: spec.get.by === 'draft' && !opensAtStart ? 'draft' : null, ...(p.tribeId ? { tribeId: p.tribeId } : {}) }));
   // The world's tribes (state.tribes: what SpreadLogic reads as the cast's groups), named in turn.

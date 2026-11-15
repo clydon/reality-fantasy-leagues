@@ -437,6 +437,9 @@ export interface LeagueSettings {
   /** Step A12 part 1: a game in stages' stages (each a whole spec, played as a league of its own: stages.ts) and its overall. */
   stages?: import("./game-spec/index.js").SpecStage[];
   stageOverall?: import("./game-spec/index.js").SpecOverall;
+  /** A stage's own league: the game in stages it's a stage of (its league id; leagues.stage_of too). Its Outlast counts boots from
+   *  the stage's own start (BACKLOG 62: EliminationOrderScoringStrategy.baseOf). */
+  stageOf?: string;
   defaultBetPoints: number;
   // Same opt-in shape as replenishEnabled/tradeEnabled above, gated together with the league
   // type's own supportsFinalePredictions -- see finalePredictionsAvailable in state-logic.js.
@@ -1091,6 +1094,8 @@ export interface WaiverPeriod {
   openedBy?: "commissioner";
   /** The commissioner turned the window off and nothing else ran this week: closed without a run. */
   turnedOff?: boolean;
+  /** When whoever runs the game opened it as a window, made it one, or opened it again (BACKLOG 58: its time to claim counts from here). */
+  byHandAt?: string;
   /** Pre-v2: whether it allows swaps (swaps > 0). Kept in step for one release. */
   addDrop: boolean;
   /** After Undo last waiver run: no scheduled processing (Process now, or at airtime). */

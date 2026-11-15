@@ -135,12 +135,15 @@ function heldIn(s, n) {
  * (the boots by then), reverse }; a place reads only its size and reverse. Someone out at `placement` (1 plus the boots before
  * theirs) has it for good; in reverse, the cast's size + 1 less it (the first one out of 18 has 18).
  */
+// `mark.base` (BACKLOG 62, the user's decision 2026-11-14): the boots a stage's Outlast doesn't count, those before its own start, so a
+// new stage starts everyone level (1 a holding); 0 or left out, every boot counts. In reverse a place is already the cast's size less
+// the boots before it, the same as a fresh game over who's left, so it takes none.
 function placed(placement, mark) {
-  return mark.reverse ? mark.size + 1 - placement : placement;
+  return mark.reverse ? mark.size + 1 - placement : Math.max(0, placement - (mark.base || 0));
 }
-/** Everyone still in has 1 plus the boots so far; in reverse, the cast less them (what they'd have going home next). */
+/** Everyone still in has 1 plus the boots so far (from a stage's start: mark.base); in reverse, the cast less them (what they'd have going home next). */
 function stillIn(mark) {
-  return mark.reverse ? mark.size - mark.out : mark.out + 1;
+  return mark.reverse ? mark.size - mark.out : Math.max(1, mark.out - (mark.base || 0) + 1);
 }
 /**
  * C3: an Outlast's line as what a holding earns while it's yours, in a game with a multiplier on how a holding joined (the user's

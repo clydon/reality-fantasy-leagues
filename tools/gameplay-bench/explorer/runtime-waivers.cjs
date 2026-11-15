@@ -30,10 +30,6 @@ function lossAt(copy) {
   const n = S.SpoilerLogic.latestWithResults(copy), ep = copy.episodes.find(e => e.number === n);
   return !!ep && copy.castaways.some(c => c.exitEpisodeId === ep.id && W.lossOpen(copy, c));
 }
-function owedIn(copy, period) {
-  const owed = copy.players.filter(p => !p.automated && !p.disabled && W.replacementsOwed(copy, p.id, period).count > 0).map(p => p.id);
-  return owed.length > 0 && owed.every(id => (period.claimsIn || []).includes(id));
-}
 
 // ---- The claim store (waiver_claims) ----
 const week = (store, periodId) => (store.weeks[periodId] ||= {});
@@ -93,7 +89,8 @@ function syncPaced(state, store, now, gameId) {
     let step = W.due(copy, now);
     const period = W.current(copy);
     if (step === 'open' && !lossAt(copy)) break;
-    if (!step && period && period.phase === 'open' && !period.hold && owedIn(copy, period)) step = 'process';
+    // (Before its time only once everyone owed has a claim in and nobody could still use a swap: WaiverLogic.runsEarly, BACKLOG 83.)
+    if (!step && W.runsEarly(copy, period)) step = 'process';
     if (!step) break;
     if (step === 'open') { const p = openWeek(copy, now, gameId); events.push({ type: 'opened', periodId: p.id, episode: p.episode }); }
     else if (step === 'cancel') { W.cancel(copy); dropClaims(store, period.id); events.push({ type: 'cancelled', periodId: period.id, episode: period.episode }); }
@@ -164,11 +161,12 @@ const NOBODY_YET = 'Open a waiver window once everyone has watched an episode';
 function openWindow(state, store, swaps, now, opts, gameId) {
   const { on, copy, none } = handOn(state);
   if (none) return { error: NOBODY_YET };
-  const had = W.current(on);
+  const weeks = W.periods(on).length;
   const r = W.openWindow(on, swaps, now, opts);
   if (r.error) return { error: copy && /once an episode has results/.test(r.error) ? NOBODY_YET : r.error };
   const period = r.period, trimmed = [];
-  if (!had) period.id = 'wv-' + gameId + '-' + period.episode + '-' + W.periods(on).length;
+  // (A week it opened, not one turned off and opened again: that keeps its id.)
+  if (W.periods(on).length > weeks) period.id = 'wv-' + gameId + '-' + period.episode + '-' + W.periods(on).length;
   if (r.closed) { trimmed.push(...Object.keys(store.weeks[period.id] || {})); dropClaims(store, period.id); period.claimsIn = []; if (copy) foldBack(state, copy); return { period, trimmed }; }
   const w = store.weeks[period.id] || {};
   let seq = 0;

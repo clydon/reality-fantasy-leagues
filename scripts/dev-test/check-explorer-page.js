@@ -912,7 +912,7 @@ const sportsFile = path.join(out, 'sports-definition.json');
       const app = p.frameLocator('#device-a iframe'); await app.locator('[data-game-page]').waitFor({ timeout: 30000 });
       // (An hour on first: a generated case's clock sits exactly a day before the next episode, the moment a week's claims run, so a
       // window opened there runs in the same write in the runtime while the server, a moment later by its own clock, leaves it open.
-      // The cliff itself is BACKLOG 58.)
+      // That cliff was BACKLOG 58, fixed 2026-11-14: a window opened by hand leaves time to claim. The hour stays harmless.)
       const moved = await p.evaluate(async () => { const s = window.__GAMEPLAY_EXPLORER_PAGE__.sides.a, r = await fetch('/__atlas/bench/runtime/apply', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: s.id, action: { type: 'clock', at: new Date(Date.parse(s.state.clock) + 3600000).toISOString() } }) }); return (await r.json()).result?.status; });
       assert.equal(moved, 'accepted', 'the clock moved an hour on');
       const text = () => app.locator('body').evaluate(el => el.innerText.replace(/\s+/g, ' ').slice(0, 3000)).catch(() => '');

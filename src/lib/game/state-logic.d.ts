@@ -293,7 +293,8 @@ declare const StateLogic: {
     /** In reverse (step A9 part 2): the earlier they go home, the more. */
     reversed(state: LeagueState): boolean;
     /** The season as this copy sees it, for a place (the scoring sequence's mark, C2 part 1). */
-    mark(state: LeagueState): { size: number; out: number; reverse: boolean };
+    baseOf(state: LeagueState): number;
+    mark(state: LeagueState): { size: number; out: number; reverse: boolean; base: number };
     castawayPoints(state: LeagueState, c: Castaway): number;
     stillInPoints(state: LeagueState): number;
     compute(state: LeagueState): ScoreRow[];
@@ -372,6 +373,8 @@ declare const StateLogic: {
     /** How many this player may replace in `period`; lossIds: the oldest that many; outIds: every loss a claim may name. */
     /** Nothing owed while nobody's free to come in (`nobodyFree`: a loss that would be, if someone were). */
     replacementsOwed(state: LeagueState, playerId: string, period: WaiverPeriod | null | undefined): { count: number; lossIds: string[]; outIds: string[]; nobodyFree?: true };
+    couldSwap(state: LeagueState, period: WaiverPeriod, playerId: string): boolean;
+    runsEarly(state: LeagueState, period: WaiverPeriod | null | undefined): boolean;
     /** A game made before the per-holder rule: its cutover (settings.perHolderFrom), or null (none: per holder throughout). */
     perHolderFrom(state: LeagueState): number | null;
     /** Whether `c`'s exit is replaced per holder (a replacement's mark only its maker's); with no `c`, whether every exit is. */
@@ -385,6 +388,8 @@ declare const StateLogic: {
     /** replacementsOwed in the week running now (pre-v2 name). */
     pickupsOwed(state: LeagueState, playerId: string): { count: number; lossIds: string[]; outIds: string[]; nobodyFree?: true };
     maxPickupClaims(owed: number): number;
+    MIN_CLAIM_HOURS: number;
+    byHandAt(period: WaiverPeriod): number;
     schedule(state: LeagueState, period: WaiverPeriod): { processAt: string; closesAt: string | null };
     refresh(state: LeagueState): void;
     /** The step waiting at `now` (ms). */
@@ -393,7 +398,7 @@ declare const StateLogic: {
     cancel(state: LeagueState): WaiverPeriod | null;
     setClaimsIn(state: LeagueState, period: WaiverPeriod, playerIds: string[]): void;
     /** The commissioner's Open a waiver window: `swaps` each, or null to turn it off; `replace` this window's own say on replacements. */
-    openWindow(state: LeagueState, swaps: number | null, now?: number, opts?: { replace?: boolean }): { period: WaiverPeriod; closed?: boolean; error?: undefined } | { error: string; period?: undefined };
+    openWindow(state: LeagueState, swaps: number | null, now?: number, opts?: { replace?: boolean }): { period: WaiverPeriod; closed?: boolean; reopened?: boolean; error?: undefined } | { error: string; period?: undefined };
     pairsOf(state: LeagueState, period: WaiverPeriod | null, playerId: string, input: unknown): { pairs: WaiverPair[]; legacy: boolean };
     pairProblem(
       state: LeagueState,

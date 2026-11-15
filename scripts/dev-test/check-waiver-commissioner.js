@@ -17,7 +17,11 @@
 //   paced-time   the same claim left to the week's own time: the same run, and Bo's swap goes through.
 //   paced-window the same game with nobody past episode 0 and no week running: Open a window is refused (nobody has watched an
 //          episode yet), and says so.
-//   paced-undo   Ann's claim settles her week at once (everyone owed has a claim in); then Undo: the week stays open and held.
+//   paced-undo   Ann's claim settles her week at once (everyone owed has a claim in, and the week has no swaps); then Undo: the
+//          week stays open and held.
+//   paced-swaps  the same game with a window of one swap opened by hand: Ann's replacement claimed, the week waits (Bo could still
+//          swap); Bo's swap claimed, it runs (BACKLOG 83, decided 2026-11-14: own pace never costs someone a swap because of someone
+//          else's timing). A step's `expect` is the week's phase on the server's own state after it.
 //   carried      a lineup game at its own pace on a season aired through 4 (shared teams, a loss replaced after any episode): Bo saves
 //          one lineup for episode 1 and plays on with it (never saved again, so each later week fields it as carried), then replaces
 //          a starter who went home. No commissioner action: it is here because the same machinery proves it (BACKLOG 57).
@@ -38,7 +42,7 @@
 //   tools/gameplay-bench/live-db.cjs down-all).  --seed=5.
 //
 // Needs: the app on :3000 (npm run dev; BASE to override) and the local dev database (.env.local AUTH_DATABASE_URL).
-// Run:   node scripts/dev-test/check-waiver-commissioner.js [--case=live|window|paced|paced-claim|paced-time|paced-window|paced-undo|carried|saved|all] [--door=backstage|classic|both] [--control] [--verbose]
+// Run:   node scripts/dev-test/check-waiver-commissioner.js [--case=live|window|paced|paced-claim|paced-time|paced-window|paced-undo|paced-swaps|carried|saved|all] [--door=backstage|classic|both] [--control] [--verbose]
 const path = require('path');
 const root = path.resolve(__dirname, '../..');
 const L = require(path.join(root, 'tools/gameplay-bench/live-db.cjs')), R = require(path.join(root, 'tools/gameplay-bench/explorer/runtime.cjs')), D = require(path.join(root, 'tools/gameplay-bench/explorer/document.cjs'));
@@ -96,7 +100,7 @@ const CASES = {
       { type: 'waiverRun', gameId: 'g', personId: 'p1' },
       { type: 'waiverUndo', gameId: 'g', personId: 'p1', via: 'batch' },
       { type: 'waiverWindow', gameId: 'g', personId: 'p1', swaps: null }, // off: with no waivers of its own, the week is over
-      { type: 'waiverWindow', gameId: 'g', personId: 'p1', swaps: 1 }, // and can't open again for this episode
+      { type: 'waiverWindow', gameId: 'g', personId: 'p1', swaps: 1 }, // and opens again for this episode (Designs needed 32)
     ],
   },
   paced: {
@@ -165,6 +169,15 @@ const CASES = {
         { type: 'waiverRun', gameId: 'g', personId: 'p1' },
       ];
     })(),
+  },
+  'paced-swaps': {
+    define: () => define({ ...draft, extras: { waivers: always } }, 'own-pace', { completedEvents: 4, eventCount: 6 }, [{ personId: 'p1', contextId: 'show', through: 0 }, { personId: 'p2', contextId: 'show', through: 0 }]),
+    prelude: s => { for (const p of ['p1', 'p2']) s.apply({ type: 'reveal', contextId: 'show', personId: p }); },
+    steps: [
+      { type: 'waiverWindow', gameId: 'g', personId: 'p1', swaps: 1, replace: true, expect: 'open' },
+      { type: 'claim', gameId: 'g', personId: 'p1', pairs: [{ addId: c(8), dropId: c(1) }], expect: 'open' }, // Bo could still swap: it waits
+      { type: 'claim', gameId: 'g', personId: 'p2', spot: { dropId: c(4), addIds: [c(9)] }, expect: 'processed' }, // nobody could: it runs
+    ],
   },
   'paced-undo': {
     define: () => define({ ...draft, extras: { waivers: always } }, 'own-pace', { completedEvents: 4, eventCount: 6 }, [{ personId: 'p1', contextId: 'show', through: 0 }, { personId: 'p2', contextId: 'show', through: 0 }]),
@@ -260,7 +273,7 @@ async function runCase(name, door, control) {
         await played('the week ran at its time');
         continue;
       }
-      const { via, control: isControl, ...action } = step;
+      const { via, control: isControl, expect, ...action } = step;
       const r = await real(step), serverOk = r.status < 400;
       // The control: the runtime never gets one claim, so everything that depends on it must disagree from the next run on.
       const mine = control && isControl ? (skipped = true, { status: 'skipped' }) : s.apply(action, 'server-comparison');
@@ -289,6 +302,7 @@ async function runCase(name, door, control) {
         gave.forEach(g => noted.add(g));
         if (serverOk && ['waiverRun', 'claim'].includes(action.type) || gave.length) note(!gave.length, name + '/' + door + '   BACKLOG 56: nothing run gives away what nobody has seen (everyone is on episode ' + lowest + ')' + (gave.length ? ': ' + gave.join('; ') : ''));
         if (serverOk && action.type === 'waiverWindow' && action.swaps !== null) note(!!(week && week.window && week.episode === lowest), name + '/' + door + '   BACKLOG 56: the window the server said it opened is open after the write, on everyone\'s episode (weeks: ' + JSON.stringify(a.weeks.map(w => [w.episode, w.phase, w.window])) + ')');
+        if (expect) note(!!week && week.phase === expect, name + '/' + door + '   BACKLOG 83: the week is ' + (week ? week.phase : 'gone') + ' after ' + action.type + ' by ' + action.personId + ' (want ' + expect + ')');
         if (serverOk && action.type === 'waiverUndo') note(!!week && week.phase === 'open' && week.hold === true, name + '/' + door + '   BACKLOG 56: the run taken back stays taken back, the week open and held' + (week && week.phase === 'processed' ? ' (it ran again in the same write, by ' + week.run.by + ')' : ''));
       }
     }

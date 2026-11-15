@@ -109,9 +109,9 @@ const processAt = (s, gameId) => Date.parse((s.snapshot().games[gameId].state.mi
  *  (his last castaway for the first free agent). */
 const waiversOpen = () => [...everyoneSets('h2h', ALL, played('show', 4, ALL)),
   s => { const mine = teamOf(s, 'h2h', 'bo').filter(c => c.status === 'active'); return claimSpot('h2h', 'bo', mine[mine.length - 1].id, freeIn(s, 'h2h').slice(0, 1)); }];
-/** And Ann's claim: her loss replaced by the first two free agents, ranked (the first is the one Bo wants too). At its own pace with
- *  exclusive teams the week then runs at once, as the server runs it (waivers.js syncPaced: everyone owed has a claim in); live,
- *  it waits for its time. */
+/** And Ann's claim: her loss replaced by the first two free agents, ranked (the first is the one Bo wants too). The week waits for
+ *  its time, live or at its own pace: at its own pace it runs early only once nobody could still use a swap (BACKLOG 83, decided
+ *  2026-11-14: WaiverLogic.runsEarly), and Cy and Di could. */
 const claimsIn = () => [...waiversOpen(),
   s => { const lost = teamOf(s, 'h2h', 'ann').find(c => c.status !== 'active'); return claimSpot('h2h', 'ann', lost.id, freeIn(s, 'h2h').slice(0, 2)); }];
 /** Side bets (the design round's step 2: posting, calling, settling). Bo posts one on Episode 4 before it airs and three call it;
@@ -168,8 +168,8 @@ const LIST = [
     build: () => { const input = showDefinition({ spec: H2H_X }); return { input, steps: play(input, queue(waiversOpen())) }; } },
   { id: 'xw-claims-in', page: 'show', label: 'Exclusive draft and waivers (live) · claims in, waiting for them to run', shows: "Your claim in (ranked: the first you get), that someone else has one in too, when the week runs (the night before the episode) and what happens after.",
     build: () => { const input = showDefinition({ spec: H2H_X, timing: 'live-only' }); return { input, steps: play(input, queue(claimsIn())) }; } },
-  { id: 'xw-waivers-run', page: 'show', label: 'Exclusive draft and waivers · the week ran the moment you claimed (own pace)', shows: "What the week gave you (the claim you won or lost, and to whom), your team now, free agency open until the next episode, and the lineup due with this week's opponent. At its own pace the week runs as soon as everyone owed a replacement has claimed, so say when it ran and why.",
-    build: () => { const input = showDefinition({ spec: H2H_X }); return { input, steps: play(input, queue(claimsIn())) }; } },
+  { id: 'xw-waivers-run', page: 'show', label: 'Exclusive draft and waivers · the week ran at its time (own pace)', shows: "What the week gave you (the claim you won or lost, and to whom), your team now, free agency open until the next episode, and the lineup due with this week's opponent. At its own pace a week with swaps waits for its time (nobody loses a swap to someone else's timing), so say when it ran.",
+    build: () => { const input = showDefinition({ spec: H2H_X }); return { input, steps: play(input, queue([...claimsIn(), s => ({ type: 'clock', at: new Date(processAt(s, 'h2h') + 60000).toISOString() })])) }; } },
   // ---- the sports twin: the NFL's own season game ----
   { id: 'nfl-due', page: 'sport', label: 'NFL · your lineup is due', shows: "This week's opponent, the lineup by position with each player's game and kickoff, the lock (the week's first game), your record.",
     build: () => { const input = nflDefinition({ ann: 2, bo: 2, cy: 2 }); return { input, steps: [] }; } },

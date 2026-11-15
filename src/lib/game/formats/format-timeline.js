@@ -164,7 +164,12 @@ function buildTimeline(reports, { cast = [], start = null } = {}) {
         : FS.changesBetween(goingIn, end, { left, newcomers: names });
     } else if (reported && names.length) ours = [{ kind: 'newcomer', newcomers: names }];
     const mergedNow = !!(r && r.merged === 'yes');
-    const changes = crossed(ours, st ? st.changes : [], n, { mergedNow, mergedBefore });
+    // BACKLOG 54 (the user's decision, 2026-11-14): a night that leaves nobody in (a finale where everyone goes home) empties the groups
+    // by exits, which is no split into individuals and no merge, whether research says one or not: the groups that went in played
+    // it, and what was held on it counts.
+    // (Emptied: everyone who went into it has gone home, as its exits say; an answer that lists no groups isn't that by itself.)
+    const emptied = !!(reported && divided(goingIn) && end && !end.groups.length && [...goingIn.groups.flatMap((g) => g.members), ...goingIn.alone].every((m) => !isIn(m)));
+    const changes = crossed(ours, st ? st.changes : [], n, { mergedNow, mergedBefore }).filter((c) => !(emptied && (c.kind === 'split-into-individuals' || c.kind === 'merge')));
     if (mergedNow) mergedBefore = true;
 
     // The groups at the end carry on a group going in when they're its exact members, less who went home (Q1 and Q4).

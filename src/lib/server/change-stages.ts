@@ -372,6 +372,8 @@ async function makeCopy(g: Read, e: ChangePlanEntry): Promise<boolean> {
       made = leagueId;
       const problems = StateLogic.setGame(s, game, { ctx: { ...ctx, pool: undefined } });
       if (problems.length) throw new Error(problems.map((p: { problem: string }) => p.problem).join("; "));
+      // A stage's own league says it is one: its Outlast counts boots from the stage's start (BACKLOG 62).
+      s.settings.stageOf = g.parentId;
       await client.query("UPDATE leagues SET stage_of = $2, stage_key = $3 WHERE id = $1", [leagueId, g.parentId, e.key]);
       if (StateLogic.readsPhases(s) || StateLogic.endPhase(s)) settleIn(s, await leaguePhases(client, leagueId, g.season.id), await scheduleOf(g.season.id));
       await recordChange(client, leagueId, s, {

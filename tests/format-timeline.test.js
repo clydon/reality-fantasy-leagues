@@ -403,3 +403,26 @@ test("the review's cases: spells end where they ended, an unsure change unsettle
   // Pairs joined by newcomers into trios is teams formed, not only newcomers.
   assert.deepEqual(FS.changesBetween({ groups: [p("a", "b"), p("c", "d")] }, { groups: [p("a", "b", "x"), p("c", "d", "y")] }, { newcomers: ["x", "y"] }).map((c) => c.kind), ["teams-formed", "newcomer"]);
 });
+
+test("BACKLOG 54: a finale that sends everyone home empties the groups by exits: no split, sure, and the slots held that night count", () => {
+  // Pairs going into a finale played in pairs; everyone leaves in it (the winners too, as the explorer's world writes a finale).
+  const pairs = [p("Ann", "Bo"), p("Cy", "Di")];
+  const build = (stated) => TL.buildTimeline([
+    report(1, pairs, { playedAs: "pairs" }),
+    report(2, pairs, { playedAs: "pairs" }),
+    report(3, [], { playedAs: "pairs", left: ["Ann", "Bo", "Cy", "Di"], changes: stated ? [change("split-into-individuals", 4, "end")] : [] }),
+  ]);
+  for (const stated of [false, true]) {
+    const tl = build(stated);
+    const at3 = TL.at(tl, 3);
+    assert.deepEqual([at3.sure, at3.why, at3.changes.filter((c) => c.kind === "split-into-individuals")], [true, [], []], "research " + (stated ? "says a split" : "says nothing"));
+    assert.equal(TL.playedIn(tl, 3).sure, true);
+    assert.deepEqual(TL.playedIn(tl, 3).groups.map((x) => x.members.join("+")), ["Ann+Bo", "Cy+Di"], "the pairs that went in played it");
+    const slots = Object.fromEntries(TL.groupSlots(tl).map((x) => [x.members.join("+"), x]));
+    assert.deepEqual([slots["Ann+Bo"].scores, slots["Ann+Bo"].void], [[2, 3], []], "the finale counts, not void");
+  }
+  // A night that empties the groups but leaves someone in is still a split the answer has to state.
+  const tl = TL.buildTimeline([report(1, pairs, { playedAs: "pairs" }), report(2, [], { playedAs: "pairs", left: ["Ann", "Cy"] })]);
+  assert.equal(TL.at(tl, 2).sure, false);
+  assert.match(TL.at(tl, 2).why.join(), /split-into-individuals/);
+});

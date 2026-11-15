@@ -132,10 +132,10 @@ function invariants(session, document, before, record, step, inject, known = new
           const closes = spec.closes, key = closes === 'daily' ? etDate : closes === 'weekly' ? etWeek : null;
           // (A game called off locks nothing, proof-family-58: it's no start of its day's or week's, the oracle's firstPlayed.)
           const from = S0.startEpisode(full) ?? 1, to = S0.endEpisode(full), own = world.events.filter(e => e.number >= from && (to == null || e.number <= to) && e.airAt), playedEv = own.filter(e => !Sp.isOff(e));
-          // (A slate's week locks at its own air time, its first game's, whatever its cadence: called off or not, as the server's air
-          // time is its first game's and the engine takes a later lock as none: BACKLOG 81. One locking at each game's start, at its
-          // last game played, else its air time.)
-          const lockOf = n => { const e = own.find(x => x.number === n); if (!e) return null; const t = Date.parse(e.airAt); if (slateOn) { const last = Sp.playedOf(world.context, e).map(g => Date.parse(g.airAt)); return spec.closes === 'game' && last.length ? Math.max(...last) : t; } if (!key) return t; const day = playedEv.filter(x => key(Date.parse(x.airAt)) === key(t)).map(x => ({ id: x.id, at: x.airAt })); const first = Or.firstPlayed(day, []); return first === null ? t : Math.min(first, t); };
+          // (A slate's week locks at its first game played, whatever its cadence: one called off locks nothing, even the week's first,
+          // whose start is the week's air time: BACKLOG 81, fixed 2026-11-14. None played, its air time. One locking at each game's
+          // start, at its last game played, else its air time.)
+          const lockOf = n => { const e = own.find(x => x.number === n); if (!e) return null; const t = Date.parse(e.airAt); if (slateOn) { const played = Sp.playedOf(world.context, e).map(g => Date.parse(g.airAt)); return !played.length ? t : spec.closes === 'game' ? Math.max(...played) : Math.min(...played); } if (!key) return t; const day = playedEv.filter(x => key(Date.parse(x.airAt)) === key(t)).map(x => ({ id: x.id, at: x.airAt })); const first = Or.firstPlayed(day, []); return first === null ? t : Math.min(first, t); };
           const now = Date.parse(snap.clock);
           if (game.timing !== 'own-pace' && member && v.lineup) {
             const lock = lockOf(v.lineup.episode), shut = lock !== null && lock <= now;
@@ -393,9 +393,10 @@ function invariants(session, document, before, record, step, inject, known = new
             if (weekly ? p.phase !== 'open' : !(p.phase === 'closed' && p.turnedOff && !Object.keys(after0).length && !p.claimsIn.length)) fail('a window turned off left the week ' + p.phase + (weekly ? '' : ' with ' + Object.keys(after0).length + ' claims'));
           } else {
             if (!(p.window && p.swaps === a.swaps && p.openedBy === 'commissioner' && (a.replace === undefined ? !('replace' in p) : p.replace === a.replace))) fail('the window isn\'t as asked: ' + JSON.stringify([p.window, p.swaps, p.replace ?? null]) + ' for ' + JSON.stringify([a.swaps, a.replace ?? null]));
-            // (Open, unless its time had come already: a week's claims run a set number of hours before the next episode airs, so a
-            // window opened at or just past that moment runs at once. Noticed, BACKLOG 58.)
-            if (!(p.phase === 'open' || (p.phase === 'processed' && p.run?.by === 'schedule' && !p0?.hold && Date.parse(p.processAt) <= Date.parse(snap.clock)))) fail('a window opened or changed isn\'t open');
+            // (Open: a window opened by hand always leaves time to claim, BACKLOG 58, fixed 2026-11-14; a week turned off opens again
+            // as one, Designs needed 32. Only a week whose next episode has already aired, so it closes, runs in the same step.)
+            if (!(p.phase === 'open' || (p.phase === 'processed' && p.run?.by === 'schedule' && !!p.closesAt && Date.parse(p.closesAt) <= Date.parse(snap.clock)))) fail("a window opened or changed isn't open");
+            if (p.phase === 'open' && p.byHandAt && !p0?.window && Date.parse(p.processAt) - Date.parse(snap.clock) < Math.min(3 * 3600000, p.closesAt ? Date.parse(p.closesAt) - Date.parse(snap.clock) : Infinity) - 1000) fail('a window opened by hand runs at ' + p.processAt + ', under three hours from ' + snap.clock + ' (BACKLOG 58)');
           }
           if (p && !(a.swaps === null && !weekly)) {
             // (At its own pace with exclusive teams a claim is weighed where the week runs: the copy at everyone's episode, where
@@ -587,7 +588,9 @@ function invariants(session, document, before, record, step, inject, known = new
         const inside = n => Number.isInteger(n) && from !== null && n >= from && (to === null || n <= to), rel = e => ['partial', 'final', 'corrected'].includes(e.resultStatus);
         const weeks = world.events.filter(e => rel(e) && inside(e.number) && e.number <= told).length, rounds = h.playoffs?.bracket || [];
         const teams = game.spec.rank?.playoffs?.teams, po = Number.isInteger(teams) && teams >= 2 ? Math.ceil(Math.log2(teams)) : 0;
-        const bad = (h.last && !inside(h.last.episode)) ? 'its last matchup is episode ' + h.last.episode : (h.next && !inside(h.next.episode)) ? 'its next matchup is episode ' + h.next.episode
+        // (BACKLOG 82, decided 2026-11-14: a stage that ends when a phase starts has no playoff: the engine refuses one, so a week
+        // played as an ordinary matchup is never rewritten into a final.)
+        const bad = game.spec.span?.to?.phase && h.playoffs ? 'a playoff on a stage that ends when ' + game.spec.span.to.phase + ' starts' : (h.last && !inside(h.last.episode)) ? 'its last matchup is episode ' + h.last.episode : (h.next && !inside(h.next.episode)) ? 'its next matchup is episode ' + h.next.episode
           : h.record.wins + h.record.losses + h.record.ties > weeks ? 'a record of ' + (h.record.wins + h.record.losses + h.record.ties) + ' weeks in ' + weeks
           : rounds.some(r => !inside(r.episode)) ? 'a playoff round at episode ' + rounds.find(r => !inside(r.episode)).episode
           : v.over && to !== null && rounds.length && rounds[rounds.length - 1].episode !== to ? 'its final at episode ' + rounds[rounds.length - 1].episode
