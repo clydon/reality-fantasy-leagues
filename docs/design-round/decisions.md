@@ -73,3 +73,53 @@
 - Rule questions (behaviour, not design; recorded in BACKLOG as decided, built by a rule-fixes session beside the rounds): B81 fixed; B54 counts; B58 a minimum time to claim; B62 counts from the stage's start; DN 32 a window turned off can reopen; B82 no playoffs on a stage that ends at a phase; B83 waits for the week's time when the window has swaps; B84 the overall by places (until then the page says points).
 - BACKLOG 85 and 86 are fixes folded into the rounds that redesign Tonight, and Episodes and the reveal.
 - The test behind the rule answers: what a player would call fair without reading the rules.
+
+## 2026-11-15 · Census frames wait for Archivo; the "missing condensed font at 390" was one capture run, not a bug
+- Decided by: Claude (from a re-run)
+- Why: the census's 22:49–22:50 batch (bench-show-*) caught the dev server mid-recompile and shot the fallback face at every size;
+  the 22:38 and 23:31 batches and the bench's own check are condensed, a probe at 390 through an Atlas frame and on :3000 loads
+  Archivo at 62% stretch, and the same capture re-run renders condensed. census-app.js now waits for the face and fails without it.
+- Rejected: changing the font loading (nothing in the app or the bench drops it).
+- Rests on: scripts/dev-test/census-app.js capture(); .ui-atlas/stories/phase0/census/ timestamps.
+
+## 2026-11-15 · Step 2's page spec: This week leads, the season grid stays, a matchup sheet is the grid's door
+- Decided by: Claude (default, inside decisions 3, 5 and the lineup component)
+- Why: R4's prediction for head to head is "who I play and my lineup"; the grid is the user's liked season view and already holds
+  the record; a square's natural question is "what happened that week", which is the matchup, not the person.
+- Rejected: a separate standings table beside the grid (the same fact twice); keeping the You section's full week-by-week body on
+  the page (it's the person sheet, one tap away).
+- Rests on: docs/design-round/step2-game-page-spec.md; phase0-first-views.md R1–R5.
+
+## 2026-11-15 · An opponent's lineup and others' side-bet calls show at the lock
+- Decided by: Claude (default; asked in the spec's open questions for calls)
+- Why: the game already says "Nobody sees it before then" of a lineup; a call is the same kind of secret until the episode starts.
+- Rejected: showing calls as they're made (copying is easy and the bet loses its point).
+- Rests on: the lineup's own words on today's page ("Yours to change until it airs. Nobody sees it before then.").
+
+## 2026-11-15 · Impeccable's critique questions go into the screenshot story, not a stop before fixing
+- Decided by: Claude (from the user's process)
+- Why: DESIGN-PROCESS.md runs the check once, fixes once, then the story and a pause; the critique's own "ask before acting" would
+  add a second stop inside the round.
+- Rejected: asking the critique's questions mid-round.
+- Rests on: docs/DESIGN-PROCESS.md, "Bounded: no loops" and "What wins when they disagree" (the user's process beats a skill).
+
+## 2026-11-15 · The game page's first build: decisions inside the round
+- Decided by: Claude (defaults; each listed in the story's open items where the user may disagree)
+- The move's plate appears only while it's due; a set lineup is one plain "Change your lineup" line; the lock is said once.
+- A lineup that locks when its episode airs says "Locks when it airs" (the week's label carries the time).
+- Own pace: the card offers "I've watched Ep N · Reveal" for the game itself (the own-pace plate's catch-up reveal); otherwise the
+  show's one reveal on Tonight (B66: the reveal can't open over a game's page yet, so the page pushes Tonight's).
+- Head to head never shows OUT: missing the playoffs is said in words, seeds and the champion sit under the record.
+- The odd one out's opponent reads "The middle score", not "The median".
+- The season grid's names are first names (long names cut there before).
+- The opponent's lineup and others' side-bet calls show at the lock; the commissioner's bets to settle come first in the sheet.
+- Rejected: a separate standings table (the grid already ranks with the record); a VS graphic (2026-11-12's direction: data, not
+  theatre).
+- Rests on: docs/design-round/step2-game-page-spec.md; step2-game-page-first-view.md (R1, R4).
+
+## 2026-11-15 · Side bets' post and grade routes answer { ok } when asked quietly
+- Decided by: Claude (a fix found building the round)
+- Why: both answered with the league's whole state even under ?quiet, which carries results the poster may not have revealed (the
+  new app's writes ask quietly for exactly this reason, data.ts send()).
+- Rejected: leaving them (a spoiler in the network response).
+- Rests on: src/lib/server/api-route.ts stateResponse; the bets and predictions routes.

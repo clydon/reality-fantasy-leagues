@@ -13,6 +13,7 @@ import { pickWindow } from "./pool-view";
 import { pointsPerLine } from "./bingo";
 import { isBetSettled, isKnockedOut, publicMediaSrc } from "./selectors";
 import { scoredEpisodes, teamEpisodeBreakdown } from "./team-episode-breakdown";
+import { lockedMatchup, sideBetsOf, type SideBets } from "./week-view";
 
 // One of your season games on a show, as the new design's show space reads it (docs/PLAN-new-design.md step 1):
 // your moves for the next episode (the lineup, the pick, open predictions), the game's table, its rules, its cast,
@@ -349,6 +350,10 @@ export interface GameView extends GameRefIn {
   /** Step A14 part 2: a game played against the bot, how the couch did against it as far as you've seen; null (or left out) for any
    *  other game. What it shows is U1's. */
   bot?: BotLine | null;
+  /** The design round's step 2 (week-view.ts): the side bets the game's page shows (null: side bets are off), and both sides of
+   *  your matchup once its episode's lineups have locked, before its results (null otherwise). Optional: older readers omit them. */
+  bets?: SideBets | null;
+  locked?: { episode: number; mine: string[]; theirs: string[] | null } | null;
 }
 
 /** Whose user a seat is, for faces. */
@@ -456,6 +461,8 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
     teams: StateLogic.TeamLogic.view(view, seat ? me : null, everyone.map((r) => ({ playerId: r.playerId, total: r.points, team: r.side }))),
     handicap: StateLogic.HandicapLogic.view(view, seat ? me : null),
     bot: calls?.bot ?? null,
+    bets: seat ? sideBetsOf(view, me, new Map(everyone.map((r) => [r.playerId, r.name])), through, now) : null,
+    locked: seat && pieces.hasActiveRoster ? lockedMatchup(view, me, matchups?.next, now) : null,
   };
 }
 

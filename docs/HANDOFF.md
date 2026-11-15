@@ -11,6 +11,18 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
+## The design round's step 2, the game page (2026-11-15; built on branch `explorer-sports`, not pushed; waits on the user's review)
+The game page leads with this week: head to head as a matchup (you and who you play, faces and records, on the show's art or
+colour), one state line, the move as the one plate only while due, last week as a line (a plate the first time it's news), then
+side bets, the season grid (a square opens that week's matchup: two lineups on one points scale), Your team, How it plays. Side
+bets can be posted, called and settled on the page. Process and evidence: `docs/design-round/step2-game-page-spec.md` (Intent),
+`step2-game-page-first-view.md` (PFD), `decisions.md`; the screenshot story https://claude.ai/artifact/YBQtP9VztyMFaAZMVxDZ1A (frames
+in `.ui-atlas/stories/step2-game-page/`, re-made by `scripts/dev-test/story-situations.js` and `story-build.py`). New code:
+`src/new/show/game-week.tsx`, `this-week.ts`, `src/lib/game/week-view.ts` (the view's `bets` and `locked`), a 26th bench situation
+`show-side-bets`. **Waiting on the user:** the review, BACKLOG 87 (should a side bet change a matchup), and face colours (gold and
+teal out of the palette). Next after approval: step 3, Tonight. Checks that assert on the old page's title card may need the new
+markers (the page keeps data-game-title/strip/grid/you/rules).
+
 ## Hosting: read [HOSTING.md](HOSTING.md) before adding anything that polls, runs on a schedule or stores data
 Every service, its free limits, current usage, what drives each limit, and what more would cost; keep it current
 (the user's standing request, 2026-10-24). **The repo is public** since 2026-10-24 (free Actions minutes; the

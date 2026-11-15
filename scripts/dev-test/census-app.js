@@ -208,6 +208,10 @@ async function capture(p, s) {
   await p.addStyleTag({ content: "nextjs-portal{display:none!important}" }).catch(() => {});
   if (s.act) await s.act(p);
   await p.waitForTimeout(s.wait || 700);
+  // A frame in the fallback face isn't today's app: one run on 2026-11-14 caught the dev server mid-recompile and kept a
+  // whole batch in Arial, which read as "the condensed display font is missing at 390". Wait for Archivo, fail if it never comes.
+  const face = await p.evaluate(async () => { await document.fonts.ready; return [...document.fonts].some((f) => f.family.replace(/"/g, "") === "Archivo" && f.status === "loaded"); }).catch(() => false);
+  if (!face) throw new Error("Archivo never loaded: the frame would show the fallback face (is the dev server mid-recompile?)");
   await p.screenshot({ path: base + ".jpg", type: "jpeg", quality: 82 });
   const m = await measure(p);
   const text = await p.evaluate(() => document.body.innerText).catch(() => "");

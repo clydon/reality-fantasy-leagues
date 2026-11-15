@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import StateLogic from "@/lib/game/state-logic.js";
 import { apiRoute, stateResponse } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
@@ -42,5 +41,5 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<RoutePar
   // No chat line for a graded guess any more (migration 0040) -- the push and the card say it.
   if (value === true || value === false) notifyBetResult(leagueId, state, epId, betId, predId, value);
 
-  return NextResponse.json(state);
+  return stateResponse(req, state);
 });

@@ -514,7 +514,7 @@ export function useHowItWorks(seasonId: string, couchId: string | null, enabled 
 // ---- the moves' writes: the league routes the classic app uses, asked for `?quiet` so the answer is { ok } rather
 // than the league's whole state (which holds results you may not have revealed: guard.ts) ----
 
-async function send(path: string, method: "PUT" | "POST" | "DELETE", body?: unknown) {
+async function send(path: string, method: "PUT" | "POST" | "PATCH" | "DELETE", body?: unknown) {
   const res = await fetch(`${path}?quiet`, {
     method,
     headers: body === undefined ? undefined : { "content-type": "application/json" },
@@ -538,6 +538,15 @@ export const moves = {
     send(`${episode(leagueId, epId)}/bets/${encodeURIComponent(betId)}/predictions`, "POST", { playerId, guess }),
   unguess: (leagueId: string, epId: string, betId: string, predId: string) =>
     send(`${episode(leagueId, epId)}/bets/${encodeURIComponent(betId)}/predictions/${encodeURIComponent(predId)}`, "DELETE"),
+};
+
+/** Side bets on a game's page (the design round's step 2): anyone playing posts one on the episode about to be played; whoever runs
+ *  the game marks each call right or wrong once it's in; whoever posted one takes it down before two have called it. */
+export const bets = {
+  post: (leagueId: string, label: string, points: number) => send(`${episode(leagueId, "upcoming")}/bets`, "POST", { label, points }),
+  mark: (leagueId: string, epId: string, betId: string, predId: string, value: boolean | null) =>
+    send(`${episode(leagueId, epId)}/bets/${encodeURIComponent(betId)}/predictions/${encodeURIComponent(predId)}`, "PATCH", { value }),
+  remove: (leagueId: string, epId: string, betId: string) => send(`${episode(leagueId, epId)}/bets/${encodeURIComponent(betId)}`, "DELETE"),
 };
 
 /** After a save: the home (your moves due) and every show's games read again. */

@@ -111,6 +111,19 @@ const waiversOpen = () => [...everyoneSets('h2h', ALL, played('show', 4, ALL)),
  *  it waits for its time. */
 const claimsIn = () => [...waiversOpen(),
   s => { const lost = teamOf(s, 'h2h', 'ann').find(c => c.status !== 'active'); return claimSpot('h2h', 'ann', lost.id, freeIn(s, 'h2h').slice(0, 2)); }];
+/** Side bets (the design round's step 2: posting, calling, settling). Bo posts one on Episode 4 before it airs and three call it;
+ *  Episode 4 is played and everyone's watched, its calls waiting for whoever runs the game (Ann, the first seat) to settle them;
+ *  then Di posts one on Episode 5 that Bo and Di have called and Ann hasn't. The engine's ids are random, so each is the action's
+ *  own (the runtime keeps an action's id). */
+const epIdOf = (s, n) => s.snapshot().games.h2h.state.episodes.find(e => e.number === n).id;
+const sideBets = () => [
+  ...everyoneSets('h2h', ALL),
+  { type: 'bet', id: 'bet-idol', gameId: 'h2h', personId: 'bo', eventId: 'upcoming', label: 'Will an idol be played?', points: 2 },
+  ...[['ann', 'Yes'], ['bo', 'No'], ['cy', 'Yes']].map(([p, guess]) => s => ({ type: 'guess', id: 'pred-idol-' + p, gameId: 'h2h', personId: p, eventId: epIdOf(s, 4), betId: 'bet-idol', guess })),
+  ...played('show', 4, ALL),
+  { type: 'bet', id: 'bet-home', gameId: 'h2h', personId: 'di', eventId: 'upcoming', label: 'Who goes home?', points: 3 },
+  ...[['bo', 'Quinn'], ['di', 'Rowan']].map(([p, guess]) => s => ({ type: 'guess', id: 'pred-home-' + p, gameId: 'h2h', personId: p, eventId: epIdOf(s, 5), betId: 'bet-home', guess })),
+];
 /** The staged pilot: four people, the merge at Episode 4, three in; made live, everyone caught up. */
 const stagedDefinition = () => showDefinition({ spec: STAGED, timing: 'live-only', phaseStarts: { merged: 4 }, count: 8 });
 /** Every seat's lineup in every stage open for episode n (a different pair each). */
@@ -143,6 +156,8 @@ const LIST = [
     build: () => { const input = showDefinition(); return { input, steps: play(input, queue([4, 5, 6, 7].flatMap(n => everyoneSets('h2h', ALL, played('show', n, ALL))))) }; } },
   { id: 'show-long-names', page: 'show', label: 'Long names · results in', shows: 'Long names in the opponent line, the table and the grid: nothing cut that matters, nothing scrolling sideways.',
     build: () => { const input = showDefinition({ labels: 'long' }); return { input, steps: play(input, queue(everyoneSets('h2h', ALL, played('show', 4, ALL)))) }; } },
+  { id: 'show-side-bets', page: 'show', label: 'Side bets · one to settle, one open to call', shows: "Side bets on the game's page: last episode's bet with everyone's calls, waiting for whoever runs the game to settle it; this week's bet open to call (two in, yours not), and posting a new one.",
+    build: () => { const input = showDefinition({ spec: { ...H2H, extras: { bets: { points: 2 } } } }); return { input, steps: play(input, queue(sideBets())) }; } },
   { id: 'show-solo', page: 'show', label: 'Solo · one person, a points lineup', shows: "Playing alone: personal progress and the season's points, no \"1st of 1\" and no opponent.",
     build: () => { const input = showDefinition({ people: ['Ann'], spec: { ...H2H, rank: { by: 'total' } }, name: 'Weekly Lineup (solo)' }); return { input, steps: play(input, queue(everyoneSets('h2h', ['ann']))) }; } },
   // ---- the pilot with an exclusive draft and waivers (2026-11-14) ----

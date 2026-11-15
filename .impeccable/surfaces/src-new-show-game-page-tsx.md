@@ -13,9 +13,20 @@ Content: the engine's spec and describe.js words, the couch's standings, the sho
 Constraints: DESIGN.md holds (one yellow, Tags Not Fills, Red Is For Leaving, never spoil, transform and opacity only). Theming for a top show or a sport dresses these same parts, on that show's pages only; never a separate app (the user, 2026-11-08).
 
 ## Direction contract
-THESIS: A game's page runs like a segment of the show, season first and you second (the user's pick, U1 step 2b): title card, your move, the couch framed as the season grid (a row a person, a column an episode), then You on the page under a big header, How it plays. Every name, square, episode and face drills down a sheet over the last. It refuses the fantasy-app page (tabs, avatar cards, a stats table of totals) and any new visual world.
-OWN-WORLD: Night ground; white caption plates with angled tags in tone colours (chyron only for your move while it's due, live out, good right or won, quiet info, the show's colour on the title's tag); the grid on the panel (14px corners, the one framed object), your row on the raised fill; Archivo condensed 800 caps (64px title, 24-28px headings, tabular numbers); show art in full colour washed toward Night; faces as squares with tone corner ticks; one yellow at most, never in the grid.
-STORY: what this game is and when it's on; what's due now; how the whole couch has done episode by episode; how I've done and my last episode; then any door down: a person, a night, a castaway, the rules.
-FIRST VIEWPORT: back link and show name; the game's name in 64px caps over the art; a small plate (show-coloured tag, when it airs); the spoiler chip; the alert strip (60px and yellow only when due); the top of the season grid's panel. Signature: on open the title plate slides in on its tag; after a reveal the grid's rows restack; a door opens a sheet over the last with the path back on top.
+THESIS (the design round's step 2, 2026-11-15; awaiting the user's review): a game's page leads with this week. Head to head is a
+matchup: you and who you play, each a face, a name and a record, over the show's art; the one state line that changes with the
+situation; the move as the page's one plate, only while it's due. Then the side bets row, the season grid (the user's liked view,
+its squares opening that week's matchup), Your team, How it plays. Every name, square, episode and face drills down a sheet over
+the last; a week's matchup is two lineups on one points scale (data round 3's B). It refuses the theatrical VS graphic, setting
+chips and a title card that fills the first view.
+OWN-WORLD: Night ground; the show's art washed toward Night behind the bar and This week; the week's label as an angled tag in the
+show's colour; Archivo condensed 800 caps for names, numbers and headings; white caption plates only for the due move; faces as
+squares; one yellow at most, only for what's due; the grid on the panel (14px corners, the one framed object), your row raised.
+STORY: who you play this week and what to do about it; last week in a line; side bets; how the whole couch has done week by week;
+your team; the rules. Any door down: a week's matchup, a person, a night, a castaway, the rules.
+FIRST VIEWPORT: back, the show small over the game's name, a menu (How it plays, your sheet, where you are); the week's tag and
+time; the two faces and records; your starters (theirs locked away until it locks); the state line or the due plate; last week;
+the side bets row or the season grid's first rows. Signature: on open the week's tag slides in; after a reveal the grid's rows
+restack; a door opens a sheet over the last with the path back on top.
 FORM: The broadcast segment, second of seven on my ordered list; seed 93c5fa10.
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance

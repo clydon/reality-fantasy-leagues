@@ -13,6 +13,7 @@ import { LATE_SET, LateMark, LineupSheet, signed } from "./lineup-sheet";
 import { faceIn, first } from "./moves";
 import { Face } from "./parts";
 import { answerWords, verdictWords } from "./questions";
+import { BetsBody, MatchupBody, MatchupTitle } from "./game-week";
 
 // The sheet family on a game's page and the Games tab (docs/PLAN-start-a-game-gpt.md U1, "Step 2 brief": the sheet family, once;
 // U0's canvas v58, boards R4 and R6, `make_person_sheet.js` and `make_hybrid.js`). Every name, square, episode and face is a door to
@@ -23,7 +24,7 @@ import { answerWords, verdictWords } from "./questions";
 // down (sheet-history.ts), Close shuts them all. The squares come from GameView.plays (game-plays.ts), only as far as you've seen;
 // anyone's next move says only whether it's set. A lineup's sheet is today's (lineup-sheet.tsx), kept as it is.
 
-export type Door = { kind: "person"; playerId: string; episode: number | null } | { kind: "episode"; episode: number } | { kind: "cast"; id: string } | { kind: "rules" };
+export type Door = { kind: "person"; playerId: string; episode: number | null } | { kind: "episode"; episode: number } | { kind: "cast"; id: string } | { kind: "rules" } | { kind: "matchup"; playerId: string; episode: number } | { kind: "bets" };
 type Level = { key: number; door: Door; open: boolean };
 export type Drill = { open: (d: Door) => void };
 
@@ -60,7 +61,9 @@ export function useDrill() {
 }
 export type DrillState = ReturnType<typeof useDrill>;
 
-type Ctx = { g: GameView; show: ShowData; seasonId: string; rules: string[] };
+/** `wg`: the game this week is read from (a game in stages: the stage being played now; else the game itself); `runs`: you run
+ *  the game (you settle its side bets). */
+type Ctx = { g: GameView; show: ShowData; seasonId: string; rules: string[]; wg?: GameView; runs?: boolean };
 
 /** Every open level as its own sheet, the newest on top. */
 export function DrillSheets({ drill, ...ctx }: Ctx & { drill: DrillState }) {
@@ -92,6 +95,8 @@ function titleOf(d: Door, { g, show }: Ctx): string {
   if (d.kind === "person") return g.table.find((r) => r.playerId === d.playerId)?.name ?? "";
   if (d.kind === "episode") return `${show.words.episode} ${d.episode}`;
   if (d.kind === "cast") return first(faceIn(g, d.id)?.name ?? "");
+  if (d.kind === "matchup") return `${show.words.ep} ${d.episode}`;
+  if (d.kind === "bets") return "Side bets";
   return "How it plays";
 }
 
@@ -145,6 +150,39 @@ function Level({ level, drill, crumb, plain, ...ctx }: Ctx & { level: Level; dri
         stepper={eps.length > 1 ? { prev: at > 0 ? `${show.words.ep} ${eps[at - 1]}` : null, next: at >= 0 && at < eps.length - 1 ? `${show.words.ep} ${eps[at + 1]}` : null, onStep: step } : undefined}
       >
         <EpisodeBody key={d.episode} {...ctx} episode={d.episode} go={go} />
+      </Sheet>
+    );
+  }
+  if (d.kind === "matchup") {
+    // A week of head to head, two lineups on one scale (game-week.tsx); ‹ › through the weeks played and the one to come.
+    const wg = ctx.wg ?? g;
+    const eps = [...wg.plays.episodes, ...(wg.plays.next && !wg.plays.episodes.includes(wg.plays.next.episode) ? [wg.plays.next.episode] : [])];
+    const at = eps.indexOf(d.episode);
+    const t = MatchupTitle(wg, d.playerId, d.episode, show.words);
+    const step = (dir: 1 | -1) => {
+      const to = eps[at + dir];
+      if (to !== undefined) drill.swap(level.key, { ...d, episode: to });
+    };
+    return (
+      <Sheet
+        open={level.open}
+        onOpenChange={onOpenChange}
+        crumb={crumb}
+        plain={plain}
+        title={t.title}
+        subtitle={t.subtitle}
+        stepper={eps.length > 1 ? { prev: at > 0 ? `${show.words.ep} ${eps[at - 1]}` : null, next: at >= 0 && at < eps.length - 1 ? `${show.words.ep} ${eps[at + 1]}` : null, onStep: step } : undefined}
+      >
+        <MatchupBody key={`${d.playerId}:${d.episode}`} g={wg} pid={d.playerId} n={d.episode} words={show.words} onFace={(id) => go.open({ kind: "cast", id })} />
+      </Sheet>
+    );
+  }
+  if (d.kind === "bets") {
+    const wg = ctx.wg ?? g;
+    const open = wg.bets?.bets.find((x) => x.open);
+    return (
+      <Sheet open={level.open} onOpenChange={onOpenChange} crumb={crumb} plain={plain} title="Side bets" subtitle={open ? `${show.words.episode} ${open.episode} · calls close when it starts` : (wg.bets?.postTo ?? null) !== null ? `${show.words.episode} ${wg.bets!.postTo}` : g.gameName}>
+        <BetsBody g={wg} words={show.words} seasonId={ctx.seasonId} runs={!!ctx.runs} />
       </Sheet>
     );
   }

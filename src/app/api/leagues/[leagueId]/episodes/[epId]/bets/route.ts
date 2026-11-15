@@ -1,6 +1,5 @@
-import { NextResponse } from "next/server";
 import StateLogic from "@/lib/game/state-logic.js";
-import { apiRoute } from "@/lib/server/api-route";
+import { apiRoute, stateResponse } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
 import { notifyNewBet } from "@/lib/server/push-events";
@@ -35,5 +34,6 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
     throw new HttpError(404, "Episode not found");
   }, plainChange(user.id, "predictions", "Added a prediction question"));
   notifyNewBet(leagueId, label.trim(), user.id);
-  return NextResponse.json(state);
+  // `?quiet` (the new app): { ok } rather than the league's whole state, which holds results the poster may not have revealed.
+  return stateResponse(req, state);
 });

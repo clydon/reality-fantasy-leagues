@@ -22,7 +22,7 @@ that stops being what it says fails there. Headless: `node -e "console.log(JSON.
 **Checked on the real page:** `node scripts/dev-test/check-situations-page.js [--only=<regex>]` opens each one from the menu
 and checks that it lands on the game page, signed in as its viewer, with nothing scrolling sideways, and that the real
 routes agree with the runtime. It keeps a screenshot and
-the page's words for the round (`.ui-atlas/situations/<id>.png` and `.txt`). 25 of 25 passed on 2026-11-14, each also with the bench's route check (the real routes agree with the runtime for
+the page's words for the round (`.ui-atlas/situations/<id>.png` and `.txt`). 25 of 25 passed on 2026-11-14 (26 situations since 2026-11-15's side bets), each also with the bench's route check (the real routes agree with the runtime for
 everyone in it; known findings printed apart). Those words and
 screenshots are today's page in each situation: the baseline the redesign starts from. `show-due.png`, for one, shows the
 record and the grid but nothing naming this week's opponent (Designs needed item 3).
@@ -47,6 +47,7 @@ id in the Open menu.
 | The season over, a champion | The champion named; final standings, and why a champion outranks a better record | Page check `head to head` (`05i-h2h-final.png`) | `show-champion` |
 | Long names | Long names in the opponent line, the table and the grid: nothing that matters cut, no sideways scroll | Recipe labels (points game) | `show-long-names` |
 | Solo | Personal progress, no "1st of 1", no opponent | Recipe with one player (points game) | `show-solo` |
+| Side bets: one to settle, one open (added 2026-11-15, step 2) | Last episode's bet with everyone's calls, waiting for whoever runs the game to settle it; this week's bet open to call (two in, yours not); posting one | No (side bets were off in every situation, and the new app couldn't post or settle) | `show-side-bets` |
 | NFL: your lineup is due | Opponent; the lineup by position with each player's game and kickoff; the week's lock | Page check `sports locks` definition | `nfl-due` |
 | NFL: results in, told though behind | A live sports game shows results before you've marked it watched (the default); each starter's line | Route check only | `nfl-results-told` |
 | NFL: hides scores, a game behind | Nothing past their mark, and that the others can already see it | Route check only | `nfl-hides-behind` |

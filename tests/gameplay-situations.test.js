@@ -47,6 +47,18 @@ const CLAIMS = {
   "staged-before-merge": ({ view }) => { const a = view(undefined, "h2h~before"), b = view(undefined, "h2h~merged"); assert.ok(a.lineup && !a.lineup.locked && a.lineup.episode === 4, "the first stage's lineup due"); assert.ok(a.matchups.next?.opponent); assert.equal(b.from, null, "the merged stage not started"); assert.equal((b.you?.team || []).length, 0, "nobody drafted there yet"); },
   "staged-merged": ({ view }) => { const a = view(undefined, "h2h~before"), b = view(undefined, "h2h~merged"); assert.equal(a.to, 4); assert.ok(a.over, "the first stage over"); assert.equal(a.matchups.playoffs, null, "no playoff before the merge"); assert.equal(b.from, 5); assert.equal((b.you?.team || []).length, 3, "drafted from who's still in"); assert.deepEqual([b.matchups.record.wins, b.matchups.record.losses, b.matchups.record.ties], [0, 0, 0], "a fresh record"); assert.equal(b.matchups.next?.episode, 5); assert.ok(b.lineup && !b.lineup.locked && b.lineup.episode === 5); },
   "staged-champion": ({ view }) => { const b = view(undefined, "h2h~merged"), v = view(); assert.ok(b.over && b.matchups.playoffs?.champion, "the merged stage's champion"); assert.ok(v.over, "the game over with its last stage"); const sum = (id) => ["h2h~before", "h2h~merged"].reduce((n, g) => n + view(undefined, g).table.find((r) => r.playerId === id).total, 0); for (const r of v.table) assert.equal(r.total, sum(r.playerId), "the overall is " + r.playerId + "'s stages added up"); },
+  "show-side-bets": ({ view }) => {
+    const v = view(), b = v.bets;
+    assert.ok(b, "side bets are on");
+    const open = b.bets.find((x) => x.open), toSettle = b.bets.find((x) => x.played);
+    assert.equal(open?.episode, 5, "this week's bet open to call");
+    assert.equal(open.mine, null, "not called by the viewer");
+    assert.equal(open.everyone, null, "others' calls hidden before it starts");
+    assert.equal(toSettle?.episode, 4, "last episode's bet played");
+    assert.equal(toSettle.everyone.length, 3, "everyone's calls shown once locked");
+    assert.equal(b.unsettled, 3, "three calls to settle");
+    assert.equal(b.postTo, 5, "a new bet goes on Episode 5");
+  },
   "nfl-due": ({ view }) => { const v = view(); assert.ok(v.lineup && !v.lineup.locked, "a lineup open"); assert.ok(v.matchups.next, "this week's matchup"); },
   "nfl-results-told": ({ view, snap }) => { assert.equal(snap.contexts.sport.marks.find((m) => m.personId === "ann").through, 1); assert.equal(view().matchups.last.episode, 2, "told game 2 though she hasn't marked it"); },
   "nfl-hides-behind": ({ view }) => assert.equal(view().matchups.last.episode, 1, "held to her mark"),

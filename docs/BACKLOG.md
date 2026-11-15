@@ -1128,6 +1128,16 @@ Last updated 2026-10-27.
     season have art set, though the brief asks for a visual "last time on" recap. **Who takes it:** the Episodes and reveal round
     (the design order's step 4).
 
+87. **Settling a side bet after an episode can flip a head-to-head week already shown as decided** (a question; found 2026-11-15
+   by the design round's step 2, the `show-side-bets` situation on the real routes). A Weekly Lineup's week counts the lineup's
+   points plus that episode's side bets (game-view.ts LineupWeek.total), and head to head compares those totals. Bets are settled
+   by hand after the results, so a matchup reads one way at the reveal and another once someone settles: in the situation, Cy's
+   +2 for a right call turned Bo's Episode 4 win into a tie (Bo 3-1 to 2-1-1, Cy 0-4 to 0-3-1), days after everyone had seen it.
+   Options: (a) side bets stay out of the matchup's score and count only toward points for (the tie-break); (b) they count, and a
+   week stays open until its bets are settled (the page says "waiting on side bets"); (c) as now, and the page says when a week
+   changed after the fact. The test the rule answers have used: what a player would call fair without reading the rules. Waits on
+   the user; the engine lane builds whichever.
+
 ## Decided against (don't re-propose without new information)
 
 - **An AI draft/lineup/pick advisor for players** ("Coach"): rejected. Feels like pay-to-win inside
