@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { Check, Eye, Hand, Lock, Settings, Shuffle, Star, Undo2, Users, X } from "lucide-react";
@@ -16,6 +16,7 @@ import { useShown } from "../ui/loaded";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { first } from "./moves";
+import { useCastNames } from "../sports/faces";
 import { Face } from "./parts";
 
 // The draft room and the blind draft (docs/PLAN-new-design.md step 7; the mock's draft.js), pushed over a show from
@@ -32,6 +33,10 @@ import { Face } from "./parts";
 // Polled while open (data.ts draftPoll: 4 s live, 15 s waiting); every write goes through /api/seasons/[id]/draft.
 
 const SLOW_MS = 3 * 60 * 1000;
+// A draftee's name where room is short, and their position (BACKLOG 88): an athlete by surname, a defense by its nickname, as the
+// game page names them (sports/faces.ts useCastNames); a show's cast by first name, no position.
+const NO_CAST: DraftFace[] = [];
+const CastNames = createContext<{ name: (n: string | null | undefined) => string; role: (n: string | null | undefined) => string | null }>({ name: (n) => (n ? first(n) : ""), role: () => null });
 const pts = (n: number) => `${Math.round(n * 10) / 10} ${Math.abs(n) === 1 ? "pt" : "pts"}`;
 
 /** What the draft page shows: `?game=`, else the first draft of this kind that needs you, else the first. */
@@ -106,9 +111,11 @@ export function DraftScreen({ seasonId, kind }: { seasonId: string; kind: "snake
   const game = pickGame(games, chosen);
   const name = show.header?.show.name ?? "Show";
   const leave = () => nav.back(paths.show(seasonId), isTabOf(seasonId));
+  const names = useCastNames(seasonId, show.header?.show.kind === "sport", game?.cast ?? NO_CAST);
   const sub = game ? [game.name, show.header ? `${name.replace(/^The /, "")}${show.header.seasonNumber ? ` ${show.header.seasonNumber}` : ""}` : null, kind === "snake" ? "snake" : "shared"].filter(Boolean).join(" · ") : "";
 
   return (
+    <CastNames.Provider value={names}>
     <div className="flex min-h-dvh flex-col pb-28" data-draft={kind}>
       <header className="sticky top-0 z-20 grid h-14 grid-cols-[44px_1fr_44px] items-center gap-1.5 border-b border-border bg-background/95 px-1.5 pt-[env(safe-area-inset-top,0px)] backdrop-blur-md">
         <button type="button" onClick={leave} aria-label="Leave the draft" className="grid size-11 place-items-center rounded-[3px]">
@@ -186,6 +193,7 @@ export function DraftScreen({ seasonId, kind }: { seasonId: string; kind: "snake
 
       {game && <DraftSettings seasonId={seasonId} show={show} game={game} open={settings} onOpenChange={setSettings} />}
     </div>
+    </CastNames.Provider>
   );
 }
 
@@ -241,6 +249,7 @@ function Tile({
   onStar?: () => void;
   disabled?: boolean;
 }) {
+  const nm = useContext(CastNames);
   return (
     <div className="relative">
       <button
@@ -257,8 +266,8 @@ function Tile({
         <Face src={face.photo} name={face.name} className={`absolute inset-0 -z-20 size-full ${taken ? "brightness-[.45] grayscale" : ""}`} />
         <span className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,transparent_45%,rgba(10,8,14,.92))]" aria-hidden />
         {face.tribe && <span className="absolute left-1.5 top-1.5 size-[9px] rounded-[1px]" style={{ background: face.tribe.colour }} aria-hidden />}
-        <b className="type-caption block truncate text-[15px]">{first(face.name)}</b>
-        <small className="block truncate text-[10.5px] opacity-85">{face.points != null ? `${pts(face.points)} so far` : (face.tribe?.name ?? "")}</small>
+        <b className="type-caption block truncate text-[15px]">{nm.name(face.name)}</b>
+        <small className="block truncate text-[10.5px] opacity-85">{[nm.role(face.name), face.points != null ? `${pts(face.points)} so far` : face.tribe?.name].filter(Boolean).join(" · ")}</small>
       </button>
       {taken ? (
         <span className="pointer-events-none absolute right-1.5 top-1.5">
@@ -269,7 +278,7 @@ function Tile({
           type="button"
           data-star={face.id}
           aria-pressed={starred}
-          aria-label={starred ? `Take ${first(face.name)} out of your queue` : `Queue ${first(face.name)}`}
+          aria-label={starred ? `Take ${nm.name(face.name)} out of your queue` : `Queue ${nm.name(face.name)}`}
           onClick={onStar}
           className={`absolute right-1 top-1 grid size-[30px] place-items-center rounded-full ${starred ? "bg-chyron text-chyron-foreground" : "bg-[rgba(16,14,21,.6)] text-white/75"}`}
         >
@@ -312,13 +321,14 @@ function useFilter(cast: DraftFace[]) {
 
 /** Your queue: a star adds or takes someone out, shown at once and saved straight away (then the server's copy again). */
 function useQueue(seasonId: string, show: ShowData, game: DraftGame) {
+  const nm = useContext(CastNames);
   const [pending, setPending] = useState<string[] | null>(null);
   const write = useDraftWrite(seasonId, show);
   const queue = pending ?? game.queue;
   const toggle = async (id: string, name: string) => {
     const next = queue.includes(id) ? queue.filter((x) => x !== id) : [...queue, id];
     setPending(next);
-    toast(next.includes(id) ? `${first(name)} queued` : `${first(name)} unqueued`);
+    toast(next.includes(id) ? `${nm.name(name)} queued` : `${nm.name(name)} unqueued`);
     await write(game.leagueId, { action: "queue", castawayIds: next });
     setPending(null);
   };
@@ -372,6 +382,7 @@ function TeamRow({ game, playerId, ids, big }: { game: DraftGame; playerId: stri
 // ---------- the turn-based draft ----------
 
 function SnakeRoom({ seasonId, show, game, onSettings }: { seasonId: string; show: ShowData; game: DraftGame; onSettings: () => void }) {
+  const nm = useContext(CastNames);
   const write = useDraftWrite(seasonId, show);
   const live = game.phase === "live";
   const clock = game.clock;
@@ -422,7 +433,7 @@ function SnakeRoom({ seasonId, show, game, onSettings }: { seasonId: string; sho
     if (!selected || !clock || busy) return;
     setBusy(true);
     const forName = forWho ? onClock : null;
-    const ok = await write(game.leagueId, { action: "pick", castawayId: selected.id, n: clock.n }, forName ? `${first(selected.name)} drafted for ${forName}` : `You drafted ${first(selected.name)}`);
+    const ok = await write(game.leagueId, { action: "pick", castawayId: selected.id, n: clock.n }, forName ? `${nm.name(selected.name)} drafted for ${forName}` : `You drafted ${nm.name(selected.name)}`);
     setBusy(false);
     if (ok) {
       setSel(null);
@@ -447,7 +458,7 @@ function SnakeRoom({ seasonId, show, game, onSettings }: { seasonId: string; sho
           {latest.length ? (
             latest.map((p, i) => (
               <span key={p.n} className={i === 0 ? "nd-rise text-foreground" : ""}>
-                R{p.round}·{p.inRound} <b className="font-bold text-foreground">{seatOf(game, p.playerId)?.name ?? "someone"}</b> {p.castawayId ? first(faces.get(p.castawayId)?.name ?? "") : ""}
+                R{p.round}·{p.inRound} <b className="font-bold text-foreground">{seatOf(game, p.playerId)?.name ?? "someone"}</b> {p.castawayId ? nm.name(faces.get(p.castawayId)?.name) : ""}
                 {p.by && <em className="not-italic text-chyron-line"> by {p.by}</em>}
                 {p.auto && <em className="not-italic text-chyron-line"> from their queue</em>}
               </span>
@@ -632,7 +643,7 @@ function SnakeRoom({ seasonId, show, game, onSettings }: { seasonId: string; sho
                   <Face src={c.photo} name={c.name} className="size-[42px] rounded-[3px]" />
                   <span className="min-w-0 flex-1">
                     <b className="block truncate text-[15px]">{c.name}</b>
-                    <small className="block text-xs text-muted-foreground">{owner ? `Taken by ${seatName(game, owner)}` : [c.tribe?.name, c.points != null ? pts(c.points) : null].filter(Boolean).join(" · ")}</small>
+                    <small className="block text-xs text-muted-foreground">{owner ? `Taken by ${seatName(game, owner)}` : [nm.role(c.name), c.tribe?.name, c.points != null ? pts(c.points) : null].filter(Boolean).join(" · ")}</small>
                   </span>
                   {!owner && acting && (
                     <button
@@ -661,10 +672,10 @@ function SnakeRoom({ seasonId, show, game, onSettings }: { seasonId: string; sho
               <Face src={selected.photo} name={selected.name} className="size-[46px] rounded-[3px]" />
               <span className="min-w-0 flex-1">
                 <small className="block text-xs text-muted-foreground">{forWho ? `For ${onClock} · round ${clock.round}` : `Your round ${clock.round} pick`}</small>
-                <b className="type-caption block truncate text-[22px]">{first(selected.name)}</b>
+                <b className="type-caption block truncate text-[22px]">{nm.name(selected.name)}</b>
               </span>
               <Btn tone="must" data-draft-go disabled={busy} onClick={draft} className="h-12">
-                Draft {first(selected.name)}
+                Draft {nm.name(selected.name)}
               </Btn>
             </>
           ) : (
@@ -799,6 +810,7 @@ function DraftDone({ seasonId, show, game }: { seasonId: string; show: ShowData;
 // ---------- the blind draft ----------
 
 function BlindRoom({ seasonId, show, game, onSettings }: { seasonId: string; show: ShowData; game: DraftGame; onSettings: () => void }) {
+  const nm = useContext(CastNames);
   const write = useDraftWrite(seasonId, show);
   const live = game.phase === "live";
   const youLocked = !!game.you && game.locked.includes(game.you);
@@ -919,11 +931,11 @@ function BlindRoom({ seasonId, show, game, onSettings }: { seasonId: string; sho
                 type="button"
                 data-slot={c.id}
                 onClick={() => !lockedHere && setTeam(team.filter((x) => x !== c.id))}
-                aria-label={lockedHere ? c.name : `Take ${first(c.name)} out`}
+                aria-label={lockedHere ? c.name : `Take ${nm.name(c.name)} out`}
                 className="relative isolate flex aspect-square items-end overflow-hidden rounded-[3px] p-1 text-white"
               >
                 <Face src={c.photo} name={c.name} className="absolute inset-0 -z-10 size-full" />
-                <b className="type-caption truncate text-[12px] [text-shadow:0_1px_4px_#000]">{first(c.name)}</b>
+                <b className="type-caption truncate text-[12px] [text-shadow:0_1px_4px_#000]">{nm.name(c.name)}</b>
               </button>
             ) : (
               <span key={i} className="type-num grid aspect-square place-items-center rounded-[3px] text-[20px] text-muted-foreground outline-2 -outline-offset-2 outline-dashed outline-input">
@@ -1110,6 +1122,7 @@ function StartsAt({ initial, onSave }: { initial: string; onSave: (iso: string |
 }
 
 function DraftSettings({ seasonId, show, game, open, onOpenChange }: { seasonId: string; show: ShowData; game: DraftGame; open: boolean; onOpenChange: (o: boolean) => void }) {
+  const nm = useContext(CastNames);
   const write = useDraftWrite(seasonId, show);
   const local = (iso: string | null) => {
     if (!iso) return "";
@@ -1214,7 +1227,7 @@ function DraftSettings({ seasonId, show, game, open, onOpenChange }: { seasonId:
                   onClick={async () => {
                     const last = game.picks[game.picks.length - 1];
                     const c = game.cast.find((x) => x.id === last?.castawayId);
-                    if (await write(game.leagueId, { action: "undoLast" }, `Took back ${last?.playerId === game.you ? "your" : `${seatName(game, last?.playerId)}'s`} pick${c ? ` (${first(c.name)})` : ""}`)) onOpenChange(false);
+                    if (await write(game.leagueId, { action: "undoLast" }, `Took back ${last?.playerId === game.you ? "your" : `${seatName(game, last?.playerId)}'s`} pick${c ? ` (${nm.name(c.name)})` : ""}`)) onOpenChange(false);
                   }}
                 >
                   <Undo2 className="size-4" aria-hidden />

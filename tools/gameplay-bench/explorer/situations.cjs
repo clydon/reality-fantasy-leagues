@@ -40,7 +40,7 @@ function showDefinition(o = {}) {
     seed: o.seed ?? 42,
     world: { contexts: [{ id: 'show', kind: 'show', format: { id: 'survivor' }, engine: { ...CONTEXT, couch: people.length, pool: 18 }, ...(o.phaseStarts ? { phaseStarts: o.phaseStarts } : {}) }], people },
     games: [{ id: 'h2h', name: o.name || 'Weekly Lineup', contextId: 'show', spec: o.spec || H2H, timing: o.timing || 'own-pace' }],
-    situation: { clock: CLOCK, viewerId: 'ann', marks: people.map(p => ({ personId: p.id, contextId: 'show', through: (o.marks || {})[p.id] ?? completed })) },
+    situation: { clock: CLOCK, viewerId: o.viewer || 'ann', marks: people.map(p => ({ personId: p.id, contextId: 'show', through: (o.marks || {})[p.id] ?? completed })) },
     content: { labels: o.labels === 'long' ? 'long' : 'normal', completedEvents: completed, eventCount: count },
   }));
 }
@@ -127,6 +127,25 @@ const sideBets = () => [
   { type: 'bet', id: 'bet-home', gameId: 'h2h', personId: 'di', eventId: 'upcoming', label: 'Who goes home?', points: 3 },
   ...[['bo', 'Quinn'], ['di', 'Rowan']].map(([p, guess]) => s => ({ type: 'guess', id: 'pred-home-' + p, gameId: 'h2h', personId: p, eventId: epIdOf(s, 5), betId: 'bet-home', guess })),
 ];
+/** The AI settles side bets (BACKLOG 87): three on Episode 4, played, its final results in, then the research's answers. The idol
+ *  bet it's sure of (settled by the AI); who goes home it's sure of too, but Ann, who runs the game, says it got it wrong and
+ *  changes both marks (changed by Ann); tears at Tribal it wasn't sure of (left open, its answer shown to Ann to settle). */
+const aiAnswer = (question, guesses, answer, correctGuesses, confidence, evidence) => ({ question, guesses, answer, correctGuesses, evidence, sources: [], confidence });
+const betsSettled = () => [
+  ...everyoneSets('h2h', ALL),
+  { type: 'bet', id: 'bet-idol', gameId: 'h2h', personId: 'bo', eventId: 'upcoming', label: 'Will an idol be played?', points: 2 },
+  ...[['ann', 'Yes'], ['bo', 'No'], ['cy', 'Yes']].map(([p, guess]) => s => ({ type: 'guess', id: 'pred-idol-' + p, gameId: 'h2h', personId: p, eventId: epIdOf(s, 4), betId: 'bet-idol', guess })),
+  { type: 'bet', id: 'bet-home', gameId: 'h2h', personId: 'di', eventId: 'upcoming', label: 'Who goes home?', points: 3 },
+  ...[['bo', 'Quinn'], ['di', 'Rowan']].map(([p, guess]) => s => ({ type: 'guess', id: 'pred-home-' + p, gameId: 'h2h', personId: p, eventId: epIdOf(s, 4), betId: 'bet-home', guess })),
+  { type: 'bet', id: 'bet-cry', gameId: 'h2h', personId: 'cy', eventId: 'upcoming', label: 'Will anyone cry at Tribal?', points: 1 },
+  ...[['ann', 'No'], ['di', 'Yes']].map(([p, guess]) => s => ({ type: 'guess', id: 'pred-cry-' + p, gameId: 'h2h', personId: p, eventId: epIdOf(s, 4), betId: 'bet-cry', guess })),
+  ...played('show', 4, ALL),
+  s => ({ type: 'aiSettle', gameId: 'h2h', eventId: epIdOf(s, 4), betId: 'bet-idol', answer: aiAnswer('Will an idol be played?', ['Yes', 'No'], 'Yes', ['Yes'], 'high', 'An idol was played at Tribal Council and negated four votes.') }),
+  s => ({ type: 'aiSettle', gameId: 'h2h', eventId: epIdOf(s, 4), betId: 'bet-home', answer: aiAnswer('Who goes home?', ['Quinn', 'Rowan'], 'Quinn', ['Quinn'], 'high', 'Quinn was voted out 5-3.') }),
+  s => ({ type: 'aiSettle', gameId: 'h2h', eventId: epIdOf(s, 4), betId: 'bet-cry', answer: aiAnswer('Will anyone cry at Tribal?', ['No', 'Yes'], 'Yes', ['Yes'], 'low', "One recap mentions tears; the others don't.") }),
+  s => ({ type: 'grade', gameId: 'h2h', personId: 'ann', eventId: epIdOf(s, 4), betId: 'bet-home', predId: 'pred-home-bo', value: false }),
+  s => ({ type: 'grade', gameId: 'h2h', personId: 'ann', eventId: epIdOf(s, 4), betId: 'bet-home', predId: 'pred-home-di', value: true }),
+];
 /** The staged pilot: four people, the merge at Episode 4, three in; made live, everyone caught up. */
 const stagedDefinition = () => showDefinition({ spec: STAGED, timing: 'live-only', phaseStarts: { merged: 4 }, count: 8 });
 /** Every seat's lineup in every stage open for episode n (a different pair each). */
@@ -161,6 +180,10 @@ const LIST = [
     build: () => { const input = showDefinition({ labels: 'long' }); return { input, steps: play(input, queue(everyoneSets('h2h', ALL, played('show', 4, ALL)))) }; } },
   { id: 'show-side-bets', page: 'show', label: 'Side bets · one to settle, one open to call', shows: "Side bets on the game's page: last episode's bet with everyone's calls, waiting for whoever runs the game to settle it; this week's bet open to call (two in, yours not), and posting a new one.",
     build: () => { const input = showDefinition({ spec: { ...H2H, extras: { bets: { points: 2 } } } }); return { input, steps: play(input, queue(sideBets())) }; } },
+  { id: 'show-bets-settled', page: 'show', label: "Side bets · settled by the AI, one changed, one it wasn't sure of", shows: "Last episode's side bets after the final results: one settled by the AI (its answer and why), one whose call whoever runs the game changed (who changed it, what the AI said), and one the AI wasn't sure of, left for them to settle with its answer chosen.",
+    build: () => { const input = showDefinition({ spec: { ...H2H, extras: { bets: { points: 2 } } } }); return { input, steps: play(input, queue(betsSettled())) }; } },
+  { id: 'show-bets-waiting', page: 'show', label: 'Side bets · as a player, one waiting on whoever runs the game', shows: "The same bets as someone who doesn't run the game: who settled each, and the one the AI wasn't sure of waiting on whoever runs it.",
+    build: () => { const input = showDefinition({ spec: { ...H2H, extras: { bets: { points: 2 } } }, viewer: 'bo' }); return { input, steps: play(input, queue(betsSettled())) }; } },
   { id: 'show-solo', page: 'show', label: 'Solo · one person, a points lineup', shows: "Playing alone: personal progress and the season's points, no \"1st of 1\" and no opponent.",
     build: () => { const input = showDefinition({ people: ['Ann'], spec: { ...H2H, rank: { by: 'total' } }, name: 'Weekly Lineup (solo)' }); return { input, steps: play(input, queue(everyoneSets('h2h', ['ann']))) }; } },
   // ---- the pilot with an exclusive draft and waivers (2026-11-14) ----

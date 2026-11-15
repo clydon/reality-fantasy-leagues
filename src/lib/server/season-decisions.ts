@@ -7,6 +7,7 @@ import { resultsDiff } from "@/lib/game/results-changes";
 import { recordChange, type ChangeUndo } from "./change-log";
 import { pool, withLeagueLock } from "./db";
 import { applyHeldTribesIfDue } from "./season-cast";
+import { settleBetsByResearch } from "./bet-settle";
 import { notifyBingoLines, notifyEpisodeResults, notifyFlagsSettled } from "./push-events";
 import type { SeasonSchedule } from "./schedule";
 
@@ -346,6 +347,8 @@ export async function syncLeagueDecisions(client: PoolClient, leagueId: string, 
   }
   // Results landing can be the moment a live league reaches the episode the tribes were held for.
   if (result.applied) await applyHeldTribesIfDue(client, state);
+  // The AI settles the side bets of each episode at its final results (BACKLOG 87), from the research that answered them.
+  if (season) await settleBetsByResearch(client, state, { showId: season.showId, season: season.season });
   result.episodes = [...touched].sort((a, b) => a - b);
   await logSync(client, leagueId, before, state, result.episodes, corrected, opts);
   return result;

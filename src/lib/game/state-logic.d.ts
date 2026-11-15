@@ -1,7 +1,7 @@
 // Ambient typing for state-logic.js (forked from the live app -- see the provenance comment at
 // that file's top), covering what this repo's components actually call. Not exhaustive — extend
 // as more of the file gets used.
-import type { LeagueState, ScoreRow, DraftTurn, Player, LateJoin, Castaway, Tribe, Bet, Episode, PickEmPick, ScoringEvent, EpisodeProposalPayload, MidSeasonLogEntry, WaiverPeriod, WaiverRun, WaiverClaim, WaiverPair, WaiverWindows, ReplaceRule, WaiverFeel, WaiverRecommendation, GroupSlotPick, FormatGroup, EpisodeFormatGroups } from "./types";
+import type { LeagueState, ScoreRow, DraftTurn, Player, LateJoin, Castaway, Tribe, Bet, BetAnswer, Episode, PickEmPick, ScoringEvent, EpisodeProposalPayload, MidSeasonLogEntry, WaiverPeriod, WaiverRun, WaiverClaim, WaiverPair, WaiverWindows, ReplaceRule, WaiverFeel, WaiverRecommendation, GroupSlotPick, FormatGroup, EpisodeFormatGroups } from "./types";
 import type { GameFormat, SeasonChange, SeasonChangeSkip } from "./formats/index.js";
 import type { GameSpec, SpecContext, SpecInput, SpecProblem, Question, AnswerFacts, Verdict, GroupSlots, PoolParts, flagsOf } from "./game-spec/index.js";
 
@@ -876,7 +876,13 @@ declare const StateLogic: {
   betTarget(state: LeagueState): number | null;
   removeBet(state: LeagueState, epId: string, betId: string): void;
   addBetPrediction(state: LeagueState, epId: string, betId: string, playerId: string, guess: string): void;
-  setBetPredictionCorrect(state: LeagueState, epId: string, betId: string, predId: string, value: boolean | null): void;
+  setBetPredictionCorrect(state: LeagueState, epId: string, betId: string, predId: string, value: boolean | null, by?: string | null): void;
+  /** BACKLOG 87: the AI settles a bet from its research answer (BetLogic.settleByAI). */
+  settleBetByAI(state: LeagueState, epId: string, betId: string, answer: BetAnswer, at?: string): "settled" | "suggested" | null;
+  /** Who settled a bet: the AI, a person who changed the AI's call, or a person (BetLogic.decision). */
+  betDecision(bet: Bet): { by: "ai" | "changed" | "person"; who: string | null } | null;
+  /** A bet's wording as its research answer is matched (BetLogic.key). */
+  betKey(label: string): string;
   syncDraftOrder(state: LeagueState): void;
   freeAgents(state: LeagueState): Castaway[];
   reorderDraft(state: LeagueState, fromIndex: number, toIndex: number): void;
@@ -1316,6 +1322,8 @@ declare const StateLogic: {
   BetLogic: {
     /** A side bet's lock: its episode's start (closedForPlay), and for good once it has results. */
     closed(ep: Episode | null | undefined): boolean;
+    /** Nobody has marked it by hand, so the AI may settle it (BACKLOG 87). */
+    aiMaySettle(bet: Bet | null | undefined): boolean;
   };
   /** A game's questions (step A4 of docs/PLAN-start-a-game-gpt.md): graded from the league's own results, never stored. */
   AnswerLogic: {

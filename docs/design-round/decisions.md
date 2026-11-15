@@ -237,3 +237,18 @@
   doesn't hold with the AI answering); a week waiting on a person to settle (the couch's habits leave weeks open); counting
   bets as now and flagging a flipped week.
 - Rests on: bets/[betId]/suggested-answer/route.ts; db/episode-research.js openBetsFor; the fairness test the rule answers use.
+
+## 2026-11-15 · Side bets settled by the AI: built
+- Decided by: the user (the decision above); the defaults below by Claude, words through Impeccable's `clarify`
+- The AI settles a bet only when it's sure: an answer of high or medium confidence, and every call on the bet among the guesses
+  the research was shown. Otherwise its answer is kept and shown to whoever runs the game, already chosen in the Settle box ("The
+  AI's answer: Yes, but it wasn't sure enough to settle it." and its reason); to a player, "Waiting on whoever runs the game: the
+  AI wasn't sure".
+- The challenge is the marks themselves: whoever runs the game taps one to change it ("Wrong? Tap a mark to change it."). The page
+  says "Settled by the AI: Yes. <its one-line reason>", "Changed by Ann. The AI said Quinn." (you, when it was you), or "Settled by
+  Ann" where the AI didn't. Changed back to the AI's marks, it reads as the AI's again.
+- Once a person has marked a bet, the AI never settles it again; a later, surer answer can still settle one it left open.
+- On early results a bet reads "Settled with the final results": the week isn't final until then, as results aren't.
+- Rejected: settling low-confidence answers (the research's own "pieced together, or judged from a name alone"); a push per
+  settled bet (the final results' push is the moment); a Recent changes line per AI settle (the commissioner's marks have none).
+- Rests on: tests/bet-settle.test.js; scripts/dev-test/check-bet-settle.js; the situations show-bets-settled and show-bets-waiting.

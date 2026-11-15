@@ -1774,8 +1774,9 @@ const MAX_BETS = 30;
 
 // How a bet's wording is matched to its answer later (the suggested-answer route): case, spacing and
 // trailing punctuation don't make it a different question.
+// The engine's own rule (BetLogic.key), so a league's bet and its research answer always agree on it.
 function betKey(label) {
-  return String(label || "").toLowerCase().replace(/\s+/g, " ").replace(/[\s?.!]+$/, "").trim();
+  return StateLogic.betKey(label);
 }
 
 async function openBetsFor(pool, showSlug, season, episodeNumber) {

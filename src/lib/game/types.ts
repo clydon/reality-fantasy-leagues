@@ -90,6 +90,13 @@ export interface Bet {
   points: number;
   predictions: BetPrediction[];
   createdByPlayerId?: string | null;
+  /**
+   * The AI's call from the episode's research (BACKLOG 87, BetLogic.settleByAI): its answer, the calls it judged right, why,
+   * and whether it was sure enough to mark them (`settled`). A spoiler: a copy for someone behind leaves it out.
+   */
+  ai?: { answer: string | null; right: string[]; evidence: string | null; confidence: "high" | "medium" | "low"; settled: boolean; at: string };
+  /** Who marked it last: "ai", or the seat of the person who marked it by hand (BetLogic.setPredictionCorrect's `by`). */
+  settledBy?: string;
 }
 
 // GET .../bets/:id/suggested-answer (db/embeddings.js's suggestAnswer) -- a semantic-search grading

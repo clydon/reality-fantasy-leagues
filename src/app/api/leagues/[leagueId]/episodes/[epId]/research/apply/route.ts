@@ -3,6 +3,7 @@ import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
 import { applyHeldTribesIfDue } from "@/lib/server/season-cast";
+import { settleBetsByResearch } from "@/lib/server/bet-settle";
 import { notifyEpisodeResults } from "@/lib/server/push-events";
 import { researchableEpisode } from "@/lib/server/episode-research-panel";
 import { resultsChange } from "@/lib/server/change-log";
@@ -36,7 +37,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
     const ep = researchableEpisode(s, epId);
     epNumber = ep.number;
     const { rows } = await client.query(
-      `SELECT ss.id FROM show_seasons ss JOIN shows sh ON sh.id = ss.show_id
+      `SELECT ss.id, ss.show_id, ss.season_number FROM show_seasons ss JOIN shows sh ON sh.id = ss.show_id
         WHERE sh.slug = $1 AND ss.season_number::text = $2`,
       [s.settings.showId, String(s.settings.wikiSeason)]
     );
@@ -61,6 +62,8 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
     summary = applyResearchDecisions(s, ep.number, items);
     // Results landing can be the moment a live league reaches the episode the tribes were held for.
     if (appliedAnything(summary)) await applyHeldTribesIfDue(client, s);
+    // Its side bets, settled by the AI once the episode's final results are in (BACKLOG 87), as the season sync does.
+    await settleBetsByResearch(client, s, { showId: rows[0].show_id, season: rows[0].season_number });
   }, resultsChange(user.id, { epId }, (n) => `Applied Episode ${n}'s results`));
 
   const result = summary as unknown as ResearchApplySummary;

@@ -34,8 +34,10 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<RoutePar
   if (membership.role !== "commissioner") throw new HttpError(403, "Commissioner only");
   const { value } = (await req.json().catch(() => ({}))) as { value?: boolean | null };
 
+  // Who marked it is recorded on the bet (BACKLOG 87): the page says who settled it, or who changed the AI's call, and the AI
+  // leaves a bet a person has marked alone. Their seat, or "commissioner" for one who doesn't play.
   const state = await withLeagueLock(leagueId, (s) => {
-    StateLogic.setBetPredictionCorrect(s, epId, betId, predId, value ?? null);
+    StateLogic.setBetPredictionCorrect(s, epId, betId, predId, value ?? null, membership.playerId || "commissioner");
   });
 
   // No chat line for a graded guess any more (migration 0040) -- the push and the card say it.

@@ -48,6 +48,8 @@ id in the Open menu.
 | Long names | Long names in the opponent line, the table and the grid: nothing that matters cut, no sideways scroll | Recipe labels (points game) | `show-long-names` |
 | Solo | Personal progress, no "1st of 1", no opponent | Recipe with one player (points game) | `show-solo` |
 | Side bets: one to settle, one open (added 2026-11-15, step 2) | Last episode's bet with everyone's calls, waiting for whoever runs the game to settle it; this week's bet open to call (two in, yours not); posting one | No (side bets were off in every situation, and the new app couldn't post or settle) | `show-side-bets` |
+| Side bets settled by the AI (added 2026-11-15, BACKLOG 87) | Last episode's bets after the final results, as whoever runs the game: one settled by the AI (its answer and why), one they changed (who, and what the AI said), one the AI wasn't sure of (open, its answer chosen in the Settle box) | No (the AI only suggested; nothing settled a bet but a person) | `show-bets-settled` |
+| The same, as a player (added 2026-11-15) | Who settled each, and the one the AI wasn't sure of waiting on whoever runs the game | No | `show-bets-waiting` |
 | NFL: your lineup is due | Opponent; the lineup by position with each player's game and kickoff; the week's lock | Page check `sports locks` definition | `nfl-due` |
 | NFL: results in, told though behind | A live sports game shows results before you've marked it watched (the default); each starter's line | Route check only | `nfl-results-told` |
 | NFL: hides scores, a game behind | Nothing past their mark, and that the others can already see it | Route check only | `nfl-hides-behind` |

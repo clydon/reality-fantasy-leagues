@@ -16,7 +16,9 @@
 // Needs: the app on :3000 (npm run dev) and the Atlas on :4400 (bash scripts/dev-test/restart-atlas.sh). Waits for Archivo before
 // each frame and fails without it (a mid-recompile dev server once shot a whole batch in the fallback face).
 // Run:   node scripts/dev-test/story-situations.js --out=.ui-atlas/stories/<design>/before [--only=<regex on the id>]
-//          [--width=390 --height=844] [--flows] [--sequences] [--dress=real]
+//          [--width=390 --height=844] [--flows] [--sequences] [--dress=real] [--tab=tonight]
+// --tab=<tonight|episodes|games|cast|chat>: shoot that show tab of the situation's show, as the same viewer, instead of the game
+// page (the design round's step 3, Tonight); --flows then runs TAB_FLOWS (the strip, the ruler, a game's ledger, the reveal).
 // --dress=real: each situation on a real game's people where a recording exists (tools/gameplay-bench/explorer/dress.cjs: a real
 // season's castaways and photos, real NFL athletes and headshots, the show's art; record them first with real-dress.js and
 // espn-snapshot.js). Its frames show real people: keep them in the ignored .ui-atlas, never in the repo.
@@ -35,6 +37,7 @@ const OUT = path.resolve(opt("out", ".ui-atlas/stories/situations"));
 const W = Number(opt("width", 390)), H = Number(opt("height", 844));
 const only = opt("only", null);
 const dress = opt("dress", null);
+const TAB = opt("tab", null);
 const Situations = require(path.join(root, "tools/gameplay-bench/explorer/situations.cjs"));
 // The design round's situations, then the real games whose recordings are on this machine (situations.cjs real()).
 const list = () => [...Situations.list(), ...Situations.real()];
@@ -56,9 +59,30 @@ const FLOWS = [
   { id: "compare", tap: "[data-week-card] [data-open-last]", wait: "[data-matchup-pairs]", then: "[data-matchup-pairs] [data-pair]:not([disabled])", thenWait: "[data-compare]" },
 ];
 
+// A show tab's flow steps (--tab with --flows): Tonight's strip, its ruler (where everyone is), a game's ledger opened in place,
+// and the reveal's ask. Missing selectors are skipped, as above.
+const TAB_FLOWS = [
+  { id: "strip", tap: "[data-strip] button", wait: '[role="dialog"]' },
+  { id: "ruler", tap: "[data-ruler]", wait: '[role="dialog"]' },
+  { id: "ledger", tap: "[data-mini-ledger]", wait: "[data-ledger]", inPlace: true },
+  { id: "reveal", tap: "[data-progress-reveal], [data-progress-watched]", wait: '[role="dialog"]' },
+];
+const READY = TAB ? "[data-progress], [data-strip], [data-last-time], main section" : "[data-game-page]";
+
 // Multi-step flows, per situation (--sequences): a tap, a fill, a wait, a scroll into view, or a shot. Run after the single-tap
 // flows, in order (each from a fresh page), so a later one sees what an earlier one wrote.
 const SEQUENCES = {
+  // BACKLOG 88: a sport's waivers name athletes as the game page does (surname, a defense by its nickname) with their position.
+  "nfl-waivers-open": [
+    { id: "waivers", steps: [{ go: "waivers" }, { wait: "[data-wv-row]" }, { shot: "waivers-0" }, { tap: "[data-wv-row] [data-swap]" }, { wait: "[data-fa]" }, { pause: 800 }, { shot: "waivers-pick" }] },
+  ],
+  // BACKLOG 87: the AI's call on each of last episode's bets, who changed one, and the one it wasn't sure of.
+  "show-bets-settled": [
+    { id: "ai", steps: [{ tap: "[data-side-bets-row]" }, { wait: "[data-settled-by]" }, { scroll: '[data-settled-by="ai"]' }, { shot: "ai-settled" }, { scroll: '[data-settled-by="changed"]' }, { shot: "ai-changed" }, { tap: '[data-bet="bet-idol"] [aria-label^="Right"]' }, { wait: '[data-bet="bet-idol"] [data-settled-by="changed"]' }, { scroll: '[data-bet="bet-idol"] [data-settled-by]' }, { shot: "ai-challenged" }] },
+  ],
+  "show-bets-waiting": [
+    { id: "player", steps: [{ tap: "[data-side-bets-row]" }, { wait: "[data-settled-by]" }, { shot: "player-0" }, { scroll: '[data-settled-by="changed"]' }, { shot: "player-1" }] },
+  ],
   "show-side-bets": [
     { id: "settle", steps: [{ tap: "[data-side-bets-row]" }, { wait: "[data-settle]" }, { scroll: "[data-settle]" }, { shot: "settle-0" }, { tap: '[data-settle-answer="Yes"]' }, { shot: "settle-1" }, { tap: "[data-settle-save]" }, { wait: '[data-bet-state="settled"]' }, { scroll: '[data-bet-state="settled"]' }, { shot: "settle-2" }] },
     { id: "call", steps: [{ tap: "[data-side-bets-row]" }, { wait: '[data-bet-state="open"]' }, { tap: '[data-bet-state="open"] [data-call]' }, { scroll: "[data-call-save]" }, { shot: "call-1" }, { tap: "[data-call-save]" }, { wait: '[data-bet-state="open"] >> text=/called/' }, { pause: 800 }, { shot: "call-2" }] },
@@ -125,12 +149,16 @@ async function measure(p) {
         const frame = p.frames().find((f) => /\/show\/[^/]+\/game\//.test(f.url()));
         if (!frame) throw new Error("no game page frame");
         const url = new URL(frame.url());
+        // A show tab instead of the game page: the same show, the same viewer.
+        if (TAB) url.pathname = url.pathname.replace(/\/game\/[^/]+$/, `/${TAB}`);
         const ctx = await p.context().browser().newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, reducedMotion: "reduce" });
         await ctx.addCookies(await p.context().cookies(url.origin));
         const q = await ctx.newPage();
         try {
           await q.goto(url.href, { waitUntil: "domcontentloaded" });
-          await q.locator("[data-game-page]").first().waitFor({ timeout: 45000 });
+          await q.locator(READY).first().waitFor({ timeout: 45000 });
+          // A show tab's body loads after its bar: wait until nothing in it is still a skeleton.
+          if (TAB) await q.waitForFunction(() => !document.querySelector("main [aria-busy]"), {}, { timeout: 30000 }).catch(() => {});
           await q.waitForTimeout(1500);
           const base = path.join(OUT, x.id);
           await shoot(q, base, true);
@@ -153,12 +181,12 @@ async function measure(p) {
               await q.keyboard.press("Escape").catch(() => {});
               await q.waitForTimeout(500);
               await q.goto(url.href, { waitUntil: "domcontentloaded" });
-              await q.locator("[data-game-page]").first().waitFor({ timeout: 45000 });
+              await q.locator(READY).first().waitFor({ timeout: 45000 });
               await q.waitForTimeout(900);
             };
             // Something to tap: there, shown and enabled (a game without a matchup, a pair or a grid square skips that flow).
             const tappable = async (el) => (await el.count()) > 0 && (await el.isVisible().catch(() => false)) && !(await el.isDisabled().catch(() => true));
-            for (const f of FLOWS) {
+            for (const f of TAB ? TAB_FLOWS : FLOWS) {
               const el = q.locator(f.tap)[f.last ? "last" : "first"]();
               if (!(await tappable(el))) continue;
               await el.scrollIntoViewIfNeeded().catch(() => {});
@@ -185,6 +213,8 @@ async function measure(p) {
                 await q.locator(f.scroll).first().evaluate((el) => el.scrollIntoView({ block: "start" })).catch(() => {});
                 await q.waitForTimeout(500);
               }
+              // A part that opens in place (a game's ledger): shoot it where it is, scrolled to its top.
+              if (f.inPlace) await q.locator(f.wait).first().evaluate((el) => el.closest("[data-game-mini]")?.scrollIntoView({ block: "start" })).catch(() => {});
               await shoot(q, `${base}.${f.id}`, false);
               flows.push(f.id);
               await reload();
@@ -194,10 +224,12 @@ async function measure(p) {
             for (const seq of SEQUENCES[x.id]) {
               try {
                 await q.goto(url.href, { waitUntil: "domcontentloaded" });
-                await q.locator("[data-game-page]").first().waitFor({ timeout: 45000 });
+                await q.locator(READY).first().waitFor({ timeout: 45000 });
                 await q.waitForTimeout(900);
                 for (const st of seq.steps) {
-                  if (st.tap) { await q.locator(st.tap).last().click(); await q.waitForTimeout(500); }
+                  // A page of the same show, as the viewer (waivers, draft): its path in place of the game's.
+                  if (st.go) { const u = new URL(url.href); u.pathname = u.pathname.replace(/\/game\/[^/]+$/, `/${st.go}`); await q.goto(u.href, { waitUntil: "domcontentloaded" }); await q.waitForTimeout(900); }
+                  else if (st.tap) { await q.locator(st.tap).last().click(); await q.waitForTimeout(500); }
                   else if (st.fill) await q.locator(st.fill[0]).last().fill(st.fill[1]);
                   else if (st.wait) await q.locator(st.wait).last().waitFor({ timeout: 15000 });
                   else if (st.scroll) await q.locator(st.scroll).last().scrollIntoViewIfNeeded();

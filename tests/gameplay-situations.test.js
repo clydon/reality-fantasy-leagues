@@ -60,6 +60,19 @@ const CLAIMS = {
     assert.equal(b.unsettled, 3, "three calls to settle");
     assert.equal(b.postTo, 5, "a new bet goes on Episode 5");
   },
+  // BACKLOG 87: the AI settles with the final results; whoever runs the game (Ann) changed one; one it wasn't sure of stays open.
+  "show-bets-settled": ({ view }) => {
+    const by = Object.fromEntries(view().bets.bets.filter((x) => x.episode === 4).map((x) => [x.betId, x]));
+    assert.deepEqual([by["bet-idol"].settled, by["bet-idol"].decided?.by, by["bet-idol"].ai?.answer], [true, "ai", "Yes"], "settled by the AI");
+    assert.deepEqual(by["bet-home"].decided, { by: "changed", who: "Ann", you: true }, "changed by the viewer, who runs it");
+    assert.deepEqual([by["bet-cry"].settled, by["bet-cry"].ai?.settled, by["bet-cry"].ai?.answer], [false, false, "Yes"], "not sure: open, its answer kept");
+    assert.equal(view().bets.unsettled, 2, "the open one's two calls left to settle");
+  },
+  "show-bets-waiting": ({ view }) => {
+    const by = Object.fromEntries(view().bets.bets.filter((x) => x.episode === 4).map((x) => [x.betId, x]));
+    assert.deepEqual(by["bet-home"].decided, { by: "changed", who: "Ann", you: false }, "a player sees who changed it");
+    assert.equal(by["bet-cry"].settled, false);
+  },
   "nfl-due": ({ view }) => { const v = view(); assert.ok(v.lineup && !v.lineup.locked, "a lineup open"); assert.ok(v.matchups.next, "this week's matchup"); },
   "nfl-results-told": ({ view, snap }) => { assert.equal(snap.contexts.sport.marks.find((m) => m.personId === "ann").through, 1); assert.equal(view().matchups.last.episode, 2, "told game 2 though she hasn't marked it"); },
   "nfl-hides-behind": ({ view }) => assert.equal(view().matchups.last.episode, 1, "held to her mark"),

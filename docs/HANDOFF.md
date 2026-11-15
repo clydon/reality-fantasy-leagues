@@ -19,7 +19,7 @@ bets can be posted, called and settled on the page. Process and evidence: `docs/
 `step2-game-page-first-view.md` (PFD), `decisions.md`; the screenshot story https://claude.ai/artifact/YBQtP9VztyMFaAZMVxDZ1A (frames
 in `.ui-atlas/stories/step2-game-page/`, re-made by `scripts/dev-test/story-situations.js` and `story-build.py`). New code:
 `src/new/show/game-week.tsx`, `this-week.ts`, `src/lib/game/week-view.ts` (the view's `bets` and `locked`), a 26th bench situation
-`show-side-bets`. **(Decided 2026-11-15, not built yet: BACKLOG 87, the AI settles side bets and the commissioner can challenge;
+`show-side-bets`. **(Decided 2026-11-15, built the same day, not pushed: BACKLOG 87, the AI settles side bets and the commissioner can challenge;
 face colours, gold and teal out. Shipped to master cb78d493 the same day.)** Was waiting on the user: the review, BACKLOG 87, and face colours (gold and
 teal out of the palette). Next after approval: step 3, Tonight. Checks that assert on the old page's title card may need the new
 markers (the page keeps data-game-title/strip/grid/you/rules). **Step 2b, the same day** (the user's review: the bench, the league's
@@ -59,6 +59,14 @@ check-game-page.js, which also takes `--prefix zt-nd- --user zt_nd_alex` for the
 30 taped-replay games (`blind.js run survivor 49 --only=... --through=6 --keep`: questions, calls, Bingo, best ball, pools, pick'em,
 head to head, Outlast, stages) and the bench's 26 situations. Squares can't be rendered here (no sports season locally, no bench
 adapter): open. The before/after story is its own Artifact (linked in the session's reply).
+
+**Side bets settled by the AI, and athletes named in the draft and waivers (2026-11-15; branch `explorer-sports`, not pushed, no
+migration):** BACKLOG 87 as decided: the season sync settles each episode's bets from the research once its final results are
+in (src/lib/server/bet-settle.ts, BetLogic.settleByAI); whoever runs the game changes a mark by tapping it; the side bets sheet
+says who settled each, who changed it and what the AI said; an answer it wasn't sure of waits in the Settle box, chosen. BACKLOG
+88: the draft room and waivers name athletes by surname with their position (sports/faces.ts useCastNames). Checked: `npm test`
+(2,374), check-bet-settle.js, the situations show-bets-settled, show-bets-waiting and nfl-waivers-open at 390 (story in
+`.ui-atlas/stories/bets-ai/after`). Not run: `next build` (the dev server holds .next: build in rfl-merge before the push).
 
 ## Hosting: read [HOSTING.md](HOSTING.md) before adding anything that polls, runs on a schedule or stores data
 Every service, its free limits, current usage, what drives each limit, and what more would cost; keep it current

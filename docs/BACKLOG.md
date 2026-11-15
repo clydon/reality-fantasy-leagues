@@ -1128,7 +1128,7 @@ Last updated 2026-10-27.
     season have art set, though the brief asks for a visual "last time on" recap. **Who takes it:** the Episodes and reveal round
     (the design order's step 4).
 
-87. **Settling a side bet after an episode can flip a head-to-head week already shown as decided** (**decided 2026-11-15** by the
+87. **Settling a side bet after an episode can flip a head-to-head week already shown as decided** (**built 2026-11-15**, see "As built" at its end; **decided 2026-11-15** by the
    user, to build: side bets count in the matchup and **the AI settles them** with the episode's final results, from the
    research that already answers every open bet (db/episode-research.js openBetsFor; today it only suggests, bets/[betId]/
    suggested-answer, and the commissioner taps). **The commissioner can challenge an AI call and change it**; their answer wins
@@ -1143,7 +1143,21 @@ Last updated 2026-10-27.
    week stays open until its bets are settled (the page says "waiting on side bets"); (c) as now, and the page says when a week
    changed after the fact. The test the rule answers have used: what a player would call fair without reading the rules. Waits on
    the user; the engine lane builds whichever.
-88. **The draft room and the waivers sheets name athletes by first name, with no position** (noticed 2026-11-15 by the game
+   **As built (2026-11-15, branch `explorer-sports`, not pushed):** every season sync (src/lib/server/season-decisions.ts, which
+   every way results arrive ends in) settles each episode's bets once its final results are in, from the research's stored
+   answers (src/lib/server/bet-settle.ts; the engine's rule is BetLogic.settleByAI). It marks the calls only when the answer is
+   high or medium confidence and every call was among the guesses the research was shown (a league catching up when it ran isn't
+   asked); otherwise the AI's answer is kept on the bet (`bet.ai`) and shown, already chosen, in the Settle box of whoever runs the
+   game. A mark by hand records who made it (`bet.settledBy`); the AI never settles that bet again. The page says "Settled by the
+   AI: Yes. <why>", "Changed by Ann. The AI said Quinn." or "Settled by Ann"; a player sees "Waiting on whoever runs the game: the
+   AI wasn't sure"; on early results, "Settled with the final results". A copy for someone behind leaves the AI's answer out.
+   No push of its own (the final results' push covers it). Production's 2026-11-14 backup has no unmarked bet on a finished
+   episode, so the deploy moves no past week. Checks: tests/bet-settle.test.js, scripts/dev-test/check-bet-settle.js (real SQL
+   and the real sync), the situations `show-bets-settled` and `show-bets-waiting` (runtime core-runtime-44: the aiSettle action).
+88. **The draft room and the waivers sheets name athletes by first name, with no position** (**fixed 2026-11-15**: both read the
+   season's roster on the phone through one hook, src/new/sports/faces.ts useCastNames, and name every cast member through
+   `castName`, with the position on the lines beside it; a show's cast keeps its first names. Seen at 390 on `nfl-waivers-open`
+   (story-situations.js's waivers sequence); the draft room isn't rendered on a sport (no situation drafts one). Noticed 2026-11-15 by the game
    page's readiness step, not fixed there). The game page and its sheets now say an athlete's surname and a defense's nickname
    (`castName`, src/new/show/moves.ts, Designs needed 42), because their faces carry a position from the season's roster
    (src/new/sports/faces.ts useWithRoles). The draft (src/new/show/draft.tsx) and waivers (src/new/show/waivers.tsx) sheets

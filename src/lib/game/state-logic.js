@@ -8301,11 +8301,83 @@ class BetLogic {
     const ep = EpisodeLogic.ensureEpisodeNumber(state, number, false);
     return BetLogic.add(state, ep.id, label, points, createdByPlayerId);
   }
-  static setPredictionCorrect(state, epId, betId, predId, value){
+  // `by`: the seat (or user) of whoever marked it by hand, recorded on the bet (`settledBy`) so the page can say who settled it,
+  // or who changed the AI's call (BACKLOG 87). Once a person has marked a bet, the AI never settles it again (aiMaySettle).
+  static setPredictionCorrect(state, epId, betId, predId, value, by){
     const ep = state.episodes.find(e=>e.id===epId);
     const bet = ep && (ep.bets||[]).find(b=>b.id===betId);
     const pred = bet && bet.predictions.find(p=>p.id===predId);
-    if(pred) pred.correct = value===true || value==='true' ? true : (value===false || value==='false' ? false : null);
+    if(!pred) return;
+    pred.correct = value===true || value==='true' ? true : (value===false || value==='false' ? false : null);
+    if(by) bet.settledBy = String(by);
+  }
+
+  // ---- the AI settles side bets (BACKLOG 87, the user's decision 2026-11-15) ----
+  // With an episode's final results the AI settles each of its bets from the episode's research, which is asked every open bet
+  // (db/episode-research.js openBetsFor) and answers which guesses are right. Whoever runs the game can change any mark; theirs
+  // wins, and the AI never settles that bet again. A bet the research couldn't settle stays open for them and counts for nothing
+  // until it is: no answer, an answer it wasn't sure of (low: "pieced together, or judged from a name alone"), or a call it was
+  // never shown (a league catching up when the research ran isn't asked), whose rightness it can't have judged.
+  // How a bet's wording is matched to its research answer: case, spacing and trailing punctuation don't make it another question
+  // (db/episode-research.js betKey reads this one).
+  static key(label){
+    return String(label || '').toLowerCase().replace(/\s+/g, ' ').replace(/[\s?.!]+$/, '').trim();
+  }
+  // Nobody has marked it by hand: never marked, or marked by the AI. A bet marked before settledBy was recorded was marked by hand.
+  static aiMaySettle(bet){
+    if(!bet) return false;
+    if(bet.settledBy) return bet.settledBy === 'ai';
+    return !(bet.predictions || []).some(p => p.correct === true || p.correct === false);
+  }
+  /**
+   * Settles one bet from the research's answer `a` ({ answer, guesses, correctGuesses, evidence, confidence }, as
+   * db/episode-research.js betAnswersFrom stores it). Records the AI's call on the bet (`bet.ai`, which the page shows beside the
+   * marks or in the Settle box) and, when it's sure, marks every call. 'settled', 'suggested' (recorded, not marked), or null
+   * (nothing changed: a bet a person marked, no calls on it, or the same answer it already has).
+   */
+  static settleByAI(state, epId, betId, a, at){
+    const ep = state.episodes.find(e=>e.id===epId);
+    const bet = ep && (ep.bets||[]).find(b=>b.id===betId);
+    const preds = (bet && bet.predictions) || [];
+    if(!bet || !a || !preds.length || !BetLogic.aiMaySettle(bet)) return null;
+    const norm = g => String(g || '').trim().toLowerCase();
+    const answer = a.answer == null || !String(a.answer).trim() ? null : String(a.answer).trim();
+    const right = new Set(answer === null ? [] : (a.correctGuesses || []).map(norm));
+    const shown = new Set((a.guesses || []).map(norm));
+    const confidence = ['high', 'medium', 'low'].includes(a.confidence) ? a.confidence : 'low';
+    const sure = answer !== null && confidence !== 'low' && preds.every(p => shown.has(norm(p.guess)));
+    const call = {
+      answer,
+      right: preds.filter(p => right.has(norm(p.guess))).map(p => p.guess),
+      evidence: answer === null ? null : (a.evidence || null),
+      confidence,
+      settled: sure,
+    };
+    const was = bet.ai ? { ...bet.ai } : null;
+    if(was) delete was.at;
+    const marks = preds.map(p => p.correct);
+    if(sure) preds.forEach(p => { p.correct = right.has(norm(p.guess)); });
+    // A later answer it isn't sure of takes back the marks its earlier one made (nobody else made them).
+    else if(bet.settledBy === 'ai'){ preds.forEach(p => { p.correct = null; }); delete bet.settledBy; }
+    const same = was && JSON.stringify(was) === JSON.stringify(call) && preds.every((p, i) => p.correct === marks[i]);
+    if(same) return null;
+    bet.ai = { ...call, at: at || new Date().toISOString() };
+    if(sure) bet.settledBy = 'ai';
+    return sure ? 'settled' : 'suggested';
+  }
+  /**
+   * Who settled a bet, for the page: 'ai' (the AI's marks stand), 'changed' (the AI settled it and a person changed a mark: `by`
+   * is who), 'person' (a person settled one the AI didn't: `by`), or null (not every call is marked, or marked before any of this
+   * was recorded). Read from the marks, so a person who taps a mark and taps it back hasn't changed the AI's call.
+   */
+  static decision(bet){
+    const preds = (bet && bet.predictions) || [];
+    if(!preds.length || preds.some(p => p.correct !== true && p.correct !== false) || !bet.settledBy) return null;
+    const ai = bet.ai && bet.ai.settled ? bet.ai : null;
+    const agrees = ai && preds.every(p => p.correct === (ai.right || []).some(g => g.trim().toLowerCase() === String(p.guess || '').trim().toLowerCase()));
+    if(bet.settledBy === 'ai') return { by: 'ai', who: null };
+    if(ai) return agrees ? { by: 'ai', who: null } : { by: 'changed', who: bet.settledBy };
+    return { by: 'person', who: bet.settledBy };
   }
 }
 
@@ -9268,7 +9340,7 @@ class SpoilerLogic {
       // L3 part 2: a sport's stat lines and its game's final (StatsLogic.stamp).
       delete ep.statLines; delete ep.statBouts; delete ep.gameFinal; delete ep.gameScore; delete ep.statGames;
       ep.postMerge = visible ? !!visible.postMerge : false;
-      (ep.bets || []).forEach(b => (b.predictions || []).forEach(p => { p.correct = null; }));
+      (ep.bets || []).forEach(b => { (b.predictions || []).forEach(p => { p.correct = null; }); delete b.ai; delete b.settledBy; });
       ep.resultsHidden = true;
     });
     s.castaways.forEach(c => {
@@ -10179,6 +10251,7 @@ return {
   addBet: BetLogic.add, addBetToUpcoming: BetLogic.addToUpcoming, betTarget: BetLogic.target, updateBet: BetLogic.update, removeBet: BetLogic.remove,
   MAX_BET_POINTS,
   addBetPrediction: BetLogic.addPrediction, removeBetPrediction: BetLogic.removePrediction, setBetPredictionCorrect: BetLogic.setPredictionCorrect,
+  settleBetByAI: BetLogic.settleByAI, betDecision: BetLogic.decision, betKey: BetLogic.key,
   getOrCreateFinalePred: FinaleLogic.getOrCreatePrediction, setFinalePick: FinaleLogic.setPick, setFinaleWinnerPick: FinaleLogic.setWinnerPick,
   // Named setPickEmPick/removePickEmPick rather than the shorter setPick/removePick -- "pick" is
   // already heavily overloaded in this file (draft picks, blind-draft picks) and the longer name

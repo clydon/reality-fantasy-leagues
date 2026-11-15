@@ -240,7 +240,7 @@ export function SideBetsRow({ g, words, onOpen, runs }: { g: GameView; words: Sh
   if (runs && b.unsettled > 0) detail = `${b.unsettled} ${b.unsettled === 1 ? "call" : "calls"} to settle on ${words.ep} ${played[0]?.episode}${open.length ? ` · ${open.length} open on ${words.ep} ${ep}, you've called ${open.filter((x) => x.mine).length}` : ""}`;
   else if (open.length) detail = `${open.length} on ${words.ep} ${ep} · you've called ${open.filter((x) => x.mine).length}`;
   else if (played.length && played.every((x) => x.settled)) detail = `${words.ep} ${played[0].episode}: you called ${played.filter((x) => x.mine?.correct).length} of ${played.length} right`;
-  else if (played.length) detail = `${words.ep} ${played[0].episode}: waiting to be settled`;
+  else if (played.length) detail = `${words.ep} ${played[0].episode}: ${played.some((x) => x.stage === "early") ? "settled with the final results" : "waiting to be settled"}`;
   else if (b.postTo !== null) detail = `None on ${words.ep} ${b.postTo} yet · post one`;
   else return null;
   return (
@@ -334,7 +334,9 @@ function BetItem({ g, x, words, runs, onSaved }: { g: GameView; x: SideBet; word
 function Calls({ g, x, runs, onSaved }: { g: GameView; x: SideBet; runs: boolean; onSaved: () => void }) {
   const calls = useMemo(() => x.everyone ?? [], [x.everyone]);
   const answers = useMemo(() => [...new Set(calls.map((c) => c.guess.trim()))], [calls]);
-  const [pick, setPick] = useState<string | null>(null);
+  // The AI's answer, when it gave one it wasn't sure enough to settle with, starts chosen (BACKLOG 87).
+  const aiPick = x.ai?.answer && !x.ai.settled ? (answers.find((a) => a.toLowerCase() === x.ai!.answer!.toLowerCase()) ?? null) : null;
+  const [pick, setPick] = useState<string | null>(aiPick);
   const [busy, setBusy] = useState(false);
   const settle = async (right: string) => {
     setBusy(true);
@@ -381,12 +383,19 @@ function Calls({ g, x, runs, onSaved }: { g: GameView; x: SideBet; runs: boolean
           </li>
         ))}
       </ul>
-      {!x.played && <p className="mt-1.5 text-[13px] text-muted-foreground">Locked. Settled once the {x.episode ? "episode" : "game"} is in.</p>}
-      {x.played && !x.settled && !runs && <p className="mt-1.5 text-[13px] text-muted-foreground">Waiting to be settled.</p>}
+      {!x.played && <p className="mt-1.5 text-[13px] text-muted-foreground">Locked. The AI settles it with the final results.</p>}
+      <Settled x={x} runs={canSettle} />
       {x.played && x.calls < 2 && <p className="mt-1.5 text-[13px] text-muted-foreground">Fewer than two called it, so it pays nothing.</p>}
       {canSettle && !x.settled && (
         <div className="mt-3 rounded-[3px] bg-secondary/60 p-3" data-settle>
           <p className="text-[14px] font-semibold">What happened?</p>
+          {x.ai && (
+            <p className="mt-1 text-[13px] text-muted-foreground" data-settle-ai>
+              {x.ai.answer ? `The AI's answer: ${x.ai.answer}, but it wasn't sure enough to settle it.` : "The AI couldn't find the answer in the episode's sources."}
+              {x.ai.answer && x.ai.evidence ? ` ${x.ai.evidence}` : ""}
+            </p>
+          )}
+          {!x.ai && x.stage === "early" && <p className="mt-1 text-[13px] text-muted-foreground">The AI settles it with the final results, or settle it now.</p>}
           <div className="mt-2 flex flex-wrap gap-1.5">
             {answers.map((a) => (
               <Chip key={a} on={pick === a} data-settle-answer={a} onClick={() => setPick(pick === a ? null : a)} className="h-11 px-3.5 text-[15px]">
@@ -410,6 +419,30 @@ function Calls({ g, x, runs, onSaved }: { g: GameView; x: SideBet; runs: boolean
         </div>
       )}
     </div>
+  );
+}
+
+/** Who settled a played bet, or what it's waiting on (BACKLOG 87: the AI settles with the final results; whoever runs the game can
+ *  change a mark, and the page says so). `runs`: the reader can change the marks. */
+function Settled({ x, runs }: { x: SideBet; runs: boolean }) {
+  if (!x.played || !x.everyone?.length) return null;
+  const d = x.decided;
+  const name = (who: string | null, you: boolean) => (you ? "you" : who ? first(who) : "whoever runs the game");
+  let line: string | null = null;
+  if (x.settled && d?.by === "ai") line = `Settled by the AI: ${x.ai?.answer ?? "nobody called it"}.${x.ai?.evidence ? ` ${x.ai.evidence}` : ""}${runs ? " Wrong? Tap a mark to change it." : ""}`;
+  else if (x.settled && d?.by === "changed") line = `Changed by ${name(d.who, d.you)}. The AI said ${x.ai?.answer ?? "nobody called it"}.`;
+  else if (x.settled && d?.by === "person") line = `Settled by ${name(d.who, d.you)}.`;
+  else if (!x.settled && !runs) {
+    if (x.stage === "early") line = "Settled with the final results.";
+    else if (x.ai) line = x.ai.answer ? "Waiting on whoever runs the game: the AI wasn't sure." : "Waiting on whoever runs the game: the AI couldn't find the answer.";
+    else line = "Waiting to be settled.";
+  }
+  if (!line) return null;
+  const tag = d && x.settled ? d.by : x.stage === "early" ? "early" : "waiting";
+  return (
+    <p className="mt-1.5 text-[13px] text-muted-foreground" data-settled-by={tag}>
+      {line.charAt(0).toUpperCase() + line.slice(1)}
+    </p>
   );
 }
 

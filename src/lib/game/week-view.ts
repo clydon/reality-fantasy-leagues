@@ -38,6 +38,15 @@ export interface SideBet {
   played: boolean;
   /** Every call marked right or wrong. */
   settled: boolean;
+  /** Its episode's results stage once played: early (who went home) or final, when the AI settles it (BACKLOG 87). */
+  stage: "early" | "final" | null;
+  /**
+   * The AI's call once played (BetLogic.settleByAI): its answer (null: the research couldn't settle it), why, and whether it was
+   * sure enough to mark the calls. Null when the research hasn't answered it.
+   */
+  ai: { answer: string | null; evidence: string | null; settled: boolean } | null;
+  /** Who settled it (BetLogic.decision): the AI, a person who changed the AI's call, or a person. `who`: their name, if they play. */
+  decided: { by: "ai" | "changed" | "person"; who: string | null; you: boolean } | null;
   /** The answers as chips (who for "Who ...?", yes and no for "Will ...?"); null: answered in words. */
   options: string[] | null;
 }
@@ -93,12 +102,21 @@ export function sideBetsOf(view: LeagueState, me: string, names: Map<string, str
           : null,
         played,
         settled: played && preds.length > 0 && preds.every((p) => p.correct !== null),
+        stage: played ? StateLogic.resultsStage(ep) : null,
+        ai: played && bet.ai ? { answer: bet.ai.answer, evidence: bet.ai.evidence, settled: bet.ai.settled } : null,
+        decided: played ? decidedOf(bet, names, me) : null,
         options: optionsFor(bet.label),
       };
     });
   });
   const unsettled = bets.filter((b) => b.played).reduce((n, b) => n + (b.everyone ?? []).filter((c) => c.correct === null).length, 0);
   return { postTo, bets, unsettled };
+}
+
+/** Who settled a bet, with the person's name (a commissioner who doesn't play has none here). */
+function decidedOf(bet: LeagueState["episodes"][number]["bets"][number], names: Map<string, string>, me: string): SideBet["decided"] {
+  const d = StateLogic.betDecision(bet);
+  return d ? { by: d.by, who: d.who ? (names.get(d.who) ?? null) : null, you: !!d.who && d.who === me } : null;
 }
 
 /** A bet's lock (BetLogic.closed): its episode's start, unless whoever runs the game kept it open or locked it early, and for good

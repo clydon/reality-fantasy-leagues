@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useSyncExternalStore, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
@@ -19,6 +19,7 @@ import { ShowBar } from "../ui/show-bar";
 import { toast } from "../ui/toast";
 import { EpisodeSlider, Select } from "./cast";
 import { first } from "./moves";
+import { useCastNames } from "../sports/faces";
 import { Face, IconBox } from "./parts";
 
 // Simple waivers, the player's side (the mock's waivers.js "simple", picked 2026-10-23; docs/PLAN-new-design.md step 6a):
@@ -31,6 +32,24 @@ import { Face, IconBox } from "./parts";
 // order), then free agency until airtime. No points copy: what someone scored stays in past weeks.
 
 const names = (list: string[]) => (list.length > 1 ? `${list.slice(0, -1).join(", ")} and ${list[list.length - 1]}` : (list[0] ?? ""));
+
+// A cast member's name where room is short (BACKLOG 88): an athlete by surname, a defense by its nickname, as the game page names
+// them (sports/faces.ts useCastNames, the season's roster read on the phone); a show's cast by first name, as before. Each of the
+// file's doors (the episode row, the plate, the overlays, the screen) provides it.
+type Namer = (n: string | null | undefined) => string;
+const NO_CAST: { name: string }[] = [];
+const CastNames = createContext<Namer>((n) => (n ? first(n) : ""));
+/** Their position ("WR"), a sport's only. */
+const CastRoles = createContext<(n: string | null | undefined) => string | null>(() => null);
+function Names({ seasonId, children }: { seasonId: string; children: ReactNode }) {
+  const show = useShow(seasonId);
+  const names = useCastNames(seasonId, show.header?.show.kind === "sport", NO_CAST);
+  return (
+    <CastNames.Provider value={names.name}>
+      <CastRoles.Provider value={names.role}>{children}</CastRoles.Provider>
+    </CastNames.Provider>
+  );
+}
 
 /** Which game's waivers the page shows: `?game=`, else the first with something to do. */
 function pickGame(weeks: WaiverWeek[], asked: string | null): WaiverWeek | null {
@@ -100,9 +119,9 @@ function byPlayer(run: WaiverRunView) {
 }
 
 /** A player's moves in a line: "You got Ori for Carter"; several, "You got Jelly, Carter and Thien" (the faces say for whom). */
-const gotLine = (p: { you: boolean; name: string; moves: WaiverMove[] }) => {
+const gotLine = (p: { you: boolean; name: string; moves: WaiverMove[] }, nm: Namer) => {
   const one = p.moves.length === 1 ? p.moves[0] : null;
-  return `${p.you ? "You" : p.name} got ${one ? `${first(one.add!.name)}${one.drop ? ` for ${first(one.drop.name)}` : ""}` : names(p.moves.map((m) => first(m.add!.name)))}`;
+  return `${p.you ? "You" : p.name} got ${one ? `${nm(one.add!.name)}${one.drop ? ` for ${nm(one.drop.name)}` : ""}` : names(p.moves.map((m) => nm(m.add!.name)))}`;
 };
 
 /**
@@ -110,7 +129,16 @@ const gotLine = (p: { you: boolean; name: string; moves: WaiverMove[] }) => {
  * happened, at a glance, then a page of its own). A run: the game's label in its colour, what you got as a headline, your swaps as
  * faces (who left, faded, then who came in), everyone else in a line. A week still open: what's due, to the Waivers page.
  */
-export function WaiverEpisodeRow({ seasonId, week, run, many }: { seasonId: string; week: WaiverWeek; run: WaiverRunView | null; many: boolean }) {
+export function WaiverEpisodeRow(props: { seasonId: string; week: WaiverWeek; run: WaiverRunView | null; many: boolean }) {
+  return (
+    <Names seasonId={props.seasonId}>
+      <WaiverEpisodeRowBody {...props} />
+    </Names>
+  );
+}
+
+function WaiverEpisodeRowBody({ seasonId, week, run, many }: { seasonId: string; week: WaiverWeek; run: WaiverRunView | null; many: boolean }) {
+  const nm = useContext(CastNames);
   const ran = usePushedPage("waivers-ran", ["wv", "run"]);
   const label = many ? `${week.gameName} waivers` : "Waivers";
   if (run) {
@@ -138,7 +166,7 @@ export function WaiverEpisodeRow({ seasonId, week, run, many }: { seasonId: stri
               {count} {count === 1 ? "move" : "moves"}
             </small>
           </span>
-          {lead && <b className="mt-1 block text-base font-semibold leading-snug">{gotLine(lead)}</b>}
+          {lead && <b className="mt-1 block text-base font-semibold leading-snug">{gotLine(lead, nm)}</b>}
           {lead && (
             <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2" aria-hidden>
               {lead.moves.slice(0, 4).map((m) => (
@@ -151,7 +179,7 @@ export function WaiverEpisodeRow({ seasonId, week, run, many }: { seasonId: stri
               {lead.moves.length > 4 && <span className="text-[13px] font-semibold text-muted-foreground">+{lead.moves.length - 4}</span>}
             </span>
           )}
-          {rest.length > 0 && <small className="mt-2 line-clamp-2 block text-[13px] leading-snug text-muted-foreground">{rest.map(gotLine).join(" · ")}</small>}
+          {rest.length > 0 && <small className="mt-2 line-clamp-2 block text-[13px] leading-snug text-muted-foreground">{rest.map((x) => gotLine(x, nm)).join(" · ")}</small>}
         </span>
         <ChevronRight className="mt-0.5 size-5 flex-none text-muted-foreground" aria-hidden />
       </button>
@@ -172,7 +200,7 @@ export function WaiverEpisodeRow({ seasonId, week, run, many }: { seasonId: stri
         </b>
         <small className="mt-0.5 block text-[13px] text-muted-foreground">
           Due {week.period?.due ? airTime(Date.parse(week.period.due)) : "before airtime"} ·{" "}
-          {week.replace.length ? `replace ${names(week.replace.map((id) => first(week.team.find((f) => f.id === id)?.name ?? "someone")))}` : "optional swaps"}
+          {week.replace.length ? `replace ${names(week.replace.map((id) => nm(week.team.find((f) => f.id === id)?.name ?? "someone")))}` : "optional swaps"}
         </small>
       </span>
       <span className="text-[15px] font-semibold text-chyron-line">Open</span>
@@ -181,7 +209,15 @@ export function WaiverEpisodeRow({ seasonId, week, run, many }: { seasonId: stri
 }
 
 /** Tonight's "Waivers ran" plate (the mock's tabTonight): a run you haven't watched, while its week is still going. */
-export function WaiversRanPlate({ seasonId, show }: { seasonId: string; show: ShowData }) {
+export function WaiversRanPlate(props: { seasonId: string; show: ShowData }) {
+  return (
+    <Names seasonId={props.seasonId}>
+      <WaiversRanPlateBody {...props} />
+    </Names>
+  );
+}
+
+function WaiversRanPlateBody({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const wv = useSeasonWaivers(seasonId, show.couch?.id ?? null, playsWaivers(show));
   const replay = usePushedPage("waivers-run", ["wv"]);
   const week = unseenRun(wv.data?.games, wv.data?.seen);
@@ -213,7 +249,15 @@ export function WaiversRanPlate({ seasonId, show }: { seasonId: string; show: Sh
 }
 
 /** The run's reveal and page over a show's tabs (Tonight's plate, Episodes' row): the same waivers read, shared. */
-export function WaiverOverlays({ seasonId, show }: { seasonId: string; show: ShowData }) {
+export function WaiverOverlays(props: { seasonId: string; show: ShowData }) {
+  return (
+    <Names seasonId={props.seasonId}>
+      <WaiverOverlaysBody {...props} />
+    </Names>
+  );
+}
+
+function WaiverOverlaysBody({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const wv = useSeasonWaivers(seasonId, show.couch?.id ?? null, playsWaivers(show));
   return (
     <>
@@ -225,7 +269,15 @@ export function WaiverOverlays({ seasonId, show }: { seasonId: string; show: Sho
 
 // ---------- the page ----------
 
-export function WaiversScreen({ seasonId }: { seasonId: string }) {
+export function WaiversScreen(props: { seasonId: string }) {
+  return (
+    <Names seasonId={props.seasonId}>
+      <WaiversScreenBody {...props} />
+    </Names>
+  );
+}
+
+function WaiversScreenBody({ seasonId }: { seasonId: string }) {
   const show = useShow(seasonId);
   const nav = useNav();
   const couchId = show.couch?.id ?? null;
@@ -373,6 +425,8 @@ function Due({ label, at }: { label: string; at: string | null }) {
 }
 
 function OpenWeek({ seasonId, show, week }: { seasonId: string; show: ShowData; week: WaiverWeek }) {
+  const nm = useContext(CastNames);
+  const role = useContext(CastRoles);
   const [picking, setPicking] = useState<string | null>(null);
   const spots = new Map(week.spots.map((s) => [s.dropId, s.addIds]));
   const byId = new Map([...week.team, ...week.free].map((f) => [f.id, f]));
@@ -383,7 +437,7 @@ function OpenWeek({ seasonId, show, week }: { seasonId: string; show: ShowData; 
   const swapSpots = week.spots.filter((s) => !week.outIds.includes(s.dropId));
   const left = Math.max(0, week.swapsLeft - swapSpots.length);
   const total = week.spots.length;
-  const nameOf = (id: string) => first(byId.get(id)?.name ?? "someone");
+  const nameOf = (id: string) => nm(byId.get(id)?.name ?? "someone");
   const head = open.length ? `Replace ${names(open.map(nameOf))}` : week.replace.length || swapSpots.length ? "Your swaps are in" : "Any swaps this week?";
   const due = week.period?.due ?? null;
 
@@ -438,7 +492,7 @@ function OpenWeek({ seasonId, show, week }: { seasonId: string; show: ShowData; 
                       <small className="block text-[14px] font-semibold text-live">Out · Episode {f.out}</small>
                     ) : (
                       <small className="block text-[14px] text-muted-foreground">
-                        {f.points} pts{f.group ? ` · ${f.group.name}` : ""}
+                        {[role(f.name), `${f.points} pts`, f.group?.name].filter(Boolean).join(" · ")}
                       </small>
                     )}
                     {!out && f.tag && <span className="mt-1 inline-block rounded-[2px] bg-good/15 px-1.5 py-0.5 text-[12px] font-bold text-(--nd-good)">{f.tag}</span>}
@@ -463,9 +517,9 @@ function OpenWeek({ seasonId, show, week }: { seasonId: string; show: ShowData; 
                     <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
                     <Face src={byId.get(adds[0])?.photo ?? null} name={byId.get(adds[0])?.name} className="size-10 flex-none rounded-[3px]" />
                     <span className="min-w-0 flex-1">
-                      <b className="block text-[15px]">{first(byId.get(adds[0])?.name ?? "someone")} comes in</b>
+                      <b className="block text-[15px]">{nm(byId.get(adds[0])?.name ?? "someone")} comes in</b>
                       <small className="block text-[12.5px] text-muted-foreground">
-                        {out ? `Replaces ${first(f.name)}` : "Optional swap"}
+                        {out ? `Replaces ${nm(f.name)}` : "Optional swap"}
                         {!week.shared && adds.length === 1 ? " · if taken, the best one left" : ""}
                       </small>
                       {adds.length > 1 && (
@@ -576,13 +630,14 @@ function Quiet({ week }: { week: WaiverWeek }) {
 
 // ---------- after the run: who you got, everyone's moves, free agency ----------
 
-function moveLine(m: WaiverMove, shared: boolean): { title: string; line: string } {
+function moveLine(m: WaiverMove, shared: boolean, nm: Namer): { title: string; line: string } {
   const who = m.you ? "You" : m.name;
   if (m.outcome !== "got" || !m.add) return { title: `${who}: no change`, line: m.why };
-  return { title: `${who} got ${first(m.add.name)}`, line: `for ${m.drop ? first(m.drop.name) : "a spot"}${shared ? "" : ` · ${m.why}`}` };
+  return { title: `${who} got ${nm(m.add.name)}`, line: `for ${m.drop ? nm(m.drop.name) : "a spot"}${shared ? "" : ` · ${m.why}`}` };
 }
 
 function RanWeek({ week }: { week: WaiverWeek }) {
+  const nm = useContext(CastNames);
   const [fa, setFa] = useState(false);
   const run = week.run;
   const mine = run?.moves.filter((m) => m.you && m.outcome === "got" && m.add) ?? [];
@@ -596,7 +651,7 @@ function RanWeek({ week }: { week: WaiverWeek }) {
           <span className="text-[14px] text-muted-foreground">After Episode {run?.episode ?? week.period?.episode}</span>
         </div>
         <h2 className="type-caption mt-1 text-[40px] leading-[.95]">
-          {mine.length === 1 ? `${first(mine[0].add!.name)}'s on your team` : mine.length ? `${mine.length} swaps went through` : "No change for you"}
+          {mine.length === 1 ? `${nm(mine[0].add!.name)}'s on your team` : mine.length ? `${mine.length} swaps went through` : "No change for you"}
         </h2>
         {mine.map((m) => (
           <div key={m.add!.id} className="mt-3 flex items-center gap-3 rounded-[3px] bg-card p-2.5">
@@ -605,7 +660,7 @@ function RanWeek({ week }: { week: WaiverWeek }) {
             <Face src={m.add!.photo} name={m.add!.name} className="size-12 rounded-[3px]" />
             <span className="min-w-0 flex-1">
               <b className="block text-[15px]">
-                {first(m.add!.name)} for {m.drop ? first(m.drop.name) : "a spot"}
+                {nm(m.add!.name)} for {m.drop ? nm(m.drop.name) : "a spot"}
               </b>
               <small className="block text-[13px] text-muted-foreground">{week.shared ? "Yours" : m.why}</small>
             </span>
@@ -643,10 +698,11 @@ function RanWeek({ week }: { week: WaiverWeek }) {
 }
 
 function MovesList({ moves, shared, numbered }: { moves: WaiverMove[]; shared: boolean; numbered?: boolean }) {
+  const nm = useContext(CastNames);
   return (
     <ul className="flex flex-col">
       {moves.map((m, i) => {
-        const t = moveLine(m, shared);
+        const t = moveLine(m, shared, nm);
         return (
           <li key={`${m.playerId}-${m.add?.id ?? i}`} data-wv-move={m.name} className={`flex min-h-[56px] items-center gap-2.5 border-t border-border py-2 first:border-t-0 ${m.you ? "font-semibold" : ""}`}>
             {numbered && <span className="type-num w-5 text-center text-[18px] text-muted-foreground">{i + 1}</span>}
@@ -680,6 +736,8 @@ function PickSheet({
   taken: string[];
   onClose: () => void;
 }) {
+  const nm = useContext(CastNames);
+  const role = useContext(CastRoles);
   const current = week.spots.find((s) => s.dropId === drop.id)?.addIds ?? [];
   const [list, setList] = useState<string[]>(current);
   const [own, setOwn] = useState(current.length > 1);
@@ -716,10 +774,10 @@ function PickSheet({
       const add = pool.find((f) => f.id === adds[0]);
       toast(
         adds.length
-          ? `${first(add?.name ?? "They")} comes in for ${first(drop.name)}${week.shared ? "" : `, unless someone ahead of you takes ${first(add?.name ?? "them")} first`}`
+          ? `${nm(add?.name ?? "They")} comes in for ${nm(drop.name)}${week.shared ? "" : `, unless someone ahead of you takes ${nm(add?.name ?? "them")} first`}`
           : out
-            ? `Cleared${week.fallback ? `. Forget, and ${first(drop.name)}'s spot gets the most points left` : ""}`
-            : `${first(drop.name)} stays`
+            ? `Cleared${week.fallback ? `. Forget, and ${nm(drop.name)}'s spot gets the most points left` : ""}`
+            : `${nm(drop.name)} stays`
       );
       onClose();
     } catch (e) {
@@ -733,8 +791,8 @@ function PickSheet({
     <Sheet
       open
       onOpenChange={(o) => !o && onClose()}
-      title={`Who comes in for ${first(drop.name)}?`}
-      subtitle={`${out ? `Replaces ${first(drop.name)}` : `Optional swap · ${first(drop.name)} goes back to free agents`}${due ? ` · due ${due}` : ""}`}
+      title={`Who comes in for ${nm(drop.name)}?`}
+      subtitle={`${out ? `Replaces ${nm(drop.name)}` : `Optional swap · ${nm(drop.name)} goes back to free agents`}${due ? ` · due ${due}` : ""}`}
     >
       <div data-wv-picker>
         {through > 1 && (
@@ -773,7 +831,7 @@ function PickSheet({
                         {k === 0 && <span className="type-caption flex-none rounded-[2px] bg-chyron px-1 text-[11px] text-chyron-foreground">Your pick</span>}
                         {k > 0 && <span className="type-caption flex-none rounded-[2px] px-1 text-[11px] outline-1 -outline-offset-1 outline-input">Backup</span>}
                       </b>
-                      {f.tag ? <small className="block truncate text-[12.5px] font-semibold text-good">{f.tag}</small> : <small className="block text-[12.5px] text-muted-foreground">{f.group?.name ?? ""}</small>}
+                      {f.tag ? <small className="block truncate text-[12.5px] font-semibold text-good">{f.tag}</small> : <small className="block text-[12.5px] text-muted-foreground">{[role(f.name), f.group?.name].filter(Boolean).join(" · ")}</small>}
                       <span className="mt-1 block h-1 rounded-[2px] bg-border">
                         <i className="block h-1 rounded-[2px] bg-foreground" style={{ width: `${Math.max(4, (v / max) * 100)}%` }} />
                       </span>
@@ -821,12 +879,12 @@ function PickSheet({
             : !list.length
               ? "Tap someone"
               : own && list.length > 1
-                ? `Save ${first(pool.find((f) => f.id === list[0])?.name ?? "")} + ${list.length - 1} backup${list.length > 2 ? "s" : ""}`
-                : `${first(pool.find((f) => f.id === list[0])?.name ?? "")} comes in`}
+                ? `Save ${nm(pool.find((f) => f.id === list[0])?.name ?? "")} + ${list.length - 1} backup${list.length > 2 ? "s" : ""}`
+                : `${nm(pool.find((f) => f.id === list[0])?.name ?? "")} comes in`}
         </Btn>
         {current.length > 0 && (
           <Btn data-wv-clear wide className="mt-2" disabled={busy} onClick={() => save([])}>
-            {out ? "Clear my pick" : `Keep ${first(drop.name)}`}
+            {out ? "Clear my pick" : `Keep ${nm(drop.name)}`}
           </Btn>
         )}
       </div>
@@ -837,6 +895,8 @@ function PickSheet({
 // ---------- free agency: instant, first come, first served ----------
 
 function FreeAgencySheet({ open, onOpenChange, week }: { open: boolean; onOpenChange: (o: boolean) => void; week: WaiverWeek }) {
+  const nm = useContext(CastNames);
+  const role = useContext(CastRoles);
   const [add, setAdd] = useState<WaiverFace | null>(null);
   const [busy, setBusy] = useState(false);
   const after = useAfterWaivers();
@@ -850,7 +910,7 @@ function FreeAgencySheet({ open, onOpenChange, week }: { open: boolean; onOpenCh
     try {
       await write.freeAgency(week.leagueId, add.id, drop.id);
       await after();
-      toast(`${first(add.name)}'s on your team · ${first(drop.name)} ${drop.out != null ? "is replaced" : "is a free agent"}`);
+      toast(`${nm(add.name)}'s on your team · ${nm(drop.name)} ${drop.out != null ? "is replaced" : "is a free agent"}`);
       setAdd(null);
       onOpenChange(false);
     } catch (e) {
@@ -866,7 +926,7 @@ function FreeAgencySheet({ open, onOpenChange, week }: { open: boolean; onOpenCh
         if (!o) setAdd(null);
         onOpenChange(o);
       }}
-      title={add ? `Who goes for ${first(add.name)}?` : "Free agency"}
+      title={add ? `Who goes for ${nm(add.name)}?` : "Free agency"}
       subtitle={add ? "They go back to free agents" : `Instant${until ? ` until ${until}` : ""} · first come, first served`}
     >
       <div data-wv-fa-sheet>
@@ -879,7 +939,7 @@ function FreeAgencySheet({ open, onOpenChange, week }: { open: boolean; onOpenCh
                   <span className="min-w-0 flex-1">
                     <b className="block text-[15px]">{f.name}</b>
                     <small className="block text-[13px] text-muted-foreground">
-                      {[f.group?.name, `${f.points} pts`].filter(Boolean).join(" · ")}
+                      {[role(f.name), f.group?.name, `${f.points} pts`].filter(Boolean).join(" · ")}
                     </small>
                   </span>
                   {can && (
@@ -891,7 +951,7 @@ function FreeAgencySheet({ open, onOpenChange, week }: { open: boolean; onOpenCh
               ))}
             </ul>
             <p className="mt-3 text-[13px] text-muted-foreground">
-              {can ? (owed.length ? `Replace ${names(owed.map((f) => first(f.name)))}, or use a swap.` : `${week.swapsLeft} swap${week.swapsLeft === 1 ? "" : "s"} left this week.`) : "Nothing left to move this week."}
+              {can ? (owed.length ? `Replace ${names(owed.map((f) => nm(f.name)))}, or use a swap.` : `${week.swapsLeft} swap${week.swapsLeft === 1 ? "" : "s"} left this week.`) : "Nothing left to move this week."}
             </p>
           </>
         ) : (
@@ -1004,6 +1064,7 @@ function Kick({ children }: { children: ReactNode }) {
 }
 
 function RunBeats({ week, onSeen, onClose }: { week: WaiverWeek; onSeen: () => void; onClose: () => void }) {
+  const nm = useContext(CastNames);
   const [k, setK] = useState(0);
   const run = week.run!;
   const mine = run.moves.filter((m) => m.you && m.outcome === "got" && m.add);
@@ -1039,7 +1100,7 @@ function RunBeats({ week, onSeen, onClose }: { week: WaiverWeek; onSeen: () => v
                     <span>
                       <b className="type-caption block text-[34px] leading-[.95]">{m.add!.name}</b>
                       <small className="block text-[15px] text-muted-foreground">
-                        For {m.drop ? first(m.drop.name) : "a spot"}
+                        For {m.drop ? nm(m.drop.name) : "a spot"}
                         {week.shared ? "" : ` · your ${ordinal(m.choice ?? 1)} choice`}
                       </small>
                     </span>
@@ -1084,7 +1145,7 @@ function RunBeats({ week, onSeen, onClose }: { week: WaiverWeek; onSeen: () => v
                   <br />
                   is open
                 </h2>
-                <p className="mt-3 text-muted-foreground">{week.free.length ? `${names(week.free.slice(0, 2).map((f) => first(f.name)))} ${week.free.length > 1 ? "are" : "is"} still free. ` : ""}First come, first served.</p>
+                <p className="mt-3 text-muted-foreground">{week.free.length ? `${names(week.free.slice(0, 2).map((f) => nm(f.name)))} ${week.free.length > 1 ? "are" : "is"} still free. ` : ""}First come, first served.</p>
               </div>
             ),
           },
@@ -1133,6 +1194,7 @@ function RunBeats({ week, onSeen, onClose }: { week: WaiverWeek; onSeen: () => v
 
 /** One move as a card: who left (faded, and when) → who came in (still in, or since gone), and why where order mattered. */
 function SwapCard({ m, shared }: { m: WaiverMove; shared: boolean }) {
+  const nm = useContext(CastNames);
   const add = m.add!;
   const why = !shared && m.why && m.why !== "1st choice" && m.why !== "Free agency" ? m.why : m.why === "Free agency" ? "Free agency" : null;
   return (
@@ -1142,7 +1204,7 @@ function SwapCard({ m, shared }: { m: WaiverMove; shared: boolean }) {
           <>
             <Face src={m.drop.photo} name={m.drop.name} className="size-10 flex-none rounded-[3px] text-sm opacity-55 grayscale" />
             <span className="min-w-0">
-              <b className="block truncate text-[15px] font-semibold text-muted-foreground">{first(m.drop.name)}</b>
+              <b className="block truncate text-[15px] font-semibold text-muted-foreground">{nm(m.drop.name)}</b>
               <small className="block text-[12px] text-muted-foreground">{m.drop.out ? `Out Ep ${m.drop.out}` : m.kind === "swap" ? "Swapped out" : "Out"}</small>
             </span>
           </>
@@ -1154,7 +1216,7 @@ function SwapCard({ m, shared }: { m: WaiverMove; shared: boolean }) {
       <span className="flex min-w-0 flex-1 items-center gap-2">
         <Face src={add.photo} name={add.name} className="size-11 flex-none rounded-[3px] text-sm" />
         <span className="min-w-0">
-          <b className="block truncate text-[15px] font-semibold">{first(add.name)}</b>
+          <b className="block truncate text-[15px] font-semibold">{nm(add.name)}</b>
           <small className={`block text-[12px] leading-tight ${add.out ? "text-muted-foreground" : "text-good"}`}>{add.out ? `Out Ep ${add.out}` : "Still in"}</small>
           {why && <small className="block text-[12px] leading-tight text-muted-foreground">{why}</small>}
         </span>
