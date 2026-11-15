@@ -1,5 +1,6 @@
-// Dev-only: the phone's poller in a browser (docs/PLAN-start-a-game-gpt.md track L, step L2: "How live stays free" rests on
-// phones asking ESPN themselves). A page on its own local origin, in the testing bank's headless Chromium (browser.js), runs
+// Dev-only: the phone's poller in a browser (docs/PLAN-start-a-game-gpt.md track L, step L2). Written when phones asked ESPN
+// themselves; since 2026-11-15 they ask the app's live route (src/lib/server/sports/live-proxy.ts) by default, so this checks the
+// poller's cross-origin path against a stand-in or ESPN, which the app's route now takes instead (docs/PLAN-sports-live.md). A page on its own local origin, in the testing bank's headless Chromium (browser.js), runs
 // the poller itself (src/lib/sports/live.ts and each sport's reader, transpiled for the browser by TypeScript as they're asked
 // for: no bundler):
 //  - by default against the stand-in ESPN (fake-espn.js) on another origin, replaying a recorded game of each sport at --speed

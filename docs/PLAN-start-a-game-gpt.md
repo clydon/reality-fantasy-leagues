@@ -1120,9 +1120,11 @@ points tick live. A split pot on "next drive" pays out when the drive ends.
 - Also **team schedules** (games straight from ESPN, not only a TV listing's), **odds** (the over/under's default line) and
   **finals** (to store).
 
-**How live stays free:** phones poll ESPN themselves (every ~15 s; ESPN caches it) and work out live points on the phone, so
-nothing reaches our server or Neon while a game is live. The final is saved once. A later watch fetches the finished game once
-and replays it on the phone. If ESPN ever stops answering browsers, one Vercel route forwards it with a 15 s CDN cache.
+**How live is asked (changed 2026-11-15, the user: "polled by the app, not the client"):** phones ask our live route
+(`/api/sports/live/...`, src/lib/server/sports/live-proxy.ts), which alone asks ESPN, at most once per game every 15 s whoever
+is watching (shared at Vercel's edge), and work out live points on the phone; nothing reaches Neon while a game is live. The
+final is saved once. A later watch fetches the finished game once and replays it on the phone. (Before: phones asked ESPN
+themselves; docs/PLAN-sports-live.md "How live is asked".)
 
 **Built in vs data:** a sport's vocabulary and readers are code: `Sport` and its subclasses (positions, stat keys, periods,
 ESPN's box score and plays read into `Play`s), `Sport.reduce(plays)` for the box score at any moment, and `GameClock` (live,

@@ -1,13 +1,13 @@
-// A game live on the phone (docs/PLAN-start-a-game-gpt.md track L, step L2; docs/PLAN-sports-live.md, "How live stays free"):
-// the phone asks ESPN's summary itself, about every 15 s while the game is on and the screen is visible, stops once it's final,
-// and backs off while ESPN fails. It keeps the game's plays as a timeline (each answer read by the game's Sport, merged in) and
+// A game live on the phone (docs/PLAN-start-a-game-gpt.md track L, step L2; docs/PLAN-sports-live.md, "How live is asked"): the
+// phone asks the app for the game's summary, about every 15 s while the game is on and the screen is visible, stops once it's
+// final, and backs off while it fails. It keeps the game's plays as a timeline (each answer read by the game's Sport, merged in) and
 // gives the game on anyone's clock (clock.ts): now for someone watching live, their own for a later watch, the end for
 // everyone else. A later watch of a finished game is the same, with one ask.
 //
-// Nothing reaches our server or Neon while a game is live: ESPN answers browsers (Access-Control-Allow-Origin: *, checked
-// 2026-10-28 with plain requests; its CDN refuses a headless browser, so a person's own browser is the real check:
-// scripts/dev-test/check-espn-browser.js's header), and live points are worked out here. If ESPN ever stops answering
-// browsers, `base` points at one Vercel route that forwards the summary with a 15 s CDN cache (the plan's fallback; not built).
+// The app asks ESPN, not the phone (the user, 2026-11-15: "make sure it's polled by the app, not the client, that way we can
+// control polling as to not get rate limited"): `base` defaults to the app's route (LIVE_SITE: src/lib/server/sports/
+// live-proxy.ts), which asks ESPN at most once per game every 15 s whoever is watching, the edge sharing each answer; nothing
+// reaches Neon. Live points are worked out here, on the phone. A check may still point `base` at ESPN or a stand-in.
 //
 // Pure: fetch, the time, timers and whether the screen is visible are passed in (the phone's own; a check's 60x replay,
 // scripts/dev-test/check-live-clock.js; a browser's, check-espn-browser.js; a test's virtual time, tests/sports-live.test.js).
@@ -15,8 +15,10 @@ import { stateOn, type GameClock, type Moment } from "./clock";
 import { readOdds, type EspnOdds, type Odds } from "./matchup";
 import { headerTeams, isFinal, msOf, str, type BoxPerson, type BoxTeam, type EspnSummary, type GameState, type Play, type TeamSport } from "./sport";
 
-/** ESPN's site API, which answers browsers. */
+/** ESPN's site API (the app's live route asks it: live-proxy.ts). */
 export const ESPN_SITE = "https://site.api.espn.com";
+/** The app's live route, ESPN's site API's paths after it: where a phone asks (the default `base`). */
+export const LIVE_SITE = "/api/sports/live/site";
 /** How often a game on is asked for: ESPN caches its summary 1-7 s, so 15 s is always a new answer. */
 export const EVERY_MS = 15_000;
 /** The longest wait while ESPN fails (it doubles from EVERY_MS). */
@@ -282,7 +284,7 @@ export class LiveGame extends Poller {
     this.sport = o.sport;
     this.league = o.league;
     this.event = o.event;
-    this.base = (o.base ?? ESPN_SITE).replace(/\/$/, "");
+    this.base = (o.base ?? LIVE_SITE).replace(/\/$/, "");
     this.startsAt = msOf(o.startsAt ?? null);
     this.onChange = o.onChange;
   }

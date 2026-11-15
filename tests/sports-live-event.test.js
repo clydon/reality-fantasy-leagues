@@ -66,7 +66,7 @@ test("a draw live: each play at a phone's first sight of it, a suspended match o
   };
   fetch.asked = [];
   const g = new LiveEvent({ feed: drawFeed(tennis), league: "tennis/atp", event: "306-2026", fetch, now: vt.now, setTimer: vt.setTimer, clearTimer: vt.clearTimer, random: () => 0.5 });
-  assert.deepEqual(g.urls, { board: "https://site.api.espn.com/apis/site/v2/sports/tennis/atp/scoreboard/306-2026" });
+  assert.deepEqual(g.urls, { board: "/api/sports/live/site/apis/site/v2/sports/tennis/atp/scoreboard/306-2026" }); // the app's live route (polled by the app)
   g.start();
   await vt.settle();
   assert.equal(g.status, "in");
@@ -319,7 +319,7 @@ test("a card live (UFC 324): its board and FightCenter every 30 s, the bout on's
   });
   const g = new LiveEvent({ feed: cardFeed(mma), league: "mma/ufc", event: "600057024", fetch: api.fetch, now: vt.now, setTimer: vt.setTimer, clearTimer: vt.clearTimer, random: () => 0.5 });
   assert.deepEqual(Object.keys(g.urls), ["board", "fightcenter"]);
-  assert.ok(g.urls.fightcenter.startsWith("https://site.web.api.espn.com/apis/common/v3/sports/mma/ufc/fightcenter/600057024"));
+  assert.ok(g.urls.fightcenter.startsWith("/api/sports/live/web/apis/common/v3/sports/mma/ufc/fightcenter/600057024")) // the app's live route;
   g.start();
   await vt.settle();
   assert.equal(g.status, "in");

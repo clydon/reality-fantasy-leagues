@@ -249,7 +249,8 @@ test("asking: once at the start, then not until the game's start; every 15 s (±
   const fetch = replayFetch(s, vt, sport);
   let visible = true;
   const g = new LiveGame({ sport, league: "basketball/nba", event: "401909093", fetch, now: vt.now, setTimer: vt.setTimer, clearTimer: vt.clearTimer, visible: () => visible, random: () => 1 });
-  assert.equal(g.url, "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event=401909093");
+  // The app asks ESPN, not the phone (the user, 2026-11-15): a phone's poller asks the app's live route by default.
+  assert.equal(g.url, "/api/sports/live/site/apis/site/v2/sports/basketball/nba/summary?event=401909093");
   g.start();
   await vt.settle();
   assert.deepEqual([fetch.asked.length, g.status, g.startsAt], [1, "pre", Date.parse(`${new Date(b.first).toISOString().slice(0, 16)}Z`)]);

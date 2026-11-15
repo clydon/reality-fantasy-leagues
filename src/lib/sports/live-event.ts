@@ -15,16 +15,19 @@
 // Pure, as live.ts: fetch, the time, timers and the screen are passed in (tests/sports-live-event.test.js's virtual time;
 // scripts/dev-test/check-live-event.js replays the live recordings through it).
 import { momentOf, type GameClock, type Moment } from "./clock";
-import { CUT_SHORT, ESPN_SITE, PRE_WAIT_MS, Poller, type LiveStatus, type PollerOptions } from "./live";
+import { CUT_SHORT, LIVE_SITE, PRE_WAIT_MS, Poller, type LiveStatus, type PollerOptions } from "./live";
 import { Golf } from "./golf";
 import { MMA, mmaCenterStats, mmaCoreStats, playsEnd } from "./mma";
 import { Racing, coreFilled, coreReads, coreStats, weekendOver } from "./racing";
 import { Tennis, boardMatches, matchOver, matchSuspended } from "./tennis";
 import { fieldEventOf, idOf, isoOf, msOf, num, str, type BoutAnswer, type BoutCard, type BoutPlay, type BoutSport, type BoutState, type EspnBoutCompetition, type EspnBoutCore, type EspnBoutPlay, type EspnCoreCompetitor, type EspnFieldEvent, type FieldAnswer, type FieldEvent, type FieldPlay, type FieldSport, type FieldState, type Play } from "./sport";
 
-/** ESPN's core API and its web API (a fight card's FightCenter), which answer browsers too (CORS `*`, checked 2026-11-05). */
+/** ESPN's core API and its web API (a fight card's FightCenter); the app's live route asks them (live-proxy.ts). */
 export const ESPN_CORE = "https://sports.core.api.espn.com";
 export const ESPN_WEB = "https://site.web.api.espn.com";
+/** The app's live route for each (ESPN's paths after it): where a phone asks, by default (the user, 2026-11-15: polled by the app). */
+export const LIVE_CORE = "/api/sports/live/core";
+export const LIVE_WEB = "/api/sports/live/web";
 /** The most rounds an ask goes in (racing's: the board, a probe of the winner's statistics, then everyone's). */
 const MAX_ROUNDS = 4;
 
@@ -169,7 +172,7 @@ export class LiveEvent<A, P extends Play, E, S> extends Poller {
     this.league = o.league;
     this.event = o.event;
     const host = (x: string | undefined, or: string) => (x ?? or).replace(/\/$/, "");
-    this.hosts = { site: host(o.base, ESPN_SITE), core: host(o.core, ESPN_CORE), web: host(o.web, ESPN_WEB) };
+    this.hosts = { site: host(o.base, LIVE_SITE), core: host(o.core, LIVE_CORE), web: host(o.web, LIVE_WEB) };
     this.onChange = o.onChange;
   }
 

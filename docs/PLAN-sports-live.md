@@ -76,7 +76,17 @@ bout-by-bout or session-by-session for the rest.
 - **Total bases.** ESPN's per-player batting has no 2B, 3B or TB (its labels are `H-AB AB R H RBI HR BB K #P AVG OBP SLG`; only
   the team totals have them). The plays do, so `Baseball`'s reducer counts them: single 1, double 2, triple 3, home run 4.
 
-## How live stays free
+## How live is asked
+
+**Changed 2026-11-15 (the user): the app polls, not the phone.** "Make sure it's polled by the app, not the client, that way we
+can control polling as to not get rate limited." The fallback below is now the way: phones ask our route
+(`/api/sports/live/...`, `src/lib/server/sports/live-proxy.ts`), the only thing that asks ESPN live, at most once per game every
+15 s whoever is watching (Vercel's edge shares each answer; each instance asks at most every 10 s, one ask at a time; the last
+answer served while ESPN fails). The pollers' default `base` is that route (`LIVE_SITE`, `LIVE_CORE`, `LIVE_WEB`). Live points
+are still worked out on the phone, nothing is written to Neon, and the final is kept once. The cost moves to Vercel's transfer
+(docs/HOSTING.md, Live games). No screen shows a game live yet: that's a design (the screens below), on the design round.
+
+What it was before:
 
 - **Phones ask ESPN themselves.** While a linked game is on and the screen is open (and visible), the phone polls ESPN's summary
   (every ~15 s; ESPN caches it anyway). Live points are worked out **on the phone**, from the box score and plays, the game's

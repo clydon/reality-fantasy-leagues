@@ -169,6 +169,19 @@
   states: a champion, a tie, someone behind).
 - Rests on: docs/GAME-PAGE-SITUATIONS.md "On real people"; the story's "On a real game".
 
+## 2026-11-15 · A game live is asked by the app, not the phone
+- Decided by: the user ("make sure it's polled by the app, not the client, that way we can control polling as to not get rate
+  limited"); the route's shape by Claude, the plan's own fallback
+- Why: one place decides how often ESPN is asked, whatever the number watching, and ESPN sees our server only.
+- What: `/api/sports/live/{site|core|web}/<ESPN's path>` (live-proxy.ts): live addresses only, a summary cut to what's read, 15 s
+  at the edge, at most one ask per address every 10 s per instance, the last answer while ESPN fails; the pollers ask it by default.
+- Rejected: a server process polling every live game (Vercel runs no always-on process, and its cron is daily on Hobby); keeping
+  the answers in Neon (a write every few seconds a game: the transfer the chat polls once used up); phones asking ESPN (the
+  user's call).
+- Cost: Vercel's transfer, ~20 MB a phone an NFL game (HOSTING.md, Live games).
+- Not yet: a screen showing a game live. It's a new display (a scorebug, the matchup with points moving, the plays that moved
+  someone), for the design round; Patriots vs Lions was recorded live through the route to design it on.
+
 ## 2026-11-15 · The user's intent for every round, written down before a new session takes over
 - Decided by: the user (asked that their intentions be recorded)
 - What: data compared side by side; the whole game visible (benches, the league's other matchups); drill-downs with weekly
