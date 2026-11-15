@@ -11,6 +11,7 @@ import { Avatar, useNow } from "../ui/bars";
 import { isRequired } from "./moves";
 import { useOpenReveal } from "./reveal";
 import { upNextEpisode, WatchedSheet } from "./up-next";
+import { AskChip, AskConfirm, AskPicker, outWords, useAskLook, useCatchingUp } from "./behind-ask";
 import { useOpenWatch } from "./watch-along";
 
 // The progress control (the design round's step 3: docs/design-round/step3-tonight-spec.md, "Two parts every show tab shares";
@@ -55,11 +56,13 @@ export function progressWords(show: ShowData, now: number): ProgressWords {
 }
 
 /** The one watching action there is now, or null: the reveal on a show you play, I watched it on one you watch, or Watch along
- *  while it's on. `primary`: it holds the view's one yellow (a reveal while nothing is due). */
+ *  while it's on. `primary`: it holds the view's one yellow: a reveal while nothing is due, or while everything due waits on it
+ *  (the strip is quiet then: "After you reveal Ep 4"). */
 export function watchAction(show: ShowData): { kind: "reveal" | "watched" | "live"; n: number; primary: boolean } | null {
   if (show.readOnly) return null;
   const up = upNextEpisode(show);
-  if (up) return { kind: up.play ? "reveal" : "watched", n: up.n, primary: up.play && !show.moves.some(isRequired) };
+  const waits = (m: ShowData["moves"][number]) => !m.late && (show.play?.find((g) => g.leagueId === m.leagueId)?.revealFirst ?? null) != null;
+  if (up) return { kind: up.play ? "reveal" : "watched", n: up.n, primary: up.play && show.moves.filter(isRequired).every(waits) };
   if (show.upNext?.live && (show.following || show.plays)) return { kind: "live", n: show.upNext.number, primary: false };
   return null;
 }
@@ -89,8 +92,42 @@ export function ProgressControl({ show }: { show: ShowData }) {
   const onRuler = !show.solo && (others > 0 || quiet.length > 0);
   const ruler = known.length > 0 && show.latestAired + (up ? 1 : 0) > 0;
   const openWhereAll = () => (couchId && seasonId ? openCouchSheet({ kind: "where", couchId, seasonId }) : openWhere(show));
+  // TEMP-UI (behind-ask.tsx): behind on an airing show, the control asks whether you've seen what's out, in one of three looks.
+  const look = useAskLook();
+  const ep = show.words.ep;
+  const latest = show.latestAired;
+  const behind = !!look && !!action && action.kind !== "live" && seen != null && seen < latest;
+  const [later, setLater] = useCatchingUp(seasonId, latest);
+  const asking = behind && !later;
+  const [askOpen, setAskOpen] = useState(false);
+  const out = behind ? outWords(ep, seen!, latest) : "";
+  if (behind && later) {
+    words.mark = `Catching up · through ${ep} ${seen}`;
+    words.next = `${ep} ${seen! + 1} next${latest > seen! + 1 ? ` · ${latest - seen! - 1} more out` : ""}`;
+  }
   return (
     <div data-progress className="relative mx-2 mt-auto px-2 pt-3">
+      {asking && look === "b" ? (
+        <div className="flex items-center gap-3" data-ask-line>
+          <button type="button" data-progress-mark onClick={() => openWhere(show)} className="nd-press -mx-1 min-h-11 min-w-0 flex-1 px-1 text-left">
+            <b className="block text-[17px] font-bold leading-tight">Seen {out}?</b>
+            <span className="mt-0.5 block text-[14px] leading-tight text-white/85">You&rsquo;re through {ep} {seen}</span>
+          </button>
+          <span className="flex flex-none gap-1.5">
+            <button
+              type="button"
+              data-ask-yes
+              onClick={() => setAskOpen(true)}
+              className={`nd-press h-11 rounded-[4px] px-4 text-[15px] font-bold ${action!.primary ? "bg-chyron text-chyron-foreground" : "bg-plate text-plate-foreground"}`}
+            >
+              Yes
+            </button>
+            <button type="button" data-ask-later onClick={setLater} className="nd-press h-11 rounded-[4px] px-3 text-[15px] font-bold text-white outline-[1.5px] -outline-offset-[1.5px] outline-white/60">
+              Not yet
+            </button>
+          </span>
+        </div>
+      ) : (
       <div className="flex items-baseline justify-between gap-3">
         {/* Your mark is one door (to Where you are, where it's changed): the line itself, with its chevron. */}
         <button
@@ -113,6 +150,7 @@ export function ProgressControl({ show }: { show: ShowData }) {
           {words.mark && <ChevronRight className="size-[18px] flex-none self-start text-white/85" aria-hidden />}
         </button>
       </div>
+      )}
       {ruler && (
         <Ruler
           known={known}
@@ -126,7 +164,25 @@ export function ProgressControl({ show }: { show: ShowData }) {
           onOpen={openWhereAll}
         />
       )}
-      {action && (
+      {asking && look === "a" && (
+        <div className="mt-3 flex gap-2" data-ask-row>
+          <PlateButton primary={action!.primary} fill data-ask-yes onClick={() => setAskOpen(true)}>
+            I&rsquo;ve seen {ep} {latest}
+          </PlateButton>
+          <PlateButton data-ask-later onClick={setLater}>
+            Catching up
+          </PlateButton>
+        </div>
+      )}
+      {asking && look === "c" && <AskChip label={`Seen ${out}?`} primary={action!.primary} onClick={() => setAskOpen(true)} />}
+      {behind && later && (
+        <div className="mt-3 flex">
+          <PlateButton data-ask-watch onClick={() => openWatch(seen! + 1)} className="flex-none px-4">
+            Watch {ep} {seen! + 1} along
+          </PlateButton>
+        </div>
+      )}
+      {action && !behind && (
         <div className="mt-3 flex gap-2">
           {action.kind === "reveal" ? (
             <PlateButton primary={action.primary} fill data-progress-reveal={action.n} onClick={() => setConfirm(true)}>
@@ -143,7 +199,12 @@ export function ProgressControl({ show }: { show: ShowData }) {
           </PlateButton>
         </div>
       )}
-      {action && action.kind !== "live" && seasonId && (
+      {behind && seasonId && (look === "c" ? (
+        <AskPicker open={askOpen} onOpenChange={setAskOpen} show={show} seasonId={seasonId} seen={seen!} latest={latest} play={action!.kind === "reveal"} first={action!.n} onReveal={openReveal} onLater={setLater} />
+      ) : (
+        <AskConfirm open={askOpen} onOpenChange={setAskOpen} show={show} seasonId={seasonId} seen={seen!} latest={latest} play={action!.kind === "reveal"} first={action!.n} onReveal={openReveal} />
+      ))}
+      {action && !behind && action.kind !== "live" && seasonId && (
         <WatchedSheet open={confirm} onOpenChange={setConfirm} show={show} seasonId={seasonId} n={action.n} play={action.kind === "reveal"} onReveal={() => openReveal(action.n)} />
       )}
     </div>

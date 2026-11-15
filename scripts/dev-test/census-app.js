@@ -42,6 +42,9 @@ const BASE = process.env.BASE || "http://localhost:3000";
 const ATLAS = opt("atlas-base", "http://127.0.0.1:4400");
 const OUT = path.resolve(opt("out", ".ui-atlas/stories/phase0/census"));
 const ONLY = opt("only");
+// For a design's variants on the same situations: --query=<a=b&c=d> is added to every page's address, --tap=<selector> is tapped
+// (its first match, if there) before the shot, and --suffix=<-x> is added to each frame's id so variants don't overwrite.
+const QUERY = opt("query", null), TAP = opt("tap", null), SUFFIX = opt("suffix", "");
 const PASS = "zt-pass-12345";
 const u = (who) => `zt_nd_${who}`;
 
@@ -202,11 +205,18 @@ async function measure(p) {
 }
 
 async function capture(p, s) {
-  const base = path.join(OUT, s.id);
+  const base = path.join(OUT, s.id + SUFFIX);
   await p.evaluate(() => window.scrollTo(0, 0)).catch(() => {});
   // The dev server's own badge (Next's dev tools) isn't the app's: hidden from the frames.
   await p.addStyleTag({ content: "nextjs-portal{display:none!important}" }).catch(() => {});
   if (s.act) await s.act(p);
+  if (TAP) {
+    const el = p.locator(TAP).first();
+    if (await el.count()) {
+      await el.click();
+      await p.waitForTimeout(900);
+    }
+  }
   await p.waitForTimeout(s.wait || 700);
   // A frame in the fallback face isn't today's app: one run on 2026-11-14 caught the dev server mid-recompile and kept a
   // whole batch in Arial, which read as "the condensed display font is missing at 390". Wait for Archivo, fail if it never comes.
@@ -242,7 +252,7 @@ async function capture(p, s) {
         if (!s.continue) {
           const go = typeof s.go === "function" ? s.go() : s.go;
           if (!go || /undefined/.test(go)) throw new Error("its fixture id is missing (run with --up)");
-          await b.page.goto(BASE + go, { waitUntil: "domcontentloaded" });
+          await b.page.goto(BASE + go + (QUERY ? (go.includes("?") ? "&" : "?") + QUERY : ""), { waitUntil: "domcontentloaded" });
           await b.page.locator(s.ready).first().waitFor({ timeout: 45000 });
           await b.page.waitForTimeout(1500);
         }

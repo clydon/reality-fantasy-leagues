@@ -296,3 +296,10 @@
 - Rejected: changing the clock's countdown inside the last day (the app's rule everywhere); snapping every size to DESIGN.md's ramp
   (app-wide drift, a DESIGN.md decision).
 - Rests on: docs/design-round/step3-tonight-check.md.
+
+## 2026-11-15 · The behind question: three looks mocked, B recommended (awaiting the user)
+- Decided by: Claude (recommendation; the user asked for mocks because they don't want it to crowd the screen)
+- Why: someone behind has either watched and not told the app (Joanna, the user's real case) or is catching up; the app can't tell, so it asks once with both answers one tap. B (the question is the control's line, Yes and Not yet beside it) adds nothing and takes 60 px away; A keeps today's height; C (a chip opening a sheet) costs Joanna a tap and a list.
+- Rejected: inferring the answer (a wrong guess spoils or scolds); signals only order the answers.
+- Rests on: the story https://claude.ai/artifact/2fSx1kXCBdjnTopGoXkwn2; src/new/show/behind-ask.tsx (TEMP-UI, ?ask=a|b|c).
+- Also fixed: the reveal holds the yellow when every due move waits on it (watchAction primary), the step 3 story's first open bug.
