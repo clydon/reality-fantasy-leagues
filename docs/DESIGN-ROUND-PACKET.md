@@ -79,6 +79,21 @@ should never feel hustled.
 - **Does the competitive player ("sweat") have the stats to decide?** The numbers sit beside the decision, not on another tab:
   recent lines, matchups, ownership and trends, with comparisons one tap away. Judge by Conor (tinkers).
 
+- **Is it busy or overwhelming?** This is the criticism early designs got most, and a design that draws it fails, however
+  correct it is:
+  - **One thing first.** Each screen has one job and one primary action. A five-second look says what it is and what to do;
+    if a tester names three things, it's busy.
+  - **Calm on the surface, depth on demand.** The sweat's stats are a tap away and dense where they live (a table, a sheet),
+    never spread across every card. Calm and deep aren't a trade-off: they're two layers.
+  - **Say each thing once.** No fact repeated in a chip, a banner and a plate; no badge that names a setting rather than
+    what's happening (the "Waivers" chip on a game with none, Designs needed 32).
+  - **Earn every element.** For each block in the first phone view, ask what someone would lose without it. Few type sizes,
+    few colours, one accent doing one job.
+
+  Today's game page, for comparison (`show-due.png` in `.ui-atlas/situations/`): a huge title, two setting chips, a spoiler
+  line, the move and a grid all compete for the first view, while the one thing a head-to-head player wants (who they play) is
+  missing.
+
 The bench's page checks record what they can measure (taps to each key fact, what the first phone view holds, the page's words); a
 person, or a blind tester, judges the rest.
 
