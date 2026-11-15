@@ -24,6 +24,10 @@ impeccable (shape, then critique) at 390 px first, then a pause for your review 
 
 ## The round's frame (the user, 2026-11-14)
 
+**How to read this frame.** These are the user's general thoughts and intent, not rules set in stone. They're always open to
+pushback: when a design reason argues against one, raise it with the reasoning (as with UX flaws: say it head on), and the user
+decides. Don't quietly design around it, and don't treat it as settled beyond what they said.
+
 **What's covered: one system at several distances.** Each surface reads the same game model (what's due, what's locked, what each
 person has been told), so a move or a result looks the same at every layer, only closer or farther:
 - notifications (the one line);
@@ -70,7 +74,8 @@ friend's face and position, the stat table, the person sheet) are decided once a
 
 The full sports design is step 10. The bench's real-size sports pools are built before step 2's sports check.
 
-Each step is one session, with a screenshot story and a pause. A living board lists every surface's status (today's, drafted,
+Why wide first, then focused (the user): so honing in on one page never loses the context of the others, whether finalized or
+newly drafted. Each step is one session, with a screenshot story and a pause. A living board lists every surface's status (today's, drafted,
 approved) and its latest story, and after each round a ripple check re-renders whatever uses a part that round changed.
 
 **Soul, not sterile** (the user, 2026-11-14). The redesign must not sterilize the app's character: no AI slop, nothing clinical,
@@ -154,7 +159,8 @@ person, or a blind tester, judges the rest.
 
 ## Decisions you owe (before or at the start of the round)
 
-1. **The first page: the game page, or Tonight?** The brief's default pilot is Tonight. **I recommend the game page** (a
+1. **The first page** (since settled by the order above: Phase 0 first, then the game page; this was the reasoning, kept for the
+   record). **The game page, or Tonight?** The brief's default pilot is Tonight. **I recommend the game page** (a
    generated game's own page with its sheets):
    - 36 of the 39 explorer findings land on it, and so do your priority (head to head, B46/DN 3) and every sports finding;
    - Tonight's components are mid-review (no choice from the [data round 3](show-soul-review/tonight-data-round3-2026-11-12.md)
