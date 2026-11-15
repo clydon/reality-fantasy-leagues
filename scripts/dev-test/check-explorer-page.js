@@ -396,8 +396,13 @@ const sportsFile = path.join(out, 'sports-definition.json');
       const app = p.frameLocator('#device-a iframe'); await p.locator('#game').selectOption('weeks'); await app.locator('[data-game-page]').waitFor({ timeout: 30000 });
       const local = R.open(JSON.parse(fs.readFileSync(weeksFile, 'utf8'))), won = local.project('weeks', 'ann').game.weeksWon; local.dispose();
       const main = await app.locator('[data-game-page]').getAttribute('data-game-main'), text = (await app.locator('[data-game-page]').innerText()).replace(/\s+/g, ' ');
-      assert.equal(main, 'week'); assert.match(text, /weeks won/i, 'the weeks-won block: ' + text.slice(0, 800));
-      await shot('05j-weeks'); assert.ok(won && Number.isInteger(won.ann), 'runtime weeks won: ' + JSON.stringify(won)); assert.match(text, new RegExp('\\b' + won.ann + ' weeks? won', 'i'), "Ann's count is the runtime's (" + won.ann + ')');
+      assert.equal(main, 'week'); assert.ok(won && Number.isInteger(won.ann), 'runtime weeks won: ' + JSON.stringify(won));
+      // The game page (step 2) counts weeks won in the season grid's pinned totals (and in the card's line when no move is due).
+      const unit = await app.locator('[data-game-grid]').getAttribute('data-game-couch');
+      assert.match(unit || '', /week/i, 'the grid counts weeks won: ' + unit + ' · ' + text.slice(0, 600));
+      const mine = (await app.locator('[data-game-grid] [data-restack="ann"]').last().innerText()).trim();
+      await shot('05j-weeks'); assert.equal(Number(mine), won.ann, "Ann's count in the grid is the runtime's (" + won.ann + '): ' + mine);
+      if (!/weeks? won/i.test(text)) assert.ok(await app.locator('[data-game-strip][data-game-due="yes"], [data-week-card][data-week-tone="due"]').count(), 'no weeks-won words and no move due: ' + text.slice(0, 600));
     });
     await step('only some moments count, as hits: the game page says so, How it works spells it out, standings agree', async () => {
       await p.locator('#open').click(); await p.locator('#open-file').click(); await p.locator('#file').setInputFiles(onlyFile);
@@ -996,7 +1001,7 @@ const sportsFile = path.join(out, 'sports-definition.json');
       fs.writeFileSync(path.join(out, 'stages-page.json'), JSON.stringify(seen, null, 2));
       assert.match(seen.waiting + seen.waitingLater, /starts when merged starts|draft · not started yet/i, 'the Merged stage says it waits (for the merge, or for its draft)');
       if (/draft · not started yet/i.test(seen.waiting + seen.waitingLater)) console.log("NOTE before the merge, the Merged stage's page shows a 'Draft · Not started yet · Pick in private, reveal together' plate" + " (its hero says 'Starts when Merged starts · Nothing to do yet' until the draft's own read arrives: your-move.ts shows any draft that isn't done)" + ": a draft the server refuses to start until the merge is known (Designs needed item 33); see stages-page.json");
-      assert.match(seen.drafted, /set your episode 4 lineup/i, 'drafted, the Merged stage asks for its Episode 4 lineup');
+      assert.match(seen.drafted, /\bEp 4\b[\s\S]*set your (episode 4 )?lineup/i, "drafted, the Merged stage asks for its Episode 4 lineup (step 2: the week's label names it, the strip says Set your lineup)");
       assert.match(seen.firstOver, /final/i, 'the first stage is over'); assert.match(seen.gameAfter, /DONE BEFORE THE MERGE NOW MERGED/i, 'the game names its stages, the first done and the Merged one on now');
       // Recorded gaps (Designs needed item 33): the game's page and its stages; what someone behind is shown.
       if (!/before the merge/i.test(seen.stageLinks || '') || !/merged/i.test(seen.stageLinks || '')) console.log("NOTE the game's page doesn't name its stages (Designs needed item 33); see stages-page.json");
@@ -1063,12 +1068,12 @@ const sportsFile = path.join(out, 'sports-definition.json');
       const openGame = async () => { for (let go = 0; ; go++) { await p.locator('#game').selectOption('g'); try { await app.locator('[data-game-page]').waitFor({ timeout: 45000 }); break; } catch (e) { if (go) throw e; await p.locator('#game').selectOption({ index: 0 }).catch(() => {}); } } await app.locator('[data-game-grid]').waitFor({ timeout: 30000 }); await p.waitForTimeout(1000); };
       const routes = async () => { await p.locator('#route-check').click(); await p.locator('#panel-checks .card', { hasText: 'No spoilers, standings match' }).waitFor({ timeout: 90000 }); };
       await openGame();
-      const seen = { locked: await text('[data-game-page]'), strip: await text('[data-game-strip]') }; await shot('05zzl-sports-week-lock');
+      const seen = { locked: await text('[data-game-page]'), strip: (await text('[data-game-strip]')) + ' ' + (await text('[data-week-card]')) }; await shot('05zzl-sports-week-lock'); // (step 2: the card's line says what locked it)
       assert(!/undefined|NaN|\[object/.test(seen.locked), 'the page prints a broken value');
       // The page says what locked it (it read "Locked at airtime · scores hidden until you reveal" and "Yours to change until it
       // airs": BACKLOG 76, fixed 2026-11-14).
       assert(/Locked when the week's first game began/i.test(seen.strip), 'the strip does not say the week locked the lineup: ' + seen.strip.slice(0, 200));
-      assert(/Locked when the week's first game began\. It plays as it stands\./i.test(seen.locked) && !/Yours to change until it airs/i.test(seen.locked), 'the week by week still says the lineup can be changed: ' + seen.locked.slice(0, 600));
+      assert(/Locked when the week's first game began(\. It| ·  ?it) plays as it stands/i.test(seen.locked) && !/Yours to change until it airs/i.test(seen.locked), 'the week by week still says the lineup can be changed: ' + seen.locked.slice(0, 600));
       // The server and the runtime agree the lineup for game 2 is locked (the route checks compare it), a day or so before it starts.
       await routes();
       // Game 2 airs and its box score comes in, on the page.
@@ -1277,7 +1282,7 @@ const sportsFile = path.join(out, 'sports-definition.json');
       assert.match(seen.sheet, /change anyone until their game starts/i, 'the subtitle: ' + seen.sheet.slice(0, 200));
       assert.match(seen.sheet, /Each player locks when their game starts/i, 'the footer');
       assert(!/until you reveal it|Revealing the episode does/i.test(seen.sheet), 'no catching-up words for a live player');
-      assert.match(seen.page, /Under way · all locked by/, "Your sheet's week, begun an hour ago, says it's under way (not 'Airs' a time past)");
+      assert.match(seen.page, /Under way · all locked by/i, "Your sheet's week, begun an hour ago, says it's under way (not 'Airs' a time past)");
       const s1 = await serverState();
       // Close and reopen; swap two free ones.
       await app.locator('[role="dialog"] button[aria-label*="lose" i]').first().click().catch(() => {}); await p.waitForTimeout(800); await openSheet();

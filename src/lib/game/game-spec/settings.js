@@ -57,6 +57,7 @@ const OUTSIDE = [
   'lockAtAir', // how it's run: live and strict, everything locks at airtime (GhostLogic.pace; set true, never stored false)
   'startedTogether', // how it's run: at its own pace, made before it aired, so drafted as a live game is (GhostLogic.paceTogether)
   'game', // the spec itself, once A2 stores it
+  'stageOf', // where it sits: a stage's own league names its game (B62; change-stages.ts, engine-lab.ts makeStages), not what it plays
 ];
 
 

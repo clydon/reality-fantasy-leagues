@@ -8,7 +8,7 @@ import { airTime } from "../clock";
 import { gameColour, ordinal } from "../games";
 import { Btn } from "../ui/parts";
 import { SwipePager, type PagerHandle } from "../ui/swipe-pager";
-import { faceIn, first, openMoves } from "./moves";
+import { castName, faceIn, first, openMoves } from "./moves";
 import { Face } from "./parts";
 
 // A Weekly Lineup player's sheet (the 2026-10-30 mock): week by week as bars, the dashed line their average; then the week
@@ -182,27 +182,29 @@ function WeekPane({ g, r, it, next, words, onClose, onFace }: { g: GameView; r: 
     const set = !!next?.done.get(r.playerId);
     const faces = r.you ? (g.lineup?.starters ?? []) : set ? r.team : r.last;
     const caption = r.you ? "Your lineup" : set ? "Their team" : "Stands in";
+    // Last week's lineup stands in only where there is one (a first week has none).
+    const carries = r.you ? !!g.lineup?.carried : r.last.length > 0;
     const note = lateYou
       ? set
         ? "Yours to change until you watch it."
-        : "Set your lineup before you watch it. Until you do, last week's stands in."
+        : `Set your lineup before you watch it.${carries ? " Until you do, last week's stands in." : ""}`
       : r.you
       ? g.lineup?.lockedBy
         ? // (A sport's lineup its day or week has already locked: it can't be changed, whatever its own game's start. BACKLOG 76.)
           set
           ? `Locked when the ${g.lineup.lockedBy}'s first game began. It plays as it stands.`
-          : `Locked when the ${g.lineup.lockedBy}'s first game began. Your last lineup stands in.`
+          : `Locked when the ${g.lineup.lockedBy}'s first game began. ${carries ? "Your last lineup stands in." : "Nobody's in it, so it scores nothing."}`
         : g.lineup?.eachGame
         ? // (Game by game, TEMP-UI: Designs needed item 38.)
           set
           ? "Each player locks when their game starts. Nobody sees it before then."
-          : "Not set yet. Each player locks when their game starts; until you set one, last week's stands in."
+          : `Not set yet. Each player locks when their game starts${carries ? "; until you set one, last week's stands in." : "."}`
         : set
         ? "Yours to change until it airs. Nobody sees it before then."
-        : "Not set yet. Until you set one, last week's stands in."
+        : `Not set yet.${carries ? " Until you set one, last week's stands in." : ""}`
       : set
         ? `${r.name}'s lineup is in. You'll see it with the results.`
-        : `No lineup from ${r.name} yet. If nothing changes by airtime, last week's stands in.`;
+        : `No lineup from ${r.name} yet.${carries ? " If nothing changes by airtime, last week's stands in." : ""}`;
     return (
       <div data-week-pane={it.n}>
         <h3 className="type-caption text-[26px]">{title}</h3>
@@ -217,7 +219,7 @@ function WeekPane({ g, r, it, next, words, onClose, onFace }: { g: GameView; r: 
                 return (
                   <span key={id} className="w-[62px]">
                     <Face src={c?.photo ?? null} name={c?.name} draggable={false} out={c?.knocked} className="size-[62px] rounded-[3px] text-2xl" />
-                    <small className="type-caption mt-1.5 block truncate text-[14px]">{first(c?.name ?? "")}</small>
+                    <small className="type-caption mt-1.5 block truncate text-[14px]">{castName(c, g)}</small>
                   </span>
                 );
               })}
@@ -266,7 +268,7 @@ function WeekPane({ g, r, it, next, words, onClose, onFace }: { g: GameView; r: 
             <FaceDoor key={s.id} id={s.id} onFace={onFace} attrs={{ "data-starter": s.id }}>
               <Face src={c?.photo ?? null} name={c?.name} draggable={false} className="aspect-square w-full rounded-[3px] text-[30px]" />
               <div className="mt-[7px] flex items-baseline justify-between gap-1.5">
-                <b className="type-caption min-w-0 truncate text-[17px]">{first(c?.name ?? "")}</b>
+                <b className="type-caption min-w-0 truncate text-[17px]">{castName(c, g)}</b>
                 <b className="type-num flex-none text-[19px]">{signed(s.points)}</b>
               </div>
               {/* What scored most: a rulebook's labels run long ("Voted with the majority (voted for who went home)"). */}

@@ -1137,6 +1137,13 @@ Last updated 2026-10-27.
    week stays open until its bets are settled (the page says "waiting on side bets"); (c) as now, and the page says when a week
    changed after the fact. The test the rule answers have used: what a player would call fair without reading the rules. Waits on
    the user; the engine lane builds whichever.
+88. **The draft room and the waivers sheets name athletes by first name, with no position** (noticed 2026-11-15 by the game
+   page's readiness step, not fixed there). The game page and its sheets now say an athlete's surname and a defense's nickname
+   (`castName`, src/new/show/moves.ts, Designs needed 42), because their faces carry a position from the season's roster
+   (src/new/sports/faces.ts useWithRoles). The draft (src/new/show/draft.tsx) and waivers (src/new/show/waivers.tsx) sheets
+   read their own faces, which carry none, so a sport's draft says "Jordan", "A.J." and "New" (the Patriots' defense). Fix:
+   give those faces their roles the same way and pass them through `castName`; the waiver line on the game page already
+   looks them up. For the sports round; no show is affected.
 
 ## Decided against (don't re-propose without new information)
 

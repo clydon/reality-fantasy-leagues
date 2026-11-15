@@ -26,7 +26,7 @@ export function lineupStatus(state: LeagueState, ep: Episode, playerId: string) 
     empty: Math.max(0, activeSlots - starters.length),
     set: starters.length >= need,
     /** Not set for this episode: the last one they chose is standing in (ActiveRosterLogic.lineupFor). */
-    carried: StateLogic.ActiveRosterLogic.lineupIsCarried(state, ep.id, playerId),
+    carried: StateLogic.ActiveRosterLogic.lineupIsCarried(state, ep.id, playerId) && starters.length > 0,
   };
 }
 

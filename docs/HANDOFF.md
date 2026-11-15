@@ -48,6 +48,16 @@ sweep's show-long-names: the person sheet and the table). Then every other game 
 (story-situations.js now reports words over words), master brought in (1 commit behind), the full checks once, and ask before the
 push (no migrations on the branch). Also live sports now go through the app (`/api/sports/live/...`, e7be0c68); no screen shows a game
 live yet (a design-round item; Patriots vs Lions recorded live into `.ui-atlas/fixtures/espn-live/` to design it on).
+**Readied to merge, 2026-11-15** (master brought in; waits on the user's go to merge and push, no migrations): the ship blockers
+fixed inside the approved design (docs/design-round/decisions.md, "Ready to merge"): athletes by surname and defenses by nickname
+(`castName`, moves.ts; the draft and waivers sheets are BACKLOG 88), a one-game game's card is its result, "last week's stands in"
+only when one does (the view's `carried`), both week-by-week tables open on their latest weeks whole, a compare chart's labels
+fall back to the table when they'd collide, and a staged game shows you in the stage being played again (the page had dropped it).
+Every game type swept at 390 with the overlap report (scripts/dev-test/overlaps.js, now shared by story-situations.js and
+check-game-page.js, which also takes `--prefix zt-nd- --user zt_nd_alex` for the couch's three): the couch's three on new-fixture.js,
+30 taped-replay games (`blind.js run survivor 49 --only=... --through=6 --keep`: questions, calls, Bingo, best ball, pools, pick'em,
+head to head, Outlast, stages) and the bench's 26 situations. Squares can't be rendered here (no sports season locally, no bench
+adapter): open. The before/after story is its own Artifact (linked in the session's reply).
 
 ## Hosting: read [HOSTING.md](HOSTING.md) before adding anything that polls, runs on a schedule or stores data
 Every service, its free limits, current usage, what drives each limit, and what more would cost; keep it current

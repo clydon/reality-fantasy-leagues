@@ -11,6 +11,10 @@
 //   node scripts/dev-test/check-game-page.js [--width 390] [--height 844] [--user zt_pt_tinkerer] [--only <leagueId,...>] [--out <dir>]
 // (--user zt_pt_fan and the rest: each seat sees its own page; the top scorer's twist is chosen by whoever topped the last episode)
 //   node scripts/dev-test/blind.js down
+// Another zt couch's games: --prefix zt-nd- --user zt_nd_alex (new-fixture.js up: the couch's three formats, Outlast, Weekly
+// Lineup and Survival Pool, as the real couch plays them).
+// Words over words (overlaps.js) on the whole page and on each sheet a door opens fail the game, each pair named. A door with
+// nothing to tap (a game whose grid has no square or episode for it) is skipped, not waited on.
 //
 // Needs: this lane's dev server (BASE, default http://localhost:3000; a lane's .env.local sets it), the kept replay. Screens go to
 // --out (default the OS temp folder's gys-game-page/, never the repo: it's public). Touches zt-pt- rows only, and writes nothing.
@@ -28,6 +32,10 @@ const HEIGHT = +arg("--height", 844);
 const USER = arg("--user", "zt_pt_tinkerer");
 const ONLY = arg("--only", null)?.split(",") ?? null;
 const OUT = arg("--out", path.join(os.tmpdir(), "gys-game-page"));
+const PREFIX = arg("--prefix", "zt-pt-");
+if (!/^zt-[a-z]+-$/.test(PREFIX)) throw new Error("--prefix must be a zt fixture's (zt-pt-, zt-nd-): never real leagues");
+const { overlapsIn, overlapsDown } = require("./overlaps");
+const words = (hits) => hits.slice(0, 3).map(([a, b]) => `"${a}" over "${b}"`).join("; ");
 
 async function main() {
   const DB = process.env.AUTH_DATABASE_URL;
@@ -40,9 +48,9 @@ async function main() {
          JOIN league_memberships m ON m.league_id = l.id JOIN "user" u ON u.id = m.user_id
          JOIN shows s ON s.slug = l.state->'settings'->>'showId'
          JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number = (l.state->'settings'->>'wikiSeason')::int
-        WHERE l.slug LIKE 'zt-pt-%' AND l.deleted_at IS NULL AND l.stage_of IS NULL AND u.username = $1
+        WHERE l.slug LIKE $2 AND l.deleted_at IS NULL AND l.stage_of IS NULL AND u.username = $1
         ORDER BY l.created_at`,
-      [USER]
+      [USER, PREFIX + "%"]
     )
   ).rows.filter((g) => !ONLY || ONLY.includes(g.id));
   await pool.end();
@@ -96,6 +104,7 @@ async function main() {
       const tag = `${String(i + 1).padStart(2, "0")}-${(r.main || "none")}-${g.id.slice(0, 8)}`;
       await page.screenshot({ path: path.join(OUT, `${tag}-first.png`) });
       await page.screenshot({ path: path.join(OUT, `${tag}-full.png`), fullPage: true });
+      r.overlaps = await overlapsDown(page, HEIGHT);
       // The move: a game of questions answered in place (the first open question's first choice, then the named confirm); else
       // a strip that goes somewhere opens it (a sheet, or a page over the show).
       let move = "none";
@@ -151,6 +160,7 @@ async function main() {
         r.missing.length && `missing ${r.missing.join(", ")}`,
         r.small.length && `small targets: ${r.small.slice(0, 4).join("; ")}`,
         r.moveFail && `the move: ${r.moveFail}`,
+        r.overlaps.length && `words over words on the page: ${words(r.overlaps)}`,
         ...r.doors.map((d) => `door: ${d}`),
       ].filter(Boolean);
       if (bad.length) fails.push(`${g.name} (${g.type}, ${g.id}): ${bad.join(" · ")}`);
@@ -195,18 +205,36 @@ async function doors(page, g) {
   const n = await names.count();
   if (!eps.length || !n) return bad;
   const latest = eps.at(-1);
+  // Words over words on the sheet a door just opened.
+  const sheetWords = async (what) => {
+    const hits = await overlapsIn(page, HEIGHT);
+    if (hits.length) bad.push(`words over words on ${what}: ${words(hits)}`);
+  };
+  // A tap only where there's something to tap: a door the grid doesn't draw for this game is skipped, not waited on.
+  const tap = async (loc) => {
+    if (!(await loc.count()) || !(await loc.first().isVisible()) || (await loc.first().isDisabled())) return false;
+    await loc.first().click();
+    return true;
+  };
   // A name: their sheet on the latest episode, the game on the path back.
   const who = await names.nth(Math.min(1, n - 1)).getAttribute("data-door-person");
   await names.nth(Math.min(1, n - 1)).click();
   await page.waitForTimeout(900);
+  await sheetWords("a person's sheet");
   if ((await shown()) !== latest) bad.push(`a name opened Ep ${await shown()}, not the latest (${latest})`);
   if (!(await top().locator("[data-sheet-crumb] [data-crumb]").count())) bad.push("no path back on the person sheet");
   await closeAll();
   // A square: their sheet on that episode.
   const first = eps[0];
-  await page.locator(`[data-square="${who}:${first}"]`).click();
-  await page.waitForTimeout(900);
-  if (eps.length > 1 && (await shown()) !== first) bad.push(`a square on Ep ${first} opened Ep ${await shown()}`);
+  // (Head to head: a square opens that week's matchup, step 2's design, not the person.)
+  const h2h = (await page.locator("[data-game-grid]").getAttribute("data-game-grid")) === "result";
+  if (await tap(page.locator(`[data-square="${who}:${first}"]`))) {
+    await page.waitForTimeout(900);
+    if (h2h) {
+      if (!(await top().locator(`[data-matchup-sheet="${who}:${first}"]`).count())) bad.push(`a square on Ep ${first} didn't open that matchup`);
+      else await sheetWords("a matchup sheet");
+    } else if (eps.length > 1 && (await shown()) !== first) bad.push(`a square on Ep ${first} opened Ep ${await shown()}`);
+  }
   // A face in the sheet: that castaway in this game, over it.
   const face = top().locator("[data-door-cast]").first();
   if (await face.count()) {
@@ -215,13 +243,16 @@ async function doors(page, g) {
     await page.waitForTimeout(900);
     if (!(await top().locator("[data-cast-sheet]").count())) bad.push("a face didn't open its castaway");
     else if ((await dialogs()) < 2) bad.push("the castaway didn't open over the person");
+    await page.waitForTimeout(600);
+    await sheetWords("a castaway's sheet");
   }
   await closeAll();
   if (await dialogs()) bad.push("Close didn't shut them all");
   // An episode: everyone's that night; a name there, a sheet over it on that episode; Escape back to the episode.
-  await page.locator(`[data-game-grid] [data-door-episode="${latest}"]`).click();
+  if (!(await tap(page.locator(`[data-game-grid] [data-door-episode="${latest}"]`)))) return bad;
   await page.waitForTimeout(900);
   if (Number(await top().locator("[data-episode-sheet]").getAttribute("data-episode-sheet", { timeout: 4000 }).catch(() => NaN)) !== latest) bad.push("an episode didn't open its sheet");
+  await sheetWords("an episode's sheet");
   const row = top().locator("[data-episode-row] [data-door-person]").first();
   if (await row.count()) {
     await row.click();

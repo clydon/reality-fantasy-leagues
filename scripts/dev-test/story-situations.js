@@ -24,6 +24,7 @@
 const fs = require("fs");
 const path = require("path");
 const { open } = require("./browser");
+const { overlapsIn } = require("./overlaps");
 
 const args = process.argv.slice(2);
 const opt = (k, d) => args.find((a) => a.startsWith(`--${k}=`))?.slice(k.length + 3) ?? d;
@@ -83,52 +84,9 @@ async function shoot(p, base, full) {
   }
 }
 
-/** Every frame's words that sit on other words (the user, 2026-11-15: a chart's "−0.5" over its episode "2" went through every
- *  look at the frames). Each visible text's glyph boxes in view (a text node's, an SVG label's), shrunk by a pixel so touching
- *  isn't overlapping, against every other's; a box covered by something else (a sheet over the page) doesn't count. Reported,
- *  kept in index.json and `<frame>.overlaps.json`, never fails the run. */
+/** Every frame's words that sit on other words (overlaps.js), kept in index.json and overlaps.json, never failing the run. */
 const OVERLAPS = [];
-async function overlaps(p) {
-  return p.evaluate((h) => {
-    const boxes = [];
-    const visible = (el) => { for (let e = el; e && e.nodeType === 1; e = e.parentElement) { const cs = getComputedStyle(e); if (cs.visibility === "hidden" || cs.display === "none" || Number(cs.opacity) === 0) return false; } return true; };
-    // Covered means another layer is over it (a sheet over the page, a higher sheet over a lower one), not another word: a word on
-    // a word is what's being looked for.
-    const layer = (e) => e.closest('[role="dialog"]') || document.body;
-    const onTop = (el, r) => { const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!hit && layer(hit) === layer(el); };
-    // Scrolled out of a scrolling box (a row under a sheet's pinned header) isn't seen at all.
-    const clipped = (el, r) => {
-      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-      for (let e = el.parentElement; e && e !== document.body; e = e.parentElement) {
-        const cs = getComputedStyle(e);
-        if (cs.overflowX === "visible" && cs.overflowY === "visible") continue;
-        const b = e.getBoundingClientRect();
-        if (cx < b.left || cx > b.right || cy < b.top || cy > b.bottom) return true;
-      }
-      return false;
-    };
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
-      const text = n.textContent.trim(), el = n.parentElement;
-      if (!text || !el || !visible(el)) continue;
-      const range = document.createRange();
-      range.selectNodeContents(n);
-      const rects = el.closest("svg") ? [el.getBoundingClientRect()] : [...range.getClientRects()];
-      for (const r of rects) {
-        if (r.width < 2 || r.height < 2 || r.bottom <= 0 || r.top >= h || clipped(el, r) || !onTop(el, r)) continue;
-        boxes.push({ text: text.slice(0, 40), el, l: r.left + 1, t: r.top + 1, r: r.right - 1, b: r.bottom - 1 });
-      }
-    }
-    const out = [];
-    for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
-      const a = boxes[i], b = boxes[j];
-      if (a.el === b.el || a.el.contains(b.el) || b.el.contains(a.el)) continue;
-      const w = Math.min(a.r, b.r) - Math.max(a.l, b.l), hh = Math.min(a.b, b.b) - Math.max(a.t, b.t);
-      if (w > 1 && hh > 1) out.push([a.text, b.text]);
-    }
-    return out;
-  }, H).catch(() => []);
-}
+const overlaps = (p) => overlapsIn(p, H);
 
 /** The first view's measurable part: type sizes, yellow fills and the words in view. */
 async function measure(p) {
@@ -191,15 +149,33 @@ async function measure(p) {
           if (episodes) fs.writeFileSync(base + ".episodes.json", JSON.stringify(episodes, null, 1));
           const flows = [];
           if (has("flows")) {
+            const reload = async () => {
+              await q.keyboard.press("Escape").catch(() => {});
+              await q.waitForTimeout(500);
+              await q.goto(url.href, { waitUntil: "domcontentloaded" });
+              await q.locator("[data-game-page]").first().waitFor({ timeout: 45000 });
+              await q.waitForTimeout(900);
+            };
+            // Something to tap: there, shown and enabled (a game without a matchup, a pair or a grid square skips that flow).
+            const tappable = async (el) => (await el.count()) > 0 && (await el.isVisible().catch(() => false)) && !(await el.isDisabled().catch(() => true));
             for (const f of FLOWS) {
               const el = q.locator(f.tap)[f.last ? "last" : "first"]();
-              if (!(await el.count())) continue;
+              if (!(await tappable(el))) continue;
               await el.scrollIntoViewIfNeeded().catch(() => {});
               await el.click();
-              await q.locator(f.wait).last().waitFor({ timeout: 10000 });
+              if (!(await q.locator(f.wait).last().waitFor({ timeout: 10000 }).then(() => true, () => false))) {
+                console.log(`  ${x.id}: ${f.id} opened nothing, skipped`);
+                await reload();
+                continue;
+              }
               await q.waitForTimeout(700);
               if (f.then) {
-                await q.locator(f.then).first().click();
+                const next = q.locator(f.then).first();
+                if (!(await tappable(next))) {
+                  await reload();
+                  continue;
+                }
+                await next.click();
                 await q.locator(f.thenWait).last().waitFor({ timeout: 10000 });
                 await q.waitForTimeout(700);
               }
@@ -211,11 +187,7 @@ async function measure(p) {
               }
               await shoot(q, `${base}.${f.id}`, false);
               flows.push(f.id);
-              await q.keyboard.press("Escape").catch(() => {});
-              await q.waitForTimeout(500);
-              await q.goto(url.href, { waitUntil: "domcontentloaded" });
-              await q.locator("[data-game-page]").first().waitFor({ timeout: 45000 });
-              await q.waitForTimeout(900);
+              await reload();
             }
           }
           if (has("sequences") && SEQUENCES[x.id]) {

@@ -31,7 +31,7 @@ import { DrillSheets, PersonBody, totalWords, useDrill, type DrillState } from "
 import { playsWaivers } from "./waivers";
 import { yourMove } from "./your-move";
 import { SideBetsRow, waiverLine, WeekBlock, WeekGames, YourTeam } from "./game-week";
-import { thisWeek } from "./this-week";
+import { oneGame, thisWeek } from "./this-week";
 
 // A game's own page (docs/PLAN-start-a-game-gpt.md U1; the direction contract .impeccable/surfaces/src-new-show-game-page-tsx.md,
 // "The broadcast segment"): any game, generated from its spec, runs like a segment of the show. A title card (the game's name in
@@ -128,12 +128,15 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
   const stage = g.plays.kind === "staged" ? ((show.play ?? []).find((x) => x.leagueId === nowStage) ?? null) : null;
   const wg = stage ?? g;
   const wmove = stage ? moveOf(stage) : move;
-  const strip0 = stage ? pageModel(stage, stage.page, ctxOf(stage, wmove)).strip : m.strip;
+  const wm = stage ? pageModel(stage, stage.page, ctxOf(stage, wmove)) : m;
+  const strip0 = wm.strip;
   // The lock said once: the week's label gives the time, so a lineup that locks when it airs says just that.
   const atAir = show.header?.show.kind !== "sport" && wmove?.kind === "lineup" && strip0.due && !!wg.lineup && !wg.lineup.lockedBy && !wg.lineup.eachGame && !wg.late;
   const strip = atAir ? { ...strip0, title: "Set your lineup", line: wg.lineup!.carried ? "Locks when it airs · last week's stands in till then" : "Locks when it airs" } : strip0;
   const week = thisWeek(wg, {
     words: show.words,
+    total: (r) => totalWords(wg, r),
+    underWay: wg.lineup?.eachGame && wg.lineup.airsAt && Date.parse(wg.lineup.airsAt) <= Date.now() ? `Under way · all locked by ${wg.lineup.eachGame.until ? when(wg.lineup.eachGame.until) : "its last game"}` : null,
     next: show.upNext ? { number: show.upNext.number, when: show.upNext.airAt ? when(show.upNext.airAt) : null } : null,
     move: wmove ? { kind: wmove.kind, due: wmove.due } : null,
     seen: show.seenThrough,
@@ -267,7 +270,8 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
           <b className="font-semibold">Overall:</b> {ordinal(g.you.place)} of {g.players} · {totalWords(g, g.you)} <span className="text-muted-foreground">(both stages&apos; points add up)</span>
         </p>
       )}
-      <SeasonGrid g={wg} m={stage ? pageModel(stage, stage.page, ctxOf(stage, wmove)) : m} words={show.words} due={!!wmove?.due} drill={drill} />
+      {/* One game between two: the card above is the whole of it, so no grid of one column. */}
+      {!(oneGame(wg) && wg.plays.kind === "result" && wg.players <= 2) && <SeasonGrid g={wg} m={wm} words={show.words} due={!!wmove?.due} drill={drill} />}
       {(m.hero.lives || m.hero.notes.length > 0) && <Notes hero={m.hero} />}
       {wg.you && wg.you.team.length > 0 ? (
         <>
@@ -279,9 +283,16 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
           )}
         </>
       ) : (
-        g.you && g.plays.kind !== "staged" && <YouSection g={g} m={m} show={show} seasonId={seasonId} drill={drill} />
+        // A game in stages: you in the stage being played (a pool's picks, a sheet's answers), as any game of its kind shows you.
+        wg.you && wg.plays.kind !== "staged" && <YouSection g={wg} m={wm} show={show} seasonId={seasonId} drill={drill} />
       )}
       <Label>How it plays</Label>
+      {/* The game in a line ("All season · Draft 3, start 2 · Only 2 moments count"): what the title card said, the rules' gist. */}
+      {m.title.line && (
+        <p className="mx-4 -mt-1 mb-2.5 text-[15px] font-semibold leading-snug" data-game-short>
+          {m.title.line}
+        </p>
+      )}
       <ol className="mx-4 list-decimal pl-[18px] text-[15px] leading-[1.45] text-foreground/90" data-game-rules>
         {m.rules.slice(0, 3).map((r) => (
           <li key={r} className="mb-1.5 pl-1">

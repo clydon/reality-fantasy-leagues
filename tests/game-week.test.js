@@ -8,6 +8,7 @@ const path = require("path");
 const root = path.join(__dirname, "..");
 const jiti = require("jiti")(__filename, { alias: { "@": path.join(root, "src") } });
 const { thisWeek, scoreWords } = jiti("../src/new/show/this-week.ts");
+const { castName } = jiti("../src/new/show/moves.ts");
 const Sit = require(path.join(root, "tools/gameplay-bench/explorer/situations.cjs"));
 const R = require(path.join(root, "tools/gameplay-bench/explorer/runtime.cjs"));
 
@@ -18,7 +19,7 @@ function card(id, ctx = {}) {
   const x = Sit.build(id), s = R.open(x.input);
   try {
     for (const a of x.steps) assert.equal(s.apply(a).status, "accepted");
-    const g = s.project(x.gameId, x.viewerId).game;
+    const g = ctx.edit ? ctx.edit(s.project(ctx.gameId ?? x.gameId, x.viewerId).game) : s.project(ctx.gameId ?? x.gameId, x.viewerId).game;
     const move = g.lineup && !g.lineup.locked ? { kind: "lineup", due: !g.lineup.set } : null;
     return { g, w: thisWeek(g, { words: WORDS, next: null, move, seen: ctx.seen ?? g.through, locked: g.locked ?? null, reveal: ctx.reveal ?? null, aired: ctx.aired ?? g.through }) };
   } finally { s.dispose(); }
@@ -73,6 +74,56 @@ test("the season over: the champion named, your finish", () => {
   assert.equal(w.tone, "over");
   assert.equal(w.champion.playerId, g.matchups.playoffs.champion);
   assert.match(w.state, /You (finished|won)/);
+});
+
+test("the season over without a champion: your place, never a match against a bye", () => {
+  const { w } = card("show-champion", { edit: (g) => ({ ...g, table: g.table.map((r) => ({ ...r, record: r.record && { ...r.record, champion: false } })) }) });
+  assert.equal(w.champion, null);
+  assert.equal(w.kind, "standing", "nobody to face: the card isn't a matchup (it drew 'A bye')");
+  assert.match(w.state, /^You finished/);
+});
+
+test("a one-game game: the result leads, never a season's words (real people showed it, Designs needed 42)", () => {
+  const { w } = card("show-results", {
+    edit: (g) => {
+      const opp = g.table.find((r) => !r.you);
+      return { ...g, from: 1, to: 1, over: true, matchups: { ...g.matchups, next: null, playoffs: null, last: { episode: 1, round: null, opponent: opp.playerId, stand: null, points: 81.08, against: 82.76, result: "loss" } } };
+    },
+  });
+  assert.equal(w.kind, "matchup");
+  assert.equal(w.label, "Ep 1 · Final");
+  assert.ok(w.them, "who you played, not a bye");
+  assert.deepEqual(w.score, { you: "81.1", them: "82.8", early: false });
+  assert.match(w.state, /^\w+ won by 1\.7$/);
+  assert.equal(w.you.record, null, "a record of one game says nothing the score doesn't");
+  assert.equal(w.them.record, null);
+  assert.equal(w.last, null, "the card is the result: no line repeating it");
+  assert.doesNotMatch(JSON.stringify(w), /Season over|finished|bye/);
+});
+
+test("a first week carries nothing in: no 'last week's stands in' (the merged stage's first matchup)", () => {
+  const first = card("staged-merged", { gameId: "h2h~merged" });
+  assert.equal(first.g.lineup.carried, false);
+  assert.doesNotMatch(first.w.state, /stands in/);
+  const later = card("show-due");
+  assert.equal(later.g.lineup.carried, true, "a later week's unset lineup still has last week's standing in");
+  assert.match(later.w.state, /stands in/);
+});
+
+test("names where room is short: a show's cast by first name, an athlete by surname, a defense by its nickname", () => {
+  assert.equal(castName({ name: "Kristin Flickinger" }), "Kristin");
+  assert.equal(castName({ name: "Jordan Love", role: "QB" }), "Love");
+  assert.equal(castName({ name: "Amon-Ra St. Brown", role: "WR" }), "St. Brown");
+  assert.equal(castName({ name: "Marvin Harrison Jr.", role: "WR" }), "Harrison Jr.");
+  assert.equal(castName({ name: "J. Michael Sturdivant", role: "WR" }), "Sturdivant");
+  assert.equal(castName({ name: "New England Patriots D/ST", role: "DEF" }), "Patriots D/ST");
+  assert.equal(castName({ name: "Green Bay Packers D/ST" }), "Packers D/ST", "known by its name alone");
+  // Two who'd read the same in one game get an initial; the rest stay short.
+  const g = { cast: [{ name: "A.J. Brown", role: "WR" }, { name: "Sincere Brown", role: "WR" }, { name: "Jordan Love", role: "QB" }, { name: "Mike Pinsky" }, { name: "Mike White" }] };
+  assert.equal(castName(g.cast[0], g), "A.J. Brown");
+  assert.equal(castName(g.cast[1], g), "S. Brown");
+  assert.equal(castName(g.cast[2], g), "Love");
+  assert.equal(castName(g.cast[3], g), "Mike P.");
 });
 
 test("behind (own pace): your mark, what's waiting, no result past it", () => {

@@ -58,6 +58,11 @@ export interface WeekContext {
    *  game's copy at your mark, so what's waiting is the show's to say (season-episodes.ts). */
   reveal: { episode: number; stage: "early" | "final" } | null;
   aired: number;
+  /** A row's total in the game's own measure ("19 pts", "3 weeks won", "4 lines": game-sheets.tsx totalWords); points without it. */
+  total?: (r: TableRow) => string;
+  /** A week of games locking at each one's start, once its first has begun: "Under way · all locked by Sun 4:25 PM" (BACKLOG 80),
+   *  said in place of an air time already past. */
+  underWay?: string | null;
 }
 
 const fmt = (n: number) => String(Math.round(n * 10) / 10).replace("-", "\u2212");
@@ -75,20 +80,26 @@ export function recordWords(r: TableRow["record"]): string | null {
   return `${r.wins}–${r.losses}${r.ties ? `–${r.ties}` : ""}`;
 }
 
-function sideOf(r: TableRow): WeekSide {
+function sideOfRow(r: TableRow): WeekSide {
   return { playerId: r.playerId, userId: r.userId, name: r.you ? "You" : first(r.name), record: recordWords(r.record), seed: r.record?.seed ?? null };
 }
+
+/** A one-game game (a team's next game: a span of one week): its page leads with the game and its result, never a season's words
+ *  ("Season over", a record, a place, a grid of one column). */
+export const oneGame = (g: GameView) => g.from !== null && g.to !== null && g.to === g.from;
 
 export function thisWeek(g: GameView, c: WeekContext): WeekCard | null {
   const me = g.you;
   if (!me) return null;
+  const single = oneGame(g);
+  const sideOf = (r: TableRow): WeekSide => (single ? { ...sideOfRow(r), record: null, seed: null } : sideOfRow(r));
   const you = sideOf(me);
   const E = c.words.ep;
   const row = (id: string | null | undefined) => (id ? (g.table.find((r) => r.playerId === id) ?? null) : null);
   const champ = g.table.find((r) => r.record?.champion) ?? null;
   const solo = g.players <= 1 || g.solo === "practice";
   const nextEp = g.lineup?.episode ?? g.pick?.episode ?? c.next?.number ?? null;
-  const when = c.next && c.next.number === nextEp && c.next.when ? `Airs ${c.next.when}` : null;
+  const when = c.underWay ?? (c.next && c.next.number === nextEp && c.next.when ? `Airs ${c.next.when}` : null);
   const due = !!c.move?.due;
   const caught = g.catchUp && g.catchUp.latest >= g.catchUp.week ? g.catchUp.week : null;
   const waitingEp = g.revealFirst ?? caught ?? (c.reveal && c.reveal.episode > (c.seen ?? 0) ? c.reveal.episode : null);
@@ -100,6 +111,33 @@ export function thisWeek(g: GameView, c: WeekContext): WeekCard | null {
   const m = g.matchups;
   if (m && !solo) {
     const last = m.last && m.last.points !== null ? lastLine(g, m.last, E) : null;
+    if (g.over && single && m.last && m.last.points !== null) {
+      // The game's result is the card: both sides, the score, who won and by how much.
+      const l = m.last;
+      const opp = row(l.opponent);
+      const by = fmt(Math.abs(l.points! - (l.against ?? 0)));
+      const state =
+        l.result === "win" ? `You won by ${by}` : l.result === "loss" ? `${opp ? first(opp.name) : "They"} won by ${by}` : l.result === "tie" ? "A tie" : "Counted for nobody";
+      return {
+        kind: "matchup",
+        label: `${E} ${l.episode} · Final`,
+        you,
+        them: opp ? sideOf(opp) : null,
+        stand: l.stand ?? null,
+        state,
+        tone: "over",
+        score: { you: fmt(l.points!), them: l.against === null ? "–" : fmt(l.against), early: false },
+        mine: null,
+        theirs: null,
+        last: null,
+        champion: null,
+        episode: l.episode,
+      };
+    }
+    if (g.over && single) {
+      // Over without a result (called off): said once, no season's words.
+      return { kind: "standing", label: "Final", you, them: null, stand: null, state: "It wasn't played: it counts for nobody", tone: "over", score: null, mine: null, theirs: null, last: null, champion: null, episode: m.last?.episode ?? null };
+    }
     if (g.over) {
       const won = champ?.you;
       const fin = m.playoffs?.bracket.at(-1)?.games[0];
@@ -115,7 +153,8 @@ export function thisWeek(g: GameView, c: WeekContext): WeekCard | null {
           : null;
       const place = me.rank.startsWith("T") ? `tied ${ordinal(Number(me.rank.slice(1)))}` : ordinal(me.place);
       return {
-        kind: "matchup",
+        // Without a champion (no playoffs) there's nobody to face: your place, not a matchup against a bye.
+        kind: champ ? "matchup" : "standing",
         label: "Season over",
         you,
         them: null,
@@ -178,6 +217,10 @@ export function thisWeek(g: GameView, c: WeekContext): WeekCard | null {
     } else if (c.move && c.move.kind !== "lineup" && c.move.kind !== "pick") {
       state = "";
       tone = due ? "due" : "waiting";
+    } else if (g.lineup?.locked && g.lineup.lockedBy && g.lineup.episode === next?.episode) {
+      // Locked by its day's or week's first game, before its own (BACKLOG 76): what locked it, said once.
+      state = `Locked when the ${g.lineup.lockedBy}'s first game began · it plays as it stands`;
+      tone = "locked";
     } else if (lock) {
       state = "Lineups locked · results when they're in";
       tone = "locked";
@@ -213,7 +256,7 @@ export function thisWeek(g: GameView, c: WeekContext): WeekCard | null {
   }
 
   // ---- solo, and every other game: your place and the gap ----
-  const total = g.plays.kind === "result" ? recordWords(me.record) : `${fmt(me.total)} pts`;
+  const total = g.plays.kind === "result" ? recordWords(me.record) : c.total ? c.total(me) : `${fmt(me.total)} pts`;
   if (solo) {
     const best = me.weeks.length ? Math.max(...me.weeks.map((w) => w.total)) : null;
     return {
@@ -233,7 +276,10 @@ export function thisWeek(g: GameView, c: WeekContext): WeekCard | null {
     };
   }
   const above = g.table.find((r) => r.place === me.place - 1) ?? g.table.find((r) => r.place < me.place && !r.you) ?? null;
-  const gap = above && g.plays.kind !== "result" ? above.total - me.total : null;
+  // The gap in what the game ranks by: weeks won, or points.
+  const count = (r: TableRow) => (g.weeksWon ? (g.weeksWon[r.playerId] ?? 0) : r.total);
+  const gap = above && g.plays.kind !== "result" ? count(above) - count(me) : null;
+  const gapWords = (n: number) => (g.weeksWon ? `${fmt(n)} ${n === 1 ? "week" : "weeks"}` : fmt(n));
   const place = me.rank.startsWith("T") ? `Tied ${ordinal(Number(me.rank.slice(1)))}` : ordinal(me.place);
   return {
     kind: "standing",
@@ -241,7 +287,7 @@ export function thisWeek(g: GameView, c: WeekContext): WeekCard | null {
     you,
     them: null,
     stand: null,
-    state: `${place} of ${g.players} · ${total}${gap && gap > 0 ? ` · ${fmt(gap)} behind ${first(above!.name)}` : me.place === 1 ? " · in front" : ""}`,
+    state: `${place} of ${g.players} · ${total}${gap && gap > 0 ? ` · ${gapWords(gap)} behind ${first(above!.name)}` : me.place === 1 ? " · in front" : ""}`,
     tone: g.over ? "over" : due ? "due" : behind ? "behind" : "plain",
     score: null,
     mine: g.lineup?.starters ?? null,

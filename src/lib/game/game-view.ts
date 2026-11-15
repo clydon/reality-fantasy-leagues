@@ -104,7 +104,7 @@ export interface LineupMove {
   /** Your team: still in first, then who's out. */
   roster: string[];
   set: boolean;
-  /** Not chosen for this episode: the last lineup you set stands in. */
+  /** Not chosen for this episode, and the last lineup you set stands in (false when there's none to: a first week). */
   carried: boolean;
   /**
    * Locked before its own game begins, by its day's or its week's first game (a sport's game that closes daily or weekly:
@@ -683,7 +683,8 @@ function lineupOf(view: LeagueState, me: string, now?: number): LineupMove | nul
     starters,
     roster: teamOrder(mine).map((c) => c.id),
     set: starters.length >= need,
-    carried: AR.lineupIsCarried(view, ep.id, me),
+    // Only when something stands in: a first week (or a lineup whose every starter has gone) carries nothing in.
+    carried: AR.lineupIsCarried(view, ep.id, me) && starters.length > 0,
   };
 }
 

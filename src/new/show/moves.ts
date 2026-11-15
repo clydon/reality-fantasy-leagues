@@ -77,8 +77,49 @@ export function moveCard(m: Move, seasonId: string, twin: boolean, paced = false
   }
 }
 
-/** First names: "Kristin". */
+/** First names: "Kristin". The couch's people; a cast member or athlete goes through castName. */
 export const first = (name: string) => name.split(" ")[0];
+
+type Named = { name: string; role?: string | null };
+const DEFENSE = /^(DEF|DST|D\/ST)$/i;
+/** A cast member's or athlete's name where room is short, both forms: as it's read, and with an initial for when two in the game
+ *  would read the same. A show's cast by first name ("Kristin", "Kristin F."); an athlete (a face with a sport's position) by
+ *  surname, as fantasy reads a matchup ("Love", "J. Love"; "St. Brown", "Harrison Jr."); a team's defense by its nickname
+ *  ("Patriots D/ST": its name is the team's, so the first word was "New" or "Green"). */
+function nameForms(c: Named): [string, string] {
+  const name = c.name.trim();
+  if ((c.role && DEFENSE.test(c.role)) || / D\/ST$/.test(name)) {
+    const team = name.replace(/ D\/ST$/, "").split(" ");
+    const short = `${team.at(-1)} D/ST`;
+    return [short, short];
+  }
+  const parts = name.split(/\s+/);
+  if (parts.length < 2) return [name, name];
+  if (c.role) {
+    // A leading initial isn't the first name ("J. Michael Sturdivant" reads "Sturdivant").
+    const sur = (/^[A-Z]\.$/.test(parts[0]) && parts.length > 2 ? parts.slice(2) : parts.slice(1)).join(" ");
+    return [sur, `${parts[0].includes(".") ? parts[0] : `${parts[0][0]}.`} ${sur}`];
+  }
+  return [parts[0], `${parts[0]} ${parts.at(-1)![0]}.`];
+}
+const clashes = new WeakMap<object, Map<string, number>>();
+/** A cast member's or athlete's name where room is short (nameForms), with the initial only when another of the game's cast
+ *  would read the same. */
+export function castName(c: Named | null | undefined, g?: { cast: Named[] } | null): string {
+  if (!c) return "";
+  const [short, initialed] = nameForms(c);
+  if (!g || short === initialed) return short;
+  let n = clashes.get(g.cast);
+  if (!n) {
+    n = new Map();
+    for (const x of g.cast) {
+      const s = nameForms(x)[0];
+      n.set(s, (n.get(s) ?? 0) + 1);
+    }
+    clashes.set(g.cast, n);
+  }
+  return (n.get(short) ?? 0) > 1 ? initialed : short;
+}
 
 /** A castaway of this game's, by id. */
 export const faceIn = (g: GameView, id: string): CastFace | undefined => g.cast.find((c) => c.id === id);

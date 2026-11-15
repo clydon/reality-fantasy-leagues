@@ -84,15 +84,17 @@ so they're listed only where those exist, and the situations test doesn't hold t
 - `node scripts/dev-test/espn-snapshot.js record`: the NFL season's rosters, schedule and box scores;
 - `node scripts/dev-test/espn-final.js --teams=NE,DET --week=10`: one game's final, as the app reads it.
 
-What real people showed on 2026-11-15 (the story's "On a real game"):
+What real people showed on 2026-11-15 (the story's "On a real game"; the first three and the table fixed the same day by the
+readiness step, docs/design-round/decisions.md):
 - **Athletes need surnames.** "Jordan vs Drake", "A.J. 0", and "Bo 0" (Bo Melton) beside Bo the player; defenses read "New",
-  "Green". Fantasy football says "Love vs Maye" and "Patriots D/ST"; shows keep first names.
+  "Green". Fantasy football says "Love vs Maye" and "Patriots D/ST"; shows keep first names. Fixed on the game page and its
+  sheets (`castName`); the draft and waivers sheets are BACKLOG 88.
 - **A one-game game reads as a season.** After its only game: "Season over", "You vs a bye", "You finished 2nd · 0–1", a grid of
-  one column.
-- **"Last week's stands in"** on a first game, which has no last week.
+  one column. Fixed: the card is the result.
+- **"Last week's stands in"** on a first game, which has no last week. Fixed.
 - **Season points** before the lock read 0 for real athletes, who have a season behind them; the app has their season coming in
   (stats.ts), and the bench doesn't.
-- **Long real names** cut off in the scoring table.
+- **Long real names** cut off in the scoring table: cut at an ellipsis, as meant (the overlap report read the cut text's whole box).
 - **A game in progress** has no screen (the live poller, `src/lib/sports/live.ts`, isn't on a page; the bench lists a week in
   progress as a gap): a new display for the sports game page.
 

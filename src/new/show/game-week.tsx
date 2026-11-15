@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Check, ChevronRight, Lock, MessageCircleQuestion, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { bets as betWrites, moves as moveWrites, type GameView, type TableRow, type WaiverWeek } from "../data";
@@ -11,9 +11,9 @@ import { Btn, Chip } from "../ui/parts";
 import { toast } from "../ui/toast";
 import type { SideBet } from "@/lib/game/week-view";
 import { signed } from "./lineup-sheet";
-import { faceIn, first, openMoves } from "./moves";
+import { castName, faceIn, first, openMoves } from "./moves";
 import { Face } from "./parts";
-import { recordWords, scoreWords, type WeekCard, type WeekSide } from "./this-week";
+import { oneGame, recordWords, scoreWords, type WeekCard, type WeekSide } from "./this-week";
 import type { CastStat } from "@/lib/game/cast-stats";
 import type { SeasonStats } from "../data";
 
@@ -206,7 +206,7 @@ export function ResultSquare({ r }: { r: "win" | "loss" | "tie" | "quiet" | "fin
  *  week gave you once it ran (and why, when it wasn't your first choice). Null when there's no week, or shared teams. */
 export function waiverLine(ww: WaiverWeek | undefined, g: GameView, when: (iso: string) => string, words: ShowData["words"], short?: boolean): string | null {
   if (!ww || ww.shared || !ww.period || ww.revealFirst !== null) return null;
-  const name = (id: string | undefined) => first(faceIn(g, id ?? "")?.name ?? ww.free.find((f) => f.id === id)?.name ?? "someone");
+  const name = (id: string | undefined) => castName(faceIn(g, id ?? "") ?? ww.free.find((f) => f.id === id), g) || "someone";
   if (ww.stage === "open") {
     const spot = ww.spots.find((s) => s.addIds.length);
     if (spot) {
@@ -221,7 +221,7 @@ export function waiverLine(ww: WaiverWeek | undefined, g: GameView, when: (iso: 
     if (mine?.add) {
       const why = mine.choice && mine.choice > 1 && mine.why ? `, your ${mine.why.replace(/\.?$/, ".").replace(/^(\d+\w+) choice: /, "$1 choice: ")}` : ".";
       const early = ww.period.due && Date.parse(ww.run.at) < Date.parse(ww.period.due) ? " It ran early: everyone owed one had claimed." : "";
-      return `You got ${first(mine.add.name)}${why}${early}`;
+      return `You got ${castName(faceIn(g, mine.add.id) ?? mine.add, g)}${why}${early}`;
     }
   }
   return null;
@@ -588,7 +588,8 @@ export function MatchupBody({ g, pid, n, words, sport, onFace, onCompare }: { g:
       <div className="flex min-w-0 flex-col items-center text-center">
         <Avatar id={r.userId ?? r.playerId} name={r.name} size={44} />
         <b className="type-caption mt-1.5 max-w-full truncate text-[20px] leading-none">{name(r)}</b>
-        <span className="type-num mt-1 text-[13px] text-muted-foreground">{recordWords(r.record) ?? ""}</span>
+        {/* A one-game game's record says nothing the score doesn't. */}
+        <span className="type-num mt-1 text-[13px] text-muted-foreground">{oneGame(g) ? "" : (recordWords(r.record) ?? "")}</span>
         {total !== null && <b className="type-num mt-1.5 text-[34px] leading-none">{fmt(total)}</b>}
       </div>
     ) : (
@@ -640,7 +641,7 @@ export function MatchupBody({ g, pid, n, words, sport, onFace, onCompare }: { g:
               {s.best ? (
                 s.best.cost > 0 ? (
                   <>
-                    Best lineup <b className="type-num text-[15px] text-foreground">{fmt(s.best.best)}</b> (+{fmt(s.best.cost)}): {first(faceIn(g, s.best.inId ?? "")?.name ?? "")} for {first(faceIn(g, s.best.outId ?? "")?.name ?? "")}
+                    Best lineup <b className="type-num text-[15px] text-foreground">{fmt(s.best.best)}</b> (+{fmt(s.best.cost)}): {castName(faceIn(g, s.best.inId ?? ""), g)} for {castName(faceIn(g, s.best.outId ?? ""), g)}
                   </>
                 ) : (
                   "Best lineup: as started"
@@ -697,7 +698,7 @@ function Column({ g, who, total, lines: given, max, neg, played, dim, noBars, la
                 <button type="button" data-door-cast={l.id} onClick={() => onFace(l.id)} className={`nd-press flex min-h-11 w-full flex-col justify-center border-t border-border py-1.5 text-left ${dim ? "text-muted-foreground" : ""}`}>
                   <span className="flex w-full items-center gap-1.5">
                     <Face src={c?.photo ?? null} name={c?.name} out={c?.left} className="size-7 flex-none rounded-[2px] text-[12px]" />
-                    <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">{first(c?.name ?? "")}</span>
+                    <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">{castName(c, g)}</span>
                     {c?.role && <span className="text-[11px] font-bold tracking-[0.04em] text-muted-foreground">{c.role}</span>}
                     {played ? <b className={`type-num text-[17px] ${l.points > 0 ? "text-good" : "text-muted-foreground"}`}>{signed(l.points)}</b> : <span className="type-num text-[14px] text-muted-foreground">{fmt(c?.points ?? 0)}</span>}
                   </span>
@@ -826,11 +827,35 @@ export function bestOf(w: TableRow["weeks"][number]): { scored: number; best: nu
   return { scored, best, cost: Math.max(0, best - scored), inId, outId };
 }
 
+/** A week-by-week table with pinned names and a pinned total opens on its latest weeks, the leftmost one whole beside the names
+ *  (scrolled to the very end, the first week's numbers peeked half-cut from under them; left at the start, the last ones did
+ *  under the total): the earliest week from which every later one still fits before the total. Week headings carry
+ *  data-week-col; the row's first and last headings are the pinned ones. */
+function useOpenOnLatest(scroller: RefObject<HTMLDivElement | null>) {
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const box = el.getBoundingClientRect();
+    const at = (x: Element) => x.getBoundingClientRect();
+    const head = el.querySelectorAll<HTMLElement>("thead tr:last-child th");
+    const cols = [...el.querySelectorAll<HTMLElement>("thead th[data-week-col]")];
+    if (head.length < 2 || !cols.length || el.scrollWidth <= el.clientWidth) return;
+    const pin = at(head[0]).width, total = at(head[head.length - 1]).width, gap = 3;
+    const left = (x: Element) => at(x).left - box.left + el.scrollLeft;
+    const end = left(cols[cols.length - 1]) + at(cols[cols.length - 1]).width;
+    const room = el.clientWidth - total - gap;
+    const from = cols.find((c) => end - (left(c) - pin - gap) <= room) ?? cols[cols.length - 1];
+    el.scrollLeft = Math.max(0, Math.min(left(from) - pin - gap, el.scrollWidth - el.clientWidth));
+  }, [scroller]);
+}
+
 /** A person's season under their week-by-week chart, as one table a week a column: the result each week (head to head: the
  *  square, who, the score), then a castaway a row (started on the raised fill, benched dim, the week they went home marked, their
  *  points for this person pinned at the end), then what the bench cost each week. */
 export function PersonSeason({ g, r, words, sport, onMatchup, onFace }: { g: GameView; r: TableRow; words: ShowData["words"]; sport?: boolean; onMatchup: (episode: number) => void; onFace: (id: string) => void }) {
   const weeks = r.weeks;
+  const scroller = useRef<HTMLDivElement>(null);
+  useOpenOnLatest(scroller);
   if (!weeks.length) return null;
   const sqOf = (n: number) => (g.plays.rows[r.playerId] ?? []).find((s) => s.episode === n) ?? null;
   const h2h = g.plays.kind === "result";
@@ -852,7 +877,7 @@ export function PersonSeason({ g, r, words, sport, onMatchup, onFace }: { g: Gam
         <span className="type-caption text-[14px] tracking-[0.04em] text-muted-foreground">The season</span>
         <span className="text-[13px] text-muted-foreground">started · on the bench, dim · <i className="inline-block size-1.5 rounded-full bg-live align-middle" aria-hidden /> went home</span>
       </p>
-      <div className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none]" data-lineup-matrix>
+      <div ref={scroller} className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none]" data-lineup-matrix>
         <table className="border-separate border-spacing-x-[3px] border-spacing-y-0 text-[13px]">
           <thead>
             <tr>
@@ -861,7 +886,7 @@ export function PersonSeason({ g, r, words, sport, onMatchup, onFace }: { g: Gam
                 const s = sqOf(w.episode);
                 const o = opp(s?.result?.against);
                 return (
-                  <th key={w.episode} className={`${COL} pb-1 align-bottom font-normal`}>
+                  <th key={w.episode} data-week-col className={`${COL} pb-1 align-bottom font-normal`}>
                     {h2h && s?.result ? (
                       <button type="button" data-person-week={w.episode} onClick={() => onMatchup(w.episode)} aria-label={`${words.episode} ${w.episode}: ${s.result.r === "W" ? "won" : s.result.r === "L" ? "lost" : "tied"} against ${o?.name ?? "the middle score"}, ${scoreWords(s.result.us, s.result.them)}`} className="nd-press flex min-h-11 w-full flex-col items-center justify-end gap-0.5">
                         <ResultSquare r={s.result.r === "W" ? "win" : s.result.r === "L" ? "loss" : "tie"} />
@@ -887,7 +912,7 @@ export function PersonSeason({ g, r, words, sport, onMatchup, onFace }: { g: Gam
                   <th scope="row" className="sticky left-0 z-[1] bg-card pr-1 text-left font-normal">
                     <button type="button" data-door-cast={id} onClick={() => onFace(id)} className="flex min-h-11 max-w-[104px] items-center gap-1.5">
                       <Face src={c?.photo ?? null} name={c?.name} out={c?.left} className="size-6 flex-none rounded-[2px] text-[11px]" />
-                      <span className={`truncate text-[13px] font-semibold ${c?.left ? "text-muted-foreground" : ""}`}>{first(c?.name ?? "")}</span>
+                      <span className={`truncate text-[13px] font-semibold ${c?.left ? "text-muted-foreground" : ""}`}>{castName(c, g)}</span>
                       {c?.role && <span className="text-[11px] font-bold text-muted-foreground">{c.role}</span>}
                     </button>
                   </th>
@@ -1128,7 +1153,7 @@ function PairRow({ g, p, max, played, onCompare }: { g: GameView; p: Pair; max: 
         <span className={`flex w-full min-w-0 items-center gap-1.5 ${end ? "" : "flex-row-reverse"}`}>
           {played && <b className={`type-num flex-none text-[17px] ${strong ? "text-foreground" : "font-normal text-muted-foreground"}`}>{signed(r1(l.points))}</b>}
           <span className={`min-w-0 flex-1 ${end ? "text-left" : "text-right"}`}>
-            <span className={`block truncate text-[14px] ${strong || !played ? "font-semibold" : "text-muted-foreground"}`}>{first(c?.name ?? "")}</span>
+            <span className={`block truncate text-[14px] ${strong || !played ? "font-semibold" : "text-muted-foreground"}`}>{castName(c, g)}</span>
             {p.slot === "Flex" && c?.role && <span className="block text-[11px] font-bold text-muted-foreground">{slotWord(c.role.toUpperCase())}</span>}
           </span>
           <Face src={c?.photo ?? null} name={c?.name} out={c?.left} className="size-7 flex-none rounded-[2px] text-[12px]" />
@@ -1185,13 +1210,15 @@ export function CompareBody({ g, a, b, episode, words, onFace }: { g: GameView; 
   const n = cw.episodes.length, W = 356, colW = Math.max(30, Math.floor(W / n)), SW = Math.max(W, n * colW);
   const H = 130, PAD = 16;
   const y = (v: number) => PAD + ((top - v) / (top - bot)) * (H - PAD * 2);
-  const labels = n <= 6;
+  // Values on the bars only when two side by side fit (each about 6.5px a character at 11px); else the weeks in numbers below.
+  const bw0 = Math.min(22, (colW - 12) / 2);
+  const labels = n <= 6 && Math.max(...[...sa, ...sb].map((v) => signed(v).length)) * 6.5 <= bw0 + 2;
   const head = (c: NonNullable<typeof ca>, total: number, wk: number | null, colour: string) => (
     <button type="button" data-door-cast={c.id} onClick={() => onFace(c.id)} className="nd-press flex min-w-0 flex-col items-center text-center">
       <Face src={c.photo} name={c.name} out={c.left} className="size-14 rounded-[3px] text-[22px]" />
       <b className="type-caption mt-1.5 flex max-w-full items-center gap-1 truncate text-[19px] leading-none">
         <i className="inline-block size-2.5 flex-none rounded-[2px]" style={{ background: colour }} aria-hidden />
-        {first(c.name)}
+        {castName(c, g)}
       </b>
       <span className="mt-0.5 text-[13px] text-muted-foreground">{[c.role ? slotWord(c.role.toUpperCase()) : null, whose(c.id)].filter(Boolean).join(" · ")}</span>
       {wk !== null && <b className="type-num mt-1 text-[26px] leading-none">{signed(wk)}</b>}
@@ -1210,7 +1237,7 @@ export function CompareBody({ g, a, b, episode, words, onFace }: { g: GameView; 
       </div>
       <p className="type-caption mb-1 mt-4 text-[14px] tracking-[0.04em] text-muted-foreground">Week by week</p>
       <div className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none]">
-        <svg width={SW} height={H + 20} role="img" aria-label={cw.episodes.map((e, i) => `${words.ep} ${e}: ${first(ca.name)} ${signed(sa[i])}, ${first(cb.name)} ${signed(sb[i])}`).join("; ")} className="block">
+        <svg width={SW} height={H + 20} role="img" aria-label={cw.episodes.map((e, i) => `${words.ep} ${e}: ${castName(ca, g)} ${signed(sa[i])}, ${castName(cb, g)} ${signed(sb[i])}`).join("; ")} className="block">
           {at >= 0 && <rect x={at * colW + 1} width={colW - 2} y={0} height={H + 2} rx={3} fill="var(--secondary)" />}
           <line x1={0} x2={SW} y1={y(0)} y2={y(0)} stroke="var(--edge)" strokeWidth={1} />
           {cw.episodes.map((e, i) => {
@@ -1244,8 +1271,8 @@ export function CompareBody({ g, a, b, episode, words, onFace }: { g: GameView; 
           <thead>
             <tr className="text-[13px] text-muted-foreground">
               <th className="py-1 text-left font-normal">{words.episode}</th>
-              <th className="py-1 text-right font-semibold">{first(ca.name)}</th>
-              <th className="py-1 text-right font-semibold">{first(cb.name)}</th>
+              <th className="py-1 text-right font-semibold">{castName(ca, g)}</th>
+              <th className="py-1 text-right font-semibold">{castName(cb, g)}</th>
             </tr>
           </thead>
           <tbody>
@@ -1275,10 +1302,7 @@ export function GameTable({ g, words, onFace }: { g: GameView; words: ShowData["
   const [shown, setShown] = useState(40);
   const [sortBy, setSortBy] = useState<number | "total">("total");
   const scroller = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = scroller.current;
-    if (el) el.scrollLeft = el.scrollWidth;
-  }, []);
+  useOpenOnLatest(scroller);
   const holders = useMemo(() => {
     const m = new Map<string, TableRow[]>();
     for (const r of g.table) for (const id of r.team) m.set(id, [...(m.get(id) ?? []), r]);
@@ -1323,7 +1347,7 @@ export function GameTable({ g, words, onFace }: { g: GameView; words: ShowData["
               <tr>
                 <th className="sticky left-0 z-[1] bg-card" />
                 {eps.map((e, i) => (
-                  <th key={e} className="w-[44px] min-w-[44px] pb-1">
+                  <th key={e} data-week-col className="w-[44px] min-w-[44px] pb-1">
                     <button type="button" onClick={() => setSortBy(i)} aria-pressed={sortBy === i} className={`type-caption min-h-11 w-full text-center text-[13px] ${sortBy === i ? "text-foreground underline underline-offset-4" : "font-normal text-muted-foreground"}`}>
                       {words.ep} {e}
                     </button>

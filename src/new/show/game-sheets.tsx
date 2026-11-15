@@ -10,7 +10,7 @@ import { Sheet } from "../ui/sheet";
 import type { Square } from "@/lib/game/game-plays";
 import { StoryBody } from "./cast";
 import { LATE_SET, LateMark, LineupSheet, signed } from "./lineup-sheet";
-import { faceIn, first } from "./moves";
+import { castName, faceIn, first } from "./moves";
 import { Face } from "./parts";
 import { answerWords, verdictWords } from "./questions";
 import { AthleteChart, BetsBody, CastChart, CompareBody, EpisodeGames, GameTable, MatchupBody, MatchupTitle, PersonSeason } from "./game-week";
@@ -94,10 +94,13 @@ export function DrillSheets({ drill, ...ctx }: Ctx & { drill: DrillState }) {
 function titleOf(d: Door, { g, show }: Ctx): string {
   if (d.kind === "person") return g.table.find((r) => r.playerId === d.playerId)?.name ?? "";
   if (d.kind === "episode") return `${show.words.episode} ${d.episode}`;
-  if (d.kind === "cast") return first(faceIn(g, d.id)?.name ?? "");
+  if (d.kind === "cast") {
+    const c = faceIn(g, d.id);
+    return c?.role ? c.name : castName(c, g);
+  }
   if (d.kind === "matchup") return `${show.words.ep} ${d.episode}`;
   if (d.kind === "bets") return "Side bets";
-  if (d.kind === "compare") return `${first(faceIn(g, d.a)?.name ?? "")} vs ${first(faceIn(g, d.b)?.name ?? "")}`;
+  if (d.kind === "compare") return `${castName(faceIn(g, d.a), g)} vs ${castName(faceIn(g, d.b), g)}`;
   if (d.kind === "table") return "Everyone";
   return "How it plays";
 }
@@ -734,7 +737,7 @@ function CastBody({ g, show, seasonId, id, go }: Ctx & { id: string; go: Drill }
     const picked = (g.plays.rows[r.playerId] ?? []).filter((s) => s.pick?.id === id);
     if (picked.length) {
       const last = picked.at(-1)!;
-      rows.push({ r, line: `Picked ${first(c.name)} for ${picked.map((s) => `${show.words.ep} ${s.episode}`).join(", ")}`, ok: last.pick!.correct, points: null });
+      rows.push({ r, line: `Picked ${castName(c, g)} for ${picked.map((s) => `${show.words.ep} ${s.episode}`).join(", ")}`, ok: last.pick!.correct, points: null });
       continue;
     }
     const starts = r.weeks.filter((w) => w.started.some((x) => x.id === id));
@@ -755,7 +758,7 @@ function CastBody({ g, show, seasonId, id, go }: Ctx & { id: string; go: Drill }
       {!sport && story && stats.data && <CastChart d={stats.data} c={story} words={show.words} counted={g.you?.weeks.filter((w) => w.started.some((x) => x.id === id)).map((w) => w.episode) ?? []} />}
       {sport && log.data?.games.length ? <AthleteChart games={log.data.games} words={show.words} /> : null}
       <Caption right={rows.length ? `${rows.length} on the couch` : undefined}>In this game</Caption>
-      {rows.length === 0 && <p className="text-sm text-muted-foreground">Nobody here holds or has picked {first(c.name)} so far.</p>}
+      {rows.length === 0 && <p className="text-sm text-muted-foreground">Nobody here holds or has picked {castName(c, g)} so far.</p>}
       {rows.map(({ r, line, ok, points }) => (
         <button key={r.playerId} type="button" data-door-person={r.playerId} onClick={() => go.open({ kind: "person", playerId: r.playerId, episode: null })} className="nd-press flex min-h-14 w-full items-center gap-3 border-t border-border py-1.5 text-left">
           <Avatar id={userOfRow(r)} name={r.name} size={28} />
@@ -789,14 +792,14 @@ function CastBody({ g, show, seasonId, id, go }: Ctx & { id: string; go: Drill }
               ))}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">No games of {first(c.name)}&rsquo;s here yet.</p>
+            <p className="text-sm text-muted-foreground">No games of {castName(c, g)}&rsquo;s here yet.</p>
           )}
           {log.data?.newer && <p className="mt-2 text-[13px] text-muted-foreground">A later game&rsquo;s line is in: it shows once you&rsquo;ve seen that game.</p>}
         </>
       ) : (
         <>
           <Caption right="Newest first">Their story</Caption>
-          {stats.isPending ? <div aria-busy className="h-24 animate-pulse rounded-[3px] bg-background" /> : story && stats.data ? <StoryBody d={stats.data} c={story} group={false} /> : <p className="text-sm text-muted-foreground">Nothing recorded for {first(c.name)} yet.</p>}
+          {stats.isPending ? <div aria-busy className="h-24 animate-pulse rounded-[3px] bg-background" /> : story && stats.data ? <StoryBody d={stats.data} c={story} group={false} /> : <p className="text-sm text-muted-foreground">Nothing recorded for {castName(c, g)} yet.</p>}
         </>
       )}
     </div>

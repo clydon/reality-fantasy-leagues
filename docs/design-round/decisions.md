@@ -195,3 +195,31 @@
   in master, the full checks once, then ask before the push.
 - Recommended by Claude, not yet answered: ship the game page on its own (not waiting for Tonight's round), on a Monday or
   Tuesday, never an S51 Wednesday night.
+
+## 2026-11-15 · Ready to merge: the ship blockers fixed inside the approved design
+- Decided by: Claude (defaults inside the approved page; the user asked for these fixes and "no new design")
+- Names: a cast member's or athlete's name where room is short goes through one rule (`castName`, src/new/show/moves.ts): a
+  show's cast by first name; an athlete (a face with a sport's position) by surname, as fantasy reads a matchup ("Love vs
+  Maye", "St. Brown", "Harrison Jr."); a team's defense by its nickname ("Patriots D/ST": its name is the team's, so the first
+  word read "New" or "Green"); an initial only where two in the game would read the same ("S. Brown", "Mike P."). An athlete's
+  own sheet is titled with their whole name. The couch's people stay first names.
+- A one-game game (a team's next game: a span of one week) leads with its game: before it, no records ("0–0" says nothing);
+  after it, the card is the result (both sides, the score, "Bo won by 1.7", "G 1 · Final"), never "Season over", a place, a
+  bye or a line repeating the result; a game of two drops its season grid of one column, and the matchup sheet its records.
+- A finished head to head with no champion (no playoffs) reads as your place, not as a matchup against "A bye".
+- "Last week's stands in" only when one does: the view's `carried` now means a lineup actually carries in (a first week, or a
+  lineup whose every starter has gone, carries none), and the lineup sheet's notes follow it.
+- Both week-by-week tables (the game's scoring table and a person's season) open on their latest weeks with the leftmost one
+  whole beside the pinned names, and the last whole before the pinned total.
+- Found by the sweep and fixed the same way (Impeccable `clarify` for the words): How it plays leads with the game's line ("All
+  season · Draft 3, start 2 · Only 2 moments count"), which the title card carried and the page had lost, so a game where only
+  some moments count never said so; the card's standing line counts in the game's own measure ("3rd of 3 · 0 weeks won", lines,
+  calls right), not always points; a staged game shows you in the stage being played again (the page had dropped the You
+  section for every staged game); a compare chart's values go to its table when two side by side would collide.
+- "Long names running over numbers" was the overlap report, not the page: a truncated name's text box runs on past its ellipsis
+  unseen. The report (scripts/dev-test/overlaps.js, shared by the story's capture and check-game-page.js) now cuts each word to
+  what clips it, its own box included, and counts a pinned bar or column as a layer of its own.
+- Rejected: changing `ActiveRosterLogic.lineupIsCarried` (the engine's "not set for this episode", which other callers read);
+  surnames for a show's cast (a show's people are known by first name); hiding a one-game game's grid when more than two play
+  (it's their standings then).
+- Rests on: Designs needed 42; the 2c story's open items; tests/game-week.test.js.
