@@ -1112,7 +1112,14 @@ Last updated 2026-10-27.
     every matchup can finish the overall behind one that lost them all but scored more. Server and runtime agree. **The question:**
     is points the overall a head-to-head game in stages should have (then the page has to say so), or should it be wins (an overall
     by stages won, or by places, both still gaps in the runtime: their own proof)?
-
+85. **A failed read on Tonight never says so** (found 2026-11-14 by the design round's Phase 0 census, the Atlas's
+    `tonight.error` fault case: `.ui-atlas/stories/phase0/census/atlas-tonight.error.jpg`). Fifteen seconds after the read fails
+    the page still shows its loading skeleton: no message, no retry. Seen through the Atlas's injected fault only; the app's own
+    error path wasn't traced. **Who takes it:** the Tonight round (the design order's step 3), or a small fix before it.
+86. **The reveal's opener doesn't use the show's art** (found 2026-11-15 by the census with the fixtures dressed in art:
+    `.ui-atlas/stories/phase0/census/reveal-sam-1.jpg`). "Previously on the couch" is type on black even when the show and the
+    season have art set, though the brief asks for a visual "last time on" recap. **Who takes it:** the Episodes and reveal round
+    (the design order's step 4).
 
 ## Decided against (don't re-propose without new information)
 

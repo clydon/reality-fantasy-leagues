@@ -11,7 +11,8 @@
 //
 //   const fx = await require("./new-fixture").up(pool);
 //   const gd = await require("./guide-fixture").up(pool, fx);   // { seasons: { late, live, drop, same }, traitorsAt }
-//   ... node scripts/dev-test/guide-fixture.js up | down          (up brings new-fixture.js up first)
+//   ... node scripts/dev-test/guide-fixture.js up | down          (up brings new-fixture.js up first; up --art dresses its shows
+//                                                                    but the Drop Show, and new-fixture's: fixture-art.js)
 //
 // Shows are zt-gd- slugs made by zt_nd_alex, so new-fixture.js's down removes them too; this file's own down takes out only
 // what it added. Refuses a non-local database.
@@ -29,7 +30,7 @@ async function down(pool) {
   await pool.query("DELETE FROM shows WHERE slug = ANY($1::text[])", [SLUGS]); // seasons, episodes, follows and hidden rows go with them
 }
 
-async function up(pool, fx) {
+async function up(pool, fx, { art = false } = {}) {
   await down(pool);
   const one = async (sql, params) => (await pool.query(sql, params)).rows[0];
   const { users } = fx;
@@ -96,6 +97,14 @@ async function up(pool, fx) {
   await episodes(same, [[3, traitorsAt.getTime() - 7 * DAY, 60], [4, traitorsAt.getTime(), 60], [5, traitorsAt.getTime() + 7 * DAY, 60]]);
   await follow("alex", same, false, 3);
 
+  // Opt-in (fixture-art.js): the project's own generated atmospheres. The Drop Show stays bare on purpose: a show with no art,
+  // the case a design must still answer.
+  if (art) {
+    const dress = require("./fixture-art");
+    await dress.generated(pool, SLUGS[0], "talk");
+    await dress.generated(pool, SLUGS[1], "stage");
+    await dress.generated(pool, SLUGS[3], "island");
+  }
   console.log(`[zt] guide fixture up: late ${late}, live ${live}, drop ${drop} (${dropAt.toISOString()}), same ${same} (${traitorsAt.toISOString()})`);
   return { seasons: { late, live, drop, same }, traitorsAt: traitorsAt.toISOString(), dropAt: dropAt.toISOString() };
 }
@@ -106,7 +115,8 @@ if (require.main === module) {
   if (!/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(DB)) throw new Error("guide-fixture runs against a local database only");
   const pool = new Pool({ connectionString: DB });
   const cmd = process.argv[2];
-  (cmd === "up" ? newFixture.up(pool).then((fx) => up(pool, fx)) : cmd === "down" ? down(pool).then(() => console.log("[zt] guide fixture down")) : Promise.reject(new Error("usage: up | down")))
+  const art = process.argv.includes("--art");
+  (cmd === "up" ? newFixture.up(pool, { art }).then((fx) => up(pool, fx, { art })) : cmd === "down" ? down(pool).then(() => console.log("[zt] guide fixture down")) : Promise.reject(new Error("usage: up | down")))
     .catch((e) => {
       console.error(e);
       process.exitCode = 1;

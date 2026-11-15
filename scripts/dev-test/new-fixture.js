@@ -16,6 +16,7 @@
 // alex's, so a check can count what alex posts.
 //
 //   node scripts/dev-test/new-fixture.js up      create (or refresh) it, print the logins
+//                                       up --art   the same, its shows dressed in the real Survivor's and Traitors' art (fixture-art.js)
 //   node scripts/dev-test/new-fixture.js down    remove every row it made
 //
 // Also a module: `const { up, down, PEOPLE, PASSWORD } = require("./new-fixture")`; `up` resolves
@@ -144,7 +145,7 @@ async function down(pool) {
   await pool.query(`DELETE FROM "user" WHERE username LIKE 'zt\\_nd\\_%'`); // sessions, accounts, follows cascade
 }
 
-async function up(pool) {
+async function up(pool, { art = false } = {}) {
   await down(pool);
   const { hashPassword } = await import("better-auth/crypto");
   const hash = await hashPassword(PASSWORD);
@@ -243,6 +244,12 @@ async function up(pool) {
   // people can back each other up on any square. A check that wants other banks files its own (bingo-fixture.js).
   await require("./bingo-fixture").up(pool, season, null, { likely: 3, maybe: 4, longshot: 1 });
 
+  // Opt-in show art (fixture-art.js): the real Survivor's and Traitors' art from the local database, for a design round's frames.
+  if (art) {
+    const dress = require("./fixture-art");
+    await dress.borrow(pool, SHOW, "survivor");
+    await dress.borrow(pool, TRAITORS, "the-traitors-us");
+  }
   return { couchId: couch, extraCouchId: extraCouch, seasonId: season, traitorsSeasonId: traitorsSeason, groupId: group, leagues, users };
 }
 
@@ -299,7 +306,7 @@ if (require.main === module) {
   if (!/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(DB)) throw new Error("new-fixture runs against a local database only");
   const pool = new Pool({ connectionString: DB });
   const cmd = process.argv[2];
-  (cmd === "up" ? up(pool) : cmd === "down" ? down(pool).then(() => console.log("[zt] down")) : Promise.reject(new Error("usage: up | down")))
+  (cmd === "up" ? up(pool, { art: process.argv.includes("--art") }) : cmd === "down" ? down(pool).then(() => console.log("[zt] down")) : Promise.reject(new Error("usage: up | down")))
     .catch((e) => { console.error(e); process.exitCode = 1; })
     .finally(() => pool.end());
 }

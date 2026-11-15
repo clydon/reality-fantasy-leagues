@@ -9,7 +9,8 @@
 //
 //   const fx = await require("./new-fixture").up(pool);
 //   const hub = await require("./hub-fixture").up(pool, fx);   // { seasons: { s49, s50 }, leagues: { cup49, cup50, pool50 } }
-//   ... node scripts/dev-test/hub-fixture.js up | down          (up brings new-fixture.js up first)
+//   ... node scripts/dev-test/hub-fixture.js up | down          (up brings new-fixture.js up first; up --art dresses both in
+//                                                                  the real Survivor's art: fixture-art.js)
 //
 // Rows are keyed on zt-nd- slugs and the zt show, so new-fixture.js's down removes them too (its leagues by slug, the
 // seasons with the show); this file's own down takes out only what it added. Refuses a non-local database.
@@ -65,7 +66,7 @@ async function down(pool) {
   await pool.query(`DELETE FROM show_seasons WHERE season_number IN (49, 50) AND show_id IN (SELECT id FROM shows WHERE slug = $1)`, [SHOW]);
 }
 
-async function up(pool, fx) {
+async function up(pool, fx, { art = false } = {}) {
   await down(pool);
   const one = async (sql, params) => (await pool.query(sql, params)).rows[0];
   const show = (await one(`SELECT id FROM shows WHERE slug = $1`, [SHOW])).id;
@@ -102,6 +103,8 @@ async function up(pool, fx) {
     }
   }
   console.log("[zt] hub up: ZT Survivor 49 and 50 finished on the couch (Cup 49, Cup 50: riley; Pool 50: alex)");
+  // Opt-in (fixture-art.js): the real Survivor's posters for 49 and 50, where the local database has them.
+  if (art) await require("./fixture-art").seasons(pool, SHOW, "survivor");
   return { seasons, leagues };
 }
 
@@ -111,7 +114,8 @@ if (require.main === module) {
   if (!/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(DB)) throw new Error("hub-fixture runs against a local database only");
   const pool = new Pool({ connectionString: DB });
   const cmd = process.argv[2];
-  (cmd === "up" ? newFixture.up(pool).then((fx) => up(pool, fx)) : cmd === "down" ? down(pool).then(() => newFixture.down(pool)).then(() => console.log("[zt] down")) : Promise.reject(new Error("usage: up | down")))
+  const art = process.argv.includes("--art");
+  (cmd === "up" ? newFixture.up(pool, { art }).then((fx) => up(pool, fx, { art })) : cmd === "down" ? down(pool).then(() => newFixture.down(pool)).then(() => console.log("[zt] down")) : Promise.reject(new Error("usage: up | down")))
     .catch((e) => {
       console.error(e);
       process.exitCode = 1;
