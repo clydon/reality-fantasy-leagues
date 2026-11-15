@@ -165,6 +165,12 @@ const LIST = [
     build: () => { const input = showDefinition(); return { input, steps: play(input, queue(everyoneSets('h2h', ALL, played('show', 4, ALL)))) }; } },
   { id: 'show-behind', page: 'show', label: 'You\'re two episodes behind · the others have watched', shows: "Nothing past your mark (no result, record or standings move of episodes 4 and 5); what's waiting for you and the way to reveal; your moves for the episode you're on.",
     build: () => { const input = showDefinition(); return { input, steps: play(input, queue(everyoneSets('h2h', ALL, [...played('show', 4, ['bo', 'cy', 'di']), ...everyoneSets('h2h', ['bo', 'cy', 'di']), ...played('show', 5, ['bo', 'cy', 'di'])]))) }; } },
+  // The own-pace plate folded into the show's parts (step 3, the user's "fold", 2026-11-15): the move is the strip's, the reveal the
+  // control's. These two are the plate's other states: the move not in yet, and a reveal that runs you ahead of someone.
+  { id: 'show-behind-unset', page: 'show', label: 'Two episodes behind · your lineup for the next one not in', shows: "At your own pace, the episode you're on still needs your lineup: the strip asks for it (before you reveal it), the reveal waits in white, and revealing without it asks once.",
+    build: () => { const input = showDefinition(); return { input, steps: play(input, queue(everyoneSets('h2h', ['bo', 'cy', 'di'], [...played('show', 4, ['bo', 'cy', 'di']), ...everyoneSets('h2h', ['bo', 'cy', 'di']), ...played('show', 5, ['bo', 'cy', 'di'])]))) }; } },
+  { id: 'show-pace-ahead', page: 'show', label: 'At your own pace · revealing puts you two ahead of Bo', shows: "Ann has watched Ep 4 and Ep 5 is out; Bo is still on Ep 4. The reveal says the gap (2 ahead of Bo) and blocks nothing: the words are the guardrail.",
+    build: () => { const input = showDefinition(); return { input, steps: play(input, queue(everyoneSets('h2h', ALL, [...played('show', 4, ['ann', 'cy', 'di']), ...everyoneSets('h2h', ['ann', 'cy', 'di']), ...played('show', 5, ['cy', 'di'])]))) }; } },
   { id: 'show-friend-behind', page: 'show', label: 'Your opponent is behind · you\'re caught up', shows: "Your result against someone who hasn't watched: what you may see of their side, and that they haven't seen it yet.",
     build: () => {
       const input = showDefinition(), s = R.open(input), them = s.project('h2h', 'ann').game.matchups.next.opponent; s.dispose();

@@ -66,6 +66,16 @@ export function useShow(seasonId: string) {
   const canRead = !!home.data || !!readOnly;
   const space = useSpace(seasonId, couchId, canRead);
   const play = useSeasonGames(seasonId, couchId, canRead);
+  // A game's read does what's come due in it (league-read.ts readyLeague: a waiver week opening, say), and the home's moves, read
+  // beside it, can miss that: the strip said nothing of a replacement until the home's next read (step 3's Alex, 2026-11-15). So
+  // once a visit, a games read that lands after the home's reads the home again.
+  const qc = useQueryClient();
+  const homeAgain = useRef(false);
+  useEffect(() => {
+    if (homeAgain.current || readOnly || !play.dataUpdatedAt || !home.dataUpdatedAt || play.dataUpdatedAt <= home.dataUpdatedAt) return;
+    homeAgain.current = true;
+    void qc.invalidateQueries({ queryKey: ["new-design", "home"], exact: true });
+  }, [play.dataUpdatedAt, home.dataUpdatedAt, readOnly, qc]);
   const episodes = useSeasonEpisodes(seasonId, couchId, canRead);
   const couch = readOnly ? readOnlyCouch(readOnly, space.data) : yourCouch;
   const cached = readOnly ? undefined : home.data?.shows.find((s) => s.seasonId === seasonId);
@@ -102,6 +112,9 @@ export function useShow(seasonId: string) {
     keepUp: (space.data ? space.data.you.keepUp : cached?.keepUp) ?? "off",
     /** Live's "Seen it?": the episode that's ended past where you are, when there's one to ask about. */
     seenIt: (space.data ? space.data.you.seenIt : cached?.seenIt) ?? null,
+    /** "Not yet" to the behind question (behind-ask.tsx): the latest aired episode then, so it isn't asked again until a newer
+     *  one airs. Kept with your mark on the server (show_follows.not_yet), so every phone of yours knows. */
+    notYet: space.data?.you.notYet ?? null,
     /** You play this season (here or elsewhere): where you are moves with your games' reveals. */
     plays: space.data ? !!space.data.you.plays : !!cached?.games.length,
     /** Set up as a game (step 10): false is "Not a game yet". */

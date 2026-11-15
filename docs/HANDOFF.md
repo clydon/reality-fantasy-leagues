@@ -32,10 +32,11 @@ and teal out of the people palette (`src/lib/people.ts`, tests/people.test.js; d
 **Then, the same day (the user took every recommendation):** the behind question built as look B (the control's line asks "Seen Ep 4
 and 5?" with Yes and Not yet: `behind-ask.tsx`; mocks https://claude.ai/artifact/2fSx1kXCBdjnTopGoXkwn2), the strip's settle moment
 when the last due move is saved, the reveal holding the yellow when the due move waits on it, and a sports game named by its type's
-name. `node scripts/dev-test/check-strip-settle.js` checks the settle and the question on the zt couch. **Next (a fresh session):**
-fold the own-pace plate into the control (its reveal is a game's catch-up reveal, `couches.catchUp`, so it's a flow change), keep
-Not yet with the mark on the server (it's on the device now), confirm Alex's strip timing, then step 4 (Episodes and the reveal,
-with data round 3's episode ledger as the where-you're-up-to sheet).
+name. `node scripts/dev-test/check-strip-settle.js` checks the settle and the question on the zt couch.
+**Then (2026-11-15, later):** the own-pace plate folded into the control (the move in the strip, "Reveal Ep 4" with "2 ahead of
+Bo" in the control: pace-plate.tsx `paceReveal`/`usePaceReveal`), Not yet kept on the server (`show_follows.not_yet`), and Alex's
+strip timing found (the home read raced the games read that opens a waiver week) and fixed; decisions.md has the detail. Checks:
+check-own-pace.js and check-strip-settle.js (a second phone) pass. **Next:** step 4, Episodes and the reveal (below, when started).
 
 ## The design round's step 2, the game page (2026-11-15; built on branch `explorer-sports`, not pushed; waits on the user's review)
 The game page leads with this week: head to head as a matchup (you and who you play, faces and records, on the show's art or

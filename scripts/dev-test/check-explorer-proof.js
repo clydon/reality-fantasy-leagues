@@ -63,7 +63,7 @@ const defFile = path.join(out, 'proof-definition.json'); fs.writeFileSync(defFil
       assert.equal(await preview().locator('[data-pace-finish]').count(), 0, 'a finish plate on an airing season'); await snap('tonight-ann');
     });
     await step('Tonight: Bo, behind, gets his catch-up plates', async () => {
-      await selectViewer('bo'); await surface('tonight'); await preview().locator('[data-pace-plate]').first().waitFor({ timeout: 25000 });
+      await selectViewer('bo'); await surface('tonight'); await preview().locator('[data-progress-pace], [data-pace-gather], [data-pace-finish], [data-pace-draft-plate], [data-pace-team-plate]').first().waitFor({ timeout: 25000 });
       assert.equal(await preview().locator('[data-pace-finish]').count(), 0); await snap('tonight-bo'); await selectViewer('ann');
     });
 

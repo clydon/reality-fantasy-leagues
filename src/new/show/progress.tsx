@@ -13,6 +13,8 @@ import { useOpenReveal } from "./reveal";
 import { upNextEpisode, WatchedSheet } from "./up-next";
 import { AskConfirm, outWords, useCatchingUp } from "./behind-ask";
 import { useOpenWatch } from "./watch-along";
+import { paceReveal, usePaceReveal } from "./pace-plate";
+import { stripState } from "./strip";
 
 // The progress control (the design round's step 3: docs/design-round/step3-tonight-spec.md, "Two parts every show tab shares";
 // Phase 0's decision 3): the show's one statement of where you are. Your mark and what's next in one line, the couch on one
@@ -55,14 +57,18 @@ export function progressWords(show: ShowData, now: number): ProgressWords {
   return { mark, next, live: !!up?.live };
 }
 
-/** The one watching action there is now, or null: the reveal on a show you play, I watched it on one you watch, or Watch along
- *  while it's on. `primary`: it holds the view's one yellow: a reveal while nothing is due, or while everything due waits on it
+/** The one watching action there is now, or null: the reveal on a show you play, I watched it on one you watch, the next
+ *  episode of your games at your own pace (pace-plate.tsx paceReveal: the plate folded in, the user's call 2026-11-15), or Watch
+ *  along while it's on. `primary`: it holds the view's one yellow: a reveal while nothing is due, or while everything due waits on it
  *  (the strip is quiet then: "After you reveal Ep 4"). */
-export function watchAction(show: ShowData): { kind: "reveal" | "watched" | "live"; n: number; primary: boolean } | null {
+export function watchAction(show: ShowData): { kind: "reveal" | "watched" | "pace" | "live"; n: number; primary: boolean } | null {
   if (show.readOnly) return null;
   const up = upNextEpisode(show);
   const waits = (m: ShowData["moves"][number]) => !m.late && (show.play?.find((g) => g.leagueId === m.leagueId)?.revealFirst ?? null) != null;
   if (up) return { kind: up.play ? "reveal" : "watched", n: up.n, primary: up.play && show.moves.filter(isRequired).every(waits) };
+  // At your own pace: yellow once your move for it is in, nothing else is due, and no waiver moment asks you to wait.
+  const pace = paceReveal(show);
+  if (pace) return { kind: "pace", n: pace.n, primary: pace.moved && !pace.waits && stripState(show)?.tone !== "due" };
   if (show.upNext?.live && (show.following || show.plays)) return { kind: "live", n: show.upNext.number, primary: false };
   return null;
 }
@@ -95,8 +101,11 @@ export function ProgressControl({ show }: { show: ShowData }) {
   // Behind on an airing show, the control's line asks whether you've seen what's out (behind-ask.tsx: the user's pick B).
   const ep = show.words.ep;
   const latest = show.latestAired;
-  const behind = !!action && action.kind !== "live" && seen != null && seen < latest;
-  const [later, setLater] = useCatchingUp(seasonId, latest);
+  // At your own pace being behind is the point: nothing to ask.
+  const behind = !!action && action.kind !== "live" && action.kind !== "pace" && seen != null && seen < latest;
+  const pace = paceReveal(show);
+  const paced = usePaceReveal(show, pace);
+  const [later, setLater] = useCatchingUp(seasonId, latest, show.notYet);
   const asking = behind && !later;
   const [askOpen, setAskOpen] = useState(false);
   const out = behind ? outWords(ep, seen!, latest) : "";
@@ -177,6 +186,17 @@ export function ProgressControl({ show }: { show: ShowData }) {
               Reveal {show.words.ep} {action.n}
               <small className="font-semibold opacity-75">every game</small>
             </PlateButton>
+          ) : action.kind === "pace" && pace ? (
+            <PlateButton primary={action.primary} fill data-progress-pace={action.n} disabled={paced.busy} onClick={paced.start} className="h-auto min-h-12 py-1.5">
+              <span className="flex flex-col items-center leading-tight">
+                <span className="whitespace-nowrap">{paced.busy ? "Revealing…" : `Reveal ${show.words.ep} ${action.n}`}</span>
+                {!paced.busy && (pace.ahead || pace.games.length > 1) && (
+                  <small data-progress-ahead className="text-[13px] font-semibold opacity-75">
+                    {pace.ahead ?? `${pace.games.length} games`}
+                  </small>
+                )}
+              </span>
+            </PlateButton>
           ) : action.kind === "watched" ? (
             <PlateButton fill data-progress-watched={action.n} onClick={() => setConfirm(true)}>
               I watched {show.words.ep} {action.n}
@@ -190,7 +210,8 @@ export function ProgressControl({ show }: { show: ShowData }) {
       {behind && seasonId && (
         <AskConfirm open={askOpen} onOpenChange={setAskOpen} show={show} seasonId={seasonId} seen={seen!} latest={latest} play={action!.kind === "reveal"} first={action!.n} onReveal={openReveal} />
       )}
-      {action && !behind && action.kind !== "live" && seasonId && (
+      {paced.node}
+      {action && !behind && (action.kind === "reveal" || action.kind === "watched") && seasonId && (
         <WatchedSheet open={confirm} onOpenChange={setConfirm} show={show} seasonId={seasonId} n={action.n} play={action.kind === "reveal"} onReveal={() => openReveal(action.n)} />
       )}
     </div>

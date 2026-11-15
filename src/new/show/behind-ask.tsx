@@ -13,29 +13,26 @@ import { showLabel } from "./react";
 // (Joanna watches live with the couch) or is catching up; the app can't tell, so the progress control's line asks "Seen Ep 4 and
 // 5?" with Yes and Not yet beside it, both one tap. Yes asks once more here (the spoiler guard) and says what it closes; Not yet is
 // remembered until a new episode airs. Seeing only some of what's out goes through your mark's door (Where you are).
-// Not yet is kept on this device for now: it belongs with your mark on the server, so a second phone asks again (HANDOFF, step 3).
+// Not yet is kept with your mark on the server (show_follows.not_yet, the same column as Live's "Not yet" on a show you watch),
+// so a second phone of yours doesn't ask again.
 
-const KEY = (seasonId: string) => `gys:catching-up:${seasonId}`;
-
-/** "Still catching up", remembered for what's aired now: asked again once a new episode airs. */
-export function useCatchingUp(seasonId: string, aired: number): [boolean, () => void] {
-  const [at, setAt] = useState<number | null>(() => {
+/** "Still catching up", remembered for what's aired now (`notYet`, the show's read): asked again once a new episode airs. The
+ *  answer shows at once and is saved behind it; a save that fails says so and asks again. */
+export function useCatchingUp(seasonId: string, aired: number, notYet: number | null): [boolean, () => void] {
+  const after = useAfterWatching();
+  const [said, setSaid] = useState<number | null>(null);
+  const at = Math.max(notYet ?? 0, said ?? 0) || null;
+  const later = async () => {
+    setSaid(aired);
     try {
-      const v = localStorage.getItem(KEY(seasonId));
-      return v == null ? null : Number(v);
-    } catch {
-      return null;
-    }
-  });
-  const later = () => {
-    setAt(aired);
-    try {
-      localStorage.setItem(KEY(seasonId), String(aired));
-    } catch {
-      // No storage (a private window): it holds for this visit.
+      await watching.follow(seasonId, { notYet: aired });
+      await after();
+    } catch (e) {
+      setSaid(null);
+      toast.quiet((e as Error).message);
     }
   };
-  return [at != null && at >= aired, later];
+  return [at != null && at >= aired, () => void later()];
 }
 
 /** "Ep 4", "Ep 4 and 5", "Ep 4 to 7": what's out past your mark. */

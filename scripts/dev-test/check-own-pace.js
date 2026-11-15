@@ -10,8 +10,8 @@
 //   - alex picks for 4 and reveals it: the bots' picks for 4 land then (none before), from who was still in; alex's view moves to
 //     5, the others line says riley · Ep 4; riley's strip says alex · Ep 5. alex reveals 5: the words warn "you'll be 2 ahead of
 //     riley" on the way (the GET before), nothing blocks.
-//   - Screens: Start a game's sheet (the strip, the two starts), the Games tab's row, the join sheet as riley, the catch-up strip
-//     and sheet as alex with the gap words.
+//   - Screens: Start a game's sheet (the strip, the two starts), the Games tab's row, the join sheet as riley, and Tonight as
+//     alex: the pick in the show's strip, the reveal in the progress control with the gap on it (the plate folded in, step 3).
 //
 //   node scripts/lane.js dev   (or npm run dev; in another terminal)
 //   node scripts/dev-test/check-own-pace.js [outDir] [--season=<showSeasonId>] [--keep] [--no-shots]
@@ -236,14 +236,17 @@ async function main() {
         await a.page.keyboard.press("Escape");
 
         await a.page.goto(`${a.BASE}/show/${season}/tonight`);
-        const plate = a.page.locator(`[data-pace-plate='${leagueId}']`);
-        await plate.waitFor();
+        // The plate is folded into the show's two parts (the design round's step 3): the pick is the strip's, the reveal the
+        // progress control's (pace-plate.tsx usePaceReveal).
+        const reveal = a.page.locator("[data-progress-pace]");
+        await reveal.waitFor();
         check((await a.page.locator(`[data-catchup='${leagueId}']`).count()) === 0, "no catching-up strip for an own-pace game");
+        check((await a.page.locator("[data-pace-plate]").count()) === 0, "no own-pace plate: it's folded into the control");
         check((await a.page.locator("[data-phase]").count()) === 0, "no episode heading saying it again");
-        check(/Pick who survives/.test((await plate.textContent()) || ""), "the plate asks for the pick first");
+        check(/Pick who survives/.test((await a.page.locator('[data-strip="due"] [data-strip-title]').textContent()) || ""), "the strip asks for the pick first");
         await shot(a.page, "tonight-plate-pick");
-        await plate.locator("[data-pace-watched]").click();
-        await plate.locator("[data-pace-ask]").waitFor();
+        await reveal.click();
+        await a.page.locator("[data-pace-ask]").waitFor();
         await shot(a.page, "tonight-plate-ask");
         // The pick, through the API (the moves sheet is its own check's), then the plate's next step.
         const g5 = ((await alex.call("GET", `/api/seasons/${season}/games?couch=${couch}`)).body.games || []).find((g) => g.leagueId === leagueId);
@@ -251,12 +254,13 @@ async function main() {
         r = await alex.call("PUT", `/api/leagues/${leagueId}/episodes/${ep5.id}/picks`, { playerId: g5.playerId, castawayId: g5.pick.available[0] });
         check(r.status === 200, "alex picks for Episode 5", r.body);
         await a.page.reload();
-        await plate.locator("[data-pace-reveal]").waitFor();
+        await a.page.locator("[data-progress-pace='5']").waitFor();
+        check(/All set for Ep 5/.test((await a.page.locator('[data-strip="set"]').textContent()) || ""), "the strip: all set for Ep 5");
         await shot(a.page, "tonight-plate-watch");
-        const ahead = await plate.locator("[data-pace-reveal]").getAttribute("data-pace-ahead");
+        const ahead = await a.page.locator("[data-progress-ahead]").textContent();
         // Names are as the couch shows them everywhere (couchMembers: the username).
-        check(ahead === `you'll be 2 ahead of ${RILEY}`, "the reveal button says you'll be 2 ahead of riley", ahead);
-        await plate.locator("[data-pace-reveal]").click();
+        check(ahead === `2 ahead of ${RILEY}`, "the reveal button says 2 ahead of riley", ahead);
+        await reveal.click();
         await a.page.locator("[data-pace-revealed='5']").waitFor();
         await shot(a.page, "revealed-sheet");
         check((await a.page.locator("[data-pace-next]").textContent())?.includes("Pick for Episode 6"), "the way on is Pick for Episode 6");
@@ -270,10 +274,9 @@ async function main() {
       b.page.setDefaultTimeout(15000);
       try {
         await b.page.goto(`${b.BASE}/show/${season}/tonight`);
-        const plate = b.page.locator(`[data-pace-plate='${leagueId}']`);
-        await plate.waitFor();
-        check((await plate.getAttribute("data-pace-week")) === "4", "riley's plate is on Episode 4");
-        check((await plate.locator("[data-pace-near]").count()) === 0, "nobody's behind riley: no line about it");
+        await b.page.locator("[data-progress-pace]").waitFor();
+        check((await b.page.locator("[data-progress-pace]").getAttribute("data-progress-pace")) === "4", "riley's reveal is Episode 4");
+        check((await b.page.locator("[data-progress-ahead]").count()) === 0, "nobody's behind riley: no gap on the button");
         await shot(b.page, "riley-plate");
       } finally {
         await b.close();
@@ -341,8 +344,8 @@ async function main() {
         for (const id of lg.pace.team.pool.slice(0, 5)) await e.page.locator(`[data-pace-team-pick] [data-castaway='${id}']`).click();
         await shotAs(e.page, "lineup-team-sheet");
         await e.page.locator("[data-pace-team-save]").click();
-        await e.page.locator(`[data-pace-plate='${lineupId}']`).waitFor();
-        check(/Set your lineup/.test((await e.page.locator(`[data-pace-plate='${lineupId}']`).textContent()) || ""), "with a team, the plate asks for the lineup");
+        await e.page.locator('[data-strip="due"]').waitFor();
+        check(/Set your lineup/.test((await e.page.locator('[data-strip="due"] [data-strip-title]').textContent()) || ""), "with a team, the strip asks for the lineup");
         await shotAs(e.page, "lineup-plate");
       } finally {
         await e.close();
@@ -431,9 +434,7 @@ async function main() {
         await t.page.goto(`${t.BASE}/show/${season}/tonight`);
         await t.page.locator(`[data-pace-gather='${outlastId}']`).waitFor();
         await shotAs(t.page, "outlast-gather-wait");
-        await t.page.locator("[data-pace-gather-go]").click();
-        await t.page.locator(`[data-pace-plate='${outlastId}']`).waitFor();
-        check(true, "Go on still works: words only");
+        check((await t.page.locator("[data-progress-pace]").count()) === 1, "going on still works from the control: words only");
       } finally {
         await t.close();
       }

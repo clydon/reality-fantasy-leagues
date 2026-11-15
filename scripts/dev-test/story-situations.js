@@ -65,7 +65,7 @@ const TAB_FLOWS = [
   { id: "strip", tap: "[data-strip] button", wait: '[role="dialog"]' },
   { id: "ruler", tap: "[data-ruler]", wait: '[role="dialog"]' },
   { id: "ledger", tap: "[data-mini-ledger]", wait: "[data-ledger]", inPlace: true },
-  { id: "reveal", tap: "[data-progress-reveal], [data-progress-watched]", wait: '[role="dialog"]' },
+  { id: "reveal", tap: "[data-progress-reveal], [data-progress-watched], [data-progress-pace]", wait: '[role="dialog"]' },
 ];
 const READY = TAB ? "[data-progress], [data-strip], [data-last-time], main section" : "[data-game-page]";
 
@@ -154,6 +154,11 @@ async function measure(p) {
         const ctx = await p.context().browser().newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, reducedMotion: "reduce" });
         await ctx.addCookies(await p.context().cookies(url.origin));
         const q = await ctx.newPage();
+        // Writes the page made that failed, for a flow that opened nothing (said beside it).
+        const refused = [];
+        q.on("response", (r) => {
+          if (r.status() >= 400 && r.request().method() !== "GET") r.text().then((t) => refused.push(`${r.status()} ${new URL(r.url()).pathname} ${t.slice(0, 160)}`), () => {});
+        });
         try {
           await q.goto(url.href, { waitUntil: "domcontentloaded" });
           await q.locator(READY).first().waitFor({ timeout: 45000 });
@@ -192,7 +197,9 @@ async function measure(p) {
               await el.scrollIntoViewIfNeeded().catch(() => {});
               await el.click();
               if (!(await q.locator(f.wait).last().waitFor({ timeout: 10000 }).then(() => true, () => false))) {
-                console.log(`  ${x.id}: ${f.id} opened nothing, skipped`);
+                // What it did instead (a toast saying why, say), kept beside the frames for whoever looks next.
+                await q.screenshot({ path: path.join(OUT, `${x.id}.${f.id}.nothing.jpg`), type: "jpeg", quality: 80 }).catch(() => {});
+                console.log(`  ${x.id}: ${f.id} opened nothing, skipped (what it showed: ${x.id}.${f.id}.nothing.jpg)${refused.length ? `; refused: ${refused.splice(0).join(" | ")}` : ""}`);
                 await reload();
                 continue;
               }

@@ -73,6 +73,8 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ seasonId
       seenThrough: Number.isFinite(seen) ? seen : null,
       // How where you are keeps up (keep-up.ts; off on a season you play), and Live's "Seen it?" episode when there's one.
       keepUp: follow[0]?.plays ? "off" : follow[0]?.keep_up,
+      // "Not yet": Live's answer on a show you watch, the behind question's on one you play (behind-ask.tsx).
+      notYet: follow[0]?.not_yet ?? null,
       seenIt:
         follow[0]?.plays || !Number.isFinite(seen)
           ? null

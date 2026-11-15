@@ -690,6 +690,13 @@ never handles it: the user does the reset and the pasting.
 
 ## Changelog
 
+- **2026-11-15, on branch `explorer-sports` (not pushed, no migration).** Tonight's own-pace plate folded into the progress
+  control; the behind question's Not yet kept with your mark. **Nothing new polls, runs on a schedule or is stored in a new
+  table.** **Writes:** Not yet is one `show_follows.not_yet` update (the column Live's Not yet already used; a row made by it alone
+  doesn't follow the show). **Reads:** opening a show reads the home (`/api/me/home`) once more when the show's games read lands
+  after it, once a visit, so the strip names what that read made due (a waiver week opening); the space read returns
+  `you.notYet` (no new query). A reveal of several own-pace games on one episode is one catch-up call each, as before.
+
 - **2026-11-14, pushed to master (`4843525f` to `ba2fbc5a`, no migration).** When moves lock is the game's setting (own pace,
   live, strict), the late lock in hours retired, and four fixes to lineups and waivers (docs/PLAN-own-pace-games.md). **Nothing
   new polls, runs on a schedule or is stored in a table.** A game's state carries a few more bytes (`settings.startedTogether`,

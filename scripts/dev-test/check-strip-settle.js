@@ -1,6 +1,6 @@
 // The strip settling (src/new/show/strip.tsx; the design round's step 3, the user's B3): a move made through the strip turns it
 // from due (yellow) to "All set for Ep N" with its one-off settle moment, and the behind question (behind-ask.tsx, the user's pick
-// B) asks on a show you're behind on. On the zt_nd couch: riley has one Survival Pool pick due (alex's and jordan's lead with a
+// B) asks on a show you're behind on, and its Not yet holds on a second phone (kept on the server). On the zt_nd couch: riley has one Survival Pool pick due (alex's and jordan's lead with a
 // replacement, which opens the waivers screen); sam is two behind with results in.
 // Needs: the app on :3000 (npm run dev). Brings the couch up and takes it down (new-fixture.js); zt_nd rows only, never a real
 // account. Run: node scripts/dev-test/check-strip-settle.js [--out=.ui-atlas/stories/step3-tonight/settle] [--keep]
@@ -38,6 +38,11 @@ const check = (ok, what, extra = "") => {
     await tonightOf(a.page);
     const p = a.page;
     check((await p.locator('[data-strip="due"]').count()) === 1, "riley's strip is due (yellow)");
+    // The moment lasts 1.4 s: note it whenever it shows, not only when we happen to look.
+    await p.evaluate(() => {
+      window.__settled = 0;
+      new MutationObserver(() => { if (document.querySelector("[data-strip-settled]")) window.__settled++; }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-strip-settled"] });
+    });
     for (let i = 0; i < 3 && (await p.locator('[data-strip="due"]').count()); i++) {
       await p.locator("[data-strip] button").first().click();
       // The Your moves sheet (pushed pages are dialogs too, hidden: wait on the sheet's own picks).
@@ -50,7 +55,7 @@ const check = (ok, what, extra = "") => {
       await p.keyboard.press("Escape").catch(() => {});
       await p.waitForTimeout(400);
     }
-    const settled = await p.locator("[data-strip-settled]").count();
+    const settled = (await p.evaluate(() => window.__settled)) > 0 ? 1 : 0;
     await p.screenshot({ path: path.join(OUT, "riley-settling.jpg"), type: "jpeg", quality: 82 });
     check((await p.locator('[data-strip="set"]').count()) === 1, "after the pick, the strip says all set");
     check(settled === 1, "the settle moment ran (data-strip-settled)");
@@ -78,6 +83,14 @@ const check = (ok, what, extra = "") => {
     check((await p.locator("[data-ask-line]").count()) === 0, "Not yet is remembered until a new episode airs");
   } finally {
     await s.close();
+  }
+  // Sam on a second phone (a new browser, nothing on the device): Not yet is kept with the mark on the server, so it doesn't ask.
+  const s2 = await open({ user: "zt_nd_sam", pass: PASS, motion: "reduce" });
+  try {
+    await tonightOf(s2.page);
+    check((await s2.page.locator("[data-ask-line]").count()) === 0 && /Catching up/.test(await s2.page.locator("[data-progress]").innerText()), "a second phone doesn't ask again (Not yet is on the server)");
+  } finally {
+    await s2.close();
   }
   if (!args.includes("--keep")) execFileSync("node", [path.join(__dirname, "new-fixture.js"), "down"], { stdio: "inherit" });
   console.log(bad ? `${bad} FAILED` : "ALL PASS");

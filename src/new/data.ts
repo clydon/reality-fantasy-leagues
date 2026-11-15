@@ -268,7 +268,7 @@ export interface Home {
 
 export interface Space extends SeasonHeader {
   couchId: string | null;
-  you: { following: boolean; private: boolean; seenThrough: number | null; plays?: boolean; keepUp?: KeepUp; seenIt?: number | null };
+  you: { following: boolean; private: boolean; seenThrough: number | null; plays?: boolean; keepUp?: KeepUp; seenIt?: number | null; notYet?: number | null };
   schedule: { release: string; dropAt: string | null; airTz: string; upNext: UpNext | null; latestAired: number } | null;
   games: GameRef[];
   /** `seen`: how far they are, where they share it (step 15 part 3's Where I am); never yours here (that's `you`). */

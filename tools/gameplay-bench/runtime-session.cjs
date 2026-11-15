@@ -79,6 +79,9 @@ function createRuntimeSession(base,input,options={}){
  function actionsFor(method,url,body){
   const c=ctx(),p=url.pathname;
   if(method==='POST'&&p==='/api/seasons/'+c.seasonId+'/reveal')return body.replay===true?[]:[{type:'reveal',contextId,personId:viewerId,episode:body.episode}];
+  // A game at your own pace's reveal (POST /api/seasons/{S}/catchup { leagueId }: the progress control's, step 3's fold): the
+  // viewer's next episode, as the engine's reveal of it (the reveal's own comparison checks the mark the server kept).
+  if(method==='POST'&&p==='/api/seasons/'+c.seasonId+'/catchup'){if(!gameOfLeague(body.leagueId))return null;const through=session.snapshot().contexts[contextId].marks.find(m=>m.personId===viewerId)?.through??0;return [{type:'reveal',contextId,personId:viewerId,episode:through+1}];}
   const lineup=p.match(/^\/api\/leagues\/([0-9a-f-]{36})\/episodes\/([^/]+)\/lineups\/([^/]+)$/),pick=p.match(/^\/api\/leagues\/([0-9a-f-]{36})\/episodes\/([^/]+)\/picks$/),m=lineup||pick;
   if(method==='PUT'&&m){const game=gameOfLeague(m[1]);if(!game)return null;return [{type:lineup?'lineup':'pick',gameId:game,personId:lineup?decodeURIComponent(m[3]):body.playerId,eventId:decodeURIComponent(m[2]),ids:lineup?body.castawayIds:(body.castawayIds||[body.castawayId]),...(lineup&&Object.prototype.hasOwnProperty.call(body,'captainId')?{captainId:body.captainId??null}:{}),...(!lineup&&body.second===true?{second:true}:{})}];}
   // Mid-season waivers: PUT /api/leagues/{L}/waivers/claims ({ pairs } or { spot }; with playerId, the classic route's Claim for:

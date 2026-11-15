@@ -317,3 +317,24 @@
   sheet, built in step 4 (it's shared with Episodes).
 - Also: a sports game named by its type key reads by the type's name (GAME_NAMES: "Weekly Lineup", not "ACTIVE-ROSTER").
 - Rests on: https://claude.ai/artifact/2fSx1kXCBdjnTopGoXkwn2; scripts/dev-test/check-strip-settle.js (all pass).
+
+## 2026-11-15 · The own-pace plate folded into the control; Not yet on the server; Alex's strip timing found and fixed
+- Decided by: the user (fold, and Not yet on the server: "Tonight's four choices", above); how, by Claude through Impeccable alone
+  (a small change inside the approved step 3 spec, DESIGN-PROCESS.md "When not to use them")
+- The fold: a game at its own pace on an aired episode (pace-plate.tsx `catchingUpIn`) has its move in the strip ("Set your
+  lineup · Ep 4 · Before you reveal it", yellow; then "All set for Ep 4 · Change it until you reveal") and its reveal in the
+  progress control ("Reveal Ep 4", with the gap small under it past one ahead: "2 ahead of Bo"; yellow once the move is in and
+  nothing else is due). Revealing without the move asks once in a sheet (Set your lineup first / Reveal anyway). Several games on
+  one episode reveal together (one catch-up call each) and the result sheet lists each. The plate's "Bo is on Ep 3" line is gone:
+  the ruler says it. Plates stay for what isn't the weekly loop: drafting together, picking your team, a waiver moment (its "Go on
+  anyway" is now the control's reveal), how you finished. Caught up on a season still airing, the result sheet says so ("Ep 6 is
+  next, as it airs") instead of "See how you finished", a wrong fact the fold made common.
+- Not yet: `show_follows.not_yet` (Live's column, the same meaning), returned as `you.notYet`; saying it alone never follows a
+  show. A second phone doesn't ask again (check-strip-settle.js).
+- Alex's strip: not a server timing. A league read does what's come due (league-read.ts readyLeague: the waiver week opening), and
+  the home read the strip uses runs beside the games read, so a first visit missed the replacement until the home's next read.
+  Fixed: once a visit, a games read landing after the home's reads the home again (show-space.tsx). Episodes' read wasn't special.
+- The bench gained the catch-up route (runtime-session.cjs: the engine's reveal of the viewer's next episode) and two
+  situations, `show-behind-unset` and `show-pace-ahead`.
+- Rejected: the steps bar (Pick · Watch · Reveal) on the art (a fourth line on the show bar; the strip and the control already
+  are the steps); asking "Seen Ep 4 and 5?" at your own pace (behind is the point there).

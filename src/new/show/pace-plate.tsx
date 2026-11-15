@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Check } from "lucide-react";
 import { couches, draftAct, gamesApi, useAfterCouch, type CatchUpReveal, type GameView } from "../data";
 import { CatchUpResult } from "../couch/join-game";
-import { aheadWords, allHere } from "../couch/pace";
+import { aheadWords } from "../couch/pace";
 import { namesLine } from "../couch/where";
 import { ordinal } from "../games";
 import { useNav } from "../nav";
@@ -16,13 +16,13 @@ import { toast } from "../ui/toast";
 import { faceIn, first, openMoves } from "./moves";
 import { Face } from "./parts";
 
-// A game at your own pace on Tonight (docs/PLAN-own-pace-games.md, "The UI, mocked": the user's pick, 2026-11-05): one plate per
-// game for your next episode, in place of the catching-up strip and that game's Your moves card. The plate is the move: its
-// steps (Pick · Watch · Reveal) teach the loop without words, and its one button is always the next step (Pick who survives,
-// then I've watched it · Reveal, the gap words small inside it past one ahead). Revealing without a pick asks once, on the
-// plate. The reveal opens what happened, with "Pick for Episode N" as the way on and "Done for now" as the quiet way out. Once
-// you've seen the last episode, the plate says how you finished; anyone behind still has it hidden. Nothing locks: the words
-// are the guardrail. "Catching up" is the engine's word and never shows here.
+// A game at your own pace on Tonight (docs/PLAN-own-pace-games.md, "The UI, mocked": the user's pick, 2026-11-05). Its weekly loop
+// (Pick · Watch · Reveal) is folded into the show's two parts since the design round's step 3 (the user, 2026-11-15: "fold"): the
+// move for your next episode is the strip's (strip.tsx), and watching it and its reveal are the progress control's (progress.tsx),
+// through usePaceReveal below: "Reveal Ep 4" there, the gap small on it past one ahead ("2 ahead of riley": the words are the
+// guardrail, nothing locks), and revealing without your move asks once. The reveal opens what happened, with "Pick for Episode N"
+// as the way on and "Done for now" as the quiet way out. Plates stay only for what isn't the weekly loop: drafting together,
+// picking your team, a waiver moment, and how you finished. "Catching up" is the engine's word and never shows here.
 
 /** "1st", "Tied 2nd": a table rank ("1", "T2") as people say it. */
 function placeWords(rank: string): string {
@@ -31,26 +31,108 @@ function placeWords(rank: string): string {
   return rank.startsWith("T") ? `Tied ${ordinal(n)}` : ordinal(n);
 }
 
-/** Who's behind you, or on this one with you, in one quiet line; nothing when everyone else is ahead (quiet unless it matters). */
-function nearLine(week: number, others: { name: string; week: number | null }[]): string | null {
-  const going = others.filter((o) => o.week !== null) as { name: string; week: number }[];
-  if (!going.length) return null;
-  if (allHere(week, going)) return `${namesLine(going.map((o) => o.name))} ${going.length === 1 ? "is" : "are"} on this one too.`;
-  const behind = going.filter((o) => o.week < week).sort((a, b) => a.week - b.week);
-  if (!behind.length) return null;
-  return behind.map((o) => `${o.name} is on Episode ${o.week}`).join(" · ") + ".";
+/** Whether a game shows a plate of its own on Tonight: own pace with a sync point or an end to say (drafting together, picking
+ *  your team, a waiver moment, how you finished). Its weekly loop is the strip's and the control's (catchingUpIn). A caught-up
+ *  seat on a season still airing has nothing of its own: its move is the strip's, as any game's (PRODUCT.md principle 11). */
+export const hasPacePlate = (g: GameView) => !!(g.ownPace && g.pace && (g.pace.draft || g.pace.team || g.pace.gather || (!g.catchUp && g.over)));
+
+/** A game at your own pace with an aired episode to play next: its move is the strip's, its reveal the control's. A waiver moment
+ *  asks you to wait on its plate, but nothing locks: the control still reveals it. */
+export const catchingUpIn = (g: GameView) => !!(g.ownPace && g.pace && !g.pace.draft && !g.pace.team && !g.archived && g.catchUp && g.catchUp.latest >= g.catchUp.week);
+
+/** Your move for that episode is in (a game with no weekly move has nothing to make). */
+export const movedIn = (g: GameView) => (g.pick ? !!g.pick.pick : g.lineup ? g.lineup.set : true);
+const lineupIn = (g: GameView | undefined) => !!g?.lineup && !g?.pick;
+
+export interface PaceReveal {
+  /** The episode next: the earliest any of your own-pace games is on. */
+  n: number;
+  /** Your games on it. */
+  games: GameView[];
+  /** Every move for it is in. */
+  moved: boolean;
+  /** A waiver moment asks you to wait first (its plate). */
+  waits: boolean;
+  /** "2 ahead of riley": the gap past one ahead, without the "you'll be" the button has no room for. */
+  ahead: string | null;
 }
 
-/** Whether a game shows its own plate on Tonight: own pace with something of its own to say. A caught-up seat on a season still
- *  airing has nothing to finish: its move is the strip's, as any game's (own pace is the default on airing seasons too, PRODUCT.md
- *  principle 11). The finish plate is only for a game that's over as far as you've seen. */
-export const hasPacePlate = (g: GameView) => !!(g.ownPace && g.pace && (g.pace.draft || g.pace.team || g.pace.gather || g.catchUp || g.over));
+/** The control's own-pace reveal, or null. */
+export function paceReveal(show: ShowData): PaceReveal | null {
+  const all = (show.play ?? []).filter(catchingUpIn);
+  if (!all.length) return null;
+  const n = Math.min(...all.map((g) => g.catchUp!.week));
+  const games = all.filter((g) => g.catchUp!.week === n);
+  // Each other person once, at the furthest-behind week any of these games has them on.
+  const others = new Map<string, number | null>();
+  for (const g of games)
+    for (const o of g.pace!.others) {
+      const had = others.get(o.name) ?? null;
+      others.set(o.name, o.week == null ? had : had == null ? o.week : Math.min(o.week, had));
+    }
+  const ahead = aheadWords(n, [...others].map(([name, week]) => ({ name, week })));
+  return { n, games, moved: games.every(movedIn), waits: games.some((g) => !!g.pace!.gather && !g.pace!.gather.open), ahead: ahead?.replace(/^you'll be /, "") ?? null };
+}
 
-/** Every own-pace game of yours here, one plate each. */
+/** The control's reveal for games at your own pace: `start()` reveals each game on the episode (couches.catchUp, one each), or
+ *  first asks once when a move for it isn't in; `node` holds that ask and what the reveal did. */
+export function usePaceReveal(show: ShowData, r: PaceReveal | null) {
+  const after = useAfterCouch();
+  const [busy, setBusy] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const [done, setDone] = useState<{ games: GameView[]; reveals: CatchUpReveal[] } | null>(null);
+  const run = async () => {
+    if (!r || busy) return;
+    setBusy(true);
+    try {
+      const reveals: CatchUpReveal[] = [];
+      for (const g of r.games) reveals.push(await couches.catchUp(show.header?.seasonId ?? "", show.couch?.id ?? null, g.leagueId));
+      setAsking(false);
+      await after();
+      setDone({ games: r.games, reveals });
+    } catch (e) {
+      toast.quiet((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const start = () => (r && !r.moved ? setAsking(true) : run());
+  const missing = r?.games.filter((g) => !movedIn(g)) ?? [];
+  const lineup = missing.length > 0 && missing.every(lineupIn);
+  const node = (
+    <>
+      <Sheet open={asking} onOpenChange={setAsking} title={`No ${lineup ? "lineup" : "pick"} for ${show.words.ep} ${r?.n ?? ""}`} subtitle={missing.map((g) => g.gameName).join(" · ")}>
+        <div data-pace-ask className="flex flex-col gap-2">
+          <p className="text-[15px] leading-normal text-muted-foreground">
+            Without one, {show.words.ep} {r?.n} counts for nothing for you{missing.length > 1 ? " in those games" : ""}.
+          </p>
+          <Btn
+            tone="ink"
+            wide
+            className="mt-2"
+            data-pace-move
+            onClick={() => {
+              setAsking(false);
+              if (missing[0]) openMoves(lineupIn(missing[0]) ? "lineup" : "pool", missing[0].leagueId);
+            }}
+          >
+            {lineupIn(missing[0]) ? "Set your lineup first" : "Pick first"}
+          </Btn>
+          <Btn wide data-pace-reveal-anyway disabled={busy} onClick={run}>
+            {busy ? "Revealing…" : "Reveal anyway"}
+          </Btn>
+        </div>
+      </Sheet>
+      <RevealedSheet show={show} done={done} onClose={() => setDone(null)} />
+    </>
+  );
+  return { start, busy, node };
+}
+
+/** Every own-pace game of yours here with a plate of its own (hasPacePlate), one plate each. */
 export function OwnPacePlates({ show }: { show: ShowData }) {
   const games = (show.play ?? []).filter(hasPacePlate);
-  const [done, setDone] = useState<{ game: GameView; reveal: CatchUpReveal } | null>(null);
-  if (!games.length && !done) return null;
+  if (!games.length) return null;
   return (
     <section className="mt-4 flex flex-col gap-3 px-4">
       {games.map((g) =>
@@ -59,121 +141,16 @@ export function OwnPacePlates({ show }: { show: ShowData }) {
         ) : g.pace?.team ? (
           <TeamPlate key={g.leagueId} g={g} />
         ) : g.pace?.gather ? (
-          <GatherPlate key={g.leagueId} show={show} g={g} onRevealed={(reveal) => setDone({ game: g, reveal })} />
-        ) : g.catchUp ? (
-          <PacePlate key={g.leagueId} show={show} g={g} onRevealed={(reveal) => setDone({ game: g, reveal })} />
+          <GatherPlate key={g.leagueId} show={show} g={g} />
         ) : (
           <FinishPlate key={g.leagueId} show={show} g={g} />
         )
       )}
-      <RevealedSheet show={show} done={done} onClose={() => setDone(null)} />
     </section>
   );
 }
 
 const TAG = "type-caption self-start bg-plate-foreground py-1 pl-[7px] pr-3.5 text-[11px] tracking-[0.06em] text-plate [clip-path:polygon(0_0,100%_0,calc(100%_-_8px)_100%,0_100%)]";
-
-function PacePlate({ show, g, onRevealed }: { show: ShowData; g: GameView; onRevealed: (r: CatchUpReveal) => void }) {
-  const after = useAfterCouch();
-  const [busy, setBusy] = useState(false);
-  // Revealing with no move asks once, here (the mock's "No pick for Episode 3 · Pick first / Reveal anyway").
-  const [asking, setAsking] = useState(false);
-  const week = g.catchUp!.week;
-  const last = g.pace!.last || g.catchUp!.latest;
-  const others = g.pace!.others;
-  const lineup = !!g.lineup && !g.pick;
-  const moved = g.pick ? !!g.pick.pick : g.lineup ? g.lineup.set : true;
-  const hasMove = !!(g.pick || g.lineup);
-  const picked = g.pick?.pick ? faceIn(g, g.pick.pick) : undefined;
-  const ahead = aheadWords(week, others);
-  const near = nearLine(week, others);
-  const move = () => openMoves(lineup ? "lineup" : "pool", g.leagueId);
-  const reveal = async () => {
-    setBusy(true);
-    try {
-      const r = await couches.catchUp(show.header?.seasonId ?? "", show.couch?.id ?? null, g.leagueId);
-      setAsking(false);
-      await after();
-      onRevealed(r);
-    } catch (e) {
-      toast.quiet((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-  const step = (on: "done" | "now" | "later", label: string) => (
-    <span className={`flex flex-col gap-1.5 text-[12px] font-semibold ${on === "now" ? "text-plate-foreground" : "text-plate-muted"}`}>
-      <i className={`h-1 rounded-full ${on === "done" ? "bg-plate-foreground" : on === "now" ? "bg-plate-foreground/45" : "bg-plate-foreground/12"}`} />
-      {label}
-    </span>
-  );
-  return (
-    <div data-pace-plate={g.leagueId} data-pace-week={week} className="flex flex-col gap-2.5 rounded-[4px] bg-plate p-3.5 text-plate-foreground shadow-plate">
-      <span className={TAG}>
-        Episode {week} of {last} · {g.gameName}
-      </span>
-      <b className="type-caption text-[28px] leading-none">{moved ? `Watch Episode ${week}` : lineup ? "Set your lineup" : "Pick who survives"}</b>
-      {hasMove && (
-        <span className="grid grid-cols-3 gap-1.5" aria-label={moved ? "Picked. Now watch it, then reveal" : "Pick, then watch it, then reveal"}>
-          {step(moved ? "done" : "now", lineup ? "Set" : "Pick")}
-          {step(moved ? "now" : "later", "Watch")}
-          {step("later", "Reveal")}
-        </span>
-      )}
-      {picked && (
-        <span className="flex items-center gap-2.5">
-          <Face src={picked.photo} name={picked.name} className="size-11 flex-none rounded-[3px] text-[18px]" />
-          <span className="min-w-0 flex-1">
-            <b className="block truncate text-[16px]">{first(picked.name)}</b>
-            <small className="block text-[13px] text-plate-muted">Your pick to survive</small>
-          </span>
-          <button type="button" data-pace-change onClick={move} className="min-h-11 px-1 text-[14px] font-bold underline underline-offset-4">
-            Change
-          </button>
-        </span>
-      )}
-      {lineup && g.lineup?.set && <small className="text-[13px] text-plate-muted">Your lineup&rsquo;s set · change it until you reveal</small>}
-      {!moved && asking ? (
-        <>
-          <p data-pace-ask className="text-[14px] leading-snug text-plate-muted">
-            <b className="text-plate-foreground">No {lineup ? "lineup" : "pick"} for Episode {week}.</b> It counts for nothing for you.
-          </p>
-          <Btn tone="must" wide onClick={move}>
-            {lineup ? "Set it first" : "Pick first"}
-          </Btn>
-          <button type="button" data-pace-reveal-anyway disabled={busy} onClick={reveal} className="min-h-11 text-[15px] font-semibold text-plate-muted">
-            {busy ? "Revealing…" : "Reveal anyway"}
-          </button>
-        </>
-      ) : !moved ? (
-        <>
-          <Btn tone="must" wide data-pace-move onClick={move}>
-            {lineup ? "Set your lineup" : "Pick who survives"}
-          </Btn>
-          <button type="button" data-pace-watched onClick={() => setAsking(true)} className="min-h-11 text-[15px] font-semibold text-plate-muted">
-            I&rsquo;ve already watched it
-          </button>
-        </>
-      ) : (
-        <Btn tone="must" wide data-pace-reveal data-pace-ahead={ahead ?? undefined} disabled={busy} onClick={reveal} className={ahead ? "h-auto min-h-[52px] py-2" : ""}>
-          {busy ? (
-            "Revealing…"
-          ) : (
-            <span className="flex flex-col items-center leading-tight">
-              <span>I&rsquo;ve watched it · Reveal</span>
-              {ahead && <small className="text-[12px] font-semibold opacity-80">{ahead}</small>}
-            </span>
-          )}
-        </Btn>
-      )}
-      {near && (
-        <small data-pace-near className="-mb-0.5 text-[13px] leading-snug text-plate-muted">
-          {near}
-        </small>
-      )}
-    </div>
-  );
-}
 
 /** Exclusive teams at your own pace (sync point 1): before anyone plays, everyone drafts together in the usual draft room, on the
  *  cast as it stood before the start. Whoever runs the game starts it; then it's the draft room for everyone. */
@@ -228,12 +205,11 @@ function DraftPlate({ show, g }: { show: ShowData; g: GameView }) {
 
 /**
  * A waiver moment (sync point 2): someone's team lost a person in an episode you've reached. Until everyone's there, it asks you
- * to wait, in words only (the user's pick): "OK, I'll wait", and the next episode's plate stays a tap away under Go on. Once
+ * to wait, in words only (the user's pick): "OK, I'll wait"; the next episode's reveal stays in the progress control. Once
  * everyone's there, its waiver week is on: the usual waivers page.
  */
-function GatherPlate({ show, g, onRevealed }: { show: ShowData; g: GameView; onRevealed: (r: CatchUpReveal) => void }) {
+function GatherPlate({ show, g }: { show: ShowData; g: GameView }) {
   const nav = useNav();
-  const [goOn, setGoOn] = useState(false);
   const [waits, setWaits] = useState(false);
   const gather = g.pace!.gather!;
   const lost = gather.lost.map((l) => `${first(l.name)} went home from ${l.yours ? "your" : `${l.team}'s`} team`).join(" · ");
@@ -253,7 +229,6 @@ function GatherPlate({ show, g, onRevealed }: { show: ShowData; g: GameView; onR
       </div>
     );
   }
-  if (goOn && g.catchUp) return <PacePlate show={show} g={g} onRevealed={onRevealed} />;
   return (
     <div data-pace-gather={g.leagueId} data-pace-gather-episode={gather.episode} className="flex flex-col gap-2.5 rounded-[4px] bg-plate p-3.5 text-plate-foreground shadow-plate">
       <span className={TAG}>
@@ -273,11 +248,7 @@ function GatherPlate({ show, g, onRevealed }: { show: ShowData; g: GameView; onR
           OK, I&rsquo;ll wait
         </Btn>
       )}
-      {g.catchUp && (
-        <button type="button" data-pace-gather-go onClick={() => setGoOn(true)} className="min-h-11 text-[14px] font-semibold text-plate-muted">
-          Go on to Episode {g.catchUp.week} anyway
-        </button>
-      )}
+      {g.catchUp && <small className="text-[13px] text-plate-muted">Going on anyway? Reveal {show.words.ep} {g.catchUp.week} at the top.</small>}
     </div>
   );
 }
@@ -359,22 +330,33 @@ function TeamSheet({ g, open, onOpenChange }: { g: GameView; open: boolean; onOp
 }
 
 /** What the reveal did, then the way on: the next episode's move, or how you finished. */
-function RevealedSheet({ show, done, onClose }: { show: ShowData; done: { game: GameView; reveal: CatchUpReveal } | null; onClose: () => void }) {
-  // The game as it reads now (the reveal refreshed it), for its place.
-  const g = done ? ((show.play ?? []).find((x) => x.leagueId === done.game.leagueId) ?? done.game) : null;
-  const r = done?.reveal;
+function RevealedSheet({ show, done, onClose }: { show: ShowData; done: { games: GameView[]; reveals: CatchUpReveal[] } | null; onClose: () => void }) {
+  // Each game as it reads now (the reveal refreshed it), for its place.
+  const now = (x: GameView) => (show.play ?? []).find((y) => y.leagueId === x.leagueId) ?? x;
+  const games = done?.games.map(now) ?? [];
+  const r = done?.reveals[0];
+  // The way on: the first game with a next episode (the strip lists the rest).
+  const k = done ? Math.max(0, done.reveals.findIndex((x) => x.next != null)) : 0;
+  const g = games[k] ?? null;
+  const next = done?.reveals[k]?.next ?? null;
   const lineup = !!g?.lineup && !g?.pick;
+  const many = games.length > 1;
   return (
-    <Sheet open={!!done} onOpenChange={(o) => !o && onClose()} title={r ? `Episode ${r.episode}` : ""} subtitle={g?.gameName}>
+    <Sheet open={!!done} onOpenChange={(o) => !o && onClose()} title={r ? `Episode ${r.episode}` : ""} subtitle={many ? `${games.length} games` : g?.gameName}>
       {r && g && (
         <div data-pace-revealed={r.episode} className="flex flex-col gap-3 pb-1">
-          <CatchUpResult done={r} />
-          {g.you && (
-            <p className="text-[14px] text-muted-foreground">
-              Through Episode {r.episode}: you&rsquo;re {placeWords(g.you.rank)} of {g.players}.
-            </p>
-          )}
-          {r.next ? (
+          {done!.reveals.map((x, i) => (
+            <div key={x.leagueId} className="flex flex-col gap-2">
+              {many && <b className="type-caption text-[15px] tracking-[0.03em]">{games[i]?.gameName}</b>}
+              <CatchUpResult done={x} />
+              {games[i]?.you && (
+                <p className="text-[14px] text-muted-foreground">
+                  Through Episode {x.episode}: you&rsquo;re {placeWords(games[i].you!.rank)} of {games[i].players}.
+                </p>
+              )}
+            </div>
+          ))}
+          {next ? (
             <>
               <Btn
                 tone="must"
@@ -385,16 +367,26 @@ function RevealedSheet({ show, done, onClose }: { show: ShowData; done: { game: 
                   openMoves(lineup ? "lineup" : "pool", g.leagueId);
                 }}
               >
-                {lineup ? "Set your lineup" : "Pick"} for Episode {r.next}
+                {lineup ? "Set your lineup" : "Pick"} for Episode {next}
               </Btn>
               <button type="button" data-pace-later onClick={onClose} className="min-h-11 text-[15px] font-semibold text-muted-foreground">
                 Done for now
               </button>
             </>
-          ) : (
+          ) : games.every((x) => x.over) ? (
             <Btn tone="must" wide data-pace-finished onClick={onClose}>
               See how you finished
             </Btn>
+          ) : (
+            // Caught up on a season still airing: you play the next one as it airs, like everyone there.
+            <>
+              <p data-pace-caught-up className="text-[14px] text-muted-foreground">
+                You&rsquo;re caught up: {show.words.ep} {r.episode + 1} is next, as it airs.
+              </p>
+              <Btn tone="ink" wide data-pace-done onClick={onClose}>
+                Done
+              </Btn>
+            </>
           )}
         </div>
       )}

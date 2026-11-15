@@ -6,17 +6,18 @@ import { airTime } from "../clock";
 import { useNav } from "../nav";
 import type { ShowData } from "../screens/show-space";
 import { openCall } from "./calls";
-import { doneCards, isRequired, moveCard, openMoves, tabOf } from "./moves";
+import { doneCards, isRequired, moveCard, openMoves, tabOf, type MovesTab } from "./moves";
 import { openSheet } from "./questions";
-import { hasPacePlate } from "./pace-plate";
+import { catchingUpIn, hasPacePlate, movedIn } from "./pace-plate";
 import { showLabel } from "./react";
 
 // The strip (the design round's step 3: docs/design-round/step3-tonight-spec.md, "Two parts every show tab shares"; Phase 0's
 // decision 2): the show's one statement of what's yours to set, under the show bar in the same place on every tab but Chat. It
 // replaces the dock and Tonight's carousel of move cards. Due: DESIGN.md's alert strip, a chyron tag and a white plate (the view's
 // one yellow). All set, locked, or waiting on a reveal: the same shape on a night panel, no yellow. Nothing to set: no strip.
-// A game with its own-pace plate (catching up, drafting at your pace: pace-plate.tsx hasPacePlate) says its move there, so it
-// isn't counted here.
+// A game at your own pace on an aired episode (pace-plate.tsx catchingUpIn) has its move for that episode here, from the game
+// itself (the plate's Set step, folded in: "Before you reveal it"), and its reveal in the control. A game with a plate of its own
+// (drafting together, picking your team, a waiver moment: hasPacePlate) says its move there, so it isn't counted here.
 
 export interface StripState {
   tone: "due" | "waits" | "set" | "locked";
@@ -24,6 +25,8 @@ export interface StripState {
   tag: string;
   title: string;
   line: string | null;
+  /** Where a tap goes when it isn't the lead move's own place: a game at your own pace's move. */
+  open?: { tab: MovesTab; leagueId: string };
 }
 
 /** What the strip says, or null for no strip. Pure: the show as Tonight reads it. */
@@ -32,7 +35,23 @@ export function stripState(show: ShowData): StripState | null {
   const up = show.upNext;
   const ep = show.words.ep;
   const paced = new Set((show.play ?? []).filter(hasPacePlate).map((g) => g.leagueId));
+  const behind = (show.play ?? []).filter((g) => catchingUpIn(g) && !paced.has(g.leagueId));
+  for (const g of behind) paced.add(g.leagueId);
   const open = show.moves.filter((m) => isRequired(m) && !paced.has(m.leagueId));
+  // Your own-pace games' moves for the episode you're on: before anything due live (it's what you play next), soonest episode first.
+  const mine = behind.filter((g) => !movedIn(g)).sort((a, b) => a.catchUp!.week - b.catchUp!.week);
+  if (mine.length && !up?.live) {
+    const g = mine[0];
+    const lineup = !!g.lineup && !g.pick;
+    const more = mine.length + open.length - 1;
+    return {
+      tone: "due",
+      tag: `${ep} ${g.catchUp!.week}`,
+      title: `${lineup ? "Set your lineup" : "Pick who survives"}${more > 0 ? ` · ${more} more` : ""}`,
+      line: "Before you reveal it",
+      open: { tab: lineup ? "lineup" : "pool", leagueId: g.leagueId },
+    };
+  }
   const n = open[0]?.episode ?? up?.number ?? null;
   const tag = n != null ? `${ep} ${n}` : "Your move";
   if (up?.live) return { tone: "locked", tag: `${ep} ${up.number}`, title: `Locked for ${ep} ${up.number}`, line: "Scores stay hidden until you reveal" };
@@ -49,6 +68,11 @@ export function stripState(show: ShowData): StripState | null {
     const atAir = first != null && up?.airAt != null && first === Date.parse(up.airAt) && lockWord !== "due";
     const line = first == null ? null : atAir ? (open.length > 1 ? "Lock when it airs" : "Locks when it airs") : `${lockWord[0].toUpperCase()}${lockWord.slice(1)} ${airTime(first)}`;
     return { tone: "due", tag, title, line };
+  }
+  // Every own-pace move in for the episode you're on: all set until you reveal it.
+  if (behind.length) {
+    const w = Math.min(...behind.map((g) => g.catchUp!.week));
+    if (behind.some((g) => g.pick || g.lineup)) return { tone: "set", tag: `${ep} ${w}`, title: `All set for ${ep} ${w}`, line: "Change it until you reveal" };
   }
   const others = (show.play ?? []).filter((g) => !paced.has(g.leagueId));
   if (!up || !others.length || others.every((g) => g.over)) return null;
@@ -78,6 +102,7 @@ export function MovesStrip({ show }: { show: ShowData }) {
     const open = show.moves.filter(isRequired);
     const lead = open[0];
     const href = lead ? (moveCard(lead, seasonId, false).href ?? null) : null;
+    if (s.open) return openMoves(s.open.tab, s.open.leagueId);
     if (s.tone === "due" && href) return nav.push(href);
     if (s.tone === "due" && lead?.kind === "calls" && show.header) return openCall({ seasonId, couchId: show.couch?.id ?? null, episode: lead.episode ?? show.upNext?.number ?? 1, label: showLabel(show), solo: show.solo });
     if (s.tone === "due" && lead?.kind === "questions" && show.header) return openSheet({ seasonId, leagueId: lead.leagueId, episode: null, game: lead.leagueName });

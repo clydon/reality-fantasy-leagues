@@ -121,6 +121,12 @@ export async function setFollow(userId: string, seasonId: string, change: Follow
   if (change.notYet !== undefined) {
     if (!Number.isInteger(change.notYet) || (change.notYet as number) < 1) throw new HttpError(400, "notYet must be an episode");
     values.not_yet = change.notYet as number;
+    // "Not yet" alone (the behind question, on a show you play) answers a question; it never starts following a show you had no
+    // row for. An existing row keeps whether it follows.
+    if (change.following === undefined && change.seenThrough === undefined && change.keepUp === undefined) {
+      set.following = "false";
+      onUpdate.following = "show_follows.following";
+    }
   }
   if (change.seenThrough !== undefined) {
     const n = change.seenThrough;
