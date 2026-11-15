@@ -12,6 +12,12 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 Before continuing the full-app review or mock, read [the fresh-start design brief](docs/APP-REVIEW-DESIGN-BRIEF.md). It captures the intended experience, skill responsibilities, state coverage and reuse requirements. Present one redesigned page with its relevant situation variants, then pause for the user's review before extending that design across the app. Existing mockups are reference material, not assumed approval.
 
+**How a design is made (the user, 2026-11-14): read [docs/DESIGN-PROCESS.md](docs/DESIGN-PROCESS.md) before any design work.**
+- **The three skills run in order, once each per page:** Intent (structure) → Perception-First Design (what's noticed first, load) → Impeccable (craft and code), then one check and one batch of fixes.
+- **Disagreements:** each skill wins only inside the question it owns. One the rules don't settle goes to the user as a named choice, never another pass.
+- **The screenshot story:** every design reaches the user as one, from real renders at 390 px with captions, before and after, published as an Artifact. Then pause.
+- **The round's frame** (the five lenses, three flavors, inspiration, and the lay-of-the-land and busy tests) is in [docs/DESIGN-ROUND-PACKET.md](docs/DESIGN-ROUND-PACKET.md).
+
 An episode reveal applies across **all of the person's games for that episode**, with a full-screen visual recap and game/player results. Do not reintroduce per-game reveal selection from the superseded V3 mock. Tonight's order is identity/progress/people and watch controls, last-episode recap/reactions/discussion, then game updates; a small prominent top strip opens due game decisions or confirms readiness.
 
 The 2026-11-12 component direction emphasizes **expressive data representation**, not decorative slogans or theatrical matchup graphics. The user likes the bold round's season overview A; the requested redesign also includes the actual Update episode popup. Compare shared viewing timelines (self, friends, latest release and next airing), and show one's own and permitted opponents' lineups with contributions, graphs and collapsible detail. Include the connected expanded, scoring and episode-position views. See [the data round](docs/show-soul-review/tonight-data-round3-2026-11-12.md). Earlier alternatives remain references, not blanket approval.
