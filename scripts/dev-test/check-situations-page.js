@@ -35,7 +35,11 @@ fs.mkdirSync(out, { recursive: true });
         results.push({ id: x.id, ok: true }); console.log('PASS ' + x.id + ': ' + x.label);
       } catch (e) { results.push({ id: x.id, ok: false, error: e.message }); console.log('FAIL ' + x.id + ': ' + e.message.split('\n')[0]); await p.screenshot({ path: path.join(out, x.id + '-fail.png') }).catch(() => {}); }
     }
-  } finally { await b.close(); }
+  } finally {
+    // Close the last case (its zt-gb rows go with it): left up, the unit suite's read of every local league fails on it (BACKLOG 78).
+    await p.evaluate(async () => { const x = window.__GAMEPLAY_EXPLORER_PAGE__; for (const k of ['a', 'b']) if (x?.sides?.[k]?.id) await fetch('/__atlas/bench/runtime/close', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: x.sides[k].id }) }).catch(() => {}); }).catch(() => {});
+    await b.close();
+  }
   const bad = results.filter(r => !r.ok);
   console.log(bad.length ? bad.length + ' FAILED of ' + results.length : 'ALL PASS (' + results.length + ')');
   process.exit(bad.length ? 1 : 0);
