@@ -23,12 +23,12 @@ lineup as signed bars, GIFs a beat only with GIFs, one primary at the end) and a
 story https://claude.ai/artifact/2mg9HG2CVittvFQjNgLE3Y (frames in `.ui-atlas/stories/step4-episodes/`: census-app.js
 `--only='episode|reveal|progress-chooser|where-riley|watchonly-riley-episodes' --out=.ui-atlas/stories/step4-episodes/after`,
 story-situations.js `--tab=episodes` and `--tab=tonight --flows` (the reveal flow now shoots five beats), `story-build.py
-.ui-atlas/stories/step4-episodes/story.json`). **Waiting on the user:** the review, and two named choices in the story's Open (names
-on the episode rows' faces; Where you are's eight controls on a watched show). **Found, not fixed** (the story's Open): the
+.ui-atlas/stories/step4-episodes/story.json`). **Decided (the user took both recommendations, 2026-11-15):** names stay off the
+episode rows' faces; Where you are's eight controls wait for the settings track. **Found, not fixed** (the story's Open): the
 predictions beat's questions, the own-pace reveal's table and a head-to-head beat's opponent lineup each need the reveal's data to
 carry them; the episode page's lineup as text; the Games tab's own reveal card and Chat's fold repeat the control (steps 6 and 9);
 a sport's lineup beat says "in Episode N" (step 10). check-new-reveal.js was already stale (it expects the dock); only its plate
-line was updated. **Next:** the user's review; then step 5, Players / Cast.
+line was updated. **Next:** step 5, Players / Cast.
 
 ## The design round's step 3, Tonight (2026-11-15; built on branch `explorer-sports`, not pushed; waits on the user's review)
 Two parts now belong to the show, not to one tab: **the progress control** (`src/new/show/progress.tsx`: your mark, what's next,

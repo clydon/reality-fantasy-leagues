@@ -357,3 +357,11 @@
   (listed open).
 - Rests on: docs/design-round/step4-episodes-spec.md, -first-view.md, -shape.md, -check.md; the story
   https://claude.ai/artifact/2mg9HG2CVittvFQjNgLE3Y (frames in .ui-atlas/stories/step4-episodes/).
+
+## 2026-11-15 · Step 4's two choices, decided
+- Decided by: the user ("I'll take your recommendations"), taking Claude's recommendations
+- Names on the episode rows' faces: off, as built (PFD's call): the faces, and "You're here" on yours; names in the faces' label
+  and Where everyone is. Rejected: the verb line ("Alex and Riley are on 5").
+- Where you are's eight controls on a show you watch: unchanged this round; it goes to the separate track (settings and
+  following), where Keep me live and I'm up to date are reconsidered.
+- Rests on: the story https://claude.ai/artifact/2mg9HG2CVittvFQjNgLE3Y, "Open".
