@@ -100,7 +100,7 @@ function contextData(document, context, actors) {
   if (participants.length > 1000 || participants.some(p => typeof p.name !== 'string' || !p.name.trim())) throw Error('Provide up to 1000 named participants (tool budget)');
   // A sport's participants are athletes, each with a position (runtime-sports.cjs: the league's default lineup's slots in turn).
   const sport = context.kind === 'sport';
-  if (sport) Sports.assignRoles(context, participants);
+  if (sport) { Sports.assignRoles(context, participants); Sports.assignTeams(context, participants); }
   // Tribes (the world's opt-in context.tribes, 2 to 4: a show divided into groups, as a draft spread across them reads them): each
   // participant on one, in turn. Only a world that asks has them, so every other world's facts and hashes are unchanged.
   const tribes = context.tribes;
@@ -128,8 +128,8 @@ function contextData(document, context, actors) {
     if (existing.has(event.id)) { for (const f of facts.filter(f => f.eventId === event.id)) for (const out of f.data?.events || []) active.delete(out.castawayId); continue; }
     const ids = [...active];
     const pick = k => number(document.seed, context.id, event.number, k);
-    // A sport's results are its box score: every athlete's counts (nobody goes home, no moment is scored).
-    if (sport) { facts.push({ id: 'fact-' + event.id, eventId: event.id, contextId: context.id, source: 'seeded-synthetic-v2', data: { events: [], scoringEvents: [], lines: Sports.linesFor(context, participants, pick) } }); continue; }
+    // A sport's results are its box score: every athlete's counts (nobody goes home, no moment is scored); a field's with its standings.
+    if (sport) { facts.push({ id: 'fact-' + event.id, eventId: event.id, contextId: context.id, source: 'seeded-synthetic-v2', data: Sports.resultsFor(context, participants, pick, event) }); continue; }
     const outs = context.engine.results ? outcome(format, ids, pick, event.number === events.length) : [];
     const votes = bounties(document) ? voteFacts(format, ids, outs, pick) : undefined;
     const scoringEvents = moments.length ? participants.filter(p => active.has(p.id)).map((p, i) => ({ id: 'moment-' + J.digest([context.id, event.number, p.id]).slice(0, 16), type: moments[number(document.seed, event.number, i) % moments.length], castawayId: p.id })) : [];

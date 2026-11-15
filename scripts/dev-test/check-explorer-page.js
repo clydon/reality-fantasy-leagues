@@ -3,7 +3,7 @@
 // running app version, side bets, season-long questions answered on the real game page through the finale, head to head
 // played through its playoff final, weeks won, only some moments counted as hits, co-op lives, bounties, teams, parlays, multipliers (the finale played on the page), rollovers,
 // and each later capability's own step (a game in stages, --only="stages:"; a sport's stats, --only="sports:"; the newest: a sport's
-// head to head with a weekly lock, --only="sports locks:"; a sport's categories, roto and head to head, --only="sports categories:"), export and
+// head to head with a weekly lock, --only="sports locks:"; a sport's categories, roto and head to head, --only="sports categories:"; points by place, golf's and F1's, --only="sports places:"; points by position, soccer's, --only="sports positions:"; points by a match's format, tennis's, --only="sports formats:"; a slate locking at each game's start, --only="sports slates:"), export and
 // replay headlessly, the phone layout and a definition that can't open.
 //
 // Needs: the app (:3000), UI Atlas (:4400; restart after bench edits: bash scripts/dev-test/restart-atlas.sh), local DB.
@@ -1135,6 +1135,163 @@ const sportsFile = path.join(out, 'sports-definition.json');
       if (named(seen.roto.split(/HOW IT PLAYS/i)[0]) < 3) console.log("NOTE roto on the page: each seat's total, and nothing of the categories behind it (no category's value or rank for anyone): Designs needed item 35; see sports-categories-page.json");
       if (named(seen.categories.split(/HOW IT PLAYS/i)[0]) < 3) console.log("NOTE head to head by categories on the page: the records, and nothing of which categories anyone won or by how much: Designs needed item 35; see sports-categories-page.json");
       if (/\b0 0 0\b|THE SEASON[^A-Z]*\b0\b/.test(seen.roto + ' ' + seen.categories)) console.log("NOTE a game of categories: the season grid shows each week as 0 (a week's points, which such a game has none of): Designs needed item 35");
+    });
+    await step("sports places: golf's season (a field: places with ties and a cut) and F1's short game (a race's, a sprint's and qualifying's places) on the real page: each seat's total as the runtime scored it from the places and counts; what the page and its sheet show of a place is recorded; the routes agree", async () => {
+      const proofOf = require(path.join(root, 'tests/fixtures/gameplay-explorer/sports-proof.cjs')), files = { golf: path.join(out, 'sports-golf-definition.json'), f1: path.join(out, 'sports-f1-definition.json') };
+      fs.writeFileSync(files.golf, JSON.stringify(proofOf({ league: 'golf/pga', game: 'season', seed: 42, timing: 'live-only', ann: 2 })));
+      fs.writeFileSync(files.f1, JSON.stringify(proofOf({ league: 'racing/f1', game: 'short', seed: 11, timing: 'live-only', ann: 2 })));
+      const app = p.frameLocator('#device-a iframe'), text = sel => app.locator(sel).first().evaluate(el => el.innerText.replace(/\s+/g, ' ').slice(0, 5000)).catch(() => '');
+      const open = async file => {
+        await p.locator('#open').click(); await p.locator('#open-file').click(); await p.locator('#file').setInputFiles(file);
+        await p.locator('#device-a iframe').waitFor({ timeout: 40000 }); await checked();
+        for (let go = 0; ; go++) { await p.locator('#game').selectOption('g'); try { await app.locator('[data-game-page]').waitFor({ timeout: 45000 }); break; } catch (e) { if (go) throw e; await p.locator('#game').selectOption({ index: 0 }).catch(() => {}); } }
+        await app.locator('[data-game-grid]').waitFor({ timeout: 30000 }); await p.waitForTimeout(1000);
+      };
+      const routes = async () => { await p.locator('#route-check').click(); await p.locator('#panel-checks .card', { hasText: 'No spoilers, standings match' }).waitFor({ timeout: 90000 }); };
+      const mine = file => { const s = R.open(JSON.parse(fs.readFileSync(file, 'utf8'))); try { return { table: s.project('g', 'ann').game.table.map(r => [r.playerId, r.total]), snap: s.snapshot() }; } finally { s.dispose(); } };
+      const seen = {}, totals = {};
+      for (const [name, file, shots] of [['golf', files.golf, ['05zzr-sports-golf', '05zzs-sports-golf-sheet']], ['f1', files.f1, ['05zzt-sports-f1', '05zzu-sports-f1-sheet']]]) {
+        await open(file);
+        seen[name] = await text('[data-game-page]'); await shot(shots[0]);
+        const m = mine(file); totals[name] = m.table;
+        for (const [who, total] of m.table) assert(seen[name].includes(String(total)), name + ': ' + who + "'s total " + total + ' is not on the page: ' + seen[name].slice(0, 500));
+        assert(!/undefined|NaN|\[object/.test(seen[name]), name + ': the page prints a broken value: ' + (seen[name].match(/.{0,40}(undefined|NaN|\[object).{0,40}/) || [''])[0]);
+        assert((await app.locator('html').evaluate(el => el.scrollWidth - el.clientWidth)) <= 0, name + ': the game page scrolls sideways');
+        // The sheet behind the page's strip (every athlete starts in these games: there is no bench to change).
+        await p.locator('#device-a').scrollIntoViewIfNeeded();
+        const strip = app.locator('[data-game-strip] button, [data-game-strip] a').first();
+        if (await strip.count()) { await strip.click(); await p.waitForTimeout(1500); seen[name + 'Sheet'] = await text('[role="dialog"]'); await shot(shots[1]); await app.locator('[role="dialog"] button[aria-label*="lose" i]').first().click().catch(() => {}); }
+        // What a place reads as on these screens, against the world's standings (recorded, not this step's to fail).
+        const w = m.snap.contexts.sport, held = m.snap.games.g.state.castaways.filter(x => x.ownerIds.includes('ann')).map(x => x.id);
+        const places = w.facts.flatMap(f => f.data.standings.filter(x => held.includes(x.id)).map(x => ({ id: x.id, name: w.participants.find(y => y.id === x.id).name, place: x.place, tied: x.tied, status: x.status })));
+        seen[name + 'Places'] = places;
+        await routes();
+      }
+      fs.writeFileSync(path.join(out, 'sports-places-page.json'), JSON.stringify({ seen, totals }, null, 2));
+      // (A place in the page's own words, outside its rules ("25 for 1st") and the seat's rank ("1st of 3").)
+      const all = name => ((seen[name] || '').split(/HOW IT PLAYS/i)[0] + ' ' + (seen[name + 'Sheet'] || '')).replace(/\b\d+(st|nd|rd|th) of \d+/g, ''), placeWords = t => /\b(T\d+|\d+(st|nd|rd|th)\b|missed the cut|\bcut\b|\bplaced?\b|finished|P\d+\b)/i.test(t);
+      for (const name of ['golf', 'f1']) {
+        if (!placeWords(all(name))) console.log("NOTE " + name + ": the page and its sheet show each seat's total and nothing of anyone's place (no 'T9', '3rd' or 'Missed the cut': a golfer who missed it reads like anyone else); a place is most of what such a game scores: Designs needed item 36; see sports-places-page.json");
+        const full = /Start (\d+) of your \1\b/.exec(seen[name + 'Sheet'] || '');
+        if (full) console.log('NOTE ' + name + ": a lineup with nothing to decide (" + full[0] + ', no bench) asked for as a move to make (the league\'s own defaults: BACKLOG 79); see sports-places-page.json');
+        const keys = [...new Set(all(name).match(/\b(POS|TOP\d+|PODIUM|SPR|QUAL|BIR|BOG|EAG|PG|FL|DNF)\b/g) || [])];
+        if (keys.length) console.log('NOTE ' + name + ": the page names the table's stats by their keys (" + keys.join(', ') + '); see sports-places-page.json');
+      }
+    });
+    await step("sports positions: the Premier League's season on the real page (points by position: a goal 10 a keeper's, 6 a defender's, 4 a forward's): each seat's total as the runtime scored it; a starter benched and another started on the real sheet and replayed by the runtime; what the page says of positions is recorded; the routes agree", async () => {
+      const proofOf = require(path.join(root, 'tests/fixtures/gameplay-explorer/sports-proof.cjs')), file = path.join(out, 'sports-soccer-definition.json');
+      fs.writeFileSync(file, JSON.stringify(proofOf({ league: 'soccer/eng.1', game: 'season', timing: 'live-only', ann: 2, closes: 'start' })));
+      const app = p.frameLocator('#device-a iframe'), text = sel => app.locator(sel).first().evaluate(el => el.innerText.replace(/\s+/g, ' ').slice(0, 5000)).catch(() => '');
+      const serverState = () => p.evaluate(() => fetch('/__atlas/bench/runtime/state?id=' + window.__GAMEPLAY_EXPLORER_PAGE__.sides.a.id).then(r => r.json()));
+      await p.locator('#open').click(); await p.locator('#open-file').click(); await p.locator('#file').setInputFiles(file);
+      await p.locator('#device-a iframe').waitFor({ timeout: 40000 }); await checked();
+      for (let go = 0; ; go++) { await p.locator('#game').selectOption('g'); try { await app.locator('[data-game-page]').waitFor({ timeout: 45000 }); break; } catch (e) { if (go) throw e; await p.locator('#game').selectOption({ index: 0 }).catch(() => {}); } }
+      await app.locator('[data-game-grid]').waitFor({ timeout: 30000 }); await p.waitForTimeout(1000);
+      const seen = { page: await text('[data-game-page]') }; await shot('05zzv-sports-soccer');
+      // (Head to head: the page ranks by each seat's record, the runtime's from its points by position week by week.)
+      const mine = R.open(JSON.parse(fs.readFileSync(file, 'utf8'))); let totals; try { totals = mine.project('g', 'ann').game.table.map(r => [r.playerId, r.total, r.record && [r.record.wins, r.record.losses]]); } finally { mine.dispose(); }
+      assert(totals.every(([, , rec]) => rec), 'the runtime has a record for each seat');
+      for (const [who, , [w, l]] of totals) assert(new RegExp('\\b' + w + '\\s*[–-]\\s*' + l + '\\b').test(seen.page), who + "'s record " + w + '–' + l + ' is not on the page: ' + seen.page.slice(0, 600));
+      assert(!/undefined|NaN|\[object/.test(seen.page), 'the page prints a broken value');
+      assert((await app.locator('html').evaluate(el => el.scrollWidth - el.clientWidth)) <= 0, 'the game page scrolls sideways');
+      await p.locator('#device-a').scrollIntoViewIfNeeded(); await app.locator('[data-game-strip] button, [data-game-strip] a').first().click();
+      await app.locator('[data-starter]').first().waitFor({ timeout: 20000 });
+      seen.sheet = await text('[role="dialog"]'); await shot('05zzw-sports-soccer-lineup');
+      // A starter off and a bench player on (the formation's own rules may refuse a swap across groups: the runtime and the server decide alike).
+      await app.locator('[data-starter][aria-pressed="true"]').first().click(); await app.locator('[data-starter][aria-pressed="false"]').last().click();
+      const before = (await serverState()).trace.length; await app.getByRole('button', { name: /^Save$/ }).first().click();
+      let st; for (let t = 0; t < 25; t++) { st = await serverState(); if (st.trace.length > before) break; await p.waitForTimeout(1000); }
+      seen.after = await text('[role="dialog"]');
+      assert.equal(st.trace.at(-1)?.type, 'lineup', 'the lineup reached the runtime'); assert.equal(st.live.mismatches, 0, JSON.stringify(st.live.comparisons.at(-1)));
+      seen.saved = st.trace.at(-1)?.status;
+      await p.locator('#route-check').click(); await p.locator('#panel-checks .card', { hasText: 'No spoilers, standings match' }).waitFor({ timeout: 90000 });
+      fs.writeFileSync(path.join(out, 'sports-soccer-page.json'), JSON.stringify({ seen, totals }, null, 2));
+      // Recorded, not this step's to fail: whether the sheet says each player's position, and the rules' words for points by position.
+      if (!/\b(GK|DEF|MID|FWD|Goalkeeper|Defender|Midfielder|Forward)\b/.test(seen.sheet)) console.log("NOTE soccer: the lineup sheet doesn't say anyone's position, though a goal is worth 4 to 10 by it and the formation needs a keeper (Designs needed item 34); see sports-soccer-page.json");
+      if (seen.saved !== 'accepted') console.log('NOTE soccer: the swap made on the sheet was refused by both (' + seen.saved + '): the sheet offered it; see sports-soccer-page.json');
+    });
+    await step("sports formats: the ATP's season on the real page (points by a match's format: a Grand Slam's best of five at its own points): each seat's total as the runtime scored it from each match at its format; what the page says of a match is recorded; the routes agree", async () => {
+      const proofOf = require(path.join(root, 'tests/fixtures/gameplay-explorer/sports-proof.cjs')), file = path.join(out, 'sports-tennis-definition.json');
+      fs.writeFileSync(file, JSON.stringify(proofOf({ league: 'tennis/atp', game: 'season', seed: 2, timing: 'live-only', ann: 2, closes: 'start' })));
+      const app = p.frameLocator('#device-a iframe'), text = sel => app.locator(sel).first().evaluate(el => el.innerText.replace(/\s+/g, ' ').slice(0, 5000)).catch(() => '');
+      await p.locator('#open').click(); await p.locator('#open-file').click(); await p.locator('#file').setInputFiles(file);
+      await p.locator('#device-a iframe').waitFor({ timeout: 40000 }); await checked();
+      for (let go = 0; ; go++) { await p.locator('#game').selectOption('g'); try { await app.locator('[data-game-page]').waitFor({ timeout: 45000 }); break; } catch (e) { if (go) throw e; await p.locator('#game').selectOption({ index: 0 }).catch(() => {}); } }
+      await app.locator('[data-game-grid]').waitFor({ timeout: 30000 }); await p.waitForTimeout(1000);
+      const seen = { page: await text('[data-game-page]') }; await shot('05zzx-sports-tennis');
+      const mine = R.open(JSON.parse(fs.readFileSync(file, 'utf8'))); let totals; try { totals = mine.project('g', 'ann').game.table.map(r => [r.playerId, r.total]); } finally { mine.dispose(); }
+      for (const [who, total] of totals) assert(seen.page.includes(String(total)), who + "'s total " + total + ' is not on the page: ' + seen.page.slice(0, 500));
+      assert(!/undefined|NaN|\[object/.test(seen.page), 'the page prints a broken value');
+      assert((await app.locator('html').evaluate(el => el.scrollWidth - el.clientWidth)) <= 0, 'the game page scrolls sideways');
+      await p.locator('#device-a').scrollIntoViewIfNeeded();
+      const strip = app.locator('[data-game-strip] button, [data-game-strip] a').first();
+      if (await strip.count()) { await strip.click(); await p.waitForTimeout(1500); seen.sheet = await text('[role="dialog"]'); await shot('05zzy-sports-tennis-sheet'); await app.locator('[role="dialog"] button[aria-label*="lose" i]').first().click().catch(() => {}); }
+      await p.locator('#route-check').click(); await p.locator('#panel-checks .card', { hasText: 'No spoilers, standings match' }).waitFor({ timeout: 90000 });
+      fs.writeFileSync(path.join(out, 'sports-tennis-page.json'), JSON.stringify({ seen, totals }, null, 2));
+      // Recorded, not this step's to fail: whether anything says who a player played, the score, or that a match was best of five.
+      const said = ((seen.page || '').split(/HOW IT PLAYS/i)[0] + ' ' + (seen.sheet || ''));
+      if (!/\b(beat|lost to|def\.|vs\.?|\d-\d|best of (five|5)|five sets|retired|straight sets)\b/i.test(said)) console.log("NOTE tennis: the page and its sheet show each seat's total and nothing of a match (who a player played, the score, a best of five, a retirement): Designs needed item 37; see sports-tennis-page.json");
+      const keys = [...new Set((seen.page || '').match(/\b(MP|GW|GL|SW|SL|CS|STR|WRET\d?)\b/g) || [])];
+      if (keys.length) console.log("NOTE tennis: the page names the table's stats by their keys (" + keys.join(', ') + '): BACKLOG 75; see sports-tennis-page.json');
+    });
+    await step("sports slates: a week of three games locking at each game's start, an hour into its first game, on the real page: a locked player's tile says so and a tap on it changes nothing, the sheet says each player locks at their game; a change that moves nobody locked is saved and replayed by the runtime; the routes agree", async () => {
+      const proofOf = require(path.join(root, 'tests/fixtures/gameplay-explorer/sports-proof.cjs')), file = path.join(out, 'sports-slate-definition.json'), Sp = require(path.join(root, 'tools/gameplay-bench/explorer/runtime-sports.cjs'));
+      const CLOCK = '2099-01-10T17:00:00.000Z', H = 3600000, spec = { ...require(path.join(root, 'tools/gameplay-bench/sports.cjs')).resolve('basketball/nba', 'short').row.spec, get: { by: 'draft', each: 4, order: 'snake', own: 'exclusive' }, count: { start: 2 }, closes: 'game' };
+      // (Week 3's first game began an hour before the clock; weeks 1 and 2 before that, played. Week 3: the round robin pairs Ann's
+      // first starter's team with her first bench player's, and not her second starter's.)
+      const schedule = [new Date(Date.parse(CLOCK) - 14 * 24 * H - H).toISOString(), new Date(Date.parse(CLOCK) - 7 * 24 * H - H).toISOString(), new Date(Date.parse(CLOCK) - H).toISOString(), new Date(Date.parse(CLOCK) + 6 * 24 * H).toISOString()];
+      // (The first seed where Ann starts one player whose game has begun and one whose hasn't, with a free one on her bench: both
+      // changes are then possible.)
+      const fits = d => { const m = R.open(d); try { const lv = m.project('g', 'ann').game.lineup, w = m.snapshot().contexts.sport, [f1] = Sp.gamesOf(w.context, w.events[2]), inG1 = id => f1.teams.includes(w.participants.find(x => x.id === id).team); return lv.starters.filter(inG1).length === 1 && lv.roster.some(id => !lv.starters.includes(id) && !inG1(id)); } finally { m.dispose(); } };
+      let def = null;
+      for (let seed = 1; seed < 60 && !def; seed++) { const d = proofOf({ league: 'basketball/nba', game: spec, slate: 3, schedule, completed: 2, clock: CLOCK, timing: 'live-only', ann: 2, bo: 2, cy: 2, seed }); if (fits(d)) def = d; }
+      assert(def, 'a seed where Ann starts one player in the first game and one not');
+      fs.writeFileSync(file, JSON.stringify(def));
+      const app = p.frameLocator('#device-a iframe'), text = sel => app.locator(sel).first().evaluate(el => el.innerText.replace(/\s+/g, ' ').slice(0, 5000)).catch(() => '');
+      const serverState = () => p.evaluate(() => fetch('/__atlas/bench/runtime/state?id=' + window.__GAMEPLAY_EXPLORER_PAGE__.sides.a.id).then(r => r.json()));
+      await p.locator('#open').click(); await p.locator('#open-file').click(); await p.locator('#file').setInputFiles(file);
+      await p.locator('#device-a iframe').waitFor({ timeout: 40000 }); await checked();
+      for (let go = 0; ; go++) { await p.locator('#game').selectOption('g'); try { await app.locator('[data-game-page]').waitFor({ timeout: 45000 }); break; } catch (e) { if (go) throw e; await p.locator('#game').selectOption({ index: 0 }).catch(() => {}); } }
+      await app.locator('[data-game-grid]').waitFor({ timeout: 30000 }); await p.waitForTimeout(1000);
+      const seen = { page: await text('[data-game-page]') }; await shot('05zzz-sports-slate');
+      // Who Ann holds, and who is locked now (their team's game began today), from the runtime's own case.
+      const mine = R.open(JSON.parse(fs.readFileSync(file, 'utf8'))); let v, world, st;
+      try { v = mine.project('g', 'ann').game.lineup; const snap = mine.snapshot(); world = snap.contexts.sport; st = snap.games.g.state; } finally { mine.dispose(); }
+      const week = world.events[2], [g1] = Sp.gamesOf(world.context, week), team = id => world.participants.find(x => x.id === id).team;
+      const stuck = v.roster.filter(id => g1.teams.includes(team(id))), free = v.roster.filter(id => !stuck.includes(id));
+      seen.case = { starters: v.starters, stuck, free, locked: v.locked };
+      assert(stuck.length && free.length >= 2, "Ann holds a player in the week's first game and two in later ones: " + JSON.stringify(seen.case));
+      const openSheet = async () => { await p.locator('#device-a').scrollIntoViewIfNeeded(); await app.locator('[data-game-strip] button, [data-game-strip] a').first().click(); await app.locator('[data-starter]').first().waitFor({ timeout: 20000 }); };
+      const tap = id => app.locator('[data-starter="' + id + '"]').first().click();
+      const save = async () => { const before = (await serverState()).trace.length; await app.getByRole('button', { name: /^Save$/ }).first().click(); let s2; for (let t = 0; t < 25; t++) { s2 = await serverState(); if (s2.trace.length > before) break; await p.waitForTimeout(1000); } return s2; };
+      await openSheet(); seen.sheet = await text('[role="dialog"]'); await shot('05zzz2-sports-slate-sheet');
+      // A locked player's tile says so (BACKLOG 80's TEMP-UI), and tapping it explains and changes nothing: no save the server
+      // would refuse. The sheet's subtitle and footer say each player locks at their game (not "until you reveal it": Ann is live).
+      const L = stuck[0], tileOf = id => app.locator('[data-starter="' + id + '"]').first();
+      const was = await tileOf(L).getAttribute('aria-pressed');
+      await tap(L); await p.waitForTimeout(600);
+      seen.afterTap = (await text('[role="dialog"]')) + ' | ' + (await text('[data-sonner-toaster], [role="status"]'));
+      await shot('05zzz3-sports-slate-locked-tap');
+      assert.equal(await tileOf(L).getAttribute('aria-pressed'), was, 'tapping a locked player changes nothing');
+      assert.match(await tileOf(L).innerText(), /Locked/i, "the locked player's tile says so");
+      assert.match(seen.sheet, /change anyone until their game starts/i, 'the subtitle: ' + seen.sheet.slice(0, 200));
+      assert.match(seen.sheet, /Each player locks when their game starts/i, 'the footer');
+      assert(!/until you reveal it|Revealing the episode does/i.test(seen.sheet), 'no catching-up words for a live player');
+      assert.match(seen.page, /Under way · all locked by/, "Your sheet's week, begun an hour ago, says it's under way (not 'Airs' a time past)");
+      const s1 = await serverState();
+      // Close and reopen; swap two free ones.
+      await app.locator('[role="dialog"] button[aria-label*="lose" i]').first().click().catch(() => {}); await p.waitForTimeout(800); await openSheet();
+      const a = free.find(id => v.starters.includes(id)), b = free.find(id => !v.starters.includes(id));
+      assert(a && b, 'a free starter and a free bench player');
+      await tap(a); await tap(b);
+      const s2 = await save();
+      assert.equal(s2.trace.at(-1)?.type, 'lineup'); assert.equal(s2.trace.at(-1)?.status, 'accepted', JSON.stringify(s2.trace.at(-1)).slice(0, 300)); assert.equal(s2.live.mismatches, 0, JSON.stringify(s2.live.comparisons.at(-1)));
+      await p.locator('#route-check').click(); await p.locator('#panel-checks .card', { hasText: 'No spoilers, standings match' }).waitFor({ timeout: 90000 });
+      fs.writeFileSync(path.join(out, 'sports-slate-page.json'), JSON.stringify({ seen, st: !!st }, null, 2));
+      // Recorded, not this step's to fail: whether the sheet says who is locked (and till when) before a change is tried, and what
+      // the refusal says on the page.
+      const name = id => world.participants.find(x => x.id === id).name.split(' ')[0];
+      if (!new RegExp(name(L) + ".s game has started", 'i').test(seen.afterTap)) console.log('NOTE slates: tapping ' + name(L) + ' (locked) showed no reason naming them; see sports-slate-page.json');
     });
     await step('export replays headlessly to the same state', async () => {
       // The server's hash (the page's own copy can lag the run), and the export's own: the replay must reach both.

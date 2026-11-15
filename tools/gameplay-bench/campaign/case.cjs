@@ -37,12 +37,40 @@ function invariants(session, document, before, record, step, inject, known = new
       if (world.context.kind === 'sport') {
         const S0 = require('../../../src/lib/game/state-logic'), Sp = require('../explorer/runtime-sports.cjs');
         const full = snap.games[game.id].state, spec = S0.gameOf(full), c = Sp.league(world.context), cents = n => Math.round((Number(n) || 0) * 100) / 100;
-        const pointsOf = line => cents(Object.entries(spec.score.points || {}).reduce((n, [stat, each]) => n + cents((line[stat] || 0) * each), 0));
+        // (A line's points, the rule restated apart from the engine: sports-oracle.cjs linePoints, its plain points, a position
+        // group's and a place's by place or range. A line as it's scored: a team game's with its derived stats worked out, a field's
+        // with its place from its standings, the oracle's own restatement: Oracle.placed; a card's as given.)
+        const Or = require('./sports-oracle.cjs'), team = c.context.shape === 'team';
+        const lineOf = (data, id) => (data.standings ? Or.placed(data.lines[id] || {}, data.standings.find(x => x.id === id), c.sport.id) : team ? c.sport.full(data.lines[id] || {}) : data.lines[id] || {});
+        const groupOf = id => c.sport.position(world.participants.find(x => x.id === id)?.role)?.group ?? null;
+        // A slate (proof-family-55): a week's points are its games' (each game's line with its derived stats worked out), each game
+        // counting the holdings in force at its start where the engine kept a log of the week's lineups (a lineup that locks at each
+        // game's start: ep.lineupsAt, each set with its time): the last set before the game began, else the lineup carried in; else
+        // the week's lineup. Restated from the schedule (gamesOf) and the log, never from ActiveRosterLogic.gameHeld.
+        const slateOn = !!Sp.slateOf(world.context);
+        const inForce = (e, playerId, t) => {
+          const ep = full.episodes.find(x => x.id === e.id), log = ep?.lineupsAt?.[playerId];
+          if (!Array.isArray(log) || !log.length) return S0.ActiveRosterLogic.lineupFor(full, e.id, playerId);
+          const before = log.filter(x => Date.parse(x.at) < t);
+          return before.length ? before[before.length - 1].ids || [] : S0.ActiveRosterLogic.carriedLineup(full, ep, playerId);
+        };
+        const slateWeek = (playerId, e, data) => {
+          const by = {}, team = full.castaways.filter(x => x.ownerIds.includes(playerId)).map(x => x.id), each = spec.closes === 'game' && game.timing !== 'own-pace';
+          for (const g of Sp.gamesOf(world.context, e)) {
+            const held = !spec.count.start ? team : each ? inForce(e, playerId, Date.parse(g.airAt)) : S0.ActiveRosterLogic.lineupFor(full, e.id, playerId);
+            for (const id of held) if (data.games[g.id]?.[id]) by[id] = cents((by[id] || 0) + Or.linePoints(spec.score, c.sport.full(data.games[g.id][id]), groupOf(id)));
+          }
+          const pts = Object.values(by);
+          return cents((spec.count.best ? [...pts].sort((a, b) => b - a).slice(0, spec.count.best) : pts).reduce((a, b) => a + b, 0));
+        };
         // (A seat's points for one game, from its box score: the whole team, the starters it fielded, or its best n.)
         const weekOf = (playerId, e) => {
-          const lines = world.facts.find(f => f.eventId === e.id).data.lines;
+          const data = world.facts.find(f => f.eventId === e.id).data;
+          if (data.games) return slateWeek(playerId, e, data);
           const held = spec.count.start ? S0.ActiveRosterLogic.lineupFor(full, e.id, playerId) : full.castaways.filter(x => x.ownerIds.includes(playerId)).map(x => x.id);
-          const pts = held.map(id => pointsOf(c.sport.full(lines[id] || {})));
+          // (On a card, the matches each played, as the fact keeps them: each its best of and its own line.)
+          const boutsOf = id => (data.card ? data.card.bouts.filter(b => data.card.byBout[b.id] && data.card.byBout[b.id][id]).map(b => ({ format: b.rounds, line: data.card.byBout[b.id][id] })) : null);
+          const pts = held.map(id => Or.linePoints(spec.score, lineOf(data, id), groupOf(id), boutsOf(id)));
           return cents((spec.count.best ? [...pts].sort((a, b) => b - a).slice(0, spec.count.best) : pts).reduce((a, b) => a + b, 0));
         };
         const toldGames = world.events.filter(e => ['final', 'corrected'].includes(e.resultStatus) && e.number <= told);
@@ -56,7 +84,8 @@ function invariants(session, document, before, record, step, inject, known = new
         const catsList = Array.isArray(spec.score?.categories) && spec.score.categories.length ? spec.score.categories : null;
         if (catsList) {
           const Oracle = require('./sports-oracle.cjs'), defs = c.sport.categoryDefs();
-          const linesOf = (playerId, e) => { const box = world.facts.find(f => f.eventId === e.id).data.lines; return (spec.count.start ? S0.ActiveRosterLogic.lineupFor(full, e.id, playerId) : full.castaways.filter(x => x.ownerIds.includes(playerId)).map(x => x.id)).map(id => box[id]).filter(Boolean).map(l => c.sport.full(l)); };
+          // (On a slate, every game's line of the week: a rate from the week's counts added up.)
+          const linesOf = (playerId, e) => { const data = world.facts.find(f => f.eventId === e.id).data, held = spec.count.start ? S0.ActiveRosterLogic.lineupFor(full, e.id, playerId) : full.castaways.filter(x => x.ownerIds.includes(playerId)).map(x => x.id); return data.games ? held.flatMap(id => Object.values(data.games).map(g => g[id]).filter(Boolean).map(l => c.sport.full(l))) : held.map(id => data.lines[id]).filter(Boolean).map(l => c.sport.full(l)); };
           const over = (playerId, events) => Oracle.totals(events.flatMap(e => linesOf(playerId, e)), catsList, defs);
           if (spec.rank.by === 'roto') {
             const wantRoto = Oracle.roto(Object.fromEntries(full.players.map(p => [p.id, over(p.id, toldGames)])), catsList, defs), gotRoto = Object.fromEntries(v.table.map(r => [r.playerId, cents(r.total)]));
@@ -96,7 +125,8 @@ function invariants(session, document, before, record, step, inject, known = new
         {
           const closes = spec.closes, key = closes === 'daily' ? etDate : closes === 'weekly' ? etWeek : null;
           const from = S0.startEpisode(full) ?? 1, to = S0.endEpisode(full), own = world.events.filter(e => e.number >= from && (to == null || e.number <= to) && e.airAt);
-          const lockOf = n => { const e = own.find(x => x.number === n); if (!e) return null; const t = Date.parse(e.airAt); return key ? Math.min(...own.filter(x => key(Date.parse(x.airAt)) === key(t)).map(x => Date.parse(x.airAt))) : t; };
+          // (A slate's week locks at its own first game whatever its cadence; one locking at each game's start, at its last game.)
+          const lockOf = n => { const e = own.find(x => x.number === n); if (!e) return null; const t = Date.parse(e.airAt); if (slateOn) return spec.closes === 'game' ? Math.max(...Sp.gamesOf(world.context, e).map(g => Date.parse(g.airAt))) : t; return key ? Math.min(...own.filter(x => key(Date.parse(x.airAt)) === key(t)).map(x => Date.parse(x.airAt))) : t; };
           const now = Date.parse(snap.clock);
           if (game.timing !== 'own-pace' && member && v.lineup) {
             const lock = lockOf(v.lineup.episode), shut = lock !== null && lock <= now;
@@ -107,6 +137,16 @@ function invariants(session, document, before, record, step, inject, known = new
           if (a.type === 'lineup' && a.gameId === game.id && a.personId === person.id && game.timing !== 'own-pace') {
             const n = world.events.find(e => e.id === a.eventId)?.number, lock = n == null ? null : lockOf(n), shut = lock !== null && lock <= now;
             if (record.status === 'accepted' && shut) throw new Violation('sport-locks', person.id + "'s lineup for episode " + n + ' in ' + game.id + ' was taken at ' + snap.clock + ', after its ' + closes + ' lock at ' + new Date(lock).toISOString(), step);
+            // A lock at each game's start ('slate-holding-locks'): a holding whose team's game began earlier today (Eastern) can't
+            // move in or out; any other can. Restated from the schedule and the day, never from heldLocked.
+            if (spec.closes === 'game' && slateOn && n != null && !shut) {
+              const e = world.events.find(x => x.id === a.eventId), had = S0.ActiveRosterLogic.lineupFor(before.games[game.id].state, a.eventId, person.id), ids = a.ids || [];
+              const moved = [...had.filter(id => !ids.includes(id)), ...ids.filter(id => !had.includes(id))];
+              const teamOf = id => world.participants.find(p => p.id === id)?.team;
+              const stuck = moved.filter(id => Sp.gamesOf(world.context, e).some(g => g.teams.includes(teamOf(id)) && Date.parse(g.airAt) <= now && etDate(Date.parse(g.airAt)) === etDate(now)));
+              if (record.status === 'accepted' && stuck.length) throw new Violation('slate-holding-locks', person.id + "'s lineup for episode " + n + ' in ' + game.id + ' was taken at ' + snap.clock + ' moving ' + stuck.join(', ') + ', whose game began today', step);
+              if (record.status !== 'accepted' && /game has started/.test(record.message || '') && !stuck.length) throw new Violation('slate-holding-locks', person.id + "'s lineup for episode " + n + ' in ' + game.id + ' was refused at ' + snap.clock + ' as a game having started, moving nobody whose game began today', step);
+            }
             if (record.status !== 'accepted' && /lineups are locked/.test(record.message || '') && !shut && !(S0.EpisodeLogic.hasResults(full.episodes.find(x => x.id === a.eventId) || {}))) throw new Violation('sport-locks', person.id + "'s lineup for episode " + n + ' in ' + game.id + ' was refused as locked at ' + snap.clock + ', before its ' + closes + ' lock' + (lock === null ? '' : ' at ' + new Date(lock).toISOString()), step);
           }
         }
@@ -253,7 +293,11 @@ function invariants(session, document, before, record, step, inject, known = new
       // no longer holds who it dropped, and a replacement drops someone who went home.
       if ((game.spec.extras?.waivers || snap.stores.waivers?.[game.id]) && person === snap.people[0]) {
         const st = snap.games[game.id].state, store = snap.stores.waivers?.[game.id], prior = before.games[game.id]?.state, fail = m => { throw new Violation('waivers-honored', game.id + ': ' + m, step); };
-        if (require('../../../src/lib/game/state-logic').gameOf(st).get.own === 'exclusive' && !game.spec.extras?.waivers?.own && st.castaways.some(c => c.ownerIds.length > 1)) fail('a castaway on two teams: ' + st.castaways.filter(c => c.ownerIds.length > 1).map(c => c.id).join(','));
+        // (A seat a cut has knocked out of an exclusive draft keeps its players for its history while they're back in the pool:
+        // KnockoutLogic.frees, found by campaign sport-places-api case 7, where the check had counted them on two teams. Who is out
+        // is the cut's own rule, with its own invariant: read from the engine here.)
+        const SL = require('../../../src/lib/game/state-logic'), outs = SL.KnockoutLogic.frees(st) ? new Set(SL.KnockoutLogic.outs(st).keys()) : new Set(), held = c => c.ownerIds.filter(id => !outs.has(id));
+        if (SL.gameOf(st).get.own === 'exclusive' && !game.spec.extras?.waivers?.own && st.castaways.some(c => held(c).length > 1)) fail('a castaway on two teams: ' + st.castaways.filter(c => held(c).length > 1).map(c => c.id).join(','));
         for (const w of Object.values(store?.weeks || {})) for (const x of Object.values(w)) for (const pair of x.claim.pairs || []) if (JSON.stringify(st).includes(JSON.stringify(pair))) fail('a claim is in the league state');
         for (const p of st.midSeason?.waivers?.periods || []) {
           const was = (prior?.midSeason?.waivers?.periods || []).find(x => x.id === p.id);

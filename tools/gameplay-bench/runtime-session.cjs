@@ -228,8 +228,8 @@ function createRuntimeSession(base,input,options={}){
   async publish(eventId,status){
    const snap=session.snapshot(),world=snap.contexts[contextId],event=world.events.find(e=>e.id===eventId);if(!event)throw Error('Unknown episode');
    const F=require('../../src/lib/game/formats'),h=k=>parseInt(J.digest([document.seed,eventId,status,k]).slice(0,8),16);
-   // A sport's results are its box score (explorer/runtime-sports.cjs): every athlete's line, from the case's seed, the episode and the status (a correction's differ).
-   if(world.context.kind==='sport')return api.apply({type:'results',contextId,eventId,source:'provider-fixture',resultStatus:status,data:{events:[],scoringEvents:[],lines:require('./explorer/runtime-sports.cjs').linesFor(world.context,world.participants,i=>h('line:'+i))}});
+   // A sport's results are its box score (explorer/runtime-sports.cjs): every athlete's line, a field's with its standings, from the case's seed, the episode and the status (a correction's differ).
+   if(world.context.kind==='sport')return api.apply({type:'results',contextId,eventId,source:'provider-fixture',resultStatus:status,data:require('./explorer/runtime-sports.cjs').resultsFor(world.context,world.participants,i=>h('line:'+i))});
    const before=world.facts.find(f=>f.eventId===eventId)?.data.events?.[0]?.castawayId,gone=new Set(world.facts.filter(f=>f.eventId!==eventId).flatMap(f=>(f.data.events||[]).map(o=>o.castawayId)));
    const still=world.participants.filter(p=>!gone.has(p.id)&&(status!=='corrected'||p.id!==before));if(still.length<2)throw Error('Too few people still in to publish results');
    const finale=event.number===world.events.length,format=F.formatFor(world.context.format.id);

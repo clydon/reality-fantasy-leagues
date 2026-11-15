@@ -1144,8 +1144,9 @@ specimen on its own sport: **1,209 of 1,312 run**. The definition of done:
      questions game in the same API campaign). None showed in 600 engine-tier cases; each showed on the real routes or pages.
   7. A dev server can keep serving an old server module after its file changes (the roster fix read as not working until the
      route file itself changed): when a check still fails after a server fix, suspect the server before the fix.
-- **Next slices:** the second (locks by the day or the week, head to head) and the third (categories and roto), below, are done.
-  Then points by place (7 specimens), by position (3), by a match's format (2); a lock at each game's own start; a week of
+- **Next slices:** the second (locks by the day or the week, head to head), the third (categories and roto) and the fourth
+  (points by place), the fifth (by position), the sixth (by a match's format) and the seventh (a slate, and a lock at each
+  game's start), below, are done. Then a lock at each game's own start; a week of
   several games scored game by game, a week in progress, a postponed game; the old bench's sports recipes moved onto the runtime
   (the last thing keeping the old bench).
 
@@ -1284,6 +1285,315 @@ pairs (seven leagues' categories and roto games joined the 35).
      any category on the page; roto's season grid still shows each week as 0 (roto has no weeks).
   4. A seat catching up at its own pace is in no head-to-head week, so it has no record until it catches up
      (`MatchupLogic.seatsAt`: by design; the page says nothing about it).
+
+#### Sports statistics, fourth slice: points by place (2026-11-14)
+
+A field's game (golf's tournaments, racing's weekends) scores a place by place or by range (`score.byPlace`: golf's
+`POS: { 1: 25, 2: 12, 3: 10, '4-10': 8, '11-20': 3 }`, NASCAR's forty places, F1's race, sprint and qualifying places), beside
+its counts' points. On the server a field's kept final is everyone's counts with their places in them and its standings
+(`sports_events.lines` and `shape`: src/lib/sports/final.ts `storedField`, the sport's `placeStats` adding POS, W, TOP10 and the
+like from each standing); a read scores the line's place (`sequence/stats.js` `statLine`: the place's or its range's points,
+nothing out of the table or with no place, a stat the table places never a count too). **1,226 of 1,312 specimens run** (the
+seven by place), and 81 of the leagues' own league-and-game pairs (golf's eight tours' three games each and NASCAR's three series' and F1's
+two each joined the 49; IndyCar's two ran before and now have standings too).
+
+- **Definition:** nothing new: a sport context of a field's league (the page context's `shape: 'field'`).
+- **Runtime** (`core-runtime-36`):
+  - a field's results are its lines and its **standings** (`runtime-sports.cjs` `resultsFor`): one standing an athlete
+    `{ id, place, tied, status, madeCut? }`, a place from 1 for whoever is in and none for anyone cut, withdrawn or
+    disqualified; **a line carries no place stat** (the sport's `placeKeys`): a place is the standings', as the app's final
+    leaves them; refused otherwise, as are results without standings or with an athlete twice;
+  - the kept line (`keptLines`) is the counts with the sport's own `placeStats` added, as `FieldSport.reduce` adds them: what
+    the runtime stamps and the materializer writes;
+  - a field's and a card's lines are scored as kept: the server works a team game's derived stats out only (`score.ts`
+    `leagueGames`); the runtime had worked them out for every sport (MMA's FIN, golf's BS: neither scored by any table, so no
+    total moved);
+  - the generated field (`golfField`, `raceField`): the cast and as many again at most outside it (golf), or the series' grid
+    (F1 20, IndyCar 27, NASCAR 38), whose places count but who aren't in the cast, so a place in the cast can be 31st. Golf:
+    four rounds, a cut after two (none on LIV), everyone by their score to par with the tied sharing a place, one leader (a tie
+    at the top is a playoff's), now and then a withdrawal; the counts add up to the score. Racing: a finishing order with
+    retirements classified behind the finishers and a rare disqualification out of the places, the grid, laps led; F1's
+    qualifying and, one weekend in three, a sprint.
+- **Profile:** `score.byPlace` on a sport's game scored by stats, on a field (a team sport or a card has no place to score).
+- **The rule, restated apart from the engine** (`campaign/sports-oracle.cjs`): `placePoints` (a place or a range, nothing out
+  of the table or for no place), `linePoints` (a line's points at a table: plain points, a position group's, a place's; a stat
+  the table places never a count too) and `placed` (a field's line with its place stats from its standing: golf's POS, W,
+  TOP5 to TOP25, CUT; racing's POS, W, PODIUM, TOP5, TOP10). The unit tests, the campaign's `stats-table` and the route check
+  use it.
+- **Unit tests** (`tests/gameplay-explorer-sports.test.js`, 91): every field league's games against the oracle (the slice-wide
+  recount now goes through `linePoints`); the oracle against hand-worked numbers (T9 is 9th's points, the cut scores nothing for
+  its place, F1's three place stats, a placed stat never a count); a field's facts (a standing an athlete, no place in a line,
+  the kept line the app's `placeStats` as the oracle says, a race without ties, one winner); a few seasons reach every kind of
+  place; refusals; a corrected place moving one seat by exactly its points.
+- **Generator** (`proof-family-51`): a league's golf and racing games are among a sports case's games (the profile takes them);
+  a field's results carry its standings; the walk now and then sends a field's results with a place in a line or without its
+  standings (refused).
+- **Invariants:** `stats-table` recounts every seat's total through the oracle (each held athlete's line, a field's with its
+  place from the standings).
+- **Campaign** `sport-places-200` (seed 11, depth 30): **200 of 200**; 37 sports cases, 16 of them a field over nine leagues
+  (`count.cjs`: 68 field results, 2 refused for a place in a line or no standings; the places seats held: 986 in a table, 68
+  past it, 247 tied, 177 out of the places, 45 winners). Its one F1 case drew no sprint weekend, so the campaign held no sprint
+  place: the unit tests and the route check (two sprint weekends) cover it.
+- **Positive controls** (`engine-controls.js` over its 37 sports cases; the unedited files pass all 37; `controls-1.log` to
+  `controls-3.log`): a place's range ignored (only a place named alone scores) fails all 8 golf cases (only golf's tables have
+  ranges); a tied golfer taking the place after the tie's, the same 8; a place past the table scoring the table's last place's
+  points, the 5 that held one (NASCAR's forty places cover its grid); someone out of the places scoring as the winner, all 16
+  field cases; the runtime keeping a field's lines without their places, all 16; and a field's lines given a team game's
+  derived stats, which must change nothing, changes nothing. Every edited file came back byte for byte. The earlier slices'
+  controls over these cases: the table's points ignored fails 29, best ball counting everyone 4, a lineup counting its bench
+  28, a viewer's copy keeping lines past its mark all 37; the rest weren't rerun here (six minutes a control: stopped after
+  four, its file restored by hand from its `.control-backup` and every hash checked).
+- **Materializer** (`live-db.cjs`): a field's row is its kept lines (each one's place in them) and its standings in
+  `sports_events.shape` (`{ kind: 'field', event, standings }`), as the app keeps one.
+- **Real routes, directly** (`check-sports-explorer.js`): `tables` takes in the 34 field pairs (each agreed on the first run); a
+  new case, `places`: golf's season with ties and a cut, LIV's best ball, F1 with two sprint weekends, NASCAR, live, Ann a game
+  behind with and without "Sports scores too": **the server's table, the runtime's and the oracle's are the same** for Ann and
+  Bo; a control: one of Bo's placed golfers written 21st behind the runtime takes exactly that place's points off Bo on the
+  server, and the right rows back are clean. 10 checks, all passing on the first run.
+- **API tier:** nothing new to compare (the shared checks already hold every seat's table, grid and record to the runtime's).
+  Campaign `sport-places-api` (seed 12, depth 20, one worker): 69 of 70; 10 sports cases, 5 of them a field (IndyCar, golf's
+  Olympic tours), all passing. The one failure was the campaign's own check, not the product's: `waivers-honored` counted a
+  castaway "on two teams" in an exclusive game where one of the two seats had been cut (a seat a cut knocks out of an exclusive
+  draft keeps its players for its history while they go back in the pool: `KnockoutLogic.frees`, the engine's own rule). The
+  check looks past a seat that's out now; the case passes on the engine tier with it (`campaign --repro=7`). The 69 ran on the
+  final code but for that check; not rerun.
+- **UI driver** (`check-explorer-page.js --only="sports places:"`): golf's season (ties, a cut) and F1's short game (two
+  sprint weekends) on the real page in the bench's phone frame, Ann caught up: each seat's total is the runtime's, no broken
+  value, no sideways scroll; golf's lineup sheet opened; the route checks pass on both. Field games have no bench in the app's
+  defaults, so no lineup is changed here (the earlier steps prove the sheet's save). Screenshots `05zzr` to `05zzt`, words in
+  `sports-places-page.json`.
+- **Findings:**
+  1. No disagreement between the server and the runtime, or either and the oracle: all 34 field pairs and the `places` case
+     agreed on the first run on the real routes.
+  2. **Designs needed item 36:** no screen says where anyone finished (no "T14", "2nd" or "Missed the cut"); a golfer who
+     missed the cut reads like any other; F1's three places a weekend are one number.
+  3. **BACKLOG 79 (a decision for the user):** golf's, F1's and NASCAR's season games draft as many as they start, so the page
+     asks for a lineup with nothing to decide ("Start 6 of your 6. Tap to start or bench").
+  4. **BACKLOG 75**, more of it: the rules name places and golf's counts by key ("by POS: 25 for 1st", "15 an ALB, 5 a BFR");
+     F1's team lists each driver as "Still in".
+  5. The campaign's waivers check was wrong for a seat a cut had knocked out (above): corrected.
+  6. The positive controls take six minutes each over a campaign's sports cases; running all 23 would have held the engine
+     files for over two hours. Run a slice's own controls (`--only`), and the earlier slices' only when their rules changed.
+
+#### Sports statistics, fifth slice: points by position (2026-11-14)
+
+A stat's points by the holder's position group (`score.byPosition`, FPL's: a goal 10 a keeper's, 6 a defender's, 5 a
+midfielder's, 4 a forward's; a clean sheet 4, 4, 1, 0; every two goals conceded -1 a keeper's or a defender's). The engine reads a
+holder's group from the state's stamp (`statGroups`, `sequence/stats.js` `eachOf`: the group's points where the table has them
+for the stat, else the table's), which the server stamps from the season's cast (`season_cast.role` through `groupOf`) and the
+runtime from each athlete's position: both were stamped since the first slice, so **the runtime needed only the profile and a
+soccer match of its own. 1,229 of 1,312 specimens run** (the three by position), and 90 of the leagues' own league-and-game
+pairs (soccer's three leagues' three games joined the 81).
+
+- **Runtime** (`core-runtime-37`): the profile takes `score.byPosition` on a sport's game scored by stats (every sport's
+  athletes have a position). A soccer match's line of its own (`runtime-sports.cjs` `soccerLine`): the bench's seeded line gave
+  no midfielder or forward a goal conceded (so every one a clean sheet) and no keeper a goal, which would exercise half the
+  table's cells. Now a start or a substitute's minutes (a clean sheet needs 60), goals conceded while on for everyone, goals
+  most often from forwards and midfielders and once in a while a keeper's, a keeper's saves and penalty saves, cards, an own
+  goal now and then. (The bench's `rawLine` is untouched: the old bench's fixtures use it.)
+- **The rule, restated apart from the engine:** `sports-oracle.cjs` `linePoints` already took a group (the fourth slice); its
+  test now has FPL's table by hand (each group's goal, clean sheet and two conceded; no group, or one the table leaves out, at
+  the table's points; a stat only the groups score).
+- **Unit tests** (`tests/gameplay-explorer-sports.test.js`, 103): soccer's nine pairs against the oracle; the oracle by hand; a
+  soccer world has every group, a keeper's saves, and clean sheets and goals conceded that vary by group; a goal moved from a
+  seat's forward to its defender moves that seat by exactly 6 less 4, nothing else.
+- **Generator** (`proof-family-52`): a league's soccer games are among a sports case's games. (`proof-family-53`: a generator
+  defect this campaign found, below.)
+- **Invariants:** `stats-table` already recounted through `linePoints` with each holder's group (the fourth slice).
+- **Campaign** `sport-positions-200` (seed 13, depth 30): **199 of 200**, the other a generator defect (below), which passes
+  with the corrected generator. 35 sports cases, 7 of them soccer over all three leagues (`count.cjs`: lines seats held by
+  group: a defender's goal 96 times, a midfielder's 61, a forward's 74; clean sheets 22 a keeper's, 136 a defender's, 34 a
+  midfielder's, 22 a forward's; every two conceded 79 a keeper's, 385 a defender's, 129 a midfielder's, 58 a forward's; no
+  keeper scored, one in sixty by design, which the oracle's own test covers).
+- **Positive controls** (`engine-controls.js` over its 35 sports cases; the unedited files pass all 35): points by position
+  ignored (every holder at the table's points) fails all 7 soccer cases (4 as `sport-matchup`, 3 as `stats-table`); every holder
+  scored as a forward, the same 7; the runtime stamping no position groups, the same 7; and a stat the groups score left out of a
+  holder's keys, which can't matter on FPL's table (each such stat is in its plain points too), changes nothing. Both edited
+  files came back byte for byte.
+- **Materializer:** nothing new (each athlete's position is the season's cast's `role` since the first slice).
+- **Real routes, directly** (`check-sports-explorer.js`): `tables` takes in soccer's nine pairs (each agreed on the first run);
+  a new case, `positions`: the Premier League's short game, MLS's best ball and the Champions League's season, live, Ann a
+  game behind with and without "Sports scores too": **the server's table, the runtime's and the oracle's are the same** for Ann
+  and Bo; a control: a goal moved from a forward of a seat's to a defender of theirs behind the runtime moves that seat by 2 on
+  the server, and the right rows back are clean. 9 checks, all passing on the first run.
+- **API tier:** campaign `sport-positions-api` (seed 14, depth 20, one worker, generator 53: the final code): **70 of 70**; 10
+  sports cases (one soccer, eight fields over golf's and racing's series, a basketball one), the classic state route's known
+  finding in 52.
+- **UI driver** (`check-explorer-page.js --only="sports positions:"`): the Premier League's season (head to head, eleven of
+  fifteen), locking at each game's start (the week's lock is the second slice's, and with this fixture's schedule it had
+  locked the next lineup: the sheet doesn't open for a locked week, BACKLOG 76's leftover). Each seat's record on the real
+  page is the runtime's from its points by position week by week; a starter benched and another started on the real sheet,
+  saved, accepted and replayed by the runtime with no mismatch; the route checks pass. Screenshots `05zzv`, `05zzw`, words in
+  `sports-soccer-page.json`.
+- **Findings:**
+  1. No disagreement between the server and the runtime, or either and the oracle: soccer's nine pairs and the `positions`
+     case agreed on the first run.
+  2. **A formation isn't part of any game** (the page step benched the keeper, and both sides took a lineup with no keeper):
+     the spec holds only how many start, the league's defaults' slots (a keeper, three defenders, two midfielders, a forward)
+     are used only to count them, and the generated draft gave a seat two keepers and eleven defenders. Already planned: L9 in
+     docs/PLAN-start-a-game-gpt.md (lineup slots from the spec's `slots`). Not a new item.
+  3. The lineup sheet says nobody's position, though a goal is worth 4 to 10 by it (Designs needed item 34, "tiles show a
+     first name and no position").
+  4. **A generator defect** (campaign case 150, a show's): exclusive mid-season waivers on a lineup whose draft took the whole
+     pool (two seats of five from ten), which the engine refuses (nobody is ever free to replace anyone). `proof-family-53`
+     gives such a game shared replacements, as the engine advises, without taking a draw (under one manifest, every other case is as it was).
+
+#### Sports statistics, sixth slice: points by a match's format (2026-11-14)
+
+A card's game (tennis's) scores each match a player played at its format's points (`score.byFormat`: the ATP's `{ 5: {...} }`,
+a Grand Slam's best of five, where a set won is 5 and not 6), and whatever the day's line has besides its matches' (a final's
+correction) at the table's own. On the server a card's kept final is everyone's line over the day, each match's sides and best
+of (`rounds`), each one's line in each match (`byBout`) and the results (`sports_events.shape`: `final.ts` `storedCard`); a read
+hands each holder's matches to the scorer (`score.ts` `boutsOf`, the stamp's `statBouts`; `sequence/stats.js` `statLine`'s
+`bouts`). **1,231 of 1,312 specimens run** (the two by format), and 94 of the leagues' own league-and-game pairs (the ATP's and
+the WTA's two each joined the 90).
+
+- **Runtime** (`core-runtime-38`):
+  - a tennis day's results are its lines and its **card** (`runtime-sports.cjs` `tennisCard`): `{ bouts: [{ id, order, sides,
+    rounds, main, class }], byBout, results }`; the cast plays among itself and against players outside it (who have no line),
+    some rest (no line); a best of five on half the ATP's days (a Grand Slam's men's), else three; sets, games, tiebreaks,
+    clean sets, straight sets, now and then a retirement (WRET1 to WRET5); each day's line is its matches' added up. Checked
+    (`checkCard`): a match's two sides and best of, a result each with its winner and loser its sides, a match's lines only
+    for who played it and has a day's line;
+  - each card athlete's matches are stamped as the server stamps them (`boutsOf`): on a fight card, whose matches aren't
+    generated (no MMA table scores by format), an empty list each, as the server's empty card gives;
+  - the materializer writes a card's shape (`shapeOf`: `{ kind: 'card', card: { event, bouts, field }, byBout, results }`).
+- **Profile:** `score.byFormat` on a sport's game scored by stats, on a card.
+- **The rule, restated apart from the engine:** `sports-oracle.cjs` `linePoints(score, line, group, bouts)`: each match at its
+  format's points (a group's first, then the format's, then the table's), the day's line beyond its matches at the table's;
+  no line, nothing.
+- **Unit tests** (`tests/gameplay-explorer-sports.test.js`, 111): tennis's four pairs against the oracle; the oracle by hand (a
+  best of five at its points, a best of three at the table's, a day's line without its matches, the rest beyond them, a table
+  with no formats); a tennis world (best of five only on the ATP's days, a result each, the day's line its matches' sum, the
+  stamp the server's `boutsOf`; over a few seasons a best of five and of three, a match against someone outside the cast, a
+  rest, a retirement, straight sets); refusals; the same match as a best of five rather than three moving its seat by exactly
+  the formats' difference.
+- **Generator** (`proof-family-54`): a league's tennis games are among a sports case's games; a tennis day's results carry its
+  matches.
+- **Invariants:** `stats-table` recounts with each held player's matches (`linePoints`'s `bouts`, from the fact's card).
+- **Campaigns** (depth 30): `sport-formats-200` (seed 15): 200 of 200, but its two tennis cases were both the WTA's: no best of
+  five, so nothing by format was exercised. **`sport-formats-200b`** (seed 18, chosen from its definitions alone for its five
+  ATP cases): **200 of 200**; 36 sports cases, 6 of them tennis (`count.cjs`: the matches seats held: 137 best of five, 130 best
+  of three, 81 rests, 6 retirements, 51 against a player outside the cast).
+- **Positive controls** (`engine-controls.js` over `sport-formats-200b`'s 36 sports cases; the unedited files pass all 36): a
+  match's format ignored (every match at the table's own points) fails the 5 ATP cases (the WTA's has no best of five); the
+  card's matches ignored (the day's line scored whole), the same 5; the runtime stamping no matches, the same 5; and a day's line
+  beyond its matches left unscored changes nothing (finding 4). Both edited files came back byte for byte.
+- **Real routes, directly** (`check-sports-explorer.js`): `tables` takes in tennis's four pairs, and MMA's still agree with
+  their matches stamped (each agreed on the first run); a new case, `formats`: the ATP's short and season games and the WTA's,
+  live, Ann a game behind with and without "Sports scores too": **the server's table, the runtime's and the oracle's are the
+  same** for Ann and Bo (held: 7 and 16 best-of-five matches, 6 and 12 best of three, rests); a control: a best of five a player
+  of Bo's played, written as a best of three behind the runtime, moves Bo by the formats' difference (5.2) on the server, and the
+  right rows back are clean. 8 checks, all passing on the first run.
+- **API tier:** campaign `sport-formats-api` (seed 69, chosen as 200b's was for its tennis; depth 20, one worker): **70 of
+  70**; 17 sports cases (two ATP, two WTA, an MMA card, two F1, eight golf, a basketball, a hockey, a college baseball one).
+- **UI driver** (`check-explorer-page.js --only="sports formats:"`): the ATP's season on the real page, each seat's total the
+  runtime's from each match at its format; the sheet opened (six of six: BACKLOG 79); the route checks pass. Screenshots
+  `05zzx`, `05zzy`, words in `sports-tennis-page.json`.
+- **Findings:**
+  1. No disagreement between the server and the runtime, or either and the oracle, on the first run.
+  2. **Designs needed item 37:** nothing on the page says who a player played, the score, that a match was a best of five, or a
+     retirement.
+  3. **BACKLOG 75**, more of it: "30 an MP, -3 an SL, 14 a WRET1" and "scheduled for 5: 5 a W ..."; **BACKLOG 79** covers a
+     card's season too (six of six).
+  4. A gap the controls show: a day's line beyond its matches (a final's correction) is never generated, so its rule (scored at
+     the table's own points) is held only by the oracle's own test.
+  5. A campaign draws its leagues evenly, so a mechanic only a league or two carry can go unexercised in 200 cases (seed 15):
+     count what the slice's cases held before trusting a clean run, and choose a seed by its definitions when needed.
+
+#### Sports statistics, seventh slice: a slate, and a lock at each game's start (2026-11-14)
+
+A league's slate (`src/lib/sports/slate.ts`, migration 0304) is a season of a whole league's games, several an episode: every
+league's Season league, Best Ball, Short, Categories and Roto on a whole league play on one. On the server a slate's week is its
+games' lines added up, with a rate worked out on the counts' sum and each game's lines kept beside them (`score.ts`
+`leagueGames`: `statGames`). The week is final only when every game in it is. It locks at its own first game whatever its
+cadence (`locks.ts` `locksOf`'s `slate`). With a lineup that locks at each game's start (`closes: 'game'`), each holding locks
+with its own team's game for the rest of that day (`air-times.ts` `stampGameLocks`: `gameStarts`, `holdingGames`, a holding's
+team the cast's `tribe_name`), and each game counts the lineup in force when it began (the engine's lineup log, `lineupsAt`;
+`ActiveRosterLogic.gameHeld`). No specimen needed it (none is blocked by its lock), and every league's slate season does, so it
+was the next slice by the handoff's order.
+
+- **Definition:** a sport context's opt-in `slate: { games: 2 to 6 }` (a team sport's): twice as many teams, each athlete on one
+  in turn (`team`). The fixture's `slate` option makes one, with weeks seven days apart.
+- **Runtime** (`core-runtime-39`):
+  - each week's games (`runtime-sports.cjs` `gamesOf`): its teams in a round robin, the first at the event's air time, two a day
+    three hours apart;
+  - a week's results are each game's lines (`{ games: { [game]: { [athlete]: counts } } }`, its two teams' athletes), refused
+    without each game, with a line for someone not in the game, or as one week's line; final only once the clock is past the
+    week's last game;
+  - read as the server reads them (`slateLines`): each game's lines with its derived stats worked out (stamped as `statGames`),
+    the week's added up, a rate on the counts' sum;
+  - locks: a slate's week at its own first game (`lockTimes` with `slate`); with `closes: 'game'`, each episode's games and each
+    holding's games stamped for a read or an action as the server stamps them (`gameLocks`, the app's own `gameLocksOf`), never
+    kept; the engine keeps each lineup set with its time.
+- **Profile:** `closes: 'game'` on a sport's lineup scored by stats, on a slate (a world of one game an episode: a gap).
+- **The rule, restated apart from the engine:** a week's points are its games' points (each game's line with its derived stats
+  worked out); a game counts the lineup set last before it began, else the one carried in; a holding is locked while its
+  team's game began earlier that Eastern day. In the unit tests, the invariants and the route check, from the schedule and the
+  engine's log, never from `gameHeld` or `heldLocked`.
+- **Unit tests** (`tests/gameplay-explorer-sports.test.js`, 130): a slate's teams and round robin; a week read as the server
+  reads it (each game's lines beside the week's; FG% from the week's counts); twelve slate games against the oracle (the NBA's,
+  the NFL's, the NHL's and MLB's season, short and best ball); roto on a slate (the NBA's, the NHL's); a slate's lock at its own
+  first game; **a lock at each game's start played through a week:** benching a player whose game began today refused, the change
+  taken the next morning, refused after the last game, and the week's total counting each game's lineup at its start (on the
+  projection: the kept state alone plays as one lineup), which differs from the last lineup's; refusals; the gap without a slate.
+- **Generator** (`proof-family-55` to `57`): on a team sport four sports cases in ten are a slate (two or three games a week,
+  weeks seven days apart), and on a slate half the lineups lock at each game's start. The walk steps the clock to each game's
+  start and waits for a week's last game before its results, sending a week without one of its games now and then. Mid-week, a
+  valid lineup keeps whoever's game began today where they are (56); the invalid share moves one of them (57).
+- **Invariants:** `stats-table` recounts a slate week game by game (each game's counted holdings the lineup in force at its
+  start where the engine kept a log); a categories game over every game's line of the week; `sport-locks` at a slate week's own
+  first game, or its last for a lineup locking at each game; **`slate-holding-locks`** (new): a lineup moving a player whose
+  team's game began today (Eastern) is never taken, and one refused as a game having started moved such a player.
+- **Campaigns** (depth 30; seeds chosen from their definitions alone for their slates):
+  - `sport-slates-200` (seed 21, generator 55): 200 of 200; seven slate cases, but no lineup was taken between a week's games
+    (the walk moved a locked player almost every time: 7 refused);
+  - `sport-slates-200b` (seed 35, generator 56): 200 of 200; ten slate cases over five leagues, 9 lineups taken mid-week, 3 weeks
+    scored game by game with a changed lineup;
+  - `sport-slates-200c` (seed 68, generator 57): 200 of 200; seven slate cases, 6 lineups taken mid-week, 7 refused for a game
+    begun that day, categories games on slates.
+- **Positive controls** (`engine-controls.js`, this slice's six; the unedited files pass every case):
+  - over 200b's 39 sports cases: the lock at each game's start ignored fails 4 (`sport-locks`); a holding locked all week once
+    its game starts, 1 (`slate-holding-locks`); a game counting the lineup set last, 1; the runtime keeping no game's lines beside
+    the week's, 1;
+  - over 200c's 30: a started holding never locked fails 3 (`slate-holding-locks`; over 200b it couldn't bite: nothing there
+    moved a locked player, hence 57);
+  - a week's rate read as the sum of each game's rates changes nothing anywhere: no score reads the week's rate stat (categories
+    work a rate out from the counts), so only its unit test holds the server's summing rule.
+
+  Every edited file came back byte for byte.
+- **Materializer** (`live-db.cjs`): a slate's season gets its `sports_slates` row; each athlete's team is the cast's `tribe_name`;
+  each game is its own linked game (`season_events`, its two teams) and kept final (`sports_events`), one episode's several. A
+  league's lineup log (`lineupsAt`) is shifted with the schedule when written, so the server reads which lineup was in force at
+  each game's shifted start as the runtime did.
+- **Real routes, directly** (`check-sports-explorer.js`): a new case, `slates`, 13 checks, all passing on the first run:
+  - the NBA's season and short game and the NFL's best ball on three games a week, live, Ann a game behind with and without
+    "Sports scores too": the routes agree with the runtime, and a points table is each seat's games' points (the oracle);
+  - a lock at each game's start through a week on the real lineup route: taken before the week, refused an hour into its first
+    game for a player in it, taken the next morning, refused after its last game began; the week's total counts each game's
+    lineup at its start (213.8, not the last lineup's 151.9) on the server and the runtime;
+  - a control: one game's box score wrong behind the runtime moves the server's tables off; written back, clean.
+- **API tier:** campaign `sport-slates-api` (seed 114, depth 20, one worker, generator 57): **70 of 70**; seven slate cases, own
+  pace among them.
+- **UI driver** (`check-explorer-page.js --only="sports slates:"`): the NBA, three games a week locking at each game's start, an
+  hour into week 3's first game (week 3: the round robin puts Ann's first starter's team in it and not her second's). After BACKLOG
+  80's fix the step checks:
+  - the sheet says "change anyone until their game starts" and "Each player locks when their game starts.";
+  - a locked player's tile reads "Locked · game on", and tapping it explains and changes nothing;
+  - Your sheet's week says it is under way;
+  - a change that moves nobody locked is saved, accepted and replayed by the runtime with no mismatch;
+  - the route checks pass.
+
+  Screenshots `05zzz` to `05zzz3`, words in `sports-slate-page.json`.
+- **Findings:**
+  1. No disagreement between the server and the runtime, or either and the oracle, on the first run on the real routes.
+  2. **BACKLOG 80 (fixed, TEMP-UI):** after a week's first game a live player read "change it until you reveal it" and "Revealing
+     the episode does." (false), Your sheet's week "Airs" a time past, and nothing marked who was locked (the only sign a
+     refused save). The view says a lineup locks game by game (`LineupMove.eachGame`).
+  3. **Designs needed item 38:** nothing lays out a week's games: when each of your players plays, against whom, and what each
+     game added (the server keeps each game's lines).
+  4. The campaign's walk, not the product, first left the mechanic unexercised (no mid-week lineup taken), and the counts
+     caught it: generators 56 and 57.
 
 ### Product fixes from these findings (2026-11-12, uncommitted; the user asked for all four)
 

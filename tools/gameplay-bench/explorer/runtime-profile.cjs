@@ -67,6 +67,12 @@ function inspect(document) {
       const cats = Array.isArray(spec.score?.categories) && spec.score.categories.length > 0;
       if (!(cats ? ['categories', 'matchups', 'roto'] : ['total', 'matchups']).includes(spec.rank?.by)) add(game.id, p + '/rank/by', cats ? "A game of a sport's categories is ranked by each category ('categories'), by most of them ('matchups') or across everyone ('roto')" : "Only a game scored by a sport's stats ranked by total or head to head is connected");
       if (spec.score?.categories !== undefined && !cats) add(game.id, p + '/score/categories', "A sport's categories are a list of its stats");
+      // (Points by place, core-runtime-36: a place's points by place or range, golf's and racing's POS, F1's SPR and QUAL; a field's
+      // results carry its standings. A place is a field's: on a team sport or a card there is none to score.)
+      // (Points by position, core-runtime-37: a stat's points by the holder's position group, FPL's; every sport's athletes have one.)
+      // (Points by a match's format, core-runtime-38: a card's matches, each scored at its best of: tennis's.)
+      if (spec.score?.byFormat !== undefined && context.engine?.shape !== 'card') add(game.id, p + '/score/byFormat', "Points by a match's format need a card's matches (tennis)");
+      if (spec.score?.byPlace !== undefined && context.engine?.shape !== 'field') add(game.id, p + '/score/byPlace', "Points by place need a field's standings (golf, racing)");
       if ((spec.ask || []).length) add(game.id, p + '/ask', "A sport's questions (settled by a game's final or a stat) are not connected");
       if (typeof context.key !== 'string' || !context.key) add(game.id, '/world/contexts/' + document.world.contexts.indexOf(context) + '/key', "A sport context names its league (key: 'football/nfl')");
     }
@@ -93,7 +99,7 @@ function inspect(document) {
       // The top scorer's twist (score.twist): its choices per episode, the twist action, stamped as twists.ts stamps them.
       // Outlast in reverse (score.reverse: each holding worth the cast's size + 1 less its place): EliminationOrderScoringStrategy.
       // Multipliers (score.times: an episode's or the finale's points times N): ActiveRosterLogic.timesFor on every read.
-      count: ['start', 'best', 'all', 'pick'], score: ['by', 'points', 'means', 'only', 'hits', 'lives', 'livesOn', 'saves', 'bank', 'bounty', 'parlays', 'times', 'reverse', 'twist', 'captain', 'roles', 'buyback', 'mulligans', 'multiply', ...(sport && stats ? ['categories'] : [])], rank: ['by', 'odd', 'quiet', 'playoffs', 'ties', 'race', 'cut', 'teams'],
+      count: ['start', 'best', 'all', 'pick'], score: ['by', 'points', 'means', 'only', 'hits', 'lives', 'livesOn', 'saves', 'bank', 'bounty', 'parlays', 'times', 'reverse', 'twist', 'captain', 'roles', 'buyback', 'mulligans', 'multiply', ...(sport && stats ? ['categories', 'byPlace', 'byPosition', 'byFormat'] : [])], rank: ['by', 'odd', 'quiet', 'playoffs', 'ties', 'race', 'cut', 'teams'],
     };
     // A pool's second pick (get.second): the pick action's second: true; it counts on a night two or more go home (or every night: counts).
     // A draft spread across the cast's groups (get.across, of 'group'): the generated draft spread as SpreadLogic requires, on a world
@@ -109,7 +115,9 @@ function inspect(document) {
       // Spans from or to a phase ({ phase }): placed from the world's phase starts as the server settles them (runtime-data.cjs settlePhasesIn).
       for (const end of ['from', 'to']) if (J.object(spec.span[end]) && (Object.keys(spec.span[end]).some(k => k !== 'phase') || !(context.engine.phases || []).some((x, i) => i > 0 && x.id === spec.span[end].phase))) add(game.id, p + '/span/' + end, "Only a span from or to one of the context's later phases is connected");
       // (A sport's game scored by stats also locks by the day or the week: runtime-sports.cjs lockTimes, core-runtime-34.)
-      if (spec.closes !== 'start' && !(sport && stats && ['daily', 'weekly'].includes(spec.closes))) add(game.id, p + '/closes', "Only start-based locks are connected in this runtime profile (and a sport's by the day or the week; each game's own start is next)");
+      // (And at each game's start, core-runtime-39: a slate's lineup, each holding locking with its own team's game: closes 'game'.)
+      const slateWorld = sport && context.slate !== undefined;
+      if (spec.closes !== 'start' && !(sport && stats && ['daily', 'weekly'].includes(spec.closes)) && !(sport && stats && spec.closes === 'game' && slateWorld)) add(game.id, p + '/closes', spec.closes === 'game' && sport && stats ? "A lock at each game's start needs a week of several games: a slate (context.slate)" : "Only start-based locks are connected in this runtime profile (and a sport's by the day, the week or each game's start)");
       if (spec.pool?.where && Object.keys(spec.pool.where).some(k => k !== 'stillIn')) add(game.id, p + '/pool/where', 'Pool filter requires an eligibility fixture adapter');
       // The runtime starts after the draft; a draw is recorded as drawn (runtime-data.cjs).
       // An auction (order 'auction'): its sealed bids generated and settled at setup (runtime-data.cjs settleAuctionIn), its budget the

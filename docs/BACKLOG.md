@@ -990,7 +990,14 @@ Last updated 2026-10-27.
     - How it works for the season: a show's rulebook ("Ways out: Eliminated, Quit, Removed", "Won a challenge/competition"),
       "13 contestants."; the season's stats: "contestants", nothing through the games played;
     - "Spoiler protection is off: you see results as they come" on every sports page, for someone who turned nothing off (the
-      setting for a sport is "Sports scores too").
+      setting for a sport is "Sports scores too");
+    - a field's game (found 2026-11-14, points by place, `sports-places-page.json`): How it plays names its places by key ("by
+      POS: 25 for 1st ... by SPR: 8 for 1st ... by QUAL: 10 for 1st", never "for finishing 1st", "in the sprint", "in
+      qualifying") and its counts too ("15 an ALB, 5 a BFR, 3 a BS3", never "an albatross", "a bogey-free round", "a run of three
+      birdies"); F1's team lists each driver as "Still in"; the sheet calls a golfer a contestant and an event an episode;
+    - tennis (found the same day, points by a match's format, `sports-tennis-page.json`): "30 an MP, -3 an SL, 14 a WRET1" and
+      "scheduled for 5: 5 a W, 2.5 a CS ..." (five what: never "in a best-of-five match", "a set lost", "a win when the other
+      player retires in the first set").
     **How sure:** the league was written by the explorer with the generic format and no rulebook, so the words that come from a
     league's format ("contestant") may read right on a league made through Start a game once its show is set up; the keys, the
     grid's caption, the sheet's "Episode" and "Airtime", the refusals and the Episodes line come from code that has no sport's
@@ -1029,6 +1036,36 @@ Last updated 2026-10-27.
     local database would fail it the same way, though the server, which checks with the season's context, takes it. Fix when
     one exists locally: check a league scored by a sport's stats with its season's sport context, or leave such a league's
     sizes to the server's check.
+
+79. **A field's season game asks for a lineup with nothing to decide** (found 2026-11-14 on the real page by the explorer's
+    fourth sports slice, points by place; `.ui-atlas/explorer-page/sports-places-page.json`, screenshot `05zzs`; the sixth
+    found tennis's the same, `sports-tennis-page.json`). The app's own defaults for golf's season (every tour) draft six and
+    start six, F1's and NASCAR's five of five and six of six, and a card's (tennis's, MMA's) six of six: no bench (`src/lib/sports/defaults/*.json`, "start 6 bench 0"). The page still says "SET YOUR GAME 3 LINEUP · Change
+    until ..." (the game's strip, as for any move still to make; Tonight's dock not looked at), and the sheet says "Start 6 of your 6. Tap to start or bench. Your last
+    lineup carries over unless you change it." Tapping benches a golfer, so the only thing the control can do is lose points.
+    **Why it matters:** a move that's always due and always pointless teaches everyone (Joanna first) to ignore the dock, and
+    the one thing a field game does want each week (who's playing the event at all) isn't asked. **The decision (the user's):**
+    give a field's season a bench (draft eight, start six: who you start is then a real weekly call, as in real fantasy golf,
+    where not every golfer plays every event), or make such a lineup no move at all (all set, every holding counted, as the
+    short game is). Nothing scores wrong. Not fixed: it's the game's design, not a fault in the code.
+    **Decided (the user, 2026-11-14): give them a bench** (the example given: draft eight, start six), so who you start is a
+    real weekly call. To build: each such season's defaults (`src/lib/sports/defaults/*.json`: golf's tours, F1's, NASCAR's three,
+    IndyCar's, tennis's, MMA's) draft about two more than start; new games only, nobody's existing league changes.
+
+80. **A lineup that locks game by game told a live player they were catching up** (**fixed 2026-11-14**, TEMP-UI; found that day
+    on the real page by the explorer's seventh sports slice, a slate locking at each game's start; `sports-slate-page.json`,
+    screenshots `05zzz` to `05zzz3`). A sport's week of several games where each player locks when their own team's game starts
+    (closes 'game') stays open after the week's first game. An hour in, the Your moves sheet said "Episode 3 · change it until you
+    reveal it" and "Saving doesn't lock anything. Revealing the episode does." to a live player (both false: nothing about a reveal
+    locks it), Your sheet's week said "Yours to change until it airs", and nothing marked who was locked: the only sign was a
+    refused save ("Not saved: Avery Alvarez's game has started: they stay in your lineup until the day's over"). Now the view says
+    the lineup locks game by game (`game-view.ts` `LineupMove.eachGame`: who is locked now, the week's last start), and the sheet's
+    subtitle, footer and Your Move's line say so ("change anyone until their game starts", "Each player locks when their game
+    starts.", "Each player locks at their game · all by ..."), a locked player's tile reads "Locked · game on", and tapping it
+    explains instead of building a save the server refuses; Your sheet's week, which said "Airs Sat 6:36 PM" of a week begun an
+    hour before, says "Under way · all locked by Sun 6:36 PM". Words through the impeccable skill's clarify pass. Proof:
+    `your-move.test.js`, the real page (`check-explorer-page.js --only="sports slates:"`). **Left for the sports screens
+    (Designs needed item 38):** when each player plays this week, and what each game did.
 
 ## Decided against (don't re-propose without new information)
 

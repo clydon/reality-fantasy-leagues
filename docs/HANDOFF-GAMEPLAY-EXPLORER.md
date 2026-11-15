@@ -68,12 +68,48 @@ statistics". In short:
   counts added up, the better value, a week, roto with ties shared): the unit tests, the invariants `sport-roto` and
   `sport-categories`, and `check-sports-explorer.js --case=categories` (server, runtime and oracle the same) all use it. Proof:
   campaigns `sport-cats-200` and `sport-cats-api`, `check-explorer-page.js --only="sports categories:"`.
-- **Next, in order:** (1) points by place (7 specimens: golf's and racing's; a field's standings, so `sports_events.shape` with
-  its `standings` and a place in each line, `score.byPlace`), by position (3: soccer's; the cast's position groups are stamped
-  already, `score.byPosition`), by a match's format (2: tennis's; a card's bouts, `statBouts`, `score.byFormat`); (2) a lock
-  at each game's own start (`closes: 'game'`: each holding locks with its own team's game, `stampGameLocks`, so athletes need
-  teams and games need sides); (3) a week of several games scored game by game (`sports_slates`, `ep.statGames`), a week in
-  progress, a postponed game; (4) the old bench's sports recipes onto the runtime. Each through the definition of done;
+- **Fourth slice DONE the same day: points by place** (the guide's "Sports statistics, fourth slice"; runtime `core-runtime-36`,
+  generator `proof-family-51`): **1,226 of 1,312**, 81 league-and-game pairs. A field's results are its lines and its standings
+  (`resultsFor`, `keptLines`; a place is never in a fact's line); the materializer writes the standings in `sports_events.shape`;
+  `sports-oracle.cjs` restates a line's points whole (`linePoints`: points, by position, by place) and a field's places
+  (`placed`). Proof: `sport-places-200` (with `count.cjs`, `controls.json`, `controls-1.log` to `-3.log`), `sport-places-api`,
+  `check-sports-explorer.js --case=places`, `check-explorer-page.js --only="sports places:"`. Found Designs needed item 36 and
+  BACKLOG 79 (a decision for the user), and a wrong check of the campaign's own (waivers and a cut seat), corrected. Run a
+  slice's own positive controls with `--only` (six minutes each).
+- **Fifth slice DONE the same day: points by position** (the guide's "Sports statistics, fifth slice"; runtime `core-runtime-37`,
+  generator `proof-family-53`): **1,229 of 1,312**, 90 pairs. The profile and a soccer match of its own (`soccerLine`); groups
+  were stamped since the first slice. Proof: `sport-positions-200` (199 of 200; its one generator defect fixed in 53),
+  `sport-positions-api` (70 of 70), `check-sports-explorer.js --case=positions`, `check-explorer-page.js --only="sports
+  positions:"`. A formation isn't enforced anywhere (L9 plans it).
+- **Sixth slice DONE the same day: points by a match's format** (the guide's "Sports statistics, sixth slice"; runtime
+  `core-runtime-38`, generator `proof-family-54`): **1,231 of 1,312**, 94 pairs. A tennis day's results are its lines and its
+  card (`tennisCard`, `checkCard`, `boutsOf`: each player's matches stamped as the server's; a fight card's empty, as the
+  server's); the materializer writes the card in `sports_events.shape`. Proof: `sport-formats-200b` (seed 18, chosen for its
+  ATP cases: seed 15's `sport-formats-200` drew only the WTA's, no best of five), `sport-formats-api` (seed 69), `check-sports-
+  explorer.js --case=formats`, `check-explorer-page.js --only="sports formats:"`. Found Designs needed item 37.
+- **Seventh slice DONE the same day: a slate (a week of several games, scored game by game) and a lock at each game's start**
+  (the guide's "Sports statistics, seventh slice"; runtime `core-runtime-39`, generator `proof-family-57`). `context.slate`
+  (teams, a round robin, `gamesOf`); a week's results its games' lines, read as the server's (`slateLines`, `statGames`); a
+  slate's lock and the per-game locks stamped as the server's (`gameLocks`), never kept; the materializer writes `sports_slates`,
+  `tribe_name` and each game, and shifts the lineup log. Proof: `sport-slates-200` to `200c` (with `count.cjs`,
+  `controls.json`), `sport-slates-api`, `check-sports-explorer.js --case=slates`, `check-explorer-page.js --only="sports
+  slates:"`. Found and fixed BACKLOG 80 (a lineup locking game by game told a live player they were catching up; TEMP-UI);
+  Designs needed item 38. Lesson: count what the walk did before trusting a clean run (its first walk never changed a lineup
+  mid-week).
+- **The user, 2026-11-14: get to the design round soon; wrap up in the next session, combining work.** So the next session is:
+  (1) **one combined last sports slice**: a week in progress (some games final: the server counts a slate week only once every
+  game is, and a team game's own `partial`) and a postponed or cancelled game (`sports_events` state 'post' not final: it locks
+  nothing, scores nothing; `PLAYED`), through the definition of done with this program's habits (first case on the real routes,
+  the oracle, one campaign whose seed is chosen by its definitions, its counts read, the slice's own controls; a page step only
+  if a screen changes). (2) **The design round's packet**: the plan's Designs needed (38 items), the backlog's UI items and
+  docs/UX-IDEAS.md's index merged into one ranked list, each with its evidence (screenshots and recorded words in
+  `.ui-atlas/explorer-page/`), grouped by the page it lands on, and a recommendation of the first page to redesign (the fresh-start
+  brief's rule: one page with its situation variants, then a pause for the user's review). Decisions the user owes go at its top.
+  (3) **BACKLOG 79, decided: build it** (a field's and a card's season games get a bench, about two more drafted than start;
+  the defaults only, new games only), small, with the explorer's tables case run on those leagues afterwards.
+- **Deferred until after the design round** (none blocks it): the old bench's sports recipes onto the runtime; the specimen tail
+  (the question tail, about 50 in 22 shapes; bingo with trivia alongside, 13; a stage a format change starts, 9); the draft room
+  as actions; Chunk 3's snapshot reconciliation and caching; Chunk 4A's further tiers; Chunks 5 to 12. Each through the definition of done;
   `check-sports-explorer.js`, the oracle and the generator's sports walk are the places to extend.
 - **Found on the way to the engine tier (each recorded):** BACKLOG 71 (a waiver window opens by hand on a game that's over).
   Three of the campaign's own checks were out of step and are corrected: the captain's and the multiplier's twins can't be

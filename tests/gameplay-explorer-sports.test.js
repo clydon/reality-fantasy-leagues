@@ -4,7 +4,8 @@
 //
 // The oracle is worked out here, apart from the engine: each seat's total is its counted athletes' points for each released
 // episode (the whole team, the starters it fielded, or its best n), a line's points each stat the table scores, its count times
-// its points to the cent, over the sport's full line. So a wrong stamp, team, episode or sum shows as a different table.
+// its points to the cent, over the sport's full line; a place's by its place (sports-oracle.cjs linePoints, the fourth slice: a
+// field's line has its place from the standings). So a wrong stamp, team, episode, place or sum shows as a different table.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("path");
@@ -31,7 +32,14 @@ function define(key, game, o = {}) {
   });
 }
 const round = (n) => Math.round(n * 100) / 100;
-/** Each seat's total, worked out apart from the engine's walk (the header's oracle). */
+const Oracle = require(path.join(root, "tools/gameplay-bench/campaign/sports-oracle.cjs"));
+/** An athlete's line in an event as it's scored: a team game's with its derived stats worked out, a field's with its place from
+ *  the standings (the oracle's own restatement), a card's as given. */
+const lineOf = (c, data, id) => (data.standings ? Oracle.placed(data.lines[id], data.standings.find((x) => x.id === id), c.sport.id) : c.context.shape === "team" ? c.sport.full(data.lines[id]) : data.lines[id]);
+const groupOf = (c, world, id) => c.sport.position(world.participants.find((x) => x.id === id).role)?.group ?? null;
+/** On a card, the matches someone played, each its best of and its own line (the fact's own). */
+const matchesOf = (data, id) => (data.card ? data.card.bouts.filter((b) => data.card.byBout[b.id]?.[id]).map((b) => ({ format: b.rounds, line: data.card.byBout[b.id][id] })) : null);
+/** Each seat's total, worked out apart from the engine's walk (the header's oracle; a line's points: sports-oracle.cjs). */
 function expected(snap) {
   const st = snap.games.g.state, world = snap.contexts.sport, c = Sports.league(world.context), spec = S.gameOf(st);
   const released = world.events.filter((e) => ["final", "corrected"].includes(e.resultStatus));
@@ -39,11 +47,11 @@ function expected(snap) {
   for (const p of st.players) {
     let total = 0;
     for (const e of released) {
-      const lines = world.facts.find((f) => f.eventId === e.id).data.lines;
+      const data = world.facts.find((f) => f.eventId === e.id).data;
       const team = st.castaways.filter((x) => x.ownerIds.includes(p.id)).map((x) => x.id);
       const ep = st.episodes.find((x) => x.id === e.id);
       const held = spec.count.start ? (ep.lineups?.[p.id] ?? []) : team;
-      const pts = held.map((id) => round(Object.entries(spec.score.points).reduce((n, [stat, each]) => n + round((c.sport.full(lines[id])[stat] || 0) * each), 0)));
+      const pts = held.map((id) => Oracle.linePoints(spec.score, lineOf(c, data, id), groupOf(c, world, id), matchesOf(data, id)));
       const counted = spec.count.best ? [...pts].sort((a, b) => b - a).slice(0, spec.count.best) : pts;
       total += counted.reduce((a, b) => a + b, 0);
     }
@@ -385,7 +393,6 @@ test("head to head on a sport: the league's own season opens; a week's result is
 });
 
 // ---- Third slice (core-runtime-35): a sport's categories, head to head and roto.
-const Oracle = require(path.join(root, "tools/gameplay-bench/campaign/sports-oracle.cjs"));
 /** Each seat's category totals over some of a case's games, from the box scores and the lineups the full state holds. */
 function categoryTotals(snap, events) {
   const st = snap.games.g.state, world = snap.contexts.sport, c = Sports.league(world.context), spec = S.gameOf(st), defs = c.sport.categoryDefs();
@@ -499,4 +506,412 @@ test("head to head by categories on its page: each seat's record and each week w
     const r2 = R.open(proofOf({ league: "basketball/nba", game: "roto", timing: "live-only", ann: 2 }));
     try { assert.equal(r2.project("g", "ann").game.plays.kind, "points"); } finally { r2.dispose(); }
   } finally { s.dispose(); }
+});
+
+// ---- Fourth slice (core-runtime-36): points by place, a field's results (golf's, racing's). ----
+
+test("the points-by-place oracle is the rule: a place's or its range's points, nothing out of the table or with no place, a placed stat never a count too", () => {
+  const golf = { points: { BIR: 3.5, BOG: -1.3 }, byPlace: { POS: { 1: 25, 2: 12, 3: 10, "4-10": 8, "11-20": 3 } } };
+  assert.deepEqual([1, 2, 3, 4, 9, 10, 11, 20, 21, 150, null, undefined].map((p) => Oracle.placePoints(golf.byPlace.POS, p)), [25, 12, 10, 8, 8, 8, 3, 3, 0, 0, 0, 0]);
+  // T9 is 9th's points, whoever shares it: 4 birdies (14), a bogey (-1.3), 9th (8).
+  assert.equal(Oracle.linePoints(golf, Oracle.placed({ BIR: 4, BOG: 1 }, { id: "a", place: 9, tied: true, status: "in", madeCut: true }, "golf")), 20.7);
+  // Cut: no place, so nothing for it (its counts still score).
+  assert.equal(Oracle.linePoints(golf, Oracle.placed({ BIR: 2 }, { id: "a", place: null, tied: false, status: "cut", madeCut: false }, "golf")), 7);
+  // A stat the table places is scored by place alone, never as a count of its place too.
+  assert.equal(Oracle.linePoints({ points: { POS: 5 }, byPlace: { POS: { 1: 1 } } }, { POS: 1 }), 1);
+  // F1: three place stats in one line (the race's, the sprint's, qualifying's), each by its own table.
+  const f1 = { points: { DNF: -20 }, byPlace: { POS: { 1: 25, 2: 18 }, SPR: { 1: 8, 2: 7 }, QUAL: { 1: 10, 2: 9 } } };
+  assert.equal(Oracle.linePoints(f1, { POS: 2, SPR: 1, QUAL: 2, DNF: 0 }), 18 + 8 + 9);
+  assert.equal(Oracle.linePoints(f1, { POS: 12, QUAL: 1, DNF: 1 }), -20 + 10, "no sprint this weekend: SPR scores nothing");
+  // What a place puts in a line: golf's top-n and the cut made; racing's podium.
+  assert.deepEqual(Oracle.placed({}, { id: "a", place: 4, tied: false, status: "in", madeCut: true }, "golf"), { POS: 4, TOP5: 1, TOP10: 1, TOP20: 1, TOP25: 1, CUT: 1 });
+  assert.deepEqual(Oracle.placed({}, { id: "a", place: 1, tied: false, status: "in" }, "racing"), { POS: 1, W: 1, TOP5: 1, TOP10: 1, PODIUM: 1 });
+});
+
+test("a field's results are its lines and its standings: no place in a line, the kept line the app's own placeStats, as the oracle says", () => {
+  for (const league of ["golf/pga", "golf/liv", "racing/f1", "racing/nascar-premier"]) {
+    const s = R.open(proofOf({ league, game: "short", completed: 3, events: 5 }));
+    try {
+      const snap = s.snapshot(), world = snap.contexts.sport, c = Sports.league(world.context), st = snap.games.g.state;
+      for (const f of world.facts) {
+        const ids = Object.keys(f.data.lines);
+        assert.deepEqual(f.data.standings.map((x) => x.id).sort(), [...ids].sort(), league + ": a standing an athlete");
+        assert.ok(ids.every((id) => !c.sport.placeKeys.some((k) => k in f.data.lines[id])), league + ": a place is the standings'");
+        const kept = Sports.keptLines(world.context, f.data);
+        for (const id of ids) assert.deepEqual(kept[id], Oracle.placed(f.data.lines[id], f.data.standings.find((x) => x.id === id), c.sport.id), league + " " + id);
+        // A place is from 1 for whoever is in, unique on a race (nobody ties), shared on a course; one winner.
+        const placed = f.data.standings.filter((x) => x.place !== null);
+        assert.ok(placed.every((x) => x.status === "in" && x.place >= 1));
+        if (c.sport.id === "racing") assert.equal(new Set(placed.map((x) => x.place)).size, placed.length, league + ": a race has no ties");
+        for (const x of placed) if (placed.filter((y) => y.place === x.place).length > 1) assert.ok(x.tied, league + ": a shared place is tied");
+        assert.ok(placed.filter((x) => x.place === 1).length <= 1, league + ": one winner");
+      }
+      // The stamp carries each line's place.
+      const ep = st.episodes.find((e) => e.number === 1), first = world.facts.find((f) => f.eventId === ep.id).data;
+      const someone = first.standings.find((x) => x.place !== null);
+      assert.equal(ep.statLines[someone.id].POS, someone.place);
+    } finally { s.dispose(); }
+  }
+});
+
+test("over a few seasons the generated fields reach every kind of place: a winner, a tie, the cut, a withdrawal or disqualification, a place past the table", () => {
+  const seen = { tie: 0, cut: 0, out: 0, past20: 0, win: 0 };
+  for (const [league, seed] of [["golf/pga", 1], ["golf/pga", 2], ["golf/lpga", 3], ["racing/nascar-premier", 4], ["racing/f1", 5], ["racing/f1", 6]]) {
+    const s = R.open(proofOf({ league, game: "short", completed: 6, events: 7, seed }));
+    try {
+      for (const f of s.snapshot().contexts.sport.facts) for (const x of f.data.standings) {
+        if (x.tied) seen.tie++;
+        if (x.status === "cut") seen.cut++;
+        if (["wd", "dq"].includes(x.status)) seen.out++;
+        if (x.place > 20) seen.past20++;
+        if (x.place === 1) seen.win++;
+      }
+    } finally { s.dispose(); }
+  }
+  for (const k of Object.keys(seen)) assert.ok(seen[k] > 0, k + ": " + JSON.stringify(seen));
+});
+
+test("a field's results are refused without standings, with a place in a line, a place out of step with its status, or an athlete twice", () => {
+  const s = R.open(proofOf({ league: "golf/pga", game: "short", completed: 2, events: 4 }));
+  try {
+    const world = s.snapshot().contexts.sport, ev = world.events[2];
+    assert.equal(s.apply({ type: "clock", at: new Date(Date.parse(ev.airAt) + 3600000).toISOString() }).status, "accepted");
+    let k = 0;
+    const good = Sports.resultsFor(world.context, world.participants, () => (k = (k * 7919 + 104729) % 1000003));
+    const send = (data) => s.apply({ type: "results", contextId: "sport", eventId: ev.id, source: "provider-fixture", resultStatus: "final", data });
+    const first = good.standings[0].id, placedOne = good.standings.find((x) => x.place !== null).id;
+    const { standings, ...bare } = good;
+    assert.match(send(bare).message, /standings/);
+    assert.match(send({ ...good, lines: { ...good.lines, [first]: { ...good.lines[first], POS: 1 } } }).message, /places are its standings/);
+    assert.match(send({ ...good, standings: standings.map((x) => (x.id === placedOne ? { ...x, status: "cut" } : x)) }).message, /standings/);
+    assert.match(send({ ...good, standings: [...standings, standings[0]] }).message, /standings/);
+    const before = table(s.snapshot().games.g.state);
+    assert.equal(send(good).status, "accepted");
+    assert.notDeepEqual(table(s.snapshot().games.g.state), before, "a third tournament's places and counts move the table");
+  } finally { s.dispose(); }
+});
+
+test("a corrected field moves the table by the place alone: a placed golfer moved to 21st loses the place's points and nothing else moves", () => {
+  const s = R.open(proofOf({ league: "golf/pga", game: "short", completed: 1, events: 3, ann: 1 }));
+  try {
+    const snap = s.snapshot(), world = snap.contexts.sport, st = snap.games.g.state, f = world.facts[0].data, ev = world.events[0];
+    const owner = (id) => st.castaways.find((x) => x.id === id)?.ownerIds[0];
+    const table0 = S.gameOf(st).score.byPlace.POS;
+    const mover = f.standings.filter((x) => owner(x.id) && x.place !== null).sort((a, b) => a.place - b.place)[0];
+    const was = Oracle.placePoints(table0, mover.place);
+    assert.ok(was > 0, "a held golfer placed in the table");
+    const moved = { ...f, standings: f.standings.map((x) => (x.id === mover.id ? { ...x, place: 21, tied: false } : x)) };
+    const before = table(snap.games.g.state);
+    assert.equal(s.apply({ type: "results", contextId: "sport", eventId: ev.id, source: "provider-fixture", resultStatus: "corrected", data: moved }).status, "accepted");
+    const after = table(s.snapshot().games.g.state), who = owner(mover.id);
+    assert.equal(round(before[who] - after[who]), was, "the place's points come off");
+    for (const p of Object.keys(before)) if (p !== who) assert.equal(after[p], before[p]);
+  } finally { s.dispose(); }
+});
+
+// ---- Fifth slice (core-runtime-37): points by position, a stat's points by the holder's position group (FPL's, soccer's). ----
+
+test("the points-by-position oracle is the rule: a group's points where the table has them for a stat, else the table's points; a group's 0 is 0", () => {
+  const fpl = { points: { G: 5, CS: 1, GA2: 0, MIN60: 1 }, byPosition: { G: { GK: 10, DEF: 6, MID: 5, FWD: 4 }, CS: { GK: 4, DEF: 4, MID: 1, FWD: 0 }, GA2: { GK: -1, DEF: -1, MID: 0, FWD: 0 } } };
+  const line = { G: 1, CS: 1, GA2: 1, MIN60: 1 };
+  assert.deepEqual(["GK", "DEF", "MID", "FWD"].map((g) => Oracle.linePoints(fpl, line, g)), [10 + 4 - 1 + 1, 6 + 4 - 1 + 1, 5 + 1 + 0 + 1, 4 + 0 + 0 + 1]);
+  // No group (or one the table leaves out): the table's points.
+  assert.equal(Oracle.linePoints(fpl, line, null), 5 + 1 + 0 + 1);
+  assert.equal(Oracle.linePoints(fpl, line, "COACH"), 5 + 1 + 0 + 1);
+  // A stat only the groups score (no `points` for it) still scores for a group that has it.
+  assert.equal(Oracle.linePoints({ points: {}, byPosition: { SV: { GK: 2 } } }, { SV: 3 }, "GK"), 6);
+  assert.equal(Oracle.linePoints({ points: {}, byPosition: { SV: { GK: 2 } } }, { SV: 3 }, "DEF"), 0);
+});
+
+test("a soccer world: every group in the cast, a keeper's saves, goals conceded for everyone, so a clean sheet and every two conceded vary by group", () => {
+  const s = R.open(proofOf({ league: "soccer/eng.1", game: "season", completed: 4, events: 5 }));
+  try {
+    const world = s.snapshot().contexts.sport, c = Sports.league(world.context);
+    const group = (id) => groupOf(c, world, id);
+    assert.deepEqual([...new Set(world.participants.map((p) => group(p.id)))].sort(), ["DEF", "FWD", "GK", "MID"]);
+    const seen = {};
+    for (const f of world.facts) for (const [id, raw] of Object.entries(f.data.lines)) {
+      const l = c.sport.full(raw), g = group(id), k = (x) => (seen[g + " " + x] = (seen[g + " " + x] || 0) + 1);
+      if (l.CS) k("CS"); else k("no CS");
+      if (l.GA2) k("GA2");
+      if (l.G) k("G");
+      if (g === "GK") assert.ok("SV" in l, "a keeper's line has saves");
+    }
+    for (const want of ["GK CS", "GK no CS", "DEF CS", "DEF GA2", "MID CS", "MID no CS", "FWD G", "MID G"]) assert.ok(seen[want], want + ": " + JSON.stringify(seen));
+  } finally { s.dispose(); }
+});
+
+test("by position on the table: a goal moved from a forward to a defender of the same seat is worth the groups' difference (6 less 4) and nothing else moves", () => {
+  const s = R.open(proofOf({ league: "soccer/eng.1", game: "short", completed: 1, events: 3, ann: 1 }));
+  try {
+    const snap = s.snapshot(), world = snap.contexts.sport, st = snap.games.g.state, c = Sports.league(world.context), f = world.facts[0].data;
+    const seat = st.players.find((p) => { const mine = st.castaways.filter((x) => x.ownerIds.includes(p.id)).map((x) => groupOf(c, world, x.id)); return mine.includes("FWD") && mine.includes("DEF"); });
+    assert.ok(seat, "a seat with a forward and a defender");
+    const mine = st.castaways.filter((x) => x.ownerIds.includes(seat.id)).map((x) => x.id), fwd = mine.find((id) => groupOf(c, world, id) === "FWD"), def = mine.find((id) => groupOf(c, world, id) === "DEF");
+    const lines = { ...f.lines, [fwd]: { ...f.lines[fwd], G: 1 }, [def]: { ...f.lines[def], G: 0 } }, moved = { ...f.lines, [fwd]: { ...f.lines[fwd], G: 0 }, [def]: { ...f.lines[def], G: 1 } };
+    const send = (l) => assert.equal(s.apply({ type: "results", contextId: "sport", eventId: world.events[0].id, source: "provider-fixture", resultStatus: "corrected", data: { ...f, lines: l } }).status, "accepted");
+    send(lines);
+    const before = table(s.snapshot().games.g.state);
+    send(moved);
+    const after = table(s.snapshot().games.g.state);
+    assert.equal(round(after[seat.id] - before[seat.id]), 6 - 4);
+    for (const p of Object.keys(before)) if (p !== seat.id) assert.equal(after[p], before[p]);
+  } finally { s.dispose(); }
+});
+
+// ---- Sixth slice (core-runtime-38): points by a match's format, a card's matches (tennis's best of five). ----
+
+test("the points-by-format oracle is the rule: each match at its format's points, else the table's; the day's line beyond its matches at the table's", () => {
+  const atp = { points: { MP: 30, SW: 6, SL: -3, W: 6 }, byFormat: { 5: { MP: 30, SW: 5, SL: -2.5, W: 5 } } };
+  const five = { MP: 1, W: 1, SW: 3, SL: 1 }, three = { MP: 1, W: 1, SW: 2, SL: 1 };
+  // A best of five at its own points: 30 + 5 + 15 - 2.5; a best of three at the table's: 30 + 6 + 12 - 3.
+  assert.equal(Oracle.linePoints(atp, five, "MS", [{ format: 5, line: five }]), 47.5);
+  assert.equal(Oracle.linePoints(atp, three, "MS", [{ format: 3, line: three }]), 45);
+  // Without its matches, the day's line is at the table's points.
+  assert.equal(Oracle.linePoints(atp, five, "MS", null), 30 + 6 + 18 - 3);
+  // A day's line with more in it than its matches (the final's correction): the rest at the table's points.
+  assert.equal(Oracle.linePoints(atp, { ...five, SW: 4 }, "MS", [{ format: 5, line: five }]), 47.5 + 6);
+  // A table with no formats: every match at its own points.
+  assert.equal(Oracle.linePoints({ points: atp.points }, five, "MS", [{ format: 5, line: five }]), 30 + 6 + 18 - 3);
+});
+
+test("a tennis day's results are its lines and its matches: a match each for whoever played, a best of five on a Grand Slam's men's day, a winner and a loser", () => {
+  const seen = { five: 0, three: 0, outside: 0, rested: 0, retired: 0, straight: 0 };
+  for (const [league, seed] of [["tennis/atp", 1], ["tennis/atp", 2], ["tennis/wta", 3]]) {
+    const s = R.open(proofOf({ league, game: "short", completed: 4, events: 5, seed }));
+    try {
+      const snap = s.snapshot(), world = snap.contexts.sport, st = snap.games.g.state;
+      for (const f of world.facts) {
+        const { card, lines } = f.data;
+        for (const b of card.bouts) {
+          if (b.rounds === 5) seen.five++; else seen.three++;
+          assert.ok(!(league.endsWith("/wta") && b.rounds === 5), "a women's match is best of three");
+          const r = card.results.find((x) => x.bout === b.id);
+          assert.ok(r && b.sides.includes(r.winner) && b.sides.includes(r.loser) && r.winner !== r.loser);
+          if (b.sides.some((x) => x.startsWith("outside-"))) seen.outside++;
+          const by = card.byBout[b.id];
+          if (by[r.winner]) {
+            assert.equal(by[r.winner].W, 1);
+            if (by[r.winner].WRET) seen.retired++; else assert.equal(by[r.winner].SW, Math.ceil(b.rounds / 2), "a finished match's winner won the sets its format needs");
+            if (by[r.winner].STR) { seen.straight++; assert.equal(by[r.winner].SL, 0); }
+          }
+          if (by[r.loser]) assert.equal(by[r.loser].L, 1);
+        }
+        // The day's line is its matches' added up; whoever played no match has none.
+        for (const p of world.participants) {
+          const mine = card.bouts.filter((b) => card.byBout[b.id]?.[p.id]);
+          if (!mine.length) { assert.ok(!(p.id in lines)); seen.rested++; continue; }
+          const sum = {}; for (const b of mine) for (const [k, v] of Object.entries(card.byBout[b.id][p.id])) sum[k] = (sum[k] || 0) + v;
+          assert.deepEqual(lines[p.id], sum);
+        }
+      }
+      // The stamp carries each one's matches at their format, as the server's boutsOf has them.
+      const ep = st.episodes.find((e) => e.number === 1), f1 = world.facts.find((f) => f.eventId === ep.id).data;
+      const someone = Object.keys(f1.lines)[0];
+      assert.deepEqual(ep.statBouts[someone], Sports.boutsOf(f1, someone));
+      assert.ok(ep.statBouts[someone].every((b) => [3, 5].includes(b.format)));
+    } finally { s.dispose(); }
+  }
+  for (const k of Object.keys(seen)) assert.ok(seen[k] > 0, k + ": " + JSON.stringify(seen));
+});
+
+test("a card's results are refused without a match for a line, with a result for nobody, or a match's line for someone who didn't play it", () => {
+  const s = R.open(proofOf({ league: "tennis/atp", game: "short", completed: 2, events: 4 }));
+  try {
+    const world = s.snapshot().contexts.sport, ev = world.events[2];
+    assert.equal(s.apply({ type: "clock", at: new Date(Date.parse(ev.airAt) + 3600000).toISOString() }).status, "accepted");
+    let k = 0;
+    const good = Sports.resultsFor(world.context, world.participants, () => (k = (k * 7919 + 104729) % 1000003));
+    const send = (data) => s.apply({ type: "results", contextId: "sport", eventId: ev.id, source: "provider-fixture", resultStatus: "final", data });
+    const b0 = good.card.bouts[0], x = b0.sides[0], stranger = world.participants.find((p) => !b0.sides.includes(p.id) && p.id in good.lines).id;
+    assert.match(send({ ...good, card: { ...good.card, results: good.card.results.slice(1) } }).message, /matches/);
+    assert.match(send({ ...good, card: { ...good.card, results: good.card.results.map((r, i) => (i ? r : { ...r, winner: "nobody" })) } }).message, /matches/);
+    assert.match(send({ ...good, card: { ...good.card, byBout: { ...good.card.byBout, [b0.id]: { ...good.card.byBout[b0.id], [stranger]: { MP: 1 } } } } }).message, /matches/);
+    assert.match(send({ ...good, card: { ...good.card, bouts: good.card.bouts.map((b, i) => (i ? b : { ...b, rounds: 0 })) } }).message, /matches/);
+    const before = table(s.snapshot().games.g.state);
+    assert.equal(send(good).status, "accepted");
+    assert.ok(x);
+    assert.notDeepEqual(table(s.snapshot().games.g.state), before, "a third day's matches move the table");
+  } finally { s.dispose(); }
+});
+
+test("by format on the table: the same match played as a best of five instead of three moves its winner's seat by the formats' difference, nothing else", () => {
+  const s = R.open(proofOf({ league: "tennis/atp", game: "short", completed: 1, events: 3, ann: 1 }));
+  try {
+    const snap = s.snapshot(), world = snap.contexts.sport, st = snap.games.g.state, f = world.facts[0].data, spec = S.gameOf(st);
+    const owner = (id) => st.castaways.find((x) => x.id === id)?.ownerIds[0];
+    const b = f.card.bouts.find((x) => x.sides.some((y) => owner(y)));
+    const who = b.sides.find((y) => owner(y));
+    const asFormat = (n) => ({ ...f, card: { ...f.card, bouts: f.card.bouts.map((x) => (x.id === b.id ? { ...x, rounds: n } : x)) } });
+    const send = (data) => assert.equal(s.apply({ type: "results", contextId: "sport", eventId: world.events[0].id, source: "provider-fixture", resultStatus: "corrected", data }).status, "accepted");
+    send(asFormat(3));
+    const three = table(s.snapshot().games.g.state);
+    send(asFormat(5));
+    const five = table(s.snapshot().games.g.state), line = f.card.byBout[b.id][who];
+    const want = round(Oracle.linePoints(spec.score, line, "MS", [{ format: 5, line }]) - Oracle.linePoints(spec.score, line, "MS", [{ format: 3, line }]));
+    assert.notEqual(want, 0, "the formats differ for this line");
+    assert.equal(round(five[owner(who)] - three[owner(who)]), want);
+    for (const p of Object.keys(three)) if (p !== owner(who) && !b.sides.some((y) => owner(y) === p)) assert.equal(five[p], three[p]);
+  } finally { s.dispose(); }
+});
+
+// ---- Seventh slice (core-runtime-39): a slate, a week of several games, and a lineup that locks at each game's start. ----
+
+/** A slate week's points for a seat, worked out apart from the engine: each game's points for the holdings counted in it (`heldIn(game)`:
+ *  the lineup in force at its start, else the whole team), each game's line with its derived stats worked out; best ball's best n
+ *  of each holding's week (a holding's week its games' points). */
+function slateWeek(snap, gameId, playerId, e, heldIn) {
+  const st = snap.games[gameId].state, world = snap.contexts.sport, c = Sports.league(world.context), spec = S.gameOf(st), data = world.facts.find((f) => f.eventId === e.id).data;
+  const byHolding = {};
+  for (const g of Sports.gamesOf(world.context, e)) for (const id of heldIn(g)) if (data.games[g.id][id]) byHolding[id] = round((byHolding[id] || 0) + Oracle.linePoints(spec.score, c.sport.full(data.games[g.id][id]), groupOf(c, world, id)));
+  const pts = Object.values(byHolding);
+  return round((spec.count.best ? [...pts].sort((a, b) => b - a).slice(0, spec.count.best) : pts).reduce((a, b) => a + b, 0));
+}
+const slateDoc = (o) => proofOf({ league: "basketball/nba", game: "short", slate: 3, timing: "live-only", ...o });
+
+test("a slate: twice as many teams as a week's games, each athlete on one; every team plays once a week, round robin; a game's lines are its two teams' athletes'", () => {
+  const s = R.open(slateDoc({ completed: 3, events: 5 }));
+  try {
+    const world = s.snapshot().contexts.sport, teams = Sports.teamsOf(world.context);
+    assert.equal(teams.length, 6);
+    assert.ok(world.participants.every((p) => teams.includes(p.team)));
+    const met = new Set();
+    for (const e of world.events) {
+      const games = Sports.gamesOf(world.context, e);
+      assert.equal(games.length, 3);
+      assert.deepEqual(games.flatMap((g) => g.teams).sort(), [...teams].sort(), "everyone plays once a week");
+      assert.equal(games[0].airAt, e.airAt, "the week's first game is its event's time");
+      assert.ok(games.every((g, j) => !j || Date.parse(g.airAt) > Date.parse(games[j - 1].airAt)));
+      for (const g of games) met.add([...g.teams].sort().join("/"));
+    }
+    assert.ok(met.size >= 5, "the round robin turns: " + met.size + " pairings over five weeks");
+    for (const f of world.facts) {
+      const e = world.events.find((x) => x.id === f.eventId);
+      for (const g of Sports.gamesOf(world.context, e)) for (const id of Object.keys(f.data.games[g.id])) assert.ok(g.teams.includes(world.participants.find((p) => p.id === id).team));
+    }
+  } finally { s.dispose(); }
+});
+
+test("a slate week is read as the server reads it: each game's lines kept beside the week's, the week's added up, a rate on the counts' sum", () => {
+  const s = R.open(slateDoc({ completed: 2, events: 4, game: "roto" }));
+  try {
+    const snap = s.snapshot(), world = snap.contexts.sport, c = Sports.league(world.context), st = snap.games.g.state, defs = c.sport.categoryDefs();
+    const ep = st.episodes[0], data = world.facts.find((f) => f.eventId === ep.id).data;
+    assert.deepEqual(Object.keys(ep.statGames).sort(), Object.keys(data.games).sort());
+    for (const id of Object.keys(ep.statLines)) {
+      const mine = Object.values(data.games).map((g) => g[id]).filter(Boolean).map((l) => c.sport.full(l));
+      assert.equal(ep.statLines[id].PTS, mine.reduce((n, l) => n + (l.PTS || 0), 0), "a count adds up");
+      const fg = Oracle.total(mine, "FG%", defs);
+      if (fg !== null) assert.ok(Math.abs(ep.statLines[id]["FG%"] - fg) < 1e-9, "FG% from the week's counts: " + id);
+    }
+  } finally { s.dispose(); }
+});
+
+// Every slate game the profile takes on the slate leagues (a lineup, a team of three, best ball; categories and roto): the table is
+// each seat's games' points, game by game (a week's line is its games' added up).
+for (const league of ["basketball/nba", "football/nfl", "hockey/nhl", "baseball/mlb"]) for (const game of ["season", "short", "bestBall"]) {
+  let doc;
+  try { doc = proofOf({ league, game, slate: 2, timing: "live-only" }); } catch { continue; }
+  if (P.inspect(doc).gaps.length) continue;
+  test(`${league} ${game} on a slate: the table is each seat's games' points, week by week`, () => {
+    const s = R.open(doc);
+    try {
+      const snap = s.snapshot(), st = snap.games.g.state, spec = S.gameOf(st), world = snap.contexts.sport;
+      const want = {};
+      for (const p of st.players) {
+        const team = st.castaways.filter((x) => x.ownerIds.includes(p.id)).map((x) => x.id);
+        want[p.id] = round(world.events.filter((e) => e.resultStatus === "final").reduce((n, e) => n + slateWeek(snap, "g", p.id, e, () => (spec.count.start ? S.ActiveRosterLogic.lineupFor(st, e.id, p.id) : team)), 0));
+      }
+      assert.deepEqual(table(st), want);
+    } finally { s.dispose(); }
+  });
+}
+
+test("a slate's week locks at its own first game whatever its cadence (a Thursday-to-Monday week isn't the calendar's Tuesday-to-Monday)", () => {
+  for (const closes of ["daily", "weekly"]) {
+    const s = R.open(slateDoc({ completed: 1, events: 3, closes, game: { ...Bench.resolve("basketball/nba", "short").row.spec, get: { by: "draft", each: 4, order: "snake", own: "exclusive" }, count: { start: 2 } } }));
+    try {
+      const snap = s.snapshot(), world = snap.contexts.sport, locks = Sports.lockTimes(world, snap.games.g.state);
+      for (const e of world.events) assert.equal(locks.get(e.number), e.airAt, closes + " week " + e.number);
+    } finally { s.dispose(); }
+  }
+});
+
+test("a lock at each game's start: a holding locks with its own team's game for the rest of that day; a change the next day counts from the next game; the week from its last", () => {
+  const spec = { ...Bench.resolve("basketball/nba", "short").row.spec, get: { by: "draft", each: 4, order: "snake", own: "exclusive" }, count: { start: 2 }, closes: "game" };
+  const doc = slateDoc({ completed: 1, events: 3, game: spec, ann: 1, bo: 1, cy: 1 });
+  assert.deepEqual(P.inspect(doc).gaps, []);
+  const s = R.open(doc);
+  try {
+    let snap = s.snapshot();
+    const world = snap.contexts.sport, st0 = snap.games.g.state, week = world.events[1], games = Sports.gamesOf(world.context, week);
+    const teamOf = (id) => world.participants.find((p) => p.id === id).team, mine = st0.castaways.filter((x) => x.ownerIds.includes("ann")).map((x) => x.id);
+    // The week's games: two on its first day (three hours apart), one the next.
+    const [g1, , g3] = games, E = mine.find((id) => g1.teams.includes(teamOf(id))), L = mine.find((id) => g3.teams.includes(teamOf(id))), X = mine.find((id) => id !== E && id !== L);
+    assert.ok(E && L && X, "Ann holds someone in the first game, someone in the next day's and another: " + JSON.stringify({ E, L, X }));
+    const lineup = (ids) => s.apply({ type: "lineup", gameId: "g", personId: "ann", eventId: week.id, ids });
+    const clock = (ms) => assert.equal(s.apply({ type: "clock", at: new Date(ms).toISOString() }).status, "accepted");
+    const before = [E, X], after = [L, X];
+    assert.equal(lineup(before).status, "accepted", "before the week: anything");
+    // An hour into the first game: E (in it) is locked, in or out; so the change is refused.
+    clock(Date.parse(g1.airAt) + 3600000);
+    assert.equal(lineup(after).status, "rejected", "benching a holding whose game began today");
+    // The next morning, before its game: E's day is over, L's game hasn't begun.
+    clock(Date.parse(g3.airAt) - 3 * 3600000);
+    assert.equal(lineup(after).status, "accepted", "the next day: E is free again, L's game is still to come");
+    // Every game played: its box scores in. The first day's games count the lineup at their start, the last the change.
+    clock(Date.parse(g3.airAt) + 3600000);
+    assert.equal(lineup(before).status, "rejected", "the week locks at its last game");
+    let k = 0;
+    const data = Sports.resultsFor(world.context, world.participants, () => (k = (k * 7919 + 104729) % 1000003), week);
+    assert.equal(s.apply({ type: "results", contextId: "sport", eventId: week.id, source: "provider-fixture", resultStatus: "final", data }).status, "accepted");
+    snap = s.snapshot();
+    const inForce = (g) => (g.id === g3.id ? after : before);
+    const want = round(slateWeek(snap, "g", "ann", world.events[0], () => S.ActiveRosterLogic.lineupFor(snap.games.g.state, world.events[0].id, "ann")) + slateWeek(snap, "g", "ann", week, inForce));
+    // (What Ann is shown: a read stamps the week's games as the server's does; the kept state alone plays as one lineup.)
+    assert.equal(round(s.project("g", "ann").game.table.find((r) => r.playerId === "ann").total), want);
+    // Played as one lineup (the week's last), E's first game wouldn't count: the game-by-game rule matters here.
+    assert.notEqual(round(slateWeek(snap, "g", "ann", week, () => after) - slateWeek(snap, "g", "ann", week, inForce)), 0);
+    // Nothing of the locks is kept: the state holds no game's start; its log of lineups does.
+    const kept = s.snapshot().games.g.state.episodes[1];
+    assert.ok(!("gameStarts" in kept) && !("holdingGames" in kept));
+    assert.equal(kept.lineupsAt.ann.length, 2);
+  } finally { s.dispose(); }
+});
+
+test("a slate's results are refused without each of its week's games, with a line for someone not in that game, or as one week's line", () => {
+  const s = R.open(slateDoc({ completed: 1, events: 3 }));
+  try {
+    const world = s.snapshot().contexts.sport, ev = world.events[1], games = Sports.gamesOf(world.context, ev);
+    assert.equal(s.apply({ type: "clock", at: new Date(Date.parse(games[games.length - 1].airAt) + 3600000).toISOString() }).status, "accepted");
+    let k = 0;
+    const good = Sports.resultsFor(world.context, world.participants, () => (k = (k * 7919 + 104729) % 1000003), ev);
+    const send = (data) => s.apply({ type: "results", contextId: "sport", eventId: ev.id, source: "provider-fixture", resultStatus: "final", data });
+    const { [games[0].id]: _drop, ...two } = good.games;
+    assert.match(send({ ...good, games: two }).message, /each of its week's games/);
+    const stranger = world.participants.find((p) => !games[0].teams.includes(p.team)).id;
+    assert.match(send({ ...good, games: { ...good.games, [games[0].id]: { ...good.games[games[0].id], [stranger]: { PTS: 3 } } } }).message, /two teams/);
+    assert.match(send({ events: [], scoringEvents: [], lines: { [stranger]: { PTS: 3 } } }).message, /games' lines/);
+    assert.match(send({ ...good, games: Object.fromEntries(Object.entries(good.games).map(([id, l], i) => [i ? id : "nope", l])) }).message, /each of its week's games/);
+    assert.equal(send(good).status, "accepted");
+  } finally { s.dispose(); }
+});
+
+test("a lock at each game's start needs a slate: on a world of one game an episode it's a gap", () => {
+  const spec = { ...Bench.resolve("basketball/nba", "short").row.spec, get: { by: "draft", each: 4, order: "snake", own: "exclusive" }, count: { start: 2 }, closes: "game" };
+  assert.ok(P.inspect(proofOf({ league: "basketball/nba", game: spec })).gaps.some((g) => /slate/.test(g.message || g.reason || JSON.stringify(g))));
+});
+
+test("roto on a slate: each category ranked across the seats from every game's line of the week (a rate from the week's counts added up)", () => {
+  for (const league of ["basketball/nba", "hockey/nhl"]) {
+    const s = R.open(proofOf({ league, game: "roto", slate: 2, timing: "live-only", ann: 2 }));
+    try {
+      const snap = s.snapshot(), st = snap.games.g.state, world = snap.contexts.sport, c = Sports.league(world.context), spec = S.gameOf(st), defs = c.sport.categoryDefs();
+      const played = world.events.filter((e) => e.resultStatus === "final");
+      const linesOf = (p) => played.flatMap((e) => { const data = world.facts.find((f) => f.eventId === e.id).data; return S.ActiveRosterLogic.lineupFor(st, e.id, p).flatMap((id) => Object.values(data.games).map((g) => g[id]).filter(Boolean).map((l) => c.sport.full(l))); });
+      const want = Oracle.roto(Object.fromEntries(st.players.map((p) => [p.id, Oracle.totals(linesOf(p.id), spec.score.categories, defs)])), spec.score.categories, defs);
+      const got = Object.fromEntries(s.project("g", "ann").game.table.map((r) => [r.playerId, round(r.total)]));
+      assert.deepEqual(got, want, league);
+    } finally { s.dispose(); }
+  }
 });

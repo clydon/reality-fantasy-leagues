@@ -191,4 +191,8 @@ Everything else in the backlog is engine, data or operations, and doesn't wait o
 
 **Temporary UI** (proofs of concept built ahead of the overhaul, each to be redesigned in it; add a line when one is built: the
 backlog item, the file, what it shows):
-- None yet.
+- BACKLOG 80 (2026-11-14): a sport's lineup that locks game by game. `src/new/show/dock.tsx` (the Your moves sheet: its subtitle
+  "Episode 3 · change anyone until their game starts", its footer "Each player locks when their game starts.", a locked player's
+  tile "Locked · game on" and a tap on it that explains rather than changes), `your-move.ts` ("Each player locks at their game ·
+  all by Sun 7:00 PM"), `lineup-sheet.tsx` (your week's note); the data is `game-view.ts` `LineupMove.eachGame`. Words only plus
+  a tile's line: who plays when, the day's games and a player's line in each are Designs needed item 38.

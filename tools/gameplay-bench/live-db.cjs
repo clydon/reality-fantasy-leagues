@@ -24,7 +24,9 @@
 // moved by `shiftMs`: whoever compares must have the runtime read its locks on the same calendar first (the session's
 // calendar(shiftMs): explorer/runtime-sports.cjs lockTimes), as the campaign's API tier, the bench's session and the sports
 // check do.
-// Not written (a gap each, as the runtime's): a team game's sides and score, a field's standings, a card's bouts (shape null).
+// A field's final (golf's, a race weekend's: 2026-11-14, points by place) is its lines with each one's place in them and its
+// standings in sports_events.shape ({ kind: 'field', event, standings }), as the app keeps one (src/lib/sports/final.ts).
+// Not written (a gap each, as the runtime's): a team game's sides and score, a card's bouts (shape null).
 // Nor the Players tab's stat tables (game_lines: the season's stats fill, from a provider's box score in its own columns).
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env.local'), quiet: true });
 const crypto = require('crypto');
@@ -52,6 +54,9 @@ function stateFor(state, season, shiftMs = 0) {
   // server's clock reads them where the runtime's did (a week's times are worked out from when it opened and the next air time).
   const shift = v => typeof v === 'string' && /^\d{4}-\d\d-\d\dT[\d:.]+Z$/.test(v) ? new Date(Date.parse(v) + shiftMs).toISOString() : v && typeof v === 'object' ? (Array.isArray(v) ? v.map(shift) : Object.fromEntries(Object.entries(v).map(([k, x]) => [k, shift(x)]))) : v;
   if (shiftMs && copy.midSeason?.waivers) copy.midSeason.waivers = shift(copy.midSeason.waivers);
+  // A lineup that locks at each game's start keeps each set with its time (ep.lineupsAt): shifted too, so the server reads which
+  // lineup was in force at each game's (shifted) start as the runtime did. (The epoch entry a log starts with stays the epoch.)
+  if (shiftMs) for (const ep of copy.episodes || []) if (ep.lineupsAt) ep.lineupsAt = Object.fromEntries(Object.entries(ep.lineupsAt).map(([pid, log]) => [pid, log.map(x => (Date.parse(x.at) === 0 ? x : { ...x, at: new Date(Date.parse(x.at) + shiftMs).toISOString() }))]));
   return copy;
 }
 
@@ -84,7 +89,8 @@ async function up(snap, document, dbUrl, onLease) {
       ids.seasons[contextId] = { id: season, slug, number: 1, ...(sport ? { sport: { league: world.context.key, events: slugOf(key, 'c' + (ci + 1)) } } : {}) };
       ids.groups[contextId] = (await one(`INSERT INTO league_groups (created_by) VALUES ($1) RETURNING id`, [owner])).id;
       // (An athlete's position and the provider's id for them: how the server knows a kept line's person, score.ts peopleOf.)
-      for (const [i, c] of world.participants.entries()) await db.query(`INSERT INTO season_cast (season_id, name, photo_url, sort_order, role, provider_ids) VALUES ($1, $2, $3, $4, $5, $6)`, [season, c.name, c.photoUrl || null, i, sport ? c.role || null : null, sport ? JSON.stringify({ [PROVIDER]: c.id }) : null]);
+      // (A slate's athlete's team is the cast's tribe_name: how the server knows a holding's games, air-times.ts stampGameLocks.)
+      for (const [i, c] of world.participants.entries()) await db.query(`INSERT INTO season_cast (season_id, name, photo_url, sort_order, role, provider_ids, tribe_name) VALUES ($1, $2, $3, $4, $5, $6, $7)`, [season, c.name, c.photoUrl || null, i, sport ? c.role || null : null, sport ? JSON.stringify({ [PROVIDER]: c.id }) : null, sport && c.team ? c.team : null]);
     }
     for (const [gi, game] of document.games.entries()) {
       const state = snap.games[game.id].state, season = ids.seasons[game.contextId], slug = slugOf(key, 'g' + (gi + 1));
@@ -122,14 +128,35 @@ async function syncSport(db, season, world, clock, shiftMs) {
   const { league, events } = season.sport, now = Date.parse(clock);
   await db.query(`DELETE FROM sports_events WHERE provider = $1 AND event_id LIKE $2`, [PROVIDER, events + '-%']);
   const people = JSON.stringify(Object.fromEntries(world.participants.map(p => [p.id, { team: null, position: p.role || null }])));
+  const Sp = require('./explorer/runtime-sports.cjs');
+  // A slate (a week of several games, 2026-11-14): the season's slate row (the server reads its games by episode as a week's), and
+  // each week's games, each a linked game at its own start with its two teams, each its own kept final once the week is released.
+  if (Sp.slateOf(world.context)) {
+    await db.query(`INSERT INTO sports_slates (season_id, provider, league, season, stage, cadence, windows, key) VALUES ($1, $2, $3, 2099, 'regular', 'week', '[]'::jsonb, $4) ON CONFLICT (season_id) DO NOTHING`, [season.id, PROVIDER, league, PROVIDER + ':' + events]);
+    for (const e of world.events) {
+      const done = released(e), data = done ? world.facts.find(f => f.eventId === e.id)?.data : null;
+      if (done && (e.resultStatus === 'partial' || !data?.games)) throw Error("A released slate week needs each of its games' box scores: " + e.id);
+      for (const [j, g] of Sp.gamesOf(world.context, e).entries()) {
+        const id = events + '-e' + e.number + '-g' + (j + 1), at = g.airAt ? new Date(Date.parse(g.airAt) + shiftMs).toISOString() : null, lines = data ? data.games[g.id] : null;
+        const teams = JSON.stringify(g.teams.map(t => ({ id: t, name: t })));
+        const who = JSON.stringify(Object.fromEntries(world.participants.filter(p => g.teams.includes(p.team)).map(p => [p.id, { team: p.team, position: p.role || null }])));
+        await db.query(`INSERT INTO season_events (season_id, episode, provider, league, event_id, name, starts_at, teams, lines_at, lines_final) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, now(), true)`, [season.id, e.number, PROVIDER, league, id, (e.title || 'Week') + ' · ' + g.teams.join(' at '), at, teams]);
+        await db.query(`INSERT INTO sports_events (provider, league, event_id, name, starts_at, state, final, final_at, lines, people, lines_at) VALUES ($1, $2, $3, $4, $5, $6, $7, CASE WHEN $7 THEN now() END, $8::jsonb, $9::jsonb, CASE WHEN $7 THEN clock_timestamp() END)`,
+          [PROVIDER, league, id, g.teams.join(' at '), at, done ? 'post' : g.airAt && Date.parse(g.airAt) <= now ? 'in' : 'pre', done, lines ? JSON.stringify(lines) : null, done ? who : null]);
+      }
+    }
+    return;
+  }
   for (const e of world.events) {
     const id = events + '-e' + e.number, at = e.airAt ? new Date(Date.parse(e.airAt) + shiftMs).toISOString() : null, done = released(e);
-    const lines = done ? world.facts.find(f => f.eventId === e.id)?.data.lines : null;
-    if (done && (e.resultStatus === 'partial' || !lines)) throw Error('A released sport event needs its final box score: ' + e.id);
+    const data = done ? world.facts.find(f => f.eventId === e.id)?.data : null;
+    if (done && (e.resultStatus === 'partial' || !data?.lines)) throw Error('A released sport event needs its final box score: ' + e.id);
+    // (A field's lines as the app keeps them, each one's place in them from the standings, and its standings in its shape.)
+    const lines = data ? Sp.keptLines(world.context, data) : null, shape = data ? Sp.shapeOf(world.context, data, e.title || id) : null;
     // (lines_final on the link: the season's stats fill, stats.ts, has nothing to ask for.)
     await db.query(`INSERT INTO season_events (season_id, episode, provider, league, event_id, name, starts_at, lines_at, lines_final) VALUES ($1, $2, $3, $4, $5, $6, $7, now(), true)`, [season.id, e.number, PROVIDER, league, id, e.title || null, at]);
-    await db.query(`INSERT INTO sports_events (provider, league, event_id, name, starts_at, state, final, final_at, lines, people, lines_at) VALUES ($1, $2, $3, $4, $5, $6, $7, CASE WHEN $7 THEN now() END, $8::jsonb, $9::jsonb, CASE WHEN $7 THEN clock_timestamp() END)`,
-      [PROVIDER, league, id, e.title || null, at, done ? 'post' : e.airAt && Date.parse(e.airAt) <= now ? 'in' : 'pre', done, lines ? JSON.stringify(lines) : null, done ? people : null]);
+    await db.query(`INSERT INTO sports_events (provider, league, event_id, name, starts_at, state, final, final_at, lines, people, shape, lines_at) VALUES ($1, $2, $3, $4, $5, $6, $7, CASE WHEN $7 THEN now() END, $8::jsonb, $9::jsonb, $10::jsonb, CASE WHEN $7 THEN clock_timestamp() END)`,
+      [PROVIDER, league, id, e.title || null, at, done ? 'post' : e.airAt && Date.parse(e.airAt) <= now ? 'in' : 'pre', done, lines ? JSON.stringify(lines) : null, done ? people : null, shape ? JSON.stringify(shape) : null]);
   }
 }
 async function sync(ids, snap, document, shiftMs) {

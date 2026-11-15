@@ -45,6 +45,32 @@
 //               stored as the runtime stores the same action; one naming someone else's player, and one of three, are refused
 //               by both; once the game has started a change is refused by both; its box score in, everyone caught up: Bo's week
 //               is his two starters' points, worked out here from the box score, and the route checks are clean.
+//   places      points by place (golf's, racing's: a field's results are its lines and its standings; the materializer writes
+//               each line's place and the standings in sports_events.shape). Live, Ann a game behind with and without "Sports
+//               scores too": golf with ties and a cut (the PGA Tour's season), LIV's best ball (no cut), F1 (two sprint weekends: a race's, a sprint's
+//               and qualifying's places), NASCAR (forty places): the server's table, the runtime's and the rule restated apart
+//               from the engine (campaign/sports-oracle.cjs) are the same for Ann and Bo. A control: one of Bo's placed golfers
+//               written 21st behind the runtime takes exactly that place's points off Bo on the server; the right rows back, clean.
+//   positions   points by position (a stat's points by the holder's position group: FPL's goal, clean sheet and goals
+//               conceded; soccer's three games). Live, Ann a game behind with and without "Sports scores too", the Premier
+//               League's short game, MLS's best ball and the Champions League's season: the server's table (a holder's group from
+//               the season's cast), the runtime's and the rule restated apart from the engine are the same for Ann and Bo. A
+//               control: a goal moved from a forward of a seat's to a defender of theirs behind the runtime moves that seat by 2
+//               on the server (a defender's 6, a forward's 4); the right rows back, clean.
+//   formats     points by a match's format (tennis's: a day's results are its lines and its matches; the materializer writes the
+//               card in sports_events.shape: each match's sides and best of, each one's line in it, the results). Live, Ann a
+//               game behind with and without "Sports scores too", the ATP's short and season games (Grand Slam days best of five)
+//               and the WTA's: the server's table, the runtime's and the rule restated apart from the engine are the same for Ann
+//               and Bo. A control: a best of five a player of Bo's played, written as a best of three behind the runtime, moves
+//               Bo by the formats' difference on the server; the right rows back, clean.
+//   slates      a slate, a week of several games (context.slate; the materializer writes sports_slates, each athlete's team as
+//               the cast's tribe_name, each game a linked game with its teams and its own kept final). The NBA's season and short
+//               game and the NFL's best ball on three games a week, live, Ann a game behind with and without "Sports scores too":
+//               the routes agree with the runtime, and a points table is each seat's games' points (the oracle). A lock at each
+//               game's start (closes 'game') through a week on the real lineup route: taken before; refused an hour into the first
+//               game for a holding in it; taken the next morning; refused after the last game began; the week's total counts each
+//               game's lineup at its start (not the last lineup's), on the server and the runtime. A control: one game's box
+//               score wrong behind the runtime moves the server's tables off.
 // NOTE lines are recorded product findings, not disagreements (both sides do the same).
 // --verbose prints server answers; --keep leaves the rows up (remove: node tools/gameplay-bench/live-db.cjs down-all).
 // The page itself (the game page and its lineup sheet at a phone's width) is the explorer page check's sports step:
@@ -53,7 +79,7 @@
 // Needs: the app on :3000 (npm run dev; BASE to override) and the local dev database (.env.local AUTH_DATABASE_URL).
 //        (A long-running dev server can keep serving an old server module after a fix: if a case still fails, `touch
 //        next.config.ts` and run it again before doubting the fix. BACKLOG 72's note.)
-// Run:   node scripts/dev-test/check-sports-explorer.js [--case=tables|locks|matchups|categories|live|sweep|control|correction|lineup|all] [--league=football/nfl] [--game=short] [--verbose] [--keep]
+// Run:   node scripts/dev-test/check-sports-explorer.js [--case=tables|locks|matchups|categories|places|positions|formats|slates|live|sweep|control|correction|lineup|all] [--league=football/nfl] [--game=short] [--verbose] [--keep]
 const path = require('path');
 const root = path.resolve(__dirname, '../..');
 const L = require(path.join(root, 'tools/gameplay-bench/live-db.cjs')), R = require(path.join(root, 'tools/gameplay-bench/explorer/runtime.cjs'));
@@ -242,6 +268,286 @@ const CASES = {
           check("roto, a wrong box score for Bo's starters behind the runtime: the server's table disagrees with the runtime's", found.some(x => x.signature === 'standings-disagree'), found.slice(0, 2));
           await write(right);
           check('the right box score written back: clean again', !real(await routes()).length);
+        });
+      } finally { s.dispose(); }
+    }
+  },
+  async places() {
+    // Points by place on the real routes (the fourth slice: a field's results are its lines and its standings, golf's and
+    // racing's), three ways: the server, the runtime, and the rule restated apart from the engine (campaign/sports-oracle.cjs: a
+    // place's points by place or range, nothing out of the table or for no place, a field's place from its standings). The
+    // server scores the place in each kept line (sports_events.lines; the materializer writes the standings in its shape too).
+    const Oracle = require(path.join(root, 'tools/gameplay-bench/campaign/sports-oracle.cjs'));
+    const ruleOf = (snap, upTo) => {
+      const st = snap.games.g.state, world = snap.contexts.sport, c = Sports.league(world.context), spec = S.gameOf(st), out = {}, seen = { tied: 0, out: 0, past: 0, sprint: 0 };
+      for (const p of st.players) {
+        let total = 0;
+        for (const e of world.events.filter(x => ['final', 'corrected'].includes(x.resultStatus) && upTo(x.number))) {
+          const f = world.facts.find(x => x.eventId === e.id).data;
+          const held = spec.count.start ? S.ActiveRosterLogic.lineupFor(st, e.id, p.id) : st.castaways.filter(x => x.ownerIds.includes(p.id)).map(x => x.id);
+          const pts = held.map(id => {
+            const sd = f.standings.find(x => x.id === id), line = Oracle.placed(f.lines[id], sd, c.sport.id);
+            if (sd.tied) seen.tied++;
+            if (sd.place === null) seen.out++;
+            if (Object.entries(spec.score.byPlace || {}).some(([k, t]) => line[k] != null && !Oracle.placePoints(t, line[k]))) seen.past++;
+            if (line.SPR) seen.sprint++;
+            return Oracle.linePoints(spec.score, line, null);
+          });
+          total += (spec.count.best ? [...pts].sort((a, b) => b - a).slice(0, spec.count.best) : pts).reduce((a, b) => a + b, 0);
+        }
+        out[p.id] = Oracle.cents(total);
+      }
+      return { table: out, seen };
+    };
+    const serverTable = async (as, ids, who) => Object.fromEntries((((await as(who, 'GET', '/api/seasons/' + ids.seasons.sport.id + '/games?couch=' + ids.couchId)).json?.games || []).find(g => g.leagueId === ids.leagues.g)?.table || []).map(r => [r.playerId, r.total]));
+    const same = (x, y) => JSON.stringify(Object.entries(x).sort()) === JSON.stringify(Object.entries(y).sort());
+    const mine = (s, who) => Object.fromEntries(s.project('g', who).game.table.map(r => [r.playerId, r.total]));
+    for (const [league, game, seed] of [['golf/pga', 'season', 42], ['golf/liv', 'bestBall', 42], ['racing/f1', 'short', 11], ['racing/nascar-premier', 'season', 42]]) for (const hides of [[], ['ann']]) {
+      const s = R.open(proof({ league, game, seed, timing: 'live-only', hides }));
+      try {
+        await withRows(s, async ({ ids, as, routes }) => {
+          const bad = real(await routes()), snap = s.snapshot(), all = ruleOf(snap, () => true), ann = ruleOf(snap, n => n <= (hides.length ? 1 : 2));
+          const server = { ann: await serverTable(as, ids, 'ann'), bo: await serverTable(as, ids, 'bo') };
+          check(league + ' ' + game + ', live, ' + (hides.length ? 'Ann with "Sports scores too" on' : 'nobody hiding scores') + ": the server's table is each seat's places and counts from the standings each has been told, for Ann and Bo; the runtime the same",
+            !bad.length && same(server.ann, ann.table) && same(server.bo, all.table) && same(mine(s, 'ann'), ann.table) && same(mine(s, 'bo'), all.table) && (hides.length ? !same(ann.table, all.table) : true),
+            bad.length ? bad.slice(0, 2) : { server, rule: { ann: ann.table, bo: all.table } });
+          if (!hides.length) note(league + ' ' + game + ': held places counted ' + JSON.stringify(all.seen) + ' (tied, out of the places, past the table, a sprint place)');
+        });
+      } finally { s.dispose(); }
+    }
+    // Control: one of Bo's placed golfers moved to 21st behind the runtime (the line's places and the standing): the server's
+    // table for Bo falls by exactly that place's points and the routes say it disagrees; the right rows back, clean again.
+    {
+      const s = R.open(proof({ league: 'golf/pga', game: 'short', timing: 'live-only', ann: 2 }));
+      try {
+        await withRows(s, async ({ ids, as, write, routes }) => {
+          const right = s.snapshot(), world = right.contexts.sport, st = right.games.g.state, spec = S.gameOf(st), ev = world.events[0];
+          const f0 = world.facts.find(x => x.eventId === ev.id).data, held = st.castaways.filter(x => x.ownerIds.includes('bo')).map(x => x.id);
+          const mover = f0.standings.filter(x => held.includes(x.id) && Oracle.placePoints(spec.score.byPlace.POS, x.place) > 0).sort((a, b) => a.place - b.place)[0];
+          if (!mover) { check("the control has a placed golfer of Bo's to move", false, f0.standings.filter(x => held.includes(x.id))); return; }
+          const worth = Oracle.placePoints(spec.score.byPlace.POS, mover.place), wrong = clone(right), f = wrong.contexts.sport.facts.find(x => x.eventId === ev.id).data;
+          f.standings = f.standings.map(x => (x.id === mover.id ? { ...x, place: 21, tied: false } : x));
+          const before = await serverTable(as, ids, 'bo');
+          await write(wrong);
+          const after = await serverTable(as, ids, 'bo'), found = await routes(right);
+          check("a placed golfer of Bo's (" + mover.place + (mover.tied ? ', tied' : '') + ', worth ' + worth + ") written 21st behind the runtime: the server takes exactly the place's points off Bo and the routes disagree", Math.round((before.bo - after.bo) * 100) / 100 === worth && found.some(x => x.signature === 'standings-disagree'), { before: before.bo, after: after.bo, worth, found: found.slice(0, 2) });
+          await write(right);
+          check('the right standings written back: clean again', !real(await routes()).length && same(await serverTable(as, ids, 'bo'), before));
+        });
+      } finally { s.dispose(); }
+    }
+  },
+  async positions() {
+    // Points by position on the real routes (the fifth slice: a stat's points by the holder's position group, FPL's goal and
+    // clean sheet; soccer's three games), three ways: the server (a holder's group from the season's cast, its position role),
+    // the runtime (the cast's position stamped as the server stamps it) and the rule restated apart from the engine
+    // (campaign/sports-oracle.cjs linePoints with the holder's group).
+    const Oracle = require(path.join(root, 'tools/gameplay-bench/campaign/sports-oracle.cjs'));
+    const ruleOf = (snap, upTo) => {
+      const st = snap.games.g.state, world = snap.contexts.sport, c = Sports.league(world.context), spec = S.gameOf(st), out = {}, seen = {};
+      const group = id => c.sport.position(world.participants.find(x => x.id === id).role)?.group ?? null;
+      for (const p of st.players) {
+        let total = 0;
+        for (const e of world.events.filter(x => ['final', 'corrected'].includes(x.resultStatus) && upTo(x.number))) {
+          const f = world.facts.find(x => x.eventId === e.id).data;
+          const held = spec.count.start ? S.ActiveRosterLogic.lineupFor(st, e.id, p.id) : st.castaways.filter(x => x.ownerIds.includes(p.id)).map(x => x.id);
+          const pts = held.map(id => { const line = c.sport.full(f.lines[id]), g = group(id); for (const k of ['G', 'CS', 'GA2']) if (line[k]) seen[g + ' ' + k] = (seen[g + ' ' + k] || 0) + 1; return Oracle.linePoints(spec.score, line, g); });
+          total += (spec.count.best ? [...pts].sort((a, b) => b - a).slice(0, spec.count.best) : pts).reduce((a, b) => a + b, 0);
+        }
+        out[p.id] = Oracle.cents(total);
+      }
+      return { table: out, seen };
+    };
+    const serverTable = async (as, ids, who) => Object.fromEntries((((await as(who, 'GET', '/api/seasons/' + ids.seasons.sport.id + '/games?couch=' + ids.couchId)).json?.games || []).find(g => g.leagueId === ids.leagues.g)?.table || []).map(r => [r.playerId, r.total]));
+    const same = (x, y) => JSON.stringify(Object.entries(x).sort()) === JSON.stringify(Object.entries(y).sort());
+    const mine = (s, who) => Object.fromEntries(s.project('g', who).game.table.map(r => [r.playerId, r.total]));
+    for (const [league, game] of [['soccer/eng.1', 'short'], ['soccer/usa.1', 'bestBall'], ['soccer/uefa.champions', 'season']]) for (const hides of [[], ['ann']]) {
+      const s = R.open(proof({ league, game, timing: 'live-only', hides }));
+      try {
+        await withRows(s, async ({ ids, as, routes }) => {
+          const bad = real(await routes()), snap = s.snapshot(), all = ruleOf(snap, () => true), ann = ruleOf(snap, n => n <= (hides.length ? 1 : 2));
+          const server = { ann: await serverTable(as, ids, 'ann'), bo: await serverTable(as, ids, 'bo') };
+          check(league + ' ' + game + ', live, ' + (hides.length ? 'Ann with "Sports scores too" on' : 'nobody hiding scores') + ": the server's table is each seat's points by its players' position groups, for Ann and Bo; the runtime the same",
+            !bad.length && same(server.ann, ann.table) && same(server.bo, all.table) && same(mine(s, 'ann'), ann.table) && same(mine(s, 'bo'), all.table),
+            bad.length ? bad.slice(0, 2) : { server, rule: { ann: ann.table, bo: all.table } });
+          if (!hides.length) note(league + ' ' + game + ': held lines by group ' + JSON.stringify(all.seen));
+        });
+      } finally { s.dispose(); }
+    }
+    // Control: in game 1 a goal moved from one of Bo's forwards to one of his defenders behind the runtime: on the server Bo's
+    // total moves by the groups' difference (6 a defender's goal, 4 a forward's) and the routes disagree; the right rows back, clean.
+    {
+      const s = R.open(proof({ league: 'soccer/eng.1', game: 'short', timing: 'live-only', ann: 2 }));
+      try {
+        await withRows(s, async ({ ids, as, write, routes }) => {
+          const right = s.snapshot(), world = right.contexts.sport, st = right.games.g.state, c = Sports.league(world.context), ev = world.events[0];
+          const group = id => c.sport.position(world.participants.find(x => x.id === id).role)?.group;
+          const seat = st.players.find(p => { const g = st.castaways.filter(x => x.ownerIds.includes(p.id)).map(x => group(x.id)); return g.includes('FWD') && g.includes('DEF'); });
+          if (!seat) { check('the control has a seat with a forward and a defender', false); return; }
+          const held = st.castaways.filter(x => x.ownerIds.includes(seat.id)).map(x => x.id), fwd = held.find(id => group(id) === 'FWD'), def = held.find(id => group(id) === 'DEF');
+          const withGoal = (snap, who, other) => { const f = snap.contexts.sport.facts.find(x => x.eventId === ev.id).data; f.lines[who] = { ...f.lines[who], G: (f.lines[who].G || 0) + 1 }; f.lines[other] = { ...f.lines[other], G: f.lines[other].G || 0 }; return snap; };
+          // (Written as a correction the runtime knows, so the two agree before the control: the forward with one more goal.)
+          must(s, { type: 'results', contextId: 'sport', eventId: ev.id, source: 'provider-fixture', resultStatus: 'corrected', data: withGoal(clone(right), fwd, def).contexts.sport.facts.find(x => x.eventId === ev.id).data });
+          const base = s.snapshot(); await write(base);
+          const before = await serverTable(as, ids, seat.id);
+          check('as corrected (a goal more for a forward of ' + seat.id + "'s), the routes are clean", !real(await routes()).length);
+          const moved = clone(base), f = moved.contexts.sport.facts.find(x => x.eventId === ev.id).data;
+          f.lines[fwd] = { ...f.lines[fwd], G: f.lines[fwd].G - 1 }; f.lines[def] = { ...f.lines[def], G: (f.lines[def].G || 0) + 1 };
+          await write(moved);
+          const after = await serverTable(as, ids, seat.id), found = await routes(base);
+          check("the goal written as a defender's behind the runtime: the server moves " + seat.id + "'s total by 2 (a defender's 6, a forward's 4) and the routes disagree", Math.round((after[seat.id] - before[seat.id]) * 100) / 100 === 2 && found.some(x => x.signature === 'standings-disagree'), { before: before[seat.id], after: after[seat.id], found: found.slice(0, 2) });
+          await write(base);
+          check('the right rows written back: clean again', !real(await routes()).length);
+        });
+      } finally { s.dispose(); }
+    }
+  },
+  async formats() {
+    // Points by a match's format on the real routes (the sixth slice: a tennis day's results are its lines and its matches, the
+    // materializer's sports_events.shape a card: each match's sides and best of, each one's line in it, the results), three ways:
+    // the server (each match a player played scored at its format: score.ts boutsOf), the runtime and the rule restated apart
+    // from the engine (campaign/sports-oracle.cjs linePoints with the matches).
+    const Oracle = require(path.join(root, 'tools/gameplay-bench/campaign/sports-oracle.cjs'));
+    const matchesOf = (data, id) => data.card.bouts.filter(b => data.card.byBout[b.id]?.[id]).map(b => ({ format: b.rounds, line: data.card.byBout[b.id][id] }));
+    const ruleOf = (snap, upTo) => {
+      const st = snap.games.g.state, world = snap.contexts.sport, spec = S.gameOf(st), out = {}, seen = { five: 0, three: 0, rested: 0 };
+      for (const p of st.players) {
+        let total = 0;
+        for (const e of world.events.filter(x => ['final', 'corrected'].includes(x.resultStatus) && upTo(x.number))) {
+          const f = world.facts.find(x => x.eventId === e.id).data;
+          const held = spec.count.start ? S.ActiveRosterLogic.lineupFor(st, e.id, p.id) : st.castaways.filter(x => x.ownerIds.includes(p.id)).map(x => x.id);
+          const pts = held.map(id => { const m = matchesOf(f, id); if (!m.length) seen.rested++; for (const x of m) seen[x.format === 5 ? 'five' : 'three']++; return Oracle.linePoints(spec.score, f.lines[id], null, m); });
+          total += (spec.count.best ? [...pts].sort((a, b) => b - a).slice(0, spec.count.best) : pts).reduce((a, b) => a + b, 0);
+        }
+        out[p.id] = Oracle.cents(total);
+      }
+      return { table: out, seen };
+    };
+    const serverTable = async (as, ids, who) => Object.fromEntries((((await as(who, 'GET', '/api/seasons/' + ids.seasons.sport.id + '/games?couch=' + ids.couchId)).json?.games || []).find(g => g.leagueId === ids.leagues.g)?.table || []).map(r => [r.playerId, r.total]));
+    const same = (x, y) => JSON.stringify(Object.entries(x).sort()) === JSON.stringify(Object.entries(y).sort());
+    const mine = (s, who) => Object.fromEntries(s.project('g', who).game.table.map(r => [r.playerId, r.total]));
+    for (const [league, game, seed] of [['tennis/atp', 'short', 2], ['tennis/atp', 'season', 2], ['tennis/wta', 'short', 42]]) for (const hides of [[], ['ann']]) {
+      const s = R.open(proof({ league, game, seed, timing: 'live-only', hides, closes: 'start' }));
+      try {
+        await withRows(s, async ({ ids, as, routes }) => {
+          const bad = real(await routes()), snap = s.snapshot(), all = ruleOf(snap, () => true), ann = ruleOf(snap, n => n <= (hides.length ? 1 : 2));
+          const server = { ann: await serverTable(as, ids, 'ann'), bo: await serverTable(as, ids, 'bo') };
+          check(league + ' ' + game + ', live, ' + (hides.length ? 'Ann with "Sports scores too" on' : 'nobody hiding scores') + ": the server's table is each seat's matches, each at its format, for Ann and Bo; the runtime the same",
+            !bad.length && same(server.ann, ann.table) && same(server.bo, all.table) && same(mine(s, 'ann'), ann.table) && same(mine(s, 'bo'), all.table),
+            bad.length ? bad.slice(0, 2) : { server, rule: { ann: ann.table, bo: all.table } });
+          if (!hides.length) note(league + ' ' + game + ': held matches ' + JSON.stringify(all.seen) + ' (best of five, best of three, a player who rested)');
+        });
+      } finally { s.dispose(); }
+    }
+    // Control: a best of five a player of Bo's played, written behind the runtime as a best of three: the server moves Bo by
+    // exactly the formats' difference for that line, and the routes disagree; the right rows back, clean.
+    {
+      const s = R.open(proof({ league: 'tennis/atp', game: 'short', seed: 2, timing: 'live-only', ann: 2, closes: 'start' }));
+      try {
+        await withRows(s, async ({ ids, as, write, routes }) => {
+          const right = s.snapshot(), world = right.contexts.sport, st = right.games.g.state, spec = S.gameOf(st), held = st.castaways.filter(x => x.ownerIds.includes('bo')).map(x => x.id);
+          const ev = world.events.find(e => { const f = world.facts.find(x => x.eventId === e.id)?.data; return f && f.card.bouts.some(b => b.rounds === 5 && held.some(id => f.card.byBout[b.id]?.[id])); });
+          if (!ev) { check("the control has a best of five a player of Bo's played", false); return; }
+          const f0 = world.facts.find(x => x.eventId === ev.id).data, b = f0.card.bouts.find(x => x.rounds === 5 && held.some(id => f0.card.byBout[x.id]?.[id])), who = held.find(id => f0.card.byBout[b.id]?.[id]);
+          const atFive = Oracle.linePoints(spec.score, f0.lines[who], null, matchesOf(f0, who)), atThree = Oracle.linePoints(spec.score, f0.lines[who], null, matchesOf(f0, who).map(x => (x.line === f0.card.byBout[b.id][who] ? { ...x, format: 3 } : x)));
+          const wrong = clone(right), f = wrong.contexts.sport.facts.find(x => x.eventId === ev.id).data;
+          f.card.bouts = f.card.bouts.map(x => (x.id === b.id ? { ...x, rounds: 3 } : x));
+          const before = await serverTable(as, ids, 'bo');
+          await write(wrong);
+          const after = await serverTable(as, ids, 'bo'), found = await routes(right), moved = Math.round((after.bo - before.bo) * 100) / 100, want = Math.round((atThree - atFive) * 100) / 100;
+          check("a best of five of Bo's player written as a best of three behind the runtime: the server moves Bo by the formats' difference (" + want + ') and the routes disagree', want !== 0 && moved === want && found.some(x => x.signature === 'standings-disagree'), { before: before.bo, after: after.bo, want, found: found.slice(0, 2) });
+          await write(right);
+          check('the right rows written back: clean again', !real(await routes()).length);
+        });
+      } finally { s.dispose(); }
+    }
+  },
+  async slates() {
+    // A slate, a week of several games, on the real routes (the seventh slice: context.slate; the materializer writes the season's
+    // sports_slates row, each athlete's team as the cast's tribe_name, and each week's games, each a linked game at its own start
+    // with its two teams and its own kept final). Three ways: the server, the runtime and the rule restated apart from the engine
+    // (a week's points are its games' points, each game's line with its derived stats worked out: campaign/sports-oracle.cjs).
+    const Oracle = require(path.join(root, 'tools/gameplay-bench/campaign/sports-oracle.cjs'));
+    const weekOf = (snap, playerId, e, heldIn) => {
+      const st = snap.games.g.state, world = snap.contexts.sport, c = Sports.league(world.context), spec = S.gameOf(st), data = world.facts.find(f => f.eventId === e.id).data, by = {};
+      const group = id => c.sport.position(world.participants.find(x => x.id === id).role)?.group ?? null;
+      for (const g of Sports.gamesOf(world.context, e)) for (const id of heldIn(g)) if (data.games[g.id][id]) by[id] = Oracle.cents((by[id] || 0) + Oracle.linePoints(spec.score, c.sport.full(data.games[g.id][id]), group(id)));
+      const pts = Object.values(by);
+      return Oracle.cents((spec.count.best ? [...pts].sort((a, b) => b - a).slice(0, spec.count.best) : pts).reduce((a, b) => a + b, 0));
+    };
+    const ruleOf = (snap, upTo) => {
+      const st = snap.games.g.state, world = snap.contexts.sport, spec = S.gameOf(st);
+      return Object.fromEntries(st.players.map(p => { const team = st.castaways.filter(x => x.ownerIds.includes(p.id)).map(x => x.id); return [p.id, Oracle.cents(world.events.filter(e => ['final', 'corrected'].includes(e.resultStatus) && upTo(e.number)).reduce((n, e) => n + weekOf(snap, p.id, e, () => (spec.count.start ? S.ActiveRosterLogic.lineupFor(st, e.id, p.id) : team)), 0))]; }));
+    };
+    const serverTable = async (as, ids, who) => Object.fromEntries((((await as(who, 'GET', '/api/seasons/' + ids.seasons.sport.id + '/games?couch=' + ids.couchId)).json?.games || []).find(g => g.leagueId === ids.leagues.g)?.table || []).map(r => [r.playerId, r.total]));
+    const same = (x, y) => JSON.stringify(Object.entries(x).sort()) === JSON.stringify(Object.entries(y).sort());
+    const mine = (s, who) => Object.fromEntries(s.project('g', who).game.table.map(r => [r.playerId, r.total]));
+    // Every slate game with points (a lineup, a team of three, best ball), the NBA's and the NFL's; Ann a game behind, with and
+    // without "Sports scores too" (the routes' own checks: tables, grids, privacy).
+    for (const [league, game] of [['basketball/nba', 'season'], ['basketball/nba', 'short'], ['football/nfl', 'bestBall']]) for (const hides of [[], ['ann']]) {
+      const s = R.open(proof({ league, game, slate: 3, timing: 'live-only', hides }));
+      try {
+        await withRows(s, async ({ ids, as, routes }) => {
+          const bad = real(await routes()), snap = s.snapshot(), all = ruleOf(snap, () => true), ann = ruleOf(snap, n => n <= (hides.length ? 1 : 2));
+          const server = { ann: await serverTable(as, ids, 'ann'), bo: await serverTable(as, ids, 'bo') };
+          const rec = r => (r && r.length ? r : null);
+          // (Head to head's table is records; its points are the weeks', which the routes' own checks compare.)
+          const pointsGame = !S.gameOf(snap.games.g.state).rank || S.gameOf(snap.games.g.state).rank.by === 'total';
+          check(league + ' ' + game + ' on a slate of three games a week, live, ' + (hides.length ? 'Ann with "Sports scores too" on' : 'nobody hiding scores') + ": the routes agree with the runtime" + (pointsGame ? "; the server's table is each seat's games' points, for Ann and Bo" : ''),
+            !bad.length && (!pointsGame || (same(server.ann, ann) && same(server.bo, all) && same(mine(s, 'ann'), ann) && same(mine(s, 'bo'), all))),
+            bad.length ? bad.slice(0, 2) : { server, rule: { ann, bo: all }, rec: rec() });
+        });
+      } finally { s.dispose(); }
+    }
+    // A lock at each game's start (closes 'game'), on the real lineup route, through a week: two games on its first day, one the
+    // next. Ann holds E (in the first game), L (in the next day's) and X. Each step the runtime's clock moves and the case is
+    // written again (the server's now is the scenario's).
+    {
+      const spec = { ...Bench.resolve('basketball/nba', 'short').row.spec, get: { by: 'draft', each: 4, order: 'snake', own: 'exclusive' }, count: { start: 2 }, closes: 'game' };
+      const s = R.open(proof({ league: 'basketball/nba', game: spec, slate: 3, completed: 1, events: 3, timing: 'live-only', ann: 1, bo: 1, cy: 1 }));
+      try {
+        await withRows(s, async ({ ids, as, write, routes }) => {
+          const snap0 = s.snapshot(), world = snap0.contexts.sport, week = world.events[1], [g1, , g3] = Sports.gamesOf(world.context, week);
+          const teamOf = id => world.participants.find(p => p.id === id).team, held = snap0.games.g.state.castaways.filter(x => x.ownerIds.includes('ann')).map(x => x.id);
+          const E = held.find(id => g1.teams.includes(teamOf(id))), L = held.find(id => g3.teams.includes(teamOf(id))), X = held.find(id => id !== E && id !== L);
+          if (!(E && L && X)) { check("Ann holds someone in the week's first game, someone in the next day's and another", false, { E, L, X }); return; }
+          const route = ids_ => as('ann', 'PUT', '/api/leagues/' + ids.leagues.g + '/episodes/' + encodeURIComponent(week.id) + '/lineups/ann', { castawayIds: ids_ });
+          const both = async (ids_, want) => { const sent = await route(ids_), applied = s.apply({ type: 'lineup', gameId: 'g', personId: 'ann', eventId: week.id, ids: ids_ }); return { ok: want ? sent.status === 200 && applied.status === 'accepted' : sent.status >= 400 && sent.status < 500 && applied.status === 'rejected', sent: sent.status, said: sent.json?.error, applied: applied.status, why: applied.message }; };
+          const at = async ms => { must(s, { type: 'clock', at: new Date(ms).toISOString() }); await write(); };
+          const before = [E, X], after = [L, X];
+          let r = await both(before, true);
+          check('before the week, a lineup is taken by both', r.ok, r);
+          await at(Date.parse(g1.airAt) + 3600000);
+          r = await both(after, false);
+          check("an hour into the first game, benching a holding whose game began today is refused by both", r.ok, r);
+          await at(Date.parse(g3.airAt) - 3 * 3600000);
+          r = await both(after, true);
+          check("the next morning (that day over, the next game to come) the change is taken by both", r.ok, r);
+          await at(Date.parse(g3.airAt) + 3600000);
+          r = await both(before, false);
+          check('after the week\'s last game began, a change is refused by both', r.ok, r);
+          let k = 0;
+          must(s, { type: 'results', contextId: 'sport', eventId: week.id, source: 'provider-fixture', resultStatus: 'final', data: Sports.resultsFor(world.context, world.participants, () => (k = (k * 7919 + 104729) % 1000003), week) });
+          await write();
+          const snap = s.snapshot(), inForce = g => (g.id === g3.id ? after : before);
+          const want = Oracle.cents(weekOf(snap, 'ann', world.events[0], () => S.ActiveRosterLogic.lineupFor(snap.games.g.state, world.events[0].id, 'ann')) + weekOf(snap, 'ann', week, inForce));
+          const oneLineup = Oracle.cents(weekOf(snap, 'ann', world.events[0], () => S.ActiveRosterLogic.lineupFor(snap.games.g.state, world.events[0].id, 'ann')) + weekOf(snap, 'ann', week, () => after));
+          const server = await serverTable(as, ids, 'ann'), bad = real(await routes());
+          check("the week played: the server's total for Ann counts each game's lineup at its start (" + want + ', not the last lineup\'s ' + oneLineup + '), as the runtime does; the routes agree', !bad.length && server.ann === want && mine(s, 'ann').ann === want && want !== oneLineup, bad.length ? bad.slice(0, 2) : { server: server.ann, runtime: mine(s, 'ann').ann, want, oneLineup });
+        });
+      } finally { s.dispose(); }
+    }
+    // Control: one game's box score wrong behind the runtime: the server's table moves off for whoever held a player in it.
+    {
+      const s = R.open(proof({ league: 'basketball/nba', game: 'short', slate: 3, timing: 'live-only', ann: 2 }));
+      try {
+        await withRows(s, async ({ write, routes }) => {
+          const right = s.snapshot(), wrong = clone(right), f = wrong.contexts.sport.facts.find(x => x.eventId === right.contexts.sport.events[0].id).data, gid = Object.keys(f.games)[1];
+          for (const id of Object.keys(f.games[gid])) f.games[gid][id] = Object.fromEntries(Object.entries(f.games[gid][id]).map(([k, v]) => [k, v * 3 + 1]));
+          await write(wrong);
+          check("a slate's second game with a wrong box score behind the runtime: the server's tables disagree", (await routes(right)).some(x => x.signature === 'standings-disagree'));
+          await write(right);
+          check('the right box scores written back: clean again', !real(await routes()).length);
         });
       } finally { s.dispose(); }
     }
