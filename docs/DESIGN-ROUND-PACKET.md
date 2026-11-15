@@ -58,12 +58,17 @@ friend's face and position, the stat table, the person sheet) are decided once a
 7. **The hub and TV guide.**
 8. **Notifications**, then **waivers**.
 9. **Chat**, a light review.
-10. **Story-show flavor** across all of it.
-11. **A separate track:** the wizard, game settings, onboarding, couches, account settings.
+10. **Sports in full**: a pass across the pages above, reusing parts already proven at sports scale.
+11. **Story-show flavor** across all of it.
+12. **A separate track:** the wizard, game settings, onboarding, couches, account settings.
 
-**Every round from step 2 designs competition shows and sports together, as siblings** (the user, 2026-11-14: sports run all
-year, an easy hook for new and existing couches). So the shared parts are proven at sports scale (hundreds of athletes, a slate
-week) from the first round, never retrofitted. The bench's real-size sports pools are built before step 2.
+**Competition shows come first** (the user, 2026-11-14: the app was reality competition first). Each round from step 2:
+- leads with competition shows, designed, storied and reviewed as the priority;
+- then runs a short **sports check** of the same parts at sports scale (a few hundred athletes, a slate week), proving they hold
+  without polishing a sports design (sports run all year, an easy hook, so the parts mustn't break there). Anything that breaks
+  is fixed in the competition design before the user approves it.
+
+The full sports design is step 10. The bench's real-size sports pools are built before step 2's sports check.
 
 Each step is one session, with a screenshot story and a pause. A living board lists every surface's status (today's, drafted,
 approved) and its latest story, and after each round a ripple check re-renders whatever uses a part that round changed.
