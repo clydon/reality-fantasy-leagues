@@ -14,7 +14,9 @@ import { isShowTab, paths, SHOW_TABS, type ShowTab } from "../routes";
 import { startTuneBack, tunedIn } from "../tune-in";
 import { Cast } from "../show/cast";
 import { Chat } from "../show/chat";
-import { Dock, dockShows, MovesSheet } from "../show/dock";
+import { MovesSheet } from "../show/dock";
+import { ProgressControl } from "../show/progress";
+import { MovesStrip } from "../show/strip";
 import { RemindSheet, useReach } from "../show/remind";
 import { useMe } from "../session";
 import type { PhoneState } from "../settings/notify";
@@ -251,9 +253,9 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
     return <EmptyState icon={Tv} title="Show not found" line="It may have been removed." />;
   }
   const tabs = show.solo ? SHOW_TABS.filter((t) => t !== "chat") : SHOW_TABS;
-  const dock = !ro && dockShows(show, tab);
-  // Room under the content for what sits over its foot: the tab bar, the dock, Chat's composer.
-  const foot = 96 + (dock ? 72 : 0) + (tab === "chat" ? 72 : 0);
+  // Room under the content for what sits over its foot: the tab bar, Chat's composer. (The dock went in the design round's step 3:
+  // the strip under the show bar says what's yours to set on every tab but Chat.)
+  const foot = 96 + (tab === "chat" ? 72 : 0);
   return (
     <>
       {show.header ? (
@@ -270,16 +272,19 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
                   onClick: () => nav.back(paths.home, undefined, startTuneBack(seasonId) ? "tune" : undefined, (p) => p.startsWith(`/show/${seasonId}/`)),
                 }
           }
-          status={fillOn ? <ReadyChip f={f} /> : status}
+          // On Tonight the progress control says where the show is (step 3); the chip is the other tabs' short form of it.
+          status={fillOn ? <ReadyChip f={f} /> : tab === "tonight" ? undefined : status}
           progress={fillOn ? <ReadyLine f={f} /> : undefined}
           menu={ro ? <ReadOnlyMenu /> : <ShowMenu seasonId={seasonId} show={show} />}
-          below={<CouchLine show={show} />}
+          below={ro ? <CouchLine show={show} /> : <ProgressControl show={show} />}
         />
       ) : (
         <div className={`animate-pulse bg-card ${tab === "tonight" ? "h-[250px]" : "h-24"}`} aria-busy />
       )}
-      <main style={{ paddingBottom: `calc(${foot}px + env(safe-area-inset-bottom, 0px))` }}>{children}</main>
-      {dock && <Dock show={show} />}
+      <main style={{ paddingBottom: `calc(${foot}px + env(safe-area-inset-bottom, 0px))` }}>
+        {!ro && tab !== "chat" && show.header && <MovesStrip show={show} />}
+        {children}
+      </main>
       <TabBar
         seasonId={seasonId}
         tabs={tabs}
@@ -771,7 +776,7 @@ function WatchingRows({ show, onDone }: { show: ShowData; onDone: () => void }) 
 /** One tab's content. Everything past Tonight is spoiler-guarded, so it carries the one spoiler chip. */
 export function TabScreen({ seasonId, tab }: { seasonId: string; tab: ShowTab }) {
   const show = useShow(seasonId);
-  if (!show.header) return <TabSkeleton />;
+  if (!show.header) return show.error ? <TabError /> : <TabSkeleton />;
   return (
     // The tab's sections, all at once once they're in (ui/loaded.tsx); a tab of its own each time.
     <Loaded key={tab} fallback={<TabSkeleton />}>
@@ -789,6 +794,30 @@ export function TabScreen({ seasonId, tab }: { seasonId: string; tab: ShowTab })
         {tab === "chat" && (show.readOnly ? <ReadOnlyPanel game={show.readOnly} kind="chat" /> : <Chat seasonId={seasonId} show={show} />)}
       </div>
     </Loaded>
+  );
+}
+
+/** A show that didn't load says so, with Try again (BACKLOG 85: the skeleton used to stay up for good). */
+function TabError() {
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  return (
+    <div role="alert" data-tab-error className="px-4 pt-8">
+      <b className="type-caption block text-[24px]">Couldn&rsquo;t load this show</b>
+      <p className="mt-2 text-[15px] leading-snug text-muted-foreground">Check your connection, then try again.</p>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          await qc.refetchQueries({ queryKey: ["new-design"] }).catch(() => undefined);
+          setBusy(false);
+        }}
+        className="nd-press mt-4 flex h-12 w-full items-center justify-center rounded-[4px] font-bold outline-1 -outline-offset-1 outline-edge"
+      >
+        {busy ? "Trying…" : "Try again"}
+      </button>
+    </div>
   );
 }
 

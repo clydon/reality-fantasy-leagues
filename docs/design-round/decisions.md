@@ -238,6 +238,41 @@
   bets as now and flagging a flipped week.
 - Rests on: bets/[betId]/suggested-answer/route.ts; db/episode-research.js openBetsFor; the fairness test the rule answers use.
 
+## 2026-11-15 · Gold and teal out of the people palette: built
+- Decided by: the user (the decision above); the slots by Claude
+- What: the palette a face can be chosen from is six (Orchid, Ember, Lake, Rose, Sage, Bone; src/lib/people.ts). Someone who
+  chose teal wears Lake and gold Ember, the nearest hues left, mapped when read (no migration: the stored hex stays, and the
+  settings sheet shows the replacement as chosen). A face nobody chose keeps its slot by id, so only the teal and gold slots
+  move: teal's to Sage, gold's to Ember.
+- Rejected: teal's default slot to Lake, its nearest hue (Lake already has a slot; twice would leave four colours among faces
+  nobody chose, and more of a couch sharing one); Bone as a default (it reads as the You fill); re-hashing every id over the six
+  left (everyone's face would change).
+- Not touched: the classic engine's player and tribe colours (state-logic.js PALETTE), which the new design's faces don't read.
+- Rests on: tests/people.test.js; DESIGN.md "People colours".
+
+## 2026-11-15 · Step 3's page spec: the progress control holds the reveal, the strip holds the moves
+- Decided by: Claude (default, inside Phase 0's decisions 2 and 3)
+- Why: decision 2's strip opens Your moves and decision 3's control is where you are; a reveal is a change to where you are, so it
+  belongs to the control, and the strip then says the same kind of thing on every tab. The yellow follows the existing rule: the
+  reveal is yellow only while nothing is due.
+- Rejected: the strip carrying the reveal too (on Tonight it would say the reveal twice in one view, beside the control); a
+  separate Up next plate (a fourth place for progress, Phase 0's R3 failure).
+- Rests on: docs/design-round/step3-tonight-spec.md; phase0-first-views.md (Tonight, R3).
+
+## 2026-11-15 · Couch pace on Tonight: data round 3's shared episode axis (A), compact
+- Decided by: Claude (default: no choice was recorded for the pace component)
+- Why: the brief asks for "the viewer, other viewers, latest released episode and current/next airing on a common scale"; A is that
+  scale, and compact it fits the show bar where the numbered faces sit today.
+- Rejected: B, the viewing matrix (a row a person: too tall for the bar; it suits the where sheet); C, the release timeline (a
+  calendar scale reads poorly for a weekly show at 390).
+- Rests on: docs/show-soul-review/tonight-data-round3-2026-11-12.md; APP-REVIEW-DESIGN-BRIEF.md "Component direction".
+
+## 2026-11-15 · The Update episode popup's redesign waits; Tonight opens today's Where you are sheet
+- Decided by: Claude (default, scope)
+- Why: no popup option from data round 3 was chosen, and the popup is shared with the hub and Episodes; Tonight only needs a door to it.
+- Rejected: building option A (the episode ledger) inside this round without the user's choice.
+- Rests on: docs/show-soul-review/tonight-data-round3-2026-11-12.md.
+
 ## 2026-11-15 · Side bets settled by the AI: built
 - Decided by: the user (the decision above); the defaults below by Claude, words through Impeccable's `clarify`
 - The AI settles a bet only when it's sure: an answer of high or medium confidence, and every call on the bet among the guesses
@@ -252,3 +287,12 @@
 - Rejected: settling low-confidence answers (the research's own "pieced together, or judged from a name alone"); a push per
   settled bet (the final results' push is the moment); a Recent changes line per AI settle (the commissioner's marks have none).
 - Rests on: tests/bet-settle.test.js; scripts/dev-test/check-bet-settle.js; the situations show-bets-settled and show-bets-waiting.
+
+## 2026-11-15 · Step 3's check: one batch, and the own-pace plate goes to the user
+- Decided by: Claude (the process: one check, one batch, one confirming look)
+- What: the batch in docs/design-round/step3-tonight-check.md, "The one batch". The own-pace plate taking the reveal two behind
+  (PFD's finding 2, the critique's first issue) is not fixed: the spec kept the plate this round, so folding it into the control is
+  a choice for the user, not another pass.
+- Rejected: changing the clock's countdown inside the last day (the app's rule everywhere); snapping every size to DESIGN.md's ramp
+  (app-wide drift, a DESIGN.md decision).
+- Rests on: docs/design-round/step3-tonight-check.md.

@@ -1,178 +1,27 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowLeftRight, CalendarClock, Check, ChevronRight, Eye, Lock, Plus, Trophy } from "lucide-react";
-import { airTime, calm, ticks } from "../clock";
+import { ArrowLeftRight, Check, ChevronRight, Plus } from "lucide-react";
+import { airTime } from "../clock";
 import { moves as write, useAfterSave, type GameView, type Move } from "../data";
-import { NavLink, useNav } from "../nav";
-import { paths, type ShowTab } from "../routes";
+import { NavLink } from "../nav";
+import { paths } from "../routes";
 import type { ShowData } from "../screens/show-space";
-import { useNow } from "../ui/bars";
-import { useFinalLine } from "../final-words";
 import { Btn, Chip } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { SwipePager, type PagerHandle } from "../ui/swipe-pager";
 import { toast } from "../ui/toast";
 import { ordinal } from "../games";
-import { closeMoves, dockWords, faceIn, first, moveCard, openMoves, sheetTabs, tabOf, useMovesSheet, type MovesTab, type SheetTab } from "./moves";
-import { openCall } from "./calls";
-import { openSheet } from "./questions";
-import { showLabel } from "./react";
+import { closeMoves, faceIn, first, sheetTabs, useMovesSheet, type MovesTab, type SheetTab } from "./moves";
 import { Face, IconBox } from "./parts";
-import { useOpenMorning, useOpenReveal } from "./reveal";
+import { useOpenReveal } from "./reveal";
 import { askAfterSave } from "./remind";
 
-// The moves dock (the mock's dock.js, option D): above the tab bar on Episodes and Cast while a move of yours is due here (the
-// one yellow: Set), then locked once it's on (scores stay hidden). Since 2026-10-31 (the user) it isn't there when you're all
-// set (Tonight says so, with Change), nor on Games, where each game's card says your move (games.tsx, your-move.ts). Its faces
-// are your starters and your pick; its state and words come from your moves due here and the schedule. It opens "Your moves", one sheet with a tab per game you play here (Weekly Lineup, Survival
-// Pool, Outlast's team) and Predictions, which saves through the league routes the classic app uses (lineups,
-// picks, predictions). The games swipe by as a Weekly Lineup player's weeks do (ui/swipe-pager.tsx; the user, 2026-10-31),
-// the tabs' highlight sliding along with the finger. Saving never locks; airtime does. After an episode it follows the results (stages.js):
-// results in (Reveal), just aired and waiting, then the morning update's final scores.
-
-/** Whether the dock shows on this tab: not on Chat; once it's on, everywhere else; on Tonight only then (Tonight has its own
- *  cards); results to reveal or on their way, everywhere else; your moves, only while one's due and not on Games (each game's
- *  card says it there). */
-export function dockShows(show: ShowData, tab: ShowTab) {
-  if (!show.upNext || !show.games.some((g) => g.yourRole) || tab === "chat") return false;
-  if (show.upNext.live) return true;
-  if (tab === "tonight") return false;
-  const eps = show.episodes;
-  if (eps?.reveal || eps?.waiting || eps?.final) return true;
-  return tab !== "games" && show.moves.length > 0;
-}
-
-/** Your starters (the first Weekly Lineup here) and your pick (the first Survival Pool), as overlapping faces. */
-function DockFaces({ play, locked }: { play: GameView[] | null; locked?: boolean }) {
-  const lineup = play?.find((g) => g.lineup && !g.revealFirst);
-  const pool = play?.find((g) => g.pick?.pick && !g.revealFirst);
-  const starters = lineup ? lineup.lineup!.starters.map((id) => faceIn(lineup, id)).filter((c) => !!c) : [];
-  const pick = pool ? faceIn(pool, pool.pick!.pick!) : undefined;
-  if (!starters.length && !pick) return null;
-  const ring = locked ? "shadow-[0_0_0_2px_var(--secondary)] saturate-[.6]" : "shadow-[0_0_0_2px_var(--plate)]";
-  return (
-    <span className="flex flex-none pl-1" aria-label={[...starters.map((c) => first(c.name)), pick && `pick ${first(pick.name)}`].filter(Boolean).join(", ")}>
-      {starters.map((c, i) => (
-        <Face key={c.id} src={c.photo} name={c.name} className={`size-[34px] rounded-[3px] text-sm ${ring} ${i ? "-ml-2" : ""}`} />
-      ))}
-      {pick && <Face src={pick.photo} name={pick.name} className={`size-[34px] rounded-full text-sm ${ring} ${starters.length ? "ml-1" : ""}`} />}
-    </span>
-  );
-}
-
-export function Dock({ show }: { show: ShowData }) {
-  const up = show.upNext!;
-  const airs = up.airAt ? Date.parse(up.airAt) : null;
-  // The soonest deadline of what's due (a waiver pick is due before airtime), else airtime.
-  const dues = show.moves.map((m) => (m.deadline ? Date.parse(m.deadline) : null)).filter((d): d is number => d != null);
-  const t = dues.length ? Math.min(...dues) : airs;
-  const now = useNow(t != null && ticks(t));
-  const finalWords = useFinalLine(show.episodes?.reveal?.stage, show.episodes?.reveal?.finalAt);
-  const openReveal = useOpenReveal();
-  const openMorning = useOpenMorning();
-  const nav = useNav();
-  const when = t != null ? `${airTime(t)} · ${calm(t, now)}` : null;
-  // A move due first that Tonight's card takes to its own page (your draft turn or blind picks, a waiver pick) goes there
-  // too, rather than Your moves.
-  const lead = show.moves[0];
-  const leadHref = lead ? (moveCard(lead, show.header?.seasonId ?? "", false).href ?? null) : null;
-  const drafting = lead?.kind === "draftTurn" || lead?.kind === "blindDraft";
-  const base = "nd-dock nd-fixed-x fixed bottom-[calc(76px+env(safe-area-inset-bottom,0px))] z-[28] mx-2.5 flex items-center gap-2.5 overflow-hidden rounded-[4px] py-[7px] pl-[9px] pr-[7px] text-left shadow-[0_12px_28px_rgba(0,0,0,.5)]";
-
-  if (up.live) {
-    return (
-      <div className={`${base} bg-secondary text-foreground`} aria-live="polite">
-        <DockFaces play={show.play} locked />
-        <span className="min-w-0 flex-1 leading-tight">
-          <b className="flex items-center gap-1.5 text-sm">
-            <Lock className="size-[15px] flex-none" aria-hidden />
-            Locked for Episode {up.number}
-          </b>
-          <small className="block text-[11.5px] text-muted-foreground">Scores stay hidden until you reveal</small>
-        </span>
-      </div>
-    );
-  }
-  const eps = show.episodes;
-  const plain = `${base} bg-secondary text-foreground`;
-  const mark = (icon: ReactNode, cls = "bg-background/60") => <span className={`grid size-[34px] flex-none place-items-center rounded-[3px] ${cls}`}>{icon}</span>;
-  if (eps?.reveal) {
-    const n = eps.reveal.episode;
-    return (
-      <button type="button" data-dock="reveal" onClick={() => openReveal(n)} className={`${base} nd-press bg-plate text-plate-foreground`}>
-        {mark(<Eye className="size-4" aria-hidden />, "bg-plate-foreground text-chyron")}
-        <span className="min-w-0 flex-1 leading-tight">
-          <b className="block truncate text-sm">{eps.reveal.stage === "early" ? "Early results are in" : `Episode ${n} final results are in`}</b>
-          <small className="block truncate text-[11.5px] text-plate-muted">{eps.reveal.stage === "early" ? (finalWords ?? "Who went home · Pool · Outlast") : "Everything stays hidden until you reveal"}</small>
-        </span>
-        <span className="grid h-[38px] place-items-center rounded-[3px] bg-chyron px-3.5 text-sm font-extrabold text-chyron-foreground">Reveal</span>
-      </button>
-    );
-  }
-  if (eps?.waiting) {
-    return (
-      <div data-dock="waiting" className={plain}>
-        {mark(<CalendarClock className="size-4 text-chyron-line" aria-hidden />)}
-        <span className="min-w-0 flex-1 leading-tight">
-          <b className="block text-sm">Episode {eps.waiting.episode} just aired</b>
-          <small className="block text-[11.5px] text-muted-foreground">Results a little after it ends · nothing spoiled</small>
-        </span>
-      </div>
-    );
-  }
-  if (eps?.final) {
-    const n = eps.final.episode;
-    return (
-      <button type="button" data-dock="final" onClick={() => openMorning(n)} className={`${base} nd-press bg-plate text-plate-foreground`}>
-        {mark(<Trophy className="size-4" aria-hidden />, "bg-plate-foreground text-chyron")}
-        <span className="min-w-0 flex-1 leading-tight">
-          <b className="block truncate text-sm">Final results are in</b>
-          <small className="block text-[11.5px] text-plate-muted">Episode {n} · every point counted</small>
-        </span>
-        <span className="grid h-[38px] place-items-center rounded-[3px] bg-background px-3.5 text-sm font-extrabold text-foreground">See</span>
-      </button>
-    );
-  }
-  // Your moves, while one's due (dockShows keeps it away once you're all set).
-  if (!show.moves.length) return null;
-  const faces = <DockFaces play={show.play} />;
-  return (
-    <button
-      type="button"
-      data-dock="moves"
-      onClick={() =>
-        leadHref
-          ? nav.push(leadHref)
-          : show.moves[0]?.kind === "calls" && show.header
-            ? // Weekly Calls' calls are Call it's sheet (step 12 part 2).
-              openCall({ seasonId: show.header.seasonId, couchId: show.couch?.id ?? null, episode: show.moves[0].episode ?? up.number, label: showLabel(show), solo: show.solo })
-            : show.moves[0]?.kind === "questions" && show.header
-              ? // A Prediction Sheet's questions are its own sheet (step A4 part 2).
-                openSheet({ seasonId: show.header.seasonId, leagueId: show.moves[0].leagueId, episode: null, game: show.moves[0].leagueName })
-              : openMoves(tabOf(show.moves[0]), show.moves[0]?.leagueId ?? null)
-      }
-      className={`${base} nd-press bg-plate text-plate-foreground`}
-    >
-      {show.play?.some((g) => (g.lineup?.starters.length || g.pick?.pick) && !g.revealFirst) ? (
-        faces
-      ) : (
-        <span className="grid size-[34px] flex-none place-items-center rounded-[3px] text-plate-muted outline-2 -outline-offset-2 outline-dashed outline-plate-muted/60" aria-hidden>
-          <Plus className="size-4" />
-        </span>
-      )}
-      <span className="min-w-0 flex-1 leading-tight">
-        <b className="block truncate text-sm">{dockWords(show.moves)}</b>
-        {when && (
-          <small className="block text-[11.5px] tabular-nums text-plate-muted">
-            {t !== airs ? "Due" : "Locks"} {when}
-          </small>
-        )}
-      </span>
-      <span className="grid h-[38px] place-items-center rounded-[3px] bg-chyron px-3.5 text-sm font-extrabold text-chyron-foreground">{drafting ? "Draft" : "Set"}</span>
-    </button>
-  );
-}
+// "Your moves": one sheet with a tab per game you play here (Weekly Lineup, Survival Pool, Outlast's team) and Predictions, which
+// saves through the league routes the classic app uses (lineups, picks, predictions). The games swipe by as a Weekly Lineup
+// player's weeks do (ui/swipe-pager.tsx; the user, 2026-10-31), the tabs' highlight sliding along with the finger. Saving never
+// locks; airtime does. Opened from the strip under the show bar (strip.tsx) and the game page. The moves dock that used to sit
+// above the tab bar (the mock's dock.js) went in the design round's step 3: the strip says what's yours to set on every tab.
 
 // ---------- the "Your moves" sheet ----------
 

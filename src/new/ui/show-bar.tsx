@@ -22,12 +22,15 @@ export function ShowArt({
   name,
   className = "",
   position = "center",
+  bare,
 }: {
   seasonId: string;
   artUrl: string | null;
   name: string;
   className?: string;
   position?: string;
+  /** No art: the dark plate alone, without the name set large (where the name is already on it: Tonight's tall bar). */
+  bare?: boolean;
 }) {
   const { src, frame } = splitFrame(artUrl);
   if (src && frame && frame.zoom > 1)
@@ -45,7 +48,7 @@ export function ShowArt({
       data-art={seasonId}
       className={`dark type-caption grid place-items-center overflow-hidden bg-[linear-gradient(135deg,#2a2633,#100e15)] p-3 text-center text-[30px] leading-[.9] text-foreground/25 ${className}`}
     >
-      {name}
+      {bare ? null : name}
     </span>
   );
 }
@@ -97,13 +100,15 @@ export function ShowBar({
         artUrl={show.backdropUrl || show.artUrl}
         name={show.name}
         position={wide ? `${UNFRAMED.header.x}% ${UNFRAMED.header.y}%` : tall ? "100% 40%" : "center"}
+        bare={tall}
         className={`absolute inset-y-0 -z-[2] h-full ${tall && !wide ? "right-0 w-[70%]" : "inset-x-0 w-full"}`}
       />
       <span
         aria-hidden
         className={`absolute inset-0 -z-[1] ${
           tall
-            ? "bg-[linear-gradient(90deg,var(--background)_0%,rgba(22,20,29,.85)_30%,rgba(22,20,29,.1)_65%),linear-gradient(180deg,transparent_60%,var(--background)_100%)]"
+            ? // Tonight's foot carries the progress control's ruler (step 3): the art darkens under it so the ticks and faces read.
+              "bg-[linear-gradient(90deg,var(--background)_0%,rgba(22,20,29,.85)_30%,rgba(22,20,29,.1)_65%),linear-gradient(180deg,transparent_30%,rgba(22,20,29,.72)_62%,var(--background)_100%)]"
             : "bg-[linear-gradient(180deg,rgba(16,14,21,.55),rgba(16,14,21,.92))]"
         }`}
       />
@@ -125,7 +130,7 @@ export function ShowBar({
       </div>
       {tall ? (
         <>
-          <h1 className="type-caption mt-auto px-2 text-[54px] [text-shadow:0_2px_20px_rgba(0,0,0,.5)]">
+          <h1 className="type-caption mt-auto px-2 pt-6 text-[40px] leading-[.9] [text-shadow:0_2px_20px_rgba(0,0,0,.5)]">
             {show.name.replace(/^The /, "")}
             {show.seasonNumber && (
               <small className="mt-1.5 block text-[15px] font-semibold normal-case tracking-normal opacity-90 [font-stretch:100%]">Season {show.seasonNumber}</small>

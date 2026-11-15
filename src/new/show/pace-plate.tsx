@@ -41,11 +41,14 @@ function nearLine(week: number, others: { name: string; week: number | null }[])
   return behind.map((o) => `${o.name} is on Episode ${o.week}`).join(" · ") + ".";
 }
 
+/** Whether a game shows its own plate on Tonight: own pace with something of its own to say. A caught-up seat on a season still
+ *  airing has nothing to finish: its move is the strip's, as any game's (own pace is the default on airing seasons too, PRODUCT.md
+ *  principle 11). The finish plate is only for a game that's over as far as you've seen. */
+export const hasPacePlate = (g: GameView) => !!(g.ownPace && g.pace && (g.pace.draft || g.pace.team || g.pace.gather || g.catchUp || g.over));
+
 /** Every own-pace game of yours here, one plate each. */
 export function OwnPacePlates({ show }: { show: ShowData }) {
-  // A caught-up seat on a season still airing has nothing to finish: its move is Tonight's usual one (own pace is the default on
-  // airing seasons too, PRODUCT.md principle 11). The finish plate is only for a game that's over as far as you've seen.
-  const games = (show.play ?? []).filter((g) => g.ownPace && g.pace && (g.pace.draft || g.pace.team || g.pace.gather || g.catchUp || g.over));
+  const games = (show.play ?? []).filter(hasPacePlate);
   const [done, setDone] = useState<{ game: GameView; reveal: CatchUpReveal } | null>(null);
   if (!games.length && !done) return null;
   return (

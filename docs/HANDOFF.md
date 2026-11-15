@@ -11,6 +11,25 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
+## The design round's step 3, Tonight (2026-11-15; built on branch `explorer-sports`, not pushed; waits on the user's review)
+Two parts now belong to the show, not to one tab: **the progress control** (`src/new/show/progress.tsx`: your mark, what's next,
+the couch's faces on an episode ruler, the one watching action: Reveal Ep N, I watched it, Watch along) at the foot of Tonight's
+show bar, and **the strip** (`src/new/show/strip.tsx`: what's yours to set, yellow only when due) under the bar on every tab but
+Chat, in place of the dock (gone from dock.tsx; the Your moves sheet stays). Tonight's body (`tonight.tsx`): Last time (who left,
+the couch's GIFs, Discuss and Recap), Your games (one mini per game from the game page's `thisWeek`, Who scored opening in place:
+data round 3's ledger), Next (watch along, together, bingo), Stats; the own-pace, waivers-ran, Fill it in, reminder, Seen it? and
+drop plates kept as they were. A failed read says so with Try again (BACKLOG 85, show-space.tsx TabError). Process and evidence:
+`docs/design-round/step3-tonight-spec.md` (Intent), `step3-tonight-first-view.md` (PFD), `step3-tonight-shape.md` (Impeccable),
+`step3-tonight-check.md` (the check, the batch, the confirming look), `decisions.md`; the story
+https://claude.ai/artifact/13q4n6Tk8JzydtPSsHF4Jr (frames in `.ui-atlas/stories/step3-tonight/`, re-made by
+`node scripts/dev-test/story-situations.js --tab=tonight --flows` (new `--tab`), census-app.js `--out=...` for the zt couch, and
+`story-build.py .ui-atlas/stories/step3-tonight/story.json`). Run the bench situations two at a time: a long batch times out on the
+explorer page after the first. **Waiting on the user:** the own-pace plate two behind (fold into the control, or keep), B3's lasting
+"All set", a sticky strip or not, and the review. **Found, not fixed** (the story's Open): Sam's page has no yellow when the due move
+waits on the reveal (watchAction's `primary` should also be true then); the NFL mini reads "ACTIVE-ROSTER"; Alex's strip named the
+replacement on Episodes and not on Tonight a minute apart (likely the waivers read only Episodes makes). Also this session: gold
+and teal out of the people palette (`src/lib/people.ts`, tests/people.test.js; decisions.md).
+
 ## The design round's step 2, the game page (2026-11-15; built on branch `explorer-sports`, not pushed; waits on the user's review)
 The game page leads with this week: head to head as a matchup (you and who you play, faces and records, on the show's art or
 colour), one state line, the move as the one plate only while due, last week as a line (a plate the first time it's news), then

@@ -1,68 +1,55 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { whereWords } from "@/lib/sharing";
-import { Check, ChevronRight, EyeOff, Grid3x3, Lock, Plus } from "lucide-react";
-import { airTime, calm, calmWhen, dayOf, justAired, ticks, timeOf } from "../clock";
+import { ChevronDown, ChevronRight, EyeOff, MessageCircle, Plus, Tv, Users } from "lucide-react";
+import { airTime, calm, justAired, lockTime, ticks } from "../clock";
 import { AskAiSheet, checkFull } from "../backstage/ask-ai";
-import { backstage, useAfterResults, useWatchCard, type GameView, type PasteResult } from "../data";
-import { gameColour, gameInk, ordinal } from "../games";
+import { backstage, useAfterResults, useEpisodeGifs, useSeasonPolls, type GameView, type LineupWeek, type PasteResult } from "../data";
+import { gameInk, ordinal } from "../games";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
-import { episodesOf, openWhere, seasonOver, type ShowData } from "../screens/show-space";
+import { episodesOf, openWhere, type ShowData } from "../screens/show-space";
 import { useMe } from "../session";
 import { namesOf } from "../hub/sections";
 import { PlayIt } from "./games";
 import { Avatar, useNow } from "../ui/bars";
 import { useFinalWhen } from "../final-words";
-import { Btn, BtnLink, GuardChip } from "../ui/parts";
+import { Btn } from "../ui/parts";
 import { toast } from "../ui/toast";
-import { doneCards, isRequired, moveCard, openMoves, type MoveCard } from "./moves";
+import { castName, faceIn, openMoves } from "./moves";
 import { Block, Face } from "./parts";
 import { WaiversRanPlate } from "./waivers";
 import { CatchUpSheet, CatchUpStrips } from "../couch/join-game";
 import { OwnPacePlates } from "./pace-plate";
-import { openStartGame } from "../couch/start-game";
-import { openCouchSheet } from "../couch/couch-sheets";
-import { knownMark } from "../couch/where";
-import { openPlan, PlanInvite, PlanPlates } from "../couch/watch-plans";
-import { useOpenMorning, useOpenReveal } from "./reveal";
+import { openPlan, PlanPlates } from "../couch/watch-plans";
+import { useOpenMorning } from "./reveal";
 import { StatsCard } from "./stats";
-import { GifRow, showLabel } from "./react";
-import { CallResultRow, CallRow, openCall } from "./calls";
-import { openSheet, SheetResultRow, SheetRow } from "./questions";
+import { GifTile, openGif, showLabel } from "./react";
+import { CallResultRow, CallRow } from "./calls";
+import { SheetResultRow, SheetRow } from "./questions";
 import { PollRow } from "./polls";
 import { bingoEpisode as toBingo, BingoRow, openBingo, type BingoTarget } from "./bingo";
-import { askWatched, UpNext, upNextEpisode } from "./up-next";
-import { WatchAlongCard } from "./watch-along";
 import { RemindRow } from "./remind";
 import { SeenItCard } from "./seen-it";
-import { useSeasonPolls } from "../data";
+import { useOpenWatch } from "./watch-along";
+import { yourMove } from "./your-move";
+import { totalWords } from "./game-sheets";
+import { ResultSquare } from "./game-week";
+import { thisWeek, type WeekCard } from "./this-week";
 
-// Tonight (the mock's refine.js tabTonight, option 2C, 2026-10-24): the phase as a heading from the clock, then
-// Your moves as swipeable cards (open first with the one yellow button on the first, then what you've already set
-// as done cards with Change; all done starts with one "You're set" card), Extras this week (optional, no counts),
-// Watch along (step 13: watch-along.tsx; and the couch's planned nights, step 11 part 3), your games and the cast's stats. No dock before airtime and
-// no commissioner job (5B: Backstage and
-// a dot on the show's ⋯ carry it). After an episode, by the results' stage (step 2): waiting for results (the
-// stage bar), results in (the one yellow: Reveal; a move that waits on them says so), the morning update once the
-// final scores land after an early reveal, and the last episode's recap until the next one airs. All real: the stats card is
-// stats.tsx's (step 3); React with a GIF in Extras
-// (the latest episode you've seen, react.tsx; docs/PLAN-gif-reactions.md, in place of Rate it's stars); Call it for the next episode and the couch's open polls in Extras
-// (part 2: calls.tsx, polls.tsx), Weekly Calls' calls a move card; your bingo card in Extras, and in Tonight while it's on (part
-// 3: bingo.tsx), Weekly Bingo's a card in Your moves. Results from
-// everyone (step 6b): a player who has seen an episode with only its early results gets a quiet "Full scores need one
-// paste · Fill it in" when the couch lets anyone fill them in. A streaming season (step 14; the mock's streaming.js wTonight):
-// before its drop, the drop plate (every episode at once, when, the countdown); after it, your next episode at your own pace,
-// with Watch along first. Under the heading, the reminder ask's row while nothing reaches you (remind.tsx).
+// Tonight (the design round's step 3: docs/design-round/step3-tonight-spec.md, its first view step3-tonight-first-view.md, its
+// look step3-tonight-shape.md). Where you are, the couch and the one watching action are the show bar's progress control
+// (progress.tsx); what's yours to set is the strip under it (strip.tsx), on every tab. The page under them: Last time (the last
+// episode you've watched: who left, the couch's GIFs, its talk and recap), or the wait for an episode's results in its place; then
+// Your games (one mini per game, an excerpt of its page's This week card, its lineup's points one tap open: data round 3's
+// ledger); then the next episode's plans (watch along, together, your bingo card); then the show's stats. Kept as they were this
+// round, above Last time: the own-pace plates and catch-up strips, the waivers-ran plate, the reminder ask, Fill it in, Seen it?,
+// a streaming season's drop, and a show you don't follow's Add to my shows.
 
 export function Tonight({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const playing = show.games.some((g) => g.yourRole);
   const [catchUp, setCatchUp] = useState<GameView | null>(null);
-  // Up next for you (docs/PLAN-up-next.md): the episode you haven't watched yet, its watch along on the plate (so not its card too).
-  const plate = upNextEpisode(show);
-  const early = show.episodes?.reveal?.stage === "early" ? show.episodes.reveal : null;
   return (
     <>
       <BingoLink show={show} />
@@ -72,84 +59,17 @@ export function Tonight({ seasonId, show }: { seasonId: string; show: ShowData }
       <CatchUpSheet show={show} game={catchUp} onOpenChange={(o) => !o && setCatchUp(null)} />
       <DropPlate show={show} />
       {!playing && <SeenItCard show={show} />}
-      {/* A game at your own pace's plate names your episode: no heading saying it again (docs/PLAN-own-pace-games.md). */}
-      {!(show.ownPace && (show.play ?? []).some((g) => g.ownPace)) && <PhaseHead show={show} />}
-      {playing && <RemindRow seasonId={seasonId} show={show} />}
-      {!playing && <UpNext seasonId={seasonId} show={show} />}
       {!playing && <Following show={show} />}
-      {playing && <AfterEpisode show={show} />}
+      {playing && <RemindRow seasonId={seasonId} show={show} />}
       {playing && <FillItIn seasonId={seasonId} show={show} />}
-      {!plate && <WatchAlongCard seasonId={seasonId} show={show} place="lead" />}
       <OnTonight show={show} />
-      {playing && <YourMoves seasonId={seasonId} show={show} />}
-      {playing && (
-        <UpNext
-          seasonId={seasonId}
-          show={show}
-          below={early && <StageBar episode={early.episode} stage="early" airAt={show.episodes?.episodes.find((e) => e.number === early.episode)?.airAt ?? null} finalAt={early.finalAt} />}
-        />
-      )}
-      {playing && <LastTime show={show} />}
-      <StatsCard seasonId={seasonId} show={show} />
-      <Extras show={show} />
-      {!plate && <WatchAlongCard seasonId={seasonId} show={show} place="below" />}
-      <PlannedNights seasonId={seasonId} show={show} plate={!!plate} />
-      {!playing && <WhosWatching show={show} />}
-      {!playing && (!show.solo || !show.ready) && <PlayIt show={show} />}
+      <AfterEpisode show={show} />
+      <LastTime seasonId={seasonId} show={show} />
       {playing && <YourGames seasonId={seasonId} show={show} />}
+      <NextEpisode seasonId={seasonId} show={show} />
+      <StatsCard seasonId={seasonId} show={show} />
+      {!playing && (!show.solo || !show.ready) && <PlayIt show={show} />}
     </>
-  );
-}
-
-/** "Episode 6 · Wed 8:05 PM · in 4 days", "On air · Episode 6 · Locked at 8:05 PM"; at your own pace (step 14), "Episode 4 ·
- *  Your own pace" or "You finished it". Before a streaming drop the drop plate says it all. While Up next's plate shows (you're
- *  behind: docs/PLAN-up-next.md) the heading is always the next airing, "On TV Thu 8:00 PM", the one Your moves are for; the plate
- *  is yours, so each number on Tonight has one owner. */
-function PhaseHead({ show }: { show: ShowData }) {
-  const up = show.upNext;
-  const t = up?.airAt ? Date.parse(up.airAt) : null;
-  const now = useNow(t != null && ticks(t));
-  let title: ReactNode;
-  let aside: string | null = null;
-  const eps = show.episodes;
-  const n = episodesOf(show);
-  const w = show.words;
-  if (show.dropAt != null && show.dropAt > now) return null;
-  const plate = !!upNextEpisode(show);
-  if (!up?.live && !plate && (eps?.reveal || eps?.waiting)) {
-    // An episode's results come first: in (to reveal), or not yet.
-    title = `${w.episode} ${eps.reveal?.episode ?? eps.waiting!.episode}`;
-    aside = eps.reveal ? (eps.reveal.stage === "early" ? "Early results" : "Results") : justAired(eps.waiting!.airAt) ? "Just aired" : "Aired";
-  } else if (show.ownPace && !up) {
-    const seen = show.following || show.plays ? show.seenThrough : null;
-    aside = "Your own pace";
-    if (seen == null) title = n ? `All ${n} ${w.episodes.toLowerCase()} are out` : `Every ${w.episode.toLowerCase()} is out`;
-    else if (n && seen >= n) {
-      title = "You finished it";
-      aside = `All ${n} ${w.episodes.toLowerCase()}`;
-    } else title = `${w.episode} ${seen + 1}`;
-  } else if (up?.live) {
-    title = (
-      <>
-        <i className="size-[9px] animate-pulse rounded-full bg-live" aria-hidden />
-        On air · {w.episode} {up.number}
-      </>
-    );
-    aside = t != null ? `Locked at ${timeOf(t)}` : null;
-  } else if (up) {
-    title = `${w.episode} ${up.number}`;
-    aside = t != null ? `${plate ? "On TV " : ""}${calmWhen(t, now)}` : null;
-  } else if (seasonOver(show)) {
-    title = "Season over";
-  } else {
-    title = show.latestAired ? `${w.episode} ${show.latestAired}` : "Coming up";
-    aside = show.latestAired ? "Aired" : null;
-  }
-  return (
-    <div data-phase className="mx-4 mt-[18px] flex items-baseline justify-between gap-3 border-b border-border pb-2.5">
-      <b className="type-caption flex items-center gap-2 text-[22px]">{title}</b>
-      {aside && <span className="text-sm text-muted-foreground">{aside}</span>}
-    </div>
   );
 }
 
@@ -181,8 +101,8 @@ function DropPlate({ show }: { show: ShowData }) {
 
 // ---------- a show you don't play (step 10) ----------
 
-/** On your shows: the one spoiler chip (Change opens where you are) and, watching privately, a line saying so. Not on them:
- *  who on the couch watches it, and Add to my shows. */
+/** Not on your shows: who on the couch watches it, and Add to my shows. On them, watching privately: a line saying so (where you
+ *  are is the progress control's). */
 function Following({ show }: { show: ShowData }) {
   const me = useMe();
   if (!show.following) {
@@ -221,314 +141,18 @@ function Following({ show }: { show: ShowData }) {
       </section>
     );
   }
+  if (!show.watchingPrivately) return null;
   return (
-    <section className="mt-[18px] px-4" data-following>
-      <GuardChip seenThrough={show.seenThrough} ep={show.words.ep} onChange={() => openWhere(show)} />
-      {show.watchingPrivately && (
-        <p data-private-line className="mt-2 flex items-center gap-1.5 text-[13px] text-muted-foreground">
-          <EyeOff className="size-4 flex-none" aria-hidden />
-          Watching privately: the couch doesn&rsquo;t see this on your list
-        </p>
-      )}
-    </section>
+    <p data-private-line className="mx-4 mt-3 flex items-center gap-1.5 text-[13px] text-muted-foreground">
+      <EyeOff className="size-4 flex-none" aria-hidden />
+      Watching privately: the couch doesn&rsquo;t see this on your list
+    </p>
   );
 }
 
-/** Who on the couch watches it (openly) or plays a game on it, you first, and how far each is where they share it (step 15 part
- *  3's Where I am: "Up to Episode 5", "Caught up", "2 ahead"; at your own pace "Ep 4 of 8" with a bar), and who's watching along right
- *  now, which says the episode (step 13 part 2: the Watch along card's read, only from those who share When I'm watching). */
-function WhosWatching({ show }: { show: ShowData }) {
-  const me = useMe();
-  const card = useWatchCard(show.header?.seasonId ?? null, show.couch?.id ?? null, !!show.header);
-  const nowOf = (userId: string) => (card.data?.now ?? []).find((w) => w.userId === userId);
-  const total = episodesOf(show) ?? 0;
-  const mine = knownMark(show);
-  const seenOf = (p: { userId: string; seen?: number | null }) => (p.userId === me.id ? mine : (p.seen ?? null));
-  const where = (seen: number | null) => (seen == null ? null : whereWords(seen, { aired: show.streaming ? total : show.latestAired, total, ownPace: show.ownPace }));
-  const people = (show.people ?? []).filter((p) => p.watching || p.playing.length || p.userId === me.id);
-  const list = [...people.filter((p) => p.userId === me.id && (show.following || p.playing.length)), ...people.filter((p) => p.userId !== me.id)];
-  if (!list.length || show.solo) return null;
-  const others = list.filter((p) => p.userId !== me.id).length;
-  const gameOf = (id: string) => show.games.find((g) => g.leagueId === id)?.gameName;
-  return (
-    <Block title="Who's watching" aside={show.ownPace ? `${list.length} · at their own pace` : `${list.length} on the couch`}>
-      <div data-whos-watching>
-        {list.map((p) => {
-          const you = p.userId === me.id;
-          const plays = p.playing.map(gameOf).filter(Boolean);
-          const on = you ? null : nowOf(p.userId);
-          const seen = seenOf(p);
-          const at = where(seen);
-          const ahead = !you && seen != null && mine != null && seen > mine ? seen - mine : 0;
-          // A row opens that person's own sheet (couch/person-sheet.tsx: everything they watch, how far), on a couch you're on.
-          const couchId = show.readOnly ? null : (show.couch?.id ?? null);
-          const Tag = couchId ? "button" : "div";
-          return (
-            <Tag
-              key={p.userId}
-              data-watcher={p.name}
-              {...(couchId ? { type: "button" as const, onClick: () => openCouchSheet({ kind: "person", couchId, userId: p.userId }) } : {})}
-              className={`flex min-h-[60px] w-full items-center gap-3 border-t border-border py-2 text-left first:border-t-0 ${couchId ? "nd-press" : ""}`}
-            >
-              <Avatar id={p.userId} name={p.name} size={34} />
-              <span className="min-w-0 flex-1">
-                <b className="flex items-center gap-2 text-[15px] font-semibold">
-                  {p.name}
-                  {you && <span className="type-caption rounded-[2px] bg-foreground px-1.5 py-px text-[10px] tracking-[0.05em] text-background">You</span>}
-                </b>
-                <small className="block text-[13px] text-muted-foreground" data-watcher-where={at ?? undefined}>
-                  {on ? (
-                    <span data-watching-now className="font-semibold text-good">
-                      Watching now · Episode {on.episode}
-                    </span>
-                  ) : (
-                    [
-                      plays.length ? `Plays ${plays.join(" and ")}` : null,
-                      at ?? (plays.length ? null : you && show.watchingPrivately ? "Watching privately" : "Watches it"),
-                      you && show.watchingPrivately && at ? "private" : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")
-                  )}
-                </small>
-                {show.ownPace && seen != null && total > 0 && seen > 0 && (
-                  <span className="mt-1.5 block h-[3px] w-full max-w-[160px] overflow-hidden rounded-full bg-border" aria-hidden>
-                    <i className="block h-full bg-chyron-line" style={{ width: `${Math.min(100, (seen / total) * 100)}%` }} />
-                  </span>
-                )}
-              </span>
-              {ahead > 0 && (
-                <span data-ahead={ahead} className="type-caption flex-none text-[12px] tracking-[0.04em] text-muted-foreground">
-                  {ahead} ahead
-                </span>
-              )}
-            </Tag>
-          );
-        })}
-        {!others && <p className="mt-1 text-[13px] text-muted-foreground">Nobody else on the couch watches it yet.</p>}
-      </div>
-    </Block>
-  );
-}
+// ---------- after an episode, before you've seen its results ----------
 
-// ---------- Your moves ----------
-
-function YourMoves({ seasonId, show }: { seasonId: string; show: ShowData }) {
-  const up = show.upNext;
-  const t = up?.airAt ? Date.parse(up.airAt) : null;
-  // A game at your own pace has its plate (pace-plate.tsx): its move isn't a card here too. Nothing else to set: no block at all.
-  const paced = new Set((show.play ?? []).filter((g) => g.ownPace).map((g) => g.leagueId));
-  const open = show.moves.filter((m) => isRequired(m) && !paced.has(m.leagueId));
-  const others = (show.play ?? []).filter((g) => !paced.has(g.leagueId));
-  if (paced.size && !open.length && !others.length) return null;
-  const kinds = open.map((m) => m.kind);
-  // A move whose game is waiting on results you haven't revealed says so, and its button is the reveal.
-  const waitsOn = (leagueId: string) => show.play?.find((g) => g.leagueId === leagueId)?.revealFirst ?? null;
-  const cards = open.map((m) => {
-    const c = moveCard(m, seasonId, kinds.filter((k) => k === m.kind).length > 1, !!(show.play ?? []).find((g) => g.leagueId === m.leagueId)?.catchingUp, show.words.episode);
-    const n = waitsOn(m.leagueId);
-    // A move open late (playing at your own pace) comes before the reveal, as its card says.
-    if (!n || m.late || (c.tab !== "lineup" && c.tab !== "pool")) return c;
-    const when = m.deadline ? ` · ${c.tab === "lineup" ? "locks" : "closes"} ${airTime(Date.parse(m.deadline))}` : "";
-    return { ...c, line: `After you reveal Episode ${n}${when}`, action: `Reveal Episode ${n}`, reveal: n };
-  });
-  const done = show.play ? doneCards(others) : [];
-  // Weekly Calls' cards open Call it for their episode (step 12 part 2), Weekly Bingo's its card (part 3).
-  const onCall = (episode: number) => openCall({ seasonId, couchId: show.couch?.id ?? null, episode, label: showLabel(show), solo: show.solo });
-  const onBingo = (episode: number) => openBingo({ seasonId, couchId: show.couch?.id ?? null, episode, label: showLabel(show), solo: show.solo });
-  const due = open[0]?.deadline ? Date.parse(open[0].deadline) : t;
-
-  // With no episode to come, say why: the season's last episode has aired (the show bar's "Season over"), or every game you
-  // play here is over (GameView.over: its winner crowned or its span done, as far as you've seen), not "until the next episode".
-  const ended = up ? null : seasonOver(show) ? "The season's over: nothing more to set" : show.play?.length && show.play.every((g) => g.over) ? "Your games here are over: nothing more to set" : null;
-
-  let body: ReactNode;
-  if (up?.live) {
-    body = <AllSet icon={Lock} title="Your moves are locked" line="Scores stay hidden until you reveal" />;
-  } else if (!cards.length) {
-    // All set (the user, 2026-11-01: slim, nothing tall and empty): one line, then each move you've made as a row with its Change.
-    body = (
-      <AllSet
-        icon={Check}
-        title={up ? `You're set for Episode ${up.number}` : "Nothing due"}
-        line={t != null ? `Change anything until ${airTime(t)}` : (ended ?? "Nothing to set until the next episode")}
-        change={up && show.play?.length && !done.length ? () => openMoves("lineup") : undefined}
-        done={done}
-        onDone={(c) => doneGo(c, onCall, onBingo, seasonId)}
-      />
-    );
-  } else {
-    // Open moves first (the first one's button the one yellow), then what you've set, as slim done cards.
-    const items: { key: string; node: ReactNode }[] = [
-      ...cards.map((c, i) => ({ key: c.key, node: <OpenCard card={c} n={i + 1} must={i === 0} onCall={onCall} seasonId={seasonId} /> })),
-      ...done.map((c) => ({ key: c.key, node: <DoneMove card={c} onCall={onCall} onBingo={onBingo} seasonId={seasonId} /> })),
-    ];
-    // A new set of cards (a save made one done) starts back at the first, so what's still due is in view.
-    body = <MoveCards key={items.map((it) => it.key).join()} items={items} />;
-  }
-  return (
-    <Block title="Your moves" aside={up?.live ? "Locked" : cards.length ? `${cards.length} to do before ${due != null ? dayOf(due) : show.ownPace ? "you reveal" : "airtime"}` : "All done"}>
-      {body}
-    </Block>
-  );
-}
-
-/** The cards, one in view at a time, swiped sideways, with a dot each. */
-function MoveCards({ items }: { items: { key: string; node: ReactNode }[] }) {
-  const [at, setAt] = useState(0);
-  return (
-    <>
-      <div
-        className="-mx-4 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-4 [scrollbar-width:none]"
-        onScroll={(e) => {
-          const el = e.currentTarget;
-          const w = (el.firstElementChild as HTMLElement | null)?.offsetWidth ?? 1;
-          setAt(Math.round(el.scrollLeft / (w + 10)));
-        }}
-      >
-        {items.map((it) => (
-          <div key={it.key} className={`flex flex-none snap-start ${items.length > 1 ? "w-[calc(100%-36px)]" : "w-full"}`}>
-            {it.node}
-          </div>
-        ))}
-      </div>
-      {items.length > 1 && (
-        <div className="mt-2.5 flex justify-center gap-1.5" aria-hidden>
-          {items.map((it, i) => (
-            <i key={it.key} className={`h-1 w-[18px] rounded-[2px] transition-colors ${i === at ? "bg-foreground" : "bg-border"}`} />
-          ))}
-        </div>
-      )}
-    </>
-  );
-}
-
-/** A move still to make: its number, what it is, and its button (yellow only on the first). */
-function OpenCard({ card: c, n, must, onCall, seasonId }: { card: MoveCard & { reveal?: number }; n: number; must: boolean; onCall: (episode: number) => void; seasonId: string }) {
-  const openReveal = useOpenReveal();
-  return (
-    <div data-move={c.key} className="flex w-full flex-col gap-1.5 rounded-[4px] bg-card p-4">
-      <span className="type-num text-[30px] leading-none text-muted-foreground">{n}</span>
-      <b className="type-caption text-[26px] leading-none">{c.title}</b>
-      <small className="mb-2.5 block text-sm leading-snug text-muted-foreground">{c.line}</small>
-      {c.reveal ? (
-        <Btn tone={must ? "must" : "optional"} wide className="mt-auto" onClick={() => askWatched(c.reveal!) || openReveal(c.reveal!)}>
-          {c.action}
-        </Btn>
-      ) : c.href ? (
-        <BtnLink href={c.href} tone={must ? "must" : "optional"} wide className="mt-auto">
-          {c.action}
-        </BtnLink>
-      ) : c.call ? (
-        <Btn tone={must ? "must" : "optional"} wide className="mt-auto" onClick={() => onCall(c.call!)}>
-          {c.action}
-        </Btn>
-      ) : c.sheet && seasonId ? (
-        <Btn tone={must ? "must" : "optional"} wide className="mt-auto" onClick={() => openSheet({ seasonId, leagueId: c.sheet!.leagueId, episode: null, game: c.sheet!.game })}>
-          {c.action}
-        </Btn>
-      ) : (
-        <Btn tone={must ? "must" : "optional"} wide className="mt-auto" onClick={() => openMoves(c.tab ?? "lineup", c.leagueId ?? null)}>
-          {c.action}
-        </Btn>
-      )}
-    </div>
-  );
-}
-
-/** What a done move's button does: its bingo card, its call, its sheet, or its game's moves. */
-function doneGo(c: MoveCard, onCall: (episode: number) => void, onBingo: (episode: number) => void, seasonId: string) {
-  if (c.bingo) onBingo(c.bingo);
-  else if (c.call) onCall(c.call);
-  else if (c.sheet) openSheet({ seasonId, leagueId: c.sheet.leagueId, episode: null, game: c.sheet.game });
-  else openMoves(c.tab ?? "lineup", c.leagueId ?? null);
-}
-
-/** A done move's mark: a tick, or Weekly Bingo's card (ready for the show). */
-function DoneMark({ card: c, size = 28 }: { card?: MoveCard; size?: number }) {
-  return c?.bingo ? (
-    <span className="grid flex-none place-items-center rounded-[3px] bg-secondary" style={{ width: size, height: size }}>
-      <Grid3x3 className="size-4" aria-hidden />
-    </span>
-  ) : (
-    <span className="grid flex-none place-items-center rounded-full bg-good/20 text-good" style={{ width: size, height: size }}>
-      <Check className="size-4" strokeWidth={2.6} aria-hidden />
-    </span>
-  );
-}
-
-/** A move you've made that can still change, beside the ones still to make: its mark on its title's line, its line, its button. */
-function DoneMove({ card: c, onCall, onBingo, seasonId }: { card: MoveCard; onCall: (episode: number) => void; onBingo: (episode: number) => void; seasonId: string }) {
-  return (
-    <div data-done={c.key} className="flex w-full flex-col gap-2.5 rounded-[4px] bg-background p-3.5 outline-1 -outline-offset-1 outline-border">
-      <span className="flex items-center gap-2.5">
-        <DoneMark card={c} />
-        <b className="type-caption min-w-0 text-[22px] leading-none">{c.title}</b>
-      </span>
-      <small className="block text-sm leading-snug text-muted-foreground">{c.line}</small>
-      <Btn wide className="mt-auto" onClick={() => doneGo(c, onCall, onBingo, seasonId)}>
-        {c.action}
-      </Btn>
-    </div>
-  );
-}
-
-/** Nothing left to do (or locked): one line with its mark, then each move you've made as a hairline row with its button's word. */
-function AllSet({
-  icon: Icon,
-  title,
-  line,
-  change,
-  done = [],
-  onDone,
-}: {
-  icon: typeof Check;
-  title: string;
-  line: string;
-  change?: () => void;
-  done?: MoveCard[];
-  onDone?: (c: MoveCard) => void;
-}) {
-  return (
-    <div data-all-set className="rounded-[4px] outline-1 -outline-offset-1 outline-border">
-      <div className="flex min-h-[60px] items-center gap-3 px-3.5 py-2.5">
-        <span className="grid size-7 flex-none place-items-center rounded-full bg-good/20 text-good">
-          <Icon className="size-4" strokeWidth={2.6} aria-hidden />
-        </span>
-        <span className="min-w-0 flex-1">
-          <b className="type-caption block text-[20px] leading-none">{title}</b>
-          <small className="mt-1 block text-[13px] leading-snug text-muted-foreground">{line}</small>
-        </span>
-        {change && (
-          <button type="button" data-all-set-change onClick={change} className="min-h-11 flex-none px-1 text-sm font-semibold text-muted-foreground">
-            Change
-          </button>
-        )}
-      </div>
-      {done.map((c) => (
-        <button
-          key={c.key}
-          type="button"
-          data-done={c.key}
-          onClick={() => onDone?.(c)}
-          className="nd-press flex min-h-[52px] w-full items-center gap-3 border-t border-border px-3.5 py-2 text-left"
-        >
-          <DoneMark card={c} size={22} />
-          <span className="min-w-0 flex-1">
-            <b className="block truncate text-[15px] font-semibold">{c.title}</b>
-            <small className="block truncate text-[13px] text-muted-foreground">{c.line}</small>
-          </span>
-          <span className="flex-none text-[13px] font-semibold text-muted-foreground">{c.action}</span>
-          <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
-        </button>
-      ))}
-    </div>
-  );
-}
-
-// ---------- after an episode ----------
-
-/** The three stages of an episode's results, for the bar under Waiting and early results. */
+/** The three stages of an episode's results, for the wait and early results. */
 function StageBar({ episode, stage, airAt, finalAt }: { episode: number; stage: "waiting" | "early" | "final"; airAt: string | null; finalAt: string | null }) {
   // When the final results come (final-words.ts: 12:00 noon the day after it airs, in your own time).
   const finalWhen = useFinalWhen(stage === "final" ? null : finalAt);
@@ -544,7 +168,7 @@ function StageBar({ episode, stage, airAt, finalAt }: { episode: number; stage: 
       <div className="mt-2.5 grid grid-cols-3 gap-2">
         {steps.map(([k, title, line], i) => (
           <div key={k} aria-current={i === at ? "step" : undefined}>
-            <i className={`block h-1 rounded-[2px] ${i < at ? "bg-good" : i === at ? "bg-foreground" : "bg-secondary"}`} />
+            <i className={`block h-1 rounded-[2px] ${i < at ? "bg-foreground/70" : i === at ? "bg-foreground" : "bg-secondary"}`} />
             <b className={`mt-2 block text-[15px] ${i <= at ? "" : "text-muted-foreground"}`}>{title}</b>
             <small className="block text-xs leading-snug text-muted-foreground">{line}</small>
           </div>
@@ -554,19 +178,27 @@ function StageBar({ episode, stage, airAt, finalAt }: { episode: number; stage: 
   );
 }
 
-/** What an episode's results need from you now, before you reveal them: waiting for them, or seeing its final scores. */
+/** An episode's results on their way, in Last time's place: waiting for them, early ones in (still to reveal), or the morning
+ *  update's final scores after an early reveal. The reveal itself is the progress control's. */
 function AfterEpisode({ show }: { show: ShowData }) {
   const openMorning = useOpenMorning();
   const eps = show.episodes;
-  // Results in, to reveal: Up next's plate under Your moves (up-next.tsx), or a catch-up game's strip; here, the wait for them
-  // and the morning update.
-  if (!eps || show.upNext?.live || eps.reveal) return null;
+  if (!eps || !show.plays || show.upNext?.live) return null;
+  if (eps.reveal?.stage === "early") {
+    const r = eps.reveal;
+    return (
+      <Block title={`${show.words.ep} ${r.episode}`} aside="Early results">
+        <StageBar episode={r.episode} stage="early" airAt={eps.episodes.find((e) => e.number === r.episode)?.airAt ?? null} finalAt={r.finalAt} />
+      </Block>
+    );
+  }
+  if (eps.reveal) return null;
   if (eps.waiting) {
     return (
-      <section className="mt-[26px] px-4">
+      <Block title={`${show.words.ep} ${eps.waiting.episode}`} aside={justAired(eps.waiting.airAt) ? "Just aired" : "Aired"}>
         <div data-waiting={eps.waiting.episode} className="flex items-start gap-3 rounded-[4px] bg-card p-4">
-          <span className="mt-1 grid size-6 flex-none place-items-center rounded-full bg-chyron-line/20">
-            <i className="size-2.5 animate-pulse rounded-full bg-chyron-line" />
+          <span className="mt-1 grid size-6 flex-none place-items-center rounded-full bg-foreground/10">
+            <i className="size-2.5 animate-pulse rounded-full bg-foreground/70" />
           </span>
           <span>
             <b className="type-caption block text-[24px] leading-none">Waiting for results</b>
@@ -574,7 +206,7 @@ function AfterEpisode({ show }: { show: ShowData }) {
           </span>
         </div>
         <StageBar episode={eps.waiting.episode} stage="waiting" airAt={eps.waiting.airAt} finalAt={eps.waiting.finalAt ?? null} />
-      </section>
+      </Block>
     );
   }
   if (eps.final) {
@@ -587,8 +219,7 @@ function AfterEpisode({ show }: { show: ShowData }) {
           onClick={() => openMorning(n)}
           className="nd-press flex min-h-14 w-full items-stretch overflow-hidden rounded-[3px] bg-plate text-left text-plate-foreground shadow-plate"
         >
-          {/* Good news, not a duty: teal (yellow is for what you must do). */}
-          <span className="type-caption -mr-[13px] flex items-center whitespace-nowrap bg-good py-0 pl-[11px] pr-[22px] text-sm tracking-[0.04em] text-good-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_13px)_100%,0_100%)]">
+          <span className="type-caption -mr-[13px] flex items-center whitespace-nowrap bg-plate-foreground py-0 pl-[11px] pr-[22px] text-sm tracking-[0.04em] text-plate [clip-path:polygon(0_0,100%_0,calc(100%_-_13px)_100%,0_100%)]">
             Morning update
           </span>
           <span className="flex flex-1 flex-col justify-center gap-[3px] py-[7px] pl-5 pr-2.5">
@@ -646,17 +277,38 @@ function FillItIn({ seasonId, show }: { seasonId: string; show: ShowData }) {
   );
 }
 
-/** The last episode you've seen, until the next one airs: who went home and your night in each game. */
-function LastTime({ show }: { show: ShowData }) {
-  const eps = show.episodes;
-  const e = eps?.episodes[0];
-  if (!eps || eps.reveal || eps.waiting || !e || e.status !== "seen" || e.number < show.latestAired || show.upNext?.live) return null;
-  const lines = e.lines ?? [];
+// ---------- Last time ----------
+
+/** The latest episode you've seen that has aired, on a show you follow or play: Last time is about it. */
+function latestSeen(show: ShowData): number | null {
+  const playing = show.games.some((g) => g.yourRole);
+  if (!show.header || (!show.following && !playing)) return null;
+  const n = Math.min(show.seenThrough ?? show.latestAired, show.latestAired);
+  return n >= 1 ? n : null;
+}
+
+/**
+ * Last time · Ep N: the last episode you've watched, once it has aired. Who left (the show's own Out plate), the couch's GIFs
+ * (yours first, or a dashed tile to add one), then its two doors: the talk about it, and its recap on Episodes. Each game's
+ * result for it is that game's mini, under Your games.
+ */
+function LastTime({ seasonId, show }: { seasonId: string; show: ShowData }) {
+  const n = latestSeen(show);
+  const couchId = show.couch?.id ?? null;
+  const gifs = useEpisodeGifs(seasonId, couchId, n, !!n && !show.readOnly);
+  if (!n || !show.header) return null;
+  const e = show.episodes?.episodes.find((x) => x.number === n);
+  const ep = show.words.ep;
+  const d = gifs.data;
+  const target = { seasonId, couchId, episode: n, label: showLabel(show), solo: show.solo };
+  const others = d?.people ?? [];
+  const shown = others.slice(0, 2);
+  const count = others.length + (d?.mine ? 1 : 0);
   return (
-    <Block title={`Episode ${e.number}`} aside={e.stage === "early" ? "Early results" : "Results"}>
-      <div data-last-time={e.number} className="flex flex-col gap-2.5">
-        {(e.out ?? []).map((c) => (
-          <div key={c.id} className="flex min-h-[64px] items-stretch overflow-hidden rounded-[3px] bg-plate text-plate-foreground shadow-plate">
+    <Block title={`Last time · ${ep} ${n}`} aside={e?.stage === "early" ? "Early results" : undefined}>
+      <div data-last-time={n} className="flex flex-col gap-3">
+        {(e?.out ?? []).map((c) => (
+          <div key={c.id} data-last-out={c.name} className="flex min-h-[64px] items-stretch overflow-hidden rounded-[3px] bg-plate text-plate-foreground shadow-plate">
             <Face src={c.photo} name={c.name} className="w-16 flex-none text-2xl" />
             <span className="type-caption -mr-[13px] flex items-center bg-live py-0 pl-3 pr-[22px] text-sm tracking-[0.04em] text-live-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_13px)_100%,0_100%)]">
               Out
@@ -667,62 +319,312 @@ function LastTime({ show }: { show: ShowData }) {
             </span>
           </div>
         ))}
-        {lines.length > 0 && (
-          <div className="rounded-[4px] bg-card px-3.5 pb-1 pt-3">
-            <span className="type-caption block text-[13px] tracking-[0.04em] text-muted-foreground">Your night</span>
-            {/* Each game's line opens its table on the Games tab, on this episode (Weekly Lineup shows how everyone's week went).
-                A jump, not a tab move: it pushes, so back comes back here. */}
-            {lines.map((l) => (
-              <NavLink
-                key={`${l.leagueId}-${l.gameType}`}
-                href={paths.game(show.header?.seasonId ?? "", l.leagueId, e.number)}
-                data-night-line={l.leagueId}
-                className="nd-press grid grid-cols-[110px_1fr_auto] items-baseline gap-x-2.5 border-t border-border py-2.5 first-of-type:border-t-0"
-              >
-                <span className="type-caption text-[13px] tracking-[0.04em]" style={{ color: l.gameType === "predictions" ? "var(--muted-foreground)" : gameInk(l.gameName) }}>
-                  {l.gameName}
-                </span>
-                <span className="min-w-0">
-                  <b className="block text-[17px]">{l.big}</b>
-                  <small className="block truncate text-[13px] text-muted-foreground">{l.line}</small>
-                </span>
-                <ChevronRight className="size-5 self-center text-muted-foreground" aria-hidden />
-              </NavLink>
-            ))}
+        {show.ready && show.header.show.kind !== "sport" && e && e.out?.length === 0 && <p className="text-[15px] text-muted-foreground">Nobody left in {ep} {n}.</p>}
+        {!show.readOnly && d && count === 0 && (
+          // Nobody's GIF yet, yours included: one row to add yours, not an empty tile in a row of three.
+          <button
+            type="button"
+            data-gif-add
+            data-last-gifs={0}
+            onClick={() => openGif(target)}
+            className="nd-press flex min-h-[64px] w-full items-center gap-3 rounded-[4px] border-2 border-dashed border-edge px-3.5 py-2 text-left"
+          >
+            <Plus className="size-5 flex-none" aria-hidden />
+            <span className="min-w-0 flex-1">
+              <b className="block text-[16px]">Add your GIF for {ep} {n}</b>
+              <small className="block text-[14px] text-muted-foreground">{show.solo ? "How was it? Any GIF you like" : "Nobody on the couch has yet"}</small>
+            </span>
+          </button>
+        )}
+        {!show.readOnly && !(d && count === 0) && (
+          <div data-last-gifs={count}>
+            <div className="grid grid-cols-3 gap-2">
+              {d?.mine ? (
+                <button type="button" onClick={() => openGif(target)} className="nd-press block text-left" aria-label="Your GIF: change it">
+                  <GifTile gif={d.mine} you />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  data-gif-add
+                  onClick={() => openGif(target)}
+                  className="nd-press flex aspect-[4/3] flex-col items-center justify-center gap-0.5 rounded-[4px] border-2 border-dashed border-edge text-center"
+                >
+                  <Plus className="size-5" aria-hidden />
+                  <b className="text-[14px] leading-tight">Your GIF</b>
+                </button>
+              )}
+              {shown.map((p) => (
+                <button key={p.userId} type="button" onClick={() => openGif(target)} className="nd-press block text-left" aria-label={`${p.name}'s GIF: see everyone's`}>
+                  <GifTile gif={p.gif} name={p.name} />
+                </button>
+              ))}
+              {!d && <span aria-busy className="col-span-2 aspect-[8/3] animate-pulse rounded-[4px] bg-card" />}
+            </div>
+            <p className="mt-2 text-[13px] text-muted-foreground">
+              {show.solo
+                ? d?.mine
+                  ? "Your reaction, just for you"
+                  : "How was it? Any GIF you like"
+                : !d
+                  ? " "
+                  : count === 0
+                    ? "Nobody on the couch has reacted yet"
+                    : `${count} of ${d.of} on the couch reacted${d.mine ? "" : " · no GIF from you yet"}${others.length > shown.length ? ` · ${others.length - shown.length} more` : ""}`}
+            </p>
           </div>
         )}
-        {e.out?.length === 0 && lines.length === 0 && <p className="text-sm text-muted-foreground">Nobody went home in Episode {e.number}.</p>}
-        <NavLink href={`${paths.show(show.header?.seasonId ?? "", "episodes")}?page=ep${e.number}`} className="flex h-11 items-center justify-center gap-1 rounded-[3px] font-bold outline-1 -outline-offset-1 outline-input">
-          What happened in Episode {e.number} <ChevronRight className="size-4" aria-hidden />
-        </NavLink>
+        <div className="grid grid-cols-2 gap-2">
+          {!show.solo && couchId && !show.readOnly && (
+            <NavLink href={paths.show(seasonId, "chat")} data-last-discuss className="nd-press flex h-12 items-center justify-center gap-2 rounded-[4px] font-bold outline-1 -outline-offset-1 outline-edge">
+              <MessageCircle className="size-[18px]" aria-hidden />
+              Discuss {ep} {n}
+            </NavLink>
+          )}
+          <NavLink
+            href={`${paths.show(seasonId, "episodes")}?page=ep${n}`}
+            data-last-recap
+            className={`nd-press flex h-12 items-center justify-center gap-1 rounded-[4px] font-bold outline-1 -outline-offset-1 outline-edge ${show.solo || !couchId || show.readOnly ? "col-span-2" : ""}`}
+          >
+            {ep} {n} recap
+            <ChevronRight className="size-4" aria-hidden />
+          </NavLink>
+        </div>
       </div>
     </Block>
   );
 }
 
-// ---------- Extras this week ----------
+// ---------- Your games ----------
 
-function ExtraRow({ title, line, state, onClick }: { title: string; line: string; state: string; onClick?: () => void }) {
+/** The line under your place: points, your streak now, or who's still in. */
+export function yourLine(g: GameView): string {
+  const me = g.you;
+  if (!me) return "Not on the table yet";
+  if (g.gameType === "pickem") return `streak ${me.week ?? 0}`;
+  if (g.gameType === "weekly-calls") return `${me.total} ${me.total === 1 ? "call" : "calls"} right`;
+  // A line worth more than a point (step A9): its total is points.
+  if (g.gameType === "weekly-bingo") return g.linePoints && g.linePoints !== 1 ? `${me.total} pts` : `${me.total} ${me.total === 1 ? "line" : "lines"}`;
+  if (g.gameType === "questions") return `${me.total} ${me.total === 1 ? "pt" : "pts"}`;
+  if (g.gameType === "active-roster") return `${me.total} pts`;
+  const team = me.team.map((id) => g.cast.find((c) => c.id === id)).filter((c) => !!c);
+  return `${team.filter((c) => !c.knocked).length} of ${team.length} still in`;
+}
+
+/** Your place in a game: "1st", or "T2" for a tie. */
+export const placeOf = (g: GameView) => (!g.you ? "—" : g.you.rank.startsWith("T") ? g.you.rank : ordinal(g.you.place));
+
+/** Each game you play here as a mini: an excerpt of its page's This week card, in the game's own measure (never a sum across
+ *  games), the last result in a line, its lineup's points one tap open. A stage of a game in stages is its parent's. */
+function YourGames({ seasonId, show }: { seasonId: string; show: ShowData }) {
+  if (!show.play) return <div aria-busy className="mx-4 mt-[26px] h-[150px] animate-pulse rounded-[4px] bg-card" />;
+  const games = show.play.filter((g) => !g.stageOf);
+  if (!games.length) return null;
+  const twin = (g: GameView) => games.filter((x) => x.gameType === g.gameType).length > 1;
   return (
-    <button type="button" onClick={onClick} className="nd-press flex min-h-[60px] w-full items-center gap-3 border-t border-border py-2 text-left">
-      <span className="min-w-0 flex-1">
-        <b className="block text-[15px] font-semibold">{title}</b>
-        <small className="mt-0.5 block text-[13px] text-muted-foreground">{line}</small>
-      </span>
-      <span className="text-[13px] font-semibold text-muted-foreground">{state}</span>
-      <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
-    </button>
+    <Block title="Your games" aside={games.length > 1 ? `${games.length} on ${show.header ? showLabel(show) : "this show"}` : undefined}>
+      <div data-your-games className="flex flex-col">
+        {games.map((g) => (
+          <GameMini key={g.leagueId} seasonId={seasonId} show={show} g={g} name={twin(g) || /^[a-z]+(-[a-z]+)+$/.test(g.gameName) ? g.name : g.gameName} />
+        ))}
+      </div>
+    </Block>
   );
 }
 
-/** The latest episode you've seen that has aired, on a show you follow or play: React with a GIF asks about it, and how your
- *  calls, bingo and sheets went on it. */
-function latestSeen(show: ShowData): number | null {
-  const playing = show.games.some((g) => g.yourRole);
-  if (!show.header || (!show.following && !playing)) return null;
-  const n = Math.min(show.seenThrough ?? show.latestAired, show.latestAired);
-  return n >= 1 ? n : null;
+function GameMini({ seasonId, show, g, name }: { seasonId: string; show: ShowData; g: GameView; name: string }) {
+  const [open, setOpen] = useState(false);
+  const when = (iso: string) => lockTime(Date.parse(iso));
+  const move = yourMove(g, { seasonId, episode: show.words.episode, when });
+  const w = thisWeek(g, {
+    words: show.words,
+    total: (r) => totalWords(g, r),
+    next: show.upNext ? { number: show.upNext.number, when: show.upNext.airAt ? when(show.upNext.airAt) : null } : null,
+    move: move ? { kind: move.kind, due: move.due } : null,
+    seen: show.seenThrough,
+    locked: g.locked ?? null,
+    reveal: show.episodes?.reveal ?? null,
+    aired: show.latestAired,
+  });
+  const href = paths.gamePage(seasonId, g.leagueId);
+  const seen = latestSeen(show);
+  const night = seen ? show.episodes?.episodes.find((e) => e.number === seen)?.lines?.find((l) => l.leagueId === g.leagueId) : undefined;
+  // The ledger: your lineup's last scored week as far as you've seen (Weekly Lineup, best ball).
+  const week: LineupWeek | undefined = g.you?.weeks.filter((x) => seen == null || x.episode <= seen).at(-1);
+  const ink = gameInk(g.gameName);
+  return (
+    <div data-game-mini={g.leagueId} data-mini-kind={w?.kind ?? "plain"} className="border-t border-border py-3 first:border-t-0 first:pt-0">
+      <NavLink href={href} data-game={g.leagueId} className="nd-press -mx-1 flex min-h-11 items-center gap-2 rounded-[3px] px-1">
+        {/* The game's colour as a dot, its name in muted ink: teal and gold mean a win and what's due, never a name. */}
+        <i className="size-2 flex-none rounded-full" style={{ background: ink }} aria-hidden />
+        <span className="type-caption min-w-0 flex-1 truncate text-[14px] tracking-[0.05em] text-muted-foreground">{name}</span>
+        <span className="flex-none text-[13px] font-semibold text-muted-foreground">Open</span>
+        <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
+      </NavLink>
+      <NavLink href={href} className="nd-press -mx-1 block rounded-[3px] px-1 py-1">
+        {w ? <MiniWeek g={g} w={w} /> : <MiniStanding g={g} />}
+      </NavLink>
+      {(w?.last || night) && (
+        <NavLink href={href} data-mini-last className="nd-press -mx-1 mt-1 flex min-h-11 items-center gap-2.5 rounded-[3px] px-1">
+          {w?.last && <ResultSquare r={w.last.result} />}
+          <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{w?.last ? w.last.line.replace(`${show.words.ep} ${w.last.episode} · `, "") : nightWords(night!)}</span>
+          <span className="flex-none text-[13px] text-muted-foreground">
+            {show.words.ep} {w?.last?.episode ?? seen}
+          </span>
+        </NavLink>
+      )}
+      {week && (week.started.length > 0 || week.bench.length > 0) && (
+        <>
+          <button
+            type="button"
+            data-mini-ledger={open ? "open" : "closed"}
+            aria-expanded={open}
+            onClick={() => setOpen(!open)}
+            className="mt-1 flex min-h-11 items-center gap-1.5 text-[14px] font-semibold text-muted-foreground"
+          >
+            Who scored · {show.words.ep} {week.episode}
+            <ChevronDown className={`size-4 transition-transform duration-200 ${open ? "rotate-180" : ""}`} aria-hidden />
+          </button>
+          {open && <Ledger g={g} week={week} />}
+        </>
+      )}
+    </div>
+  );
 }
+
+/** Head to head (or your standing, or solo) as the page's This week card says it, at a glance's distance. */
+function MiniWeek({ g, w }: { g: GameView; w: WeekCard }) {
+  const [tag, ...rest] = w.label.split(" · ");
+  if (w.champion) {
+    return (
+      <span className="flex items-center gap-3">
+        <Avatar id={w.champion.userId ?? w.champion.playerId} name={w.champion.name} size={36} />
+        <span className="min-w-0">
+          <b className="type-caption block text-[24px] leading-none">{w.champion.name === "You" ? "You won it" : `${w.champion.name} won it`}</b>
+          <small className="mt-1 block text-[13px] text-muted-foreground">{w.state}</small>
+        </span>
+      </span>
+    );
+  }
+  if (w.kind === "matchup") {
+    return (
+      <span className="block">
+        {/* The episode only: its air time is the progress control's, said once. */}
+        <b className="type-caption block text-[14px] tracking-[0.05em]" data-mini-ep={rest.length ? rest.join(" · ") : undefined}>
+          {tag}
+        </b>
+        <span className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+          <MiniSide s={w.you} you />
+          <span className="type-num text-[17px] text-muted-foreground">{w.score ? `${w.score.you}–${w.score.them}` : "vs"}</span>
+          {w.them ? <MiniSide s={w.them} /> : <span className="justify-self-end text-[15px] font-semibold text-muted-foreground">{w.stand === "median" ? "The middle score" : "A bye"}</span>}
+        </span>
+        {w.state && <small className="mt-2 block text-[14px] leading-snug text-foreground/85">{w.state}</small>}
+      </span>
+    );
+  }
+  return <MiniStanding g={g} />;
+}
+
+function MiniSide({ s, you }: { s: WeekCard["you"]; you?: boolean }) {
+  return (
+    <span className={`flex min-w-0 items-center gap-2 ${you ? "" : "flex-row-reverse text-right"}`}>
+      <Avatar id={s.userId ?? s.playerId} name={s.name} size={32} />
+      <span className="min-w-0">
+        <b className="block truncate text-[16px] font-bold leading-tight">{you ? "You" : s.name}</b>
+        {s.record && <span className="type-num block text-[14px] leading-tight text-muted-foreground">{s.record}</span>}
+      </span>
+    </span>
+  );
+}
+
+/** Your place in the game's own measure, and the gap to whoever's ahead (or behind, from first). */
+function MiniStanding({ g }: { g: GameView }) {
+  const me = g.you;
+  const ahead = me ? g.table.filter((r) => r.place < me.place).at(-1) : undefined;
+  const behind = me ? g.table.find((r) => r.place > me.place) : undefined;
+  const points = g.gameType === "active-roster" || g.gameType === "questions";
+  const gap = me && points ? (ahead ? `${fmt(ahead.total - me.total)} behind ${ahead.name}` : behind ? `${fmt(me.total - behind.total)} ahead of ${behind.name}` : null) : null;
+  return (
+    <span className="flex items-baseline gap-3">
+      <b className="type-num text-[30px] leading-none">{placeOf(g)}</b>
+      <span className="min-w-0">
+        <span className="block truncate text-[15px] font-semibold">
+          {[g.players > 1 && me ? `of ${g.players}` : null, yourLine(g)].filter(Boolean).join(" · ")}
+        </span>
+        {gap && <small className="block truncate text-[14px] text-muted-foreground">{gap}</small>}
+      </span>
+    </span>
+  );
+}
+
+const fmt = (n: number) => String(Math.round(n * 10) / 10).replace("-", "−");
+
+/** An episode's line for a game as the episode read says it: a bare number is points ("6 pts"), anything else as it is. */
+const nightWords = (l: { big: string; line: string }) => {
+  const big = /^[−-]?\d+(\.\d+)?$/.test(l.big) ? `${l.big} ${l.big === "1" ? "pt" : "pts"}` : l.big;
+  return l.line ? `${big} · ${l.line}` : big;
+};
+
+/**
+ * Who scored, data round 3's ledger: your starters for the week, each a face, a name, a bar on one points scale shared by every
+ * row (a negative an outline left of zero) and the points; then the bench, faint, which didn't count.
+ */
+function Ledger({ g, week }: { g: GameView; week: LineupWeek }) {
+  const rows = [...week.started.map((s) => ({ ...s, bench: false })), ...week.bench.map((b) => ({ ...b, why: [] as string[], bench: true }))];
+  const hi = Math.max(0, ...rows.map((r) => r.points));
+  const lo = Math.min(0, ...rows.map((r) => r.points));
+  // One scale for every row, at least 4 points wide, so one bad week doesn't draw the widest bar of all.
+  const span = Math.max(4, hi - lo);
+  const zero = (-lo / span) * 100;
+  return (
+    <div data-ledger={week.episode} className="mt-1 flex flex-col">
+      {rows.map((r) => {
+        const c = faceIn(g, r.id);
+        const w = (Math.abs(r.points) / span) * 100;
+        return (
+          <div key={`${r.bench ? "b" : "s"}-${r.id}`} data-ledger-row={r.bench ? "bench" : "starter"} className={`flex min-h-12 items-center gap-2.5 py-1 ${r.bench ? "opacity-60" : ""}`}>
+            <Face src={c?.photo ?? null} name={c?.name} className="size-9 flex-none rounded-[3px] text-sm" />
+            <span className="w-[92px] min-w-0 flex-none">
+              <b className="block truncate text-[15px] font-semibold leading-tight">{castName(c, g)}</b>
+              <small className="block truncate text-[13px] text-muted-foreground">{r.bench ? "Bench · didn't count" : (r.why[0] ?? "Started")}</small>
+            </span>
+            <span className="relative h-2.5 flex-1" aria-hidden>
+              <i className="absolute inset-y-0 w-px bg-border" style={{ left: `${zero}%` }} />
+              {r.points === 0 ? (
+                <i className="absolute top-1/2 size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted-foreground" style={{ left: `${zero}%` }} />
+              ) : (
+                <i
+                  className={`ledger-bar absolute inset-y-0 rounded-[2px] ${r.points < 0 ? "outline-1 -outline-offset-1 outline-foreground/70" : r.bench ? "bg-foreground/40" : "bg-foreground"}`}
+                  style={r.points < 0 ? { right: `${100 - zero}%`, width: `${w}%` } : { left: `${zero}%`, width: `${w}%` }}
+                />
+              )}
+            </span>
+            <b className="type-num w-10 flex-none text-right text-[17px]">{fmt(r.points)}</b>
+          </div>
+        );
+      })}
+      <p className="mt-1 flex items-baseline justify-between border-t border-border pt-2 text-[14px]">
+        <span className="text-muted-foreground">Your lineup</span>
+        <b className="type-num text-[17px]">{fmt(week.started.reduce((a, s) => a + s.points, 0))}</b>
+      </p>
+    </div>
+  );
+}
+
+// ---------- the next episode ----------
+
+/** At your own pace, your next episode (your mark plus one) while there is one out; else null. */
+export const paceNext = (show: ShowData): number | null => {
+  if (!show.ownPace) return null;
+  const n = (show.seenThrough ?? 0) + 1;
+  return n <= show.latestAired ? n : null;
+};
+
+/** A Prediction Sheet of yours here asks about episode `n` this week (its questions for it, as the Games read says). */
+export const sheetAsks = (show: ShowData, n: number) => (show.play ?? []).some((g) => g.gameType === "questions" && !g.archived && g.sheet?.episode === n);
+
+/** Your game here still asks for episode `n` (a game over a span asks for nothing past its last: step 6 of PLAN-sports-data.md). */
+const asksFor = (g: ShowData["games"][number], n: number) => !g.span || n <= g.span.to;
 
 /** The episode Call it asks about: the next to air (step 12 part 2), on a show that's a game you follow or play, unless your Weekly
  *  Calls game here already asks for it as a move. */
@@ -740,62 +642,77 @@ function toCall(show: ShowData): number | null {
   return up.number;
 }
 
-/** At your own pace, your next episode (your mark plus one) while there is one out; else null. */
-export const paceNext = (show: ShowData): number | null => {
-  if (!show.ownPace) return null;
-  const n = (show.seenThrough ?? 0) + 1;
-  return n <= show.latestAired ? n : null;
-};
-
-/** A Prediction Sheet of yours here asks about episode `n` this week (its questions for it, as the Games read says). */
-export const sheetAsks = (show: ShowData, n: number) => (show.play ?? []).some((g) => g.gameType === "questions" && !g.archived && g.sheet?.episode === n);
-
-/** Your game here still asks for episode `n` (a game over a span asks for nothing past its last: step 6 of PLAN-sports-data.md). */
-const asksFor = (g: ShowData["games"][number], n: number) => !g.span || n <= g.span.to;
-
-function Extras({ show }: { show: ShowData }) {
+/**
+ * The next episode, while it's still to come: only what plans it. Watch along (it opens at airtime), watching it together with the
+ * couch (planned nights), and your bingo card. Once it's out or on air, Watch along is the progress control's. The other extras'
+ * rows (predictions, Call it, finales, polls, how your calls went) stay off until a session on extras brings them back (the user,
+ * 2026-11-09).
+ */
+function NextEpisode({ seasonId, show }: { seasonId: string; show: ShowData }) {
+  const me = useMe();
   const up = show.upNext;
-  const predictions = show.moves.filter((m) => m.kind === "prediction");
+  const openWatch = useOpenWatch();
+  const t = up?.airAt ? Date.parse(up.airAt) : null;
+  const now = useNow(t != null && ticks(t));
+  const couchId = show.couch?.id ?? null;
   const seen = latestSeen(show);
   const call = toCall(show);
-  // Your bingo card (Weekly Bingo's is a card in Your moves), and how the latest you've seen went once you ticked it.
-  const bingo = show.games.some((g) => g.yourRole && g.gameType === "weekly-bingo" && asksFor(g, up?.number ?? show.latestAired)) ? null : toBingo(show);
-  const couchId = show.couch?.id ?? null;
-  // The couch's polls still open on this show (step 12 part 2): yours to vote in until it airs.
-  const polls = useSeasonPolls(show.header?.seasonId ?? null, couchId, !show.solo && !!couchId);
-  // A draft's finale predictions while they're open (step A4 part 2), and how your Prediction Sheet went on the latest you've seen.
+  const predictions = show.moves.filter((m) => m.kind === "prediction");
   const finales = (show.play ?? []).filter((g) => g.sheet?.finale && !g.revealFirst);
   const sheets = seen && show.header ? show.games.filter((g) => g.yourRole && g.gameType === "questions" && !g.archived) : [];
-  // Just the GIFs and your bingo card for now (the user, 2026-11-09): the rest waits for a session on Extras. The other rows'
-  // code stays, off, so that session can bring them back.
+  const polls = useSeasonPolls(show.header?.seasonId ?? null, couchId, !show.solo && !!couchId);
   const more = false;
-  if (up?.live || (!seen && !bingo)) return null;
+  const bingo = show.games.some((g) => g.yourRole && g.gameType === "weekly-bingo" && asksFor(g, up?.number ?? show.latestAired)) ? null : toBingo(show);
+  if (!show.header || show.readOnly || !up || up.live || (show.dropAt != null && show.dropAt > now)) return null;
+  // Behind on a show you only watch: what's out comes first (the control's I watched it); planning the next airing waits.
+  if (!show.plays && show.seenThrough != null && show.seenThrough < show.latestAired) return null;
+  const plans = (show.home?.plans ?? []).filter((p) => p.couchId === couchId && p.seasonId === seasonId);
+  const together = !show.solo && couchId && !plans.some((p) => p.episode === up.number);
   return (
-    <Block title={paceNext(show) !== null ? `Extras · Episode ${paceNext(show)}` : "Extras this week"} aside="Optional">
-      {more && predictions.map((m) => (
-        <ExtraRow key={m.leagueId} title={m.text} line={`Closes at airtime · ${m.leagueName}`} state="Open" onClick={() => openMoves("predict")} />
-      ))}
-      {more && call && show.header && <CallRow target={{ seasonId: show.header.seasonId, couchId, episode: call, label: showLabel(show), solo: show.solo }} />}
-      {more &&
-        show.header &&
-        finales.map((g) => <SheetRow key={g.leagueId} move={g.sheet!} target={{ seasonId: show.header!.seasonId, leagueId: g.leagueId, episode: null, game: g.name, finale: true }} />)}
-      {more && couchId && (polls.data?.polls ?? []).filter((p) => p.open).map((p) => <PollRow key={p.id} p={p} couchId={couchId} />)}
-      {seen && show.header && (
-        <GifRow
-          target={{ seasonId: show.header.seasonId, couchId, episode: seen, label: showLabel(show), solo: show.solo }}
-          line={show.episodes?.episodes.find((e) => e.number === seen)?.gifs}
-        />
-      )}
-      {/* How your calls on it went (step 12 part 2), on a show that's a game: a talk show's say what happened here. */}
-      {more && seen && show.header && show.ready && (
-        <CallResultRow target={{ seasonId: show.header.seasonId, couchId, episode: seen, label: showLabel(show), solo: show.solo }} need="mine" />
-      )}
-      {bingo && show.header && (
-        <BingoRow target={bingoTarget(show, bingo)} title={up && bingo === up.number ? "Your bingo card" : undefined} />
-      )}
-      {seen && show.header && show.ready && seen !== bingo && <BingoRow target={bingoTarget(show, seen)} need="mine" />}
-      {more && seen && show.header && sheets.map((g) => <SheetResultRow key={g.leagueId} target={{ seasonId: show.header!.seasonId, leagueId: g.leagueId, episode: seen, game: g.name }} />)}
+    <Block title={`Next · ${show.words.ep} ${up.number}`}>
+      <div data-next-episode={up.number} className="flex flex-col">
+        <button type="button" data-next-watch onClick={() => openWatch(up.number)} className="nd-press flex min-h-[60px] w-full items-center gap-3 border-t border-border py-2 text-left first:border-t-0">
+          <Tv className="size-5 flex-none text-muted-foreground" aria-hidden />
+          <span className="min-w-0 flex-1">
+            <b className="block text-[15px] font-semibold">Watch along</b>
+            <small className="block text-[13px] text-muted-foreground">Opens at airtime · a clock beside your TV, the couch&rsquo;s reactions in step</small>
+          </span>
+          <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
+        </button>
+        {couchId && <PlanPlates plans={plans} me={me.id} />}
+        {together && (
+          <button type="button" data-next-together onClick={() => openPlan({ kind: "new", seasonId, couchId: couchId!, episode: up.number })} className="nd-press flex min-h-[60px] w-full items-center gap-3 border-t border-border py-2 text-left">
+            <Users className="size-5 flex-none text-muted-foreground" aria-hidden />
+            <span className="min-w-0 flex-1">
+              <b className="block text-[15px] font-semibold">Watch it together</b>
+              <small className="block text-[13px] text-muted-foreground">{show.ownPace || show.streaming ? "Pick a time, start at the same moment, anyone can pause" : "Ask the couch for the live airing, or pick a time"}</small>
+            </span>
+            <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
+          </button>
+        )}
+        {bingo && <BingoRow target={bingoTarget(show, bingo)} title={bingo === up.number ? "Your bingo card" : undefined} />}
+        {more && predictions.map((m) => <PredictionRow key={m.leagueId} title={m.text} line={`Closes at airtime · ${m.leagueName}`} />)}
+        {more && call && <CallRow target={{ seasonId, couchId, episode: call, label: showLabel(show), solo: show.solo }} />}
+        {more && finales.map((g) => <SheetRow key={g.leagueId} move={g.sheet!} target={{ seasonId, leagueId: g.leagueId, episode: null, game: g.name, finale: true }} />)}
+        {more && couchId && (polls.data?.polls ?? []).filter((p) => p.open).map((p) => <PollRow key={p.id} p={p} couchId={couchId} />)}
+        {more && seen && <CallResultRow target={{ seasonId, couchId, episode: seen, label: showLabel(show), solo: show.solo }} need="mine" />}
+        {more && seen && sheets.map((g) => <SheetResultRow key={g.leagueId} target={{ seasonId, leagueId: g.leagueId, episode: seen, game: g.name }} />)}
+      </div>
     </Block>
+  );
+}
+
+/** A prediction still open (off with the other extras: see NextEpisode). */
+function PredictionRow({ title, line }: { title: string; line: string }) {
+  return (
+    <button type="button" onClick={() => openMoves("predict")} className="nd-press flex min-h-[60px] w-full items-center gap-3 border-t border-border py-2 text-left">
+      <span className="min-w-0 flex-1">
+        <b className="block text-[15px] font-semibold">{title}</b>
+        <small className="mt-0.5 block text-[13px] text-muted-foreground">{line}</small>
+      </span>
+      <span className="text-[13px] font-semibold text-muted-foreground">Open</span>
+      <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
+    </button>
   );
 }
 
@@ -834,98 +751,8 @@ function OnTonight({ show }: { show: ShowData }) {
   const up = show.upNext;
   if (!up?.live || toBingo(show) !== up.number || !show.header) return null;
   return (
-    <Block title="Tonight" aside="On air">
+    <Block title={`${show.words.ep} ${up.number}`} aside="On air">
       <BingoRow target={bingoTarget(show, up.number)} />
     </Block>
-  );
-}
-
-// ---------- Watch along: watch-along.tsx (step 13) ----------
-
-/** The couch's planned nights for this show (step 11 part 3; the mock's w-plan), and Plan a watch along when your next episode
- *  has none. On a couch only. */
-function PlannedNights({ seasonId, show, plate }: { seasonId: string; show: ShowData; plate: boolean }) {
-  const me = useMe();
-  const couchId = show.couch?.id ?? null;
-  if (show.solo || !couchId || !show.header) return null;
-  const plans = (show.home?.plans ?? []).filter((p) => p.couchId === couchId && p.seasonId === seasonId);
-  const next = show.upNext?.number ?? (show.seenThrough ?? show.latestAired) + 1;
-  // A season watched at your own pace that you've finished has no next episode to plan (step 14).
-  const finished = show.ownPace && !show.upNext && episodesOf(show) > 0 && next > episodesOf(show);
-  return (
-    <section className="mt-2.5 flex flex-col gap-2.5 px-4" data-planned-nights>
-      <PlanPlates plans={plans} me={me.id} />
-      {!finished && !plate && !plans.some((p) => p.episode === next) && (
-        <PlanInvite
-          onClick={() => openPlan({ kind: "new", seasonId, couchId, episode: next })}
-          // A season watched at your own pace has no live airing (step 14): a night is a shared start, the premiere's from its drop.
-          title={show.streaming && show.upNext ? "Plan a watch along for the premiere" : `Watch ${show.words.episode} ${next} together`}
-          line={show.ownPace || show.streaming ? "Pick a time, start at the same moment, anyone can pause" : "Ask the couch for the live airing, or pick a time"}
-        />
-      )}
-    </section>
-  );
-}
-
-// ---------- Your games ----------
-
-/** The line under your place: points, your streak now, or who's still in. */
-export function yourLine(g: GameView): string {
-  const me = g.you;
-  if (!me) return "Not on the table yet";
-  if (g.gameType === "pickem") return `streak ${me.week ?? 0}`;
-  if (g.gameType === "weekly-calls") return `${me.total} ${me.total === 1 ? "call" : "calls"} right`;
-  // A line worth more than a point (step A9): its total is points.
-  if (g.gameType === "weekly-bingo") return g.linePoints && g.linePoints !== 1 ? `${me.total} pts` : `${me.total} ${me.total === 1 ? "line" : "lines"}`;
-  if (g.gameType === "questions") return `${me.total} ${me.total === 1 ? "pt" : "pts"}`;
-  if (g.gameType === "active-roster") return `${me.total} pts`;
-  const team = me.team.map((id) => g.cast.find((c) => c.id === id)).filter((c) => !!c);
-  return `${team.filter((c) => !c.knocked).length} of ${team.length} still in`;
-}
-
-/** Your place in a game: "1st", or "T2" for a tie. */
-export const placeOf = (g: GameView) => (!g.you ? "—" : g.you.rank.startsWith("T") ? g.you.rank : ordinal(g.you.place));
-
-function YourGames({ seasonId, show }: { seasonId: string; show: ShowData }) {
-  const tab = paths.show(seasonId, "games");
-  if (!show.play) return <div aria-busy className="mx-4 mt-[26px] h-[150px] animate-pulse rounded-[4px] bg-card" />;
-  const twin = (g: GameView) => show.play!.filter((x) => x.gameType === g.gameType).length > 1;
-  return (
-    <section className="mt-[26px] px-4">
-      <div className="mb-3 flex items-baseline justify-between gap-3">
-        <h2 className="type-caption text-[24px]">Your games</h2>
-        {/* Jumps to the Games tab push (back comes back here); only the tab bar moves sideways without a trail. */}
-        <NavLink href={tab} className="text-[15px] font-semibold">
-          Standings
-        </NavLink>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        {show.play.map((g) => (
-          <NavLink
-            key={g.leagueId}
-            href={show.header ? paths.gamePage(show.header.seasonId, g.leagueId) : tab}
-            data-game={g.leagueId}
-            className="nd-press flex min-h-[104px] flex-col gap-1.5 rounded-b-[4px] border-t-[3px] bg-card p-3"
-            style={{ borderTopColor: gameColour(g.gameName) }}
-          >
-            <span className="type-caption truncate text-xs tracking-[0.04em] text-muted-foreground">{twin(g) ? g.name : g.gameName}</span>
-            <b className="type-num text-[36px] leading-none">{placeOf(g)}</b>
-            <small className="block text-xs text-muted-foreground">{yourLine(g)}</small>
-          </NavLink>
-        ))}
-        {!show.solo && (
-          <button
-            type="button"
-            data-tonight-start
-            onClick={() => openStartGame({ seasonId, couchId: show.couch?.id ?? null })}
-            className="nd-press flex min-h-[104px] w-full flex-col justify-center gap-1.5 rounded-[4px] p-3 text-left text-muted-foreground outline-[1.5px] -outline-offset-[1.5px] outline-dashed outline-input"
-          >
-            <Plus className="size-5" aria-hidden />
-            <b className="text-[15px] text-foreground">Start a game</b>
-            <small className="block text-xs">Anyone on the couch can</small>
-          </button>
-        )}
-      </div>
-    </section>
   );
 }

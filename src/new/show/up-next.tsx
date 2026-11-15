@@ -197,7 +197,7 @@ function PlateBtn({ ink, className = "", ...props }: ComponentProps<"button"> & 
 
 // ---------- Watched all of it? ----------
 
-function WatchedSheet({
+export function WatchedSheet({
   open,
   onOpenChange,
   show,

@@ -179,7 +179,7 @@ export function GifTile({ gif, name, you, wide }: { gif: Gif; name?: string; you
       {/* eslint-disable-next-line @next/next/no-img-element -- KLIPY's own picture */}
       <img src={gif.url} alt={`${you ? "Your" : `${name}'s`} GIF${gif.title ? `: ${gif.title}` : ""}`} className="absolute inset-0 size-full object-cover" loading="lazy" />
       <span
-        className={`type-caption tag-cut absolute bottom-0 left-0 py-1.5 pl-2.5 pr-5 text-[15px] ${you ? "bg-chyron text-chyron-foreground" : "bg-plate text-plate-foreground"}`}
+        className={`type-caption tag-cut absolute bottom-0 left-0 max-w-[calc(100%-6px)] truncate py-1.5 pl-2.5 pr-5 text-[15px] ${you ? "bg-foreground text-background" : "bg-plate text-plate-foreground"}`}
       >
         {you ? "You" : name}
       </span>
