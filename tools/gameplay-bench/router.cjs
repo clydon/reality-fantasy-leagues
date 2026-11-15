@@ -43,8 +43,8 @@ function router({out,activate,releaseBench,sourceFingerprint}){
   if(method==='GET'&&action==='example')return {status:200,body:{label:'Three games, Bo a week behind',input:require('../../tests/fixtures/gameplay-explorer/runtime-proof.cjs')({ann:2,bo:1,eventCount:5})}};
   // The first redesign page's situations (explorer/situations.cjs; docs/GAME-PAGE-SITUATIONS.md): each a definition and the runtime
   // actions that bring it there; the page executes them (runtime/execute) and opens the result on the game's own page.
-  if(method==='GET'&&action==='situations')return {status:200,body:{situations:require('./explorer/situations.cjs').list()}};
-  if(method==='POST'&&action==='situation'){try{return {status:200,body:require('./explorer/situations.cjs').build(body.id)};}catch(e){return {status:422,body:{error:e.message}};}}
+  if(method==='GET'&&action==='situations')return {status:200,body:{situations:(S=>[...S.list(),...S.real()])(require('./explorer/situations.cjs'))}};
+  if(method==='POST'&&action==='situation'){try{return {status:200,body:require('./explorer/situations.cjs').build(body.id,{dress:body.dress||null})};}catch(e){return {status:422,body:{error:e.message}};}}
   // The old bench's recipe form as a v2 definition (explorer/recipes.cjs); the page then opens it like any other.
   if(method==='POST'&&action==='recipe'){try{return {status:200,body:require('./explorer/recipes.cjs').recipeDefinition(body.config||{})};}catch(e){return {status:422,body:{error:e.message}};}}
   if(method==='GET'&&action==='renderers')return {status:200,body:{renderers:(await renderers()).map(({db,...r})=>r)}}; // database URLs never leave the server

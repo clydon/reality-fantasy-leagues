@@ -90,9 +90,13 @@ async function up(snap, document, dbUrl, onLease) {
       const slug = slugOf(key, ci + 1), format = world.context.format?.id || 'survivor';
       // (A sport's show as a league's is once a game is made on it: sports/matchup.ts leagueShow's words, make-game.ts's set_up_at.)
       const sport = isSport(world);
-      const show = (await one(`INSERT INTO shows (slug, name, format, created_by${sport ? ', kind, castaway_term, tribe_term, episode_term, set_up_at' : ''}) VALUES ($1, $2, $3, $4${sport ? ", 'sport', 'Player', 'Team', 'Game', now()" : ''}) RETURNING id`, [slug, 'ZT Bench ' + (world.context.label || contextId), format, owner])).id;
-      const season = (await one(`INSERT INTO show_seasons (show_id, season_number, name, status, air_tz, episode_count, episode_minutes, cast_approved_at) VALUES ($1, 1, $2, 'airing', 'America/New_York', $3, 60, now()) RETURNING id`, [show, 'ZT Bench ' + key, world.events.length])).id;
-      ids.seasons[contextId] = { id: season, slug, number: 1, ...(sport ? { sport: { league: world.context.key, events: slugOf(key, 'c' + (ci + 1)) } } : {}) };
+      // A dressed world (explorer/dress.cjs: a real season's people) wears its show's real name, season and art too.
+      const dress = world.context.dress || null, number = dress?.number || 1;
+      const show = (await one(`INSERT INTO shows (slug, name, format, created_by${sport ? ', kind, castaway_term, tribe_term, episode_term, set_up_at' : ''}) VALUES ($1, $2, $3, $4${sport ? ", 'sport', 'Player', 'Team', 'Game', now()" : ''}) RETURNING id`, [slug, dress?.name || 'ZT Bench ' + (world.context.label || contextId), format, owner])).id;
+      const season = (await one(`INSERT INTO show_seasons (show_id, season_number, name, status, air_tz, episode_count, episode_minutes, cast_approved_at) VALUES ($1, $2, $3, 'airing', 'America/New_York', $4, 60, now()) RETURNING id`, [show, number, dress?.seasonName || 'ZT Bench ' + key, world.events.length])).id;
+      if (dress?.art?.borrow) await require('../../scripts/dev-test/fixture-art.js').borrow(db, slug, dress.art.borrow);
+      else if (dress?.art?.generated) await require('../../scripts/dev-test/fixture-art.js').generated(db, slug, dress.art.generated);
+      ids.seasons[contextId] = { id: season, slug, number, ...(sport ? { sport: { league: world.context.key, events: slugOf(key, 'c' + (ci + 1)) } } : {}) };
       ids.groups[contextId] = (await one(`INSERT INTO league_groups (created_by) VALUES ($1) RETURNING id`, [owner])).id;
       // (An athlete's position and the provider's id for them: how the server knows a kept line's person, score.ts peopleOf.)
       // (A slate's athlete's team is the cast's tribe_name: how the server knows a holding's games, air-times.ts stampGameLocks.)

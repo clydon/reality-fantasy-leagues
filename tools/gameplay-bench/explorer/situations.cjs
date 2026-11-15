@@ -11,7 +11,10 @@
 //
 // Add a situation: a builder below (a definition, then steps from the session as it stands), a line in LIST, and its claims in
 // the test. Results come from the bench's own publish (publish.cjs), so a situation's results are the Publish button's.
-const D = require('./document.cjs'), R = require('./runtime.cjs'), { resultsData } = require('./publish.cjs');
+const D = require('./document.cjs'), R = require('./runtime.cjs'), { resultsData } = require('./publish.cjs'), Dress = require('./dress.cjs');
+// The dress the situation being built wears (build's `dress`: 'real' for a real season's people, dress.cjs), else the generated.
+let DRESS = null;
+const dressed = doc => (DRESS ? Dress.apply(doc, DRESS).definition : doc);
 const CONTEXT = require('../../../tests/fixtures/gameplay-explorer/questions-input.json').context; // the Survivor context
 const sportsProof = require('../../../tests/fixtures/gameplay-explorer/sports-proof.cjs');
 const CLOCK = '2099-01-10T12:00:00.000Z', HOUR = 3600000;
@@ -33,13 +36,13 @@ const STAGED = { stages: [{ id: 'before', name: 'Before the merge', game: { ...H
  *  `phaseStarts` (the merge's episode) for a game in stages. */
 function showDefinition(o = {}) {
   const completed = o.completed ?? 3, count = o.count ?? 7, people = (o.people || ['Ann', 'Bo', 'Cy', 'Di']).map((name, i) => ({ id: ['ann', 'bo', 'cy', 'di'][i], name: o.labels === 'long' ? name + ' de la Cruz Montgomery-Wellington' : name }));
-  return D.create({
+  return dressed(D.create({
     seed: o.seed ?? 42,
     world: { contexts: [{ id: 'show', kind: 'show', format: { id: 'survivor' }, engine: { ...CONTEXT, couch: people.length, pool: 18 }, ...(o.phaseStarts ? { phaseStarts: o.phaseStarts } : {}) }], people },
     games: [{ id: 'h2h', name: o.name || 'Weekly Lineup', contextId: 'show', spec: o.spec || H2H, timing: o.timing || 'own-pace' }],
     situation: { clock: CLOCK, viewerId: 'ann', marks: people.map(p => ({ personId: p.id, contextId: 'show', through: (o.marks || {})[p.id] ?? completed })) },
     content: { labels: o.labels === 'long' ? 'long' : 'normal', completedEvents: completed, eventCount: count },
-  });
+  }));
 }
 /** The NFL's own season game (head to head, a weekly lock), three people (Ann, Bo, Cy) at marks of their own; `hides`: who hides
  *  sports scores. A game a week, Thursday night (Eastern), two played: the clock is Saturday, so the next game is next week's and
@@ -47,14 +50,14 @@ function showDefinition(o = {}) {
 const NFL_WEEKS = Array.from({ length: 6 }, (_, i) => new Date(Date.parse(CLOCK) - 36 * HOUR + (i - 1) * 7 * 24 * HOUR).toISOString());
 function nflDefinition(o = {}) {
   const doc = sportsProof({ league: 'football/nfl', game: 'season', timing: 'live-only', completed: 2, schedule: NFL_WEEKS, clock: CLOCK, ...o });
-  return D.create({ ...doc, situation: { ...doc.situation, viewerId: 'ann' } });
+  return dressed(D.create({ ...doc, situation: { ...doc.situation, viewerId: 'ann' } }));
 }
 /** The NBA on a slate (three games a week), a lineup of two from four locking at each game's start, live, everyone caught up. */
 function nbaWeekDefinition() {
   const nba = require('../sports.cjs').resolve('basketball/nba', 'short').row.spec;
   const spec = { ...nba, get: { by: 'draft', each: 4, order: 'snake', own: 'exclusive' }, count: { start: 2 }, closes: 'game' };
   const doc = sportsProof({ league: 'basketball/nba', game: spec, slate: 3, completed: 1, events: 3, timing: 'live-only', ann: 1, bo: 1, cy: 1 });
-  return D.create({ ...doc, situation: { ...doc.situation, viewerId: 'ann' } });
+  return dressed(D.create({ ...doc, situation: { ...doc.situation, viewerId: 'ann' } }));
 }
 /** Play `steps(s)` (a function of the open session returning the next action, or null to stop) and keep each accepted action. */
 function play(input, next) {
@@ -198,13 +201,103 @@ const LIST = [
     build: () => { const input = stagedDefinition(); return { input, steps: play(input, queue([4, 5, 6, 7, 8].flatMap(n => [...stagesSet(n), ...played('show', n, ALL)]))) }; } },
 ];
 
+// ---- A real game (the user, 2026-11-15: "We could do the Patriots Lions game going on now") ----
+// One real NFL game as a head to head of two: Ann and Bo draft fifteen each from both teams' real rosters (best first, by what
+// they did in the recorded season), start nine by position, and the game is scored by its real box score as the app reads it
+// (scripts/dev-test/espn-final.js: src/lib/sports/final.ts storedGame, what finals.ts keeps). Its people, headshots, kickoff and
+// numbers are real; only the two players and their draft are the bench's. Needs the ignored recordings (espn-snapshot.js for the
+// rosters and the schedule, espn-final.js for the final), so these sit outside LIST (the situations test holds LIST to its claims
+// on any checkout): `real()` lists them only where their recordings are. Which game: REAL_GAME's teams and week (its final once
+// it's in), else, for the scored one, the newest recorded final.
+const REAL_GAME = { league: 'football/nfl', teams: ['NE', 'DET'], week: 10 };
+const ESPN_DIR = require('path').resolve(__dirname, '../../../.ui-atlas/fixtures/espn');
+function realGame({ final: needFinal } = {}) {
+  const fs = require('fs'), path = require('path'), Roster = require('./sports-roster.cjs');
+  let snap;
+  try { snap = Roster.load(REAL_GAME.league); } catch { return null; }
+  const abbr = Object.fromEntries(snap.teams.map(t => [t.id, t.abbreviation])), short = Object.fromEntries(snap.teams.map(t => [t.id, t.short || t.name]));
+  const finals = fs.existsSync(ESPN_DIR) ? fs.readdirSync(ESPN_DIR).filter(f => f.startsWith('final-')).map(f => JSON.parse(fs.readFileSync(path.join(ESPN_DIR, f), 'utf8'))).filter(f => f.league === REAL_GAME.league) : [];
+  const wanted = snap.events.find(e => e.week === REAL_GAME.week && REAL_GAME.teams.every(t => [abbr[e.home], abbr[e.away]].includes(t)));
+  const finalOf = e => finals.find(f => f.event === e?.id && f.final) || null;
+  let event = wanted, fin = finalOf(wanted);
+  if (needFinal && !fin) {
+    fin = finals.filter(f => f.final).sort((x, y) => String(y.recordedAt).localeCompare(String(x.recordedAt)))[0] || null;
+    event = fin && snap.events.find(e => e.id === fin.event);
+  }
+  if (!event || (needFinal && !fin)) return null;
+  const teams = [event.away, event.home];
+  // Everyone the recording has at a fantasy position (its whole pool: each role's share is all of them), on the game's two teams.
+  const all = { DEF: snap.teams.length };
+  for (const t of snap.teams) for (const p of t.roster) { const r = Roster.ROLE[p.abbr]; if (r && p.status !== 'practice-squad') all[r] = (all[r] || 0) + 1; }
+  const everyone = Roster.pool(snap, { shares: all }).athletes.filter(a => teams.includes(a.team));
+  everyone.sort((x, y) => y.value - x.value);
+  // The bench deals an exclusive draft in the cast's order (Ann the first fifteen, Bo the next), so the cast is put in the order a
+  // snake draft of two would take them: each pick the best left, while a starting slot is open a player for one of them.
+  const Sports = require('./runtime-sports.cjs'), slots = Sports.league(Sports.contextFor(REAL_GAME.league, { couch: 2, pool: 40 })).defaults.slots.lineup;
+  const left = [...everyone], teamsOf = [[], []];
+  const open = t => slots.flatMap(sl => Array(sl.n).fill(sl.takes)).filter((takes, i, all) => teamsOf[t].filter(a => takes.includes(a.role)).length < all.slice(0, i + 1).filter(x => x === takes).length);
+  for (let k = 0; k < 30 && left.length; k++) {
+    const t = Math.floor(k / 2) % 2 === 0 ? k % 2 : 1 - (k % 2), need = open(t);
+    const i = need.length ? left.findIndex(a => need.some(takes => takes.includes(a.role))) : 0;
+    teamsOf[t].push(left.splice(i < 0 ? 0 : i, 1)[0]);
+  }
+  everyone.splice(0, everyone.length, ...teamsOf[0], ...teamsOf[1], ...left);
+  const idOf = a => 'rg-' + String(a.id).replace(/[^A-Za-z0-9]/g, '-');
+  const participants = everyone.map(a => ({ id: idOf(a), contextId: 'sport', name: a.name, photoUrl: a.headshot || null, role: a.role, team: abbr[a.team] }));
+  const name = short[event.away] + ' vs ' + short[event.home];
+  return { event, fin, participants, name, byEspn: Object.fromEntries(everyone.map(a => [String(a.id), idOf(a)])) };
+}
+function realGameDefinition(g) {
+  const Sports = require('./runtime-sports.cjs'), season = require('../sports.cjs').resolve(REAL_GAME.league, 'season').row.spec;
+  const at = new Date(g.event.at).toISOString();
+  return D.create({
+    seed: 42,
+    world: {
+      contexts: [{ ...Sports.contextFor(REAL_GAME.league, { couch: 2, pool: g.participants.length }), dress: { name: 'NFL', seasonName: 'Week ' + g.event.week, art: { generated: 'football' } } }],
+      people: [{ id: 'ann', name: 'Ann' }, { id: 'bo', name: 'Bo' }],
+      participants: g.participants,
+      events: [{ id: 'sport-event-1', contextId: 'sport', number: 1, title: g.name, airAt: at, resultStatus: 'unavailable' }],
+    },
+    games: [{ id: 'g', name: g.name, contextId: 'sport', timing: 'live-only', spec: { ...season, span: { from: 1, to: 1 } } }],
+    situation: { clock: new Date(Date.parse(at) - 90 * 60000).toISOString(), viewerId: 'ann', marks: [{ personId: 'ann', contextId: 'sport', through: 0 }, { personId: 'bo', contextId: 'sport', through: 0 }] },
+    content: { completedEvents: 0, eventCount: 1 },
+  });
+}
+const REAL = [
+  { id: 'real-nfl-game-due', page: 'sport', final: false, label: g => 'A real game · ' + g.name + ': your lineup due before kickoff',
+    shows: "A real NFL game as a head to head of two: both rosters' real players and headshots, drafted, Bo's lineup set, yours due before kickoff.",
+    build: g => { const input = realGameDefinition(g); return { input, steps: play(input, queue([s => slotLineup(s, 'g', 'bo')])) }; } },
+  { id: 'real-nfl-game-final', page: 'sport', final: true, label: g => 'A real game · ' + g.name + ': scored by its real box score',
+    shows: 'The same head to head after the final whistle: both lineups set before kickoff, every point from the real box score as the app reads it.',
+    build: g => {
+      const input = realGameDefinition(g), lines = {};
+      for (const [id, line] of Object.entries(g.fin.stored.lines)) if (g.byEspn[id]) lines[g.byEspn[id]] = line;
+      const end = Date.parse(input.world.events[0].airAt) + 4 * HOUR;
+      return { input, steps: play(input, queue([s => slotLineup(s, 'g', 'bo'), s => slotLineup(s, 'g', 'ann'), clockTo(end), { type: 'results', contextId: 'sport', eventId: 'sport-event-1', source: 'provider-fixture', resultStatus: 'final', data: { events: [], scoringEvents: [], lines } }])) };
+    } },
+];
+/** The real-game situations whose recordings are on this machine: { id, page, label, shows }. */
+const real = () => REAL.map(x => ({ x, g: realGame({ final: x.final }) })).filter(({ g }) => g).map(({ x, g }) => ({ id: x.id, page: x.page, label: x.label(g), shows: x.shows }));
+
 /** The situations, without their definitions: { id, page, label, shows }. */
 const list = () => LIST.map(({ id, page, label, shows }) => ({ id, page, label, shows }));
-/** A situation ready for the explorer page: its definition, its steps (played once here), its viewer and game. */
-function build(id) {
+/** A situation ready for the explorer page: its definition, its steps (played once here), its viewer and game. `dress`: 'real' puts
+ *  a real season's people in it where a recording exists (dress.cjs; the label says so), else it's the generated world. */
+function build(id, { dress = null } = {}) {
+  const r = REAL.find(y => y.id === id);
+  if (r) {
+    const g = realGame({ final: r.final });
+    if (!g) throw Error('A real game needs its recordings: node scripts/dev-test/espn-snapshot.js record, then espn-final.js --teams=' + REAL_GAME.teams.join(',') + ' once it is over');
+    const { input, steps } = r.build(g);
+    return { kind: 'gameplay-situation', id, label: r.label(g), page: r.page, shows: r.shows, input, steps, viewerId: 'ann', gameId: 'g', dress: 'real' };
+  }
   const x = LIST.find(y => y.id === id);
   if (!x) throw Error('Unknown situation: ' + id + ' (one of ' + LIST.map(y => y.id).join(', ') + ')');
-  const { input, steps } = x.build();
-  return { kind: 'gameplay-situation', id, label: x.label, page: x.page, shows: x.shows, input, steps, viewerId: input.situation.viewerId || null, gameId: input.games[0].id };
+  DRESS = dress || null;
+  try {
+    const { input, steps } = x.build();
+    const real = !!dress && input.world.contexts.some(c => c.dress);
+    return { kind: 'gameplay-situation', id, label: x.label + (real ? ' · real people' : ''), page: x.page, shows: x.shows, input, steps, viewerId: input.situation.viewerId || null, gameId: input.games[0].id, dress: real ? dress : null };
+  } finally { DRESS = null; }
 }
-module.exports = { list, build, showDefinition, nflDefinition, nbaWeekDefinition };
+module.exports = { list, real, build, showDefinition, nflDefinition, nbaWeekDefinition };

@@ -15,7 +15,10 @@
 // Needs: the app on :3000 (npm run dev) and the Atlas on :4400 (bash scripts/dev-test/restart-atlas.sh). Waits for Archivo before
 // each frame and fails without it (a mid-recompile dev server once shot a whole batch in the fallback face).
 // Run:   node scripts/dev-test/story-situations.js --out=.ui-atlas/stories/<design>/before [--only=<regex on the id>]
-//          [--width=390 --height=844] [--flows] [--sequences]
+//          [--width=390 --height=844] [--flows] [--sequences] [--dress=real]
+// --dress=real: each situation on a real game's people where a recording exists (tools/gameplay-bench/explorer/dress.cjs: a real
+// season's castaways and photos, real NFL athletes and headshots, the show's art; record them first with real-dress.js and
+// espn-snapshot.js). Its frames show real people: keep them in the ignored .ui-atlas, never in the repo.
 // Nothing here touches a real account: the bench's zt-gb people only, closed after.
 const fs = require("fs");
 const path = require("path");
@@ -29,7 +32,10 @@ const ATLAS = opt("atlas-base", "http://127.0.0.1:4400");
 const OUT = path.resolve(opt("out", ".ui-atlas/stories/situations"));
 const W = Number(opt("width", 390)), H = Number(opt("height", 844));
 const only = opt("only", null);
-const { list } = require(path.join(root, "tools/gameplay-bench/explorer/situations.cjs"));
+const dress = opt("dress", null);
+const Situations = require(path.join(root, "tools/gameplay-bench/explorer/situations.cjs"));
+// The design round's situations, then the real games whose recordings are on this machine (situations.cjs real()).
+const list = () => [...Situations.list(), ...Situations.real()];
 
 // Flow steps (--flows): a selector on the game page to tap, then what to wait for. Missing selectors are skipped, not failed, so
 // one list serves the page before and after a redesign.
@@ -95,7 +101,7 @@ async function measure(p) {
   const b = await open({ width: 1440, height: 1000, motion: "reduce" });
   const p = b.page;
   try {
-    await p.goto(ATLAS + "/__atlas/explorer");
+    await p.goto(ATLAS + "/__atlas/explorer" + (dress ? "?dress=" + encodeURIComponent(dress) : ""));
     await p.waitForFunction(() => window.__GAMEPLAY_EXPLORER_PAGE__?.ready, {}, { timeout: 20000 });
     for (const x of list().filter((y) => !only || new RegExp(only).test(y.id))) {
       const t0 = Date.now();

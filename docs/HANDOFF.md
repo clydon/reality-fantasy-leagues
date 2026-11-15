@@ -33,7 +33,13 @@ matchup). The matchup sheet reads across (a sport by position with Flex, a score
 the two side by side; "Everyone in this game" under Your team is the game's scoring table (search and positions at a sport's
 size). New reads: `castWeeks` (everyone's points each week at the game's scoring) and `statWeeksOf` (a sport's weekly lines,
 BACKLOG 74). The campaign's history-past-mark oracle now reads `told` (a live sport tells results straight away). Story version
-3, the same link. Open: the show table's first week column half-cut under the pinned names.
+3, the same link. Open: the show table's first week column half-cut under the pinned names. **Then, on real people** (the user:
+"so I can see what a real game would look like"): any situation opens on Survivor 51's real castaways and art or real NFL
+athletes (`?dress=real`, `--dress=real`), and two real-game situations play one NFL game (Patriots vs Lions, week 10) scored by
+its real box score; how, and what they showed (athletes need surnames, a one-game game reads as a season, and more), is in
+GAME-PAGE-SITUATIONS.md "On real people". Story version 4, section "On a real game". The user's standing intent for every round
+(data compared side by side, the whole game visible, drill-downs with weekly graphs, game scoring only in the game, designs judged
+on a real game) is in DESIGN-PROCESS.md, "What every round carries".
 
 ## Hosting: read [HOSTING.md](HOSTING.md) before adding anything that polls, runs on a schedule or stores data
 Every service, its free limits, current usage, what drives each limit, and what more would cost; keep it current

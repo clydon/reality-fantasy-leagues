@@ -154,3 +154,23 @@
 - Rejected: pairing a show by slot (its slots are interchangeable, so the pairs would be invented); pairing a locked show by
   season points (a ranking nobody played); person colours on the compare (a third meaning for the same colour).
 - Rests on: the 2c check (Impeccable 24/40, PFD 64) and its one batch.
+
+## 2026-11-15 · Designs are judged on real people too: a real dress for the bench, and a real game
+- Decided by: the user ("so I can see what a real game would look like"; "We could do the Patriots Lions game going on now");
+  how, by Claude
+- Why: generated names and letter faces hid real problems (athletes read by first name, a defense by the first word of its
+  name, long real names cut off).
+- What: `?dress=real` swaps a world's people for a real season's (Survivor 51's castaways and art from the local database; NFL
+  athletes and headshots from the ESPN recording), keeping the bench's events; two real-game situations score one NFL game by its
+  real box score, read by the app's own storedGame.
+- Rejected: starting a real game in the app on Patriots vs Lions (the app refuses a game already under way, "picks closed at
+  the start", and has no test clock); a live, in-progress view (no screen shows one: the live poller isn't on a page, and the
+  bench lists a week in progress as a gap); Survivor 51's real results in the dressed worlds (the situations need their own
+  states: a champion, a tie, someone behind).
+- Rests on: docs/GAME-PAGE-SITUATIONS.md "On real people"; the story's "On a real game".
+
+## 2026-11-15 · The user's intent for every round, written down before a new session takes over
+- Decided by: the user (asked that their intentions be recorded)
+- What: data compared side by side; the whole game visible (benches, the league's other matchups); drill-downs with weekly
+  graphs at every level; a game's scoring only inside the game; designs judged on a real game.
+- Rests on: docs/DESIGN-PROCESS.md "What every round carries", quoting the user.

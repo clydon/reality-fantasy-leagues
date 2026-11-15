@@ -448,6 +448,16 @@ The user, 2026-11-12: build these in the new app, but batch them, since several 
       castaway is on the bench;
     - on a real-size NFL pool, the lineup is nine first names with no position, team or line (item 34's), and the free agents to
       search are some 300.
+42. **What real people showed** (found 2026-11-15 on the bench's real dress and a real NFL game, docs/GAME-PAGE-SITUATIONS.md
+    "On real people"; the step 2 story's "On a real game"):
+    - athletes read by first name ("Jordan vs Drake", "A.J. 0", "Bo 0" for Bo Melton beside Bo the player) and a defense by the
+      first word of its name ("New", "Green"): a sport wants surnames and "Patriots D/ST"; a show keeps first names;
+    - a one-game game (a team's next game) reads as a season once it's played: "Season over", "You vs a bye", "You finished 2nd ·
+      0–1", a season grid of one column; its page should lead with the result;
+    - "last week's stands in till then" on a first game, which has no last week;
+    - before the lock, a real athlete's "season pts" read 0 (the bench knows only its own games; the app has the season coming in);
+    - long real names cut off in the scoring table;
+    - a game in progress has no screen: the phone's live poller (src/lib/sports/live.ts) isn't on a page.
 
 ### Suggested order from here
 

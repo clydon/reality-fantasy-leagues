@@ -328,7 +328,8 @@
   $('open-situation').onclick = () => task(openSituations);
   $('s-cancel').onclick = () => { $('situations').hidden = true; render(); };
   $('situation-list').onclick = e => { const b = e.target.closest('[data-situation]'); if (!b) return; task(async () => {
-    const x = await api('runtime/situation', { id: b.dataset.situation }), run = await api('execute', { input: x.input, steps: x.steps });
+    const dress = new URLSearchParams(location.search).get('dress') || undefined; // ?dress=real: a real season's people (dress.cjs)
+    const x = await api('runtime/situation', { id: b.dataset.situation, dress }), run = await api('execute', { input: x.input, steps: x.steps });
     if (!run.execution) throw Error('The situation did not run: ' + (run.message || run.status));
     $('situations').hidden = true;
     await openCase({ input: run.execution, label: 'Situation · ' + x.label, source: 'Situation · ' + x.id });

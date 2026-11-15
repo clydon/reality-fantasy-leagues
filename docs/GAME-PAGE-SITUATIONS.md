@@ -64,6 +64,38 @@ id in the Open menu.
 | The merge: the first stage final, a new draft | The first stage over (its record and table), the merged stage drafted from who's still in, its first opponent, a record at 0-0, the playoff ahead, the overall so far | No | `staged-merged` |
 | The season over | The merged stage's champion, the first stage's table, the overall and what it adds up (points, not wins: BACKLOG 84) | No | `staged-champion` |
 
+## On real people, and a real game (the user, 2026-11-15)
+
+"So I can see what a real game would look like." Any situation can open on real people: the bench page at
+`/__atlas/explorer?dress=real`, or `node scripts/dev-test/story-situations.js --dress=real`. A Survivor world then shows
+Survivor 51's castaways with their photos and the show's name and art; an NFL world shows real athletes in the positions it
+dealt, with their headshots and their defenses' logos (`tools/gameplay-bench/explorer/dress.cjs`). Only who they are changes:
+who scores and who goes home are still the bench's, not the real season's. NBA has no recording yet, so it stays generated.
+
+Two more situations are a real game: one NFL game as a head to head of two, drafted from both real rosters (a positional
+snake) and scored by the game's real box score, read by the app's own `storedGame` (`situations.cjs` REAL; Patriots vs Lions,
+week 10, once its final is in; until then the newest recorded final):
+- `real-nfl-game-due`: before kickoff, Bo set, your lineup due;
+- `real-nfl-game-final`: after the final whistle, every point real.
+
+They need recordings that stay on this machine (`.ui-atlas/fixtures/`, ignored: real people's names stay out of the public repo),
+so they're listed only where those exist, and the situations test doesn't hold them:
+- `node --env-file=.env.local scripts/dev-test/real-dress.js record`: a real season's cast from the local database;
+- `node scripts/dev-test/espn-snapshot.js record`: the NFL season's rosters, schedule and box scores;
+- `node scripts/dev-test/espn-final.js --teams=NE,DET --week=10`: one game's final, as the app reads it.
+
+What real people showed on 2026-11-15 (the story's "On a real game"):
+- **Athletes need surnames.** "Jordan vs Drake", "A.J. 0", and "Bo 0" (Bo Melton) beside Bo the player; defenses read "New",
+  "Green". Fantasy football says "Love vs Maye" and "Patriots D/ST"; shows keep first names.
+- **A one-game game reads as a season.** After its only game: "Season over", "You vs a bye", "You finished 2nd · 0–1", a grid of
+  one column.
+- **"Last week's stands in"** on a first game, which has no last week.
+- **Season points** before the lock read 0 for real athletes, who have a season behind them; the app has their season coming in
+  (stats.ts), and the bench doesn't.
+- **Long real names** cut off in the scoring table.
+- **A game in progress** has no screen (the live poller, `src/lib/sports/live.ts`, isn't on a page; the bench lists a week in
+  progress as a gap): a new display for the sports game page.
+
 ## What the bench still can't produce for this page (recorded, not built)
 
 - **A late joiner** (someone who joined at episode 4 of a game begun at 1). The runtime's own pace marks everyone as catching up

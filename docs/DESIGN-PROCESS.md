@@ -33,6 +33,27 @@ data?" It's Intent's question, answered in the page spec before anything is draw
 - **The story shows the drill levels too,** not only first views: each level the round touched, before and after, and the ones
   it kept with why.
 
+**What every round carries** (the user, 2026-11-15, reviewing the game page's steps 2 to 2c). These are intent, like the round's
+frame: open to pushback with the reasoning, never quietly designed around.
+- **Data first, compared side by side.** A game is read through its numbers, and a number means most beside the one it competes
+  with: "think typical fantasy football; a person may want to see their matchup and see how their QB compares against their
+  opponent's." Wherever two things compete (two lineups, two players in a slot, two people's seasons, this week against the
+  last), the comparison is a designed display: read across, on one scale, in one pair of colours. Never two lists to reconcile in
+  your head. Expressive data, not decorative slogans or VS graphics (the 2026-11-12 direction).
+- **Show the whole game, not only your part.** "Is there any view into the starters/bench? Don't you think there's game value in
+  seeing that aspect. Include other head to head matchups across the league?" Starters and bench on both sides (theirs from the
+  lock), and the league's other games that week: the game lives in what everyone else did too.
+- **Drill down from everything, each level with its weekly graph.** "I could drill down into a player and see their total points
+  graphed weekly. Or click into a cast member/athlete and see their relevant stats graphed weekly. And so on." Every person, cast
+  member, athlete, matchup and episode opens a level, and each level graphs its numbers week by week (the drill tree above).
+- **A game's scoring lives inside the game.** "The main show's tab shouldn't have scoring from a particular game, but within a
+  game we may need tables with the game's scoring." The show's tabs show the show's own facts; inside a game, tables in that
+  game's scoring: one stat table with three lenses, the show, the game and the matchup (`docs/design-round/step2c-compare-and-scoring.md`).
+- **Judge a design on a real game.** "So I can see what a real game would look like": a round's frames carry real content
+  wherever it exists, for each game type: a real season's cast and photos, the show's art, and real athletes with their
+  headshots, teams and box scores. The bench's generated worlds still cover the situations real data can't reach (a champion,
+  a tie, a long name, someone behind).
+
 **What wins when they disagree:**
 1. The user's own words and settled decisions (the frame, the brief, recorded decisions) beat any skill.
 2. Then each skill wins inside the question it owns, and only there:
