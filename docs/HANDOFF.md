@@ -29,6 +29,13 @@ explorer page after the first. **Waiting on the user:** the own-pace plate two b
 waits on the reveal (watchAction's `primary` should also be true then); the NFL mini reads "ACTIVE-ROSTER"; Alex's strip named the
 replacement on Episodes and not on Tonight a minute apart (likely the waivers read only Episodes makes). Also this session: gold
 and teal out of the people palette (`src/lib/people.ts`, tests/people.test.js; decisions.md).
+**Then, the same day (the user took every recommendation):** the behind question built as look B (the control's line asks "Seen Ep 4
+and 5?" with Yes and Not yet: `behind-ask.tsx`; mocks https://claude.ai/artifact/2fSx1kXCBdjnTopGoXkwn2), the strip's settle moment
+when the last due move is saved, the reveal holding the yellow when the due move waits on it, and a sports game named by its type's
+name. `node scripts/dev-test/check-strip-settle.js` checks the settle and the question on the zt couch. **Next (a fresh session):**
+fold the own-pace plate into the control (its reveal is a game's catch-up reveal, `couches.catchUp`, so it's a flow change), keep
+Not yet with the mark on the server (it's on the device now), confirm Alex's strip timing, then step 4 (Episodes and the reveal,
+with data round 3's episode ledger as the where-you're-up-to sheet).
 
 ## The design round's step 2, the game page (2026-11-15; built on branch `explorer-sports`, not pushed; waits on the user's review)
 The game page leads with this week: head to head as a matchup (you and who you play, faces and records, on the show's art or

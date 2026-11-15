@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { Check, ChevronRight, Lock } from "lucide-react";
 import { airTime } from "../clock";
 import { useNav } from "../nav";
@@ -59,6 +60,18 @@ export function stripState(show: ShowData): StripState | null {
 export function MovesStrip({ show }: { show: ShowData }) {
   const nav = useNav();
   const s = stripState(show);
+  // The moment it's all set (the user's B3, 2026-11-15: "you're all set" as a moment, not a bar that vanishes): when the last due
+  // move is saved, the tag's yellow drains once and the tick settles in (new.css .nd-settle; none under reduced motion).
+  const was = useRef(s?.tone);
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    const before = was.current;
+    was.current = s?.tone;
+    if (before !== "due" || s?.tone !== "set") return;
+    setSettled(true);
+    const id = setTimeout(() => setSettled(false), 1400);
+    return () => clearTimeout(id);
+  }, [s?.tone]);
   if (!s) return null;
   const seasonId = show.header?.seasonId ?? "";
   const go = () => {
@@ -72,18 +85,18 @@ export function MovesStrip({ show }: { show: ShowData }) {
   };
   const due = s.tone === "due";
   return (
-    <section className="px-3 pt-3" data-strip={s.tone}>
+    <section className={`px-3 pt-3 ${settled ? "nd-settle" : ""}`} data-strip={s.tone} data-strip-settled={settled || undefined}>
       <button
         type="button"
         onClick={go}
         className={`nd-press flex min-h-[58px] w-full items-stretch overflow-hidden rounded-[3px] text-left ${due ? "bg-plate text-plate-foreground shadow-plate" : "bg-card text-foreground outline-1 -outline-offset-1 outline-border"}`}
       >
         <span
-          className={`type-caption -mr-[13px] flex flex-none items-center gap-1.5 whitespace-nowrap py-0 pl-[11px] pr-[22px] text-[15px] tracking-[0.04em] [clip-path:polygon(0_0,100%_0,calc(100%_-_13px)_100%,0_100%)] ${
+          className={`nd-settle-tag type-caption -mr-[13px] flex flex-none items-center gap-1.5 whitespace-nowrap py-0 pl-[11px] pr-[22px] text-[15px] tracking-[0.04em] [clip-path:polygon(0_0,100%_0,calc(100%_-_13px)_100%,0_100%)] ${
             due ? "bg-chyron text-chyron-foreground" : "bg-secondary text-foreground"
           }`}
         >
-          {s.tone === "set" ? <Check className="size-4" strokeWidth={3} aria-hidden /> : s.tone === "locked" ? <Lock className="size-4" aria-hidden /> : null}
+          {s.tone === "set" ? <Check className="nd-settle-tick size-4" strokeWidth={3} aria-hidden /> : s.tone === "locked" ? <Lock className="size-4" aria-hidden /> : null}
           {s.tag}
         </span>
         <span className="flex min-w-0 flex-1 flex-col justify-center gap-[3px] py-2 pl-5 pr-1">

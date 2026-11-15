@@ -11,7 +11,7 @@ import { Avatar, useNow } from "../ui/bars";
 import { isRequired } from "./moves";
 import { useOpenReveal } from "./reveal";
 import { upNextEpisode, WatchedSheet } from "./up-next";
-import { AskChip, AskConfirm, AskPicker, outWords, useAskLook, useCatchingUp } from "./behind-ask";
+import { AskConfirm, outWords, useCatchingUp } from "./behind-ask";
 import { useOpenWatch } from "./watch-along";
 
 // The progress control (the design round's step 3: docs/design-round/step3-tonight-spec.md, "Two parts every show tab shares";
@@ -92,11 +92,10 @@ export function ProgressControl({ show }: { show: ShowData }) {
   const onRuler = !show.solo && (others > 0 || quiet.length > 0);
   const ruler = known.length > 0 && show.latestAired + (up ? 1 : 0) > 0;
   const openWhereAll = () => (couchId && seasonId ? openCouchSheet({ kind: "where", couchId, seasonId }) : openWhere(show));
-  // TEMP-UI (behind-ask.tsx): behind on an airing show, the control asks whether you've seen what's out, in one of three looks.
-  const look = useAskLook();
+  // Behind on an airing show, the control's line asks whether you've seen what's out (behind-ask.tsx: the user's pick B).
   const ep = show.words.ep;
   const latest = show.latestAired;
-  const behind = !!look && !!action && action.kind !== "live" && seen != null && seen < latest;
+  const behind = !!action && action.kind !== "live" && seen != null && seen < latest;
   const [later, setLater] = useCatchingUp(seasonId, latest);
   const asking = behind && !later;
   const [askOpen, setAskOpen] = useState(false);
@@ -107,7 +106,7 @@ export function ProgressControl({ show }: { show: ShowData }) {
   }
   return (
     <div data-progress className="relative mx-2 mt-auto px-2 pt-3">
-      {asking && look === "b" ? (
+      {asking ? (
         <div className="flex items-center gap-3" data-ask-line>
           <button type="button" data-progress-mark onClick={() => openWhere(show)} className="nd-press -mx-1 min-h-11 min-w-0 flex-1 px-1 text-left">
             <b className="block text-[17px] font-bold leading-tight">Seen {out}?</b>
@@ -164,17 +163,6 @@ export function ProgressControl({ show }: { show: ShowData }) {
           onOpen={openWhereAll}
         />
       )}
-      {asking && look === "a" && (
-        <div className="mt-3 flex gap-2" data-ask-row>
-          <PlateButton primary={action!.primary} fill data-ask-yes onClick={() => setAskOpen(true)}>
-            I&rsquo;ve seen {ep} {latest}
-          </PlateButton>
-          <PlateButton data-ask-later onClick={setLater}>
-            Catching up
-          </PlateButton>
-        </div>
-      )}
-      {asking && look === "c" && <AskChip label={`Seen ${out}?`} primary={action!.primary} onClick={() => setAskOpen(true)} />}
       {behind && later && (
         <div className="mt-3 flex">
           <PlateButton data-ask-watch onClick={() => openWatch(seen! + 1)} className="flex-none px-4">
@@ -199,11 +187,9 @@ export function ProgressControl({ show }: { show: ShowData }) {
           </PlateButton>
         </div>
       )}
-      {behind && seasonId && (look === "c" ? (
-        <AskPicker open={askOpen} onOpenChange={setAskOpen} show={show} seasonId={seasonId} seen={seen!} latest={latest} play={action!.kind === "reveal"} first={action!.n} onReveal={openReveal} onLater={setLater} />
-      ) : (
+      {behind && seasonId && (
         <AskConfirm open={askOpen} onOpenChange={setAskOpen} show={show} seasonId={seasonId} seen={seen!} latest={latest} play={action!.kind === "reveal"} first={action!.n} onReveal={openReveal} />
-      ))}
+      )}
       {action && !behind && action.kind !== "live" && seasonId && (
         <WatchedSheet open={confirm} onOpenChange={setConfirm} show={show} seasonId={seasonId} n={action.n} play={action.kind === "reveal"} onReveal={() => openReveal(action.n)} />
       )}

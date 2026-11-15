@@ -37,6 +37,7 @@ import { yourMove } from "./your-move";
 import { totalWords } from "./game-sheets";
 import { ResultSquare } from "./game-week";
 import { thisWeek, type WeekCard } from "./this-week";
+import { GAME_NAMES } from "@/lib/server/league-season";
 
 // Tonight (the design round's step 3: docs/design-round/step3-tonight-spec.md, its first view step3-tonight-first-view.md, its
 // look step3-tonight-shape.md). Where you are, the couch and the one watching action are the show bar's progress control
@@ -425,7 +426,7 @@ function YourGames({ seasonId, show }: { seasonId: string; show: ShowData }) {
     <Block title="Your games" aside={games.length > 1 ? `${games.length} on ${show.header ? showLabel(show) : "this show"}` : undefined}>
       <div data-your-games className="flex flex-col">
         {games.map((g) => (
-          <GameMini key={g.leagueId} seasonId={seasonId} show={show} g={g} name={twin(g) || /^[a-z]+(-[a-z]+)+$/.test(g.gameName) ? g.name : g.gameName} />
+          <GameMini key={g.leagueId} seasonId={seasonId} show={show} g={g} name={twin(g) && g.name !== g.gameName ? g.name : (GAME_NAMES[g.gameName] ?? g.gameName)} />
         ))}
       </div>
     </Block>

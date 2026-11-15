@@ -809,3 +809,37 @@ html[data-nav="right"] .nd-dock {
     animation: none;
   }
 }
+
+/* The strip settling from due to all set (strip.tsx; the design round's step 3, the user's B3): the tag's yellow drains once and
+   the tick pops in. A moment, not a state: the quiet strip it leaves is the lasting "All set". */
+@keyframes nd-settle-tag {
+  from {
+    background: var(--chyron);
+    color: var(--chyron-foreground);
+  }
+}
+@keyframes nd-settle-tick {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.18);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.nd-settle .nd-settle-tag {
+  animation: nd-settle-tag 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.nd-settle .nd-settle-tick {
+  animation: nd-settle-tick 0.42s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nd-settle .nd-settle-tag,
+  .nd-settle .nd-settle-tick {
+    animation: none;
+  }
+}

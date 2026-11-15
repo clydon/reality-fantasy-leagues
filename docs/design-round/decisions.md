@@ -303,3 +303,17 @@
 - Rejected: inferring the answer (a wrong guess spoils or scolds); signals only order the answers.
 - Rests on: the story https://claude.ai/artifact/2fSx1kXCBdjnTopGoXkwn2; src/new/show/behind-ask.tsx (TEMP-UI, ?ask=a|b|c).
 - Also fixed: the reveal holds the yellow when every due move waits on it (watchAction primary), the step 3 story's first open bug.
+
+## 2026-11-15 · Tonight's four choices and the behind question, decided
+- Decided by: the user ("I like your recommendation with B. Let's pick yours then continue"), taking Claude's recommendations
+- The behind question: B, built (behind-ask.tsx, progress.tsx; the switch and looks A and C removed). Not yet is kept on the
+  device for now; it belongs with your mark on the server (a second phone asks again).
+- The own-pace plate: folded into the control. Not built yet: its reveal is a game's own catch-up reveal (couches.catchUp),
+  not the show's, so folding it changes the own-pace flow; the next session's first job.
+- B3, "You're all set": the strip's lasting quiet "All set for Ep N", plus a one-off settle moment when the last due move is
+  saved (strip.tsx, new.css .nd-settle). Built.
+- The strip on the other tabs scrolls away with the content (as built).
+- Data round 3: the shared episode axis A (as built) for the couch's pace; the episode ledger A as the "where are you up to"
+  sheet, built in step 4 (it's shared with Episodes).
+- Also: a sports game named by its type key reads by the type's name (GAME_NAMES: "Weekly Lineup", not "ACTIVE-ROSTER").
+- Rests on: https://claude.ai/artifact/2fSx1kXCBdjnTopGoXkwn2; scripts/dev-test/check-strip-settle.js (all pass).
