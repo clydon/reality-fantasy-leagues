@@ -105,12 +105,15 @@ statistics". In short:
   docs/UX-IDEAS.md's index merged into one ranked list, each with its evidence (screenshots and recorded words in
   `.ui-atlas/explorer-page/`), grouped by the page it lands on, and a recommendation of the first page to redesign (the fresh-start
   brief's rule: one page with its situation variants, then a pause for the user's review). Decisions the user owes go at its top.
-  **The user, later the same day: postpone sports outside the core four (NFL, NBA, NHL, MLB) where it saves time now.** So the
-  last sports slice is proven on the core four (its campaign seed chosen for them); the packet ranks the core four's and the
-  shows' items and parks the other sports' (Designs needed 36, 37 and soccer's positions) in a section of their own for a later
-  round; BACKLOG 79 (decided: a bench for golf's, racing's, tennis's and MMA's season games) waits with them. What already runs
-  for the other sports stays in the checks as it is.
-- **Deferred until after the design round** (none blocks it): BACKLOG 79's bench; the other sports' design items; the old bench's sports recipes onto the runtime; the specimen tail
+  (3) **BACKLOG 79, decided: build it** (a field's and a card's season games get a bench, about two more drafted than start;
+  the defaults only, new games only), small, with the explorer's tables case run on those leagues afterwards.
+  (4) **The bench ready for the first page** (the user's goal, 2026-11-14: the bench in a good place to start the design overhaul
+  by the session after): for the packet's recommended first page, list the situations its redesign must show (the fresh-start
+  brief's variants: who is behind, moves due or set, a week in progress, results in, reveals, sports and shows), and for each
+  whether the bench produces it today (a definition, a fixture, a page step); fill any gap that's quick, record the rest.
+  (The user asked whether to postpone sports outside the NFL, NBA, NHL and MLB; only if it saved significant time, and it
+  doesn't: what's left for them is BACKLOG 79's bench, under an hour.)
+- **Deferred until after the design round** (none blocks it): the old bench's sports recipes onto the runtime; the specimen tail
   (the question tail, about 50 in 22 shapes; bingo with trivia alongside, 13; a stage a format change starts, 9); the draft room
   as actions; Chunk 3's snapshot reconciliation and caching; Chunk 4A's further tiers; Chunks 5 to 12. Each through the definition of done;
   `check-sports-explorer.js`, the oracle and the generator's sports walk are the places to extend.
