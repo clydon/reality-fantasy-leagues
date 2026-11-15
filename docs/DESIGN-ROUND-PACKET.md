@@ -50,18 +50,20 @@ friend's face and position, the stat table, the person sheet) are decided once a
 1. **Phase 0, a wide scan of the whole app:** a census of today in every situation, the system map, the shared parts, the
    vocabulary per flavor, grey-box first views at 390, and the user's identity decision (keep the current visual world and reopen
    density, or reopen the look).
-2. **The game page**, competition flavor.
-3. **A sports stress test** of the shared parts (300 athletes, a slate week).
-4. **Tonight**, the whole tab.
-5. **Episodes and the reveal.**
-6. **Players / Cast.**
-7. **The Games tab.**
-8. **The hub and TV guide.**
-9. **Sports flavor in full**: the game page, the draft room, Players.
-10. **Notifications**, then **waivers**.
-11. **Chat**, a light review.
-12. **Story-show flavor** across all of it.
-13. **A separate track:** the wizard, game settings, onboarding, couches, account settings.
+2. **The game page.**
+3. **Tonight**, the whole tab.
+4. **Episodes and the reveal.**
+5. **Players / Cast.**
+6. **The Games tab**, with the draft room.
+7. **The hub and TV guide.**
+8. **Notifications**, then **waivers**.
+9. **Chat**, a light review.
+10. **Story-show flavor** across all of it.
+11. **A separate track:** the wizard, game settings, onboarding, couches, account settings.
+
+**Every round from step 2 designs competition shows and sports together, as siblings** (the user, 2026-11-14: sports run all
+year, an easy hook for new and existing couches). So the shared parts are proven at sports scale (hundreds of athletes, a slate
+week) from the first round, never retrofitted. The bench's real-size sports pools are built before step 2.
 
 Each step is one session, with a screenshot story and a pause. A living board lists every surface's status (today's, drafted,
 approved) and its latest story, and after each round a ripple check re-renders whatever uses a part that round changed.
