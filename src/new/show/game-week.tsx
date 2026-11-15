@@ -955,6 +955,9 @@ export function CastChart({ d, c, words, counted = [] }: { d: SeasonStats; c: Ca
   const top_ = Math.max(1, ...pos), bot = Math.min(0, ...negs);
   const H = 120, PAD = 16, colW = n <= 6 ? 52 : n <= 10 ? 34 : 26, W = n * colW;
   const y = (v: number) => PAD + ((top_ - v) / (top_ - bot)) * (H - PAD * 2);
+  // The episode numbers in a row of their own, under the lowest bar and any negative's value label below it (they collided: the
+  // user, 2026-11-15, "negative values overlap").
+  const axis = y(bot) + (bot < 0 ? 28 : 14), tall = Math.max(H + 18, axis + 6);
   const name = (k: string) => (k === "rest" ? "The rest" : (d.stats.find((s) => s.key === k)?.name ?? k));
   return (
     <section className="mt-3" data-cast-chart>
@@ -965,7 +968,7 @@ export function CastChart({ d, c, words, counted = [] }: { d: SeasonStats; c: Ca
         </span>
       </p>
       <div className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none]">
-        <svg width={Math.max(W, 120)} height={H + 18} role="img" aria-label={`${c.first}'s points each ${words.episode.toLowerCase()}: ${c.perEp.map((p, i) => `${words.ep} ${i + 1} ${p === null ? "out" : signed(p)}`).join(", ")}`} className="block">
+        <svg width={Math.max(W, 120)} height={tall} role="img" aria-label={`${c.first}'s points each ${words.episode.toLowerCase()}: ${c.perEp.map((p, i) => `${words.ep} ${i + 1} ${p === null ? "out" : signed(p)}`).join(", ")}`} className="block">
           <line x1={0} x2={Math.max(W, 120)} y1={y(0)} y2={y(0)} stroke="var(--edge)" strokeWidth={1} />
           {stacks.map((m, i) => {
             let up = 0, down = 0;
@@ -986,7 +989,7 @@ export function CastChart({ d, c, words, counted = [] }: { d: SeasonStats; c: Ca
                     {signed(pos[i] + negs[i])}
                   </text>
                 ) : null}
-                <text x={x + (colW - 8) / 2} y={y(bot) + 14} textAnchor="middle" fontSize={11} fontWeight={counted.includes(i + 1) ? 700 : 400} textDecoration={counted.includes(i + 1) ? "underline" : undefined} fill={c.out === i + 1 ? "var(--live)" : counted.includes(i + 1) ? "var(--foreground)" : "var(--muted-foreground)"}>
+                <text x={x + (colW - 8) / 2} y={axis} textAnchor="middle" fontSize={11} fontWeight={counted.includes(i + 1) ? 700 : 400} textDecoration={counted.includes(i + 1) ? "underline" : undefined} fill={c.out === i + 1 ? "var(--live)" : counted.includes(i + 1) ? "var(--foreground)" : "var(--muted-foreground)"}>
                   {i + 1}
                 </text>
               </g>

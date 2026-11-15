@@ -10,7 +10,8 @@
 //   <id>.<flow>.jpg   each flow step asked for (--flows): a tap on the page and the sheet it opens
 //   <id>.<shot>.jpg   each shot of a multi-step flow (--sequences: SEQUENCES below), which writes through the real routes as
 //                     the viewer (the bench's zt-gb rows, removed when it closes the case)
-// and index.json, every situation with what happened and its first view's measures.
+// and index.json, every situation with what happened and its first view's measures, and overlaps.json: every frame's words that
+// sit on other words (a chart's label over its axis, say), printed as OVERLAP lines as they're found.
 //
 // Needs: the app on :3000 (npm run dev) and the Atlas on :4400 (bash scripts/dev-test/restart-atlas.sh). Waits for Archivo before
 // each frame and fails without it (a mid-recompile dev server once shot a whole batch in the fallback face).
@@ -75,6 +76,58 @@ async function shoot(p, base, full) {
   await faceReady(p);
   await p.screenshot({ path: base + ".jpg", type: "jpeg", quality: 84 });
   if (full) await p.screenshot({ path: base + ".full.jpg", type: "jpeg", quality: 80, fullPage: true });
+  const hits = await overlaps(p);
+  if (hits.length) {
+    OVERLAPS.push({ frame: path.basename(base), hits });
+    for (const h of hits) console.log(`OVERLAP ${path.basename(base)}: "${h[0]}" over "${h[1]}"`);
+  }
+}
+
+/** Every frame's words that sit on other words (the user, 2026-11-15: a chart's "−0.5" over its episode "2" went through every
+ *  look at the frames). Each visible text's glyph boxes in view (a text node's, an SVG label's), shrunk by a pixel so touching
+ *  isn't overlapping, against every other's; a box covered by something else (a sheet over the page) doesn't count. Reported,
+ *  kept in index.json and `<frame>.overlaps.json`, never fails the run. */
+const OVERLAPS = [];
+async function overlaps(p) {
+  return p.evaluate((h) => {
+    const boxes = [];
+    const visible = (el) => { for (let e = el; e && e.nodeType === 1; e = e.parentElement) { const cs = getComputedStyle(e); if (cs.visibility === "hidden" || cs.display === "none" || Number(cs.opacity) === 0) return false; } return true; };
+    // Covered means another layer is over it (a sheet over the page, a higher sheet over a lower one), not another word: a word on
+    // a word is what's being looked for.
+    const layer = (e) => e.closest('[role="dialog"]') || document.body;
+    const onTop = (el, r) => { const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!hit && layer(hit) === layer(el); };
+    // Scrolled out of a scrolling box (a row under a sheet's pinned header) isn't seen at all.
+    const clipped = (el, r) => {
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      for (let e = el.parentElement; e && e !== document.body; e = e.parentElement) {
+        const cs = getComputedStyle(e);
+        if (cs.overflowX === "visible" && cs.overflowY === "visible") continue;
+        const b = e.getBoundingClientRect();
+        if (cx < b.left || cx > b.right || cy < b.top || cy > b.bottom) return true;
+      }
+      return false;
+    };
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      const text = n.textContent.trim(), el = n.parentElement;
+      if (!text || !el || !visible(el)) continue;
+      const range = document.createRange();
+      range.selectNodeContents(n);
+      const rects = el.closest("svg") ? [el.getBoundingClientRect()] : [...range.getClientRects()];
+      for (const r of rects) {
+        if (r.width < 2 || r.height < 2 || r.bottom <= 0 || r.top >= h || clipped(el, r) || !onTop(el, r)) continue;
+        boxes.push({ text: text.slice(0, 40), el, l: r.left + 1, t: r.top + 1, r: r.right - 1, b: r.bottom - 1 });
+      }
+    }
+    const out = [];
+    for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+      const a = boxes[i], b = boxes[j];
+      if (a.el === b.el || a.el.contains(b.el) || b.el.contains(a.el)) continue;
+      const w = Math.min(a.r, b.r) - Math.max(a.l, b.l), hh = Math.min(a.b, b.b) - Math.max(a.t, b.t);
+      if (w > 1 && hh > 1) out.push([a.text, b.text]);
+    }
+    return out;
+  }, H).catch(() => []);
 }
 
 /** The first view's measurable part: type sizes, yellow fills and the words in view. */
@@ -185,7 +238,8 @@ async function measure(p) {
               }
             }
           }
-          index[x.id] = { label: x.label, shows: x.shows, ok: true, ...m, flows, at: new Date().toISOString() };
+          const mine = OVERLAPS.filter((o) => o.frame === x.id || o.frame.startsWith(x.id + "."));
+          index[x.id] = { label: x.label, shows: x.shows, ok: true, ...m, flows, overlaps: mine, at: new Date().toISOString() };
           console.log(`PASS ${x.id} (${Math.round((Date.now() - t0) / 1000)}s): ${m.typeSizes.length} sizes, ${m.yellowFills} yellow, ${m.words} words${flows.length ? `, flows ${flows.join(",")}` : ""}`);
         } finally {
           await ctx.close();
@@ -201,6 +255,8 @@ async function measure(p) {
     await b.close();
   }
   const bad = Object.values(index).filter((v) => !v.ok).length;
+  fs.writeFileSync(path.join(OUT, "overlaps.json"), JSON.stringify(OVERLAPS, null, 1));
+  console.log(OVERLAPS.length ? `${OVERLAPS.length} frame(s) with words over words (overlaps.json): look before calling it done` : "No words over words");
   console.log(bad ? `${bad} FAILED` : "ALL CAPTURED");
   process.exit(bad ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -187,3 +187,11 @@
 - What: data compared side by side; the whole game visible (benches, the league's other matchups); drill-downs with weekly
   graphs at every level; a game's scoring only inside the game; designs judged on a real game.
 - Rests on: docs/DESIGN-PROCESS.md "What every round carries", quoting the user.
+
+## 2026-11-15 · The game page as built through step 2c is approved; next, ready it to merge
+- Decided by: the user ("We kept progressing and getting better so the latest drafts are best")
+- What: steps 2, 2b and 2c as built (story version 4), with the real-game findings to fix. Next is a readiness step, not more design:
+  fix Designs needed 42's ship blockers, sweep every game type on the new page (it draws every game, not only head to head), bring
+  in master, the full checks once, then ask before the push.
+- Recommended by Claude, not yet answered: ship the game page on its own (not waiting for Tonight's round), on a Monday or
+  Tuesday, never an S51 Wednesday night.

@@ -40,6 +40,14 @@ its real box score; how, and what they showed (athletes need surnames, a one-gam
 GAME-PAGE-SITUATIONS.md "On real people". Story version 4, section "On a real game". The user's standing intent for every round
 (data compared side by side, the whole game visible, drill-downs with weekly graphs, game scoring only in the game, designs judged
 on a real game) is in DESIGN-PROCESS.md, "What every round carries".
+**Approved 2026-11-15** (the user: "the latest drafts are best"). **Next: ready it to merge** (no new design): the page draws every
+game in the app, so it ships to the couch's three real S51 leagues too. Ship blockers (Designs needed 42 and the 2c story's open
+items): one-game games read as a season ("You vs a bye"); athletes by first name and defenses by their name's first word ("Green");
+"last week's stands in" on a first game; the scoring table's first column half-hidden; long names running over numbers (the overlap
+sweep's show-long-names: the person sheet and the table). Then every other game type on the new page at 390 with the overlap check
+(story-situations.js now reports words over words), master brought in (1 commit behind), the full checks once, and ask before the
+push (no migrations on the branch). Also live sports now go through the app (`/api/sports/live/...`, e7be0c68); no screen shows a game
+live yet (a design-round item; Patriots vs Lions recorded live into `.ui-atlas/fixtures/espn-live/` to design it on).
 
 ## Hosting: read [HOSTING.md](HOSTING.md) before adding anything that polls, runs on a schedule or stores data
 Every service, its free limits, current usage, what drives each limit, and what more would cost; keep it current

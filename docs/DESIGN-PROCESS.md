@@ -87,6 +87,10 @@ can review on their own, phone or desk:
 - **A caption on each frame**: what you're looking at, which situation and lens, what changed and why, and what was judged there
   (the lay-of-the-land and busy tests: what's first, taps to what matters, the casual path and the sweat's).
 - **What's open**: findings not fixed, choices for the user, anything simulated rather than real.
+- **No words over words.** Looking at shrunk frames misses small collisions: a chart's "−0.5" sat on its episode "2" through a
+  whole round's reviews (the user, 2026-11-15: "I would've assumed screenshot reviews should've caught this").
+  `scripts/dev-test/story-situations.js` reports every frame's overlapping words (OVERLAP lines and `overlaps.json`); each is fixed
+  or listed under what's open before the story is published, and frames with small labels are looked at full size.
 
 Build it from real renders (the bench's live tier, the app at 390), never mocked pixels. Save the frames under
 `.ui-atlas/stories/<design>/`, and publish the story as a private Artifact page for the user, with the link in the reply. Then
