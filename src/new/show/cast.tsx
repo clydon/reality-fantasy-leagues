@@ -539,7 +539,7 @@ export function StoryBody({ d, c, names, onFlag, group = true }: { d: SeasonStat
                   </i>
                 )}
                 <span className="flex-1" />
-                {total !== null && <b className={`type-num text-[22px] leading-none ${total > 0 ? "" : total < 0 ? "text-live" : "text-muted-foreground"}`}>{pts(total)}</b>}
+                {total !== null && <b className={`type-num text-[22px] leading-none ${total > 0 ? "" : "text-muted-foreground"}`}>{pts(total)}</b>}
                 {onFlag && !gone && (ev.length > 0 || left) && (
                   <button type="button" data-story-flag={e} aria-label={`Something wrong in Episode ${e}`} onClick={() => onFlag(e, c.name)} className="-mr-2 grid size-11 flex-none place-items-center text-muted-foreground">
                     <Ellipsis className="size-5" aria-hidden />

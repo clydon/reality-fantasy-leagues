@@ -64,7 +64,7 @@ const fmt = (n: number) => String(Math.round(n * 10) / 10).replace("-", "\u2212"
 
 /** A score: "6–2"; "−3 to 0" when either side is below zero (a dash between a minus and a number reads as one). */
 export function scoreWords(a: number, b: number | null): string {
-  if (b === null) return `${fmt(a)}––`;
+  if (b === null) return fmt(a);
   return a < 0 || b < 0 ? `${fmt(a)} to ${fmt(b)}` : `${fmt(a)}–${fmt(b)}`;
 }
 const first = (name: string) => name.split(" ")[0];
@@ -254,7 +254,7 @@ export function thisWeek(g: GameView, c: WeekContext): WeekCard | null {
 
 function lastLine(g: GameView, l: NonNullable<NonNullable<GameView["matchups"]>["last"]>, E: string): WeekCard["last"] {
   const opp = g.table.find((r) => r.playerId === l.opponent);
-  const who = opp ? first(opp.name) : l.stand === "median" ? "the median" : "a bye";
+  const who = opp ? first(opp.name) : l.stand === "median" ? "the middle score" : "a bye";
   if (l.result === null) return { episode: l.episode, line: `${E} ${l.episode} · Counted for nobody · records unchanged`, result: "quiet" };
   const verb = l.result === "win" ? `Beat ${who}` : l.result === "loss" ? `Lost to ${who}` : `Tied ${who}`;
   return { episode: l.episode, line: `${E} ${l.episode} · ${verb} · ${scoreWords(l.points ?? 0, l.against)}`, result: l.result };

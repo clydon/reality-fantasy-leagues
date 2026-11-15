@@ -120,3 +120,44 @@ export function lockedMatchup(view: LeagueState, me: string, next: { episode: nu
     theirs: next.opponent ? StateLogic.activeRosterLineupFor(view, ep.id, next.opponent) : null,
   };
 }
+
+/** One game of a head-to-head week: its two seats (b null: the odd one out plays the median, or has a bye), whether each has a
+ *  lineup in, and once the week's lineups have locked, who each started. */
+export interface WeekGame {
+  a: string;
+  b: string | null;
+  stand: "median" | "bye" | null;
+  set: { a: boolean; b: boolean | null };
+  locked: { a: string[]; b: string[] | null } | null;
+}
+
+/**
+ * The league's games for the week about to be played (the design round's step 2b: "This week's games"), every seat's pairing as
+ * the schedule sets it (MatchupLogic.view per seat: the same round robin the engine plays, nothing re-derived). Who's set comes
+ * from `set` (the table's next-week marks); lineups only once the week has locked. Null outside head to head or between weeks.
+ */
+export function leagueWeek(view: LeagueState, seats: string[], set: Record<string, boolean | null> | null, now?: number): { episode: number; games: WeekGame[] } | null {
+  const ML = StateLogic.MatchupLogic;
+  const nexts = seats.map((id) => ({ id, next: ML.view(view, id)?.next ?? null })).filter((x) => x.next);
+  if (!nexts.length) return null;
+  const episode = Math.min(...nexts.map((x) => x.next!.episode));
+  const ep = view.episodes.find((e) => e.number === episode);
+  const locked = !!ep && !StateLogic.episodeHasResults(ep) && StateLogic.ActiveRosterLogic.isLineupLocked(view, ep.id, now);
+  const lineupOf = (id: string) => (ep ? StateLogic.activeRosterLineupFor(view, ep.id, id) : []);
+  const seen = new Set<string>();
+  const games: WeekGame[] = [];
+  for (const { id, next } of nexts) {
+    if (next!.episode !== episode || seen.has(id)) continue;
+    const b = next!.opponent && next!.opponent !== id ? next!.opponent : null;
+    seen.add(id);
+    if (b) seen.add(b);
+    games.push({
+      a: id,
+      b,
+      stand: next!.stand,
+      set: { a: !!set?.[id], b: b ? !!set?.[b] : null },
+      locked: locked ? { a: lineupOf(id), b: b ? lineupOf(b) : null } : null,
+    });
+  }
+  return { episode, games };
+}

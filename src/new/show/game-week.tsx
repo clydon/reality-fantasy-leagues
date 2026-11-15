@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { Check, ChevronDown, ChevronRight, Lock, MessageCircleQuestion, X } from "lucide-react";
+import { Check, ChevronRight, Lock, MessageCircleQuestion, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { bets as betWrites, moves as moveWrites, type GameView, type TableRow, type WaiverWeek } from "../data";
 import type { ShowData } from "../screens/show-space";
@@ -10,9 +10,11 @@ import { Btn, Chip } from "../ui/parts";
 import { toast } from "../ui/toast";
 import type { SideBet } from "@/lib/game/week-view";
 import { signed } from "./lineup-sheet";
-import { faceIn, first } from "./moves";
+import { faceIn, first, openMoves } from "./moves";
 import { Face } from "./parts";
-import { scoreWords, type WeekCard, type WeekSide } from "./this-week";
+import { recordWords, scoreWords, type WeekCard, type WeekSide } from "./this-week";
+import type { CastStat } from "@/lib/game/cast-stats";
+import type { SeasonStats } from "../data";
 
 // The parts a game's own page leads with (the design round's step 2: docs/design-round/step2-game-page-spec.md): This week (the
 // matchup: you and who you play, each with a record, the starters, the one state line and the move), the side bets row and its
@@ -43,7 +45,7 @@ function Side({ g, s, faces, small }: { g: GameView; s: WeekSide; faces: string[
         {s.record ?? ""}
         {s.seed !== null && <span className="ml-1.5 tracking-[0.04em]">· Seed {s.seed}</span>}
       </span>
-      {small && faces && <Starters g={g} faces={faces} className="mt-2.5 justify-center" />}
+      {small && faces && <Starters g={g} faces={faces} count={s.name === "You" ? (g.lineup?.slots ?? undefined) : undefined} className="mt-2.5 justify-center" />}
     </div>
   );
 }
@@ -72,6 +74,8 @@ function Starters({ g, faces, count, className = "" }: { g: GameView; faces: str
   }
   return (
     <span className={`flex flex-wrap gap-1 ${className}`} data-week-starters>
+      {count !== undefined &&
+        Array.from({ length: Math.max(0, count - faces.length) }, (_, i) => <span key={`gap-${i}`} aria-label="A place still to fill" className="size-[30px] rounded-[2px] border border-dashed border-foreground/60" />)}
       {byPosition(g, faces).map((id) => {
         const c = faceIn(g, id);
         return (
@@ -164,7 +168,7 @@ export function WeekBlock({ g, w, colour, note, move, reveal, news, onMatchup, o
       )}
       {w.state && (
         <p className="mt-3 text-[15px] leading-snug text-foreground/90" data-week-state>
-          {w.state}
+          {!small && w.them ? w.state.replace(/ · [^·]*'s shows when it locks$/, "") : w.state}
         </p>
       )}
       {note && (
@@ -199,7 +203,7 @@ export function ResultSquare({ r }: { r: "win" | "loss" | "tie" | "quiet" | "fin
 
 /** The waiver week in a line (an exclusive draft's): who you lost and that you're owed one, your claim once it's in, what the
  *  week gave you once it ran (and why, when it wasn't your first choice). Null when there's no week, or shared teams. */
-export function waiverLine(ww: WaiverWeek | undefined, g: GameView, when: (iso: string) => string, words: ShowData["words"]): string | null {
+export function waiverLine(ww: WaiverWeek | undefined, g: GameView, when: (iso: string) => string, words: ShowData["words"], short?: boolean): string | null {
   if (!ww || ww.shared || !ww.period || ww.revealFirst !== null) return null;
   const name = (id: string | undefined) => first(faceIn(g, id ?? "")?.name ?? ww.free.find((f) => f.id === id)?.name ?? "someone");
   if (ww.stage === "open") {
@@ -208,7 +212,7 @@ export function waiverLine(ww: WaiverWeek | undefined, g: GameView, when: (iso: 
       const order = spot.addIds.slice(0, 2).map((id) => name(id));
       return `Your claim is in: ${order[0]} first${order[1] ? `, then ${order[1]}` : ""}${ww.period.due ? ` · claims run ${when(ww.period.due)}` : ""}`;
     }
-    if (ww.replace.length) return `${name(ww.replace[0])} went home in ${words.ep} ${ww.period.episode}. You're owed a replacement.`;
+    if (ww.replace.length) return `${name(ww.replace[0])} went home in ${words.ep} ${ww.period.episode}.${short ? "" : " You're owed a replacement."}`;
     return null;
   }
   if (ww.stage === "processed" && ww.run && ww.run.episode === ww.period.episode) {
@@ -497,78 +501,155 @@ export function YourTeam({ g, words, exclusive, onFace, onSheet }: { g: GameView
 
 type Line = { id: string; points: number; why: string[] };
 
-/** Who `pid` played in week `n` and both lineups: played (each side's lines), locked (who started, no points yet), or still to
- *  lock (yours as it stands, theirs hidden). */
+/** Who `pid` played in week `n`, and what each side shows: played (each side's lines and bench), locked (who started, who sat),
+ *  or still to lock (yours as it stands; theirs their whole team, unsplit, since a split would give the lineup away). Any seat's
+ *  week: the league's games (`games`) say who plays whom before the results do. */
 export function matchupOf(g: GameView, pid: string, n: number) {
   const row = (id: string | null | undefined) => (id ? (g.table.find((r) => r.playerId === id) ?? null) : null);
   const a = row(pid);
   const sq = g.plays.rows[pid]?.find((s) => s.episode === n) ?? null;
+  const wk = g.games && g.games.episode === n ? (g.games.games.find((x) => x.a === pid || x.b === pid) ?? null) : null;
   const next = g.matchups?.next && g.matchups.next.episode === n && pid === g.playerId ? g.matchups.next : null;
-  const oppId = sq?.result?.against ?? next?.opponent ?? null;
+  const oppId = sq?.result?.against ?? next?.opponent ?? (wk ? (wk.a === pid ? wk.b : wk.a) : null);
   const b = row(oppId && oppId !== pid ? oppId : null);
   const wa = a?.weeks.find((w) => w.episode === n) ?? null;
   const wb = b?.weeks.find((w) => w.episode === n) ?? null;
   const played = !!sq && sq.points !== null;
-  const lock = g.locked && g.locked.episode === n && pid === g.playerId ? g.locked : null;
-  return { a, b, sq, wa, wb, played, lock, next, quiet: played && !sq?.result };
+  const lockedOf = (id: string | null | undefined): string[] | null => {
+    if (!id) return null;
+    if (g.locked && g.locked.episode === n && id === g.playerId) return g.locked.mine;
+    if (g.locked && g.locked.episode === n && pid === g.playerId && id === g.matchups?.next?.opponent) return g.locked.theirs;
+    if (wk?.locked) return wk.a === id ? wk.locked.a : wk.b === id ? wk.locked.b : null;
+    return null;
+  };
+  const stand = next?.stand ?? (wk && !wk.b ? wk.stand : null) ?? (sq?.result?.median ? "median" : null);
+  return { a, b, sq, wa, wb, played, lockA: lockedOf(a?.playerId), lockB: lockedOf(b?.playerId), next, stand, quiet: played && !sq?.result };
 }
 
 export function MatchupTitle(g: GameView, pid: string, n: number, words: ShowData["words"]): { title: string; subtitle: string } {
   const m = matchupOf(g, pid, n);
   const an = m.a ? (m.a.you ? "You" : first(m.a.name)) : "";
-  const bn = m.b ? (m.b.you ? "you" : first(m.b.name)) : m.sq?.result?.median ? "the median" : "nobody";
-  const title = `${words.ep} ${n} · ${an} vs ${bn}`;
+  const bn = m.b ? (m.b.you ? "you" : first(m.b.name)) : m.stand === "median" ? "the middle score" : "a bye";
+  const title = `${words.ep} ${n}`;
+  const pair = `${an} vs ${bn}`;
   let subtitle: string;
-  if (m.quiet) subtitle = "Counted for nobody · records unchanged";
+  if (m.quiet) subtitle = `${pair} · counted for nobody, records unchanged`;
   else if (m.played && m.sq?.result) {
     const r = m.sq.result;
-    const verb = r.r === "W" ? (m.a?.you ? "You won" : `${an} won`) : r.r === "L" ? (m.a?.you ? "You lost" : `${an} lost`) : "A tie";
-    subtitle = `${verb} · ${scoreWords(r.us, r.them)}`;
-  } else if (m.lock) subtitle = "Locked · results when they're in";
-  else subtitle = "Lineups lock when it airs";
+    const verb = r.r === "W" ? (m.a?.you ? "you won" : `${an} won`) : r.r === "L" ? (m.a?.you ? "you lost" : `${an} lost`) : "a tie";
+    subtitle = `${pair} · ${verb}`;
+  } else if (m.lockA) subtitle = `${pair} · locked, results when they're in`;
+  else subtitle = `${pair} · lineups lock when it airs`;
   return { title, subtitle };
 }
 
-/** Two lineups on one signed points scale (data round 3's B): each starter a face, a name, a bar from zero and the reasons;
- *  the bench, which didn't count, folded. */
-export function MatchupBody({ g, pid, n, words, onFace }: { g: GameView; pid: string; n: number; words: ShowData["words"]; onFace: (id: string) => void }) {
+/** One side of a week: its starters, its bench, or (theirs before the lock) its whole team; once played, what the bench scored
+ *  and the best lineup it could have started from the same people. */
+interface SideLines {
+  starters: Line[] | null;
+  bench: Line[] | null;
+  team: Line[] | null;
+  total: number | null;
+  best: ReturnType<typeof bestOf> | null;
+  /** Yours, still to fill before the lock: how many starters short. */
+  short: number;
+}
+
+function sideLines(g: GameView, who: TableRow | null, w: TableRow["weeks"][number] | null, lock: string[] | null, n: number, played: boolean, fallback: number | null): SideLines {
+  const none: SideLines = { starters: null, bench: null, team: null, total: null, best: null, short: 0 };
+  if (!who) return none;
+  const blank = (id: string): Line => ({ id, points: 0, why: [] });
+  if (played && w) return { ...none, starters: w.started, bench: w.bench.map((x) => ({ ...x, why: [] as string[] })), total: w.total, best: bestOf(w) };
+  if (played) return { ...none, starters: [], total: fallback };
+  if (lock) return { ...none, starters: lock.map(blank), bench: who.team.filter((id) => !lock.includes(id)).map(blank) };
+  if (who.you && g.lineup?.episode === n) return { ...none, starters: g.lineup.starters.map(blank), bench: g.lineup.roster.filter((id) => !g.lineup!.starters.includes(id)).map(blank), short: Math.max(0, g.lineup.slots - g.lineup.starters.length) };
+  return { ...none, team: who.team.map(blank) };
+}
+
+/** Two teams on one signed points scale (data round 3's B, and step 2b's full teams): each side's starters with a bar from zero
+ *  and the reasons, then its bench (or, before the lock, the other side's whole team); once played, what each left on the bench
+ *  and its best possible lineup. */
+/** A week's matchup, in the card's own form at the top (two faces, the result square or "vs" between, the totals), then each side's
+ *  starters on one signed points scale, then its bench (or, before the lock, the other side's whole team, by position); once
+ *  played, each side's best lineup from the same people, named as the swap that would have made it (shows only: a sport's slots
+ *  by position would make it wrong). Your side, before the lock, opens your lineup. */
+export function MatchupBody({ g, pid, n, words, sport, onFace }: { g: GameView; pid: string; n: number; words: ShowData["words"]; sport?: boolean; onFace: (id: string) => void }) {
   const m = matchupOf(g, pid, n);
-  const [bench, setBench] = useState(false);
-  const linesA: Line[] | null = m.played && !m.wa ? [] : m.wa ? m.wa.started : m.lock && m.a?.you ? m.lock.mine.map((id) => ({ id, points: 0, why: [] })) : m.a?.you && g.lineup?.episode === n ? g.lineup.starters.map((id) => ({ id, points: 0, why: [] })) : null;
-  const linesB: Line[] | "hidden" | null = m.played && !m.wb ? (m.b ? [] : null) : m.wb ? m.wb.started : m.lock?.theirs ? m.lock.theirs.map((id) => ({ id, points: 0, why: [] })) : m.b ? "hidden" : null;
-  const all = [...(linesA ?? []), ...(Array.isArray(linesB) ? linesB : []), ...(bench ? [...(m.wa?.bench ?? []), ...(m.wb?.bench ?? [])] : [])];
+  const A = sideLines(g, m.a, m.wa, m.lockA, n, m.played, m.sq?.result?.us ?? m.sq?.points ?? null);
+  const B = sideLines(g, m.b, m.wb, m.lockB, n, m.played, m.sq?.result?.them ?? null);
+  const all = [A, B].flatMap((s) => [...(s.starters ?? []), ...(s.bench ?? [])]);
   const max = Math.max(1, ...all.map((l) => Math.abs(l.points)));
   const neg = all.some((l) => l.points < 0);
+  const name = (r: TableRow | null) => (r ? (r.you ? "You" : first(r.name)) : "");
+  const res = m.played && m.sq?.result ? m.sq.result : null;
+  const head = (r: TableRow | null, total: number | null) =>
+    r ? (
+      <div className="flex min-w-0 flex-col items-center text-center">
+        <Avatar id={r.userId ?? r.playerId} name={r.name} size={44} />
+        <b className="type-caption mt-1.5 max-w-full truncate text-[20px] leading-none">{name(r)}</b>
+        <span className="type-num mt-1 text-[13px] text-muted-foreground">{recordWords(r.record) ?? ""}</span>
+        {total !== null && <b className="type-num mt-1.5 text-[34px] leading-none">{fmt(total)}</b>}
+      </div>
+    ) : (
+      <div className="flex min-w-0 flex-col items-center text-center">
+        <span className="type-caption grid size-11 place-items-center rounded-[3px] border border-dashed border-edge text-muted-foreground">–</span>
+        <b className="type-caption mt-1.5 text-[18px] leading-none text-muted-foreground">{m.stand === "median" ? "The middle score" : "A bye"}</b>
+        {total !== null ? <b className="type-num mt-1.5 text-[34px] leading-none">{fmt(total)}</b> : <span className="mt-1 text-[13px] text-muted-foreground">{m.stand === "median" ? "known when results are in" : "nobody to play"}</span>}
+      </div>
+    );
+  const yours = m.a?.you && !m.played && !m.lockA && g.lineup?.episode === n;
   return (
     <div className="pb-3" data-matchup-sheet={`${pid}:${n}`}>
-      <div className="grid grid-cols-2 gap-3">
-        <Column g={g} who={m.a} total={m.wa?.total ?? m.sq?.result?.us ?? (m.played ? (m.sq?.points ?? null) : null)} lines={linesA} max={max} neg={neg} played={m.played} onFace={onFace} />
-        <Column g={g} who={m.b} total={m.wb?.total ?? m.sq?.result?.them ?? null} lines={linesB} max={max} neg={neg} played={m.played} onFace={onFace} />
+      <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2" data-matchup-head>
+        {head(m.a, A.total)}
+        <span className="mt-3 flex justify-center">{res ? <ResultSquare r={res.r === "W" ? "win" : res.r === "L" ? "loss" : "tie"} /> : <span className="type-caption text-[15px] tracking-[0.06em] text-muted-foreground">vs</span>}</span>
+        {head(m.b, B.total)}
       </div>
+      {yours && g.lineup && (
+        <button type="button" onClick={() => openMoves("lineup", g.leagueId)} data-matchup-change className="mt-2 inline-flex min-h-11 items-center gap-0.5 text-[15px] font-semibold">
+          {A.short > 0 ? `${g.lineup.slots - A.short} of ${g.lineup.slots} set · set your lineup` : "Change your lineup"}
+          <ChevronRight className="size-4" aria-hidden />
+        </button>
+      )}
+      <div className="mt-2 grid grid-cols-2 gap-3">
+        <Column g={g} who={null} total={null} lines={A.team ?? A.starters} max={max} neg={neg} played={m.played} collapse={!!A.team} label={A.team ? "Their team · season pts" : m.played ? "Starting" : "Starting · season pts"} onFace={onFace} />
+        <Column g={g} who={null} total={null} lines={B.team ?? B.starters ?? (m.b ? [] : null)} max={max} neg={neg} played={m.played} collapse={!!B.team} label={B.team ? "Their team · season pts" : m.played ? "Starting" : "Starting · season pts"} onFace={onFace} />
+      </div>
+      {(A.team || B.team) && (
+        <p className="mt-2 flex items-center gap-1.5 text-[13px] text-muted-foreground" data-matchup-hidden>
+          <Lock className="size-3.5 flex-none" aria-hidden />
+          {A.team && B.team ? "Until the lock, everyone on each team." : `Until the lock, everyone on ${name(m.b)}'s team.`}
+        </p>
+      )}
+      {(A.bench || B.bench) && (
+        <div className="mt-3 grid grid-cols-2 gap-3 border-t border-border pt-1" data-matchup-bench>
+          {A.bench ? <Column g={g} who={null} total={null} lines={A.bench} max={max} neg={neg} played={m.played} dim label="Bench" onFace={onFace} /> : <div />}
+          {B.bench ? <Column g={g} who={null} total={null} lines={B.bench} max={max} neg={neg} played={m.played} dim label="Bench" onFace={onFace} /> : <div />}
+        </div>
+      )}
+      {m.played && !sport && (A.best || B.best) && (
+        <div className="mt-3 grid grid-cols-2 gap-3 border-t border-border pt-2 text-[13px] leading-snug" data-matchup-best>
+          {[A, B].map((s, i) => (
+            <p key={i} className="text-muted-foreground">
+              {s.best ? (
+                s.best.cost > 0 ? (
+                  <>
+                    Best lineup <b className="type-num text-[15px] text-foreground">{fmt(s.best.best)}</b> (+{fmt(s.best.cost)}): {first(faceIn(g, s.best.inId ?? "")?.name ?? "")} for {first(faceIn(g, s.best.outId ?? "")?.name ?? "")}
+                  </>
+                ) : (
+                  "Best lineup: as started"
+                )
+              ) : null}
+            </p>
+          ))}
+        </div>
+      )}
       {m.played && !m.wa && (
         <p className="mt-2 text-[13px] text-muted-foreground" data-matchup-no-lines>
           Each player&apos;s line for this week isn&apos;t in yet, only the totals.
         </p>
       )}
-      {m.played && !!m.wa && (
-        <p className="mt-2 text-center text-[13px] text-muted-foreground">
-          One points scale for both lineups{neg ? ": below zero to the left" : ""}
-        </p>
-      )}
-      {m.played && ((m.wa?.bench.length ?? 0) > 0 || (m.wb?.bench.length ?? 0) > 0) && (
-        <div className="mt-3 border-t border-border">
-          <button type="button" onClick={() => setBench((o) => !o)} aria-expanded={bench} data-matchup-bench className="flex min-h-11 w-full items-center gap-1.5 text-[14px] font-semibold">
-            <ChevronDown className={`size-4 transition-transform ${bench ? "" : "-rotate-90"}`} aria-hidden />
-            Bench · didn&apos;t count
-          </button>
-          {bench && (
-            <div className="grid grid-cols-2 gap-3 pb-1">
-              <Column g={g} who={null} total={null} lines={m.wa?.bench.map((x) => ({ ...x, why: [] })) ?? []} max={max} neg={neg} played dim onFace={onFace} />
-              <Column g={g} who={null} total={null} lines={m.wb?.bench.map((x) => ({ ...x, why: [] })) ?? []} max={max} neg={neg} played dim onFace={onFace} />
-            </div>
-          )}
-        </div>
-      )}
+      {m.played && !!m.wa && neg && <p className="mt-2 text-center text-[13px] text-muted-foreground">Below zero runs to the left of the line</p>}
       {m.played && (m.wa?.predictions || m.wb?.predictions) ? (
         <p className="mt-3 text-[13px] text-muted-foreground">
           Side bets that {words.episode.toLowerCase()}: {m.a?.you ? "you" : first(m.a?.name ?? "")} {signed(m.wa?.predictions ?? 0)}
@@ -579,7 +660,11 @@ export function MatchupBody({ g, pid, n, words, onFace }: { g: GameView; pid: st
   );
 }
 
-function Column({ g, who, total, lines, max, neg, played, dim, onFace }: { g: GameView; who: TableRow | null; total: number | null; lines: Line[] | "hidden" | null; max: number; neg: boolean; played: boolean; dim?: boolean; onFace: (id: string) => void }) {
+function Column({ g, who, total, lines: given, max, neg, played, dim, label, collapse, onFace }: { g: GameView; who: TableRow | null; total: number | null; lines: Line[] | "hidden" | null; max: number; neg: boolean; played: boolean; dim?: boolean; label?: string; collapse?: boolean; onFace: (id: string) => void }) {
+  const [all, setAll] = useState(false);
+  const sorted = Array.isArray(given) ? byPosition(g, given.map((l) => l.id)).map((id) => given.find((l) => l.id === id)!) : given;
+  const lines = Array.isArray(sorted) && collapse && !all && sorted.length > 8 ? sorted.slice(0, 6) : sorted;
+  const hidden = Array.isArray(sorted) && Array.isArray(lines) ? sorted.length - lines.length : 0;
   return (
     <div className="min-w-0">
       {who && (
@@ -589,6 +674,7 @@ function Column({ g, who, total, lines, max, neg, played, dim, onFace }: { g: Ga
           {total !== null && <b className="type-num ml-auto text-[26px] leading-none">{fmt(total)}</b>}
         </div>
       )}
+      {label && lines && lines !== "hidden" && lines.length > 0 && <p className="type-caption mt-1 text-[13px] tracking-[0.04em] text-muted-foreground">{label}</p>}
       {lines === "hidden" ? (
         <p className="flex items-center gap-1.5 text-[13px] text-muted-foreground" data-matchup-hidden>
           <Lock className="size-3.5" aria-hidden />
@@ -603,12 +689,12 @@ function Column({ g, who, total, lines, max, neg, played, dim, onFace }: { g: Ga
             const w = (Math.abs(l.points) / max) * 100;
             return (
               <li key={l.id}>
-                <button type="button" data-door-cast={l.id} onClick={() => onFace(l.id)} className={`nd-press flex w-full flex-col border-t border-border py-1.5 text-left ${dim ? "opacity-70" : ""}`}>
+                <button type="button" data-door-cast={l.id} onClick={() => onFace(l.id)} className={`nd-press flex min-h-11 w-full flex-col justify-center border-t border-border py-1.5 text-left ${dim ? "text-muted-foreground" : ""}`}>
                   <span className="flex w-full items-center gap-1.5">
                     <Face src={c?.photo ?? null} name={c?.name} out={c?.left} className="size-7 flex-none rounded-[2px] text-[12px]" />
                     <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">{first(c?.name ?? "")}</span>
                     {c?.role && <span className="text-[11px] font-bold tracking-[0.04em] text-muted-foreground">{c.role}</span>}
-                    {played && <b className={`type-num text-[17px] ${l.points > 0 ? "text-good" : l.points < 0 ? "text-muted-foreground" : "text-muted-foreground"}`}>{signed(l.points)}</b>}
+                    {played ? <b className={`type-num text-[17px] ${l.points > 0 ? "text-good" : "text-muted-foreground"}`}>{signed(l.points)}</b> : <span className="type-num text-[14px] text-muted-foreground">{fmt(c?.points ?? 0)}</span>}
                   </span>
                   {played && (
                     <span className="relative mt-1 block h-1.5 w-full" aria-hidden>
@@ -628,6 +714,349 @@ function Column({ g, who, total, lines, max, neg, played, dim, onFace }: { g: Ga
           })}
         </ul>
       )}
+      {hidden > 0 && (
+        <button type="button" onClick={() => setAll(true)} className="inline-flex min-h-11 items-center text-[14px] font-semibold" data-matchup-more>
+          {hidden} more
+        </button>
+      )}
     </div>
+  );
+}
+
+// ---------- step 2b: the league's week, a person's season, a castaway's and an athlete's weeks ----------
+
+/** The league's other games this week (head to head): the two faces and records, then whether each is set, locked, or the
+ *  score; each opens that matchup. Yours isn't repeated (it's the card above). */
+export function WeekGames({ g, words, onOpen }: { g: GameView; words: ShowData["words"]; onOpen: (playerId: string, episode: number) => void }) {
+  const wk = g.games;
+  if (!wk) return null;
+  const others = wk.games.filter((x) => x.a !== g.playerId && x.b !== g.playerId);
+  if (!others.length) return null;
+  const row = (id: string | null) => (id ? (g.table.find((r) => r.playerId === id) ?? null) : null);
+  const side = (r: TableRow | null, end?: boolean) =>
+    r ? (
+      <span className={`flex min-w-0 items-center gap-1.5 ${end ? "flex-row-reverse text-right" : ""}`}>
+        <Avatar id={r.userId ?? r.playerId} name={r.name} size={26} />
+        <span className="min-w-0">
+          <b className="block truncate text-[15px] font-semibold leading-tight">{first(r.name)}</b>
+          <span className="type-num block text-[13px] text-muted-foreground">{recordWords(r.record) ?? ""}</span>
+        </span>
+      </span>
+    ) : (
+      <span className={`text-[13px] text-muted-foreground ${end ? "text-right" : ""}`}>The middle score</span>
+    );
+  const status = (x: (typeof others)[number]) => {
+    if (x.locked) return "Locked";
+    const a = row(x.a), b = row(x.b);
+    const out = [x.set.a ? null : a, x.b && x.set.b === false ? b : null].filter(Boolean) as TableRow[];
+    if (!out.length) return x.b ? "Both set" : "Set";
+    return `${out.map((r) => first(r.name)).join(" and ")} not set`;
+  };
+  return (
+    <section className="mx-4 mt-5" data-week-games>
+      <div className="mb-1 flex items-baseline justify-between gap-3">
+        <h2 className="type-caption text-[20px]">The other games</h2>
+        <span className="text-[13px] text-muted-foreground">
+          {words.ep} {wk.episode}
+        </span>
+      </div>
+      {others.map((x) => (
+        <button key={x.a} type="button" data-week-game={x.a} onClick={() => onOpen(x.a, wk.episode)} className="nd-press grid min-h-[56px] w-full grid-cols-[1fr_auto_1fr_auto] items-center gap-2 border-t border-border py-1.5 text-left">
+          {side(row(x.a))}
+          <span className="type-caption text-[13px] tracking-[0.06em] text-muted-foreground">vs</span>
+          {side(row(x.b), true)}
+          <span className="flex items-center gap-0.5 pl-1 text-[13px] text-muted-foreground">
+            <span className="max-w-[86px] text-right leading-tight">{status(x)}</span>
+            <ChevronRight className="size-4 flex-none" aria-hidden />
+          </span>
+        </button>
+      ))}
+    </section>
+  );
+}
+
+/** That week's games (head to head), on an episode's sheet: each pairing and its score; each opens its matchup. */
+export function EpisodeGames({ g, episode, onOpen }: { g: GameView; episode: number; onOpen: (playerId: string) => void }) {
+  if (g.plays.kind !== "result") return null;
+  const seen = new Set<string>();
+  const games: { a: TableRow; b: TableRow | null; us: number; them: number | null; r: "W" | "L" | "T"; median: boolean }[] = [];
+  for (const r of g.table) {
+    const s = g.plays.rows[r.playerId]?.find((x) => x.episode === episode);
+    if (!s?.result || seen.has(r.playerId)) continue;
+    const b = s.result.against ? (g.table.find((x) => x.playerId === s.result!.against) ?? null) : null;
+    seen.add(r.playerId);
+    if (b) seen.add(b.playerId);
+    if (b?.you) games.push({ a: b, b: r, us: s.result.them ?? 0, them: s.result.us, r: s.result.r === "W" ? "L" : s.result.r === "L" ? "W" : "T", median: false });
+    else games.push({ a: r, b, us: s.result.us, them: s.result.them, r: s.result.r, median: s.result.median });
+  }
+  if (!games.length) return null;
+  return (
+    <section className="mb-3" data-episode-games>
+      <p className="type-caption mb-1 text-[14px] tracking-[0.04em] text-muted-foreground">That week&apos;s games</p>
+      {games.map((x) => (
+        <button key={x.a.playerId} type="button" data-episode-game={x.a.playerId} onClick={() => onOpen(x.a.playerId)} className="nd-press grid min-h-12 w-full grid-cols-[1fr_auto_1fr_auto] items-center gap-2 border-t border-border py-1 text-left">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <ResultSquare r={x.r === "W" ? "win" : x.r === "L" ? "loss" : "tie"} />
+            <b className="truncate text-[15px] font-semibold">{x.a.you ? "You" : first(x.a.name)}</b>
+          </span>
+          <span className="type-num text-[17px]">{scoreWords(x.us, x.them)}</span>
+          <b className="truncate text-right text-[15px] font-semibold">{x.b ? (x.b.you ? "You" : first(x.b.name)) : x.median ? "The middle score" : "A bye"}</b>
+          <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
+        </button>
+      ))}
+    </section>
+  );
+}
+
+/** A week's best lineup from the same people (the top scores among its starters and bench, as many as started) against what was
+ *  started: the cost, and the swap that would have made it (the bench player in, the starter out). Shows only: a sport's slots
+ *  by position would make the plain top-N wrong. */
+export function bestOf(w: TableRow["weeks"][number]): { scored: number; best: number; cost: number; inId: string | null; outId: string | null } {
+  const lines = [...w.started.map((x) => ({ ...x, start: true })), ...w.bench.map((x) => ({ ...x, start: false }))].sort((p, q) => q.points - p.points);
+  const pick = lines.slice(0, w.started.length);
+  const scored = w.started.reduce((t, x) => t + x.points, 0);
+  const best = pick.reduce((t, x) => t + x.points, 0);
+  const inId = pick.find((x) => !x.start)?.id ?? null;
+  const outId = [...w.started].sort((p, q) => p.points - q.points).find((x) => !pick.some((y) => y.id === x.id))?.id ?? null;
+  return { scored, best, cost: Math.max(0, best - scored), inId, outId };
+}
+
+/** A person's season under their week-by-week chart, as one table a week a column: the result each week (head to head: the
+ *  square, who, the score), then a castaway a row (started on the raised fill, benched dim, the week they went home marked, their
+ *  points for this person pinned at the end), then what the bench cost each week. */
+export function PersonSeason({ g, r, words, sport, onMatchup, onFace }: { g: GameView; r: TableRow; words: ShowData["words"]; sport?: boolean; onMatchup: (episode: number) => void; onFace: (id: string) => void }) {
+  const weeks = r.weeks;
+  if (!weeks.length) return null;
+  const sqOf = (n: number) => (g.plays.rows[r.playerId] ?? []).find((s) => s.episode === n) ?? null;
+  const h2h = g.plays.kind === "result";
+  const ids = byPosition(g, [...new Set([...r.team, ...weeks.flatMap((w) => [...w.started.map((x) => x.id), ...w.bench.map((x) => x.id)])])]);
+  const cell = (id: string, w: (typeof weeks)[number]) => {
+    const s = w.started.find((x) => x.id === id);
+    if (s) return { start: true, p: s.points };
+    const b = w.bench.find((x) => x.id === id);
+    return b ? { start: false, p: b.points } : null;
+  };
+  const counted = (id: string) => weeks.reduce((t, w) => t + (w.started.find((x) => x.id === id)?.points ?? 0), 0);
+  const costs = weeks.map((w) => bestOf(w));
+  const season = costs.reduce((t, c) => t + c.cost, 0);
+  const opp = (id: string | null | undefined) => (id ? g.table.find((x) => x.playerId === id) : undefined);
+  const COL = "w-[40px] min-w-[40px]";
+  return (
+    <section data-person-season className="pb-2">
+      <p className="mb-1.5 mt-5 flex items-baseline justify-between gap-2">
+        <span className="type-caption text-[14px] tracking-[0.04em] text-muted-foreground">The season</span>
+        <span className="text-[13px] text-muted-foreground">started · on the bench, dim · <i className="inline-block size-1.5 rounded-full bg-live align-middle" aria-hidden /> went home</span>
+      </p>
+      <div className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none]" data-lineup-matrix>
+        <table className="border-separate border-spacing-x-[3px] border-spacing-y-0 text-[13px]">
+          <thead>
+            <tr>
+              <th className="sticky left-0 z-[1] bg-card" />
+              {weeks.map((w) => {
+                const s = sqOf(w.episode);
+                const o = opp(s?.result?.against);
+                return (
+                  <th key={w.episode} className={`${COL} pb-1 align-bottom font-normal`}>
+                    {h2h && s?.result ? (
+                      <button type="button" data-person-week={w.episode} onClick={() => onMatchup(w.episode)} aria-label={`${words.episode} ${w.episode}: ${s.result.r === "W" ? "won" : s.result.r === "L" ? "lost" : "tied"} against ${o?.name ?? "the middle score"}, ${scoreWords(s.result.us, s.result.them)}`} className="nd-press flex min-h-11 w-full flex-col items-center justify-end gap-0.5">
+                        <ResultSquare r={s.result.r === "W" ? "win" : s.result.r === "L" ? "loss" : "tie"} />
+                        <span className="text-[11px] font-semibold">{o ? (o.you ? "You" : first(o.name)) : "Mid"}</span>
+                      </button>
+                    ) : null}
+                    <span className="type-caption block text-center text-[13px] text-muted-foreground">
+                      {words.ep} {w.episode}
+                    </span>
+                  </th>
+                );
+              })}
+              <th className="sticky right-0 z-[1] bg-card pl-2 text-right align-bottom">
+                <span className="type-caption pb-0.5 text-[13px] font-normal text-muted-foreground">Pts</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {ids.map((id) => {
+              const c = faceIn(g, id);
+              return (
+                <tr key={id}>
+                  <th scope="row" className="sticky left-0 z-[1] bg-card pr-1 text-left font-normal">
+                    <button type="button" data-door-cast={id} onClick={() => onFace(id)} className="flex min-h-11 max-w-[104px] items-center gap-1.5">
+                      <Face src={c?.photo ?? null} name={c?.name} out={c?.left} className="size-6 flex-none rounded-[2px] text-[11px]" />
+                      <span className={`truncate text-[13px] font-semibold ${c?.left ? "text-muted-foreground" : ""}`}>{first(c?.name ?? "")}</span>
+                      {c?.role && <span className="text-[11px] font-bold text-muted-foreground">{c.role}</span>}
+                    </button>
+                  </th>
+                  {weeks.map((w) => {
+                    const x = cell(id, w);
+                    return (
+                      <td key={w.episode} className={`relative ${COL} h-11 rounded-[2px] border-t border-border text-center align-middle ${x?.start ? "bg-secondary" : ""}`}>
+                        {x ? <span className={`type-num text-[14px] ${x.start ? "text-foreground" : "text-muted-foreground"}`}>{signed(x.p)}</span> : <span className="text-muted-foreground/50">·</span>}
+                        {c?.out === w.episode && <i aria-label="went home" className="absolute right-0.5 top-1 size-1.5 rounded-full bg-live" />}
+                      </td>
+                    );
+                  })}
+                  <td className="sticky right-0 z-[1] border-t border-border bg-card pl-2 text-right">
+                    <b className="type-num text-[17px]">{signed(counted(id))}</b>
+                  </td>
+                </tr>
+              );
+            })}
+            {!sport && (
+              <tr data-person-bench>
+                <th scope="row" className="sticky left-0 z-[1] bg-card pr-1 text-left text-[13px] font-semibold text-muted-foreground">
+                  Bench cost
+                </th>
+                {costs.map((c, i) => (
+                  <td key={weeks[i].episode} className={`${COL} h-11 border-t border-border text-center`}>
+                    <span className={`type-num text-[14px] ${c.cost > 0 ? "text-foreground" : "text-muted-foreground"}`}>{c.cost > 0 ? fmt(c.cost) : "0"}</span>
+                  </td>
+                ))}
+                <td className="sticky right-0 z-[1] border-t border-border bg-card pl-2 text-right">
+                  <b className="type-num text-[17px]">{fmt(season)}</b>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      {!sport && (
+        <p className="mt-1.5 text-[13px] leading-snug text-muted-foreground">
+          Bench cost: what the best lineup from the same people would have added that {words.episode.toLowerCase()}. {season > 0 ? `${fmt(season)} over the season.` : "None this season."}
+        </p>
+      )}
+    </section>
+  );
+}
+
+const STACK = ["#f2804b", "#a76bb0", "#5089c9", "#b9b4c8"];
+
+/** A castaway's season, episode by episode: what they scored as signed bars on one scale, each split by what scored (the three
+ *  biggest kinds and the rest), the episode they went home in marked. Stops at the viewer's mark (the stats are cut there). */
+export function CastChart({ d, c, words, counted = [] }: { d: SeasonStats; c: CastStat; words: ShowData["words"]; counted?: number[] }) {
+  const n = c.perEp.length;
+  if (!n || !c.events.length) return null;
+  const weight = new Map<string, number>();
+  for (const [, key, pts] of c.events) weight.set(key, (weight.get(key) ?? 0) + Math.abs(pts));
+  const top = [...weight].sort((p, q) => q[1] - p[1]).slice(0, 3).map(([k]) => k);
+  const keyOf = (k: string) => (top.includes(k) ? k : "rest");
+  const keys = [...top, ...(weight.size > top.length ? ["rest"] : [])];
+  const stacks = Array.from({ length: n }, (_, i) => {
+    const m = new Map<string, number>();
+    for (const [ep, key, pts] of c.events) if (ep === i + 1) m.set(keyOf(key), (m.get(keyOf(key)) ?? 0) + pts);
+    return m;
+  });
+  const pos = stacks.map((m) => [...m.values()].filter((v) => v > 0).reduce((t, v) => t + v, 0));
+  const negs = stacks.map((m) => [...m.values()].filter((v) => v < 0).reduce((t, v) => t + v, 0));
+  const top_ = Math.max(1, ...pos), bot = Math.min(0, ...negs);
+  const H = 120, PAD = 16, colW = n <= 6 ? 52 : n <= 10 ? 34 : 26, W = n * colW;
+  const y = (v: number) => PAD + ((top_ - v) / (top_ - bot)) * (H - PAD * 2);
+  const name = (k: string) => (k === "rest" ? "The rest" : (d.stats.find((s) => s.key === k)?.name ?? k));
+  return (
+    <section className="mt-3" data-cast-chart>
+      <p className="mb-1 flex items-baseline justify-between gap-2">
+        <span className="type-caption text-[14px] tracking-[0.04em] text-muted-foreground">Each {words.episode.toLowerCase()}</span>
+        <span className="text-[13px] text-muted-foreground">
+          {signed(c.points)} so far
+        </span>
+      </p>
+      <div className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none]">
+        <svg width={Math.max(W, 120)} height={H + 18} role="img" aria-label={`${c.first}'s points each ${words.episode.toLowerCase()}: ${c.perEp.map((p, i) => `${words.ep} ${i + 1} ${p === null ? "out" : signed(p)}`).join(", ")}`} className="block">
+          <line x1={0} x2={Math.max(W, 120)} y1={y(0)} y2={y(0)} stroke="var(--edge)" strokeWidth={1} />
+          {stacks.map((m, i) => {
+            let up = 0, down = 0;
+            const x = i * colW + 4;
+            return (
+              <g key={i}>
+                {keys.map((k, j) => {
+                  const v = m.get(k) ?? 0;
+                  if (!v) return null;
+                  const from = v > 0 ? up : down;
+                  const to = from + v;
+                  if (v > 0) up = to;
+                  else down = to;
+                  return <rect key={k} x={x} width={colW - 8} y={Math.min(y(from), y(to))} height={Math.max(1, Math.abs(y(to) - y(from)))} fill={STACK[j]} rx={1} />;
+                })}
+                {(pos[i] || negs[i]) && n <= 14 ? (
+                  <text x={x + (colW - 8) / 2} y={negs[i] && !pos[i] ? y(negs[i]) + 12 : y(pos[i]) - 4} textAnchor="middle" fontSize={11} fill="var(--muted-foreground)" className="type-num">
+                    {signed(pos[i] + negs[i])}
+                  </text>
+                ) : null}
+                <text x={x + (colW - 8) / 2} y={y(bot) + 14} textAnchor="middle" fontSize={11} fontWeight={counted.includes(i + 1) ? 700 : 400} textDecoration={counted.includes(i + 1) ? "underline" : undefined} fill={c.out === i + 1 ? "var(--live)" : counted.includes(i + 1) ? "var(--foreground)" : "var(--muted-foreground)"}>
+                  {i + 1}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+      <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[13px] text-muted-foreground" data-cast-chart-key>
+        {keys.map((k, j) => (
+          <li key={k} className="flex items-center gap-1.5">
+            <i className="size-2.5 rounded-[2px]" style={{ background: STACK[j] }} aria-hidden />
+            {name(k)}
+          </li>
+        ))}
+        {counted.length > 0 && <li className="font-semibold text-foreground underline underline-offset-2">Started for you</li>}
+        {c.out && <li className="text-live">{words.ep} {c.out}: went home</li>}
+      </ul>
+    </section>
+  );
+}
+
+type Logged = { episode: number; opponent: string | null; items: { label: string; value: string }[] };
+
+/** An athlete's season, game by game: their three main stats (the ones they record most, by how much they move), each a small bar
+ *  chart on its own scale, the opponent under each game. The log stays under it as the table. */
+export function AthleteChart({ games, words }: { games: Logged[]; words: ShowData["words"] }) {
+  const ordered = [...games].sort((p, q) => p.episode - q.episode);
+  if (ordered.length < 2) return null;
+  const num = (v: string) => (/^-?\d+(\.\d+)?$/.test(v.trim()) ? Number(v) : null);
+  const labels = new Map<string, (number | null)[]>();
+  ordered.forEach((gm, i) => {
+    for (const it of gm.items) {
+      const v = num(it.value);
+      if (v === null) continue;
+      if (!labels.has(it.label)) labels.set(it.label, Array(ordered.length).fill(null));
+      labels.get(it.label)![i] = v;
+    }
+  });
+  const spread = (xs: (number | null)[]) => {
+    const v = xs.filter((x): x is number => x !== null);
+    return v.length < 2 ? 0 : Math.max(...v) - Math.min(...v);
+  };
+  const picked = [...labels]
+    .filter(([, xs]) => xs.filter((x) => x !== null).length >= 2 && xs.some((x) => x))
+    .sort((p, q) => q[1].filter((x) => x !== null).length - p[1].filter((x) => x !== null).length || spread(q[1]) - spread(p[1]))
+    .slice(0, 3);
+  if (!picked.length) return null;
+  return (
+    <section className="mt-3" data-athlete-chart>
+      <p className="type-caption mb-1 text-[14px] tracking-[0.04em] text-muted-foreground">Game by game</p>
+      {picked.map(([label, xs], li) => {
+        const max = Math.max(1, ...xs.map((x) => Math.abs(x ?? 0)));
+        const wide = xs.length > 8;
+        return (
+          <div key={label} className="flex items-end gap-2 border-t border-border py-1.5" data-athlete-stat={label}>
+            <span className="w-[56px] flex-none pb-0.5 text-[13px] font-semibold">{label}</span>
+            <div className={`min-w-0 flex-1 ${wide ? "overflow-x-auto [scrollbar-width:none]" : ""}`}>
+              <div className="flex items-end gap-1" style={{ width: wide ? xs.length * 32 : undefined }}>
+                {xs.map((x, i) => (
+                  <span key={i} className="flex min-w-[28px] flex-1 flex-col items-center gap-0.5">
+                    <span className="type-num text-[11px] text-muted-foreground">{x ?? "–"}</span>
+                    {/* A bar from the zero line: up for a positive, a muted bar under the line for a negative, the line alone for 0. */}
+                    <span className="flex h-[40px] w-full flex-col justify-end">
+                      {x !== null && x > 0 && <span className="block w-full rounded-[1px]" style={{ height: Math.max(2, (x / max) * 34), background: STACK[li] }} />}
+                    </span>
+                    <span className="block h-px w-full bg-edge" />
+                    <span className="flex h-[10px] w-full flex-col">{x !== null && x < 0 && <span className="block w-full rounded-[1px] bg-muted-foreground/60" style={{ height: Math.max(2, (-x / max) * 10) }} />}</span>
+                    {li === picked.length - 1 && <span className="max-w-full truncate text-[11px] text-muted-foreground">{ordered[i].opponent ?? `${words.ep}${ordered[i].episode}`}</span>}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </section>
   );
 }

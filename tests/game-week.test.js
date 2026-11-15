@@ -96,3 +96,17 @@ test("a score with a negative reads with 'to'", () => {
   assert.equal(scoreWords(6, 2), "6–2");
   assert.equal(scoreWords(-3, 0), "−3 to 0");
 });
+
+test("the league's week: every seat paired once, yours the card's, others' lineups only once locked", () => {
+  const { g } = card("show-due");
+  assert.ok(g.games, "head to head carries the league's week");
+  assert.equal(g.games.episode, g.matchups.next.episode);
+  const seats = g.games.games.flatMap((x) => [x.a, x.b].filter(Boolean));
+  assert.equal(new Set(seats).size, seats.length, "nobody plays twice");
+  assert.equal(seats.length, g.table.length, "everyone plays");
+  const mine = g.games.games.find((x) => x.a === g.playerId || x.b === g.playerId);
+  assert.equal(mine.a === g.playerId ? mine.b : mine.a, g.matchups.next.opponent, "yours is the card's");
+  assert.ok(g.games.games.every((x) => x.locked === null), "nothing locked before airtime");
+  const locked = card("show-locked").g;
+  assert.ok(locked.games.games.every((x) => Array.isArray(x.locked?.a)), "every side's starters once locked");
+});

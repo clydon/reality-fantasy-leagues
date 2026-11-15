@@ -13,7 +13,7 @@ import { pickWindow } from "./pool-view";
 import { pointsPerLine } from "./bingo";
 import { isBetSettled, isKnockedOut, publicMediaSrc } from "./selectors";
 import { scoredEpisodes, teamEpisodeBreakdown } from "./team-episode-breakdown";
-import { lockedMatchup, sideBetsOf, type SideBets } from "./week-view";
+import { leagueWeek, lockedMatchup, sideBetsOf, type SideBets, type WeekGame } from "./week-view";
 
 // One of your season games on a show, as the new design's show space reads it (docs/PLAN-new-design.md step 1):
 // your moves for the next episode (the lineup, the pick, open predictions), the game's table, its rules, its cast,
@@ -354,6 +354,8 @@ export interface GameView extends GameRefIn {
    *  your matchup once its episode's lineups have locked, before its results (null otherwise). Optional: older readers omit them. */
   bets?: SideBets | null;
   locked?: { episode: number; mine: string[]; theirs: string[] | null } | null;
+  /** Step 2b: the league's games for the week about to be played (week-view.ts leagueWeek); null outside head to head. */
+  games?: { episode: number; games: WeekGame[] } | null;
 }
 
 /** Whose user a seat is, for faces. */
@@ -463,6 +465,7 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
     bot: calls?.bot ?? null,
     bets: seat ? sideBetsOf(view, me, new Map(everyone.map((r) => [r.playerId, r.name])), through, now) : null,
     locked: seat && pieces.hasActiveRoster ? lockedMatchup(view, me, matchups?.next, now) : null,
+    games: matchups && pieces.hasActiveRoster && !isPublic ? leagueWeek(view, everyone.map((r) => r.playerId), nextIn?.set ?? null, now) : null,
   };
 }
 

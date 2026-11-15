@@ -21,7 +21,12 @@ in `.ui-atlas/stories/step2-game-page/`, re-made by `scripts/dev-test/story-situ
 `src/new/show/game-week.tsx`, `this-week.ts`, `src/lib/game/week-view.ts` (the view's `bets` and `locked`), a 26th bench situation
 `show-side-bets`. **Waiting on the user:** the review, BACKLOG 87 (should a side bet change a matchup), and face colours (gold and
 teal out of the palette). Next after approval: step 3, Tonight. Checks that assert on the old page's title card may need the new
-markers (the page keeps data-game-title/strip/grid/you/rules).
+markers (the page keeps data-game-title/strip/grid/you/rules). **Step 2b, the same day** (the user's review: the bench, the league's
+other games, drill-down graphs at every level; DESIGN-PROCESS.md now has "Not a repaint: the structural lens"):
+`docs/design-round/step2b-drill-tree.md`; the view's `games` (every seat's pairing this week, week-view.ts leagueWeek); the
+matchup sheet with both full teams and bench cost; a person's season table; a cast member's chart; an athlete's chart (unseen on
+the bench: no game log); an episode's games. Story version 2, the same link. Recommended to the user: ship in clusters (game page,
+Tonight's game section and the Games tab rows first), reviewed page by page; not answered yet.
 
 ## Hosting: read [HOSTING.md](HOSTING.md) before adding anything that polls, runs on a schedule or stores data
 Every service, its free limits, current usage, what drives each limit, and what more would cost; keep it current

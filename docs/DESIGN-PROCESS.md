@@ -21,6 +21,18 @@ Each owns one question, runs at one point, and hands one thing to the next:
 | 4 | **Check** | | PFD `evaluate` and Impeccable `critique` on the built page, **once each**; the bench's situations and page checks | **Findings**, fixed in **one** batch |
 | 5 | **The user** | Judgement | The screenshot story (below) | Their decision |
 
+**Not a repaint: the structural lens** (the user, 2026-11-15). Every round asks of every surface it touches, and of every level
+you can drill to from it, "will repainting be enough, or does this need new sections, new screens, new ways to display the
+data?" It's Intent's question, answered in the page spec before anything is drawn:
+- **The drill tree, to its deepest level.** From the page down: a matchup, a person, a cast member or athlete, an episode, a
+  stat. For each level: the questions people bring to it (the casual player's and the sweat's), the data the engine and the
+  views already hold for it, the form it takes today, and a verdict: **keep**, **repaint**, **restructure**, **new display** (a
+  chart, a table, a comparison) or **new screen**. "Keep" needs a reason, never a default.
+- **Data shown with joy is designed, not inherited.** Weekly graphs of a person's points, a cast member's or athlete's stats by
+  week, a season's matrix and trend are first-class parts (the chart part, Phase 0's decision), drawn where they live.
+- **The story shows the drill levels too,** not only first views: each level the round touched, before and after, and the ones
+  it kept with why.
+
 **What wins when they disagree:**
 1. The user's own words and settled decisions (the frame, the brief, recorded decisions) beat any skill.
 2. Then each skill wins inside the question it owns, and only there:

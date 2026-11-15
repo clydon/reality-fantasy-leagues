@@ -30,7 +30,7 @@ import { answerWords, openSheet, QuestionsBody } from "./questions";
 import { DrillSheets, PersonBody, totalWords, useDrill, type DrillState } from "./game-sheets";
 import { playsWaivers } from "./waivers";
 import { yourMove } from "./your-move";
-import { SideBetsRow, waiverLine, WeekBlock, YourTeam } from "./game-week";
+import { SideBetsRow, waiverLine, WeekBlock, WeekGames, YourTeam } from "./game-week";
 import { thisWeek } from "./this-week";
 
 // A game's own page (docs/PLAN-start-a-game-gpt.md U1; the direction contract .impeccable/surfaces/src-new-show-game-page-tsx.md,
@@ -244,7 +244,7 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
               g={wg}
               w={strip.due && week.tone === "due" ? { ...week, state: "" } : week}
               colour={colour}
-              note={waiverLine(waivers?.find((w) => w.leagueId === wg.leagueId), wg, when, show.words)}
+              note={waiverLine(waivers?.find((w) => w.leagueId === wg.leagueId), wg, when, show.words, wmove?.kind === "waivers" && strip.due)}
               news={news}
               move={movePart}
               reveal={reveal}
@@ -258,6 +258,7 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
         </div>
       </header>
       <SideBetsRow g={wg} words={show.words} runs={runs} onOpen={() => drill.open({ kind: "bets" })} />
+      {week?.tone !== "out" && <WeekGames g={wg} words={show.words} onOpen={(pid, n) => drill.open({ kind: "matchup", playerId: pid, episode: n })} />}
       {m.inPlace === "questions" && <InPlaceQuestions seasonId={seasonId} g={g} />}
       {m.inPlace === "twist" && twist?.next && <TwistChooser leagueId={g.leagueId} t={twist} />}
       {m.inPlace === "slots" && <SlotPicker g={g} seasonId={seasonId} />}
@@ -686,7 +687,7 @@ function SeasonGrid({ g, m, words, due, drill }: { g: GameView; m: PageModel; wo
   const cut = m.couch.cutAfter ?? (po && all.length > po.teams ? po.teams : null);
   const cutLabel = m.couch.cutLabel ?? (po ? "Playoffs" : null);
   const cutAt = (i: number) => cut !== null && cut === i && i > 0;
-  const unit = m.couch.unit === "Points" ? "Pts" : m.couch.unit;
+  const unit = m.couch.unit === "Points" ? "Pts" : p.kind === "result" && g.table.some((r) => r.record?.ties) ? "W-L-T" : m.couch.unit;
   const lives = p.lives;
   return (
     <section className="mx-2 mt-6 rounded-[14px] bg-card px-4 pb-3.5 pt-4" data-game-couch={m.couch.unit} data-game-grid={p.kind}>

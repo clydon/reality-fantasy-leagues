@@ -123,3 +123,22 @@
   new app's writes ask quietly for exactly this reason, data.ts send()).
 - Rejected: leaving them (a spoiler in the network response).
 - Rests on: src/lib/server/api-route.ts stateResponse; the bets and predictions routes.
+
+## 2026-11-15 · Step 2b: the structural lens on the game page's drill tree
+- Decided by: the user ("go", after asking for the bench, the league's other games and weekly graphs at every level, and that
+  rounds never be only a repaint); the verdicts per level by Claude, in docs/design-round/step2b-drill-tree.md
+- Why: step 2 kept everything under the matchup sheet as it was without asking whether that was enough.
+- What: the league's other games on the page; a matchup's both full teams (theirs unsplit before the lock, since a split gives the
+  lineup away); bench cost named as the swap, shows only (a sport's slots would make a plain top-N wrong); a person's season as
+  one table (data round 3's C); a cast member's points each episode by what scored; an athlete's main stats game by game; an
+  episode's games once.
+- Rejected: "left on the bench" as the sum of the bench's positive scores (it overstated the cost: Di's +4 was 0.5); a second
+  list of the same results on an episode's sheet.
+- Rests on: docs/DESIGN-PROCESS.md "Not a repaint"; the 2b check (Impeccable 26/40, PFD 56) and its one batch.
+
+## 2026-11-15 · Ship in clusters, review page by page (recommended, awaiting the user)
+- Decided by: Claude (recommendation, asked by the user; not yet answered)
+- Why: the pages share parts, so approving one alone means re-deciding them in context, and a half-new app shows two forms of one
+  fact a tap apart. Cluster 1 = the game page, Tonight's game section and strip, the Games tab rows; cluster 2 = Episodes, the
+  reveal, Players / Cast; cluster 3 = the rest. A ripple check each round; an optional per-account preview switch.
+- Rejected: pushing each page when it's approved; drafting many pages before any review.

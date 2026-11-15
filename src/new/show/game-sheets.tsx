@@ -13,7 +13,7 @@ import { LATE_SET, LateMark, LineupSheet, signed } from "./lineup-sheet";
 import { faceIn, first } from "./moves";
 import { Face } from "./parts";
 import { answerWords, verdictWords } from "./questions";
-import { BetsBody, MatchupBody, MatchupTitle } from "./game-week";
+import { AthleteChart, BetsBody, CastChart, EpisodeGames, MatchupBody, MatchupTitle, PersonSeason } from "./game-week";
 
 // The sheet family on a game's page and the Games tab (docs/PLAN-start-a-game-gpt.md U1, "Step 2 brief": the sheet family, once;
 // U0's canvas v58, boards R4 and R6, `make_person_sheet.js` and `make_hybrid.js`). Every name, square, episode and face is a door to
@@ -173,7 +173,7 @@ function Level({ level, drill, crumb, plain, ...ctx }: Ctx & { level: Level; dri
         subtitle={t.subtitle}
         stepper={eps.length > 1 ? { prev: at > 0 ? `${show.words.ep} ${eps[at - 1]}` : null, next: at >= 0 && at < eps.length - 1 ? `${show.words.ep} ${eps[at + 1]}` : null, onStep: step } : undefined}
       >
-        <MatchupBody key={`${d.playerId}:${d.episode}`} g={wg} pid={d.playerId} n={d.episode} words={show.words} onFace={(id) => go.open({ kind: "cast", id })} />
+        <MatchupBody key={`${d.playerId}:${d.episode}`} g={wg} pid={d.playerId} n={d.episode} words={show.words} sport={show.header?.show.kind === "sport"} onFace={(id) => go.open({ kind: "cast", id })} />
       </Sheet>
     );
   }
@@ -255,7 +255,13 @@ const userOfRow = (r: TableRow) => r.userId ?? r.playerId;
 /** A lineup's weeks are today's lineup sheet; any other game, the strip in its own terms, the chosen episode, then the season. */
 export function PersonBody({ g, show, seasonId, r, episode, onEpisode, go, onClose, compact }: Ctx & { r: TableRow; episode: number | null; onEpisode: (n: number) => void; go: Drill; onClose: () => void; compact?: boolean }) {
   const lineup = r.weeks.length > 0 || (g.gameType === "active-roster" && g.plays.blocks.includes("lineup"));
-  if (lineup) return <LineupSheet g={g} r={r} week={episode ?? r.weeks.at(-1)?.episode ?? null} onWeek={onEpisode} words={show.words} onClose={onClose} onFace={(id) => go.open({ kind: "cast", id })} noTeam={compact} />;
+  if (lineup)
+    return (
+      <>
+        <LineupSheet g={g} r={r} week={episode ?? r.weeks.at(-1)?.episode ?? null} onWeek={onEpisode} words={show.words} onClose={onClose} onFace={(id) => go.open({ kind: "cast", id })} noTeam={compact || r.weeks.length > 0} />
+        {!compact && <PersonSeason g={g} r={r} words={show.words} sport={show.header?.show.kind === "sport"} onMatchup={(n) => go.open({ kind: "matchup", playerId: r.playerId, episode: n })} onFace={(id) => go.open({ kind: "cast", id })} />}
+      </>
+    );
   const eps = g.plays.episodes;
   if (g.plays.kind === "staged") return <p className="mt-2 pb-2 text-[15px] leading-snug text-muted-foreground">Each stage is a game of its own with its own season: {r.you ? "your" : `${r.name}'s`} plays are on each stage&apos;s page. Here, {totalWords(g, r)} overall.</p>;
   const sel = episode !== null && eps.includes(episode) ? episode : (eps.at(-1) ?? null);
@@ -646,8 +652,9 @@ function EpisodeBody({ g, show, episode, go }: Ctx & { episode: number; go: Dril
   const k = g.plays.kind;
   return (
     <div data-episode-sheet={episode} className="pb-2">
-      <Caption>{k === "pick" ? "Everyone's pick" : k === "result" ? "Every matchup" : "Everyone's night"}</Caption>
-      {g.table.filter((r) => opensSheet(g, r)).map((r) => {
+      <EpisodeGames g={g} episode={episode} onOpen={(pid) => go.open({ kind: "matchup", playerId: pid, episode })} />
+      {k !== "result" && <Caption>{k === "pick" ? "Everyone's pick" : "Everyone's night"}</Caption>}
+      {k !== "result" && g.table.filter((r) => opensSheet(g, r)).map((r) => {
         const s = sqOf(g, r, episode);
         const pickId = s?.pick?.id ?? null;
         const face = pickId ? faceIn(g, pickId) : undefined;
@@ -658,7 +665,7 @@ function EpisodeBody({ g, show, episode, go }: Ctx & { episode: number; go: Dril
               <span className="min-w-0 flex-1">
                 <b className="flex items-center gap-1.5 text-[15px] font-semibold">
                   <span className="truncate">{r.name}</span>
-                  {r.you && <span className="type-caption rounded-[2px] bg-foreground px-1.5 py-0.5 text-[10px] tracking-[0.06em] text-background">You</span>}
+                  {r.you && <span className="type-caption rounded-[2px] bg-foreground px-1.5 py-0.5 text-[11px] tracking-[0.06em] text-background">You</span>}
                 </b>
                 <small className="block truncate text-[13px] text-muted-foreground">
                   {k === "pick" ? (pickId ? `Picked ${face?.name ?? "someone"}${s?.pick?.correct === null ? "" : s?.pick?.correct ? ", who stayed" : ", who went home"}` : s?.pick ? "No pick · missed" : "No pick that counted") : blockLine(g, r, episode, s)}
@@ -673,7 +680,7 @@ function EpisodeBody({ g, show, episode, go }: Ctx & { episode: number; go: Dril
             ) : k === "pick" ? (
               <span aria-hidden className="block size-10 flex-none rounded-[3px] border border-dashed border-edge" />
             ) : (
-              <b className={`type-num flex-none text-[22px] ${s?.best ? "" : "text-muted-foreground"}`}>{k === "result" ? (s?.result ? `${fmt(s.result.us)}` : "–") : s?.points == null ? "–" : signed(s.points)}</b>
+              <b className={`type-num flex-none text-[22px] ${s?.best ? "" : "text-muted-foreground"}`}>{(k as string) === "result" ? (s?.result ? `${fmt(s.result.us)}` : "–") : s?.points == null ? "–" : signed(s.points)}</b>
             )}
           </div>
         );
@@ -727,6 +734,8 @@ function CastBody({ g, show, seasonId, id, go }: Ctx & { id: string; go: Drill }
         {!sport && <span>{c.left ? `Out${c.out ? ` · ${show.words.episode} ${c.out}` : ""}` : "Still in"}</span>}
         {c.points !== null && <span>· {fmt(c.points)} pts in this game</span>}
       </div>
+      {!sport && story && stats.data && <CastChart d={stats.data} c={story} words={show.words} counted={g.you?.weeks.filter((w) => w.started.some((x) => x.id === id)).map((w) => w.episode) ?? []} />}
+      {sport && log.data?.games.length ? <AthleteChart games={log.data.games} words={show.words} /> : null}
       <Caption right={rows.length ? `${rows.length} on the couch` : undefined}>In this game</Caption>
       {rows.length === 0 && <p className="text-sm text-muted-foreground">Nobody here holds or has picked {first(c.name)} so far.</p>}
       {rows.map(({ r, line, ok, points }) => (

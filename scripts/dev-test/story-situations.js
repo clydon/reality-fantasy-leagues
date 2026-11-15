@@ -38,6 +38,11 @@ const FLOWS = [
   { id: "last", tap: "[data-week-card] [data-open-last]", wait: '[role="dialog"]' },
   { id: "bets", tap: "[data-side-bets-row]", wait: '[role="dialog"]' },
   { id: "square", tap: "[data-game-grid] [data-square]", wait: '[role="dialog"]', last: true },
+  // The drill levels (step 2b): the league's other games, a person's season, a cast member's or athlete's weeks, an episode.
+  { id: "games", tap: "[data-week-game]", wait: '[role="dialog"]' },
+  { id: "person", tap: "[data-game-grid] [data-door-person]", wait: '[role="dialog"]', scroll: "[data-person-season]" },
+  { id: "cast", tap: "[data-your-team] [data-door-cast]", wait: '[role="dialog"]', scroll: "[data-cast-chart], [data-athlete-chart]" },
+  { id: "episode", tap: "[data-game-grid] [data-door-episode]", wait: '[role="dialog"]', last: true },
 ];
 
 // Multi-step flows, per situation (--sequences): a tap, a fill, a wait, a scroll into view, or a shot. Run after the single-tap
@@ -131,6 +136,12 @@ async function measure(p) {
               await el.click();
               await q.locator(f.wait).last().waitFor({ timeout: 10000 });
               await q.waitForTimeout(700);
+              if (f.scroll) {
+                // Wait for what the sheet loads on its own (stats, a game log), then bring it into view.
+                await q.locator(f.scroll).first().waitFor({ timeout: 8000 }).catch(() => {});
+                await q.locator(f.scroll).first().evaluate((el) => el.scrollIntoView({ block: "start" })).catch(() => {});
+                await q.waitForTimeout(500);
+              }
               await shoot(q, `${base}.${f.id}`, false);
               flows.push(f.id);
               await q.keyboard.press("Escape").catch(() => {});
