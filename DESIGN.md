@@ -268,6 +268,7 @@ A cool violet-black night (or its daylight twin, a pale violet-grey studio) with
 ### Tertiary
 - **Gold Accent** (#e0b23a): the old `accent-2`, kept for secondary emphasis that predates the redesign. Prefer Chyron Yellow in new work.
 - **Chart set**: Ember (#f2804b), Safe Teal, Orchid (#a76bb0), Lake (#5089c9), Chyron Yellow. Only in charts and player colour dots.
+- **People colours** (`src/lib/people.ts`): Orchid, Ember, Lake, Rose (#e86f9a), Sage (#8db85e), Bone (#cfc8bb). No face is gold or teal (2026-11-15): gold only ever means due for you and teal a win. A face that had either wears the nearest hue left.
 
 ### Neutral
 - **Night Ground** (#16141d): the page.

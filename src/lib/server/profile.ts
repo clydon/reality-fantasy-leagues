@@ -2,7 +2,7 @@ import { isAPIError } from "better-auth/api";
 import StateLogic from "@/lib/game/state-logic.js";
 import { auth } from "@/lib/auth";
 import { realEmail } from "@/lib/no-email";
-import { isPaletteColour } from "@/lib/people";
+import { isPaletteColour, paletteColour } from "@/lib/people";
 import { DEFAULT_THEME, isTheme, type Theme } from "@/lib/appearance";
 import { sharingFrom, SHARE_SWITCHES, type ShareSwitch, type Sharing } from "@/lib/sharing";
 import { USERNAME_RULE } from "@/lib/usernames";
@@ -86,7 +86,7 @@ export async function readProfile(user: SessionUser): Promise<Profile> {
   const name = (r.username as string | null) || (r.name as string);
   return {
     name,
-    colour: isPaletteColour(r.colour) ? r.colour : null,
+    colour: paletteColour(r.colour),
     picture: r.picture == null ? null : Number(r.picture),
     ai: AI_CHOICES.includes(r.ai) ? (r.ai as AiChoice) : "chatgpt",
     hideScores: !r.immediate,

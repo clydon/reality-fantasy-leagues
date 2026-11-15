@@ -193,7 +193,7 @@ export function ProfileSheet({ open, onOpenChange }: { open: boolean; onOpenChan
 
         <p className="mt-5 text-[14px] font-semibold">Your colour</p>
         <p className="mb-2 text-[12px] leading-snug text-muted-foreground">{p?.picture != null ? "Behind your initial wherever your picture's too small to show" : "Behind your initial, everywhere your face shows"}</p>
-        <div role="radiogroup" aria-label="Your colour" className="grid grid-cols-8 gap-2">
+        <div role="radiogroup" aria-label="Your colour" className="grid grid-cols-6 gap-2">
           {PALETTE.map((c) => {
             const on = chosen === c.hex;
             return (
