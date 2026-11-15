@@ -22,6 +22,51 @@ impeccable (shape, then critique) at 390 px first, then a pause for your review 
 
 ---
 
+## The round's frame (the user, 2026-11-14)
+
+**What's covered: one system at several distances.** Each surface reads the same game model (what's due, what's locked, what each
+person has been told), so a move or a result looks the same at every layer, only closer or farther:
+- notifications (the one line);
+- quick moves on Tonight (the strip, the dock, Your moves);
+- Tonight's game section (a mini per game);
+- the Games tab;
+- the reveal;
+- the game page and its sheets;
+- the draft room and the waivers screen;
+- and, as a second track sharing the same words, the create-a-game wizard and game settings (Backstage).
+
+The deepest layer is designed first, so the shallower ones are excerpts of it rather than new inventions.
+
+**Every design is checked through five lenses:**
+1. playing at own pace (each person's own now; the waits said up front);
+2. a shared draft (no scarcity);
+3. an exclusive draft (scarcity: order, who's left, waivers, losing a player);
+4. stages (a game made of games);
+5. spoilers (every layer, push wording included).
+
+**Three flavors, the same brand, different approaches:**
+
+| Flavor | The cast | The screen leads with |
+| --- | --- | --- |
+| **Competition shows** (Survivor, The Traitors) | About 18 faces, leaving one by one | Faces and the boot story; results are official |
+| **Sports** | Usually four times the players or more: hundreds of athletes, positions, a schedule | Lists, search, filters, sort, position slots, stat tables and who plays when (a face per player doesn't scale) |
+| **Story shows**: dramas, sitcoms, long-form series, and non-competition reality (Below Deck, Love Is Blind; may become its own category) | Characters and relationships; nobody is out | The episode, and what people called, settled or still open |
+
+Story shows' results are moments the couch or research confirms, and the natural games are predictions, theories, bingo and calls.
+Spoilers and pace are at their extreme there (a binge drop spreads a couch across a season). Long-form series need memory across
+seasons.
+
+**Live games**, real-time prompts during watch-along (A15, live calls), are a future mode. The designs leave room for them: a move
+whose lock is seconds away, nothing mid-episode in notifications, the night's calls in the reveal. See UX-IDEAS.md, "Live games".
+
+**What the bench needs for the frame, recorded and not yet built:**
+- the pilot with an exclusive draft and waivers;
+- a staged variant;
+- sports worlds with real-size pools (300+ athletes) for the draft, waivers and lineup sheets (the runtime takes up to 1,000);
+- a story-show world (today every generated show is competition-shaped: people go home on a schedule).
+
+---
+
 ## Decisions you owe (before or at the start of the round)
 
 1. **The first page: the game page, or Tonight?** The brief's default pilot is Tonight. **I recommend the game page** (a

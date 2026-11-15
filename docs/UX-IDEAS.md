@@ -141,6 +141,19 @@ by, Conor tinkers). The current wizard stays the baseline until then (AGENTS.md)
 - **Cost.** A waiver run is read later, by people who weren't there when it ran: the offer has to work from the result's line,
   for the episode that's open then, and say nothing once the lineup's been set again.
 
+## Live games: real-time prompts during watch along (the user, 2026-11-14)
+
+- **Idea.** A game played while the episode or match is on: watch along prompts real-time bets and predictions ("the next 10
+  minutes: an idol?", "this drive: a touchdown?"), each open for a moment of the runtime, an earlier answer worth more.
+- **Who, when.** Anyone watching along, live or later on their own clock; the couch together on a watch-party night.
+- **Why.** It's the most social moment the app has (everyone watching at once), and today watch along has nothing to play.
+- **Already decided, not built:** this is **A15, live calls** (docs/PLAN-start-a-game-gpt.md, "Live calls (A15) and the live
+  screens", the user's answers of 2026-11-08: on the show's clock, nobody running it, late viewers on their own clock and honour-
+  based, nothing counting after you've revealed the results, sports synced by "tap the last play you saw"; L2's live clock shared).
+  The engine's A track stopped before A15 for a concept session with the user. Nothing runs in the engine or the explorer yet.
+- **For the overhaul:** leave room for it in watch along and Tonight (a live prompt is a move with a seconds-long lock), and in
+  notifications (none mid-episode by default). Its own design round comes with A15.
+
 ## For the game UI/UX overhaul: what's already waiting (the user, 2026-11-14: "I certainly plan on a big game UIUX overhaul")
 
 An index, so the overhaul starts from what's known and no finished design is spent on screens that are about to change. **A
