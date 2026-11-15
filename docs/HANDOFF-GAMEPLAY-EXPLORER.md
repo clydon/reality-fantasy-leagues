@@ -96,7 +96,7 @@ statistics". In short:
   slates:"`. Found and fixed BACKLOG 80 (a lineup locking game by game told a live player they were catching up; TEMP-UI);
   Designs needed item 38. Lesson: count what the walk did before trusting a clean run (its first walk never changed a lineup
   mid-week).
-- **The wrap-up is DONE (2026-11-14, branch explorer-sports, not pushed): the next session starts the design round.**
+- **The wrap-up is DONE (2026-11-14; pushed and live: master 8bccae94, a fast-forward with no migrations): the next session starts the design round (Phase 0, docs/DESIGN-ROUND-PACKET.md).**
   1. **The last sports slice: a game called off and a week in progress** (the guide's "Sports statistics, the last slice"; runtime
      `core-runtime-40`, generator `proof-family-59`): the `calledOff` action, a slate's 'partial' week, the oracle's `weekIn`,
      `counted`, `firstPlayed`, `holdingLocked`, invariant `sport-called-off`; `check-sports-explorer.js --case=calledoff` (30, no
