@@ -106,6 +106,24 @@ episode research (a question the rulebook adds when a property `changes: "someti
 `viewThrough` like `episode.groups`. A drafted team's shape is judged at the draft; a later change never breaks a team (said on
 the person: "Promoted to Bosun, Ep 6"). Lineup slots read the value as of that episode.
 
+## Bios: who they are, beside what they did (the user, 2026-11-15)
+
+"For show importing cast bios would be a nice touch too outside of stats (if the draft was performed after the first episode).
+Bios could be as simple as hometown or whatever wikis provide us." A draft before the premiere has no stats to show, so the person
+sheet (step 5's, opened from the draft room since step 6) needs something to say who someone is. A bio is display, not a property:
+no game rule reads it.
+- **What:** what the show itself bills for each person, as it bills it: hometown (and where they live now, when billed apart),
+  age as billed at the premiere, occupation, and a one-line description in the billing's own words where there is one (a
+  network's cast page, the show's wiki infobox). "Not stated" allowed; never inferred, never anything the show doesn't publish
+  (decided item 1's limits hold: no ethnicity, religion, sexuality or health, even where a page mentions them).
+- **Where from:** the cast research (chunk 2) asks for it beside the properties, with its source; our bot does the research
+  ([paid-services-contained]). A previous season's facts (a returnee's past seasons and finish) are the season's own data, linked
+  where the show has run before.
+- **Kept:** `season_cast.bio` (JSONB: hometown, residence, age, occupation, line, source), reviewed and fixed on the desk like the
+  cast (decided item 4), a dated fact only for age (as billed at the premiere).
+- **Shown:** the person sheet's head, under the name and group ("Ocean City, NJ · 25 · Nurse"), and its one line, in every place
+  the sheet opens (Players / Cast, the draft room, a game page); the draft room's face wall stays faces and names (step 5's rule).
+
 ## Chunks, in dependency order
 
 Each ends with focused tests; the long checks once per milestone ([long-checks-once-per-step]).
@@ -117,11 +135,13 @@ Each ends with focused tests; the long checks once per milestone ([long-checks-o
    of Below Deck returns department and job, and of Survivor 51 none (or returnees, if billed).
 2. **Cast prompt, import and the desk.** `season_cast.props` (migration), cast-prompt.js asks each declared property (values
    listed, "" for not stated), parseCastImport validates against the values, `TheirCastaway.props`, castChanges diffs them, the
-   desk's cast page shows and edits them, history logs them; the bot path and Paste alike. Done when the bot's Below Deck answer
-   lands on the desk with every crew member's department and job, reviewable.
+   desk's cast page shows and edits them, history logs them; the bot path and Paste alike. Bios ride the same answer
+   (`season_cast.bio`, "Bios" above). Done when the bot's Below Deck answer lands on the desk with every crew member's department,
+   job and bio, reviewable, and Survivor 51's with every castaway's hometown, age and occupation.
 3. **Stamp and display.** The season stats read and the game reads stamp `castProps` (and the sport's position as `position`),
    the cast tab's line reads the `main` property (step 5's line), its faces group by the group or, with none, by the first
-   property with values, and filter chips by property. Done when a researched Below Deck season reads by department with jobs.
+   property with values, and filter chips by property; the person sheet's head shows the bio. Done when a researched Below Deck
+   season reads by department with jobs, and a castaway's sheet in a pre-premiere draft says who they are.
 4. **Draft rules.** `across.of` any property key (gender allowed once data exists), `draft.needs`, `pool.where` by property (and
    `{ group }` working), in schema.js, describe.js, `draftFits` (CompositionLogic beside SpreadLogic), the draft room and waivers
    saying what's needed, bots through `draftFits`. Done when a bench scenario drafts "one Interior, one Deck" exclusively with two

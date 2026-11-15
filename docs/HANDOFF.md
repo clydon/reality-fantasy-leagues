@@ -11,6 +11,28 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
+## The design round's step 6, the Games tab and the draft room (2026-11-15; built on branch `explorer-sports`, not pushed; waits on the user's review)
+The Games tab (src/new/show/games.tsx `GameRows`): one row per game, the due one first: the name (opens the game's page), your
+place in the game's own unit with the gap or this week's opponent, its move as a quiet line (a dot when due; the strip keeps the
+yellow), a mini leaderboard, Last picks folded; a game mid-draft shows the draft (`DraftLine`: who's picking, picks until yours,
+your slots), never a ranking of pick counts. The pills, each full table, Rules per game and the As-of plate are gone (the read-only
+desk view keeps the old `Standings`). The draft room (draft.tsx): one clock (who's up, picks until yours, the last pick in a line),
+`YourSlots` (with the `data-team-needs` line kept for cast properties), Available as step 5's wall (`Wall`/`WallTile`) or a sport's
+ranked list (`DraftList`, best first by draft-view.ts's new `rank`), `PicksBoard` in place of the ticker, the order strip and Teams;
+a tap queues when it isn't your pick. The strip says "Your pick now" for a draft turn (strip.tsx). Process and evidence:
+`docs/design-round/step6-games-{spec,first-view,shape,check}.md`, decisions.md; the story https://claude.ai/artifact/4wj5fu4EvWmGBbLBotYx5i
+(frames in `.ui-atlas/stories/step6-games/`: census-app.js `--only='games|old-season-games' --out=...after` (and `--tap='[data-last-picks]'
+--suffix=-last`), the new `scripts/dev-test/story-draft.js --out=...after/draft --live=6` on draft-fixture.js's new `--live=N --sport`
+(a snake mid-draft; Gridiron, 344 real NFL athletes from the ESPN recording), story-situations.js `--tab=games --dress=real` one
+situation at a time, `story-build.py .ui-atlas/stories/step6-games/story.json`). **Restart the Atlas after src edits**
+(restart-atlas.sh) or every bench situation times out. **Decided (the user took both recommendations, 2026-11-15):** rows ordered by
+what's due first; Last picks folded. **After the user's review (same day):** a tap in the
+draft opens the person's sheet with Draft and Queue at its foot (`DraftFaceSheet`), an athlete's with their last three seasons
+from ESPN (`PastSeasons`; src/lib/server/sports/history.ts, `/api/seasons/[id]/athlete-history`, cached a day), and the other open
+items fixed (story version 2; check doc "After the user's review"). **Found, not fixed:** projections for a sport's draft
+(BACKLOG 90, the user's note); past seasons need the season linked to ESPN (a slate or a linked game) and athletes' ESPN ids.
+**Next:** step 7, the hub and TV guide.
+
 ## The design round's step 5, Players / Cast (2026-11-15; built on branch `explorer-sports`, not pushed; waits on the user's review)
 The cast tab (src/new/show/cast.tsx) is the show's own facts, a game's points only when chosen: the face wall first (four to a
 row by tribe, names and each person's role or position, who's out at the foot), then The numbers (one table, every stat a column,

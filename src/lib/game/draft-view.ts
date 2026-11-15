@@ -31,6 +31,8 @@ export interface DraftFace {
   points: number | null;
   /** Out of the game, as far as you've seen (only on a finished draft's teams). */
   left: boolean;
+  /** The pool's own order (the cast as the season lists it: a sport's best first), for a list that ranks rather than groups. */
+  rank?: number;
 }
 
 export interface DraftSeat {
@@ -217,7 +219,8 @@ export function draftView(
           }))
           .filter((t) => t.castawayIds.length);
   const onTeams = new Set(teams.flatMap((t) => t.castawayIds));
-  const cast = order.filter((id) => !faces.get(id)?.left || (phase === "done" && onTeams.has(id))).map((id) => faceOf(faces.get(id)!, scored));
+  const listed = new Map(view.castaways.map((c, i) => [c.id, i]));
+  const cast = order.filter((id) => !faces.get(id)?.left || (phase === "done" && onTeams.has(id))).map((id) => ({ ...faceOf(faces.get(id)!, scored), rank: listed.get(id) }));
 
   const owners: Record<string, string[]> = {};
   for (const c of full.castaways) if ((c.ownerIds ?? []).length) owners[c.id] = [...c.ownerIds];

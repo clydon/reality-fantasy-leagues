@@ -1179,8 +1179,21 @@ Last updated 2026-10-27.
    - one engine rule: N where a property has a value, or one from each value, shared with a sport's lineup positions;
    - the cast tab shows the main property under each name (step 5 built the line from season_cast.role) and groups or filters
      by any; a secret property never shows or rules until revealed.
+   - bios (the user, 2026-11-15, after step 6's draft sheets): what the show bills for each person (hometown, age, occupation, a
+     line), researched with the cast and shown on the person sheet, so a draft before the premiere says who someone is (the
+     plan's "Bios", chunks 2 and 3).
    Planned 2026-11-15: docs/PLAN-cast-properties.md (seven chunks; its four questions decided the same day). **Waits until the
    design round is done** (the user, 2026-11-15); the round's draft room, waivers, lineup sheet and cast tab leave room for it.
+
+90. **A sport's draft ranks by projections: preseason and current values per athlete** (the user, 2026-11-15, reviewing the
+   design round's step 6: "we might want to get sports players pre season and current projections... once we have it, it
+   probably should be the default sorting in drafts"). Today a sport's draft list (src/new/show/draft.tsx DraftList, step 6)
+   ranks by the pool's own order (season_cast.sort_order: the roster's order, best first only where the roster was recorded that
+   way) and shows a "so far" line only once box scores exist, so a preseason draft has nothing to rank by. Open: whether ESPN's
+   feeds carry projections (a player's projected season or week, or an ADP), or another API is needed (docs/PLAN-sports-data.md:
+   APIs first, never ChatGPT for stats); how often a current projection refreshes (docs/HOSTING.md's limits). Once it exists:
+   the draft list's default sort, a line on each row ("Proj 212 pts"), and the same in waivers' free agents and the lineup
+   sheet. Later feature; not planned.
 
 ## Decided against (don't re-propose without new information)
 

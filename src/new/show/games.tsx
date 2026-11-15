@@ -2,27 +2,26 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
-import { Archive, BookOpen, ChevronRight, Eye, Plus, RotateCcw } from "lucide-react";
-import { airTime } from "../clock";
-import { backstage, gamesApi, useAfterReveal, useCouchGames, useHowItWorks, useSeasonDraft, useSeasonPolls, useSeasonWaivers, useStartOptions, type GameView, type JoinGame, type TableRow, type WaiverWeek } from "../data";
+import { Archive, BookOpen, ChevronDown, ChevronRight, Plus, RotateCcw } from "lucide-react";
+import { airTime, lockTime } from "../clock";
+import { backstage, gamesApi, useAfterReveal, useCouchGames, useHowItWorks, useSeasonDraft, useSeasonPolls, useSeasonWaivers, useStartOptions, type DraftGame, type GameView, type JoinGame, type TableRow, type WaiverWeek } from "../data";
 import { NavLink, useNav } from "../nav";
 import { paths } from "../routes";
 import { openStartGame } from "../couch/start-game";
 import { toast } from "../ui/toast";
 import { JoinGameRow, JoinGameSheet } from "../couch/join-game";
 import { spanName } from "@/lib/game/spans";
-import { gameColour, GAME_STYLE, isGameName } from "../games";
+import { gameColour, gameInk, GAME_STYLE, isGameName } from "../games";
 import type { ShowData } from "../screens/show-space";
 import { Avatar } from "../ui/bars";
 import { usePushedPage } from "../ui/page";
 import { Chip, Row } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
-import { faceIn, openMoves } from "./moves";
+import { faceIn, first, openMoves } from "./moves";
 import { yourMove, type YourMove } from "./your-move";
 import { placeOf, sheetAsks } from "./tonight";
-import { Block, Face, IconBox } from "./parts";
+import { Block, Face } from "./parts";
 import { playsWaivers, WaiversHowBody } from "./waivers";
-import { useOpenReveal } from "./reveal";
 import { CouchPractice, SoloGames } from "./solo";
 import { useOpenMake } from "./make-game";
 import { CallRow } from "./calls";
@@ -32,10 +31,12 @@ import { showLabel } from "./react";
 import { bingoEpisode, BingoRow } from "./bingo";
 import { TriviaRow } from "./trivia";
 import { nextWeek, signed } from "./lineup-sheet";
-import { opensSheet, useGameDrill } from "./game-sheets";
+import { opensSheet, totalWords, useGameDrill } from "./game-sheets";
+import { thisWeek } from "./this-week";
 
-// Games (the mock's show.js tabStandings, gamestab.js, rulebook.js rbHowRow): where you play. Your games' tables when
-// you're in one (a pill per game, then each table; a row opens that person's team, Rules each game in plain words),
+// Games (the mock's show.js tabStandings, gamestab.js, rulebook.js rbHowRow): where you play. Since the design round's step 6
+// (docs/design-round/step6-games-spec.md) one row per game: your place, its move, a mini leaderboard and Last picks (GameRows
+// below); the full tables live on each game's page. Before that it was a pill per game, then each table; a row opens that person's team, Rules each game in plain words),
 // How it works, this week's one-night games and Start a game; a show you don't play gets Play it. Real: the tables
 // (your games through the guard: game-view.ts), each game's rules (its settings: game-rules.ts), How it works' row.
 // This week's bingo, Call it, the couch's polls and trivia are real (step 12). Make it a game (10 part 2a) and Start a game, Run
@@ -165,18 +166,9 @@ function YourGamesHere({ show }: { show: ShowData }) {
   }
   return (
     <>
-      {playing && show.episodes?.reveal && <AsOf show={show} />}
       {playing ? (
         show.play ? (
-          <Standings
-            play={show.play}
-            words={show.words}
-            aired={show.latestAired}
-            scope={show.header && show.couch ? { seasonId: show.header.seasonId, couchId: show.couch.id } : null}
-            onPlayer={people.openPerson}
-            onRules={setRules}
-            moves={moves}
-          />
+          <GameRows show={show} moves={moves} drafts={drafts} onPlayer={people.openPerson} />
         ) : (
           <div aria-busy className="mx-4 mt-4 h-72 animate-pulse rounded-[4px] bg-card" />
         )
@@ -207,21 +199,291 @@ function YourGamesHere({ show }: { show: ShowData }) {
   );
 }
 
-/** Results are in that the tables don't show yet: they're as of your episode until you reveal. */
-function AsOf({ show }: { show: ShowData }) {
-  const openReveal = useOpenReveal();
-  const n = show.episodes!.reveal!.episode;
+// ---------- a game's row (the design round's step 6: docs/design-round/step6-games-spec.md) ----------
+// One row per game, the due one first: its name (the game's page), your place in its own unit, the line that changes with the
+// situation, its one move (outlined: the strip owns the yellow), a mini leaderboard, and Last picks folded under it. A game mid-draft
+// says the draft instead: who's picking, how many picks until yours, your slots. The full tables live on each game's page.
+
+const short = (n: number) => String(Math.round(n * 10) / 10).replace("-", "−");
+/** A leaderboard row's number, in the game's unit (the unit is said once, in your place line). */
+function totalShort(g: GameView, r: TableRow): string {
+  const k = g.plays.kind;
+  if (k === "result" && r.record) return `${r.record.wins}–${r.record.losses}${r.record.ties ? `–${r.record.ties}` : ""}`;
+  if (k === "won" && g.weeksWon) return short(g.weeksWon[r.playerId] ?? 0);
+  return short(r.total);
+}
+/** Nothing has counted in this game yet (as far as you've seen): no ranking to show. */
+const nothingYet = (g: GameView) => g.through < 1 || (g.table.every((r) => r.total === 0 && r.weeks.length === 0 && !r.record?.wins && !r.record?.losses) && g.plays.kind !== "pick");
+
+function GameRows({ show, moves, drafts, onPlayer }: { show: ShowData; moves: Map<string, YourMove>; drafts: DraftGame[]; onPlayer: (row: TableRow, game: GameView, week: number | null) => void }) {
+  const play = (show.play ?? []).filter((g) => !g.stageOf);
+  const twin = (g: GameView) => play.filter((x) => x.gameType === g.gameType).length > 1;
+  // The ones that need you first, then as they started (a stable sort keeps the rest in order).
+  const order = [...play].sort((a, b) => Number(!!moves.get(b.leagueId)?.due) - Number(!!moves.get(a.leagueId)?.due));
+  const running = play.filter((g) => g.to === null || !g.over);
+  const through = play.length ? Math.min(...(running.length ? running : play).map((g) => g.through)) : 0;
+  const talk = play.every((g) => g.gameType === "weekly-calls" || g.gameType === "weekly-bingo");
+  const over = show.header?.status === "completed";
+  const ep = show.words.episode.toLowerCase();
   return (
-    <section className="mt-4 px-4">
-      <button type="button" data-as-of={n} onClick={() => openReveal(n)} className="nd-press flex min-h-[60px] w-full items-center gap-3 rounded-[4px] bg-card px-3 text-left">
-        <IconBox icon={Eye} className="bg-background text-chyron-line" />
-        <span className="min-w-0 flex-1">
-          <b className="block text-[15px] font-semibold">As of Episode {show.seenThrough ?? n - 1}</b>
-          <small className="block text-[13px] text-muted-foreground">Episode {n} is in. Reveal to update every table.</small>
-        </span>
-        <span className="text-[15px] font-semibold text-chyron-line">Reveal</span>
-      </button>
+    <div className="mt-4" data-game-rows>
+      <div className="flex flex-col gap-2.5 px-2">
+        {order.map((g) => (
+          <GameRow
+            key={g.leagueId}
+            show={show}
+            g={g}
+            name={g.solo === "public" ? "Everyone" : twin(g) && g.name !== g.gameName ? g.name : g.gameName}
+            move={moves.get(g.leagueId) ?? null}
+            draft={drafts.find((d) => d.leagueId === g.leagueId && d.phase !== "done") ?? null}
+            onPlayer={onPlayer}
+          />
+        ))}
+      </div>
+      <p className="px-4 pt-3 text-[13px] text-muted-foreground" data-games-foot>
+        {over
+          ? `Final standings, through ${show.words.ep} ${through}.`
+          : talk
+          ? through
+            ? `Through ${show.words.ep} ${through}. Standings move as you watch and the couch says what happened.`
+            : "Nothing counted yet. Standings start once a show's aired and you've watched it."
+          : through
+            ? `Standings as of ${show.words.ep} ${through}, where you are. They move when you reveal.`
+            : `No results yet. Standings start once ${/^[aeiou]/.test(ep) ? "an" : "a"} ${ep}'s in and you've revealed it.`}
+      </p>
+    </div>
+  );
+}
+
+function GameRow({ show, g, name, move, draft, onPlayer }: { show: ShowData; g: GameView; name: string; move: YourMove | null; draft: DraftGame | null; onPlayer: (row: TableRow, game: GameView, week: number | null) => void }) {
+  const [open, setOpen] = useState(false);
+  const seasonId = show.header?.seasonId ?? "";
+  const href = seasonId ? paths.gamePage(seasonId, g.leagueId) : null;
+  const ink = gameInk(g.gameName);
+  const fresh = nothingYet(g);
+  const last = lastPicks(g, show.words.ep);
+  const me = g.you;
+  const rows = g.table.length <= 5 ? g.table : [...g.table.slice(0, 3), ...(me && me.place > 3 ? [me] : [])];
+  const more = g.table.length - rows.length;
+  const latest = g.table[0]?.weeks.at(-1)?.episode ?? null;
+  return (
+    <section id={anchor(g)} data-table={g.leagueId} data-game-row={draft ? "draft" : "standing"} className="scroll-mt-28 rounded-[10px] bg-card px-3.5 pb-1.5 pt-1">
+      {href ? (
+        <NavLink href={href} data-game-open={g.leagueId} className="nd-press -mx-1 flex min-h-11 items-center gap-2 rounded-[3px] px-1">
+          <i className="size-2 flex-none rounded-full" style={{ background: ink }} aria-hidden />
+          <h2 className="type-caption min-w-0 flex-1 truncate text-[19px] leading-none">{name}</h2>
+          <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
+        </NavLink>
+      ) : (
+        <h2 className="type-caption flex min-h-11 items-center text-[19px]">{name}</h2>
+      )}
+      {draft ? (
+        <DraftLine show={show} g={g} d={draft} move={move} />
+      ) : (
+        <>
+          <Place show={show} g={g} fresh={fresh} />
+          {g.archived && <Archived g={g} scope={show.header && show.couch ? { seasonId: show.header.seasonId, couchId: show.couch.id } : null} />}
+          {move && <MoveLine g={g} m={move} />}
+          {g.table.length > 0 && (
+            <div className="mt-1" data-leaderboard>
+              {rows.map((r) => (
+                <BoardRow key={r.playerId} g={g} r={r} fresh={fresh} extras={open && last ? last.faces(r) : null} onClick={() => onPlayer(r, g, g.gameType === "active-roster" ? latest : null)} />
+              ))}
+              {more > 0 && href && (
+                <NavLink href={href} className="nd-press flex min-h-10 items-center border-t border-border text-[14px] font-semibold text-muted-foreground">
+                  and {more} more
+                </NavLink>
+              )}
+            </div>
+          )}
+          {last && (
+            <button
+              type="button"
+              data-last-picks={open ? "open" : "closed"}
+              aria-expanded={open}
+              onClick={() => setOpen(!open)}
+              className="flex min-h-10 w-full items-center gap-1.5 border-t border-border text-[14px] font-semibold text-muted-foreground"
+            >
+              {last.label}
+              <ChevronDown className={`size-4 transition-transform duration-200 ${open ? "rotate-180" : ""}`} aria-hidden />
+            </button>
+          )}
+        </>
+      )}
     </section>
+  );
+}
+
+/** Your place in the game's own unit, and the line that changes with the situation: the gap, this week's opponent, the end. */
+function Place({ show, g, fresh }: { show: ShowData; g: GameView; fresh: boolean }) {
+  const me = g.you;
+  const w = thisWeek(g, {
+    words: show.words,
+    total: (r) => totalWords(g, r),
+    next: show.upNext ? { number: show.upNext.number, when: show.upNext.airAt ? lockTime(Date.parse(show.upNext.airAt)) : null } : null,
+    move: null,
+    seen: show.seenThrough,
+    locked: g.locked ?? null,
+    reveal: show.episodes?.reveal ?? null,
+    aired: show.latestAired,
+  });
+  const span = g.to !== null && g.over ? null : spanOf(g, show.words, show.latestAired);
+  let line: string | null = null;
+  const done = show.header?.status === "completed" || (g.to !== null && g.over);
+  const top = g.table.find((r) => r.place === 1);
+  if (done && !w?.champion && top) line = `Final · ${top.you ? "you" : top.name} won it`;
+  else if (w?.champion) line = w.champion.name === "You" ? "You won it" : `${w.champion.name} won it`;
+  else if (w?.kind === "matchup" && w.them) line = `${w.label.split(" · ")[0]} · vs ${w.them.name}${w.them.record ? ` ${w.them.record}` : ""}`;
+  else if (me && !fresh && g.plays.kind !== "result") {
+    const ahead = g.table.filter((r) => r.place < me.place).at(-1);
+    const behind = g.table.find((r) => r.place > me.place);
+    const points = g.plays.kind !== "pick";
+    line = points ? (ahead ? `${short(ahead.total - me.total)} behind ${ahead.name}` : behind ? `${short(me.total - behind.total)} ahead of ${behind.name}` : null) : null;
+  }
+  const lines = [span, line].filter(Boolean).join(" · ");
+  if (!me) return <p className="pb-1 text-[14px] text-muted-foreground">Not on the table yet</p>;
+  return (
+    <div className="-mt-1 flex items-baseline gap-3" data-place>
+      <b className="type-num text-[30px] leading-none">{fresh ? "—" : placeOf(g)}</b>
+      <span className="min-w-0">
+        <span className="block truncate text-[15px] font-semibold">{fresh ? `${g.players} ${g.players === 1 ? "player" : "players"} · nothing counted yet` : [g.players > 1 ? `of ${g.players}` : null, totalWords(g, me)].filter(Boolean).join(" · ")}</span>
+        {lines && <small className="block truncate text-[14px] text-muted-foreground">{lines}</small>}
+      </span>
+    </div>
+  );
+}
+
+/** The game's one move, quiet: a dot when it's due (the strip holds the yellow fill), what and when, and its outlined button. */
+function MoveLine({ g, m }: { g: GameView; m: YourMove }) {
+  const nav = useNav();
+  return (
+    <button
+      type="button"
+      data-your-move={m.kind}
+      data-due={m.due}
+      onClick={() => ("tab" in m.go ? openMoves(m.go.tab, g.leagueId) : nav.push(m.go.href))}
+      className="nd-press -mx-1 mt-0.5 flex min-h-12 w-[calc(100%+8px)] items-center gap-2.5 rounded-[4px] px-1 text-left"
+    >
+      {m.due && <i data-move-due className="size-[7px] flex-none rounded-full bg-chyron-line" aria-label="Needs you" />}
+      <span className="min-w-0 flex-1">
+        <b className="block truncate text-[15px] font-bold leading-tight">{m.title}</b>
+        <small className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-muted-foreground">{m.line}</small>
+      </span>
+      <span className="grid h-9 flex-none place-items-center whitespace-nowrap rounded-[3px] px-3.5 text-[15px] font-bold outline-[1.5px] -outline-offset-[1.5px] outline-input">{m.action}</span>
+    </button>
+  );
+}
+
+/** A leaderboard row: place, face, name, (Last picks' faces when open), the total in the game's unit. */
+function BoardRow({ g, r, fresh, extras, onClick }: { g: GameView; r: TableRow; fresh: boolean; extras: ReactNode; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      data-player={r.name}
+      disabled={!opens(g, r)}
+      onClick={onClick}
+      className={`flex min-h-[38px] items-center gap-2.5 border-t text-left ${r.you ? "-mx-2 w-[calc(100%+16px)] rounded-[3px] border-transparent bg-secondary px-2" : "w-full border-border"}`}
+    >
+      <span className="type-num w-6 flex-none text-[16px] text-muted-foreground">{fresh ? "" : r.rank}</span>
+      <Avatar id={r.userId ?? r.playerId} name={r.name} size={24} />
+      <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[15px] font-semibold">
+        <span className="truncate">{r.you ? "You" : r.name}</span>
+        {r.bot && <span className="type-caption rounded-[2px] bg-secondary px-1.5 py-0.5 text-[11px] tracking-[0.06em] text-muted-foreground">Computer</span>}
+      </span>
+      {extras && <span className="flex flex-none items-center gap-[3px]" data-row-picks>{extras}</span>}
+      <b className="type-num min-w-[34px] flex-none text-right text-[18px]">{fresh ? "–" : totalShort(g, r)}</b>
+    </button>
+  );
+}
+
+/** Last picks, by the game's kind: the pool's latest picks, the lineup's starters with the week's points, a team with who's still
+ *  in; null for a game with nothing to show (calls, bingo, a sheet, a public pool's strangers). */
+function lastPicks(g: GameView, ep: string): { label: string; faces: (r: TableRow) => ReactNode } | null {
+  const face = (id: string, gone = false) => {
+    const c = faceIn(g, id);
+    return <Face key={id} src={c?.photo ?? null} name={c?.name} out={gone} className={`size-[30px] flex-none rounded-[3px] text-xs ${gone ? "opacity-45 grayscale" : ""}`} />;
+  };
+  if (g.solo === "public") return null;
+  if (g.gameType === "pickem") {
+    const n = Math.max(0, ...g.table.flatMap((r) => r.picks.filter((p) => p.correct !== null).map((p) => p.episode)));
+    if (!n) return null;
+    return { label: `Last picks · ${ep} ${n}`, faces: (r) => r.picks.filter((p) => p.castawayId && p.correct !== null).slice(-3).map((p) => face(p.castawayId!, p.correct === false)) };
+  }
+  if (g.gameType === "active-roster") {
+    const n = g.table[0]?.weeks.at(-1)?.episode ?? null;
+    if (n === null) return null;
+    return {
+      label: `Last lineups · ${ep} ${n}`,
+      faces: (r) => {
+        const w = r.weeks.find((x) => x.episode === n);
+        return (
+          <>
+            {(w ? w.started.map((s) => s.id) : r.last).map((id) => face(id))}
+            {w && <small className="type-num ml-1 w-9 text-right text-[13px] text-muted-foreground">{signed(w.total)}</small>}
+          </>
+        );
+      },
+    };
+  }
+  if (g.table.some((r) => r.team.length)) return { label: "Teams", faces: (r) => r.team.map((id) => face(id, !!faceIn(g, id)?.knocked)) };
+  return null;
+}
+
+/** A game mid-draft: who's picking and how long until you are (or your private picks), your slots, and the way into the room. */
+function DraftLine({ show, g, d, move }: { show: ShowData; g: GameView; d: DraftGame; move: YourMove | null }) {
+  const nav = useNav();
+  const seat = (id: string | null | undefined) => d.seats.find((s) => s.playerId === id);
+  const castOf = (id: string | null | undefined) => d.cast.find((c) => c.id === id);
+  const seasonId = show.header?.seasonId ?? "";
+  const href = `${paths.showPage(seasonId, d.kind === "blind" ? "blind" : "draft")}?game=${g.leagueId}`;
+  const mine = d.kind === "blind" ? (d.mine ?? []) : (d.teams.find((t) => t.playerId === d.you)?.castawayIds ?? []);
+  let big = "The draft";
+  let line: string | null = null;
+  if (d.phase === "waiting") {
+    big = "Draft · not started";
+    line = d.scheduledAt ? `Starts ${airTime(Date.parse(d.scheduledAt))}` : "Whoever runs the game starts it";
+  } else if (d.kind === "snake" && d.clock) {
+    const up = d.clock.playerId === d.you;
+    const until = d.you ? d.turns.slice(d.made).indexOf(d.you) : -1;
+    big = up ? "You're up" : `${first(seat(d.clock.playerId)?.name ?? "Someone")} is picking`;
+    line = up ? `Round ${d.clock.round} · pick ${d.clock.n}` : until === 1 ? "You're next" : until > 1 ? `${until} picks until yours` : "Your team is full";
+    const p = d.picks.at(-1);
+    if (p?.castawayId) line += ` · ${seat(p.playerId)?.you ? "You" : first(seat(p.playerId)?.name ?? "someone")} took ${first(castOf(p.castawayId)?.name ?? "")}`;
+  } else if (d.kind === "blind") {
+    const locked = !!d.you && d.locked.includes(d.you);
+    const waiting = d.seats.filter((s) => !d.locked.includes(s.playerId));
+    big = locked ? "Locked in" : `Pick ${d.size} in private`;
+    line = locked ? (waiting.length ? `Waiting for ${waiting.length === 1 ? first(waiting[0].name) : `${waiting.length} more`}` : "Revealing") : `${d.locked.length} of ${d.seats.length} in · nobody sees until everyone's in`;
+  }
+  // Past eight (a sport's fifteen) the faces drafted and a count, as the room's own slots fold: empty boxes would fill the row.
+  const team = d.kind === "snake" || d.kind === "blind";
+  const many = Math.max(d.size, mine.length) > 8;
+  const slots = !team ? 0 : many ? mine.length : Math.max(d.size, mine.length);
+  return (
+    <button type="button" data-draft-row={d.kind} onClick={() => nav.push(move && "href" in move.go ? move.go.href : href)} className="nd-press -mx-1 block w-[calc(100%+8px)] rounded-[4px] px-1 pb-2.5 text-left">
+      <span className="flex items-center gap-3">
+        <span className="min-w-0 flex-1">
+          <b className="type-caption block text-[22px] leading-none">{big}</b>
+          {line && <small className="mt-1 block text-[14px] leading-snug text-muted-foreground">{line}</small>}
+        </span>
+        <span className="grid h-10 flex-none place-items-center whitespace-nowrap rounded-[3px] px-3.5 text-[15px] font-bold outline-[1.5px] -outline-offset-[1.5px] outline-input">
+          {move?.action ?? "Open"}
+        </span>
+      </span>
+      {(slots > 0 || (team && many)) && (
+        <span className="mt-2.5 flex flex-wrap items-center gap-[5px]" aria-label="Your team so far">
+          {Array.from({ length: slots }, (_, k) => {
+            const c = castOf(mine[k]);
+            return c ? <Face key={k} src={c.photo} name={c.name} className="size-[34px] rounded-[3px] text-xs" /> : <i key={k} className="size-[34px] rounded-[3px] outline-[1.5px] -outline-offset-[1.5px] outline-dashed outline-input" aria-hidden />;
+          })}
+          {many && (
+            <small className="type-num ml-1 text-[14px] text-muted-foreground" data-draft-count>
+              {mine.length} of {d.size}
+            </small>
+          )}
+        </span>
+      )}
+    </button>
   );
 }
 
@@ -717,7 +979,7 @@ function HowRow({ show, name }: { show: ShowData; name: string }) {
     .map((l, i) => (i ? l!.toLowerCase() : l));
   return (
     <section className="mt-[26px] px-4">
-      <Row icon={BookOpen} title={`How ${name} works`} detail={parts.length ? parts.join(", ") : "The show, the games and what scores"} onClick={how.show} />
+      <Row icon={BookOpen} title={`How ${name} works`} detail={parts.length ? parts.join(", ").replace(/\bepisode\b/gi, (w) => (w[0] === "E" ? show.words.episode : show.words.episode.toLowerCase())) : "The show, the games and what scores"} onClick={how.show} />
     </section>
   );
 }

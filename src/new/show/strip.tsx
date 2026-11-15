@@ -56,7 +56,9 @@ export function stripState(show: ShowData): StripState | null {
   const tag = n != null ? `${ep} ${n}` : "Your move";
   if (up?.live) return { tone: "locked", tag: `${ep} ${up.number}`, title: `Locked for ${ep} ${up.number}`, line: "Scores stay hidden until you reveal" };
   if (open.length) {
-    const titles = [...new Set(open.map((m) => moveCard(m, show.header?.seasonId ?? "", false, false, show.words.episode).title))];
+    // A draft turn is due now, not at a lock: it leads, and the line says so (step 6's check).
+    const turn = open.some((m) => m.kind === "draftTurn");
+    const titles = [...new Set([...open].sort((x, y) => Number(y.kind === "draftTurn") - Number(x.kind === "draftTurn")).map((m) => moveCard(m, show.header?.seasonId ?? "", false, false, show.words.episode).title))];
     const title = titles.slice(0, 2).join(" · ") + (titles.length > 2 ? ` · ${titles.length - 2} more` : "");
     const dues = open.map((m) => (m.deadline ? Date.parse(m.deadline) : null)).filter((d): d is number => d != null);
     const first = dues.length ? Math.min(...dues) : up?.airAt ? Date.parse(up.airAt) : null;
@@ -67,7 +69,7 @@ export function stripState(show: ShowData): StripState | null {
     // A lock at airtime is said by the control's air time: the strip says when in words, not the time again (R1: each fact once).
     const atAir = first != null && up?.airAt != null && first === Date.parse(up.airAt) && lockWord !== "due";
     const line = first == null ? null : atAir ? (open.length > 1 ? "Lock when it airs" : "Locks when it airs") : `${lockWord[0].toUpperCase()}${lockWord.slice(1)} ${airTime(first)}`;
-    return { tone: "due", tag, title, line };
+    return { tone: "due", tag, title, line: turn ? "Your pick now" : line };
   }
   // Every own-pace move in for the episode you're on: all set until you reveal it.
   if (behind.length) {

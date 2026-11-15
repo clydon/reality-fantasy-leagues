@@ -1961,6 +1961,21 @@ export type { LoggedGame } from "@/lib/server/sports/player-log";
 import type { LoggedGame } from "@/lib/server/sports/player-log";
 
 /** A sport's player's games in a season, newest first, up to where you may be told. */
+/** A sport's athlete's past seasons (sports/history.ts): the last three before this one, asked when their sheet opens. */
+export interface PastSeason {
+  season: number;
+  label: string;
+  lines: { category: string; name: string; season: string; labels: string[]; values: string[]; team: string | null }[];
+}
+export function useAthleteHistory(seasonId: string | null, name: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "athlete-history", seasonId, name],
+    queryFn: () => get<{ seasons: PastSeason[]; source: string | null; unavailable: boolean }>(`/api/seasons/${seasonId}/athlete-history?name=${encodeURIComponent(name!)}`),
+    enabled: enabled && !!seasonId && !!name,
+    staleTime: 60 * 60_000,
+  });
+}
+
 export function usePlayerLog(seasonId: string | null, name: string | null, enabled = true) {
   return useQuery({
     queryKey: ["new-design", "player-log", seasonId, name],

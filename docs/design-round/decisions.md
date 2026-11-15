@@ -386,3 +386,38 @@
   it draws the chart only where the stats' points are that game's. Its story and tribe tag wait for the game page's ripple.
 - Rests on: docs/design-round/step5-cast-spec.md, -first-view.md, -shape.md, -check.md; the story
   https://claude.ai/artifact/Jg8uWeG44uL5eTNCv7e5Y7 (frames in .ui-atlas/stories/step5-cast/).
+
+## 2026-11-15 · Step 6, the Games tab and the draft room: built, waiting on the user's review
+- Decided by: Claude, through the three skills in order (Intent's spec, PFD's first view, Impeccable's shape and build), one check
+  (PFD evaluate 79; Impeccable critique 27/40, a reviewer that saw neither PFD's findings nor the session's reasoning, and the
+  detector), one batch, one confirming look
+- What: the Games tab as one row per game, the due one first (Phase 0 decision 4): the name opening the game's page, your place as
+  the row's one big number in the game's own unit with the gap or this week's opponent, its move as a quiet line (a dot when due;
+  the strip keeps the yellow fill), a mini leaderboard (five or fewer, else the top three and you), Last picks folded; a game
+  mid-draft as the draft's line and your slots, never a ranking of pick counts. The draft room: one clock (who's up, picks until
+  yours, the last pick in a line), your team's slots with a line kept for cast properties' "Needs", Available as step 5's wall
+  four to a row (a sport's searchable list, the pool best first), Picks (a draft board: a column per person, a row per round) in
+  place of the ticker, the order strip and Teams, the queue; a tap queues when it isn't your pick. The strip says "Your pick now"
+  for a draft turn.
+- Rejected: the pill row (it repeated each place); each game's full table on the tab (the game page's); Rules per game (the game
+  page's How it works); the As-of plate (the control says it once); a yellow on the row's move beside the strip's (one per view).
+- Rests on: docs/design-round/step6-games-spec.md, -first-view.md, -shape.md, -check.md; the story
+  https://claude.ai/artifact/4wj5fu4EvWmGBbLBotYx5i (frames in
+  .ui-atlas/stories/step6-games/; scripts/dev-test/story-draft.js and draft-fixture.js --live --sport, new).
+
+## 2026-11-15 · A tap in the draft opens their sheet; an athlete's shows past seasons
+- Decided by: the user ("Tapping a castaway in the draft... I say it should. Sports it's important to get historical stats")
+- What: a tap on a castaway or athlete in the draft room opens their sheet (step 5's person sheet; the athlete's sheet), Draft and
+  Queue at its foot; when you're up it also selects them for the confirm bar. An athlete's sheet adds their last three seasons from
+  ESPN, on demand, cached a day (sports/history.ts).
+- Rejected: a long press for the sheet (the spec's first idea: hidden, and the user asked for a tap); tap-to-select with the sheet
+  a second step (the sheet is where the sweat decides, and it carries Draft, so the casual path stays two taps).
+- Rests on: docs/design-round/step6-games-check.md, "After the user's review"; the story https://claude.ai/artifact/4wj5fu4EvWmGBbLBotYx5i
+  version 2.
+
+## 2026-11-15 · Step 6's two choices, decided
+- Decided by: the user ("I agree with both recs"), taking Claude's recommendations
+- Row order on the Games tab: what's due first, as built (the strip points at the move, and the row it lands on is the first).
+  Rejected: a fixed order as the games started.
+- Last picks: folded under each leaderboard, as built (one tap, in place, every row at once). Rejected: always shown.
+- Rests on: the story https://claude.ai/artifact/4wj5fu4EvWmGBbLBotYx5i, "Open".
