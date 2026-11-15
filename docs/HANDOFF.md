@@ -26,7 +26,14 @@ other games, drill-down graphs at every level; DESIGN-PROCESS.md now has "Not a 
 `docs/design-round/step2b-drill-tree.md`; the view's `games` (every seat's pairing this week, week-view.ts leagueWeek); the
 matchup sheet with both full teams and bench cost; a person's season table; a cast member's chart; an athlete's chart (unseen on
 the bench: no game log); an episode's games. Story version 2, the same link. Recommended to the user: ship in clusters (game page,
-Tonight's game section and the Games tab rows first), reviewed page by page; not answered yet.
+Tonight's game section and the Games tab rows first), reviewed page by page; not answered yet. **Step 2c, the same day** (the
+user's review: side by side, QB against QB, and the game's own scoring tables while the show's tabs stay free of a game's points):
+`docs/design-round/step2c-compare-and-scoring.md`; Phase 0's stat table as one part with three lenses (the show, the game, the
+matchup). The matchup sheet reads across (a sport by position with Flex, a scored show by rank, "Best", "2nd best"); a pair opens
+the two side by side; "Everyone in this game" under Your team is the game's scoring table (search and positions at a sport's
+size). New reads: `castWeeks` (everyone's points each week at the game's scoring) and `statWeeksOf` (a sport's weekly lines,
+BACKLOG 74). The campaign's history-past-mark oracle now reads `told` (a live sport tells results straight away). Story version
+3, the same link. Open: the show table's first week column half-cut under the pinned names.
 
 ## Hosting: read [HOSTING.md](HOSTING.md) before adding anything that polls, runs on a schedule or stores data
 Every service, its free limits, current usage, what drives each limit, and what more would cost; keep it current

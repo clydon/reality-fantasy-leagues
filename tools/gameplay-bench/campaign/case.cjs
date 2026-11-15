@@ -233,7 +233,9 @@ function invariants(session, document, before, record, step, inject, known = new
       }
       if (member && v.table.filter(r => r.you).length !== 1) throw new Violation('you-row', person.id + ' has ' + v.table.filter(r => r.you).length + ' own rows in ' + game.id, step);
       if (v.table.some(r => !Number.isFinite(r.total))) throw new Violation('non-finite-total', 'A non-finite total in ' + game.id, step);
-      if (v.table.some(r => (r.weeks || []).some(w => w.episode > seen))) throw new Violation('history-past-mark', person.id + ' sees ' + game.id + ' history past episode ' + seen, step);
+      // As far as they've been told: their mark on a show; a live sport tells results straight away (`told`, the guard restated above;
+      // a sport's weeks exist since step 2c's stat-line weeks, BACKLOG 74).
+      if (v.table.some(r => (r.weeks || []).some(w => w.episode > told))) throw new Violation('history-past-mark', person.id + ' sees ' + game.id + ' history past episode ' + told, step);
       // Shared points: a split pot pays out no more than its points across everyone; only the only one right scores 'only'.
       // (A stake is a line of its own, never shared: a wagered question's payout is checked by the wager bounds below instead.)
       const qs = new Map((game.spec.ask || []).filter(q => q.share && q.wager === undefined).map(q => [q.id, q])), windows = new Map();

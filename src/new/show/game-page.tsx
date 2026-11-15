@@ -270,7 +270,14 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
       <SeasonGrid g={wg} m={stage ? pageModel(stage, stage.page, ctxOf(stage, wmove)) : m} words={show.words} due={!!wmove?.due} drill={drill} />
       {(m.hero.lives || m.hero.notes.length > 0) && <Notes hero={m.hero} />}
       {wg.you && wg.you.team.length > 0 ? (
-        <YourTeam g={wg} words={show.words} exclusive={exclusive} onFace={(id) => drill.open({ kind: "cast", id })} onSheet={() => drill.open({ kind: "person", playerId: wg.you!.playerId, episode: null })} />
+        <>
+          <YourTeam g={wg} words={show.words} exclusive={exclusive} onFace={(id) => drill.open({ kind: "cast", id })} onSheet={() => drill.open({ kind: "person", playerId: wg.you!.playerId, episode: null })} />
+          {wg.castWeeks && (
+            <div className="mx-4 mt-1" data-door-table>
+              <Row title={`Everyone in this game · ${wg.cast.length}`} detail={`Their points each ${show.words.episode.toLowerCase()} at this game's scoring, and who has them`} onClick={() => drill.open({ kind: "table" })} />
+            </div>
+          )}
+        </>
       ) : (
         g.you && g.plays.kind !== "staged" && <YouSection g={g} m={m} show={show} seasonId={seasonId} drill={drill} />
       )}

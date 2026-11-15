@@ -161,3 +161,57 @@ export function leagueWeek(view: LeagueState, seats: string[], set: Record<strin
   }
   return { episode, games };
 }
+
+/**
+ * Every player's points each week at this game's own scoring (step 2c: the game's scoring table and the two-player compare): a
+ * show's from each episode's events at the game's points (a maker's changed points included), a sport's from each game's stat
+ * line at the game's table (StatsLogic.scored: everyone the league has, held or not). Only episodes with results in this copy,
+ * so nothing past the viewer's mark. Null before any.
+ */
+export function castWeeks(view: LeagueState): { episodes: number[]; points: Record<string, number[]> } | null {
+  // Never past what this copy counts as results (a viewer's copy can keep a sport's lines past their mark: the campaign's
+  // history-past-mark oracle).
+  const latest = StateLogic.SpoilerLogic.latestWithResults(view);
+  const eps = view.episodes.filter((ep) => ep.number <= latest && StateLogic.inPlay(view, ep.number) && StateLogic.episodeHasResults(ep) && !ep.resultsHidden).sort((a, b) => a.number - b.number);
+  if (!eps.length) return null;
+  const points: Record<string, number[]> = {};
+  for (const c of view.castaways) points[c.id] = eps.map(() => 0);
+  const add = (id: string, i: number, p: number) => {
+    const row = (points[id] ??= eps.map(() => 0));
+    row[i] = StateLogic.roundPoints(row[i] + p);
+  };
+  eps.forEach((ep, i) => {
+    const stats = StateLogic.StatsLogic.scored(view, ep);
+    if (stats) {
+      for (const m of stats) add(m.castawayId, i, m.points);
+      return;
+    }
+    for (const ev of StateLogic.ActiveRosterLogic.episodeEvents(view, ep)) if (ev.castawayId) add(ev.castawayId, i, StateLogic.ActiveRosterLogic.eventPoints(view, ev, ep.number));
+  });
+  return { episodes: eps.map((e) => e.number), points };
+}
+
+/**
+ * A sport's weeks for one seat (BACKLOG 74: a game scored by stats has no events, so weeksOf had nothing): who started each game
+ * week, the bench, and each line's points at the game's table (StatsLogic.lineOf). Its reasons stay empty (a stat's own words are
+ * the sport's, read on the page from the game log). The matchup's total is the week's result where there is one.
+ */
+export function statWeeksOf(view: LeagueState, playerId: string): import("./game-view").LineupWeek[] {
+  const team = view.castaways.filter((c) => c.ownerIds.includes(playerId)).map((c) => c.id);
+  const latest = StateLogic.SpoilerLogic.latestWithResults(view);
+  return view.episodes
+    .filter((ep) => ep.number <= latest && StateLogic.inPlay(view, ep.number) && StateLogic.episodeHasResults(ep) && !ep.resultsHidden && !!ep.statLines)
+    .sort((a, b) => a.number - b.number)
+    .map((ep) => {
+      const started = StateLogic.activeRosterLineupFor(view, ep.id, playerId);
+      const pts = (id: string) => StateLogic.roundPoints(StateLogic.StatsLogic.lineOf(view, ep, id)?.points ?? 0);
+      const st = started.map((id) => ({ id, points: pts(id), why: [] as string[] })).sort((a, b) => b.points - a.points);
+      return {
+        episode: ep.number,
+        total: StateLogic.roundPoints(st.reduce((t, x) => t + x.points, 0)),
+        predictions: 0,
+        started: st,
+        bench: team.filter((id) => !started.includes(id)).map((id) => ({ id, points: pts(id) })),
+      };
+    });
+}

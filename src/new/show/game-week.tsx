@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Check, ChevronRight, Lock, MessageCircleQuestion, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { bets as betWrites, moves as moveWrites, type GameView, type TableRow, type WaiverWeek } from "../data";
 import type { ShowData } from "../screens/show-space";
 import { Avatar } from "../ui/bars";
+import { ordinal } from "../games";
 import { Btn, Chip } from "../ui/parts";
 import { toast } from "../ui/toast";
 import type { SideBet } from "@/lib/game/week-view";
@@ -537,7 +538,7 @@ export function MatchupTitle(g: GameView, pid: string, n: number, words: ShowDat
   else if (m.played && m.sq?.result) {
     const r = m.sq.result;
     const verb = r.r === "W" ? (m.a?.you ? "you won" : `${an} won`) : r.r === "L" ? (m.a?.you ? "you lost" : `${an} lost`) : "a tie";
-    subtitle = `${pair} · ${verb}`;
+    subtitle = `${pair} · ${verb === "a tie" ? "a tie" : `${verb} by ${fmt(Math.abs(r.us - (r.them ?? 0)))}`}`;
   } else if (m.lockA) subtitle = `${pair} · locked, results when they're in`;
   else subtitle = `${pair} · lineups lock when it airs`;
   return { title, subtitle };
@@ -573,7 +574,7 @@ function sideLines(g: GameView, who: TableRow | null, w: TableRow["weeks"][numbe
  *  starters on one signed points scale, then its bench (or, before the lock, the other side's whole team, by position); once
  *  played, each side's best lineup from the same people, named as the swap that would have made it (shows only: a sport's slots
  *  by position would make it wrong). Your side, before the lock, opens your lineup. */
-export function MatchupBody({ g, pid, n, words, sport, onFace }: { g: GameView; pid: string; n: number; words: ShowData["words"]; sport?: boolean; onFace: (id: string) => void }) {
+export function MatchupBody({ g, pid, n, words, sport, onFace, onCompare }: { g: GameView; pid: string; n: number; words: ShowData["words"]; sport?: boolean; onFace: (id: string) => void; onCompare: (a: string, b: string) => void }) {
   const m = matchupOf(g, pid, n);
   const A = sideLines(g, m.a, m.wa, m.lockA, n, m.played, m.sq?.result?.us ?? m.sq?.points ?? null);
   const B = sideLines(g, m.b, m.wb, m.lockB, n, m.played, m.sq?.result?.them ?? null);
@@ -598,12 +599,13 @@ export function MatchupBody({ g, pid, n, words, sport, onFace }: { g: GameView; 
       </div>
     );
   const yours = m.a?.you && !m.played && !m.lockA && g.lineup?.episode === n;
+  const pairs = A.starters?.length && B.starters?.length && !A.team && !B.team ? pairLines(g, A.starters, B.starters, m.played) : null;
   return (
     <div className="pb-3" data-matchup-sheet={`${pid}:${n}`}>
       <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2" data-matchup-head>
-        {head(m.a, A.total)}
+        {head(m.a, m.sq?.result?.us ?? A.total)}
         <span className="mt-3 flex justify-center">{res ? <ResultSquare r={res.r === "W" ? "win" : res.r === "L" ? "loss" : "tie"} /> : <span className="type-caption text-[15px] tracking-[0.06em] text-muted-foreground">vs</span>}</span>
-        {head(m.b, B.total)}
+        {head(m.b, m.sq?.result?.them ?? B.total)}
       </div>
       {yours && g.lineup && (
         <button type="button" onClick={() => openMoves("lineup", g.leagueId)} data-matchup-change className="mt-2 inline-flex min-h-11 items-center gap-0.5 text-[15px] font-semibold">
@@ -611,10 +613,14 @@ export function MatchupBody({ g, pid, n, words, sport, onFace }: { g: GameView; 
           <ChevronRight className="size-4" aria-hidden />
         </button>
       )}
+      {pairs ? (
+        <PairedLineups g={g} pairs={pairs} a={A.starters!} b={B.starters!} played={m.played} onCompare={onCompare} />
+      ) : (
       <div className="mt-2 grid grid-cols-2 gap-3">
         <Column g={g} who={null} total={null} lines={A.team ?? A.starters} max={max} neg={neg} played={m.played} collapse={!!A.team} label={A.team ? "Their team · season pts" : m.played ? "Starting" : "Starting · season pts"} onFace={onFace} />
         <Column g={g} who={null} total={null} lines={B.team ?? B.starters ?? (m.b ? [] : null)} max={max} neg={neg} played={m.played} collapse={!!B.team} label={B.team ? "Their team · season pts" : m.played ? "Starting" : "Starting · season pts"} onFace={onFace} />
       </div>
+      )}
       {(A.team || B.team) && (
         <p className="mt-2 flex items-center gap-1.5 text-[13px] text-muted-foreground" data-matchup-hidden>
           <Lock className="size-3.5 flex-none" aria-hidden />
@@ -623,8 +629,8 @@ export function MatchupBody({ g, pid, n, words, sport, onFace }: { g: GameView; 
       )}
       {(A.bench || B.bench) && (
         <div className="mt-3 grid grid-cols-2 gap-3 border-t border-border pt-1" data-matchup-bench>
-          {A.bench ? <Column g={g} who={null} total={null} lines={A.bench} max={max} neg={neg} played={m.played} dim label="Bench" onFace={onFace} /> : <div />}
-          {B.bench ? <Column g={g} who={null} total={null} lines={B.bench} max={max} neg={neg} played={m.played} dim label="Bench" onFace={onFace} /> : <div />}
+          {A.bench ? <Column g={g} who={null} total={null} lines={A.bench} max={max} neg={neg} played={m.played} dim noBars label={m.played ? "Bench" : "Bench · season pts"} onFace={onFace} /> : <div />}
+          {B.bench ? <Column g={g} who={null} total={null} lines={B.bench} max={max} neg={neg} played={m.played} dim noBars label={m.played ? "Bench" : "Bench · season pts"} onFace={onFace} /> : <div />}
         </div>
       )}
       {m.played && !sport && (A.best || B.best) && (
@@ -649,7 +655,6 @@ export function MatchupBody({ g, pid, n, words, sport, onFace }: { g: GameView; 
           Each player&apos;s line for this week isn&apos;t in yet, only the totals.
         </p>
       )}
-      {m.played && !!m.wa && neg && <p className="mt-2 text-center text-[13px] text-muted-foreground">Below zero runs to the left of the line</p>}
       {m.played && (m.wa?.predictions || m.wb?.predictions) ? (
         <p className="mt-3 text-[13px] text-muted-foreground">
           Side bets that {words.episode.toLowerCase()}: {m.a?.you ? "you" : first(m.a?.name ?? "")} {signed(m.wa?.predictions ?? 0)}
@@ -660,7 +665,7 @@ export function MatchupBody({ g, pid, n, words, sport, onFace }: { g: GameView; 
   );
 }
 
-function Column({ g, who, total, lines: given, max, neg, played, dim, label, collapse, onFace }: { g: GameView; who: TableRow | null; total: number | null; lines: Line[] | "hidden" | null; max: number; neg: boolean; played: boolean; dim?: boolean; label?: string; collapse?: boolean; onFace: (id: string) => void }) {
+function Column({ g, who, total, lines: given, max, neg, played, dim, noBars, label, collapse, onFace }: { g: GameView; who: TableRow | null; total: number | null; lines: Line[] | "hidden" | null; max: number; neg: boolean; played: boolean; dim?: boolean; noBars?: boolean; label?: string; collapse?: boolean; onFace: (id: string) => void }) {
   const [all, setAll] = useState(false);
   const sorted = Array.isArray(given) ? byPosition(g, given.map((l) => l.id)).map((id) => given.find((l) => l.id === id)!) : given;
   const lines = Array.isArray(sorted) && collapse && !all && sorted.length > 8 ? sorted.slice(0, 6) : sorted;
@@ -696,7 +701,7 @@ function Column({ g, who, total, lines: given, max, neg, played, dim, label, col
                     {c?.role && <span className="text-[11px] font-bold tracking-[0.04em] text-muted-foreground">{c.role}</span>}
                     {played ? <b className={`type-num text-[17px] ${l.points > 0 ? "text-good" : "text-muted-foreground"}`}>{signed(l.points)}</b> : <span className="type-num text-[14px] text-muted-foreground">{fmt(c?.points ?? 0)}</span>}
                   </span>
-                  {played && (
+                  {played && !noBars && (
                     <span className="relative mt-1 block h-1.5 w-full" aria-hidden>
                       <span className={`absolute top-0 h-full ${neg ? "left-1/2" : "left-0"} w-px bg-edge`} />
                       {l.points !== 0 && (
@@ -1058,5 +1063,311 @@ export function AthleteChart({ games, words }: { games: Logged[]; words: ShowDat
         );
       })}
     </section>
+  );
+}
+
+// ---------- step 2c: side by side, the compare, and the game's own scoring table ----------
+
+type Pair = { slot: string; a: Line | null; b: Line | null };
+
+/** A number as the page shows it, and a total from the numbers shown (so the parts always add up to it). */
+const r1 = (n: number) => Math.round(n * 10) / 10;
+const sumShown = (xs: number[]) => r1(xs.reduce((t, x) => t + r1(x), 0));
+/** A sport's position as a lineup card says it. */
+const slotWord = (r: string) => (r === "PK" ? "K" : r === "DST" || r === "D/ST" ? "DEF" : r);
+
+/** Pairs two lineups to read across. A sport's by position (QB with QB, your nth RB with their nth RB; anyone left without a
+ *  partner as Flex); a show's by rank once scored (your best against their best, "Best", "2nd best": its slots are
+ *  interchangeable, so a slot pairing would be invented). Null for a show before it's scored: two plain lists then. */
+export function pairLines(g: GameView, a: Line[], b: Line[], played: boolean): Pair[] | null {
+  const role = (l: Line) => (faceIn(g, l.id)?.role ?? "").toUpperCase();
+  const sport = [...a, ...b].some((l) => role(l));
+  const byPts = (xs: Line[]) => [...xs].sort((p, q) => q.points - p.points);
+  if (!sport) {
+    if (!played) return null;
+    const A = byPts(a), B = byPts(b);
+    return Array.from({ length: Math.max(A.length, B.length) }, (_, i) => ({ slot: i === 0 ? "Best" : `${ordinal(i + 1)} best`, a: A[i] ?? null, b: B[i] ?? null }));
+  }
+  const order = (r: string) => (POSITION_ORDER.indexOf(r) < 0 ? 99 : POSITION_ORDER.indexOf(r));
+  const roles = [...new Set([...a, ...b].map(role))].sort((p, q) => order(p) - order(q));
+  const out: Pair[] = [];
+  const leftA: Line[] = [], leftB: Line[] = [];
+  for (const r of roles) {
+    const A = byPts(a.filter((l) => role(l) === r)), B = byPts(b.filter((l) => role(l) === r));
+    const n = Math.min(A.length, B.length);
+    for (let i = 0; i < n; i++) out.push({ slot: slotWord(r) || "–", a: A[i], b: B[i] });
+    leftA.push(...A.slice(n));
+    leftB.push(...B.slice(n));
+  }
+  // Flex: the rest, best against best; placed before a sport's kicker and defense, as a lineup card reads.
+  const flex: Pair[] = Array.from({ length: Math.max(leftA.length, leftB.length) }, (_, i) => ({ slot: "Flex", a: byPts(leftA)[i] ?? null, b: byPts(leftB)[i] ?? null }));
+  const tail = out.findIndex((p) => ["K", "DEF"].includes(p.slot));
+  return tail < 0 ? [...out, ...flex] : [...out.slice(0, tail), ...flex, ...out.slice(tail)];
+}
+
+/** Yours and theirs: one pair of colours for both sides, in the bars, the compare's series and its key (never a person's colour,
+ *  never the due yellow, never the win's teal). */
+const YOURS = "var(--foreground)";
+const THEIRS = "#8f8aa3";
+
+/** One pair, read across from the slot in the middle. Each side's bar starts at a zero line set in from the slot and grows
+ *  outward for points, on one scale; a negative is a short outline pointing back toward the slot. The higher number is bold, the
+ *  lower muted. A Flex row says each player's own position. */
+function PairRow({ g, p, max, played, onCompare }: { g: GameView; p: Pair; max: number; played: boolean; onCompare: (a: string, b: string) => void }) {
+  const win = played && p.a && p.b ? (p.a.points > p.b.points ? "a" : p.b.points > p.a.points ? "b" : null) : null;
+  const side = (l: Line | null, end: boolean, k: "a" | "b") => {
+    if (!l) return <span className={`self-center text-[13px] text-muted-foreground ${end ? "text-left" : "text-right"}`}>–</span>;
+    const c = faceIn(g, l.id);
+    const w = (Math.abs(l.points) / max) * 100;
+    const strong = win === k;
+    return (
+      <span className={`flex min-w-0 flex-col ${end ? "items-start" : "items-end"}`}>
+        <span className={`flex w-full min-w-0 items-center gap-1.5 ${end ? "" : "flex-row-reverse"}`}>
+          {played && <b className={`type-num flex-none text-[17px] ${strong ? "text-foreground" : "font-normal text-muted-foreground"}`}>{signed(r1(l.points))}</b>}
+          <span className={`min-w-0 flex-1 ${end ? "text-left" : "text-right"}`}>
+            <span className={`block truncate text-[14px] ${strong || !played ? "font-semibold" : "text-muted-foreground"}`}>{first(c?.name ?? "")}</span>
+            {p.slot === "Flex" && c?.role && <span className="block text-[11px] font-bold text-muted-foreground">{slotWord(c.role.toUpperCase())}</span>}
+          </span>
+          <Face src={c?.photo ?? null} name={c?.name} out={c?.left} className="size-7 flex-none rounded-[2px] text-[12px]" />
+        </span>
+        {played && (
+          <span className={`mt-1 flex h-1.5 w-full ${end ? "" : "justify-end"}`} aria-hidden>
+            {l.points > 0 && <span className="h-full rounded-[1px]" style={{ width: `${Math.max(3, w)}%`, background: k === "a" ? YOURS : THEIRS, opacity: strong ? 1 : 0.55 }} />}
+            {l.points < 0 && <span className={`h-full rounded-[1px] border border-muted-foreground ${end ? "" : "ml-auto"}`} style={{ width: `${Math.max(6, w / 3)}%` }} />}
+          </span>
+        )}
+      </span>
+    );
+  };
+  const can = !!(p.a && p.b);
+  const label = can ? `${p.slot}: ${faceIn(g, p.a!.id)?.name} ${played ? signed(r1(p.a!.points)) : ""} against ${faceIn(g, p.b!.id)?.name} ${played ? signed(r1(p.b!.points)) : ""}. Compare them.` : undefined;
+  return (
+    <button type="button" disabled={!can} aria-label={label} onClick={() => can && onCompare(p.a!.id, p.b!.id)} data-pair={p.slot} className={`grid min-h-[52px] w-full grid-cols-[1fr_44px_1fr] items-start gap-1.5 border-t border-border py-2 text-left ${can ? "nd-press" : "cursor-default"}`}>
+      {side(p.a, false, "a")}
+      <span className="type-caption mt-1.5 text-center text-[13px] tracking-[0.04em] text-muted-foreground">{p.slot}</span>
+      {side(p.b, true, "b")}
+    </button>
+  );
+}
+
+/** Two lineups read across, slot by slot (null pairing: a show before it's scored, two plain lists instead, by the caller). */
+export function PairedLineups({ g, pairs, a, b, played, onCompare }: { g: GameView; pairs: Pair[]; a: Line[]; b: Line[]; played: boolean; onCompare: (a: string, b: string) => void }) {
+  const max = Math.max(1, ...[...a, ...b].map((l) => Math.abs(l.points)));
+  return (
+    <div className="mt-2" data-matchup-pairs>
+      {played && <p className="mb-1 text-center text-[13px] text-muted-foreground">Tap a pair to compare them week by week</p>}
+      {pairs.map((p, i) => (
+        <PairRow key={`${p.slot}-${i}`} g={g} p={p} max={max} played={played} onCompare={onCompare} />
+      ))}
+    </div>
+  );
+}
+
+/** Two players side by side (from a matchup's pair): this week and every week of this game at its scoring, as one chart the
+ *  width of the screen (yours and theirs in their pair of colours, the week you came from tinted, values on the bars when it
+ *  fits), then the weeks in numbers. Who has each is said in words. */
+export function CompareBody({ g, a, b, episode, words, onFace }: { g: GameView; a: string; b: string; episode?: number | null; words: ShowData["words"]; onFace: (id: string) => void }) {
+  const cw = g.castWeeks;
+  const holders = (id: string) => g.table.filter((r) => r.team.includes(id));
+  const whose = (id: string) => {
+    const hs = holders(id);
+    return hs.length ? hs.map((r) => (r.you ? "Yours" : `${first(r.name)}'s`)).join(", ") : "Free";
+  };
+  const ca = faceIn(g, a), cb = faceIn(g, b);
+  if (!cw || !ca || !cb) return <p className="pb-3 text-[15px] text-muted-foreground">No weeks counted yet in this game.</p>;
+  const sa = (cw.points[a] ?? cw.episodes.map(() => 0)).map(r1), sb = (cw.points[b] ?? cw.episodes.map(() => 0)).map(r1);
+  const ta = sumShown(sa), tb = sumShown(sb);
+  const at = episode != null ? cw.episodes.indexOf(episode) : -1;
+  const top = Math.max(1, ...sa, ...sb), bot = Math.min(0, ...sa, ...sb);
+  const n = cw.episodes.length, W = 356, colW = Math.max(30, Math.floor(W / n)), SW = Math.max(W, n * colW);
+  const H = 130, PAD = 16;
+  const y = (v: number) => PAD + ((top - v) / (top - bot)) * (H - PAD * 2);
+  const labels = n <= 6;
+  const head = (c: NonNullable<typeof ca>, total: number, wk: number | null, colour: string) => (
+    <button type="button" data-door-cast={c.id} onClick={() => onFace(c.id)} className="nd-press flex min-w-0 flex-col items-center text-center">
+      <Face src={c.photo} name={c.name} out={c.left} className="size-14 rounded-[3px] text-[22px]" />
+      <b className="type-caption mt-1.5 flex max-w-full items-center gap-1 truncate text-[19px] leading-none">
+        <i className="inline-block size-2.5 flex-none rounded-[2px]" style={{ background: colour }} aria-hidden />
+        {first(c.name)}
+      </b>
+      <span className="mt-0.5 text-[13px] text-muted-foreground">{[c.role ? slotWord(c.role.toUpperCase()) : null, whose(c.id)].filter(Boolean).join(" · ")}</span>
+      {wk !== null && <b className="type-num mt-1 text-[26px] leading-none">{signed(wk)}</b>}
+      <span className="mt-0.5 text-[13px] text-muted-foreground">
+        {wk !== null ? `${words.ep} ${episode} · ` : ""}
+        {fmt(total)} over {n} {n === 1 ? "week" : "weeks"}
+      </span>
+    </button>
+  );
+  return (
+    <div className="pb-3" data-compare={`${a}:${b}`}>
+      <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2">
+        {head(ca, ta, at >= 0 ? sa[at] : null, YOURS)}
+        <span className="type-caption mt-5 text-[15px] tracking-[0.06em] text-muted-foreground">vs</span>
+        {head(cb, tb, at >= 0 ? sb[at] : null, THEIRS)}
+      </div>
+      <p className="type-caption mb-1 mt-4 text-[14px] tracking-[0.04em] text-muted-foreground">Week by week</p>
+      <div className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none]">
+        <svg width={SW} height={H + 20} role="img" aria-label={cw.episodes.map((e, i) => `${words.ep} ${e}: ${first(ca.name)} ${signed(sa[i])}, ${first(cb.name)} ${signed(sb[i])}`).join("; ")} className="block">
+          {at >= 0 && <rect x={at * colW + 1} width={colW - 2} y={0} height={H + 2} rx={3} fill="var(--secondary)" />}
+          <line x1={0} x2={SW} y1={y(0)} y2={y(0)} stroke="var(--edge)" strokeWidth={1} />
+          {cw.episodes.map((e, i) => {
+            const bw = Math.min(22, (colW - 12) / 2), x0 = i * colW + colW / 2 - bw - 1;
+            return (
+              <g key={e}>
+                {[sa[i], sb[i]].map((v, k) => {
+                  const x = x0 + k * (bw + 2);
+                  return (
+                    <g key={k}>
+                      {v > 0 && <rect x={x} width={bw} y={y(v)} height={Math.max(1, y(0) - y(v))} fill={k ? THEIRS : YOURS} rx={1} />}
+                      {v < 0 && <rect x={x + 0.5} width={bw - 1} y={y(0)} height={Math.max(1, y(v) - y(0))} fill="none" stroke="var(--muted-foreground)" rx={1} />}
+                      {labels && v !== 0 && (
+                        <text x={x + bw / 2} y={v > 0 ? y(v) - 4 : y(v) + 11} textAnchor="middle" fontSize={11} fill="var(--muted-foreground)">
+                          {signed(v)}
+                        </text>
+                      )}
+                    </g>
+                  );
+                })}
+                <text x={i * colW + colW / 2} y={H + 14} textAnchor="middle" fontSize={11} fontWeight={i === at ? 700 : 400} fill={i === at ? "var(--foreground)" : "var(--muted-foreground)"}>
+                  {words.ep} {e}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+      {!labels && (
+        <table className="mt-2 w-full text-[15px]" data-compare-table>
+          <thead>
+            <tr className="text-[13px] text-muted-foreground">
+              <th className="py-1 text-left font-normal">{words.episode}</th>
+              <th className="py-1 text-right font-semibold">{first(ca.name)}</th>
+              <th className="py-1 text-right font-semibold">{first(cb.name)}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cw.episodes.map((e, i) => (
+              <tr key={e} className={`border-t border-border ${i === at ? "bg-secondary" : ""}`}>
+                <td className="py-1.5 text-muted-foreground">
+                  {words.ep} {e}
+                </td>
+                <td className={`type-num py-1.5 text-right ${sa[i] > sb[i] ? "font-bold" : "text-muted-foreground"}`}>{signed(sa[i])}</td>
+                <td className={`type-num py-1.5 text-right ${sb[i] > sa[i] ? "font-bold" : "text-muted-foreground"}`}>{signed(sb[i])}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+/** The game's own scoring table (the stat table's game lens): everyone in the pool, their points each week at this game's
+ *  scoring and the total (from the numbers shown), who has them in words, or Free; filtered (All, Free, yours; a sport's positions;
+ *  a search past 40), sorted by the total or by any week (tap its heading), opening on the latest week, your rows tinted. */
+export function GameTable({ g, words, onFace }: { g: GameView; words: ShowData["words"]; onFace: (id: string) => void }) {
+  const cw = g.castWeeks;
+  const [filter, setFilter] = useState<string>("all");
+  const [q, setQ] = useState("");
+  const [shown, setShown] = useState(40);
+  const [sortBy, setSortBy] = useState<number | "total">("total");
+  const scroller = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = scroller.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, []);
+  const holders = useMemo(() => {
+    const m = new Map<string, TableRow[]>();
+    for (const r of g.table) for (const id of r.team) m.set(id, [...(m.get(id) ?? []), r]);
+    return m;
+  }, [g.table]);
+  const roles = [...new Set(g.cast.map((c) => slotWord((c.role ?? "").toUpperCase())).filter(Boolean))].sort((p, q2) => (POSITION_ORDER.indexOf(p) < 0 ? 99 : POSITION_ORDER.indexOf(p)) - (POSITION_ORDER.indexOf(q2) < 0 ? 99 : POSITION_ORDER.indexOf(q2)));
+  const eps = cw?.episodes ?? [];
+  const shownPts = (id: string) => (cw?.points[id] ?? eps.map(() => 0)).map(r1);
+  const total = (id: string) => sumShown(shownPts(id));
+  const key = (id: string) => (sortBy === "total" ? total(id) : (shownPts(id)[sortBy] ?? 0));
+  const mine = new Set(g.you?.team ?? []);
+  const rows = g.cast
+    .filter((c) => (filter === "free" ? !holders.has(c.id) && !c.left : filter === "mine" ? mine.has(c.id) : filter === "all" ? true : slotWord((c.role ?? "").toUpperCase()) === filter))
+    .filter((c) => !q.trim() || c.name.toLowerCase().includes(q.trim().toLowerCase()))
+    .sort((p, q2) => key(q2.id) - key(p.id) || p.name.localeCompare(q2.name));
+  const big = g.cast.length > 40;
+  const chips: [string, string][] = [["all", "All"], ["free", "Free"], ["mine", "Yours"], ...roles.map((r) => [r, r] as [string, string])];
+  const whose = (id: string, c: (typeof g.cast)[number]) => {
+    const hs = holders.get(id) ?? [];
+    if (hs.length) return hs.map((r) => (r.you ? "Yours" : first(r.name))).join(", ");
+    return c.left ? `Out · ${words.ep} ${c.out}` : "Free";
+  };
+  return (
+    <div className="pb-3" data-game-table>
+      {big && <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Search ${g.cast.length}`} aria-label="Search by name" className="mb-2 h-11 w-full rounded-[3px] bg-input/40 px-3 outline-1 -outline-offset-1 outline-input" />}
+      <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-2 [scrollbar-width:none]" role="radiogroup" aria-label="Who to show">
+        {chips.map(([k, label]) => (
+          <Chip key={k} on={filter === k} role="radio" aria-checked={filter === k} data-table-filter={k} onClick={() => setFilter(k)} className="h-11 flex-none px-3.5 text-[15px]">
+            {label}
+          </Chip>
+        ))}
+      </div>
+      <p className="mb-1 text-[13px] text-muted-foreground">
+        {rows.length} shown · sorted by {sortBy === "total" ? "the total" : `${words.ep} ${eps[sortBy]}`} (tap a heading to sort by it)
+      </p>
+      {rows.length === 0 ? (
+        <p className="py-6 text-center text-[15px] text-muted-foreground">Nobody here by that name{filter !== "all" ? " in this filter" : ""}.</p>
+      ) : (
+        <div ref={scroller} className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none]">
+          <table className="border-separate border-spacing-x-[3px] border-spacing-y-0 text-[14px]">
+            <thead>
+              <tr>
+                <th className="sticky left-0 z-[1] bg-card" />
+                {eps.map((e, i) => (
+                  <th key={e} className="w-[44px] min-w-[44px] pb-1">
+                    <button type="button" onClick={() => setSortBy(i)} aria-pressed={sortBy === i} className={`type-caption min-h-11 w-full text-center text-[13px] ${sortBy === i ? "text-foreground underline underline-offset-4" : "font-normal text-muted-foreground"}`}>
+                      {words.ep} {e}
+                    </button>
+                  </th>
+                ))}
+                <th className="sticky right-0 z-[1] bg-card pb-1 pl-2 text-right">
+                  <button type="button" onClick={() => setSortBy("total")} aria-pressed={sortBy === "total"} className={`type-caption min-h-11 text-[13px] ${sortBy === "total" ? "text-foreground underline underline-offset-4" : "font-normal text-muted-foreground"}`}>
+                    Total
+                  </button>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.slice(0, shown).map((c) => {
+                const pts = shownPts(c.id);
+                const yours = mine.has(c.id);
+                return (
+                  <tr key={c.id} data-table-row={c.id} className={yours ? "[&>*]:bg-secondary" : ""}>
+                    <th scope="row" className={`sticky left-0 z-[1] pr-1 text-left font-normal ${yours ? "" : "bg-card"}`}>
+                      <button type="button" data-door-cast={c.id} onClick={() => onFace(c.id)} className="flex min-h-12 w-[150px] items-center gap-1.5 border-t border-border">
+                        <Face src={c.photo} name={c.name} out={c.left} className="size-7 flex-none rounded-[2px] text-[12px]" />
+                        <span className="min-w-0">
+                          <b className={`block truncate text-[14px] font-semibold ${c.left ? "text-muted-foreground" : ""}`}>{c.name}</b>
+                          <span className="block truncate text-[13px] text-muted-foreground">{[c.role ? slotWord(c.role.toUpperCase()) : null, whose(c.id, c)].filter(Boolean).join(" · ")}</span>
+                        </span>
+                      </button>
+                    </th>
+                    {eps.map((e, i) => (
+                      <td key={e} className="h-12 w-[44px] border-t border-border text-center align-middle">
+                        {c.left && c.out !== null && e > c.out ? <span className="text-muted-foreground/60">·</span> : <span className={`type-num text-[15px] ${pts[i] > 0 ? "text-foreground" : "text-muted-foreground"}`}>{signed(pts[i])}</span>}
+                      </td>
+                    ))}
+                    <td className={`sticky right-0 z-[1] border-t border-border pl-2 text-right ${yours ? "" : "bg-card"}`}>
+                      <b className="type-num text-[17px]">{fmt(total(c.id))}</b>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {rows.length > shown && (
+        <button type="button" onClick={() => setShown((n) => n + 40)} className="mt-1 inline-flex min-h-11 items-center text-[15px] font-semibold" data-table-more>
+          Show {Math.min(40, rows.length - shown)} more
+        </button>
+      )}
+    </div>
   );
 }

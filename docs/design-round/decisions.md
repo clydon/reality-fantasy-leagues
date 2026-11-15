@@ -142,3 +142,15 @@
   fact a tap apart. Cluster 1 = the game page, Tonight's game section and strip, the Games tab rows; cluster 2 = Episodes, the
   reveal, Players / Cast; cluster 3 = the rest. A ripple check each round; an optional per-account preview switch.
 - Rejected: pushing each page when it's approved; drafting many pages before any review.
+
+## 2026-11-15 · Step 2c: one stat table, three lenses; matchups read across
+- Decided by: the user (asked for side by side, QB against QB, and game-scoped scoring tables, then "yes run 2c now"); the
+  pairing rules and encoding by Claude, in docs/design-round/step2c-compare-and-scoring.md
+- Why: a matchup is read slot against slot in every fantasy app; a game's points belong inside the game, never on the show's
+  tabs (Phase 0's decision 6).
+- What: a sport pairs by position, the leftovers as Flex; a show pairs by rank only once scored ("Best", "2nd best"), two lists
+  before; a pair opens the compare; the game's scoring table under Your team; yours and theirs in one pair of colours, a
+  negative as a short outline.
+- Rejected: pairing a show by slot (its slots are interchangeable, so the pairs would be invented); pairing a locked show by
+  season points (a ranking nobody played); person colours on the compare (a third meaning for the same colour).
+- Rests on: the 2c check (Impeccable 24/40, PFD 64) and its one batch.

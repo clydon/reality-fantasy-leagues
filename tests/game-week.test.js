@@ -110,3 +110,25 @@ test("the league's week: every seat paired once, yours the card's, others' lineu
   const locked = card("show-locked").g;
   assert.ok(locked.games.games.every((x) => Array.isArray(x.locked?.a)), "every side's starters once locked");
 });
+
+test("2c: every player's points each week at the game's scoring, matching each lineup's lines", () => {
+  const { g } = card("show-results");
+  const cw = g.castWeeks;
+  assert.ok(cw && cw.episodes.length >= 4, "a column per scored episode");
+  for (const r of g.table) for (const w of r.weeks) {
+    const i = cw.episodes.indexOf(w.episode);
+    for (const s of [...w.started, ...w.bench]) assert.equal(cw.points[s.id][i], s.points, `${s.id} in ep ${w.episode}`);
+  }
+});
+
+test("2c: a sport's weeks come from its stat lines (BACKLOG 74), and a week's lines add up to its result", () => {
+  const { g } = card("nfl-real-pool-due");
+  const me = g.table.find((r) => r.you);
+  assert.ok(me.weeks.length >= 2, "a sport's weeks are no longer empty");
+  for (const w of me.weeks) {
+    assert.ok(w.started.length > 0 && w.started.length <= 9, "starters with lines");
+    const sq = g.plays.rows[me.playerId].find((s) => s.episode === w.episode);
+    if (sq?.result) assert.ok(Math.abs(sq.result.us - w.total) < 0.06, `ep ${w.episode}: lines ${w.total} vs result ${sq.result.us}`);
+  }
+  assert.ok(g.castWeeks && Object.keys(g.castWeeks.points).length > 100, "the whole pool, held or not");
+});

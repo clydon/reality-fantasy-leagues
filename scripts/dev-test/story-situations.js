@@ -43,6 +43,9 @@ const FLOWS = [
   { id: "person", tap: "[data-game-grid] [data-door-person]", wait: '[role="dialog"]', scroll: "[data-person-season]" },
   { id: "cast", tap: "[data-your-team] [data-door-cast]", wait: '[role="dialog"]', scroll: "[data-cast-chart], [data-athlete-chart]" },
   { id: "episode", tap: "[data-game-grid] [data-door-episode]", wait: '[role="dialog"]', last: true },
+  // Step 2c: the game's scoring table, and a played week's pair opening the two-player compare.
+  { id: "table", tap: "[data-door-table] button", wait: "[data-game-table]" },
+  { id: "compare", tap: "[data-week-card] [data-open-last]", wait: "[data-matchup-pairs]", then: "[data-matchup-pairs] [data-pair]:not([disabled])", thenWait: "[data-compare]" },
 ];
 
 // Multi-step flows, per situation (--sequences): a tap, a fill, a wait, a scroll into view, or a shot. Run after the single-tap
@@ -136,6 +139,11 @@ async function measure(p) {
               await el.click();
               await q.locator(f.wait).last().waitFor({ timeout: 10000 });
               await q.waitForTimeout(700);
+              if (f.then) {
+                await q.locator(f.then).first().click();
+                await q.locator(f.thenWait).last().waitFor({ timeout: 10000 });
+                await q.waitForTimeout(700);
+              }
               if (f.scroll) {
                 // Wait for what the sheet loads on its own (stats, a game log), then bring it into view.
                 await q.locator(f.scroll).first().waitFor({ timeout: 8000 }).catch(() => {});

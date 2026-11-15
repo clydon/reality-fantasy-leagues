@@ -13,7 +13,7 @@ import { pickWindow } from "./pool-view";
 import { pointsPerLine } from "./bingo";
 import { isBetSettled, isKnockedOut, publicMediaSrc } from "./selectors";
 import { scoredEpisodes, teamEpisodeBreakdown } from "./team-episode-breakdown";
-import { leagueWeek, lockedMatchup, sideBetsOf, type SideBets, type WeekGame } from "./week-view";
+import { castWeeks, leagueWeek, lockedMatchup, sideBetsOf, statWeeksOf, type SideBets, type WeekGame } from "./week-view";
 
 // One of your season games on a show, as the new design's show space reads it (docs/PLAN-new-design.md step 1):
 // your moves for the next episode (the lineup, the pick, open predictions), the game's table, its rules, its cast,
@@ -356,6 +356,8 @@ export interface GameView extends GameRefIn {
   locked?: { episode: number; mine: string[]; theirs: string[] | null } | null;
   /** Step 2b: the league's games for the week about to be played (week-view.ts leagueWeek); null outside head to head. */
   games?: { episode: number; games: WeekGame[] } | null;
+  /** Step 2c: every player's points each week at this game's scoring (week-view.ts castWeeks); null before any results. */
+  castWeeks?: { episodes: number[]; points: Record<string, number[]> } | null;
 }
 
 /** Whose user a seat is, for faces. */
@@ -392,7 +394,7 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
   const isPublic = game.solo === "public";
   // Weekly Lineup's weeks, for the table's episode views and each player's sheet (not a public pool: no lineups there).
   const weekly = (pieces.hasActiveRoster || pieces.hasBestBall) && !isPublic;
-  const everyone = tableOf(view, me, userOf, calls?.right).map((r) => (weekly ? { ...r, weeks: weeksOf(view, r.playerId) } : r));
+  const everyone = tableOf(view, me, userOf, calls?.right).map((r) => (weekly ? { ...r, weeks: weeksOrLines(view, r.playerId) } : r));
   const table = isPublic ? poolTop(everyone) : everyone;
   const catchUp = catchingUp ? { week: (seen as number) + 1, latest: StateLogic.SpoilerLogic.latestWithResults(full) } : null;
   const lineup = seat && pieces.hasActiveRoster ? lineupOf(view, me, now) : null;
@@ -465,6 +467,7 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
     bot: calls?.bot ?? null,
     bets: seat ? sideBetsOf(view, me, new Map(everyone.map((r) => [r.playerId, r.name])), through, now) : null,
     locked: seat && pieces.hasActiveRoster ? lockedMatchup(view, me, matchups?.next, now) : null,
+    castWeeks: seat ? castWeeks(view) : null,
     games: matchups && pieces.hasActiveRoster && !isPublic ? leagueWeek(view, everyone.map((r) => r.playerId), nextIn?.set ?? null, now) : null,
   };
 }
@@ -583,6 +586,12 @@ export function tableOf(view: LeagueState, me: string, userOf: UserOf, right: (p
  * as this copy goes, with what it earned, who started and the bench. Only scored episodes, so nobody's lineup shows before its
  * episode has results (a lineup is private until it locks, and results come after).
  */
+/** A seat's weeks: a show's from its events; a sport's from its stat lines when it has no events (BACKLOG 74). */
+function weeksOrLines(view: LeagueState, playerId: string): LineupWeek[] {
+  const w = weeksOf(view, playerId);
+  return w.length ? w : statWeeksOf(view, playerId);
+}
+
 export function weeksOf(view: LeagueState, playerId: string): LineupWeek[] {
   return [...scoredEpisodes(view)]
     .sort((a, b) => a.number - b.number)

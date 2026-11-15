@@ -13,7 +13,7 @@ import { LATE_SET, LateMark, LineupSheet, signed } from "./lineup-sheet";
 import { faceIn, first } from "./moves";
 import { Face } from "./parts";
 import { answerWords, verdictWords } from "./questions";
-import { AthleteChart, BetsBody, CastChart, EpisodeGames, MatchupBody, MatchupTitle, PersonSeason } from "./game-week";
+import { AthleteChart, BetsBody, CastChart, CompareBody, EpisodeGames, GameTable, MatchupBody, MatchupTitle, PersonSeason } from "./game-week";
 
 // The sheet family on a game's page and the Games tab (docs/PLAN-start-a-game-gpt.md U1, "Step 2 brief": the sheet family, once;
 // U0's canvas v58, boards R4 and R6, `make_person_sheet.js` and `make_hybrid.js`). Every name, square, episode and face is a door to
@@ -24,7 +24,7 @@ import { AthleteChart, BetsBody, CastChart, EpisodeGames, MatchupBody, MatchupTi
 // down (sheet-history.ts), Close shuts them all. The squares come from GameView.plays (game-plays.ts), only as far as you've seen;
 // anyone's next move says only whether it's set. A lineup's sheet is today's (lineup-sheet.tsx), kept as it is.
 
-export type Door = { kind: "person"; playerId: string; episode: number | null } | { kind: "episode"; episode: number } | { kind: "cast"; id: string } | { kind: "rules" } | { kind: "matchup"; playerId: string; episode: number } | { kind: "bets" };
+export type Door = { kind: "person"; playerId: string; episode: number | null } | { kind: "episode"; episode: number } | { kind: "cast"; id: string } | { kind: "rules" } | { kind: "matchup"; playerId: string; episode: number } | { kind: "bets" } | { kind: "compare"; a: string; b: string; episode?: number } | { kind: "table" };
 type Level = { key: number; door: Door; open: boolean };
 export type Drill = { open: (d: Door) => void };
 
@@ -97,6 +97,8 @@ function titleOf(d: Door, { g, show }: Ctx): string {
   if (d.kind === "cast") return first(faceIn(g, d.id)?.name ?? "");
   if (d.kind === "matchup") return `${show.words.ep} ${d.episode}`;
   if (d.kind === "bets") return "Side bets";
+  if (d.kind === "compare") return `${first(faceIn(g, d.a)?.name ?? "")} vs ${first(faceIn(g, d.b)?.name ?? "")}`;
+  if (d.kind === "table") return "Everyone";
   return "How it plays";
 }
 
@@ -173,7 +175,23 @@ function Level({ level, drill, crumb, plain, ...ctx }: Ctx & { level: Level; dri
         subtitle={t.subtitle}
         stepper={eps.length > 1 ? { prev: at > 0 ? `${show.words.ep} ${eps[at - 1]}` : null, next: at >= 0 && at < eps.length - 1 ? `${show.words.ep} ${eps[at + 1]}` : null, onStep: step } : undefined}
       >
-        <MatchupBody key={`${d.playerId}:${d.episode}`} g={wg} pid={d.playerId} n={d.episode} words={show.words} sport={show.header?.show.kind === "sport"} onFace={(id) => go.open({ kind: "cast", id })} />
+        <MatchupBody key={`${d.playerId}:${d.episode}`} g={wg} pid={d.playerId} n={d.episode} words={show.words} sport={show.header?.show.kind === "sport"} onFace={(id) => go.open({ kind: "cast", id })} onCompare={(a, b) => go.open({ kind: "compare", a, b, episode: d.episode })} />
+      </Sheet>
+    );
+  }
+  if (d.kind === "compare") {
+    const wg = ctx.wg ?? g;
+    return (
+      <Sheet open={level.open} onOpenChange={onOpenChange} crumb={crumb} plain={plain} title={titleOf(d, { ...ctx, g: wg })} subtitle="Points at this game's scoring">
+        <CompareBody g={wg} a={d.a} b={d.b} episode={d.episode ?? null} words={show.words} onFace={(id) => go.open({ kind: "cast", id })} />
+      </Sheet>
+    );
+  }
+  if (d.kind === "table") {
+    const wg = ctx.wg ?? g;
+    return (
+      <Sheet open={level.open} onOpenChange={onOpenChange} crumb={crumb} plain={plain} title={`Everyone in ${wg.gameName}`} subtitle="Their points at this game's scoring, and who has them">
+        <GameTable g={wg} words={show.words} onFace={(id) => go.open({ kind: "cast", id })} />
       </Sheet>
     );
   }
