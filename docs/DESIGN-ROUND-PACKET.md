@@ -59,6 +59,29 @@ seasons.
 **Live games**, real-time prompts during watch-along (A15, live calls), are a future mode. The designs leave room for them: a move
 whose lock is seconds away, nothing mid-episode in notifications, the night's calls in the reveal. See UX-IDEAS.md, "Live games".
 
+**Inspiration from apps that already solve our problems** (the user). Borrow patterns; don't copy any app's look:
+- fantasy football (Sleeper, ESPN, Yahoo): the matchup screen, setting a lineup, the draft room with its queue and auto-pick,
+  waivers, player cards with recent stats;
+- best ball and DFS (Underdog, DraftKings, FanDuel): drafting fast from a long list, contests at a glance;
+- sportsbooks (bet slips, parlays, live bets): a pick's worth before you commit, a slip of today's picks, live prompts with a
+  countdown (A15);
+- prediction markets and pick'em apps: a question's odds or consensus, settled and open calls.
+
+Not borrowed: a casino's pressure patterns (manufactured urgency, chasing losses, dark nudges). Points aren't money, and Joanna
+should never feel hustled.
+
+**Every test judges the lay of the land, not just correctness** (the user). For each surface, in each situation:
+- **Would someone be confused?** What they'd think each thing means, and where they'd look for what they came for.
+- **Is it organized logically and not buried?** Count the taps to what matters: who you play, when it locks, what's due, why the
+  score is what it is. Anything needed now sits in the first phone view.
+- **Can a casual player play on instinct?** A move in a tap or two, from wherever they are, with no jargon and nothing to learn
+  first. Judge by Joanna (forgets) and Andrew (drives by).
+- **Does the competitive player ("sweat") have the stats to decide?** The numbers sit beside the decision, not on another tab:
+  recent lines, matchups, ownership and trends, with comparisons one tap away. Judge by Conor (tinkers).
+
+The bench's page checks record what they can measure (taps to each key fact, what the first phone view holds, the page's words); a
+person, or a blind tester, judges the rest.
+
 **What the bench needs for the frame, recorded and not yet built:**
 - the pilot with an exclusive draft and waivers;
 - a staged variant;
