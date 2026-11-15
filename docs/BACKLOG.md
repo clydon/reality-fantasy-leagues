@@ -1128,7 +1128,13 @@ Last updated 2026-10-27.
     season have art set, though the brief asks for a visual "last time on" recap. **Who takes it:** the Episodes and reveal round
     (the design order's step 4).
 
-87. **Settling a side bet after an episode can flip a head-to-head week already shown as decided** (a question; found 2026-11-15
+87. **Settling a side bet after an episode can flip a head-to-head week already shown as decided** (**decided 2026-11-15** by the
+   user, to build: side bets count in the matchup and **the AI settles them** with the episode's final results, from the
+   research that already answers every open bet (db/episode-research.js openBetsFor; today it only suggests, bets/[betId]/
+   suggested-answer, and the commissioner taps). **The commissioner can challenge an AI call and change it**; their answer wins
+   and the page says it was changed and by whom. My reading, for the user to correct: a bet the research couldn't answer stays
+   open for the commissioner and counts for nothing until settled; a week is final once its final results are in, as results
+   are now. Also found: the new game page's Settle sheet never shows the AI's answer. The question as it was asked: found 2026-11-15
    by the design round's step 2, the `show-side-bets` situation on the real routes). A Weekly Lineup's week counts the lineup's
    points plus that episode's side bets (game-view.ts LineupWeek.total), and head to head compares those totals. Bets are settled
    by hand after the results, so a matchup reads one way at the reveal and another once someone settles: in the situation, Cy's

@@ -19,7 +19,8 @@ bets can be posted, called and settled on the page. Process and evidence: `docs/
 `step2-game-page-first-view.md` (PFD), `decisions.md`; the screenshot story https://claude.ai/artifact/YBQtP9VztyMFaAZMVxDZ1A (frames
 in `.ui-atlas/stories/step2-game-page/`, re-made by `scripts/dev-test/story-situations.js` and `story-build.py`). New code:
 `src/new/show/game-week.tsx`, `this-week.ts`, `src/lib/game/week-view.ts` (the view's `bets` and `locked`), a 26th bench situation
-`show-side-bets`. **Waiting on the user:** the review, BACKLOG 87 (should a side bet change a matchup), and face colours (gold and
+`show-side-bets`. **(Decided 2026-11-15, not built yet: BACKLOG 87, the AI settles side bets and the commissioner can challenge;
+face colours, gold and teal out. Shipped to master cb78d493 the same day.)** Was waiting on the user: the review, BACKLOG 87, and face colours (gold and
 teal out of the palette). Next after approval: step 3, Tonight. Checks that assert on the old page's title card may need the new
 markers (the page keeps data-game-title/strip/grid/you/rules). **Step 2b, the same day** (the user's review: the bench, the league's
 other games, drill-down graphs at every level; DESIGN-PROCESS.md now has "Not a repaint: the structural lens"):

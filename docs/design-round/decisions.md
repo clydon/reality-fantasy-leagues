@@ -223,3 +223,17 @@
   surnames for a show's cast (a show's people are known by first name); hiding a one-game game's grid when more than two play
   (it's their standings then).
 - Rests on: Designs needed 42; the 2c story's open items; tests/game-week.test.js.
+
+## 2026-11-15 · Side bets: the AI settles them, the commissioner can challenge; faces lose gold and teal
+- Decided by: the user (after Claude's first recommendation, keeping bets out of matchups, rested on "a player settles them";
+  the user pointed out the AI answers them, and the code showed it answers but only suggests)
+- Side bets (BACKLOG 87): they count in a head-to-head week; the AI settles each with the episode's final results (the research
+  already answers every open bet); the commissioner can challenge a call and change it, their answer wins, and the page says it
+  was changed and by whom. A bet the research couldn't answer stays open for the commissioner and counts for nothing until
+  settled (Claude's default). A week is final once its final results are in.
+- Faces: gold and teal leave the default people palette, so gold only ever means due for you and teal a win; a person who has
+  either gets the nearest hue left.
+- Rejected: keeping bets out of matchups (bets lose their bite in head to head, and the reason, a player settling, mostly
+  doesn't hold with the AI answering); a week waiting on a person to settle (the couch's habits leave weeks open); counting
+  bets as now and flagging a flipped week.
+- Rests on: bets/[betId]/suggested-answer/route.ts; db/episode-research.js openBetsFor; the fairness test the rule answers use.
