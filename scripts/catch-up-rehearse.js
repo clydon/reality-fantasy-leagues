@@ -7,7 +7,7 @@
 //     minute), until every season is done or stopped. --export: every answer it got, as our bot gave it, written to <file> (a
 //     JSON list by show slug, season, step and episode) for production to load in place of asking (scripts/catch-up-load.js).
 //     Keep the file out of git (backups/ is ignored). --list: only what's queued and what already waits, asking nothing.
-//     --only: one season. The rehearsal ignores the hold (0441's catchup_hold, which only the clock respects).
+//     --only: one season. --bot=<url>: that bot's lanes only. The rehearsal ignores the hold (0441's catchup_hold, which only the clock respects).
 //     with REHEARSE_DATABASE_URL set to the branch's connection string (the clipboard window, .session-loop/rehearse-*.ps1:
 //     Claude never sees the string).
 //
@@ -54,6 +54,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function calls(names) {
   await C.runPool({
     ...(opt("only") ? { only: opt("only") } : {}),
+    // --bot=<url>: one bot's lanes only (a bot that's stopped answering left out: the VM's ChatGPT, 2026-11-16).
+    ...(opt("bot") ? { bot: opt("bot") } : {}),
     onDone: async (id) => {
       const { rows: eps } = await pool.query("SELECT episode_number, message FROM catchup_episodes WHERE season_id = $1 AND message IS NOT NULL ORDER BY updated_at DESC LIMIT 1", [id]);
       console.log(`[${stamp()}] ${names.get(id) ?? id}: ${(await C.catchUpLine(id))?.line ?? "?"}${eps.length ? ` · ${eps[0].message.slice(0, 110)}` : ""}`);
