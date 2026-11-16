@@ -259,9 +259,15 @@ async function showStep(s: Season, bot: string | undefined, budgetMs: number): P
   const row = await getRulebook(pool, id);
   const has = Array.isArray(row?.blocks?.cast?.properties) && row.blocks.cast.properties.length > 0;
   let added = 0;
-  // Check for changes: the rulebook as our bot reads the show now, left on the rulebook's page as its card for the desk.
-  const asked = await askRulebookNow(id, "check", null, bot, budgetMs);
-  if (!asked.ok) throw new Error(`Check for changes: ${asked.message}`);
+  // Check for changes: the rulebook as our bot reads the show now, left on the rulebook's page as its card for the desk. Asked as
+  // the catch-up's own kind (Codex by default). Optional: if it can't be asked, the desk can ask it later, and the season goes
+  // on to its episodes anyway (a flaky bot never holds up what matters; the research questions need no AI, below).
+  const asked = await askRulebookNow(id, "check", null, bot, budgetMs, null, "catchup");
+  if (!asked.ok) {
+    await recompile(id);
+    await logDesk(pool, { entity: "rulebook", entityId: id, action: "catchup", text: `Catch-up: research questions brought up to date; Check for changes didn't answer (${asked.message.slice(0, 120)}): ask it from this page`, userId: null });
+    return;
+  }
   if (!has) {
     const { rows } = await pool.query("SELECT answer FROM rulebook_answers WHERE rulebook_id = $1 AND kind = 'check' ORDER BY created_at DESC LIMIT 1", [id]);
     let props: unknown[] = [];
@@ -297,8 +303,12 @@ async function recompile(id: string): Promise<void> {
 async function castStep(s: Season, bot: string | undefined, budgetMs: number): Promise<void> {
   const { rows } = await pool.query("SELECT count(*)::int AS n FROM season_cast WHERE season_id = $1", [s.id]);
   if (!rows[0].n) return;
-  const asked = await askCastNow(s.id, null, bot, budgetMs);
-  if (!asked.ok) throw new Error(`The cast: ${asked.message}`);
+  // Optional too: people's details can be asked from the desk's cast page later; the episodes don't need them.
+  const asked = await askCastNow(s.id, null, bot, budgetMs, "catchup");
+  if (!asked.ok) {
+    await logDesk(pool, { entity: "season", entityId: s.id, action: "cast", text: `Catch-up: our bot's cast didn't answer (${asked.message.slice(0, 120)}): ask it from Who's in it`, userId: null });
+    return;
+  }
   await fillCastDetails(s.id);
 }
 

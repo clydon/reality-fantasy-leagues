@@ -11,6 +11,7 @@ import { ensureSeasonRulebook } from "@db/rulebooks.js";
 import { seasonFormat } from "@db/season-rule-changes.js";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { askBot } from "./ask-bot";
+import type { BotRunKind } from "@/lib/bot-runs";
 import { pool, tx, HttpError } from "./db";
 import { gamesOn, groupColors, isSecretRole, secretRolesOf, termsOf } from "./desk-cast";
 import { SEASON_NAME, logDesk, type DeskLine } from "./desk";
@@ -430,11 +431,12 @@ async function stage(s: SeasonRow, source: "bot" | "paste", answer: string, peop
 }
 
 /** Our bot's turn in the Run now queue (desk-research.ts drainDeskRuns): asks, reads and stages its answer. Never throws. */
-export async function askCastNow(id: string, askedBy: string | null, bot: string | undefined, budgetMs: number): Promise<{ ok: boolean; message: string }> {
+export async function askCastNow(id: string, askedBy: string | null, bot: string | undefined, budgetMs: number, runKind?: BotRunKind): Promise<{ ok: boolean; message: string }> {
   try {
     const s = await seasonRow(id);
     const { prompt } = await castQuestion(id);
-    const { answer } = await askBot(prompt, { bot, budgetMs });
+    // runKind: whose AI asks it (the catch-up's own: catch-up.ts); left out, the desk's AI.
+    const { answer } = await askBot(prompt, { bot, budgetMs, ...(runKind ? { kind: runKind } : {}) });
     const people = await readAnswer(s, answer);
     return { ok: true, message: await stage(s, "bot", answer, people, askedBy) };
   } catch (e) {

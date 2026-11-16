@@ -14,6 +14,7 @@ import { isUuid, type SessionUser } from "./auth-helpers";
 import { restageSeason } from "./community-results";
 import { requireCouch } from "./couches";
 import { askBot } from "./ask-bot";
+import type { BotRunKind } from "@/lib/bot-runs";
 import { pool, withLeagueLock, HttpError } from "./db";
 import { byNewest, deskLines, logDesk, type DeskLine } from "./desk";
 import { EVERYTHING, seenThrough } from "./guard";
@@ -640,11 +641,20 @@ async function stageAnswer(r: Rulebook, kind: ResearchKind, source: "bot" | "pas
 }
 
 /** Our bot's turn in the Run now queue (desk-research.ts drainDeskRuns): asks, reads and stages its answer. Never throws. */
-export async function askRulebookNow(id: string, kind: ResearchKind, askedBy: string | null, bot: string | undefined, budgetMs: number, through: number | null = null): Promise<{ ok: boolean; message: string }> {
+export async function askRulebookNow(
+  id: string,
+  kind: ResearchKind,
+  askedBy: string | null,
+  bot: string | undefined,
+  budgetMs: number,
+  through: number | null = null,
+  runKind: BotRunKind = "rulebook"
+): Promise<{ ok: boolean; message: string }> {
   try {
     const r = await row(id);
     const q = await rulebookPrompt(id, kind, through);
-    const { answer } = await askBot(q.prompt, { bot, budgetMs, kind: "rulebook" });
+    // runKind: whose AI asks it (the catch-up's own kind for its Check for changes: catch-up.ts).
+    const { answer } = await askBot(q.prompt, { bot, budgetMs, kind: runKind });
     const bad = readable(kind, answer);
     if (bad) throw new Error(bad);
     const { card: c } = await stageAnswer(r, kind, "bot", answer, askedBy, q.through);
