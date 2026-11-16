@@ -738,6 +738,16 @@ function validateLeniently(raw, schema, label) {
   if (raw && typeof raw === "object" && !Array.isArray(raw) && schema.shape && schema.shape.episodeFacts) {
     raw.episodeFacts = EpisodeFacts.looseEpisodeFacts(raw.episodeFacts, repairs);
   }
+  // Holdings (cast properties, chunk 6b) the same way: an answer from before they were asked has none (null), and a section
+  // that isn't the shape asked is dropped and reported, never failing a run whose checklist is fine.
+  if (raw && typeof raw === "object" && !Array.isArray(raw) && schema.shape && schema.shape.holdings) {
+    const h = raw.holdings;
+    if (h === undefined || h === null) raw.holdings = null;
+    else if (!schema.shape.holdings.safeParse(h).success) {
+      repairs.push("holdings: not the shape asked, left out (who holds what wasn't read this time)");
+      raw.holdings = null;
+    }
+  }
   // A person's group move, from an answer to a prompt that didn't ask it (a paste of an older skeleton): none said, null.
   const person = schema.shape && schema.shape.castaways && schema.shape.castaways.element;
   if (person && person.shape && person.shape.newGroup && raw && Array.isArray(raw.castaways)) {

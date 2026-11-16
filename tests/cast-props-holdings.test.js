@@ -52,3 +52,25 @@ test("research asks it of a format with advantages, and stages each change as a 
   assert.deepEqual(items.map((i) => `${i.castawayName}|${i.eventType}|${i.method}`), ["Kristin|advantages:found:hidden-immunity-idol|", "Eric|advantages:played:shot-in-the-dark|"], "an unknown how left out");
   assert.equal(ER.holdingType("a", "found", "Hidden Immunity Idol!"), W.holdingType("a", "found", "Hidden Immunity Idol!"), "the JS and TS slugs agree");
 });
+
+test("a built format keeps its holdings question: Survivor's own, and a rulebook compiled on Survivor's reader", () => {
+  const F = require("../src/lib/game/formats/index.js");
+  assert.deepEqual(F.formatFor("survivor").research.holdings.map((h) => h.twist), ["advantages"]);
+  const { data } = compileRulebook(BUILT_IN_BLOCKS.survivor.blocks, { id: "survivor", reader: "research" });
+  assert.deepEqual(F.formatForRulebook(data, "survivor").research.holdings.map((h) => h.twist), ["advantages"]);
+  assert.ok(Object.keys(ER.researchSchemaFor(F.formatFor("survivor")).shape).includes("holdings"), "and the bot is asked it");
+});
+
+test("an answer without holdings (from before they were asked) still reads; a malformed section is left out and reported", () => {
+  const F = require("../src/lib/game/formats/index.js");
+  const schema = ER.researchSchemaFor(F.formatFor("survivor"), false);
+  const base = { episodeTitle: "", airDate: null, summary: "", rulesNote: null, merged: "no", tribalCouncilHeld: "no", castaways: [], sourcesRead: [] };
+  const read = (extra) => ER.parseJsonAnswer(JSON.stringify({ ...base, ...extra }), schema, "The pasted JSON");
+  const none = read({});
+  assert.equal(none.holdings, null);
+  const bad = read({ holdings: "Kristin has an idol" });
+  assert.equal(bad.holdings, null);
+  assert.match((bad.repairs || []).join(" | "), /holdings: not the shape asked/);
+  const good = read({ holdings: { changes: [{ who: "Kristin", name: "Idol", how: "found", other: null }], atEnd: [{ holder: "Kristin", name: "Idol" }] } });
+  assert.equal(good.holdings.changes[0].who, "Kristin");
+});

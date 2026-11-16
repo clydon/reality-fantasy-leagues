@@ -235,7 +235,8 @@ function defineFormat(data, code) {
     impliedEvents: data.rules.implied.length ? impliedEventsFrom(data.rules.implied, data) : undefined,
     roles: data.roles && ordered([...ROLES_DATA, ...ROLES_CODE], data.roles, code.roles),
     wiki: ordered(WIKI_ORDER, data.wiki, code.wiki),
-    research: ordered(['checklistSchema', 'episodeFields', 'searchHint', 'entryProblems', 'episodeProblems', 'claims', 'items', 'notes', 'sentences'], research, code.research),
+    // propChanges and holdings (cast properties, chunks 6 and 6b) are read off the format by research, so they're kept here too.
+    research: ordered(['checklistSchema', 'episodeFields', 'searchHint', 'entryProblems', 'episodeProblems', 'claims', 'items', 'notes', 'sentences', 'propChanges', 'holdings'], research, code.research),
   });
   if (!format.roles) delete format.roles;
   if (!format.impliedEvents) delete format.impliedEvents;
