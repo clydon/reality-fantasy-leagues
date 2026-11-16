@@ -48,77 +48,84 @@ answer left unsure (db/moments-research.js `askUnsure`); a second tap on an epis
 every couch's unasked questions together (not one a couch); the identical couch's simulated wait (free) and instant answer
 (paid); every served answer logged with how it was served (asked, the difference, shared) for the numbers below.
 
-## What it costs (estimates, 2026-11-16)
+## Money: what we pay, what it could earn (estimates, 2026-11-16; the user asked for it plainly)
 
-Measured: a full research ask takes a median **154 s** on the ChatGPT bot and answers ~19,500 characters (this lane's runs); a
-"Describe a game" ask is ~43,000 characters (~12,000 tokens, ~10,000 of them the fixed manual) and ~40 s on ChatGPT (the
-11-08 test); quick ~30 s, trivia ~120 s, bingo ~220 s, facts ~60 s (desk-research.ts). Prices: Claude API list prices of
-2026-11-03 (Sonnet 5.5 $2 / $10 a million tokens in / out, cached reads $0.10; Haiku 5.5 $0.10 / $0.50; web search $10 a
-thousand searches); hosting from docs/HOSTING.md "Cost by size". Re-measure tokens with count_tokens before setting prices.
+Three separate questions, three tables: what **we pay** each month, what **wait ads earn**, and what **paid options could
+earn**. Prices checked 2026-11-16 (sources at the end); usage follows the user's picture: most people never ask an AI, only a
+couch's game maker does it often, and adding a show is a one-time ask.
 
-**The assumptions** (change them and the rows follow):
+**The usage this assumes** (change these and everything follows):
 
-| | Today | Later |
-|---|---|---|
-| People | 5-15 | 300-1,000 |
-| Couches (about 5 people each) | 1-3 | 60-200 |
-| Seasons airing that someone plays (distinct shows, a week) | 2-4 | 15-30 |
-| Couches with their own extra questions | 0-1 | 20-60 (about 30%) |
-| "Mine" asks (describe, change, more moments) a person a week | ~2 (tinkering) | ~1 (most join a game someone made) |
-| New seasons added a month (Make it a game, Getting it ready) | 1-2 | 20-50 |
-
-**Asks a week, with the rule** (the automatic research is ~9 asks a season's episode: quick, two full, facts, trivia and bingo
-two each, the schedule check):
-
-| | Today | Later |
-|---|---|---|
-| A. Automatic research (seasons x ~9) | 18-36 | 135-270 |
-| Extra questions, the difference only, batched an episode | 0-4 | 15-30 (unbatched, a couch each: 20-60) |
-| B. New seasons (~10 asks each), a week | 2-5 | 50-125 |
-| C. Mine | 10-30 | 300-1,000 |
-| **Total** | **30-75** | **500-1,425** |
-| Without sharing (every couch researching its own episodes: couches x ~1.5 seasons x 9) | 14-40 for A | **810-2,700 for A alone** |
-
-**The bot's time** (ChatGPT, one question at a time a bot; A ~110 s on average, extras ~60 s, B ~90 s, C ~40 s):
-
-| | Today | Later |
-|---|---|---|
-| A week | 45-100 minutes (about 1% of one bot) | 9-23 hours (5-14% of one bot) |
-| The evening peak (about 40% of C in ~6 hours a week) | nothing queues | 22-75% busy: one bot at 300 people, a second free VM by ~1,000 (Oracle's Always Free gives two) |
-| Without sharing | still small | A alone 25-80 hours a week: queues every episode night |
-
-**Money a month:**
-
-| Line | Today | Later, 300 | Later, 1,000 |
+| | Today | 300 people | 1,000 people |
 |---|---|---|---|
-| Hosting (Vercel, Neon, domain: HOSTING.md) | ~$6 (Neon Launch ~$5, domain ~$1) | $35-60 | $60-200 |
-| Vercel Pro: required from the first charge or ad, whatever the size | $0 until then, then $20 | in the row above | in the row above |
-| The bot (Oracle Always Free VM, Cloudflare tunnel) | $0 | $0 | $0 (two VMs) |
-| Codex for one-offs (needs the ChatGPT Plus plan: the Free plan has no Codex CLI, HOSTING.md) | the plan's price while it's kept | same | same |
-| TMDB (show art): its free key is non-commercial; charging or ads need its licence | n/a | price on request | price on request |
-| **Total, everything on the free bot** | **~$6 (~$26 once charging)** | **~$35-60** | **~$60-200** |
+| Couches (about 5 people, one maker each) | 1-3 | 60 | 200 |
+| Seasons airing that someone plays | 2-4 | 15 | 30 |
+| Maker asks a month (describe a game, changes, more moments: ~10 a couch) | 10-30 | 600 | 2,000 |
+| New seasons added a month (~10 asks each, once) | 1-2 | 20 | 50 |
+| Automatic research asks a month (seasons x ~9 an episode x ~4.3 episodes; shared by every couch) | 80-155 | ~580 | ~1,160 |
 
-**What a paid person costs us** (the fast AI on the API; C ask ~12,000 tokens in, ~10,000 cached after the first, ~2,000-3,000
-out with low effort):
+### 1. What we pay each month
 
-| Model | A C ask | Plus at 50 a month | Pro at 300 a month |
+| Service | Today | 300 people | 1,000 people | Why |
+|---|---|---|---|---|
+| **Vercel** (the app) | $0 (Hobby) | $20 | $20-50 | Hobby is non-commercial: **ads or any charge need Pro, $20 a seat** (it includes a $20 usage credit; past it, e.g. $0.60 a million calls) |
+| **Neon** (the database) | ~$5 | $15-40 | $40-120 | Usage only: ~$0.106 an hour awake (0.25 CU), $0.35 a GB-month; it's awake more hours as more people use the app |
+| **ChatGPT, our bot** | $0 | $0 | $0 | Signed out, on Oracle's Always Free VM (a second free VM at 1,000 for evening peaks) |
+| **ChatGPT Plus** (Codex, for one-offs like the catch-up) | $0, or $20 for a month it's needed | same | same | Optional; the Free plan has no Codex |
+| Domain | ~$1 | ~$1 | ~$1 | |
+| **Total** | **~$6** (**~$26** once ads or charging start) | **~$36-61** | **~$61-171** | |
+
+**The one risk to budget for: ChatGPT stops answering the signed-out bot** (blocked or rate-limited). The same asks on a paid
+API (research ~$0.10 an ask with web search, a maker ask ~$0.003 on a small model) would add **~$10-20 today, ~$85-105 at 300,
+~$180-255 at 1,000** a month. Sharing research across couches is what keeps this small: without it, research alone would be
+5-10 times as many asks.
+
+### 2. What wait ads earn
+
+An ad plays only while someone waits on our bot: a maker's ask, someone watching a new show get set up, and (the user's
+convenience barrier) a free couch tapping "Get Episode 5's results" for results that are already in, with a short simulated
+wait. Web video ads pay about **$4-15 for every 1,000 views** in the US (vendors' 2026 benchmarks; fill under 100%).
+
+| | Today | 300 people | 1,000 people |
 |---|---|---|---|
-| Sonnet 5.5 (the 11-08 test's best) | ~$0.03-0.05 | up to ~$2.50 | up to ~$15 |
-| Haiku 5.5 | ~$0.003 | ~$0.15 | ~$1 |
+| Wait ad views a month (maker asks + set-up waits + results taps) | ~50-100 | ~1,000 | ~3,400 |
+| **Earned** | **under $2** | **~$5-15** | **~$15-50** |
 
-**The risk line: if ChatGPT stops answering the signed-out bot** (blocked, rate-limited), the same asks on the API:
+So the wait ad is a convenience barrier, not an income: it covers a fraction of the bills, because waits are rare when only
+makers ask.
 
-| | Today | Later, 300 | Later, 1,000 |
-|---|---|---|---|
-| A + extras (full research with web search ~$0.15-0.25 on Sonnet 5.5; the rest ~$0.05; ~$0.10 on average) | ~$8-15 | ~$60-80 | ~$120-130 |
-| B (~$0.10 an ask) | ~$1-2 | ~$20 | ~$55 |
-| C (Haiku 5.5 / Sonnet 5.5) | ~$0.15 / $5 | ~$4 / $50 | ~$13 / $170 |
-| **Total on top of hosting** | **~$10-20** | **~$85-135** | **~$190-350** |
+### 3. What paid options could earn (illustrations, not forecasts)
 
-So: on the free bot the AI costs nothing in money at either size, and sharing is what keeps it inside one or two free bots
-(without it, research alone would queue every episode night by a few hundred people). The real exposure is the bot being
-blocked: up to ~$150 a month at 300 people, ~$350 at 1,000, which is what Plus, Pro and the ads are there to cover. Ad revenue
-isn't estimated here: it depends on the network (not chosen) and fill; one input to add when it's chosen.
+| Option | What it gives | Assumes | 300 people | 1,000 people |
+|---|---|---|---|---|
+| **Couch Pass**, ~$5 a season, one person buys it for the couch | Results arrive by themselves (no tap, no wait), the maker's asks fast, no wait ads for anyone on the couch | 15% of couches | ~$15 a month | ~$50 a month |
+| **Supporter**, ~$3 a month, a person | No ads anywhere, fast asks, a little flair (a badge, a theme) | 3% of people | ~$27 | ~$90 |
+| **One quiet ad slot** where people linger (the hub, the end of a recap), never in a reveal | Pays for free users | ~40 views a person a month at ~$1-3 per 1,000 (display) | ~$12-36 | ~$40-120 |
+
+Card fees take a bite out of small charges (roughly 30 cents plus a few percent each): a season pass or yearly supporter beats
+monthly $3 charges. **Net at 1,000 people:** costs ~$61-171 against ~$195-310 with all three, or ~$65-140 with the pass and the
+supporter alone. Today it's a ~$6-26 hobby whichever way.
+
+### Brainstorm: profitable, not annoying, still free (for the user's reaction)
+
+- **The free promise:** everything plays free, always. Paying only buys convenience (no tap, no wait, no ad) and a little
+  flair. The DIY ChatGPT link is the free way past every barrier, instantly, with no ad.
+- **Charge the couch, not the person.** The maker is the one who asks, and the couch benefits together: a season pass one
+  friend buys (or splits) feels like chipping in for snacks, not a subscription. It also matches today's One tap / Autopilot
+  (results_plans, per couch and season).
+- **Results by tap is the gentle barrier:** free couches tap "Get Episode 5's results" (15 seconds, an ad, or ask ChatGPT
+  yourself); a passed couch's results simply arrive. Nobody is locked out, it's one tap a week.
+- **Ads only at natural pauses:** an AI wait, a results tap, one quiet slot in the hub. Never in a reveal, a recap's moment or
+  the chat.
+- **Cut the bill before charging more:** polling is what grows with people (docs/HOSTING.md, Levers): one combined poll, only
+  while the window is in front, push for rare events, roughly halves Vercel and Neon at any size.
+- **Later, if wanted:** a "Where to watch" link per show (streaming affiliate programs, where they exist) is useful rather
+  than annoying; not priced here.
+
+Sources: Vercel's Pro pricing (vercel.com/docs/plans/pro-plan; third-party 2026 summaries agree on $20 a seat with a $20
+credit, and $0.60 a million invocations); Neon's plans (neon.com/docs/introduction/pro-plan: $0.106 a CU-hour, $0.35 a
+GB-month, no minimum); OpenAI's Codex pricing (developers.openai.com/codex/pricing: Plus $20 a month); web video ad
+benchmarks (Applixir's 2026 posts: $4-15 blended, ~$7 for US/tier-1; a Playgama guide: higher). Check each before deciding.
 
 ## The ways (columns)
 
