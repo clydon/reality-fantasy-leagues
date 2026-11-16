@@ -33,12 +33,15 @@ const DEFAULT_TZ = "America/New_York";
 /** The league's season (the new design's links go to it) and its time zone, the one its air times are in. */
 async function seasonOf(db, state) {
   const { showId, wikiSeason } = state.settings || {};
-  if (!showId || wikiSeason == null) return { id: null, tz: DEFAULT_TZ };
+  if (!showId || wikiSeason == null) return { id: null, tz: DEFAULT_TZ, label: null };
   const { rows } = await db.query(
-    "SELECT ss.id, ss.air_tz FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE s.slug=$1 AND ss.season_number=$2",
+    "SELECT ss.id, ss.air_tz, s.name AS show_name, ss.season_number FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE s.slug=$1 AND ss.season_number=$2",
     [showId, wikiSeason]
   );
-  return { id: (rows[0] && rows[0].id) || null, tz: (rows[0] && rows[0].air_tz) || DEFAULT_TZ };
+  const r = rows[0];
+  // "Survivor 51": where a push is from, first in its body (the design round's step 8: one grammar for every push).
+  const label = r && r.show_name ? `${String(r.show_name).replace(/\s*\([^)]*\)\s*$/, "").replace(/^The /, "")}${r.season_number ? ` ${r.season_number}` : ""}` : null;
+  return { id: (r && r.id) || null, tz: (r && r.air_tz) || DEFAULT_TZ, label };
 }
 
 /** The league's season's time zone. */
@@ -50,6 +53,14 @@ async function seasonTz(db, state) {
 function waiversNext(seasonId) {
   return seasonId ? `/show/${seasonId}/waivers` : "/home";
 }
+
+/** A week's run itself (its beats, then the page): `?page=waivers-run&wv=<league>` on the Waivers page. */
+function runNext(seasonId, leagueId) {
+  return seasonId ? `/show/${seasonId}/waivers?page=waivers-run&wv=${encodeURIComponent(leagueId)}` : "/home";
+}
+
+/** "Survivor 51 · Couch Cup": a push's body leads with where it's from. */
+const where = (label, name) => [label, name].filter(Boolean).join(" · ");
 
 /** "Tue 8:00 PM EDT"; `day: false` gives "8:00 PM EDT". */
 function clock(iso, tz, day = true) {
@@ -124,11 +135,11 @@ function justProcessed(before, state) {
   return p;
 }
 
-/** "Free agency is open until Episode 4 airs." ("" with free agency off). */
+/** "Free agency until Ep 4 airs" ("" with free agency off). */
 function freeAgencyLine(state, period) {
   if (!W.freeAgencyOn(state)) return "";
   const n = period.episode + 1;
-  return period.closesAt ? `Free agency is open until Episode ${n} airs.` : `Free agency is open until Episode ${n}'s results.`;
+  return period.closesAt ? `Free agency until Ep ${n} airs` : `Free agency until Ep ${n}'s results`;
 }
 
 /**
@@ -137,43 +148,44 @@ function freeAgencyLine(state, period) {
  * pickup's still yours to make; nothing at all for someone the week didn't touch, except on an
  * add/drop week with free agency, where an unused add/drop is still theirs.
  */
-function processedMessages(state, period, name, people) {
+function processedMessages(state, period, name, people, label = null) {
   const n = period.episode;
   const fa = freeAgencyLine(state, period);
   const base = waiversHref(state);
+  const at = where(label, name);
   const out = [];
   for (const m of people) {
     if (m.seen < n) {
-      out.push({ userId: m.userId, message: { title: "Waivers processed", body: `${name}: reveal Episode ${n} to see every move.`, url: base } });
+      out.push({ userId: m.userId, message: { title: `${name} waivers ran`, body: `${at} · Reveal Ep ${n} to see every move`, url: base, run: false } });
       continue;
     }
     const mine = period.run.results.filter((r) => r.playerId === m.playerId);
     const got = mine.filter((r) => r.outcome === "got" && r.castawayId);
     const missed = mine.some((r) => r.outcome === "missed");
     const owed = W.replacementsOwed(state, m.playerId, period).count;
-    const until = `Episode ${n + 1} ${period.closesAt ? "airs" : "is in"}`;
+    const until = `Ep ${n + 1} ${period.closesAt ? "airs" : "is in"}`;
     const fill = W.freeAgencyOn(state)
-      ? `choose from free agency before ${until}.`
+      ? `Choose from free agency before ${until}`
       : W.autoFillOn(state)
-        ? `you get the top free agent when ${until}.`
-        : "no claim, no replacement this week.";
-    const stillOwed = owed ? `You still have someone to replace: ${fill}` : "";
+        ? `The top free agent comes in when ${until}`
+        : "No claim, no replacement this week";
+    const stillOwed = owed ? `Still someone to replace: ${fill.replace(/^./, (c) => c.toLowerCase())}` : "";
     let title;
     let body;
     if (got.length) {
       title = `You got ${andList(got.map((r) => firstName(state, r.castawayId)))}`;
-      body = `${name}: waivers processed. ${stillOwed || fa}`;
+      body = [at, stillOwed || fa].filter(Boolean).join(" · ");
     } else if (missed) {
       title = "Your claim didn’t go through";
-      body = `${name}: someone got there first. ${stillOwed || fa}`;
+      body = [at, "Someone ahead of you got there first", stillOwed || fa].filter(Boolean).join(" · ");
     } else if (owed) {
       title = "You still have someone to replace";
-      body = `${name}: waivers processed, ${fill}`;
+      body = [at, fill].join(" · ");
     } else if (fa && W.swapsLeft(state, period, m.playerId) > 0) {
-      title = "Waivers processed";
-      body = `${name}: ${fa} Your swap is still unused.`;
+      title = `${name} waivers ran`;
+      body = [at, fa, "Your swap is still unused"].join(" · ");
     } else continue;
-    out.push({ userId: m.userId, message: { title, body: body.trim(), url: `${base}/results/${n}` } });
+    out.push({ userId: m.userId, message: { title, body: body.trim(), url: `${base}/results/${n}`, run: true } });
   }
   return out;
 }
@@ -182,9 +194,11 @@ function processedMessages(state, period, name, people) {
 async function sendProcessed(db, leagueId, state, period, opts = {}) {
   try {
     const [name, people, season] = await Promise.all([leagueName(db, leagueId), members(db, leagueId, state), seasonOf(db, state)]);
-    const msgs = processedMessages(state, period, name, people);
+    const msgs = processedMessages(state, period, name, people, season.label);
     for (const { userId, message } of msgs) {
-      const full = { ...message, url: link(message.url, leagueId), next: waiversNext(season.id), tag: `waivers-${leagueId}`, seasonId: season.id };
+      // Someone who's seen the episode opens the run itself; anyone else the Waivers page, which asks them to reveal first.
+      const { run, ...words } = message;
+      const full = { ...words, url: link(message.url, leagueId), next: run ? runNext(season.id, leagueId) : waiversNext(season.id), tag: `waivers-${leagueId}`, seasonId: season.id };
       if (opts.log) opts.log(`${opts.dry ? "(dry) " : ""}${userId} -- ${full.title}: ${full.body}`);
       if (!opts.dry) await sendPush(db, [userId], "waivers", full, { seasonId: season.id });
     }
@@ -214,13 +228,21 @@ async function remindWaivers(db, league, now, opts = {}) {
   let sent = 0;
   for (const m of await members(db, league.id, state)) {
     let kind;
+    let title;
     let body;
+    const due = clock(p.processAt, m.tz || season.tz, false);
+    const at = where(season.label, league.name);
+    const owed = m.seen < n ? null : W.replacementsOwed(state, m.playerId, p);
     if (m.seen < n) {
+      // Never who to replace before they've revealed: that would give away who went home.
       kind = "waiverReveal";
-      body = `${league.name}: reveal Episode ${n} before then to make any claims.`;
-    } else if (W.replacementsOwed(state, m.playerId, p).count && !p.claimsIn.includes(m.playerId)) {
+      title = `Ep ${n} waivers close at ${due}`;
+      body = `${at} · Reveal Ep ${n} first to claim`;
+    } else if (owed.count && !p.claimsIn.includes(m.playerId)) {
       kind = "waiverPickup";
-      body = `${league.name}: you have someone to replace.`;
+      // The strip's own words for the move (step 8: the same move, the same words everywhere).
+      title = `Replace ${andList(owed.lossIds.map((id) => firstName(state, id)))} by ${due}`;
+      body = `${at} · ${W.autoFillOn(state) ? "Forget, and the best one free comes in" : "Forget, and the spot stays empty"}`;
     } else continue;
     if (!opts.dry) {
       const { rowCount } = await db.query(
@@ -231,12 +253,14 @@ async function remindWaivers(db, league, now, opts = {}) {
       if (!rowCount) continue;
     }
     const message = {
-      title: `Claims due at ${clock(p.processAt, m.tz || season.tz, false)}`,
+      title,
       body,
       url: link(kind === "waiverPickup" ? `${waiversHref(state)}/pickup` : waiversHref(state), league.id),
       next: waiversNext(season.id),
       tag: `waivers-${league.id}`,
       seasonId: season.id,
+      // The bell's key (notify-prefs.ts readNotes): it leaves the list once the week's claims are due.
+      key: `wremind:${league.id}:${p.id}:${Date.parse(p.processAt)}`,
     };
     if (opts.log) opts.log(`${opts.dry ? "(dry) " : ""}${m.userId} -- ${message.title}: ${message.body}`);
     if (!opts.dry) await sendPush(db, [m.userId], "waiverReminder", message, { seasonId: season.id });
@@ -272,7 +296,7 @@ async function nudgeMessage(db, leagueId, state, playerId, byName) {
     userIds: m.map((x) => x.userId),
     message: {
       title: p.hold || !p.processAt ? "Waivers are open" : `Claims due ${clock(p.processAt, tz)}`,
-      body: `${name}: ${byName} nudged you. ${what}`,
+      body: `${where(season.label, name)} · ${byName} nudged you · ${what.replace(/\.$/, "")}`,
       url: link(waiversHref(state), leagueId),
       next: waiversNext(season.id),
       tag: `waivers-${leagueId}`,
@@ -368,7 +392,7 @@ async function sendWindow(db, leagueId, state, before, periodId, trimmed, opts =
 async function resultsLine(db, state, n, tz) {
   const p = W.enabled(state) ? W.current(state) : null;
   if (!p || p.episode !== n || p.phase !== "open" || p.hold || !p.processAt) return "";
-  return ` Waivers process ${clock(p.processAt, tz || (await seasonTz(db, state)))}.`;
+  return ` Waivers close ${clock(p.processAt, tz || (await seasonTz(db, state)))}.`;
 }
 
 module.exports = {

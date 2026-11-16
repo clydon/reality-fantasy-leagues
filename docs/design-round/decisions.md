@@ -538,3 +538,33 @@
   "last seen" time; the plate's art no longer pans (`nd-kenburns` off UpNext); step 5's face wall carries no "Your team" tag.
 - Rejected: a last-seen time (a fact about someone they didn't choose to share); the slow pan (motion on a hub that should be
   still); a quiet "Your team" mark on the wall (the game's own pages say it).
+
+## 2026-11-16 · Step 8, notifications then waivers: built, waiting on the user's review
+- Decided by: Claude, through the three skills in order (Intent's spec, PFD's first view, Impeccable's shape and build), one check
+  (PFD evaluate 73; Impeccable critique 27/40, a reviewer that saw neither PFD's findings nor the session's reasoning, and the
+  detector), one batch, one confirming look
+- What: one grammar for every push (the news first, number first; where it's from, then what to do; a tap on the thing), one
+  reminder per person, show and episode; the bell as New and Earlier by time, an icon per kind, done reminders gone, no due row;
+  waivers led by the move on the strip's plate, the best three free under it with points by episode on one scale and a one-tap
+  claim, the sticky foot and the seconds countdown gone.
+- PFD settled the spec's two open questions: the bell by time only (show groups inside New and Earlier would be four headings and
+  break newest first); Who's free on the page as three options under the move (five would push Your team out of the first view).
+- Kept against the critique: the show's name first in every bell row (PFD's question: where the show is said).
+- Rejected: a countdown ticking seconds (a casino's pressure); yellow for "new" in the bell; the show's art on every bell row;
+  a claim that silently drops its backups (Switch opens the picker instead).
+- Rests on: docs/design-round/step8-notify-spec.md, -first-view.md, -shape.md, -check.md, -critique.md, -pfd-eval.md; the story https://claude.ai/artifact/3TnbLJWK2aXzCByi9qfeyP
+  (frames in .ui-atlas/stories/step8-notify/ and step8-waivers/; scripts/dev-test/notes-fixture.js and story-waivers.js new).
+
+## 2026-11-16 · Waivers: who's leaving on the plate, Swap opens the picker; no options on the page
+- Decided by: the user ("at a glance I didn't see the All 4 free, also it's not clear at first who I'm replacing because the picture
+  of Carter isn't there... I'd rather the Swap button exist and it bring up Who comes in for Carter; the same for waivers through a
+  week"), agreed by Claude; how, through Impeccable
+- What: an owed spot is a plate with who's leaving by face, "Replace Carter", "Out · Ep 5 · by Wed 8:00 PM · in 2 days" and Swap (the
+  page's one yellow) opening the picker; once claimed, the incoming face with the leaver small at its corner and Change. Your team
+  shows their place as a blank slot (dashed, "Open spot · Carter's · out Ep 5"; claimed, the incoming face faded,
+  "Rob, coming in": the user, "a visual blank team slot is the better UX"); a swap week has no Who's free; the ran week's Free agency is one button into its list.
+- Supersedes: PFD's settling of the spec's open question (the three best free on the page, one tap to claim) and the critique's
+  Switch fix. The bars stay, in Your team and the picker.
+- Rejected: options on the page (they read as the whole choice; the person leaving wasn't shown).
+- Rests on: the story https://claude.ai/artifact/3TnbLJWK2aXzCByi9qfeyP version 2.
+

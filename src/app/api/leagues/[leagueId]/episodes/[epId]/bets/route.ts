@@ -33,7 +33,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
     if (s.episodes.some((e) => e.id === epId)) throw new HttpError(409, "This game doesn't play that episode, so no prediction goes on it");
     throw new HttpError(404, "Episode not found");
   }, plainChange(user.id, "predictions", "Added a prediction question"));
-  notifyNewBet(leagueId, label.trim(), user.id);
+  notifyNewBet(leagueId, label.trim(), user.id, (user as { username?: string | null }).username ?? user.name ?? null);
   // `?quiet` (the new app): { ok } rather than the league's whole state, which holds results the poster may not have revealed.
   return stateResponse(req, state);
 });

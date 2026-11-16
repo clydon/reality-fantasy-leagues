@@ -261,7 +261,7 @@ async function person(pool, who, role = null) {
     check(r.status === 200, "alex runs Outlast's waivers from Backstage", JSON.stringify(r.body).slice(0, 200));
     await expect((rs) => rs.some((x) => x.who === "alex"));
     const wa = got("alex");
-    check(wa.length === 1 && /replace|Waivers/.test(wa[0].title) && wa[0].url === `/show/${sid}/waivers`, "alex owes Carter's replacement: told, opening the show's Waivers page", JSON.stringify(wa));
+    check(wa.length === 1 && /replace|Waivers/.test(wa[0].title) && wa[0].url === `/show/${sid}/waivers?page=waivers-run&wv=${L.outlast}`, "alex owes Carter's replacement: told, opening the run itself (step 8), then its page", JSON.stringify(wa));
     let wv = (await as.alex.call("GET", `/api/seasons/${sid}/waivers${q}`)).body;
     const cup = wv.games.find((g) => g.leagueId === L.outlast);
     check(cup?.stage === "processed" && !!cup.run && Array.isArray(wv.seen) && wv.seen.length === 0, "the waivers read: Outlast's run, not watched yet", JSON.stringify({ stage: cup?.stage, seen: wv.seen }));
@@ -621,15 +621,10 @@ async function person(pool, who, role = null) {
       await pg.waitForTimeout(600);
       const rows = await pg.locator("[data-note]").count();
       const fresh = await pg.locator("[data-note][data-unread='1']").count();
-      check(rows === unread && fresh === unread, `the list: ${rows} rows, each marked new`, `${rows} rows, ${fresh} new, ${unread} on the home read`);
-      check(new RegExp(`${unread} new`).test(await sheet.innerText()), "its line says how many are new");
-      const dueN = (await home("alex")).moves.length;
-      const dueRow = (await pg.locator("[data-notes-due]").count()) ? await pg.locator("[data-notes-due]").getAttribute("data-notes-due") : null;
-      check(
-        dueN ? dueRow === String(dueN) && new RegExp(`${dueN} moves? due`).test(await pg.locator("[data-notes-due]").innerText()) : dueRow === null,
-        dueN ? `above the list, what's still his to do: ${dueN} due (nothing new isn't nothing due)` : "nothing due: no due row",
-        `${dueRow} vs ${dueN}`
-      );
+      check(rows === unread && fresh === unread, `the list: ${rows} rows, all under New`, `${rows} rows, ${fresh} new, ${unread} on the home read`);
+      // The design round's step 8: New says it once (a heading, no per-row mark); what's due is the hub's plate, not a row here.
+      check((await pg.locator('[data-notes-band="new"] [data-note]').count()) === unread, "New holds the new ones");
+      check((await pg.locator("[data-notes-due]").count()) === 0, "no due row: the hub's plate says what's due");
       await wide("the bell");
       await shot("bell");
       await pg.waitForFunction(() => document.querySelector("[data-bell]")?.getAttribute("data-unread") === "0", null, { timeout: 15000 }).catch(() => {});

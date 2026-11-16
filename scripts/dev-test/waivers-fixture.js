@@ -2,7 +2,7 @@
 // docs/PLAN-waivers-v2.md), at any point in it -- for checking the waiver routes (check-waivers.js) and
 // the Waivers page (check-waivers-ui.js).
 //
-//   node scripts/dev-test/waivers-fixture.js up [--phase=open|claimed|processed|idle] [--airs-in=HOURS] [--scenarios]
+//   node scripts/dev-test/waivers-fixture.js up [--phase=open|claimed|processed|idle] [--airs-in=HOURS] [--scenarios] [--ui=new]
 //   node scripts/dev-test/waivers-fixture.js down
 //
 // The design canvas's Couch Crew, after Episode 3 (Jelly is out, so Sam can replace her; Episode 3 opens
@@ -29,6 +29,8 @@
 //   zt_wcomm    Kim, the commissioner, seen through episode 3
 //   zt_wplayer  Sam, seen through episode 3 (owed the pickup)
 //   zt_wlate    Josie, seen through episode 2 only: hasn't revealed, so waivers are gated for them
+// --ui=new opens them on the new design (the design round's step 8 shoots /show/<season>/waivers; story-waivers.js), and
+// follows the season for each of them at their mark, as the new design's show pages expect.
 // Andrew and Dee are computer players (they claim when the week processes).
 //   --phase=open       waivers open, no claims yet (default)
 //   --phase=claimed    Sam's canvas claims are in (pickup Rob then Maggie; drop Kilby for Maggie then
@@ -190,7 +192,7 @@ async function up(pool, args = []) {
       [id(), userId, await hashPassword(PASSWORD)]
     );
     // A classic-design fixture: its people open on classic, which since 0155 (everyone on the new design) has to be chosen.
-    await pool.query(`INSERT INTO user_settings (user_id, ui) VALUES ($1, 'classic')`, [userId]);
+    await pool.query(`INSERT INTO user_settings (user_id, ui) VALUES ($1, $2)`, [userId, args.includes("--ui=new") ? "new" : "classic"]);
   }
 
   const made = [];
@@ -238,6 +240,13 @@ async function up(pool, args = []) {
     }
     const p = S.WaiverLogic.periods(state).slice(-1)[0];
     made.push({ slug, leagueId, phase: p ? p.phase : "none" });
+  }
+  if (args.includes("--ui=new")) {
+    const { rows: ss } = await pool.query(`SELECT id FROM show_seasons WHERE season_number=$1 AND name=$2`, [SEASON, SEASON_NAME]);
+    for (const [, username, seen] of SEATS)
+      if (username)
+        await pool.query(`INSERT INTO show_follows (user_id, season_id, seen_through) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`, [userIds[username], ss[0].id, seen]);
+    console.log(`[zt] new design: /show/${ss[0].id}/waivers`);
   }
   made.forEach((m) => console.log(`[zt] ${m.slug} ${m.leagueId}: waiver week ${m.phase}`));
   console.log(`[zt] up: --phase=${phase}, episode 4 ${phase === "idle" ? "aired" : "airs"} ${ep4.date} ${ep4.time} ${TZ}`);

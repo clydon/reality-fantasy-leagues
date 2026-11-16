@@ -37,6 +37,7 @@ const Air = require("../src/lib/game/air-schedule.js");
 const StateLogic = require("../src/lib/game/state-logic.js");
 const { actionItems, resultsDueEpisode, resultsHref } = require("../src/lib/game/action-items.js");
 const { sendPush } = require("../src/lib/server/push-core.js");
+const { remindMessage, shortEp } = require("../src/lib/server/remind-moves.js");
 const { loadSeasons, isSeasonLive } = require("./season-clock.js");
 const { finalResultsAt } = require("../src/lib/game/final-results.js");
 
@@ -92,16 +93,20 @@ async function runReminders(pool, opts = {}) {
   // A deleted or archived game (step 10 part 2b) hears nothing.
   const { rows: leagues } = await pool.query("SELECT id, name, state FROM leagues WHERE deleted_at IS NULL AND COALESCE(state->'settings'->>'archivedAt', '') = ''");
   let sent = 0;
+  // The players' reminders are gathered across leagues first, then sent one per person, show and episode (the design round's
+  // step 8: three linked games are one push, not three), worded by remind-moves.js like a commissioner's own.
+  const queue = new Map();
   for (const league of leagues) {
     try {
-      sent += await remindLeague(pool, league, airing, now, opts);
-      sent += await remindLate(pool, league, airing, now, opts);
+      await remindLeague(pool, league, airing, now, opts, queue);
+      await remindLate(pool, league, airing, now, opts, queue);
       sent += await remindResults(pool, league, airing, now, opts);
     } catch (e) {
       // One league's bad state mustn't cost every other league its reminders.
       console.error(`[reminders] league ${league.id}:`, e.message);
     }
   }
+  sent += await sendQueued(pool, queue, now, opts);
   // A season that's ended since (its finale's results final in the morning) still gets its noon push: airing, or completed with
   // its finale in the last few days. Each is cheap unless an episode's final time came in the last day.
   for (const season of await loadSeasons(pool, "ss.status = 'airing' OR (ss.status = 'completed' AND ss.finale_date >= current_date - 3)")) {
@@ -176,7 +181,7 @@ async function finalResults(pool, season, leagues, now, opts) {
 }
 
 /** The after-airtime push for seats playing at their own pace (see the top of the file). */
-async function remindLate(pool, league, seasons, now, opts) {
+async function remindLate(pool, league, seasons, now, opts, queue = null) {
   const G = StateLogic.GhostLogic;
   const settings = league.state.settings || {};
   const season = seasons.get(`${settings.showId}|${settings.wikiSeason}`);
@@ -213,22 +218,16 @@ async function remindLate(pool, league, seasons, now, opts) {
       );
       if (!rowCount) continue;
     }
-    const message = {
-      title: `${league.name}: episode ${w.episode} has aired`,
-      body: `${due.map((it) => it.text).join(" · ")} before you watch it`,
-      url: `/?league=${encodeURIComponent(league.id)}`,
-      next: `/show/${season.id}/tonight`,
-      tag: `reminder-late-${league.id}`,
-      seasonId: season.id,
-    };
-    console.log(`[reminders] ${opts.dry ? "(dry) " : ""}${m.user_id} -- ${message.title}: ${message.body}`);
-    if (!opts.dry) await sendPush(pool, [m.user_id], "reminder", message, { seasonId: season.id });
+    const airAt = Air.episodeAirTime(season.schedule, w.episode, season.wikiAirDates);
+    const moves = due.map((it) => ({ leagueId: league.id, leagueName: league.name, text: it.text, href: it.href || "/", kind: it.kind, episode: w.episode, ownPace: true }));
+    if (queue) enqueue(queue, { userId: m.user_id, season, episode: w.episode, airAt, window: "late", moves });
+    else await sendOne(pool, { userId: m.user_id, season, episode: w.episode, airAt, window: "late", moves }, now, opts);
     sent++;
   }
   return sent;
 }
 
-async function remindLeague(pool, league, seasons, now, opts) {
+async function remindLeague(pool, league, seasons, now, opts, queue = null) {
   const state = league.state;
   const settings = state.settings || {};
   const season = seasons.get(`${settings.showId}|${settings.wikiSeason}`);
@@ -259,19 +258,56 @@ async function remindLeague(pool, league, seasons, now, opts) {
       if (rowCount) fresh.push(it);
     }
     if (!fresh.length) continue;
-    // One push per person per league, listing everything still open.
-    // Classic's page for the first thing still open, or (the new design, step 15 part 2) the show's Tonight, where its moves are.
-    const message = {
-      title: `${league.name}: episode ${ep.number} airs ${whenText(airAt, now)}`,
-      body: fresh.map((it) => it.text).join(" · "),
-      url: `${fresh[0].href.split("#")[0] || "/"}?league=${encodeURIComponent(league.id)}`,
-      next: `/show/${season.id}/tonight`,
-      tag: `reminder-${league.id}`,
-      seasonId: season.id,
-    };
-    console.log(`[reminders] ${opts.dry ? "(dry) " : ""}${m.user_id} -- ${message.title}: ${message.body}`);
-    if (!opts.dry) await sendPush(pool, [m.user_id], "reminder", message, { seasonId: season.id });
+    // Everything still open, gathered with their other games on the show (sendQueued sends one push for them all). Someone at
+    // their own pace locks as they watch, so their reminder says when it airs rather than when it locks.
+    const ownPace = !!StateLogic.GhostLogic.playsOwnPace(state, m.player_id);
+    const moves = fresh.map((it) => ({ leagueId: league.id, leagueName: league.name, text: it.text, href: it.href || "/", kind: it.kind, episode: ep.number, ownPace }));
+    if (queue) enqueue(queue, { userId: m.user_id, season, episode: ep.number, airAt, window: win.id, moves });
+    else await sendOne(pool, { userId: m.user_id, season, episode: ep.number, airAt, window: win.id, moves }, now, opts);
     sent++;
+  }
+  return sent;
+}
+
+/** Adds a person's moves on one show's episode to the run's queue (one push each, sendQueued). */
+function enqueue(queue, r) {
+  const k = `${r.userId}|${r.season.id}|${r.episode}|${r.window}`;
+  const had = queue.get(k);
+  if (had) had.moves.push(...r.moves);
+  else queue.set(k, { ...r, moves: [...r.moves] });
+}
+
+const showNames = new Map();
+/** "Survivor 51" and its short word for an episode ("Ep"; a sport's "Wk", "G"...). */
+async function seasonWords(pool, season) {
+  if (!showNames.has(season.show_id)) {
+    const row = (await pool.query("SELECT name, episode_term FROM shows WHERE id = $1", [season.show_id])).rows[0];
+    showNames.set(season.show_id, { name: row?.name ?? "Your show", ep: shortEp(row?.episode_term) });
+  }
+  const w = showNames.get(season.show_id);
+  return { label: `${String(w.name).replace(/\s*\([^)]*\)\s*$/, "").replace(/^The /, "")} ${season.season_number}`, ep: w.ep };
+}
+
+/** One person's reminder for one show's episode: remind-moves.js's words, the bell's key saying which episode it's about. */
+async function sendOne(pool, r, now, opts) {
+  const message = remindMessage(r.moves, { id: r.season.id, ...(await seasonWords(pool, r.season)) }, { number: r.episode, airAt: r.airAt ? r.airAt.toISOString() : null }, null, now);
+  if (!message) return 0;
+  // The bell drops it once that episode has locked for them (notify-prefs.ts readNotes): "before" ones once it airs or they've
+  // watched it, an "aired" one once they've watched it.
+  const full = { ...message, key: `remind:${r.season.id}:${r.episode}:${r.window === "late" ? "aired" : "before"}:${r.window}`, seasonId: r.season.id };
+  console.log(`[reminders] ${opts.dry ? "(dry) " : ""}${r.userId} -- ${full.title}: ${full.body}`);
+  if (!opts.dry) await sendPush(pool, [r.userId], "reminder", full, { seasonId: r.season.id });
+  return 1;
+}
+
+async function sendQueued(pool, queue, now, opts) {
+  let sent = 0;
+  for (const r of queue.values()) {
+    try {
+      sent += await sendOne(pool, r, now, opts);
+    } catch (e) {
+      console.error(`[reminders] ${r.userId} on season ${r.season.id}:`, e.message);
+    }
   }
   return sent;
 }

@@ -40,26 +40,62 @@ function splitDue(moves, recent, actor) {
 }
 
 /**
- * One person's push: what's open, in the games' names when more than one, and when the episode airs if the schedule
- * says. `moves` are their open items (each with leagueId, leagueName, text, href, episode); `season` { id, label } for
- * the title and the new design's link; `next` { number, airAt } the next episode to air, or null; `byName` whoever
- * sent it. Opens classic's page for the first move (its league), or the show's Tonight, where the moves are.
+ * A season's short word for one of its episodes, from shows.episode_term ("Week" → "Wk"): show-words.ts epShort's map, kept here
+ * because the hourly job is plain CommonJS. A show's is "Ep".
+ */
+const SHORT = { Episode: "Ep", Week: "Wk", Game: "G", Round: "Rd", Matchday: "MD", Gameweek: "GW", Race: "Race", Day: "Day", Night: "Night" };
+function shortEp(term) {
+  const t = String(term || "").trim();
+  const word = t ? t[0].toUpperCase() + t.slice(1) : "Episode";
+  return SHORT[word] || word;
+}
+
+/** The Your moves sheet's tab for a move (src/new/show/moves.ts MovesTab), so a push opens on it. */
+const TAB = { lineup: "lineup", pick: "pool", prediction: "predict" };
+
+/** "Set your episode 6 lineup (1 empty slot)" → "Set your lineup (1 empty slot)": the title already says the episode. */
+const plain = (text) => text.replace(/ episode \d+/i, "");
+
+/**
+ * One person's push about their open moves on one show, for the hourly job and a commissioner's Remind everyone alike (the
+ * design round's step 8, docs/design-round/step8-notify-spec.md: one grammar for every push). The title is the news, number
+ * first, inside what a phone shows: when the episode's moves lock ("Ep 6 locks in about 3 hours"), or, when every one of them
+ * locks only as you watch (at your own pace), when it airs; with no time to give, that a move is still open. The body says
+ * where (the season), who sent it when someone did, then each move, its game named when there's more than one. A tap opens the
+ * show with Your moves open on the first move's tab (src/new/show/dock.tsx reads `?moves=`).
+ *
+ * `moves` are their open items (each with leagueId, leagueName, text, href, kind, episode, and ownPace when it locks only as they
+ * watch); `season` { id, label, ep? } (ep: the season's short word, shortEp; "Ep" when not given); `next` { number, airAt } the episode they're for, or null; `byName` whoever sent it, or null for
+ * the hourly job's own.
  */
 function remindMessage(moves, season, next, byName, now = new Date()) {
   if (!moves.length) return null;
   const leagues = new Set(moves.map((m) => m.leagueId));
   const airAt = next && next.airAt ? new Date(next.airAt) : null;
   const ahead = airAt && airAt.getTime() > now.getTime();
-  const title = ahead ? `${season.label}: episode ${next.number} airs ${whenText(airAt, now)}` : `${season.label}: you still have a move to make`;
-  const lines = moves.map((m) => (leagues.size > 1 ? `${m.leagueName}: ${m.text}` : m.text));
+  const n = (next && next.number) || moves[0].episode || null;
+  const paced = moves.every((m) => m.ownPace);
+  const ep = season.ep || "Ep";
+  const lower = (t) => t.replace(/^./, (c) => c.toLowerCase());
   const first = moves[0];
+  // Aired, and it locks only as they watch: theirs to set before they do ("Ep 5 aired: set your lineup first").
+  const aired = !!airAt && !ahead && paced && !!n;
+  const title = ahead
+    ? `${ep} ${n} ${paced ? "airs" : "locks"} ${whenText(airAt, now)}`
+    : aired
+      ? `${ep} ${n} aired: ${moves.length === 1 ? lower(plain(first.text)).replace(/ \(.*\)$/, "") : "your moves"} first`
+      : n
+        ? `${ep} ${n}: ${moves.length === 1 ? "a move is" : "moves are"} still open`
+        : "A move is still open";
+  const lines = moves.map((m) => (leagues.size > 1 ? `${m.leagueName}: ${lower(plain(m.text))}` : plain(m.text)));
+  const tab = TAB[first.kind];
   return {
     title,
-    body: `${byName} sent a reminder · ${lines.join(" · ")}`,
+    body: [season.label, byName ? `${byName} sent a reminder` : null, ...lines, paced && (ahead || aired) ? "It locks when you watch" : null].filter(Boolean).join(" · "),
     url: `${(first.href || "/").split("#")[0] || "/"}?league=${encodeURIComponent(first.leagueId)}`,
-    next: `/show/${season.id}/tonight`,
-    tag: `reminder-${first.leagueId}`,
+    next: tab ? `/show/${season.id}/tonight?moves=${tab}&game=${first.leagueId}` : `/show/${season.id}/tonight`,
+    tag: `reminder-${season.id}`,
   };
 }
 
-module.exports = { COOLDOWN, KIND, whenText, splitDue, remindMessage };
+module.exports = { COOLDOWN, KIND, TAB, shortEp, whenText, splitDue, remindMessage };

@@ -26,6 +26,7 @@
 // Run:   node scripts/dev-test/census-app.js [--up] [--atlas] [--bench] [--only=<regex on the id>] [--width=390 --height=844] [--out=<dir>] [--down]
 //   --up     brings the three fixtures up first, layered in one process (their own CLIs each restart the base couch), dressed in
 //            show art (fixture-art.js; the Drop Show stays bare, the no-art case) unless --no-art;
+//   --notes-words=before|after   the bell's notices in today's push words or step 8's (notes-fixture.js; default after);
 //   --down   takes them down after (new-fixture.js's down removes the hub's and the guide's rows too).
 // The fixture rows are all zt-nd-/zt-gd- keyed; nothing here touches a real account or league. The reveal situation advances
 // zt_nd_sam's mark, so it runs after sam's other situations and a rerun wants --up again. Never run it beside another check on
@@ -71,6 +72,8 @@ async function setup() {
       await require("./crew-fixture").up(pool);
       // People on no couch, for the solo hub (the design round's step 7).
       await require("./solo-fixture").up(pool);
+      // A week of the bell's notices in today's push words (step 8), the bell last read five days ago.
+      await require("./notes-fixture").up(pool, { read: true, words: opt("notes-words", "after") });
     }
     const q = async (sql, p) => (await pool.query(sql, p)).rows;
     for (const r of await q(`SELECT ss.id, sh.slug, ss.season_number FROM show_seasons ss JOIN shows sh ON sh.id = ss.show_id WHERE sh.slug LIKE 'zt-nd-%' OR sh.slug LIKE 'zt-gd-%' OR sh.slug LIKE 'zt-cr-%'`)) {
@@ -114,7 +117,12 @@ function situations() {
     { id: "hub-riley", surface: "hub", who: "riley", go: "/home", ready: "[data-hub]", flavor: "competition", lens: "caught up, all set or a move due, a Game admin", full: false },
     { id: "hub-add-show", surface: "hub", who: "alex", go: "/home", ready: "[data-hub]", act: async (p) => { await tap(p, "[data-add-show-poster]"); await sheetOpen(p); }, flavor: "mixed", lens: "following: Add a show", full: false },
     { id: "hub-tour", surface: "onboarding", who: "sam", tour: true, go: "/home?tour=1", ready: "[data-hub]", flavor: "competition", lens: "first-time tour, its welcome card", full: false },
+    { id: "hub-bell-dot", surface: "notifications", who: "alex", go: "/home", ready: "[data-hub]", flavor: "competition", lens: "notifications: the bell's dot on the hub, a week unread", full: false },
     { id: "hub-bell", surface: "notifications", who: "alex", go: "/home", ready: "[data-hub]", act: async (p) => { await tap(p, "[data-bell]"); await p.waitForTimeout(900); }, flavor: "mixed", lens: "notifications: the bell", full: false },
+    { id: "hub-bell-sam", surface: "notifications", who: "sam", go: "/home", ready: "[data-hub]", act: async (p) => { await tap(p, "[data-bell]"); await p.waitForTimeout(900); }, flavor: "competition", lens: "notifications: the bell, two episodes behind (the guard's words)", full: false },
+    { id: "hub-bell-more", surface: "notifications", who: "alex", go: "/home", ready: "[data-hub]", act: async (p) => { await tap(p, "[data-bell]"); await p.waitForTimeout(900); await p.locator("[data-note]").last().scrollIntoViewIfNeeded().catch(() => {}); await p.waitForTimeout(600); }, flavor: "competition", lens: "notifications: the bell, scrolled to its oldest", full: false },
+    { id: "settings-notify", surface: "notifications", who: "alex", go: "/settings", ready: "body", wait: 2500, act: async (p) => { await tap(p, ':is(button,a):has-text("Which notifications")'); await p.waitForTimeout(1200); }, flavor: "mixed", lens: "notifications: Settings' What we notify you about", full: false },
+    { id: "show-notify", surface: "notifications", who: "alex", go: () => `/show/${ids.s51}/tonight`, ready: '[data-tab="tonight"]', act: async (p) => { await tap(p, 'button[aria-label^="Show menu"]'); await p.waitForTimeout(700); await tap(p, ':is(button,a):has-text("Notifications")'); await sheetOpen(p); }, flavor: "competition", lens: "notifications: a show's own, from its ⋯ menu", full: false },
     { id: "hub-profile-menu", surface: "settings", who: "alex", go: "/home", ready: "[data-hub]", act: async (p) => { await tap(p, '[data-tour="you"]'); await p.waitForTimeout(900); }, flavor: "mixed", lens: "your picture's menu", full: false },
     { id: "start-1", surface: "onboarding", who: null, go: "/start/1", ready: "body", wait: 2500, flavor: "mixed", lens: "first run, step 1: your shows", full: false },
     { id: "pace-sheet-alex", surface: "tonight", who: "alex", go: () => `/show/${ids.s51}/tonight`, ready: '[data-tab="tonight"]', act: async (p) => { await tap(p, '[aria-label^="Where everyone is"]'); await p.waitForTimeout(1000); }, flavor: "competition", lens: "where everyone is: the couch's pace", full: false },
@@ -150,6 +158,11 @@ function situations() {
     { id: "chat-sam", surface: "chat", who: "sam", go: show(S51, "chat"), ready: "[data-chat]", flavor: "competition", lens: "two behind: the fold", full: false },
     { id: "watch-alex", surface: "watch", who: "alex", go: show(S51, "tonight") + "?page=watch", ready: "[data-watch-along], [data-tab='tonight']", flavor: "competition", lens: "watch along", full: false },
     { id: "waivers-alex", surface: "waivers", who: "alex", go: `/show/${S51}/waivers`, ready: "body", wait: 2500, flavor: "competition", lens: "waivers", full: true },
+    { id: "waivers-sam", surface: "waivers", who: "sam", go: `/show/${S51}/waivers`, ready: "body", wait: 2500, flavor: "competition", lens: "waivers, two episodes behind (gated)", full: true },
+    { id: "waivers-riley", surface: "waivers", who: "riley", go: `/show/${S51}/waivers`, ready: "body", wait: 2500, flavor: "competition", lens: "waivers, nothing to replace (swaps)", full: true },
+    { id: "waivers-pick", surface: "waivers", who: "alex", go: `/show/${S51}/waivers`, ready: "body", wait: 2500, act: async (p) => { const plate = p.locator('[data-wv-plate] [data-swap]'); if (await plate.count()) await plate.first().click(); else await p.getByRole("button", { name: "Swap", exact: true }).last().click(); await sheetOpen(p); }, flavor: "competition", lens: "waivers: the claim picker", full: false },
+    { id: "waivers-how", surface: "waivers", who: "alex", go: `/show/${S51}/waivers`, ready: "body", wait: 2500, act: async (p) => { await tap(p, ':is(button,a):has-text("How waivers work")'); await sheetOpen(p); }, flavor: "competition", lens: "waivers: How waivers work here", full: false },
+    { id: "waivers-lineup", surface: "waivers", who: "alex", go: `/show/${S51}/waivers`, ready: "body", wait: 2500, act: async (p) => { await tap(p, ':is(button,a):has-text("Weekly Lineup")'); await p.waitForTimeout(900); }, flavor: "competition", lens: "waivers: the other game (shared draft)", full: true },
     { id: "scoring-alex", surface: "scoring", who: "alex", go: `/show/${S51}/scoring`, ready: "body", wait: 2500, flavor: "competition", lens: "how it scores", full: true },
     { id: "backstage-alex", surface: "backstage", who: "alex", go: `/show/${S51}/backstage`, ready: "body", wait: 2500, flavor: "competition", lens: "a commissioner's Backstage", full: true },
     { id: "start-game-alex", surface: "wizard", who: "riley", go: show(TR, "games"), ready: '[data-tab="games"]', flavor: "competition", lens: "a watched show with no game: start one", full: true },
