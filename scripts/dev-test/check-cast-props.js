@@ -288,8 +288,8 @@ async function part2(pool, ids) {
 async function part3(pool, ids) {
   // The crew's details as the desk would have them, Status added to the rulebook (as part 1 does through the editor).
   const status = { "Kip Hale": "Veteran", "Ana Monroe": "Veteran", "Dee Kwon": "Rookie", "Finn Bligh": "Veteran", "Gus Penn": "Rookie", "Rae Stone": "Veteran" };
-  // Gender, every show's (the user, 2026-11-16): Rae's inferred, the others billed.
-  const gender = { "Kip Hale": "Man", "Ana Monroe": "Woman", "Dee Kwon": "Woman", "Finn Bligh": "Man", "Gus Penn": "Man", "Rae Stone": "Woman" };
+  // Gender, every show's (the user, 2026-11-16): Rae's inferred, the others billed; Rae nonbinary, who counts as either.
+  const gender = { "Kip Hale": "Man", "Ana Monroe": "Woman", "Dee Kwon": "Woman", "Finn Bligh": "Man", "Gus Penn": "Man", "Rae Stone": "Nonbinary" };
   await pool.query(
     `UPDATE rulebooks SET blocks = jsonb_set(blocks, '{cast,properties}', (blocks->'cast'->'properties') || '[{"key":"status","name":"Status","values":["Veteran","Rookie"],"changes":"never"}]'::jsonb)
       WHERE season_id = $1 AND owner_kind = 'season' AND NOT (blocks->'cast'->'properties' @> '[{"key":"status"}]')`,
@@ -330,9 +330,15 @@ async function part3(pool, ids) {
     const lines = await page.locator("[data-face-wall] [data-cast-line]").allInnerTexts();
     check(lines.includes("Chief stew") && lines.includes("Captain"), "3: each job under a name", lines.join(" | "));
     const chips = await page.locator("[data-property-chips] [data-chip]").allInnerTexts();
-    check(chips.map((c) => c.replace(/\s+/g, " ").trim()).join() === "All,Veteran 4,Rookie 2,Man 3,Woman 3", "3: one All, then the Status and Gender chips with how many", chips.join(" | "));
+    check(chips.map((c) => c.replace(/\s+/g, " ").trim()).join() === "All,Veteran 4,Rookie 2,Man 4,Woman 3,Nonbinary 1", "3: one All, then the Status and Gender chips with how many (Nonbinary counted under Man and Woman too)", chips.join(" | "));
     check((await page.locator('[data-chips-of="department"], [data-chips-of="job"]').count()) === 0, "3: no chips for the grouping or a free-text property");
-    check((await page.locator('[data-chips-of="gender"] [data-chip]').count()) === 2, "3: Gender's chips (every show's)");
+    check((await page.locator('[data-chips-of="gender"] [data-chip]').count()) === 3, "3: Gender's chips (every show's)");
+    await page.locator('[data-chips-of="gender"] [data-chip="Woman"]').click();
+    await page.waitForTimeout(400);
+    const women = await page.locator("[data-face-wall] [data-cast]").evaluateAll((els) => els.map((e) => e.getAttribute("data-cast")));
+    check(women.sort().join() === "Ana,Dee,Rae", "3: Woman includes Rae, who's nonbinary (the user, 2026-11-16)", women.join());
+    await shot("3-woman");
+    await page.locator('[data-property-chips] [data-chip=""]').click();
     await shot("3-wall");
     await page.locator('[data-chips-of="status"] [data-chip="Rookie"]').click();
     await page.waitForTimeout(400);

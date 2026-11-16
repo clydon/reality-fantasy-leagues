@@ -160,6 +160,8 @@ export interface RulebookCastProperty {
   main?: true;
   /** A property it sits inside (a job inside a department): that one's key. */
   of?: string;
+  /** A value that also counts as others, for rules and filters (Gender's Nonbinary as a man or a woman). */
+  flex?: Record<string, string[]>;
 }
 
 /**
@@ -236,3 +238,5 @@ export const NOT_STATED: string[];
 export const GENDER_PROPERTY: RulebookCastProperty;
 /** A season's properties: its rulebook's, then Gender unless the rulebook has its own. */
 export function withGender(props: RulebookCastProperty[]): RulebookCastProperty[];
+/** Whether someone whose value is `has` counts as `wanted`: the same value, or one that flexes to it. */
+export function propertyMatches(prop: { flex?: Record<string, string[]> | null } | null | undefined, has: string | null | undefined, wanted: string): boolean;

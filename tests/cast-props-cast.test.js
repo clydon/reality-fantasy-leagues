@@ -166,3 +166,14 @@ test("Keep ours keeps the values we have and still fills in what we don't", () =
   assert.deepEqual(D.castPlan(ch).reprops[0].to, { gender: "Woman", genderFrom: "inferred", department: "Interior", job: "2nd Stew" });
   assert.deepEqual(D.castPlan(ch, { [ch[0].key]: "theirs" }).reprops[0].to.job, "Second Stew");
 });
+
+test("Nonbinary flexes by default (the user, 2026-11-16): it counts as a man or a woman", () => {
+  const S = require("../src/lib/game/formats/rulebook-schema.js");
+  const g = S.withGender([]).find((p) => p.key === "gender");
+  assert.ok(S.propertyMatches(g, "Nonbinary", "Man") && S.propertyMatches(g, "Nonbinary", "Woman") && S.propertyMatches(g, "Nonbinary", "Nonbinary"));
+  assert.ok(!S.propertyMatches(g, "Man", "Woman") && !S.propertyMatches(g, "Woman", "Nonbinary") && !S.propertyMatches(g, null, "Man"));
+  // A rulebook's flex must name its own values.
+  const b = JSON.parse(JSON.stringify(LIBRARY["below-deck"].blocks));
+  b.cast.properties = [...properties, { key: "status", name: "Status", values: ["Veteran", "Rookie"], changes: "never", flex: { Rookie: ["Captain"] } }];
+  assert.match(S.blocksProblems(b).map((p) => p.message).join(), /counts as others should name only its listed values/);
+});

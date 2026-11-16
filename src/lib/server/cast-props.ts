@@ -25,13 +25,15 @@ export interface CastPropertyView {
   /** Shown under a person's name. */
   main: boolean;
   of: string | null;
+  /** A value that also counts as others (Nonbinary as a man or a woman). */
+  flex: Record<string, string[]> | null;
 }
 
 export function propertyViews(props: RulebookCastProperty[]): CastPropertyView[] {
   // The one shown under a name is the rulebook's own (Gender only when it marks it main): a crew's job, not their gender.
   const own = props.filter((p) => p.key !== "gender" || p.main);
   const main = own.length ? mainProperty({ cast: { properties: own } } as never) : null;
-  return props.map((p) => ({ key: p.key, name: p.name, plural: propertyPlural(p), values: Array.isArray(p.values) ? [...p.values] : null, main: p === main, of: p.of ?? null }));
+  return props.map((p) => ({ key: p.key, name: p.name, plural: propertyPlural(p), values: Array.isArray(p.values) ? [...p.values] : null, main: p === main, of: p.of ?? null, flex: p.flex ?? null }));
 }
 
 /**

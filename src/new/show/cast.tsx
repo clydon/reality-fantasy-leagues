@@ -21,6 +21,7 @@ import { ScoringLink } from "./scoring";
 import { DisputeSheet } from "./something-wrong";
 import { statValue } from "./stats";
 import { bioLine, mainValue, propsLine } from "@/lib/cast-props-words";
+import { propertyMatches } from "@/lib/game/formats/rulebook-schema.js";
 
 // Players / Cast (the design round's step 5: docs/design-round/step5-cast-spec.md, -first-view.md, -shape.md). The show's own
 // facts, never one game's points unless a game is chosen (Phase 0 decision 6):
@@ -81,7 +82,12 @@ function ShowCast({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const drill = useGameDrill(show);
   const move = (fn: () => void) => startTransition(fn);
   const later = (fn: () => void) => setTimeout(fn, 230);
-  const filtered = (people: CastStat[]) => (only ? people.filter((c) => c.props?.[only.key] === only.value) : people);
+  // A chip shows whoever counts as its value: Nonbinary under Man and Woman too (the user, 2026-11-16).
+  const filtered = (people: CastStat[]) => {
+    if (!only) return people;
+    const p = (full.data?.properties ?? []).find((x) => x.key === only.key);
+    return people.filter((c) => propertyMatches(p, c.props?.[only.key], only.value));
+  };
 
   if (full.error) return <EmptyState icon={Users} title="Couldn't load the cast" line={(full.error as Error).message} />;
   if (!full.data) return <div className="mx-4 mt-5 h-72 animate-pulse rounded-[4px] bg-card" aria-busy />;
@@ -332,7 +338,7 @@ function PropertyChips({ d, chosen, onChoose }: { d: SeasonStats; chosen: { key:
   const by = groupingProperty(d);
   const rows = (d.properties ?? [])
     .filter((p) => p.values && p.key !== by?.key)
-    .map((p) => ({ p, values: p.values!.map((v) => [v, d.cast.filter((c) => c.props?.[p.key] === v).length] as const).filter(([, n]) => n > 0) }))
+    .map((p) => ({ p, values: p.values!.map((v) => [v, d.cast.filter((c) => propertyMatches(p, c.props?.[p.key], v)).length] as const).filter(([, n]) => n > 0) }))
     .filter((r) => r.values.length > 1);
   if (!rows.length) return null;
   const chip = (on: boolean) =>

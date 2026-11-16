@@ -93,7 +93,10 @@ inference from name and photo, and `props.genderFrom` says which (`billed`, `inf
 desk shows an inferred one as "gender guessed" and fixes it; an answer filling in a gender applies by default, and one that would
 change a gender we have keeps ours by default. The app shows it as a fact: in the sheet's details line and as Man / Woman chips
 on the wall; it's never the wall's grouping or the line under a name. Rules (chunk 4) can read it like any property: "two men, two
-women".
+women". **Nonbinary flexes by default** (the user, 2026-11-16: "it could be male or female. That way any argument becomes internal
+and faith based rather than semantics"): a property's `flex` (`{ Nonbinary: ["Man", "Woman"] }` on Gender) says a value also counts
+as others, read by `propertyMatches`. Filters show them under Man and Woman; in chunk 4 a Nonbinary person fills either a man's or a
+woman's need, and in a spread counts on whichever side lets the team fit (`draftFits` tries both); a game may turn it off.
 
 ## Rules a game can make
 
