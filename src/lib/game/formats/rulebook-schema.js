@@ -5,7 +5,11 @@
 // compiler turns those into the engine's FormatData.
 //
 //   { schema: 1, kind, start?, show?, tagline?, premise?, parts?, derivedFrom?,
-//     cast:     { unit, singular, plural, usualSize?, groups: null | { type, singular, change } },
+//     cast:     { unit, singular, plural, usualSize?, groups: null | { type, singular, change },
+//                 properties?: [{ key, name, plural?, values: [..] | null, changes, main?, of? }] },
+//               (properties: what else the show itself sorts its people by, in its own words: Below Deck's department
+//               and job, The Challenge's veterans and rookies. docs/PLAN-cast-properties.md; the season's cast records
+//               each person's values, season_cast.props)
 //     season:   { phases: [{ id, name, starts: { type, n? }, changes: [], summary? }], finale?: { decidedBy, finalists?, summary? } },
 //     segments: [{ id, name, summary?, decidedBy, voters?, pickers?, takesPart?, decides?, onTheLine?, often, phase?, momentsOff?,
 //                  groupWin?, places?, skippedBy? }],
@@ -82,6 +86,11 @@ const OPT = {
     ['never', 'Never', ''],
     ['atPhases', 'At set points', 'A swap, the merge. You set when, under The season.'],
     ['often', 'All the time', 'Every recoupling or draft.'],
+  ],
+  // Whether a cast property's value can change during the season (a firing, a promotion, a swap).
+  propertyChanges: [
+    ['never', 'Never', ''],
+    ['sometimes', 'Sometimes', 'A firing, a promotion, a swap. Research asks about it each episode.'],
   ],
   startType: [
     ['episode', 'At an episode', ''],
@@ -331,6 +340,9 @@ const QUESTIONS = {
   cast: {
     unit: "Who's in the cast?", singular: 'One of them is called', plural: 'More than one', usualSize: 'How many, usually?',
     groups: 'Are they split into groups?', groupSingular: 'One group is called', groupChange: 'Do the groups change?',
+    properties: 'What else does the show sort them by?', propertyName: "What's it called?", propertyValues: 'What can it be?',
+    propertyFree: "Anything, in the show's words (a job title)", propertyChanges: 'Does it change during the season?',
+    propertyMain: 'Shown under their name', propertyOf: 'It sits inside',
   },
   phase: { name: "What's it called?", starts: 'When does it start?', episode: 'Which episode?', remaining: 'How many are left?', changes: 'What changes?', summary: 'In a sentence' },
   finale: { decidedBy: 'How is it decided?', finalists: 'How many reach it?', summary: 'In a sentence' },
@@ -419,6 +431,108 @@ function optionsFor(key, blocks) {
   return OPT[key] || [];
 }
 
+// ---------- cast properties ----------
+
+// What a property may never be (docs/PLAN-cast-properties.md, decided item 1): only what the show itself bills or splits by,
+// never anything about who someone is beneath that. Matched on a property's key and name, as words.
+const NOT_A_PROPERTY = [
+  [/\b(ethnic\w*|race|racial|nationality|heritage|ancestry)\b/i, 'ethnicity'],
+  [/\b(religio\w*|faith|church)\b/i, 'religion'],
+  [/\b(sexual\w*|orientation|lgbt\w*|queer)\b/i, 'sexuality'],
+  [/\b(health|medical|disabilit\w*|illness|condition)\b/i, 'health'],
+  [/\b(age|ages|age ?band|age ?group|generation)\b/i, 'age'],
+];
+// The keys a property can't take: the groups (tribes have their own question) and a sport's position (from its roster).
+const RESERVED_PROPERTY_KEYS = ['group', 'groups', 'tribe', 'position'];
+// A value that only says nobody knows: left empty instead.
+const NOT_STATED = ['not stated', 'unknown', 'n/a', 'none'];
+
+/** What a property's key or name says it is that a property may never be ("ethnicity"), or null. */
+function forbiddenPropertyKind(prop) {
+  if (!isObj(prop)) return null;
+  const words = [prop.key, prop.name, prop.plural]
+    .filter((x) => typeof x === 'string')
+    .map((x) => x.replace(/([a-z])([A-Z])/g, '$1 $2'))
+    .join(' ');
+  const hit = NOT_A_PROPERTY.find(([re]) => re.test(words));
+  return hit ? hit[1] : null;
+}
+
+/** A rulebook's cast properties ([] for none), as written. */
+function castProperties(blocks) {
+  return list(blocks && blocks.cast && blocks.cast.properties).filter((p) => isObj(p) && isText(p.key));
+}
+
+/** The property shown under a person's name: the one marked main, else the first; null with none. */
+function mainProperty(blocks) {
+  const props = castProperties(blocks);
+  return props.find((p) => p.main === true) || props[0] || null;
+}
+
+/** A property's plural ("Departments"): its own, else made from its name. */
+function propertyPlural(prop) {
+  return (isObj(prop) && isText(prop.plural) && prop.plural.trim()) || cap(pluralOf(isObj(prop) && isText(prop.name) ? prop.name.trim() : ''));
+}
+
+/** Why a cast block's properties aren't usable, each through `add(at, message)` as blocksProblems says them. */
+function propertiesProblems(cast, blocks, add) {
+  if (cast.properties === undefined) return;
+  if (!Array.isArray(cast.properties)) return add('cast.properties', "Who's playing: what else they're sorted by should be a list");
+  const oneOf = (at, name, key, value, what) => {
+    if (!valuesOf(key).includes(value)) add(at, `${name}: ${what} isn't one of the choices`);
+  };
+  const byKey = new Map();
+  for (const prop of cast.properties) if (isObj(prop) && isText(prop.key) && !byKey.has(prop.key)) byKey.set(prop.key, prop);
+  const roles = new Set(
+    list(blocks.twists)
+      .filter((t) => isObj(t) && t.type === 'secretRole')
+      .flatMap((t) => list(t.roles))
+      .map((r) => String(r).trim().toLowerCase())
+  );
+  const groupWord = isObj(cast.groups) && isText(cast.groups.singular) ? cast.groups.singular.trim().toLowerCase() : null;
+  const seen = new Set();
+  let mains = 0;
+  for (const [i, prop] of cast.properties.entries()) {
+    if (!isObj(prop)) { add(`cast.properties[${i}]`, "Who's playing: a property is empty"); continue; }
+    const at = `cast.properties[${isText(prop.key) ? prop.key : i}]`;
+    const name = isText(prop.name) ? prop.name.trim() : 'A property';
+    if (!isText(prop.key) || !ID.test(prop.key)) add(`${at}.key`, `${name}: its key should be camelCase letters and digits`);
+    else if (seen.has(prop.key)) add(`${at}.key`, `${name}: another property already has the key "${prop.key}"`);
+    else if (RESERVED_PROPERTY_KEYS.includes(prop.key)) {
+      add(`${at}.key`, `${name}: "${prop.key}" is ${prop.key === 'position' ? "a sport's position, which comes from its roster" : 'the groups, which have their own question'}`);
+    }
+    seen.add(prop.key);
+    if (!isText(prop.name)) add(`${at}.name`, 'A property has no name');
+    if (prop.plural !== undefined && !isText(prop.plural)) add(`${at}.plural`, `${name}: what more than one are called should be text`);
+    const forbidden = forbiddenPropertyKind(prop);
+    if (forbidden) add(at, `${name}: a property is only what the show itself bills or splits by, never ${forbidden}`);
+    if (groupWord && isText(prop.name) && prop.name.trim().toLowerCase() === groupWord) add(at, `${name}: that's the groups, which have their own question`);
+    if (prop.values !== null) {
+      if (!Array.isArray(prop.values)) add(`${at}.values`, `${name}: what it can be should be a list, or null for anything`);
+      else {
+        if (prop.values.length < 2) add(`${at}.values`, `${name}: what it can be needs at least two values, or null for anything`);
+        if (!prop.values.every(isText)) add(`${at}.values`, `${name}: each value should be text`);
+        const lower = prop.values.filter(isText).map((v) => v.trim().toLowerCase());
+        if (new Set(lower).size !== lower.length) add(`${at}.values`, `${name}: a value is listed twice`);
+        if (lower.some((v) => roles.has(v))) add(`${at}.values`, `${name}: a secret role is a twist, never a property`);
+        if (lower.some((v) => NOT_STATED.includes(v))) add(`${at}.values`, `${name}: "not stated" isn't a value; it's left empty`);
+      }
+    }
+    oneOf(`${at}.changes`, name, 'propertyChanges', prop.changes, 'whether it changes');
+    if (prop.main !== undefined) {
+      if (prop.main !== true) add(`${at}.main`, `${name}: shown under their name should be true, or left out`);
+      else mains++;
+    }
+    if (prop.of !== undefined) {
+      const parent = byKey.get(prop.of);
+      if (!parent || parent === prop) add(`${at}.of`, `${name}: what it sits inside isn't another of the properties`);
+      else if (!Array.isArray(parent.values)) add(`${at}.of`, `${name}: what it sits inside should have its own values`);
+      else if (parent.of !== undefined) add(`${at}.of`, `${name}: it can only sit inside a property that sits inside nothing`);
+    }
+  }
+  if (mains > 1) add('cast.properties', "Who's playing: only one property can be shown under their name");
+}
+
 // ---------- validation ----------
 
 const loc = (block, item, field) => `${block}${item ? `[${item}]` : ''}${field ? `.${field}` : ''}`;
@@ -476,6 +590,7 @@ function blocksProblems(blocks) {
         oneOf('cast.groups.change', "Who's playing", 'groupChange', g.change, 'whether the groups change');
       }
     }
+    propertiesProblems(cast, blocks, add);
   }
 
   // 2. The season: phases, then the finale.
@@ -771,4 +886,5 @@ module.exports = {
   SCHEMA_VERSION, OPT, KINDS, BLOCKS, GAME_LABELS, DECIDED_TAG, QUESTIONS, TWIST_FIELDS,
   labelOf, helpOf, valuesOf, optionsFor, partWord, blockLabel, blocksProblems, kindOf, camelId, cap, pluralOf, hasGroupWin, winsOf,
   REFINEMENTS, dropMisfitRefinements,
+  castProperties, mainProperty, propertyPlural, forbiddenPropertyKind, RESERVED_PROPERTY_KEYS, NOT_STATED,
 };

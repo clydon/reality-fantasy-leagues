@@ -14,7 +14,7 @@
 //
 // Plain CommonJS, browser-safe, like everything in formats/.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see index.js */
-const { OPT, KINDS, SCHEMA_VERSION, TWIST_FIELDS, camelId, dropMisfitRefinements } = require('./rulebook-schema.js');
+const { OPT, KINDS, SCHEMA_VERSION, TWIST_FIELDS, camelId, dropMisfitRefinements, forbiddenPropertyKind, RESERVED_PROPERTY_KEYS, NOT_STATED } = require('./rulebook-schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -63,6 +63,7 @@ function buildRulebookPrompt({ show, season, airing = false, through = null, tem
     '- For a reality series (Below Deck, Real Housewives): a moment is something ONE cast member did or had done to them, that a recap would pin on them by name ("Got in an argument", "Was named in a guest complaint", "Got the captain\'s praise", "Was sent home by the captain"). Things that happen to the show as a whole (the tip is revealed, a guest complains, the weather turns, the crew stays up late) are not moments: leave them out, or write them as what a person did.',
     '- For a scripted series: the moments are what happens to the characters that anyone watching could say yes or no to (in the episode, at the centre of the story, a big reveal about them, in danger and survives, a romance starts or ends), and the comings and goings are written out, killed off and new characters. "segments" are the regular parts of the episode\'s structure (a cold open, the ending), not its themes.',
     '- For a sport or live event: "segments" are the parts of one event that decide something (qualifying, the race; for a team sport, the game itself), never each inning, quarter or lap. What competitors do in it (a home run, a goal, a fastest lap, places gained) are "customMoments", counted "eachTime" or "perUnit". "waysOut" are only withdrawals (injured, ejected, did not finish); winning or losing an event is its segment\'s result, and winning the title is the finale.',
+    '- "cast.properties" are what the show sorts its people by besides its groups, as the show itself bills them or splits them by: a department and the job inside it (Below Deck: a department of Interior, Deck, Galley or Bridge, and a job such as Chief Stew or Bosun), whether someone is a veteran or a rookie (The Challenge), pro or celebrity (Dancing with the Stars), returning player or new (a returnee season), and gender only where the show itself splits by it (an elimination for the men and one for the women), in the show\'s own terms. Never a secret role (that\'s a twist), never the groups again, never a sport\'s position. Never ethnicity, religion, sexuality, health or age, and nothing anyone would guess from a name or a photo. A show that sorts its people by nothing else has "properties": [].',
     '- "twists" are things that recur or last, and each is one of the four types. Similar advantages that score alike are one twist ("Idols and advantages"), with their kinds listed in its summary. Anything else goes in "leftOut".',
     '- "waysOut" lists every way someone can leave or finish on this show, even if nobody has left that way yet this season. Each segment that sends someone home causes a way out of its own ("Lost fire-making", cause: that segment). "outForOne" is only for a sport or live event, where someone misses one race and is back for the next; a reprieve (a non-elimination leg) isn\'t a way out.',
     '- A phase "starts" at an "episode" only when the show fixes it in advance (a finale week, a scheduled playoff). A swap or a merge that comes when the show decides is "remaining" or "announced". When a season has already reached a phase, say the episode in "phaseStarts" (outside the blocks), never in a phase\'s summary.',
@@ -104,7 +105,16 @@ function buildRulebookPrompt({ show, season, airing = false, through = null, tem
     '      "type": ' + choices('groupType', { skip: ['none'] }),
     '      "singular": "what one group is called (tribe, team, house)",',
     '      "change": ' + choices('groupChange'),
-    '    }',
+    '    },',
+    '    "properties": [ what else the show itself sorts them by, beyond the groups ([] for nothing): {',
+    '      "key": camelCase, made from the name ("department"),',
+    '      "name": "the show\'s own word for it (Department, Job, Status)",',
+    '      "plural": "what more than one are called, if not just the name with an s",',
+    '      "values": ["every value it can take, in the show\'s words"], at least two; or null when it\'s free text, like a job title,',
+    '      "changes": ' + choices('propertyChanges'),
+    '      "main": true on the one property to show under each person\'s name (one at most),',
+    '      "of": "<another property\'s key>" when it sits inside that one (a job inside a department)',
+    '    } ]',
     '  },',
     '  "season": {',
     '    "phases": [ each stretch of the season that plays differently, in order (at least one): {',
@@ -258,6 +268,7 @@ function reviewRulebook(answer, { castNames = [], keep = [] } = {}) {
     blocks.cast.groups = null;
     warnings.push({ at: 'cast.groups', message: 'No groups' });
   }
+  if (isObj(blocks.cast)) tidyProperties(blocks, warnings);
 
   // Ids, made from names where missing or not camelCase, and unique across the rulebook.
   const used = new Set();
@@ -399,6 +410,71 @@ function reviewRulebook(answer, { castNames = [], keep = [] } = {}) {
   }
   const leftOut = list(blocks.leftOut).filter((x) => typeof x === 'string');
   return { blocks, phaseStarts, problems, warnings, leftOut, approvable: problems.length === 0 };
+}
+
+// A research answer's cast properties, tidied without changing what they say (each tidy a warning): keys made from names, a
+// reference given by a name, "not stated" taken out of the values, main: false dropped. A property no game may use (one a
+// property may never be, a secret role, the groups again, a sport's position) is left out, said. What's left is checked by
+// blocksProblems like the rest of the rulebook.
+function tidyProperties(blocks, warnings) {
+  const cast = blocks.cast;
+  if (cast.properties === undefined || cast.properties === null) {
+    delete cast.properties;
+    return;
+  }
+  if (!Array.isArray(cast.properties)) return;
+  const roles = new Set(
+    list(blocks.twists)
+      .filter((t) => isObj(t) && t.type === 'secretRole')
+      .flatMap((t) => list(t.roles))
+      .map((r) => String(r).trim().toLowerCase())
+  );
+  const groupWord = isObj(cast.groups) && typeof cast.groups.singular === 'string' ? cast.groups.singular.trim().toLowerCase() : null;
+  const used = new Set();
+  const byName = new Map();
+  const kept = [];
+  for (const prop of cast.properties) {
+    if (!isObj(prop)) continue;
+    const name = typeof prop.name === 'string' ? prop.name.trim() : '';
+    const at = `cast.properties[${prop.key || name || kept.length}]`;
+    const forbidden = forbiddenPropertyKind(prop);
+    const lowerValues = list(prop.values).map((v) => String(v).trim().toLowerCase());
+    const why = forbidden
+      ? `a property is only what the show itself bills or splits by, never ${forbidden}`
+      : RESERVED_PROPERTY_KEYS.includes(prop.key) || (groupWord && name.toLowerCase() === groupWord)
+        ? prop.key === 'position' ? "a sport's position comes from its roster" : "that's the groups, which have their own question"
+        : lowerValues.some((v) => roles.has(v))
+          ? "a secret role is a twist, never a property"
+          : null;
+    if (why) {
+      warnings.push({ at, message: `Left out ${name || 'a property'}: ${why}` });
+      continue;
+    }
+    let key = typeof prop.key === 'string' && ID.test(prop.key) ? prop.key : camelId(prop.key || name || '');
+    if (key) {
+      const base = key;
+      for (let i = 2; used.has(key); i++) key = `${base}${i}`;
+      if (key !== prop.key) warnings.push({ at, message: `${name || 'A property'} gets the key "${key}"` });
+      prop.key = key;
+      used.add(key);
+      if (name) byName.set(name.toLowerCase(), key);
+      byName.set(key.toLowerCase(), key);
+    }
+    if (typeof prop.values === 'string') prop.values = prop.values.split(/\s*[,;|]\s*/).filter(Boolean);
+    if (Array.isArray(prop.values)) {
+      const values = prop.values.filter((v) => !(typeof v === 'string' && NOT_STATED.includes(v.trim().toLowerCase())));
+      if (values.length !== prop.values.length) warnings.push({ at: `${at}.values`, message: `${name}: "not stated" isn't a value; it's left empty on the person` });
+      prop.values = values.map((v) => (typeof v === 'string' ? v.trim() : v));
+      if (!prop.values.length) prop.values = null;
+    } else if (prop.values === undefined) prop.values = null;
+    if (prop.main === false) delete prop.main;
+    if (prop.of === null || prop.of === '') delete prop.of;
+    kept.push(prop);
+  }
+  for (const prop of kept) {
+    if (typeof prop.of === 'string' && !used.has(prop.of) && byName.has(prop.of.trim().toLowerCase())) prop.of = byName.get(prop.of.trim().toLowerCase());
+  }
+  cast.properties = kept;
 }
 
 // Every sentence a rulebook shows people, with where it is.

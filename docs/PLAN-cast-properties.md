@@ -7,10 +7,13 @@ that might mean cast properties." If the data isn't there, the research prompts 
 
 ## When
 
-**After the design round** (the user, 2026-11-15): the round's steps 6 to 12 come first, and this plan starts once they're done.
-Meanwhile the round's designs leave room for it, so nothing here needs a redesign: the draft room and waivers (step 6, step 8) a
-line for what a team still needs ("Needs: 1 Interior"), the lineup sheet slots with a label, and the cast tab (step 5) a second
-property line and filter chips by property.
+**Now, beside or after the design round's step 8** (the user, 2026-11-16, replacing 2026-11-15's "after the design round"):
+cast properties run in their own lane (`../rfl-castprops`, branch `cast-props`, port 3012) while step 8 (notifications, then
+waivers) runs on `explorer-sports`, and the round's steps 9 to 12 come after it, with the wizard (step 12) taking in chunk 7.
+Chunks 1 to 3 go first; chunk 4 waits until step 8 is merged into the lane, since its "Needs" line lands in the draft room and in
+waivers, which step 8 redesigns. The round's designs leave room for it, so nothing here needs a redesign: the draft room and
+waivers (step 6, step 8) a line for what a team still needs ("Needs: 1 Interior"), the lineup sheet slots with a label, and the
+cast tab (step 5) a second property line and filter chips by property.
 
 ## The idea
 

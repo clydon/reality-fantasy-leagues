@@ -162,6 +162,8 @@ function situations() {
     { id: "watchonly-riley-cast", surface: "cast", who: "riley", go: show(TR, "cast"), ready: "[data-cast]", flavor: "competition", lens: "watching only: the cast", full: false },
     // A crew (crew-fixture.js): each person's role under their name, grouped by department (the user, 2026-11-15).
     { id: "crew-alex-cast", surface: "cast", who: "alex", go: () => `/show/${ids.yacht}/cast`, ready: "[data-cast]", flavor: "story", lens: "a crew: roles and departments", full: false },
+    // Cast properties (docs/PLAN-cast-properties.md chunk 3): a crew member's sheet, its head (department, job, bio).
+    { id: "crew-alex-sheet", surface: "cast", who: "alex", go: () => `/show/${ids.yacht}/cast`, ready: "[data-cast]", act: async (p) => { await tap(p, '[data-face-wall] button[data-cast="Aesha"], [data-face-wall] button[data-cast]'); await sheetOpen(p); }, flavor: "story", lens: "a crew member's sheet: who they are", full: false },
     { id: "watchonly-riley-cast-sheet", surface: "cast", who: "riley", go: show(TR, "cast"), ready: "[data-cast]", act: async (p) => { await tap(p, "[data-face-wall] button[data-cast]"); await sheetOpen(p); }, flavor: "competition", lens: "watching only: a player's sheet (a secret role)", full: false },
     { id: "watchonly-riley-chat", surface: "chat", who: "riley", go: show(TR, "chat"), ready: "[data-chat]", flavor: "competition", lens: "watching only: the chat", full: false },
     { id: "story-late-show", surface: "tonight", who: "alex", go: show(LATE, "tonight"), ready: '[data-tab="tonight"]', flavor: "story", lens: "a talk show, nightly, watching only", full: true },

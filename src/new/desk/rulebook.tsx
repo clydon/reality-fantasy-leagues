@@ -737,7 +737,8 @@ function blockSummariesOf(b: RulebookBlocks) {
     const label = blockLabel(b, block === "kind" ? "cast" : block);
     if (label) out.push({ block, label, summary });
   };
-  add("cast", `${b.cast?.usualSize ? `${b.cast.usualSize} ` : ""}${b.cast?.plural ?? "people"}${b.cast?.groups ? `, in ${b.cast.groups.singular}s` : ""}`);
+  const props = lst<Obj>(b.cast?.properties).map((p) => str(p.name)).filter(Boolean);
+  add("cast", `${b.cast?.usualSize ? `${b.cast.usualSize} ` : ""}${b.cast?.plural ?? "people"}${b.cast?.groups ? `, in ${b.cast.groups.singular}s` : ""}${props.length ? `, by ${props.join(" and ").toLowerCase()}` : ""}`);
   add("season", [...lst<Obj>(b.season?.phases).map((p) => str(p.name)), ...(b.season?.finale ? ["Finale"] : [])].join(" › ") || "One phase");
   add("segments", lst<Obj>(b.segments).map((s) => str(s.name)).join(", ") || "None");
   add("waysOut", lst<Obj>(b.waysOut).map((w) => str(w.name)).join(", ") || "None");
@@ -954,7 +955,13 @@ function CastSheet({ draft, title, onDone, onClose }: { draft: RulebookBlocks; t
   const [groupType, setGroupType] = useState(g ? str(g.type) : "none");
   const [groupName, setGroupName] = useState(g ? str(g.singular) : "");
   const [groupChange, setGroupChange] = useState(g ? str(g.change) : "never");
+  const [props, setProps] = useState<PropDraft[]>(() => lst<Obj>(c.properties).map(propDraftOf));
   const q = QUESTIONS.cast;
+  const built = props.map(propOf);
+  // The properties' own problems, as the validator says them (the rest of the rulebook is checked on Save).
+  const propProblems = blocksProblems({ ...clone(draft), cast: { ...(draft.cast ?? {}), unit, singular: singular || "x", plural: plural || "x", groups: null, properties: built } })
+    .filter((p) => p.at.startsWith("cast.properties"))
+    .map((p) => p.message);
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()} title={title} subtitle="This season's How it works, stats and research questions. The show's Its words sets them for every season">
       <Choice data="unit" label={q.unit} value={unit} options={opts("unit")} onChange={setUnit} />
@@ -970,9 +977,10 @@ function CastSheet({ draft, title, onDone, onClose }: { draft: RulebookBlocks; t
           <Choice data="groupChange" label={q.groupChange} value={groupChange} options={opts("groupChange")} onChange={setGroupChange} />
         </>
       )}
+      <PropertiesEditor props={props} setProps={setProps} problems={propProblems} />
       <Footer
         onClose={onClose}
-        disabled={!singular.trim() || !plural.trim() || (groupType !== "none" && !groupName.trim())}
+        disabled={!singular.trim() || !plural.trim() || (groupType !== "none" && !groupName.trim()) || propProblems.length > 0}
         onDone={() => {
           const b = clone(draft);
           b.cast = {
@@ -982,12 +990,107 @@ function CastSheet({ draft, title, onDone, onClose }: { draft: RulebookBlocks; t
             plural: plural.trim(),
             ...(size ? { usualSize: size } : {}),
             groups: groupType === "none" ? null : ({ type: groupType, singular: groupName.trim(), change: groupChange } as never),
+            properties: built,
           } as never;
           if (!size) delete (b.cast as Obj).usualSize;
+          if (!built.length) delete (b.cast as Obj).properties;
           onDone(b);
         }}
       />
     </Sheet>
+  );
+}
+
+// A cast property as the sheet edits it (docs/PLAN-cast-properties.md): the values as one line, commas between.
+type PropDraft = { key: string; name: string; plural: string; listed: boolean; values: string; changes: string; main: boolean; of: string };
+const propDraftOf = (p: Obj): PropDraft => ({
+  key: str(p.key),
+  name: str(p.name),
+  plural: str(p.plural),
+  listed: Array.isArray(p.values),
+  values: lst<string>(p.values).join(", "),
+  changes: str(p.changes) || "never",
+  main: p.main === true,
+  of: str(p.of),
+});
+/** A property's key: the one it has, else made from its name (once, when it's first saved). */
+const keyOfProp = (p: PropDraft) => p.key || camelId(p.name) || "property";
+function propOf(p: PropDraft): Obj {
+  const out: Obj = { key: keyOfProp(p), name: p.name.trim(), values: p.listed ? p.values.split(",").map((v) => v.trim()).filter(Boolean) : null, changes: p.changes };
+  if (p.plural.trim()) out.plural = p.plural.trim();
+  if (p.main) out.main = true;
+  if (p.of) out.of = p.of;
+  return out;
+}
+
+/** What else the show sorts its people by: each property's name, its values (or anything), whether it changes, which one shows
+ *  under a name and what it sits inside. Its key is made once from the first name and kept on rename, like an item's id. */
+function PropertiesEditor({ props, setProps, problems }: { props: PropDraft[]; setProps: (p: PropDraft[]) => void; problems: string[] }) {
+  const q = QUESTIONS.cast;
+  const set = (i: number, patch: Partial<PropDraft>) =>
+    setProps(props.map((p, j) => (j === i ? { ...p, ...patch } : patch.main ? { ...p, main: false } : p)));
+  return (
+    <div data-question="properties" className="mt-6 border-t border-border pt-4">
+      <b className="block text-[15px]">{q.properties}</b>
+      <small className="mt-1 block text-[13px] leading-snug text-muted-foreground">
+        Only what the show itself bills or splits them by: a department and a job, veteran or rookie. Never ethnicity, religion, sexuality, health or age; a secret role is a twist.
+      </small>
+      {props.map((p, i) => {
+        const parents = props.filter((x, j) => j !== i && x.listed && !x.of && x.name.trim());
+        return (
+          <div key={i} data-property={keyOfProp(p)} className="mt-3 rounded-[3px] bg-background p-3">
+            <Text
+              data="propertyName"
+              label={q.propertyName}
+              value={p.name}
+              placeholder="Department"
+              onChange={(v) => set(i, { name: v })}
+            />
+            <Choice
+              data="propertyListed"
+              label={q.propertyValues}
+              value={p.listed ? "listed" : "free"}
+              options={[["listed", "These values", ""], ["free", "Anything", q.propertyFree]]}
+              onChange={(v) => set(i, { listed: v === "listed" })}
+            />
+            {p.listed && <Text data="propertyValues" label="Its values, commas between" value={p.values} placeholder="Interior, Deck, Galley, Bridge" onChange={(v) => set(i, { values: v })} />}
+            <Choice data="propertyChanges" label={q.propertyChanges} value={p.changes} options={opts("propertyChanges")} onChange={(v) => set(i, { changes: v })} />
+            {parents.length > 0 && (
+              <Choice
+                data="propertyOf"
+                label={q.propertyOf}
+                value={p.of || "none"}
+                options={[["none", "Nothing", ""], ...parents.map((x) => [keyOfProp(x), x.name.trim(), ""] as [string, string, string])]}
+                onChange={(v) => set(i, { of: v === "none" ? "" : v })}
+              />
+            )}
+            <div className="mt-4 flex items-center gap-2">
+              <Chip data-answer="main" on={p.main} onClick={() => set(i, { main: !p.main })} className="h-11">
+                {p.main && <Check className="size-4" aria-hidden />}
+                {q.propertyMain}
+              </Chip>
+              <button
+                type="button"
+                data-remove-property
+                onClick={() => setProps(props.filter((_, j) => j !== i).map((x) => (x.of === keyOfProp(p) ? { ...x, of: "" } : x)))}
+                className="ml-auto min-h-11 text-[15px] font-semibold text-destructive"
+              >
+                ✕ Remove
+              </button>
+            </div>
+          </div>
+        );
+      })}
+      {problems.map((m) => (
+        <small key={m} data-property-problem className="mt-2 block text-[13px] text-destructive">
+          {m}
+        </small>
+      ))}
+      <Btn data-add-property wide className="mt-3" onClick={() => setProps([...props, { key: "", name: "", plural: "", listed: true, values: "", changes: "never", main: !props.some((x) => x.main), of: "" }])}>
+        <Plus className="size-4" aria-hidden />
+        Add a property
+      </Btn>
+    </div>
   );
 }
 

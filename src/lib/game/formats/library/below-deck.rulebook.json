@@ -34,7 +34,23 @@
       "singular": "crew member",
       "plural": "crew members",
       "usualSize": 10,
-      "groups": null
+      "groups": null,
+      "properties": [
+        {
+          "key": "department",
+          "name": "Department",
+          "values": ["Interior", "Deck", "Galley", "Bridge"],
+          "changes": "sometimes"
+        },
+        {
+          "key": "job",
+          "name": "Job",
+          "values": null,
+          "changes": "sometimes",
+          "main": true,
+          "of": "department"
+        }
+      ]
     },
     "season": {
       "phases": [

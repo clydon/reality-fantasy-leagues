@@ -9,7 +9,11 @@ module.exports = {
     tagline: 'Daily challenges, then an elimination',
     premise:
       "A house full of challengers competes in teams or pairs. Win the daily challenge and you're safe; lose an elimination and you go home. The last ones standing run a days-long final for the prize.",
-    cast: { unit: 'people', singular: 'challenger', plural: 'challengers', usualSize: 30, groups: { type: 'sides', singular: 'team', change: 'often' } },
+    cast: {
+      unit: 'people', singular: 'challenger', plural: 'challengers', usualSize: 30, groups: { type: 'sides', singular: 'team', change: 'often' },
+      // Billed every season (docs/PLAN-cast-properties.md). Gender is a season's own, researched where its eliminations split by it.
+      properties: [{ key: 'status', name: 'Status', plural: 'Statuses', values: ['Veteran', 'Rookie'], changes: 'never', main: true }],
+    },
     season: {
       phases: [{ id: 'season', name: 'The season', starts: { type: 'episode', n: 1 }, changes: [] }],
       finale: { decidedBy: 'firstToFinish', summary: 'A days-long final: the first across the finish line wins.' },

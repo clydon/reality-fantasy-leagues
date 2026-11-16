@@ -122,6 +122,8 @@ export interface RulebookBlocks {
     plural: string;
     usualSize?: number;
     groups: null | { type: "sides" | "couples" | "coachTeams"; singular: string; change: "never" | "atPhases" | "often" };
+    /** What else the show itself sorts its people by (docs/PLAN-cast-properties.md). */
+    properties?: RulebookCastProperty[];
   };
   season: {
     phases: RulebookPhase[];
@@ -142,6 +144,22 @@ export interface RulebookBlocks {
   /** How research asks: the search hint's lines, and each question by the blocks' own key. */
   research?: { searchHint?: string[]; questions?: Record<string, RulebookQuestion>; checks?: Record<string, RulebookCheck> };
   leftOut?: string[];
+}
+
+/** One thing a show sorts its people by, in its own words: Below Deck's department, a job inside it, The Challenge's status. */
+export interface RulebookCastProperty {
+  /** Stable camelCase id: a game's rule and a person's value (season_cast.props) name it. */
+  key: string;
+  name: string;
+  /** What more than one are called; made from the name when left out. */
+  plural?: string;
+  /** The values it can take, or null for free text in the show's words (a job title). */
+  values: string[] | null;
+  changes: "never" | "sometimes";
+  /** The one shown under a person's name (one per rulebook). */
+  main?: true;
+  /** A property it sits inside (a job inside a department): that one's key. */
+  of?: string;
 }
 
 /**
@@ -203,3 +221,14 @@ export function winsOf(segment: Partial<RulebookSegment> | null | undefined): bo
 export const REFINEMENTS: string[];
 /** Takes out, in place, each refinement that doesn't go with its item; the item stays. */
 export function dropMisfitRefinements(blocks: unknown): { dropped: BlocksProblem[]; problems: BlocksProblem[] };
+/** A rulebook's cast properties ([] for none). */
+export function castProperties(blocks: Partial<RulebookBlocks> | null | undefined): RulebookCastProperty[];
+/** The property shown under a name: the one marked main, else the first; null with none. */
+export function mainProperty(blocks: Partial<RulebookBlocks> | null | undefined): RulebookCastProperty | null;
+/** "Departments": a property's own plural, else made from its name. */
+export function propertyPlural(prop: Partial<RulebookCastProperty> | null | undefined): string;
+/** What a property's words say it is that a property may never be ("ethnicity", "age"), or null. */
+export function forbiddenPropertyKind(prop: unknown): string | null;
+export const RESERVED_PROPERTY_KEYS: string[];
+/** Values that only say nobody knows ("not stated"): never a value, left empty. */
+export const NOT_STATED: string[];
