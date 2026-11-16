@@ -149,8 +149,8 @@ export interface BotLane {
 
 /**
  * Every lane the bots have free for side-by-side asks (the catch-up's: catch-up.ts), from each bot's /health: Codex's slots
- * (llm-browser-api's CODEX_PARALLEL) unless its plan's limit is reached ("held"), then one for its ChatGPT browser. Codex's
- * first: they're the quick ones. [] with no bot up.
+ * (llm-browser-api's CODEX_PARALLEL; one while its plan's limit is "held"), then one for its ChatGPT browser. Codex's first:
+ * they're the quick ones. [] with no bot up.
  */
 export async function botLanes(o: BotChoice = {}): Promise<BotLane[]> {
   if (!configured(o)) return [];
@@ -161,7 +161,9 @@ export async function botLanes(o: BotChoice = {}): Promise<BotLane[]> {
       if (!res.ok) continue;
       const h = (await res.json()) as { parallel?: { codex?: { slots?: number; held?: string | null } } };
       const codex = h.parallel?.codex;
-      if (codex && !codex.held) for (let i = 0; i < Math.max(1, codex.slots ?? 1); i++) out.push({ bot: url, provider: "codex" });
+      // Held (its plan's limit was reached): the bot takes one at a time until an answer comes again, so one lane, which is what
+      // finds out a reset has cleared it; the lanes are read again every minute (runPool), and all its slots come back.
+      if (codex) for (let i = 0; i < (codex.held ? 1 : Math.max(1, codex.slots ?? 1)); i++) out.push({ bot: url, provider: "codex" });
       out.push({ bot: url, provider: "chatgpt" });
     } catch {
       /* not answering: no lanes there */
