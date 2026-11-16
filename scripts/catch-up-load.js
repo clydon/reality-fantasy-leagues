@@ -32,6 +32,8 @@ console.log(`[load] on ${endpoint(host)}${isProduction ? " (PRODUCTION)" : ""}`)
 
 (async () => {
   const pool = new Pool({ connectionString: url });
+  // An idle connection the database drops is an error on the pool; unhandled it ends the process (and prints the client).
+  pool.on("error", (e) => console.error("[load] an idle connection closed:", e.message));
   try {
     const status = async () => {
       const { rows: q } = await pool.query("SELECT count(*) FILTER (WHERE done_at IS NULL AND stuck_at IS NULL)::int AS open, count(*)::int AS all FROM season_catchups");

@@ -29,6 +29,10 @@ export { HttpError };
 // (AUTH_DATABASE_URL), just a different set of tables (leagues/league_memberships/chat_*/
 // issue_reports -- see db/migrations/0001_app_schema.sql). One pool, reused by every route.
 export const pool = new Pool({ connectionString: process.env.AUTH_DATABASE_URL });
+// An idle connection the database closes (Neon suspends an idle compute and drops its connections) is an "error" on the pool;
+// unhandled, it ends the whole process (it ended the catch-up's rehearsal, 2026-11-16). The pool replaces the connection on
+// the next query, so this only says so. Never the connection's details: the message alone.
+pool.on("error", (e) => console.error("[db] an idle connection closed:", e.message));
 
 /** One transaction on a client of its own: `fn`, then COMMIT, or ROLLBACK when it throws (the desk's writes). */
 export async function tx<T>(fn: (db: PoolClient) => Promise<T>): Promise<T> {
