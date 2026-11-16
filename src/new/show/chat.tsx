@@ -7,7 +7,7 @@ import { Eye, MessageCircle, Plus, Send } from "lucide-react";
 import { chatEarlier, useChatActions, useCouchChat, type ChatLine, type CouchChat } from "../data";
 import { GifSheet } from "../ui/gif-sheet";
 import type { ShowData } from "../screens/show-space";
-import { Avatar } from "../ui/bars";
+import { Avatar, useNow } from "../ui/bars";
 import { Btn, CaptionPlate, EmptyState } from "../ui/parts";
 import { useShown } from "../ui/loaded";
 import { Sheet } from "../ui/sheet";
@@ -51,21 +51,57 @@ const names = (list: string[]) => (list.length <= 2 ? list.join(" and ") : `${li
 
 type Item =
   | { kind: "day"; key: string; label: string }
+  | { kind: "ep"; key: string; n: number; at: string; sameDay: boolean }
+  | { kind: "reveals"; key: string; n: number | null; day: string; lines: ChatLine[] }
   | { kind: "line"; m: ChatLine; starts: boolean; ends: boolean }
   | { kind: "fold"; key: string; lines: ChatLine[] };
+
+/** The episode a reveal line is about ("riley revealed episode 4" → 4). */
+const revealedEp = (m: ChatLine) => {
+  const n = /(\d+)\s*$/.exec(m.text ?? "")?.[1];
+  return n ? Number(n) : null;
+};
 
 /**
  * The conversation as rows: a day line where the day changes, runs of one person, and every folded message as one
  * line where the first of them was (the mock's one fold), so your own and the reveal lines keep their places.
  */
-function itemsOf(messages: ChatLine[]): Item[] {
+/**
+ * The stream (the design round's step 9): days, with each episode's airing as a landmark where it falls in time ("Ep 5 · aired Wed
+ * 8:00 PM": public, so it spoils nothing), so anywhere you scroll the nearest landmark above says which episode the talk is about.
+ * A landmark right after a day's divider stands in for it (it carries the day). Reveal lines in a row about the same episode are
+ * one line, the names together. `airings`: the episodes that have aired, oldest first.
+ */
+function itemsOf(messages: ChatLine[], airings: { n: number; at: string }[] = [], foldEp: number | null = null): Item[] {
   const out: Item[] = [];
   const folded = messages.filter((m) => m.folded);
   let day: string | null = null;
+  // Only the airings inside the conversation's span: none before its first message.
+  const first = messages[0] ? Date.parse(messages[0].at) : Infinity;
+  const marks = airings.filter((a) => Date.parse(a.at) >= first);
+  let k = 0;
   messages.forEach((m, i) => {
     const prev = messages[i - 1];
     const next = messages[i + 1];
     if (m.folded && m !== folded[0]) return;
+    // Every airing up to this message's time, in order, each where it falls; one on a new day carries that day (it says when it
+    // aired), so the day's own divider isn't drawn too.
+    while (k < marks.length && Date.parse(marks[k].at) <= Date.parse(m.at)) {
+      const a = marks[k++];
+      const sameDay = dayKey(a.at) === day;
+      day = dayKey(a.at);
+      out.push({ kind: "ep", key: `e-${a.n}`, n: a.n, at: a.at, sameDay });
+    }
+    // A reveal line doesn't start a day of its own: it carries its day ("Fri · riley and jordan revealed Ep 4"), and one about the
+    // episode a fold is for isn't drawn (the fold says who's revealed it).
+    if (m.type === "reveal" && !m.folded) {
+      const n = revealedEp(m);
+      if (foldEp != null && n === foldEp) return;
+      const last = out[out.length - 1];
+      if (last?.kind === "reveals" && last.n === n) last.lines.push(m);
+      else out.push({ kind: "reveals", key: `r-${m.id}`, n, day: dayLabel(m.at), lines: [m] });
+      return;
+    }
     if (dayKey(m.at) !== day) {
       day = dayKey(m.at);
       out.push({ kind: "day", key: `d-${m.id}`, label: dayLabel(m.at) });
@@ -74,11 +110,18 @@ function itemsOf(messages: ChatLine[]): Item[] {
       out.push({ kind: "fold", key: `f-${m.id}`, lines: folded });
       return;
     }
+
     const sameRun = (a?: ChatLine, b?: ChatLine) =>
       !!a && !!b && !a.folded && !b.folded && a.type === "message" && b.type === "message" && a.userId === b.userId && dayKey(a.at) === dayKey(b.at) && Math.abs(Date.parse(b.at) - Date.parse(a.at)) < RUN_MS;
     out.push({ kind: "line", m, starts: !sameRun(prev, m), ends: !sameRun(m, next) });
   });
-  return out;
+  // A landmark only where talk (a message or the fold) follows it before the next landmark: a run of airings nobody talked about
+  // collapses into the last of them, and an episode inside a fold isn't marked.
+  return out.filter((it, i) => {
+    if (it.kind !== "ep") return true;
+    for (let j = i + 1; j < out.length && out[j].kind !== "ep"; j++) if (out[j].kind === "line" || out[j].kind === "fold") return true;
+    return false;
+  });
 }
 
 export function Chat({ seasonId, show }: { seasonId: string; show: ShowData }) {
@@ -154,7 +197,14 @@ export function Chat({ seasonId, show }: { seasonId: string; show: ShowData }) {
   }, [newest, data?.you.canPost]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const showName = show.header ? `${show.header.show.name}${show.header.seasonNumber ? ` ${show.header.seasonNumber}` : ""}` : "this show";
-  const placeholder = show.games.length ? `Message the ${showName.replace(/^The /, "")} couch` : `Message the couch about ${showName}`;
+  // One line above the keyboard: the show is in the bar (step 9).
+  const placeholder = "Message the couch";
+  const now = useNow(false);
+  const airings = (show.episodes?.episodes ?? [])
+    .filter((e) => e.airAt && Date.parse(e.airAt) <= now)
+    .map((e) => ({ n: e.number, at: e.airAt! }))
+    .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  const epWord = show.words.ep;
 
   if (chat.data && "out" in chat.data) {
     return (
@@ -202,20 +252,43 @@ export function Chat({ seasonId, show }: { seasonId: string; show: ShowData }) {
           <p className="mt-1.5 text-[15px] text-muted-foreground">Say something to the couch about {showName}.</p>
         </div>
       )}
-      {itemsOf(messages).map((item) => {
+      {itemsOf(messages, airings, data.fold && !data.fold.byMark ? data.fold.episode : null).map((item) => {
+        if (item.kind === "ep") {
+          // The episode's landmark: its chip in the app's episode form, when it aired; unlike a day's divider at a glance.
+          return (
+            <div key={item.key} data-ep-mark={item.n} role="separator" className="mb-1.5 mt-5 flex items-center gap-2.5">
+              <span className="type-caption -mr-1 flex h-7 items-center bg-secondary pl-2.5 pr-3.5 text-[14px] tracking-[0.04em] [clip-path:polygon(0_0,100%_0,calc(100%_-_8px)_100%,0_100%)]">
+                {epWord} {item.n}
+              </span>
+              <span className="flex-none text-[13px] text-muted-foreground">
+                aired {item.sameDay ? timeOf(item.at) : `${dayLabel(item.at)} · ${timeOf(item.at)}`}
+              </span>
+              <i className="h-px flex-1 bg-border" aria-hidden />
+            </div>
+          );
+        }
+        if (item.kind === "reveals") {
+          const who = names(item.lines.map((m) => m.name));
+          return (
+            <button key={item.key} type="button" data-reveal-line onClick={() => setOpen(item.lines[0])} title={timeOf(item.lines[0].at)} className="my-3 flex w-full items-center justify-center gap-1.5 text-xs text-muted-foreground">
+              <Eye className="size-3.5" aria-hidden />
+              {item.day} · {item.n != null ? `${who} revealed ${epWord} ${item.n}` : revealWords(item.lines[0].text ?? "")}
+            </button>
+          );
+        }
         if (item.kind === "day") {
           return (
             <div
               key={item.key}
               data-day
               role="separator"
-              className="type-caption mb-1.5 mt-4 flex items-center gap-2.5 text-[13px] tracking-[0.06em] text-muted-foreground before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border"
+              className="mb-1.5 mt-4 flex items-center gap-2.5 text-[13px] text-muted-foreground before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border"
             >
               {item.label}
             </div>
           );
         }
-        if (item.kind === "fold") return <Fold key={item.key} lines={item.lines} fold={data.fold} reveal={reveal} onShow={showThem} onReveal={openReveal} />;
+        if (item.kind === "fold") return <Fold key={item.key} lines={item.lines} fold={data.fold} reveal={reveal} epWord={epWord} onShow={showThem} onReveal={openReveal} />;
         return <Line key={item.m.id} item={item} me={data.you.userId} onOpen={() => setOpen(item.m)} onReact={(e) => actions.react(item.m.id, e).catch((err) => toast.quiet(`Not sent: ${err.message}`))} />;
       })}
       {data.you.canPost && <Composer placeholder={placeholder} onGif={data.gifs ? () => setGifOpen(true) : undefined} onSend={async (text) => {
@@ -294,7 +367,7 @@ function Line({ item, me, onOpen, onReact }: { item: Extract<Item, { kind: "line
                 aria-pressed={yours}
                 aria-label={`${emoji} ${r.count}${yours ? ", including you" : ""}`}
                 onClick={() => onReact(emoji)}
-                className={`inline-flex h-8 items-center gap-1 rounded-[3px] border bg-card px-2 text-[14px] ${yours ? "border-chyron-line" : "border-border"}`}
+                className={`inline-flex h-8 items-center gap-1 rounded-[3px] border bg-card px-2 text-[14px] ${yours ? "border-foreground" : "border-border"}`}
               >
                 <span aria-hidden>{emoji}</span>
                 <span className="type-num text-[14px]" aria-hidden>
@@ -315,18 +388,21 @@ function Fold({
   lines,
   fold,
   reveal,
+  epWord,
   onShow,
   onReveal,
 }: {
   lines: ChatLine[];
   fold: CouchChat["fold"];
   reveal: number | null;
+  epWord: string;
   onShow: () => void;
   onReveal: (n: number) => void;
 }) {
   const who = [...new Set(lines.map((l) => l.name))];
   const count = lines.length;
-  const title = `${count} ${count === 1 ? "message" : "messages"}${!fold ? "" : fold.byMark ? " from further along" : ` since Episode ${fold.episode} aired`}`;
+  // The landmark above says which episode (step 9): the fold says how many, and who's seen it.
+  const title = `${count} ${count === 1 ? "message" : "messages"}${!fold ? "" : fold.byMark ? " from further along" : ` since ${epWord} ${fold.episode} aired`}`;
   const sub = fold?.revealed.length
     ? `${names(fold.revealed)} ${fold.revealed.length === 1 ? "has" : "have"} revealed it`
     : fold?.byMark
@@ -341,16 +417,15 @@ function Fold({
           <span className="mt-0.5 block">{sub}</span>
         </span>
       </div>
-      <div className="mt-2.5 flex gap-2">
-        {reveal && (
-          <Btn className="h-11 flex-1 text-[14px]" onClick={() => onReveal(reveal)}>
-            Reveal Episode {reveal}
-          </Btn>
-        )}
-        <Btn className="h-11 flex-1 text-[14px]" onClick={onShow}>
-          Show them
+      {/* The safe way first, full width; reading them anyway is a quiet link that says what it risks (the critique's P1). */}
+      {reveal && (
+        <Btn wide data-fold-reveal className="mt-2.5 h-11 text-[15px] text-foreground" onClick={() => onReveal(reveal)}>
+          Reveal {epWord} {reveal}
         </Btn>
-      </div>
+      )}
+      <button type="button" data-fold-show onClick={onShow} className="mt-2 w-full py-1.5 text-center text-[13px] font-semibold text-muted-foreground underline underline-offset-4">
+        Show them anyway{fold && !fold.byMark ? ` (may spoil ${epWord} ${fold.episode})` : ""}
+      </button>
     </div>
   );
 }
@@ -521,7 +596,7 @@ function MessageSheet({ m, chat, onClose, actions }: { m: ChatLine | null; chat:
                   aria-label={`React ${emoji}`}
                   aria-pressed={yours}
                   onClick={() => (close(), run(actions.react(shown.id, emoji)))}
-                  className={`grid size-11 place-items-center rounded-[3px] text-[24px] hover:bg-secondary ${yours ? "bg-secondary outline-2 outline-chyron-line" : ""}`}
+                  className={`grid size-11 place-items-center rounded-[3px] text-[24px] hover:bg-secondary ${yours ? "bg-secondary outline-2 outline-foreground" : ""}`}
                 >
                   {emoji}
                 </button>

@@ -568,3 +568,13 @@
 - Rejected: options on the page (they read as the whole choice; the person leaving wasn't shown).
 - Rests on: the story https://claude.ai/artifact/3TnbLJWK2aXzCByi9qfeyP version 2.
 
+## 2026-11-16 · Step 9, Chat (a light review): built, waiting on the user's review
+- Decided by: Claude, through the three skills in order (Intent's spec, PFD's first view, Impeccable's look and build), one check
+  (PFD evaluate 76; Impeccable critique 27/40, unanchored), one batch, one confirming look
+- What: days, with each episode's airing as a landmark in the stream (the episode chip: "Ep 5 · aired 8:00 PM"), only where talk
+  follows it; one reveal line per episode carrying its day; the fold led by Reveal Ep N, "Show them anyway (may spoil Ep N)" a quiet
+  link; day dividers quieter; "Message the couch"; your own reaction not yellow.
+- Rejected: one reveal line per person (a third of the view was chrome); the stream by episode alone (a conversation is in time);
+  a sticky progress control (the landmarks carry where you are).
+- Rests on: docs/design-round/step9-chat-spec.md, -first-view.md, -check.md, -critique.md, -pfd-eval.md; the story https://claude.ai/artifact/Dpc8fXXdpnHw5vJkhAvNnc (frames in
+  .ui-atlas/stories/step9-chat/).

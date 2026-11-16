@@ -11,6 +11,15 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
+## The design round's step 9, Chat, a light review (2026-11-16; built on branch `explorer-sports`, not committed past it; waits on the user's review)
+src/new/show/chat.tsx `itemsOf(messages, airings, foldEp)`: days, with each episode's airing as a landmark (`kind: "ep"`, the episode
+chip, "aired Thu, Nov 12 · 8:00 PM" or just the time after that day's talk), drawn only where a message or the fold follows it; one
+reveal line per episode (`kind: "reveals"`, "Fri, Nov 13 · riley and jordan revealed Ep 5"), none for the fold's own episode, never
+starting a day; the fold led by Reveal Ep N with "Show them anyway (may spoil Ep N)" as a link; day dividers plain muted text;
+"Message the couch"; your reaction outlined in the foreground. census-app.js's chat cases land at the newest message (capture()
+resets to the top). Process and evidence: `docs/design-round/step9-chat-{spec,first-view,check,critique,pfd-eval}.md`, decisions.md;
+frames in `.ui-atlas/stories/step9-chat/`; the story https://claude.ai/artifact/Dpc8fXXdpnHw5vJkhAvNnc. **Next:** the user's review of step 9, then step 10, Sports in full.
+
 ## The design round's step 8, notifications then waivers (2026-11-16; built on branch `explorer-sports`, not committed; waits on the user's review)
 **The push** (one grammar: the news first, number first, inside a phone's ~32 characters; the body where it's from then what to do;
 a tap on the thing): src/lib/server/remind-moves.js `remindMessage` is now the hourly job's words too (db/reminders.js queues a

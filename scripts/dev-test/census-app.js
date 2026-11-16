@@ -93,6 +93,7 @@ async function teardown() {
 }
 
 // ---- helpers for a situation's own steps ----
+// (Chat opens at its newest message, as the app scrolls it: capture() resets to the top first, so a chat case scrolls back down.)
 const tap = async (p, sel, i = 0) => { const l = p.locator(sel).nth(i); await l.waitFor({ timeout: 15000 }); await l.click(); await p.waitForTimeout(900); };
 const sheetOpen = async (p) => { await p.locator('[role="dialog"], [data-sheet]').last().waitFor({ timeout: 10000 }); await p.waitForTimeout(700); };
 const scrollTo = async (p, sel) => { await p.locator(sel).first().evaluate((e) => e.scrollIntoView({ block: "start" })); await p.waitForTimeout(600); };
@@ -154,8 +155,8 @@ function situations() {
     { id: "cast-sheet-more", surface: "cast", who: "alex", go: show(S51, "cast"), ready: "[data-cast]", act: async (p) => { await tap(p, ':is(button,a,[role=button]):has-text("JELLY")'); await sheetOpen(p); await p.locator("[data-their-numbers], [data-story]").first().evaluate((e) => e.scrollIntoView({ block: "start" })).catch(() => {}); await p.waitForTimeout(600); }, flavor: "competition", lens: "a castaway's sheet: their numbers and games", full: false },
     { id: "cast-compare", surface: "cast", who: "alex", go: show(S51, "cast"), ready: "[data-cast]", act: async (p) => { await tap(p, ':is(button,a,[role=button]):has-text("JELLY")'); await sheetOpen(p); await tap(p, "[data-compare-with]"); await p.waitForTimeout(600); await tap(p, '[data-face-wall] button[data-cast="Ori"]'); await sheetOpen(p); }, flavor: "competition", lens: "two side by side", full: false },
     { id: "cast-game-sheet", surface: "cast", who: "alex", go: show(S51, "cast"), ready: "[data-cast]", act: async (p) => { await tap(p, ':is(button,a,[role=button]):has-text("JELLY")'); await sheetOpen(p); await tap(p, "[data-person-game]"); await p.waitForTimeout(900); await sheetOpen(p); }, flavor: "competition", lens: "In your games: their sheet in one game", full: false },
-    { id: "chat-alex", surface: "chat", who: "alex", go: show(S51, "chat"), ready: "[data-chat]", flavor: "competition", lens: "caught up", full: false },
-    { id: "chat-sam", surface: "chat", who: "sam", go: show(S51, "chat"), ready: "[data-chat]", flavor: "competition", lens: "two behind: the fold", full: false },
+    { id: "chat-alex", surface: "chat", who: "alex", go: show(S51, "chat"), ready: "[data-chat]", act: async (p) => { await p.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight)); await p.waitForTimeout(600); }, flavor: "competition", lens: "caught up", full: false },
+    { id: "chat-sam", surface: "chat", who: "sam", go: show(S51, "chat"), ready: "[data-chat]", act: async (p) => { await p.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight)); await p.waitForTimeout(600); }, flavor: "competition", lens: "two behind: the fold", full: false },
     { id: "watch-alex", surface: "watch", who: "alex", go: show(S51, "tonight") + "?page=watch", ready: "[data-watch-along], [data-tab='tonight']", flavor: "competition", lens: "watch along", full: false },
     { id: "waivers-alex", surface: "waivers", who: "alex", go: `/show/${S51}/waivers`, ready: "body", wait: 2500, flavor: "competition", lens: "waivers", full: true },
     { id: "waivers-sam", surface: "waivers", who: "sam", go: `/show/${S51}/waivers`, ready: "body", wait: 2500, flavor: "competition", lens: "waivers, two episodes behind (gated)", full: true },
@@ -176,7 +177,7 @@ function situations() {
     // A crew (crew-fixture.js): each person's role under their name, grouped by department (the user, 2026-11-15).
     { id: "crew-alex-cast", surface: "cast", who: "alex", go: () => `/show/${ids.yacht}/cast`, ready: "[data-cast]", flavor: "story", lens: "a crew: roles and departments", full: false },
     { id: "watchonly-riley-cast-sheet", surface: "cast", who: "riley", go: show(TR, "cast"), ready: "[data-cast]", act: async (p) => { await tap(p, "[data-face-wall] button[data-cast]"); await sheetOpen(p); }, flavor: "competition", lens: "watching only: a player's sheet (a secret role)", full: false },
-    { id: "watchonly-riley-chat", surface: "chat", who: "riley", go: show(TR, "chat"), ready: "[data-chat]", flavor: "competition", lens: "watching only: the chat", full: false },
+    { id: "watchonly-riley-chat", surface: "chat", who: "riley", go: show(TR, "chat"), ready: "[data-chat]", act: async (p) => { await p.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight)); await p.waitForTimeout(600); }, flavor: "competition", lens: "watching only: the chat", full: false },
     { id: "story-late-show", surface: "tonight", who: "alex", go: show(LATE, "tonight"), ready: '[data-tab="tonight"]', flavor: "story", lens: "a talk show, nightly, watching only", full: true },
     { id: "story-late-show-episodes", surface: "episodes", who: "alex", go: show(LATE, "episodes"), ready: '[data-tab="episodes"]', flavor: "story", lens: "a talk show's episodes", full: false },
     { id: "story-live-now", surface: "tonight", who: "alex", go: show(LIVE, "tonight"), ready: '[data-tab="tonight"]', flavor: "story", lens: "a series on air right now, watching only", full: false },
