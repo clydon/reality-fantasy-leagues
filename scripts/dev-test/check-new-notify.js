@@ -431,19 +431,20 @@ async function person(pool, who, role = null) {
     // it too easy"; the fixture's bank, docs/PLAN-bingo-bank.md). A bank's square counts once two on the couch say it happened: alex
     // says so of all three (a say of his own, in the table the couch's says go in), and jordan's ticks are the second say.
     const card = (await as.jordan.call("GET", `/api/seasons/${sid}/bingo/6${q}`)).body;
-    check(card.status === "open" && card.squares?.length === 9 && !card.squares.some((s) => s.key === "free"), "jordan's card on Episode 6 is open, nine squares, none free", JSON.stringify(card).slice(0, 160));
-    for (const i of [3, 4, 5]) {
+    check(card.status === "open" && card.squares?.length === 9, "jordan's card on Episode 6 is open, nine squares (a free one only where the bank runs short)", JSON.stringify(card).slice(0, 160));
+    // The row's real squares (the fixture's bank is short, so a free one can land in it, and a free one is already "yes").
+    const row = [3, 4, 5].filter((i) => card.squares?.[i]?.key !== "free");
+    for (const i of row) {
       await pool.query("INSERT INTO episode_call_says (user_id, season_id, episode, question, happened) VALUES ($1, $2, 6, $3, true) ON CONFLICT DO NOTHING", [U.alex, sid, card.squares[i].key]);
     }
-    check((await as.jordan.call("GET", `/api/seasons/${sid}/bingo/6${q}`)).body.truth.filter((t, i) => [3, 4, 5].includes(i)).every((t) => t === null), "its middle row: alex says it happened, one say each so far");
+    check((await as.jordan.call("GET", `/api/seasons/${sid}/bingo/6${q}`)).body.truth.filter((t, i) => row.includes(i)).every((t) => t === null), "its middle row: alex says it happened, one say each so far");
     await as.alex.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { square: 0, ticked: true });
     push.clear();
-    await as.jordan.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { square: 3, ticked: true });
-    await as.jordan.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { square: 4, ticked: true });
+    for (const i of row.slice(0, -1)) await as.jordan.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { square: i, ticked: true });
     await wait(2500);
-    check(push.received.length === 0, "two squares of the line: nothing yet");
-    r = await as.jordan.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { square: 5, ticked: true });
-    check(r.body.lines?.ticked === 1 && r.body.lines.called === 0, "the third: a line made, not called yet", JSON.stringify(r.body.lines));
+    check(push.received.length === 0, "all but one square of the line: nothing yet");
+    r = await as.jordan.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { square: row[row.length - 1], ticked: true });
+    check(r.body.lines?.ticked === 1 && r.body.lines.called === 0, "the last: a line made, not called yet", JSON.stringify(r.body.lines));
     await wait(2500);
     check(push.received.length === 0, "a line made tells nobody: calling it does (docs/PLAN-bingo-bank.md step 3)");
     r = await as.jordan.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { call: 1 });
@@ -458,8 +459,8 @@ async function person(pool, who, role = null) {
     check(got("jordan").length === 0, "jordan isn't told of his own call", JSON.stringify(got("jordan")));
     check(got("sam").length === 0 && got("riley").length === 0, "sam and riley have no card on it (and haven't seen it): nothing");
     push.clear();
-    await as.jordan.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { square: 5, ticked: false });
-    await as.jordan.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { square: 5, ticked: true });
+    await as.jordan.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { square: row[row.length - 1], ticked: false });
+    await as.jordan.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { square: row[row.length - 1], ticked: true });
     await as.jordan.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { call: 1 });
     await wait(3000);
     check(push.received.length === 0, "unticked, ticked and called again: told once");
@@ -655,10 +656,10 @@ async function person(pool, who, role = null) {
       check(!(await prefs("alex")).shows[showId], "Undo: on again");
       // The reminder ask. His other phone gets them (it's back), so a save here doesn't ask.
       const changePick = async (p) => {
-        await p.goto(`${BASE}/show/${sid}/tonight`, { waitUntil: "load" });
+        // Your moves on the pick, by its address (show/dock.tsx reads ?moves=, as the hub's plate and a reminder's push open it;
+        // Tonight's own cards went with step 3's strip).
+        await p.goto(`${BASE}/show/${sid}/tonight?moves=pool`, { waitUntil: "load" });
         await p.locator("[data-tab=tonight]").waitFor({ timeout: 30000 });
-        await p.waitForTimeout(1000);
-        await p.locator('[data-move^="pick-"] button, [data-done^="pick-done"] button').first().click();
         const d = p.getByRole("dialog");
         await d.getByText("Your moves").waitFor({ timeout: 15000 });
         const tab = d.getByRole("tab", { name: "Survival Pool" });

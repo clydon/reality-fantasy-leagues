@@ -1199,7 +1199,8 @@ Last updated 2026-10-27.
    taps Casual on Weekly Lineup's waiver settings, then the toast's Undo: the game stays on `waiverFeel: "casual"`,
    `replaceRule: "always"` (expected balanced, whenShort). The Undo calls `backstage.undo(batch)` with the batch the settings
    write returns (`SettingsSheet` write → `onUndo`); either the write returns no batch for a feel, the undo doesn't restore those
-   keys, or the check's 1.5 s wait is short. Not investigated. Who takes it: a Backstage step (the settings track, design round
+   keys, or the check's 1.5 s wait is short. **The same check passed it on a rerun the same day** (147 of 147), so most likely the
+   wait: flaky, not broken. Not investigated further. Who takes it: a Backstage step (the settings track, design round
    step 12) or a small fix session.
 
 ## Decided against (don't re-propose without new information)

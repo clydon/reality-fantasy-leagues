@@ -864,9 +864,9 @@ export function bestOf(w: TableRow["weeks"][number]): { scored: number; best: nu
  *  (scrolled to the very end, the first week's numbers peeked half-cut from under them; left at the start, the last ones did
  *  under the total): the earliest week from which every later one still fits before the total. Week headings carry
  *  data-week-col; the row's first and last headings are the pinned ones. */
-function useOpenOnLatest(scroller: RefObject<HTMLDivElement | null>) {
+function useOpenOnLatest(scrollerRef: RefObject<HTMLDivElement | null>) {
   useEffect(() => {
-    const el = scroller.current;
+    const el = scrollerRef.current;
     if (!el) return;
     const box = el.getBoundingClientRect();
     const at = (x: Element) => x.getBoundingClientRect();
@@ -879,7 +879,7 @@ function useOpenOnLatest(scroller: RefObject<HTMLDivElement | null>) {
     const room = el.clientWidth - total - gap;
     const from = cols.find((c) => end - (left(c) - pin - gap) <= room) ?? cols[cols.length - 1];
     el.scrollLeft = Math.max(0, Math.min(left(from) - pin - gap, el.scrollWidth - el.clientWidth));
-  }, [scroller]);
+  }, [scrollerRef]);
 }
 
 /** A person's season under their week-by-week chart, as one table a week a column: the result each week (head to head: the

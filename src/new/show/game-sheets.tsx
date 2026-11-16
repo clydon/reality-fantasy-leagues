@@ -11,7 +11,7 @@ import type { Square } from "@/lib/game/game-plays";
 import { useWithRoles } from "../sports/faces";
 import { StoryBody } from "./cast";
 import { LATE_SET, LateMark, LineupSheet, signed } from "./lineup-sheet";
-import { castName, faceIn, first } from "./moves";
+import { castName, faceIn } from "./moves";
 import { Face } from "./parts";
 import { answerWords, verdictWords } from "./questions";
 import { AthleteChart, BetsBody, CastChart, CompareBody, EpisodeGames, GameTable, MatchupBody, MatchupTitle, PersonSeason } from "./game-week";
