@@ -195,7 +195,7 @@ function Level({ level, drill, crumb, plain, ...ctx }: Ctx & { level: Level; dri
     const wg = ctx.wg ?? g;
     return (
       <Sheet open={level.open} onOpenChange={onOpenChange} crumb={crumb} plain={plain} title={`Everyone in ${wg.gameName}`} subtitle="Their points at this game's scoring, and who has them">
-        <GameTable g={wg} words={show.words} onFace={(id) => go.open({ kind: "cast", id })} />
+        <GameTable g={wg} words={show.words} onFace={(id) => go.open({ kind: "cast", id })} ground="var(--card)" />
       </Sheet>
     );
   }

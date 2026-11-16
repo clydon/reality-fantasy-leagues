@@ -1236,6 +1236,17 @@ Last updated 2026-10-27.
    Both reach every place an answer goes: the spec's check and words (describe.js), the question sheet and its pickers, the
    bots, the explorer's runtime and oracle, and the GPT's drafts. Add them to the capability tracker
    (tests/fixtures/engine-capabilities.json) when planned.
+95. **Two things noticed polishing The numbers' game lens, left alone** (2026-11-16, the GameTable change: first names, holders
+   as faces, the pinned columns on the ground; story frames in .ui-atlas/stories/numbers-holders/, `scripts/dev-test/story-numbers.js`):
+   - **The show lens names by `c.first` with no clash rule.** NumbersTable (src/new/show/cast.tsx), the other lens of the same
+     section, would show two Kristins as "Kristin" twice; the game lens now reads "Kristin C." and "Kristin F." (castName). The
+     show's own stats carry no game, so it needs the clash count over `d.cast`.
+   - **Your sheet's season table (PersonSeason, game-week.tsx) still lets weeks scroll past its pinned PTS into the gutter** on a
+     season longer than the sheet's width (the bug GameTable had: its pinned cells stick inside the scroller's padding and nothing
+     covers the 16px beside them). Its opening scroll and even widths are fixed (the shared useOpenOnLatest); the gutter cover
+     (GameTable's `gutter` spans) isn't applied there. Also not rendered: a sport's game table (a position beside the faces caps
+     them at three slots), only reasoned.
+   Who takes them: a small polish session, or the stat table's next round.
 
 ## Decided against (don't re-propose without new information)
 

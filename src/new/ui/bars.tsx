@@ -34,6 +34,31 @@ export function Avatar({ id, name, size = 34, colour }: { id: string; name: stri
   );
 }
 
+/** Up to four faces, overlapping (three and a count past that, so any number fits one width; `max` slots in all); yours ringed.
+ *  `ground`: what they sit on, for their edge (on the raised fill of your own row, the count's tile takes the panel's). Episodes'
+ *  who's-here and the game table's holders. */
+export function Faces({ marks, ground = "var(--background)", size = 22, max = 4 }: { marks: { userId: string; name: string; you?: boolean }[]; ground?: string; size?: number; max?: number }) {
+  const shown = marks.slice(0, marks.length > max ? max - 1 : max);
+  return (
+    <span className="flex flex-none items-center" aria-hidden>
+      {shown.map((m, i) => (
+        // The face after yours steps clear of your ring, so its initial isn't hidden between two.
+        <span key={m.userId} className={`rounded-[3px] ${!i ? "" : shown[i - 1].you ? "ml-0.5" : "-ml-1.5"} ${m.you ? "relative z-[1] outline-2 outline-offset-1 outline-foreground" : ""}`} style={{ boxShadow: `0 0 0 2px ${ground}` }}>
+          <Avatar id={m.userId} name={m.name} size={size} />
+        </span>
+      ))}
+      {marks.length > shown.length && (
+        <span
+          className={`type-num -ml-1.5 grid place-items-center rounded-[3px] px-1 text-[11px] ${ground === "var(--secondary)" ? "bg-card" : "bg-secondary"}`}
+          style={{ height: size, minWidth: size, boxShadow: `0 0 0 2px ${ground}` }}
+        >
+          +{marks.length - shown.length}
+        </span>
+      )}
+    </span>
+  );
+}
+
 /** A face too small for a picture (the guide's and the rail's): their initial on their colour. `className` sizes it. */
 export function TinyFace({ id, name, className }: { id: string; name: string; className: string }) {
   const face = usePerson(id);
