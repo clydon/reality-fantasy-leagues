@@ -59,8 +59,19 @@ async function season(id, name) {
   }
 }
 
+// The migration's queue, run again (it does nothing for a season queued already): a copy migrated before a fix to it still
+// gets every season the migration now names.
+const QUEUE = (() => {
+  const sql = fs.readFileSync(path.join(root, "db", "migrations", "0441_season_catchups.sql"), "utf8");
+  const m = sql.match(/INSERT INTO season_catchups[\s\S]*?ON CONFLICT DO NOTHING;/);
+  if (!m) throw new Error("0441's queue statement wasn't found");
+  return m[0];
+})();
+
 (async () => {
   try {
+    const queued = await pool.query(QUEUE);
+    if (queued.rowCount) console.log(`[catch-up] queued ${queued.rowCount} more season(s) as the migration now names them`);
     const { rows } = await pool.query(
       `SELECT c.season_id, COALESCE(ss.name, s.name || ' ' || ss.season_number) AS name FROM season_catchups c
          JOIN show_seasons ss ON ss.id = c.season_id JOIN shows s ON s.id = ss.show_id

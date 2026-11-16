@@ -47,11 +47,12 @@ ALTER TABLE episode_research DROP CONSTRAINT episode_research_source_check;
 ALTER TABLE episode_research ADD CONSTRAINT episode_research_source_check
   CHECK (source IN ('combined', 'paste', 'quick', 'hand', 'bot', 'autopilot', 'tiebreak', 'catchup'));
 
--- The seasons that catch up: the four shows on the app (by slug), each season with a game that isn't deleted or archived, and
--- each show's newest season.
+-- The seasons that catch up: the four shows on the app (by slug: production's The Traitors is 'the-traitors', a local copy's
+-- may be 'the-traitors-us'), each season with a game that isn't deleted or archived, and each show's newest season.
+-- scripts/catch-up-rehearse.js runs this statement again (it reads it from here), so keep it one statement ending in DO NOTHING.
 INSERT INTO season_catchups (season_id)
 SELECT ss.id FROM show_seasons ss JOIN shows s ON s.id = ss.show_id
- WHERE s.slug IN ('survivor', 'the-traitors-us', 'the-challenge', 'below-deck')
+ WHERE s.slug IN ('survivor', 'the-traitors', 'the-traitors-us', 'the-challenge', 'below-deck')
    AND (EXISTS (SELECT 1 FROM leagues l
                  WHERE l.deleted_at IS NULL AND l.solo IS NULL AND l.name NOT LIKE 'zt%'
                    AND COALESCE(l.state->'settings'->>'archivedAt', '') = ''
