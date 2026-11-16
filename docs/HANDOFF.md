@@ -79,7 +79,12 @@ after, the wizard taking in chunk 7). Commits: 10b6f369 (chunk 1), ad6b0f2b (chu
   changes (properties in when it has none; nothing that scores changes), the cast's details where we have none, then each aired
   episode researched again as source `catchup`, **tried in a rolled-back transaction**: no total moves, sent; any does, held for
   the desk ("Would change scores" on the episode page, Send it / Leave it out; an Inbox item). Driven locally:
-  `node scripts/dev-test/catch-up.js status|step|start|decide|rewind`. **Before the push:** rehearse it on a Neon branch of
+  `node scripts/dev-test/catch-up.js status|step|start|decide|rewind`; the guard's check `check-catch-up.js` (14 of 14). **Survivor
+  51 caught up in the lane:** the rulebook's check left 30 differences as its card, the cast had nothing to fill, 7 of 8 episodes
+  went in with no score moving, Episode 6 is held (seven tribe-immunity results the first research left out: +3 to three players
+  in one game; decide it on /desk/season/e3a42b04-cff2-42be-9554-0d67cabe1718/e/6). A failed step backs off (5, 15, 45 min, then
+  2 h) and stops for the desk after 6 tries. The other four local catch-ups (Survivor 49, Traitors 5, Challenge 42, Below Deck 13)
+  are queued but not run (the lane has no clock). The story is at version 4 (holdings and the catch-up). **Before the push:** rehearse it on a Neon branch of
   production (the deploy rehearsal routine) and show the user the held list; the clock then runs it in production by itself.
 - **Next:** the rehearsal on production's copy, then the merge (0439-0441 renumbered if taken). Chunk 7 goes with the wizard (step
   12). The user's review of the story's chunks.
