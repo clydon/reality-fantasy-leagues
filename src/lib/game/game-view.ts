@@ -637,14 +637,21 @@ export function castOf(view: LeagueState): CastFace[] {
   const episode = new Map(view.episodes.map((e) => [e.id, e.number]));
   const tribes = new Map((view.tribes || []).map((t) => [t.id, t]));
   const outlast = pieces.hasRoster && !pieces.hasActiveRoster;
+  // A crew's job (the season's main cast property, stamped per read: server/cast-props.ts), as a sport's position is.
+  const props = (view as { castProps?: Record<string, Record<string, string>>; castPropDefs?: { key: string; main: boolean }[] }).castProps;
+  const defs = (view as { castPropDefs?: { key: string; main: boolean }[] }).castPropDefs ?? [];
+  const mainKey = (defs.find((d) => d.main) ?? defs[0])?.key;
   return view.castaways.map((c: Castaway) => {
     const tribe = tribes.get(c.tribeId);
     const left = c.status === "eliminated";
+    const p = props?.[c.id];
+    const role = (p && ((mainKey && p[mainKey]) || p.position)) || null;
     return {
       id: c.id,
       name: c.name,
       photo: publicMediaSrc(c.photoUrl),
       tribe: tribe ? { name: tribe.name, colour: tribe.color } : null,
+      ...(role ? { role } : {}),
       left,
       knocked: isKnockedOut(view, c),
       out: left && c.exitEpisodeId ? (episode.get(c.exitEpisodeId) ?? null) : null,

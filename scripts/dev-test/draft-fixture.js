@@ -162,10 +162,19 @@ async function up(pool, opts = {}) {
     [show]
   )).id;
   const cast = [];
+  // Each castaway's bio as Survivor 51's cast has it here (cast properties' research: hometown, age, occupation, the network's
+  // line), so the room's sheet says who they are before the premiere; none when this database has no research yet.
+  const bios = new Map(
+    (await pool.query(
+      `SELECT lower(sc.name) AS name, sc.bio FROM season_cast sc JOIN show_seasons ss ON ss.id = sc.season_id JOIN shows s ON s.id = ss.show_id
+        WHERE s.slug = 'survivor' AND ss.season_number = 51 AND sc.bio IS NOT NULL`
+    ).catch(() => ({ rows: [] }))).rows.map((r) => [r.name, r.bio])
+  );
   for (const [i, slug] of FACES.entries()) {
+    const bio = bios.get(nameOf(slug).toLowerCase()) ?? null;
     const row = await one(
-      `INSERT INTO season_cast (season_id, name, tribe_name, photo_url, sort_order) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-      [season, nameOf(slug), TRIBES[i % 3][0], `/mock/showcase/img/survivor-51/${slug}.jpg`, i]
+      `INSERT INTO season_cast (season_id, name, tribe_name, photo_url, sort_order, bio) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+      [season, nameOf(slug), TRIBES[i % 3][0], `/mock/showcase/img/survivor-51/${slug}.jpg`, i, bio ? JSON.stringify(bio) : null]
     );
     cast.push({ id: row.id, name: nameOf(slug), tribe: TRIBES[i % 3][0], photo: `/mock/showcase/img/survivor-51/${slug}.jpg` });
   }

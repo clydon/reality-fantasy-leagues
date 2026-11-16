@@ -14,6 +14,7 @@ import { pool } from "./db";
 import { EVERYTHING, seenThrough } from "./guard";
 import { leagueStates } from "./league-states";
 import { games } from "./show-space";
+import { bioOf, propertyViews, propsOf, seasonCastProperties, type CastPropertyView } from "./cast-props";
 
 // A season's cast stats (docs/PLAN-new-design.md step 3; GET /api/seasons/[id]/stats?from=&to=&couch=), for anyone,
 // in a game or not: the Cast tab, Tonight's Stats card, the stats page and By the numbers all read it, and the
@@ -30,6 +31,9 @@ import { games } from "./show-space";
 // database), since every range and everyone on a couch reads them again; the game's state comes from league-states.ts.
 
 export interface SeasonStats extends CastStats {
+  /** What the show sorts its people by (its rulebook's cast.properties, docs/PLAN-cast-properties.md): each person's values are
+   *  on them (CastStat.props), the line under a name is the main one's, and the wall groups by the first with values. */
+  properties: CastPropertyView[];
   /** Where you are on the season; null when you see everything. */
   seenThrough: number | null;
   /** Whose points "Points" are: a game's (its name), else the rulebook's suggestion. */
@@ -76,6 +80,8 @@ export interface SeasonFactsFor {
   pointsFrom: string | null;
   /** What each person does (season_cast.role), by lower-cased name: a crew's role, a sport's position. Never a secret role. */
   positions: Record<string, string>;
+  /** Each person's cast properties and bio (season_cast.props, .bio), by lower-cased name: the season's own facts, as billed. */
+  about: Record<string, { props: Record<string, string>; bio: import("@/lib/game/formats/cast-prompt").CastBio | null }>;
 }
 
 /** A rulebook's blocks as they are at where you are: its in-force edits applied (a moment an edit added gets its stat
@@ -105,7 +111,7 @@ export async function seasonFactsFor(user: SessionUser, seasonId: string, couchI
          FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1`,
       [seasonId]
     ),
-    pool.query(`SELECT id, name, tribe_name AS "tribeName", photo_url AS "photoUrl", role FROM season_cast WHERE season_id = $1 ORDER BY sort_order, name`, [seasonId]),
+    pool.query(`SELECT id, name, tribe_name AS "tribeName", photo_url AS "photoUrl", role, props, bio FROM season_cast WHERE season_id = $1 ORDER BY sort_order, name`, [seasonId]),
     Number.isFinite(mark) && mark < 1 ? Promise.resolve([] as DecisionFact[]) : acceptedResults(seasonId),
   ]);
   const decisions = all.filter((d) => d.episode_number <= mark);
@@ -146,16 +152,21 @@ export async function seasonFactsFor(user: SessionUser, seasonId: string, couchI
     colours: Object.fromEntries((view?.tribes ?? []).map((t) => [t.name.toLowerCase(), t.color])),
     pointsFrom: game && moments(game) ? game.name : null,
     positions: Object.fromEntries(cast.filter((c) => c.role).map((c) => [String(c.name).toLowerCase(), c.role as string])),
+    about: Object.fromEntries(cast.map((c) => [String(c.name).toLowerCase(), { props: propsOf(c.props), bio: bioOf(c.bio) }])),
   };
 }
 
 export async function seasonStats(user: SessionUser, seasonId: string, couchId: string | null, range: { from?: string | null; to?: string | null }): Promise<SeasonStats> {
-  const f = await seasonFactsFor(user, seasonId, couchId);
+  const [f, properties] = await Promise.all([seasonFactsFor(user, seasonId, couchId), seasonCastProperties(seasonId)]);
   const stats = castStats(f.facts, { seen: f.mark, book: f.book, from: range.from, to: range.to, colours: f.colours });
   const unsure = await unsettledFacts(seasonId, f.mark);
   return {
     ...stats,
-    cast: stats.cast.map((c) => ({ ...c, position: f.positions[c.name.toLowerCase()] ?? null })),
+    properties: propertyViews(properties),
+    cast: stats.cast.map((c) => {
+      const about = f.about[c.name.toLowerCase()];
+      return { ...c, position: f.positions[c.name.toLowerCase()] ?? null, props: about?.props ?? {}, bio: about?.bio ?? null };
+    }),
     seenThrough: Number.isFinite(f.seen) ? f.seen : null,
     pointsFrom: f.pointsFrom,
     unsure: Object.fromEntries([...unsure].map(([n, people]) => [n, Object.fromEntries(people)])),

@@ -18,6 +18,7 @@ import { settleKeepers } from "./keepers";
 import { stampSeatHistory } from "./handicaps";
 import { seatStage, settleStageDraft, stagesToSeat } from "./stages";
 import { stampStats } from "./sports/score";
+import { stampCastProps } from "./cast-props";
 import { after } from "next/server";
 
 // Re-exported so route handlers can import { pool, withLeagueLock, HttpError } from one place,
@@ -83,6 +84,8 @@ export async function withLeagueLock(
     await stampAirTimes(client, state, leagueId);
     // L3 part 2: a game scored by a sport's stats, its final games' lines (read for its moves: a free agent's points), never saved.
     await stampStats(state);
+    // Cast properties (a crew's department and job), read per request for the mutation's rules, never saved.
+    await stampCastProps(state, client);
     // L3 part 2e: a squares game keeps what its first lock settled (a deal's seats) and each locked episode's digits as stamped, so a
     // seat joining later or the secret changing moves nothing already dealt or drawn.
     StateLogic.SquaresLogic.settle(state);

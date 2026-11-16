@@ -5,6 +5,7 @@ import { pool, withLeagueLock } from "./db";
 import { stampAirTimes } from "./air-times";
 import { notifyDraftTurn } from "./push-events";
 import { stampStats } from "./sports/score";
+import { stampCastProps } from "./cast-props";
 
 // What a league read does before it answers: the classic league load (GET /api/leagues/[id]/state) and the new
 // design's show space (season-games.ts) both read through here, so a league moves on whichever design is open.
@@ -47,10 +48,10 @@ export async function readyLeague(leagueId: string, state: LeagueState): Promise
   const keepersDue = StateLogic.KeeperLogic.due(state);
   // A squares game whose first episode has locked (its deal) or an episode whose digits are drawn (L3 part 2e): withLeagueLock keeps them.
   const squaresDue = StateLogic.SquaresLogic.due(state);
-  if (!StateLogic.ensureNextEpisode(structuredClone(state)) && !Bots.hasWork(state) && !waiverStepDue && !drawDue && !auctionDue && !keepersDue && !squaresDue) return stampStats(state);
+  if (!StateLogic.ensureNextEpisode(structuredClone(state)) && !Bots.hasWork(state) && !waiverStepDue && !drawDue && !auctionDue && !keepersDue && !squaresDue) return stampCastProps(await stampStats(state));
   const before = draftTurn(state);
   const next = await withLeagueLock(leagueId, () => {});
   if (draftTurn(next) !== before) notifyDraftTurn(leagueId, next, null);
   await stampAirTimes(pool, next, leagueId);
-  return stampStats(next);
+  return stampCastProps(await stampStats(next));
 }

@@ -14,6 +14,9 @@
 //        the desk's cast page in a browser at 390 as zt_rs_desk: See what changed (screenshots of the whole sheet), each change
 //        listed; --send presses Send and confirms, as a person on the desk does (the defaults: details and bios fill in where
 //        there are none; with --keep-ours a person's spelling and starting group stay ours too, which they do by default anyway)
+//   node scripts/dev-test/cast-props-research.js look <seasonId> --out=<dir> [--tap=<first name>] [--seen=N]
+//        the season's Cast tab in a browser at 390 as zt_rs_desk (following it at --seen, 0 by default: its own zt follow row),
+//        the wall, then that person's sheet: real data for a screenshot story
 //   node scripts/dev-test/cast-props-research.js rulebook <seasonId> the desk's Check for changes on the season's rulebook by our
 //        bot, waits for the answer and prints its cast block (nothing is applied: review it on the desk)
 //   node scripts/dev-test/cast-props-research.js down               removes zt_rs_desk only (shows it added stay: created_by
@@ -136,6 +139,35 @@ async function review(sid) {
   }
 }
 
+async function look(pool, sid) {
+  const out = opt("out");
+  if (!out) throw new Error("look needs --out=<dir>");
+  fs.mkdirSync(out, { recursive: true });
+  const { rows: me } = await pool.query(`SELECT id FROM "user" WHERE username = $1`, [USER]);
+  await pool.query(
+    `INSERT INTO show_follows (user_id, season_id, seen_through, following) VALUES ($1, $2, $3, true)
+     ON CONFLICT (user_id, season_id) DO UPDATE SET seen_through = EXCLUDED.seen_through, following = true`,
+    [me[0].id, sid, Number(opt("seen") || 0)]
+  );
+  const { page, close } = await open({ user: USER, pass: PASSWORD, width: 390, height: 844 });
+  try {
+    await page.goto(`${BASE}/show/${sid}/cast`);
+    await page.locator("[data-face-wall]").waitFor({ timeout: 30000 });
+    await page.waitForTimeout(1500);
+    await page.screenshot({ path: path.join(out, "cast.jpg"), type: "jpeg", quality: 82 });
+    await page.screenshot({ path: path.join(out, "cast.full.jpg"), type: "jpeg", quality: 82, fullPage: true });
+    const who = opt("tap");
+    const face = who ? page.locator(`[data-face-wall] button[data-cast="${who}"]`) : page.locator("[data-face-wall] button[data-cast]").first();
+    await face.first().click();
+    await page.locator('[role="dialog"]').last().waitFor({ timeout: 15000 });
+    await page.waitForTimeout(900);
+    await page.screenshot({ path: path.join(out, `sheet-${who || "first"}.jpg`), type: "jpeg", quality: 82 });
+    console.log(`[${stamp()}] shot ${out}`);
+  } finally {
+    await close();
+  }
+}
+
 async function rulebook(as, pool, sid) {
   const { rows } = await pool.query("SELECT id FROM rulebooks WHERE season_id = $1 AND owner_kind = 'season' AND status <> 'archived'", [sid]);
   if (!rows[0]) throw new Error("that season has no rulebook");
@@ -177,6 +209,7 @@ async function rulebook(as, pool, sid) {
     else if (cmd === "cast") await cast(as, pool, target);
     else if (cmd === "rulebook") await rulebook(as, pool, target);
     else if (cmd === "review") await review(target);
+    else if (cmd === "look") await look(pool, target);
     else throw new Error("usage: cast-props-research.js up | add <tvmazeId> [--season=N] | cast <seasonId> | rulebook <seasonId> | down");
   } catch (e) {
     console.error(e.message || e);

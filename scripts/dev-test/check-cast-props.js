@@ -11,6 +11,11 @@
 //      .bio and the cast's log; a second paste with a different job is a Keep ours / Use theirs choice, kept by default; Undo of
 //      the first send puts them back; Override on a castaway's page (a listed value refused, then set; a bio) with History and
 //      Undo. In the browser at --width: the review sheet and the castaway page.
+//   3. The cast tab and the sheet (chunk 3), the crew given departments, jobs, a status (Veteran or Rookie) and bios, jo following
+//      the season before its premiere: the stats read carries the properties and each person's values and bio; a game's stamp
+//      (cast-props.ts stampCastProps) gives each castaway's values by id and is left out of a save; in the browser at --width,
+//      the wall grouped by department in the rulebook's order with each job under a name, the Status chips (All, Veteran 4,
+//      Rookie 2) filtering it, and a face opening who they are before any results (the bio line and its billing line).
 // Screenshots go to <outDir>.
 //
 //   node scripts/lane.js dev                                    (this lane's server; BASE from .env.local)
@@ -28,6 +33,7 @@ const { open, api } = require("./browser");
 const { settle } = require("./motion");
 const { compileRulebook } = require("../../src/lib/game/formats/rulebook-compile.js");
 const { LIBRARY } = require("../../src/lib/game/formats/library/index.js");
+const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "..", "src"), "@db": path.join(__dirname, "..", "..", "db") } });
 
 const DB = process.env.AUTH_DATABASE_URL || "";
 if (!/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(DB)) throw new Error("check-cast-props runs against a local database only");
@@ -278,6 +284,73 @@ async function part2(pool, ids) {
   check(r.status === 200 && !Object.keys((await rows())["Finn Bligh"].props).length, "2: Undo of the Override", JSON.stringify(r.body));
 }
 
+async function part3(pool, ids) {
+  // The crew's details as the desk would have them, Status added to the rulebook (as part 1 does through the editor).
+  const status = { "Kip Hale": "Veteran", "Ana Monroe": "Veteran", "Dee Kwon": "Rookie", "Finn Bligh": "Veteran", "Gus Penn": "Rookie", "Rae Stone": "Veteran" };
+  await pool.query(
+    `UPDATE rulebooks SET blocks = jsonb_set(blocks, '{cast,properties}', (blocks->'cast'->'properties') || '[{"key":"status","name":"Status","values":["Veteran","Rookie"],"changes":"never"}]'::jsonb)
+      WHERE season_id = $1 AND owner_kind = 'season' AND NOT (blocks->'cast'->'properties' @> '[{"key":"status"}]')`,
+    [ids.s1]
+  );
+  for (const [name, department, job, hometown, age, occupation] of CREW)
+    await pool.query("UPDATE season_cast SET props = $2::jsonb, bio = $3::jsonb WHERE id = $1", [
+      ids.cast[name],
+      JSON.stringify({ department, job, status: status[name] }),
+      JSON.stringify({ hometown, age, occupation, ...(name === "Ana Monroe" ? { line: "Runs the interior like a five-star hotel, and expects her team to keep up." } : {}) }),
+    ]);
+  const { rows: jo } = await pool.query(`SELECT id FROM "user" WHERE username = $1`, [U("jo")]);
+  await pool.query("INSERT INTO show_follows (user_id, season_id, seen_through, following) VALUES ($1, $2, 0, true) ON CONFLICT DO NOTHING", [jo[0].id, ids.s1]);
+
+  const as = await api({ user: U("jo"), pass: PASSWORD });
+  const st = (await as.call("GET", `/api/seasons/${ids.s1}/stats`)).body;
+  const ana = (st.cast || []).find((c) => c.name === "Ana Monroe");
+  check(st.properties?.map((p) => `${p.key}${p.main ? "*" : ""}`).join() === "department,job*,status", "3: the stats read carries the season's properties (job shown under a name)", JSON.stringify(st.properties));
+  check(ana?.props?.job === "Chief stew" && ana?.bio?.hometown === "Ocean City, NJ" && ana?.bio?.age === 31, "3: and each person's values and bio", JSON.stringify(ana && { props: ana.props, bio: ana.bio }));
+
+  // A game's stamp: each castaway's values by their id, and never in what's saved.
+  const { stampCastProps } = jiti("../../src/lib/server/cast-props.ts");
+  const S = require("../../src/lib/game/state-logic.js");
+  const state = await stampCastProps({ castaways: [{ id: "k1", seasonCastId: ids.cast["Ana Monroe"] }, { id: "k2", seasonCastId: null }] }, pool);
+  check(state.castProps?.k1?.job === "Chief stew" && !state.castProps.k2 && state.castPropDefs?.length === 3, "3: a game's stamp gives each castaway's values by id", JSON.stringify(state.castProps));
+  const keys = new Set(S.StatsLogic.stampedKeys());
+  check(!/castProp/.test(JSON.stringify(state, (k, v) => (keys.has(k) ? undefined : v))), "3: and a save leaves it out");
+
+  if (!out) return;
+  const { page, close } = await open({ user: U("jo"), pass: PASSWORD, width, height: 844 });
+  const shot = (n) => page.screenshot({ path: path.join(out, `${n}.jpg`), type: "jpeg", quality: 82 });
+  try {
+    await page.goto(`${process.env.BASE}/show/${ids.s1}/cast`);
+    await page.locator("[data-face-wall]").waitFor({ timeout: 30000 });
+    await page.waitForTimeout(800);
+    const groups = await page.locator("[data-face-wall] [data-group]").evaluateAll((els) => els.map((e) => e.getAttribute("data-group")));
+    check(groups.join() === "Interior,Deck,Galley,Bridge", "3: the wall groups by department, in the rulebook's order", groups.join());
+    const lines = await page.locator("[data-face-wall] [data-cast-line]").allInnerTexts();
+    check(lines.includes("Chief stew") && lines.includes("Captain"), "3: each job under a name", lines.join(" | "));
+    const chips = await page.locator('[data-chips-of="status"] [data-chip]').allInnerTexts();
+    check(chips.map((c) => c.replace(/\s+/g, " ").trim()).join() === "All,Veteran 4,Rookie 2", "3: Status chips with how many", chips.join(" | "));
+    check((await page.locator('[data-chips-of="department"], [data-chips-of="job"]').count()) === 0, "3: no chips for the grouping or a free-text property");
+    await shot("3-wall");
+    await page.locator('[data-chips-of="status"] [data-chip="Rookie"]').click();
+    await page.waitForTimeout(400);
+    const rookies = await page.locator("[data-face-wall] [data-cast]").evaluateAll((els) => els.map((e) => e.getAttribute("data-cast")));
+    check(rookies.sort().join() === "Dee,Gus", "3: Rookie shows only the rookies", rookies.join());
+    await shot("3-rookies");
+    await page.locator('[data-chips-of="status"] [data-chip=""]').click();
+    await page.locator('[data-face-wall] [data-cast="Ana"]').click();
+    await page.locator("[data-person-bio]").waitFor({ timeout: 10000 });
+    await page.waitForTimeout(600);
+    const head = await page.locator("[data-person-group]").innerText();
+    const bio = await page.locator("[data-person-bio]").innerText();
+    const line = await page.locator("[data-person-line]").innerText();
+    check(/Interior · Chief stew · Veteran/.test(head) && bio === "Ocean City, NJ · 31 · Chief stewardess" && /five-star hotel/.test(line), "3: a face opens who they are, before any results", `${head} | ${bio} | ${line}`);
+    check((await page.locator("[data-compare-with]").count()) === 0, "3: no Compare before there are numbers");
+    await shot("3-sheet");
+    check(!(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)), "3: nothing wider than the screen");
+  } finally {
+    await close();
+  }
+}
+
 (async () => {
   const pool = new Pool({ connectionString: DB });
   try {
@@ -291,6 +364,7 @@ async function part2(pool, ids) {
     fs.mkdirSync(out, { recursive: true });
     if (runs(1)) await part1(pool, ids);
     if (runs(2)) await part2(pool, ids);
+    if (runs(3)) await part3(pool, ids);
     if (!keep) await down(pool);
     console.log(failures ? `${failures} FAILED` : "ALL PASS");
     if (failures) process.exitCode = 1;
