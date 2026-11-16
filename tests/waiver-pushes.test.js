@@ -84,15 +84,18 @@ function processedCanvas() {
 
 test("processed: names to those who've revealed, the same words to those who haven't, nothing for a quiet week", () => {
   const { s } = processedCanvas();
-  const msgs = Object.fromEntries(WP.processedMessages(s, W.current(s), "Couch Crew", PEOPLE).map((m) => [m.userId, m.message]));
+  const msgs = Object.fromEntries(WP.processedMessages(s, W.current(s), "Couch Crew", PEOPLE, "Survivor 991").map((m) => [m.userId, m.message]));
   assert.equal(msgs["u-sam"].title, "You got Ori and Maggie");
-  assert.equal(msgs["u-sam"].body, "Couch Crew: waivers processed. Free agency is open until Episode 4 airs.");
+  assert.equal(msgs["u-sam"].body, "Survivor 991 · Couch Crew · Free agency until Ep 4 airs");
+  // Who's seen the episode opens the run itself (sendProcessed: run).
+  assert.equal(msgs["u-sam"].run, true);
   assert.equal(msgs["u-sam"].url, "/waivers/results/3");
   // Kim is ahead of Sam, and a replacement no longer goes first: Kim gets Rob.
   assert.equal(msgs["u-kim"].title, "You got Rob");
   // Josie: no names, no "owed", the same as anyone who hasn't revealed.
-  assert.equal(msgs["u-josie"].title, "Waivers processed");
-  assert.equal(msgs["u-josie"].body, "Couch Crew: reveal Episode 3 to see every move.");
+  assert.equal(msgs["u-josie"].title, "Couch Crew waivers ran");
+  assert.equal(msgs["u-josie"].body, "Survivor 991 · Couch Crew · Reveal Ep 3 to see every move");
+  assert.equal(msgs["u-josie"].run, false);
   assert.doesNotMatch(JSON.stringify(msgs["u-josie"]), /Rob|Maggie|Patt|Jelly|pickup/);
   // Dee: a window with free agency, so the unused swap is still worth a line.
   assert.match(msgs["u-dee"].body, /Your swap is still unused/);
@@ -203,7 +206,7 @@ test("the hourly job processes a week whose time has come, writes it, and announ
   assert.equal(pool.writes.length, 1);
   assert.equal(W.current(pool.writes[0]).phase, "processed");
   assert.ok(r.announced >= 2, "Sam (still owed) and Josie (not revealed) hear about it");
-  assert.ok(lines.some((l) => l.includes("u-josie -- Waivers processed")));
+  assert.ok(lines.some((l) => l.includes("u-josie -- Couch Crew waivers ran")));
 
   // Nothing new an hour later: no second announcement.
   pool.state = pool.writes[0];

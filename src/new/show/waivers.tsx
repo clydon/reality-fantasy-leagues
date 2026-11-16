@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useState, useSyncExternalStore,
 import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeftRight, ArrowRight, Calendar, Check, ChevronRight, CircleHelp, Play, RefreshCw, Zap } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, Calendar, Check, ChevronRight, CircleHelp, Play, Plus, RefreshCw, Zap } from "lucide-react";
 import { airTime, calm, ticks } from "../clock";
 import { useSeasonStats, useSeasonWaivers, waivers as write, type WaiverFace, type WaiverMove, type WaiverRunView, type WaiverWeek } from "../data";
 import { gameColour, gameInk, ordinal } from "../games";
@@ -17,7 +17,7 @@ import { Btn, BtnLink, EmptyState, SectionHead } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { ShowBar } from "../ui/show-bar";
 import { toast } from "../ui/toast";
-import { EpisodeSlider, Select } from "./cast";
+import { AthleteBody, CastSheetBody, EpisodeSlider, Select } from "./cast";
 import { first } from "./moves";
 import { useCastNames } from "../sports/faces";
 import { Face, IconBox } from "./parts";
@@ -295,9 +295,8 @@ function WaiversScreenBody({ seasonId }: { seasonId: string }) {
           show={{ seasonId, name, seasonNumber: show.header.seasonNumber, artUrl: show.header.show.artUrl, backdropUrl: show.header.show.backdropUrl }}
           back={back}
           status={
-            week ? (
+            week && (data.data?.games.length ?? 0) < 2 ? (
               <>
-                <ArrowLeftRight className="size-3.5" aria-hidden />
                 {week.gameName}
               </>
             ) : null
@@ -390,8 +389,8 @@ function Week({ seasonId, show, week }: { seasonId: string; show: ShowData; week
           title={`Reveal Episode ${week.revealFirst} first`}
           line="Who you can replace this week would give away who went home."
           action={
-            <BtnLink tone="must" wide href={paths.show(seasonId)}>
-              To Episode {week.revealFirst}&apos;s results
+            <BtnLink tone="must" wide href={`${paths.show(seasonId, "tonight")}?page=reveal&ep=${week.revealFirst}`}>
+              Reveal Ep {week.revealFirst}
             </BtnLink>
           }
         />
@@ -409,18 +408,185 @@ function Week({ seasonId, show, week }: { seasonId: string; show: ShowData; week
   );
 }
 
-/** The kicker over a week's heading: when it's due, and how far off. */
-function Due({ label, at }: { label: string; at: string | null }) {
-  const t = at ? Date.parse(at) : null;
-  const now = useNow(t != null && ticks(t));
+/** How far off a deadline is, said once and calmly (step 8: no countdown ticking seconds): "in 2 days", "tomorrow", "in 6 hours",
+ *  "in 40 min", "now". */
+function stated(t: number, now: number): string {
+  if (!ticks(t, now)) return calm(t, now);
+  const m = Math.max(0, Math.round((t - now) / 60_000));
+  if (m < 1) return "now";
+  if (m < 60) return `in ${m} min`;
+  const h = Math.round(m / 60);
+  return h === 1 ? "in an hour" : `in ${h} hours`;
+}
+
+/** Each person's points by episode, the season's stats read (the picker's), and how far they count. */
+function useEpisodePoints(seasonId: string, couchId: string | null) {
+  const stats = useSeasonStats(seasonId, couchId);
+  const d = stats.data;
+  const by = new Map((d?.cast ?? []).map((c) => [c.name, c]));
+  const through = d?.through ?? 0;
+  /** Their last eight episodes' points (null once they were out). */
+  const weeks = (name: string): (number | null)[] => {
+    const c = by.get(name);
+    if (!c || !through) return [];
+    return c.perEp.slice(Math.max(0, through - 8), through);
+  };
+  return { through, weeks, points: (f: WaiverFace) => by.get(f.name)?.points ?? f.points };
+}
+
+/** One person's points by episode as bars, on the scale every row on the page shares, in one column at the same place on every
+ *  row so they compare down the page: the latest episode full, the ones before it a step back, a baseline under them all. */
+function WeekBars({ values, max }: { values: (number | null)[]; max: number }) {
+  const said = values.map((v) => (v == null ? "out" : String(Math.round(v * 10) / 10))).join(", ");
   return (
-    <div className="flex items-baseline justify-between">
-      <span className="type-caption text-[15px] tracking-[0.04em] text-chyron-line">
-        {label}
-        {t != null ? ` ${airTime(t)}` : ""}
-      </span>
-      {t != null && <span className="text-[14px] tabular-nums text-muted-foreground">{calm(t, now)}</span>}
+    <span role={values.length ? "img" : undefined} aria-label={values.length ? `Points by episode: ${said}` : undefined} data-week-bars className="flex h-[26px] w-[76px] flex-none items-end justify-end gap-[3px] border-b border-border">
+      {values.map((v, i) => (
+        <i
+          key={i}
+          className={`block w-[7px] rounded-t-[1px] ${v == null ? "" : v < 0 ? "bg-live" : i === values.length - 1 ? "bg-foreground" : "bg-foreground/55"}`}
+          style={{ height: v == null || v === 0 ? 0 : v < 0 ? 3 : Math.max(3, Math.round((v / max) * 24)) }}
+        />
+      ))}
+    </span>
+  );
+}
+
+/** The bars' section aside: which episodes they show, or that nobody has points yet (then the bars stay out). */
+function barsAside(through: number, any: boolean): string {
+  if (!any) return "No points yet";
+  const from = Math.max(1, through - 7);
+  return from === through ? `Points, Ep ${through}` : `Points by episode, ${from}–${through}`;
+}
+
+/** A person on the page: their face and name open their sheet; their line; their weeks; one action at the right. */
+function PersonRow({ f, line, bars, action, onOpen }: { f: WaiverFace; line: ReactNode; bars: ReactNode; action?: ReactNode; onOpen: () => void }) {
+  return (
+    <div data-wv-row={f.name} className="flex min-h-[64px] items-center gap-3 border-t border-border py-2 first:border-t-0">
+      <button type="button" data-wv-open={f.name} onClick={onOpen} className="nd-press flex min-w-0 flex-1 items-center gap-3 text-left">
+        <Face src={f.photo} name={f.name} out={f.out != null} className="size-12 flex-none rounded-[3px]" />
+        <span className="min-w-0 flex-1">
+          {/* A long name wraps to two lines rather than losing its surname to the bars' column. */}
+          <b className="line-clamp-2 block text-[16px] leading-tight">{f.name}</b>
+          <small className="mt-0.5 block truncate text-[13px] text-muted-foreground">{line}</small>
+        </span>
+        {bars}
+      </button>
+      {action}
     </div>
+  );
+}
+
+/** The week's move, the strip's object (a caption plate with its tag): yellow while it's owed, the quiet panel once it's in. */
+function MovePlate({ due, tag, title, line, onTap, done }: { due: boolean; tag: ReactNode; title: string; line: string; onTap?: () => void; done?: boolean }) {
+  const body = (
+    <>
+      <span
+        className={`type-caption -mr-[13px] flex flex-none items-center gap-1.5 whitespace-nowrap py-0 pl-[11px] pr-[22px] text-[15px] tracking-[0.04em] [clip-path:polygon(0_0,100%_0,calc(100%_-_13px)_100%,0_100%)] ${
+          due ? "bg-chyron text-chyron-foreground" : "bg-secondary text-foreground"
+        }`}
+      >
+        {done && <Check className="size-4 text-good" strokeWidth={3} aria-hidden />}
+        {tag}
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col justify-center gap-[3px] py-2.5 pl-5 pr-1">
+        <b data-wv-head className="text-[18px] font-bold leading-tight">
+          {title}
+        </b>
+        <small className={`text-[14px] leading-tight ${due ? "text-plate-muted" : "text-muted-foreground"}`}>{line}</small>
+      </span>
+      {onTap && (
+        <span className="grid flex-none place-items-center px-2.5">
+          <ChevronRight className={`size-5 ${due ? "" : "text-muted-foreground"}`} aria-hidden />
+        </span>
+      )}
+    </>
+  );
+  const cls = `flex min-h-[64px] w-full items-stretch overflow-hidden rounded-[3px] text-left ${due ? "bg-plate text-plate-foreground shadow-plate" : "bg-card text-foreground outline-1 -outline-offset-1 outline-border"}`;
+  return onTap ? (
+    <button type="button" data-wv-plate={due ? "due" : "set"} onClick={onTap} className={`nd-press ${cls}`}>
+      {body}
+    </button>
+  ) : (
+    <div data-wv-plate={due ? "due" : "set"} className={cls}>
+      {body}
+    </div>
+  );
+}
+
+/** Their sheet (step 5's person sheet, an athlete's on a sport), with the week's action at its foot. */
+function WaiverFaceSheet({ seasonId, show, face, onClose, foot }: { seasonId: string; show: ShowData; face: WaiverFace | null; onClose: () => void; foot: ReactNode }) {
+  const role = useContext(CastRoles);
+  const nav = useNav();
+  const [last, setLast] = useState(face);
+  if (face && face !== last) setLast(face);
+  const f = face ?? last;
+  const onGame = (g: { leagueId: string }) => nav.push(paths.gamePage(seasonId, g.leagueId));
+  const sport = show.header?.show.kind === "sport";
+  return (
+    <Sheet open={!!face} onOpenChange={(o) => !o && onClose()} title={f?.name ?? ""} subtitle={f ? [role(f.name), f.group?.name].filter(Boolean).join(" · ") || undefined : undefined} foot={f ? foot : undefined}>
+      {f && (
+        <div data-wv-sheet={f.id}>
+          {sport ? (
+            <AthleteBody seasonId={seasonId} show={show} p={{ name: f.name, role: role(f.name), photoUrl: f.photo, team: f.group?.name ?? "", line: null }} onGame={onGame} />
+          ) : (
+            <CastSheetBody seasonId={seasonId} show={show} name={f.name} onGame={onGame} />
+          )}
+        </div>
+      )}
+    </Sheet>
+  );
+}
+
+/**
+ * An owed spot, as the page's move (the user, 2026-11-16: "it's not clear at first who I'm replacing because the picture of Carter
+ * isn't there... I'd rather the Swap button exist and it bring up Who comes in for Carter"): who's leaving, by face, the deadline
+ * once, and Swap (the page's one yellow) opening the picker. Once claimed, the quiet panel: who's leaving, who comes in, Change.
+ */
+function SpotPlate({ out, add, line, onSwap }: { out: WaiverFace; add: WaiverFace | null; line: string; onSwap: () => void }) {
+  const nm = useContext(CastNames);
+  const due = !add;
+  return (
+    <div
+      data-wv-plate={due ? "due" : "set"}
+      data-wv-spot={out.name}
+      className={`flex min-h-[76px] items-center gap-3 rounded-[3px] py-2.5 pl-2.5 pr-3 ${due ? "bg-plate text-plate-foreground shadow-plate" : "bg-card text-foreground outline-1 -outline-offset-1 outline-border"}`}
+    >
+      {add ? (
+        // Claimed: who comes in, with who's leaving small and faded at its corner (room for the words beside them).
+        <span className="relative flex-none pb-2 pr-2">
+          <Face src={add.photo} name={add.name} className="size-14 rounded-[3px]" />
+          <Face src={out.photo} name={out.name} out className="absolute bottom-0 right-0 size-7 rounded-[2px] outline-2 outline-card" />
+        </span>
+      ) : (
+        <Face src={out.photo} name={out.name} out className="size-14 flex-none rounded-[3px]" />
+      )}
+      <span className="min-w-0 flex-1">
+        <b data-wv-head className="block text-[17px] font-bold leading-tight">
+          {add ? `${nm(add.name)} comes in for ${nm(out.name)}` : `Replace ${nm(out.name)}`}
+        </b>
+        <small className={`mt-0.5 block text-[13.5px] leading-snug ${due ? "text-plate-muted" : "text-muted-foreground"}`}>{line}</small>
+      </span>
+      <Btn tone={due ? "must" : "optional"} data-swap={out.name} className="h-11 min-w-[84px] flex-none px-3.5" onClick={onSwap}>
+        {due ? "Swap" : "Change"}
+      </Btn>
+    </div>
+  );
+}
+
+/** An owed spot in Your team: a blank slot (dashed), the team's shape kept; once claimed, who's coming in, faded till it runs.
+ *  No button: the plate's Swap is the move (a tap here opens the same picker). */
+function SlotRow({ out, add, until, onTap }: { out: WaiverFace; add: WaiverFace | null; until: string | null; onTap: () => void }) {
+  const nm = useContext(CastNames);
+  return (
+    <button type="button" data-wv-slot={out.name} onClick={onTap} className="nd-press flex min-h-[64px] w-full items-center gap-3 border-t border-border py-2 text-left first:border-t-0">
+      <span className="grid size-12 flex-none place-items-center overflow-hidden rounded-[3px] outline-[1.5px] -outline-offset-[1.5px] outline-dashed outline-muted-foreground/60">
+        {add ? <Face src={add.photo} name={add.name} className="size-full opacity-55" /> : <Plus className="size-5 text-muted-foreground" aria-hidden />}
+      </span>
+      <span className="min-w-0 flex-1">
+        <b className={`block text-[16px] leading-tight ${add ? "" : "text-muted-foreground"}`}>{add ? `${nm(add.name)}, coming in` : "Open spot"}</b>
+        <small className="mt-0.5 block truncate text-[13px] text-muted-foreground">{add ? `for ${nm(out.name)}${until ? ` · from ${until}` : ""}` : `${nm(out.name)}'s · out Ep ${out.out ?? "?"}`}</small>
+      </span>
+    </button>
   );
 }
 
@@ -428,152 +594,107 @@ function OpenWeek({ seasonId, show, week }: { seasonId: string; show: ShowData; 
   const nm = useContext(CastNames);
   const role = useContext(CastRoles);
   const [picking, setPicking] = useState<string | null>(null);
+  const [looking, setLooking] = useState<WaiverFace | null>(null);
+  const now = useNow(false);
+  const pts = useEpisodePoints(seasonId, show.couch?.id ?? null);
   const spots = new Map(week.spots.map((s) => [s.dropId, s.addIds]));
   const byId = new Map([...week.team, ...week.free].map((f) => [f.id, f]));
-  const isOut = (f: WaiverFace) => f.out != null;
-  const canReplace = (f: WaiverFace) => week.outIds.includes(f.id);
   const picked = (id: string) => (spots.get(id)?.length ?? 0) > 0;
   const open = week.replace.filter((id) => !picked(id));
   const swapSpots = week.spots.filter((s) => !week.outIds.includes(s.dropId));
   const left = Math.max(0, week.swapsLeft - swapSpots.length);
   const total = week.spots.length;
   const nameOf = (id: string) => nm(byId.get(id)?.name ?? "someone");
-  const head = open.length ? `Replace ${names(open.map(nameOf))}` : week.replace.length || swapSpots.length ? "Your swaps are in" : "Any swaps this week?";
-  const due = week.period?.due ?? null;
+  const due = week.period?.due ? Date.parse(week.period.due) : null;
+  const until = due != null ? airTime(due) : null;
+  const episode = week.period?.episode ?? null;
+  // Your team: whoever's on a plate above is a blank slot here, the team's shape kept (the user, 2026-11-16).
+  const team = week.team;
+  const max = Math.max(1, ...team.flatMap((f) => pts.weeks(f.name).map((v) => v ?? 0)));
+  const anyPoints = team.some((f) => pts.weeks(f.name).some((v) => (v ?? 0) !== 0));
+  const bars = (f: WaiverFace) => (anyPoints ? <WeekBars values={pts.weeks(f.name)} max={max} /> : null);
+  const pointsLine = (f: WaiverFace) => [role(f.name), f.group?.name, `${Math.round(pts.points(f) * 10) / 10} pts`].filter(Boolean).join(" · ");
+  const fallback = week.fallback ? "Forget, and whoever's free with the most points comes in." : "Forget, and the spot stays empty.";
 
   return (
     <>
-      <section data-wv-week="open" className="mt-[22px] px-4">
-        <Due label="Due" at={due} />
-        <h2 data-wv-head className="type-caption mt-1 text-[40px] leading-[.95]">
-          {head}
-        </h2>
-        <div className="mt-3 flex flex-wrap gap-2" data-wv-chips>
-          {week.replace.map((id) => (
-            <span
-              key={id}
-              data-chip="replace"
-              className={`flex h-9 items-center gap-1.5 rounded-[3px] px-3 text-[15px] font-bold ${picked(id) ? "bg-secondary text-foreground" : "bg-chyron text-chyron-foreground"}`}
-            >
-              {picked(id) && <Check className="size-4" strokeWidth={3} aria-hidden />}
-              Replace {nameOf(id)}
-            </span>
-          ))}
-          {week.swapsAllowed > 0 && (
-            <span data-chip="swap" className="flex h-9 items-center gap-1.5 rounded-[3px] bg-secondary px-3 text-[15px] font-bold">
-              {left ? (
-                `Optional · ${left} free swap${left === 1 ? "" : "s"}`
-              ) : (
-                <>
-                  <Check className="size-4" strokeWidth={3} aria-hidden />
-                  Optional swap{week.swapsAllowed > 1 ? "s" : ""} used
-                </>
-              )}
-            </span>
-          )}
-        </div>
-      </section>
-
-      <section className="mt-[26px] px-4">
-        <SectionHead title="Your team" aside={left ? (week.swapsAllowed >= week.team.length ? "Swap anyone" : `${left} swap${left === 1 ? "" : "s"} left`) : undefined} flush />
-        <div className="flex flex-col">
-          {week.team.map((f) => {
-            const adds = spots.get(f.id) ?? [];
-            const out = isOut(f);
-            const owed = week.replace.includes(f.id);
-            const can = out ? canReplace(f) : left > 0 || adds.length > 0;
-            return (
-              <div key={f.id} data-wv-row={f.name} className="border-t border-border py-2.5 first:border-t-0">
-                <div className="flex items-center gap-3">
-                  <Face src={f.photo} name={f.name} out={out} className="size-14 flex-none rounded-[3px]" />
-                  <span className="min-w-0 flex-1">
-                    <b className="block text-[17px] leading-tight">{f.name}</b>
-                    {out ? (
-                      <small className="block text-[14px] font-semibold text-live">Out · Episode {f.out}</small>
-                    ) : (
-                      <small className="block text-[14px] text-muted-foreground">
-                        {[role(f.name), `${f.points} pts`, f.group?.name].filter(Boolean).join(" · ")}
-                      </small>
-                    )}
-                    {!out && f.tag && <span className="mt-1 inline-block rounded-[2px] bg-good/15 px-1.5 py-0.5 text-[12px] font-bold text-(--nd-good)">{f.tag}</span>}
-                  </span>
-                  {adds.length && !out ? (
-                    <span className="type-caption text-[13px] tracking-[0.06em] text-muted-foreground">Going</span>
-                  ) : adds.length ? null : (
-                    can && (
-                      <Btn
-                        data-swap={f.name}
-                        tone={owed ? "must" : "optional"}
-                        className="h-11 min-w-[88px] px-4"
-                        onClick={() => setPicking(f.id)}
-                      >
-                        Swap
-                      </Btn>
-                    )
-                  )}
-                </div>
-                {adds.length > 0 && (
-                  <button type="button" data-wv-in={f.name} onClick={() => setPicking(f.id)} className="nd-press mt-2 flex w-full items-center gap-2.5 rounded-[3px] bg-card p-2 text-left">
-                    <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
-                    <Face src={byId.get(adds[0])?.photo ?? null} name={byId.get(adds[0])?.name} className="size-10 flex-none rounded-[3px]" />
-                    <span className="min-w-0 flex-1">
-                      <b className="block text-[15px]">{nm(byId.get(adds[0])?.name ?? "someone")} comes in</b>
-                      <small className="block text-[12.5px] text-muted-foreground">
-                        {out ? `Replaces ${nm(f.name)}` : "Optional swap"}
-                        {!week.shared && adds.length === 1 ? " · if taken, the best one left" : ""}
-                      </small>
-                      {adds.length > 1 && (
-                        <small className="block text-[12.5px] font-semibold">
-                          Backup{adds.length > 2 ? "s" : ""}: {adds.slice(1).map(nameOf).join(", ")}
-                        </small>
-                      )}
-                    </span>
-                    <span className="text-[14px] font-bold">Change</span>
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
+      <section data-wv-week="open" className="mt-4 flex flex-col gap-2 px-3">
+        {week.replace.length ? (
+          week.replace.map((id) => {
+            const out = byId.get(id);
+            if (!out) return null;
+            const adds = spots.get(id) ?? [];
+            const add = adds[0] ? (byId.get(adds[0]) ?? null) : null;
+            const line = add
+              ? [adds.length > 1 ? `Backup${adds.length > 2 ? "s" : ""}: ${adds.slice(1).map(nameOf).join(", ")}` : week.shared ? null : "If taken, the best one left", until ? `change until ${until}` : null].filter(Boolean).join(" · ")
+              : [`Out · Ep ${out.out ?? episode}`, until ? `by ${until}` : null, due != null ? stated(due, now) : null].filter(Boolean).join(" · ");
+            return <SpotPlate key={id} out={out} add={add} line={line} onSwap={() => setPicking(id)} />;
+          })
+        ) : total ? (
+          <MovePlate due={false} done tag={episode ? `Ep ${episode}` : "In"} title={`${total} swap${total === 1 ? "" : "s"} in`} line={until ? `Change anything until ${until}` : "Change anything until they run"} />
+        ) : (
+          <MovePlate due={false} tag={episode ? `Ep ${episode}` : "Swaps"} title={`Any swaps? ${left} free this week`} line={until ? `Optional · until ${until}` : "Optional"} />
+        )}
         {open.length > 0 && (
-          <p data-wv-fallback className="mt-3 flex items-start gap-2 text-[15px] leading-snug text-muted-foreground">
-            <Zap className="mt-0.5 size-[18px] flex-none" aria-hidden />
-            {week.fallback
-              ? `Forget, and ${open.length === 1 ? `${nameOf(open[0])}'s spot gets` : "each open spot gets"} whoever's free with the most points.`
-              : `Forget, and ${open.length === 1 ? "the spot stays" : "those spots stay"} empty.`}
+          <p data-wv-fallback className="flex items-start gap-2 px-1 pt-1 text-[14px] leading-snug text-muted-foreground">
+            <Zap className="mt-0.5 size-4 flex-none" aria-hidden />
+            {fallback}
           </p>
         )}
       </section>
 
-      <Order week={week} due={due} />
-
-      {(open.length > 0 || total > 0) && (
-        <div data-wv-bar className="nd-fixed-x fixed bottom-0 z-[30] flex items-center gap-3 border-t border-border bg-background/96 px-4 pb-[calc(12px+env(safe-area-inset-bottom,0px))] pt-3 backdrop-blur-md">
-          {open.length > 0 ? (
-            <>
-              <span className="min-w-0 flex-1">
-                <small className="block text-[14px] text-muted-foreground">{open.length > 1 ? `${open.length} to replace` : `${nameOf(open[0])}'s spot is open`}</small>
-                <b className="type-caption block truncate text-[24px]">Replace by {due ? airTime(Date.parse(due)) : "airtime"}</b>
-              </span>
-              <Btn tone="must" className="min-w-[120px]" onClick={() => setPicking(open[0])}>
-                Swap
-              </Btn>
-            </>
-          ) : (
-            <>
-              <span className="grid size-10 flex-none place-items-center rounded-[3px] bg-good/20 text-good">
-                <Check className="size-5" strokeWidth={2.6} aria-hidden />
-              </span>
-              <span className="min-w-0 flex-1">
-                <small className="block text-[14px] text-muted-foreground">Change anything until {due ? airTime(Date.parse(due)) : "they run"}</small>
-                <b className="type-caption block text-[24px]">
-                  {total} swap{total === 1 ? "" : "s"} in
-                </b>
-              </span>
-            </>
-          )}
-        </div>
+      {team.length > 0 && (
+        <section className="mt-[22px] px-4">
+          <SectionHead title="Your team" aside={anyPoints ? barsAside(pts.through, true) : left && week.replace.length ? `${left} free swap${left === 1 ? "" : "s"}` : undefined} flush />
+          <div className="flex flex-col">
+            {team.map((f) => {
+              const adds = spots.get(f.id) ?? [];
+              if (week.replace.includes(f.id)) {
+                const add = adds[0] ? (byId.get(adds[0]) ?? null) : null;
+                return <SlotRow key={f.id} out={f} add={add} until={until} onTap={() => setPicking(f.id)} />;
+              }
+              const out = f.out != null;
+              const going = adds.length > 0 && !out;
+              return (
+                <div key={f.id}>
+                  <PersonRow
+                    f={f}
+                    line={out ? <span className="font-semibold text-live">Out · Ep {f.out}</span> : pointsLine(f)}
+                    bars={out ? null : bars(f)}
+                    onOpen={() => setLooking(f)}
+                    action={
+                      going ? (
+                        <span className="type-caption w-[88px] flex-none text-center text-[13px] tracking-[0.06em] text-muted-foreground">Going</span>
+                      ) : !out && left > 0 ? (
+                        <Btn data-swap={f.name} className="h-10 min-w-[88px] flex-none px-3 text-[14px]" onClick={() => setPicking(f.id)}>
+                          Swap
+                        </Btn>
+                      ) : (
+                        // The bar column stays where the other rows put it.
+                        <span className="w-[88px] flex-none" aria-hidden />
+                      )
+                    }
+                  />
+                  {going && (
+                    <button type="button" data-wv-in={f.name} onClick={() => setPicking(f.id)} className="nd-press mb-2 flex w-full items-center gap-2.5 rounded-[3px] bg-card p-2 text-left">
+                      <Face src={byId.get(adds[0])?.photo ?? null} name={byId.get(adds[0])?.name} className="size-10 flex-none rounded-[3px]" />
+                      <span className="min-w-0 flex-1">
+                        <b className="block text-[15px]">{nm(byId.get(adds[0])?.name ?? "someone")} comes in</b>
+                        <small className="block text-[13px] text-muted-foreground">
+                          Optional swap{adds.length > 1 ? ` · backup${adds.length > 2 ? "s" : ""}: ${adds.slice(1).map(nameOf).join(", ")}` : ""}
+                        </small>
+                      </span>
+                      <span className="text-[14px] font-bold">Change</span>
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
       )}
+
+      <Order week={week} due={week.period?.due ?? null} />
 
       {picking && (
         <PickSheet
@@ -585,46 +706,77 @@ function OpenWeek({ seasonId, show, week }: { seasonId: string; show: ShowData; 
           onClose={() => setPicking(null)}
         />
       )}
+      <WaiverFaceSheet
+        seasonId={seasonId}
+        show={show}
+        face={looking}
+        onClose={() => setLooking(null)}
+        foot={(() => {
+          const f = looking;
+          if (!f || f.out != null || left <= 0 || spots.get(f.id)?.length) return null;
+          return (
+            <Btn
+              wide
+              data-wv-sheet-swap
+              onClick={() => {
+                setLooking(null);
+                setPicking(f.id);
+              }}
+            >
+              Swap {nm(f.name)}
+            </Btn>
+          );
+        })()}
+      />
     </>
   );
 }
 
-/** Picking order as faces, lowest score first (exclusive games: in a shared one nobody can take anyone from you). */
+/** Picking order (exclusive games: in a shared one nobody can take anyone from you): one line of faces, you marked, its rule. */
 function Order({ week, due }: { week: WaiverWeek; due: string | null }) {
   if (week.shared || !week.order.length) return null;
+  const rule = week.orderBy === "leastPoints" ? "Lowest score picks first" : week.orderBy === "mostPoints" ? "Highest score picks first" : "Picking order rolls each week";
   return (
-    <section data-wv-order className="mt-[26px] px-4">
-      <SectionHead title="Picking order" aside={week.orderBy === "leastPoints" ? "Lowest score first" : week.orderBy === "mostPoints" ? "Highest score first" : "Rolling"} flush />
-      <ol className="grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.min(4, week.order.length)}, minmax(0, 1fr))` }}>
+    <section data-wv-order className="mt-[22px] px-4">
+      <SectionHead title="Picking order" flush />
+      <ol className="flex flex-wrap gap-1.5">
         {week.order.map((p, i) => (
-          <li key={p.playerId} data-you={p.you || undefined} className={`flex flex-col items-center gap-1 rounded-[3px] px-1 py-2.5 ${p.you ? "bg-foreground text-background" : "bg-card"}`}>
-            <span className="type-num text-[22px]">{i + 1}</span>
-            <Avatar id={p.userId ?? p.playerId} name={p.name} size={34} />
-            <b className="max-w-full truncate text-[15px]">{p.you ? "You" : p.name}</b>
-            <small className={`text-[13px] ${p.you ? "text-background/70" : "text-muted-foreground"}`}>{p.points} pts</small>
+          <li key={p.playerId} data-you={p.you || undefined} className={`flex h-9 items-center gap-1.5 rounded-[3px] pl-1.5 pr-2.5 text-[14px] ${p.you ? "bg-foreground font-bold text-background" : "bg-card"}`}>
+            <span className={`type-num w-3.5 text-center text-[14px] ${p.you ? "" : "text-muted-foreground"}`}>{i + 1}</span>
+            <Avatar id={p.userId ?? p.playerId} name={p.name} size={24} />
+            {p.you ? "You" : p.name}
           </li>
         ))}
       </ol>
-      <p className="mt-2 text-[14px] leading-snug text-muted-foreground">Picks stay private until {due ? airTime(Date.parse(due)) : "they run"}, then go through in this order.</p>
+      <p className="mt-2 text-[14px] leading-snug text-muted-foreground">
+        {rule} · claims stay private until {due ? airTime(Date.parse(due)) : "they run"}
+      </p>
     </section>
   );
 }
 
 function Quiet({ week }: { week: WaiverWeek }) {
   const next = week.how.lanes.episodes.find((n, i) => n > week.how.lanes.now && (week.how.lanes.swap[i] || week.how.lanes.replace[i]));
+  // Last time: the latest week anyone moved in, so a quiet week still shows the game moving.
+  const last = [...week.runs].reverse().find((r) => movesIn(r) > 0) ?? null;
   return (
-    <section data-wv-week="quiet" className="mt-[22px] px-4">
-      <div className="flex items-stretch overflow-hidden rounded-[3px] bg-plate text-plate-foreground">
-        <span className="type-caption tag-cut grid place-items-center bg-secondary pl-3 pr-5 text-[13px] text-foreground [--tag-slant:12px]">This week</span>
-        <span className="flex-1 py-2.5 pl-2 pr-3">
-          <b className="type-caption block text-[20px]">Nothing to do this week</b>
-          <small className="block text-[13px] text-plate-muted">
-            {week.nobodyFree ? "Nobody's free to pick up: your team plays as it is." : week.how.starts ? `${week.how.starts}. Your team plays as it is till then.` : next ? `Next chance to move: after Episode ${next}` : "Your team plays as it is."}
-          </small>
-        </span>
-      </div>
-      {week.order.length > 0 && <Order week={week} due={null} />}
-    </section>
+    <>
+      <section data-wv-week="quiet" className="mt-4 px-3">
+        <MovePlate
+          due={false}
+          tag="This week"
+          title={next ? `Nothing to do until after Ep ${next}` : "Nothing to do this week"}
+          line={week.nobodyFree ? "Nobody's free to pick up: your team plays as it is" : week.how.starts ? `${week.how.starts}. Your team plays as it is till then` : "Your team plays as it is"}
+        />
+      </section>
+      {last && (
+        <section data-wv-last className="mt-[22px] px-4">
+          <SectionHead title="Last time" aside={`After Ep ${last.episode}`} flush />
+          <MovesList moves={[...last.moves.filter((m) => m.outcome === "got"), ...last.freeAgency.filter((m) => m.add)]} shared={week.shared} />
+        </section>
+      )}
+      <Order week={week} due={null} />
+    </>
   );
 }
 
@@ -639,33 +791,25 @@ function moveLine(m: WaiverMove, shared: boolean, nm: Namer): { title: string; l
 function RanWeek({ week }: { week: WaiverWeek }) {
   const nm = useContext(CastNames);
   const [fa, setFa] = useState(false);
+  const [faPick, setFaPick] = useState<WaiverFace | null>(null);
+  const can = week.freeAgency && (week.replace.length > 0 || week.swapsLeft > 0);
   const run = week.run;
   const mine = run?.moves.filter((m) => m.you && m.outcome === "got" && m.add) ?? [];
   const missed = run?.moves.filter((m) => m.you && m.outcome !== "got") ?? [];
   const until = week.period?.until ?? null;
   return (
     <>
-      <section data-wv-week="ran" className="mt-[22px] px-4">
-        <div className="flex items-baseline justify-between">
-          <span className="type-caption text-[15px] tracking-[0.04em] text-good">Waivers ran</span>
-          <span className="text-[14px] text-muted-foreground">After Episode {run?.episode ?? week.period?.episode}</span>
-        </div>
-        <h2 className="type-caption mt-1 text-[40px] leading-[.95]">
-          {mine.length === 1 ? `${nm(mine[0].add!.name)}'s on your team` : mine.length ? `${mine.length} swaps went through` : "No change for you"}
-        </h2>
-        {mine.map((m) => (
-          <div key={m.add!.id} className="mt-3 flex items-center gap-3 rounded-[3px] bg-card p-2.5">
-            <Face src={m.drop?.photo ?? null} name={m.drop?.name} out className="size-12 rounded-[3px]" />
-            <ChevronRight className="size-5 text-muted-foreground" aria-hidden />
-            <Face src={m.add!.photo} name={m.add!.name} className="size-12 rounded-[3px]" />
-            <span className="min-w-0 flex-1">
-              <b className="block text-[15px]">
-                {nm(m.add!.name)} for {m.drop ? nm(m.drop.name) : "a spot"}
-              </b>
-              <small className="block text-[13px] text-muted-foreground">{week.shared ? "Yours" : m.why}</small>
-            </span>
-          </div>
-        ))}
+      <section data-wv-week="ran" className="mt-4 px-3">
+        {/* The week's result on the move's plate (step 8: every state of the week leads with the same object). */}
+        <MovePlate
+          due={false}
+          done={mine.length > 0}
+          tag="Ran"
+          title={mine.length ? `You got ${names(mine.map((m) => nm(m.add!.name)))}` : "No change for you"}
+          line={mine.length ? `${names(mine.map((m) => `${nm(m.add!.name)} for ${m.drop ? nm(m.drop.name) : "a spot"}`))} · waivers ran after Ep ${run?.episode ?? week.period?.episode}` : `Waivers ran after Ep ${run?.episode ?? week.period?.episode}`}
+        />
+      </section>
+      <section className="px-4">
         {missed.map((m, i) => (
           <p key={i} className="mt-2 text-[15px] leading-snug text-muted-foreground">
             {m.why}.
@@ -678,21 +822,19 @@ function RanWeek({ week }: { week: WaiverWeek }) {
           <MovesList moves={run.moves.filter((m) => m.outcome === "got")} shared={week.shared} />
         </section>
       )}
+      {/* Free agency while it's open: one button into its list, where the choice is made (the user, 2026-11-16). */}
       {week.freeAgency && (
-        <section className="mt-[26px] px-4">
-          <button type="button" data-wv-fa onClick={() => setFa(true)} className="nd-press flex min-h-[60px] w-full items-center gap-3 py-2 text-left">
-            <IconBox icon={Zap} />
-            <span className="min-w-0 flex-1">
-              <b className="block text-[15px] font-semibold">Free agency</b>
-              <small className="block text-[13px] text-muted-foreground">
-                {until ? `Until ${airTime(Date.parse(until))} · ` : ""}first come, first served · {week.free.length} free
-              </small>
-            </span>
-            <ChevronRight className="size-5 text-muted-foreground" aria-hidden />
-          </button>
+        <section data-wv-fa-now className="mt-[26px] px-4">
+          <SectionHead title="Free agency" aside={until ? `Until ${airTime(Date.parse(until))}` : undefined} flush />
+          <p className="-mt-1 text-[14px] leading-snug text-muted-foreground">
+            {week.free.length} free · first come, first served{can ? "" : " · nothing left to move this week"}
+          </p>
+          <Btn data-wv-fa wide className="mt-3" onClick={() => { setFaPick(null); setFa(true); }}>
+            {can ? "Pick someone up" : "See who's free"}
+          </Btn>
         </section>
       )}
-      <FreeAgencySheet open={fa} onOpenChange={setFa} week={week} />
+      <FreeAgencySheet key={faPick?.id ?? "all"} open={fa} onOpenChange={setFa} week={week} pick={faPick} />
     </>
   );
 }
@@ -760,6 +902,12 @@ function PickSheet({
   const groups = [...new Set(pool.map((f) => f.group?.name).filter((g): g is string => !!g))].sort();
   const rows = pool.filter((f) => group === "all" || f.group?.name === group).sort((a, b) => value(b) - value(a) || b.points - a.points);
   const max = Math.max(1, ...rows.map(value));
+  const through = full.data?.through ?? 0;
+  const weeksOf = (f: WaiverFace) => {
+    const c = byName.get(f.name);
+    return c ? c.perEp.slice(-8) : [];
+  };
+  const weekMax = Math.max(1, ...rows.flatMap((f) => weeksOf(f).map((v) => v ?? 0)));
   const due = week.period?.due ? airTime(Date.parse(week.period.due)) : null;
   const tap = (id: string) => {
     const k = list.indexOf(id);
@@ -786,7 +934,6 @@ function PickSheet({
       setBusy(false);
     }
   };
-  const through = full.data?.through ?? 0;
   return (
     <Sheet
       open
@@ -819,7 +966,7 @@ function PickSheet({
                     data-fa={f.name}
                     aria-pressed={k >= 0}
                     onClick={() => tap(f.id)}
-                    className={`nd-press flex w-full items-center gap-2.5 rounded-[3px] px-1.5 py-2 text-left ${k === 0 ? "bg-chyron/15 outline-2 -outline-offset-2 outline-chyron" : k > 0 ? "outline-1 -outline-offset-1 outline-input" : ""}`}
+                    className={`nd-press flex w-full items-center gap-2.5 rounded-[3px] px-1.5 py-2 text-left ${k === 0 ? "bg-foreground/10 outline-2 -outline-offset-2 outline-foreground" : k > 0 ? "outline-1 -outline-offset-1 outline-input" : ""}`}
                   >
                     <span className="type-num w-6 flex-none text-center text-[18px]">
                       {k === 0 && !(own && list.length > 1) ? <Check className="mx-auto size-[18px]" strokeWidth={3} aria-hidden /> : k >= 0 ? k + 1 : i + 1}
@@ -828,14 +975,17 @@ function PickSheet({
                     <span className="min-w-0 flex-1">
                       <b className="flex items-center gap-1.5 text-[15px]">
                         <span className="truncate">{f.name}</span>
-                        {k === 0 && <span className="type-caption flex-none rounded-[2px] bg-chyron px-1 text-[11px] text-chyron-foreground">Your pick</span>}
+                        {k === 0 && <span className="type-caption flex-none rounded-[2px] bg-foreground px-1 text-[11px] text-background">Your pick</span>}
                         {k > 0 && <span className="type-caption flex-none rounded-[2px] px-1 text-[11px] outline-1 -outline-offset-1 outline-input">Backup</span>}
                       </b>
                       {f.tag ? <small className="block truncate text-[12.5px] font-semibold text-good">{f.tag}</small> : <small className="block text-[12.5px] text-muted-foreground">{[role(f.name), f.group?.name].filter(Boolean).join(" · ")}</small>}
-                      <span className="mt-1 block h-1 rounded-[2px] bg-border">
-                        <i className="block h-1 rounded-[2px] bg-foreground" style={{ width: `${Math.max(4, (v / max) * 100)}%` }} />
-                      </span>
+                      {stat !== "points" && (
+                        <span className="mt-1 block h-1 rounded-[2px] bg-border">
+                          <i className="block h-1 rounded-[2px] bg-foreground" style={{ width: `${Math.max(4, (v / max) * 100)}%` }} />
+                        </span>
+                      )}
                     </span>
+                    {stat === "points" && <WeekBars values={weeksOf(f)} max={weekMax} />}
                     <span className="flex-none text-right">
                       <b className="type-num block text-[20px] leading-none">{Math.round(v * 10) / 10}</b>
                       <small className="text-[11px] text-muted-foreground">{unit || (v === 1 ? "time" : "times")}</small>
@@ -877,7 +1027,7 @@ function PickSheet({
           {busy
             ? "Saving…"
             : !list.length
-              ? "Tap someone"
+              ? "Choose someone"
               : own && list.length > 1
                 ? `Save ${nm(pool.find((f) => f.id === list[0])?.name ?? "")} + ${list.length - 1} backup${list.length > 2 ? "s" : ""}`
                 : `${nm(pool.find((f) => f.id === list[0])?.name ?? "")} comes in`}
@@ -894,10 +1044,11 @@ function PickSheet({
 
 // ---------- free agency: instant, first come, first served ----------
 
-function FreeAgencySheet({ open, onOpenChange, week }: { open: boolean; onOpenChange: (o: boolean) => void; week: WaiverWeek }) {
+function FreeAgencySheet({ open, onOpenChange, week, pick = null }: { open: boolean; onOpenChange: (o: boolean) => void; week: WaiverWeek; pick?: WaiverFace | null }) {
   const nm = useContext(CastNames);
   const role = useContext(CastRoles);
-  const [add, setAdd] = useState<WaiverFace | null>(null);
+  // Opened on someone (the page's Swap in): straight to who goes for them.
+  const [add, setAdd] = useState<WaiverFace | null>(pick);
   const [busy, setBusy] = useState(false);
   const after = useAfterWaivers();
   const owed = week.team.filter((f) => week.replace.includes(f.id));

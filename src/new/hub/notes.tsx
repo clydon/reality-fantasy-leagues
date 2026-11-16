@@ -2,29 +2,62 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Bell, CalendarClock, ChevronRight, ClipboardList, Eye, KeyRound, MessageCircle, Trophy, UserPlus, Users } from "lucide-react";
-import type { MomentId } from "@/lib/moments";
+import {
+  ArrowLeftRight,
+  Bell,
+  BellOff,
+  CalendarClock,
+  ClipboardList,
+  Eye,
+  Grid3x3,
+  KeyRound,
+  MessageCircle,
+  Target,
+  Timer,
+  Trophy,
+  UserPlus,
+  Users,
+  Vote,
+} from "lucide-react";
 import { notesApi, useAfterNotesRead, useHome, useNotes, type Note } from "../data";
 import { useNav } from "../nav";
-import { paths } from "../routes";
+import { turnOn, useReach } from "../show/remind";
 import { useNow } from "../ui/bars";
+import { Btn } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
-import { moveLine, movesByDue, showOfMove } from "./sections";
 
-// The bell (docs/PLAN-new-design.md step 15 part 2; the mock's index.html notesSheet): what's happened on your couches since you
-// last looked, the same moments the pushes are about, kept as a list whatever your pushes say (push-core.js keeps a notice for
-// everyone it's for). Its dot comes with the home read (never polled); the list is read when it opens, and opening it reads them
-// (the new ones keep their mark while it's open). Each row is worded as the spoiler guard lets it out now, and opens where it's
-// about. Chat isn't here: the Chat tab has its own count.
+// The bell (the design round's step 8, docs/design-round/step8-notify-{spec,first-view,shape}.md): what's happened on your
+// couches, the same notices the pushes are (push-core.js keeps one for everyone it's for, whatever their switches say). Newest
+// first, in two bands (New, since you last looked; Earlier, the rest of the month), a notice that asks you to decide something
+// first among the new. Each row: its kind's icon, the news, where it's from and what to do, when; it opens where it's about. A
+// reminder whose moment has gone isn't listed (notify-prefs.ts reminderHolds). What's due now is the hub's plate, right behind
+// the sheet, so it isn't said again here. While no phone of yours rings, the foot says so, with Turn on. The dot comes with the
+// home read (never polled); opening the sheet reads them (the new ones stay in New while it's open). Chat has its own count.
 
-const ICONS: Record<MomentId, typeof Bell> = {
-  lineup: ClipboardList,
-  early: Eye,
-  final: Trophy,
-  invites: UserPlus,
-  couch: Users,
-  backstage: KeyRound,
+/** Each push type's icon (push-core.js NOTIFICATION_TYPES and the new design's own). */
+const ICONS: Record<string, typeof Bell> = {
+  reminder: ClipboardList,
+  draftTurn: Timer,
+  waivers: ArrowLeftRight,
+  waiverReminder: ArrowLeftRight,
+  episodeResults: Eye,
+  finalScores: Trophy,
+  researchDone: Eye,
+  flagSettled: Eye,
+  newBet: Target,
+  betResult: Target,
+  poll: Vote,
+  planned: CalendarClock,
+  bingo: Grid3x3,
   chat: MessageCircle,
+  invite: UserPlus,
+  joinRequest: UserPlus,
+  letIn: UserPlus,
+  memberJoined: Users,
+  couchJoined: Users,
+  gameStarted: Users,
+  resultsDue: KeyRound,
+  wikiReview: KeyRound,
 };
 
 /** "now", "5m", "3h", "2d", then the date. */
@@ -37,63 +70,58 @@ function ago(iso: string, now: number) {
   return new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
-function NoteRow({ note, now, onOpen }: { note: Note; now: number; onOpen: () => void }) {
-  const Icon = (note.moment && ICONS[note.moment]) || (note.link.includes("plan") ? CalendarClock : Bell);
+function NoteRow({ note, now, fresh, onOpen }: { note: Note; now: number; fresh: boolean; onOpen: () => void }) {
+  const Icon = ICONS[note.type] ?? (note.link.includes("plan") ? CalendarClock : Bell);
   return (
     <button
       type="button"
       data-note={note.id}
       data-unread={note.unread ? "1" : "0"}
+      data-needs={note.needs ? "1" : undefined}
       onClick={onOpen}
-      className="nd-press flex min-h-[64px] w-full items-center gap-3 border-t border-border py-2 text-left first:border-t-0"
+      className="nd-press flex min-h-[60px] w-full items-start gap-3 border-t border-border py-2.5 text-left first:border-t-0"
     >
-      <span className="grid size-10 flex-none place-items-center overflow-hidden rounded-[3px] bg-secondary">
-        {note.art ? (
-          // eslint-disable-next-line @next/next/no-img-element -- a show's art, already the size the rest of the hub uses
-          <img src={note.art} alt="" className="size-full object-cover" draggable={false} />
-        ) : (
-          <Icon className="size-5" aria-hidden />
-        )}
+      <span className={`grid size-9 flex-none place-items-center rounded-[3px] ${fresh ? "bg-secondary text-foreground" : "bg-secondary/60 text-muted-foreground"}`}>
+        <Icon className="size-[18px]" aria-hidden />
       </span>
       <span className="min-w-0 flex-1">
-        <b className="block text-[15px] font-semibold leading-snug">
-          {note.title}
-          {note.unread && <i className="ml-[7px] inline-block size-[7px] rounded-full bg-chyron-line align-[2px]" aria-label="New" />}
-        </b>
+        <b className={`block text-[15px] font-semibold leading-snug ${fresh ? "" : "text-foreground/80"}`}>{note.title}</b>
         <small className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">{note.body}</small>
       </span>
-      <span className="flex-none self-start pt-1 text-[12px] text-muted-foreground">{ago(note.at, now)}</span>
+      <span className="flex-none pt-0.5 text-[12px] tabular-nums text-muted-foreground">{ago(note.at, now)}</span>
     </button>
   );
 }
 
-/** What's still yours to do, above the list: nothing new isn't the same as nothing due. The hub's status line, in its words. */
-function DueRow({ onGo }: { onGo: (href: string) => void }) {
-  const { data: home } = useHome();
-  const due = home ? movesByDue(home.moves) : [];
-  const first = due[0];
-  if (!home || !first) return null;
-  const show = showOfMove(home, first);
-  const body = (
-    <>
-      <i className="size-2 flex-none rounded-full bg-chyron-line" aria-hidden />
-      <span className="flex-1">
-        <b className="text-foreground">
-          {due.length} {due.length === 1 ? "move" : "moves"} due
-        </b>{" "}
-        · {moveLine(first, show)}
-      </span>
-      {show && <ChevronRight className="size-5 flex-none" aria-hidden />}
-    </>
+function Band({ label, notes, now, fresh, onGo }: { label: string; notes: Note[]; now: number; fresh: boolean; onGo: (href: string) => void }) {
+  if (!notes.length) return null;
+  return (
+    <section data-notes-band={fresh ? "new" : "earlier"} className="[&+&]:mt-5">
+      <h3 className="type-caption mb-0.5 text-[13px] tracking-[0.06em] text-muted-foreground">{label}</h3>
+      {notes.map((n) => (
+        <NoteRow key={n.id} note={n} now={now} fresh={fresh} onOpen={() => onGo(n.link)} />
+      ))}
+    </section>
   );
-  const cls = "mb-2 flex w-full items-center gap-2.5 rounded-[3px] bg-card px-3 py-2.5 text-left text-sm text-muted-foreground";
-  return show ? (
-    <button type="button" data-notes-due={due.length} onClick={() => onGo(paths.show(show.seasonId))} className={`nd-press ${cls}`}>
-      {body}
-    </button>
-  ) : (
-    <div data-notes-due={due.length} className={cls}>
-      {body}
+}
+
+/** The foot, while nothing of yours rings: the bell is then the only place you hear anything. */
+function PhoneFoot({ open }: { open: boolean }) {
+  const { phone, reaches } = useReach(open);
+  const qc = useQueryClient();
+  if (!((reaches === false && (phone === "off" || phone === "install")) || phone === "blocked")) return null;
+  return (
+    <div data-notes-phone={phone} className="mt-5 flex items-center gap-3 border-t border-border pt-3">
+      <BellOff className="size-[18px] flex-none text-muted-foreground" aria-hidden />
+      <span className="min-w-0 flex-1 text-[13px] leading-snug text-muted-foreground">
+        <b className="block text-[14px] font-semibold text-foreground">{phone === "blocked" ? "Blocked on this phone" : "Off on this phone"}</b>
+        {phone === "install" ? "On iPhone, add Game Your Show to your Home Screen first." : phone === "blocked" ? "Allow notifications in your browser's settings." : "Everything still lands here."}
+      </span>
+      {phone === "off" && (
+        <Btn data-notes-turn-on className="h-10 flex-none px-3.5 text-sm" onClick={() => turnOn(() => qc.invalidateQueries({ queryKey: ["new-design", "profile"] }))}>
+          Turn on
+        </Btn>
+      )}
     </div>
   );
 }
@@ -106,12 +134,15 @@ function NotesSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (open
   const now = useNow(false);
   const read = useRef(false);
   const data = notes.data;
-  const fresh = data?.notes.filter((n) => n.unread).length ?? 0;
+  const list = data?.notes ?? [];
+  // New: since you last looked, what asks you to decide first; Earlier: the rest, newest first.
+  const fresh = list.filter((n) => n.unread).sort((a, b) => Number(b.needs) - Number(a.needs));
+  const earlier = list.filter((n) => !n.unread);
   const go = (href: string) => {
     onOpenChange(false);
     setTimeout(() => nav.push(href), 220);
   };
-  // Opening it reads them: once per open, after the list is here (its new rows keep their mark while it's open). Closed, the list
+  // Opening it reads them: once per open, after the list is here (its new rows stay in New while it's open). Closed, the list
   // goes, so the next open reads it fresh.
   useEffect(() => {
     if (!open) {
@@ -121,26 +152,27 @@ function NotesSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (open
     }
     if (!data || read.current) return;
     read.current = true;
-    if (fresh) notesApi.read().then(afterRead, () => {});
-  }, [open, data, fresh, afterRead, qc]);
+    if (fresh.length) notesApi.read().then(afterRead, () => {});
+  }, [open, data, fresh.length, afterRead, qc]);
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Notifications" subtitle={!data ? "…" : fresh ? `${fresh} new` : "Nothing new"}>
+    <Sheet open={open} onOpenChange={onOpenChange} title="Notifications" subtitle={!data ? "…" : !fresh.length && list.length ? "Nothing new" : undefined}>
       <div data-notes-sheet>
-        <DueRow onGo={go} />
-        {data && !data.notes.length && (
+        {data && !list.length && (
           <p className="py-8 text-center text-[14px] leading-snug text-muted-foreground" data-notes-empty>
             Nothing yet. Results, reminders and what the couch is up to land here.
           </p>
         )}
-        {data?.notes.map((n) => (
-          <NoteRow
-            key={n.id}
-            note={n}
-            now={now}
-            onOpen={() => go(n.link)}
-          />
-        ))}
-        {notes.isError && <p className="py-6 text-center text-[14px] text-muted-foreground">Couldn&rsquo;t load them. Try again.</p>}
+        <Band label="New" notes={fresh} now={now} fresh onGo={go} />
+        <Band label="Earlier" notes={earlier} now={now} fresh={false} onGo={go} />
+        {notes.isError && (
+          <p className="py-6 text-center text-[14px] text-muted-foreground">
+            Couldn&rsquo;t load them.{" "}
+            <button type="button" className="font-bold text-foreground underline underline-offset-4" onClick={() => void notes.refetch()}>
+              Try again
+            </button>
+          </p>
+        )}
+        <PhoneFoot open={open} />
       </div>
     </Sheet>
   );
@@ -165,7 +197,7 @@ export function NotesBell() {
         <i
           data-bell-dot
           aria-hidden
-          className={`absolute right-[10px] top-[9px] size-[9px] rounded-full border-2 border-background bg-live transition-transform duration-300 motion-reduce:transition-none ${unread ? "scale-100" : "scale-0"}`}
+          className={`absolute right-[8px] top-[7px] size-[12px] rounded-full border-2 border-background bg-foreground transition-transform duration-300 motion-reduce:transition-none ${unread ? "scale-100" : "scale-0"}`}
         />
       </button>
       <NotesSheet open={open} onOpenChange={setOpen} />

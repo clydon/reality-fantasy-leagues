@@ -261,7 +261,7 @@ async function person(pool, who, role = null) {
     check(r.status === 200, "alex runs Outlast's waivers from Backstage", JSON.stringify(r.body).slice(0, 200));
     await expect((rs) => rs.some((x) => x.who === "alex"));
     const wa = got("alex");
-    check(wa.length === 1 && /replace|Waivers/.test(wa[0].title) && wa[0].url === `/show/${sid}/waivers`, "alex owes Carter's replacement: told, opening the show's Waivers page", JSON.stringify(wa));
+    check(wa.length === 1 && /replace|Waivers/.test(wa[0].title) && wa[0].url === `/show/${sid}/waivers?page=waivers-run&wv=${L.outlast}`, "alex owes Carter's replacement: told, opening the run itself (step 8), then its page", JSON.stringify(wa));
     let wv = (await as.alex.call("GET", `/api/seasons/${sid}/waivers${q}`)).body;
     const cup = wv.games.find((g) => g.leagueId === L.outlast);
     check(cup?.stage === "processed" && !!cup.run && Array.isArray(wv.seen) && wv.seen.length === 0, "the waivers read: Outlast's run, not watched yet", JSON.stringify({ stage: cup?.stage, seen: wv.seen }));
@@ -427,22 +427,24 @@ async function person(pool, who, role = null) {
     );
     check((await pool.query("SELECT told_at FROM fact_disputes WHERE decision_id = $1", [danny])).rows.every((x) => x.told_at), "told once (fact_disputes.told_at)");
 
-    // A bingo line: the squares either side of the free one in the middle row of jordan's card on Episode 6 (the fixture's bank,
-    // docs/PLAN-bingo-bank.md). A bank's square counts once two on the couch say it happened: alex says so of both (a say of his own,
-    // in the table the couch's says go in), and jordan's ticks are the second say.
+    // A bingo line: the middle row of jordan's card on Episode 6, its three squares (no free centre since 2026-11-02, 16489b89: "makes
+    // it too easy"; the fixture's bank, docs/PLAN-bingo-bank.md). A bank's square counts once two on the couch say it happened: alex
+    // says so of all three (a say of his own, in the table the couch's says go in), and jordan's ticks are the second say.
     const card = (await as.jordan.call("GET", `/api/seasons/${sid}/bingo/6${q}`)).body;
-    check(card.status === "open" && card.squares?.[4]?.key === "free" && Array.isArray(card.truth), "jordan's card on Episode 6 is open, the middle square free", JSON.stringify(card).slice(0, 160));
-    for (const i of [3, 5]) {
+    check(card.status === "open" && card.squares?.length === 9, "jordan's card on Episode 6 is open, nine squares (a free one only where the bank runs short)", JSON.stringify(card).slice(0, 160));
+    // The row's real squares (the fixture's bank is short, so a free one can land in it, and a free one is already "yes").
+    const row = [3, 4, 5].filter((i) => card.squares?.[i]?.key !== "free");
+    for (const i of row) {
       await pool.query("INSERT INTO episode_call_says (user_id, season_id, episode, question, happened) VALUES ($1, $2, 6, $3, true) ON CONFLICT DO NOTHING", [U.alex, sid, card.squares[i].key]);
     }
-    check((await as.jordan.call("GET", `/api/seasons/${sid}/bingo/6${q}`)).body.truth.filter((t, i) => [3, 5].includes(i)).every((t) => t === null), "its middle row: alex says it happened, one say each so far");
+    check((await as.jordan.call("GET", `/api/seasons/${sid}/bingo/6${q}`)).body.truth.filter((t, i) => row.includes(i)).every((t) => t === null), "its middle row: alex says it happened, one say each so far");
     await as.alex.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { square: 0, ticked: true });
     push.clear();
-    await as.jordan.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { square: 3, ticked: true });
+    for (const i of row.slice(0, -1)) await as.jordan.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { square: i, ticked: true });
     await wait(2500);
-    check(push.received.length === 0, "one square of the line: nothing yet");
-    r = await as.jordan.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { square: 5, ticked: true });
-    check(r.body.lines?.ticked === 1 && r.body.lines.called === 0, "the second: a line made, not called yet", JSON.stringify(r.body.lines));
+    check(push.received.length === 0, "all but one square of the line: nothing yet");
+    r = await as.jordan.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { square: row[row.length - 1], ticked: true });
+    check(r.body.lines?.ticked === 1 && r.body.lines.called === 0, "the last: a line made, not called yet", JSON.stringify(r.body.lines));
     await wait(2500);
     check(push.received.length === 0, "a line made tells nobody: calling it does (docs/PLAN-bingo-bank.md step 3)");
     r = await as.jordan.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { call: 1 });
@@ -457,8 +459,8 @@ async function person(pool, who, role = null) {
     check(got("jordan").length === 0, "jordan isn't told of his own call", JSON.stringify(got("jordan")));
     check(got("sam").length === 0 && got("riley").length === 0, "sam and riley have no card on it (and haven't seen it): nothing");
     push.clear();
-    await as.jordan.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { square: 5, ticked: false });
-    await as.jordan.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { square: 5, ticked: true });
+    await as.jordan.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { square: row[row.length - 1], ticked: false });
+    await as.jordan.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { square: row[row.length - 1], ticked: true });
     await as.jordan.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { call: 1 });
     await wait(3000);
     check(push.received.length === 0, "unticked, ticked and called again: told once");
@@ -621,15 +623,10 @@ async function person(pool, who, role = null) {
       await pg.waitForTimeout(600);
       const rows = await pg.locator("[data-note]").count();
       const fresh = await pg.locator("[data-note][data-unread='1']").count();
-      check(rows === unread && fresh === unread, `the list: ${rows} rows, each marked new`, `${rows} rows, ${fresh} new, ${unread} on the home read`);
-      check(new RegExp(`${unread} new`).test(await sheet.innerText()), "its line says how many are new");
-      const dueN = (await home("alex")).moves.length;
-      const dueRow = (await pg.locator("[data-notes-due]").count()) ? await pg.locator("[data-notes-due]").getAttribute("data-notes-due") : null;
-      check(
-        dueN ? dueRow === String(dueN) && new RegExp(`${dueN} moves? due`).test(await pg.locator("[data-notes-due]").innerText()) : dueRow === null,
-        dueN ? `above the list, what's still his to do: ${dueN} due (nothing new isn't nothing due)` : "nothing due: no due row",
-        `${dueRow} vs ${dueN}`
-      );
+      check(rows === unread && fresh === unread, `the list: ${rows} rows, all under New`, `${rows} rows, ${fresh} new, ${unread} on the home read`);
+      // The design round's step 8: New says it once (a heading, no per-row mark); what's due is the hub's plate, not a row here.
+      check((await pg.locator('[data-notes-band="new"] [data-note]').count()) === unread, "New holds the new ones");
+      check((await pg.locator("[data-notes-due]").count()) === 0, "no due row: the hub's plate says what's due");
       await wide("the bell");
       await shot("bell");
       await pg.waitForFunction(() => document.querySelector("[data-bell]")?.getAttribute("data-unread") === "0", null, { timeout: 15000 }).catch(() => {});
@@ -659,10 +656,10 @@ async function person(pool, who, role = null) {
       check(!(await prefs("alex")).shows[showId], "Undo: on again");
       // The reminder ask. His other phone gets them (it's back), so a save here doesn't ask.
       const changePick = async (p) => {
-        await p.goto(`${BASE}/show/${sid}/tonight`, { waitUntil: "load" });
+        // Your moves on the pick, by its address (show/dock.tsx reads ?moves=, as the hub's plate and a reminder's push open it;
+        // Tonight's own cards went with step 3's strip).
+        await p.goto(`${BASE}/show/${sid}/tonight?moves=pool`, { waitUntil: "load" });
         await p.locator("[data-tab=tonight]").waitFor({ timeout: 30000 });
-        await p.waitForTimeout(1000);
-        await p.locator('[data-move^="pick-"] button, [data-done^="pick-done"] button').first().click();
         const d = p.getByRole("dialog");
         await d.getByText("Your moves").waitFor({ timeout: 15000 });
         const tab = d.getByRole("tab", { name: "Survival Pool" });

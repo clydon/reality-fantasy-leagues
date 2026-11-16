@@ -34,6 +34,7 @@ function fakePool(state) {
         };
       }
       if (sql.includes("FROM leagues")) return { rows: [{ id: "L1", name: "Test League", state }] };
+      if (sql.includes("FROM shows")) return { rows: [{ name: "Survivor", episode_term: null }] };
       if (sql.includes("FROM league_memberships")) return { rows: [{ user_id: "u1", player_id: "p1" }] };
       if (sql.includes("INSERT INTO reminder_log")) {
         const key = params.join("|");

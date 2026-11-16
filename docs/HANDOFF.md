@@ -54,6 +54,38 @@ after, the wizard taking in chunk 7). Commits: 10b6f369 (chunk 1), ad6b0f2b (chu
   migrate`), since its "Needs" line lands in the draft room and waivers, which step 8 redesigns. Then chunks 5 (lineup slots) and 6
   (dated changes); chunk 7 goes with the wizard (step 12).
 
+## The design round's step 9, Chat, a light review (2026-11-16; built on branch `explorer-sports`, not committed past it; waits on the user's review)
+src/new/show/chat.tsx `itemsOf(messages, airings, foldEp)`: days, with each episode's airing as a landmark (`kind: "ep"`, the episode
+chip, "aired Thu, Nov 12 · 8:00 PM" or just the time after that day's talk), drawn only where a message or the fold follows it; one
+reveal line per episode (`kind: "reveals"`, "Fri, Nov 13 · riley and jordan revealed Ep 5"), none for the fold's own episode, never
+starting a day; the fold led by Reveal Ep N with "Show them anyway (may spoil Ep N)" as a link; day dividers plain muted text;
+"Message the couch"; your reaction outlined in the foreground. census-app.js's chat cases land at the newest message (capture()
+resets to the top). Process and evidence: `docs/design-round/step9-chat-{spec,first-view,check,critique,pfd-eval}.md`, decisions.md;
+frames in `.ui-atlas/stories/step9-chat/`; the story https://claude.ai/artifact/Dpc8fXXdpnHw5vJkhAvNnc. **Next:** the user's review of step 9, then step 10, Sports in full.
+
+## The design round's step 8, notifications then waivers (2026-11-16; built on branch `explorer-sports`, not committed; waits on the user's review)
+**The push** (one grammar: the news first, number first, inside a phone's ~32 characters; the body where it's from then what to do;
+a tap on the thing): src/lib/server/remind-moves.js `remindMessage` is now the hourly job's words too (db/reminders.js queues a
+run's reminders and sends one per person, show and episode: `sendQueued`; "Ep 6 locks in about 2 hours", at your own pace "Ep 6
+airs …" and "Ep 5 aired: set your lineup first"; `shortEp` says a sport's word, "Wk 12"; a tap opens Your moves on the move's tab,
+`?moves=`), waiver-pushes.js ("Replace Carter by 8:00 PM", "Ep 5 waivers close at …" before a reveal, "You got Rob" opening the
+run itself, `runNext`; seasonOf carries the season's label), push-events.ts (a new prediction: "jordan asks: …", to the game's
+page; a graded one to the game's page). Reminders carry bell keys (`remind:<season>:<ep>:before|aired:<window>`,
+`wremind:<league>:<week>:<due ms>`). **The bell** (hub/notes.tsx): New and Earlier, newest first, a join request first, an icon per
+kind, no due row, no per-row dot or show art; notify-prefs.ts `reminderHolds` drops a reminder whose moment has gone; the foot says
+Off on this phone with Turn on; the dot is 12 px foreground, not live red. **Waivers** (show/waivers.tsx): an owed spot is a plate
+with who's leaving by face and Swap (`SpotPlate`, the page's one yellow, the deadline once, no countdown: `stated`) opening the
+picker; claimed, the incoming face with the leaver at its corner and Change (the user's note, 2026-11-16: no options on the page);
+Your team with the owed spot as a blank slot (`SlotRow`) and `WeekBars` (points by episode in one aligned column on one scale, also in the picker), picking order as one line, a
+quiet week's Last time, the ran week's plate ("You got Maggie and Patt") and Free agency as one button; a tap on a face opens step
+5's sheet (`WaiverFaceSheet`) with Swap at its foot; the sticky foot, the chips and the ⇆ switch chip are gone. Process and evidence:
+`docs/design-round/step8-notify-{spec,first-view,shape,check,critique,pfd-eval}.md`; frames in `.ui-atlas/stories/step8-notify/`
+(census-app.js `--up --only='bell|waivers|notify'`, its bell on the new `scripts/dev-test/notes-fixture.js`, `--notes-words=before`
+for today's words) and `.ui-atlas/stories/step8-waivers/` (the new `scripts/dev-test/story-waivers.js` on waivers-fixture.js's new
+`--ui=new`); the story https://claude.ai/artifact/3TnbLJWK2aXzCByi9qfeyP (built from `.ui-atlas/stories/step8-notify/story.json` by story-build.py). **Found, not fixed:** tests/tour-steps.test.js
+fails twice (step 7's tour, untouched here); a sport's waiver bars need the sport's weekly line, its picker a position filter, its
+waiver pushes "Ep" (step 10). **Next:** the user's review of step 8, then step 9, Chat.
+
 ## The design round's step 7, the hub and the TV guide (2026-11-16; committed on branch `explorer-sports`, not pushed; migration 0438)
 The hub (src/new/screens/home.tsx, hub/sections.tsx, hub/bands.tsx): the next thing first (`UpNext`: one still plate on the
 show's art, the time once, the move, the reveal or All set on a caption plate; `moveHref` opens a pick or lineup through

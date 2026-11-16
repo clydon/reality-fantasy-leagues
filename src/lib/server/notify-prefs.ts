@@ -3,6 +3,7 @@ import { cardArtSql } from "./art-sql";
 import { pool, HttpError } from "./db";
 import { seenThroughAll } from "./guard";
 import { isUuid } from "./auth-helpers";
+import { seasonSchedules } from "./schedule";
 
 // Notifications by moment, the settings and the bell (docs/PLAN-new-design.md step 15 part 2; the mock's settings.js "What we
 // notify you about", index.html notesSheet and show.js showMenu's Notifications):
@@ -125,8 +126,36 @@ export interface Note {
   /** Newer than when you last looked. */
   unread: boolean;
   seasonId: string | null;
-  /** The show's art, for the row. */
+  /** The show's art (the bell no longer draws it on every row: step 8; kept for other readers). */
   art: string | null;
+  /** Its push type (push-core.js NOTIFICATION_TYPES), for the row's icon. */
+  type: string;
+  /** It asks you to decide something (a join request): it leads the new ones. */
+  needs: boolean;
+}
+
+/** Push types that ask the reader to decide something, so the bell puts them first among the new. */
+const NEEDS = new Set(["joinRequest"]);
+
+/**
+ * Whether a reminder still holds (the design round's step 8: an instruction for a moment that's gone is noise). Its key says what
+ * it's about (db/reminders.js and backstage-remind.ts: `remind:<season>:<episode>:before|aired:<window>`; waiver-pushes.js:
+ * `wremind:<league>:<week>:<claims due, ms>`): a "before" one goes once that episode has aired or you've watched it, an "aired" one
+ * once you've watched it, a waiver one once its claims were due. Anything else always holds.
+ */
+export function reminderHolds(key: string | null, seen: (seasonId: string) => number, airedAt: (seasonId: string, n: number) => number | null, now = Date.now()): boolean {
+  if (!key) return true;
+  const w = /^wremind:[^:]+:[^:]+:(\d+)$/.exec(key);
+  if (w) return now < Number(w[1]);
+  const r = /^remind:([^:]+):(\d+):(before|aired):/.exec(key);
+  if (!r) return true;
+  const n = Number(r[2]);
+  if (n && seen(r[1]) >= n) return false;
+  if (r[3] === "before") {
+    const at = airedAt(r[1], n);
+    if (at !== null && at <= now) return false;
+  }
+  return true;
 }
 
 /** How long the bell keeps a notice (push-core.js takes older ones away as it writes newer ones). */
@@ -140,7 +169,7 @@ const NOTES_SHOWN = 50;
 export async function readNotes(userId: string): Promise<{ notes: Note[]; readAt: string | null }> {
   const [{ rows }, { rows: read }, seen] = await Promise.all([
     pool.query(
-      `SELECT n.id, n.type, n.title, n.body, n.link, n.created_at, n.season_id, n.spoils, n.safe, ${cardArtSql()} AS art_url
+      `SELECT n.id, n.type, n.key, n.title, n.body, n.link, n.created_at, n.season_id, n.spoils, n.safe, ${cardArtSql()} AS art_url
          FROM notifications n LEFT JOIN show_seasons ss ON ss.id = n.season_id LEFT JOIN shows s ON s.id = ss.show_id
         WHERE n.user_id = $1 AND n.created_at > now() - interval '${NOTES_KEPT_DAYS} days'
         ORDER BY n.created_at DESC LIMIT ${NOTES_SHOWN}`,
@@ -150,9 +179,17 @@ export async function readNotes(userId: string): Promise<{ notes: Note[]; readAt
     seenThroughAll(userId),
   ]);
   const readAt = (read[0]?.notes_read_at as Date | null) ?? null;
+  // A reminder's episode times, only for the seasons a reminder in the list is about.
+  const reminded = [...new Set(rows.map((r) => /^remind:([^:]+):/.exec(r.key ?? "")?.[1]).filter((id): id is string => !!id && isUuid(id)))];
+  const schedules: Awaited<ReturnType<typeof seasonSchedules>> = reminded.length ? await seasonSchedules(reminded) : new Map();
+  const airedAt = (seasonId: string, n: number) => {
+    const at = schedules.get(seasonId)?.episodes.find((e) => e.number === n)?.airAt;
+    return at ? Date.parse(at) : null;
+  };
+  const markOn = (seasonId: string) => seen.get(seasonId) ?? 0;
   return {
     readAt: readAt ? readAt.toISOString() : null,
-    notes: rows.map((r) => {
+    notes: rows.filter((r) => reminderHolds(r.key, markOn, airedAt)).map((r) => {
       const past = Number.isInteger(r.spoils) && (!r.season_id || (seen.get(r.season_id) ?? 0) < r.spoils);
       const words = past ? ((r.safe as { title: string; body: string } | null) ?? { title: "Results are in", body: "Reveal when you've watched." }) : { title: r.title, body: r.body };
       return {
@@ -165,6 +202,8 @@ export async function readNotes(userId: string): Promise<{ notes: Note[]; readAt
         unread: !readAt || new Date(r.created_at) > readAt,
         seasonId: r.season_id,
         art: r.art_url ?? null,
+        type: r.type,
+        needs: NEEDS.has(r.type),
       };
     }),
   };

@@ -260,17 +260,20 @@ export function notifyWaiverWindow(leagueId: string, state: LeagueState, before:
 // ---------- predictions ----------
 
 /** A side bet was proposed: everyone but the proposer can now guess. */
-export function notifyNewBet(leagueId: string, label: string, actorUserId: string | null) {
+export function notifyNewBet(leagueId: string, label: string, actorUserId: string | null, byName: string | null = null) {
   notifyAfter("newBet", async () => {
     const ls = await leagueSeason(leagueId);
+    // The news first, the question itself (the design round's step 8): "jordan asks: Who finds the next idol?". It opens the
+    // game's page, where the week's predictions are.
+    const ask = label.replace(/^./, (c) => c.toUpperCase());
     return {
       userIds: await leagueMemberUserIds(leagueId, actorUserId),
       seasonId: ls.seasonId,
       message: {
-        title: "New prediction",
-        body: truncate(`"${label}" · ${ls.leagueName}`),
+        title: truncate(byName ? `${byName} asks: ${ask}` : `New prediction: ${ask}`, 60),
+        body: `${ls.label} · ${ls.leagueName} · Make your call`,
         url: link("/", leagueId),
-        next: ls.seasonId ? `/show/${ls.seasonId}/tonight` : "/home",
+        next: ls.seasonId ? `/show/${ls.seasonId}/game/${leagueId}` : "/home",
         tag: `bet-${leagueId}`,
         seasonId: ls.seasonId,
       },
@@ -296,9 +299,9 @@ export function notifyBetResult(leagueId: string, state: LeagueState, epId: stri
         (await markOf(reader.userId, ls.seasonId, leagueId)) >= ep.number
           ? {
               title: correct ? `You got it right (+${bet.points})` : "Missed that one",
-              body: truncate(`"${bet.label}" — you guessed ${pred.guess}`),
+              body: truncate(`${ls.label} · "${bet.label}" · you guessed ${pred.guess}`),
               url: link("/", leagueId),
-              next: ls.seasonId ? `/show/${ls.seasonId}/games` : "/home",
+              next: ls.seasonId ? `/show/${ls.seasonId}/game/${leagueId}` : "/home",
               tag: `bet-result-${betId}`,
               key: `bet:${betId}:${predId}`,
               seasonId: ls.seasonId,

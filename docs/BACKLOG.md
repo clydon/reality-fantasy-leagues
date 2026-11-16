@@ -1194,6 +1194,14 @@ Last updated 2026-10-27.
    APIs first, never ChatGPT for stats); how often a current projection refreshes (docs/HOSTING.md's limits). Once it exists:
    the draft list's default sort, a line on each row ("Proj 212 pts"), and the same in waivers' free agents and the lineup
    sheet. Later feature; not planned.
+91. **Backstage › Waivers › settings: the toast's Undo may not put a feel back** (noticed 2026-11-16 readying the design round
+   to merge; live on master, since src/new/backstage/waivers.tsx is the same there). scripts/dev-test/check-new-backstage-ii.js
+   taps Casual on Weekly Lineup's waiver settings, then the toast's Undo: the game stays on `waiverFeel: "casual"`,
+   `replaceRule: "always"` (expected balanced, whenShort). The Undo calls `backstage.undo(batch)` with the batch the settings
+   write returns (`SettingsSheet` write → `onUndo`); either the write returns no batch for a feel, the undo doesn't restore those
+   keys, or the check's 1.5 s wait is short. **The same check passed it on a rerun the same day** (147 of 147), so most likely the
+   wait: flaky, not broken. Not investigated further. Who takes it: a Backstage step (the settings track, design round
+   step 12) or a small fix session.
 
 ## Decided against (don't re-propose without new information)
 

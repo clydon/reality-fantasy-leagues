@@ -5,7 +5,7 @@ import type { BackstageScope } from "./backstage";
 import { sendPush } from "./push-core";
 import { seasonInfo } from "./push-events";
 import { seasonSchedules, upNext } from "./schedule";
-import { COOLDOWN, KIND, remindMessage, splitDue, type OpenMove } from "./remind-moves";
+import { COOLDOWN, KIND, remindMessage, shortEp, splitDue, type OpenMove } from "./remind-moves";
 
 // Backstage's "Remind everyone" (the home's Reminders card): on demand, one push to each person with a move still
 // open in a game you run here, between the hourly job's own reminders (db/reminders.js: a day and two hours before an
@@ -44,7 +44,7 @@ async function openMoves(scope: BackstageScope): Promise<Map<string, OpenMove[]>
     const { items } = await dueMoves(userId);
     out.set(
       userId,
-      items.filter((it) => mine.has(it.leagueId) && it.who === "you").map((it) => ({ leagueId: it.leagueId, leagueName: it.leagueName, text: it.text, href: it.href, episode: it.episode }))
+      items.filter((it) => mine.has(it.leagueId) && it.who === "you").map((it) => ({ leagueId: it.leagueId, leagueName: it.leagueName, text: it.text, href: it.href, episode: it.episode, kind: it.kind }))
     );
   }
   return out;
@@ -86,11 +86,16 @@ export async function remindNow(scope: BackstageScope, now = new Date()): Promis
   const { rows: me } = await pool.query(`SELECT username FROM "user" WHERE id = $1`, [scope.user.id]);
   const byName = (me[0]?.username as string | undefined) || "Whoever runs your game";
   const label = season?.label ?? scope.games[0]?.name ?? "Your show";
+  // The season's own word for an episode (a sport's "Wk"), as the push's title says it.
+  const { rows: term } = await pool.query("SELECT s.episode_term FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1", [scope.seasonId]);
+  const ep = shortEp(term[0]?.episode_term as string | null | undefined);
   const pushes: { userId: string; message: NonNullable<ReturnType<typeof remindMessage>> }[] = [];
   for (const userId of due) {
     const items = moves.get(userId) ?? [];
-    const message = remindMessage(items, { id: scope.seasonId, label }, next, byName, now);
+    const message = remindMessage(items, { id: scope.seasonId, label, ep }, next, byName, now);
     if (!message) continue;
+    // The bell's key (notify-prefs.ts readNotes): which episode it's about, so the bell drops it once that episode locks for them.
+    message.key = `remind:${scope.seasonId}:${next?.number ?? items.find((it) => Number.isInteger(it.episode))?.episode ?? 0}:before:manual-${now.getTime()}`;
     // Record first, push only what was recorded: two taps at once can't send twice.
     let recorded = 0;
     for (const leagueId of new Set(items.map((it) => it.leagueId))) {
