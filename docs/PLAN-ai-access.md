@@ -77,6 +77,22 @@ couch's game maker does it often, and adding a show is a one-time ask.
 | New seasons added a month (~10 asks each, once) | 1-2 | 20 | 50 |
 | Automatic research asks a month (seasons x ~9 an episode x ~4.3 episodes; shared by every couch) | 80-155 | ~580 | ~1,160 |
 
+### Measured: what an ask costs the plans (2026-11-16, the catch-up's final rehearsal)
+
+The catch-up's rehearsal on a production copy, after a full reset of the ChatGPT Plus plan's limits, sampled every minute
+(`scripts/dev-test/bot-usage.js`; each ask's AI and time kept in `catchup_answers`):
+
+| AI | Asks | Time each | What it used |
+|---|---|---|---|
+| Codex (the Plus plan, 3 at once on each bot) | 33 (26 episodes' full research, 4 casts, 3 rulebook checks) | ~3 min an episode (longest 4.3), ~1.5-2 min a cast or check | **~3% of the 5-hour window and ~0.5% of the week each: about 31 asks fill a 5-hour window, about 200 a week** |
+| ChatGPT signed in (the PC's bot, one at a time) | 10 | ~1.8 min each | Not counted against those limits ("chat conversations are not included"); only Plus's own chat limits |
+| ChatGPT signed out (the VM's bot) | 0 answered | — | Stopped answering for the whole run (every ask "No reply after 260s"): the risk line below is real |
+
+What that means: a season's catch-up (~10 episodes) is ~12 Codex asks, so about **two and a half seasons per 5-hour window and
+~16 a week**. For the weekly running, each airing episode is ~9 asks: on Codex alone that's only ~3 episodes a window and ~22 a
+week, which is why the free ChatGPT bot stays the default, with Codex for bursts and one-offs. A full research ask is the big
+one; the shorter asks (who went home, a maker's ask) cost much less and weren't measured here.
+
 ### 1. What we pay each month
 
 | Service | Today | 300 people | 1,000 people | Why |
