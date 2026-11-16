@@ -15,16 +15,17 @@ const at = (o) => ({ solo: false, reminders: "off", show: "The Amazing Race", re
 
 test("a couch member: up top, down Home a section a beat, then hands on, each real thing tapped by them", () => {
   const steps = tourSteps(at({}));
-  assert.deepEqual(ids(steps), ["welcome", "home", "shows", "week", "feed", "more", "moves", "add", "flip", "guide", "reveal", "start", "done"]);
+  assert.deepEqual(ids(steps), ["welcome", "home", "shows", "feed", "more", "moves", "add", "flip", "guide", "reveal", "start", "done"]);
   const s = byId(steps);
   assert.deepEqual(
     ["moves", "add", "flip", "reveal", "start"].map((k) => s[k].act.kind),
     ["moves", "add", "flip", "reveal", "start"]
   );
   assert.deepEqual([s.add.act.skip, s.reveal.act.skip, s.start.act.skip], ["Skip adding a show", "Skip the reveal", "Skip starting a game"]);
-  assert.ok(["shows", "week", "feed", "more"].every((k) => s[k].part === "down" && s[k].optional && !s[k].act));
+  assert.ok(["shows", "feed", "more"].every((k) => s[k].part === "down" && s[k].optional && !s[k].act));
   assert.equal(s.flip.tap, "[data-flip]");
-  assert.equal(s.guide.play, "[data-guide-tv]");
+  // The guide is its own page since step 7: the step points at the hub's On TV row, its door, and plays nothing.
+  assert.deepEqual([s.guide.targets, s.guide.play], [["[data-guide]"], undefined]);
   assert.equal(s.home.union, true);
   assert.ok(steps.filter((x) => x.act).every((x) => x.act.label === "Tap it"), "the plate says Tap it: it points at the real thing, never does it");
   assert.equal(s.add.line, "Let's add The Amazing Race. Practice: nothing's saved.");
@@ -43,10 +44,11 @@ test("the count: down Home's beats share one number, ten in all", () => {
   const steps = tourSteps(at({}));
   const { nums, of } = numbered(steps);
   assert.equal(of, 10);
-  assert.deepEqual(nums, [1, 2, 3, 3, 3, 3, 4, 5, 6, 7, 8, 9, 10]);
+  // (The week strip left the hub with step 7 of the design round: the guide is its own page, the guide step's.)
+  assert.deepEqual(nums, [1, 2, 3, 3, 3, 4, 5, 6, 7, 8, 9, 10]);
   // A beat this Home hasn't got is left out before the count (tour.tsx onHome): the rest close up.
   const less = steps.filter((x) => x.id !== "more" && x.id !== "feed");
-  assert.deepEqual(numbered(less).nums.slice(0, 5), [1, 2, 3, 3, 4]);
+  assert.deepEqual(numbered(less).nums.slice(0, 5), [1, 2, 3, 4, 5]);
 });
 
 test("nothing due: the moves step explains the top line, with nothing to tap; no games to flip: no flip step", () => {

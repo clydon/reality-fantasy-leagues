@@ -427,22 +427,23 @@ async function person(pool, who, role = null) {
     );
     check((await pool.query("SELECT told_at FROM fact_disputes WHERE decision_id = $1", [danny])).rows.every((x) => x.told_at), "told once (fact_disputes.told_at)");
 
-    // A bingo line: the squares either side of the free one in the middle row of jordan's card on Episode 6 (the fixture's bank,
-    // docs/PLAN-bingo-bank.md). A bank's square counts once two on the couch say it happened: alex says so of both (a say of his own,
-    // in the table the couch's says go in), and jordan's ticks are the second say.
+    // A bingo line: the middle row of jordan's card on Episode 6, its three squares (no free centre since 2026-11-02, 16489b89: "makes
+    // it too easy"; the fixture's bank, docs/PLAN-bingo-bank.md). A bank's square counts once two on the couch say it happened: alex
+    // says so of all three (a say of his own, in the table the couch's says go in), and jordan's ticks are the second say.
     const card = (await as.jordan.call("GET", `/api/seasons/${sid}/bingo/6${q}`)).body;
-    check(card.status === "open" && card.squares?.[4]?.key === "free" && Array.isArray(card.truth), "jordan's card on Episode 6 is open, the middle square free", JSON.stringify(card).slice(0, 160));
-    for (const i of [3, 5]) {
+    check(card.status === "open" && card.squares?.length === 9 && !card.squares.some((s) => s.key === "free"), "jordan's card on Episode 6 is open, nine squares, none free", JSON.stringify(card).slice(0, 160));
+    for (const i of [3, 4, 5]) {
       await pool.query("INSERT INTO episode_call_says (user_id, season_id, episode, question, happened) VALUES ($1, $2, 6, $3, true) ON CONFLICT DO NOTHING", [U.alex, sid, card.squares[i].key]);
     }
-    check((await as.jordan.call("GET", `/api/seasons/${sid}/bingo/6${q}`)).body.truth.filter((t, i) => [3, 5].includes(i)).every((t) => t === null), "its middle row: alex says it happened, one say each so far");
+    check((await as.jordan.call("GET", `/api/seasons/${sid}/bingo/6${q}`)).body.truth.filter((t, i) => [3, 4, 5].includes(i)).every((t) => t === null), "its middle row: alex says it happened, one say each so far");
     await as.alex.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { square: 0, ticked: true });
     push.clear();
     await as.jordan.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { square: 3, ticked: true });
+    await as.jordan.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { square: 4, ticked: true });
     await wait(2500);
-    check(push.received.length === 0, "one square of the line: nothing yet");
+    check(push.received.length === 0, "two squares of the line: nothing yet");
     r = await as.jordan.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { square: 5, ticked: true });
-    check(r.body.lines?.ticked === 1 && r.body.lines.called === 0, "the second: a line made, not called yet", JSON.stringify(r.body.lines));
+    check(r.body.lines?.ticked === 1 && r.body.lines.called === 0, "the third: a line made, not called yet", JSON.stringify(r.body.lines));
     await wait(2500);
     check(push.received.length === 0, "a line made tells nobody: calling it does (docs/PLAN-bingo-bank.md step 3)");
     r = await as.jordan.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { call: 1 });

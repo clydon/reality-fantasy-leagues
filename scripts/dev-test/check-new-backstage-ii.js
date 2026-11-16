@@ -139,15 +139,15 @@ const first = (name) => name.split(" ")[0];
     await row.waitFor({ timeout: 20000 });
     const rowText = await row.innerText();
     check(/Outlast waivers · after Episode 5/.test(rowText) && /replace Carter/.test(rowText), "Episodes: the waiver row sits after Episode 5", rowText.replace(/\n/g, " "));
-    const dock = (await page.locator(".nd-dock").innerText().catch(() => "")).replace(/\n/g, " ");
-    check(/Due .* · in \d+ days/.test(dock), "the dock says the waiver pick's deadline (Due), not airtime", dock);
+    // The strip (step 3 of the design round: it replaced the dock on every tab but Chat) says the waiver pick and its deadline.
+    const strip = (await page.locator("[data-strip] button").first().innerText().catch(() => "")).replace(/\n/g, " ");
+    check(/Replace Carter/.test(strip) && /Due /.test(strip), "the strip says the waiver pick and its deadline (Due), not airtime", strip);
     await fits("Episodes");
     await shot("episodes");
-    // The dock's Set goes where Tonight's card does: the waiver pick is due first, so Waivers at Outlast (before the
-    // 2026-10-26 critique it opened Your moves on the Weekly Lineup tab).
-    await page.locator(".nd-dock").click();
+    // The strip goes where Tonight's card does: the waiver pick is due first, so Waivers at Outlast.
+    await page.locator("[data-strip] button").first().click();
     await page.waitForURL((u) => u.pathname.endsWith("/waivers"), { timeout: 15000 }).catch(() => {});
-    check(page.url().includes(`/waivers?game=${L.outlast}`), "the dock's Set opens Waivers at Outlast, as Tonight's card does", page.url());
+    check(page.url().includes(`/waivers?game=${L.outlast}`), "the strip opens Waivers at Outlast, as Tonight's card does", page.url());
     await page.goBack();
     await row.waitFor({ timeout: 20000 });
     await row.click();
@@ -157,7 +157,7 @@ const first = (name) => name.split(" ")[0];
     check((await page.locator("[data-wv-head]").innerText()).toLowerCase() === "replace carter", "the plate: Replace Carter");
     check((await page.locator('[data-wv-plate="due"][data-wv-spot="Carter Krull"] [data-swap]').count()) === 1, "Carter on the plate, with Swap");
     check((await page.locator("[data-swap]").count()) === 1, "nothing optional this week (no swaps)");
-    check(/Forget, and Carter's spot gets whoever's free with the most points/.test(await page.locator("[data-wv-fallback]").innerText()), "the fallback line: forget, and the most points left comes in");
+    check(/Forget, and whoever's free with the most points comes in/.test(await page.locator("[data-wv-fallback]").innerText()), "the fallback line (under the plate, step 8): forget, and the most points left comes in");
     check((await page.locator("[data-wv-order] li").count()) === 4 && (await page.locator("[data-wv-order] li[data-you]").innerText()).includes("You"), "picking order as four faces, you among them");
     check((await page.locator("[data-wv-bar]").count()) === 0, "no bottom bar repeating the move");
     check(!(await text()).match(/\bpts lost\b|points go|keeps \d+ pts/), "no points copy");
