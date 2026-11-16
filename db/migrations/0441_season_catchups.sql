@@ -68,6 +68,9 @@ CREATE TABLE catchup_answers (
   episode_number INTEGER NOT NULL DEFAULT 0,
   answer TEXT NOT NULL,
   source TEXT NOT NULL CHECK (source IN ('asked', 'loaded')),
+  -- Which AI answered it and how long the ask took (an asked one): the numbers for how many asks a plan's window holds.
+  provider TEXT,
+  seconds INTEGER,
   used_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (season_id, step, episode_number)

@@ -143,11 +143,12 @@ const usedAnswer = (seasonId: string, step: AnswerStep, n = 0) =>
   pool.query("UPDATE catchup_answers SET used_at = now() WHERE season_id = $1 AND step = $2 AND episode_number = $3 AND source = 'loaded'", [seasonId, step, n]);
 
 /** Every answer asked here, kept as our bot gave it (catch-up-rehearse.js --export writes them out for production to load). */
-async function keepAnswer(seasonId: string, step: AnswerStep, n: number, answer: string): Promise<void> {
+async function keepAnswer(seasonId: string, step: AnswerStep, n: number, answer: string, how: { provider?: string; seconds?: number } = {}): Promise<void> {
   await pool.query(
-    `INSERT INTO catchup_answers (season_id, step, episode_number, answer, source) VALUES ($1, $2, $3, $4, 'asked')
-     ON CONFLICT (season_id, step, episode_number) DO UPDATE SET answer = EXCLUDED.answer, source = 'asked', used_at = NULL, created_at = now()`,
-    [seasonId, step, n, answer]
+    `INSERT INTO catchup_answers (season_id, step, episode_number, answer, source, provider, seconds) VALUES ($1, $2, $3, $4, 'asked', $5, $6)
+     ON CONFLICT (season_id, step, episode_number) DO UPDATE SET answer = EXCLUDED.answer, source = 'asked', provider = EXCLUDED.provider,
+       seconds = EXCLUDED.seconds, used_at = NULL, created_at = now()`,
+    [seasonId, step, n, answer, how.provider ?? null, how.seconds ?? null]
   );
 }
 
@@ -353,13 +354,14 @@ async function showStep(s: Season, bot: string | undefined, budgetMs: number, pr
   // the catch-up's own kind (Codex by default). Optional: if it can't be asked, the desk can ask it later, and the season goes
   // on to its episodes anyway (a flaky bot never holds up what matters; the research questions need no AI, below).
   const given = await loadedAnswer(s.id, "show");
+  const t0 = Date.now();
   let asked = await askRulebookNow(id, "check", null, bot, budgetMs, null, "catchup", { provider, ...(given ? { answer: given } : {}) });
   if (given) {
     await usedAnswer(s.id, "show");
     // A rehearsal's answer that doesn't read here is set aside: asked live.
     if (!asked.ok) asked = await askRulebookNow(id, "check", null, bot, budgetMs, null, "catchup", { provider });
   }
-  if (asked.ok && asked.answer && asked.answer !== given) await keepAnswer(s.id, "show", 0, asked.answer);
+  if (asked.ok && asked.answer && asked.answer !== given) await keepAnswer(s.id, "show", 0, asked.answer, { provider: provider ?? "catchup", seconds: Math.round((Date.now() - t0) / 1000) });
   if (!asked.ok) {
     await recompile(id);
     await logDesk(pool, { entity: "rulebook", entityId: id, action: "catchup", text: `Catch-up: research questions brought up to date; Check for changes didn't answer (${asked.message.slice(0, 120)}): ask it from this page`, userId: null });
@@ -402,12 +404,13 @@ async function castStep(s: Season, bot: string | undefined, budgetMs: number, pr
   if (!rows[0].n) return;
   // Optional too: people's details can be asked from the desk's cast page later; the episodes don't need them.
   const given = await loadedAnswer(s.id, "cast");
+  const t0 = Date.now();
   let asked = await askCastNow(s.id, null, bot, budgetMs, "catchup", { provider, ...(given ? { answer: given } : {}) });
   if (given) {
     await usedAnswer(s.id, "cast");
     if (!asked.ok) asked = await askCastNow(s.id, null, bot, budgetMs, "catchup", { provider });
   }
-  if (asked.ok && asked.answer && asked.answer !== given) await keepAnswer(s.id, "cast", 0, asked.answer);
+  if (asked.ok && asked.answer && asked.answer !== given) await keepAnswer(s.id, "cast", 0, asked.answer, { provider: provider ?? "catchup", seconds: Math.round((Date.now() - t0) / 1000) });
   if (!asked.ok) {
     await logDesk(pool, { entity: "season", entityId: s.id, action: "cast", text: `Catch-up: our bot's cast didn't answer (${asked.message.slice(0, 120)}): ask it from Who's in it`, userId: null });
     return;
@@ -439,11 +442,16 @@ async function episodeStep(
     // Its lane (a bot and its AI), else the catch-up's own kind (Codex by default) starting at a different bot each. Codex needs
     // the ChatGPT Plus plan: if it can't answer (the plan lapsed, its limit reached), that bot's free ChatGPT asks instead.
     const until = Date.now() + budgetMs;
+    const t0 = Date.now();
     const first = lane ? { bot: lane.bot, provider: lane.provider } : { bot, kind: "catchup" as const, spread };
+    let provider: string = lane?.provider ?? "catchup";
     const answer = await askBot(prompt, { ...first, budgetMs })
-      .catch(() => askBot(prompt, { bot: lane?.bot ?? bot, budgetMs: until - Date.now(), provider: "chatgpt", spread }))
+      .catch(() => {
+        provider = "chatgpt (fallback)";
+        return askBot(prompt, { bot: lane?.bot ?? bot, budgetMs: until - Date.now(), provider: "chatgpt", spread });
+      })
       .then((a) => a.answer);
-    await keepAnswer(s.id, "episode", n, answer);
+    await keepAnswer(s.id, "episode", n, answer, { provider, seconds: Math.round((Date.now() - t0) / 1000) });
     run = await read(answer);
   }
   const input = await inputOf(s.id, n, run);

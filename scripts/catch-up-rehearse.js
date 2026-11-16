@@ -65,7 +65,7 @@ async function calls(names) {
 // number are what anyone can check).
 async function exportAnswers(file) {
   const { rows } = await pool.query(
-    `SELECT s.slug, ss.season_number AS season, a.step, a.episode_number AS episode, a.answer FROM catchup_answers a
+    `SELECT s.slug, ss.season_number AS season, a.step, a.episode_number AS episode, a.provider, a.seconds, a.answer FROM catchup_answers a
        JOIN show_seasons ss ON ss.id = a.season_id JOIN shows s ON s.id = ss.show_id WHERE a.source = 'asked' ORDER BY s.slug, ss.season_number, a.step, a.episode_number`
   );
   fs.mkdirSync(path.dirname(path.resolve(file)), { recursive: true });
@@ -103,6 +103,13 @@ const QUEUE = (() => {
     }
     const { rows: stopped } = await pool.query("SELECT season_id, message FROM season_catchups WHERE stuck_at IS NOT NULL");
     for (const s of stopped) console.log(`  stopped: ${s.season_id} · ${s.message}`);
+    // The asks it made, by AI: how many and how long (with bot-usage.js's samples, what a plan's window holds).
+    const { rows: asks } = await pool.query(
+      `SELECT COALESCE(provider, '?') AS provider, step, count(*)::int AS n, round(avg(seconds))::int AS avg_s, max(seconds) AS max_s
+         FROM catchup_answers WHERE source = 'asked' GROUP BY 1, 2 ORDER BY 1, 2`
+    );
+    console.log("[catch-up] asks made:");
+    for (const a of asks) console.log(`  ${a.provider} · ${a.step}: ${a.n} (about ${a.avg_s} s each, longest ${a.max_s} s)`);
     if (opt("export")) await exportAnswers(opt("export"));
     console.log("[catch-up] done");
   } catch (e) {
