@@ -119,6 +119,44 @@ episode research (a question the rulebook adds when a property `changes: "someti
 `viewThrough` like `episode.groups`. A drafted team's shape is judged at the draft; a later change never breaks a team (said on
 the person: "Promoted to Bosun, Ep 6"). Lineup slots read the value as of that episode.
 
+## Holdings: what someone has right now (the user, 2026-11-16; proposed, not decided)
+
+"We also need a 'currently has' property for players. Survivor tracks if they found an advantage or idol. But suppose they use it or
+give it away, it's hard to determine in our current landscape if they currently have anything of value."
+
+**What's there today:** episode research asks whether someone found an idol or advantage (and its name) and whether they played one
+(Survivor's `foundAdvantage` / `playedAdvantage`, a rulebook advantage twist's `Got` and `Played` moments), plus "Went home
+holding" for one that lasts until played. Found minus played isn't what someone holds: a gift, a theft, an expiry ("good for the
+next two Tribal Councils"), a loss (a Shot in the Dark that comes up empty is gone either way), an idol played on someone else, and
+two of the same kind each break it, and nothing asks about them.
+
+**Not a property, a dated ledger.** A property is what someone is (a department); a holding is what they have at the end of an
+episode, and it changes every week, like chunk 6's dated changes and a tribe's moves. One row per thing held:
+`{ castaway, twist (the rulebook's advantage), name ("Hidden Immunity Idol", "Block a Vote"), from: { episode, how: found | won |
+given (by whom) | bought }, until: { episode, how: played (on whom) | gave (to whom) | expired | lost | stolen | wentHome } | null }`.
+"Currently has" at a viewer's mark is every row open at their episode; it's spoiler-guarded by `viewThrough` like `episode.groups`.
+
+**Research, recommended both ways at once:**
+1. **Events** on each episode, for each advantage twist the rulebook has: got one (how, from whom), played one (on whom), gave one
+   away (to whom), lost one or it expired. Each is a fact like any other, accepted on the desk.
+2. **A snapshot** at each episode's end: "who holds what now", which a show's wiki keeps as a table. The ledger is built from the
+   events; the snapshot checks it, and a disagreement goes to the desk ("the ledger says Kristin still has her idol; the snapshot
+   says nobody does: did she give it away?") rather than either one silently winning.
+   A holding the show hasn't aired (found off camera, revealed later) starts the episode it's shown, never before.
+
+**Shown:** on the person sheet's head under their details ("Has a Hidden Immunity Idol · found Ep 3"), as a small mark on the
+wall's face when they hold anything (the one exception to step 5's names-only faces, to be designed), and in a game's sheets;
+"Played it on Eric, Ep 7" in their story. **Games** could read it like a property later (a moment for each episode someone keeps an
+idol, a pool pick that avoids holders) but that's a game rule for chunk 4's successors, not this.
+
+**Where it fits:** with chunk 6 (dated changes), as **6b**, after 4 and 5: the same episode-research plumbing, the same desk accept,
+the same `viewThrough`. Generic over every rulebook's advantage twists, not Survivor's code ([universal-not-curated]).
+
+**For the user to decide:** (a) events and a snapshot together (recommended), or events only (fewer questions, silent errors), or a
+snapshot only (simplest, no "how"); (b) the wall's mark for someone holding something, or the sheet only; (c) whether the existing
+results for aired episodes are re-asked to backfill holdings (S51: its episodes so far, through our bot) or holdings start from the
+next episode.
+
 ## Bios: who they are, beside what they did (the user, 2026-11-15)
 
 "For show importing cast bios would be a nice touch too outside of stats (if the draft was performed after the first episode).
@@ -163,6 +201,8 @@ Each ends with focused tests; the long checks once per milestone ([long-checks-o
    matchup pairing reads real slots (step 2c paired a sport by position already). Shared with sports: a sport's lineup gains its
    positions here. Done when NFL's 1 QB, 2 RB, 2 WR, 1 TE, 1 FLEX is enforced and drawn.
 6. **Dated changes.** The season result kind, the episode research question, the desk's accept, `viewThrough`, the person's line.
+   **6b. Holdings** (the user, 2026-11-16, proposed: "Holdings" above): what someone has right now, a dated ledger from episode
+   research (events and an end-of-episode snapshot), spoiler-guarded, on the person sheet and maybe the wall.
 7. **The wizard and the GPT.** SpecContext carries the season's properties so Start a game offers only rules the season can hold
    ("Draft one from each department"), Randomize can roll them, and the spec's check refuses a property the season lacks.
 
