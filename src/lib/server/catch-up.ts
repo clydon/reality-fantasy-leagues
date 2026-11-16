@@ -97,6 +97,10 @@ function episodeDueAt(e: EpisodeRow, now = Date.now()): Date | null {
 
 /** A season on its episodes: a row for every aired one (new ones as they air), and done once none waits. */
 async function settleSeason(seasonId: string): Promise<void> {
+  // Only once its show and cast steps are behind it: the rulebook's research questions are compiled first, so every episode is
+  // asked them (holdings, a property's change).
+  const { rows: at } = await pool.query("SELECT step FROM season_catchups WHERE season_id = $1", [seasonId]);
+  if (at[0]?.step !== "episodes") return;
   const aired = await airedOf(seasonId);
   if (aired > 0) {
     await pool.query("INSERT INTO catchup_episodes (season_id, episode_number) SELECT $1, n FROM generate_series(1, $2::int) n ON CONFLICT DO NOTHING", [seasonId, aired]);
