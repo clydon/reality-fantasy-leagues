@@ -223,10 +223,11 @@ function totalsOf(state: LeagueState): Map<string, number> {
   return new Map(rows.map((r) => [r.playerId, Math.round(Number(r.total) * 100) / 100]));
 }
 
-/** Weekly Calls, bingo and a game of questions keep more than their state scores (compare-totals.js says the same). */
+/** Weekly Calls, bingo, squares and a game of questions keep more than their state scores (compare-totals.js says the same):
+ *  read from the game's pieces (how it scores), never its type's name. */
+const OUTSIDE_SCORES = new Set(["answers", "lines", "squares"]);
 function scoredOutside(state: LeagueState): boolean {
-  const type = (state.settings as { leagueTypeId?: string }).leagueTypeId;
-  if (type === "weekly-calls" || type === "weekly-bingo") return true;
+  if (OUTSIDE_SCORES.has(String((StateLogic.piecesOf(state) as { scores?: string } | null)?.scores))) return true;
   return !!questionsGame(StateLogic.gameOf(state));
 }
 
