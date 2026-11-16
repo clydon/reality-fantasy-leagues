@@ -690,6 +690,15 @@ never handles it: the user does the reset and the pasting.
 
 ## Changelog
 
+- **2026-11-16, on branch `explorer-sports` (not pushed; migration 0438).** The design round's step 7, the hub and the TV guide.
+  **New table `sports_recordings`** (migration 0438): a row per sports game someone chose to watch as if live (user, game id,
+  league, when; ~100 bytes), deleted when they say they've watched it; its scores stay hidden for them on every device. A few
+  rows a person at most, so nothing prunes it; it goes with the account (`ON DELETE CASCADE`). **Reads:** `/api/sports/recordings`
+  once when the hub opens (one indexed query, at most 200 rows); the home read (`/api/me/home`) works out who on the couch is away
+  (behind, and not on since the latest aired) from `user_last_seen` and the seasons' schedules it already reads, with no new
+  query per person. **Writes:** Watch it as if live and I've watched it are one row each. Nothing new polls or runs on a schedule;
+  the hub's scoreboard reads the sports week the guide already read (`/api/sports/week`, cached as before).
+
 - **2026-11-15, on branch `explorer-sports` (not pushed, no migration).** Tonight's own-pace plate folded into the progress
   control; the behind question's Not yet kept with your mark. **Nothing new polls, runs on a schedule or is stored in a new
   table.** **Writes:** Not yet is one `show_follows.not_yet` update (the column Live's Not yet already used; a row made by it alone

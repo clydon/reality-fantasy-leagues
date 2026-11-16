@@ -49,7 +49,8 @@ export function usePushedPage(key: string, owns: string[] = []) {
 const noop = () => () => {};
 
 /** `back`: where back returns you, as its label ("Home"). */
-export function PushedPage({ open, onClose, title, back = "Back", children }: { open: boolean; onClose: () => void; title: ReactNode; back?: string; children: ReactNode }) {
+/** `end`: one control at the bar's right (the guide's Add, the design round's step 7). */
+export function PushedPage({ open, onClose, title, back = "Back", end, children }: { open: boolean; onClose: () => void; title: ReactNode; back?: string; end?: ReactNode; children: ReactNode }) {
   const backButton = useRef<HTMLButtonElement>(null);
   // Only in the browser: the server has no <body> to portal into.
   const mounted = useSyncExternalStore(noop, () => true, () => false);
@@ -76,6 +77,7 @@ export function PushedPage({ open, onClose, title, back = "Back", children }: { 
           {back}
         </button>
         <h3 className="type-caption flex-1 text-[20px]">{title}</h3>
+        {open && end}
       </div>
       {open && children}
     </div>,

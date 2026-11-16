@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChartColumn, ChevronRight, Crown, Link2, Plus, RotateCcw, Tv, Trophy } from "lucide-react";
+import { ChartColumn, Check, ChevronDown, ChevronRight, Crown, Gamepad2, Link2, Plus, RotateCcw, Tv, Trophy } from "lucide-react";
 import { airTime, calmWhen, ticks } from "../clock";
 import { START_EARLY_MS } from "@/lib/game/watch-along";
 import { UNFRAMED } from "@/lib/art-frame";
@@ -23,7 +23,6 @@ import {
   type Move,
   type PlayingGame,
   type WatchPlan,
-  type WeekProgress,
 } from "../data";
 import { openCouchSheet } from "../couch/couch-sheets";
 import { plainName } from "../couch/where";
@@ -42,6 +41,9 @@ import { openWatching } from "../watching/sheets";
 import { useOpenTogether } from "../show/watch-along";
 import { usePracticeShows } from "../tour/practice-shows";
 import { showWords } from "@/lib/game/show-words";
+import { moveCard } from "../show/moves";
+import { TeamMark } from "../sports/parts";
+import { useSportsDay } from "./sports-day";
 
 // The hub's sections (the mock's index.html hub, refine.js wireHub, hubplus.js, watching.js, fresh.js), in the order
 // screens/home.tsx lays them out. Real (step 8): the status line and Up next (results to reveal first, then what's due,
@@ -148,22 +150,6 @@ export function StatusLine({ home }: { home: Home }) {
 
 // ---------- Up next ----------
 
-/** Who's set: the people in that game, those not set yet dimmed, and the count. */
-function WhoIsSet({ progress }: { progress: WeekProgress }) {
-  return (
-    <span data-progress className="flex items-center gap-2.5 text-[13px] text-white/90">
-      <span className="flex">
-        {progress.people.slice(0, 6).map((p, i) => (
-          <span key={p.playerId} className={`rounded-[3px] shadow-[0_0_0_2px_var(--background)] ${i ? "-ml-1.5" : ""} ${p.done ? "" : "opacity-45"}`}>
-            <Avatar id={p.userId ?? p.playerId} name={p.name} size={24} />
-          </span>
-        ))}
-      </span>
-      {progress.done} of {progress.of} {progress.label}
-    </span>
-  );
-}
-
 /**
  * The show to put up next, needs-you first: results in to reveal, then the show your soonest move is for, then the one
  * on now, then the soonest to air. A streaming drop never takes its countdown (step 14, the mock's heroPick): its home is the
@@ -181,22 +167,37 @@ export function nextShow(home: Home): HomeShow | null {
   return on[0] ?? null;
 }
 
+/** Where the plate's move goes in one tap (the design round's step 7): its own page (the draft room, waivers, the blind draft), else
+ *  the show with that move's sheet open (show/dock.tsx reads `?moves=`), else the show (its strip). */
+export function moveHref(m: Move, seasonId: string): string {
+  const card = moveCard(m, seasonId, false);
+  if (card.href) return card.href;
+  if (card.tab) return `${paths.show(seasonId, "tonight")}?moves=${card.tab}&game=${m.leagueId}`;
+  return paths.show(seasonId, "tonight");
+}
+
 /**
- * The show on next: its art large, when it's on, and on a caption plate what it asks of you: Reveal when its results
- * are in (the one yellow), else your move for it (yellow), else the morning update's final scores (teal); then who's set.
- * Nothing to do: no plate (it said "All set · Nothing due", on a show with no game too, and a line that asks nothing of
- * you is noise; the card still opens it, and who's set still shows). The whole card opens the show (the user, 2026-10-30): the
- * name's link stretches over it, and the plate, a planned night and Watch along sit above it with their own taps.
+ * The next thing (the design round's step 7, docs/design-round/step7-hub-spec.md): the show on next on its art, its episode and
+ * when said once, and on a caption plate the one thing it needs from you, needs-you first: results to reveal, else your due move
+ * (opening its editor in one tap), else the morning update's final scores (teal), else all set (quiet, no yellow). The plate is
+ * the strip's object (step 3): its tag the episode, its title the move, its line who's in and a lock only when it isn't the
+ * airtime. Moves due on other shows are one line under it. Who's set is a count (the faces are Your people's, under On TV).
+ * Watch along only when there's something out to watch. The whole card opens the show (the user, 2026-10-30): the name's link
+ * stretches over it, and the plate, a planned night and Watch along sit above it with their own taps.
  */
 export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couch: Couch | null }) {
   const up = show.upNext;
   const reveal = show.results?.reveal ?? null;
   const final = !reveal ? (show.results?.final ?? null) : null;
-  const move = movesByDue(home.moves).find((m) => show.games.some((g) => g.leagueId === m.leagueId));
-  // Who's set: in the game of the move on the plate ("0 of 4 picked" beside a pick), else in this couch's game here (a
-  // lineup's before a pick's), else in any of yours.
-  const here = show.progress.filter((p) => !couch || couch.games.some((g) => g.leagueId === p.leagueId));
-  const pool = here.length ? here : show.progress;
+  const due = movesByDue(home.moves);
+  const here = (m: Move) => show.games.some((g) => g.leagueId === m.leagueId);
+  const move = due.find(here);
+  const moreHere = due.filter((m) => here(m) && m !== move).length;
+  const elsewhere = due.filter((m) => !here(m));
+  const otherShow = elsewhere.length ? showOfMove(home, elsewhere[0]) : undefined;
+  // Who's in: in the game of the move on the plate ("0 of 4 picked"), else in this couch's game here (a lineup's before a pick's).
+  const couchHere = show.progress.filter((p) => !couch || couch.games.some((g) => g.leagueId === p.leagueId));
+  const pool = couchHere.length ? couchHere : show.progress;
   const progress =
     (move && pool.find((p) => p.leagueId === move.leagueId)) ?? [...pool].sort((a, b) => Number(a.label !== "lineups set") - Number(b.label !== "lineups set"))[0];
   const t = up?.airAt ? Date.parse(up.airAt) : null;
@@ -204,81 +205,164 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
   const finalWords = useFinalLine(reveal?.stage, reveal?.finalAt);
   const name = showName(show);
   const href = paths.show(show.seasonId);
-  const kind = reveal ? "reveal" : move ? "move" : final ? "final" : "set";
-  const ep = showWords(show.show.terms).ep;
+  // A sports game (the user, 2026-11-15: three lines for "Cowboys at Eagles, Nov 17 · Tue 10:07 PM · in 2 days"): the matchup with
+  // its two marks on one line, the teams' colours behind it when there's no art, no repeated date or "Game 1".
+  const game = useSportsDay(couch?.id ?? null).gameOf(show);
+  const words = showWords(show.show.terms);
+  // A one-letter short form (a sport's "G") reads as the word in full here.
+  const ep = words.ep.length > 1 ? words.ep : words.episode;
+  const live = !reveal && !!up?.live;
+  const playing = show.games.length > 0;
+  const kind = reveal ? "reveal" : move ? "move" : final ? "final" : live ? "live" : playing && up ? "set" : "none";
   // A night the couch planned on this show (the soonest you can watch: never past your next episode) takes Watch along's place.
   const next = show.seenThrough == null ? Number.POSITIVE_INFINITY : show.seenThrough + 1;
   const night = couch ? ((home.plans ?? []).find((p) => p.seasonId === show.seasonId && p.couchId === couch.id && p.episode <= next) ?? null) : null;
-  const plate = kind === "set" ? null : {
-    reveal: {
-      tag: "Reveal",
-      tone: "bg-chyron text-chyron-foreground",
-      title: `Episode ${reveal?.episode} ${reveal?.stage === "early" ? "early" : "final"} results are in`,
-      line: reveal?.stage === "early" ? `Who went home · ${finalWords ? midLine(finalWords) : "final results later"}` : "Watched it? Reveal for every game at once",
-    },
-    move: {
-      tag: move ? (MOVE_TAG[move.kind] ?? "To do") : "",
-      tone: "bg-chyron text-chyron-foreground",
-      title: move?.text ?? "",
-      line: move?.deadline ? `${move.kind === "lineup" || move.kind === "pick" ? "Locks" : "Due"} ${calmWhen(Date.parse(move.deadline), now)}` : (move?.leagueName ?? ""),
-    },
-    final: { tag: "Morning update", tone: "bg-good text-good-foreground", title: "Final results are in", line: `Episode ${final?.episode} · every point counted` },
-  }[kind];
+  // Something out to watch: on now, or an aired episode past your mark.
+  const toWatch = live || (show.seenThrough != null && show.seenThrough < show.latestAired);
+  const card = move ? moveCard(move, show.seasonId, false, false, words.episode) : null;
+  const moveEp = move?.episode ?? up?.number ?? null;
+  const lockAt = move?.deadline ? Date.parse(move.deadline) : null;
+  // The lock in words only when it isn't the airtime (the head says the airtime: R1, each fact once).
+  const lock = move && lockAt != null && lockAt !== t ? `${move.kind === "pickup" ? "Due" : "Locks"} ${calmWhen(lockAt, now)}` : null;
+  // Who's in only from the move's own game (a waiver claim has none: another game's "lineups set" would be a wrong fact).
+  const count = progress && kind === "move" && progress.leagueId === move?.leagueId ? `Couch: ${progress.done} of ${progress.of} ${progress.label}` : null;
+  type Plate = { tag: string; tone: "due" | "good" | "set"; title: string; line: string | null; to: string };
+  let plate: Plate | null = null;
+  if (reveal) {
+    const waiting = due.filter(here).length;
+    const then = waiting ? `then ${waiting} ${waiting === 1 ? "move" : "moves"}` : null;
+    // Two or more behind: say so (Joanna, back after a week).
+    const behind = show.seenThrough != null && show.latestAired - show.seenThrough >= 2 ? `You're ${show.latestAired - show.seenThrough} behind` : null;
+    const why = reveal.stage === "early" ? (finalWords ? midLine(finalWords) : "Final results later") : (behind ?? "Every game at once");
+    plate = {
+      tag: `${ep} ${reveal.episode}`,
+      tone: "due",
+      title: reveal.stage === "early" ? "Reveal the early results" : "Reveal the results",
+      line: [why, then].filter(Boolean).join(" · "),
+      to: `${paths.show(show.seasonId, "tonight")}?page=reveal&ep=${reveal.episode}`,
+    };
+  } else if (move && card) {
+    const draft = move.kind === "draftTurn" || move.kind === "blindDraft";
+    plate = {
+      tag: draft ? "Draft" : moveEp != null && !game ? `${ep} ${moveEp}` : (MOVE_TAG[move.kind] ?? "Your move"),
+      tone: "due",
+      title: card.title,
+      line: move.kind === "draftTurn" ? `Your pick now · ${move.leagueName}` : [count, lock].filter(Boolean).join(" · ") || move.leagueName,
+      to: moveHref(move, show.seasonId),
+    };
+  } else if (final) {
+    plate = { tag: `${ep} ${final.episode}`, tone: "good", title: "Final results are in", line: "Every point counted", to: href };
+  } else if (kind === "set" && up) {
+    plate = { tag: `${ep} ${up.number}`, tone: "set", title: `All set for ${ep} ${up.number}`, line: "Change anything until it airs", to: href };
+  }
+  const head = game ? null : reveal ? `${ep} ${reveal.episode}` : up ? `${ep} ${up.number}` : null;
+  // The season line, unless it only repeats the name (a sport's game: "Cowboys at Eagles, Nov 17").
+  const season = game ? "" : show.seasonNumber ? `Season ${show.seasonNumber}` : show.seasonName && show.seasonName !== show.show.name ? show.seasonName : "";
+  // More moves: the show's own (Tonight's strip lists them) and other shows' (the first one's move, or that show).
+  const more = moreHere + elsewhere.length;
+  const moreTo = moreHere
+    ? paths.show(show.seasonId, "tonight")
+    : elsewhere.length === 1 && otherShow
+      ? moveHref(elsewhere[0], otherShow.seasonId)
+      : otherShow
+        ? paths.show(otherShow.seasonId)
+        : href;
+  const moreWords = `${more} more ${more === 1 ? "move" : "moves"}${!moreHere && otherShow ? ` · ${showName(otherShow)}` : ""}`;
+  // A long name (past 14 letters) at 34 px, DESIGN.md's title card rule.
+  const long = name.length > 14;
   return (
     // Over the show's header art, as its page's show bar (desk parity 7b: the Header's Up next crop), else its cards': Night in
     // both themes (step 15 part 4).
-    <section data-art-scope data-upnext={kind} className="dark relative isolate mx-4 mt-1 flex min-h-[330px] flex-col overflow-hidden rounded-[4px] text-foreground shadow-[0_18px_40px_rgba(0,0,0,.45)]">
+    <section
+      data-art-scope
+      data-upnext={kind}
+      className={`dark relative isolate mx-4 mt-1 flex flex-col overflow-hidden rounded-[4px] text-foreground shadow-[0_18px_40px_rgba(0,0,0,.45)] ${game ? "min-h-[224px]" : plate ? "min-h-[280px]" : "min-h-[220px]"}`}
+    >
       <span className="absolute inset-0 -z-[2] overflow-hidden">
         <ShowArt
           seasonId={show.seasonId}
           artUrl={show.show.backdropUrl || show.show.artUrl}
           name={show.show.name}
           position={show.show.backdropUrl ? `${UNFRAMED.header.x}% ${UNFRAMED.header.y}%` : "center"}
-          className="nd-kenburns size-full"
+          // Still (the user, 2026-11-15: no slow pan).
+          className="size-full"
+          // No art: the dark ground alone, never a faint copy of the name under the real one.
+          bare
         />
       </span>
+      {game && !(show.show.backdropUrl || show.show.artUrl) && (
+        <span
+          aria-hidden
+          className="absolute inset-0 -z-[1] opacity-60"
+          style={{ background: `linear-gradient(105deg, ${game.sides[0].color ? `#${game.sides[0].color}` : "transparent"} 0%, transparent 50%, ${game.sides[1].color ? `#${game.sides[1].color}` : "transparent"} 100%)` }}
+        />
+      )}
       <span
         aria-hidden
-        className="absolute inset-0 -z-[1] bg-[linear-gradient(180deg,rgba(16,14,21,.25)_0%,rgba(16,14,21,.2)_30%,rgba(16,14,21,.88)_72%,rgba(16,14,21,.97)_100%)]"
+        className="absolute inset-0 -z-[1] bg-[linear-gradient(180deg,rgba(16,14,21,.3)_0%,rgba(16,14,21,.15)_28%,rgba(16,14,21,.86)_66%,rgba(16,14,21,.97)_100%)]"
       />
       <div className="flex flex-1 flex-col gap-2.5 p-3.5">
         <div className="flex items-center gap-2">
           <span
-            className={`type-caption py-[5px] pl-[9px] pr-[18px] text-[13px] tracking-[0.06em] [clip-path:polygon(0_0,100%_0,calc(100%_-_9px)_100%,0_100%)] ${
-              !reveal && up?.live ? "bg-live text-live-foreground" : "bg-secondary text-foreground"
+            className={`type-caption flex items-center gap-1.5 py-[5px] pl-[9px] pr-[18px] text-[13px] tracking-[0.06em] [clip-path:polygon(0_0,100%_0,calc(100%_-_9px)_100%,0_100%)] ${
+              live ? "bg-live text-live-foreground" : "bg-secondary text-foreground"
             }`}
           >
-            {reveal ? "Results are in" : up?.live ? "On now" : "Up next"}
+            {live && <i className="size-1.5 animate-pulse rounded-full bg-current motion-reduce:animate-none" aria-hidden />}
+            {reveal ? "Results are in" : live ? "On now" : "Up next"}
           </span>
-          <span className="text-[13px] font-semibold text-white [text-shadow:0_1px_6px_rgba(0,0,0,.6)]">
-            {show.seasonNumber ? `Season ${show.seasonNumber}` : (show.seasonName ?? "")}
-            {reveal ? ` · ${ep} ${reveal.episode}` : up ? ` · ${ep} ${up.number}${t != null ? ` · ${airTime(t)}` : ""}` : ""}
-          </span>
+          <span className="text-[13px] font-semibold text-white [text-shadow:0_1px_6px_rgba(0,0,0,.6)]">{[season, head].filter(Boolean).join(" · ")}</span>
         </div>
-        <h2 className="type-caption mt-auto text-[44px] [text-shadow:0_2px_20px_rgba(0,0,0,.5)]">
-          <NavLink href={href} channel data-upnext-open className="inline-flex items-center gap-1 after:absolute after:inset-0">
-            {name}
-            <ChevronRight className="size-7" strokeWidth={3} aria-hidden />
-          </NavLink>
-        </h2>
-        {!reveal && t != null && !up?.live && <div className="type-caption -mt-1 text-[20px] tracking-[0.02em]">{calmWhen(t, now)}</div>}
+        {game ? (
+          <h2 className="type-caption mt-auto text-[26px] [text-shadow:0_2px_20px_rgba(0,0,0,.5)]">
+            <NavLink href={href} channel data-upnext-open className="flex min-w-0 items-center gap-2 after:absolute after:inset-0">
+              <TeamMark abbr={game.sides[0].abbreviation ?? game.sides[0].short.slice(0, 3)} color={game.sides[0].color} size="sm" />
+              <span className="truncate">{game.sides[0].short}</span>
+              <span className="flex-none text-[17px] text-white/65">at</span>
+              <TeamMark abbr={game.sides[1].abbreviation ?? game.sides[1].short.slice(0, 3)} color={game.sides[1].color} size="sm" />
+              <span className="truncate">{game.sides[1].short}</span>
+              <ChevronRight className="size-6 flex-none" strokeWidth={3} aria-hidden />
+            </NavLink>
+          </h2>
+        ) : (
+          <h2 className={`type-caption mt-auto [text-shadow:0_2px_20px_rgba(0,0,0,.5)] ${long ? "text-[34px]" : "text-[44px]"}`}>
+            <NavLink href={href} channel data-upnext-open className="inline-flex items-center gap-1 after:absolute after:inset-0">
+              {name}
+              <ChevronRight className="size-7" strokeWidth={3} aria-hidden />
+            </NavLink>
+          </h2>
+        )}
+        {!reveal && t != null && !live && (
+          <div className="type-caption -mt-1.5 text-[20px] tracking-[0.02em]" data-upnext-when>
+            {calmWhen(t, now)}
+          </div>
+        )}
         {plate && (
           <NavLink
-            href={href}
-            channel
+            href={plate.to}
+            channel={plate.to === href}
             data-upnext-plate={kind}
-            className="nd-press relative z-[1] flex min-h-14 w-full items-stretch overflow-hidden rounded-[3px] bg-plate text-left text-plate-foreground shadow-plate"
+            // The first-time tour's "Your moves" step taps this (tour/tour.tsx visit: a[data-status]).
+            data-status={kind === "move" ? "moves" : kind === "reveal" ? "reveal" : undefined}
+            className={`nd-press relative z-[1] flex min-h-14 w-full items-stretch overflow-hidden rounded-[3px] text-left ${
+              plate.tone === "set" ? "bg-[rgba(16,14,21,.78)] text-white outline-1 -outline-offset-1 outline-white/20 backdrop-blur-sm" : "bg-plate text-plate-foreground shadow-plate"
+            }`}
           >
             <span
-              className={`type-caption -mr-[13px] flex items-center whitespace-nowrap py-0 pl-[11px] pr-[22px] text-sm tracking-[0.04em] [clip-path:polygon(0_0,100%_0,calc(100%_-_13px)_100%,0_100%)] ${plate.tone}`}
+              className={`type-caption -mr-[13px] flex items-center gap-1.5 whitespace-nowrap py-0 pl-[11px] pr-[22px] text-[15px] tracking-[0.04em] [clip-path:polygon(0_0,100%_0,calc(100%_-_13px)_100%,0_100%)] ${
+                plate.tone === "due" ? "bg-chyron text-chyron-foreground" : plate.tone === "good" ? "bg-good text-good-foreground" : "bg-secondary text-foreground"
+              }`}
             >
+              {plate.tone === "set" && <Check className="size-4" strokeWidth={3} aria-hidden />}
               {plate.tag}
             </span>
-            <span className="flex flex-1 flex-col justify-center gap-[3px] py-[7px] pl-5 pr-2.5">
-              <span className="type-caption text-[19px]">{plate.title}</span>
-              <span className="text-[13px] text-plate-muted">{plate.line}</span>
+            <span className="flex min-w-0 flex-1 flex-col justify-center gap-[3px] py-[7px] pl-5 pr-1">
+              <b data-upnext-title className="text-[16px] font-bold leading-tight">
+                {plate.title}
+              </b>
+              {plate.line && <small className={`text-[14px] leading-tight ${plate.tone === "set" ? "text-white/70" : "text-plate-muted"}`}>{plate.line}</small>}
             </span>
-            <span className="grid place-items-center px-3">
+            <span className="grid flex-none place-items-center px-2.5">
               <ChevronRight className="size-5" aria-hidden />
             </span>
           </NavLink>
@@ -288,19 +372,33 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
             <PlannedNight plan={night} me={home.user.id} />
           </div>
         )}
-        <div className="flex items-center justify-between gap-2.5">
-          {progress && !reveal ? <WhoIsSet progress={progress} /> : <span />}
-          {!night && (
-            <NavLink
-              href={paths.watch(show.seasonId)}
-              data-upnext-watch
-              className="relative z-[1] flex h-9 items-center gap-1.5 whitespace-nowrap rounded-[3px] bg-[rgba(16,14,21,.7)] px-3 text-[13px] font-bold text-white outline-1 -outline-offset-1 outline-white/25 backdrop-blur-sm"
-            >
-              <Tv className="size-4" aria-hidden />
-              Watch along
-            </NavLink>
-          )}
-        </div>
+        {(more > 0 || (!night && toWatch)) && (
+          <div className="flex min-h-11 items-center justify-between gap-2.5">
+            {more > 0 ? (
+              <NavLink
+                href={moreTo}
+                data-upnext-more={more}
+                className="relative z-[1] flex min-h-11 min-w-0 items-center gap-1.5 text-[15px] font-semibold text-white [text-shadow:0_1px_6px_rgba(0,0,0,.6)]"
+              >
+                <i className="size-[7px] flex-none rounded-full bg-chyron-line" aria-hidden />
+                <span className="truncate">{moreWords}</span>
+                <ChevronRight className="size-4 flex-none" aria-hidden />
+              </NavLink>
+            ) : (
+              <span />
+            )}
+            {!night && toWatch && (
+              <NavLink
+                href={paths.watch(show.seasonId)}
+                data-upnext-watch
+                className="relative z-[1] flex h-11 flex-none items-center gap-1.5 whitespace-nowrap rounded-[3px] bg-[rgba(16,14,21,.7)] px-3 text-[15px] font-bold text-white outline-1 -outline-offset-1 outline-white/25 backdrop-blur-sm"
+              >
+                <Tv className="size-4" aria-hidden />
+                Watch along
+              </NavLink>
+            )}
+          </div>
+        )}
       </div>
     </section>
   );
@@ -358,98 +456,6 @@ function PlannedNight({ plan, me }: { plan: WatchPlan; me: string }) {
   );
 }
 
-// ---------- On now ----------
-
-/**
- * Who else on the couch is watching along right now (step 13 part 2; the mock's hubplus.js nowHTML, its Watch along moved under the
- * name, where the mock's cut the show's name off at 390): the first of them (on one of
- * your shows first), which show and episode, and how many more. On a show of yours it opens your watch along of it (their episode
- * when you're that far, else your next: never past it); on one you don't follow, the show. Read once when the hub opens
- * (watch-along.ts couchOnNow), never polled; with nobody on, nothing here.
- */
-export function OnNow({ home, couch }: { home: Home; couch: Couch | null }) {
-  const { data } = useOnNow(couch?.id ?? null);
-  const list = data?.now ?? [];
-  if (!list.length) return null;
-  const mine = (seasonId: string) => home.shows.find((s) => s.seasonId === seasonId && (s.following || s.games.length > 0));
-  const w = [...list].sort((a, b) => Number(!!mine(b.seasonId)) - Number(!!mine(a.seasonId)))[0];
-  const yours = mine(w.seasonId);
-  const next = yours ? (yours.seenThrough == null ? Number.POSITIVE_INFINITY : yours.seenThrough + 1) : 0;
-  const href = yours ? paths.watch(w.seasonId, w.episode <= next ? w.episode : null) : paths.show(w.seasonId);
-  return (
-    <NavLink
-      href={href}
-      data-on-now={w.name}
-      data-on-now-season={w.seasonId}
-      className="nd-press mx-4 mb-3.5 mt-3.5 flex items-center gap-2.5 rounded-[4px] bg-good/10 px-2.5 py-2 text-left outline-1 -outline-offset-1 outline-good/45"
-    >
-      <span className="type-caption flex flex-none items-center gap-[5px] text-[10px] tracking-[0.06em] text-good">
-        <i className="size-[7px] animate-pulse rounded-full bg-good" aria-hidden />
-        On now
-      </span>
-      <Avatar id={w.userId} name={w.name} size={26} />
-      <span className="min-w-0 flex-1">
-        <b className="block truncate text-sm">
-          {w.name} is watching {plainName(w.header.show.name)}
-        </b>
-        <small className="flex items-center whitespace-nowrap text-xs text-muted-foreground">
-          {w.live ? "Live · " : ""}Episode {w.episode}
-          {list.length > 1 ? ` · and ${list.length - 1} more` : ""}
-          {" · "}
-          <span className="ml-1 inline-flex items-center gap-0.5 font-bold text-good">
-            {yours ? "Watch along" : "Have a look"} <ChevronRight className="size-3.5" aria-hidden />
-          </span>
-        </small>
-      </span>
-    </NavLink>
-  );
-}
-
-// ---------- The couch ----------
-
-/**
- * The couch's faces (the user's pick F of the 2026-11-01 "Where everyone is" mocks: the hub had no view of the whole couch):
- * one line under the status line, the couch's name then everyone on it, you first and ringed, a dot on whoever's watching along
- * right now. A face opens what that person watches and how far they are in each (couch/person-sheet.tsx), shows you don't watch
- * included; their name is in the sheet (and the face's label), not under it. One 44px line, no heading or names, so Your shows'
- * posters stay whole on a phone's first screen (the user, 2026-11-01). Not on a couch of one.
- */
-export function CouchRow({ home, couch }: { home: Home; couch: Couch | null }) {
-  const shown = !!couch && couch.members.length > 1;
-  const { data: on } = useOnNow(shown ? couch.id : null);
-  if (!shown) return null;
-  const me = home.user.id;
-  const people = [...couch.members.filter((m) => m.userId === me), ...couch.members.filter((m) => m.userId !== me)];
-  const live = new Set((on?.now ?? []).map((w) => w.userId));
-  return (
-    <section className="-mt-1 mb-1 flex min-h-11 items-center gap-2 pl-4" data-couch-row>
-      <h2 className="type-caption max-w-[40%] flex-none truncate text-[17px]">{couch.name}</h2>
-      <div className="flex min-w-0 flex-1 items-center overflow-x-auto pr-3 [scrollbar-width:none]">
-        {people.map((m) => {
-          const you = m.userId === me;
-          return (
-            <button
-              key={m.userId}
-              type="button"
-              data-couch-face={m.name}
-              data-you={you || undefined}
-              data-live={live.has(m.userId) || undefined}
-              onClick={() => openCouchSheet({ kind: "person", couchId: couch.id, userId: m.userId })}
-              aria-label={`${you ? "You" : m.name}${live.has(m.userId) ? ", watching along now" : ""}: what ${you ? "the couch sees of you" : "they watch and how far they are"}`}
-              className="nd-press grid size-11 flex-none place-items-center"
-            >
-              <span className={`relative rounded-[3px] ${you ? "outline-2 outline-offset-1 outline-foreground" : ""}`}>
-                <Avatar id={m.userId} name={m.name} size={32} />
-                {live.has(m.userId) && <i className="absolute -right-1 -top-1 size-2.5 rounded-full bg-good shadow-[0_0_0_2px_var(--background)]" aria-hidden />}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
 // ---------- Your shows ----------
 
 /** "T2" → 2. */
@@ -498,22 +504,13 @@ function Poster({ show, due, places }: { show: HomeShow; due: boolean; places: P
                 Practice
               </span>
             )}
-            {due && <i className="absolute right-[11px] top-[11px] size-2.5 rounded-full bg-live" aria-label="A move is due" />}
+            {show.games.length > 0 && <GamesMark due={due} className="absolute right-[9px] top-[9px]" />}
             <b className="type-caption text-[28px] leading-[.92]">{showName(show)}</b>
-            <span className="mt-1 text-xs font-semibold opacity-90">
+            {/* The games' chips left the front in the design round's step 7: the corner turns it over to each game and your place. */}
+            <span className={`mt-1 text-xs font-semibold opacity-90 ${places.length ? "pr-8" : ""}`}>
               {show.seasonNumber ? `Season ${show.seasonNumber}` : show.seasonName}
               {night ? ` · ${night}` : ""}
             </span>
-            {show.games.length > 0 && (
-              <span className={`mt-2 flex flex-wrap gap-1 ${places.length ? "pr-8" : ""}`}>
-                {/* By game, once each: the same game on two couches is one chip. */}
-                {[...new Set(show.games.map((g) => g.gameName))].map((name) => (
-                  <span key={name} className="rounded-[2px] bg-[rgba(10,8,14,.6)] px-[5px] py-[3px] text-[10px] font-bold backdrop-blur-sm">
-                    {name}
-                  </span>
-                ))}
-              </span>
-            )}
           </NavLink>
           {places.length > 0 && (
             <button
@@ -558,20 +555,77 @@ function Poster({ show, due, places }: { show: HomeShow; due: boolean; places: P
   );
 }
 
+/** A game's going on this show (the user, 2026-11-15: "a game controller in the corner of the show's block"; the guide's card
+ *  says it the same way): a white controller, with a yellow dot on it when a move of yours is due there. */
+export function GamesMark({ due, className = "" }: { due: boolean; className?: string }) {
+  return (
+    <span
+      data-games-mark={due ? "due" : "on"}
+      role="img"
+      aria-label={due ? "You play a game on it, and a move is due" : "You play a game on it"}
+      className={`grid size-[26px] place-items-center text-white [filter:drop-shadow(0_1px_3px_rgba(0,0,0,.85))] ${className}`}
+    >
+      <Gamepad2 className="size-[22px]" strokeWidth={2.2} aria-hidden />
+      {due && <i className="absolute -right-0.5 top-0 size-2.5 rounded-full bg-chyron-line shadow-[0_0_0_1.5px_rgba(10,8,14,.9)]" />}
+    </span>
+  );
+}
+
+/**
+ * Finished, for the whole couch (the user, 2026-11-15: a season stays while anyone's catching up): it's all aired, you've seen it
+ * all, every game of yours on it is over, and everyone on the couch who watches it and shares Where I am is through the last
+ * episode. Someone who doesn't share it can't hold it open.
+ */
+export function finishedFor(home: Home, couch: Couch | null, hub: CouchHub | undefined, s: HomeShow): boolean {
+  if (s.status !== "completed") return false;
+  const total = Math.max(s.episodeCount ?? 0, s.latestAired);
+  if (!total || (s.seenThrough != null && s.seenThrough < total)) return false;
+  if ((hub?.games ?? []).some((g) => g.seasonId === s.seasonId && !g.ended)) return false;
+  for (const m of couch?.members ?? []) {
+    if (m.userId === home.user.id || !m.watching.includes(s.seasonId)) continue;
+    const at = m.at?.[s.seasonId];
+    if (at != null && at < total) return false;
+  }
+  return true;
+}
+
+/** "Finished · 2 seasons", a fold at the foot of Your shows. */
+export function FinishedFold({ n, open, onToggle }: { n: number; open: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      data-finished-fold={n}
+      aria-expanded={open}
+      onClick={onToggle}
+      className="nd-press mx-4 flex min-h-11 w-[calc(100%-32px)] items-center justify-between border-y border-border text-left text-[15px] font-semibold"
+    >
+      <span>
+        Finished <span className="font-normal text-muted-foreground">· {n} {n === 1 ? "season" : "seasons"}</span>
+      </span>
+      <ChevronDown className={`size-5 text-muted-foreground transition-transform duration-300 motion-reduce:transition-none ${open ? "rotate-180" : ""}`} aria-hidden />
+    </button>
+  );
+}
+
 /** Your shelf's order: what's on soonest first, then the rest, the newest season first. */
-function shelfOrder(shows: HomeShow[]) {
+export function shelfOrder(shows: HomeShow[]) {
   const at = (s: HomeShow) => (s.upNext?.airAt ? Date.parse(s.upNext.airAt) : Infinity);
   return [...shows].sort((a, b) => at(a) - at(b) || (b.premiereDate ?? "").localeCompare(a.premiereDate ?? "") || (b.seasonNumber ?? 0) - (a.seasonNumber ?? 0));
 }
 
-export function YourShows({ home, hub }: { home: Home; hub: CouchHub | undefined }) {
+export function YourShows({ home, hub, couch = null }: { home: Home; hub: CouchHub | undefined; couch?: Couch | null }) {
   const due = new Set(home.moves.map((m) => showOfMove(home, m)?.seasonId).filter(Boolean));
+  const [openFinished, setOpenFinished] = useState(false);
   // The first-time tour's demo shows (tour/practice-shows.ts), on the shelf while it shows where shows you add go.
   const practice = usePracticeShows();
-  const shows = practice.length ? [...home.shows, ...practice] : home.shows;
+  const all = practice.length ? [...home.shows, ...practice] : home.shows;
+  // Finished for the whole couch folds away at the foot (the design round's step 7, the user's rule).
+  const shows = all.filter((s) => !finishedFor(home, couch, hub, s));
+  const finished = all.filter((s) => finishedFor(home, couch, hub, s));
+  const poster = (s: HomeShow) => <Poster key={s.seasonId} show={s} due={due.has(s.seasonId)} places={(hub?.games ?? []).filter((p) => p.seasonId === s.seasonId)} />;
   return (
     <section className="mt-8" data-your-shows>
-      <SectionHead title="Your shows" aside={shows.length ? "Tap to open" : undefined} />
+      <SectionHead title="Your shows" />
       <div className="flex gap-3 overflow-x-auto px-4 pb-[18px] pt-1 [scroll-snap-type:x_mandatory] [scrollbar-width:none]">
         {shelfOrder(shows).map((s) => (
           <Poster key={s.seasonId} show={s} due={due.has(s.seasonId)} places={(hub?.games ?? []).filter((p) => p.seasonId === s.seasonId)} />
@@ -589,6 +643,16 @@ export function YourShows({ home, hub }: { home: Home; hub: CouchHub | undefined
           <small className="text-[13px] leading-snug">Tell the couch what you&rsquo;re watching.</small>
         </button>
       </div>
+      {finished.length > 0 && (
+        <>
+          <FinishedFold n={finished.length} open={openFinished} onToggle={() => setOpenFinished((o) => !o)} />
+          {openFinished && (
+            <div data-finished className="nd-rise flex gap-3 overflow-x-auto px-4 pb-[18px] pt-3 [scrollbar-width:none]">
+              {shelfOrder(finished).map(poster)}
+            </div>
+          )}
+        </>
+      )}
     </section>
   );
 }
@@ -873,8 +937,15 @@ function FeedRow({ e }: { e: FeedItem }) {
 }
 
 /** What the couch has been up to and said lately (couch-hub.ts), folded past where you are as the chat is. */
+/** The feed's first few; the rest one tap on (the user, 2026-11-15: "bloated... could just show 4 and maybe a show more"). */
+const FEED_FEW = 4;
+
 export function Feed({ hub }: { hub: CouchHub | undefined }) {
   const chat = hub?.feed.find((e) => e.kind === "said" && e.seasonId);
+  const [all, setAll] = useState(false);
+  // "Revealed Ep 5" lines are where everyone is, which the hub shows already (the people row, a band's faces): left out.
+  const feed = (hub?.feed ?? []).filter((e) => e.kind !== "revealed");
+  const shown = all ? feed : feed.slice(0, FEED_FEW);
   return (
     <section className="mt-8" data-feed-list>
       <SectionHead
@@ -890,8 +961,24 @@ export function Feed({ hub }: { hub: CouchHub | undefined }) {
       <div className="flex flex-col px-4 pt-1">
         {!hub ? (
           <div className="h-24 animate-pulse rounded-[4px] bg-card" aria-busy />
-        ) : hub.feed.length ? (
-          hub.feed.map((e) => <FeedRow key={e.id} e={e} />)
+        ) : feed.length ? (
+          <>
+            {shown.map((e) => (
+              <FeedRow key={e.id} e={e} />
+            ))}
+            {feed.length > FEED_FEW && (
+              <button
+                type="button"
+                data-feed-more
+                aria-expanded={all}
+                onClick={() => setAll((a) => !a)}
+                className="nd-press flex min-h-11 items-center justify-center gap-1 text-[15px] font-semibold text-muted-foreground"
+              >
+                {all ? "Show less" : `Show ${feed.length - FEED_FEW} more`}
+                <ChevronDown className={`size-4 transition-transform motion-reduce:transition-none ${all ? "rotate-180" : ""}`} aria-hidden />
+              </button>
+            )}
+          </>
         ) : (
           <p className="py-3 text-sm leading-normal text-muted-foreground">Quiet so far. What the couch says and does shows up here.</p>
         )}
@@ -948,11 +1035,11 @@ function startLineOf(s: HomeShow): string {
 /** One of Get the couch going's steps: its number (the first is the one yellow: it's what to do now), title and line. */
 function GoStep({ n, title, line, onClick }: { n: number; title: string; line: string; onClick?: () => void }) {
   return (
-    <button type="button" data-go-step={n} onClick={onClick} className="flex w-full items-center gap-3 border-t border-plate-muted/20 py-2.5 text-left">
-      <span className={`type-num grid size-10 flex-none place-items-center rounded-[3px] text-[20px] ${n > 1 ? "bg-chyron-foreground text-white" : "bg-chyron text-chyron-foreground"}`}>{n}</span>
+    <button type="button" data-go-step={n} onClick={onClick} className="nd-press flex min-h-[60px] w-full items-center gap-3 border-t border-border py-2.5 text-left">
+      <span className="type-num grid size-10 flex-none place-items-center rounded-[3px] bg-secondary text-[20px] text-foreground">{n}</span>
       <span className="min-w-0 flex-1">
-        <b className="block text-[15px] font-semibold">{title}</b>
-        <small className="block text-[12.5px] leading-snug text-plate-muted">{line}</small>
+        <b className="block text-[16px] font-semibold">{title}</b>
+        <small className="block text-[13px] leading-snug text-muted-foreground">{line}</small>
       </span>
       <ChevronRight className="size-5 flex-none" aria-hidden />
     </button>
@@ -968,13 +1055,10 @@ export function GetGoing({ home, couch }: { home: Home; couch: Couch | null }) {
   const next = startShow(home, couch);
   const startLine = next ? startLineOf(next) : "Pick a show the couch watches. Survival Pool needs no draft.";
   return (
-    <section className="mx-4 mb-3 rounded-[4px] bg-plate p-3.5 text-plate-foreground" data-get-going>
-      <span className="type-caption inline-block bg-chyron py-1 pl-[7px] pr-3.5 text-[11px] tracking-[0.06em] text-chyron-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_8px)_100%,0_100%)]">
-        New couch
-      </span>
-      <b className="type-caption mt-2 block text-[30px]">Get the couch going</b>
-      {couch && <small className="block text-[13px] text-plate-muted">{couch.name}</small>}
-      <div className="mt-2">
+    <section className="mx-4 mt-6" data-get-going>
+      <h2 className="type-caption text-[24px]">Get the couch going</h2>
+      {couch && <small className="block text-[13px] text-muted-foreground">A new couch · {couch.name}</small>}
+      <div className="mt-2 border-b border-border">
         <GoStep n={1} title="Start a game" line={startLine} onClick={() => openStartGame({ seasonId: next?.seasonId ?? null, couchId: couch?.id ?? null })} />
         <GoStep n={2} title="Add the other shows you watch" line="The couch sees what everyone's watching. That's where games start." onClick={() => openWatching({ kind: "add" })} />
         {couch ? (

@@ -235,6 +235,9 @@ export interface Couch {
     picture: number | null;
     watching: string[];
     at?: Record<string, number>;
+    /** The shows they share where they're behind the latest episode and haven't been on since it aired (the design round's
+     *  step 7: maybe up to date, maybe not). */
+    away?: string[];
   }[];
   games: GameRef[];
   /** The seasons its games are on, newest first ("Survivor 51"), for its line in the switcher. */
@@ -1942,6 +1945,32 @@ export function useSportRail(league: string | null, count: number, slate = false
     staleTime: 3600_000,
     placeholderData: keepPreviousData,
   });
+}
+
+/** The sports games you're watching as if live (the design round's step 7; /api/sports/recordings): hidden until you've watched. */
+export function useSportsRecordings(enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "sports-recordings"],
+    queryFn: () => get<{ recordings: { game: string; league: string }[] }>("/api/sports/recordings"),
+    staleTime: 60_000,
+    enabled,
+  });
+}
+
+/** Start (on) or stop (off: you've watched it) watching a game as if live, the list kept in the cache as the server answers it. */
+export function useSetRecording() {
+  const qc = useQueryClient();
+  return useCallback(
+    async (game: string, league: string, on: boolean) => {
+      // At once on this screen, then as the server has it.
+      qc.setQueryData<{ recordings: { game: string; league: string }[] }>(["new-design", "sports-recordings"], (old) => ({
+        recordings: on ? [{ game, league }, ...(old?.recordings ?? []).filter((r) => r.game !== game)] : (old?.recordings ?? []).filter((r) => r.game !== game),
+      }));
+      const out = await sendJson<{ recordings: { game: string; league: string }[] }>("/api/sports/recordings", "POST", { game, league, on });
+      qc.setQueryData(["new-design", "sports-recordings"], out);
+    },
+    [qc]
+  );
 }
 
 export const sportsApi = {

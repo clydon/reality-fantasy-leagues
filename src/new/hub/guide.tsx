@@ -1,14 +1,17 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { EyeOff, Gamepad2, Plus, UserPlus } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { ArrowRight, EyeOff, Gamepad2, Plus, UserPlus } from "lucide-react";
 import { episodeLine, eveningAt, guideWeek, nextUpAfter, type GuideCard, type GuideDay, type GuidePlan, type GuideShow } from "@/lib/game/guide";
 import { alsoOn, hitOfListing, listingLine, type AlsoOnDay, type AlsoOnItem } from "@/lib/game/tv-listings";
-import { guide as guideApi, useListingsWeek, useSetGuideHidden, type Couch, type CouchShow, type HiddenShow, type Home } from "../data";
+import { guide as guideApi, useCouchTeams, useListingsWeek, useOnNow, useSetGuideHidden, useSportsWeek, type Couch, type CouchShow, type HiddenShow, type Home, type WeekGame } from "../data";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
 import { airTime, timeOf } from "../clock";
-import { TinyFace } from "../ui/bars";
+import { Avatar, TinyFace } from "../ui/bars";
+import { PushedPage, usePushedPage } from "../ui/page";
+import { SwipePager, type PagerHandle } from "../ui/swipe-pager";
 import { Btn } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { ShowArt } from "../ui/show-bar";
@@ -19,11 +22,14 @@ import { usePracticeShows } from "../tour/practice-shows";
 import { ListingsCredit } from "../watching/search";
 import { openWatching } from "../watching/sheets";
 import { SportsGuide } from "../sports/guide";
-import { useHideSports } from "../sports/scores";
-import { useReducedMotion } from "../welcome/hooks";
+import { clockOf, useGameScore, useHideSports } from "../sports/scores";
+import { TeamMark } from "../sports/parts";
 import { namesOf, showOfMove } from "./sections";
+import { StreamingRail } from "./streaming";
 
-// "This week on the couch", the TV guide (the mock's index.html guideDays / card, tvguide.js, streaming.js's drop days), and
+// The TV guide, its own place since the design round's step 7 (docs/design-round/step7-hub-spec.md; Phase 0's decision 7): a page
+// pushed over the hub (GuidePage: the week as seven cells, the day as a rundown, Also on, At your own pace), opened from the hub's
+// On TV row (OnTvRow: a channel bug and this week's cards crawling by). Before, "This week on the couch", the TV guide (the mock's index.html guideDays / card, tvguide.js, streaming.js's drop days), and
 // Streaming on the couch (streaming.js) under it. The guide is real since step 11 part 1: your shows and the couch's, from
 // the home read's `week` (when each episode airs, never a title), laid out by the pure src/lib/game/guide.ts in the phone's
 // own time zone; Hide from guide (guide.ts on the server). Since part 2, Also on: the rest of TV each evening, from the
@@ -35,89 +41,6 @@ import { namesOf, showOfMove } from "./sections";
 const DAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DAY_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-/**
- * The guide rolls on its own once you reach it (not while it's the first thing you see: the critique, 2026-10-23), and is
- * Paused for a few seconds when you move it yourself: a swipe across it, a sideways wheel or trackpad, the keyboard. A tap (on
- * a card or between them) and a swipe up or down the page leave it rolling (2026-10-27: a stray tap used to stop it).
- * Reduced motion: it never rolls. The first-time tour holds it on today while it's lit (an `nd-guide-hold` event on the reel,
- * `detail` the ms to hold for; 0 lets it go; a swipe meanwhile doesn't cut it short): tour/tour.tsx.
- */
-function useRoll(reel: React.RefObject<HTMLDivElement | null>) {
-  const [rolling, setRolling] = useState(false);
-  useEffect(() => {
-    const el = reel.current;
-    if (!el || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    let raf = 0;
-    let started = false;
-    let holdUntil = 0;
-    let x = 0;
-    let shown = false;
-    let from: { x: number; y: number } | null = null;
-    const show = (on: boolean) => on !== shown && setRolling((shown = on));
-    const step = (t: number) => {
-      if (t > holdUntil) {
-        x = Math.max(x, el.scrollLeft) + 0.35;
-        if (x >= el.scrollWidth - el.clientWidth) {
-          show(false);
-          return;
-        }
-        el.scrollLeft = x;
-        show(true);
-      } else {
-        x = el.scrollLeft;
-        show(false);
-      }
-      raf = requestAnimationFrame(step);
-    };
-    const hold = () => (holdUntil = Math.max(holdUntil, performance.now() + 4000));
-    // A swipe is across once it's gone further across than down, past a tap's wobble.
-    const touchStart = (e: TouchEvent) => (from = { x: e.touches[0].clientX, y: e.touches[0].clientY });
-    const touchMove = (e: TouchEvent) => {
-      if (!from) return;
-      const dx = Math.abs(e.touches[0].clientX - from.x);
-      if (dx > 8 && dx > Math.abs(e.touches[0].clientY - from.y)) hold();
-    };
-    const touchEnd = () => (from = null);
-    const wheel = (e: WheelEvent) => Math.abs(e.deltaX) > Math.abs(e.deltaY) && hold();
-    // Whatever else moves it (a fling still gliding, the arrow keys): it's somewhere the roll didn't put it.
-    const scroll = () => Math.abs(el.scrollLeft - x) > 2 && hold();
-    const focus = (e: FocusEvent) => (e.target as Element).matches(":focus-visible") && hold();
-    const held = (e: Event) => (holdUntil = performance.now() + ((e as CustomEvent<number>).detail ?? 0));
-    const io = new IntersectionObserver(
-      ([e]) => {
-        if (e.isIntersecting && !started) {
-          started = true;
-          raf = requestAnimationFrame(step);
-          io.disconnect();
-        }
-      },
-      { threshold: 0.6 }
-    );
-    io.observe(el);
-    el.addEventListener("touchstart", touchStart, { passive: true });
-    el.addEventListener("touchmove", touchMove, { passive: true });
-    el.addEventListener("touchend", touchEnd);
-    el.addEventListener("touchcancel", touchEnd);
-    el.addEventListener("wheel", wheel, { passive: true });
-    el.addEventListener("scroll", scroll, { passive: true });
-    el.addEventListener("focusin", focus);
-    el.addEventListener("nd-guide-hold", held);
-    return () => {
-      cancelAnimationFrame(raf);
-      io.disconnect();
-      el.removeEventListener("touchstart", touchStart);
-      el.removeEventListener("touchmove", touchMove);
-      el.removeEventListener("touchend", touchEnd);
-      el.removeEventListener("touchcancel", touchEnd);
-      el.removeEventListener("wheel", wheel);
-      el.removeEventListener("scroll", scroll);
-      el.removeEventListener("focusin", focus);
-      el.removeEventListener("nd-guide-hold", held);
-    };
-  }, [reel]);
-  return rolling;
-}
 
 /** What the guide shows under your shows and the couch's (2026-10-27): nothing more (to begin with), the competitions on TV
  *  (tv-listings.ts competitionOf), or all of TV. Per phone; held for the visit when the phone won't keep it. */
@@ -156,18 +79,19 @@ const useOnTv = () =>
     (): OnTv => "couch"
   );
 
-/** The guide's switch, quiet in its foot: Couch (My shows, solo) · Competitions · All TV · Sports, this week's games by team (the
- *  user, 2026-11-01; U1's sports slice, 2026-11-09: sports/guide.tsx). */
-function OnTvSwitch({ on, solo }: { on: OnTv; solo: boolean }) {
+/** The guide's switch, at its top: My shows · Competitions · Sports (this week's games by team) · All TV (the user, 2026-11-01 and
+ *  2026-11-15; U1's sports slice, 2026-11-09: sports/guide.tsx). */
+function OnTvSwitch({ on }: { on: OnTv }) {
   const choices: [OnTv, string][] = [
-    ["couch", solo ? "My shows" : "Couch"],
+    // The user's order (2026-11-15): my shows, competitions, sports, all TV. "My shows" holds the couch's shows too, as before.
+    ["couch", "My shows"],
     ["comps", "Competitions"],
-    ["all", "All TV"],
     ["sports", "Sports"],
+    ["all", "All TV"],
   ];
-  const choice = "nd-press h-9 rounded-[2px] px-2 text-[12px] font-semibold transition-colors";
+  const choice = "nd-press h-11 flex-auto rounded-[2px] px-2 text-[15px] font-semibold transition-colors";
   return (
-    <div role="radiogroup" aria-label="What the guide shows" data-guide-tv={on} className="flex flex-none gap-[2px] rounded-[3px] p-[2px] outline-1 -outline-offset-1 outline-border">
+    <div role="radiogroup" aria-label="What the guide shows" data-guide-tv={on} className="flex flex-1 gap-[2px] rounded-[3px] p-[2px] outline-1 -outline-offset-1 outline-border">
       {choices.map(([id, label]) => (
         <button
           key={id}
@@ -278,12 +202,6 @@ function hiddenNow(home: Home): HiddenShow[] {
   return (home.guideHidden ?? []).filter((h) => !mine.some((s) => hides(h, s)));
 }
 
-/** "Tonight" (from 5 PM until the guide's day ends at 3 AM) or "Today", "Tomorrow", then the weekday. */
-function dayLabel(d: GuideDay, now: number): string {
-  if (d.offset === 0) return eveningAt(now) ? "Tonight" : "Today";
-  return d.offset === 1 ? "Tomorrow" : DAY[new Date(d.start).getDay()];
-}
-
 /** Who's on a card: their initials on their colours, four at most. */
 function Faces({ faces }: { faces: GuideCard["faces"] }) {
   if (!faces.length) return null;
@@ -294,7 +212,7 @@ function Faces({ faces }: { faces: GuideCard["faces"] }) {
           key={f.userId}
           id={f.userId}
           name={f.name}
-          className="-ml-[3px] grid size-3.5 place-items-center rounded-[2px] text-[8px] font-extrabold text-[#121018] shadow-[0_0_0_1.5px_rgba(10,8,14,.9)]"
+          className="-ml-[3px] grid size-[18px] place-items-center rounded-[2px] text-[10px] font-extrabold text-[#121018] shadow-[0_0_0_1.5px_rgba(10,8,14,.9)]"
         />
       ))}
     </span>
@@ -305,15 +223,19 @@ const CARD =
   "relative isolate flex w-full flex-col justify-end overflow-hidden rounded-[3px] bg-card px-[9px] py-2 text-left text-white transition-transform duration-300 active:scale-[.97]";
 // The fade ladder (tvguide.css): yours in full, faded a step more when it isn't yours. A game going on it is the controller in
 // the corner (2026-10-27: it replaced the dashed edge for a show you watch without playing, and the foot's legend).
+/** A day's cards, in order. */
+export const cardsOf = (d: GuideDay) => d.slots.flatMap((sl) => (Array.isArray(sl) ? sl : [sl]));
+
 const FADED = "opacity-80 [filter:saturate(.3)_brightness(.78)]";
 
 /** A card's art, or with none (a show added by name, a listing without a poster) its first letter, faint (tvguide.css g-noart). */
-function GuideArt({ id, c, className = "" }: { id: string; c: Pick<GuideCard, "artUrl" | "name" | "drop">; className?: string }) {
+/** `bare`: no letter on a card without art (a small card, where it sat under the time chip). */
+function GuideArt({ id, c, className = "", bare = false }: { id: string; c: Pick<GuideCard, "artUrl" | "name" | "drop">; className?: string; bare?: boolean }) {
   return c.artUrl ? (
     <ShowArt seasonId={id} artUrl={c.artUrl} name={c.name} position={c.drop ? "center 25%" : "center"} className={`absolute inset-0 -z-[2] size-full ${className}`} />
   ) : (
     <span data-art={id} aria-hidden className="type-caption absolute inset-0 -z-[2] grid place-items-center bg-[linear-gradient(150deg,#3a3548,#16141d)] text-[34px] text-white/20">
-      {c.name.replace(/^the\s+/i, "")[0]?.toUpperCase()}
+      {bare ? null : c.name.replace(/^the\s+/i, "")[0]?.toUpperCase()}
     </span>
   );
 }
@@ -321,7 +243,7 @@ function GuideArt({ id, c, className = "" }: { id: string; c: Pick<GuideCard, "a
 /** Sports scores too (U1's sports slice): the sports seasons whose cards say only when a game started, never On now or aired. */
 const HiddenSports = createContext<Set<string>>(new Set());
 
-function CardBody({ c, now, me }: { c: GuideCard; now: number; me: string }) {
+function CardBody({ c, now, me, noTime = false }: { c: GuideCard; now: number; me: string; noTime?: boolean }) {
   const own = c.key.startsWith("plan:");
   const quiet = useContext(HiddenSports).has(c.seasonId) && c.at < now && !own;
   if (quiet) c = { ...c, live: false };
@@ -329,22 +251,24 @@ function CardBody({ c, now, me }: { c: GuideCard; now: number; me: string }) {
     <>
       <GuideArt id={`guide-${c.key}`} c={c} className={c.tie !== "plays" ? "[filter:saturate(.35)_brightness(.8)]" : ""} />
       <span aria-hidden className="absolute inset-0 -z-[1] bg-[linear-gradient(180deg,rgba(10,8,14,.15)_0%,rgba(10,8,14,.55)_48%,rgba(10,8,14,.92)_100%)]" />
-      <span
-        className={`absolute left-2 top-[7px] flex items-center gap-[5px] rounded-[2px] px-1.5 py-[3px] text-[11px] font-extrabold backdrop-blur-sm ${
-          c.live ? "bg-live text-live-foreground" : "bg-[rgba(10,8,14,.72)]"
-        }`}
-      >
-        {c.live && <i className="size-1.5 animate-pulse rounded-full bg-current" aria-hidden />}
-        {c.live ? "On now" : quiet ? `Started ${timeOf(c.at)}` : timeOf(c.at)}
-      </span>
+      {(!noTime || c.live || quiet) && (
+        <span
+          className={`absolute left-2 top-[7px] flex items-center gap-[5px] rounded-[2px] px-1.5 py-[3px] text-[13px] font-extrabold backdrop-blur-sm ${
+            c.live ? "bg-live text-live-foreground" : "bg-[rgba(10,8,14,.72)]"
+          }`}
+        >
+          {c.live && <i className="size-1.5 animate-pulse rounded-full bg-current motion-reduce:animate-none" aria-hidden />}
+          {c.live ? "On now" : quiet ? `Started ${timeOf(c.at)}` : timeOf(c.at)}
+        </span>
+      )}
       {/* A game's going on it: a white controller, with a move due its red dot. */}
       {c.games ? (
         <span data-games className="absolute right-[7px] top-[7px] grid size-[22px] place-items-center text-white [filter:drop-shadow(0_1px_3px_rgba(0,0,0,.8))]">
           <Gamepad2 className="size-[19px]" strokeWidth={2.2} aria-hidden />
-          {c.due && <i data-due className="absolute -right-0.5 top-0 size-2 rounded-full bg-live shadow-[0_0_0_1.5px_rgba(10,8,14,.9)]" />}
+          {c.due && <i data-due className="absolute -right-0.5 top-0 size-2 rounded-full bg-chyron-line shadow-[0_0_0_1.5px_rgba(10,8,14,.9)]" />}
         </span>
       ) : (
-        c.due && <i data-due className="absolute right-2 top-2 size-[9px] rounded-full bg-live shadow-[0_0_0_2px_rgba(255,255,255,.8)]" />
+        c.due && <i data-due className="absolute right-2 top-2 size-[9px] rounded-full bg-chyron-line shadow-[0_0_0_2px_rgba(10,8,14,.8)]" />
       )}
       {c.drop != null && (
         <span className="type-caption mb-1 self-start bg-secondary py-[3px] pl-1.5 pr-2.5 text-[10px] tracking-[0.06em] text-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_6px)_100%,0_100%)]">
@@ -364,7 +288,7 @@ function CardBody({ c, now, me }: { c: GuideCard; now: number; me: string }) {
         </span>
       )}
       <span className="type-caption line-clamp-2 text-[17px] leading-[.95] [text-shadow:0_1px_8px_rgba(0,0,0,.5)]">{c.name}</span>
-      <span className="mt-[3px] flex items-center justify-between gap-1 text-[11px] font-semibold opacity-85">
+      <span className="mt-1 flex items-center justify-between gap-1 text-[13px] font-semibold opacity-90">
         <span className="truncate">{own ? planWho(c.plan!, me) : c.at < now && !c.live && !c.drop && !quiet ? `${episodeLine(c)} · aired` : episodeLine(c)}</span>
         <Faces faces={c.faces} />
       </span>
@@ -375,7 +299,7 @@ function CardBody({ c, now, me }: { c: GuideCard; now: number; me: string }) {
 /** A card: your show opens it (its art grows into the show bar); a couch show you don't follow opens its sheet; a planned night
  *  of its own opens the plan. A planned night (or the airing it's for) has a solid teal edge (the mock's b-plan / b-together),
  *  not faded while you're in it. */
-function Card({ c, now, me, height = 104, onCouch }: { c: GuideCard; now: number; me: string; height?: number; onCouch: (c: GuideCard) => void }) {
+function Card({ c, now, me, height = 104, onCouch, noTime = false }: { c: GuideCard; now: number; me: string; height?: number; onCouch: (c: GuideCard) => void; noTime?: boolean }) {
   const own = c.key.startsWith("plan:");
   const edge = c.plan ? "outline-[1.5px] -outline-offset-[1.5px] outline-solid outline-good" : "";
   const cls = `${CARD} ${edge} ${c.tie === "couch" && !c.plan?.you ? FADED : ""}`;
@@ -387,33 +311,33 @@ function Card({ c, now, me, height = 104, onCouch }: { c: GuideCard; now: number
   if (own) {
     return (
       <button type="button" {...data} aria-label={label} className={cls} style={{ height }} onClick={() => openPlan({ kind: "plan", planId: c.plan!.id })}>
-        <CardBody c={c} now={now} me={me} />
+        <CardBody c={c} now={now} me={me} noTime={noTime} />
       </button>
     );
   }
   return c.tie === "couch" ? (
     <button type="button" {...data} aria-label={label} className={cls} style={{ height }} onClick={() => onCouch(c)}>
-      <CardBody c={c} now={now} me={me} />
+      <CardBody c={c} now={now} me={me} noTime={noTime} />
     </button>
   ) : (
     <NavLink href={paths.show(c.seasonId)} channel {...data} aria-label={label} className={cls} style={{ height }}>
-      <CardBody c={c} now={now} me={me} />
+      <CardBody c={c} now={now} me={me} noTime={noTime} />
     </NavLink>
   );
 }
 
 /** Today with nothing on: what's next this week ("Nothing tonight · Next up"). */
-function NextUpCard({ c, evening, onCouch }: { c: GuideCard; evening: boolean; onCouch: (c: GuideCard) => void }) {
+function NextUpCard({ c, evening, today = true, onCouch }: { c: GuideCard; evening: boolean; today?: boolean; onCouch: (c: GuideCard) => void }) {
   const body = (
     <>
       <GuideArt id={`guide-next-${c.key}`} c={c} className="[filter:saturate(.5)_brightness(.7)]" />
       <span aria-hidden className="absolute inset-0 -z-[1] bg-[linear-gradient(180deg,rgba(10,8,14,.3)_0%,rgba(10,8,14,.92)_100%)]" />
-      <span className="absolute left-2 top-[7px] rounded-[2px] bg-[rgba(10,8,14,.72)] px-1.5 py-[3px] text-[11px] font-extrabold backdrop-blur-sm">
-        Nothing {evening ? "tonight" : "today"}
+      <span className="absolute left-2 top-[7px] rounded-[2px] bg-[rgba(10,8,14,.72)] px-1.5 py-[3px] text-[13px] font-extrabold backdrop-blur-sm">
+        {today ? `Nothing ${evening ? "tonight" : "today"}` : "Nothing on"}
       </span>
       <span className="type-caption text-[11px] tracking-[0.06em] text-white/70">Next up</span>
       <span className="type-caption line-clamp-2 text-[17px] leading-[.95]">{c.name}</span>
-      <span className="mt-[3px] truncate text-[11px] font-semibold opacity-85">{airTime(c.at)}</span>
+      <span className="mt-1 truncate text-[13px] font-semibold opacity-90">{airTime(c.at)}</span>
     </>
   );
   const cls = `${CARD} h-[104px]`;
@@ -473,7 +397,7 @@ function AlsoOn({ day, label, onOpen, onMore }: { day: AlsoOnDay; label: string;
           type="button"
           data-also-more={day.offset}
           onClick={onMore}
-          className="nd-press flex h-11 items-center justify-center rounded-[3px] text-[12px] font-semibold text-muted-foreground outline-1 -outline-offset-1 outline-dashed outline-border"
+          className="nd-press flex h-11 items-center justify-center rounded-[3px] text-[13px] font-semibold text-muted-foreground outline-1 -outline-offset-1 outline-dashed outline-border"
         >
           {more} more on TV
         </button>
@@ -482,9 +406,75 @@ function AlsoOn({ day, label, onOpen, onMore }: { day: AlsoOnDay; label: string;
   );
 }
 
-function Day({
+/** A day's label in the week's cells: "Today", else the weekday. */
+const cellLabel = (d: GuideDay) => (d.offset === 0 ? "Today" : DAY[new Date(d.start).getDay()]);
+
+/** The week (the design round's step 7): seven cells across, each the day, its date, the art of your shows that night in small and
+ *  a live dot on today's when something's on; the chosen one on the foreground fill (it inverts with the ground, as the switch
+ *  does), today's label in the chyron line. */
+/**
+ * The day bar (the user, 2026-11-15: "the only thing that animates a transition is the main section and the today, mon, tue bar"):
+ * one white highlight that slides from day to day with the pager, following the finger mid-swipe (`highlight`: the pager's onMove
+ * moves it directly, no re-render), over the seven cells' own grounds.
+ */
+function WeekCells({ week, day, onDay, highlight }: { week: GuideDay[]; day: number; onDay: (n: number) => void; highlight: React.RefObject<HTMLSpanElement | null> }) {
+  return (
+    <div role="tablist" aria-label="This week" data-guide-week className="relative mx-4 mt-3">
+      <div aria-hidden className="absolute inset-0 grid grid-cols-7 gap-1">
+        {week.map((d) => (
+          <span key={d.offset} className="rounded-[3px] bg-card" />
+        ))}
+      </div>
+      <span
+        ref={highlight}
+        aria-hidden
+        data-guide-highlight
+        className="absolute inset-y-0 left-0 z-[1] w-[calc((100%-24px)/7)] rounded-[3px] bg-foreground will-change-transform"
+        style={{ transform: `translateX(calc(${day} * (100% + 4px)))` }}
+      />
+      <div className="relative z-[2] grid grid-cols-7 gap-1">
+        {week.map((d) => {
+          const cards = cardsOf(d);
+          const art = [...new Map(cards.filter((c) => c.tie !== "couch").map((c) => [c.seasonId, c])).values()].slice(0, 3);
+          const on = d.offset === day;
+          const live = cards.some((c) => c.live);
+          const date = new Date(d.start);
+          return (
+            <button
+              key={d.offset}
+              type="button"
+              role="tab"
+              aria-selected={on}
+              data-guide-cell={d.offset}
+              aria-label={`${d.offset === 0 ? "Today" : DAY_LONG[date.getDay()]} ${MON[date.getMonth()]} ${date.getDate()}, ${cards.length} on${live ? ", on now" : ""}`}
+              onClick={() => onDay(d.offset)}
+              className={`nd-press relative flex min-h-[74px] flex-col items-center gap-1 rounded-[3px] pb-1.5 pt-2 transition-colors duration-200 ${on ? "text-background" : ""}`}
+            >
+              <span className={`type-caption text-[13px] tracking-[0.04em] ${on ? "" : d.offset === 0 ? "text-chyron-line" : "text-muted-foreground"}`}>{cellLabel(d)}</span>
+              <span className="type-num text-[19px] leading-none">{date.getDate()}</span>
+              <span className="flex h-3 items-center gap-[2px]" aria-hidden>
+                {live && <i className="mr-[2px] size-1.5 rounded-full bg-live" />}
+                {art.map((c) =>
+                  c.artUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- the show's key art, any host
+                    <img key={c.seasonId} src={c.artUrl} alt="" className="size-3 rounded-[2px] object-cover" />
+                  ) : (
+                    <i key={c.seasonId} className={`size-3 rounded-[2px] ${on ? "bg-background/40" : "bg-secondary"}`} />
+                  )
+                )}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** One day as a rundown (step 7): a time gutter on the left, the cards on the right (two at the same time side by side), the Now
+ *  line across both; a day with nothing of yours, what's next this week. A swipe across it turns the day. */
+function DayRundown({
   d,
-  i,
   now,
   me,
   week,
@@ -494,7 +484,6 @@ function Day({
   onMore,
 }: {
   d: GuideDay;
-  i: number;
   now: number;
   me: string;
   week: GuideDay[];
@@ -506,64 +495,95 @@ function Day({
   const date = new Date(d.start);
   const evening = eveningAt(now);
   const onTv = !!also?.all.length;
-  const next = d.offset === 0 && !d.slots.length ? nextUpAfter(week, 0) : null;
+  const next = !d.slots.length ? nextUpAfter(week, d.offset) : null;
+  // The day's list keeps a fixed height so At your own pace stays on the page (the user, 2026-11-15); when it holds more, the last
+  // card in view is cut off part-way and fades out at the bottom, until it's scrolled to its end.
+  const list = useRef<HTMLDivElement>(null);
+  const [more, setMore] = useState(false);
+  const [above, setAbove] = useState(false);
+  useEffect(() => {
+    const el = list.current;
+    if (!el) return;
+    // Today opens at the Now line: what's aired is a scroll up, behind a fade at the top.
+    const nowEl = el.querySelector<HTMLElement>("[data-guide-now]");
+    if (d.offset === 0 && nowEl) el.scrollTop = Math.max(0, nowEl.offsetTop - 4);
+    const check = () => {
+      setMore(el.scrollHeight - el.scrollTop - el.clientHeight > 6);
+      setAbove(el.scrollTop > 6);
+    };
+    check();
+    el.addEventListener("scroll", check, { passive: true });
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", check);
+      ro.disconnect();
+    };
+    // Once, as the day opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const fade = more && above ? "linear-gradient(180deg, transparent 0%, #000 14%, #000 72%, transparent 100%)" : more ? "linear-gradient(180deg, #000 72%, transparent 100%)" : above ? "linear-gradient(180deg, transparent 0%, #000 14%)" : null;
   const nowLine = (
-    <div data-guide-now className="type-caption flex h-3.5 flex-none items-center gap-1.5 text-[11px] tracking-[0.06em] text-chyron-line after:h-0.5 after:flex-1 after:bg-chyron-line">
+    <div data-guide-now className="type-caption flex h-4 items-center gap-2 text-[13px] tracking-[0.06em] text-chyron-line after:h-0.5 after:flex-1 after:bg-chyron-line">
       Now {timeOf(now)}
     </div>
   );
+  const title = d.offset === 0 ? (evening ? "Tonight" : "Today") : d.offset === 1 ? "Tomorrow" : DAY_LONG[date.getDay()];
   return (
-    <div data-guide-day={d.offset} className={`flex flex-none flex-col gap-[7px] border-l border-border px-[5px] ${i ? "w-[162px]" : "w-[165px] border-l-0 pl-2"}`}>
-      <div className="flex h-6 items-baseline gap-1.5 whitespace-nowrap px-[3px] pb-1 pt-0.5">
-        <b
-          className={`type-caption text-[17px] ${i ? "" : "bg-chyron py-[3px] pl-1.5 pr-3 text-chyron-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_7px)_100%,0_100%)]"}`}
-        >
-          {dayLabel(d, now)}
-        </b>
-        <span className="text-xs font-semibold text-muted-foreground">
-          {d.offset < 2 ? `${DAY[date.getDay()]} ` : ""}
-          {MON[date.getMonth()]} {date.getDate()}
+    <div data-guide-day={d.offset} className="mt-5 px-4" style={{ minHeight: "calc(max(232px, 100svh - 470px) + 52px)" }}>
+      <h2 className="type-caption mb-3 flex items-baseline gap-2 text-[24px]">
+        {title}
+        <span className="text-[14px] font-semibold normal-case tracking-normal text-muted-foreground [font-stretch:100%]">
+          {DAY[date.getDay()]} {MON[date.getMonth()]} {date.getDate()}
         </span>
-      </div>
-      {d.slots.map((sl, k) => (
-        <div key={Array.isArray(sl) ? sl[0].key : sl.key} className="contents">
-          {d.nowAt === k && nowLine}
-          {Array.isArray(sl) ? (
-            <div data-guide-same className="flex flex-col gap-[5px] border-l-[3px] border-chyron-line pl-2">
-              <em className="type-caption flex h-3 justify-between text-[11px] not-italic tracking-[0.06em] text-chyron-line">
-                <span>Same time</span>
-                <span>{timeOf(sl[0].at)}</span>
-              </em>
-              {sl.map((c) => (
-                <Card key={c.key} c={c} now={now} me={me} height={86} onCouch={onCouch} />
-              ))}
+      </h2>
+      <div
+        ref={list}
+        data-guide-list
+        data-more={more || undefined}
+        data-above={above || undefined}
+        className="relative -mx-1 flex max-h-[max(232px,calc(100svh-470px))] flex-col gap-2.5 overflow-y-auto overscroll-contain px-1 pb-1 [scrollbar-width:none]"
+        style={fade ? { maskImage: fade, WebkitMaskImage: fade } : undefined}
+      >
+        {d.slots.map((sl, k) => {
+          const cards = Array.isArray(sl) ? sl : [sl];
+          const live = cards.some((c) => c.live);
+          return (
+            <div key={cards[0].key} className="contents">
+              {d.nowAt === k && nowLine}
+              <div data-guide-slot className="grid flex-none grid-cols-[58px_1fr] items-start gap-2">
+                <span className={`type-caption pt-1 text-[15px] leading-tight ${live ? "text-live" : cards[0].at < now ? "text-muted-foreground" : ""}`}>
+                  {timeOf(cards[0].at).replace(":00", "")}
+                </span>
+                <div className={`flex min-w-0 gap-2 ${cards.length > 2 ? "flex-wrap" : ""}`} data-guide-same={cards.length > 1 || undefined}>
+                  {cards.map((c) => (
+                    <div key={c.key} className={cards.length > 2 ? "w-[calc(50%-4px)]" : "min-w-0 flex-1"}>
+                      <Card c={c} now={now} me={me} height={cards.length > 1 ? 96 : 112} onCouch={onCouch} noTime />
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
+          );
+        })}
+        {d.nowAt != null && d.nowAt >= d.slots.length && d.slots.length > 0 && nowLine}
+        {!d.slots.length &&
+          (next ? (
+            <>
+              {d.offset === 0 && nowLine}
+              <NextUpCard c={next} evening={evening && d.offset === 0} today={d.offset === 0} onCouch={onCouch} />
+            </>
           ) : (
-            <Card c={sl} now={now} me={me} onCouch={onCouch} />
-          )}
-        </div>
-      ))}
-      {d.nowAt != null && d.nowAt >= d.slots.length && d.slots.length > 0 && nowLine}
-      {!d.slots.length &&
-        (next ? (
-          <>
-            {nowLine}
-            <NextUpCard c={next} evening={evening} onCouch={onCouch} />
-          </>
-        ) : (
-          // A day with only the rest of TV drops its "Nothing on" (tvguide.js); "Next up" stays.
-          !onTv && <div className="grid h-14 place-items-center rounded-[3px] border border-dashed border-border text-[13px] text-muted-foreground">Nothing on</div>
-        ))}
-      {also && <AlsoOn day={also} label={d.slots.length ? "Also on" : "On TV"} onOpen={onListing} onMore={() => onMore(d)} />}
+            !onTv && <div className="grid h-14 place-items-center rounded-[3px] border border-dashed border-border text-[13px] text-muted-foreground">Nothing on</div>
+          ))}
+        {also && <AlsoOn day={also} label={d.slots.length ? "Also on" : "On TV"} onOpen={onListing} onMore={() => onMore(d)} />}
+      </div>
     </div>
   );
 }
 
-/** The guide: the week rolling by, the foot (what dashed and faded mean, what's hidden, Add a show), and its sheets. */
-export function Guide({ home: read, couch }: { home: Home; couch: Couch | null }) {
-  const reel = useRef<HTMLDivElement>(null);
-  const rolling = useRoll(reel);
-  const still = useReducedMotion();
+/** The guide's week as the hub's On TV row and the guide's page both read it: your shows and the couch's, its planned nights. */
+export function useGuideWeek(read: Home, couch: Couch | null) {
   const now = useMinute();
   // The first-time tour's demo shows (tour/practice-shows.ts), as yours while it shows where shows you add go.
   const practice = usePracticeShows();
@@ -571,14 +591,231 @@ export function Guide({ home: read, couch }: { home: Home; couch: Couch | null }
   const shows = useMemo(() => guideShows(home, couch), [home, couch]);
   const plans = useMemo(() => guidePlans(home, couch), [home, couch]);
   const week = useMemo(() => guideWeek(shows, now, undefined, plans), [shows, now, plans]);
-  const hidden = hiddenNow(home);
-  const listings = useListingsWeek().data?.listings;
-  const onTv = useOnTv();
   const hideSports = useHideSports();
   const quietSports = useMemo(
     () => new Set(hideSports ? [...home.shows, ...(home.couchShows ?? [])].filter((s) => s.show.kind === "sport").map((s) => s.seasonId) : []),
     [hideSports, home]
   );
+  return { home, now, week, quietSports };
+}
+
+/** A card in miniature, for On TV's crawl: the art, the time (or On now, or the day past today), the name; whoever on the couch is
+ *  watching along with it now, as their face. */
+function MiniCard({ c, offset, now, along, onOpen }: { c: GuideCard; offset: number; now: number; along: { userId: string; name: string }[]; onOpen: () => void }) {
+  const quiet = useContext(HiddenSports).has(c.seasonId) && c.at < now;
+  const live = c.live && !quiet;
+  const when = live ? "On now" : quiet ? "Started" : offset === 0 ? timeOf(c.at).replace(":00", "") : `${DAY[new Date(c.at).getDay()]} ${timeOf(c.at).replace(":00", "")}`;
+  return (
+    <button
+      type="button"
+      data-guide-card={c.key}
+      data-live={live || undefined}
+      data-tie={c.tie}
+      onClick={onOpen}
+      aria-label={`${c.name}, ${episodeLine(c)}, ${live ? "on now" : airTime(c.at)}${along.length ? `, ${namesOf(along.map((a) => a.name))} watching along` : ""}. Opens the guide`}
+      className={`relative isolate flex h-[72px] w-[124px] flex-none flex-col justify-end overflow-hidden rounded-[3px] bg-secondary px-2 pb-1.5 text-left text-white active:scale-[.97] ${c.tie === "couch" ? FADED : ""}`}
+    >
+      <GuideArt id={`ontv-${c.key}`} c={c} bare />
+      <span aria-hidden className="absolute inset-0 -z-[1] bg-[linear-gradient(180deg,rgba(10,8,14,.1)_0%,rgba(10,8,14,.5)_45%,rgba(10,8,14,.92)_100%)]" />
+      <span
+        className={`absolute left-1.5 top-1.5 flex items-center gap-1 rounded-[2px] px-1.5 py-[2px] text-[13px] font-extrabold backdrop-blur-sm ${live ? "bg-live text-live-foreground" : "bg-[rgba(10,8,14,.72)]"}`}
+      >
+        {live && <i className="size-1.5 animate-pulse rounded-full bg-current motion-reduce:animate-none" aria-hidden />}
+        {when}
+      </span>
+      {along.length > 0 && (
+        <span className="absolute right-1.5 top-1.5 flex" aria-hidden>
+          {along.slice(0, 2).map((a) => (
+            <span key={a.userId} className="-ml-1 rounded-[3px] shadow-[0_0_0_1.5px_rgba(10,8,14,.9)]">
+              <Avatar id={a.userId} name={a.name} size={18} />
+            </span>
+          ))}
+        </span>
+      )}
+      {/* One the first-time tour's practice added: here for the tour, not saved. */}
+      {c.key.startsWith("tour-") && (
+        <span data-practice-tag className="type-caption mb-1 self-start bg-quiet-tag py-[2px] pl-1.5 pr-2.5 text-[11px] tracking-[0.06em] text-quiet-tag-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_6px)_100%,0_100%)]">
+          Practice
+        </span>
+      )}
+      <span className="type-caption truncate text-[15px] leading-[.95] [text-shadow:0_1px_8px_rgba(0,0,0,.5)]">{c.name}</span>
+    </button>
+  );
+}
+
+/** The couch's teams' games today, not over, on now first (read only when the couch follows or plays a team). */
+function useTeamsToday(couchId: string | null, now: number): WeekGame[] {
+  const teams = useCouchTeams(couchId).data?.teams ?? [];
+  const leagues = [...new Set(teams.map((t) => t.league))];
+  const week = useSportsWeek(null, leagues, teams.length > 0).data;
+  if (!teams.length || !week) return [];
+  const ours = new Set(teams.map((t) => `${t.league}|${t.id}`));
+  const today = new Date(now).toLocaleDateString("en-CA");
+  return (week.days.find((d) => d.day === today)?.games ?? [])
+    .filter((g) => g.sides.some((x) => ours.has(`${g.league}|${x.id}`)) && g.state !== "post" && !g.final)
+    .sort((a, b) => Number(b.state === "in") - Number(a.state === "in"));
+}
+
+/** A couch team's game in On TV's crawl: its two marks and the score once begun, or "Started" while scores are hidden, or the time. */
+function SportsMini({ g, onOpen }: { g: WeekGame; onOpen: () => void }) {
+  const s = useGameScore(g);
+  const live = s.started && s.open && g.state === "in";
+  const [a, h] = g.sides;
+  const chip = live ? "On now" : s.started ? "Started" : g.at ? clockOf(g.at).replace(":00", "") : "Today";
+  return (
+    <button
+      type="button"
+      data-guide-card={`sport:${g.id}`}
+      data-live={live || undefined}
+      onClick={onOpen}
+      aria-label={`${a.short} at ${h.short}, ${s.started ? (s.open && a.score != null ? `${a.score} to ${h.score}, ${s.when}` : s.when) : g.at ? clockOf(g.at) : "today"}. Opens the guide's sports`}
+      className="relative flex h-[72px] w-[124px] flex-none flex-col justify-between overflow-hidden rounded-[3px] bg-secondary px-2 pb-1.5 pt-1.5 text-left active:scale-[.97]"
+    >
+      <span className={`flex items-center gap-1 self-start rounded-[2px] px-1.5 py-[2px] text-[13px] font-extrabold ${live ? "bg-live text-live-foreground" : "bg-[rgba(10,8,14,.72)] text-white"}`}>
+        {live && <i className="size-1.5 animate-pulse rounded-full bg-current motion-reduce:animate-none" aria-hidden />}
+        {chip}
+      </span>
+      <span className="flex items-center gap-1.5">
+        <TeamMark abbr={a.abbreviation ?? a.short.slice(0, 3)} color={a.color} size="sm" className="!size-[26px] !text-[10px]" />
+        {s.started && s.open && a.score != null ? (
+          <span className="type-num flex-1 text-center text-[17px] leading-none tabular-nums">
+            {a.score}–{h.score}
+          </span>
+        ) : (
+          <span className="flex-1 text-center text-[13px] font-semibold text-muted-foreground">at</span>
+        )}
+        <TeamMark abbr={h.abbreviation ?? h.short.slice(0, 3)} color={h.color} size="sm" className="!size-[26px] !text-[10px]" />
+      </span>
+    </button>
+  );
+}
+
+/**
+ * On TV (Phase 0's decision 7, the design round's step 7): the hub's door to the guide, a channel bug and a crawl, the Lower
+ * Third's own form. The bug ("On TV", a live dot while something's on, "Guide") opens the guide on today; the row is this week's
+ * cards in miniature, from what's on now or next, still (the motion is the guide's: the user, 2026-11-15), swiped by hand; a
+ * card opens the guide on its day. The first-time tour lights it (`data-guide`).
+ * On a game day the couch's teams' games today lead the crawl (the sports check), each opening the guide on Sports.
+ */
+export function OnTvRow({ home: read, couch }: { home: Home; couch: Couch | null }) {
+  const page = usePushedPage("guide", ["day"]);
+  // Still (the user, 2026-11-15: "I did not mean the widget on the hub to be animated, I meant the TV guide once we click into
+  // it"): the motion is the guide's own (its marquee, its grid drifting through the evening). The cards still swipe by hand.
+  const reel = useRef<HTMLDivElement>(null);
+  const { home, now, week, quietSports } = useGuideWeek(read, couch);
+  const along = useOnNow(couch?.id ?? null).data?.now ?? [];
+  const cards = week.flatMap((d) => cardsOf(d).filter((c) => d.offset > 0 || c.endsAt > now).map((c) => ({ c, offset: d.offset })));
+  const games = useTeamsToday(couch?.id ?? null, now);
+  const live = cards.some(({ c }) => c.live && !(quietSports.has(c.seasonId) && c.at < now)) || games.some((g) => g.state === "in");
+  return (
+    <HiddenSports.Provider value={quietSports}>
+      <section data-guide data-on-tv={cards.length} className="mx-4 mt-3 flex h-[88px] items-stretch overflow-hidden rounded-[4px] bg-card">
+        <button
+          type="button"
+          data-on-tv-open
+          onClick={() => page.show()}
+          aria-label={`On TV${live ? ", something's on now" : ""}: open the guide`}
+          className="nd-press relative z-[1] flex w-[104px] flex-none flex-col justify-center gap-2 bg-secondary pl-3 pr-4 text-left [clip-path:polygon(0_0,100%_0,calc(100%_-_10px)_100%,0_100%)]"
+        >
+          <span className="type-caption flex items-center gap-1.5 whitespace-nowrap text-[22px] leading-none">
+            {live && <i className="size-[7px] flex-none rounded-full bg-live" aria-hidden />}
+            On TV
+          </span>
+          {/* The way into the full guide (the user, 2026-11-15: grey "Guide >" too subtle, a white plate too loud): the system's
+              secondary control, an outline at the control edge's 3:1 with bone words and an arrow. The white plate stays the move's. */}
+          <span className="flex h-8 w-fit items-center gap-1 rounded-[3px] px-2 text-[14px] font-semibold text-foreground outline-1 -outline-offset-1 outline-edge">
+            Guide
+            <ArrowRight className="size-3.5" aria-hidden />
+          </span>
+        </button>
+        {cards.length || games.length ? (
+          <div
+            ref={reel}
+            data-guide-reel
+            className="-ml-2 flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pl-3 pr-6 [scrollbar-width:none] [mask-image:linear-gradient(90deg,transparent,#000_12px,#000_calc(100%_-_28px),transparent)]"
+          >
+            {games.map((g) => (
+              <span key={g.id} data-guide-day={0} className="contents">
+                <SportsMini
+                  g={g}
+                  onOpen={() => {
+                    setOnTv("sports");
+                    page.showWith({ day: "0" });
+                  }}
+                />
+              </span>
+            ))}
+            {cards.map(({ c, offset }) => (
+              <span key={c.key} data-guide-day={offset} className="contents">
+                <MiniCard
+                  c={c}
+                  offset={offset}
+                  now={now}
+                  along={c.live ? along.filter((w) => w.seasonId === c.seasonId && w.userId !== home.user.id) : []}
+                  onOpen={() => page.showWith({ day: String(offset) })}
+                />
+              </span>
+            ))}
+            {/* The row's end is a door too: the whole week. */}
+            <button
+              type="button"
+              data-on-tv-week
+              onClick={() => page.show()}
+              className="nd-press flex h-[72px] w-[104px] flex-none flex-col items-start justify-center gap-1 rounded-[3px] px-2.5 text-left outline-1 -outline-offset-1 outline-edge"
+            >
+              <span className="type-caption text-[17px] leading-none">The whole week</span>
+              <span className="flex items-center gap-1 text-[13px] font-semibold text-foreground">
+                Guide
+                <ArrowRight className="size-3.5" aria-hidden />
+              </span>
+            </button>
+          </div>
+        ) : (
+          <button type="button" onClick={() => page.show()} className="flex min-w-0 flex-1 items-center px-3 text-left text-[14px] leading-snug text-muted-foreground">
+            Nothing of yours on this week. See what&rsquo;s on TV
+          </button>
+        )}
+      </section>
+    </HiddenSports.Provider>
+  );
+}
+
+/** The guide (Phase 0's decision 7, the design round's step 7): its own place, pushed over the hub (`?page=guide`, `&day=` the day
+ *  it opens on), so back closes it. */
+export function GuidePage({ home, couch }: { home: Home; couch: Couch | null }) {
+  const page = usePushedPage("guide", ["day"]);
+  return (
+    <PushedPage
+      open={page.open}
+      onClose={page.close}
+      title="On TV"
+      back="Home"
+      end={
+        <button
+          type="button"
+          data-guide-add
+          onClick={() => openWatching({ kind: "add" })}
+          className="nd-press flex h-11 flex-none items-center gap-1 rounded-[3px] px-3 text-[15px] font-semibold text-foreground outline-1 -outline-offset-1 outline-input"
+        >
+          <Plus className="size-4" aria-hidden />
+          Add a show
+        </button>
+      }
+    >
+      <GuideBody home={home} couch={couch} />
+    </PushedPage>
+  );
+}
+
+/** The guide's page: the switch and Add a show, the week, the day as a rundown with Also on under it (or a sport's week), At your
+ *  own pace (streaming.tsx's rail, moved here from the hub), what's hidden, and its sheets. */
+function GuideBody({ home: read, couch }: { home: Home; couch: Couch | null }) {
+  const { home, now, week, quietSports } = useGuideWeek(read, couch);
+  const asked = Number(useSearchParams().get("day") ?? 0);
+  const [day, setDay] = useState(() => (Number.isInteger(asked) && asked >= 0 && asked < week.length ? asked : 0));
+  const hidden = hiddenNow(home);
+  const listings = useListingsWeek().data?.listings;
+  const onTv = useOnTv();
   // Also on leaves out your shows, the couch's and what you've hidden: by their listing, or by name for a show here that
   // hasn't one yet (the daily job links them). The switch leaves out all of it, or all but the competitions.
   const also = useMemo(() => {
@@ -595,64 +832,60 @@ export function Guide({ home: read, couch }: { home: Home; couch: Couch | null }
   const [listing, setListing] = useState<AlsoOnItem | null>(null);
   const [evening, setEvening] = useState<GuideDay | null>(null);
   const [hiddenOpen, setHiddenOpen] = useState(false);
-  // What's hidden. (2026-10-27, to declutter: no legend for the card styles, and the TVmaze credit is on a listing's and the
-  // evening's sheets only.)
-  const notes = () => (
-    <span className="flex min-w-0 flex-col items-start pt-1 first:pt-0">
-      {hidden.length > 0 && (
-        <button type="button" data-guide-hidden onClick={() => setHiddenOpen(true)} className="flex h-9 items-center gap-1.5 font-bold text-foreground underline-offset-2 hover:underline">
-          <EyeOff className="size-4" aria-hidden />
-          {hidden.length} hidden
-        </button>
-      )}
-    </span>
-  );
+  const pager = useRef<PagerHandle>(null);
+  const highlight = useRef<HTMLSpanElement>(null);
+  const d = week[Math.min(day, week.length - 1)];
   return (
     <HiddenSports.Provider value={quietSports}>
-    <section className="mt-8" data-guide>
-      <div className="mb-2.5 flex items-baseline justify-between px-4">
-        <h2 className="type-caption text-[24px]">{couch ? "This week on the couch" : "This week"}</h2>
-        {/* With reduced motion it never rolls, so it doesn't say Paused either. */}
-        {!still && onTv !== "sports" && (
-          <span data-guide-roll={rolling ? "on" : "off"} className="flex h-8 items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-            <i className={`size-[7px] rounded-full ${rolling ? "bg-good" : "bg-input"}`} aria-hidden />
-            {rolling ? "Rolling" : "Paused"}
-          </span>
-        )}
-      </div>
-      {onTv === "sports" && <SportsGuide couchId={couch?.id ?? null} />}
-      <div
-        ref={reel}
-        data-guide-reel
-        hidden={onTv === "sports"}
-        className="mx-2 flex overflow-x-auto pb-1.5 pt-2 [scrollbar-width:none] [mask-image:linear-gradient(90deg,transparent,#000_14px,#000_calc(100%_-_24px),transparent)]"
-      >
-        {week.map((d, i) => (
-          <Day key={d.offset} d={d} i={i} now={now} me={home.user.id} week={week} also={also[i]} onCouch={setCouchCard} onListing={setListing} onMore={setEvening} />
-        ))}
-      </div>
-      {/* With TV listings, the switch shares Add a show's line and the notes go under it. */}
-      <div data-guide-foot className="px-4 pt-1 text-[13px] text-muted-foreground">
-        {/* The switch is always there (Sports reads no TV listings); the notes go under it. */}
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
-          <OnTvSwitch on={onTv} solo={!couch} />
-          <button
-            type="button"
-            data-guide-add
-            onClick={() => openWatching({ kind: "add" })}
-            className="nd-press ml-auto flex h-10 flex-none items-center gap-1 rounded-[3px] px-2.5 text-sm font-semibold text-foreground outline-1 -outline-offset-1 outline-input"
-          >
-            <Plus className="size-4" aria-hidden />
-            Add a show
-          </button>
+      <div data-guide-page className="pb-[110px]">
+        <div className="flex px-4 pt-3">
+          <OnTvSwitch on={onTv} />
         </div>
-        {notes()}
+        {onTv === "sports" ? (
+          <div className="mt-4">
+            <SportsGuide couchId={couch?.id ?? null} />
+          </div>
+        ) : (
+          <>
+            <WeekCells week={week} day={d.offset} onDay={(n) => pager.current?.go(n)} highlight={highlight} />
+            {/* The days as pages you swipe (the user, 2026-11-15): the page follows the finger and lands with a little overshoot. */}
+            <SwipePager
+              ref={pager}
+              count={week.length}
+              index={d.offset}
+              onIndex={setDay}
+              onMove={(at, ms, easing) => {
+                const el = highlight.current;
+                if (!el) return;
+                el.style.transition = ms ? `transform ${ms}ms ${easing}` : "none";
+                el.style.transform = `translateX(calc(${at} * (100% + 4px)))`;
+              }}
+              label="The guide's days: swipe between them, or use the arrow keys"
+              peek="gys.guide-days.peeked"
+              attrs={{ "data-guide-days": true }}
+              // A mouse drag on a card turns the day too, instead of picking up the link or its picture.
+              className="[&_a]:[-webkit-user-drag:none] [&_img]:[-webkit-user-drag:none]"
+              page={(i) => (
+                // The rundown (the user, 2026-11-15: "let's go back to this, but we can swipe on the page to go to the next day").
+                <DayRundown d={week[i]} now={now} me={home.user.id} week={week} also={also[i]} onCouch={setCouchCard} onListing={setListing} onMore={setEvening} />
+              )}
+            />
+          </>
+        )}
+        <StreamingRail home={home} couch={couch} />
+        {hidden.length > 0 && (
+          <div className="px-4 pt-4">
+            <button type="button" data-guide-hidden onClick={() => setHiddenOpen(true)} className="flex h-10 items-center gap-1.5 text-[14px] font-bold text-foreground underline-offset-2 hover:underline">
+              <EyeOff className="size-4" aria-hidden />
+              {hidden.length} hidden
+            </button>
+          </div>
+        )}
+        <CouchShowSheet home={home} couch={couch} card={couchCard} onOpenChange={(o) => !o && setCouchCard(null)} />
+        <ListingSheet l={listing} couchId={couch?.id ?? null} onOpenChange={(o) => !o && setListing(null)} />
+        <EveningSheet day={evening} also={evening ? also[evening.offset] : undefined} now={now} onOpenChange={(o) => !o && setEvening(null)} />
+        <HiddenSheet open={hiddenOpen} onOpenChange={setHiddenOpen} hidden={hidden} />
       </div>
-      <CouchShowSheet home={home} couch={couch} card={couchCard} onOpenChange={(o) => !o && setCouchCard(null)} />
-      <ListingSheet l={listing} couchId={couch?.id ?? null} onOpenChange={(o) => !o && setListing(null)} />
-      <EveningSheet day={evening} also={evening ? also[evening.offset] : undefined} now={now} onOpenChange={(o) => !o && setEvening(null)} />
-      <HiddenSheet open={hiddenOpen} onOpenChange={setHiddenOpen} hidden={hidden} />
-    </section>
     </HiddenSports.Provider>
   );
 }
@@ -946,4 +1179,3 @@ function HiddenSheet({ open, onOpenChange, hidden }: { open: boolean; onOpenChan
     </Sheet>
   );
 }
-

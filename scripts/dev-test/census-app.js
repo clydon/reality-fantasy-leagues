@@ -19,7 +19,8 @@
 //   <id>.txt        the page's words
 //   <id>.json       what the first view holds: its blocks top to bottom, its controls, how many type sizes and text colours,
 //                   how many words, and how many screens tall the page is (the busy test's measurable part)
-// and index.json, every situation with its surface, flavor, lens and what happened.
+// and index.json, every situation with its surface, flavor, lens and what happened, and overlaps.json, every frame's words that sit
+// on other words (overlaps.js), printed as OVERLAP lines as they're found.
 //
 // Needs: the app on :3000 (npm run dev; BASE= for another); for --atlas, the Atlas on :4400 (bash scripts/dev-test/restart-atlas.sh).
 // Run:   node scripts/dev-test/census-app.js [--up] [--atlas] [--bench] [--only=<regex on the id>] [--width=390 --height=844] [--out=<dir>] [--down]
@@ -33,6 +34,9 @@ require("dotenv").config({ path: ".env.local", quiet: true });
 const fs = require("fs");
 const path = require("path");
 const { open } = require("./browser");
+const { overlapsIn } = require("./overlaps");
+/** Each frame's words that sit on other words (the screenshot story's rule: DESIGN-PROCESS.md, "No words over words"). */
+const OVERLAPS = [];
 
 const args = process.argv.slice(2);
 const opt = (k, d) => args.find((a) => a.startsWith(`--${k}=`))?.slice(k.length + 3) ?? d;
@@ -46,7 +50,8 @@ const ONLY = opt("only");
 // (its first match, if there) before the shot, and --suffix=<-x> is added to each frame's id so variants don't overwrite.
 const QUERY = opt("query", null), TAP = opt("tap", null), SUFFIX = opt("suffix", "");
 const PASS = "zt-pass-12345";
-const u = (who) => `zt_nd_${who}`;
+// A name on the zt_nd couch ("alex"), or a whole zt_ username (a solo person: "zt_so_alex", solo-fixture.js).
+const u = (who) => (who.startsWith("zt_") ? who : `zt_nd_${who}`);
 
 // What each fixture id resolves to (filled by setup() from the database, so a fresh `--up` keeps working).
 const ids = {};
@@ -64,6 +69,8 @@ async function setup() {
       await require("./hub-fixture").up(pool, fx, { art });
       await require("./guide-fixture").up(pool, fx, { art });
       await require("./crew-fixture").up(pool);
+      // People on no couch, for the solo hub (the design round's step 7).
+      await require("./solo-fixture").up(pool);
     }
     const q = async (sql, p) => (await pool.query(sql, p)).rows;
     for (const r of await q(`SELECT ss.id, sh.slug, ss.season_number FROM show_seasons ss JOIN shows sh ON sh.id = ss.show_id WHERE sh.slug LIKE 'zt-nd-%' OR sh.slug LIKE 'zt-gd-%' OR sh.slug LIKE 'zt-cr-%'`)) {
@@ -79,7 +86,7 @@ async function setup() {
 async function teardown() {
   const { Pool } = require("pg");
   const pool = new Pool({ connectionString: process.env.AUTH_DATABASE_URL || "" });
-  try { await require("./new-fixture").down(pool); console.log("[census] fixtures down"); } finally { await pool.end(); }
+  try { await require("./new-fixture").down(pool); await require("./solo-fixture").down(pool); console.log("[census] fixtures down"); } finally { await pool.end(); }
 }
 
 // ---- helpers for a situation's own steps ----
@@ -97,8 +104,14 @@ function situations() {
     { id: "hub-alex", surface: "hub", who: "alex", go: "/home", ready: "[data-hub]", flavor: "competition", lens: "playing live, several shows, a couch", full: true },
     { id: "hub-sam", surface: "hub", who: "sam", go: "/home", ready: "[data-hub]", flavor: "competition", lens: "two episodes behind", full: true },
     { id: "hub-casey", surface: "hub", who: "casey", go: "/home", ready: "[data-hub]", flavor: "competition", lens: "a small couch, one game", full: true },
-    { id: "hub-guide", surface: "guide", who: "alex", go: "/home", ready: "[data-guide-card]", act: (p) => scrollTo(p, "[data-guide-card]"), flavor: "mixed", lens: "the TV guide, inline on the hub", full: false },
-    { id: "hub-person-sheet", surface: "hub", who: "alex", go: "/home", ready: "[data-hub]", act: async (p) => { await tap(p, '[data-couch-face="zt_nd_riley"]'); await sheetOpen(p); }, flavor: "competition", lens: "a friend's face opens their sheet", full: false },
+    // The guide: inline on the hub before the design round's step 7, its own page (opened from On TV) since. Each act works on both.
+    { id: "hub-guide", surface: "guide", who: "alex", go: "/home", ready: "[data-guide-card]", act: async (p) => { if (await p.locator("[data-on-tv-open]").count()) { await tap(p, "[data-on-tv-open]"); await p.locator("[data-guide-page]").waitFor({ timeout: 15000 }); await p.waitForTimeout(900); } else await scrollTo(p, "[data-guide-card]"); }, flavor: "mixed", lens: "the TV guide: today", full: false },
+    { id: "hub-guide-tomorrow", surface: "guide", who: "alex", go: "/home", ready: "[data-guide-card]", act: async (p) => { if (await p.locator("[data-on-tv-open]").count()) { await tap(p, '[data-on-tv] [data-guide-day="1"] [data-guide-card]'); await p.locator('[data-guide-page] [data-guide-day="1"]').waitFor({ timeout: 15000 }); await p.waitForTimeout(900); } else { await scrollTo(p, "[data-guide-card]"); await p.locator("[data-guide-reel]").evaluate((e) => (e.scrollLeft = 165)); await p.waitForTimeout(500); } }, flavor: "mixed", lens: "the TV guide: a card in On TV's crawl opens its day (tomorrow)", full: false },
+    { id: "hub-guide-alltv", surface: "guide", who: "alex", go: "/home", ready: "[data-guide-card]", act: async (p) => { if (await p.locator("[data-on-tv-open]").count()) { await tap(p, "[data-on-tv-open]"); await p.locator("[data-guide-page]").waitFor({ timeout: 15000 }); } else await scrollTo(p, "[data-guide-card]"); await tap(p, '[data-guide-tv-choice="all"]'); await p.waitForTimeout(1500); if (await p.locator("[data-guide-page]").count()) await p.locator("[data-guide-page] [data-guide-day]").first().evaluate((e) => e.scrollIntoView({ block: "start" })); await p.waitForTimeout(600); }, flavor: "mixed", lens: "the TV guide: All TV (Also on under your shows)", full: true },
+    { id: "hub-guide-foot", surface: "guide", who: "alex", go: "/home", ready: "[data-guide-card]", act: async (p) => { if (await p.locator("[data-on-tv-open]").count()) { await tap(p, "[data-on-tv-open]"); await p.locator("[data-guide-page]").waitFor({ timeout: 15000 }); await p.waitForTimeout(600); } const rail = p.locator("[data-rail]").last(); if (await rail.count()) await rail.evaluate((e) => e.scrollIntoView({ block: "center" })); await p.waitForTimeout(600); }, flavor: "mixed", lens: "streaming: on the hub before step 7, At your own pace in the guide since", full: false },
+    { id: "hub-solo", surface: "hub", who: "zt_so_alex", go: "/home", ready: "[data-hub]", flavor: "competition", lens: "solo: on no couch", full: true },
+    { id: "hub-new-couch", surface: "hub", who: "casey", go: "/home?hub=new", ready: "[data-hub]", flavor: "competition", lens: "a brand-new couch (the hub's grow shape)", full: false },
+    { id: "hub-riley", surface: "hub", who: "riley", go: "/home", ready: "[data-hub]", flavor: "competition", lens: "caught up, all set or a move due, a Game admin", full: false },
     { id: "hub-add-show", surface: "hub", who: "alex", go: "/home", ready: "[data-hub]", act: async (p) => { await tap(p, "[data-add-show-poster]"); await sheetOpen(p); }, flavor: "mixed", lens: "following: Add a show", full: false },
     { id: "hub-tour", surface: "onboarding", who: "sam", tour: true, go: "/home?tour=1", ready: "[data-hub]", flavor: "competition", lens: "first-time tour, its welcome card", full: false },
     { id: "hub-bell", surface: "notifications", who: "alex", go: "/home", ready: "[data-hub]", act: async (p) => { await tap(p, "[data-bell]"); await p.waitForTimeout(900); }, flavor: "mixed", lens: "notifications: the bell", full: false },
@@ -236,6 +249,10 @@ async function capture(p, s) {
   // whole batch in Arial, which read as "the condensed display font is missing at 390". Wait for Archivo, fail if it never comes.
   const face = await p.evaluate(async () => { await document.fonts.ready; return [...document.fonts].some((f) => f.family.replace(/"/g, "") === "Archivo" && f.status === "loaded"); }).catch(() => false);
   if (!face) throw new Error("Archivo never loaded: the frame would show the fallback face (is the dev server mid-recompile?)");
+  // Words over words in the first view (overlaps.js, as story-situations.js reports them): printed, and kept in overlaps.json.
+  const hits = await overlapsIn(p, H).catch(() => []);
+  OVERLAPS.push({ frame: path.basename(base), hits });
+  for (const h of hits) console.log(`OVERLAP ${path.basename(base)}: "${h[0]}" over "${h[1]}"`);
   await p.screenshot({ path: base + ".jpg", type: "jpeg", quality: 82 });
   const m = await measure(p);
   const text = await p.evaluate(() => document.body.innerText).catch(() => "");
@@ -353,6 +370,7 @@ async function capture(p, s) {
   } finally {
     for (const b of sessions.values()) await b.close().catch(() => {});
     fs.writeFileSync(path.join(OUT, "index.json"), JSON.stringify(index, null, 2));
+    fs.writeFileSync(path.join(OUT, "overlaps.json"), JSON.stringify(OVERLAPS, null, 1));
     if (has("down")) await teardown();
   }
   const bad = Object.entries(index).filter(([k, v]) => want(k.replace(/^atlas-/, "")) && !v.ok);

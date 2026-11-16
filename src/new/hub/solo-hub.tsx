@@ -13,8 +13,7 @@ import { Sheet } from "../ui/sheet";
 import { PoolCard, PracticeCard, PracticeSheet, poolShown, practiceShown, type PracticeSeason } from "../show/solo";
 import { openTrivia } from "../show/trivia";
 import { Foot, nextShow, StatusLine, UpNext, YourShows } from "./sections";
-import { Guide } from "./guide";
-import { StreamingRail } from "./streaming";
+import { OnTvRow } from "./guide";
 
 // The solo hub (docs/PLAN-new-design.md step 9 part 3; the mock's round2.js soloHub + solo.js): someone on no couch, first
 // run's "Just me for now". Welcome, Watching solo (start a couch), what's due and Up next when something is, the guide
@@ -30,12 +29,14 @@ export function SoloHub({ home }: { home: Home }) {
       <p className="mx-4 mb-3 mt-1 text-[15px] leading-snug text-muted-foreground" data-solo-hello>
         <b className="text-foreground">Welcome, {home.user.name}.</b> Your shows, spoiler-safe, ready when you are.
       </p>
-      {due && <StatusLine home={home} />}
+      {/* The design round's step 7: the next thing (the status line folded into it), then On TV, then Watching solo. */}
+      {up && (due || up.upNext) ? <UpNext home={home} show={up} couch={null} /> : due && <StatusLine home={home} />}
+      <OnTvRow home={home} couch={null} />
       <button
         type="button"
         onClick={() => openCouchSheet({ kind: "new" })}
         data-solo-invite
-        className="nd-press mx-4 flex w-[calc(100%-32px)] items-center gap-3 rounded-[4px] border border-dashed border-input bg-card p-3 text-left"
+        className="nd-press mx-4 mt-3 flex w-[calc(100%-32px)] items-center gap-3 rounded-[4px] border border-dashed border-input bg-card p-3 text-left"
       >
         <span className="flex flex-none gap-1" aria-hidden>
           <Avatar id={home.user.id} name={home.user.name} size={30} />
@@ -51,13 +52,6 @@ export function SoloHub({ home }: { home: Home }) {
         </span>
         <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
       </button>
-      {up && (due || up.upNext) && (
-        <div className="mt-6">
-          <UpNext home={home} show={up} couch={null} />
-        </div>
-      )}
-      <Guide home={home} couch={null} />
-      <StreamingRail home={home} couch={null} />
       <YourShows home={home} hub={undefined} />
       <PlayOnYourOwn home={home} />
       <OnYourOwn home={home} />

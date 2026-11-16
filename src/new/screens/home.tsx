@@ -1,14 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { useCouchHub, useCurrentCouch, useHome, type Couch, type CouchHub, type Home } from "../data";
 import { CouchPages, MoreOnTheCouch } from "../hub/couch-pages";
-import { Guide } from "../hub/guide";
-import { StreamingRail } from "../hub/streaming";
+import { GuidePage, OnTvRow } from "../hub/guide";
 import { ProfileSheet } from "../hub/profile";
-import { BothWatch, CouchRow, CouchWatching, Feed, Foot, GetGoing, GrowNote, nextShow, OnNow, StatusLine, UpNext, YourShows } from "../hub/sections";
+import { BothWatch, CouchWatching, Feed, Foot, GetGoing, GrowNote, nextShow, StatusLine, UpNext } from "../hub/sections";
 import { SoloHub } from "../hub/solo-hub";
+import { ShowBands } from "../hub/bands";
 import { NotesBell } from "../hub/notes";
 import { useMe } from "../session";
 import { usePracticeReveal, withPracticeReveal } from "../tour/practice-shows";
@@ -69,22 +69,22 @@ export function HomeScreen() {
       )}
       <ProfileSheet open={profile} onOpenChange={setProfile} me={me} couch={couch} hub={hub} />
       <CouchPages home={home} couch={couch} hub={hub} />
+      {home && <GuidePage home={home} couch={couch} />}
     </div>
   );
 }
 
+// Since the design round's step 7 (docs/design-round/step7-hub-spec.md, -first-view.md): the next thing first (the status line
+// folded into it; it stays only when there's no next thing), then On TV (the guide's door: the guide is its own page), then your
+// people with their marks on the next thing's show (On now folded into their faces and On TV's cards), then your shows.
+// Streaming moved into the guide (At your own pace).
 function FocusHub({ home, couch, hub }: { home: Home; couch: Couch | null; hub: CouchHub | undefined }) {
   const up = nextShow(home);
   return (
     <>
-      <StatusLine home={home} />
-      <CouchRow home={home} couch={couch} />
-      {up && <UpNext home={home} show={up} couch={couch} />}
-      <OnNow home={home} couch={couch} />
-      <YourShows home={home} hub={hub} />
+      {up ? <UpNext home={home} show={up} couch={couch} /> : <StatusLine home={home} />}
+      <Middle home={home} couch={couch} hub={hub} />
       <BothWatch home={home} couch={couch} />
-      <Guide home={home} couch={couch} />
-      <StreamingRail home={home} couch={couch} />
       <CouchWatching home={home} couch={couch} />
       <Feed hub={hub} />
       <MoreOnTheCouch home={home} hub={hub} />
@@ -93,18 +93,27 @@ function FocusHub({ home, couch, hub }: { home: Home; couch: Couch | null; hub: 
   );
 }
 
+/** What follows the next thing (the design round's step 7): On TV (the guide's door), then Your shows as Bands, sports first as a
+ *  scoreboard (hub/bands.tsx; the user chose Bands over the posters, Your week, the couch first and Previously on). `after`: a new
+ *  couch's first steps, between the two. */
+function Middle({ home, couch, hub, after }: { home: Home; couch: Couch | null; hub: CouchHub | undefined; after?: ReactNode }) {
+  return (
+    <>
+      <OnTvRow home={home} couch={couch} />
+      {after}
+      <ShowBands home={home} couch={couch} hub={hub} />
+    </>
+  );
+}
+
 function GrowHub({ home, couch, hub, newCouch }: { home: Home; couch: Couch | null; hub: CouchHub | undefined; newCouch: boolean }) {
   const up = nextShow(home);
   return (
     <>
-      <StatusLine home={home} />
-      {newCouch && <GetGoing home={home} couch={couch} />}
-      <CouchRow home={home} couch={couch} />
-      {up && <UpNext home={home} show={up} couch={couch} />}
-      <YourShows home={home} hub={hub} />
+      {up ? <UpNext home={home} show={up} couch={couch} /> : <StatusLine home={home} />}
+      {/* A new couch's first steps, under its people (step 7's check: above, they pushed On TV and the faces out of view). */}
+      <Middle home={home} couch={couch} hub={hub} after={newCouch ? <GetGoing home={home} couch={couch} /> : undefined} />
       <BothWatch home={home} couch={couch} />
-      <Guide home={home} couch={couch} />
-      <StreamingRail home={home} couch={couch} />
       <CouchWatching home={home} couch={couch} />
       <Feed hub={hub} />
       <GrowNote home={home} hub={hub} />

@@ -33,7 +33,9 @@ export function TeamMark({ abbr, color, size = "md", className = "" }: { abbr: s
   return (
     <span
       aria-hidden
-      className={`type-caption grid flex-none place-items-center tracking-[0.02em] shadow-[inset_0_0_0_1px_rgba(255,255,255,.3)] ${s} ${className}`}
+      // Our own mark, never a league's logo (the user, 2026-11-15: "use the city name abbreviated and have our icon square stylized
+      // with their colors"): the city's short code on the team's colour, its corner cut as the Lower Third's tags are.
+      className={`type-caption grid flex-none place-items-center tracking-[0.02em] shadow-[inset_0_0_0_1px_rgba(255,255,255,.3)] [clip-path:polygon(0_0,100%_0,100%_68%,76%_100%,0_100%)] ${s} ${className}`}
       style={{ background: teamBg(color), color: teamInk(color) }}
     >
       {(abbr ?? "").slice(0, 4)}

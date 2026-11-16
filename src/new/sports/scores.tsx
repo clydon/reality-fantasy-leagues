@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Eye } from "lucide-react";
-import { useProfile } from "../data";
+import { useProfile, useSportsRecordings } from "../data";
 
 // Sports scores too (docs/PLAN-start-a-game-gpt.md, "Sports spoilers: Hide scores" and the user's calls of 2026-11-09): with it
 // on, a game that has begun says only when it started (never live or final, its clock, period, overtime, score, winner or a team's
@@ -71,8 +71,12 @@ import { gameWords, type GameMoment } from "@/lib/sports/hide";
 export function useGameScore(g: GameMoment | null) {
   const hidden = useHideSports();
   const shownSet = useShownScores();
-  if (!g) return { open: true, started: false, when: "", hidden };
-  return { ...gameWords(g, hidden, shownSet.has(g.id)), hidden };
+  // A game you're watching as if live (the design round's step 7) says only when it started, everywhere, whatever else is on,
+  // until you've watched it.
+  const recordings = useSportsRecordings().data?.recordings;
+  if (!g) return { open: true, started: false, when: "", hidden, recording: false };
+  if (recordings?.some((r) => r.game === g.id)) return { ...gameWords(g, true, false), hidden, recording: true };
+  return { ...gameWords(g, hidden, shownSet.has(g.id)), hidden, recording: false };
 }
 
 /** Show the score: the one button that lets a hidden game's score out, for the visit. */

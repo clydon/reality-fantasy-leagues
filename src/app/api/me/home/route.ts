@@ -71,6 +71,26 @@ export const GET = apiRoute(async (req) => {
   const watching = (userId: string) => open(userId).map((f) => f.seasonId);
   // How far each is in what they watch openly (Where I am: followsOf has left out anyone who doesn't share it).
   const at = (userId: string) => Object.fromEntries(open(userId).map((f) => [f.seasonId, f.seen ?? 0]));
+  // Away (the design round's step 7, the user's Joanna: "she hasn't recorded a watched episode, but she also hasn't logged in since
+  // the new one aired, maybe she's up to date, who knows"): the shows someone shares where they're behind the latest aired episode
+  // and haven't been on the app since it aired. Only that list leaves the server, never when anyone was last on.
+  // The latest aired episode and its air time come from each season's schedule (read below with the shows').
+  const others = people.filter((id) => id !== user.id);
+  const lastSeen = others.length
+    ? await pool.query<{ user_id: string; at: Date }>("SELECT user_id, last_seen_at AS at FROM user_last_seen WHERE user_id = ANY($1::text[])", [others]).catch(() => ({ rows: [] as { user_id: string; at: Date }[] }))
+    : { rows: [] as { user_id: string; at: Date }[] };
+  const seenAt = new Map(lastSeen.rows.map((r) => [r.user_id, new Date(r.at).getTime()]));
+  const away = (userId: string) =>
+    open(userId)
+      .filter((f) => {
+        const schedule = schedules.get(f.seasonId);
+        const n = latestAired(schedule, now);
+        const airAt = schedule?.episodes.find((e) => e.number === n)?.airAt;
+        if (!n || !airAt || (f.seen ?? 0) >= n) return false;
+        const on = seenAt.get(userId);
+        return on == null || on < new Date(airAt).getTime();
+      })
+      .map((f) => f.seasonId);
 
   // Your shows: the seasons you follow, and those you play whether or not you follow them.
   const mine = follows.filter((f) => f.userId === user.id);
@@ -181,6 +201,7 @@ export const GET = apiRoute(async (req) => {
         picture: m.picture,
         watching: watching(m.userId),
         at: at(m.userId),
+        away: away(m.userId),
       })),
       games: couchGames.filter((g) => g.couchId === c.id).map(gameOut),
       seasons: [...new Set(couchGames.filter((g) => g.couchId === c.id && g.seasonId).map((g) => g.seasonId as string))]

@@ -38,7 +38,7 @@ const outDir = args.find((a) => !a.startsWith("--")) || path.join(require("os").
 const width = Number((args.find((a) => a.startsWith("--width=")) || "--width=390").split("=")[1]);
 const keep = args.includes("--keep");
 const only = args.includes("--api") ? "api" : args.includes("--browser") ? "browser" : null;
-fs.mkdirSync(outDir, { recursive: true });
+if (require.main === module) fs.mkdirSync(outDir, { recursive: true });
 
 const FB = "football/zt-scf";
 const BB = "basketball/zt-scb";
@@ -93,6 +93,7 @@ async function cleanup(pool) {
   }
   await pool.query("DELETE FROM sports_events WHERE league = ANY($1::text[])", [LEAGUES]);
   await pool.query("DELETE FROM team_follows WHERE league = ANY($1::text[])", [LEAGUES]);
+  await pool.query("DELETE FROM sports_recordings WHERE league = ANY($1::text[])", [LEAGUES]);
   await pool.query("DELETE FROM sports_cache WHERE key LIKE 'zt-standin:%'");
   await pool.query("UPDATE user_settings SET hide_sports_scores = false WHERE user_id IN (SELECT id FROM \"user\" WHERE username LIKE 'zt_nd_%')");
 }
@@ -335,7 +336,11 @@ async function browserChecks(pool, headers, couch) {
   }
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+// Its stand-in world is shared with scripts/dev-test/story-hub-sports.js (the design round's step 7: a live game day on the hub).
+module.exports = { TEAMS, EVENTS, LEAGUE_NAMES, LEAGUES, FB, BB, cleanup };
+
+if (require.main === module)
+  main().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });

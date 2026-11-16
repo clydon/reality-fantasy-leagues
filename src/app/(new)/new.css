@@ -63,24 +63,6 @@ html:has(.nd) body {
   right: var(--nd-inset);
 }
 
-/* Up next's art drifts slowly, like a channel's promo (the mock's kenburns). */
-@keyframes nd-kenburns {
-  from {
-    transform: scale(1.02);
-  }
-  to {
-    transform: scale(1.12) translate(-2%, 1%);
-  }
-}
-.nd-kenburns {
-  animation: nd-kenburns 22s ease-in-out infinite alternate;
-}
-@media (prefers-reduced-motion: reduce) {
-  .nd-kenburns {
-    animation: none;
-  }
-}
-
 /* Anything you tap acknowledges the finger. */
 .nd-press {
   transition: transform 0.14s cubic-bezier(0.16, 1, 0.3, 1);

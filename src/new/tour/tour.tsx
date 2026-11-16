@@ -197,7 +197,7 @@ function anyOpenDialog() {
   );
 }
 
-/** The guide's reel held on today (it rolls through the week by itself: hub/guide.tsx useRoll), or let go. */
+/** On TV's row held at its start (today) while the tour lights it, or let go. */
 function holdGuide(on: boolean, reduce: boolean) {
   const reel = document.querySelector<HTMLElement>("[data-guide-reel]");
   if (!reel) return;
@@ -263,7 +263,8 @@ export function Tour({ home, hub, solo }: { home: Home | undefined; hub: CouchHu
         const replay = replayOf(home);
         // What this Home has: a top line that goes somewhere, a show that turns over to your games.
         const hub = document.querySelector("[data-hub]");
-        const moves = !!hub?.querySelector("a[data-status]");
+        // Only a move's plate: a reveal's opens real results (the reveal step replays one instead), never from the tour.
+        const moves = !!hub?.querySelector('a[data-status="moves"]');
         const flip = !!hub?.querySelector("[data-flip]");
         // Real results waiting on the replay's show, past the episode it replays: the reveal step says they stay sealed.
         const waiting = replay ? home.shows.find((s) => s.seasonId === replay.seasonId)?.results?.reveal?.episode : null;

@@ -58,19 +58,12 @@ export function tourSteps({ solo, reminders, show, replay, sealed = null, moves,
     { id: "home", title: "Your Home", line: "What needs you is always up top.", targets: ["[data-status]", "[data-upnext]"], union: true },
     // Down Home (the user, 2026-11-01): a beat a section, in Home's order, Next from one to the next.
     { id: "shows", part: "down", optional: true, title: "Your shows", line: "Every show you watch, game or not.", targets: ["[data-your-shows]"] },
-    {
-      id: "week",
-      part: "down",
-      optional: true,
-      title: solo ? "This week" : "This week on the couch",
-      line: solo ? "What's on, night by night." : "What's on, night by night, for you and your couch.",
-      targets: ["[data-guide]"],
-    },
+    // The week's guide is its own page since the design round's step 7: its beat is "guide" below, on the hub's On TV row.
     { id: "feed", part: "down", optional: true, title: "On the couch", line: "What everyone's up to: picks, results, chat.", targets: ["[data-feed-list]"] },
     { id: "more", part: "down", optional: true, title: "More on the couch", line: "Rankings, every game and the numbers, when you want them.", targets: ["[data-more-couch]"] },
     // Back up top, hands on: the line goes to the moves you need to make, for real (the tour waits: tour/back.tsx).
     moves
-      ? { id: "moves", title: "Your moves", line: "Tap the top line: it takes you straight to what needs you.", targets: ["[data-status]"], act: { kind: "moves", label: "Tap it", skip: "Skip this step" } }
+      ? { id: "moves", title: "Your moves", line: "Tap the white plate: it takes you straight to your move.", targets: ['[data-status="moves"]'], act: { kind: "moves", label: "Tap it", skip: "Skip this step" } }
       : { id: "moves", title: "Your moves", line: "When something needs you, it shows up here, one tap away.", targets: ["[data-status]", "[data-upnext]"] },
     // Practice saves nothing; what it adds sits on Home for the tour, tagged Practice, then goes (the user, 2026-11-01).
     {
@@ -92,13 +85,12 @@ export function tourSteps({ solo, reminders, show, replay, sealed = null, moves,
           },
         ]
       : []),
-    // Where shows you add go, with what the demo added in it for a moment, and its filters (Sports soon).
+    // Where shows you add go, with what the demo added in it for a moment: the hub's On TV row, the guide's door (step 7).
     {
       id: "guide",
-      title: "The TV guide",
-      line: solo ? "Shows you add land here. Filter it: yours, competitions or all of TV." : "Shows you add land here, for your couch too. Filter it below.",
+      title: "On TV",
+      line: solo ? "Shows you add land here. Tap it for the week, all of TV and sports." : "Shows you add land here, for your couch too. Tap it for the whole week.",
       targets: ["[data-guide]"],
-      play: "[data-guide-tv]",
     },
     {
       id: "reveal",

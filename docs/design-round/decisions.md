@@ -421,3 +421,120 @@
   Rejected: a fixed order as the games started.
 - Last picks: folded under each leaderboard, as built (one tap, in place, every row at once). Rejected: always shown.
 - Rests on: the story https://claude.ai/artifact/4wj5fu4EvWmGBbLBotYx5i, "Open".
+
+## 2026-11-15 · Step 7, the hub and the TV guide: built, waiting on the user's review
+- Decided by: Claude, through the three skills in order (Intent's spec, PFD's first view, Impeccable's shape and build), one check
+  (PFD evaluate 76; Impeccable critique 27/40, a reviewer that saw neither PFD's findings nor the session's reasoning, and the
+  detector), one batch, one confirming look
+- What: the hub's first view is the next thing (one plate on the show's art: the time once, the move, the reveal or All set on
+  a caption plate, the move opening its editor in one tap through `?moves=` or its own page; other moves one line under it), On TV
+  (Phase 0 decision 7: a channel bug and a crawl of this week's cards, drifting once the plate has landed, going round, held under a
+  finger; on a game day the couch's teams' games lead it), your people (each face's episode on the next thing's show), then your
+  shows. The guide is its own page (`?page=guide&day=`): the switch, seven day cells, the day as a rundown with a time gutter and
+  the Now line, Also on, At your own pace (the streaming rail, moved from the hub); Sports in the same cells.
+- PFD settled the spec's open question: On TV under the plate (above, its motion would take the first look from the due move and
+  push the art down).
+- Rejected: the status line beside the plate (the move said twice); On now as its own row (its show is the crawl's card, its
+  person a face's dot); the guide inline; who's set as a second row of faces (a count, "Couch: 0 of 4 picked"); "1 more" in the
+  plate's title (the critique: it read as a count of castaways to pick); red for a due dot (red is live or out).
+- Rests on: docs/design-round/step7-hub-spec.md, -first-view.md, -shape.md, -check.md, step7-hub-critique.md; the story
+  https://claude.ai/artifact/HxS3nW2FiH2xoDtvHBAF8x (frames in .ui-atlas/stories/step7-hub/; scripts/dev-test/check-hub-next.js
+  and story-hub-sports.js new, census-app.js's hub situations and overlap report).
+
+## 2026-11-15 · The hub: Bands (leaning), with the user's notes built
+- Decided by: the user ("I think I like bands"), with notes; how, by Claude through Impeccable
+- What: Bands (hub/looks.tsx `look=bands`, still behind the switch) with: each face's episode number on the line under it; away
+  (behind the latest aired and not on the app since it aired: the home read's `away`, a list of season ids, never a time) as a
+  faded face with a dotted trail to the latest episode; the teams you follow among Your shows (their game on now, last and next);
+  a game finished in the last 36 h keeps its score behind Show the score, with Watch as if live (reads "Started" until "I've
+  watched it"; per phone for now); a rivalry (two couch teams meeting this week, followed by different people, no game on it) as
+  the first band with Start a game on it. On the couch drops "revealed" lines and shows four with Show more. The guide gets a
+  marquee (tonight's line-up crawling between chyron rules) and the day as a channel grid (rows per show, half hours across, the
+  Now line).
+- Open for the user: the recent-final rule change (a sport's results showed straight away unless hidden), recordings on the
+  server, whether "away" as a hint is fine.
+- Rests on: the story https://claude.ai/artifact/HxS3nW2FiH2xoDtvHBAF8x version 5.
+
+## 2026-11-15 · Sports on the hub as a scoreboard, not bands
+- Decided by: the user ("the game block is cluttered, I don't think the title needs players... could get cluttered and populated
+  fast... a swipe navigation"); how, by Claude through Impeccable
+- What: one swipeable row of game cards in Bands (`Scoreboard`/`ScoreCard`, hub/looks.tsx), a fixed height however many games,
+  the next card peeking, a count at its head. A card is the matchup alone, the couch's faces on the side each follows, at most one
+  action (Start a game on a rivalry; Show score or Watch as if live on a game just finished; I've watched it on a recording). Order:
+  on now, just finished, a move of yours due, rivalries, each of your teams' next game. TV shows keep their bands.
+- Rejected: a band per team and per rivalry (v5: tall, names said three times, grows with every team).
+- Rests on: the story https://claude.ai/artifact/HxS3nW2FiH2xoDtvHBAF8x version 6.
+
+## 2026-11-15 · Compact game cards, a game's plate on one line, team marks of our own
+- Decided by: the user (the games pushed shows out of view; the plate's three lines; team colours; "use the city name abbreviated
+  and have our icon square stylized with their colors" to keep clear of league logos); how, by Claude through Impeccable
+- What: score cards about 100 px tall (a status line with the one action as a chip; a line per team: mark, name, followers,
+  score); a sports game's plate (UpNext) as the matchup with both marks on one line at 26 px, the date once in the time line, the
+  two teams' colours behind it with no art, no "Game 1" (hub/sports-day.ts shares the game lookup with the scoreboard); TeamMark
+  everywhere is the league's short city code on the team's colour with the Lower Third's cut corner, never a logo.
+- Rests on: the story https://claude.ai/artifact/HxS3nW2FiH2xoDtvHBAF8x version 7.
+
+## 2026-11-15 · The guide is what moves; the hub's On TV row is still
+- Decided by: the user ("I did not mean the widget on the hub to be animated, I meant the TV guide once we click into it"; "I do
+  not like the yellow marquee"; "maybe we are overthinking this and it's good as is, but we just need animation and swiping
+  between days"; the switch's order "my shows, competitions, sports, all TV")
+- What: On TV on the hub is still (no crawl, no pulsing dot; its cards swipe by hand). This supersedes the part of Phase 0's
+  decision 7 that asked for the hub's row to be animated: the row stays near the top and noticeable, the guide carries the motion.
+  The marquee is removed. The guide's days are pages (SwipePager); the channel grid fits the screen (today from just before now, any
+  other day its evening), shows aired tonight drop out; the day lands with an overshoot, its blocks settle in turn (nd-rise), the
+  Now line draws down (new.css nd-now-draw); reduced motion stills all of it. The switch: My shows · Competitions · Sports · All TV.
+- Rejected: a brainstorm's bigger directions (a guide channel with a preview window, a split-flap departures board, the evening as
+  a sky), the user's call: the grid is right as it is.
+- Rests on: the story https://claude.ai/artifact/HxS3nW2FiH2xoDtvHBAF8x version 9; scripts/dev-test/story-motion.js.
+
+## 2026-11-15 · The guide is the rundown, a day a page; the hub's way in is a button
+- Decided by: the user ("let's go back to this, but we can swipe on the page to go to the next day; At your own pace must display
+  on the page; if there are too many entries we indicate there's more by a show being semi cut off and faded at the bottom";
+  "Guide > is a bit too subtle"); how, by Claude through Impeccable
+- What: each day is DayRundown in a SwipePager page; the day's list has a height of max(232 px, 100svh − 470 px) so At your own
+  pace stays in the first view, scrolls inside, and fades out at its foot while there's more (a top fade once scrolled); today
+  opens at the Now line; native link and image dragging off in the pages so a mouse drag turns the day. On the hub, On TV's bug says
+  "Guide" on a white plate, and its row ends with The whole week. The channel grid, its drift and the marquee are removed.
+- Rejected: the channel grid (a day with a morning and an evening show had no readable scale).
+- Rests on: the story https://claude.ai/artifact/HxS3nW2FiH2xoDtvHBAF8x version 10.
+
+## 2026-11-15 · The guide's rail stays put; only the page and the day bar move; Guide is an outlined button
+- Decided by: the user ("keep At your own pace on the bottom; the only thing that animates a transition is the main section and
+  the day bar"; the white "Guide" button "a little ugly, use Impeccable"); the button's look by Claude through Impeccable
+- What: every day's page has the list's full height, so At your own pace holds its place (the same position across four days);
+  the day bar's white highlight slides with the pager (driven by its onMove, following the finger); the rundown's rows no longer
+  rise in turn. "Guide" on the hub is the system's secondary control (an outline at the control edge, bone words, an arrow).
+- Rejected: the white plate for Guide (the plate is the due move's; a link wearing it competes); chyron-line link text (yellow
+  beside the move's yellow on the same view).
+- Rests on: the story https://claude.ai/artifact/HxS3nW2FiH2xoDtvHBAF8x (published version 10, labelled "v11").
+
+## 2026-11-15 · Bands is the hub; the look switch and the other looks are gone
+- Decided by: the user ("I agree, do that with the other four and the full build")
+- What: hub/bands.tsx is the real hub's Your shows on the couch hubs (focus and first-week shapes); hub/looks.tsx, the admin look
+  switch, the couch's face row (`CouchRow`), On now, the posters on a couch's hub, the marquee and the channel grid are deleted.
+  The solo hub keeps its posters (they turn over to your games; the tour's Flip step runs only there).
+- Rejected: Your week, the couch first, Previously on · Next time (the user's pick of Bands, story version 5 on).
+- Rests on: the story https://claude.ai/artifact/HxS3nW2FiH2xoDtvHBAF8x.
+
+## 2026-11-15 · A just-finished sports score waits behind a tap for 36 hours
+- Decided by: the user (agreed with the recommendation)
+- What: a game of one of your teams (or one you're watching as if live) finished less than 36 hours from its start shows "Final"
+  with no score on the scoreboard until you choose; past that its score shows as any other's, unless Hide sports scores is on.
+  This changes the rule that a sport's results show straight away: only on the hub's scoreboard and only for your teams' games.
+- Rejected: showing the final at once (the user's missed Patriots game); hiding every final (the scoreboard then says nothing).
+
+## 2026-11-15 · Watch it as if live is kept with the account, and asked for by a tap
+- Decided by: the user ("I'd see the game and tap on it, then, still not wanting any spoilers, have the option prompted to me to
+  watch live")
+- What: a tap on a hidden final opens a sheet named for the matchup: Watch it as if live (a `sports_recordings` row, migration
+  0438) or Show the score (this session). A game you're watching says Watching on its card, Started everywhere (useGameScore hides
+  a recorded game on every surface, the team sheet included, which closes the leak the per-phone version had), and its tap asks
+  I've watched it (the row deleted, the score shown) or Keep hiding.
+- Rejected: two chips on the card itself (a mis-tap shows the score); keeping it per phone (another device spoils it).
+
+## 2026-11-15 · Away stays a hint; the plate's art is still; "Your team" tags are off
+- Decided by: the user (agreed with the three recommendations)
+- What: someone away (behind, and not on since the latest aired) is faded with a dotted trail to the latest episode, never a
+  "last seen" time; the plate's art no longer pans (`nd-kenburns` off UpNext); step 5's face wall carries no "Your team" tag.
+- Rejected: a last-seen time (a fact about someone they didn't choose to share); the slow pan (motion on a hub that should be
+  still); a quiet "Your team" mark on the wall (the game's own pages say it).

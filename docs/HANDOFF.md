@@ -11,6 +11,37 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
+## The design round's step 7, the hub and the TV guide (2026-11-16; committed on branch `explorer-sports`, not pushed; migration 0438)
+The hub (src/new/screens/home.tsx, hub/sections.tsx, hub/bands.tsx): the next thing first (`UpNext`: one still plate on the
+show's art, the time once, the move, the reveal or All set on a caption plate; `moveHref` opens a pick or lineup through
+`?moves=<tab>&game=` (show/dock.tsx opens Your moves and drops it) and a waiver, draft or blind draft on its own page; other moves
+one line under it; "You're 2 behind" on a reveal; a sports game's plate is the matchup with both TeamMarks), then On TV
+(hub/guide.tsx `OnTvRow`: still, the bug and an outlined Guide button, today's cards, the couch's teams' games first
+(`SportsMini`), The whole week at its end), then Your shows as Bands (`ShowBands`: the scoreboard (`Scoreboard`/`ScoreCard`, one
+swipeable row: on now, just finished, your move's game, rivalries with Start a game, each team's next), then a band per show with
+its season as a ruler and the couch's faces at their episodes, someone away faded with a dotted trail (the home read's `away`:
+behind and not on since the latest aired), the controller when you play a game on it, Finished folded at the foot (`finishedFor`:
+finished for the whole couch)), then the feed (four, Show more). The guide is `GuidePage` (`?page=guide&day=N`, pushed over the
+hub, Add a show in its bar): the switch (My shows · Competitions · Sports · All TV), seven day cells whose highlight slides with
+the pager, each day a page of `SwipePager` (`DayRundown`: a list that scrolls inside and fades at its foot while there's more,
+today at the Now line), At your own pace fixed below (hub/streaming.tsx). A sports score that just finished stays behind a tap
+for 36 hours: the card asks Watch it as if live (kept with the account: `sports_recordings`, migration 0438,
+`/api/sports/recordings`; sports/scores.tsx `useGameScore` hides a recorded game everywhere, the team sheet too) or Show the
+score; a game you're watching asks I've watched it or Keep hiding. TeamMark is the league's short city code on the team's colour,
+never a logo. Gone: hub/looks.tsx and the look switch, the couch's face row (`CouchRow`), On now, the marquee, the channel grid,
+the plate's slow pan. The tour (tour/steps.ts): the moves step goes hands-on only on a move's plate (a reveal plate only points:
+the tour never opens real results); practice shows say Practice on the bands and On TV's cards. Process and evidence:
+`docs/design-round/step7-hub-{spec,first-view,shape,check,critique}.md`, decisions.md; the story
+https://claude.ai/artifact/HxS3nW2FiH2xoDtvHBAF8x (version 12, "Built"; frames in `.ui-atlas/stories/step7-hub/`: census-app.js `--up --only='^hub'
+--out=...final`, `scripts/dev-test/story-hub-sports.js [--finished]` (a live game day on check-sports-couch.js's stand-in ESPN;
+`--finished` shoots the ask and a recording kept across a reload), `story-motion.js` (the guide on video) and
+`check-hub-next.js` (the plate's one tap, On TV and the guide; `--reveal` moves sam's mark); check-new-tour.js follows the new
+hub). The real-data preview on 3006 is taken down. **Found, not fixed:** a face on the hub no longer opens that person's sheet
+(Bands' faces are part of the band's link; the couch's details and a show's Where everyone is still do; the census's
+hub-person-sheet went); check-new-tour.js J fails on the Start a game sheet's Tell the couch track (bone, not yellow), not touched
+by this step; the Atlas's recorded hub cases fail to sign in (their zt_pt account is gone). **Next:** step 8, notifications (the
+push and the bell), then waivers.
+
 ## The design round's step 6, the Games tab and the draft room (2026-11-15; built on branch `explorer-sports`, not pushed; waits on the user's review)
 The Games tab (src/new/show/games.tsx `GameRows`): one row per game, the due one first: the name (opens the game's page), your
 place in the game's own unit with the gap or this week's opponent, its move as a quiet line (a dot when due; the strip keeps the

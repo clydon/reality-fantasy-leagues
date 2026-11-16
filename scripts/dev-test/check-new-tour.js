@@ -3,16 +3,15 @@
 // top line's page, Back to the tour), Add a show as a practice that saves nothing (and its demo), a show flipped over to your games,
 // the TV guide's filters, the reveal replayed, Start a game as a practice; kept once an account:
 //   A. sam (results waiting; notifications allowed): the card; every step's count, words and light, down Home's beats with a dot
-//      each; your moves: Tap it shakes the top line and goes nowhere, the line itself goes to its show, Back to the tour brings Home
-//      and the step ticks, and that's no skip; Add a show: Tap it shakes the tile, the tile itself opens the practice: the practice
+//      each; your moves: hands on only on a move's plate (Tap it shakes the plate and goes nowhere, the plate itself goes to the
+//      move, Back to the tour brings Home and the step ticks, and that's no skip); sam's plate is the reveal, never opened from the
+//      tour, so the step only points at it; Add a show: Tap it shakes the tile, the tile itself opens the practice: the practice
 //      show the catalog says (the first of Survivor, The Amazing Race, The Challenge sam doesn't have) typed in, slowly enough to
 //      follow, and ringed, Where are you (left a moment, its Add to my shows shakes by itself), its finish (isn't saved; you don't
 //      need a game), Show me: the demo adds one show, Saturday Night Live, by itself, slowly enough to follow (its Add to my shows
-//      ringed and pressed before the tap); Flip a show: sam's show far along a long shelf (four shows on before it: longShelf) brought
-//      into view and lit, Tap it shakes the corner, the tap turns it over to sam's games and back, the practice shows on the shelf
-//      saying Practice; the TV guide: those shows on their nights (tagged Practice), taller than the room above the lower third
-//      (the long shelf's night) with its filters kept clear of it (on All TV too), the filters working through the tour, Sports
-//      saying it's coming, a swipe across its week scrolling it (no tap; it stays put after), a sideways wheel too; the
+//      ringed and pressed before the tap); the practice shows on Your shows (bands on a couch's hub, posters solo) saying Practice;
+//      Flip a show only where a show turns over (a solo hub's posters: none on sam's bands); On TV: the still row lit, its Guide door
+//      in it, any practice card saying Practice (step 7: the guide's own page is check-hub-next.js's); the
 //      reveal: the line saying sam's real waiting episode stays sealed, Up next with
 //      results waiting on the episode the replay plays (Home drawn so for the step, then as it was), the replay of sam's last
 //      episode with nothing that would be real (no Share, no next episode), the demo's shows gone by then; Start a game: the
@@ -317,7 +316,7 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
     };
     const top = {};
     for (const sel of ["[data-your-shows]", "[data-guide]", "[data-feed-list]", "[data-more-couch]"]) top[sel] = boxed(sel)?.getBoundingClientRect().top ?? null;
-    return { moves: !!hub?.querySelector("a[data-status]"), flip: !!hub?.querySelector("[data-flip]"), top };
+    return { moves: !!hub?.querySelector("a[data-status=\"moves\"]"), flip: !!hub?.querySelector("[data-flip]"), top };
   });
   // Real results waiting on the replay's show, past the episode it replays (tour.tsx): the reveal step says they stay sealed.
   const waiting = replay ? home.shows.find((s) => s.seasonId === replay.seasonId)?.results?.reveal?.episode : null;
@@ -395,7 +394,10 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
         k = at("moves");
         s = await onStep(page, steps, k);
         stepChecks("sam", s, plan, k);
-        check(!!steps[k].act, "A: sam's top line goes somewhere (results in), so the moves step goes there for real");
+        // Sam's plate is the reveal (results in): never opened from the tour (real results; the reveal step replays one), so the
+        // moves step only points at it. A move's plate is tapped for real (a couch member with a move due).
+        const revealPlate = (await page.locator('[data-upnext-plate="reveal"]').count()) > 0;
+        check(revealPlate ? !steps[k].act : !!steps[k].act, "A: the moves step goes for real only to a move, never into real results", revealPlate ? "reveal plate" : "move plate");
         if (steps[k].act) {
           await shot(page, "sam-4-moves");
           await page.click('[data-tour-act="moves"]');
@@ -488,25 +490,21 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
         await page.click("[data-practice-close]");
         await ticked(page);
 
-        // 6: Flip a show: the corner, for real.
+        // Your shows has the show you practice-added and the demo's, for now, each saying Practice (the critique: "won't show
+        // up", then they did); on a couch's hub as bands (hub/bands.tsx), solo as posters.
+        const shelfOf = () => page.$$eval("[data-hub] [data-band], [data-hub] [data-poster]", (p) => p.map((x) => x.getAttribute("data-band") ?? x.getAttribute("data-poster")));
+        const shelf = await shelfOf();
+        check(demo.every((d) => shelf.includes(`tour-${d.tvmazeId}`)) && (!practice.tvmazeId || shelf.includes(`tour-${practice.tvmazeId}`)), "A: Your shows has the show you practice-added and the demo's, for now", shelf.join(", "));
+        const tagged = await page.$$eval('[data-band^="tour-"], [data-poster^="tour-"]', (p) => p.length > 0 && p.every((x) => x.querySelector("[data-practice-tag]")?.textContent?.trim() === "Practice"));
+        check(tagged && !(await page.$('[data-band]:not([data-band^="tour-"]) [data-practice-tag], [data-poster]:not([data-poster^="tour-"]) [data-practice-tag]')), "A: each practice show says Practice, and no real one does");
+
+        // 6: Flip a show: the corner, for real, only where a show turns over (a solo hub's posters; a couch's bands don't).
         k = at("flip");
-        check(k > 0, "A: sam's show turns over to sam's games, so there's a flip step");
+        const corner = !!(await page.$("[data-hub] [data-flip]"));
+        check(corner ? k > 0 : k < 0, "A: a flip step exactly when a show on Home turns over", corner ? "a corner" : "no corner (bands)");
         if (k > 0) {
           s = await onStep(page, steps, k);
           stepChecks("sam", s, plan, k);
-          // Far along a long shelf (longShelf), the shelf at Add a show's tile the step before: brought back to it, lit whole.
-          const far = await page.evaluate(() => {
-            const all = [...document.querySelectorAll("[data-hub] [data-poster]")];
-            const p = document.querySelector("[data-hub] [data-poster]:has([data-flip])");
-            const r = p.getBoundingClientRect();
-            return { at: all.indexOf(p), left: Math.round(r.left), right: Math.round(r.right) };
-          });
-          check(far.at >= 4 && far.left >= -1 && far.right <= WIDTH + 1 && ringFits(s), `A: Flip a show: sam's show, far along the shelf (the ${far.at + 1}th), comes into view and is what's lit`, JSON.stringify({ far, ring: s.ring }));
-          const shelf = await page.$$eval("[data-poster]", (p) => p.map((x) => x.getAttribute("data-poster")));
-          check(demo.every((d) => shelf.includes(`tour-${d.tvmazeId}`)) && (!practice.tvmazeId || shelf.includes(`tour-${practice.tvmazeId}`)), "A: Your shows has the show you practice-added and the demo's, for now", shelf.join(", "));
-          // Said as they are: practice, here for the tour (the critique: "won't show up", then they did).
-          const tagged = await page.$$eval('[data-poster^="tour-"]', (p) => p.every((x) => x.querySelector("[data-practice-tag]")?.textContent?.trim() === "Practice"));
-          check(tagged && !(await page.$('[data-poster]:not([data-poster^="tour-"]) [data-practice-tag]')), "A: each practice poster says Practice, and no real one does");
           await shot(page, "sam-6-flip");
           await page.click('[data-tour-act="flip"]');
           const flipShook = await shook(page, steps[k]);
@@ -521,101 +519,30 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
           await ticked(page);
         }
 
-        // 7: the TV guide: the demo's game in it, its filters through the tour, Sports soon.
+        // 7: On TV, the still row that opens the guide (step 7): lit, its Guide door in it, any practice show's card tagged.
         k = at("guide");
         s = await onStep(page, steps, k);
         stepChecks("sam", s, plan, k);
         await page.waitForTimeout(800);
-        const snl = demo.find((d) => d.tvmazeId === 361);
-        const cards = await page.$$eval("[data-guide-card]", (c) => c.map((x) => x.getAttribute("aria-label") ?? ""));
-        const snlName = snl && DEMO_SHOWS().find((x) => x.show.id === snl.tvmazeId).show.name;
-        check(!snl || cards.some((c) => c.startsWith(snlName)), `A: the guide has the demo's Saturday Night Live on its night (${snlName})`, cards.join(" | "));
-        check(!practice.tvmazeId || cards.some((c) => c.startsWith(OWN)), "A: and the show you practice-added, on its night", cards.join(" | "));
-        const cardTags = await page.$$eval('[data-guide-card^="tour-"]', (c) => c.length > 0 && c.every((x) => x.querySelector("[data-practice-tag]")));
-        check(cardTags && !(await page.$('[data-guide-card]:not([data-guide-card^="tour-"]) [data-practice-tag]')), "A: the practice shows' guide cards say Practice, and no real one does");
-        // The reel goes to those nights in turn, yours first, so they're seen.
-        const inView = (key) =>
-          page
-            .waitForFunction(
-              (key) => {
-                const reel = document.querySelector("[data-guide-reel]");
-                const card = reel?.querySelector(`[data-guide-card^="${key}"]`);
-                if (!card) return false;
-                const r = card.getBoundingClientRect();
-                const b = reel.getBoundingClientRect();
-                return r.left >= b.left - 2 && r.right <= b.right + 2;
-              },
-              key,
-              { timeout: 6000 }
-            )
-            .then(() => true, () => false);
-        if (practice.tvmazeId) check(await inView(`tour-${practice.tvmazeId}:`), "A: the guide goes to the night of the show you practice-added");
-        await shot(page, "sam-7-guide-yours");
-        if (snl) check(await inView("tour-361:"), "A: then on to Saturday Night Live's");
+        check(!!(await page.$("[data-guide] [data-on-tv-open]")), "A: the lit On TV row holds the door to the whole week's guide");
+        const practiceCards = await page.$$eval('[data-guide] [data-guide-card^="tour-"]', (c) => c.every((x) => x.querySelector("[data-practice-tag]")));
+        check(practiceCards && !(await page.$('[data-guide] [data-guide-card]:not([data-guide-card^="tour-"]) [data-practice-tag]')), "A: On TV's practice cards say Practice, and no real one does");
+        const still = await page.$eval("[data-guide]", (g) => getComputedStyle(g).animationName === "none" && ![...g.querySelectorAll("*")].some((x) => getComputedStyle(x).animationName !== "none" && !x.closest("[data-live], .animate-pulse")));
+        check(still, "A: On TV is still on the hub (the user, 2026-11-15: the guide animates, not the hub's row)");
         await shot(page, "sam-7-guide");
-        await tapAt(page, "[data-guide-tv-soon]");
-        const soon = await page.waitForFunction(() => /Sports are coming soon/.test(document.querySelector("[data-toast]")?.textContent ?? ""), null, { timeout: 4000 }).then(() => true, () => false);
-        // (Left on All TV: this browser's own setting, gone with it.)
-        await tapAt(page, '[data-guide-tv-choice="all"]');
-        await page.waitForTimeout(400);
-        const all = await page.getAttribute("[data-guide-tv]", "data-guide-tv");
-        check(soon && all === "all" && (await tourId(page)) === "guide", "A: the TV guide's filters work through the tour, and Sports says it's coming", `${soon} ${all}`);
-        // All of TV can make the week taller: its filters stay clear of the lower third, to tap again.
-        const filtersClear = await page
-          .waitForFunction(
-            () => {
-              const f = document.querySelector("[data-hub] [data-guide-tv]")?.getBoundingClientRect();
-              const low = document.querySelector('[role="dialog"][data-tour] [data-tour-lower]')?.getBoundingClientRect();
-              return !!f && !!low && f.top >= 0 && f.bottom <= low.top - 1;
-            },
-            null,
-            { timeout: 5000 }
-          )
-          .then(() => true, () => false);
-        check(filtersClear, "A: on All TV its filters stay clear of the lower third");
-        // A swipe across the week scrolls it (the user: "allow me to scroll in the tv guide"), and is no tap: still the guide,
-        // nothing opened; it stays where it's left (the tour's hold on it isn't cut short); a sideways wheel scrolls it too.
-        await page.waitForTimeout(600);
-        const reelAt = () => page.$eval("[data-guide-reel]", (r) => Math.round(r.scrollLeft));
-        const rb = await page.$eval("[data-guide-reel]", (r) => {
-          const b = r.getBoundingClientRect();
-          return { cx: b.left + b.width / 2, y: b.top + b.height / 2, max: r.scrollWidth - r.clientWidth };
-        });
-        const x0 = await reelAt();
-        const dir = x0 > rb.max / 2 ? 1 : -1;
-        await page.mouse.move(rb.cx - dir * 80, rb.y);
-        await page.mouse.down();
-        for (let j = 1; j <= 8; j++) await page.mouse.move(rb.cx - dir * 80 + dir * 20 * j, rb.y);
-        await page.mouse.up();
-        await page.waitForTimeout(300);
-        const x1 = await reelAt();
-        const opened = !!(await page.$('[role="dialog"][data-open]:not([data-tour])'));
-        check(Math.abs(x1 - (x0 - dir * 160)) <= 4 && (await tourId(page)) === "guide" && !opened, "A: a swipe across the guide's week scrolls it, and is no tap: still the guide, nothing opened", `${x0} → ${x1}, opened ${opened}`);
-        await page.waitForTimeout(4500);
-        check(Math.abs((await reelAt()) - x1) < 3, "A: the week stays where the swipe left it while the guide's lit (it doesn't roll on)");
-        await page.evaluate(() => {
-          window.__wheels = [];
-          document.addEventListener("wheel", (e) => window.__wheels.push({ dx: e.deltaX, dy: e.deltaY, x: Math.round(e.clientX), y: Math.round(e.clientY), on: e.target?.tagName }), { capture: true, passive: true });
-        });
-        await page.mouse.wheel(dir * 100, 0);
-        await page.waitForTimeout(300);
-        const x2 = await reelAt();
-        // By the wheel's own delta (the device scale halves Playwright's 100).
-        const wheels = await page.evaluate(() => window.__wheels);
-        const by = wheels.reduce((a, w) => a + w.dx, 0);
-        check(Math.abs(by) >= 20 && Math.abs(x2 - (x1 + by)) <= 4, "A: a sideways wheel (a trackpad) scrolls the week too", `${x1} → ${x2}, by ${by}; wheels ${JSON.stringify(wheels)}`);
-        await shot(page, "sam-7a-guide-swiped");
         await page.click("[data-tour-next]");
 
         // 8: the reveal, replayed.
         k = at("reveal");
         s = await onStep(page, steps, k);
         stepChecks("sam", s, plan, k);
-        const shelfAfter = await page.$$eval("[data-poster]", (p) => p.map((x) => x.getAttribute("data-poster")));
+        const shelfAfter = await shelfOf();
         check(!shelfAfter.some((x) => x.startsWith("tour-")), "A: past the guide, the demo's shows are off Home", shelfAfter.join(", "));
         // Home as it is with results waiting, on the episode the replay plays (the user: "simulate that top card as results waiting").
         const waiting = (await page.textContent('[data-upnext-plate="reveal"]').catch(() => "")) ?? "";
-        check(waiting.includes(`Episode ${replay.n} final results are in`), `A: the reveal step: Up next shows results waiting, Episode ${replay.n} (the one the replay plays)`, waiting);
+        // The plate (step 7): its tag the episode, "Reveal the results".
+        const waitingOn = (t) => new RegExp(`^(Ep|Episode)${replay.n}Revealthe(early)?results`).test(t.replace(/\s+/g, ""));
+        check(waitingOn(waiting.replace(/\s+/g, "")), `A: the reveal step: Up next shows results waiting, Episode ${replay.n} (the one the replay plays)`, waiting);
         await shot(page, "sam-8-reveal");
         await page.click('[data-tour-act="reveal"]');
         const revealShook = await shook(page, steps[k]);
@@ -637,8 +564,8 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
         k = at("start");
         s = await onStep(page, steps, k);
         stepChecks("sam", s, plan, k);
-        const upAfter = (await page.textContent("[data-upnext]").catch(() => "")) ?? "";
-        check(!upAfter.includes(`Episode ${replay.n} final results are in`), "A: past the reveal, Up next is as it was");
+        const upAfter = (await page.textContent('[data-upnext-plate="reveal"]').catch(() => "")) ?? "";
+        check(upAfter.replace(/\s+/g, "") !== waiting.replace(/\s+/g, ""), "A: past the reveal, Up next is as it was (the tour's results waiting gone)", upAfter);
         await shot(page, "sam-9-start");
         await tapLit(page);
         await page.waitForSelector(`[data-pick-practice][data-pick-show="${practice.seasonId}"]`, { timeout: 15000 });

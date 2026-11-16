@@ -53,7 +53,9 @@ function findChrome() {
 // The first-time tour (docs/PLAN-first-time-tour.md) plays over Home for an account that hasn't seen it; a check gets Home as
 // it is (the gys_tour=off cookie: the home read counts it as seen) unless it asks for the tour with `tour: true`
 // (check-new-tour.js).
-async function open({ user, pass, width = 390, height = 844, motion = process.env.MOTION || "on", watch = !!process.env.MOTION_WATCH, headers, tour = false } = {}) {
+// `video: <dir>` records the page as a .webm there at the viewport's size (story-motion.js: a design's motion, filmed); the file is
+// written when the browser closes (`page.video().path()`).
+async function open({ user, pass, width = 390, height = 844, motion = process.env.MOTION || "on", watch = !!process.env.MOTION_WATCH, headers, tour = false, video = null } = {}) {
   const exe = findChrome();
   const browser = await findPlaywright().chromium.launch(exe ? { executablePath: exe } : {});
   const context = await browser.newContext({
@@ -62,6 +64,7 @@ async function open({ user, pass, width = 390, height = 844, motion = process.en
     hasTouch: true,
     isMobile: width < 600,
     reducedMotion: motion === "reduce" ? "reduce" : "no-preference",
+    ...(video ? { recordVideo: { dir: video, size: { width, height } } } : {}),
   });
   await motionTools.install(context, { mode: motion, watch });
   if (headers) await context.setExtraHTTPHeaders(headers);

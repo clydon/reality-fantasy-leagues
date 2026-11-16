@@ -160,7 +160,7 @@ function Chip({ item, wide, onAdd }: { item: RailItem; wide?: boolean; onAdd: (i
           data-rail-add={item.seasonId}
           aria-label={`Add ${item.name} to my shows`}
           onClick={() => onAdd(item)}
-          className="absolute right-2 top-1/2 grid size-[34px] -translate-y-1/2 place-items-center rounded-full bg-secondary shadow-[0_4px_12px_rgba(0,0,0,.35)] transition-transform active:scale-90"
+          className="absolute right-1 top-1/2 grid size-11 -translate-y-1/2 place-items-center rounded-full bg-secondary shadow-[0_4px_12px_rgba(0,0,0,.35)] transition-transform active:scale-90"
         >
           <Plus className="size-[18px]" strokeWidth={2.8} aria-hidden />
         </button>
@@ -197,7 +197,9 @@ export function StreamingRail({ home, couch }: { home: Home; couch: Couch | null
   const items = useRail(home, couch);
   const [all, setAll] = useState(false);
   if (!items.length) return null;
-  const title = couch ? "Streaming on the couch" : "Streaming";
+  // In the guide since the design round's step 7 (docs/design-round/step7-hub-spec.md): what has no airtime is at your own pace.
+  const title = "At your own pace";
+  const kind = couch ? "Streaming on the couch" : "Streaming";
   const onAdd = (item: RailItem) => {
     setAll(false);
     addFrom(home, item);
@@ -211,7 +213,7 @@ export function StreamingRail({ home, couch }: { home: Home; couch: Couch | null
             See all {items.length}
           </button>
         ) : (
-          <small className="text-xs text-muted-foreground">Your own pace</small>
+          <small className="text-xs text-muted-foreground">{kind}</small>
         )}
       </div>
       <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">

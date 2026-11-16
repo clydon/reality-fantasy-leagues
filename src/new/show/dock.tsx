@@ -12,7 +12,7 @@ import { Sheet } from "../ui/sheet";
 import { SwipePager, type PagerHandle } from "../ui/swipe-pager";
 import { toast } from "../ui/toast";
 import { ordinal } from "../games";
-import { closeMoves, faceIn, first, sheetTabs, useMovesSheet, type MovesTab, type SheetTab } from "./moves";
+import { closeMoves, faceIn, first, openMoves, sheetTabs, useMovesSheet, type MovesTab, type SheetTab } from "./moves";
 import { Face, IconBox } from "./parts";
 import { useOpenReveal } from "./reveal";
 import { askAfterSave } from "./remind";
@@ -27,6 +27,21 @@ import { askAfterSave } from "./remind";
 
 export function MovesSheet({ show, seasonId }: { show: ShowData; seasonId: string }) {
   const { open, tab, leagueId } = useMovesSheet();
+  // Opened from the address (`?moves=<tab>&game=<leagueId>`): the hub's next thing goes straight to its move, one tap (the design
+  // round's step 7). Once the games are read, then the address drops it, so back and a reload don't open it again.
+  const asked = useRef(false);
+  useEffect(() => {
+    if (asked.current || !show.play) return;
+    const url = new URL(window.location.href);
+    const want = url.searchParams.get("moves");
+    if (!want) return;
+    asked.current = true;
+    const game = url.searchParams.get("game");
+    url.searchParams.delete("moves");
+    url.searchParams.delete("game");
+    window.history.replaceState(window.history.state, "", url);
+    openMoves(want as MovesTab, game);
+  }, [show.play]);
   const up = show.upNext;
   const until = up?.airAt ? airTime(Date.parse(up.airAt)) : null;
   // Your episode, not the season's: someone catching up sets their own next episode's moves, open until they reveal it

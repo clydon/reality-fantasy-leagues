@@ -32,10 +32,18 @@ export function SportsGuide({ couchId }: { couchId: string | null }) {
         const byLeague = new Map<string, WeekGame[]>();
         for (const g of rest) byLeague.set(g.league, [...(byLeague.get(g.league) ?? []), g]);
         const date = new Date(`${d.day}T12:00:00`);
-        return { day: d.day, label: `${DAY[date.getDay()]} ${date.getDate()}`, mine, leagues: [...byLeague].map(([l, games]) => ({ league: l, name: games[0].leagueName, games })) };
+        return {
+          day: d.day,
+          label: `${DAY[date.getDay()]} ${date.getDate()}`,
+          long: date.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" }),
+          mine,
+          leagues: [...byLeague].map(([l, games]) => ({ league: l, name: games[0].leagueName, games })),
+        };
       }),
     [week.data, ours]
   );
+  const [sel, setSel] = useState(0);
+  const day = days[Math.min(sel, days.length - 1)] ?? null;
   return (
     <div data-sports-guide>
       {hidden && (
@@ -45,31 +53,61 @@ export function SportsGuide({ couchId }: { couchId: string | null }) {
       )}
       {week.isLoading && <p className="px-4 py-6 text-[14px] text-muted-foreground">Loading this week&rsquo;s games…</p>}
       {week.error && <p className="px-4 py-6 text-[14px] text-muted-foreground">Couldn&rsquo;t load this week&rsquo;s games. Try again in a minute.</p>}
-      <div role="list" aria-label="This week's games" className="flex snap-x snap-proximity scroll-pl-4 gap-2.5 overflow-x-auto px-4 pb-2 pt-0.5 [scrollbar-width:none]">
-        {days.map((d) => (
-          <div key={d.day} role="listitem" className="flex w-[158px] flex-none snap-start flex-col gap-1.5" data-sports-day={d.day}>
-            <p className="type-caption mb-0.5 text-[16px]">{d.label}</p>
-            {d.mine.map((g) => (
-              <GameCard key={g.id} g={g} ours={ours} />
-            ))}
-            {d.leagues.map((l) => (
+      {/* The guide's week (the design round's step 7): the same seven cells as the TV guide's, then the chosen day full width. */}
+      {days.length > 0 && (
+        <div role="tablist" aria-label="This week's games" className="mx-4 mt-3 grid grid-cols-7 gap-1">
+          {days.map((d, i) => {
+            const on = i === sel;
+            const live = d.mine.some((g) => g.state === "in");
+            const date = new Date(`${d.day}T12:00:00`);
+            return (
               <button
-                key={l.league}
+                key={d.day}
                 type="button"
-                data-sports-league={l.league}
-                onClick={() => setLeague({ day: d.label, label: l.name, league: l.league, games: l.games })}
-                className="nd-press flex min-h-11 w-full items-center justify-between gap-2 rounded-[4px] border border-border bg-card px-2.5 text-left"
+                role="tab"
+                aria-selected={on}
+                data-sports-cell={d.day}
+                aria-label={`${i === 0 ? "Today" : DAY[date.getDay()]} ${date.getDate()}, ${d.mine.length} of the couch's games${live ? ", one on now" : ""}`}
+                onClick={() => setSel(i)}
+                className={`nd-press flex min-h-[74px] flex-col items-center gap-1 rounded-[3px] pb-1.5 pt-2 ${on ? "bg-foreground text-background" : "bg-card"}`}
               >
-                <span className="min-w-0 text-[13px] font-bold leading-tight">{l.name}</span>
-                <span className="flex-none text-[12px] text-muted-foreground">
-                  {l.games.length} {l.games.length === 1 ? "game" : "games"}
+                <span className={`type-caption text-[13px] tracking-[0.04em] ${on ? "" : i === 0 ? "text-chyron-line" : "text-muted-foreground"}`}>{i === 0 ? "Today" : DAY[date.getDay()]}</span>
+                <span className="type-num text-[19px] leading-none">{date.getDate()}</span>
+                <span className="flex h-3 items-center gap-[2px]" aria-hidden>
+                  {live && <i className="mr-[2px] size-1.5 animate-pulse rounded-full bg-live motion-reduce:animate-none" />}
+                  {d.mine.slice(0, 3).map((g) => {
+                    const side = g.sides.find((x) => ours.has(`${g.league}|${x.id}`)) ?? g.sides[1];
+                    return <i key={g.id} className="size-3 rounded-[2px]" style={{ background: side.color ? `#${side.color}` : "var(--secondary)" }} />;
+                  })}
                 </span>
               </button>
-            ))}
-            {!d.mine.length && !d.leagues.length && !week.isLoading && <p className="text-[12px] text-muted-foreground">No games</p>}
-          </div>
-        ))}
-      </div>
+            );
+          })}
+        </div>
+      )}
+      {day && (
+        <div role="tabpanel" className="mt-5 flex flex-col gap-2 px-4" data-sports-day={day.day}>
+          <h2 className="type-caption mb-1 text-[24px]">{sel === 0 ? "Today" : day.long}</h2>
+          {day.mine.map((g) => (
+            <GameCard key={g.id} g={g} ours={ours} />
+          ))}
+          {day.leagues.map((l) => (
+            <button
+              key={l.league}
+              type="button"
+              data-sports-league={l.league}
+              onClick={() => setLeague({ day: day.label, label: l.name, league: l.league, games: l.games })}
+              className="nd-press flex min-h-12 w-full items-center justify-between gap-2 rounded-[4px] border border-border bg-card px-3 text-left"
+            >
+              <span className="min-w-0 text-[15px] font-bold leading-tight">{l.name}</span>
+              <span className="flex-none text-[13px] text-muted-foreground">
+                {l.games.length} {l.games.length === 1 ? "game" : "games"}
+              </span>
+            </button>
+          ))}
+          {!day.mine.length && !day.leagues.length && !week.isLoading && <p className="text-[15px] text-muted-foreground">No games</p>}
+        </div>
+      )}
       {!teams.length && !week.isLoading && (
         <p className="px-4 pt-1 text-[13px] leading-snug text-muted-foreground" data-sports-guide-note>
           Your couch&rsquo;s teams lead each day once someone follows one.{" "}
