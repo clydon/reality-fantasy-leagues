@@ -122,7 +122,7 @@ episode research (a question the rulebook adds when a property `changes: "someti
 `viewThrough` like `episode.groups`. A drafted team's shape is judged at the draft; a later change never breaks a team (said on
 the person: "Promoted to Bosun, Ep 6"). Lineup slots read the value as of that episode.
 
-## Holdings: what someone has right now (the user, 2026-11-16; proposed, not decided)
+## Holdings: what someone has right now (the user, 2026-11-16; decided the same day, below)
 
 "We also need a 'currently has' property for players. Survivor tracks if they found an advantage or idol. But suppose they use it or
 give it away, it's hard to determine in our current landscape if they currently have anything of value."
@@ -155,10 +155,16 @@ idol, a pool pick that avoids holders) but that's a game rule for chunk 4's succ
 **Where it fits:** with chunk 6 (dated changes), as **6b**, after 4 and 5: the same episode-research plumbing, the same desk accept,
 the same `viewThrough`. Generic over every rulebook's advantage twists, not Survivor's code ([universal-not-curated]).
 
-**For the user to decide:** (a) events and a snapshot together (recommended), or events only (fewer questions, silent errors), or a
-snapshot only (simplest, no "how"); (b) the wall's mark for someone holding something, or the sheet only; (c) whether the existing
-results for aired episodes are re-asked to backfill holdings (S51: its episodes so far, through our bot) or holdings start from the
-next episode.
+**Decided (the user, 2026-11-16):**
+- **(a) Both:** events each episode and an end-of-episode snapshot, a disagreement to the desk.
+- **(b) The sheet for sure; the wall's mark only if it reads neutral.** "I'm torn because we don't want it to read as an advantage
+  or disadvantage because it could be both, unless there's an indicator or icon that represents that well." So 6b ships the
+  sheet's line, and the wall's mark is a design question for its Impeccable pass, shown to the user as a named choice in its
+  story, never shipped unasked. What the mark must do: say "holds something" and nothing about good or bad (no safe teal, no live
+  red, no shield or skull; plain ink, like a tribe's tag without its colour), and open what it is on a tap. Without a mark the user
+  approves, the wall stays names only.
+- **(c) Yes, backfill:** the season's aired episodes are re-asked through our bot for their holdings (Survivor 51's so far, and any
+  season with an advantage twist that has aired), reviewed on the desk like any results, before holdings show.
 
 ## Bios: who they are, beside what they did (the user, 2026-11-15)
 
@@ -204,7 +210,7 @@ Each ends with focused tests; the long checks once per milestone ([long-checks-o
    matchup pairing reads real slots (step 2c paired a sport by position already). Shared with sports: a sport's lineup gains its
    positions here. Done when NFL's 1 QB, 2 RB, 2 WR, 1 TE, 1 FLEX is enforced and drawn.
 6. **Dated changes.** The season result kind, the episode research question, the desk's accept, `viewThrough`, the person's line.
-   **6b. Holdings** (the user, 2026-11-16, proposed: "Holdings" above): what someone has right now, a dated ledger from episode
+   **6b. Holdings** (the user, 2026-11-16, decided: "Holdings" above): what someone has right now, a dated ledger from episode
    research (events and an end-of-episode snapshot), spoiler-guarded, on the person sheet and maybe the wall.
 7. **The wizard and the GPT.** SpecContext carries the season's properties so Start a game offers only rules the season can hold
    ("Draft one from each department"), Randomize can roll them, and the spec's check refuses a property the season lacks.
