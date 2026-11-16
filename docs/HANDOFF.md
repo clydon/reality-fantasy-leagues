@@ -66,7 +66,11 @@ after, the wizard taking in chunk 7). Commits: 10b6f369 (chunk 1), ad6b0f2b (chu
   **may need renumbering at merge**), research asks it, the desk accepts and corrects it, games apply it per episode behind the
   spoiler guard, lineups read it as of their episode, the sheet's line and story say it. Tests: tests/cast-props-dated.test.js;
   check-cast-props.js part 6; the suite passes.
-- **Next: 6b (holdings)**, its build notes in the plan; chunk 7 goes with the wizard (step 12).
+- **6b, holdings: built** (the plan's "6b built"): research asks what changed hands and who holds what at each episode's end, the
+  changes are holding facts, the ledger says who holds what as of your mark (the sheet's "Has ..." line, the story's lines), the
+  desk's episode page checks the snapshot against it. Survivor 51 backfilled through our bot (recompile, then Episodes 1-8 by the
+  desk's Run now). Tests: tests/cast-props-holdings.test.js.
+- **Next:** chunk 7 goes with the wizard (step 12). The user's review of the story's chunks.
 
 ## The design round's step 9, Chat, a light review (2026-11-16; built on branch `explorer-sports`, not committed past it; waits on the user's review)
 src/new/show/chat.tsx `itemsOf(messages, airings, foldEp)`: days, with each episode's airing as a landmark (`kind: "ep"`, the episode

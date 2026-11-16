@@ -118,7 +118,9 @@ unfillable is refused with the reason ("You still need someone from Deck, and 2 
 ## Changing properties (dated)
 
 A firing, a promotion or a swap is a dated fact like a tribe move: a season result `{ episode, castaway, key, value }`, found by
-episode research (a question the rulebook adds when a property `changes: "sometimes"`), accepted on the desk, spoiler-guarded by
+episode research (a question the rulebook adds when a property `changes: "sometimes"`), settled by the AI's answer and in the games
+at once, the desk confirming or changing it after (the user, 2026-11-16: "AI decides and settles. Desk can then confirm or
+change, that way no one is ever waiting"; `SETTLES_AT_ONCE` in fact-status.ts), spoiler-guarded by
 `viewThrough` like `episode.groups`. A drafted team's shape is judged at the draft; a later change never breaks a team (said on
 the person: "Promoted to Bosun, Ep 6"). Lineup slots read the value as of that episode.
 
@@ -141,7 +143,8 @@ given (by whom) | bought }, until: { episode, how: played (on whom) | gave (to w
 
 **Research, recommended both ways at once:**
 1. **Events** on each episode, for each advantage twist the rulebook has: got one (how, from whom), played one (on whom), gave one
-   away (to whom), lost one or it expired. Each is a fact like any other, accepted on the desk.
+   away (to whom), lost one or it expired. Each is a fact like any other, settled at once by the AI's answer like a property's
+   change, the desk confirming or changing it after.
 2. **A snapshot** at each episode's end: "who holds what now", which a show's wiki keeps as a table. The ledger is built from the
    events; the snapshot checks it, and a disagreement goes to the desk ("the ledger says Kristin still has her idol; the snapshot
    says nobody does: did she give it away?") rather than either one silently winning.
@@ -276,6 +279,13 @@ Each ends with focused tests; the long checks once per milestone ([long-checks-o
    "Lead deckhand from here · was Deckhand". Below Deck's library compile re-saved. No migrate default for `ep.props` (frozen bench
    states stay byte for byte). **Left for 6b:** everything holdings-specific (the research section, staging, the ledger, the check,
    the sheet's line, the backfill).
+   **6b built 2026-11-16:** `research.holdings` compiled from advantage twists (and written into Survivor's and The Traitors' own
+   formats, so an unedited built-in still compiles to its format); the episode schema's `holdings` section (`changes`, `atEnd`)
+   beside `formatState`; `candidatesFor` stages each change as kind `holding`; src/lib/game/holdings.ts (`ledger`, `holdsAt`,
+   `snapshotDisagreements`, `holdsLine`); the desk's episode page shows a "Holdings check" where the snapshot and the record disagree;
+   the stats read's `holds` ("Has a hidden immunity idol · found Ep 3") and `held` (the story's lines). Backfill: an edited season
+   rulebook doesn't follow the compiler, so `cast-props-research.js recompile <seasonId>` first, then `episodes <seasonId> --from
+   --to` (the desk's full Run now by our bot, one by one); a short "holdings only" run kind wasn't needed. No wall mark (decided (b)).
 7. **The wizard and the GPT.** SpecContext carries the season's properties so Start a game offers only rules the season can hold
    ("Draft one from each department"), Randomize can roll them, and the spec's check refuses a property the season lacks.
 

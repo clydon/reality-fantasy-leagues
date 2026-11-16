@@ -69,6 +69,8 @@ export interface FactOutcome {
 /** Kinds whose result carries a method that sources can disagree on. */
 // Cast properties (chunks 6, 6b): a property's new value and a holding's other person are their facts' method too.
 const METHOD_KINDS = new Set(["elimination", "role", "group", "prop", "holding"]);
+/** Kinds the AI's answer settles at once, the desk confirming or changing them after (never waited on). */
+const SETTLES_AT_ONCE = new Set(["prop", "holding"]);
 
 const lower = (s: string) => s.trim().toLowerCase();
 
@@ -145,6 +147,10 @@ function settleFact(f: FactInput, submissions: Submission[], byId: Map<string, S
     return !yes || (METHOD_KINDS.has(f.kind) && yes.method !== method);
   });
   const confident = [...said.values()].some((s) => s.confidence === "high" && (!METHOD_KINDS.has(f.kind) || s.method === method));
+  // A property's change and a holding (cast properties, chunks 6 and 6b; the user, 2026-11-16: "AI decides and settles. Desk can
+  // then confirm or change, that way no one is ever waiting"): in the games from the first answer that reports it, whatever its
+  // confidence, the majority's value where sources split; out only once removed. The desk confirms or changes it after.
+  if (SETTLES_AT_ONCE.has(f.kind)) return { ...base, factStatus: status, live: status !== "removed" };
   const live = status === "confirmed" ? true : status === "removed" ? false : status === "disputed" ? f.live : confident && !contradicted;
   return { ...base, factStatus: status, live };
 }

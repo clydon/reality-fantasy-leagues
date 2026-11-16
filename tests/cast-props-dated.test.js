@@ -79,3 +79,13 @@ test("the words", () => {
   assert.equal(W.holdingLabel(W.holdingType("advantages", "gave", "Block a Vote"), "Eric"), "Gave away a block a vote to Eric");
   assert.equal(W.holdingLabel(W.holdingType("advantages", "played", "Idol"), "Kristin"), "Played an idol on Kristin");
 });
+
+test("the AI decides and settles a property's change or a holding at once; the desk confirms or changes it after", () => {
+  const F = jiti("../src/lib/game/fact-status.ts");
+  const sub = (id, key, confidence) => ({ id, key, at: 1, covers: { people: ["Bo"], kinds: null } });
+  const fact = (kind, confidence) => ({ id: "f1", kind, castawayName: "Bo", method: "Lead deckhand", factStatus: null, live: false, locked: false, flags: [], sources: [{ researchId: "r1", method: "Lead deckhand", confidence }] });
+  const [prop] = F.settleEpisode([fact("prop", "low")], [sub("r1", "bot")]);
+  assert.equal(prop.live, true, "one low-confidence answer: in the games");
+  const [event] = F.settleEpisode([{ ...fact("event", "low"), method: "" }], [sub("r1", "bot")]);
+  assert.equal(event.live, false, "an ordinary moment still waits on a low-confidence answer");
+});
