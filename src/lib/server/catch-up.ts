@@ -30,8 +30,10 @@ const ASK_STALE_MS = 8 * 60_000;
 const BUDGET_MS = 280_000;
 /** An ask isn't started with less than this left: the next call carries on. */
 const STEP_NEEDS_MS = 100_000;
-const TRIES = 3;
-const RETRY_MS = 5 * 60_000;
+/** Patient: the bot's away for a while now and then, and nobody's waiting on a catch-up. A failed step is tried again after 5,
+ *  15 and 45 minutes, then every 2 hours, and stops (the desk's Inbox, Try again) only after this many, about half a day. */
+const TRIES = 6;
+const retryMs = (tries: number) => Math.min(5 * 3 ** Math.max(0, tries - 1), 120) * 60_000;
 const AWAY_MS = 3 * 60_000;
 const CARRY_MS = 30_000;
 const AWAY = "Our bot's away right now. It carries on when it's back.";
@@ -69,7 +71,7 @@ function dueAt(r: Row, now = Date.now()): Date | null {
   if (r.done_at || r.stuck_at) return null;
   if (r.asking_at && now - r.asking_at.getTime() < ASK_STALE_MS) return null;
   if (!r.tried_at) return r.created_at;
-  const wait = r.message === AWAY ? AWAY_MS : r.tries > 0 ? RETRY_MS : CARRY_MS;
+  const wait = r.message === AWAY ? AWAY_MS : r.tries > 0 ? retryMs(r.tries) : CARRY_MS;
   return new Date(r.tried_at.getTime() + wait);
 }
 
