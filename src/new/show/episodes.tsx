@@ -6,7 +6,7 @@ import { ChevronRight, Clock, Eye, EyeOff, MessageCircle, Play } from "lucide-re
 import { airedAt, airTime, dayOf } from "../clock";
 import { episodeMarks, knownMark, marksLine, namesLine, type Mark } from "../couch/where";
 import { useMe } from "../session";
-import { Avatar } from "../ui/bars";
+import { Faces } from "../ui/bars";
 import { useEpisodeResults, useFill, useSeasonWaivers, type EpisodeRow, type GameNight, type WaiverRunView, type WaiverWeek } from "../data";
 import { midLine, useFinalLine } from "../final-words";
 import { gameInk, ordinal } from "../games";
@@ -247,25 +247,6 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
 /** Your row, where you're up to: lifted like your standings row. Its width is its own (a row's w-full would beat it). */
 const LIFT = "-mx-2 w-[calc(100%+1rem)] rounded-[3px] border-t-transparent bg-secondary px-2";
 const mineIn = (who?: Mark[]) => !!who?.some((m) => m.you);
-
-/** Up to four faces, overlapping (three and a count past that); yours ringed. `ground`: what they sit on, for their edge. */
-function Faces({ marks, ground = "var(--background)" }: { marks: Mark[]; ground?: string }) {
-  const shown = marks.slice(0, marks.length > 4 ? 3 : 4);
-  return (
-    <span className="flex flex-none items-center" aria-hidden>
-      {shown.map((m, i) => (
-        <span key={m.userId} className={`rounded-[3px] ${i ? "-ml-1.5" : ""} ${m.you ? "relative z-[1] outline-2 outline-offset-1 outline-foreground" : ""}`} style={{ boxShadow: `0 0 0 2px ${ground}` }}>
-          <Avatar id={m.userId} name={m.name} size={22} />
-        </span>
-      ))}
-      {marks.length > shown.length && (
-        <span className="type-num -ml-1.5 grid h-[22px] min-w-[22px] place-items-center rounded-[3px] bg-secondary px-1 text-[11px]" style={{ boxShadow: `0 0 0 2px ${ground}` }}>
-          +{marks.length - shown.length}
-        </span>
-      )}
-    </span>
-  );
-}
 
 /** Who's up to this episode: their faces (their names are the faces' label and Where everyone is's), and "You're here" on
  *  yours (step 4's check: the names line repeated what the faces show). */

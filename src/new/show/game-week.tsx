@@ -1,12 +1,12 @@
 "use client";
 
 import { matchSlots } from "@/lib/lineup-slots";
-import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { Check, ChevronRight, Lock, MessageCircleQuestion, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { bets as betWrites, moves as moveWrites, type GameView, type TableRow, type WaiverWeek } from "../data";
 import type { ShowData } from "../screens/show-space";
-import { Avatar } from "../ui/bars";
+import { Avatar, Faces } from "../ui/bars";
 import { ordinal } from "../games";
 import { Btn, Chip } from "../ui/parts";
 import { toast } from "../ui/toast";
@@ -864,7 +864,10 @@ export function bestOf(w: TableRow["weeks"][number]): { scored: number; best: nu
 /** A week-by-week table with pinned names and a pinned total opens on its latest weeks, the leftmost one whole beside the names
  *  (scrolled to the very end, the first week's numbers peeked half-cut from under them; left at the start, the last ones did
  *  under the total): the earliest week from which every later one still fits before the total. Week headings carry
- *  data-week-col; the row's first and last headings are the pinned ones. */
+ *  data-week-col; the row's first and last headings are the pinned ones. The pinned ones stick inside the scroller's padding (the
+ *  page's gutter), so the room between them is the scroller's width less both gutters, both pins and the table's cell spacing.
+ *  The weeks in view share that room evenly (each widened, never narrowed), so the leftmost isn't left half-cut by the numbers'
+ *  end against the total; a short season's few weeks fill the row too, up to 64px each. */
 function useOpenOnLatest(scrollerRef: RefObject<HTMLDivElement | null>) {
   useEffect(() => {
     const el = scrollerRef.current;
@@ -873,13 +876,21 @@ function useOpenOnLatest(scrollerRef: RefObject<HTMLDivElement | null>) {
     const at = (x: Element) => x.getBoundingClientRect();
     const head = el.querySelectorAll<HTMLElement>("thead tr:last-child th");
     const cols = [...el.querySelectorAll<HTMLElement>("thead th[data-week-col]")];
-    if (head.length < 2 || !cols.length || el.scrollWidth <= el.clientWidth) return;
-    const pin = at(head[0]).width, total = at(head[head.length - 1]).width, gap = 3;
-    const left = (x: Element) => at(x).left - box.left + el.scrollLeft;
-    const end = left(cols[cols.length - 1]) + at(cols[cols.length - 1]).width;
-    const room = el.clientWidth - total - gap;
-    const from = cols.find((c) => end - (left(c) - pin - gap) <= room) ?? cols[cols.length - 1];
-    el.scrollLeft = Math.max(0, Math.min(left(from) - pin - gap, el.scrollWidth - el.clientWidth));
+    if (head.length < 2 || !cols.length) return;
+    const cs = getComputedStyle(el);
+    const padL = parseFloat(cs.paddingLeft) || 0, padR = parseFloat(cs.paddingRight) || 0;
+    const table = el.querySelector("table");
+    const gap = table ? parseFloat(getComputedStyle(table).borderSpacing) || 0 : 0;
+    const pin = at(head[0]).width, total = at(head[head.length - 1]).width;
+    // Where a column starts in the scrolled content, from the padding's edge (where the pinned names stick).
+    const left = (x: Element) => at(x).left - box.left + el.scrollLeft - padL;
+    const end = () => left(cols[cols.length - 1]) + at(cols[cols.length - 1]).width;
+    const room = el.clientWidth - padL - padR - pin - total - 2 * gap;
+    const from = cols.find((c) => end() - left(c) <= room) ?? cols[cols.length - 1];
+    const n = cols.length - cols.indexOf(from);
+    const each = Math.min(room / n, el.scrollWidth <= el.clientWidth ? 64 : Infinity) - (n > 1 ? gap * (n - 1) / n : 0);
+    if (each > at(from).width + 0.5) for (const c of cols) c.style.minWidth = c.style.width = `${each}px`;
+    if (el.scrollWidth > el.clientWidth) el.scrollLeft = Math.max(0, Math.min(left(from) - pin - gap, el.scrollWidth - el.clientWidth));
   }, [scrollerRef]);
 }
 
@@ -1336,10 +1347,14 @@ export function CompareBody({ g, a, b, episode, words, onFace }: { g: GameView; 
   );
 }
 
-/** The game's own scoring table (the stat table's game lens): everyone in the pool, their points each week at this game's
- *  scoring and the total (from the numbers shown), who has them in words, or Free; filtered (All, Free, yours; a sport's positions;
- *  a search past 40), sorted by the total or by any week (tap its heading), opening on the latest week, your rows tinted. */
-export function GameTable({ g, words, onFace }: { g: GameView; words: ShowData["words"]; onFace: (id: string) => void }) {
+/** The game's own scoring table (the stat table's game lens): everyone in the pool by the name the game reads them by (a first
+ *  name, the last initial only when two would read the same), their points each week at this game's scoring and the total (from
+ *  the numbers shown), and who has them as faces (yours first and ringed; three and a count past four, so a castaway everyone
+ *  holds fits the same width; one holder named), or Free; filtered (All, Free, yours; a sport's positions; a search past 40),
+ *  sorted by the total or by any week (tap its heading), opening on the latest week, your rows lifted on the raised fill.
+ *  `ground`: what the table sits on (the page; a sheet's panel), which the pinned names and total are filled with, out over the
+ *  gutters, so nothing scrolling under them shows past them. */
+export function GameTable({ g, words, onFace, ground = "var(--background)" }: { g: GameView; words: ShowData["words"]; onFace: (id: string) => void; ground?: string }) {
   const cw = g.castWeeks;
   const [filter, setFilter] = useState<string>("all");
   const [q, setQ] = useState("");
@@ -1364,10 +1379,37 @@ export function GameTable({ g, words, onFace }: { g: GameView; words: ShowData["
     .sort((p, q2) => key(q2.id) - key(p.id) || p.name.localeCompare(q2.name));
   const big = g.cast.length > 40;
   const chips: [string, string][] = [["all", "All"], ["free", "Free"], ["mine", "Yours"], ...roles.map((r) => [r, r] as [string, string])];
-  const whose = (id: string, c: (typeof g.cast)[number]) => {
-    const hs = holders.get(id) ?? [];
-    if (hs.length) return hs.map((r) => (r.you ? "Yours" : first(r.name))).join(", ");
-    return c.left ? `Out · ${words.ep} ${c.out}` : "Free";
+  // Who holds them, under the name: their faces, yours first; one holder named beside theirs; nobody, Free (or when they left).
+  const whose = (c: (typeof g.cast)[number], yours: boolean) => {
+    const hs = [...(holders.get(c.id) ?? [])].sort((p, q2) => Number(q2.you) - Number(p.you));
+    const pos = c.role ? slotWord(c.role.toUpperCase()) : null;
+    const said = hs.map((r) => (r.you ? "you" : first(r.name)));
+    return (
+      <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[12.5px] leading-tight text-muted-foreground" data-holders={hs.length}>
+        {pos && <span className="flex-none">{pos}</span>}
+        {hs.length ? (
+          <>
+            <Faces marks={hs.map((r) => ({ userId: r.userId ?? r.playerId, name: r.name, you: r.you }))} size={20} max={pos ? 3 : 4} ground={yours ? "var(--secondary)" : "var(--tg)"} />
+            {hs.length === 1 && (
+              <span className="min-w-0 truncate" aria-hidden>
+                {hs[0].you ? "Yours" : first(hs[0].name)}
+              </span>
+            )}
+            <span className="sr-only">, held by {said.length > 1 ? `${said.slice(0, -1).join(", ")} and ${said.at(-1)}` : said[0]}</span>
+          </>
+        ) : (
+          <span className="min-w-0 truncate">{c.left ? `Out · ${words.ep} ${c.out}` : "Free"}</span>
+        )}
+      </span>
+    );
+  };
+  // The pinned names and total cover the gutter beside them with the ground, so weeks scrolling under them never show past them;
+  // your row's lift reaches 8px into it (as a lifted standings row does), and between two of your rows their hairline runs on
+  // across the lift.
+  const gutter = (side: "left" | "right", yours = false, joined = false) => {
+    const lift = `linear-gradient(to ${side === "left" ? "left" : "right"}, var(--secondary) 8px, var(--tg) 8px)`;
+    const background = !yours ? "var(--tg)" : joined ? `linear-gradient(var(--border), var(--border)) ${side === "left" ? "right" : "left"} top / 8px 1px no-repeat, ${lift}` : lift;
+    return <span aria-hidden className={`absolute inset-y-0 w-4 ${side === "left" ? "right-full" : "left-full"}`} style={{ background }} />;
   };
   return (
     <div className="pb-3" data-game-table>
@@ -1385,19 +1427,20 @@ export function GameTable({ g, words, onFace }: { g: GameView; words: ShowData["
       {rows.length === 0 ? (
         <p className="py-6 text-center text-[15px] text-muted-foreground">Nobody here by that name{filter !== "all" ? " in this filter" : ""}.</p>
       ) : (
-        <div ref={scroller} className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none]">
-          <table className="border-separate border-spacing-x-[3px] border-spacing-y-0 text-[14px]">
+        <div ref={scroller} className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none]" style={{ "--tg": ground } as CSSProperties}>
+          <table className="border-separate border-spacing-0 text-[14px]">
             <thead>
               <tr>
-                <th className="sticky left-0 z-[1] bg-card" />
+                <th className="sticky left-0 z-[1] bg-(--tg)">{gutter("left")}</th>
                 {eps.map((e, i) => (
-                  <th key={e} data-week-col className="w-[44px] min-w-[44px] pb-1">
+                  <th key={e} data-week-col className="w-[46px] min-w-[46px] pb-1">
                     <button type="button" onClick={() => setSortBy(i)} aria-pressed={sortBy === i} className={`type-caption min-h-11 w-full text-center text-[13px] ${sortBy === i ? "text-foreground underline underline-offset-4" : "font-normal text-muted-foreground"}`}>
                       {words.ep} {e}
                     </button>
                   </th>
                 ))}
-                <th className="sticky right-0 z-[1] bg-card pb-1 pl-2 text-right">
+                <th className="sticky right-0 z-[1] bg-(--tg) pb-1 pl-3 text-right">
+                  {gutter("right")}
                   <button type="button" onClick={() => setSortBy("total")} aria-pressed={sortBy === "total"} className={`type-caption min-h-11 text-[13px] ${sortBy === "total" ? "text-foreground underline underline-offset-4" : "font-normal text-muted-foreground"}`}>
                     Total
                   </button>
@@ -1405,26 +1448,29 @@ export function GameTable({ g, words, onFace }: { g: GameView; words: ShowData["
               </tr>
             </thead>
             <tbody>
-              {rows.slice(0, shown).map((c) => {
+              {rows.slice(0, shown).map((c, i, list) => {
                 const pts = shownPts(c.id);
                 const yours = mine.has(c.id);
+                const joined = yours && i > 0 && mine.has(list[i - 1].id);
                 return (
                   <tr key={c.id} data-table-row={c.id} className={yours ? "[&>*]:bg-secondary" : ""}>
-                    <th scope="row" className={`sticky left-0 z-[1] pr-1 text-left font-normal ${yours ? "" : "bg-card"}`}>
-                      <button type="button" data-door-cast={c.id} onClick={() => onFace(c.id)} className="flex min-h-12 w-[150px] items-center gap-1.5 border-t border-border">
+                    <th scope="row" className={`sticky left-0 z-[1] text-left font-normal ${yours ? "" : "bg-(--tg)"}`}>
+                      {gutter("left", yours, joined)}
+                      <button type="button" data-door-cast={c.id} onClick={() => onFace(c.id)} className="flex min-h-12 w-[120px] items-center gap-2 border-t border-border pr-2 text-left">
                         <Face src={c.photo} name={c.name} out={c.left} className="size-7 flex-none rounded-[2px] text-[12px]" />
-                        <span className="min-w-0">
-                          <b className={`block truncate text-[14px] font-semibold ${c.left ? "text-muted-foreground" : ""}`}>{c.name}</b>
-                          <span className="block truncate text-[13px] text-muted-foreground">{[c.role ? slotWord(c.role.toUpperCase()) : null, whose(c.id, c)].filter(Boolean).join(" · ")}</span>
+                        <span className="min-w-0 flex-1">
+                          <b className={`block truncate text-[15px] font-semibold leading-tight ${c.left ? "text-muted-foreground" : ""}`}>{castName(c, g)}</b>
+                          {whose(c, yours)}
                         </span>
                       </button>
                     </th>
                     {eps.map((e, i) => (
-                      <td key={e} className="h-12 w-[44px] border-t border-border text-center align-middle">
+                      <td key={e} className="h-12 w-[46px] border-t border-border text-center align-middle">
                         {c.left && c.out !== null && e > c.out ? <span className="text-muted-foreground/60">·</span> : <span className={`type-num text-[15px] ${pts[i] > 0 ? "text-foreground" : "text-muted-foreground"}`}>{signed(pts[i])}</span>}
                       </td>
                     ))}
-                    <td className={`sticky right-0 z-[1] border-t border-border pl-2 text-right ${yours ? "" : "bg-card"}`}>
+                    <td className={`sticky right-0 z-[1] border-t border-border pl-3 text-right ${yours ? "" : "bg-(--tg)"}`}>
+                      {gutter("right", yours, joined)}
                       <b className="type-num text-[17px]">{fmt(total(c.id))}</b>
                     </td>
                   </tr>

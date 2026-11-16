@@ -704,7 +704,7 @@ never handles it: the user does the reset and the pasting.
   Each episode's answer is a new `episode_research` row (source `catchup`, ~20-50 KB). Nothing polls; the desk reads its line on
   load.
 
-- **2026-11-16, on branch `explorer-sports` (not pushed; migration 0438).** The design round's step 7, the hub and the TV guide.
+- **2026-11-16, pushed to master 1dd10b96 the same day (migration 0438 applied in production).** The design round's step 7, the hub and the TV guide.
   **New table `sports_recordings`** (migration 0438): a row per sports game someone chose to watch as if live (user, game id,
   league, when; ~100 bytes), deleted when they say they've watched it; its scores stay hidden for them on every device. A few
   rows a person at most, so nothing prunes it; it goes with the account (`ON DELETE CASCADE`). **Reads:** `/api/sports/recordings`

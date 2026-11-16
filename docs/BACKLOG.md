@@ -1202,6 +1202,51 @@ Last updated 2026-10-27.
    keys, or the check's 1.5 s wait is short. **The same check passed it on a rerun the same day** (147 of 147), so most likely the
    wait: flaky, not broken. Not investigated further. Who takes it: a Backstage step (the settings track, design round
    step 12) or a small fix session.
+92. **Backstage says "All clear" above "Results · Episode 8 · 5 waiting for you"** (noticed 2026-11-16 in the live look after the
+   design round's push, on the real couch's Survivor 51; not touched by that push). Needs you reads "You're all caught up · Next:
+   Episode 9 airs Wed", while the Results row counts five waiting. Either they count different things (the desk's queue against the
+   game's own unaccepted answers) and the words should say so, or one is wrong. Who takes it: the settings track (design round
+   step 12), or a small fix session.
+92. **A new game type: Guess who hooks up** (the user, 2026-11-16: an idea to explore eventually, not planned). Each player
+   makes X picks, each pick a pair of cast members they think will hook up; one person can be in more than one pair. Settling it
+   is the existing custom-moment path: the maker adds "hooked up" as the season's own moment, the feasibility ask rates whether
+   research can answer it from recaps, and research then asks it every episode (the user: the engine should take user-defined
+   questions into its research patterns; ENGINE-CAPABILITIES w048's "the new-moment path"). What's missing is the answer: a pair
+   of people (item 94). Also open: when picks lock (before the season, or each episode), the points (each pair right; more for a
+   pair nobody else picked?), and the shows it fits (Love Island, Too Hot to Handle, Below Deck, The Challenge). Keep the words
+   tasteful: what the show itself shows.
+93. **A public library of games people made** (the user, 2026-11-16: an idea to explore eventually, not planned). Games people
+   make can be saved to a public collection. Making a game, you can browse it, upvote or downvote a game, and start from one and
+   change it; the change makes your own copy, never altering the saved game. At a game's end its players could be asked whether
+   they liked the game type, and the maker offered "Publish your game? 3 players said they liked it." Open: what's published (the
+   game's rules only, never its couch, people, picks or results; a show-specific game versus one that works on any show of its
+   kind), the maker's name or not, moderation (names and words someone typed, reports), ranking (votes, plays, likes at the end),
+   and how it meets Made-for games (G5's season library from the desk's Setup) and Randomize.
+   Belongs with the wizard's redesign (design round step 12): browsing the library is a third door beside typing a game and
+   Randomize.
+94. **Two answer kinds the engine doesn't have: a pair of people, and pick as many as you think** (the user, 2026-11-16: "that's
+   big"). Today a question's answer is one person, a fixed few, yes or no, a number, a choice, a ranking, chips or a wager
+   (ENGINE-CAPABILITIES "How you answer"). Missing:
+   - **A pair** (or a group): an answer about two people together, each settled by a moment that names both (a hookup, a
+     showmance, an alliance, who voted for whom, a duo in a challenge). Item 92 needs it; so does any "who with whom" question.
+     Research would record the moment with both names (today a moment is about one person, or a group the format forms).
+   - **Pick as many as you think**, each person settled on their own: "pick everyone you think will have an on-camera
+     confessional this episode", "everyone who cries", "everyone who gets a rose". Open: the scoring, since picking everyone
+     must not win (right ones score, wrong ones cost; or scored against the count; or a cap), and a "nobody" answer.
+   Both reach every place an answer goes: the spec's check and words (describe.js), the question sheet and its pickers, the
+   bots, the explorer's runtime and oracle, and the GPT's drafts. Add them to the capability tracker
+   (tests/fixtures/engine-capabilities.json) when planned.
+95. **Two things noticed polishing The numbers' game lens, left alone** (2026-11-16, the GameTable change: first names, holders
+   as faces, the pinned columns on the ground; story frames in .ui-atlas/stories/numbers-holders/, `scripts/dev-test/story-numbers.js`):
+   - **The show lens names by `c.first` with no clash rule.** NumbersTable (src/new/show/cast.tsx), the other lens of the same
+     section, would show two Kristins as "Kristin" twice; the game lens now reads "Kristin C." and "Kristin F." (castName). The
+     show's own stats carry no game, so it needs the clash count over `d.cast`.
+   - **Your sheet's season table (PersonSeason, game-week.tsx) still lets weeks scroll past its pinned PTS into the gutter** on a
+     season longer than the sheet's width (the bug GameTable had: its pinned cells stick inside the scroller's padding and nothing
+     covers the 16px beside them). Its opening scroll and even widths are fixed (the shared useOpenOnLatest); the gutter cover
+     (GameTable's `gutter` spans) isn't applied there. Also not rendered: a sport's game table (a position beside the faces caps
+     them at three slots), only reasoned.
+   Who takes them: a small polish session, or the stat table's next round.
 
 93. **AI access and money: free, the DIY link, paid, and ads (TABLED, the user, 2026-11-16)** (number 93: explorer-sports' 92
     may land first). The structure, what we pay and could earn at today's size, 300 and 1,000 people, the "ask only the
