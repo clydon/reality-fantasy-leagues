@@ -1,5 +1,5 @@
 import { tiebreakNext, tiebreakOn, tiebreakQuestions, usualSchedule, type BotScheduleRun } from "@db/bot-research.js";
-import { holdsWaiting } from "./catch-up";
+import { catchUpHeld, holdsWaiting } from "./catch-up";
 import { BINGO_BANK_LACK, KINDS, when, type RunKind } from "@/lib/desk-bot-words";
 import { phaseCues } from "@db/rulebooks.js";
 import { pool } from "./db";
@@ -268,6 +268,11 @@ export async function inbox(now = new Date()): Promise<Inbox> {
   const { rows: stopped } = await pool.query(
     `SELECT c.season_id, c.step, c.message, ${seasonName} AS season FROM season_catchups c JOIN show_seasons ss ON ss.id = c.season_id JOIN shows s ON s.id = ss.show_id WHERE c.stuck_at IS NOT NULL`
   );
+  // Held until a rehearsal's answers are loaded (scripts/catch-up-load.js load, or release): nothing catches up until then.
+  if (await catchUpHeld()) {
+    const { rows: q } = await pool.query("SELECT count(*)::int AS n FROM season_catchups WHERE done_at IS NULL AND stuck_at IS NULL");
+    if (q[0].n) items.push({ kind: "catchup", title: `The catch-up is held: ${q[0].n === 1 ? "a season waits" : `${q[0].n} seasons wait`}`, line: "Load the rehearsal's answers (scripts/catch-up-load.js), or release it to ask our bot", href: "/desk" });
+  }
   for (const c of stopped)
     items.push({ kind: "catchup", title: `${c.season}: the catch-up stopped`, line: `At ${c.step === "episodes" ? "its episodes" : c.step === "cast" ? "its cast" : "its rulebook"} · ${String(c.message ?? "it failed").slice(0, 100)}`, href: `/desk/season/${c.season_id}/setup` });
   for (const r of reports) items.push({ kind: "report", title: r.title, line: `From ${r.who.name} · ${r.about}`, href: `/desk/report/${r.id}`, at: r.at });

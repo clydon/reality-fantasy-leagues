@@ -9,6 +9,7 @@
 --                    stopped, stuck_at after its last try (Try again clears it), done_at once every aired episode is in.
 --   catchup_episodes one per aired episode once the season reaches its episodes: they're asked side by side (the user,
 --                    2026-11-16: "parallel bots"), each with its own tries, until it's sent, held or stopped.
+--   catchup_answers  every answer it got, as our bot gave it, and a rehearsal's loaded in place of asking (below).
 --   catchup_holds    an episode's answer that would change scores: what it says, which games and players move and by how much
 --                    (`moves`), until the desk sends it or leaves it out.
 CREATE TABLE season_catchups (
@@ -56,6 +57,24 @@ CREATE TABLE catchup_holds (
 );
 -- One waiting per episode: a newer try replaces the one before.
 CREATE UNIQUE INDEX catchup_holds_waiting ON catchup_holds (season_id, episode_number) WHERE decided_at IS NULL;
+
+-- Every answer the catch-up gets, as our bot gave it (the user, 2026-11-16: a rehearsal's answers are applied after, not asked
+-- again): step 'show' (the rulebook's Check for changes), 'cast', or 'episode' (episode_number; 0 for the others). 'asked' when
+-- the catch-up asked it here; 'loaded' when it came from a rehearsal (scripts/catch-up-answers.js load), used in place of an
+-- ask (used_at), its tries still run against this database. A loaded answer that doesn't read here is set aside and asked live.
+CREATE TABLE catchup_answers (
+  season_id UUID NOT NULL REFERENCES show_seasons(id) ON DELETE CASCADE,
+  step TEXT NOT NULL CHECK (step IN ('show', 'cast', 'episode')),
+  episode_number INTEGER NOT NULL DEFAULT 0,
+  answer TEXT NOT NULL,
+  source TEXT NOT NULL CHECK (source IN ('asked', 'loaded')),
+  used_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (season_id, step, episode_number)
+);
+
+-- Held until a rehearsal's answers are loaded (catch-up-answers.js load, or release): queued seasons don't ask our bot before then.
+INSERT INTO app_settings (key, value, updated_at) VALUES ('catchup_hold', 'true'::jsonb, now()) ON CONFLICT (key) DO NOTHING;
 
 -- Its answers are a source like the bot's scheduled runs, under a name of their own.
 ALTER TABLE episode_research DROP CONSTRAINT episode_research_source_check;

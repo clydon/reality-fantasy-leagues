@@ -141,6 +141,35 @@ const urlsFor = (o: BotChoice = {}) => {
   return [...URLS.slice(k), ...URLS.slice(0, k)];
 };
 
+/** One place a question can be answered right now: a bot and the AI there. */
+export interface BotLane {
+  bot: string;
+  provider: RunProvider;
+}
+
+/**
+ * Every lane the bots have free for side-by-side asks (the catch-up's: catch-up.ts), from each bot's /health: Codex's slots
+ * (llm-browser-api's CODEX_PARALLEL) unless its plan's limit is reached ("held"), then one for its ChatGPT browser. Codex's
+ * first: they're the quick ones. [] with no bot up.
+ */
+export async function botLanes(o: BotChoice = {}): Promise<BotLane[]> {
+  if (!configured(o)) return [];
+  const out: BotLane[] = [];
+  for (const url of urlsFor(o)) {
+    try {
+      const res = await fetch(`${url}/health`, { headers: UA, signal: AbortSignal.timeout(2500), cache: "no-store" });
+      if (!res.ok) continue;
+      const h = (await res.json()) as { parallel?: { codex?: { slots?: number; held?: string | null } } };
+      const codex = h.parallel?.codex;
+      if (codex && !codex.held) for (let i = 0; i < Math.max(1, codex.slots ?? 1); i++) out.push({ bot: url, provider: "codex" });
+      out.push({ bot: url, provider: "chatgpt" });
+    } catch {
+      /* not answering: no lanes there */
+    }
+  }
+  return [...out.filter((l) => l.provider === "codex"), ...out.filter((l) => l.provider !== "codex")];
+}
+
 /** How many questions the bots answer at once for this kind: each bot answering now gives one for a browser (ChatGPT, Claude)
  *  and CODEX_AT_ONCE for Codex (llm-browser-api's CODEX_PARALLEL, 3 by default). 0 with none up. */
 const CODEX_AT_ONCE = 3;

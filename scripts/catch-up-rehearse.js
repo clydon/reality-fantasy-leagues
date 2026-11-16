@@ -2,9 +2,12 @@
 // branch of production, through OUR BOT only, then prints what it would hold for the desk ("Would change scores"): the list the
 // user sees before the push. Run after scripts/rehearse-migrations.js has migrated the branch (0441 queues the seasons).
 //
-//   node scripts/catch-up-rehearse.js --endpoint=<the branch's ep-... id> [--parallel=N] [--list]
-//     (--list: only what's queued and what already waits, asking nothing; --only=<seasonId> and --steps=N: one season, N steps,
-//     to try the script itself)
+//   node scripts/catch-up-rehearse.js --endpoint=<the branch's ep-... id> [--export=<file>] [--list] [--only=<seasonId>]
+//     Every lane the bots have free, kept busy (catch-up.ts runPool: Codex's slots and each bot's ChatGPT, read again every
+//     minute), until every season is done or stopped. --export: every answer it got, as our bot gave it, written to <file> (a
+//     JSON list by show slug, season, step and episode) for production to load in place of asking (scripts/catch-up-load.js).
+//     Keep the file out of git (backups/ is ignored). --list: only what's queued and what already waits, asking nothing.
+//     --only: one season. The rehearsal ignores the hold (0441's catchup_hold, which only the clock respects).
 //     with REHEARSE_DATABASE_URL set to the branch's connection string (the clipboard window, .session-loop/rehearse-*.ps1:
 //     Claude never sees the string).
 //
@@ -47,23 +50,27 @@ const { pool } = jiti("../src/lib/server/db.ts");
 const stamp = () => new Date().toISOString().slice(11, 19);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// The clock's calls, one after another (production's are a couple of minutes apart): each runs as many items side by side as
-// the bots answer at once (--parallel=N to set it), until every season is done or stopped. --steps=N: at most N calls.
+// Every lane busy until every season is done or stopped; a line each time an item finishes.
 async function calls(names) {
-  for (let call = 0; call < Number(opt("steps") || 400); call++) {
-    const { rows: open } = await pool.query("SELECT season_id FROM season_catchups WHERE done_at IS NULL AND stuck_at IS NULL AND ($1::uuid IS NULL OR season_id = $1)", [opt("only")]);
-    if (!open.length) return;
-    const ran = await C.runDueCatchUp({ budgetMs: 280_000, ...(opt("parallel") ? { slots: Number(opt("parallel")) } : {}), ...(opt("only") ? { only: opt("only") } : {}) });
-    for (const id of ran) {
-      const { rows: eps } = await pool.query("SELECT episode_number, message FROM catchup_episodes WHERE season_id = $1 AND message IS NOT NULL ORDER BY updated_at DESC LIMIT 3", [id]);
-      console.log(`[${stamp()}] ${names.get(id) ?? id}: ${(await C.catchUpLine(id))?.line ?? "?"}${eps.length ? ` · ${eps.map((e) => e.message.slice(0, 90)).join(" | ")}` : ""}`);
-    }
-    if (!ran.length) {
-      // Nothing due: wait for the next (a failed try's wait, or the bot away), as the clock would.
-      const next = await C.catchUpsNextAt();
-      await sleep(Math.min(Math.max((next ? next.getTime() : Date.now()) - Date.now(), 10_000), 5 * 60_000));
-    }
-  }
+  await C.runPool({
+    ...(opt("only") ? { only: opt("only") } : {}),
+    onDone: async (id) => {
+      const { rows: eps } = await pool.query("SELECT episode_number, message FROM catchup_episodes WHERE season_id = $1 AND message IS NOT NULL ORDER BY updated_at DESC LIMIT 1", [id]);
+      console.log(`[${stamp()}] ${names.get(id) ?? id}: ${(await C.catchUpLine(id))?.line ?? "?"}${eps.length ? ` · ${eps[0].message.slice(0, 110)}` : ""}`);
+    },
+  });
+}
+
+// Every answer this copy's catch-up asked, by show slug and season (ids are the same on a branch of production, but a slug and a
+// number are what anyone can check).
+async function exportAnswers(file) {
+  const { rows } = await pool.query(
+    `SELECT s.slug, ss.season_number AS season, a.step, a.episode_number AS episode, a.answer FROM catchup_answers a
+       JOIN show_seasons ss ON ss.id = a.season_id JOIN shows s ON s.id = ss.show_id WHERE a.source = 'asked' ORDER BY s.slug, ss.season_number, a.step, a.episode_number`
+  );
+  fs.mkdirSync(path.dirname(path.resolve(file)), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({ at: new Date().toISOString(), from: want, answers: rows }, null, 1));
+  console.log(`[catch-up] exported ${rows.length} answer(s) to ${file}`);
 }
 
 // The migration's queue, run again (it does nothing for a season queued already): a copy migrated before a fix to it still
@@ -96,6 +103,7 @@ const QUEUE = (() => {
     }
     const { rows: stopped } = await pool.query("SELECT season_id, message FROM season_catchups WHERE stuck_at IS NOT NULL");
     for (const s of stopped) console.log(`  stopped: ${s.season_id} · ${s.message}`);
+    if (opt("export")) await exportAnswers(opt("export"));
     console.log("[catch-up] done");
   } catch (e) {
     console.error("[catch-up] failed:", e && e.message ? e.message : e);

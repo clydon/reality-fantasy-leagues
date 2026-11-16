@@ -14,7 +14,7 @@ import { isUuid, type SessionUser } from "./auth-helpers";
 import { restageSeason } from "./community-results";
 import { requireCouch } from "./couches";
 import { askBot } from "./ask-bot";
-import type { BotRunKind } from "@/lib/bot-runs";
+import type { BotRunKind, RunProvider } from "@/lib/bot-runs";
 import { pool, withLeagueLock, HttpError } from "./db";
 import { byNewest, deskLines, logDesk, type DeskLine } from "./desk";
 import { EVERYTHING, seenThrough } from "./guard";
@@ -648,17 +648,19 @@ export async function askRulebookNow(
   bot: string | undefined,
   budgetMs: number,
   through: number | null = null,
-  runKind: BotRunKind = "rulebook"
-): Promise<{ ok: boolean; message: string }> {
+  runKind: BotRunKind = "rulebook",
+  o: { provider?: RunProvider; answer?: string } = {}
+): Promise<{ ok: boolean; message: string; answer?: string }> {
   try {
     const r = await row(id);
     const q = await rulebookPrompt(id, kind, through);
-    // runKind: whose AI asks it (the catch-up's own kind for its Check for changes: catch-up.ts).
-    const { answer } = await askBot(q.prompt, { bot, budgetMs, kind: runKind });
+    // runKind: whose AI asks it (the catch-up's own kind for its Check for changes: catch-up.ts); o.provider: that AI, o.answer:
+    // an answer we have already (a rehearsal's, loaded: the catch-up), staged with no ask.
+    const answer = o.answer ?? (await askBot(q.prompt, { bot, budgetMs, kind: runKind, ...(o.provider ? { provider: o.provider } : {}) })).answer;
     const bad = readable(kind, answer);
     if (bad) throw new Error(bad);
     const { card: c } = await stageAnswer(r, kind, "bot", answer, askedBy, q.through);
-    return { ok: true, message: `${RESEARCH_NAME[kind]}: ${c.title}` };
+    return { ok: true, message: `${RESEARCH_NAME[kind]}: ${c.title}`, answer };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     await logDesk(pool, { entity: "rulebook", entityId: id, action: "research", text: `${RESEARCH_NAME[kind]}, asked our bot: it failed (${message.slice(0, 200)})`, userId: null }).catch(() => undefined);

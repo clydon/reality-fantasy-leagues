@@ -1,7 +1,7 @@
 import { compileChain, getRulebook, inForceEdits, saveChain } from "@db/rulebooks.js";
 import { buildPasteImportPrompt, researchFromPaste } from "@db/episode-research.js";
 import { parseRulebookAnswer } from "@/lib/game/formats/rulebook-research.js";
-import { askBot, askBotSlots, tellBotClock } from "./ask-bot";
+import { askBot, botLanes, tellBotClock, type BotLane } from "./ask-bot";
 import type { SessionUser } from "./auth-helpers";
 import { factsOfRun } from "./bot-results";
 import { sendResults, tryResults, type SubmitInput, type Tried, type TriedGame } from "./community-results";
@@ -9,6 +9,7 @@ import { pool, HttpError } from "./db";
 import { SEASON_NAME, logDesk } from "./desk";
 import { askCastNow, fillCastDetails } from "./desk-cast-page";
 import { askRulebookNow } from "./desk-rulebooks";
+import type { RunProvider } from "@/lib/bot-runs";
 import { latestEnded, seasonSchedules } from "./schedule";
 
 // The catch-up (docs/PLAN-cast-properties.md chunk 6c; db/migrations/0441). A season played before cast properties, bios and
@@ -124,6 +125,38 @@ async function settleSeason(seasonId: string): Promise<void> {
 
 type Item = { kind: "season"; seasonId: string; at: number } | { kind: "episode"; seasonId: string; n: number; at: number };
 
+// ---------- a rehearsal's answers, kept and loaded (catchup_answers) ----------
+
+type AnswerStep = "show" | "cast" | "episode";
+
+/** A loaded answer (a rehearsal's) not used yet, for this season's step (and episode). */
+async function loadedAnswer(seasonId: string, step: AnswerStep, n = 0): Promise<string | null> {
+  const { rows } = await pool.query("SELECT answer FROM catchup_answers WHERE season_id = $1 AND step = $2 AND episode_number = $3 AND source = 'loaded' AND used_at IS NULL", [
+    seasonId,
+    step,
+    n,
+  ]);
+  return rows[0]?.answer ?? null;
+}
+
+const usedAnswer = (seasonId: string, step: AnswerStep, n = 0) =>
+  pool.query("UPDATE catchup_answers SET used_at = now() WHERE season_id = $1 AND step = $2 AND episode_number = $3 AND source = 'loaded'", [seasonId, step, n]);
+
+/** Every answer asked here, kept as our bot gave it (catch-up-rehearse.js --export writes them out for production to load). */
+async function keepAnswer(seasonId: string, step: AnswerStep, n: number, answer: string): Promise<void> {
+  await pool.query(
+    `INSERT INTO catchup_answers (season_id, step, episode_number, answer, source) VALUES ($1, $2, $3, $4, 'asked')
+     ON CONFLICT (season_id, step, episode_number) DO UPDATE SET answer = EXCLUDED.answer, source = 'asked', used_at = NULL, created_at = now()`,
+    [seasonId, step, n, answer]
+  );
+}
+
+/** Held until a rehearsal's answers are loaded (0441's app_settings 'catchup_hold'; catch-up-load.js releases it). */
+export async function catchUpHeld(): Promise<boolean> {
+  const { rows } = await pool.query("SELECT value FROM app_settings WHERE key = 'catchup_hold'");
+  return rows[0]?.value === true;
+}
+
 /** Everything due now, the show and cast steps first (they open a season's episodes), then episodes oldest first. */
 async function dueItems(only?: string): Promise<Item[]> {
   const now = Date.now();
@@ -146,8 +179,9 @@ async function dueItems(only?: string): Promise<Item[]> {
   return [...seasons, ...episodes];
 }
 
-/** When the earliest open item comes due (the clock's `next`). */
+/** When the earliest open item comes due (the clock's `next`; none while it's held). */
 export async function catchUpsNextAt(): Promise<Date | null> {
+  if (await catchUpHeld()) return null;
   const now = Date.now();
   const { rows } = await pool.query<Row>("SELECT * FROM season_catchups WHERE done_at IS NULL AND stuck_at IS NULL");
   const { rows: eps } = await pool.query<EpisodeRow>(
@@ -161,10 +195,13 @@ export async function catchUpsNextAt(): Promise<Date | null> {
  * The clock's turn: as many due items as the bots answer at once (`slots`, else askBotSlots for the catch-up's kind), side by
  * side, each ask starting at a different bot. `only`: one season (the desk's step now). The seasons it ran.
  */
-export async function runDueCatchUp(o: { bot?: string; budgetMs?: number; slots?: number; only?: string }): Promise<string[]> {
+export async function runDueCatchUp(o: { bot?: string; budgetMs?: number; slots?: number; only?: string; ignoreHold?: boolean }): Promise<string[]> {
+  if (!o.ignoreHold && (await catchUpHeld())) return [];
   const items = await dueItems(o.only);
   if (!items.length) return [];
-  const slots = o.slots ?? (await askBotSlots({ bot: o.bot, kind: "catchup" }));
+  // Every lane the bots have free (Codex's slots, each ChatGPT), or `slots` asks on the catch-up's own kind.
+  const lanes: (BotLane | undefined)[] = o.slots ? Array.from({ length: o.slots }, () => undefined) : await botLanes({ bot: o.bot });
+  const slots = lanes.length;
   if (slots < 1) {
     const waiting = items.filter((i) => i.kind === "season").map((i) => i.seasonId);
     if (waiting.length) await pool.query("UPDATE season_catchups SET message = $2, tried_at = now(), updated_at = now() WHERE season_id = ANY($1::uuid[])", [waiting, AWAY]);
@@ -173,7 +210,7 @@ export async function runDueCatchUp(o: { bot?: string; budgetMs?: number; slots?
   const t0 = Date.now();
   const left = () => (o.budgetMs ?? BUDGET_MS) - (Date.now() - t0);
   const run = items.slice(0, slots);
-  await Promise.allSettled(run.map((it, i) => (it.kind === "season" ? runSeasonStep(it.seasonId, o.bot, left) : runEpisode(it.seasonId, it.n, o.bot, left, i))));
+  await Promise.allSettled(run.map((it, i) => (it.kind === "season" ? runSeasonStep(it.seasonId, o.bot, left, lanes[i]) : runEpisode(it.seasonId, it.n, o.bot, left, i, lanes[i]))));
   const seasons = [...new Set(run.map((i) => i.seasonId))];
   for (const s of seasons) await settleSeason(s).catch(() => undefined);
   const due = await catchUpsNextAt().catch(() => null);
@@ -181,8 +218,57 @@ export async function runDueCatchUp(o: { bot?: string; budgetMs?: number; slots?
   return seasons;
 }
 
+/**
+ * Every lane kept busy until every season is done or stopped (a one-off's speed, the user: "as many parallel as we can handle"):
+ * a worker a lane, each taking the next due item the moment it's free; the lanes are read again every minute, so Codex's join as
+ * its limit resets and a lane that's gone stops taking. For the rehearsal and a run by hand, not the clock (its calls are 300 s).
+ */
+export async function runPool(o: { bot?: string; only?: string; onDone?: (seasonId: string) => Promise<void> }): Promise<void> {
+  const taken = new Set<string>();
+  const keyOf = (it: Item) => (it.kind === "season" ? `s:${it.seasonId}` : `e:${it.seasonId}:${it.n}`);
+  const open = async () =>
+    (await pool.query("SELECT count(*)::int AS n FROM season_catchups WHERE done_at IS NULL AND stuck_at IS NULL AND ($1::uuid IS NULL OR season_id = $1)", [o.only ?? null])).rows[0].n as number;
+  let lanes = await botLanes({ bot: o.bot });
+  const laneKey = (l: BotLane, i: number) => `${l.bot}|${l.provider}|${i}`;
+  const running = new Set<string>();
+  const worker = async (key: string, lane: BotLane) => {
+    running.add(key);
+    try {
+      for (;;) {
+        if (!(await open())) return;
+        if (!lanes.some((l, i) => laneKey(l, i) === key)) return;
+        const it = (await dueItems(o.only)).find((x) => !taken.has(keyOf(x)) && !(x.kind === "season" && taken.has(`s:${x.seasonId}`)));
+        if (!it) {
+          await new Promise((r) => setTimeout(r, 15_000));
+          continue;
+        }
+        taken.add(keyOf(it));
+        try {
+          const left = () => BUDGET_MS;
+          if (it.kind === "season") await runSeasonStep(it.seasonId, o.bot, left, lane);
+          else await runEpisode(it.seasonId, it.n, o.bot, left, 0, lane);
+          await settleSeason(it.seasonId).catch(() => undefined);
+          await o.onDone?.(it.seasonId);
+        } finally {
+          taken.delete(keyOf(it));
+        }
+      }
+    } finally {
+      running.delete(key);
+    }
+  };
+  const start = () => lanes.forEach((l, i) => !running.has(laneKey(l, i)) && void worker(laneKey(l, i), l));
+  start();
+  while (await open()) {
+    await new Promise((r) => setTimeout(r, 60_000));
+    lanes = await botLanes({ bot: o.bot });
+    start();
+  }
+  while (running.size) await new Promise((r) => setTimeout(r, 2_000));
+}
+
 /** A season's show or cast step. Never throws. */
-async function runSeasonStep(seasonId: string, bot: string | undefined, left: () => number): Promise<void> {
+async function runSeasonStep(seasonId: string, bot: string | undefined, left: () => number, lane?: BotLane): Promise<void> {
   const { rows } = await pool.query<Row>(
     `UPDATE season_catchups SET asking_at = now(), updated_at = now()
       WHERE season_id = $1 AND done_at IS NULL AND stuck_at IS NULL AND step <> 'episodes'
@@ -196,10 +282,10 @@ async function runSeasonStep(seasonId: string, bot: string | undefined, left: ()
     if (left() < STEP_NEEDS_MS) return;
     const s = await seasonOf(seasonId);
     if (row.step === "show") {
-      await showStep(s, bot, left() - 5_000);
+      await showStep(s, lane?.bot ?? bot, left() - 5_000, lane?.provider);
       await set("step = 'cast', tries = 0, message = NULL");
     } else {
-      await castStep(s, bot, left() - 5_000);
+      await castStep(s, lane?.bot ?? bot, left() - 5_000, lane?.provider);
       await set("step = 'episodes', tries = 0, message = NULL");
       await settleSeason(seasonId);
     }
@@ -213,7 +299,7 @@ async function runSeasonStep(seasonId: string, bot: string | undefined, left: ()
 }
 
 /** One episode: asked (the slow part, side by side), then tried and sent or held under the season's lock. Never throws. */
-async function runEpisode(seasonId: string, n: number, bot: string | undefined, left: () => number, spread: number): Promise<void> {
+async function runEpisode(seasonId: string, n: number, bot: string | undefined, left: () => number, spread: number, lane?: BotLane): Promise<void> {
   const { rows } = await pool.query(
     `UPDATE catchup_episodes SET asking_at = now(), updated_at = now()
       WHERE season_id = $1 AND episode_number = $2 AND status = 'waiting' AND (asking_at IS NULL OR asking_at < now() - make_interval(secs => $3))
@@ -226,7 +312,7 @@ async function runEpisode(seasonId: string, n: number, bot: string | undefined, 
   try {
     if (left() < STEP_NEEDS_MS) return;
     const s = await seasonOf(seasonId);
-    const { status, line } = await episodeStep(s, n, bot, left() - 5_000, spread);
+    const { status, line } = await episodeStep(s, n, bot, left() - 5_000, spread, lane);
     await set("status = $3, tries = 0, message = $4", [status, line]);
   } catch (e) {
     const message = (e instanceof Error ? e.message : String(e)).slice(0, 300);
@@ -257,7 +343,7 @@ async function rulebookOf(seasonId: string): Promise<string | null> {
   return rows[0]?.id ?? null;
 }
 
-async function showStep(s: Season, bot: string | undefined, budgetMs: number): Promise<void> {
+async function showStep(s: Season, bot: string | undefined, budgetMs: number, provider?: RunProvider): Promise<void> {
   const id = await rulebookOf(s.id);
   if (!id) return;
   const row = await getRulebook(pool, id);
@@ -266,7 +352,14 @@ async function showStep(s: Season, bot: string | undefined, budgetMs: number): P
   // Check for changes: the rulebook as our bot reads the show now, left on the rulebook's page as its card for the desk. Asked as
   // the catch-up's own kind (Codex by default). Optional: if it can't be asked, the desk can ask it later, and the season goes
   // on to its episodes anyway (a flaky bot never holds up what matters; the research questions need no AI, below).
-  const asked = await askRulebookNow(id, "check", null, bot, budgetMs, null, "catchup");
+  const given = await loadedAnswer(s.id, "show");
+  let asked = await askRulebookNow(id, "check", null, bot, budgetMs, null, "catchup", { provider, ...(given ? { answer: given } : {}) });
+  if (given) {
+    await usedAnswer(s.id, "show");
+    // A rehearsal's answer that doesn't read here is set aside: asked live.
+    if (!asked.ok) asked = await askRulebookNow(id, "check", null, bot, budgetMs, null, "catchup", { provider });
+  }
+  if (asked.ok && asked.answer && asked.answer !== given) await keepAnswer(s.id, "show", 0, asked.answer);
   if (!asked.ok) {
     await recompile(id);
     await logDesk(pool, { entity: "rulebook", entityId: id, action: "catchup", text: `Catch-up: research questions brought up to date; Check for changes didn't answer (${asked.message.slice(0, 120)}): ask it from this page`, userId: null });
@@ -304,11 +397,17 @@ async function recompile(id: string): Promise<void> {
   await saveChain(pool, id, { userId: null });
 }
 
-async function castStep(s: Season, bot: string | undefined, budgetMs: number): Promise<void> {
+async function castStep(s: Season, bot: string | undefined, budgetMs: number, provider?: RunProvider): Promise<void> {
   const { rows } = await pool.query("SELECT count(*)::int AS n FROM season_cast WHERE season_id = $1", [s.id]);
   if (!rows[0].n) return;
   // Optional too: people's details can be asked from the desk's cast page later; the episodes don't need them.
-  const asked = await askCastNow(s.id, null, bot, budgetMs, "catchup");
+  const given = await loadedAnswer(s.id, "cast");
+  let asked = await askCastNow(s.id, null, bot, budgetMs, "catchup", { provider, ...(given ? { answer: given } : {}) });
+  if (given) {
+    await usedAnswer(s.id, "cast");
+    if (!asked.ok) asked = await askCastNow(s.id, null, bot, budgetMs, "catchup", { provider });
+  }
+  if (asked.ok && asked.answer && asked.answer !== given) await keepAnswer(s.id, "cast", 0, asked.answer);
   if (!asked.ok) {
     await logDesk(pool, { entity: "season", entityId: s.id, action: "cast", text: `Catch-up: our bot's cast didn't answer (${asked.message.slice(0, 120)}): ask it from Who's in it`, userId: null });
     return;
@@ -317,17 +416,36 @@ async function castStep(s: Season, bot: string | undefined, budgetMs: number): P
 }
 
 /** One episode: researched, tried, then sent or held. The line the desk shows for it. */
-async function episodeStep(s: Season, n: number, bot: string | undefined, budgetMs: number, spread: number): Promise<{ status: "sent" | "held"; line: string }> {
-  const { prompt } = await buildPasteImportPrompt(pool, s.slug, s.season_number, n, { structured: true });
-  if (!prompt) return { status: "sent", line: `Episode ${n}: nothing to ask` };
-  // The catch-up's own kind (Codex by default: several at once), starting at a different bot for each ask going at once. Codex
-  // needs the ChatGPT Plus plan: if it can't answer (the plan lapsed, its limit reached), the free ChatGPT bot asks instead.
-  const until = Date.now() + budgetMs;
-  const answer = await askBot(prompt, { bot, budgetMs, kind: "catchup", spread })
-    .catch(() => askBot(prompt, { bot, budgetMs: until - Date.now(), provider: "chatgpt", spread }))
-    .then((a) => a.answer);
+async function episodeStep(
+  s: Season,
+  n: number,
+  bot: string | undefined,
+  budgetMs: number,
+  spread: number,
+  lane?: BotLane
+): Promise<{ status: "sent" | "held"; line: string }> {
   // Dry: read and checked, nothing stored or staged; the original answer stays as it was.
-  const run = await researchFromPaste(pool, s.slug, s.season_number, n, answer, { structured: true, dry: true, via: "bot", checkEpisode: true });
+  const read = (answer: string) => researchFromPaste(pool, s.slug, s.season_number, n, answer, { structured: true, dry: true, via: "bot", checkEpisode: true });
+  let run: unknown = null;
+  // A rehearsal's answer, loaded: read here with this database's cast and rules, and tried against its games like any other.
+  const given = await loadedAnswer(s.id, "episode", n);
+  if (given) {
+    run = await read(given).catch(() => null);
+    await usedAnswer(s.id, "episode", n);
+  }
+  if (!run) {
+    const { prompt } = await buildPasteImportPrompt(pool, s.slug, s.season_number, n, { structured: true });
+    if (!prompt) return { status: "sent", line: `Episode ${n}: nothing to ask` };
+    // Its lane (a bot and its AI), else the catch-up's own kind (Codex by default) starting at a different bot each. Codex needs
+    // the ChatGPT Plus plan: if it can't answer (the plan lapsed, its limit reached), that bot's free ChatGPT asks instead.
+    const until = Date.now() + budgetMs;
+    const first = lane ? { bot: lane.bot, provider: lane.provider } : { bot, kind: "catchup" as const, spread };
+    const answer = await askBot(prompt, { ...first, budgetMs })
+      .catch(() => askBot(prompt, { bot: lane?.bot ?? bot, budgetMs: until - Date.now(), provider: "chatgpt", spread }))
+      .then((a) => a.answer);
+    await keepAnswer(s.id, "episode", n, answer);
+    run = await read(answer);
+  }
   const input = await inputOf(s.id, n, run);
   return underSeasonLock(s.id, async () => {
     const tried = await tryResults(input);

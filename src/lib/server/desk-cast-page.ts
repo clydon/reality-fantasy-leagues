@@ -11,7 +11,7 @@ import { ensureSeasonRulebook } from "@db/rulebooks.js";
 import { seasonFormat } from "@db/season-rule-changes.js";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { askBot } from "./ask-bot";
-import type { BotRunKind } from "@/lib/bot-runs";
+import type { BotRunKind, RunProvider } from "@/lib/bot-runs";
 import { pool, tx, HttpError } from "./db";
 import { gamesOn, groupColors, isSecretRole, secretRolesOf, termsOf } from "./desk-cast";
 import { SEASON_NAME, logDesk, type DeskLine } from "./desk";
@@ -431,14 +431,22 @@ async function stage(s: SeasonRow, source: "bot" | "paste", answer: string, peop
 }
 
 /** Our bot's turn in the Run now queue (desk-research.ts drainDeskRuns): asks, reads and stages its answer. Never throws. */
-export async function askCastNow(id: string, askedBy: string | null, bot: string | undefined, budgetMs: number, runKind?: BotRunKind): Promise<{ ok: boolean; message: string }> {
+export async function askCastNow(
+  id: string,
+  askedBy: string | null,
+  bot: string | undefined,
+  budgetMs: number,
+  runKind?: BotRunKind,
+  o: { provider?: RunProvider; answer?: string } = {}
+): Promise<{ ok: boolean; message: string; answer?: string }> {
   try {
     const s = await seasonRow(id);
     const { prompt } = await castQuestion(id);
-    // runKind: whose AI asks it (the catch-up's own: catch-up.ts); left out, the desk's AI.
-    const { answer } = await askBot(prompt, { bot, budgetMs, ...(runKind ? { kind: runKind } : {}) });
+    // runKind: whose AI asks it (the catch-up's own: catch-up.ts), o.provider that AI; left out, the desk's AI. o.answer: an answer
+    // we have already (a rehearsal's, loaded), staged with no ask.
+    const answer = o.answer ?? (await askBot(prompt, { bot, budgetMs, ...(runKind ? { kind: runKind } : {}), ...(o.provider ? { provider: o.provider } : {}) })).answer;
     const people = await readAnswer(s, answer);
-    return { ok: true, message: await stage(s, "bot", answer, people, askedBy) };
+    return { ok: true, message: await stage(s, "bot", answer, people, askedBy), answer };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     await logDesk(pool, { entity: "season", entityId: id, action: "cast", text: `Asked our bot for the cast: it failed (${message.slice(0, 200)})`, userId: null }).catch(() => undefined);
