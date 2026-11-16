@@ -325,6 +325,11 @@ Each ends with focused tests; the long checks once per milestone ([long-checks-o
    "Would change scores" (Send it / Leave it out), the Inbox's `catchup` items (a held episode; a catch-up that stopped),
    `/api/desk/seasons/[id]/catchup` (GET; POST start, step, hold + decision). The Holdings check reads the newest answer with a
    snapshot, the catch-up's included. Driven locally with `scripts/dev-test/catch-up.js` (status, step, start, decide, rewind).
+   **Rehearsed 2026-11-16** on the Neon branch `rehearse-castprops-1116` (`pre-castprops-1116` kept 7 days to roll back to) with
+   `scripts/catch-up-rehearse.js` (the catch-up run to the end outside Next, our bot only, printing what it would hold), from a
+   window the user starts after copying the branch's string. It caught production's The Traitors slug (`the-traitors`, not this
+   copy's `the-traitors-us`): fixed in 0441, and the script runs the migration's queue again so a copy migrated before a fix
+   catches up too. The guard reads how a game scores from its pieces (answers, lines, squares), never its type's name.
 7. **The wizard and the GPT.** SpecContext carries the season's properties so Start a game offers only rules the season can hold
    ("Draft one from each department"), Randomize can roll them, and the spec's check refuses a property the season lacks.
 
