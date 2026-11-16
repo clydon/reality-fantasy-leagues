@@ -107,6 +107,37 @@ const Answer = z.enum(["yes", "no", "unknown"]);
 // (formats/episode-facts.js reads them; our check takes one only where research says it reliably on the show).
 // `word`: the season's word for its groups when the timeline says it (F3 part 2, the context's groupWord: tribe or team);
 // the format's own without it.
+// Holdings (docs/PLAN-cast-properties.md chunk 6b): for a format with advantage twists (its compiled research.holdings), what
+// changed hands this episode and who holds what at its end, as data; the changes are staged as kind 'holding', the snapshot kept in
+// the stored answer as the desk's check (src/lib/game/holdings.ts).
+const HOLDING_HOW = ["found", "won", "given", "bought", "played", "gave", "expired", "lost", "stolen"];
+// "<twist>:<how>:<name slug>", as src/lib/game/dated-fact-words.ts holdingType makes it (a test holds them the same).
+const holdingType = (twist, how, name) =>
+  `${twist}:${how}:${String(name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60)}`;
+function holdingsSection(format) {
+  const h = (format.research && format.research.holdings) || [];
+  if (!h.length) return null;
+  const things = h.map((x) => x.name).join(", ");
+  return z
+    .object({
+      changes: z
+        .array(
+          z.object({
+            who: z.string().describe("The castaway whose holding changed, exactly as named in the cast list."),
+            name: z.string().describe(`What it is, in the show's words (a Hidden Immunity Idol, a Block a Vote, a Shot in the Dark): one of ${things}.`),
+            how: z.string().describe(`One of: ${HOLDING_HOW.join(" | ")}. found, won, given (someone gave it to them), bought: they now have it. played, gave (they gave it to someone), expired, lost, stolen (someone took it): it's gone from them.`),
+            other: z.string().nullable().describe("The other person in it: who they gave it to, who gave it to them, who they played it on, who stole it. Null for nobody."),
+          })
+        )
+        .describe(`Every change THIS episode in who holds ${things}: one row per person per thing. An empty list when nothing changed hands.`),
+      atEnd: z
+        .array(z.object({ holder: z.string(), name: z.string() }))
+        .describe(`Everyone who holds ${things} at the END of this episode, as far as the episode and earlier ones have shown viewers, one row per thing held. An empty list when nobody does. Only what has aired: never what the show hasn't revealed yet.`),
+    })
+    .nullable()
+    .describe(`WHAT PEOPLE HOLD: ${things}. Answer it once, for the whole cast. Null only if the sources say nothing about them.`);
+}
+
 function researchSchemaFor(format, withBets = false, word = null) {
   const group = (word || (format.terms && format.terms.tribe) || "tribe").toLowerCase();
   let entry = format.research.checklistSchema(z, Answer);
@@ -120,6 +151,7 @@ function researchSchemaFor(format, withBets = false, word = null) {
     ...(format.hasMerge ? { merged: Answer.describe(mergedText(group)) } : {}),
     rulesNote: z.string().nullable().describe(RULES_NOTE),
     ...(asksFormat(format) ? { formatState: FormatState, episodeFacts: EpisodeFactsSection } : {}),
+    ...(holdingsSection(format) ? { holdings: holdingsSection(format) } : {}),
     sourcesRead: SourcesRead,
     castaways: z
       .array(entry)
@@ -2215,6 +2247,17 @@ function candidatesFor(payload, format, episode) {
       if (!byKey.has(key)) byKey.set(key, item);
     }
   }
+  // Holdings (chunk 6b): each change this episode as kind 'holding': the holder, "<twist>:<how>:<name>", the other person.
+  const twists = (format.research && format.research.holdings) || [];
+  for (const c of (payload.holdings && Array.isArray(payload.holdings.changes) && payload.holdings.changes) || []) {
+    if (!twists.length || !c || typeof c.who !== "string" || !c.who.trim() || typeof c.name !== "string" || !c.name.trim()) continue;
+    const how = String(c.how || "").trim().toLowerCase();
+    if (!HOLDING_HOW.includes(how)) continue;
+    const t = twists.find((x) => String(c.name).toLowerCase().includes(String(x.name).toLowerCase().replace(/s$/, ""))) || twists[0];
+    const item = { castawayName: c.who.trim(), kind: "holding", eventType: holdingType(t.twist, how, c.name.trim()), method: typeof c.other === "string" ? c.other.trim() : "", confidence: "high", sources: [] };
+    const key = `${item.castawayName.toLowerCase()}|holding|${item.eventType}`;
+    if (!byKey.has(key)) byKey.set(key, item);
+  }
   // Staging order is placement order for a multi-exit episode (created_at is the tiebreak), and the
   // checklist runs in cast order -- so the winner goes last, as a finale's placements require.
   const winner = format.winnerExitMethod;
@@ -3110,6 +3153,9 @@ module.exports = {
   resolveResearchContext,
   resolveSeasonResearchContext,
   itemsFromChecklist,
+  candidatesFor,
+  holdingType,
+  researchSchemaFor,
   candidatesFor,
   stageResearchDecisions,
   researchItems,

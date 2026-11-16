@@ -660,6 +660,8 @@ const data = {
     groupVotes: [
       { attended: 'attendedTribal', say: "{name} was at {group}'s Tribal but was still on {was}: added a move to {group} (reject it in review if that's wrong)" },
     ],
+    // Holdings (docs/PLAN-cast-properties.md chunk 6b): who holds which idol or advantage, asked each episode (as its blocks compile).
+    holdings: [{ twist: 'advantages', name: 'Idols and advantages', oneIsCalled: 'an idol or advantage' }],
   },
   rules: { research: researchRules, implied: impliedRules },
 };

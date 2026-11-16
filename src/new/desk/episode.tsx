@@ -198,6 +198,19 @@ export function EpisodePage({ id, n }: { id: string; n: number }) {
             </>
           )}
 
+          {/* Holdings (chunk 6b): the episode's snapshot of who holds what against the record built from what changed hands. */}
+          {e.holdingsCheck.length > 0 && !hide && (
+            <>
+              <SubHead title="Holdings check" aside={e.holdingsCheck.length} />
+              <ul data-holdings-check className="flex flex-col gap-2 rounded-[4px] bg-card p-3.5 text-[14px] leading-snug">
+                {e.holdingsCheck.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+              <p className={NOTE}>Correct the change that&apos;s wrong (or add the one research missed) and the record follows.</p>
+            </>
+          )}
+
           <SubHead title="In every game" aside={plural(inGames.length, "result")} />
           {hide ? (
             <p className="rounded-[4px] bg-card p-3.5 text-[14px] text-muted-foreground">

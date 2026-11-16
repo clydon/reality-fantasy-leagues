@@ -645,6 +645,8 @@ const data = {
     episodeFields,
     searchHint: researchSearchHint,
     claims: researchClaims,
+    // Holdings (chunk 6b): who holds a shield, asked each episode (as its blocks compile).
+    holdings: [{ twist: 'shields', name: 'Shields', oneIsCalled: 'a shield' }],
   },
   rules: { research: researchRules, implied: impliedRules },
 };

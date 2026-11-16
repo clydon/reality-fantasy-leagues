@@ -498,6 +498,10 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
     });
     propChanges.push({ key: p.key, answer: qk(key), ...(Array.isArray(p.values) ? { values: [...p.values] } : {}) });
   }
+  // Holdings (chunk 6b): the advantage twists, so research asks who got and let go of one, and who holds what at the episode's end.
+  const holdings = list(b.twists)
+    .filter((t) => isObj(t) && t.type === 'advantage' && typeof t.id === 'string')
+    .map((t) => ({ twist: t.id, name: String(t.name || t.id), oneIsCalled: String(t.oneIsCalled || t.name || 'an advantage') }));
   // Somewhere for anything else that happened to someone, and for what the sources disagree on (the research prompt says
   // so when the checklist has it, db/episode-research.js buildPrompt), as every built-in has: unless the rulebook asks it
   // itself (a question asked besides, above). Not on a base (its own questions stay), nor a talk show's (about the night),
@@ -757,6 +761,7 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
       ...(checks && (legacy || checks.length) ? { checks } : {}),
       ...(groupVotes && groupVotes.length ? { groupVotes } : {}),
       ...(propChanges.length ? { propChanges } : {}),
+      ...(holdings.length ? { holdings } : {}),
     },
     rules: { research, implied },
   };

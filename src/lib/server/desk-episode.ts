@@ -1,4 +1,5 @@
 import { publicMediaSrc } from "@/lib/game/selectors";
+import { holdingFact, ledger, snapshotDisagreements } from "@/lib/game/holdings";
 import { seasonCastProperties } from "./cast-props";
 import { holdingLabel, propLabel } from "@/lib/game/dated-fact-words";
 import type { FactStatus } from "@/lib/game/fact-status";
@@ -38,6 +39,28 @@ import { gamesApart, matchSeasonGames, syncSeasonLeagues, type GameApart } from 
 // each of its facts' own desk lines.
 
 export type FactState = "wait" | "disputed" | "live" | "canon" | "gone";
+
+/**
+ * Holdings' check (chunk 6b, decided: a disagreement goes to the desk): the episode's end-of-episode snapshot (research's
+ * `holdings.atEnd`, in the combined answer) against the ledger from the season's holding facts through this episode (accepted and
+ * waiting both, so a wrong one is caught before it's accepted). [] when they agree, or with no snapshot.
+ */
+async function holdingsCheck(seasonId: string, n: number): Promise<string[]> {
+  const { rows: snap } = await pool.query(
+    `SELECT er.payload->'holdings'->'atEnd' AS at_end FROM episode_research er JOIN show_seasons ss ON ss.show_id = er.show_id AND ss.season_number = er.season_number
+      WHERE ss.id = $1 AND er.episode_number = $2 AND er.source = 'combined' AND er.withdrawn_at IS NULL LIMIT 1`,
+    [seasonId, n]
+  );
+  const atEnd = Array.isArray(snap[0]?.at_end) ? (snap[0].at_end as { holder?: unknown; name?: unknown }[]).filter((x) => typeof x?.holder === "string" && typeof x?.name === "string") : null;
+  if (!atEnd) return [];
+  const { rows } = await pool.query(
+    `SELECT episode_number, castaway_name, event_type, method, applied FROM season_decisions WHERE season_id = $1 AND kind = 'holding' AND episode_number <= $2 AND status <> 'rejected'
+        AND COALESCE(fact_status, '') <> 'removed'`,
+    [seasonId, n]
+  );
+  const { rows: cast } = await pool.query("SELECT name FROM season_cast WHERE season_id = $1", [seasonId]);
+  return snapshotDisagreements(ledger(rows.map((r) => holdingFact(r))), atEnd as { holder: string; name: string }[], n, cast.map((c) => c.name as string));
+}
 
 export interface EpisodeFact {
   id: string;
@@ -113,6 +136,8 @@ export interface DeskEpisode {
   confirmAt: number;
   games: number;
   facts: EpisodeFact[];
+  /** Holdings (chunk 6b): where the episode's snapshot and the record of who holds what disagree, a line each. */
+  holdingsCheck: string[];
   answers: EpisodeAnswer[];
   /** For Correct: the cast still in for the episode (photos), and the show's ways out and moments. */
   choices: { cast: { name: string; photo: string | null }[]; methods: string[]; events: { id: string; label: string }[]; groups: string[]; props: Record<string, string[] | null> };
@@ -479,6 +504,7 @@ export async function deskEpisode(user: SessionUser, id: string, nIn: unknown, n
     confirmAt: need,
     games: games[0].n,
     facts: view,
+    holdingsCheck: aired ? await holdingsCheck(id, n) : [],
     answers,
     choices: {
       cast: cast.filter((c) => !c.out).map((c) => ({ name: c.name, photo: publicMediaSrc(c.photo_url) })),

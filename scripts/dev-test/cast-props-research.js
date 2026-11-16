@@ -17,6 +17,11 @@
 //   node scripts/dev-test/cast-props-research.js look <seasonId> --out=<dir> [--tap=<first name>] [--seen=N]
 //        the season's Cast tab in a browser at 390 as zt_rs_desk (following it at --seen, 0 by default: its own zt follow row),
 //        the wall, then that person's sheet: real data for a screenshot story
+//   node scripts/dev-test/cast-props-research.js recompile <seasonId>
+//        the season's rulebook compiled again from its blocks and in-force edits (an edited one doesn't follow the compiler on its
+//        own: chunk 6b's holdings, chunk 6's property questions), its version bumped; prints whether research now asks holdings
+//   node scripts/dev-test/cast-props-research.js episodes <seasonId> --from=1 --to=8
+//        the desk's Run now (a full research run by our bot) for each episode in turn, waiting for each; prints what each staged
 //   node scripts/dev-test/cast-props-research.js rulebook <seasonId> the desk's Check for changes on the season's rulebook by our
 //        bot, waits for the answer and prints its cast block (nothing is applied: review it on the desk)
 //   node scripts/dev-test/cast-props-research.js down               removes zt_rs_desk only (shows it added stay: created_by
@@ -106,6 +111,36 @@ async function cast(as, pool, sid) {
     if (run && run.done_at && run.ok === false) throw new Error(`the bot's run failed: ${run.message || ""}`);
   }
   throw new Error("no answer in 10 minutes");
+}
+
+async function recompile(pool, sid) {
+  const R = require("../../db/rulebooks.js");
+  const { rows } = await pool.query("SELECT id FROM rulebooks WHERE season_id = $1 AND owner_kind = 'season' AND status <> 'archived'", [sid]);
+  if (!rows[0]) throw new Error("that season has no rulebook");
+  const row = await R.getRulebook(pool, rows[0].id);
+  const edits = await R.inForceEdits(pool, row.id);
+  const r = R.compileChain(row, row.blocks, edits, row.phaseStarts || {});
+  if (!r.data) throw new Error(`it doesn't compile: ${r.problems.join("; ")}`);
+  await pool.query("UPDATE rulebooks SET compiled = $2::jsonb, version = version + 1, updated_at = now() WHERE id = $1", [row.id, JSON.stringify(r.data)]);
+  console.log(`[${stamp()}] recompiled ${row.name} (v${row.version + 1}): holdings ${JSON.stringify(r.data.research.holdings || null)}, property questions ${JSON.stringify(r.data.research.propChanges || null)}`);
+}
+
+async function episodes(as, pool, sid) {
+  const from = Number(opt("from") || 1), to = Number(opt("to") || from);
+  for (let n = from; n <= to; n++) {
+    const asked = new Date();
+    const r = await as.call("POST", `/api/desk/seasons/${sid}/runs`, { kind: "full", episode: n });
+    if (r.status !== 200) { console.log(`Episode ${n}: not asked (${r.status} ${JSON.stringify(r.body).slice(0, 200)})`); continue; }
+    for (let i = 0; i < 120; i++) {
+      await sleep(5000);
+      const run = (await pool.query("SELECT done_at, ok, message FROM desk_runs WHERE season_id = $1 AND kind = 'full' AND episode_number = $2 AND asked_at >= $3 ORDER BY asked_at DESC LIMIT 1", [sid, n, asked])).rows[0];
+      if (run && run.done_at) {
+        const { rows: h } = await pool.query("SELECT castaway_name, event_type, method, status FROM season_decisions WHERE season_id = $1 AND episode_number = $2 AND kind = 'holding'", [sid, n]);
+        console.log(`[${stamp()}] Episode ${n}: ${run.ok ? "done" : "failed"} (${(run.message || "").slice(0, 160)}); holdings: ${h.map((x) => `${x.castaway_name} ${x.event_type}${x.method ? ` ${x.method}` : ""} (${x.status})`).join("; ") || "none"}`);
+        break;
+      }
+    }
+  }
 }
 
 async function review(sid) {
@@ -215,6 +250,8 @@ async function rulebook(as, pool, sid) {
     else if (cmd === "cast") await cast(as, pool, target);
     else if (cmd === "rulebook") await rulebook(as, pool, target);
     else if (cmd === "review") await review(target);
+    else if (cmd === "recompile") await recompile(pool, target);
+    else if (cmd === "episodes") await episodes(as, pool, target);
     else if (cmd === "look") await look(pool, target);
     else throw new Error("usage: cast-props-research.js up | add <tvmazeId> [--season=N] | cast <seasonId> | rulebook <seasonId> | down");
   } catch (e) {

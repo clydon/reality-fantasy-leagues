@@ -910,6 +910,23 @@
         "teamUsesWrongTransportation",
         "teamHasEmotionalBreakdown",
         "teamCooperatesStrategically"
+      ],
+      "holdings": [
+        {
+          "twist": "expressPass",
+          "name": "Express Pass",
+          "oneIsCalled": "an Express Pass"
+        },
+        {
+          "twist": "roadsideAssistance",
+          "name": "Roadside Assistance",
+          "oneIsCalled": "Roadside Assistance"
+        },
+        {
+          "twist": "driversSeatAdvantage",
+          "name": "Driver's Seat",
+          "oneIsCalled": "the Driver's Seat"
+        }
       ]
     },
     "rules": {

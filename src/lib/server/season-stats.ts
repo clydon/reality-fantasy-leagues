@@ -1,4 +1,6 @@
 import StateLogic from "@/lib/game/state-logic.js";
+import { holdsAt, holdsLine, holdingFact, ledger, type Holding, type HoldingFact } from "@/lib/game/holdings";
+import { holdingLabel, holdingType } from "@/lib/game/dated-fact-words";
 import { castStats, seasonFacts, type CastStats, type StatsBook } from "@/lib/game/cast-stats";
 import type { DecisionFact } from "@/lib/game/decision-apply";
 import { isBuiltInFormat } from "@/lib/game/formats/index.js";
@@ -82,6 +84,9 @@ export interface SeasonFactsFor {
   positions: Record<string, string>;
   /** Each person's cast properties and bio (season_cast.props, .bio), by lower-cased name: the season's own facts, as billed. */
   about: Record<string, { props: Record<string, string>; bio: import("@/lib/game/formats/cast-prompt").CastBio | null }>;
+  /** Holdings (chunk 6b): the ledger of who held what, from accepted holding facts up to your mark. */
+  holdings: Holding[];
+  holdingFacts: HoldingFact[];
 }
 
 /** A rulebook's blocks as they are at where you are: its in-force edits applied (a moment an edit added gets its stat
@@ -153,6 +158,8 @@ export async function seasonFactsFor(user: SessionUser, seasonId: string, couchI
     pointsFrom: game && moments(game) ? game.name : null,
     positions: Object.fromEntries(cast.filter((c) => c.role).map((c) => [String(c.name).toLowerCase(), c.role as string])),
     about: Object.fromEntries(cast.map((c) => [String(c.name).toLowerCase(), { props: propsOf(c.props), bio: bioOf(c.bio) }])),
+    holdingFacts: decisions.filter((d) => d.kind === "holding").map((d) => holdingFact(d as never)),
+    holdings: ledger(decisions.filter((d) => d.kind === "holding").map((d) => holdingFact(d as never))),
   };
 }
 
@@ -174,7 +181,19 @@ export async function seasonStats(user: SessionUser, seasonId: string, couchId: 
         changes.push([ch.episode, ch.key, ch.value, now[ch.key] ?? null]);
         now[ch.key] = ch.value;
       }
-      return { ...c, position: f.positions[c.name.toLowerCase()] ?? null, props: now, bio: about?.bio ?? null, ...(changes.length ? { changes } : {}) };
+      // Holdings (chunk 6b): what they hold at your mark, and each change for their story.
+      const at = Number.isFinite(f.mark) ? f.mark : Number.MAX_SAFE_INTEGER;
+      const holds = holdsAt(f.holdings, c.name, at).map(holdsLine);
+      const held: [number, string][] = f.holdingFacts.filter((h) => h.holder.toLowerCase() === c.name.toLowerCase()).map((h) => [h.episode, holdingLabel(holdingType(h.twist, h.how, h.name), h.other)]);
+      return {
+        ...c,
+        position: f.positions[c.name.toLowerCase()] ?? null,
+        props: now,
+        bio: about?.bio ?? null,
+        ...(changes.length ? { changes } : {}),
+        ...(holds.length ? { holds } : {}),
+        ...(held.length ? { held } : {}),
+      };
     }),
     seenThrough: Number.isFinite(f.seen) ? f.seen : null,
     pointsFrom: f.pointsFrom,

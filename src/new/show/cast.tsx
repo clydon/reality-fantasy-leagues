@@ -603,6 +603,16 @@ function PersonBody({ d, c, show, onFlag, onCompare, onGame }: { d: SeasonStats;
           {d.roles && <p className="text-[13px] text-muted-foreground" data-role>{c.role ? <><b className="text-foreground">{c.role}</b>, revealed when they left</> : "Their role stays secret until they leave"}</p>}
         </div>
       </div>
+      {/* What they hold now (chunk 6b): the thing itself, never good or bad: plain words. */}
+      {!!c.holds?.length && (
+        <div className="mt-3 flex flex-col gap-1" data-person-holds>
+          {c.holds.map((h) => (
+            <p key={h} className="text-[15px] leading-snug">
+              {h}
+            </p>
+          ))}
+        </div>
+      )}
       {c.bio?.line && (
         <p className="mt-3 line-clamp-3 text-[15px] leading-snug text-muted-foreground" data-person-line>
           {c.bio.line}
@@ -778,7 +788,8 @@ export function StoryBody({ d, c, names, onFlag, group = true, photo = true, poi
           const total = gone || !points ? null : c.perEp[e - 1];
           // A property's change that episode (chunk 6): "Bosun from here (was Deckhand)".
           const moved = (c.changes ?? []).filter(([ep]) => ep === e);
-          const quiet = !gone && !ev.length && !left && !moved.length;
+          const held = (c.held ?? []).filter(([ep]) => ep === e);
+          const quiet = !gone && !ev.length && !left && !moved.length && !held.length;
           if (!points && gone) return null;
           return (
             <section key={e} data-story-ep={e} className={`border-t border-border py-2 first:border-t-0 ${gone ? "opacity-55" : ""}`}>
@@ -812,6 +823,11 @@ export function StoryBody({ d, c, names, onFlag, group = true, photo = true, poi
                     {value} from here
                     {was && <span className="text-muted-foreground"> · was {was}</span>}
                   </span>
+                </div>
+              ))}
+              {held.map(([, line], i) => (
+                <div key={`h${i}`} data-story-held className="flex min-h-8 items-center text-[14px] leading-snug">
+                  {line}
                 </div>
               ))}
               {left && <div data-story-left className="flex min-h-8 items-center text-[14px] leading-snug text-live">{c.how ?? "Left the game"}</div>}
