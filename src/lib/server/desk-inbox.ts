@@ -1,4 +1,5 @@
 import { tiebreakNext, tiebreakOn, tiebreakQuestions, usualSchedule, type BotScheduleRun } from "@db/bot-research.js";
+import { holdsWaiting } from "./catch-up";
 import { BINGO_BANK_LACK, KINDS, when, type RunKind } from "@/lib/desk-bot-words";
 import { phaseCues } from "@db/rulebooks.js";
 import { pool } from "./db";
@@ -23,7 +24,7 @@ import { signupMode, WAITING } from "./way-in";
 // with no schedule, and Coming up with "research N h later"; what the desk leaves behind is in the plan's As built.
 
 export interface InboxItem {
-  kind: "split" | "stale" | "phase" | "change" | "stranded" | "schedule" | "usual" | "cast" | "people" | "report" | "suggestion" | "made" | "show";
+  kind: "split" | "stale" | "phase" | "change" | "stranded" | "schedule" | "usual" | "cast" | "people" | "report" | "suggestion" | "made" | "show" | "catchup";
   title: string;
   line: string;
   href: string;
@@ -261,6 +262,14 @@ export async function inbox(now = new Date()): Promise<Inbox> {
       add: { seasonId: l.id, kind: l.kind },
     });
   items.push(...casts, ...people);
+  // The catch-up (chunk 6c): an episode whose answer would change scores waits for you, and a catch-up that stopped.
+  for (const h of await holdsWaiting())
+    items.push({ kind: "catchup", title: `${h.season}: Episode ${h.episode} would change scores`, line: `The catch-up's answer · ${h.games.length === 1 ? "1 game" : `${h.games.length} games`} · Send it or leave it out`, href: `/desk/season/${h.seasonId}/e/${h.episode}` });
+  const { rows: stopped } = await pool.query(
+    `SELECT c.season_id, c.step, c.episode, c.message, ${seasonName} AS season FROM season_catchups c JOIN show_seasons ss ON ss.id = c.season_id JOIN shows s ON s.id = ss.show_id WHERE c.stuck_at IS NOT NULL`
+  );
+  for (const c of stopped)
+    items.push({ kind: "catchup", title: `${c.season}: the catch-up stopped`, line: `At ${c.step === "episodes" ? `Episode ${c.episode}` : c.step === "cast" ? "its cast" : "its rulebook"} · ${String(c.message ?? "it failed").slice(0, 100)}`, href: `/desk/season/${c.season_id}/setup` });
   for (const r of reports) items.push({ kind: "report", title: r.title, line: `From ${r.who.name} · ${r.about}`, href: `/desk/report/${r.id}`, at: r.at });
   const { rows: tips } = await pool.query(
     `SELECT g.id, g.note, g.rulebook_id, ${seasonName} AS season, COALESCE(u.username, u.name) AS who

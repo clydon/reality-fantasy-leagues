@@ -625,6 +625,43 @@ export async function sendCast(
   return { changeId, text: r.games > 1 ? `Sent · its ${plural(r.games, "game")} have the cast` : r.games ? "Sent · its game has the cast" : "Sent · no games on it yet" };
 }
 
+/**
+ * The catch-up's cast (catch-up.ts, docs/PLAN-cast-properties.md 6c): from the answer waiting, only what fills in what we lack,
+ * written as the review's default picks write it (people's details we have none of, bios where there's none), so nothing a game
+ * scores moves. The answer stays unsent: a new spelling, a starting group, a changed value or someone new still waits in the
+ * review. Nothing goes to the games (details are read per request). How many people it filled in.
+ */
+export async function fillCastDetails(id: string): Promise<number> {
+  const r = await reviewOf(id);
+  if (!r.pending) return 0;
+  const plan = castPlan(r.changes);
+  const rebio = plan.rebio.filter((x) => !x.from);
+  if (!plan.reprops.length && !rebio.length) return 0;
+  const people = new Set<string>();
+  await tx(async (c) => {
+    const log = (castId: string, field: string, b: string | null, a: string | null) =>
+      c.query("INSERT INTO season_cast_changes (season_id, season_cast_id, field, before, after, changed_by) VALUES ($1, $2, $3, $4, $5, NULL)", [id, castId, field, b, a]);
+    for (const x of plan.reprops) {
+      const { rowCount } = await c.query("UPDATE season_cast SET props = $3::jsonb WHERE id = $1 AND season_id = $2 AND props = $4::jsonb", [x.id, id, JSON.stringify(x.to), JSON.stringify(x.from)]);
+      if (rowCount) {
+        people.add(x.id);
+        await log(x.id, "props", JSON.stringify(x.from), JSON.stringify(x.to));
+      }
+    }
+    for (const x of rebio) {
+      const { rowCount } = await c.query("UPDATE season_cast SET bio = $3::jsonb WHERE id = $1 AND season_id = $2 AND bio IS NULL", [x.id, id, JSON.stringify(x.to)]);
+      if (rowCount) {
+        people.add(x.id);
+        await log(x.id, "bio", null, JSON.stringify(x.to));
+      }
+    }
+    const rest = r.changes.length > plan.reprops.length + rebio.length ? "; the rest of our bot's answer waits in Who's in it" : "";
+    const text = `The catch-up filled in ${people.size === 1 ? "1 person's details" : `${people.size} people's details`}${rest}`;
+    await logDesk(c, { entity: "season", entityId: id, action: "cast", text, userId: null });
+  });
+  return people.size;
+}
+
 /** Every game on the season gets its cast as it is now; results waiting on someone in it land. */
 async function toGames(id: string, removed: string[] = []): Promise<void> {
   const s = await seasonRow(id);

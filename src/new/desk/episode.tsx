@@ -211,6 +211,9 @@ export function EpisodePage({ id, n }: { id: string; n: number }) {
             </>
           )}
 
+          {/* The catch-up (chunk 6c): its answer for this episode would change scores, so it waits for you. */}
+          {e.catchUp && <CatchUpHeld path={`/seasons/${e.season.id}/catchup`} held={e.catchUp} hide={hide} after={after} />}
+
           <SubHead title="In every game" aside={plural(inGames.length, "result")} />
           {hide ? (
             <p className="rounded-[4px] bg-card p-3.5 text-[14px] text-muted-foreground">
@@ -878,6 +881,65 @@ function counted(lines: MoveLine[] | null | undefined, hide: boolean, change: st
   const games = rest.findIndex((l) => l.icon === "people");
   const one: MoveLine = { face: null, icon, label: plural(faces.length, "result"), change };
   return games < 0 ? [...rest, one] : [...rest.slice(0, games), one, ...rest.slice(games)];
+}
+
+/**
+ * The catch-up's answer, held (chunk 6c): asked again for a season played before cast properties, it would change these games'
+ * totals, so it waits for the desk: Send it (it goes in as a source beside the original) or Leave it out.
+ */
+function CatchUpHeld({ path, held, hide, after }: { path: string; held: NonNullable<DeskEpisode["catchUp"]>; hide: boolean; after: () => Promise<unknown> }) {
+  const [busy, setBusy] = useState(false);
+  const decide = async (decision: "sent" | "left") => {
+    setBusy(true);
+    try {
+      const r = await deskSend<{ text: string }>(path, { hold: held.id, decision });
+      toast(r.text);
+      await after();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "That didn't go through");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <SubHead title="Would change scores" aside={plural(held.games.length, "game")} />
+      <div data-catchup-held className="rounded-[4px] bg-card p-3.5">
+        <p className="text-[14px] leading-snug">Our bot asked this episode again for the catch-up. Its answer would change scores.</p>
+        {!hide && held.changes.length > 0 && (
+          <>
+            <p className="mt-3 text-[13px] font-bold uppercase tracking-wide text-muted-foreground">What changes</p>
+            <ul data-catchup-changes className="mt-1 flex flex-col gap-1 text-[14px] leading-snug">
+              {held.changes.map((c) => (
+                <li key={c}>{c}</li>
+              ))}
+            </ul>
+          </>
+        )}
+        {!hide && <p className="mt-3 text-[13px] font-bold uppercase tracking-wide text-muted-foreground">Totals</p>}
+        {hide ? (
+          <p className="mt-2 text-[14px] text-muted-foreground">{plural(held.games.length, "game")} (names hidden until you&apos;ve seen it)</p>
+        ) : (
+          <ul className="mt-1 flex flex-col gap-1.5 text-[14px] leading-snug">
+            {held.games.map((g) => (
+              <li key={g.name}>
+                <span className="font-bold">{g.name}</span> · {g.line}
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="mt-3 flex gap-2">
+          <Btn tone="ink" onClick={() => decide("sent")} disabled={busy} data-catchup-send>
+            Send it
+          </Btn>
+          <Btn onClick={() => decide("left")} disabled={busy} data-catchup-leave>
+            Leave it out
+          </Btn>
+        </div>
+      </div>
+      <p className={NOTE}>Sent, it goes in beside the original answer as a source of its own; left out, nothing changes.</p>
+    </>
+  );
 }
 
 /** Take it back (tier 2): the server works out what moves first. */

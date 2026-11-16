@@ -1,4 +1,5 @@
 import { publicMediaSrc } from "@/lib/game/selectors";
+import { holdsWaiting, movesLine } from "./catch-up";
 import { holdingFact, ledger, snapshotDisagreements } from "@/lib/game/holdings";
 import { seasonCastProperties } from "./cast-props";
 import { holdingLabel, propLabel } from "@/lib/game/dated-fact-words";
@@ -42,13 +43,15 @@ export type FactState = "wait" | "disputed" | "live" | "canon" | "gone";
 
 /**
  * Holdings' check (chunk 6b, decided: a disagreement goes to the desk): the episode's end-of-episode snapshot (research's
- * `holdings.atEnd`, in the combined answer) against the ledger from the season's holding facts through this episode (accepted and
+ * `holdings.atEnd`, in the newest answer that has one: the combined one, or the catch-up's, chunk 6c) against the ledger from the season's holding facts through this episode (accepted and
  * waiting both, so a wrong one is caught before it's accepted). [] when they agree, or with no snapshot.
  */
 async function holdingsCheck(seasonId: string, n: number): Promise<string[]> {
   const { rows: snap } = await pool.query(
     `SELECT er.payload->'holdings'->'atEnd' AS at_end FROM episode_research er JOIN show_seasons ss ON ss.show_id = er.show_id AND ss.season_number = er.season_number
-      WHERE ss.id = $1 AND er.episode_number = $2 AND er.source = 'combined' AND er.withdrawn_at IS NULL LIMIT 1`,
+      WHERE ss.id = $1 AND er.episode_number = $2 AND er.source IN ('combined', 'catchup') AND er.withdrawn_at IS NULL
+        AND jsonb_typeof(er.payload->'holdings') = 'object'
+      ORDER BY er.researched_at DESC LIMIT 1`,
     [seasonId, n]
   );
   const atEnd = Array.isArray(snap[0]?.at_end) ? (snap[0].at_end as { holder?: unknown; name?: unknown }[]).filter((x) => typeof x?.holder === "string" && typeof x?.name === "string") : null;
@@ -60,6 +63,19 @@ async function holdingsCheck(seasonId: string, n: number): Promise<string[]> {
   );
   const { rows: cast } = await pool.query("SELECT name FROM season_cast WHERE season_id = $1", [seasonId]);
   return snapshotDisagreements(ledger(rows.map((r) => holdingFact(r))), atEnd as { holder: string; name: string }[], n, cast.map((c) => c.name as string));
+}
+
+/** The catch-up's held answer for the episode, its games' lines (catch-up.ts). */
+async function heldCatchUp(seasonId: string, n: number): Promise<DeskEpisode["catchUp"]> {
+  const [h] = await holdsWaiting(seasonId, n);
+  const how = { in: "goes in", out: "comes out", changed: "changes" } as const;
+  return h
+    ? {
+        id: h.id,
+        changes: h.changes.map((c) => `${c.name ? `${c.name} · ` : ""}${c.label} (${how[c.how]})`),
+        games: h.games.map((g) => ({ name: g.name, line: movesLine(g) })),
+      }
+    : null;
 }
 
 export interface EpisodeFact {
@@ -138,6 +154,8 @@ export interface DeskEpisode {
   facts: EpisodeFact[];
   /** Holdings (chunk 6b): where the episode's snapshot and the record of who holds what disagree, a line each. */
   holdingsCheck: string[];
+  /** The catch-up's answer for this episode, held because it would change scores (chunk 6c): each game and who moves. */
+  catchUp: { id: string; changes: string[]; games: { name: string; line: string }[] } | null;
   answers: EpisodeAnswer[];
   /** For Correct: the cast still in for the episode (photos), and the show's ways out and moments. */
   choices: { cast: { name: string; photo: string | null }[]; methods: string[]; events: { id: string; label: string }[]; groups: string[]; props: Record<string, string[] | null> };
@@ -505,6 +523,7 @@ export async function deskEpisode(user: SessionUser, id: string, nIn: unknown, n
     games: games[0].n,
     facts: view,
     holdingsCheck: aired ? await holdingsCheck(id, n) : [],
+    catchUp: await heldCatchUp(id, n),
     answers,
     choices: {
       cast: cast.filter((c) => !c.out).map((c) => ({ name: c.name, photo: publicMediaSrc(c.photo_url) })),

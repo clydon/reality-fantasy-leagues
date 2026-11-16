@@ -70,7 +70,19 @@ after, the wizard taking in chunk 7). Commits: 10b6f369 (chunk 1), ad6b0f2b (chu
   changes are holding facts, the ledger says who holds what as of your mark (the sheet's "Has ..." line, the story's lines), the
   desk's episode page checks the snapshot against it. Survivor 51 backfilled through our bot (recompile, then Episodes 1-8 by the
   desk's Run now). Tests: tests/cast-props-holdings.test.js.
-- **Next:** chunk 7 goes with the wizard (step 12). The user's review of the story's chunks.
+- **The user's two calls after 6b (2026-11-16):** a property's change and a holding **settle at once from the AI's answer**, the desk
+  confirming or changing them after (`SETTLES_AT_ONCE` in fact-status.ts); and **the catch-up** (6c). Found while backfilling: a
+  built-in format dropped `research.holdings` (define.js kept a fixed list of research keys), so the bot was never asked; fixed,
+  and an answer without a holdings section reads as none (an older paste or stored answer would otherwise fail).
+- **6c, the catch-up: built** (the plan's "6c built"): migration **0441** (may need renumbering) queues Survivor, The Traitors, The
+  Challenge and Below Deck seasons with a game, plus each show's newest; the bot clock runs a step a call: the rulebook's Check for
+  changes (properties in when it has none; nothing that scores changes), the cast's details where we have none, then each aired
+  episode researched again as source `catchup`, **tried in a rolled-back transaction**: no total moves, sent; any does, held for
+  the desk ("Would change scores" on the episode page, Send it / Leave it out; an Inbox item). Driven locally:
+  `node scripts/dev-test/catch-up.js status|step|start|decide|rewind`. **Before the push:** rehearse it on a Neon branch of
+  production (the deploy rehearsal routine) and show the user the held list; the clock then runs it in production by itself.
+- **Next:** the rehearsal on production's copy, then the merge (0439-0441 renumbered if taken). Chunk 7 goes with the wizard (step
+  12). The user's review of the story's chunks.
 
 ## The design round's step 9, Chat, a light review (2026-11-16; built on branch `explorer-sports`, not committed past it; waits on the user's review)
 src/new/show/chat.tsx `itemsOf(messages, airings, foldEp)`: days, with each episode's airing as a landmark (`kind: "ep"`, the episode

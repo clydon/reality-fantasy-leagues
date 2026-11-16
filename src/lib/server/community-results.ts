@@ -7,6 +7,7 @@ import { canonicalName, seasonCastState } from "@db/season-decisions.js";
 import { seasonFormat } from "@db/season-rule-changes.js";
 import { settleEpisode, sourcesLine, type Covers, type FactInput, type FactOutcome, type FactStatus, type Flag, type Submission } from "@/lib/game/fact-status";
 import type { LeagueState } from "@/lib/game/types";
+import { questionsGame } from "@/lib/game/game-spec/schema.js";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { logChange } from "./change-log";
 import { requireCouch } from "./couches";
@@ -23,7 +24,8 @@ import { refuseTestPlayer } from "./test-players";
 // trusted reaches every couch on its own, a correction comes out everywhere with a line, and a house ruling keeps the old
 // result in one couch's games. Taking your answer back (Undo) withdraws the submission and settles everything again.
 
-export type SubmissionSource = "paste" | "quick" | "hand" | "bot" | "autopilot" | "tiebreak";
+// catchup: the catch-up's answers for a season played before cast properties (catch-up.ts, docs/PLAN-cast-properties.md 6c).
+export type SubmissionSource = "paste" | "quick" | "hand" | "bot" | "autopilot" | "tiebreak" | "catchup";
 
 /** One result a submission reports. `noexit`: nobody went home in the episode (no castaway: castawayName ''). */
 export interface SubmittedFact {
@@ -93,6 +95,20 @@ export async function submit(input: SubmitInput): Promise<{ researchId: string; 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    const out = await submitIn(client, input);
+    await client.query("COMMIT");
+    return out;
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+/** submit's work inside the caller's transaction (under the episode's lock, taken here): the catch-up's try runs it and rolls back. */
+async function submitIn(client: PoolClient, input: SubmitInput): Promise<{ researchId: string; settled: Settled; facts: string[] }> {
+  {
     await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [lockKey(input.seasonId, input.episode)]);
     const key = await seasonKey(client, input.seasonId);
     if (input.replaces) {
@@ -121,14 +137,102 @@ export async function submit(input: SubmitInput): Promise<{ researchId: string; 
     const researchId: string = rows[0].id;
     const facts = await fileFacts(client, input.seasonId, input.episode, researchId, input.facts);
     const settled = await settle(client, input.seasonId, key, input.episode);
-    await client.query("COMMIT");
     return { researchId, settled, facts };
-  } catch (e) {
-    await client.query("ROLLBACK");
-    throw e;
+  }
+}
+
+/** What a tried answer changes: the results it puts in, takes out or changes, and the games whose totals move. */
+export interface Tried {
+  changes: { name: string; label: string; how: "in" | "out" | "changed" }[];
+  games: TriedGame[];
+}
+
+/** One game's totals before and after a tried answer, each player's that differ (the catch-up's scoring guard). */
+export interface TriedGame {
+  leagueId: string;
+  name: string;
+  /** Scored outside its state (Weekly Calls, bingo, a game of questions): the try can't price it, only say its results changed. */
+  outside: boolean;
+  players: { playerId: string; name: string; before: number; after: number }[];
+  /** Episodes whose results the try changed in it. */
+  episodes: number[];
+}
+
+/**
+ * The scoring guard (docs/PLAN-cast-properties.md chunk 6c): an answer filed, settled and every game on the season brought in
+ * line inside one transaction, each game's totals read before and after, then rolled back. Nothing is written and nobody is
+ * told. The games where anything moves: a player's total, or (a game scored outside its state) its results at all. Each game
+ * is read as if it had revealed everything (its reveal gate lifted on the copy, and brought in line once before the answer
+ * goes in, for the baseline), so an episode a game hasn't revealed yet still counts: its scores move when it does.
+ */
+export async function tryResults(input: SubmitInput): Promise<Tried> {
+  const { syncLeagueDecisions } = await import("./season-decisions");
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows: leagues } = await client.query(
+      `SELECT l.id, l.name, l.state FROM leagues l
+         JOIN shows s ON s.slug = l.state->'settings'->>'showId'
+         JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number::text = l.state->'settings'->>'wikiSeason'
+        WHERE ss.id = $1 AND l.deleted_at IS NULL AND COALESCE(l.state->'settings'->>'archivedAt', '') = '' ORDER BY l.name`,
+      [input.seasonId]
+    );
+    // The baseline: every game as it would be with everything revealed, before the answer.
+    const states = new Map<string, LeagueState>();
+    const before = new Map<string, Map<string, number>>();
+    for (const l of leagues) {
+      const state = StateLogic.migrateLeagueState(structuredClone(l.state)) as LeagueState;
+      delete (state.settings as { revealedThroughEpisode?: number }).revealedThroughEpisode;
+      await syncLeagueDecisions(client, l.id, state, {});
+      states.set(l.id, state);
+      before.set(l.id, totalsOf(state));
+    }
+    const { settled } = await submitIn(client, input);
+    const ids = [...settled.live, ...settled.out, ...settled.changed];
+    const { rows: moved } = ids.length
+      ? await client.query("SELECT id, kind, castaway_name, method, event_type FROM season_decisions WHERE id = ANY($1::uuid[])", [ids])
+      : { rows: [] as { id: string; kind: string; castaway_name: string; method: string | null; event_type: string | null }[] };
+    const words = states.values().next().value ?? null;
+    const changes: Tried["changes"] = moved.map((d) => ({
+      name: d.castaway_name,
+      label: words ? factLabel(words, { kind: d.kind, method: d.method ?? "", eventType: d.event_type ?? "" }) : d.method || d.kind,
+      how: settled.live.includes(d.id) ? "in" : settled.out.includes(d.id) ? "out" : "changed",
+    }));
+    const out: TriedGame[] = [];
+    for (const l of leagues) {
+      const state = states.get(l.id)!;
+      const r = await syncLeagueDecisions(client, l.id, state, {});
+      const after = totalsOf(state);
+      const outside = scoredOutside(state);
+      const was = before.get(l.id)!;
+      const players = [...new Set([...was.keys(), ...after.keys()])]
+        .map((id) => ({ playerId: id, name: playerName(state, id), before: was.get(id) ?? 0, after: after.get(id) ?? 0 }))
+        .filter((p) => p.before !== p.after);
+      if (players.length || (outside && r.episodes.length)) out.push({ leagueId: l.id, name: l.name, outside, players, episodes: r.episodes });
+    }
+    return { changes, games: out };
   } finally {
+    await client.query("ROLLBACK").catch(() => undefined);
     client.release();
   }
+}
+
+/** Each player's total as the game scores it (StateLogic.computeScores, as compare-totals.js reads it). */
+function totalsOf(state: LeagueState): Map<string, number> {
+  const rows = StateLogic.computeScores(state) as { playerId: string; total: number }[];
+  return new Map(rows.map((r) => [r.playerId, Math.round(Number(r.total) * 100) / 100]));
+}
+
+/** Weekly Calls, bingo and a game of questions keep more than their state scores (compare-totals.js says the same). */
+function scoredOutside(state: LeagueState): boolean {
+  const type = (state.settings as { leagueTypeId?: string }).leagueTypeId;
+  if (type === "weekly-calls" || type === "weekly-bingo") return true;
+  return !!questionsGame(StateLogic.gameOf(state));
+}
+
+function playerName(state: LeagueState, id: string): string {
+  const p = (state.players as { id: string; name?: string }[] | undefined)?.find((x) => x.id === id);
+  return p?.name ?? id;
 }
 
 /** Files the facts one submission reports and its sources for them (a fact new to the season is reported; a result staged

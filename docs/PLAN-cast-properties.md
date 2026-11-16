@@ -286,6 +286,45 @@ Each ends with focused tests; the long checks once per milestone ([long-checks-o
    the stats read's `holds` ("Has a hidden immunity idol · found Ep 3") and `held` (the story's lines). Backfill: an edited season
    rulebook doesn't follow the compiler, so `cast-props-research.js recompile <seasonId>` first, then `episodes <seasonId> --from
    --to` (the desk's full Run now by our bot, one by one); a short "holdings only" run kind wasn't needed. No wall mark (decided (b)).
+   **6c. The catch-up** (the user, 2026-11-16: "it needs to get done, all episodes and the show, and cast need to be redone, compared
+   against the original and applied. we should note and approve any changes that will change current scoring"; scope: "lets just
+   do the shows that are on the prod app, survivor 51, traitors, the challenge, below deck"). Nothing in 1 to 6b fills in what
+   aired before the merge, so a season catches up by itself after the deploy, through our bot only, on the bot's clock:
+   - **The job.** A row per season (`season_catchups`, beside Getting it ready's `season_fills`, run the same way: one due job a
+     clock call when no research run or fill is due, a step at a time, tries and a stuck state, a line on the desk: "Catching up
+     S51: cast done, Ep 4 of 8"). Which seasons: the four shows' seasons that have a game that isn't archived (the migration
+     queues them; the desk's Setup can queue any other season by hand).
+   - **Order: show, cast, then each aired episode from 1.** Episode questions come from the rulebook and answers match on the
+     cast's names.
+     - **Show:** the season's rulebook is recompiled (holdings and property questions), and the rulebook's Check for changes is
+       asked of our bot. Its properties go in when the rulebook has none (they never score); every other difference stays on the
+       rulebook's desk page as the check's card, as today: the catch-up never changes how a game scores on its own.
+     - **Cast:** our bot's cast answer, staged, and only what can't move anything sent: people's details where we have none
+       (properties, gender), bios where we have none. A new spelling, a starting group, a changed value and someone new (a
+       played season's cast is whole, so someone new is far likelier a name we spell another way, and results waiting on a name
+       land when they join) stay in the cast review for the desk.
+     - **Episodes:** the full research run, its answer a source of its own (`catchup`) beside the original, which stays as it
+       was: agreement confirms, a disagreement is a dispute the desk sees, a result an admin decided never moves.
+   - **The scoring guard.** Before an episode's answer is sent, it's tried: filed and every game on the season synced inside one
+     transaction, each game's totals read before and after, then rolled back (nothing written, nobody told). No game's total
+     moves: sent (quietly; an old episode pushes nothing). Any total moves: held, on the desk's Inbox and the season's page as
+     "Would change scores": the episode, each game and player and by how much; Send it or Leave it out. A game scored outside its
+     state (Weekly Calls, bingo, a game of questions) can't be priced by the try, so anything that would change its results is
+     held too (decided 2026-11-16, the recommendation).
+   - Going forward nothing changes: a new episode's results, property changes and holdings settle as 6 and 6b say. The guard is
+     only for rewriting what's been played.
+   - **Rehearsed** on a fresh production backup locally before the push, the held list shown to the user first.
+   **6c built 2026-11-16** (migration 0441; `src/lib/server/catch-up.ts`): `season_catchups` and `catchup_holds`, the `catchup`
+   research source, the migration's queue. The clock (cron/bot-research) runs `runDueCatchUp` when it ran no research and no
+   fill. Steps: `showStep` (Check for changes asked; properties saved with `saveChain` when the rulebook has none; else compiled
+   again; never `pushRulebook`, so its games keep the copy they score by), `castStep` (`askCastNow`, then
+   `desk-cast-page.ts fillCastDetails`: the default picks' details and new bios only, the answer left unsent), `episodeStep`
+   (`buildPasteImportPrompt` + `researchFromPaste` dry, `bot-results.ts factsOfRun`, `community-results.ts tryResults`, then
+   `sendResults` or a hold). `tryResults` runs `submitIn` (submit's body, split out) and `syncLeagueDecisions` for every game in
+   one transaction, totals by `StateLogic.computeScores` before and after, and always rolls back. The desk: the episode page's
+   "Would change scores" (Send it / Leave it out), the Inbox's `catchup` items (a held episode; a catch-up that stopped),
+   `/api/desk/seasons/[id]/catchup` (GET; POST start, step, hold + decision). The Holdings check reads the newest answer with a
+   snapshot, the catch-up's included. Driven locally with `scripts/dev-test/catch-up.js` (status, step, start, decide, rewind).
 7. **The wizard and the GPT.** SpecContext carries the season's properties so Start a game offers only rules the season can hold
    ("Draft one from each department"), Randomize can roll them, and the spec's check refuses a property the season lacks.
 

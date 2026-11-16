@@ -10,6 +10,7 @@ import { advanceAllAuto } from "@/lib/server/keep-up";
 import { notifyResearched } from "@/lib/server/push-events";
 import { fillsNextAt, runDueFill, tellAllReady } from "@/lib/server/season-fill";
 import { runNext, planRuns } from "@db/bot-research.js";
+import { catchUpsNextAt, runDueCatchUp } from "@/lib/server/catch-up";
 
 // The bot research clock (db/bot-research.js): the ask-AI bot's VM calls this, and each call runs at most
 // one due run. Vercel's own cron can't run minutes after an episode airs on this plan, and the VM is up
@@ -35,6 +36,9 @@ import { runNext, planRuns } from "@db/bot-research.js";
 // So is Getting it ready (season-fill.ts, docs/PLAN-getting-it-ready.md): a call that ran no research runs the earliest season
 // job that's due (`fill`: its season), and `next` counts when the next one comes due.
 //
+// So is the catch-up (catch-up.ts, docs/PLAN-cast-properties.md 6c): a call that ran no research and no Getting it ready job runs
+// the earliest due catch-up step (`catchup`: its season), and `next` counts it.
+//
 // Authorization: Bearer <CRON_SECRET>, the same value in Vercel and the VM's .env.
 export const maxDuration = 300;
 
@@ -52,7 +56,7 @@ const earliest = (a: Date | null, b: Date | null) => (a && b ? (a < b ? a : b) :
 export const GET = apiRoute(async (req) => {
   requireCron(req);
   const { due, next: research } = await planRuns(pool, { now: nowFrom(req) });
-  const next = earliest(research, await fillsNextAt());
+  const next = earliest(earliest(research, await fillsNextAt()), await catchUpsNextAt());
   return NextResponse.json({
     due: due.map((d) => ({ season: d.season.slug, seasonNumber: d.season.season_number, episode: d.episode, slot: d.slot, at: d.at })),
     next,
@@ -72,10 +76,11 @@ export const POST = apiRoute(async (req) => {
   // A job whose last episode just came in (or gave up) is all in: whoever added it hears so, once.
   await tellAllReady().catch((e) => console.error("[season-fill] tell:", e));
   const fill = out.job ? null : await runDueFill({ base, bot, budgetMs: 280_000 - (Date.now() - t0) });
-  const next = earliest(out.next, await fillsNextAt());
+  const catchup = out.job || fill ? null : await runDueCatchUp({ bot, budgetMs: 280_000 - (Date.now() - t0) });
+  const next = earliest(earliest(out.next, await fillsNextAt()), await catchUpsNextAt());
   const listings = !out.job && (await listingsDue());
   if (listings) after(() => refreshListings(base, { how: "clock" }).catch((e) => console.error("[listings] the daily run:", e)));
   // Shows set to move along by themselves (keep-up.ts): marks moved for everyone, so a couch sees each other where they are.
   after(() => advanceAllAuto().catch((e) => console.error("[keep-up] auto:", e)));
-  return NextResponse.json({ ...out, next, fill, listings });
+  return NextResponse.json({ ...out, next, fill, catchup, listings });
 });

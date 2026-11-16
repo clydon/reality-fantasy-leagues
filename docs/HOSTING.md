@@ -89,6 +89,7 @@ scales up under load). So what matters is how often something wakes it, not how 
 | Tie-break runs (new design, step 6c; off until switched on in desk › Settings) | one call a day after a dispute, up to 3 tries | a few minutes per disputed episode |
 | Results someone asked for (2026-10-27, migration 0152: Fill in what happened on a show made a game that nobody plays) | two clock calls per asked episode (who went home, ~25-50 s; then the full research, ~2.5-4 min), back to back with the clock's minute tick between, 2 tries for the full one; each run writes its progress every few seconds (0153); the asker's card polls every 4 s while an answer is coming | a season's catch-up of 7 episodes is ~25-35 min awake once; then nothing. On the VM, Chrome stays open 10 min after a question (~300 MB of its 1 GB) |
 | Getting it ready (2026-11-01, migration 0160: every show someone adds) | up to three bot asks per show added, in a row after Add's answer (a brand-new show's how it works ~1-2 min and its cast ~1 min, else just the cast; then one recap ask for every aired episode, ~1-3 min), then that season's results one episode at a time on the clock as above (only for a show nobody plays). A run cut off by the 300 s limit, or with the bot away, is carried on by the open page or the clock (`next` counts it; tried again after 30 s, 3 min after a failure, 2 min while the bot's away; 3 tries a step) | a few minutes awake per show added, plus its results' catch-up; nothing once it's done |
+| The catch-up (2026-11-16, migration 0441, branch `cast-props`: the four shows on the app, once) | about 10 bot asks a season (its rulebook check, its cast, one full research per aired episode), one a clock call after research and Getting it ready, each episode tried in a rolled-back transaction first (a few seconds) | a few hours once, spread over the clock; nothing after |
 | The listings job (new design, step 11 part 2) | none of its own: it runs after a bot clock call that ran no bot job, which had woken the database already; ~10-30 s of queries once a day | ~0 (a backstop Vercel cron, if ever needed, ~0.6) |
 | Bot research clock, before (a call every 2 min) | around the clock | ~180 (over the allowance) |
 | People with the app open (classic, or a new-design show space: its Chat badge polls) | while they're on it, plus 5 minutes | the rest: ~20 in Oct 1-24 (35.4 total, less ~11 for the hourly job until it stopped and ~3 for the clock's first night) |
@@ -689,6 +690,18 @@ never handles it: the user does the reset and the pasting.
   now. Vercel's function logs have one `[listings]` line per run.
 
 ## Changelog
+
+- **2026-11-16, on branch `cast-props` (not pushed; migrations 0439, 0440, 0441: renumber at merge if taken).** Cast properties,
+  bios, holdings and **the catch-up** (docs/PLAN-cast-properties.md 6c, `src/lib/server/catch-up.ts`). New tables, all small:
+  `season_catchups` (a row per season catching up), `catchup_holds` (an episode's answer that would change scores, with its
+  facts and who moves: a few KB, only while it waits). `season_cast.props`/`.bio` (0439) add a few hundred bytes a person. The
+  migration queues the four shows on the app (Survivor, The Traitors, The Challenge, Below Deck: each season with a game, and each
+  show's newest), and **the bot clock runs their steps** after research and Getting it ready, one a call: a season's rulebook check
+  (~2 min), its cast (~1 min), then a full research ask per aired episode (~2-4 min), each tried in a transaction that's rolled
+  back (a few seconds of Neon per episode, the season's games read and synced inside it). About 10 asks a season, 30-40 in all,
+  spread over the clock's calls: a few hours of the bot and of Neon awake once, then nothing. Our bot only, never the paid keys.
+  Each episode's answer is a new `episode_research` row (source `catchup`, ~20-50 KB). Nothing polls; the desk reads its line on
+  load.
 
 - **2026-11-16, on branch `explorer-sports` (not pushed; migration 0438).** The design round's step 7, the hub and the TV guide.
   **New table `sports_recordings`** (migration 0438): a row per sports game someone chose to watch as if live (user, game id,

@@ -25,6 +25,16 @@ interface PastedRun {
   provenance: Record<string, unknown>;
 }
 
+/** A full research run's results as a submission's facts (the scheduled runs' and the catch-up's: catch-up.ts). */
+export async function factsOfRun(seasonId: string, run: unknown): Promise<SubmittedFact[]> {
+  const r = run as PastedRun;
+  const items = await researchItems(pool, seasonId, r, r.submitted);
+  return withNobodyOut(
+    items.map((i) => ({ kind: i.kind, castawayName: i.name, method: i.method, eventType: i.eventType, units: i.units, juryVotes: i.juryVotes, postMerge: i.postMerge, confidence: i.confidence, sources: i.sources })),
+    r.format as { exitMethods?: string[] }
+  );
+}
+
 export const botSend: BotSend = {
   async quick({ seasonId, episode, answer, castNames, exitMethods }) {
     const verdict = quickVerdict(answer, exitMethods);
@@ -44,11 +54,7 @@ export const botSend: BotSend = {
 
   async full({ seasonId, episode, run, source, replaces }) {
     const r = run as PastedRun;
-    const items = await researchItems(pool, seasonId, r, r.submitted);
-    const facts: SubmittedFact[] = withNobodyOut(
-      items.map((i) => ({ kind: i.kind, castawayName: i.name, method: i.method, eventType: i.eventType, units: i.units, juryVotes: i.juryVotes, postMerge: i.postMerge, confidence: i.confidence, sources: i.sources })),
-      r.format as { exitMethods?: string[] }
-    );
+    const facts = await factsOfRun(seasonId, run);
     const { pastedNotes, ...provenance } = r.provenance;
     const sent = await sendResults(
       {
