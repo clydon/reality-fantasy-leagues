@@ -11,6 +11,49 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
+## Cast properties, chunks 1 to 3 (2026-11-16; lane `castprops`: `../rfl-castprops`, branch `cast-props` from `explorer-sports` at 4ec5985e, port 3012, database `rfl_castprops`; committed, not pushed or merged; migration 0439)
+docs/PLAN-cast-properties.md, its "When" now the user's new order (cast properties beside or after step 8, the round's steps 9–12
+after, the wizard taking in chunk 7). Commits: 10b6f369 (chunk 1), ad6b0f2b (chunk 2), e3c18650 (chunk 3), f183b123 (gender).
+- **Chunk 1, the rulebook:** `cast.properties` (key, name, values or free text, changes, main, of) in rulebook-schema.js with the
+  allowed-kinds rule (never ethnicity, religion, sexuality, health, age; never a secret role, the groups again or a sport's
+  position); rulebook-research.js asks for them and its review tidies an answer's and leaves out a forbidden one, said; the desk's
+  Who's playing sheet edits them (desk/rulebook.tsx `PropertiesEditor`). Library: Below Deck (department, job), The Challenge's
+  blocks (status). Survivor's template has none.
+- **Chunk 2, the cast:** **migration 0439** `season_cast.props` and `season_cast.bio`. **0439 may need renumbering at merge**: it
+  was the next after both this branch's and `explorer-sports`'s highest (0438) on 2026-11-16, and step 8 or another lane may take
+  0439 first. The cast prompt asks each property and a bio; the parser keeps only what's stated; desk-cast-diff.ts makes a
+  person's details and bio changes of their own (fill in where we have none, keep ours where we have some, and Keep ours still
+  fills in what's missing); Send, the cast's log and Undo carry them; the castaway page overrides them; Make it a game writes them.
+  A name with a nickname in quotes is the same person (`nameForms`). server/cast-props.ts reads a season's properties.
+- **Chunk 3, stamp and display:** game reads stamp `castProps`/`castPropDefs` per read, never saved (StatsLogic.stampedKeys); a game
+  face's qualifier is the main value. The cast tab (Impeccable alone, a small addition to step 5: docs/cast-props/chunk3-shape.md):
+  a crew grouped by its first listed property, the main one under each name, one chip group (one All) for listed properties it
+  doesn't group by and for gender, and a face opens the sheet before any results; the sheet's head (cast tab, draft room, game)
+  shows the details, the bio line and the billing's own line.
+- **Gender, the user's call today** (replacing decided item 1 for gender: "infer when not stated"): every season has Gender (Man,
+  Woman, Nonbinary: `withGender`); research gives it as billed, else inferred, `props.genderFrom` says which; the desk says "gender
+  guessed"; the app shows it as fact; never the wall's grouping or the line under a name. In the plan's "What's allowed".
+- **Researched through our bot** (scripts/dev-test/cast-props-research.js, as `zt_rs_desk`, the lane server started with the paid
+  keys blanked) and reviewed and sent on the desk, in the lane's database only: **Below Deck 13** (added by Getting it ready: the
+  rulebook came back with department and job; every crew member's department, job, hometown from Bravo's page; genders inferred),
+  **Survivor 51** (the rulebook check: no properties; all 21 bios from CBS; genders billed), **The Challenge 42 "Cutthroat"** (added:
+  status 18 Veteran / 6 Rookie, genders billed, Paramount's line each, season photos). Nothing in production was touched.
+- **Checks:** tests/cast-properties.test.js, tests/cast-props-cast.test.js (all pass; the full suite's only failures are
+  tests/tour-steps.test.js's two, untouched files, as step 7 left them); scripts/dev-test/check-cast-props.js parts 1–3 (the desk
+  editor, the desk cast flow, the cast tab, chips, the sheet, the stamp: `--up`/`--down`, zt_cp_ rows); check-desk-cast.js passes
+  (its log check made order-free: one transaction's rows tie). crew-fixture.js is on the real model now (props, bios, a rulebook);
+  draft-fixture.js copies Survivor 51's bios when the database has them; census-app.js has `crew-alex-sheet`.
+- **The story:** https://claude.ai/artifact/Xvdts1Qi7LZP8qzknxfSWG (frames in the lane's `.ui-atlas/stories/cast-props/`,
+  `story-build.py .ui-atlas/stories/cast-props/story.json`). **Waits on the user:** the review, and three assumed choices there (a
+  crew's group order puts Bridge last, the rulebook's value order; no source credit on the sheet; inferred gender shown as fact).
+- **Found, not fixed:** research writes nicknames in quotes into a first cast ("Chris \"CT\" Tamburello", truncated on the wall);
+  The Challenge's status came back blank on the first ask and 18/6 on the second (worth a desk look per season); the desk's review is
+  two rows a person when details and bio both change; a lane dev server once served stale 404s for existing routes until `.next`
+  was cleared.
+- **Next: chunk 4 (draft rules) waits until step 8 is merged into this lane** (`git merge explorer-sports` here, then `npm run
+  migrate`), since its "Needs" line lands in the draft room and waivers, which step 8 redesigns. Then chunks 5 (lineup slots) and 6
+  (dated changes); chunk 7 goes with the wizard (step 12).
+
 ## The design round's step 7, the hub and the TV guide (2026-11-16; committed on branch `explorer-sports`, not pushed; migration 0438)
 The hub (src/new/screens/home.tsx, hub/sections.tsx, hub/bands.tsx): the next thing first (`UpNext`: one still plate on the
 show's art, the time once, the move, the reveal or All set on a caption plate; `moveHref` opens a pick or lineup through
