@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ClipboardPaste, Lock, Zap } from "lucide-react";
 import { pickOf } from "@/lib/desk-cast-diff";
-import { bioLine, mainValue, propsLine } from "@/lib/cast-props-words";
+import { bioLine, genderGuessed, mainValue, propsLine } from "@/lib/cast-props-words";
 import { AskAiPasteSheet, type AnswerCheck } from "../backstage/ask-ai";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
@@ -436,8 +436,11 @@ function DiffSheet({ open, onClose, d, picks, setPicks, onSend }: { open: boolea
     if (c.k === "props")
       return (
         <>
-          {head(`${firstOf(c.name)}: ${propsLine(c.to, d.properties)}`, Object.keys(c.from).length ? `We have ${propsLine(c.from, d.properties)}.` : "We have nothing yet: it fills in.")}
-          {Object.keys(c.from).length > 0 &&
+          {head(
+            `${firstOf(c.name)}: ${propsLine(c.to, d.properties)}${genderGuessed(c.to) ? " (gender guessed)" : ""}`,
+            Object.keys(c.from).length ? `We have ${propsLine(c.from, d.properties) || "nothing"}.` : "We have nothing yet: it fills in."
+          )}
+          {Object.keys(c.from).length > 0 && pickOf(c) === "ours" &&
             seg(c, [
               ["ours", "Keep ours"],
               ["theirs", "Use theirs"],

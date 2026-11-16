@@ -71,8 +71,12 @@ async function up(pool) {
     `INSERT INTO show_formats (id, name, status, proposal, data, approved_at) VALUES ($1, 'ZT Yacht', 'approved', $2, $3, now()) ON CONFLICT (id) DO UPDATE SET proposal = EXCLUDED.proposal, data = EXCLUDED.data`,
     [FORMAT, JSON.stringify({ madeFrom: "rulebook", rulebookId: book }), JSON.stringify(data)]
   );
+  // Gender, every show's (the user, 2026-11-16), as billed; Gary's inferred.
+  const GENDER = { Kerry: "Man", Aesha: "Woman", Daisy: "Woman", Ruby: "Woman", Fraser: "Man", Gary: "Man", Jess: "Woman", "Tomás": "Man", Rachel: "Woman" };
   for (const [i, [name, job, department, bio]] of CREW.entries()) {
-    await pool.query(`INSERT INTO season_cast (season_id, name, props, bio, sort_order) VALUES ($1, $2, $3, $4, $5)`, [season, name, JSON.stringify({ department, job }), bio ? JSON.stringify(bio) : null, i]);
+    const gender = GENDER[name.split(" ")[0]];
+    const props = { department, job, gender, genderFrom: name.startsWith("Gary") ? "inferred" : "billed" };
+    await pool.query(`INSERT INTO season_cast (season_id, name, props, bio, sort_order) VALUES ($1, $2, $3, $4, $5)`, [season, name, JSON.stringify(props), bio ? JSON.stringify(bio) : null, i]);
   }
   await pool.query(`UPDATE show_seasons SET cast_approved_at = now() WHERE id = $1`, [season]);
   for (const who of ["alex", "riley"]) await pool.query(`INSERT INTO show_follows (user_id, season_id, seen_through, following) VALUES ($1, $2, 2, true)`, [users[who], season]);

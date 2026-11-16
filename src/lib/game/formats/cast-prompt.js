@@ -72,13 +72,16 @@ function cleanProps(raw, props, repairs, at) {
     const s = text(typeof given === 'number' ? String(given) : given).replace(/\s+/g, ' ');
     if (!s || /^(not stated|unknown|n\/a|none)$/i.test(s)) continue;
     if (Array.isArray(p.values)) {
-      const match = p.values.find((v) => sameName(v, s));
+      const match = p.values.find((v) => sameName(v, s)) || (p.key === 'gender' ? GENDER_WORDS[s.toLowerCase()] : undefined);
       if (match) out[p.key] = match;
       else repairs.push({ at, message: `Dropped ${p.name} "${s}" -- not one of ${p.values.join(', ')}.` });
     } else out[p.key] = clip(s, 60);
   }
+  // Where the gender came from: the show's billing, or the research's inference (anything else read as inferred).
+  if (out.gender) out.genderFrom = text(raw.genderFrom).toLowerCase() === 'billed' ? 'billed' : 'inferred';
   return out;
 }
+const GENDER_WORDS = { male: 'Man', female: 'Woman', men: 'Man', women: 'Woman', m: 'Man', f: 'Woman', he: 'Man', she: 'Woman', 'non-binary': 'Nonbinary', nb: 'Nonbinary' };
 
 /** The prompt to paste into any web-searching chat. */
 function buildCastPrompt(format, { seasonName, showName, year, known } = {}) {
@@ -100,11 +103,14 @@ function buildCastPrompt(format, { seasonName, showName, year, known } = {}) {
     row.properties = Object.fromEntries(
       props.map((p) => [
         p.key,
-        Array.isArray(p.values)
+        p.key === 'gender'
+          ? `Their gender: exactly one of ${p.values.map((v) => `"${v}"`).join(', ')}. As the show bills them (the network's bio calls them he or she, a men's or women's split) wherever it says; else your best inference from their name and photo`
+          : Array.isArray(p.values)
           ? `Their ${p.name.toLowerCase()} at the start of the season: exactly one of ${p.values.map((v) => `"${v}"`).join(', ')}, or "" if not stated`
           : `Their ${p.name.toLowerCase()} at the start of the season, in the show's own words${p.of ? ` (inside their ${(props.find((x) => x.key === p.of) || { name: p.of }).name.toLowerCase()})` : ''}, or "" if not stated`,
       ])
     );
+    if (props.some((p) => p.key === 'gender')) row.properties.genderFrom = '"billed" when the show\'s own billing says their gender, "inferred" when you inferred it';
   }
   row.bio = Object.fromEntries(BIO.map(([k, words]) => [k, words]));
   const shape = { castaways: [row], sources: ['Every URL you actually read'] };
@@ -134,7 +140,7 @@ function buildCastPrompt(format, { seasonName, showName, year, known } = {}) {
       ? `  - startingRole is a hidden role. Only give "${roles.slice(1).join('" or "')}" for someone the show or its coverage has confirmed; everyone else is "${roles[0]}".`
       : null,
     props.length
-      ? `  - properties are how the show itself sorts its ${person.toLowerCase()}s (${props.map((p) => p.name.toLowerCase()).join(', ')}), as it bills them on screen or in its own cast announcements, at the START of the season. Never guess one from a name or a photo: "" when you haven't seen it stated.`
+      ? `  - properties are how the show itself sorts its ${person.toLowerCase()}s (${props.filter((p) => p.key !== 'gender').map((p) => p.name.toLowerCase()).join(', ') || 'none besides gender'}), as it bills them on screen or in its own cast announcements, at the START of the season. Never guess one from a name or a photo: "" when you haven't seen it stated. Gender is the one exception: give it for everyone, from the billing where it says, else inferred, and say which in genderFrom.`
       : null,
     '  - bio is who they are as the show bills them: the network\'s "meet the cast" page or the show\'s wiki. Only what that billing',
     '    says; never ethnicity, religion, sexuality or health, even where a page mentions them. "" (or null for age) when not stated.',

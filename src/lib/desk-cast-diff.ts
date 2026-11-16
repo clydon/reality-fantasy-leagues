@@ -204,7 +204,12 @@ export function castChanges(ours: OurCastaway[], theirs: TheirCastaway[], o: { g
 // Properties and a bio fill in where we have none, and keep ours (the desk's, decided item 4) where we have some.
 export const pickOf = (c: CastChange, picks: CastPicks = {}) =>
   picks[c.key] ??
-  (c.k === "spell" ? "same" : c.k === "group" ? "ours" : c.k === "props" ? (Object.keys(c.from).length ? "ours" : "theirs") : c.k === "bio" ? (c.from ? "ours" : "theirs") : null);
+  (c.k === "spell" ? "same" : c.k === "group" ? "ours" : c.k === "props" ? (onlyAdds(c.from, c.to) ? "theirs" : "ours") : c.k === "bio" ? (c.from ? "ours" : "theirs") : null);
+/** Whether `to` only adds to `from` (a gender for someone whose job we have), changing nothing we have: it fills in. A gender the
+ *  desk set, or one the show billed, is never replaced by an inferred one by default. */
+function onlyAdds(from: CastProps, to: CastProps) {
+  return Object.entries(from).every(([k, v]) => k === "genderFrom" || to[k] === v);
+}
 
 /** What sending does with these choices: renames, people joining, starting groups changed. Gone and kept groups do nothing. */
 export function castPlan(changes: CastChange[], picks: CastPicks = {}) {
@@ -228,7 +233,11 @@ export function castPlan(changes: CastChange[], picks: CastPicks = {}) {
     } else if (c.k === "group" && p === "theirs") regroup.push({ id: c.id, name: c.name, from: c.from, to: c.to });
     else if (c.k === "add") add.push({ name: c.name, group: c.group, photo: c.photo, props: c.props ?? {}, bio: c.bio ?? null });
     else if (c.k === "photo") rephoto.push({ id: c.id, name: c.name, from: c.from, to: c.to });
-    else if (c.k === "props" && p === "theirs" && !newSpelling.has(c.id)) reprops.push({ id: c.id, name: c.name, from: c.from, to: c.to });
+    else if (c.k === "props" && !newSpelling.has(c.id)) {
+      // Keep ours keeps the values we have and still fills in what we don't (a gender beside a job spelled another way).
+      const to = p === "theirs" ? c.to : { ...Object.fromEntries(Object.entries(c.to).filter(([k]) => !(k in c.from) && !(k === "genderFrom" && "gender" in c.from))), ...c.from };
+      if (JSON.stringify(Object.entries(to).sort()) !== JSON.stringify(Object.entries(c.from).sort())) reprops.push({ id: c.id, name: c.name, from: c.from, to });
+    }
     else if (c.k === "bio" && p === "theirs" && !newSpelling.has(c.id)) rebio.push({ id: c.id, name: c.name, from: c.from, to: c.to });
   }
   return { rename, add, regroup, rephoto, reprops, rebio };

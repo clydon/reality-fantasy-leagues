@@ -11,7 +11,7 @@ import { Btn, EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { deskSend, useAfterDesk, useDesk, type DeskCastaway } from "./data";
-import { bioLine, propsLine } from "@/lib/cast-props-words";
+import { bioLine, genderGuessed, propsLine } from "@/lib/cast-props-words";
 import { DeleteRow, DeskHeader, DeskRow, Facts, Field, FieldRow, IconLead, LatestHistory, LockRow, LowerThird, Section, useChangeToast } from "./parts";
 
 // A castaway's page under its season's Cast (docs/PLAN-desk-parity.md step 5, part 5b; the mock's desk-cast.js csPersonPage,
@@ -114,7 +114,7 @@ export function CastawayPage({ seasonId, id }: { seasonId: string; id: string })
         <FieldRow data="photo" label="Photo" value={c.photoFrom} onOverride={() => setSheet("photo")} />
         <FieldRow data="group" label={`Starting ${T.group}`} value={groupValue} onOverride={() => setSheet("group")} />
         {c.properties.length > 0 && (
-          <FieldRow data="props" label={listWords(c.properties.map((p, i) => (i ? p.name.toLowerCase() : p.name)))} value={propsLine(c.props, c.properties) || "Not stated"} onOverride={() => setSheet("props")} />
+          <FieldRow data="props" label={listWords(c.properties.map((p, i) => (i ? p.name.toLowerCase() : p.name)))} value={`${propsLine(c.props, c.properties) || "Not stated"}${genderGuessed(c.props) ? " (gender guessed)" : ""}`} onOverride={() => setSheet("props")} />
         )}
         <FieldRow data="bio" label="Bio" value={bioLine(c.bio) || (c.bio?.line ? "A line" : "Not looked up")} onOverride={() => setSheet("bio")} />
         <p className={`${NOTE} border-t border-border pt-3`}>

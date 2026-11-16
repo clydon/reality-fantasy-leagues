@@ -232,3 +232,7 @@ export function forbiddenPropertyKind(prop: unknown): string | null;
 export const RESERVED_PROPERTY_KEYS: string[];
 /** Values that only say nobody knows ("not stated"): never a value, left empty. */
 export const NOT_STATED: string[];
+/** Gender, the property every season has (the user, 2026-11-16). */
+export const GENDER_PROPERTY: RulebookCastProperty;
+/** A season's properties: its rulebook's, then Gender unless the rulebook has its own. */
+export function withGender(props: RulebookCastProperty[]): RulebookCastProperty[];

@@ -1,19 +1,19 @@
 // Cast properties on the server (docs/PLAN-cast-properties.md): which properties a season's people have (its rulebook's
 // cast.properties) and each person's values and bio (season_cast.props, season_cast.bio). Read per request, never copied into a
 // league's state, so every game on a season reads the one set of values the desk keeps (decided item 4).
-import { castProperties, mainProperty, propertyPlural, type RulebookCastProperty } from "@/lib/game/formats/rulebook-schema.js";
+import { castProperties, mainProperty, propertyPlural, withGender, type RulebookCastProperty } from "@/lib/game/formats/rulebook-schema.js";
 import type { CastBio } from "@/lib/game/formats/cast-prompt";
 import { pool } from "./db";
 
 type Db = { query: typeof pool.query };
 
-/** A season's cast properties as its rulebook declares them ([] for none, or no rulebook). */
+/** A season's cast properties: its rulebook's, then Gender, which every season has (the user, 2026-11-16). */
 export async function seasonCastProperties(seasonId: string, db: Db = pool): Promise<RulebookCastProperty[]> {
   const { rows } = await db.query(
     "SELECT blocks->'cast' AS cast FROM rulebooks WHERE owner_kind = 'season' AND season_id = $1 AND status <> 'archived' ORDER BY updated_at DESC LIMIT 1",
     [seasonId]
   );
-  return castProperties({ cast: rows[0]?.cast ?? null } as never);
+  return withGender(castProperties({ cast: rows[0]?.cast ?? null } as never));
 }
 
 /** What a page needs to show a season's properties: each one's key, its names, its values, and which is shown under a name. */
@@ -28,7 +28,9 @@ export interface CastPropertyView {
 }
 
 export function propertyViews(props: RulebookCastProperty[]): CastPropertyView[] {
-  const main = mainProperty({ cast: { properties: props } } as never);
+  // The one shown under a name is the rulebook's own (Gender only when it marks it main): a crew's job, not their gender.
+  const own = props.filter((p) => p.key !== "gender" || p.main);
+  const main = own.length ? mainProperty({ cast: { properties: own } } as never) : null;
   return props.map((p) => ({ key: p.key, name: p.name, plural: propertyPlural(p), values: Array.isArray(p.values) ? [...p.values] : null, main: p === main, of: p.of ?? null }));
 }
 

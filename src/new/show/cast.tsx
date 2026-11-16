@@ -323,7 +323,7 @@ export function Select({ label, value, options, onChange, main }: { label: strin
  *  anyone has (a crew's department), else none. */
 function groupingProperty(d: SeasonStats) {
   if (d.groups.length) return null;
-  return (d.properties ?? []).find((p) => p.values && d.cast.some((c) => c.props?.[p.key])) ?? null;
+  return (d.properties ?? []).find((p) => p.values && p.key !== "gender" && d.cast.some((c) => c.props?.[p.key])) ?? null;
 }
 
 /** Filter chips: each listed property the wall doesn't group by, with two or more of its values in the cast (The Challenge's
@@ -337,13 +337,14 @@ function PropertyChips({ d, chosen, onChoose }: { d: SeasonStats; chosen: { key:
   if (!rows.length) return null;
   const chip = (on: boolean) =>
     `nd-press inline-flex h-11 flex-none items-center gap-1.5 rounded-[3px] px-3 text-[14px] font-semibold ${on ? "bg-foreground text-background" : "bg-card text-foreground"}`;
+  // One choice at a time across them all, so one All; each property's values together, wrapping rather than scrolling sideways.
   return (
-    <div data-property-chips className="mb-5 flex flex-col gap-1.5">
+    <div data-property-chips role="radiogroup" aria-label="Show only" className="mb-5 flex flex-wrap gap-x-3 gap-y-1.5">
+      <button type="button" role="radio" aria-checked={!chosen} data-chip="" onClick={() => onChoose(null)} className={chip(!chosen)}>
+        All
+      </button>
       {rows.map(({ p, values }) => (
-        <div key={p.key} role="radiogroup" aria-label={`Show by ${p.name.toLowerCase()}`} data-chips-of={p.key} className="-mx-4 flex gap-1.5 overflow-x-auto px-4 [scrollbar-width:none]">
-          <button type="button" role="radio" aria-checked={chosen?.key !== p.key} data-chip="" onClick={() => onChoose(null)} className={chip(chosen?.key !== p.key)}>
-            All
-          </button>
+        <span key={p.key} data-chips-of={p.key} className="flex gap-1.5" aria-label={p.name}>
           {values.map(([v, n]) => {
             const on = chosen?.key === p.key && chosen.value === v;
             return (
@@ -353,7 +354,7 @@ function PropertyChips({ d, chosen, onChoose }: { d: SeasonStats; chosen: { key:
               </button>
             );
           })}
-        </div>
+        </span>
       ))}
     </div>
   );

@@ -81,7 +81,13 @@ async function add(as, listing) {
 }
 
 async function cast(as, pool, sid) {
-  const before = (await pool.query("SELECT max(created_at) AS t FROM season_cast_answers WHERE season_id = $1", [sid])).rows[0].t;
+  // The answer there now (by id: a timestamp read into JS loses its microseconds, and the same answer reads as newer). With
+  // --wait, the one before the ask that's running (asked_at of the open run).
+  const run0 = (await pool.query("SELECT asked_at FROM desk_runs WHERE season_id = $1 AND kind = 'cast' AND done_at IS NULL ORDER BY asked_at DESC LIMIT 1", [sid])).rows[0];
+  const before = (await pool.query(
+    "SELECT id FROM season_cast_answers WHERE season_id = $1 AND ($2::timestamptz IS NULL OR created_at < $2) ORDER BY created_at DESC LIMIT 1",
+    [sid, args.includes("--wait") && run0 ? run0.asked_at : null]
+  )).rows[0]?.id ?? null;
   if (!args.includes("--wait")) {
     const r = await as.call("POST", `/api/desk/seasons/${sid}/cast`, { ask: true });
     if (r.status !== 200) throw new Error(`asking: ${r.status} ${JSON.stringify(r.body)}`);
@@ -89,8 +95,8 @@ async function cast(as, pool, sid) {
   }
   for (let i = 0; i < 120; i++) {
     await sleep(5000);
-    const { rows } = await pool.query("SELECT id, created_at, sent_at, jsonb_array_length(people) AS n FROM season_cast_answers WHERE season_id = $1 AND ($2::timestamptz IS NULL OR created_at > $2) ORDER BY created_at DESC LIMIT 1", [sid, before]);
-    if (rows[0]) {
+    const { rows } = await pool.query("SELECT id, created_at, sent_at, jsonb_array_length(people) AS n FROM season_cast_answers WHERE season_id = $1 ORDER BY created_at DESC LIMIT 1", [sid]);
+    if (rows[0] && rows[0].id !== before) {
       console.log(`[${stamp()}] staged: ${rows[0].n} people${rows[0].sent_at ? " (nothing changed: settled)" : ""}`);
       const page = (await as.call("GET", `/api/desk/seasons/${sid}/cast`)).body;
       console.log(JSON.stringify(page.review ?? page, null, 1).slice(0, 6000));

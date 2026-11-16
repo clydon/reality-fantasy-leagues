@@ -70,7 +70,7 @@ test("the research prompt asks for properties, with the rule and examples", () =
   assert.ok(p.includes('"properties": [ what else the show itself sorts them by'));
   assert.ok(p.includes("sometimes: Sometimes. A firing, a promotion, a swap."));
   assert.match(p, /Never ethnicity, religion, sexuality, health or age/);
-  assert.match(p, /gender only where the show itself splits by it/);
+  assert.match(p, /Gender isn't one to list: the cast's research asks it of every show/);
   assert.match(p, /Never a secret role \(that's a twist\)/);
 });
 

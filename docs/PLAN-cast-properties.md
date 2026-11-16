@@ -81,9 +81,19 @@ are dated facts (below).
 values as the viewer has seen them), never stored in the league, so one source and no copies to sync. Tribes keep their own path.
 
 **What's allowed to be a property** (research must hold to it, and the review refuses others): only what the show itself bills or
-splits by, on screen or in its own cast announcements. Never inferred from a name or a photo. Gender only where the show itself
-splits by it, in the show's own terms, more than two values allowed and "not stated" valid. Never ethnicity, religion, sexuality,
-health or age bands. A property's value is "not stated" rather than a guess.
+splits by, on screen or in its own cast announcements. Never inferred from a name or a photo, with one exception: gender (the
+user, 2026-11-16, below). Never ethnicity, religion, sexuality, health or age bands. A property's value is "not stated" rather than
+a guess.
+
+**Gender, every show** (the user, 2026-11-16, choosing "infer when not stated" over the recommended "as billed": "i dont see
+man/woman or any kind of assumed gender... we definitely want that"). Every season has a Gender property (Man, Woman, Nonbinary;
+rulebook-schema.js `withGender`) without its rulebook declaring it (a rulebook's own gender stands). The cast research asks it of
+everyone: from the show's own billing (a network bio's he or she, a men's or women's split) wherever it says, else the research's
+inference from name and photo, and `props.genderFrom` says which (`billed`, `inferred`, or `desk` once the desk sets it). The
+desk shows an inferred one as "gender guessed" and fixes it; an answer filling in a gender applies by default, and one that would
+change a gender we have keeps ours by default. The app shows it as a fact: in the sheet's details line and as Man / Woman chips
+on the wall; it's never the wall's grouping or the line under a name. Rules (chunk 4) can read it like any property: "two men, two
+women".
 
 ## Rules a game can make
 
@@ -170,9 +180,9 @@ follow.
 
 ## Decided (the user, 2026-11-15, taking each recommendation)
 
-1. **What may be a property:** only what the show itself bills or splits by; gender only where the show splits by it, in its own
-   terms, more than two values and "not stated" allowed; never ethnicity, religion, sexuality, health or age bands; never
-   inferred from a name or a photo.
+1. **What may be a property:** only what the show itself bills or splits by; never ethnicity, religion, sexuality, health or age
+   bands; never inferred from a name or a photo. **Changed for gender (the user, 2026-11-16):** every show has it, as billed or
+   else inferred, said which (see "Gender, every show" above).
 2. **Replacements:** each game's choice; the default keeps the shape for needs and takes anyone for the spread, as today.
 3. **A change after the draft:** the team's shape is judged at the draft; a later change never breaks a team and is said on the
    person; lineup slots read the value as of that episode.

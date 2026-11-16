@@ -6,7 +6,7 @@ import { LIBRARY } from "@/lib/game/formats/library/index.js";
 import { compileRulebook } from "@/lib/game/formats/rulebook-compile.js";
 import { howItWorks, type HowItWorks } from "@/lib/game/formats/rulebook-describe.js";
 import { buildRulebookPrompt, parseRulebookAnswer, reviewRulebook } from "@/lib/game/formats/rulebook-research.js";
-import { KINDS, cap, castProperties, type RulebookBlocks, type RulebookKind } from "@/lib/game/formats/rulebook-schema.js";
+import { KINDS, cap, castProperties, withGender, type RulebookBlocks, type RulebookKind } from "@/lib/game/formats/rulebook-schema.js";
 import {
   castFromListing,
   foundLines,
@@ -194,7 +194,7 @@ function episodeWordOf(blocks: RulebookBlocks): string | null {
 }
 
 /** The rules a cast is read against: the answer's terms, groups and roles, and the properties its blocks declare. */
-const castFormatOf = (data: FormatData, blocks?: RulebookBlocks | null) => ({ ...formatForRulebook(data, "research"), properties: castProperties(blocks ?? null) });
+const castFormatOf = (data: FormatData, blocks?: RulebookBlocks | null) => ({ ...formatForRulebook(data, "research"), properties: withGender(castProperties(blocks ?? null)) });
 
 // ---- the review ----
 

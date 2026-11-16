@@ -504,6 +504,8 @@ async function overrideDetails(user: SessionUser, id: string, field: "props" | "
         out[p.key] = match;
       } else out[p.key] = v.slice(0, 60);
     }
+    // A gender the desk sets (or keeps) is the desk's: no longer a guess.
+    if (out.gender) out.genderFrom = "desk";
     value = JSON.stringify(out);
     if (value === JSON.stringify(propsOf(was.props))) throw new HttpError(409, "Those are their details already");
     line = `Details: ${propsLine(out, views) || "none"}`;

@@ -463,6 +463,17 @@ function castProperties(blocks) {
   return list(blocks && blocks.cast && blocks.cast.properties).filter((p) => isObj(p) && isText(p.key));
 }
 
+// Gender, for every show (the user, 2026-11-16, replacing decided item 1's "only where the show splits by it"): asked of every
+// cast as the show bills it, else the research's inference from name and photo (props.genderFrom says which: billed, inferred,
+// or desk once the desk sets it), and fixed on the desk. Every season has it without its rulebook declaring it.
+const GENDER_PROPERTY = { key: 'gender', name: 'Gender', plural: 'Genders', values: ['Man', 'Woman', 'Nonbinary'], changes: 'never' };
+
+/** A season's properties: its rulebook's, then Gender unless the rulebook has its own. */
+function withGender(props) {
+  const list_ = Array.isArray(props) ? props : [];
+  return list_.some((p) => p && p.key === 'gender') ? list_ : [...list_, { ...GENDER_PROPERTY, values: [...GENDER_PROPERTY.values] }];
+}
+
 /** The property shown under a person's name: the one marked main, else the first; null with none. */
 function mainProperty(blocks) {
   const props = castProperties(blocks);
@@ -886,5 +897,5 @@ module.exports = {
   SCHEMA_VERSION, OPT, KINDS, BLOCKS, GAME_LABELS, DECIDED_TAG, QUESTIONS, TWIST_FIELDS,
   labelOf, helpOf, valuesOf, optionsFor, partWord, blockLabel, blocksProblems, kindOf, camelId, cap, pluralOf, hasGroupWin, winsOf,
   REFINEMENTS, dropMisfitRefinements,
-  castProperties, mainProperty, propertyPlural, forbiddenPropertyKind, RESERVED_PROPERTY_KEYS, NOT_STATED,
+  castProperties, mainProperty, propertyPlural, forbiddenPropertyKind, RESERVED_PROPERTY_KEYS, NOT_STATED, GENDER_PROPERTY, withGender,
 };

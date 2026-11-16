@@ -15,7 +15,8 @@
 //      the season before its premiere: the stats read carries the properties and each person's values and bio; a game's stamp
 //      (cast-props.ts stampCastProps) gives each castaway's values by id and is left out of a save; in the browser at --width,
 //      the wall grouped by department in the rulebook's order with each job under a name, the Status chips (All, Veteran 4,
-//      Rookie 2) filtering it, and a face opening who they are before any results (the bio line and its billing line).
+//      Rookie 2) filtering it, the Gender chips every show has (Man 3, Woman 3), and a face opening who they are before any
+//      results (the bio line and its billing line).
 // Screenshots go to <outDir>.
 //
 //   node scripts/lane.js dev                                    (this lane's server; BASE from .env.local)
@@ -287,6 +288,8 @@ async function part2(pool, ids) {
 async function part3(pool, ids) {
   // The crew's details as the desk would have them, Status added to the rulebook (as part 1 does through the editor).
   const status = { "Kip Hale": "Veteran", "Ana Monroe": "Veteran", "Dee Kwon": "Rookie", "Finn Bligh": "Veteran", "Gus Penn": "Rookie", "Rae Stone": "Veteran" };
+  // Gender, every show's (the user, 2026-11-16): Rae's inferred, the others billed.
+  const gender = { "Kip Hale": "Man", "Ana Monroe": "Woman", "Dee Kwon": "Woman", "Finn Bligh": "Man", "Gus Penn": "Man", "Rae Stone": "Woman" };
   await pool.query(
     `UPDATE rulebooks SET blocks = jsonb_set(blocks, '{cast,properties}', (blocks->'cast'->'properties') || '[{"key":"status","name":"Status","values":["Veteran","Rookie"],"changes":"never"}]'::jsonb)
       WHERE season_id = $1 AND owner_kind = 'season' AND NOT (blocks->'cast'->'properties' @> '[{"key":"status"}]')`,
@@ -295,7 +298,7 @@ async function part3(pool, ids) {
   for (const [name, department, job, hometown, age, occupation] of CREW)
     await pool.query("UPDATE season_cast SET props = $2::jsonb, bio = $3::jsonb WHERE id = $1", [
       ids.cast[name],
-      JSON.stringify({ department, job, status: status[name] }),
+      JSON.stringify({ department, job, status: status[name], gender: gender[name], genderFrom: name === "Rae Stone" ? "inferred" : "billed" }),
       JSON.stringify({ hometown, age, occupation, ...(name === "Ana Monroe" ? { line: "Runs the interior like a five-star hotel, and expects her team to keep up." } : {}) }),
     ]);
   const { rows: jo } = await pool.query(`SELECT id FROM "user" WHERE username = $1`, [U("jo")]);
@@ -304,14 +307,14 @@ async function part3(pool, ids) {
   const as = await api({ user: U("jo"), pass: PASSWORD });
   const st = (await as.call("GET", `/api/seasons/${ids.s1}/stats`)).body;
   const ana = (st.cast || []).find((c) => c.name === "Ana Monroe");
-  check(st.properties?.map((p) => `${p.key}${p.main ? "*" : ""}`).join() === "department,job*,status", "3: the stats read carries the season's properties (job shown under a name)", JSON.stringify(st.properties));
+  check(st.properties?.map((p) => `${p.key}${p.main ? "*" : ""}`).join() === "department,job*,status,gender", "3: the stats read carries the season's properties (job shown under a name)", JSON.stringify(st.properties));
   check(ana?.props?.job === "Chief stew" && ana?.bio?.hometown === "Ocean City, NJ" && ana?.bio?.age === 31, "3: and each person's values and bio", JSON.stringify(ana && { props: ana.props, bio: ana.bio }));
 
   // A game's stamp: each castaway's values by their id, and never in what's saved.
   const { stampCastProps } = jiti("../../src/lib/server/cast-props.ts");
   const S = require("../../src/lib/game/state-logic.js");
   const state = await stampCastProps({ castaways: [{ id: "k1", seasonCastId: ids.cast["Ana Monroe"] }, { id: "k2", seasonCastId: null }] }, pool);
-  check(state.castProps?.k1?.job === "Chief stew" && !state.castProps.k2 && state.castPropDefs?.length === 3, "3: a game's stamp gives each castaway's values by id", JSON.stringify(state.castProps));
+  check(state.castProps?.k1?.job === "Chief stew" && !state.castProps.k2 && state.castPropDefs?.length === 4, "3: a game's stamp gives each castaway's values by id", JSON.stringify(state.castProps));
   const keys = new Set(S.StatsLogic.stampedKeys());
   check(!/castProp/.test(JSON.stringify(state, (k, v) => (keys.has(k) ? undefined : v))), "3: and a save leaves it out");
 
@@ -326,23 +329,24 @@ async function part3(pool, ids) {
     check(groups.join() === "Interior,Deck,Galley,Bridge", "3: the wall groups by department, in the rulebook's order", groups.join());
     const lines = await page.locator("[data-face-wall] [data-cast-line]").allInnerTexts();
     check(lines.includes("Chief stew") && lines.includes("Captain"), "3: each job under a name", lines.join(" | "));
-    const chips = await page.locator('[data-chips-of="status"] [data-chip]').allInnerTexts();
-    check(chips.map((c) => c.replace(/\s+/g, " ").trim()).join() === "All,Veteran 4,Rookie 2", "3: Status chips with how many", chips.join(" | "));
+    const chips = await page.locator("[data-property-chips] [data-chip]").allInnerTexts();
+    check(chips.map((c) => c.replace(/\s+/g, " ").trim()).join() === "All,Veteran 4,Rookie 2,Man 3,Woman 3", "3: one All, then the Status and Gender chips with how many", chips.join(" | "));
     check((await page.locator('[data-chips-of="department"], [data-chips-of="job"]').count()) === 0, "3: no chips for the grouping or a free-text property");
+    check((await page.locator('[data-chips-of="gender"] [data-chip]').count()) === 2, "3: Gender's chips (every show's)");
     await shot("3-wall");
     await page.locator('[data-chips-of="status"] [data-chip="Rookie"]').click();
     await page.waitForTimeout(400);
     const rookies = await page.locator("[data-face-wall] [data-cast]").evaluateAll((els) => els.map((e) => e.getAttribute("data-cast")));
     check(rookies.sort().join() === "Dee,Gus", "3: Rookie shows only the rookies", rookies.join());
     await shot("3-rookies");
-    await page.locator('[data-chips-of="status"] [data-chip=""]').click();
+    await page.locator('[data-property-chips] [data-chip=""]').click();
     await page.locator('[data-face-wall] [data-cast="Ana"]').click();
     await page.locator("[data-person-bio]").waitFor({ timeout: 10000 });
     await page.waitForTimeout(600);
     const head = await page.locator("[data-person-group]").innerText();
     const bio = await page.locator("[data-person-bio]").innerText();
     const line = await page.locator("[data-person-line]").innerText();
-    check(/Interior · Chief stew · Veteran/.test(head) && bio === "Ocean City, NJ · 31 · Chief stewardess" && /five-star hotel/.test(line), "3: a face opens who they are, before any results", `${head} | ${bio} | ${line}`);
+    check(/Interior · Chief stew · Veteran · Woman/.test(head) && bio === "Ocean City, NJ · 31 · Chief stewardess" && /five-star hotel/.test(line), "3: a face opens who they are, before any results", `${head} | ${bio} | ${line}`);
     check((await page.locator("[data-compare-with]").count()) === 0, "3: no Compare before there are numbers");
     await shot("3-sheet");
     check(!(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)), "3: nothing wider than the screen");

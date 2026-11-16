@@ -133,3 +133,36 @@ test("a nickname in quotes is the same person: no new spelling, nobody added twi
   const changes = D.castChanges(ours, theirs, { groups: true });
   assert.deepEqual(changes.map((c) => `${c.k}:${c.id ?? c.name}`).sort(), ["bio:a", "bio:b"]);
 });
+
+test("gender, every show (the user, 2026-11-16): asked as billed, else inferred, said which; fills in; the desk's never replaced", () => {
+  const S = require("../src/lib/game/formats/rulebook-schema.js");
+  assert.deepEqual(S.withGender([]).map((p) => p.key), ["gender"]);
+  assert.deepEqual(S.withGender(properties).map((p) => p.key), ["department", "job", "gender"]);
+  assert.equal(S.withGender([{ key: "gender", name: "Gender", values: ["Men", "Women"], changes: "never" }]).length, 1, "a rulebook's own gender stands");
+  const f = { ...format, properties: S.withGender(properties) };
+  const p = C.buildCastPrompt(f, { showName: "Below Deck" });
+  assert.match(p, /"gender": "Their gender: exactly one of \\"Man\\", \\"Woman\\", \\"Nonbinary\\". As the show bills them/);
+  assert.match(p, /"genderFrom":/);
+  const r = C.parseCastImport({ castaways: [{ name: "A", properties: { gender: "female", genderFrom: "billed" } }, { name: "B", properties: { gender: "Man" } }, { name: "C", properties: { gender: "unknown" } }] }, f);
+  assert.deepEqual(r.castaways.map((c) => c.props), [{ gender: "Woman", genderFrom: "billed" }, { gender: "Man", genderFrom: "inferred" }, {}]);
+  // Gender added to someone whose job we have fills in; one we have (the desk's) keeps ours.
+  const ours = [
+    { id: "a", name: "Ana", group: null, locked: false, props: { department: "Interior", job: "Chief stew" } },
+    { id: "b", name: "Bo", group: null, locked: false, props: { gender: "Man", genderFrom: "desk" } },
+  ];
+  const ch = D.castChanges(ours, [{ name: "Ana", group: null, photo: null, props: { gender: "Woman", genderFrom: "inferred" } }, { name: "Bo", group: null, photo: null, props: { gender: "Woman", genderFrom: "inferred" } }], { groups: false, props: true });
+  assert.equal(D.pickOf(ch.find((c) => c.id === "a")), "theirs");
+  assert.equal(D.pickOf(ch.find((c) => c.id === "b")), "ours");
+  const views = S.withGender(properties).map((x) => ({ key: x.key, name: x.name, main: !!x.main }));
+  assert.equal(W.propsLine({ department: "Interior", job: "Chief stew", gender: "Woman", genderFrom: "inferred" }, views), "Interior · Chief stew · Woman");
+  assert.equal(W.genderGuessed({ gender: "Woman", genderFrom: "inferred" }), true);
+  assert.equal(W.mainValue({ gender: "Woman" }, [{ key: "gender", name: "Gender" }]), null, "gender is never the line under a name");
+});
+
+test("Keep ours keeps the values we have and still fills in what we don't", () => {
+  const ours = [{ id: "r", name: "Rainbeau", group: null, locked: false, props: { department: "Interior", job: "2nd Stew" } }];
+  const ch = D.castChanges(ours, [{ name: "Rainbeau", group: null, photo: null, props: { department: "Interior", job: "Second Stew", gender: "Woman", genderFrom: "inferred" } }], { groups: false, props: true });
+  assert.equal(D.pickOf(ch[0]), "ours");
+  assert.deepEqual(D.castPlan(ch).reprops[0].to, { gender: "Woman", genderFrom: "inferred", department: "Interior", job: "2nd Stew" });
+  assert.deepEqual(D.castPlan(ch, { [ch[0].key]: "theirs" }).reprops[0].to.job, "Second Stew");
+});

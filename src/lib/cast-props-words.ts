@@ -9,21 +9,24 @@ export interface PropertyWords {
   main?: boolean;
 }
 
-/** "Interior · Chief stew": a person's values in the season's order of its properties, any others after. */
+/** "Interior · Chief stew · Woman": a person's values in the season's order of its properties (only its properties: never a
+ *  note kept beside them, like where a gender came from). */
 export function propsLine(p: Record<string, string> | null | undefined, props: PropertyWords[] = []): string {
   const v = p ?? {};
-  const known = props.map((x) => v[x.key]).filter(Boolean);
-  const rest = Object.entries(v)
-    .filter(([k]) => !props.some((x) => x.key === k))
-    .map(([, x]) => x);
-  return [...known, ...rest].join(" · ");
+  return props
+    .map((x) => v[x.key])
+    .filter(Boolean)
+    .join(" · ");
 }
+
+/** Whether a person's gender was the research's inference, not the show's billing or the desk's (the desk says "guessed"). */
+export const genderGuessed = (p: Record<string, string> | null | undefined) => !!p?.gender && p.genderFrom === "inferred";
 
 /** The value shown under a name: the main property's, else the first one stated; null with none. */
 export function mainValue(p: Record<string, string> | null | undefined, props: PropertyWords[] = []): string | null {
   const v = p ?? {};
-  const main = props.find((x) => x.main) ?? props[0];
-  return (main && v[main.key]) || props.map((x) => v[x.key]).find(Boolean) || null;
+  const main = props.find((x) => x.main) ?? props.find((x) => x.key !== "gender");
+  return (main && v[main.key]) || props.filter((x) => x.key !== "gender").map((x) => v[x.key]).find(Boolean) || null;
 }
 
 /** "Ocean City, NJ · 25 · Nurse": a bio's head line (where they're from, their age as billed, what they do); "" with none. */
