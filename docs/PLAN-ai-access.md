@@ -8,8 +8,21 @@ loading bar (or as real as it can be) while also serving a windowed ad for monet
 
 Builds on: the fast-AI paywall decision (2026-11-08, docs/PLAN-start-a-game-gpt.md "The fast AI is paid; free waits carry an
 ad"), paid services contained (no flow anyone can reach spends a paid key), the /b/<code> brief links, Results ways' One tap
-and Autopilot (src/lib/server/results-ways.ts, prices in cents, charged 0 "free during beta"). **Status: a draft structure for
-the user's review. Nothing here is built; the mocks are the next step (the design process, below).**
+and Autopilot (src/lib/server/results-ways.ts, prices in cents, charged 0 "free during beta").
+
+**Status: TABLED (the user, 2026-11-16: "table this to a plan ... we can revisit later").** Nothing here is built. Where it was
+left:
+- **Agreed direction:** costs stay low (the ChatGPT bot by default; Codex only for one-offs the user okays); everything plays
+  free, paying buys convenience (no tap, no wait, no ad) and a little flair; the DIY ChatGPT link is always the free way past
+  any barrier.
+- **What the numbers said** (Money, below): we pay ~$6 a month today (~$26 once ads or charging start, Vercel Pro), ~$36-61 at
+  300 people, ~$61-171 at 1,000; wait ads earn little (only makers wait: under $2 today, ~$15-50 at 1,000); a couch pass, a
+  supporter plan and one quiet ad slot are what could cover it.
+- **Open:** the six decisions (below), the brainstorm's choices (charge the couch, results by tap as the barrier, where ads
+  may go), the DIY link's protection (stage 1) and our own GPT posting answers back (stage 2, to test with a ChatGPT Free
+  account first), then the mocks through the design process.
+- **Revisit when:** charging or ads are on the table (Vercel Pro and TMDB's licence come with them), the bot gets blocked or
+  slow (the risk line), or the couch count passes a few dozen.
 
 ## What asks an AI today (inventory, 2026-11-16; file references in the lane's chat, all re-checkable by grep)
 

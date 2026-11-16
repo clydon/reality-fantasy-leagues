@@ -86,6 +86,8 @@ after, the wizard taking in chunk 7). Commits: 10b6f369 (chunk 1), ad6b0f2b (chu
   2 h) and stops for the desk after 6 tries. The other four local catch-ups (Survivor 49, Traitors 5, Challenge 42, Below Deck 13)
   are queued but not run (the lane has no clock). The story is at version 4 (holdings and the catch-up). **Before the push:** rehearse it on a Neon branch of
   production (the deploy rehearsal routine) and show the user the held list; the clock then runs it in production by itself.
+- **Tabled in this lane (docs only, ships with the merge):** docs/PLAN-ai-access.md, AI access and money (BACKLOG 93): the
+  user's cost-low direction, what we pay and could earn by size, the DIY link and paid tiers, ads at waits. Revisit later.
 - **Next:** the rehearsal on production's copy, then the merge (0439-0441 renumbered if taken). Chunk 7 goes with the wizard (step
   12). The user's review of the story's chunks.
 

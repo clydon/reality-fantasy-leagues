@@ -306,8 +306,12 @@ async function castStep(s: Season, bot: string | undefined, budgetMs: number): P
 async function episodeStep(s: Season, n: number, bot: string | undefined, budgetMs: number, spread: number): Promise<{ status: "sent" | "held"; line: string }> {
   const { prompt } = await buildPasteImportPrompt(pool, s.slug, s.season_number, n, { structured: true });
   if (!prompt) return { status: "sent", line: `Episode ${n}: nothing to ask` };
-  // The catch-up's own kind (Codex by default: several at once), starting at a different bot for each ask going at once.
-  const { answer } = await askBot(prompt, { bot, budgetMs, kind: "catchup", spread });
+  // The catch-up's own kind (Codex by default: several at once), starting at a different bot for each ask going at once. Codex
+  // needs the ChatGPT Plus plan: if it can't answer (the plan lapsed, its limit reached), the free ChatGPT bot asks instead.
+  const until = Date.now() + budgetMs;
+  const answer = await askBot(prompt, { bot, budgetMs, kind: "catchup", spread })
+    .catch(() => askBot(prompt, { bot, budgetMs: until - Date.now(), provider: "chatgpt", spread }))
+    .then((a) => a.answer);
   // Dry: read and checked, nothing stored or staged; the original answer stays as it was.
   const run = await researchFromPaste(pool, s.slug, s.season_number, n, answer, { structured: true, dry: true, via: "bot", checkEpisode: true });
   const input = await inputOf(s.id, n, run);

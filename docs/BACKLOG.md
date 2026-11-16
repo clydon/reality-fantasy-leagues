@@ -1203,6 +1203,12 @@ Last updated 2026-10-27.
    wait: flaky, not broken. Not investigated further. Who takes it: a Backstage step (the settings track, design round
    step 12) or a small fix session.
 
+93. **AI access and money: free, the DIY link, paid, and ads (TABLED, the user, 2026-11-16)** (number 93: explorer-sports' 92
+    may land first). The structure, what we pay and could earn at today's size, 300 and 1,000 people, the "ask only the
+    difference" rule for shared research, the DIY link only ChatGPT reads once, our own GPT posting answers back, and a
+    brainstorm for staying free with a convenience barrier: docs/PLAN-ai-access.md (its Status says where it was left and when
+    to revisit). **Who:** the user decides the six open choices; then a design round for the mocks.
+
 ## Decided against (don't re-propose without new information)
 
 - **An AI draft/lineup/pick advisor for players** ("Coach"): rejected. Feels like pay-to-win inside
