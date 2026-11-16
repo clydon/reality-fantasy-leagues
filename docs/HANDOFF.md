@@ -11,6 +11,16 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
+## Pushed: The numbers' holders (2026-11-16, master at this commit; no migrations)
+The Castaways tab's game lens (GameTable, src/new/show/game-week.tsx), from the user's screenshot of it on the real couch ("a bit
+cramped"): first names, a last initial only on a clash (castName); who holds each as faces (Episodes' face stack, now shared as
+ui/bars.tsx `Faces`: yours first and ringed, three and a count past four, so eight holders fit two's width; one holder named; Free);
+the pinned names and total on the table's ground (`ground`: the page, or a sheet's panel) covering the gutter beside them, so weeks
+no longer scroll out past Total; your rows' lift 8px past the margin. useOpenOnLatest counts the scroller's padding and spreads the
+weeks in view evenly (the first week had been cut by 16px; your sheet's season table opens the same way). The user approved the
+story (https://claude.ai/artifact/K76ur1eGiyrXEo6rZkm4Hg), your own face first in the stack included. Checks: tsc, eslint, unit
+2379/0, next build in a throwaway worktree, the story's real-route renders (`scripts/dev-test/story-numbers.js`). Left: BACKLOG 95.
+
 ## Pushed: the design round's steps 2 to 9 are live (2026-11-16, master 1dd10b96, migration 0438)
 explorer-sports fast-forwarded master (16 commits: steps 2-9, the side-bets work, the readiness fixes). Rehearsed on a Neon branch of
 production (`rehearse-design-2026-11-16`): 0438 applied, `[check] all good`, `[rulebooks] backfilled`, `[game-specs] check: PASS`
@@ -19,7 +29,10 @@ production (`rehearse-design-2026-11-16`): 0438 applied, `[check] all good`, `[r
 read) showed no errors; the logs' only error-level lines are pg's SSL-mode warning. Checks at the push: unit 2379/0, notify
 150/150, backstage-ii 147/147, couches 114/114, start-game 75/75, hub-next 17/17. **Stale, to rewrite once the round settles**
 (the user: not worth fixing before the redesign is done): check-new-hub.js and check-new-shell.js (step 7's posters),
-check-new-show.js (step 3's move cards), check-new-way-in.js (the catalog's seasonNumber, since 2026-11-05). The rehearsal's fast
+check-new-show.js (step 3's move cards), check-new-way-in.js (the catalog's seasonNumber, since 2026-11-05); found 2026-11-16 (the
+numbers' holders change): check-new-stats.js (step 5's Cast: no "Your team" or "Out · Ep N" on the face wall, the person sheet in
+place of `[data-story]`; its API half still passes, 25 of 25) and check-where-everyone.js (step 7 took the hub's face row; it stops
+there, before Episodes). The rehearsal's fast
 path (no asking) is in the deploy-rehearsal-routine memory.
 
 ## The design round's step 9, Chat, a light review (2026-11-16; built on branch `explorer-sports`, not committed past it; waits on the user's review)
