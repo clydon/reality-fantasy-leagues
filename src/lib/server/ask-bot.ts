@@ -82,6 +82,9 @@ export interface BotChoice {
   /** "now": ahead of every question queued behind the one the bot is answering (llm-browser-api's priority queue, the Decisions
    *  table's "The bot's queue": a person is waiting on it). A bot without the queue reads it as an ordinary question. */
   priority?: "now";
+  /** Which bot to try first, of the configured list (an ask's index among ones going at once): asks side by side spread over
+   *  every bot, each still falling back to the others. Left out: in order, the VM first. */
+  spread?: number;
 }
 
 type BotAnswer = { response?: string; seconds?: number; detail?: string };
@@ -132,7 +135,21 @@ async function readProgress(res: Response, on: (p: BotProgress) => void): Promis
   }
 }
 
-const urlsFor = (o: BotChoice = {}) => (o.bot ? [o.bot] : URLS);
+const urlsFor = (o: BotChoice = {}) => {
+  if (o.bot) return [o.bot];
+  const k = URLS.length && o.spread ? o.spread % URLS.length : 0;
+  return [...URLS.slice(k), ...URLS.slice(0, k)];
+};
+
+/** How many questions the bots answer at once for this kind: each bot answering now gives one for a browser (ChatGPT, Claude)
+ *  and CODEX_AT_ONCE for Codex (llm-browser-api's CODEX_PARALLEL, 3 by default). 0 with none up. */
+const CODEX_AT_ONCE = 3;
+export async function askBotSlots(o: BotChoice = {}): Promise<number> {
+  if (!configured(o)) return 0;
+  const provider = o.provider ?? (await askedProvider(o.kind));
+  const up = (await Promise.all(urlsFor(o).map(health))).filter(Boolean).length;
+  return up * (provider === "codex" ? CODEX_AT_ONCE : 1);
+}
 const configured = (o: BotChoice = {}) => !!o.bot || askBotConfigured;
 
 /**

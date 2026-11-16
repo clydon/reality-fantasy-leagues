@@ -19,7 +19,8 @@ export const BOT_PROVIDER_NAMES: Record<RunProvider, string> = { chatgpt: "ChatG
 /** The bot's runs, by kind: db/bot-research.js's (quick, full, schedule, trivia, bingo, facts; an asked episode is a full),
  *  the tie-break, the card and call runs, and a rulebook's research (desk-rulebooks.ts: the desk's Run now and Getting it
  *  ready's What scores). */
-export const BOT_RUN_KINDS = ["quick", "full", "schedule", "tiebreak", "rulebook", "trivia", "bingo", "facts", "card", "call", "made"] as const;
+// catchup: the catch-up's episode research (src/lib/server/catch-up.ts, docs/PLAN-cast-properties.md 6c), asked side by side.
+export const BOT_RUN_KINDS = ["quick", "full", "schedule", "tiebreak", "rulebook", "trivia", "bingo", "facts", "card", "call", "made", "catchup"] as const;
 export type BotRunKind = (typeof BOT_RUN_KINDS)[number];
 
 const isProvider = (v: unknown): v is RunProvider => (RUN_PROVIDERS as readonly unknown[]).includes(v);
@@ -41,8 +42,12 @@ export function runProviders(runs: unknown): Partial<Record<BotRunKind, RunProvi
 /** The AI a question asks: its run kind's own when the setting names one, else the desk's. */
 export function providerFor(botAi: unknown, runs: unknown, kind?: string | null): RunProvider {
   const own = kind ? runProviders(runs)[kind as BotRunKind] : undefined;
-  return own ?? deskProvider(botAi);
+  return own ?? RUN_DEFAULTS[kind as BotRunKind] ?? deskProvider(botAi);
 }
+
+/** A kind's own AI when the desk hasn't set one: the catch-up asks Codex, which answers several at once (the user, 2026-11-16:
+ *  "parallel bots"), so it moves along without taking ChatGPT's one-at-a-time browser from live research. */
+export const RUN_DEFAULTS: Partial<Record<BotRunKind, RunProvider>> = { catchup: "codex" };
 
 /** Each run kind as Settings history names it. */
 export const BOT_RUN_NAMES: Record<BotRunKind, string> = {
@@ -57,6 +62,7 @@ export const BOT_RUN_NAMES: Record<BotRunKind, string> = {
   card: "the bot's card",
   call: "the bot's calls",
   made: "the made-for games",
+  catchup: "the catch-up",
 };
 
 /**

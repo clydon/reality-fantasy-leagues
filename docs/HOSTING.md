@@ -699,7 +699,8 @@ never handles it: the user does the reset and the pasting.
   show's newest), and **the bot clock runs their steps** after research and Getting it ready, one a call: a season's rulebook check
   (~2 min), its cast (~1 min), then a full research ask per aired episode (~2-4 min), each tried in a transaction that's rolled
   back (a few seconds of Neon per episode, the season's games read and synced inside it). About 10 asks a season, 30-40 in all,
-  spread over the clock's calls: a few hours of the bot and of Neon awake once, then nothing. Our bot only, never the paid keys.
+  asked side by side through Codex (three at once a bot, both bots: up to six; Codex shares the ChatGPT plan's limits, so it's
+  speed, not more allowance): roughly half an hour to an hour of the bot and of Neon awake once, then nothing. Our bot only, never the paid keys.
   Each episode's answer is a new `episode_research` row (source `catchup`, ~20-50 KB). Nothing polls; the desk reads its line on
   load.
 

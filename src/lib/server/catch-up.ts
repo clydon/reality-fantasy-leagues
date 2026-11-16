@@ -1,7 +1,7 @@
 import { compileChain, getRulebook, inForceEdits, saveChain } from "@db/rulebooks.js";
 import { buildPasteImportPrompt, researchFromPaste } from "@db/episode-research.js";
 import { parseRulebookAnswer } from "@/lib/game/formats/rulebook-research.js";
-import { askBot, askBotStatus, tellBotClock } from "./ask-bot";
+import { askBot, askBotSlots, tellBotClock } from "./ask-bot";
 import type { SessionUser } from "./auth-helpers";
 import { factsOfRun } from "./bot-results";
 import { sendResults, tryResults, type SubmitInput, type Tried, type TriedGame } from "./community-results";
@@ -12,17 +12,21 @@ import { askRulebookNow } from "./desk-rulebooks";
 import { latestEnded, seasonSchedules } from "./schedule";
 
 // The catch-up (docs/PLAN-cast-properties.md chunk 6c; db/migrations/0441). A season played before cast properties, bios and
-// holdings existed is asked again by our bot, by itself, on the bot's clock (cron/bot-research: one due job a call, when no
-// research run or Getting it ready job is due), a step a call:
+// holdings existed is asked again by our bot, by itself, on the bot's clock (cron/bot-research: when no research run or Getting
+// it ready job is due), in order:
 //   show      its rulebook asked Check for changes; the properties go in when it has none (they never score), and it's
 //             compiled again so research asks its holdings and property questions. Every other difference stays on the
 //             rulebook's desk page as the check's card: how a game scores never changes here.
 //   cast      our bot's cast answer staged, and only details we lack sent (fillCastDetails); a new spelling, a starting
 //             group, a changed value or someone new waits in the cast review.
-//   episodes  each aired episode from 1, its full research a source of its own ('catchup') beside the original. Tried first
-//             (community-results.ts tryResults: filed and every game synced in a transaction that's rolled back): no game's
-//             total moves, it's sent; any does, it's held for the desk (catchup_holds) with who moves and by how much.
-// Our bot only: never the site's paid keys (docs/HOSTING.md). Never throws to the clock.
+//   episodes  every aired episode (a catchup_episodes row each), its full research a source of its own ('catchup') beside the
+//             original. Tried first (community-results.ts tryResults: filed and every game synced in a transaction that's
+//             rolled back): no game's total moves, it's sent; any does, it's held for the desk (catchup_holds) with who moves
+//             and by how much.
+// Side by side (the user, 2026-11-16: "parallel bots"): each clock call runs as many items as the bots answer at once
+// (askBotSlots: Codex's three a bot, run kind 'catchup'), spread over every bot; a season's show and cast go one at a time, its
+// episodes together. Only the asks overlap: a season's try-and-send is one at a time (an advisory lock), so two episodes never
+// sync the same games at once. Our bot only: never the site's paid keys (docs/HOSTING.md). Never throws to the clock.
 
 type Step = "show" | "cast" | "episodes";
 const STEPS: Step[] = ["show", "cast", "episodes"];
@@ -30,7 +34,7 @@ const ASK_STALE_MS = 8 * 60_000;
 const BUDGET_MS = 280_000;
 /** An ask isn't started with less than this left: the next call carries on. */
 const STEP_NEEDS_MS = 100_000;
-/** Patient: the bot's away for a while now and then, and nobody's waiting on a catch-up. A failed step is tried again after 5,
+/** Patient: the bot's away for a while now and then, and nobody's waiting on a catch-up. A failed item is tried again after 5,
  *  15 and 45 minutes, then every 2 hours, and stops (the desk's Inbox, Try again) only after this many, about half a day. */
 const TRIES = 6;
 const retryMs = (tries: number) => Math.min(5 * 3 ** Math.max(0, tries - 1), 120) * 60_000;
@@ -41,7 +45,6 @@ const AWAY = "Our bot's away right now. It carries on when it's back.";
 interface Row {
   season_id: string;
   step: Step;
-  episode: number;
   tries: number;
   asking_at: Date | null;
   tried_at: Date | null;
@@ -49,6 +52,16 @@ interface Row {
   stuck_at: Date | null;
   done_at: Date | null;
   created_at: Date;
+}
+
+interface EpisodeRow {
+  season_id: string;
+  episode_number: number;
+  status: "waiting" | "sent" | "held" | "stopped";
+  tries: number;
+  asking_at: Date | null;
+  tried_at: Date | null;
+  message: string | null;
 }
 
 interface Season {
@@ -65,73 +78,170 @@ const seasonOf = async (id: string): Promise<Season> => {
 };
 
 const airedOf = async (id: string): Promise<number> => latestEnded((await seasonSchedules([id])).get(id)) ?? 0;
+const asking = (at: Date | null, now: number) => !!at && now - at.getTime() < ASK_STALE_MS;
 
-/** When an open job runs again (null: asking now, done or stuck). */
+/** When a season's show or cast step runs again (null: asking now, on its episodes, done or stuck). */
 function dueAt(r: Row, now = Date.now()): Date | null {
-  if (r.done_at || r.stuck_at) return null;
-  if (r.asking_at && now - r.asking_at.getTime() < ASK_STALE_MS) return null;
+  if (r.done_at || r.stuck_at || r.step === "episodes" || asking(r.asking_at, now)) return null;
   if (!r.tried_at) return r.created_at;
   const wait = r.message === AWAY ? AWAY_MS : r.tries > 0 ? retryMs(r.tries) : CARRY_MS;
   return new Date(r.tried_at.getTime() + wait);
 }
 
-/** When the earliest open job comes due (the clock's `next`). */
-export async function catchUpsNextAt(): Promise<Date | null> {
-  const { rows } = await pool.query<Row>("SELECT * FROM season_catchups WHERE done_at IS NULL AND stuck_at IS NULL");
-  const due = rows.map((r) => dueAt(r)).filter((d): d is Date => !!d);
-  return due.length ? new Date(Math.min(...due.map((d) => d.getTime()))) : null;
+/** When an episode is asked (again): at once, or after a failed try's wait. */
+function episodeDueAt(e: EpisodeRow, now = Date.now()): Date | null {
+  if (e.status !== "waiting" || asking(e.asking_at, now)) return null;
+  if (!e.tried_at || !e.tries) return new Date(0);
+  return new Date(e.tried_at.getTime() + (e.message === AWAY ? AWAY_MS : retryMs(e.tries)));
 }
 
-/** The clock's turn: the earliest due job, one step. The season it ran, or null. */
-export async function runDueCatchUp(o: { bot?: string; budgetMs?: number }): Promise<string | null> {
-  const { rows } = await pool.query<Row>("SELECT * FROM season_catchups WHERE done_at IS NULL AND stuck_at IS NULL");
+/** A season on its episodes: a row for every aired one (new ones as they air), and done once none waits. */
+async function settleSeason(seasonId: string): Promise<void> {
+  const aired = await airedOf(seasonId);
+  if (aired > 0) {
+    await pool.query("INSERT INTO catchup_episodes (season_id, episode_number) SELECT $1, n FROM generate_series(1, $2::int) n ON CONFLICT DO NOTHING", [seasonId, aired]);
+  }
+  const { rows } = await pool.query<{ waiting: number; stopped: number }>(
+    "SELECT count(*) FILTER (WHERE status = 'waiting')::int AS waiting, count(*) FILTER (WHERE status = 'stopped')::int AS stopped FROM catchup_episodes WHERE season_id = $1",
+    [seasonId]
+  );
+  if (rows[0].waiting) return;
+  // Every episode in, or stopped: done, or stuck for the desk (Try again asks the stopped ones again).
+  const stopped = rows[0].stopped;
+  if (stopped) {
+    await pool.query("UPDATE season_catchups SET stuck_at = now(), message = $2, updated_at = now() WHERE season_id = $1 AND step = 'episodes' AND done_at IS NULL AND stuck_at IS NULL", [
+      seasonId,
+      `${stopped === 1 ? "An episode" : `${stopped} episodes`} stopped after ${TRIES} tries`,
+    ]);
+  } else {
+    await pool.query("UPDATE season_catchups SET done_at = now(), message = NULL, updated_at = now() WHERE season_id = $1 AND step = 'episodes' AND done_at IS NULL AND stuck_at IS NULL", [seasonId]);
+  }
+}
+
+type Item = { kind: "season"; seasonId: string; at: number } | { kind: "episode"; seasonId: string; n: number; at: number };
+
+/** Everything due now, the show and cast steps first (they open a season's episodes), then episodes oldest first. */
+async function dueItems(only?: string): Promise<Item[]> {
   const now = Date.now();
-  const due = rows.filter((r) => (dueAt(r, now)?.getTime() ?? Infinity) <= now).sort((a, b) => dueAt(a)!.getTime() - dueAt(b)!.getTime())[0];
-  if (!due) return null;
-  await runOne(due.season_id, o);
-  return due.season_id;
+  const { rows } = await pool.query<Row>("SELECT * FROM season_catchups WHERE done_at IS NULL AND stuck_at IS NULL AND ($1::uuid IS NULL OR season_id = $1)", [only ?? null]);
+  for (const r of rows.filter((x) => x.step === "episodes")) await settleSeason(r.season_id);
+  const seasons: Item[] = rows.flatMap((r) => {
+    const d = dueAt(r, now);
+    return d && d.getTime() <= now ? [{ kind: "season" as const, seasonId: r.season_id, at: d.getTime() }] : [];
+  });
+  const { rows: eps } = await pool.query<EpisodeRow>(
+    `SELECT e.* FROM catchup_episodes e JOIN season_catchups c ON c.season_id = e.season_id
+      WHERE e.status = 'waiting' AND c.done_at IS NULL AND c.stuck_at IS NULL AND ($1::uuid IS NULL OR e.season_id = $1)
+      ORDER BY e.episode_number, e.season_id`,
+    [only ?? null]
+  );
+  const episodes: Item[] = eps.flatMap((e) => {
+    const d = episodeDueAt(e, now);
+    return d && d.getTime() <= now ? [{ kind: "episode" as const, seasonId: e.season_id, n: e.episode_number, at: d.getTime() }] : [];
+  });
+  return [...seasons, ...episodes];
 }
 
-/** One step of one season's catch-up, as far as the time allows. Never throws. */
-export async function runOne(seasonId: string, o: { bot?: string; budgetMs?: number }): Promise<void> {
+/** When the earliest open item comes due (the clock's `next`). */
+export async function catchUpsNextAt(): Promise<Date | null> {
+  const now = Date.now();
+  const { rows } = await pool.query<Row>("SELECT * FROM season_catchups WHERE done_at IS NULL AND stuck_at IS NULL");
+  const { rows: eps } = await pool.query<EpisodeRow>(
+    "SELECT e.* FROM catchup_episodes e JOIN season_catchups c ON c.season_id = e.season_id WHERE e.status = 'waiting' AND c.done_at IS NULL AND c.stuck_at IS NULL"
+  );
+  const due = [...rows.map((r) => dueAt(r, now)), ...eps.map((e) => episodeDueAt(e, now))].filter((d): d is Date => !!d);
+  return due.length ? new Date(Math.max(now, Math.min(...due.map((d) => d.getTime())))) : null;
+}
+
+/**
+ * The clock's turn: as many due items as the bots answer at once (`slots`, else askBotSlots for the catch-up's kind), side by
+ * side, each ask starting at a different bot. `only`: one season (the desk's step now). The seasons it ran.
+ */
+export async function runDueCatchUp(o: { bot?: string; budgetMs?: number; slots?: number; only?: string }): Promise<string[]> {
+  const items = await dueItems(o.only);
+  if (!items.length) return [];
+  const slots = o.slots ?? (await askBotSlots({ bot: o.bot, kind: "catchup" }));
+  if (slots < 1) {
+    const waiting = items.filter((i) => i.kind === "season").map((i) => i.seasonId);
+    if (waiting.length) await pool.query("UPDATE season_catchups SET message = $2, tried_at = now(), updated_at = now() WHERE season_id = ANY($1::uuid[])", [waiting, AWAY]);
+    return [];
+  }
   const t0 = Date.now();
   const left = () => (o.budgetMs ?? BUDGET_MS) - (Date.now() - t0);
+  const run = items.slice(0, slots);
+  await Promise.allSettled(run.map((it, i) => (it.kind === "season" ? runSeasonStep(it.seasonId, o.bot, left) : runEpisode(it.seasonId, it.n, o.bot, left, i))));
+  const seasons = [...new Set(run.map((i) => i.seasonId))];
+  for (const s of seasons) await settleSeason(s).catch(() => undefined);
+  const due = await catchUpsNextAt().catch(() => null);
+  if (due) await tellBotClock(due).catch(() => undefined);
+  return seasons;
+}
+
+/** A season's show or cast step. Never throws. */
+async function runSeasonStep(seasonId: string, bot: string | undefined, left: () => number): Promise<void> {
   const { rows } = await pool.query<Row>(
     `UPDATE season_catchups SET asking_at = now(), updated_at = now()
-      WHERE season_id = $1 AND done_at IS NULL AND stuck_at IS NULL AND (asking_at IS NULL OR asking_at < now() - make_interval(secs => $2))
-      RETURNING *`,
+      WHERE season_id = $1 AND done_at IS NULL AND stuck_at IS NULL AND step <> 'episodes'
+        AND (asking_at IS NULL OR asking_at < now() - make_interval(secs => $2)) RETURNING *`,
     [seasonId, ASK_STALE_MS / 1000]
   );
   const row = rows[0];
   if (!row) return;
-  const set = (fields: string, values: unknown[] = []) =>
-    pool.query<Row>(`UPDATE season_catchups SET ${fields}, updated_at = now() WHERE season_id = $1 RETURNING *`, [seasonId, ...values]);
+  const set = (fields: string, values: unknown[] = []) => pool.query(`UPDATE season_catchups SET ${fields}, updated_at = now() WHERE season_id = $1`, [seasonId, ...values]);
   try {
     if (left() < STEP_NEEDS_MS) return;
-    if (!(await askBotStatus({ bot: o.bot })).available) return void (await set("message = $2", [AWAY]));
     const s = await seasonOf(seasonId);
-    const budget = left() - 5_000;
     if (row.step === "show") {
-      await showStep(s, o.bot, budget);
+      await showStep(s, bot, left() - 5_000);
       await set("step = 'cast', tries = 0, message = NULL");
-    } else if (row.step === "cast") {
-      await castStep(s, o.bot, budget);
-      await set("step = 'episodes', episode = 1, tries = 0, message = NULL");
     } else {
-      const aired = await airedOf(seasonId);
-      if (row.episode > aired) return void (await set("done_at = now(), message = NULL"));
-      const line = await episodeStep(s, row.episode, o.bot, budget);
-      const next = row.episode + 1;
-      await set(`episode = $2::int, tries = 0, message = $3, done_at = CASE WHEN $2::int > $4::int THEN now() END`, [next, line, aired]);
+      await castStep(s, bot, left() - 5_000);
+      await set("step = 'episodes', tries = 0, message = NULL");
+      await settleSeason(seasonId);
     }
   } catch (e) {
     const message = (e instanceof Error ? e.message : String(e)).slice(0, 300);
-    console.error("[catch-up]", seasonId, row.step, row.episode, message);
+    console.error("[catch-up]", seasonId, row.step, message);
     await set(`tries = tries + 1, message = $2, stuck_at = CASE WHEN tries + 1 >= $3 THEN now() END`, [message, TRIES]).catch(() => undefined);
   } finally {
-    const { rows: after } = await set("asking_at = NULL, tried_at = now()").catch(() => ({ rows: [] as Row[] }));
-    const due = after[0] ? dueAt(after[0]) : null;
-    if (due) await tellBotClock(due).catch(() => undefined);
+    await set("asking_at = NULL, tried_at = now()").catch(() => undefined);
+  }
+}
+
+/** One episode: asked (the slow part, side by side), then tried and sent or held under the season's lock. Never throws. */
+async function runEpisode(seasonId: string, n: number, bot: string | undefined, left: () => number, spread: number): Promise<void> {
+  const { rows } = await pool.query(
+    `UPDATE catchup_episodes SET asking_at = now(), updated_at = now()
+      WHERE season_id = $1 AND episode_number = $2 AND status = 'waiting' AND (asking_at IS NULL OR asking_at < now() - make_interval(secs => $3))
+      RETURNING episode_number`,
+    [seasonId, n, ASK_STALE_MS / 1000]
+  );
+  if (!rows[0]) return;
+  const set = (fields: string, values: unknown[] = []) =>
+    pool.query(`UPDATE catchup_episodes SET ${fields}, updated_at = now() WHERE season_id = $1 AND episode_number = $2`, [seasonId, n, ...values]);
+  try {
+    if (left() < STEP_NEEDS_MS) return;
+    const s = await seasonOf(seasonId);
+    const { status, line } = await episodeStep(s, n, bot, left() - 5_000, spread);
+    await set("status = $3, tries = 0, message = $4", [status, line]);
+  } catch (e) {
+    const message = (e instanceof Error ? e.message : String(e)).slice(0, 300);
+    console.error("[catch-up]", seasonId, "episode", n, message);
+    await set(`tries = tries + 1, message = $3, status = CASE WHEN tries + 1 >= $4 THEN 'stopped' ELSE 'waiting' END`, [message, TRIES]).catch(() => undefined);
+  } finally {
+    await set("asking_at = NULL, tried_at = now()").catch(() => undefined);
+  }
+}
+
+/** A season's try-and-send one at a time, across every process (a session advisory lock on its own connection). */
+async function underSeasonLock<T>(seasonId: string, fn: () => Promise<T>): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query("SELECT pg_advisory_lock(hashtext($1))", [`catchup:${seasonId}`]);
+    return await fn();
+  } finally {
+    await client.query("SELECT pg_advisory_unlock(hashtext($1))", [`catchup:${seasonId}`]).catch(() => undefined);
+    client.release();
   }
 }
 
@@ -193,20 +303,23 @@ async function castStep(s: Season, bot: string | undefined, budgetMs: number): P
 }
 
 /** One episode: researched, tried, then sent or held. The line the desk shows for it. */
-async function episodeStep(s: Season, n: number, bot: string | undefined, budgetMs: number): Promise<string> {
+async function episodeStep(s: Season, n: number, bot: string | undefined, budgetMs: number, spread: number): Promise<{ status: "sent" | "held"; line: string }> {
   const { prompt } = await buildPasteImportPrompt(pool, s.slug, s.season_number, n, { structured: true });
-  if (!prompt) return `Episode ${n}: nothing to ask`;
-  const { answer } = await askBot(prompt, { bot, budgetMs });
+  if (!prompt) return { status: "sent", line: `Episode ${n}: nothing to ask` };
+  // The catch-up's own kind (Codex by default: several at once), starting at a different bot for each ask going at once.
+  const { answer } = await askBot(prompt, { bot, budgetMs, kind: "catchup", spread });
   // Dry: read and checked, nothing stored or staged; the original answer stays as it was.
   const run = await researchFromPaste(pool, s.slug, s.season_number, n, answer, { structured: true, dry: true, via: "bot", checkEpisode: true });
   const input = await inputOf(s.id, n, run);
-  const tried = await tryResults(input);
-  if (!tried.games.length) {
-    const sent = await sendResults(input, { kind: "results.catchup", text: (count) => `The catch-up asked Episode ${n} again (${count})`, detail: { own: true, via: "catchup" } });
-    return `Episode ${n}: sent, no score moves (${sent.count} in every game)`;
-  }
-  await hold(s.id, n, input, tried);
-  return `Episode ${n}: held, it would change scores in ${tried.games.length === 1 ? "a game" : `${tried.games.length} games`}`;
+  return underSeasonLock(s.id, async () => {
+    const tried = await tryResults(input);
+    if (!tried.games.length) {
+      const sent = await sendResults(input, { kind: "results.catchup", text: (count) => `The catch-up asked Episode ${n} again (${count})`, detail: { own: true, via: "catchup" } });
+      return { status: "sent" as const, line: `Episode ${n}: sent, no score moves (${sent.count} in every game)` };
+    }
+    await hold(s.id, n, input, tried);
+    return { status: "held" as const, line: `Episode ${n}: held, it would change scores in ${tried.games.length === 1 ? "a game" : `${tried.games.length} games`}` };
+  });
 }
 
 async function inputOf(seasonId: string, n: number, run: unknown): Promise<SubmitInput> {
@@ -305,13 +418,13 @@ export async function catchUpLine(seasonId: string): Promise<{ line: string; stu
   const waiting = (await holdsWaiting(seasonId)).length;
   const wait = waiting ? ` · ${waiting === 1 ? "1 episode waits" : `${waiting} episodes wait`} for you` : "";
   if (r.done_at) return { line: `Caught up${wait}`, stuck: false, waiting };
-  if (r.stuck_at) return { line: `The catch-up stopped at ${where(r)}: ${r.message ?? "it failed"}`, stuck: true, waiting };
-  const aired = await airedOf(seasonId);
-  const at = r.step === "episodes" ? `Episode ${Math.min(r.episode, aired)} of ${aired}` : r.step === "cast" ? "its cast" : "its rulebook";
-  return { line: `Catching up: ${at}${wait}`, stuck: false, waiting };
+  if (r.stuck_at) return { line: `The catch-up stopped at ${r.step === "episodes" ? "its episodes" : r.step === "cast" ? "its cast" : "its rulebook"}: ${r.message ?? "it failed"}`, stuck: true, waiting };
+  if (r.step !== "episodes") return { line: `Catching up: ${r.step === "cast" ? "its cast" : "its rulebook"}${wait}`, stuck: false, waiting };
+  const { rows: eps } = await pool.query<{ status: string; n: number }>("SELECT status, count(*)::int AS n FROM catchup_episodes WHERE season_id = $1 GROUP BY status", [seasonId]);
+  const count = (st: string) => eps.find((e) => e.status === st)?.n ?? 0;
+  const all = eps.reduce((t, e) => t + e.n, 0);
+  return { line: `Catching up: ${count("sent") + count("held")} of ${all} episodes in${wait}`, stuck: false, waiting };
 }
-
-const where = (r: Row) => (r.step === "episodes" ? `Episode ${r.episode}` : r.step === "cast" ? "its cast" : "its rulebook");
 
 /** Start one (the desk, any season) or try again after it stopped. */
 export async function startCatchUp(user: SessionUser, seasonId: string): Promise<{ text: string }> {
@@ -320,8 +433,12 @@ export async function startCatchUp(user: SessionUser, seasonId: string): Promise
     `INSERT INTO season_catchups (season_id) VALUES ($1)
      ON CONFLICT (season_id) DO UPDATE SET stuck_at = NULL, tries = 0, message = NULL, tried_at = NULL,
        step = CASE WHEN season_catchups.done_at IS NULL THEN season_catchups.step ELSE 'show' END,
-       episode = CASE WHEN season_catchups.done_at IS NULL THEN season_catchups.episode ELSE 1 END,
        done_at = NULL, updated_at = now()`,
+    [seasonId]
+  );
+  // Try again: the episodes that stopped are asked again; a finished one started over asks every episode again.
+  await pool.query(
+    "UPDATE catchup_episodes SET status = 'waiting', tries = 0, message = NULL, tried_at = NULL, updated_at = now() WHERE season_id = $1 AND (status = 'stopped' OR (SELECT step FROM season_catchups WHERE season_id = $1) = 'show')",
     [seasonId]
   );
   await logDesk(pool, { entity: "season", entityId: seasonId, action: "catchup", text: "Started the catch-up", userId: user.id });

@@ -3,7 +3,7 @@ import { apiRoute } from "@/lib/server/api-route";
 import { HttpError } from "@/lib/server/db";
 import { requireDesk } from "@/lib/server/desk";
 import { botFor } from "@/lib/server/ask-bot";
-import { catchUpLine, decideHold, holdsWaiting, runOne, startCatchUp } from "@/lib/server/catch-up";
+import { catchUpLine, decideHold, holdsWaiting, runDueCatchUp, startCatchUp } from "@/lib/server/catch-up";
 import { tryResults, type SubmittedFact } from "@/lib/server/community-results";
 import { pool } from "@/lib/server/db";
 
@@ -28,7 +28,7 @@ export const POST = apiRoute(async (req, { params }: Params) => {
   const body = (await req.json().catch(() => ({}))) as { start?: unknown; step?: unknown; try?: unknown; facts?: unknown; hold?: unknown; decision?: unknown };
   if (body.start === true) return NextResponse.json(await startCatchUp(user, id));
   if (body.step === true) {
-    await runOne(id, { bot: botFor(req), budgetMs: 280_000 });
+    await runDueCatchUp({ bot: botFor(req), budgetMs: 280_000, only: id });
     return NextResponse.json({ status: await catchUpLine(id), holds: await holdsWaiting(id) });
   }
   if (body.try !== undefined) {

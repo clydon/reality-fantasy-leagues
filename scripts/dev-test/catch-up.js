@@ -51,10 +51,10 @@ async function status(pool, as, id) {
   try {
     if (cmd === "rewind") {
       const to = opt("to") || "show";
-      await pool.query(
-        "UPDATE season_catchups SET step = $2, episode = $3, done_at = NULL, stuck_at = NULL, tries = 0, message = NULL, asking_at = NULL, tried_at = NULL WHERE season_id = $1",
-        [target, to, Number(opt("episode") || 1)]
-      );
+      await pool.query("UPDATE season_catchups SET step = $2, done_at = NULL, stuck_at = NULL, tries = 0, message = NULL, asking_at = NULL, tried_at = NULL WHERE season_id = $1", [target, to]);
+      // From an episode on: those are asked again (with --to=episodes; --episode=N, 1 by default); before episodes: none yet.
+      if (to === "episodes") await pool.query("UPDATE catchup_episodes SET status = 'waiting', tries = 0, message = NULL, asking_at = NULL, tried_at = NULL WHERE season_id = $1 AND episode_number >= $2", [target, Number(opt("episode") || 1)]);
+      else await pool.query("DELETE FROM catchup_episodes WHERE season_id = $1", [target]);
       return console.log(`[catch-up] ${target} back to ${to}`);
     }
     const as = await api({ user: USER, pass: PASSWORD });

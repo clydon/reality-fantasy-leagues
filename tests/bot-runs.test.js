@@ -4,11 +4,15 @@ const test = require("node:test");
 const assert = require("node:assert");
 const R = require("../src/lib/bot-runs.ts");
 
-test("by default every run asks the desk's AI: ChatGPT, or Claude when the desk says so", () => {
-  for (const kind of R.BOT_RUN_KINDS) {
+test("by default every run asks the desk's AI: ChatGPT, or Claude when the desk says so (but a kind with a default of its own)", () => {
+  for (const kind of R.BOT_RUN_KINDS.filter((k) => !R.RUN_DEFAULTS[k])) {
     assert.equal(R.providerFor(undefined, undefined, kind), "chatgpt", kind);
     assert.equal(R.providerFor("claude", {}, kind), "claude", kind);
   }
+  // The catch-up asks Codex, several at once (the user, 2026-11-16: "parallel bots"), unless the desk sends it elsewhere.
+  assert.equal(R.providerFor(undefined, undefined, "catchup"), "codex");
+  assert.equal(R.providerFor("claude", {}, "catchup"), "codex");
+  assert.equal(R.providerFor("chatgpt", { catchup: "chatgpt" }, "catchup"), "chatgpt");
   assert.equal(R.providerFor(undefined, undefined), "chatgpt", "an ask that isn't a run");
   assert.equal(R.providerFor("gemini", null, "full"), "chatgpt", "an AI the desk doesn't offer is ChatGPT");
   assert.equal(R.providerFor("codex", null, "full"), "chatgpt", "Codex is a run's, not the desk's own choice");

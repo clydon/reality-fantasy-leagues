@@ -330,6 +330,14 @@ Each ends with focused tests; the long checks once per milestone ([long-checks-o
    window the user starts after copying the branch's string. It caught production's The Traitors slug (`the-traitors`, not this
    copy's `the-traitors-us`): fixed in 0441, and the script runs the migration's queue again so a copy migrated before a fix
    catches up too. The guard reads how a game scores from its pieces (answers, lines, squares), never its type's name.
+   **Side by side (the user, 2026-11-16: "parallel bots").** ChatGPT's browser answers one question at a time a bot, so asks in
+   parallel only queued; Codex answers three at once a bot (llm-browser-api's CODEX_PARALLEL), and there are two bots (the VM,
+   then the PC). So the catch-up asks as run kind `catchup`, Codex by default (`bot-runs.ts RUN_DEFAULTS`; the desk can send it
+   elsewhere), each clock call runs `askBotSlots` items at once (three a bot answering), every ask starting at a different bot
+   (`askBot`'s `spread`); a season's episodes are rows of their own (`catchup_episodes`) asked together, its show and cast in
+   turn, its try-and-send one at a time (a session advisory lock). Not done: more signed-out ChatGPT machines (raised by the
+   user, advised against: it works around ChatGPT's per-person limits and bot checks, against its terms, and puts the bot that
+   live research needs at risk); Claude through the CLI on the user's subscription is the next lever if more is wanted.
 7. **The wizard and the GPT.** SpecContext carries the season's properties so Start a game offers only rules the season can hold
    ("Draft one from each department"), Randomize can roll them, and the spec's check refuses a property the season lacks.
 

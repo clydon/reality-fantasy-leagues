@@ -2,7 +2,7 @@
 // branch of production, through OUR BOT only, then prints what it would hold for the desk ("Would change scores"): the list the
 // user sees before the push. Run after scripts/rehearse-migrations.js has migrated the branch (0441 queues the seasons).
 //
-//   node scripts/catch-up-rehearse.js --endpoint=<the branch's ep-... id> [--parallel=2] [--list]
+//   node scripts/catch-up-rehearse.js --endpoint=<the branch's ep-... id> [--parallel=N] [--list]
 //     (--list: only what's queued and what already waits, asking nothing; --only=<seasonId> and --steps=N: one season, N steps,
 //     to try the script itself)
 //     with REHEARSE_DATABASE_URL set to the branch's connection string (the clipboard window, .session-loop/rehearse-*.ps1:
@@ -47,15 +47,22 @@ const { pool } = jiti("../src/lib/server/db.ts");
 const stamp = () => new Date().toISOString().slice(11, 19);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function season(id, name) {
-  for (let calls = 0; calls < Number(opt("steps") || 80); calls++) {
-    const before = (await pool.query("SELECT tries FROM season_catchups WHERE season_id = $1", [id])).rows[0];
-    await C.runOne(id, { budgetMs: 280_000 });
-    const r = (await pool.query("SELECT step, episode, tries, message, stuck_at, done_at FROM season_catchups WHERE season_id = $1", [id])).rows[0];
-    console.log(`[${stamp()}] ${name}: ${(await C.catchUpLine(id))?.line ?? "?"}${r.message ? ` · ${r.message.slice(0, 160)}` : ""}`);
-    if (r.done_at || r.stuck_at) return;
-    // A failed try: a short wait here (the clock's would be longer), the same six tries before it stops.
-    if (r.tries > (before?.tries ?? 0)) await sleep(60_000);
+// The clock's calls, one after another (production's are a couple of minutes apart): each runs as many items side by side as
+// the bots answer at once (--parallel=N to set it), until every season is done or stopped. --steps=N: at most N calls.
+async function calls(names) {
+  for (let call = 0; call < Number(opt("steps") || 400); call++) {
+    const { rows: open } = await pool.query("SELECT season_id FROM season_catchups WHERE done_at IS NULL AND stuck_at IS NULL AND ($1::uuid IS NULL OR season_id = $1)", [opt("only")]);
+    if (!open.length) return;
+    const ran = await C.runDueCatchUp({ budgetMs: 280_000, ...(opt("parallel") ? { slots: Number(opt("parallel")) } : {}), ...(opt("only") ? { only: opt("only") } : {}) });
+    for (const id of ran) {
+      const { rows: eps } = await pool.query("SELECT episode_number, message FROM catchup_episodes WHERE season_id = $1 AND message IS NOT NULL ORDER BY updated_at DESC LIMIT 3", [id]);
+      console.log(`[${stamp()}] ${names.get(id) ?? id}: ${(await C.catchUpLine(id))?.line ?? "?"}${eps.length ? ` · ${eps.map((e) => e.message.slice(0, 90)).join(" | ")}` : ""}`);
+    }
+    if (!ran.length) {
+      // Nothing due: wait for the next (a failed try's wait, or the bot away), as the clock would.
+      const next = await C.catchUpsNextAt();
+      await sleep(Math.min(Math.max((next ? next.getTime() : Date.now()) - Date.now(), 10_000), 5 * 60_000));
+    }
   }
 }
 
@@ -78,13 +85,7 @@ const QUEUE = (() => {
         WHERE c.done_at IS NULL AND c.stuck_at IS NULL ORDER BY s.slug, ss.season_number`
     );
     console.log(`[catch-up] ${rows.length} season(s): ${rows.map((r) => r.name).join(", ")}`);
-    if (args.includes("--list")) rows.length = 0;
-    if (opt("only")) rows.splice(0, rows.length, ...rows.filter((r) => r.season_id === opt("only")));
-    const queue = [...rows];
-    const lanes = Array.from({ length: Math.max(1, Number(opt("parallel") || 2)) }, async () => {
-      for (let r = queue.shift(); r; r = queue.shift()) await season(r.season_id, r.name);
-    });
-    await Promise.all(lanes);
+    if (!args.includes("--list")) await calls(new Map(rows.map((r) => [r.season_id, r.name])));
     console.log("\n[catch-up] what would wait for the desk:");
     const holds = await C.holdsWaiting();
     if (!holds.length) console.log("  nothing: every episode went in with no score moving");

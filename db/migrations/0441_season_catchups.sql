@@ -5,14 +5,15 @@
 -- Additive, plus one data step: the seasons that catch up after this deploys are queued here (the user, 2026-11-16: "the shows
 -- that are on the prod app, survivor 51, traitors, the challenge, below deck"). Renumber at merge if another branch took 0441.
 --
---   season_catchups  one per season: the step it's on (show, cast, episodes), the episode it's at, tries and why it stopped,
---                    stuck_at after its last try (Try again clears it), done_at once every aired episode is in.
+--   season_catchups  one per season: the step it's on (show, cast, then episodes), tries at the show or cast step and why it
+--                    stopped, stuck_at after its last try (Try again clears it), done_at once every aired episode is in.
+--   catchup_episodes one per aired episode once the season reaches its episodes: they're asked side by side (the user,
+--                    2026-11-16: "parallel bots"), each with its own tries, until it's sent, held or stopped.
 --   catchup_holds    an episode's answer that would change scores: what it says, which games and players move and by how much
 --                    (`moves`), until the desk sends it or leaves it out.
 CREATE TABLE season_catchups (
   season_id UUID PRIMARY KEY REFERENCES show_seasons(id) ON DELETE CASCADE,
   step TEXT NOT NULL DEFAULT 'show' CHECK (step IN ('show', 'cast', 'episodes')),
-  episode INTEGER NOT NULL DEFAULT 1,
   tries INTEGER NOT NULL DEFAULT 0,
   asking_at TIMESTAMPTZ,
   tried_at TIMESTAMPTZ,
@@ -23,6 +24,20 @@ CREATE TABLE season_catchups (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX season_catchups_open ON season_catchups (tried_at) WHERE done_at IS NULL AND stuck_at IS NULL;
+
+CREATE TABLE catchup_episodes (
+  season_id UUID NOT NULL REFERENCES season_catchups(season_id) ON DELETE CASCADE,
+  episode_number INTEGER NOT NULL,
+  -- waiting (to ask, or to ask again after a failed try), sent, held (catchup_holds), stopped (its last try failed).
+  status TEXT NOT NULL DEFAULT 'waiting' CHECK (status IN ('waiting', 'sent', 'held', 'stopped')),
+  tries INTEGER NOT NULL DEFAULT 0,
+  asking_at TIMESTAMPTZ,
+  tried_at TIMESTAMPTZ,
+  message TEXT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (season_id, episode_number)
+);
+CREATE INDEX catchup_episodes_waiting ON catchup_episodes (season_id) WHERE status = 'waiting';
 
 CREATE TABLE catchup_holds (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
