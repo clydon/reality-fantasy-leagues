@@ -29,6 +29,97 @@ The money is in C: B's answers are shared (one ask serves a whole season's couch
   instant way for whoever doesn't want to wait. A paid plan only adds Autopilot (asked on schedule, nobody taps).
 - **C is where the tiers differ**: speed, the ad, and how many a day.
 
+## Ask only the difference (the user's rule, 2026-11-16)
+
+"If an episode is already researched a separate couch's research will either be simulated, or just search their additional
+custom research questions ... If there was a third couch that was exactly the same as the first, it wouldn't need to reach out
+and research at all, it'll just simulate the wait so it incentivizes moving to a paid tier."
+
+| Couch | Asks the AI | What it sees (free) | What it sees (paid) |
+|---|---|---|---|
+| The first on an episode | The full research (or joins the bot's scheduled run already going) | The wait, real progress, the ad | Fast, no ad |
+| Same rules + its own extra questions (the weather each episode) | **Only its extra questions**, with the episode's stored answer as context | The wait for the short ask, the ad | Fast, no ad |
+| Exactly the same as one already answered | **Nothing** | A simulated wait (as long as the real one was, at most ~40 s) with the ad, then the shared answer | Instant |
+
+**Built already:** one research per season's episode, shared by every couch (results are the season's facts); asking only what a
+stored answer lacks (`only: "missing"`, db/episode-research.js); a season's added moments' own short ask for what the full
+answer left unsure (db/moments-research.js `askUnsure`); a second tap on an episode already being asked joins the first
+(results-ways.ts). **To build:** a couch's own extra questions per episode, **batched**: one short ask a season's episode with
+every couch's unasked questions together (not one a couch); the identical couch's simulated wait (free) and instant answer
+(paid); every served answer logged with how it was served (asked, the difference, shared) for the numbers below.
+
+## What it costs (estimates, 2026-11-16)
+
+Measured: a full research ask takes a median **154 s** on the ChatGPT bot and answers ~19,500 characters (this lane's runs); a
+"Describe a game" ask is ~43,000 characters (~12,000 tokens, ~10,000 of them the fixed manual) and ~40 s on ChatGPT (the
+11-08 test); quick ~30 s, trivia ~120 s, bingo ~220 s, facts ~60 s (desk-research.ts). Prices: Claude API list prices of
+2026-11-03 (Sonnet 5.5 $2 / $10 a million tokens in / out, cached reads $0.10; Haiku 5.5 $0.10 / $0.50; web search $10 a
+thousand searches); hosting from docs/HOSTING.md "Cost by size". Re-measure tokens with count_tokens before setting prices.
+
+**The assumptions** (change them and the rows follow):
+
+| | Today | Later |
+|---|---|---|
+| People | 5-15 | 300-1,000 |
+| Couches (about 5 people each) | 1-3 | 60-200 |
+| Seasons airing that someone plays (distinct shows, a week) | 2-4 | 15-30 |
+| Couches with their own extra questions | 0-1 | 20-60 (about 30%) |
+| "Mine" asks (describe, change, more moments) a person a week | ~2 (tinkering) | ~1 (most join a game someone made) |
+| New seasons added a month (Make it a game, Getting it ready) | 1-2 | 20-50 |
+
+**Asks a week, with the rule** (the automatic research is ~9 asks a season's episode: quick, two full, facts, trivia and bingo
+two each, the schedule check):
+
+| | Today | Later |
+|---|---|---|
+| A. Automatic research (seasons x ~9) | 18-36 | 135-270 |
+| Extra questions, the difference only, batched an episode | 0-4 | 15-30 (unbatched, a couch each: 20-60) |
+| B. New seasons (~10 asks each), a week | 2-5 | 50-125 |
+| C. Mine | 10-30 | 300-1,000 |
+| **Total** | **30-75** | **500-1,425** |
+| Without sharing (every couch researching its own episodes: couches x ~1.5 seasons x 9) | 14-40 for A | **810-2,700 for A alone** |
+
+**The bot's time** (ChatGPT, one question at a time a bot; A ~110 s on average, extras ~60 s, B ~90 s, C ~40 s):
+
+| | Today | Later |
+|---|---|---|
+| A week | 45-100 minutes (about 1% of one bot) | 9-23 hours (5-14% of one bot) |
+| The evening peak (about 40% of C in ~6 hours a week) | nothing queues | 22-75% busy: one bot at 300 people, a second free VM by ~1,000 (Oracle's Always Free gives two) |
+| Without sharing | still small | A alone 25-80 hours a week: queues every episode night |
+
+**Money a month:**
+
+| Line | Today | Later, 300 | Later, 1,000 |
+|---|---|---|---|
+| Hosting (Vercel, Neon, domain: HOSTING.md) | ~$6 (Neon Launch ~$5, domain ~$1) | $35-60 | $60-200 |
+| Vercel Pro: required from the first charge or ad, whatever the size | $0 until then, then $20 | in the row above | in the row above |
+| The bot (Oracle Always Free VM, Cloudflare tunnel) | $0 | $0 | $0 (two VMs) |
+| Codex for one-offs (needs the ChatGPT Plus plan: the Free plan has no Codex CLI, HOSTING.md) | the plan's price while it's kept | same | same |
+| TMDB (show art): its free key is non-commercial; charging or ads need its licence | n/a | price on request | price on request |
+| **Total, everything on the free bot** | **~$6 (~$26 once charging)** | **~$35-60** | **~$60-200** |
+
+**What a paid person costs us** (the fast AI on the API; C ask ~12,000 tokens in, ~10,000 cached after the first, ~2,000-3,000
+out with low effort):
+
+| Model | A C ask | Plus at 50 a month | Pro at 300 a month |
+|---|---|---|---|
+| Sonnet 5.5 (the 11-08 test's best) | ~$0.03-0.05 | up to ~$2.50 | up to ~$15 |
+| Haiku 5.5 | ~$0.003 | ~$0.15 | ~$1 |
+
+**The risk line: if ChatGPT stops answering the signed-out bot** (blocked, rate-limited), the same asks on the API:
+
+| | Today | Later, 300 | Later, 1,000 |
+|---|---|---|---|
+| A + extras (full research with web search ~$0.15-0.25 on Sonnet 5.5; the rest ~$0.05; ~$0.10 on average) | ~$8-15 | ~$60-80 | ~$120-130 |
+| B (~$0.10 an ask) | ~$1-2 | ~$20 | ~$55 |
+| C (Haiku 5.5 / Sonnet 5.5) | ~$0.15 / $5 | ~$4 / $50 | ~$13 / $170 |
+| **Total on top of hosting** | **~$10-20** | **~$85-135** | **~$190-350** |
+
+So: on the free bot the AI costs nothing in money at either size, and sharing is what keeps it inside one or two free bots
+(without it, research alone would queue every episode night by a few hundred people). The real exposure is the bot being
+blocked: up to ~$150 a month at 300 people, ~$350 at 1,000, which is what Plus, Pro and the ads are there to cover. Ad revenue
+isn't estimated here: it depends on the network (not chosen) and fill; one input to add when it's chosen.
+
 ## The ways (columns)
 
 | | **Ask ChatGPT yourself** (DIY) | **Our bot asks** (free) | **Plus** (limited paid) | **Pro** (full access paid) |
@@ -43,6 +134,35 @@ The money is in C: B's answers are shared (one ask serves a whole season's couch
 
 A paid ask is gated on the server by the person's plan and counted; the paid key is reached only through that gate (paid
 services contained still holds for everyone else, and the fast path is never reachable without an entitlement).
+
+## The DIY link: ChatGPT only, once, and an answer that comes back by itself (the user, 2026-11-16)
+
+"Prevent our short url from being viewed by anyone but the chatgpt itself ... once it's viewed by the gpt it self destructs.
+I don't think there's a way a gpt can post back, if there was I'd love to do that."
+
+**Stage 1, the link only ChatGPT reads, once** (small; src/app/b/[code]/route.ts, src/lib/server/ai-briefs.ts):
+- Served only to a request that says it's ChatGPT (`ChatGPT-User`) **and** comes from OpenAI's published addresses for it
+  (openai.com/chatgpt-user.json, read and kept a day; OpenAI calls the list best effort). A browser gets a plain page: "This
+  question is for ChatGPT: open it from the app."
+- A new random code each time it's asked for (today it's the prompt's hash, the same for everyone asking the same thing), alive
+  30 minutes, and **gone after ChatGPT's first read** but for a 2-minute grace (ChatGPT can fetch twice, and Regenerate fetches
+  again); after that, 410 Gone, and the sheet makes a new link with one tap.
+- Grok is dropped (no published addresses found), and "Copy the question" for other chats becomes the desk's and the
+  commissioner's only (decision 6).
+- **What it can't do:** once ChatGPT has read it, the words are in that person's chat, and they can ask ChatGPT to repeat them.
+  It stops anyone opening, sharing or scraping the link; the value that can't be copied is ours on the server (the rulebooks,
+  the parsing, the checks, the scoring).
+
+**Stage 2, the answer comes back with no copy and paste: our own GPT** (the custom GPT the code half-has already:
+`GET /api/briefs/<code>` as JSON and `/api/briefs/openapi.json`, docs/custom-gpt.md):
+- A "Game Your Show" GPT with two Actions: **read the question** (our API, with a key only the GPT holds, so the question is
+  never on an open URL at all: stronger than stage 1's address check) and **send the answer** (`POST /api/briefs/<code>/answer`;
+  the code is a one-time pass for exactly one answer, then it's spent). The app's sheet, already waiting, sees it arrive and
+  checks it as a paste is checked today.
+- To try before building on it: whether a ChatGPT Free account can use a GPT's Actions (sources disagree), whether a link can
+  open the GPT with the code already typed, and how the one-time "Allow gameyourshow.com?" prompt reads. A GPT also needs the
+  person signed in to ChatGPT (today's link works signed out). The plain chat link with copy and paste stays as the fallback.
+- Heavier, later if wanted: a ChatGPT app (OpenAI's Apps SDK) does the same with screens of its own inside ChatGPT.
 
 ## Where people are asked (one sheet, three moments)
 
@@ -93,6 +213,9 @@ DIY has no server wait to fill: the paste is read at once. Its three-step track 
 5. **The fast AI for paid asks:** a paid API (the 11-08 test: Sonnet-class ~10 s, best score; an OpenAI model via its API is
    the other). Not the user's own Codex or ChatGPT plan: a personal plan serving paying customers is a different use, and its
    limits are the user's own. Price it from current rates when it's built.
+
+6. **The DIY link: ChatGPT only?** Recommend yes (stage 1), with "Copy the question" kept for the desk and commissioners, and
+   stage 2 (our GPT posting the answer back) tried with a Free account before it's designed in.
 
 ## Next: the mocks (the design process)
 
