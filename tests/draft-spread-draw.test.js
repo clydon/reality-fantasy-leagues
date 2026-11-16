@@ -77,17 +77,18 @@ test("a spread draft and a draw: their shape, defaults, words and settings; what
   assert.deepEqual(at(outlast({ each: 2, order: "snake", own: "shared" })), ["get.order"]);
   assert.deepEqual(at(outlast({ each: 2, order: "hat" })), ["get.own", "get.order"]);
   // The spread's shape.
-  assert.deepEqual(at(outlast({ each: 3, across: { of: "tribe" } })), ["get.across.of"]);
+  // Cast properties (chunk 4): a property's key is a shape the data rule then checks against the season ("tribe" isn't one here).
+  assert.deepEqual(at(outlast({ each: 3, across: { of: "a tribe" } })), ["get.across.of"]);
+  assert.deepEqual(at(outlast({ each: 3, across: { of: "tribe" } }), { ...CTX, properties: [{ key: "gender", name: "Gender", values: ["Man", "Woman"] }] }), ["get.across.of"]);
   assert.deepEqual(at(outlast({ each: 3, across: { of: "group", then: "refill" } })), ["get.across.then"]);
   assert.deepEqual(at(outlast({ each: 3, across: { of: "group", pick: 1 } })), ["get.across.pick"]);
   assert.deepEqual(at(outlast({ each: 3, across: "group" })), ["get.across"]);
-  // The data rule: a show nobody is in a group on has nothing to spread across; a guy and a girl (s06) needs data that says
-  // who is which, and no show's records it (and it waits on a step nobody has).
+  // The data rule: a show nobody is in a group on has nothing to spread across. A guy and a girl (s06) plays now: every show's cast
+  // has gender (cast properties, the user, 2026-11-16), so nothing refuses it or waits on it.
   assert.deepEqual(at(s05, { ...CTX, grouped: false }), ["get.across.of"]);
   const s06 = lineup({ each: 2, across: { of: "gender" } }, 2);
-  assert.deepEqual(at(s06), ["get.across.of"]);
-  assert.match(G.specProblems(s06, CTX)[0].problem, /guy and who's a girl/);
-  assert.deepEqual(G.specWaitsFor(s06).map((w) => w.step), ["later"]);
+  assert.deepEqual(at(s06), []);
+  assert.deepEqual(G.specWaitsFor(s06).map((w) => w.step), []);
   // Exclusive or shared, counted per group where it drafts (the 9:10 PM decision as the pool shrinks: one tribe's castaways for
   // that tribe's share): four of you each taking one from a tribe of three can't all; three can; shared can; a league's own
   // keeps its draft; and the draw counts as any exclusive draft does.

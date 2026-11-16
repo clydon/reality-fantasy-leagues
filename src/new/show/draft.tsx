@@ -776,7 +776,7 @@ function SnakeRoom({ seasonId, show, game, onSettings, sport }: { seasonId: stri
       {!live && <OrderList seasonId={seasonId} show={show} game={game} />}
 
       {/* Your team as it fills, with the line for what it still needs (cast properties, after the round). */}
-      {live && game.you && <YourSlots game={game} ids={mineIds} needs={sport ? holds(mineIds, game.cast, (n) => nm.role(n)) : null} />}
+      {live && game.you && <YourSlots game={game} ids={mineIds} needs={game.needs ?? (sport ? holds(mineIds, game.cast, (n) => nm.role(n)) : null)} />}
 
       <Segments
         value={view}

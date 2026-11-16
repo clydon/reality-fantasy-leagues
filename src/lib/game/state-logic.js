@@ -2421,6 +2421,8 @@ class SnakeDraftStrategy {
     if(!turn || turn.isComplete || !c || leagueOwnersOf(state, c).length || !PoolLogic.has(state, c)) return;
     // A10 part 3: a draft spread across the cast's groups takes only a pick that keeps the team spread (pickProblem says why).
     if(SpreadLogic.pickProblem(state, turn.playerId, castawayId)) return;
+    // Cast properties (chunk 4): a pick that would leave the team's needs unfillable (pickProblem says why).
+    if(CompositionLogic.pickProblem(state, turn.playerId, castawayId)) return;
     // Part 3b: a salary cap takes only a pick that keeps the team within it (pickProblem says why); its price goes in the log.
     const prices = BudgetLogic.cap(state) === null ? null : PriceLogic.prices(state);
     if(prices && BudgetLogic.pickProblem(state, turn.playerId, castawayId, prices)) return;
@@ -2587,7 +2589,7 @@ class BlindDraftLogic {
       if(!inPool(c)) return PoolLogic.reason(state, c);
     }
     // A10 part 3: spread across the cast's groups, as the data has them now; part 3b: within a salary cap at today's prices.
-    return SpreadLogic.teamProblem(state, ids, keep) || BudgetLogic.teamProblem(state, ids, keep);
+    return SpreadLogic.teamProblem(state, ids, keep) || CompositionLogic.teamProblem(state, ids, keep) || BudgetLogic.teamProblem(state, ids, keep);
   }
   // Applies every player's picks at once. `picksByPlayer` is {[playerId]: castawayId[]}, read from
   // blind_draft_picks by the caller inside the same transaction that holds the league row lock.
@@ -2663,6 +2665,38 @@ class BlindDraftStrategy {
 // those still in) drafts plainly; a group with too few left (taken in an exclusive draft, or small) asks only what it has; and
 // the spread never blocks a draft: when nobody left keeps a team spread, anyone can be taken. After the draft a castaway is
 // yours wherever they go (then: keep): a swap or the merge changes nobody's team, and a replacement comes from anyone.
+// ---------- CastPropLogic: a castaway's cast properties as a game reads them (docs/PLAN-cast-properties.md chunk 4) ----------
+// The server stamps them on every read and write (server/cast-props.ts stampCastProps: state.castProps, castaway id -> { key: value },
+// and state.castPropDefs, the season's properties), never saved; a copy without them reads nobody as anything. `group` is the
+// castaway's group now (a tribe). A property's flex says a value also counts as others: Gender's Nonbinary as a man or a woman (the
+// user, 2026-11-16: "it could be male or female").
+class CastPropLogic {
+  static defs(state){ return Array.isArray(state.castPropDefs) ? state.castPropDefs : []; }
+  static def(state, key){ return CastPropLogic.defs(state).find(d => d && d.key === key) || null; }
+  static has(state){ return !!state.castProps && typeof state.castProps === 'object'; }
+  // Someone's own value of `key` (a castaway or its id), or null.
+  static valueOf(state, c, key){
+    const id = typeof c === 'string' ? c : c && c.id;
+    if(key === 'group'){
+      const k = typeof c === 'string' ? (state.castaways || []).find(x => x.id === c) : c;
+      return k && k.tribeId ? k.tribeId : null;
+    }
+    const p = state.castProps && state.castProps[id];
+    return p && typeof p[key] === 'string' && p[key] ? p[key] : null;
+  }
+  // The values someone counts as for `key`: their own, then any its flex adds ([] with none).
+  static countsAs(state, c, key){
+    const v = CastPropLogic.valueOf(state, c, key);
+    if(!v) return [];
+    const d = CastPropLogic.def(state, key);
+    const f = d && d.flex && Array.isArray(d.flex[v]) ? d.flex[v] : [];
+    return [v, ...f.filter(x => x !== v)];
+  }
+  static matches(state, c, key, value){ return CastPropLogic.countsAs(state, c, key).includes(value); }
+  // A value that counts as others (a flex's key: Nonbinary).
+  static flexes(state, key, value){ const d = CastPropLogic.def(state, key); return !!(d && d.flex && Array.isArray(d.flex[value]) && d.flex[value].length); }
+}
+
 class SpreadLogic {
   static config(state){
     const g = gameOf(state).get;
@@ -2672,15 +2706,27 @@ class SpreadLogic {
   // or null when the draft isn't spread across groups, or the show isn't divided.
   static groupsNow(state){
     const a = SpreadLogic.config(state);
-    if(!a || a.of !== 'group') return null;
-    const tribes = new Set((state.tribes || []).map(t => t.id));
+    if(!a) return null;
     const of = new Map();
-    // G3 part 3b: the groups of those in the game's pool (PoolLogic).
-    PoolLogic.offered(state).forEach(c => { of.set(c.id, c.tribeId && tribes.has(c.tribeId) ? c.tribeId : null); });
+    // Flex values (cast properties: Nonbinary) count as any side: a wildcard, never past a side's most, covering a side's least.
+    const wild = new Set();
+    if(a.of === 'group'){
+      const tribes = new Set((state.tribes || []).map(t => t.id));
+      // G3 part 3b: the groups of those in the game's pool (PoolLogic).
+      PoolLogic.offered(state).forEach(c => { of.set(c.id, c.tribeId && tribes.has(c.tribeId) ? c.tribeId : null); });
+    } else {
+      // Cast properties (chunk 4): a property's values, as the season's cast has them (stamped: none without the stamp).
+      if(!CastPropLogic.has(state)) return null;
+      PoolLogic.offered(state).forEach(c => {
+        const v = CastPropLogic.valueOf(state, c, a.of);
+        if(v && CastPropLogic.flexes(state, a.of, v)){ wild.add(c.id); of.set(c.id, null); }
+        else of.set(c.id, v);
+      });
+    }
     const groups = [...new Set([...of.values()].filter(Boolean))].sort();
     const each = rosterSize(state);
     const bounds = Spec.spreadBounds(each, groups.length);
-    return bounds ? { of, groups, each, least: bounds.least, most: bounds.most } : null;
+    return bounds ? { of, groups, each, least: bounds.least, most: bounds.most, wild } : null;
   }
   // A team with `picked`, and who it could take now (`candidates`): what each group has given it, and has left to give.
   static tally(g, picked, candidates){
@@ -2689,7 +2735,9 @@ class SpreadLogic {
     const taken = new Set(picked);
     picked.forEach(p => { const t = g.of.get(p); if(t) counts.set(t, counts.get(t) + 1); });
     candidates.forEach(c => { const t = g.of.get(c); if(t && !taken.has(c)) free.set(t, free.get(t) + 1); });
-    return { counts, free, left: g.each - picked.length - 1 };
+    // Wildcards on the team (a flex value): each covers one side's share still owed.
+    const wild = g.wild ? picked.filter(p => g.wild.has(p)).length : 0;
+    return { counts, free, left: g.each - picked.length - 1, wild };
   }
   // Whether taking `id` (one of the tally's candidates) keeps the team spread: no group past its most, and each group's share
   // still owed, as far as it has people left to give, no more than the picks left after it.
@@ -2702,7 +2750,8 @@ class SpreadLogic {
       const free = tally.free.get(x) - (x === mine ? 1 : 0);
       owed += Math.max(0, Math.min(g.least, has + free) - has);
     });
-    return owed <= tally.left;
+    const wild = (tally.wild || 0) + (g.wild && g.wild.has(id) ? 1 : 0);
+    return Math.max(0, owed - wild) <= tally.left;
   }
   // `candidates` (castaway ids that could be taken now) that keep a team with `picked` spread, in their order: all of them
   // when nothing is spread, or when none does (the spread never blocks a draft). `g`: groupsNow, when it's read once a pass.
@@ -2718,7 +2767,9 @@ class SpreadLogic {
     return SpreadLogic.allowed(state, Core.ownedCastawayIds(state, playerId), candidates || RosterLogic.freeAgents(state).map(c => c.id));
   }
   static reason(state, g){
-    const word = String(formatOf(state).terms.tribe || 'group').toLowerCase();
+    const a = SpreadLogic.config(state);
+    const def = a && a.of !== 'group' ? CastPropLogic.def(state, a.of) : null;
+    const word = def ? String(def.plural || `${def.name}s`).toLowerCase().replace(/s$/, '') : String(formatOf(state).terms.tribe || 'group').toLowerCase();
     return g.least
       ? `Spread your team across the ${word}s: at least ${g.least} from each, and no more than ${g.most} from one`
       : `Spread your team across the ${word}s: no more than ${g.most} from one`;
@@ -2747,6 +2798,140 @@ class SpreadLogic {
       picked.push(id);
     }
     return null;
+  }
+}
+
+// ---------- CompositionLogic: what a team needs (docs/PLAN-cast-properties.md chunk 4: the spec's get.needs) ----------
+// "One Interior and one Deck", "two men and two women": each need is { of: a cast property's key, value, n }. Like the spread it
+// never blocks a draft: a need nobody offered can fill shrinks to who's there (and drops with nobody), a pick that would leave a
+// need unfillable is refused with the reason while someone else would keep it fillable, and when nobody would, anyone can be taken.
+// Someone fills one need at most, and a flex value fills any it counts as (Nonbinary a man's or a woman's): who fills what is a
+// matching, worked out again for each pick, so a Nonbinary castaway counts on whichever side lets the team fit. Replacements keep
+// the shape (decided item 2): a waiver move that leaves a need short is refused while another free agent would keep it.
+class CompositionLogic {
+  static config(state){
+    const g = gameOf(state).get;
+    return g.by === 'draft' && Array.isArray(g.needs) && g.needs.length ? g.needs : null;
+  }
+  // The need slots in play: each need's value n times, as many as the pool offers people who count as it (none: dropped). Null
+  // without needs, or without the cast's properties stamped (a copy without them checks nothing).
+  static slots(state){
+    const needs = CompositionLogic.config(state);
+    if(!needs || !CastPropLogic.has(state)) return null;
+    const offered = PoolLogic.offered(state);
+    const out = [];
+    needs.forEach(n => {
+      if(!n || typeof n.of !== 'string' || typeof n.value !== 'string' || !(n.n >= 1)) return;
+      const can = offered.filter(c => CastPropLogic.matches(state, c, n.of, n.value)).length;
+      for(let i = 0; i < Math.min(n.n, can); i++) out.push({ of: n.of, value: n.value });
+    });
+    return out.length ? out : null;
+  }
+  // The most slots `ids` can fill, one each (Kuhn's matching: a team and its needs are small). -> { size, slotOf: id -> slot index }
+  static match(state, slots, ids){
+    const owner = new Array(slots.length).fill(null);
+    const fits = new Map(ids.map(id => [id, slots.map((s, i) => (CastPropLogic.matches(state, id, s.of, s.value) ? i : -1)).filter(i => i >= 0)]));
+    const tryId = (id, seen) => {
+      for(const i of fits.get(id) || []){
+        if(seen.has(i)) continue;
+        seen.add(i);
+        if(owner[i] === null || tryId(owner[i], seen)){ owner[i] = id; return true; }
+      }
+      return false;
+    };
+    let size = 0;
+    ids.forEach(id => { if(tryId(id, new Set())) size++; });
+    return { size, owner };
+  }
+  // Whether a team with `picked` that takes `id` can still meet its needs: what's short, fillable from who's left, fits the picks
+  // left after this one. `free`: who could be taken (id among them).
+  static keeps(state, slots, picked, id, free, each){
+    const team = [...picked, id];
+    const left = each - team.length;
+    if(left < 0) return false;
+    const have = CompositionLogic.match(state, slots, team).size;
+    const rest = free.filter(x => x !== id && !team.includes(x));
+    const best = CompositionLogic.match(state, slots, [...team, ...rest]).size;
+    return best - have <= left;
+  }
+  static allowed(state, picked, candidates){ return CompositionLogic.allowedAmong(state, picked, candidates, candidates); }
+  // Of `list`, who keeps a team with `picked` able to meet its needs from `pool` (everyone it could take): all of `list` when none
+  // does, as the spread never blocks.
+  static allowedAmong(state, picked, list, pool){
+    const slots = CompositionLogic.slots(state);
+    if(!slots) return list.slice();
+    const each = rosterSize(state);
+    const ok = list.filter(id => CompositionLogic.keeps(state, slots, picked, id, pool, each));
+    return ok.length ? ok : list.slice();
+  }
+  // What a team with `ids` is still short of, as { value, n } in the needs' order ([] when it has them all, or without needs).
+  static short(state, ids){
+    const slots = CompositionLogic.slots(state);
+    if(!slots) return [];
+    const { owner } = CompositionLogic.match(state, slots, ids);
+    const out = [];
+    slots.forEach((s, i) => {
+      if(owner[i] !== null) return;
+      const o = out.find(x => x.value === s.value && x.of === s.of);
+      if(o) o.n++;
+      else out.push({ of: s.of, value: s.value, n: 1 });
+    });
+    return out;
+  }
+  // "Needs: 1 Interior, 1 Deck" for a team, or null when it has what it needs (the draft room's and waivers' line).
+  static needsLine(state, ids){
+    const s = CompositionLogic.short(state, ids);
+    return s.length ? `Needs: ${s.map(x => `${x.n} ${CompositionLogic.word(state, x)}`).join(', ')}` : null;
+  }
+  // A need's value in words, for its count: the property's plural for it where it has one ("2 Men"), else the value ("2 Interior").
+  static word(state, x){
+    const d = CastPropLogic.def(state, x.of);
+    return x.n > 1 && d && d.plurals && d.plurals[x.value] ? d.plurals[x.value] : x.value;
+  }
+  static reason(state, ids){
+    const s = CompositionLogic.short(state, ids);
+    const left = rosterSize(state) - ids.length;
+    const what = s.map(x => (x.n > 1 ? `${x.n} ${CompositionLogic.word(state, x)}` : `someone from ${x.value}`)).join(' and ');
+    return s.length ? `You still need ${what}, and ${left} ${left === 1 ? 'pick is' : 'picks are'} left` : 'That pick would leave your team short of what it needs';
+  }
+  // Why a turn-based pick doesn't keep the team's needs fillable, or null: refused only while someone else would.
+  static pickProblem(state, playerId, castawayId){
+    const slots = CompositionLogic.slots(state);
+    if(!slots) return null;
+    const free = RosterLogic.freeAgents(state).map(c => c.id);
+    if(!free.includes(castawayId)) return null;
+    const mine = Core.ownedCastawayIds(state, playerId);
+    const each = rosterSize(state);
+    if(CompositionLogic.keeps(state, slots, mine, castawayId, free, each) || !free.some(id => CompositionLogic.keeps(state, slots, mine, id, free, each))) return null;
+    return CompositionLogic.reason(state, mine);
+  }
+  // Why a whole team chosen at once doesn't meet its needs, or null (a blind draft's submission), in its order like the spread.
+  static teamProblem(state, castawayIds, keep){
+    const slots = CompositionLogic.slots(state);
+    if(!slots) return null;
+    const cast = PoolLogic.offered(state).map(c => c.id);
+    const picked = [...(keep || [])];
+    for(const id of castawayIds){
+      if(!CompositionLogic.allowed(state, picked, cast.filter(c => !picked.includes(c))).includes(id)) return CompositionLogic.reason(state, picked);
+      picked.push(id);
+    }
+    return null;
+  }
+  // A move after the draft (a waiver claim, free agency): dropping `drop` for `add` mustn't leave the team shorter of what it needs,
+  // while another free agent would keep it as it was. Null when it's fine.
+  static moveProblem(state, playerId, drop, add){
+    const slots = CompositionLogic.slots(state);
+    if(!slots || !add) return null;
+    const mine = Core.ownedCastawayIds(state, playerId);
+    const without = mine.filter(id => id !== drop);
+    const before = CompositionLogic.match(state, slots, mine).size;
+    const after = CompositionLogic.match(state, slots, [...without, add]).size;
+    if(after >= before) return null;
+    const free = RosterLogic.freeAgents(state).map(c => c.id).filter(id => id !== add);
+    if(!free.some(id => CompositionLogic.match(state, slots, [...without, id]).size >= before)) return null;
+    const lost = CompositionLogic.short(state, [...without, add]).filter(x => !CompositionLogic.short(state, mine).some(y => y.value === x.value && y.of === x.of && y.n >= x.n));
+    const v = (lost[0] || CompositionLogic.short(state, [...without, add])[0] || {}).value;
+    return v ? `Your team needs someone from ${v}: replace them with someone from ${v}` : 'That swap would leave your team short of what it needs';
   }
 }
 
@@ -3326,7 +3511,9 @@ class KeeperLogic {
 // salary cap (BudgetLogic), in their order: every candidate when neither applies, and never none while there's someone to take
 // (each one's fallback). `g` and `prices`, when they're read once a pass.
 function draftFits(state, picked, candidates, g, prices){
-  return BudgetLogic.allowed(state, picked, SpreadLogic.allowed(state, picked, candidates, g), prices, candidates);
+  const fit = BudgetLogic.allowed(state, picked, SpreadLogic.allowed(state, picked, candidates, g), prices, candidates);
+  // Cast properties (chunk 4): of those, who keeps the team's needs fillable from everyone it could take (never none).
+  return CompositionLogic.allowedAmong(state, picked, fit, candidates);
 }
 // Who a turn-based draft's player could take next, of `candidates` (the free agents when left out).
 function draftFitsFor(state, playerId, candidates){
@@ -5952,11 +6139,14 @@ class PoolLogic {
     if(!f) return () => true;
     const teams = f.teams && state.statTeams && typeof state.statTeams === 'object' ? state.statTeams : null;
     const groups = f.positions && state.statGroups && typeof state.statGroups === 'object' ? state.statGroups : null;
-    if(!teams && !groups) return () => true;
-    const held = { ...(teams ? { teams: f.teams } : {}), ...(groups ? { positions: f.positions } : {}) };
+    // Cast properties (chunk 4): "Interior only", read from the stamp (a copy without it holds nothing back).
+    const props = f.props && CastPropLogic.has(state) ? f.props : null;
+    if(!teams && !groups && !props) return () => true;
+    const held = { ...(teams ? { teams: f.teams } : {}), ...(groups ? { positions: f.positions } : {}), ...(props ? { props } : {}) };
     return c => {
       const id = typeof c === 'string' ? c : c && c.id;
-      return Spec.inFilter(held, { team: teams ? teams[id] || null : null, position: groups ? groups[id] || null : null });
+      const as = props ? Object.fromEntries(Object.keys(props).map(k => [k, CastPropLogic.countsAs(state, id, k)])) : undefined;
+      return Spec.inFilter(held, { team: teams ? teams[id] || null : null, position: groups ? groups[id] || null : null, props: as });
     };
   }
   static has(state, c){ return PoolLogic.test(state)(c); }
@@ -5969,7 +6159,9 @@ class PoolLogic {
     const list = xs => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} or ${xs[xs.length - 1]}`);
     const tribes = new Map((state.tribes || []).map(t => [t.id, t.name]));
     const teams = f.teams ? [...new Set((state.castaways || []).filter(x => state.statTeams && f.teams.includes(state.statTeams[x.id])).map(x => tribes.get(x.tribeId)).filter(Boolean))] : [];
-    const what = [f.teams ? (teams.length ? list(teams) : "some teams'") : null, f.positions ? list(f.positions) : 'players'].filter(Boolean).join(' ');
+    const what = f.props && !f.teams && !f.positions
+      ? Object.values(f.props).map(v => list(v)).join(' ')
+      : [f.teams ? (teams.length ? list(teams) : "some teams'") : null, f.positions ? list(f.positions) : 'players'].filter(Boolean).join(' ');
     return `${c && c.name ? c.name : 'They'} can't be picked in this game: it's ${what} only`;
   }
 }
@@ -7584,6 +7776,9 @@ class WaiverLogic {
     }
     // C4: whom it brings in is held as its kind of move says (a replacement's, a swap's).
     if(!MidSeasonLogic.isAvailableFor(state, pair.addId, playerId, drop.status === 'active' ? 'swap' : 'replace')) return 'Claim free agents only';
+    // Cast properties (chunk 4, decided item 2): a replacement keeps what the team needs, while someone else free would.
+    const needs = CompositionLogic.moveProblem(state, playerId, pair.dropId, pair.addId);
+    if(needs) return needs;
     // A10 part 3b: within a salary cap at today's prices, or no further over (`prices`: read once a claim).
     return BudgetLogic.moveProblem(state, playerId, pair.dropId, pair.addId, prices);
   }
@@ -10272,7 +10467,7 @@ return {
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are those pieces,
   // exported directly for code that wants to bypass the dispatch.
   Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, AnswerLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, StatsLogic, RotoLogic, SquaresLogic, SquaresScoringStrategy, GroupSlotLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
-  PoolLogic, SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, WeekLogic, TeamLogic, HandicapLogic, StageLogic, BountyLogic, SecretRoleLogic, TwistLogic, HostLogic, draftFits, draftFitsFor, rankKey,
+  PoolLogic, SpreadLogic, CastPropLogic, CompositionLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, WeekLogic, TeamLogic, HandicapLogic, StageLogic, BountyLogic, SecretRoleLogic, TwistLogic, HostLogic, draftFits, draftFitsFor, rankKey,
   SnakeDraftStrategy, StagesScoringStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy, DrawDraftStrategy, AuctionDraftStrategy
 };
 

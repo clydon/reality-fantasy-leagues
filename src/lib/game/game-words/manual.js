@@ -114,7 +114,7 @@ const WORDS = {
     values: { start: 'as each episode starts', daily: "at the day's first game", weekly: "at the week's first game", game: "each holding at its own game's start" },
     sport: ['daily', 'weekly', 'game'],
   },
-  'pool.where': { what: 'who can be picked (pool: { of: "cast", where })', values: { stillIn: 'nobody gone before the game starts', teams: "only these teams' players (a list of the page's team ids)", positions: "only these positions' players (a list of the page's position groups)", group: 'one group of the show' }, sport: ['teams', 'positions'] },
+  'pool.where': { what: 'who can be picked (pool: { of: "cast", where })', values: { stillIn: 'nobody gone before the game starts', teams: "only these teams' players (a list of the page's team ids)", positions: "only these positions' players (a list of the page's position groups)", group: 'one group of the show', props: "only some values of the cast's properties ({ department: [\"Interior\"] }, the page's properties)" }, sport: ['teams', 'positions'] },
   'ask.answer': {
     what: "how a question is answered (each question: { id, ask, answer, points, asked, settle })",
     values: {
@@ -217,7 +217,7 @@ const WORDS = {
   'get.groups.fallback': { what: "a group slot's episode whose groups aren't sure", values: { void: 'no points (the default)', 'carry-on': 'follow the people', 'next-stage': 'start the next stage' } },
   'get.groups.points': { what: 'what a group slot scores', values: { mean: "its members' mean (the default)", sum: 'their sum' } },
   'get.second.fallback': { what: "a pool's second pick (get.second) on a night only one goes", values: { void: "doesn't count", counts: 'counts' } },
-  'get.across.of': { what: 'a draft spread across (get.across: { of, then })', values: { group: "the show's groups: one from each tribe", gender: 'a guy and a girl' } },
+  'get.across.of': { what: 'a draft spread across (get.across: { of, then })', values: { group: "the show's groups: one from each tribe", gender: 'a man and a woman (someone nonbinary counts as either)' } },
   'get.across.then': { what: 'a drafted person whose group ends', values: { keep: 'stays yours' } },
   'get.budget.gone': { what: "a salary cap's price for someone gone home (get.budget: { total, floor, ceiling })", values: { zero: 'nothing', last: 'their last price' } },
   'get.budget.fallback': { what: "an auction's team the bids didn't fill", values: { fill: 'filled at the floor', short: 'left short' } },

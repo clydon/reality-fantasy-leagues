@@ -73,6 +73,8 @@ export interface DraftGame extends GameRefIn {
   kind: DraftKind;
   /** Your seat. */
   you: string | null;
+  /** Cast properties (chunk 4): what your team still needs ("Needs: 1 Interior, 1 Deck"), or null (none, or it has them). */
+  needs: string | null;
   /** You run this game (Commissioner or Game admin): you can pick for anyone. */
   runs: boolean;
   /** The draft's settings (the order, the start, the timer) are a Commissioner's. */
@@ -229,6 +231,7 @@ export function draftView(
     ...game,
     kind,
     you: playerId,
+    needs: playerId ? StateLogic.CompositionLogic.needsLine(full, StateLogic.Core.ownedCastawayIds(full, playerId)) : null,
     runs: role === "commissioner" || role === "admin",
     commissioner: role === "commissioner",
     phase,

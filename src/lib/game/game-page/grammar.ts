@@ -31,7 +31,7 @@ export const GRAMMAR: Record<string, Record<string, Place[]>> = {
   'card.from': { moments: L, bot: L, host: [['move', 'host']] },
   'card.fallback': { spec: L, void: L },
   closes: { start: [['lock', 'start']], daily: [['lock', 'daily']], weekly: [['lock', 'weekly']], game: [['lock', 'game']] },
-  'pool.where': { stillIn: L, teams: [['control', 'filter']], positions: [['control', 'filter']], group: [['control', 'filter']] },
+  'pool.where': { stillIn: L, teams: [['control', 'filter']], positions: [['control', 'filter']], group: [['control', 'filter']], props: [['control', 'filter']] },
   'ask.answer': { person: [['control', 'person']], group: [['control', 'group']], yesNo: [['control', 'yesNo']], number: [['control', 'number']], overUnder: [['control', 'overUnder']], choice: [['control', 'choice']], calls: [['control', 'calls']], order: [['control', 'order']], confidence: [['control', 'confidence'], ['rider', 'rank']], chips: [['control', 'chips']], split: [['control', 'split']], pairs: [['control', 'pairs']], side: [['control', 'side']], bracket: [['control', 'bracket']], trivia: [['control', 'trivia']], ticket: [['control', 'ticket'], ['rider', 'legs']] },
   'ask.settle': { results: L, moment: L, role: L, phase: L, points: L, calls: L, trivia: L, fact: L, players: [['rider', 'majority']], legs: [['rider', 'legs']], outside: L, final: L, stat: L },
   'ask.settle.source': { tvmaze: L },

@@ -80,6 +80,9 @@ export async function pickInDraft(a: DraftActor, leagueId: string, castawayId: s
       // A draft spread across the cast's groups (step A10 part 3): a pick that doesn't keep the team spread, and why.
       const spread = StateLogic.SpreadLogic.pickProblem(s, turn.playerId, castawayId);
       if (spread) throw new HttpError(400, spread);
+      // Cast properties (chunk 4): a pick that would leave the team's needs unfillable, and why.
+      const needs = StateLogic.CompositionLogic.pickProblem(s, turn.playerId, castawayId);
+      if (needs) throw new HttpError(400, needs);
       // A salary cap (step A10 part 3b): a pick that takes the team past it, and why.
       const cap = StateLogic.BudgetLogic.pickProblem(s, turn.playerId, castawayId);
       if (cap) throw new HttpError(400, cap);

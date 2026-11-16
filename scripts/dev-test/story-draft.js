@@ -18,7 +18,7 @@
 //
 // Needs: the app on :3000 (npm run dev). Brings draft-fixture.js up (--live picks in, --sport for the 344 pool) and takes it
 // down after unless --keep. zt-dr rows only; refuses a non-local database.
-// Run:   node scripts/dev-test/story-draft.js --out=.ui-atlas/stories/step6-games/before/draft [--live=6] [--width=390 --height=844]
+// Run:   node scripts/dev-test/story-draft.js --out=.ui-atlas/stories/step6-games/before/draft [--live=6] [--needs: Couch Cup needs two men and two women] [--width=390 --height=844]
 //          [--only=<regex>] [--keep]
 // Real athletes' headshots appear when the ESPN recording is on this machine: keep those frames in the ignored .ui-atlas.
 require("dotenv").config({ path: ".env.local", quiet: true });
@@ -54,7 +54,7 @@ async function frame(page, id, { full = true } = {}) {
 async function main() {
   fs.mkdirSync(OUT, { recursive: true });
   const pool = new Pool({ connectionString: DB });
-  const fx = await fixture.up(pool, { live: LIVE, sport: true });
+  const fx = await fixture.up(pool, { live: LIVE, sport: true, needs: args.includes("--needs") });
   // Who's on the clock, by the league's own state.
   const clockOf = async (leagueId) => {
     const s = (await pool.query(`SELECT state FROM leagues WHERE id = $1`, [leagueId])).rows[0].state;

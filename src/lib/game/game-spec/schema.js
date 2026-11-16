@@ -241,7 +241,7 @@ const VOCAB = {
   // L3 part 2b: a sport's day's or week's lock (each episode's own first start: the server's ep.locksAt), the engine's lock reading it.
   closes: { start: 'now', daily: 'now', weekly: 'now', game: 'now' },
   // G3 part 3b: a pool of one team's or one position's players, or both (poolFilter).
-  'pool.where': { stillIn: 'now', teams: 'now', positions: 'now', group: 'later' },
+  'pool.where': { stillIn: 'now', teams: 'now', positions: 'now', group: 'later', props: 'now' },
   'ask.answer': {
     person: 'now', group: 'now', yesNo: 'now', number: 'now', overUnder: 'now', choice: 'now', calls: 'now',
     order: 'now', confidence: 'now', chips: 'now', split: 'now', pairs: 'now',
@@ -333,7 +333,9 @@ const VOCAB = {
   // A10 part 3: a draft spread across the cast's groups (get.across): which groups (the tribes or teams the data has them on
   // when it drafts; a guy and a girl needs data that says who is which, and no show's records it: settleProblems refuses it),
   // and what a drafted castaway does when they change group or the groups end (a swap, the merge): keep, still yours.
-  'get.across.of': { group: 'now', gender: 'later' },
+  // Cast properties (docs/PLAN-cast-properties.md chunk 4): a draft can also spread across any property the season's cast has (its
+  // key, checked against SpecContext.properties), gender among them since every show has it (the user, 2026-11-16).
+  'get.across.of': { group: 'now', gender: 'now' },
   'get.across.then': { keep: 'now' },
   // A10 part 3b: a draft's prices (get.budget). What a castaway costs is what you bid (an auction: get.order 'auction'), or their
   // price from the data (a salary cap: any other draft), each castaway's points so far by the game's own rules. What someone gone
@@ -2295,8 +2297,10 @@ function playable(q) {
   return !(q.answer === 'person' && q.from === 'team');
 }
 
-/** The keys a pool's `where` plays today (G3 part 3b): stillIn, and a sport's teams and positions, together or not. */
-const POOL_WHERE = ['stillIn', 'teams', 'positions'];
+/** The keys a pool's `where` plays today (G3 part 3b): stillIn, and a sport's teams and positions, together or not; and (cast
+ *  properties, chunk 4) the cast's properties: { props: { department: ['Interior'] } }, "Interior only". */
+const POOL_WHERE = ['stillIn', 'teams', 'positions', 'props'];
+const propsWhereOk = (v) => isObj(v) && Object.keys(v).length > 0 && Object.entries(v).every(([k, vals]) => /^[a-z][A-Za-z0-9]{0,40}$/.test(k) && idList(vals));
 const idList = (v) => Array.isArray(v) && v.length > 0 && v.every((t) => typeof t === 'string' && !!t) && new Set(v).size === v.length;
 /** Whether a pool's `where` plays: null, or some of stillIn (true), teams and positions (lists of ids, none twice). */
 function poolWhereOk(where) {
@@ -2304,7 +2308,8 @@ function poolWhereOk(where) {
   if (!isObj(where)) return false;
   const keys = Object.keys(where);
   return keys.length > 0 && keys.every((k) => POOL_WHERE.includes(k)) && (where.stillIn === undefined || where.stillIn === true) &&
-    (where.teams === undefined || idList(where.teams)) && (where.positions === undefined || idList(where.positions));
+    (where.teams === undefined || idList(where.teams)) && (where.positions === undefined || idList(where.positions)) &&
+    (where.props === undefined || propsWhereOk(where.props));
 }
 /**
  * G3 part 3b: who a game picks from beyond everyone still in, as { teams?, positions? } (ESPN team ids, the sport's position group
@@ -2318,10 +2323,14 @@ function poolFilter(spec) {
   const out = {};
   if (w.teams) out.teams = w.teams.slice();
   if (w.positions) out.positions = w.positions.slice();
+  if (w.props) out.props = Object.fromEntries(Object.entries(w.props).map(([k, v]) => [k, v.slice()]));
   return Object.keys(out).length ? out : null;
 }
-/** Whether one person ({ team, position }: an ESPN team id and a position group key, either null) is in a filter's pool. */
-const inFilter = (f, p) => (!f.teams || (isObj(p) && f.teams.includes(p.team))) && (!f.positions || (isObj(p) && f.positions.includes(p.position)));
+/** Whether one person ({ team, position, props }: an ESPN team id, a position group key, and each property's values they count as,
+ *  their own and any its flex adds: { gender: ['Nonbinary', 'Man', 'Woman'] }) is in a filter's pool. */
+const inFilter = (f, p) =>
+  (!f.teams || (isObj(p) && f.teams.includes(p.team))) && (!f.positions || (isObj(p) && f.positions.includes(p.position))) &&
+  (!f.props || (isObj(p) && isObj(p.props) && Object.entries(f.props).every(([k, vals]) => Array.isArray(p.props[k]) && vals.some((v) => p.props[k].includes(v)))));
 /**
  * How many can be drafted where the game drafts, as the exclusive count counts them (the 9:10 PM decision: a filtered pool counts
  * smaller): ctx.pool, or with a filter those of ctx.poolOf (each one still in as { team, position }) in it; a filter with no
@@ -2532,12 +2541,13 @@ function specProblems(spec, ctx, opts) {
     const w = s.pool.where;
     const keys = isObj(w) ? Object.keys(w) : [];
     // G3 part 3b: stillIn, teams and positions together or not; a group (later) on its own.
-    if (!keys.length || !keys.every((k) => one('pool.where', k)) || (keys.includes('group') && keys.length > 1)) add('pool.where', "Who can be picked: { stillIn: true }, a sport's { teams: [...] } and { positions: [...] }, or { group: id }");
+    if (!keys.length || !keys.every((k) => one('pool.where', k)) || (keys.includes('group') && keys.length > 1)) add('pool.where', "Who can be picked: { stillIn: true }, a sport's { teams: [...] } and { positions: [...] }, the cast's { props: { key: [values] } }, or { group: id }");
     else {
       if (w.stillIn !== undefined && w.stillIn !== true) add('pool.where.stillIn', 'stillIn is true, or leave it out');
       if (w.teams !== undefined && !idList(w.teams)) add('pool.where.teams', 'The teams are a list of team ids, each once');
       if (w.positions !== undefined && !idList(w.positions)) add('pool.where.positions', "The positions are a list of the sport's position groups, each once");
       if (w.group !== undefined && !(typeof w.group === 'string' && w.group)) add('pool.where.group', 'The group is an id');
+      if (w.props !== undefined && !propsWhereOk(w.props)) add('pool.where.props', "Picking from some of a property's values: { props: { department: ['Interior'] } }");
     }
   }
 
@@ -2573,6 +2583,7 @@ function specProblems(spec, ctx, opts) {
     if (!count) add('count', 'A draft says what counts: { start: n }, { all: true } or { best: n }');
     if (get.groups !== undefined) groupSlotProblems(get.groups, s).forEach(([at, p]) => add(`get.groups${at}`, p));
     if (get.across !== undefined) acrossProblems(get.across).forEach(([at, p]) => add(`get.across${at}`, p));
+    if (get.needs !== undefined) needsProblems(get.needs, s).forEach(([at, p]) => add(`get.needs${at}`, p));
     if (get.budget !== undefined) budgetProblems(get.budget, s).forEach(([at, p]) => add(`get.budget${at}`, p));
     if (get.keep !== undefined) keepProblems(get.keep, s).forEach(([at, p]) => add(`get.keep${at}`, p));
   }
@@ -3031,7 +3042,7 @@ const KEYS = {
   span: ['from', 'to'],
   from: ['phase', 'at'],
   pool: ['of', 'where'],
-  get: { draft: ['by', 'each', 'order', 'own', 'groups', 'across', 'budget', 'keep'], pick: ['by', 'each', 'repeat', 'second', 'fallback'], card: ['by'], none: ['by'], squares: ['by', 'grid', 'take', 'each'] },
+  get: { draft: ['by', 'each', 'order', 'own', 'groups', 'across', 'budget', 'keep', 'needs'], pick: ['by', 'each', 'repeat', 'second', 'fallback'], card: ['by'], none: ['by'], squares: ['by', 'grid', 'take', 'each'] },
   groups: ['slots', 'own', 'swap', 'fallback', 'points'],
   keep: ['each', 'from', 'cost', 'fallback'],
   across: ['of', 'then'],
@@ -3320,8 +3331,35 @@ function groupSlotProblems(g, s) {
 function acrossProblems(a) {
   if (!isObj(a)) return [['', 'A spread draft is { of, then }']];
   const out = [];
-  if (own(VOCAB['get.across.of'], a.of) === undefined) out.push(['.of', "Spread across what: the show's groups (group), or a guy and a girl (gender)"]);
+  // The show's groups, gender, or another of the season's cast properties by its key (the data rule checks the season has it).
+  if (own(VOCAB['get.across.of'], a.of) === undefined && !(typeof a.of === 'string' && /^[a-z][A-Za-z0-9]{0,40}$/.test(a.of))) out.push(['.of', "Spread across what: the show's groups (group), gender, or another of its cast's properties by its key"]);
   if (own(VOCAB['get.across.then'], a.then) === undefined) out.push(['.then', 'After the draft a castaway stays yours wherever they go: keep']);
+  return out;
+}
+
+/**
+ * Cast properties (docs/PLAN-cast-properties.md chunk 4): what a team needs, [{ of: a property's key, value, n }], "one Interior and
+ * one Deck", "two men and two women". Each need at least one, together no more than the team: which properties and values the
+ * season has is the data rule's (settleProblems). A need nobody left can fill drops; it never blocks a draft (CompositionLogic).
+ */
+function needsProblems(needs, s) {
+  if (!Array.isArray(needs) || !needs.length) return [['', 'What a team needs is a list: [{ of, value, n }]']];
+  const out = [];
+  const each = isObj(s.get) && isInt(s.get.each, 1) ? s.get.each : null;
+  const seen = new Set();
+  let total = 0;
+  needs.forEach((n, i) => {
+    if (!isObj(n)) return out.push([`[${i}]`, 'Each need is { of, value, n }']);
+    for (const k of Object.keys(n)) if (!['of', 'value', 'n'].includes(k)) out.push([`[${i}].${k}`, `A need takes of, value and n, not ${k}`]);
+    if (!(typeof n.of === 'string' && /^[a-z][A-Za-z0-9]{0,40}$/.test(n.of))) out.push([`[${i}].of`, "A need is of one of the cast's properties, by its key (department, gender)"]);
+    if (!(typeof n.value === 'string' && n.value.trim())) out.push([`[${i}].value`, 'A need names one of its values (Interior, Woman)']);
+    if (!isInt(n.n, 1)) out.push([`[${i}].n`, 'How many a team needs is a whole number from 1']);
+    else total += n.n;
+    const key = `${n.of}:${n.value}`;
+    if (seen.has(key)) out.push([`[${i}]`, `${n.value} is needed twice: say it once, with how many`]);
+    seen.add(key);
+  });
+  if (each && total > each) out.push(['', `The needs add up to ${total}, more than a team of ${each}`]);
   return out;
 }
 
@@ -4245,7 +4283,10 @@ function settleProblems(s, ctx, opts) {
   // drafts covers its share of every team (ctx.poolGroups: how many can be drafted in each; the pool shrinking per group).
   if (get.by === 'draft' && isObj(get.across)) {
     if (get.across.of === 'group' && ctx.grouped === false) out.push(['get.across.of', "Nobody on the show is in a group (a tribe, a team): there's nothing to spread across"]);
-    if (get.across.of === 'gender') out.push(['get.across.of', "Nothing in the show's data says who's a guy and who's a girl (its cast and research don't record it), so nothing can check a draft of one each"]);
+    // Cast properties (chunk 4): another property than the groups is the season's own, by its key; gender every season has.
+    if (get.across.of !== 'group' && Array.isArray(ctx.properties) && !ctx.properties.some((p) => isObj(p) && p.key === get.across.of)) {
+      out.push(['get.across.of', `This season's cast isn't sorted by ${get.across.of}: it's sorted by ${ctx.properties.map((p) => p.name.toLowerCase()).join(', ') || 'nothing besides its groups'}`]);
+    }
     // Groups with someone in them, as the spread reads them (SpreadLogic.groupsNow).
     const sizes = Array.isArray(ctx.poolGroups) ? ctx.poolGroups.filter((n) => isInt(n, 1)) : [];
     const b = spreadBounds(get.each, sizes.length);
@@ -4253,6 +4294,17 @@ function settleProblems(s, ctx, opts) {
       const short = Math.min(...sizes);
       if (!covers({ pool: short, people: teams.n, each: b.least })) out.push(['get.own', `${teams.said} each need ${b.least} from every group, and one has only ${short}: make it shared, so two of you can have the same one`]);
     }
+  }
+  // What a team needs: each of one of the season's properties with listed values, and one of them (a need of a value a property's
+  // flex covers counts those people too: CompositionLogic).
+  if (get.by === 'draft' && Array.isArray(get.needs) && Array.isArray(ctx.properties)) {
+    get.needs.forEach((n, i) => {
+      if (!isObj(n)) return;
+      const p = ctx.properties.find((x) => isObj(x) && x.key === n.of);
+      if (!p) out.push([`get.needs[${i}].of`, `This season's cast isn't sorted by ${n.of}`]);
+      else if (!Array.isArray(p.values)) out.push([`get.needs[${i}].of`, `${p.name} is anything in the show's words, so a team can't need one of its values`]);
+      else if (!p.values.includes(n.value)) out.push([`get.needs[${i}].value`, `${p.name} is one of ${p.values.join(', ')}`]);
+    });
   }
   const score = isObj(s.score) ? s.score : {};
   if (score.by === 'moments') {
@@ -4746,7 +4798,7 @@ module.exports = {
   SPEC_VERSION, VOCAB, TAKES, SETTLES_FOR, SEASON_TAKES, EACH_SETTLES_FOR, NAMES, NUMBERS, MAX_WINDOW, LATE_HOURS, windowed,
   RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, WAGER_TOTAL, ODDS, MAX_BANK, BANK, bankOf, drawsOnBank, isTicket, ticketOf, MAX_TICKET_LEGS, MAX_PAYS, TICKET, SHARES, SHRINK_PER, LEGS, MAX_LEGS, MAX_TIMES, MAX_WHEN, WHEN, MAX_JOINED, JOINED, multipliersOf, MAX_BOUNTY, BOUNTY, bountyOf, MAX_ROLE_SEATS, MAX_ROLE_POINTS, MAX_ROLE_NAME, ROLES, rolesOf, MAX_TWISTS, MAX_TWIST_NAME, MAX_TWIST_HOURS, TWIST, twistOf, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
   MAX_GROUP_SLOTS, GROUP_SLOTS, covers, poolFilter, poolCount, inFilter, MAX_LIVES, MAX_BUYBACKS, MAX_MULLIGANS, MAX_BUYBACK_COST, BUYBACK, SECOND_PICK, NEVER, poolParts,
-  DRAFT_ACROSS, DRAW_OWN, spreadBounds, MAX_BUDGET, BUDGET, CAP, AUCTION, MAX_BIDS, ceilingFor, budgetParts, TRADE, MARKET_LEFT,
+  DRAFT_ACROSS, DRAW_OWN, spreadBounds, needsProblems, MAX_BUDGET, BUDGET, CAP, AUCTION, MAX_BIDS, ceilingFor, budgetParts, TRADE, MARKET_LEFT,
   marketWaivers, marketOf, waiverOwnOf, waiverMoves, KEEP, keepParts, SEATS, MAX_SEAT_PEOPLE, seatPeople, teamsOf,
   MAX_RACE, MAX_CUTS, MAX_CUT_OUT, CUT, CUT_AT, knockoutParts, DRAFT_END, POOL_END, ANSWERS_END, COOP, answerParts, livesQuestion, questionsGame, isPool, poolByPoints,
   MATCHUPS, MATCHUP_KEYS, MAX_PLAYOFF_TEAMS, playoffRounds, matchupParts, TEAMS, MAX_PLAYER_TEAMS, MAX_TEAM_NAME, teamParts,

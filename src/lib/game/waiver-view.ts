@@ -71,6 +71,9 @@ export interface WaiverWeek extends GameRefIn {
   team: WaiverFace[];
   /** Who you may pick: free agents (shared: anyone still in who isn't yours), most points first. */
   free: WaiverFace[];
+  /** Cast properties (chunk 4): what your team needs now its leavers are gone ("Needs: 1 Deck"): a replacement keeps it while
+   *  someone free can (decided item 2). Null with no needs, or nothing short. */
+  needs: string | null;
   /** Your own pick for each spot, first choice first: replacements (oldest loss first), then swaps. */
   spots: { dropId: string; addIds: string[] }[];
   /** Picking order, first pick first (exclusive leagues). */
@@ -301,6 +304,7 @@ export function waiverWeek(game: GameRefIn, full: LeagueState, playerId: string,
     swapsLeft: live ? W.swapsLeft(view, current, playerId) : 0,
     team,
     free,
+    needs: live ? StateLogic.CompositionLogic.needsLine(view, mine.filter((c) => c.status !== "eliminated").map((c) => c.id)) : null,
     spots,
     order,
     orderBy: (view.settings.replenishOrderBy || "rolling") as WaiverWeek["orderBy"],

@@ -206,6 +206,18 @@ Each ends with focused tests; the long checks once per milestone ([long-checks-o
    `{ group }` working), in schema.js, describe.js, `draftFits` (CompositionLogic beside SpreadLogic), the draft room and waivers
    saying what's needed, bots through `draftFits`. Done when a bench scenario drafts "one Interior, one Deck" exclusively with two
    bots and a person, and a refused pick says why.
+   **Built 2026-11-16** (lane castprops, after step 8 merged in): `get.needs` (settings `draftNeeds`), `get.across.of` a property's
+   key (gender plays now), `pool.where.props` ("Interior only"), checked against `SpecContext.properties` (question-choices.ts
+   `contextOf`); `CastPropLogic` (a castaway's values from the stamp, flex counted), the spread by any property (a flex value a
+   wildcard), `CompositionLogic` (needs as a matching, so Nonbinary fills whichever side fits; never blocking; a refused pick's
+   reason), chained into `draftFits` (bots, a draw, a blind team, the timer) and the snake's engine and server checks, and waiver
+   replacements (`pairProblem`: the shape kept while someone free can). Words in describe.js and the GPT's manual; the draft room's
+   "Needs: 2 Men, 1 Woman" (`DraftGame.needs`, `YourSlots`) and waivers' owed spot ("Needs: 1 Deck · Out · Ep 5", `WaiverWeek.needs`).
+   "Done when" was met in tests/cast-props-draft.test.js (two bots and a person drafting one Interior and one Deck each; the refused
+   pick's words), not a bench scenario: the bench's runtime builds no cast-property stamp yet. **Left:** an auction's bids and a late
+   joiner's team (GhostLogic.teamAt) don't check needs (neither checks the spread today); the blind room has no "Needs" line; the
+   waivers page's line is unit-tested, not rendered (no fixture has a needs game mid-waivers); `pool.where { group }` still waits;
+   the GPT's manual says nothing of `get.needs` yet (chunk 7).
 5. **Lineup slots.** `count.slots` (by property, with FLEX), validateLineup, the lineup sheet (slots labelled), bot lineups, the
    matchup pairing reads real slots (step 2c paired a sport by position already). Shared with sports: a sport's lineup gains its
    positions here. Done when NFL's 1 QB, 2 RB, 2 WR, 1 TE, 1 FLEX is enforced and drawn.

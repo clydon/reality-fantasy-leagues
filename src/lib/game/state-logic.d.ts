@@ -982,6 +982,24 @@ declare const StateLogic: {
     pickProblem(state: LeagueState, playerId: string, castawayId: string): string | null;
     teamProblem(state: LeagueState, castawayIds: string[]): string | null;
   };
+  /** Cast properties (docs/PLAN-cast-properties.md chunk 4): a castaway's values as the stamp has them, a flex value's others too. */
+  CastPropLogic: {
+    has(state: LeagueState): boolean;
+    valueOf(state: LeagueState, castaway: Castaway | string, key: string): string | null;
+    countsAs(state: LeagueState, castaway: Castaway | string, key: string): string[];
+    matches(state: LeagueState, castaway: Castaway | string, key: string, value: string): boolean;
+  };
+  /** Cast properties (chunk 4): what a team needs (the spec's get.needs), never blocking a draft. */
+  CompositionLogic: {
+    config(state: LeagueState): import("./game-spec/index.js").DraftNeed[] | null;
+    allowed(state: LeagueState, picked: string[], candidates: string[]): string[];
+    short(state: LeagueState, ids: string[]): { of: string; value: string; n: number }[];
+    /** "Needs: 1 Interior, 1 Deck", or null when the team has what it needs. */
+    needsLine(state: LeagueState, ids: string[]): string | null;
+    pickProblem(state: LeagueState, playerId: string, castawayId: string): string | null;
+    teamProblem(state: LeagueState, castawayIds: string[], keep?: string[]): string | null;
+    moveProblem(state: LeagueState, playerId: string, dropId: string, addId: string): string | null;
+  };
   /** Step A10 part 3: names out of a hat (the spec's get.order 'draw'), seeded and recorded in state.draw. */
   DrawLogic: {
     on(state: LeagueState): boolean;

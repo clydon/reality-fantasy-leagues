@@ -50,9 +50,15 @@ after, the wizard taking in chunk 7). Commits: 10b6f369 (chunk 1), ad6b0f2b (chu
   The Challenge's status came back blank on the first ask and 18/6 on the second (worth a desk look per season); the desk's review is
   two rows a person when details and bio both change; a lane dev server once served stale 404s for existing routes until `.next`
   was cleared.
-- **Next: chunk 4 (draft rules) waits until step 8 is merged into this lane** (`git merge explorer-sports` here, then `npm run
-  migrate`), since its "Needs" line lands in the draft room and waivers, which step 8 redesigns. Then chunks 5 (lineup slots) and 6
-  (dated changes); chunk 7 goes with the wizard (step 12).
+- **Since (same day):** gender on every show, as billed or else inferred (the user's call; the desk says "gender guessed"),
+  Nonbinary counting as a man or a woman by default (a property's `flex`), holdings planned as chunk 6b with the user's three
+  decisions, and **`explorer-sports` merged into this lane** (433f5c65: steps 8 and 9; only HANDOFF.md conflicted, both kept).
+- **Chunk 4, draft rules: built** (the plan's chunk 4 "Built" says what and what's left): needs ("one Interior and one Deck", "two
+  men and two women"), a spread by any property, a pool by one; through `draftFits`, the snake's checks, blind teams, bots and
+  waiver replacements; "Needs: 2 Men, 1 Woman" in the draft room (`story-draft.js --needs`, draft-fixture.js `needs` copying
+  Survivor 51's genders) and on waivers' owed spot. Tests: tests/cast-props-draft.test.js, waiver-view.test.js's needs case; the full
+  suite passes (2401); check-draft-spread.js and check-cast-props.js pass.
+- **Next: chunk 5 (lineup slots), then 6 (dated changes) and 6b (holdings);** chunk 7 goes with the wizard (step 12).
 
 ## The design round's step 9, Chat, a light review (2026-11-16; built on branch `explorer-sports`, not committed past it; waits on the user's review)
 src/new/show/chat.tsx `itemsOf(messages, airings, foldEp)`: days, with each episode's airing as a landmark (`kind: "ep"`, the episode

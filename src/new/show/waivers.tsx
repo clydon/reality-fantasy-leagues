@@ -627,7 +627,7 @@ function OpenWeek({ seasonId, show, week }: { seasonId: string; show: ShowData; 
             const add = adds[0] ? (byId.get(adds[0]) ?? null) : null;
             const line = add
               ? [adds.length > 1 ? `Backup${adds.length > 2 ? "s" : ""}: ${adds.slice(1).map(nameOf).join(", ")}` : week.shared ? null : "If taken, the best one left", until ? `change until ${until}` : null].filter(Boolean).join(" · ")
-              : [`Out · Ep ${out.out ?? episode}`, until ? `by ${until}` : null, due != null ? stated(due, now) : null].filter(Boolean).join(" · ");
+              : [week.needs, `Out · Ep ${out.out ?? episode}`, until ? `by ${until}` : null, due != null ? stated(due, now) : null].filter(Boolean).join(" · ");
             return <SpotPlate key={id} out={out} add={add} line={line} onSwap={() => setPicking(id)} />;
           })
         ) : total ? (

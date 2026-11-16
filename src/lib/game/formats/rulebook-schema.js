@@ -468,7 +468,7 @@ function castProperties(blocks) {
 // or desk once the desk sets it), and fixed on the desk. Every season has it without its rulebook declaring it.
 // Nonbinary flexes (the user, 2026-11-16): by default it counts as a man or a woman, whichever a rule or a filter asks for, "so
 // any argument becomes internal and faith based rather than semantics". A game can still choose otherwise (chunk 4).
-const GENDER_PROPERTY = { key: 'gender', name: 'Gender', plural: 'Genders', values: ['Man', 'Woman', 'Nonbinary'], changes: 'never', flex: { Nonbinary: ['Man', 'Woman'] } };
+const GENDER_PROPERTY = { key: 'gender', name: 'Gender', plural: 'Genders', values: ['Man', 'Woman', 'Nonbinary'], changes: 'never', flex: { Nonbinary: ['Man', 'Woman'] }, plurals: { Man: 'Men', Woman: 'Women', Nonbinary: 'Nonbinary' } };
 
 /** Whether someone whose value is `has` counts as `wanted` for a property: the same value, or one that flexes to it. */
 function propertyMatches(prop, has, wanted) {
@@ -481,7 +481,7 @@ function propertyMatches(prop, has, wanted) {
 /** A season's properties: its rulebook's, then Gender unless the rulebook has its own. */
 function withGender(props) {
   const list_ = Array.isArray(props) ? props : [];
-  return list_.some((p) => p && p.key === 'gender') ? list_ : [...list_, { ...GENDER_PROPERTY, values: [...GENDER_PROPERTY.values], flex: { Nonbinary: ['Man', 'Woman'] } }];
+  return list_.some((p) => p && p.key === 'gender') ? list_ : [...list_, { ...GENDER_PROPERTY, values: [...GENDER_PROPERTY.values], flex: { Nonbinary: ['Man', 'Woman'] }, plurals: { ...GENDER_PROPERTY.plurals } }];
 }
 
 /** The property shown under a person's name: the one marked main, else the first; null with none. */

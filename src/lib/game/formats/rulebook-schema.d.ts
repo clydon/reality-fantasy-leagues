@@ -162,6 +162,8 @@ export interface RulebookCastProperty {
   of?: string;
   /** A value that also counts as others, for rules and filters (Gender's Nonbinary as a man or a woman). */
   flex?: Record<string, string[]>;
+  /** A value's word for more than one, where it isn't the value itself (Gender's Men, Women): "Needs: 2 Men". */
+  plurals?: Record<string, string>;
 }
 
 /**

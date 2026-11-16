@@ -470,7 +470,9 @@ function sentenceParts(s, w) {
     put(s.get.order === 'draw' ? `everyone gets ${s.get.each} drawn at random` : s.get.order === 'auction' ? `everyone ${budget ? `has ${budget.total} to bid` : 'bids'} on a team of ${s.get.each}` : `everyone drafts ${s.get.each}`, 'get');
     // G3 part 3b: a pool of some teams' or positions' players.
     if (poolFilter(s)) put(`, ${poolPhrase(s, w)}`, 'pool');
-    if (acrossOf(s)) put(` from across the ${w.group}s`, 'get');
+    if (acrossOf(s)) put(` from across the ${acrossWord(s, w)}s`, 'get');
+    // Cast properties (chunk 4): what a team needs ("needing 1 Interior and 1 Deck").
+    if (needsOf(s)) put(`, needing ${needsPhrase(s)}`, 'get');
     // Part 3c: a stock market buys and sells when its waiver windows open.
     if (budget && budget.trade && !budget.auction) put(` with ${budget.total} to spend`, 'get');
     else if (budget && !budget.auction) put(` under a salary cap of ${budget.total}`, 'get');
@@ -1292,6 +1294,18 @@ function keepRules(s, w) {
 }
 /** A draft spread across the cast's groups (A10 part 3: get.across), or null. */
 const acrossOf = (s) => (s.get && s.get.by === 'draft' && isObj(s.get.across) ? s.get.across : null);
+/** What a spread is across, in one word: the show's group ("tribe"), or a cast property by its key (chunk 4: "department",
+ *  "gender"). */
+const acrossWord = (s, w) => {
+  const a = acrossOf(s);
+  if (!a || a.of === 'group') return w.group;
+  return String(a.of).replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
+};
+/** Cast properties (chunk 4): what a team needs (get.needs), or null. */
+const needsOf = (s) => (s.get && s.get.by === 'draft' && Array.isArray(s.get.needs) && s.get.needs.length ? s.get.needs : null);
+/** "1 Interior and 1 Deck", "2 men and 2 women": the show's values, a gender's in its plural for more than one. */
+const PLURAL = { Man: 'men', Woman: 'women', Nonbinary: 'nonbinary' };
+const needsPhrase = (s) => listOf(needsOf(s).map((n) => (n.of === 'gender' ? `${n.n} ${n.n > 1 ? PLURAL[n.value] || n.value : String(n.value).toLowerCase()}` : `${n.n} ${n.value}`)));
 /** How a draw and a spread draft work (A10 part 3), and a draft's prices (part 3b), a rule a line. */
 function drawRules(s, w) {
   const out = [];
@@ -1317,9 +1331,19 @@ function drawRules(s, w) {
       : `Nobody picks: when the draft starts, everyone is dealt ${say(s.get.each)} at random from one hat, so nobody shares. If the hat runs out, the last teams dealt come up short.`);
     out.push("The draw is recorded once it's made: it's the same whenever anyone looks.");
   }
-  if (acrossOf(s)) {
+  if (acrossOf(s) && acrossOf(s).of !== 'group') {
+    const a = acrossWord(s, w);
+    out.push(`Each team is spread across the ${a}s, as evenly as its size allows (a team of two with two ${a}s: one of each). A ${a} with nobody left to take asks for nobody.`);
+    if (acrossOf(s).of === 'gender') out.push('Someone nonbinary counts on either side.');
+  } else if (acrossOf(s)) {
     out.push(`Each team is spread across the ${w.group}s as they stand at the draft, as evenly as its size allows (a team of three with three ${w.group}s: one from each). A ${w.group} with nobody left to take asks for nobody, and if the show isn't split into ${w.group}s then, it's an ordinary draft.`);
     out.push(`After the draft they're yours wherever they go: a swap or the merge changes nobody's team.`);
+  }
+  // Cast properties (chunk 4): what a team needs, never blocking the draft; replacements keep it (decided item 2).
+  if (needsOf(s)) {
+    out.push(`Every team needs ${needsPhrase(s)}. A pick that would leave a team unable to get them is refused while anyone else would do, and a need nobody left can fill drops.`);
+    if (needsOf(s).some((n) => n.of === 'gender')) out.push('Someone nonbinary counts as either, on whichever side lets the team fit.');
+    out.push(`A replacement keeps what the team needs, while someone free can.`);
   }
   return out;
 }
@@ -1792,7 +1816,9 @@ function poolPhrase(s, w, chip) {
   const known = f.teams ? f.teams.map((t) => w.teams.get(t)).filter(Boolean) : [];
   const teams = !f.teams ? null : known.length === f.teams.length ? listOf(known) : f.teams.length === 1 ? "one team's" : `${say(f.teams.length)} teams'`;
   const positions = f.positions ? listOf(f.positions.map((p) => String(w.positions.get(p) || p).toLowerCase())) : null;
-  const text = `${[teams, positions || w.castaways].filter(Boolean).join(' ')} only`;
+  // Cast properties (chunk 4): a property's values ("Interior only").
+  const props = f.props ? listOf(Object.values(f.props).flat()) : null;
+  const text = `${[teams, positions || props || w.castaways].filter(Boolean).join(' ')} only`;
   return chip ? text.replace(/^./, (c) => c.toUpperCase()) : text;
 }
 
@@ -1813,7 +1839,8 @@ function twistShorts(s, w) {
   if (onlyCard(s)) out.push(`New objectives each ${w.part}`);
   else if (Array.isArray(sc.only)) out.push(`Only ${sc.only.length} moments count`);
   if (isObj(g.groups) && isNum(g.groups.slots)) out.push(g.groups.slots === 1 ? `Plus a ${w.group} slot` : `Plus ${g.groups.slots} ${w.group} slots`);
-  if (isObj(g.across)) out.push(`1 from each ${w.group}`);
+  if (isObj(g.across)) out.push(`1 from each ${acrossWord(s, w)}`);
+  if (needsOf(s)) out.push(`Needs ${needsPhrase(s)}`);
   // G3 part 3b: a pool of some teams' or positions' players.
   if ((g.by === 'draft' || g.by === 'pick') && poolFilter(s)) out.push(poolPhrase(s, w, true));
   if (Array.isArray(sc.multiply) && sc.multiply.length) {

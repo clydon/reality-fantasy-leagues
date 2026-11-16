@@ -88,6 +88,10 @@ everyone still in. Since G3 part 3b, a sport's game can pick from only some of i
 - **`positions`**: `{ "positions": ["FWD"] }`, the sport's position groups (`ctx.positions`: soccer's GK, DEF, MID, FWD;
   "draft 3 strikers each" is FWD; a position named by its label, "forwards", is its key).
 - Both together ("the Lakers' guards"), `stillIn` beside them or not (the same: nobody gone is offered anyway).
+- **`props`** (cast properties, docs/PLAN-cast-properties.md chunk 4): `{ "props": { "department": ["Interior"] } }`, some values of
+  the season's cast properties ("Interior only"). Read from the server's per-read stamp (`state.castProps`); a value a property's
+  flex covers counts too (Gender's Nonbinary as a man or a woman). Beside it, a draft's `get.needs` (`[{ of, value, n }]`: "one
+  Interior and one Deck", "two men and two women") and `get.across.of` by a property's key (gender, a department) shape a team.
 
 Who's on which team is the server's stamp, never stored: each castaway's team as the season's linked games name it (`statTeams`,
 from the group they're listed in now) and their position group from their roster (`statGroups`, `season_cast.role`). Every place

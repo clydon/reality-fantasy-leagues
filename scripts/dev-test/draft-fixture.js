@@ -166,15 +166,18 @@ async function up(pool, opts = {}) {
   // line), so the room's sheet says who they are before the premiere; none when this database has no research yet.
   const bios = new Map(
     (await pool.query(
-      `SELECT lower(sc.name) AS name, sc.bio FROM season_cast sc JOIN show_seasons ss ON ss.id = sc.season_id JOIN shows s ON s.id = ss.show_id
-        WHERE s.slug = 'survivor' AND ss.season_number = 51 AND sc.bio IS NOT NULL`
-    ).catch(() => ({ rows: [] }))).rows.map((r) => [r.name, r.bio])
+      `SELECT lower(sc.name) AS name, sc.bio, sc.props FROM season_cast sc JOIN show_seasons ss ON ss.id = sc.season_id JOIN shows s ON s.id = ss.show_id
+        WHERE s.slug = 'survivor' AND ss.season_number = 51`
+    ).catch(() => ({ rows: [] }))).rows.map((r) => [r.name, r])
   );
   for (const [i, slug] of FACES.entries()) {
-    const bio = bios.get(nameOf(slug).toLowerCase()) ?? null;
+    const was = bios.get(nameOf(slug).toLowerCase());
+    const bio = was?.bio ?? null;
+    // Their gender as Survivor 51's research has it here (cast properties: every show's), for a draft that needs two of each.
+    const props = was?.props?.gender ? { gender: was.props.gender, genderFrom: was.props.genderFrom ?? "billed" } : {};
     const row = await one(
-      `INSERT INTO season_cast (season_id, name, tribe_name, photo_url, sort_order, bio) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-      [season, nameOf(slug), TRIBES[i % 3][0], `/mock/showcase/img/survivor-51/${slug}.jpg`, i, bio ? JSON.stringify(bio) : null]
+      `INSERT INTO season_cast (season_id, name, tribe_name, photo_url, sort_order, bio, props) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+      [season, nameOf(slug), TRIBES[i % 3][0], `/mock/showcase/img/survivor-51/${slug}.jpg`, i, bio ? JSON.stringify(bio) : null, JSON.stringify(props)]
     );
     cast.push({ id: row.id, name: nameOf(slug), tribe: TRIBES[i % 3][0], photo: `/mock/showcase/img/survivor-51/${slug}.jpg` });
   }
@@ -190,6 +193,8 @@ async function up(pool, opts = {}) {
   const live = opts.live ?? 0;
   for (const [i, [key, slug, name, type, shared]] of games.entries()) {
     const state = leagueState(type, shared, size, players, cast);
+    // Cast properties (chunk 4): `needs` (CLI --needs) makes Couch Cup's draft need two men and two women (a team of four).
+    if (key === "outlast" && opts.needs) state.settings.draftNeeds = [{ of: "gender", value: "Man", n: 2 }, { of: "gender", value: "Woman", n: 2 }];
     // Mid-draft (step 6): Couch Cup started with `live` picks in, best first by a fixed ranking of the cast.
     if (key === "outlast" && live > 0) draftSome(state, live, seeded(state.castaways.map((c) => c.id)));
     leagues[key] = (await one(

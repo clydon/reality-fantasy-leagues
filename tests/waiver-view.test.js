@@ -156,3 +156,17 @@ test("a game with no waivers has no week", () => {
   const s = league({ settings: { leagueTypeId: "pickem" } });
   assert.equal(waiverWeek({ ...ref, gameType: "pickem" }, s, "ann", 3, userOf, null), null);
 });
+
+test("cast properties (chunk 4): a needs game's week says what the team needs now, and a claim keeps it", () => {
+  const s = league({ settings: { draftNeeds: [{ of: "department", value: "Deck", n: 1 }, { of: "department", value: "Interior", n: 1 }] } });
+  // a1 (Deck, out in Episode 3) leaves ann with two Interiors; f1 is Deck, f2 Interior.
+  const dept = { a1: "Deck", a2: "Interior", a3: "Interior", f1: "Deck", f2: "Interior", f3: "Galley", f4: "Galley", b1: "Deck", b2: "Interior", b3: "Deck", c1: "Deck", c2: "Interior", c3: "Galley" };
+  s.castProps = Object.fromEntries(Object.entries(dept).map(([id, d]) => [id, { department: d }]));
+  s.castPropDefs = [{ key: "department", name: "Department", plural: "Departments", values: ["Interior", "Deck", "Galley"], main: false, of: null, flex: null, plurals: null }];
+  const w = waiverWeek(ref, s, "ann", 3, userOf, null);
+  assert.equal(w.needs, "Needs: 1 Deck");
+  assert.match(S.CompositionLogic.moveProblem(s, "ann", "a1", "f2") || "", /needs someone from Deck/);
+  assert.equal(S.CompositionLogic.moveProblem(s, "ann", "a1", "f1"), null);
+  // Without needs, nothing said.
+  assert.equal(waiverWeek(ref, league(), "ann", 3, userOf, null).needs, null);
+});

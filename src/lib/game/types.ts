@@ -406,6 +406,8 @@ export interface LeagueSettings {
    *  cast's groups (get.across). */
   draftDraw?: boolean;
   draftAcross?: import("./game-spec/index.js").DraftAcross;
+  /** Cast properties (chunk 4): what a team needs, as the spec says it (get.needs). */
+  draftNeeds?: import("./game-spec/index.js").DraftNeed[];
   /** Step A10 part 3b, each absent unless a game says it: an auction (get.order 'auction'), and a draft's prices (get.budget: an
    *  auction's budget, or a salary cap). */
   draftAuction?: boolean;

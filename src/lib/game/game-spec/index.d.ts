@@ -69,14 +69,14 @@ export interface SpecPool {
   of: "cast";
   /** null or { stillIn: true }: everyone still in. G3 part 3b, a sport's: teams (ESPN team ids) and positions (the sport's position
    *  group keys), together or not (poolFilter). Later: { group }. */
-  where: null | { stillIn?: true; teams?: string[]; positions?: string[] } | { group: string };
+  where: null | { stillIn?: true; teams?: string[]; positions?: string[]; props?: Record<string, string[]> } | { group: string };
 }
 
 export type SpecGet =
   /** A10 part 3: order "draw" deals each team at random when the draft starts (either ownership); across spreads a draft over
    *  the cast's groups as the data has them then. Part 3b: order "auction" (exclusive) sells the cast by sealed bids; a budget
    *  beside any other order is a salary cap, prices from the data. */
-  | { by: "draft"; each: number; order: "snake" | "blind" | "draw" | "auction"; own: "exclusive" | "shared"; groups?: GroupSlots; across?: DraftAcross; budget?: DraftBudget; keep?: DraftKeep }
+  | { by: "draft"; each: number; order: "snake" | "blind" | "draw" | "auction"; own: "exclusive" | "shared"; groups?: GroupSlots; across?: DraftAcross; budget?: DraftBudget; keep?: DraftKeep; needs?: DraftNeed[] }
   /** A10 part 2's second: a second pick beside the first, open every episode, counting on a night two or more go home (void, or
    *  counts like the first, on a night only one goes). */
   /** A11 part 2: repeat "never", nobody picked twice in the game, and its fallback for a night you've picked everyone still in
@@ -624,8 +624,16 @@ export interface DraftKeep {
 /** A10 part 3: a draft spread across the cast's groups (get.across): no more than ceil(each / groups) from one group, at least
  *  floor(each / groups) from each while it has someone to take, read from the groups the data has people on when it drafts
  *  (state-logic.js SpreadLogic). gender waits on data that says who is which (no show records it). */
+/** Cast properties (docs/PLAN-cast-properties.md chunk 4): a team needs `n` whose `of` property counts as `value` ("one Interior"). */
+export interface DraftNeed {
+  of: string;
+  value: string;
+  n: number;
+}
+
 export interface DraftAcross {
-  of: "group" | "gender";
+  /** The show's groups, gender, or another of the season's cast properties by its key (chunk 4). */
+  of: "group" | "gender" | (string & {});
   /** A drafted castaway who changes group, or whose group ends (a swap, the merge): still yours. */
   then: "keep";
 }
@@ -695,6 +703,9 @@ export interface SpecContext {
   /** A10 part 3: how many can be drafted in each of the cast's groups where the game drafts: an exclusive spread draft has every
    *  group cover its share of every team. */
   poolGroups?: number[];
+  /** Cast properties (chunk 4): the season's, its rulebook's and Gender (rulebook-schema.js withGender), for a spread, a need or a
+   *  pool by one; absent, nothing about them is checked. */
+  properties?: { key: string; name: string; values: string[] | null; flex?: Record<string, string[]>; plurals?: Record<string, string> }[];
   /** G3 part 3b: everyone still in where the game drafts, each as { team, position } (an ESPN team id and a position group key,
    *  null where unknown): a pool of some teams or positions is counted as those in it (poolCount). Left out: not counted. */
   poolOf?: { team: string | null; position: string | null }[];

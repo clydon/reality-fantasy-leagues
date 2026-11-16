@@ -1,7 +1,7 @@
 import { callMoments, type CallBook } from "./calls";
 import { goingHomeEachEpisode } from "./formats/rulebook-fits.js";
 import { momentsFor } from "./formats/rulebook-moments.js";
-import { kindOf, partWord } from "./formats/rulebook-schema.js";
+import { castProperties, kindOf, partWord, withGender } from "./formats/rulebook-schema.js";
 import * as Spec from "./game-spec/index.js";
 import type { Question, SpecContext } from "./game-spec/index.js";
 
@@ -55,6 +55,8 @@ export function contextOf(book: CallBook): SpecContext {
     jury: blocks.season?.finale?.decidedBy === "juryVote",
     // A14 part 3: whether research says who voted for whom at a vote that sends someone home, for a bounty.
     votes: votesSomeoneOut(blocks),
+    // Cast properties (chunk 4): what the season's cast is sorted by, for a spread, a need or a pool by one; Gender every season has.
+    properties: withGender(castProperties(blocks)).map((p) => ({ key: p.key, name: p.name, values: Array.isArray(p.values) ? [...p.values] : null, ...(p.flex ? { flex: p.flex } : {}), ...(p.plurals ? { plurals: p.plurals } : {}) })),
   };
 }
 
