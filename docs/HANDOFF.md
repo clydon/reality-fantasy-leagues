@@ -11,6 +11,17 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
+## Pushed: the design round's steps 2 to 9 are live (2026-11-16, master 1dd10b96, migration 0438)
+explorer-sports fast-forwarded master (16 commits: steps 2-9, the side-bets work, the readiness fixes). Rehearsed on a Neon branch of
+production (`rehearse-design-2026-11-16`): 0438 applied, `[check] all good`, `[rulebooks] backfilled`, `[game-specs] check: PASS`
+(`[rulebooks] check: FAIL` is the known baseline, a flag that stays off). Rollback snapshot: Neon branch `pre-design-2026-11-16`
+(auto-deletes 2026-11-23). Vercel deployed in about 3 minutes; the live look (hub, Survivor 51's Tonight and Chat, Backstage's
+read) showed no errors; the logs' only error-level lines are pg's SSL-mode warning. Checks at the push: unit 2379/0, notify
+150/150, backstage-ii 147/147, couches 114/114, start-game 75/75, hub-next 17/17. **Stale, to rewrite once the round settles**
+(the user: not worth fixing before the redesign is done): check-new-hub.js and check-new-shell.js (step 7's posters),
+check-new-show.js (step 3's move cards), check-new-way-in.js (the catalog's seasonNumber, since 2026-11-05). The rehearsal's fast
+path (no asking) is in the deploy-rehearsal-routine memory.
+
 ## The design round's step 9, Chat, a light review (2026-11-16; built on branch `explorer-sports`, not committed past it; waits on the user's review)
 src/new/show/chat.tsx `itemsOf(messages, airings, foldEp)`: days, with each episode's airing as a landmark (`kind: "ep"`, the episode
 chip, "aired Thu, Nov 12 · 8:00 PM" or just the time after that day's talk), drawn only where a message or the fold follows it; one
