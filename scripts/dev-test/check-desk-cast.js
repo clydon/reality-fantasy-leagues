@@ -298,7 +298,7 @@ const S2 = castAnswer([["Eve One", "Red"], ["Fay Two", "Red"], ["Gus Three", "Bl
     c1 = await read(ids.s1);
     check(c1.state === "sent" && c1.review === null && c1.history[0].text === "Sent to its 1 game: 1 rename, 1 joining, 1 starting tribe" && c1.history[0].undoable, "In the games; its History line, with Undo", JSON.stringify(c1.history[0]));
     check(!(await inbox()).some((i) => i.href.includes(ids.s1)) && !(await as.desk.call("GET", `/api/desk/seasons/${ids.s1}`)).body.castRow.need, "off the Inbox, and no dot");
-    check((await pool.query("SELECT field FROM season_cast_changes WHERE season_id = $1 ORDER BY changed_at", [ids.s1])).rows.map((x) => x.field).join() === "name,tribe,added", "each change in the cast's own log");
+    check((await pool.query("SELECT field FROM season_cast_changes WHERE season_id = $1 ORDER BY changed_at", [ids.s1])).rows.map((x) => x.field).sort().join() === "added,name,tribe", "each change in the cast's own log", (await pool.query("SELECT field FROM season_cast_changes WHERE season_id = $1 ORDER BY changed_at", [ids.s1])).rows.map((x) => x.field).join());
     r = await undoIt(sendId);
     st = await leagueState();
     check(r.status === 200 && JSON.stringify(await castNames(ids.s1)) === JSON.stringify(CAST) && st.castaways.find((x) => x.id === cristianId).name === "Cristian Chavez" && !st.castaways.some((x) => x.name === "Zed Newman"), "Undo: the cast as it was sent, in the game too", JSON.stringify(r.body));

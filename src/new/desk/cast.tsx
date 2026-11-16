@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ClipboardPaste, Lock, Zap } from "lucide-react";
 import { pickOf } from "@/lib/desk-cast-diff";
+import { bioLine, mainValue, propsLine } from "@/lib/cast-props-words";
 import { AskAiPasteSheet, type AnswerCheck } from "../backstage/ask-ai";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
@@ -361,7 +362,9 @@ function CastGrid({ d, secret }: { d: DeskCast; secret: boolean }) {
                   <Face src={c.photo} name={c.name} className={`aspect-square w-full text-xl ${c.out ? "grayscale" : ""}`} />
                   <span className="px-1.5 py-1">
                     <b className="type-caption block truncate text-[12px]">{firstOf(c.name)}</b>
-                    <small className="block truncate text-[11px] text-plate-muted">{c.out ? `Out · Ep ${c.out}` : c.locked ? "Locked" : "Still in"}</small>
+                    <small data-castaway-line className="block truncate text-[11px] text-plate-muted">
+                      {c.out ? `Out · Ep ${c.out}` : c.locked ? "Locked" : (mainValue(c.props, d.properties) ?? "Still in")}
+                    </small>
                   </span>
                 </NavLink>
               ))}
@@ -378,7 +381,7 @@ function DiffSheet({ open, onClose, d, picks, setPicks, onSend }: { open: boolea
   const T = d.terms;
   const pick = (c: CastReviewChange["change"]) => pickOf(c, picks);
   const seg = (c: CastReviewChange["change"], opts: [string, string][]) => (
-    <div className="mt-2.5 flex gap-[3px] rounded-[3px] bg-background p-[3px] outline-1 -outline-offset-1 outline-input" role="radiogroup" aria-label={c.k === "spell" ? "Same person?" : `Starting ${T.group}`}>
+    <div className="mt-2.5 flex gap-[3px] rounded-[3px] bg-background p-[3px] outline-1 -outline-offset-1 outline-input" role="radiogroup" aria-label={c.k === "spell" ? "Same person?" : c.k === "props" ? "Their details" : c.k === "bio" ? "Their bio" : `Starting ${T.group}`}>
       {opts.map(([v, t]) => (
         <button
           key={v}
@@ -425,7 +428,33 @@ function DiffSheet({ open, onClose, d, picks, setPicks, onSend }: { open: boolea
           ])}
         </>
       );
-    if (c.k === "add") return head(c.name, `New${c.group ? ` · starts on ${c.group}` : ""}: joins every game as nobody's`);
+    if (c.k === "add") {
+      const about = [c.group ? `starts on ${c.group}` : null, propsLine(c.props, d.properties) || null].filter(Boolean).join(" · ");
+      return head(c.name, `New${about ? ` · ${about}` : ""}: joins every game as nobody's`);
+    }
+    // What the show sorts them by, and their bio (docs/PLAN-cast-properties.md): filled in where we have none, else a choice.
+    if (c.k === "props")
+      return (
+        <>
+          {head(`${firstOf(c.name)}: ${propsLine(c.to, d.properties)}`, Object.keys(c.from).length ? `We have ${propsLine(c.from, d.properties)}.` : "We have nothing yet: it fills in.")}
+          {Object.keys(c.from).length > 0 &&
+            seg(c, [
+              ["ours", "Keep ours"],
+              ["theirs", "Use theirs"],
+            ])}
+        </>
+      );
+    if (c.k === "bio")
+      return (
+        <>
+          {head(`${firstOf(c.name)}'s bio: ${bioLine(c.to) || c.to.line || "a line"}`, c.from ? `We have ${bioLine(c.from) || "one"}.` : c.to.line ? `“${c.to.line}”` : "We have none: it fills in.")}
+          {c.from &&
+            seg(c, [
+              ["ours", "Keep ours"],
+              ["theirs", "Use theirs"],
+            ])}
+        </>
+      );
     if (c.k === "photo")
       return (
         <div className="flex items-center gap-3">

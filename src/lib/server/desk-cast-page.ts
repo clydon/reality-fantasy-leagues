@@ -3,7 +3,10 @@ import type { CastFormat } from "@/lib/game/formats/cast-prompt";
 import { publicMediaSrc } from "@/lib/game/selectors";
 import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueState } from "@/lib/game/types";
-import { castChanges, castPlan, changesLine, type CastChange, type CastPicks, type TheirCastaway } from "@/lib/desk-cast-diff";
+import { castChanges, castPlan, changesLine, type CastChange, type CastPicks, type CastProps, type TheirCastaway } from "@/lib/desk-cast-diff";
+import type { CastBio } from "@/lib/game/formats/cast-prompt";
+import { bioOf, propertyViews, propsOf, seasonCastProperties, type CastPropertyView } from "./cast-props";
+import { propsLine } from "@/lib/cast-props-words";
 import { ensureSeasonRulebook } from "@db/rulebooks.js";
 import { seasonFormat } from "@db/season-rule-changes.js";
 import { isUuid, type SessionUser } from "./auth-helpers";
@@ -68,11 +71,13 @@ type Terms = ReturnType<typeof termsOf>;
 
 /** The rules a cast is read against (the season's format, in the show's own words): whether it has groups, and its roles. */
 async function castFormat(s: SeasonRow): Promise<CastFormat> {
-  const f = await seasonFormat(pool, s.id);
+  const [f, properties] = await Promise.all([seasonFormat(pool, s.id), seasonCastProperties(s.id)]);
   return {
     name: s.show_name,
     hasGroups: !!f?.hasGroups,
     roles: f?.roles,
+    // What else the show sorts its people by (the season's rulebook): asked of each person, and diffed (docs/PLAN-cast-properties.md).
+    properties,
     terms: { ...(f?.terms ?? {}), castaway: s.castaway_term || f?.terms?.castaway || "Castaway", tribe: s.tribe_term || f?.terms?.tribe || "Tribe" },
   } as CastFormat;
 }
@@ -83,15 +88,19 @@ interface Ours {
   group: string | null;
   photo: string | null;
   locked: boolean;
+  props: CastProps;
+  bio: CastBio | null;
 }
 
 const castOf = async (id: string): Promise<Ours[]> =>
-  (await pool.query("SELECT id, name, tribe_name, photo_url, locked_at FROM season_cast WHERE season_id = $1 ORDER BY sort_order, name", [id])).rows.map((c) => ({
+  (await pool.query("SELECT id, name, tribe_name, photo_url, locked_at, props, bio FROM season_cast WHERE season_id = $1 ORDER BY sort_order, name", [id])).rows.map((c) => ({
     id: c.id,
     name: c.name,
     group: c.tribe_name,
     photo: c.photo_url,
     locked: !!c.locked_at,
+    props: propsOf(c.props),
+    bio: bioOf(c.bio),
   }));
 
 interface AnswerRow {
@@ -132,6 +141,8 @@ interface Review {
   /** There's something to send. */
   open: boolean;
   games: number;
+  /** The season's cast properties, for the page's words. */
+  properties: CastPropertyView[];
 }
 
 /** The season's cast against its latest answer: what it changes, and whether anything waits to be sent. */
@@ -139,10 +150,10 @@ async function reviewOf(id: string): Promise<Review> {
   const s = await seasonRow(id);
   const [ours, answer, games, format] = await Promise.all([castOf(id), latestAnswer(id), gamesOn(id), castFormat(s)]);
   const pending = answer && !answer.sent_at ? answer : null;
-  const changes = pending ? castChanges(ours, pending.people, { groups: hasGroups(format, ours), photos: true }) : [];
+  const changes = pending ? castChanges(ours, pending.people, { groups: hasGroups(format, ours), photos: true, props: !!format.properties?.length }) : [];
   const first = !s.cast_approved_at && ours.length > 0;
   const open = first || (!!pending && changes.length > 0);
-  return { s, terms: termsOf(s), ours, answer, pending, changes, first, open, games };
+  return { s, terms: termsOf(s), ours, answer, pending, changes, first, open, games, properties: propertyViews(format.properties ?? []) };
 }
 
 const gamesWord = (n: number) => (n ? plural(n, "game") : "no games");
@@ -157,6 +168,9 @@ export interface CastFace {
   locked: boolean;
   /** The episode an accepted result put them out in. */
   out: number | null;
+  /** Their properties (season_cast.props) and bio, as the desk keeps them. */
+  props: CastProps;
+  bio: CastBio | null;
 }
 
 export interface CastReviewChange {
@@ -189,6 +203,8 @@ export interface DeskCast {
     first: boolean;
   } | null;
   groups: { name: string; people: number; secretRole: boolean; color: string | null }[];
+  /** The season's cast properties (its rulebook's): each person's line and the review's words. */
+  properties: CastPropertyView[];
   /** Hold them until Episode N (tribes_from_episode): on, and the episode they wait for. */
   hold: { on: boolean; episode: number };
   cast: CastFace[];
@@ -264,8 +280,9 @@ export async function deskCast(user: SessionUser, id: string, now = new Date()):
     asking: ask,
     review,
     groups,
+    properties: r.properties,
     hold: { on: s.tribes_from_episode != null, episode: s.tribes_from_episode ?? 1 },
-    cast: ours.map((c) => ({ id: c.id, name: c.name, group: c.group, photo: publicMediaSrc(c.photo), locked: c.locked, out: out.get(c.name.toLowerCase()) ?? null })),
+    cast: ours.map((c) => ({ id: c.id, name: c.name, group: c.group, photo: publicMediaSrc(c.photo), locked: c.locked, out: out.get(c.name.toLowerCase()) ?? null, props: c.props, bio: c.bio })),
     history,
     delete: setup.delete,
   };
@@ -374,7 +391,13 @@ async function readAnswer(s: SeasonRow, answer: string): Promise<TheirCastaway[]
   }
   const ok = parsed.castaways.filter((c) => !c.problems.length);
   if (!ok.length) throw new HttpError(400, parsed.castaways[0]?.problems[0] ? `Nobody in it could be read: ${parsed.castaways[0].problems[0]}` : "That answer lists nobody.");
-  return ok.map((c) => ({ name: c.name.trim(), group: c.startingGroup?.trim() || null, photo: c.photoUrl?.trim() || null }));
+  return ok.map((c) => ({
+    name: c.name.trim(),
+    group: c.startingGroup?.trim() || null,
+    photo: c.photoUrl?.trim() || null,
+    ...(Object.keys(c.props ?? {}).length ? { props: c.props } : {}),
+    ...(c.bio ? { bio: c.bio } : {}),
+  }));
 }
 
 /** An answer, staged: never written into the cast. Its History line says what it changes. */
@@ -382,7 +405,8 @@ async function stage(s: SeasonRow, source: "bot" | "paste", answer: string, peop
   const ours = await castOf(s.id);
   const terms = termsOf(s);
   // Photos count (the user, 2026-11-05: an answer bringing this season's photos read as "nothing changed" and was settled unseen).
-  const changes = castChanges(ours, people, { groups: hasGroups(await castFormat(s), ours), photos: true });
+  const format = await castFormat(s);
+  const changes = castChanges(ours, people, { groups: hasGroups(format, ours), photos: true, props: !!format.properties?.length });
   const groups = new Set(people.map((p) => p.group).filter(Boolean)).size;
   const what = !ours.length
     ? `${plural(people.length, terms.person, terms.people)}${groups ? ` in ${plural(groups, terms.group, terms.groups)}` : ""}, not sent`
@@ -465,6 +489,9 @@ export async function pasteCast(user: SessionUser, id: string, raw: unknown): Pr
 
 // ---------- Send to its games ----------
 
+const detailsLabel = (props: number, bios: number) =>
+  [props && `${props} ${props === 1 ? "person's details" : "people's details"}`, bios && plural(bios, "bio")].filter(Boolean).join(", ");
+
 const PICKS = new Set(["same", "new", "ours", "theirs"]);
 function picksOf(raw: unknown): CastPicks {
   const out: CastPicks = {};
@@ -502,6 +529,12 @@ export async function sendCast(
       ...plan.rename.map((x) => ({ face: face(x.id), icon: null, label: x.from, change: `Renamed ${first(x.to)}` })),
       ...plan.regroup.map((x) => ({ face: face(x.id), icon: null, label: first(x.name), change: `Starts on ${x.to}` })),
       ...plan.rephoto.map((x) => ({ face: { name: x.name, photo: publicMediaSrc(x.to) }, icon: null, label: first(x.name), change: "This season's photo" })),
+      ...(plan.reprops.length + plan.rebio.length > 4
+        ? [{ face: null, icon: "user" as const, label: detailsLabel(plan.reprops.length, plan.rebio.length), change: "Shown on their sheets" }]
+        : [
+            ...plan.reprops.map((x) => ({ face: face(x.id), icon: null, label: first(x.name), change: propsLine(x.to, r.properties) })),
+            ...plan.rebio.map((x) => ({ face: face(x.id), icon: null, label: first(x.name), change: "Their bio" })),
+          ]),
       ...(plan.add.length > 4
         ? [{ face: null, icon: "plus" as const, label: plural(plan.add.length, `new ${terms.person}`, `new ${terms.people}`), change: "Join as nobody's" }]
         : plan.add.map((x) => ({ face: null, icon: "plus" as const, label: x.name, change: "Joins as nobody's" }))),
@@ -520,6 +553,8 @@ export async function sendCast(
     plan.add.length && `${plan.add.length} joining`,
     plan.regroup.length && plural(plan.regroup.length, `starting ${terms.group}`, `starting ${terms.groups}`),
     plan.rephoto.length && plural(plan.rephoto.length, "photo"),
+    plan.reprops.length && `${plan.reprops.length} ${plan.reprops.length === 1 ? "person's details" : "people's details"}`,
+    plan.rebio.length && plural(plan.rebio.length, "bio"),
   ]
     .filter(Boolean)
     .join(", ");
@@ -550,11 +585,20 @@ export async function sendCast(
         const { rowCount } = await c.query("UPDATE season_cast SET photo_url = $3 WHERE id = $1 AND season_id = $2 AND photo_url IS NOT DISTINCT FROM $4", [x.id, id, x.to, x.from]);
         if (rowCount) await log(x.id, "photo", x.from, x.to);
       }
+      // Properties and bios, only over what they were compared with: one the desk set since stays.
+      for (const x of plan.reprops) {
+        const { rowCount } = await c.query("UPDATE season_cast SET props = $3::jsonb WHERE id = $1 AND season_id = $2 AND props = $4::jsonb", [x.id, id, JSON.stringify(x.to), JSON.stringify(x.from)]);
+        if (rowCount) await log(x.id, "props", JSON.stringify(x.from), JSON.stringify(x.to));
+      }
+      for (const x of plan.rebio) {
+        const { rowCount } = await c.query("UPDATE season_cast SET bio = $3::jsonb WHERE id = $1 AND season_id = $2 AND bio IS NOT DISTINCT FROM $4::jsonb", [x.id, id, JSON.stringify(x.to), x.from ? JSON.stringify(x.from) : null]);
+        if (rowCount) await log(x.id, "bio", x.from ? JSON.stringify(x.from) : null, JSON.stringify(x.to));
+      }
       for (const x of plan.add) {
         const { rows } = await c.query(
-          `INSERT INTO season_cast (season_id, name, tribe_name, photo_url, sort_order)
-           VALUES ($1, $2, $3, $4, (SELECT COALESCE(max(sort_order), -1) + 1 FROM season_cast WHERE season_id = $1)) RETURNING id`,
-          [id, x.name, x.group, x.photo || found.get(x.name) || null]
+          `INSERT INTO season_cast (season_id, name, tribe_name, photo_url, props, bio, sort_order)
+           VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, (SELECT COALESCE(max(sort_order), -1) + 1 FROM season_cast WHERE season_id = $1)) RETURNING id`,
+          [id, x.name, x.group, x.photo || found.get(x.name) || null, JSON.stringify(x.props ?? {}), x.bio ? JSON.stringify(x.bio) : null]
         );
         added.push(rows[0].id);
         await log(rows[0].id, "added", null, x.name);
@@ -573,7 +617,7 @@ export async function sendCast(
       entityId: id,
       action: "cast",
       text,
-      undo: { type: "castSend", seasonId: id, answerId: r.pending?.id ?? null, renamed: plan.rename, regrouped: plan.regroup, rephotoed: plan.rephoto, added, approved: !!s.cast_approved_at },
+      undo: { type: "castSend", seasonId: id, answerId: r.pending?.id ?? null, renamed: plan.rename, regrouped: plan.regroup, rephotoed: plan.rephoto, reprops: plan.reprops, rebio: plan.rebio, added, approved: !!s.cast_approved_at },
       userId: user.id,
     });
   });
@@ -603,6 +647,8 @@ export async function restoreCastSend(u: Record<string, unknown>, changeId: stri
   const renamed = (u.renamed ?? []) as { id: string; from: string; to: string }[];
   const regrouped = (u.regrouped ?? []) as { id: string; name: string; from: string | null; to: string }[];
   const rephotoed = (u.rephotoed ?? []) as { id: string; name: string; from: string | null; to: string }[];
+  const reprops = (u.reprops ?? []) as { id: string; from: CastProps; to: CastProps }[];
+  const rebio = (u.rebio ?? []) as { id: string; from: CastBio | null; to: CastBio }[];
   const approved = !!u.approved;
   const added = (u.added ?? []) as string[];
   // Before its first send nobody in it was in a game: all of them go back out of the games (the cast it had stays, staged).
@@ -629,6 +675,9 @@ export async function restoreCastSend(u: Record<string, unknown>, changeId: stri
       // Back to the listing's, unless someone chose another since.
       await c.query("UPDATE season_cast SET photo_url = $3 WHERE id = $1 AND season_id = $2 AND photo_url = $4", [x.id, id, x.from, x.to]);
     }
+    // Properties and bios back to what they were, unless the desk set others since.
+    for (const x of reprops) await c.query("UPDATE season_cast SET props = $3::jsonb WHERE id = $1 AND season_id = $2 AND props = $4::jsonb", [x.id, id, JSON.stringify(x.from), JSON.stringify(x.to)]);
+    for (const x of rebio) await c.query("UPDATE season_cast SET bio = $3::jsonb WHERE id = $1 AND season_id = $2 AND bio = $4::jsonb", [x.id, id, x.from ? JSON.stringify(x.from) : null, JSON.stringify(x.to)]);
     if (added.length) await c.query("DELETE FROM season_cast WHERE id = ANY($1::uuid[]) AND season_id = $2", [added, id]);
     if (u.answerId) await c.query("UPDATE season_cast_answers SET sent_at = NULL, sent_by = NULL WHERE id = $1", [u.answerId]);
     await c.query(

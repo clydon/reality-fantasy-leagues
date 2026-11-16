@@ -3658,7 +3658,9 @@ class StatsLogic {
   }
   // The keys a stamp writes, for a save that leaves them out (JSON.stringify's replacer: db.ts withLeagueLock).
   // L8 part 1's engine items: the server's game starts for a lineup locking at each game's (air-times.ts), never saved either.
-  static stampedKeys(){ return [...STAMPED.episode, ...STAMPED.state, 'gameStarts', 'holdingGames']; }
+  // Cast properties (docs/PLAN-cast-properties.md chunk 3: server/cast-props.ts stampCastProps): each castaway's values and the
+  // season's properties, read from the season's cast on every read, never saved.
+  static stampedKeys(){ return [...STAMPED.episode, ...STAMPED.state, 'gameStarts', 'holdingGames', 'castProps', 'castPropDefs']; }
   // L3 part 2d: a game ranked by a sport's categories (Spec.categoryParts: head to head by each, by most, or roto), or null.
   static categories(state){
     const g = playedGame(state);

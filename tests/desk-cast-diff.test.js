@@ -56,7 +56,7 @@ test("a new spelling, a group, someone new, someone not listed", () => {
 test("someone not listed is said, not taken out; without groups a group is never a change", () => {
   const ch = D.castChanges(ours, [t("Thien An Nguyen", "Savu"), t("Carter Lewis"), t("Brady Hill"), t("Matt Jones")], { groups: false });
   assert.deepStrictEqual(ch.map((c) => [c.k, c.name]), [["gone", "Ana Ruiz"]]);
-  assert.deepStrictEqual(D.castPlan(ch), { rename: [], add: [], regroup: [], rephoto: [] });
+  assert.deepStrictEqual(D.castPlan(ch), { rename: [], add: [], regroup: [], rephoto: [], reprops: [], rebio: [] });
 });
 
 test("a stranger isn't a spelling of anyone", () => {
@@ -86,7 +86,7 @@ test("the closest spelling wins, one match each", () => {
 
 test("the plan: Same person renames, Someone new joins, Use theirs regroups, Keep ours does nothing", () => {
   const ch = D.castChanges(ours, [t("Thien-An Nguyen"), t("Carter Lewis", "Toka"), t("Brady Hill"), t("Matt Jones"), t("Ana Ruiz"), t("Zoe New")], { groups: true });
-  assert.deepStrictEqual(D.castPlan(ch), { rename: [{ id: "a", from: "Thien An Nguyen", to: "Thien-An Nguyen" }], add: [{ name: "Zoe New", group: null, photo: null }], regroup: [], rephoto: [] });
+  assert.deepStrictEqual(D.castPlan(ch), { rename: [{ id: "a", from: "Thien An Nguyen", to: "Thien-An Nguyen" }], add: [{ name: "Zoe New", group: null, photo: null, props: {}, bio: null }], regroup: [], rephoto: [], reprops: [], rebio: [] });
   const p = D.castPlan(ch, { "spell:a": "new", "group:b": "theirs" });
   assert.deepStrictEqual(p.rename, []);
   assert.deepStrictEqual(p.add.map((a) => a.name), ["Thien-An Nguyen", "Zoe New"]);

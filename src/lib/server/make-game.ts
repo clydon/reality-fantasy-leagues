@@ -6,7 +6,7 @@ import { LIBRARY } from "@/lib/game/formats/library/index.js";
 import { compileRulebook } from "@/lib/game/formats/rulebook-compile.js";
 import { howItWorks, type HowItWorks } from "@/lib/game/formats/rulebook-describe.js";
 import { buildRulebookPrompt, parseRulebookAnswer, reviewRulebook } from "@/lib/game/formats/rulebook-research.js";
-import { KINDS, cap, type RulebookBlocks, type RulebookKind } from "@/lib/game/formats/rulebook-schema.js";
+import { KINDS, cap, castProperties, type RulebookBlocks, type RulebookKind } from "@/lib/game/formats/rulebook-schema.js";
 import {
   castFromListing,
   foundLines,
@@ -193,8 +193,8 @@ function episodeWordOf(blocks: RulebookBlocks): string | null {
   return typeof word === "string" && word.trim() && word.trim().length <= 40 ? cap(word.trim()) : null;
 }
 
-/** The rules a cast is read against: the answer's terms, groups and roles. */
-const castFormatOf = (data: FormatData) => formatForRulebook(data, "research");
+/** The rules a cast is read against: the answer's terms, groups and roles, and the properties its blocks declare. */
+const castFormatOf = (data: FormatData, blocks?: RulebookBlocks | null) => ({ ...formatForRulebook(data, "research"), properties: castProperties(blocks ?? null) });
 
 // ---- the review ----
 
@@ -209,7 +209,7 @@ interface Worked {
 const formatIdOf = (h: SeasonHeader) => `made-${h.show.slug}`.replace(/[^a-z0-9-]/g, "-").slice(0, 60);
 
 /** The cast as answered: TVmaze's rows as kept, or the chat's JSON read against the rules (rows with a problem left out). */
-function castOf(row: SetupRow, data: FormatData | null): MadeCastRow[] {
+function castOf(row: SetupRow, data: FormatData | null, blocks?: RulebookBlocks | null): MadeCastRow[] {
   if (!row.cast_answer) return [];
   if (row.cast_from === "listing") {
     try {
@@ -220,8 +220,10 @@ function castOf(row: SetupRow, data: FormatData | null): MadeCastRow[] {
   }
   if (!data) return [];
   try {
-    const parsed = parseCastImport(row.cast_answer, castFormatOf(data));
-    return parsed.castaways.filter((c) => !c.problems.length).map((c) => ({ name: c.name, photoUrl: c.photoUrl || null, group: c.startingGroup?.trim() || null, note: null }));
+    const parsed = parseCastImport(row.cast_answer, castFormatOf(data, blocks));
+    return parsed.castaways
+      .filter((c) => !c.problems.length)
+      .map((c) => ({ name: c.name, photoUrl: c.photoUrl || null, group: c.startingGroup?.trim() || null, note: null, props: c.props, bio: c.bio }));
   } catch {
     return [];
   }
@@ -246,7 +248,7 @@ function workOut(row: SetupRow, show: Show, seen: number): Worked | null {
   } catch {
     /* read the cast without its terms, then */
   }
-  const castNames = castOf(row, firstData).map((c) => c.name);
+  const castNames = castOf(row, firstData, firstRead.blocks as RulebookBlocks).map((c) => c.name);
   const read = reviewRulebook(answer, { castNames });
   const guessKey: RulebookKind = KINDS[read.blocks.kind as RulebookKind] ? (read.blocks.kind as RulebookKind) : ((h.show.kind as RulebookKind) ?? "competition");
   const guessStart: SeriesStart | null = guessKey === "series" ? ((read.blocks.start as SeriesStart) ?? startOf(show.type) ?? "reality") : null;
@@ -257,7 +259,7 @@ function workOut(row: SetupRow, show: Show, seen: number): Worked | null {
   const { blocks, dropped, problems } = salvage(kinded);
   const compiled = problems.length ? null : compileRulebook(blocks, { id: formatIdOf(h), reader: "research", phaseStarts: read.phaseStarts });
   const data = compiled && !compiled.problems.length ? compiled.data : null;
-  const cast = castOf(row, data ?? firstData);
+  const cast = castOf(row, data ?? firstData, blocks);
   const missingCast = needsCast(key) && cast.length < 2;
   const how = howItWorks(blocks, {
     compiled: data ?? undefined,
@@ -437,7 +439,7 @@ export async function makePrompt(user: SessionUser, seasonId: string, part: stri
   if (!worked?.data) throw new HttpError(409, `First, how ${h.show.name} works`);
   const a = await castAnchor(seasonId);
   return {
-    prompt: buildCastPrompt(castFormatOf(worked.data), { seasonName: a.season ?? cap(seasonWords(h)), showName: h.show.name, year: a.year, known: a.credits.map((c) => c.names[0]) }),
+    prompt: buildCastPrompt(castFormatOf(worked.data, worked.blocks), { seasonName: a.season ?? cap(seasonWords(h)), showName: h.show.name, year: a.year, known: a.credits.map((c) => c.names[0]) }),
     task: `finding who's in ${labelOf(h)}`,
   };
 }
@@ -514,9 +516,9 @@ async function runAsk(id: string, seasonId: string, base: string, bot?: string):
         if (left() < CAST_NEEDS_MS) return void (await set("stage = 'cast', asking_at = NULL, seconds = $2", [Math.round((Date.now() - t0) / 1000)]));
         // This season and no other (show-art.ts castAnchor): a season named like an older one got the older one's cast.
         const a = await castAnchor(seasonId, base);
-        const prompt = buildCastPrompt(castFormatOf(worked.data), { seasonName: a.season ?? cap(seasonWords(show.header)), showName: show.header.show.name, year: a.year, known: a.credits.map((c) => c.names[0]) });
+        const prompt = buildCastPrompt(castFormatOf(worked.data, worked.blocks), { seasonName: a.season ?? cap(seasonWords(show.header)), showName: show.header.show.name, year: a.year, known: a.credits.map((c) => c.names[0]) });
         const { answer } = await askBot(prompt, { bot, budgetMs: left() - 5_000 });
-        const cast = parseCastImport(answer, castFormatOf(worked.data));
+        const cast = parseCastImport(answer, castFormatOf(worked.data, worked.blocks));
         if (!cast.castaways.some((c) => !c.problems.length)) throw new Error("ChatGPT didn't find who's in it. Ask again, or paste it.");
         const wrong = notThisSeason(cast.castaways.filter((c) => !c.problems.length).map((c) => c.name), a.credits);
         if (wrong) throw new Error(`${wrong} Ask again.`);
@@ -588,7 +590,7 @@ export async function pasteMake(user: SessionUser, seasonId: string, couchId: st
   } else if (body.part === "cast") {
     const worked = workOut(row, show, Infinity);
     if (!worked?.data) throw new HttpError(409, "First, how the show works");
-    const cast = parseCastImport(answer, castFormatOf(worked.data));
+    const cast = parseCastImport(answer, castFormatOf(worked.data, worked.blocks));
     const ok = cast.castaways.filter((c) => !c.problems.length);
     if (!ok.length) throw new HttpError(400, cast.castaways.length ? `None of them could be read: ${cast.castaways[0].problems[0]}` : "There's nobody in that answer. Paste the answer to who's in it.");
     await pool.query("UPDATE show_setups SET via = 'paste', cast_answer = $2, cast_from = 'chat', message = NULL, updated_at = now() WHERE id = $1", [row.id, answer]);
@@ -742,8 +744,8 @@ export async function confirmMake(user: SessionUser, seasonId: string, couchId: 
     // The cast: the season's, approved, finished (only the desk changes it from here).
     for (const [i, p] of cast.entries()) {
       await c.query(
-        "INSERT INTO season_cast (season_id, name, tribe_name, photo_url, sort_order) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (season_id, lower(name)) DO NOTHING",
-        [seasonId, p.name.slice(0, 120), p.group, p.photoUrl, i]
+        "INSERT INTO season_cast (season_id, name, tribe_name, photo_url, props, bio, sort_order) VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7) ON CONFLICT (season_id, lower(name)) DO NOTHING",
+        [seasonId, p.name.slice(0, 120), p.group, p.photoUrl, JSON.stringify(p.props ?? {}), p.bio ? JSON.stringify(p.bio) : null, i]
       );
     }
     if (cast.length) {

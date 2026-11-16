@@ -5,6 +5,12 @@
 //   1. The rulebook on the desk (chunk 1): Who's playing lists the properties; an "Age" property is refused in the sheet (Done
 //      off, the reason said); one added (Status, Veteran or Rookie) and saved as Fix a mistake; the server took it; the
 //      summary line says what they're sorted by. A player is refused the rulebook.
+//   2. The cast on the desk (chunk 2): the cast's question asks each property and a bio; a paste with every crew member's
+//      department, job and bio (one value not the rulebook's, dropped) is staged, not written; its line counts the details and
+//      bios; What changed shows them (filling in, no choice); someone new joins with theirs; Send writes season_cast.props and
+//      .bio and the cast's log; a second paste with a different job is a Keep ours / Use theirs choice, kept by default; Undo of
+//      the first send puts them back; Override on a castaway's page (a listed value refused, then set; a bio) with History and
+//      Undo. In the browser at --width: the review sheet and the castaway page.
 // Screenshots go to <outDir>.
 //
 //   node scripts/lane.js dev                                    (this lane's server; BASE from .env.local)
@@ -39,15 +45,29 @@ const U = (k) => `zt_cp_${k}`;
 const SHOW = "zt-cp-yacht";
 const NAME = "ZT CP Yacht";
 const FORMAT = "zt-cp-yacht";
-// [name, department, job]: a charter crew, as the network bills it.
+// [name, department, job, hometown, age, occupation]: a charter crew, as the network bills it (made up).
 const CREW = [
-  ["Kip Hale", "Bridge", "Captain"],
-  ["Ana Monroe", "Interior", "Chief stew"],
-  ["Dee Kwon", "Interior", "Second stew"],
-  ["Finn Bligh", "Deck", "Bosun"],
-  ["Gus Penn", "Deck", "Deckhand"],
-  ["Rae Stone", "Galley", "Chef"],
+  ["Kip Hale", "Bridge", "Captain", "Halifax, NS", 52, "Yacht captain"],
+  ["Ana Monroe", "Interior", "Chief stew", "Ocean City, NJ", 31, "Chief stewardess"],
+  ["Dee Kwon", "Interior", "Second stew", "Perth, Australia", 26, "Stewardess"],
+  ["Finn Bligh", "Deck", "Bosun", "Cork, Ireland", 29, "Bosun"],
+  ["Gus Penn", "Deck", "Deckhand", "Tampa, FL", 24, "Deckhand"],
+  ["Rae Stone", "Galley", "Chef", "Cape Town, South Africa", 34, "Private chef"],
 ];
+/** A cast answer as our bot would give one: every crew member's department, job and bio (and one more who joins). */
+const answer = (o = {}) =>
+  JSON.stringify({
+    castaways: [
+      ...CREW.map(([name, department, job, hometown, age, occupation]) => ({
+        name,
+        photoUrl: "",
+        properties: { department: name === "Gus Penn" ? "Engine room" : department, job: (o.jobs && o.jobs[name]) || job },
+        bio: { hometown, age, occupation, line: name === "Ana Monroe" ? "Runs the interior like a five-star hotel." : "", source: "https://example.com/zt-cp-yacht/cast" },
+      })),
+      { name: "Lou Marsh", photoUrl: "", properties: { department: "Deck", job: "Deckhand" }, bio: { hometown: "Bristol, UK", age: 27, occupation: "Deckhand" } },
+    ],
+    sources: ["https://example.com/zt-cp-yacht/cast"],
+  });
 
 let failures = 0;
 function check(ok, what, detail = "") {
@@ -171,6 +191,93 @@ async function part1(pool, ids) {
   }
 }
 
+async function part2(pool, ids) {
+  const desk = await api({ user: U("desk"), pass: PASSWORD });
+  const cast = (body) => desk.call("POST", `/api/desk/seasons/${ids.s1}/cast`, body);
+  const page = async () => (await desk.call("GET", `/api/desk/seasons/${ids.s1}/cast`)).body;
+  const rows = async () => Object.fromEntries((await pool.query("SELECT name, props, bio FROM season_cast WHERE season_id = $1", [ids.s1])).rows.map((r) => [r.name, r]));
+
+  const q = await desk.call("GET", `/api/desk/seasons/${ids.s1}/cast/question`);
+  check(/"department": "Their department at the start of the season: exactly one of/.test(q.body.prompt) && /"bio": \{/.test(q.body.prompt), "2: the cast's question asks each property and a bio", `${q.status} ${JSON.stringify(q.body).slice(0, 300)}`);
+
+  let r = await cast({ paste: answer() });
+  check(r.status === 200 && /6 people's details, 6 bios, 1 new|1 new, 5 people's details, 6 bios|1 new, 6 people's details, 6 bios/.test(r.body.text), "2: a paste is staged with its details and bios counted", JSON.stringify(r.body));
+  check(Object.values(await rows()).every((x) => !Object.keys(x.props).length && !x.bio), "2: staged, not written");
+  let p = await page();
+  const ch = p.review.changes.map((c) => c.change);
+  const gus = ch.find((c) => c.k === "props" && c.name === "Gus Penn");
+  check(gus && gus.to.job === "Deckhand" && !gus.to.department, "2: a value not the rulebook's is dropped (Gus's \"Engine room\")", JSON.stringify(gus));
+  check(ch.find((c) => c.k === "add")?.props?.job === "Deckhand", "2: someone new comes with theirs");
+
+  // In the browser: the review sheet.
+  if (out) {
+    const { page: b, close } = await open({ user: U("desk"), pass: PASSWORD, width, height: 844 });
+    try {
+      await b.goto(`${process.env.BASE}/desk/season/${ids.s1}/cast`);
+      await b.locator("[data-cast-see]").click();
+      await b.locator("[data-cast-diff]").waitFor({ timeout: 15000 });
+      await settle(b);
+      const words = await b.locator("[data-cast-diff]").innerText();
+      check(/Ana: Interior · Chief stew/.test(words) && /We have nothing yet: it fills in/.test(words) && /Ana's bio: Ocean City, NJ · 31 · Chief stewardess/.test(words), "2: What changed shows each person's details and bio", words.slice(0, 300));
+      check((await b.locator('[data-change="props"] [role="radiogroup"]').count()) === 0, "2: filling in asks nothing");
+      await b.screenshot({ path: path.join(out, "2-what-changed.jpg"), type: "jpeg", quality: 82 });
+      check(!(await b.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)), "2: nothing wider than the screen");
+    } finally {
+      await close();
+    }
+  }
+
+  const pre = await cast({ send: true, answer: p.review.answerId, picks: {}, preview: true });
+  check(pre.status === 200 && pre.body.lines.some((l) => /people's details/.test(l.label) || /Interior · Chief stew/.test(l.change)), "2: Send's preview names the details", JSON.stringify(pre.body.lines.map((l) => `${l.label}: ${l.change}`)));
+  r = await cast({ send: true, answer: p.review.answerId, picks: {} });
+  check(r.status === 200, "2: sent", JSON.stringify(r.body));
+  const firstSend = r.body.changeId;
+  let now = await rows();
+  check(now["Ana Monroe"].props.department === "Interior" && now["Ana Monroe"].props.job === "Chief stew" && now["Ana Monroe"].bio.hometown === "Ocean City, NJ" && now["Ana Monroe"].bio.age === 31, "2: season_cast.props and .bio written", JSON.stringify(now["Ana Monroe"]));
+  check(now["Lou Marsh"]?.props.job === "Deckhand" && now["Lou Marsh"]?.bio?.hometown === "Bristol, UK", "2: Lou joined with his details and bio");
+  const log = (await pool.query("SELECT field, count(*)::int AS n FROM season_cast_changes WHERE season_id = $1 AND field IN ('props', 'bio') GROUP BY field ORDER BY field", [ids.s1])).rows;
+  check(log.map((x) => `${x.field}:${x.n}`).join() === "bio:6,props:6", "2: the cast's log has each", JSON.stringify(log));
+
+  // A second answer: Dee's job differs. We have hers now, so it's a choice, ours by default.
+  r = await cast({ paste: answer({ jobs: { "Dee Kwon": "Chief stew" } }) });
+  p = await page();
+  const dee = p.review.changes.find((c) => c.change.k === "props" && c.change.name === "Dee Kwon");
+  check(dee && dee.change.from.job === "Second stew" && dee.change.to.job === "Chief stew", "2: a different job is a change", JSON.stringify(p.review.changes.map((c) => c.change.k)));
+  r = await cast({ send: true, answer: p.review.answerId, picks: {} });
+  check((await rows())["Dee Kwon"].props.job === "Second stew", "2: Keep ours by default");
+  // Undo of the second, then the first: back to nothing, Lou gone.
+  const second = (await pool.query("SELECT id FROM admin_changes WHERE entity_id = $1 AND action = 'cast' AND undo IS NOT NULL AND undone_at IS NULL ORDER BY created_at DESC LIMIT 1", [ids.s1])).rows[0].id;
+  await desk.call("POST", `/api/desk/changes/${second}/undo`, {});
+  r = await desk.call("POST", `/api/desk/changes/${firstSend}/undo`, {});
+  now = await rows();
+  check(r.status === 200 && !now["Lou Marsh"] && !Object.keys(now["Ana Monroe"].props).length && !now["Ana Monroe"].bio, "2: Undo puts the details and bios back", JSON.stringify({ s: r.status, b: r.body, ana: now["Ana Monroe"] }));
+
+  // Override on Finn's page: a value not the rulebook's refused; then set, with History and Undo; a bio.
+  const finn = `/api/desk/castaways/${ids.cast["Finn Bligh"]}`;
+  r = await desk.call("POST", finn, { field: "props", value: { department: "Engine room" } });
+  check(r.status === 400 && /Department is one of Interior, Deck, Galley, Bridge/.test(r.body.error), "2: Override refuses a value not the rulebook's", JSON.stringify(r.body));
+  r = await desk.call("POST", finn, { field: "props", value: { department: "deck", job: "Bosun" } });
+  check(r.status === 200 && r.body.props.department === "Deck" && r.body.props.job === "Bosun" && r.body.history.some((h) => /Details: Deck · Bosun/.test(h.text)), "2: Override sets Finn's details, History says so", JSON.stringify(r.body.props));
+  const undoProps = r.body.changeId;
+  r = await desk.call("POST", finn, { field: "bio", value: { hometown: "Cork, Ireland", age: "29", occupation: "Bosun", line: "" } });
+  check(r.status === 200 && r.body.bio.age === 29 && r.body.history.some((h) => /Bio: Cork, Ireland · 29 · Bosun/.test(h.text)), "2: Override sets Finn's bio", JSON.stringify(r.body.bio));
+  if (out) {
+    const { page: b, close } = await open({ user: U("desk"), pass: PASSWORD, width, height: 844 });
+    try {
+      await b.goto(`${process.env.BASE}/desk/season/${ids.s1}/c/${ids.cast["Finn Bligh"]}`);
+      await b.locator('[data-field="props"], [data-row="props"], [data-props]').first().waitFor({ timeout: 20000 }).catch(() => {});
+      await b.waitForTimeout(800);
+      const words = await b.locator("body").innerText();
+      check(/Department, job/.test(words) && /Deck · Bosun/.test(words) && /Cork, Ireland · 29 · Bosun/.test(words), "2: the castaway page shows their details and bio", "");
+      await b.screenshot({ path: path.join(out, "2-castaway.jpg"), type: "jpeg", quality: 82 });
+    } finally {
+      await close();
+    }
+  }
+  r = await desk.call("POST", `/api/desk/changes/${undoProps}/undo`, {});
+  check(r.status === 200 && !Object.keys((await rows())["Finn Bligh"].props).length, "2: Undo of the Override", JSON.stringify(r.body));
+}
+
 (async () => {
   const pool = new Pool({ connectionString: DB });
   try {
@@ -183,6 +290,7 @@ async function part1(pool, ids) {
     if (args.includes("--up")) return;
     fs.mkdirSync(out, { recursive: true });
     if (runs(1)) await part1(pool, ids);
+    if (runs(2)) await part2(pool, ids);
     if (!keep) await down(pool);
     console.log(failures ? `${failures} FAILED` : "ALL PASS");
     if (failures) process.exitCode = 1;

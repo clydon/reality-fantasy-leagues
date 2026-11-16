@@ -1,6 +1,8 @@
 // The copy/paste research prompt for a season's CAST (docs/PLAN-cast-import-prompt.md): names, photos,
 // starting groups and -- only for a format with secret roles -- starting roles, for a show the wiki
-// connector can't reach. Same shape as proposal.js's "Research a new show" loop: build a prompt, paste
+// connector can't reach. Since cast properties (docs/PLAN-cast-properties.md, chunk 2) it also asks each property the
+// rulebook declares (format.properties: a department, a job, veteran or rookie) and each person's bio as the show bills
+// it (hometown, age, occupation, a line), both only as stated, never guessed. Same shape as proposal.js's "Research a new show" loop: build a prompt, paste
 // the chat's JSON back, repair what can be repaired out loud, keep a bad row with a reason rather than
 // failing the batch.
 //
@@ -20,6 +22,64 @@ function roleChoices(format) {
   return format && format.roles ? [format.roles.default, ...format.roles.values] : [];
 }
 
+// The rulebook's cast properties the prompt asks (format.properties), each with a key and a name.
+function propertiesOf(format) {
+  return list(format && format.properties).filter((p) => isObj(p) && text(p.key) && text(p.name));
+}
+
+// A bio's fields, as the show bills them: each field's words for the prompt, and how long it may be.
+const BIO = [
+  ['hometown', 'Their hometown as billed ("Ocean City, NJ"), "" if not stated', 80],
+  ['residence', 'Where they live now, only when billed apart from the hometown, else ""', 80],
+  ['age', 'Their age as billed at the premiere, a whole number, or null if not stated', 0],
+  ['occupation', 'Their occupation or job outside the show as billed, "" if not stated', 80],
+  ['line', 'One line describing them, in the billing\'s own words where there is one, "" if none', 200],
+  ['source', 'The URL of the page their bio came from, "" if none', 500],
+];
+const BIO_KEYS = BIO.map((b) => b[0]);
+const clip = (s, n) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
+
+/** A bio as answered -> { hometown?, residence?, age?, occupation?, line?, source? } with only what's stated, or null. */
+function cleanBio(raw, repairs, at) {
+  if (!isObj(raw)) return null;
+  const out = {};
+  for (const [k, , max] of BIO) {
+    const v = raw[k];
+    if (k === 'age') {
+      const n = typeof v === 'number' ? v : /^\s*\d{1,3}\s*$/.test(String(v ?? '')) ? Number(v) : NaN;
+      if (Number.isInteger(n) && n >= 5 && n <= 110) out.age = n;
+      else if (v !== null && v !== undefined && text(String(v))) repairs.push({ at, message: `Dropped the age "${v}" -- not a whole number of years.` });
+      continue;
+    }
+    const s = text(v).replace(/\s+/g, ' ');
+    if (!s || /^(not stated|unknown|n\/a|none)$/i.test(s)) continue;
+    if (k === 'source' && !/^https?:\/\//i.test(s)) {
+      repairs.push({ at, message: `Dropped the bio's source "${s}" -- it isn't a web address.` });
+      continue;
+    }
+    out[k] = clip(s, max);
+  }
+  return Object.keys(out).filter((k) => k !== 'source').length ? out : null;
+}
+
+/** Each declared property's value as answered -> { key: value }: a listed one matched to its own spelling (else dropped, said),
+ *  free text trimmed; "" and "not stated" left out. */
+function cleanProps(raw, props, repairs, at) {
+  const out = {};
+  if (!isObj(raw)) return out;
+  for (const p of props) {
+    const given = raw[p.key] !== undefined ? raw[p.key] : Object.entries(raw).find(([k]) => sameName(k, p.name))?.[1];
+    const s = text(typeof given === 'number' ? String(given) : given).replace(/\s+/g, ' ');
+    if (!s || /^(not stated|unknown|n\/a|none)$/i.test(s)) continue;
+    if (Array.isArray(p.values)) {
+      const match = p.values.find((v) => sameName(v, s));
+      if (match) out[p.key] = match;
+      else repairs.push({ at, message: `Dropped ${p.name} "${s}" -- not one of ${p.values.join(', ')}.` });
+    } else out[p.key] = clip(s, 60);
+  }
+  return out;
+}
+
 /** The prompt to paste into any web-searching chat. */
 function buildCastPrompt(format, { seasonName, showName, year, known } = {}) {
   const person = text(format && format.terms && format.terms.castaway) || 'Castaway';
@@ -35,6 +95,18 @@ function buildCastPrompt(format, { seasonName, showName, year, known } = {}) {
   };
   if (hasGroups) row.startingGroup = `Their starting ${group.toLowerCase()} at the very start of the season, exactly as the show names it`;
   if (roles.length) row.startingRole = `Their role at the start of the season: exactly one of ${roles.map((r) => `"${r}"`).join(', ')}`;
+  const props = propertiesOf(format);
+  if (props.length) {
+    row.properties = Object.fromEntries(
+      props.map((p) => [
+        p.key,
+        Array.isArray(p.values)
+          ? `Their ${p.name.toLowerCase()} at the start of the season: exactly one of ${p.values.map((v) => `"${v}"`).join(', ')}, or "" if not stated`
+          : `Their ${p.name.toLowerCase()} at the start of the season, in the show's own words${p.of ? ` (inside their ${(props.find((x) => x.key === p.of) || { name: p.of }).name.toLowerCase()})` : ''}, or "" if not stated`,
+      ])
+    );
+  }
+  row.bio = Object.fromEntries(BIO.map(([k, words]) => [k, words]));
   const shape = { castaways: [row], sources: ['Every URL you actually read'] };
 
   // Who the TV listings credit in this season (show-art.ts castAnchor): a season named like an older one is still this one.
@@ -61,6 +133,11 @@ function buildCastPrompt(format, { seasonName, showName, year, known } = {}) {
     roles.length
       ? `  - startingRole is a hidden role. Only give "${roles.slice(1).join('" or "')}" for someone the show or its coverage has confirmed; everyone else is "${roles[0]}".`
       : null,
+    props.length
+      ? `  - properties are how the show itself sorts its ${person.toLowerCase()}s (${props.map((p) => p.name.toLowerCase()).join(', ')}), as it bills them on screen or in its own cast announcements, at the START of the season. Never guess one from a name or a photo: "" when you haven't seen it stated.`
+      : null,
+    '  - bio is who they are as the show bills them: the network\'s "meet the cast" page or the show\'s wiki. Only what that billing',
+    '    says; never ethnicity, religion, sexuality or health, even where a page mentions them. "" (or null for age) when not stated.',
     '  - Don\'t guess. Leave a field "" (or the default) rather than fill it with something you haven\'t seen reported.',
     '',
     'Answer with ONE JSON object and nothing else, in this shape (the values describe what goes there):',
@@ -91,7 +168,8 @@ function readAnswer(raw) {
 
 /**
  * Validates and repairs a cast answer against the league's format. Returns
- *   { castaways: [{ name, photoUrl, startingGroup?, startingRole?, problems }], repairs, sources }
+ *   { castaways: [{ name, photoUrl, startingGroup?, startingRole?, props, bio, problems }], repairs, sources }
+ * (props: each declared property's value, by key, only those stated; bio: what's billed, or null)
  * where `startingGroup` only exists when the format has groups and `startingRole` only when it has
  * roles, and a row's `problems` say why it won't be imported (it's kept so the review can show it).
  * A role that isn't one of the format's values is dropped with a repair note, never kept as written.
@@ -100,6 +178,7 @@ function parseCastImport(raw, format) {
   const answer = readAnswer(raw);
   const hasGroups = !!(format && format.hasGroups);
   const roles = roleChoices(format);
+  const props = propertiesOf(format);
   const repairs = [];
   const seen = [];
 
@@ -131,6 +210,9 @@ function parseCastImport(raw, format) {
       repairs.push({ at, message: 'Dropped the role -- this show has no hidden roles.' });
     }
 
+    out.props = cleanProps(row.properties, props, repairs, at);
+    out.bio = cleanBio(row.bio, repairs, at);
+
     out.problems = problems;
     return out;
   });
@@ -148,7 +230,7 @@ function toCastImport(parsed) {
   });
   return {
     tribes,
-    castaways: rows.map((c) => ({ name: c.name, photoUrl: text(c.photoUrl), tribeName: text(c.startingGroup) || null })),
+    castaways: rows.map((c) => ({ name: c.name, photoUrl: text(c.photoUrl), tribeName: text(c.startingGroup) || null, props: isObj(c.props) ? c.props : {}, bio: c.bio || null })),
   };
 }
 
@@ -163,4 +245,4 @@ function toCastRoles(parsed, format) {
   };
 }
 
-module.exports = { buildCastPrompt, parseCastImport, toCastImport, toCastRoles, roleChoices };
+module.exports = { buildCastPrompt, parseCastImport, toCastImport, toCastRoles, roleChoices, cleanBio, cleanProps, BIO_KEYS };

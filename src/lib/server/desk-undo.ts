@@ -57,7 +57,7 @@ export async function undoDesk(user: SessionUser, changeId: string): Promise<{ t
       await restoreCleared(u.snapshot as Parameters<typeof restoreCleared>[0], user.id);
       break;
     case "castaway":
-      await restoreCastaway(user.id, String(u.id), u.field as "name" | "group" | "photo", (u.value as string | null) ?? null, u.answer as Parameters<typeof restoreCastaway>[4]);
+      await restoreCastaway(user.id, String(u.id), u.field as "name" | "group" | "photo" | "props" | "bio", (u.value as string | null) ?? null, u.answer as Parameters<typeof restoreCastaway>[4]);
       break;
     case "castawayLock":
       await setCastawayLock(String(u.id), !!u.locked);

@@ -12,6 +12,9 @@ import { plural } from "./desk-dates";
 import { hasSchedule, latestAired, seasonSchedules } from "./schedule";
 import { LEAGUE_SEASON_JOIN } from "./league-season";
 import { castPhotosFor } from "./show-art";
+import { bioOf, propertyViews, propsOf, seasonCastProperties, type CastPropertyView } from "./cast-props";
+import { bioLine, propsLine } from "@/lib/cast-props-words";
+import { cleanBio, type CastBio } from "@/lib/game/formats/cast-prompt.js";
 import { applyApprovedCastToLeagues, renameInSeasonDecisions, seasonCastRows, tribesDue } from "./season-cast";
 
 // A season and its cast on the desk (docs/PLAN-new-design.md step 6b part 2; docs/PLAN-desk-parity.md step 5): a season's
@@ -138,11 +141,13 @@ interface CastRow {
   tribe_name: string | null;
   photo_url: string | null;
   locked_at: Date | null;
+  props: unknown;
+  bio: unknown;
 }
 
 async function castRow(id: string): Promise<CastRow> {
   if (!isUuid(id)) throw new HttpError(404, "Not in any season's cast");
-  const { rows } = await pool.query<CastRow>("SELECT id, season_id, name, tribe_name, photo_url, locked_at FROM season_cast WHERE id = $1", [id]);
+  const { rows } = await pool.query<CastRow>("SELECT id, season_id, name, tribe_name, photo_url, locked_at, props, bio FROM season_cast WHERE id = $1", [id]);
   if (!rows.length) throw new HttpError(404, "Not in any season's cast");
   return rows[0];
 }
@@ -201,6 +206,10 @@ export interface DeskCastaway {
   /** "From TMDB", "From TVmaze", "A link", "None yet". */
   photoFrom: string;
   locked: boolean;
+  /** What the show sorts them by (season_cast.props) under the season's properties, and their bio (docs/PLAN-cast-properties.md). */
+  props: Record<string, string>;
+  properties: CastPropertyView[];
+  bio: CastBio | null;
   season: { id: string; name: string };
   terms: { person: string; people: string; group: string; groups: string };
   castSize: number;
@@ -220,7 +229,7 @@ export async function deskCastaway(id: string): Promise<DeskCastaway> {
   const c = await castRow(id);
   const s = await seasonRow(c.season_id);
   const terms = termsOf(s);
-  const [games, use, colors, roles, { rows: changes }, { rows: groupRows }, { rows: out }, { rows: size }, lines] = await Promise.all([
+  const [games, use, colors, roles, { rows: changes }, { rows: groupRows }, { rows: out }, { rows: size }, lines, properties] = await Promise.all([
     gamesOn(s.id),
     usesOf(c, s.id),
     groupColors(s.id),
@@ -239,7 +248,9 @@ export async function deskCastaway(id: string): Promise<DeskCastaway> {
     ),
     pool.query("SELECT count(*)::int AS n FROM season_cast WHERE season_id = $1", [s.id]),
     deskLines("castaway", id),
+    seasonCastProperties(s.id),
   ]);
+  const views = propertyViews(properties);
   const first = firstOf(c.name);
   const groupSecret = !!c.tribe_name && isSecretRole(c.tribe_name, roles);
   const joined = changes.some((r) => r.field === "added" && s.cast_approved_at && r.changed_at > s.cast_approved_at);
@@ -260,7 +271,13 @@ export async function deskCastaway(id: string): Promise<DeskCastaway> {
             : "Photo removed"
           : r.field === "added"
             ? "Joined the cast"
-            : `Changed the ${r.field}`;
+            : r.field === "props"
+              ? `Details: ${propsLine(propsOf(jsonOr(r.after)), views) || "none"}${r.before && r.before !== "{}" ? ` (was ${propsLine(propsOf(jsonOr(r.before)), views)})` : ""}`
+              : r.field === "bio"
+                ? r.after
+                  ? `Bio: ${bioLine(bioOf(jsonOr(r.after))) || "a line"}`
+                  : "Bio removed"
+                : `Changed the ${r.field}`;
   // The desk's own Override writes the cast's log too: that line is the desk's (with its Undo), so the log's copy is left out.
   const near = (t: Date) => lines.some((l) => Math.abs(Date.parse(l.at) - t.getTime()) < 10_000);
   const removeWhy = whyNot(first, use);
@@ -274,6 +291,9 @@ export async function deskCastaway(id: string): Promise<DeskCastaway> {
     photoUrl: c.photo_url,
     photoFrom: photoFrom(c.photo_url),
     locked: !!c.locked_at,
+    props: propsOf(c.props),
+    properties: views,
+    bio: bioOf(c.bio),
     season: { id: s.id, name: s.name },
     terms,
     castSize: size[0].n,
@@ -316,7 +336,15 @@ function whyNot(first: string, use: CastawayUse): { line: string; why: string } 
   return { line, why };
 }
 
-type CastField = "name" | "group" | "photo";
+type CastField = "name" | "group" | "photo" | "props" | "bio";
+const jsonOr = (s: string | null): unknown => {
+  if (!s) return null;
+  try {
+    return JSON.parse(s);
+  } catch {
+    return null;
+  }
+};
 type Db = Pool | PoolClient;
 
 /** Writes one field of a cast row, logs it in season_cast_changes, and takes the cast to every league on the season. */
@@ -334,6 +362,13 @@ async function writeCastField(userId: string, id: string, field: CastField, valu
     } else if (field === "photo") {
       await pool.query("UPDATE season_cast SET photo_url = $2 WHERE id = $1", [id, value]);
       await log("photo", c.photo_url, value);
+    } else if (field === "props") {
+      // A props or bio value travels as its JSON text, as the cast's log keeps it.
+      await pool.query("UPDATE season_cast SET props = $2::jsonb WHERE id = $1", [id, value ?? "{}"]);
+      await log("props", JSON.stringify(propsOf(c.props)), value ?? "{}");
+    } else if (field === "bio") {
+      await pool.query("UPDATE season_cast SET bio = $2::jsonb WHERE id = $1", [id, value]);
+      await log("bio", c.bio ? JSON.stringify(c.bio) : null, value);
     } else {
       await pool.query("UPDATE season_cast SET tribe_name = $2 WHERE id = $1", [id, value]);
       await log("tribe", c.tribe_name, value);
@@ -351,7 +386,9 @@ async function writeCastField(userId: string, id: string, field: CastField, valu
         const k = state.castaways.find((x) => x.seasonCastId === id);
         if (k?.photoUrl) k.photoUrl = undefined;
       });
-  return { before: field === "name" ? c.name : field === "photo" ? c.photo_url : c.tribe_name, c, s };
+  const before =
+    field === "name" ? c.name : field === "photo" ? c.photo_url : field === "props" ? JSON.stringify(propsOf(c.props)) : field === "bio" ? (c.bio ? JSON.stringify(c.bio) : null) : c.tribe_name;
+  return { before, c, s };
 }
 
 /** The season's latest cast answer, while it waits to be sent. */
@@ -397,7 +434,8 @@ async function settle(seasonId: string, plan: { id: string; people: TheirCastawa
 /** Override: an admin's change to a castaway's name, starting group or photo, for every game on the season (tier 1, Undo). */
 export async function overrideCastaway(user: SessionUser, id: string, body: { field?: unknown; value?: unknown }): Promise<DeskCastaway & { changeId: string; text: string }> {
   const field = body.field as CastField;
-  if (!["name", "group", "photo"].includes(field)) throw new HttpError(400, "field is name, group or photo");
+  if (!["name", "group", "photo", "props", "bio"].includes(field)) throw new HttpError(400, "field is name, group, photo, props or bio");
+  if (field === "props" || field === "bio") return overrideDetails(user, id, field, body.value);
   const value = typeof body.value === "string" && body.value.trim() ? body.value.trim().slice(0, 300) : null;
   if (field === "name" && !value) throw new HttpError(400, "A name can't be blank.");
   if (field === "photo" && value && !/^https?:\/\/\S+$/i.test(value)) throw new HttpError(400, "That isn't a link. It starts https://");
@@ -441,6 +479,55 @@ export async function overrideCastaway(user: SessionUser, id: string, body: { fi
     userId: user.id,
   });
   return { ...(await deskCastaway(id)), changeId, text };
+}
+
+/**
+ * Override a person's properties (each of the season's, a listed one only one of its values, "" for not stated) or bio (what the
+ * show bills; empty for none): for every game on the season, which read them per request. Logged with Undo like any override.
+ */
+async function overrideDetails(user: SessionUser, id: string, field: "props" | "bio", raw: unknown): Promise<DeskCastaway & { changeId: string; text: string }> {
+  const was = await castRow(id);
+  const first = firstOf(was.name);
+  let value: string | null;
+  let line: string;
+  if (field === "props") {
+    const views = propertyViews(await seasonCastProperties(was.season_id));
+    if (!views.length) throw new HttpError(409, "This season's rulebook sorts its people by nothing else");
+    const given = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+    const out: Record<string, string> = {};
+    for (const p of views) {
+      const v = typeof given[p.key] === "string" ? (given[p.key] as string).trim().replace(/\s+/g, " ") : "";
+      if (!v) continue;
+      if (p.values) {
+        const match = p.values.find((x) => x.toLowerCase() === v.toLowerCase());
+        if (!match) throw new HttpError(400, `${p.name} is one of ${p.values.join(", ")}`);
+        out[p.key] = match;
+      } else out[p.key] = v.slice(0, 60);
+    }
+    value = JSON.stringify(out);
+    if (value === JSON.stringify(propsOf(was.props))) throw new HttpError(409, "Those are their details already");
+    line = `Details: ${propsLine(out, views) || "none"}`;
+  } else {
+    const repairs: { at: string; message: string }[] = [];
+    const bio = cleanBio(raw, repairs, "bio");
+    if (repairs.length) throw new HttpError(400, repairs[0].message.replace(/ --.*$/, ""));
+    value = bio ? JSON.stringify(bio) : null;
+    if (value === (was.bio ? JSON.stringify(bioOf(was.bio)) : null)) throw new HttpError(409, "That's their bio already");
+    line = bio ? `Bio: ${bioLine(bio) || "a line"}` : "Bio removed";
+  }
+  const { before, s } = await writeCastField(user.id, id, field, value);
+  const games = await gamesOn(s.id);
+  const changeId = await logDesk(pool, {
+    entity: "castaway",
+    entityId: id,
+    action: "override",
+    text: line,
+    before,
+    after: value,
+    undo: { type: "castaway", id, field, value: before },
+    userId: user.id,
+  });
+  return { ...(await deskCastaway(id)), changeId, text: `${first}'s ${field === "props" ? "details" : "bio"} changed${games ? ` in ${plural(games, "game")}` : ""}` };
 }
 
 /** History's Undo of an override: the field goes back, and a waiting answer it settled a line of is as it was (unless sent since). */

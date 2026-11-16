@@ -202,6 +202,9 @@ export interface MadeCastRow {
   group: string | null;
   /** Who plays them (a scripted series' character), or their role ("Captain"): shown on the review only. */
   note: string | null;
+  /** What the show sorts them by (the rulebook's cast.properties) and their bio, from a chat's answer (docs/PLAN-cast-properties.md). */
+  props?: Record<string, string>;
+  bio?: import("./formats/cast-prompt").CastBio | null;
 }
 
 /** The parts of TVmaze's /shows/:id/cast the app reads. */

@@ -11,6 +11,7 @@ import { Btn, EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { deskSend, useAfterDesk, useDesk, type DeskCastaway } from "./data";
+import { bioLine, propsLine } from "@/lib/cast-props-words";
 import { DeleteRow, DeskHeader, DeskRow, Facts, Field, FieldRow, IconLead, LatestHistory, LockRow, LowerThird, Section, useChangeToast } from "./parts";
 
 // A castaway's page under its season's Cast (docs/PLAN-desk-parity.md step 5, part 5b; the mock's desk-cast.js csPersonPage,
@@ -60,7 +61,7 @@ export function CastawayPage({ seasonId, id }: { seasonId: string; id: string })
   const after = useAfterDesk();
   const changed = useChangeToast();
   const nav = useNav();
-  const [sheet, setSheet] = useState<Field | "remove" | null>(null);
+  const [sheet, setSheet] = useState<Field | "props" | "bio" | "remove" | null>(null);
   const router = useRouter();
   // A link with the wrong season (an old or edited one): on to their own season's page.
   const theirs = q.data?.season.id;
@@ -112,6 +113,10 @@ export function CastawayPage({ seasonId, id }: { seasonId: string; id: string })
         <FieldRow data="name" label="Name" value={c.name} onOverride={() => setSheet("name")} />
         <FieldRow data="photo" label="Photo" value={c.photoFrom} onOverride={() => setSheet("photo")} />
         <FieldRow data="group" label={`Starting ${T.group}`} value={groupValue} onOverride={() => setSheet("group")} />
+        {c.properties.length > 0 && (
+          <FieldRow data="props" label={listWords(c.properties.map((p, i) => (i ? p.name.toLowerCase() : p.name)))} value={propsLine(c.props, c.properties) || "Not stated"} onOverride={() => setSheet("props")} />
+        )}
+        <FieldRow data="bio" label="Bio" value={bioLine(c.bio) || (c.bio?.line ? "A line" : "Not looked up")} onOverride={() => setSheet("bio")} />
         <p className={`${NOTE} border-t border-border pt-3`}>
           Each change reaches {c.games > 1 ? `all ${plural(c.games, "game")}` : c.games ? "its game" : "every game"} on {c.season.name}, with a line in History and Undo.
         </p>
@@ -131,6 +136,8 @@ export function CastawayPage({ seasonId, id }: { seasonId: string; id: string })
       {sheet === "name" && <NameSheet open onClose={close} c={c} onSave={(value) => write({ field: "name", value })} />}
       {sheet === "photo" && <PhotoSheet open onClose={close} c={c} path={path} onSave={(value) => write({ field: "photo", value })} />}
       {sheet === "group" && <GroupSheet open onClose={close} c={c} onSave={(value) => write({ field: "group", value })} />}
+      {sheet === "props" && <PropsSheet open onClose={close} c={c} onSave={(value) => write({ field: "props", value })} />}
+      {sheet === "bio" && <BioSheet open onClose={close} c={c} onSave={(value) => write({ field: "bio", value })} />}
       {!c.remove.ok && (
         <Sheet open={sheet === "remove"} onOpenChange={(o) => !o && close()} title={`${c.first} stays in the cast`} subtitle="Remove is for someone listed by mistake">
           <div data-remove-refused>
@@ -295,6 +302,86 @@ function PhotoSheet({ open, onClose, c, path, onSave }: { open: boolean; onClose
   );
 }
 
+/** Override · what the show sorts them by: each of the season's properties, a listed one by its values, free text in the show's
+ *  words; Not stated for none (docs/PLAN-cast-properties.md: the desk only fixes them, decided item 4). */
+function PropsSheet({ open, onClose, c, onSave }: { open: boolean; onClose: () => void; c: DeskCastaway; onSave: (v: Record<string, string>) => Promise<void> }) {
+  const [v, setV] = useState<Record<string, string>>({ ...c.props });
+  const s = useSave(onClose);
+  const set = (k: string, x: string) => setV((o) => ({ ...o, [k]: x }));
+  const chip = (on: boolean) => `nd-press flex h-11 items-center rounded-[3px] px-3.5 text-[15px] font-bold ${on ? "bg-foreground text-background" : "bg-background outline-1 -outline-offset-1 outline-input"}`;
+  return (
+    <Sheet open={open} onOpenChange={(o) => !o && onClose()} title={`Override · ${listWords(c.properties.map((p) => p.name.toLowerCase()))}`} subtitle={c.reach}>
+      <div data-props-pick className="flex flex-col gap-4">
+        {c.properties.map((p) => (
+          <div key={p.key} data-prop={p.key}>
+            <b className="block text-[15px]">{p.name}</b>
+            {p.values ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {[...p.values, ""].map((x) => (
+                  <button key={x || "none"} type="button" data-pick-prop={x} aria-pressed={(v[p.key] ?? "") === x} onClick={() => set(p.key, x)} className={chip((v[p.key] ?? "") === x)}>
+                    {x || "Not stated"}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <input data-prop-text={p.key} value={v[p.key] ?? ""} placeholder="Not stated" onChange={(e) => set(p.key, e.target.value)} className="mt-2 h-12 w-full rounded-[3px] bg-background px-3 text-base outline-1 -outline-offset-1 outline-input" />
+            )}
+          </div>
+        ))}
+      </div>
+      <p className={NOTE}>Only what the show itself bills them as. Every game on the season reads these.</p>
+      {s.error && (
+        <p role="alert" className="mt-2 text-[13px] text-live">
+          {s.error}
+        </p>
+      )}
+      <Btn data-props-save tone="must" wide className="mt-3.5" disabled={s.busy} onClick={() => void s.run(() => onSave(Object.fromEntries(Object.entries(v).filter(([, x]) => x.trim()))))}>
+        Save
+      </Btn>
+    </Sheet>
+  );
+}
+
+/** Override · bio: what the show bills about them (hometown, age at the premiere, occupation, a line). Blank all for none. */
+function BioSheet({ open, onClose, c, onSave }: { open: boolean; onClose: () => void; c: DeskCastaway; onSave: (v: Record<string, unknown>) => Promise<void> }) {
+  const [b, setB] = useState({
+    hometown: c.bio?.hometown ?? "",
+    residence: c.bio?.residence ?? "",
+    age: c.bio?.age != null ? String(c.bio.age) : "",
+    occupation: c.bio?.occupation ?? "",
+    line: c.bio?.line ?? "",
+    source: c.bio?.source ?? "",
+  });
+  const s = useSave(onClose);
+  const field = (k: keyof typeof b, label: string, placeholder: string) => (
+    <label key={k} className="flex flex-col gap-1.5">
+      <b className="text-[15px]">{label}</b>
+      <input data-bio={k} value={b[k]} placeholder={placeholder} inputMode={k === "age" ? "numeric" : undefined} onChange={(e) => setB((o) => ({ ...o, [k]: e.target.value }))} className="h-12 w-full rounded-[3px] bg-background px-3 text-base outline-1 -outline-offset-1 outline-input" />
+    </label>
+  );
+  return (
+    <Sheet open={open} onOpenChange={(o) => !o && onClose()} title="Override · bio" subtitle={c.reach}>
+      <div data-bio-edit className="flex flex-col gap-3">
+        {field("hometown", "Hometown", "Ocean City, NJ")}
+        {field("residence", "Lives in, if billed apart", "")}
+        {field("age", "Age at the premiere", "25")}
+        {field("occupation", "Occupation", "Nurse")}
+        {field("line", "A line, in the billing's words", "")}
+        {field("source", "Where it's from (a link)", "https://")}
+      </div>
+      <p className={NOTE}>Only what the show bills. Never ethnicity, religion, sexuality or health.</p>
+      {s.error && (
+        <p role="alert" className="mt-2 text-[13px] text-live">
+          {s.error}
+        </p>
+      )}
+      <Btn data-bio-save tone="must" wide className="mt-3.5" disabled={s.busy} onClick={() => void s.run(() => onSave({ ...b, age: b.age.trim() ? b.age.trim() : null }))}>
+        Save
+      </Btn>
+    </Sheet>
+  );
+}
+
 /** Override · starting group: one of the season's, or none. A secret-role group is shown as Hidden. */
 function GroupSheet({ open, onClose, c, onSave }: { open: boolean; onClose: () => void; c: DeskCastaway; onSave: (v: string) => Promise<void> }) {
   const [g, setG] = useState<string | null>(c.group);
@@ -330,3 +417,6 @@ function GroupSheet({ open, onClose, c, onSave }: { open: boolean; onClose: () =
     </Sheet>
   );
 }
+
+/** "department, job and status". */
+const listWords = (w: string[]) => (w.length < 2 ? w.join("") : `${w.slice(0, -1).join(", ")} and ${w[w.length - 1]}`);
