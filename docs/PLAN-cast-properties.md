@@ -236,6 +236,37 @@ Each ends with focused tests; the long checks once per milestone ([long-checks-o
 6. **Dated changes.** The season result kind, the episode research question, the desk's accept, `viewThrough`, the person's line.
    **6b. Holdings** (the user, 2026-11-16, decided: "Holdings" above): what someone has right now, a dated ledger from episode
    research (events and an end-of-episode snapshot), spoiler-guarded, on the person sheet and maybe the wall.
+   **How to build 6 and 6b (mapped 2026-11-16; the code's own paths, so a session can start here):**
+   - **6, a property's change: a new decision kind `prop`,** copying the tribe move (`kind 'group'`): `castaway_name` the person,
+     `event_type` the property's key, `method` the new value (fits the unique index: one a person, key and episode). A migration
+     re-lists `season_decisions`' kind and shape checks (the latest: 0116). Every switch on `kind` takes it, or `applyDecision`
+     falls through to the exile branch: `DecisionRow.kind` and `applyDecision`/`undoDetail` (decision-apply.ts), `ownResults` /
+     `settledKinds`, `SubmittedFact.kind`, `METHOD_KINDS` (fact-status.ts, or two sources never dispute), `labelOf`/`ownRow`
+     (season-decisions.ts), `factLabel` (community-results.ts), the desk's label (desk-episode.ts) and `decideFact`'s choices
+     (desk-facts.ts), the episode page's Correct options (src/new/desk/episode.tsx). **Asked** from rulebook-compile.js: each
+     `changes: "sometimes"` property a per-person nullable string ("only if it changed this episode: their new job"), recorded as
+     `research.propChanges`, staged by episode-research.js `itemsFromChecklist` as `add('prop', key, value)`; each name's value
+     going in beside it in the prompt, as `groupsGoingInto` does for groups. **Applied** like groups: `ep.props = [{ castawayId, key,
+     value }]`, emptied on hidden episodes in `SpoilerLogic.viewThrough`, counted in `hasResults`, a migrate default;
+     `CastPropLogic.valueOf` reads the latest at or before an episode, else the stamp (starting values stay stamped); `SlotLogic`
+     passes the episode (a lineup reads the value as of its episode). **Shown:** seasonFacts already applies accepted decisions to
+     the viewer's mark, so `castStats` gains each change and the current value; the sheet's details line shows the current one and
+     the story "Bosun from Ep 6 (was Deckhand)" (no "promoted" or "demoted": nothing records which; ask the user if wanted). A
+     firing is a way out, not a property change. Stored rulebooks recompile (db/backfill-rulebooks.js).
+   - **6b, holdings:** `research.holdings = [{ twist, oneIsCalled }]` compiled from the advantage twists; a structured section of the
+     episode schema beside `formatState` (episode-research.js), asked only with it: `changes: [{ who, name, how: found | won | given |
+     bought | played | gave | expired | lost | stolen, other }]` and `atEnd: [{ holder, name }]`. Today the found and played *names*
+     never reach `season_decisions` (only in `episode_research.payload`), and the bot's "idols" are found minus played
+     (bot-logic.js). Changes staged as a new kind `holding` (`castaway_name` the holder, `event_type` `<twist>:<how>:<name slug>`,
+     `method` the other person), a migration as above; the ledger a pure builder beside format-timeline.js from accepted
+     `holding` facts; the snapshot kept in the payload as `formatState` is, compared on read, a disagreement a "Holdings check" block
+     on the desk's episode page (or a `fact_disputes` row). The sheet's line "Has a Hidden Immunity Idol · found Ep 3" and the
+     story's "Played it on Eric, Ep 7" from `CastStat.holds` (optional fields: StoryBody is a game's sheets' too). **Backfill** (decided
+     (c)): a short run kind `holdings` modelled on the facts run (db/facts-research.js, bot-research.js `factsJob`), asking only the
+     new section, through the desk's queue (desk_runs and bot_research_runs kinds re-listed); Survivor 51 here has research stored for
+     Episodes 1–4 only, so 5–8 want full runs (`POST /api/desk/seasons/<id>/runs { kind: 'full', episode }`) and 1–4 the short one;
+     "Ask again: missing" skips questions that score nothing, so it won't reach these. cast-props-research.js gains an `episodes`
+     command for it.
 7. **The wizard and the GPT.** SpecContext carries the season's properties so Start a game offers only rules the season can hold
    ("Draft one from each department"), Randomize can roll them, and the spec's check refuses a property the season lacks.
 
