@@ -17,6 +17,11 @@
 //      the wall grouped by department in the rulebook's order with each job under a name, the Status chips (All, Veteran 4,
 //      Rookie 2) filtering it, the Gender chips every show has (Man 3, Woman 3), and a face opening who they are before any
 //      results (the bio line and its billing line).
+//   4. (chunk 4's checks are unit tests and story-draft.js --needs.)
+//   5. Lineup slots (chunk 5), on draft-fixture.js's Gridiron with NFL's slots (--sport --slots: its draft done by position, Week 1
+//      due; zt_dr_ rows, brought up and taken down here): Your moves says the shape and names each open slot; a QB tapped wears
+//      QB, a third WR the W/R/T; a second QB is refused on the page (no open slot) and by the server (400 with the reason); the
+//      saved lineup reads back. Skipped with --only unless asked (it brings its own fixture up).
 // Screenshots go to <outDir>.
 //
 //   node scripts/lane.js dev                                    (this lane's server; BASE from .env.local)
@@ -285,6 +290,61 @@ async function part2(pool, ids) {
   check(r.status === 200 && !Object.keys((await rows())["Finn Bligh"].props).length, "2: Undo of the Override", JSON.stringify(r.body));
 }
 
+async function part5(pool) {
+  const fx = require("./draft-fixture");
+  const made = await fx.up(pool, { sport: true, slots: true });
+  try {
+    const { rows } = await pool.query("SELECT id, state FROM leagues WHERE slug = 'zt-dr-gridiron'");
+    const league = rows[0];
+    const st = league.state;
+    const alex = st.players.find((p) => p.name === "alex").id;
+    // Roles by castaway, from the season's cast.
+    const { rows: cast } = await pool.query("SELECT id, role FROM season_cast WHERE season_id = $1", [made.sport.seasonId]);
+    const role = new Map(cast.map((c) => [c.id, c.role]));
+    const mine = st.castaways.filter((c) => (c.ownerIds || []).includes(alex)).map((c) => ({ id: c.id, role: role.get(c.seasonCastId) }));
+    const of = (r) => mine.filter((c) => c.role === r).map((c) => c.id);
+    const [qb1, qb2] = of("QB");
+    const [w1, w2, w3] = of("WR");
+    check(qb1 && qb2 && w3, "5: alex's team has two QBs and three WRs to try", JSON.stringify(mine.map((c) => c.role)));
+    const as = await api({ user: "zt_dr_alex", pass: "zt-pass-12345" });
+    const ep = st.episodes[0].id;
+    const put = (ids) => as.call("PUT", `/api/leagues/${league.id}/episodes/${ep}/lineups/${alex}`, { castawayIds: ids });
+    let r = await put([qb1, qb2]);
+    check(r.status === 400 && /has no open slot: the lineup is 1 QB, 2 WR, 2 RB, 1 TE, 1 W\/R\/T, 1 K, 1 DEF/.test(JSON.stringify(r.body)), "5: the server refuses a second QB, saying the lineup's shape", JSON.stringify(r.body));
+    if (!out) return;
+    const { page, close } = await open({ user: "zt_dr_alex", pass: "zt-pass-12345", width, height: 844 });
+    const shot = (n) => page.screenshot({ path: path.join(out, `${n}.jpg`), type: "jpeg", quality: 82 });
+    try {
+      await page.goto(`${process.env.BASE}/show/${made.sport.seasonId}/games?moves=lineup&game=${league.id}`);
+      await page.locator("[data-open-slot]").first().waitFor({ timeout: 30000 });
+      await page.waitForTimeout(800);
+      const words = await page.locator("body").innerText();
+      check(/Start 9 of your 15: 1 QB, 2 WR, 2 RB, 1 TE, 1 W\/R\/T, 1 K, 1 DEF/.test(words), "5: Your moves says the lineup's shape");
+      const openNow = await page.locator("[data-open-slot]").evaluateAll((e) => e.map((x) => x.getAttribute("data-open-slot")));
+      check(openNow.join() === "QB,WR,WR,RB,RB,TE,W/R/T,K,DEF", "5: each open slot named", openNow.join());
+      await shot("5-lineup-open");
+      for (const id of [qb1, w1, w2, w3]) {
+        await page.locator(`[data-starter="${id}"]`).click();
+        await page.waitForTimeout(250);
+      }
+      const tag = async (id) => (await page.locator(`[data-starter="${id}"] [data-starter-tag]`).first().innerText()).trim();
+      check((await tag(qb1)) === "QB" && (await tag(w3)) === "W/R/T", "5: a QB wears QB, a third WR the W/R/T", `${await tag(qb1)} / ${await tag(w3)}`);
+      await page.locator(`[data-starter="${qb2}"]`).click();
+      await page.waitForTimeout(500);
+      const toast = await page.locator("[data-toast]").innerText().catch(() => "");
+      check(/plays QB.*, and your QB.* full\. Bench someone there first/.test(toast) && (await page.locator(`[data-starter="${qb2}"]`).getAttribute("aria-pressed")) === "false", "5: a second QB refused on the page, said", toast);
+      await shot("5-lineup-tagged");
+      check(!(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)), "5: nothing wider than the screen");
+    } finally {
+      await close();
+    }
+    r = await put([qb1, w1, w2, w3]);
+    check(r.status === 200, "5: a lineup the slots take is saved", JSON.stringify(r.body).slice(0, 200));
+  } finally {
+    await fx.down(pool);
+  }
+}
+
 async function part3(pool, ids) {
   // The crew's details as the desk would have them, Status added to the rulebook (as part 1 does through the editor).
   const status = { "Kip Hale": "Veteran", "Ana Monroe": "Veteran", "Dee Kwon": "Rookie", "Finn Bligh": "Veteran", "Gus Penn": "Rookie", "Rae Stone": "Veteran" };
@@ -375,6 +435,7 @@ async function part3(pool, ids) {
     if (runs(1)) await part1(pool, ids);
     if (runs(2)) await part2(pool, ids);
     if (runs(3)) await part3(pool, ids);
+    if (only.includes(5)) await part5(pool);
     if (!keep) await down(pool);
     console.log(failures ? `${failures} FAILED` : "ALL PASS");
     if (failures) process.exitCode = 1;

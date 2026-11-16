@@ -91,12 +91,21 @@ export type SpecGet =
   | { by: "squares"; grid?: 10 | 5; take?: "pick" | "deal"; each?: number };
 
 export type SpecCount =
-  | { start: number }
+  | { start: number; slots?: LineupSlot[] }
   | { all: true }
   | { pick: true }
   /** A9 part 2: best ball, your best n each episode (no lineups); shows and sports. */
-  | { best: number }
+  | { best: number; slots?: LineupSlot[] }
   | null;
+
+/** Cast properties (docs/PLAN-cast-properties.md chunk 5): `n` starters whose `of` property counts as one of `values` (a FLEX takes
+ *  several): NFL's { label: "QB", of: "position", values: ["QB"], n: 1 }, a show's { of: "department", values: ["Interior"], n: 1 }. */
+export interface LineupSlot {
+  label?: string;
+  of: string;
+  values: string[];
+  n: number;
+}
 
 /** A9 part 2: when a draft's points multiply: one episode, a run of them (to null or left out: the season's end), a phase of
  *  the season (where data says it starts), or its finale (the episode that ends it). An episode in two multiplies by both. */

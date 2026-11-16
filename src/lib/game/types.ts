@@ -408,6 +408,8 @@ export interface LeagueSettings {
   draftAcross?: import("./game-spec/index.js").DraftAcross;
   /** Cast properties (chunk 4): what a team needs, as the spec says it (get.needs). */
   draftNeeds?: import("./game-spec/index.js").DraftNeed[];
+  /** Cast properties (chunk 5): a lineup's or best ball's slots, as the spec says them (count.slots). */
+  lineupSlots?: import("./game-spec/index.js").LineupSlot[];
   /** Step A10 part 3b, each absent unless a game says it: an auction (get.order 'auction'), and a draft's prices (get.budget: an
    *  auction's budget, or a salary cap). */
   draftAuction?: boolean;

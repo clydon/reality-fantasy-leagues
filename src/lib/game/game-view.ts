@@ -117,6 +117,12 @@ export interface LineupMove {
    * now (in or out of the lineup as they stand). Null for any other lineup, and once it's locked.
    */
   eachGame: { locked: string[]; until: string | null } | null;
+  /**
+   * Cast properties (chunk 5): a lineup's slots ("1 QB, 2 RB, 2 WR, 1 TE, 1 W/R/T"), each slot's label and how many values it takes
+   * (a flex's several), and which of the slots each player on your team can fill, for the sheet to label and match as you edit
+   * (src/lib/lineup-slots.ts). Null for a lineup without slots, or without the cast's properties to read.
+   */
+  lineupSlots: { labels: string[]; widths: number[]; fits: Record<string, number[]>; summary: string } | null;
 }
 
 export interface PickMove {
@@ -299,6 +305,9 @@ export interface GameView extends GameRefIn {
   plays: GamePlays;
   cast: CastFace[];
   lineup: LineupMove | null;
+  /** Cast properties (chunk 5): the game's lineup slots and which each castaway can fill (everyone's: a matchup pairs both sides
+   *  slot by slot), or null without slots. */
+  slotPlan: LineupMove["lineupSlots"];
   pick: PickMove | null;
   call: CallMove | null;
   /** Weekly Bingo's card to hand (step 12 part 3). */
@@ -447,6 +456,7 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
     plays,
     twists: twistsOf(view, me, next, new Map(everyone.map((r) => [r.playerId, r.team])), end ?? Math.max(0, ...(full.episodes ?? []).map((e) => e.number))),
     lineup,
+    slotPlan: pieces.hasActiveRoster || pieces.hasBestBall ? slotsOf(view, view.castaways.map((c) => c.id)) : null,
     pick,
     call: calls?.move ?? null,
     bingo: calls?.bingo ?? null,
@@ -640,7 +650,8 @@ export function castOf(view: LeagueState): CastFace[] {
   // A crew's job (the season's main cast property, stamped per read: server/cast-props.ts), as a sport's position is.
   const props = (view as { castProps?: Record<string, Record<string, string>>; castPropDefs?: { key: string; main: boolean }[] }).castProps;
   const defs = (view as { castPropDefs?: { key: string; main: boolean }[] }).castPropDefs ?? [];
-  const mainKey = (defs.find((d) => d.main) ?? defs[0])?.key;
+  // Never gender, unless a rulebook marks it main: every season has it (cast properties), and a sport's face says its position.
+  const mainKey = (defs.find((d) => d.main) ?? defs.find((d) => d.key !== "gender"))?.key;
   return view.castaways.map((c: Castaway) => {
     const tribe = tribes.get(c.tribeId);
     const left = c.status === "eliminated";
@@ -692,7 +703,21 @@ function lineupOf(view: LeagueState, me: string, now?: number): LineupMove | nul
     set: starters.length >= need,
     // Only when something stands in: a first week (or a lineup whose every starter has gone) carries nothing in.
     carried: AR.lineupIsCarried(view, ep.id, me) && starters.length > 0,
+    lineupSlots: slotsOf(view, mine.map((c) => c.id)),
   };
+}
+
+/** A lineup's slots as the sheet reads them (LineupMove.lineupSlots), or null. */
+function slotsOf(view: LeagueState, ids: string[]): LineupMove["lineupSlots"] {
+  const SL = StateLogic.SlotLogic;
+  if (!SL.on(view)) return null;
+  const slots = SL.assignment(view, []);
+  const fits = Object.fromEntries(ids.map((id) => [id, slots.map((s, i) => (fitsOne(view, id, s) ? i : -1)).filter((i) => i >= 0)]));
+  return { labels: slots.map((s) => s.label), widths: slots.map((s) => s.values.length), fits, summary: SL.summary(view) };
+}
+/** Whether a slot takes someone: StateLogic.SlotLogic.fits's rule (a value they count as, or a sport's position group). */
+function fitsOne(view: LeagueState, id: string, s: { of: string; values: string[] }): boolean {
+  return s.values.some((v) => StateLogic.CastPropLogic.matches(view, id, s.of, v) || (s.of === "position" && (view as { statGroups?: Record<string, string> }).statGroups?.[id] === v));
 }
 
 function pickOf(view: LeagueState, me: string, now?: number): PickMove | null {

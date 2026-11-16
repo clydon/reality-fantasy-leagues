@@ -58,7 +58,11 @@ after, the wizard taking in chunk 7). Commits: 10b6f369 (chunk 1), ad6b0f2b (chu
   waiver replacements; "Needs: 2 Men, 1 Woman" in the draft room (`story-draft.js --needs`, draft-fixture.js `needs` copying
   Survivor 51's genders) and on waivers' owed spot. Tests: tests/cast-props-draft.test.js, waiver-view.test.js's needs case; the full
   suite passes (2401); check-draft-spread.js and check-cast-props.js pass.
-- **Next: chunk 5 (lineup slots), then 6 (dated changes) and 6b (holdings);** chunk 7 goes with the wizard (step 12).
+- **Chunk 5, lineup slots: built** (the plan's chunk 5 "Built"): NFL's QB, 2 WR, 2 RB, TE, W/R/T, K, DEF enforced (engine, server,
+  bots, best ball) and drawn (Your moves' tags and open slots, the matchup slot by slot). Tests: tests/cast-props-lineup.test.js;
+  check-cast-props.js part 5 (`--only=5`: draft-fixture.js `--sport --slots`, Gridiron drafted by position, Week 1 due); the
+  suite passes.
+- **Next: chunk 6 (dated changes), then 6b (holdings);** chunk 7 goes with the wizard (step 12).
 
 ## The design round's step 9, Chat, a light review (2026-11-16; built on branch `explorer-sports`, not committed past it; waits on the user's review)
 src/new/show/chat.tsx `itemsOf(messages, airings, foldEp)`: days, with each episode's airing as a landmark (`kind: "ep"`, the episode

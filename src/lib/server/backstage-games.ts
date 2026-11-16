@@ -858,7 +858,12 @@ export async function settingsWrite(
         if (k === "benchSlots" && n < 0) throw new HttpError(400, `Bench must be 0 to ${MAX_BENCH}`);
         if (k === "teamSize" && n < 1) throw new HttpError(400, `Team size must be 1 to ${MAX_TEAM}`);
         // Drafted, the team stays as it is and the starters come off its bench: one change to the spec's count.
-        if (k === "activeSlots" && drafted) refused(StateLogic.setGame(s, { ...StateLogic.gameOf(s), count: { start: n } }));
+        // A lineup's slots (cast properties, chunk 5) stay while they still add up to the starters; otherwise the plain count.
+        if (k === "activeSlots" && drafted) {
+          const was = StateLogic.gameOf(s).count as { slots?: { n: number }[] } | null;
+          const slots = was && Array.isArray(was.slots) && was.slots.reduce((t, x) => t + x.n, 0) === n ? { slots: was.slots } : {};
+          refused(StateLogic.setGame(s, { ...StateLogic.gameOf(s), count: { start: n, ...slots } as never }));
+        }
         else refused(StateLogic.updateSettings(s, k, n));
         // Fewer starters from the next episode: a lineup already set for it (or carried into it) keeps its first ones.
         if (k === "activeSlots" && n < now) {

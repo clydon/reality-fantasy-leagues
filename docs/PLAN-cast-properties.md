@@ -221,6 +221,18 @@ Each ends with focused tests; the long checks once per milestone ([long-checks-o
 5. **Lineup slots.** `count.slots` (by property, with FLEX), validateLineup, the lineup sheet (slots labelled), bot lineups, the
    matchup pairing reads real slots (step 2c paired a sport by position already). Shared with sports: a sport's lineup gains its
    positions here. Done when NFL's 1 QB, 2 RB, 2 WR, 1 TE, 1 FLEX is enforced and drawn.
+   **Built 2026-11-16:** `count.slots = [{ label?, of, values, n }]` beside start or best (settings `lineupSlots`; together the whole
+   count), checked against the season's properties (a sport's `position` is its roster's). `SlotLogic` matches a lineup's ids to its
+   slots (stored lineups unchanged, no migration): validateLineup refuses someone no open slot takes ("QB2 has no open slot: the
+   lineup is 1 QB, 2 WR, ..."), a short lineup stays fine; the bots and best ball take the best legal lineup (points order, each
+   kept while the slots take everyone: a matching's greedy, the best one). Football's standard games carry their defaults' slots
+   (sports/index.ts `withLineupSlots`: QB, 2 WR, 2 RB, TE, W/R/T, K, DEF; other sports' `takes` are position groups and wait). Your
+   moves says the shape, each starter's tag is its slot ("QB", "W/R/T"), each open tile names its slot, and a tap no slot takes says
+   which is full (src/lib/lineup-slots.ts matches in the browser from `LineupMove.lineupSlots`); a matchup pairs slot by slot
+   (`GameView.slotPlan`, game-week.tsx `pairLines`). Fixed beside it: a game's face read "Man" for a sport (gender is never the main
+   line unless a rulebook says so), and Backstage's starter count kept the slots only while they still add up. **Left:** the
+   gameplay bench plays football without slots (its world stamps no positions; its frozen states predate them); soccer and others'
+   slots (their `takes` are groups); the read-only weekly sheet (lineup-sheet.tsx) and the lineup's "set" count aren't per slot yet.
 6. **Dated changes.** The season result kind, the episode research question, the desk's accept, `viewThrough`, the person's line.
    **6b. Holdings** (the user, 2026-11-16, decided: "Holdings" above): what someone has right now, a dated ledger from episode
    research (events and an end-of-episode snapshot), spoiler-guarded, on the person sheet and maybe the wall.

@@ -2935,6 +2935,101 @@ class CompositionLogic {
   }
 }
 
+// ---------- SlotLogic: a lineup's slots (docs/PLAN-cast-properties.md chunk 5: the spec's count.slots) ----------
+// "1 QB, 2 RB, 2 WR, 1 TE and a W/R/T", "start one Interior": each slot takes anyone whose `of` property counts as one of its values
+// (a FLEX takes several; a flex value, Nonbinary, counts as its others). A lineup is still stored as ids; who fills which slot is a
+// matching worked out from them, so nothing about a stored lineup changes. A lineup may be short (late in a season), but never has
+// someone no open slot takes. Best ball and the bots take the best legal lineup: players in points order, each kept if the slots can
+// still take everyone kept (a matching's greedy, which is the best one). Without the stamp (a copy with no cast properties) or no
+// slots, nothing changes.
+class SlotLogic {
+  static config(state){
+    const c = gameOf(state).count;
+    return c && typeof c === 'object' && Array.isArray(c.slots) && c.slots.length ? c.slots : null;
+  }
+  static on(state){ return !!SlotLogic.config(state) && CastPropLogic.has(state); }
+  // Each slot n times: { label, of, values }.
+  static expanded(state){
+    const out = [];
+    (SlotLogic.config(state) || []).forEach(x => {
+      if(!x || typeof x.of !== 'string' || !Array.isArray(x.values)) return;
+      for(let i = 0; i < (x.n >= 1 ? x.n : 0); i++) out.push({ label: x.label || x.values.join('/'), of: x.of, values: x.values });
+    });
+    return out;
+  }
+  // Whether a slot takes someone: a value they count as, or (a sport's position) their roster's position group.
+  static fits(state, id, slot){
+    return slot.values.some(v => CastPropLogic.matches(state, id, slot.of, v) || (slot.of === 'position' && !!state.statGroups && state.statGroups[id] === v));
+  }
+  // The most of `ids` the slots can take, one each, earlier ids first: { size, owner: slot index -> id }.
+  static match(state, ids, slots){
+    const sl = slots || SlotLogic.expanded(state);
+    const owner = new Array(sl.length).fill(null);
+    const fits = new Map(ids.map(id => [id, sl.map((s, i) => (SlotLogic.fits(state, id, s) ? i : -1)).filter(i => i >= 0)]));
+    const tryId = (id, seen) => {
+      for(const i of fits.get(id) || []){
+        if(seen.has(i)) continue;
+        seen.add(i);
+        if(owner[i] === null || tryId(owner[i], seen)){ owner[i] = id; return true; }
+      }
+      return false;
+    };
+    let size = 0;
+    ids.forEach(id => { if(tryId(id, new Set())) size++; });
+    return { size, owner, slots: sl };
+  }
+  // Who fills which slot: [{ label, id | null }] in the slots' order (a lineup sheet's slots, a matchup's pairs).
+  static assignment(state, ids){
+    const { owner, slots } = SlotLogic.match(state, ids);
+    // Tidied for a reader: an earlier starter in a narrower slot than a later one in a wider (a flex), and same-sized slots in the
+    // lineup's order, swapping only where each fits the other's slot (the matching stays whole).
+    const rank = id => (id === null ? Infinity : ids.indexOf(id));
+    for(let changed = true, guard = 0; changed && guard < 50; guard++){
+      changed = false;
+      for(let i = 0; i < slots.length; i++) for(let j = 0; j < slots.length; j++){
+        if(i === j || owner[i] === null || owner[j] === null) continue;
+        const narrower = slots[i].values.length < slots[j].values.length || (slots[i].values.length === slots[j].values.length && i < j);
+        if(narrower && rank(owner[j]) < rank(owner[i]) && SlotLogic.fits(state, owner[j], slots[i]) && SlotLogic.fits(state, owner[i], slots[j])){
+          [owner[i], owner[j]] = [owner[j], owner[i]];
+          changed = true;
+        }
+      }
+    }
+    return slots.map((s, i) => ({ label: s.label, of: s.of, values: s.values, id: owner[i] }));
+  }
+  // "1 QB, 2 RB, 2 WR, 1 TE, 1 W/R/T".
+  static summary(state){
+    return (SlotLogic.config(state) || []).map(x => `${x.n} ${x.label || x.values.join('/')}`).join(', ');
+  }
+  // Why a lineup has someone no open slot takes, or null.
+  static problem(state, ids){
+    if(!SlotLogic.on(state) || !ids.length) return null;
+    const { size, owner } = SlotLogic.match(state, ids);
+    if(size === ids.length) return null;
+    const left = ids.find(id => !owner.includes(id));
+    const c = Core.getCastaway(state, left);
+    return `${c ? c.name : 'Someone'} has no open slot: the lineup is ${SlotLogic.summary(state)}`;
+  }
+  // The best legal lineup of up to `n` from `ranked` (best first): each kept while the slots can take everyone kept.
+  static best(state, ranked, n){
+    if(!SlotLogic.on(state)) return ranked.slice(0, n);
+    const slots = SlotLogic.expanded(state);
+    const kept = [];
+    for(const id of ranked){
+      if(kept.length >= n) break;
+      if(SlotLogic.match(state, [...kept, id], slots).size === kept.length + 1) kept.push(id);
+    }
+    return kept;
+  }
+  // Best ball with slots: the best legal n count (Seq.best's, by the slots).
+  static countBest(state, lines, n){
+    const order = [...lines].sort((a, b) => b.points - a.points).map(l => l.castawayId);
+    const keep = new Set(SlotLogic.best(state, order, n));
+    lines.forEach(l => { l.counted = keep.has(l.castawayId); });
+    return lines;
+  }
+}
+
 // ---------- DrawLogic + DrawDraftStrategy: names out of a hat (A10 part 3: the spec's get.order 'draw') ----------
 // Nobody picks: when the draft starts (the Commissioner's Start, or its scheduled time, drawn at the next write or read of the
 // league), every seat in the rotation is dealt `each` at random. The draw is seeded and recorded (state.draw: its seed, when,
@@ -4251,7 +4346,8 @@ class ActiveRosterLogic {
     const factors = id => joined ? [Seq.factorOf(cap, { captain: id === captain }), times, joinedOf(id)] : [Seq.factorOf(cap, { captain: id === captain }), times];
     const lines = ids.map(id => ({ castawayId: id, points: Seq.multiply(raw.get(id), factors(id)), counted: false, captain: id === captain }));
     // Best ball: the n highest count (a tie can't change the total; the cast's order breaks it). A lineup: every starter.
-    Seq.best(lines, best);
+    if(best && SlotLogic.on(state)) SlotLogic.countBest(state, lines, best);
+    else Seq.best(lines, best);
     const slots = GroupSlotLogic.scoredLines(state, ep, playerId, scored, times, pre && pre.slots);
     const total = Seq.episodeTotal(lines, slots);
     return { total, lines, captain, times, slots };
@@ -4413,6 +4509,9 @@ class ActiveRosterLogic {
       // before going, so excluding them would lose real points.
       if(!ownerListOf(c).includes(playerId)) return c.name + " isn't on your roster";
     }
+    // Cast properties (chunk 5): everyone in a lineup with slots has an open slot that takes them.
+    const unslotted = SlotLogic.problem(state, ids);
+    if(unslotted) return unslotted;
     // L8 part 1's engine items: a lineup locking at each game's start never moves anyone whose game has started today, in or out
     // (impeccable clarify: who, why, and when it frees up).
     if(ActiveRosterLogic.eachGame(state, ep)){
@@ -10467,7 +10566,7 @@ return {
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are those pieces,
   // exported directly for code that wants to bypass the dispatch.
   Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, AnswerLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, StatsLogic, RotoLogic, SquaresLogic, SquaresScoringStrategy, GroupSlotLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
-  PoolLogic, SpreadLogic, CastPropLogic, CompositionLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, WeekLogic, TeamLogic, HandicapLogic, StageLogic, BountyLogic, SecretRoleLogic, TwistLogic, HostLogic, draftFits, draftFitsFor, rankKey,
+  PoolLogic, SpreadLogic, CastPropLogic, CompositionLogic, SlotLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, WeekLogic, TeamLogic, HandicapLogic, StageLogic, BountyLogic, SecretRoleLogic, TwistLogic, HostLogic, draftFits, draftFitsFor, rankKey,
   SnakeDraftStrategy, StagesScoringStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy, DrawDraftStrategy, AuctionDraftStrategy
 };
 

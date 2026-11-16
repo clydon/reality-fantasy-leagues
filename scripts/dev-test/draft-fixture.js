@@ -28,9 +28,13 @@
 //     their real past seasons from ESPN (cached a day); generated athletes have none. Its game, "Gridiron", is Weekly Lineup with each player on one team: a snake draft of 15 each (9 start, 6 bench), started
 //     and `live` picks in too, so the room is a real-size pool draft. Real people stay in the ignored .ui-atlas frames.
 //   node scripts/dev-test/draft-fixture.js up --live=6 --sport
+//   node scripts/dev-test/draft-fixture.js up --sport --slots   Gridiron with NFL's lineup slots (cast properties, chunk 5): its draft
+//        done by position, Week 1 in three days with lineups due
 require("dotenv").config({ path: ".env.local", quiet: true });
 const crypto = require("crypto");
 const { Pool } = require("pg");
+const path = require("path");
+const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "..", "src") } });
 const S = require("../../src/lib/game/state-logic.js");
 
 const DB = process.env.AUTH_DATABASE_URL || "";
@@ -213,7 +217,7 @@ async function up(pool, opts = {}) {
     }
   }
   let sport = null;
-  if (opts.sport) sport = await upSport(pool, { one, users, couch, players, live });
+  if (opts.sport) sport = await upSport(pool, { one, users, couch, players, live, slots: !!opts.slots });
   for (const who of PEOPLE) {
     await pool.query(`INSERT INTO couch_members (couch_id, user_id, role) VALUES ($1, $2, $3)`, [couch, users[who], who === "alex" ? "owner" : "member"]);
     await pool.query(`INSERT INTO show_follows (user_id, season_id, seen_through) VALUES ($1, $2, 0)`, [users[who], season]);
@@ -226,7 +230,26 @@ async function up(pool, opts = {}) {
 }
 
 /** ZT Football: 344 athletes by position and team, and Gridiron, a snake draft of 15 each, `live` picks in. */
-async function upSport(pool, { one, users, couch, players, live }) {
+// Cast properties (chunk 5): a team drafted to fit football's lineup slots, round by round by position (best free at each).
+const BY_POSITION = ["QB", "RB", "RB", "WR", "WR", "TE", "WR", "RB", "PK", "DEF", "QB", "TE", "RB", "WR", "WR"];
+function draftByPosition(s, roleOf, rank) {
+  S.forceStartDraft(s);
+  for (let guard = 0; guard < 400; guard++) {
+    const turn = S.currentDraftTurn(s);
+    if (!turn || turn.isComplete) break;
+    const mine = s.castaways.filter((c) => (c.ownerIds || []).includes(turn.playerId)).length;
+    const want = BY_POSITION[mine % BY_POSITION.length];
+    const free = rank.filter((cid) => !s.castaways.find((c) => c.id === cid)?.ownerIds?.length);
+    const pick = free.find((cid) => roleOf.get(cid) === want) || free[0];
+    if (!pick) break;
+    const before = s.draftPicksMade;
+    S.draftToCurrentTurn(s, pick);
+    if (s.draftPicksMade === before) break;
+  }
+  return s;
+}
+
+async function upSport(pool, { one, users, couch, players, live, slots }) {
   const pool344 = athletes();
   const real = pool344.some((a) => a.photo);
   const show = (await one(
@@ -274,8 +297,16 @@ async function upSport(pool, { one, users, couch, players, live }) {
   });
   s.draftOrder = ORDER.filter((w) => players.includes(w)).map((w) => s.players.find((p) => p.name === w).id);
   const state = S.migrateLeagueState(s);
+  // `slots` (chunk 5): football's standard lineup slots, the draft done by position, an episode in three days with lineups due.
+  if (slots) {
+    const { defaultsFor } = jiti("../../src/lib/sports/index.ts");
+    state.settings.lineupSlots = defaultsFor("football", "nfl").slots.lineup.map((x) => ({ label: x.slot, of: "position", values: [...x.takes], n: x.n }));
+    const roleOf = new Map(cast.map((c, i) => [state.castaways.find((k) => k.seasonCastId === c.id)?.id, pool344[i].role]));
+    draftByPosition(state, roleOf, state.castaways.map((c) => c.id));
+    state.episodes = [{ id: "zt-dr-wk1", number: 1, airsAt: new Date(Date.now() + 3 * 864e5).toISOString(), events: [], scoringEvents: [], bets: [], picks: [], lineups: {} }];
+  }
   // The recording is best first: picks go roughly by it, with a little variety.
-  if (live > 0) draftSome(state, live, [...seeded(state.castaways.slice(0, 24).map((c) => c.id), 11), ...state.castaways.slice(24).map((c) => c.id)]);
+  else if (live > 0) draftSome(state, live, [...seeded(state.castaways.slice(0, 24).map((c) => c.id), 11), ...state.castaways.slice(24).map((c) => c.id)]);
   const leagueId = (await one(
     `INSERT INTO leagues (name, slug, join_code, state, created_by, group_id, group_position, couch_id) VALUES ('Gridiron', 'zt-dr-gridiron', 'ZTDR9X', $1, $2, $3, 0, $4) RETURNING id`,
     [JSON.stringify(state), users.alex, group, couch]
@@ -296,7 +327,7 @@ if (require.main === module) {
   const pool = new Pool({ connectionString: DB });
   const cmd = process.argv[2];
   const flag = (k) => process.argv.find((a) => a.startsWith(`--${k}=`))?.slice(k.length + 3);
-  (cmd === "up" ? up(pool, { live: Number(flag("live") ?? 0), sport: process.argv.includes("--sport") }) : cmd === "down" ? down(pool).then(() => console.log("[zt] down")) : Promise.reject(new Error("usage: up | down")))
+  (cmd === "up" ? up(pool, { live: Number(flag("live") ?? 0), sport: process.argv.includes("--sport"), slots: process.argv.includes("--slots") }) : cmd === "down" ? down(pool).then(() => console.log("[zt] down")) : Promise.reject(new Error("usage: up | down")))
     .catch((e) => {
       console.error(e);
       process.exitCode = 1;

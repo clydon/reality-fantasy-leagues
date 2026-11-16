@@ -307,7 +307,8 @@ function lineups(state) {
 function lineupFor(state, ep, pid, slots) {
   const mine = state.castaways.filter((c) => c.status === "active" && (c.ownerIds || []).includes(pid)).map((c) => c.id);
   if (!mine.length) return 0;
-  const best = ranked(state, pid, mine, "points").slice(0, slots);
+  // Cast properties (chunk 5): the best lineup the slots take (a QB in the QB slot), else the top `slots`.
+  const best = StateLogic.SlotLogic.best(state, ranked(state, pid, mine, "points"), slots);
   const current = ActiveRosterLogic.lineupFor(state, ep.id, pid);
   // A game with a captain (A9 part 2): the best of them wears it.
   const captainOk = !ActiveRosterLogic.captainTimes(state) || ActiveRosterLogic.captainFor(state, ep.id, pid) === best[0];

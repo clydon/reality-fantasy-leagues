@@ -2604,11 +2604,15 @@ function specProblems(spec, ctx, opts) {
   if ((get.by === 'none' || get.by === 'card') && s.count !== null) add('count', 'Nothing is held, so nothing counts: count is null');
   if (s.count !== null) {
     const drafted = count === 'start' || count === 'all' || count === 'best';
-    if (!count || Object.keys(s.count).length !== 1) add('count', 'count is one of { start: n }, { all: true }, { pick: true }, { best: n }');
+    // Cast properties (chunk 5): a lineup's or best ball's slots (count.slots) beside its count.
+    const keysBut = Object.keys(s.count).filter((k) => k !== 'slots');
+    if (!count || keysBut.length !== 1) add('count', 'count is one of { start: n }, { all: true }, { pick: true }, { best: n }');
+    else if (s.count.slots !== undefined && count !== 'start' && count !== 'best') add('count.slots', 'Slots go with a lineup ({ start: n }) or best ball ({ best: n })');
     else if (drafted && get.by !== 'draft') add('count', `{ ${count} } counts a draft's`);
     else if (count === 'pick' && get.by !== 'pick') add('count', '{ pick } counts a pick');
     else if ((count === 'start' || count === 'best') && !(isInt(s.count[count], 1) && (!isInt(get.each, 1) || s.count[count] <= get.each))) add(`count.${count}`, `It counts 1 to the ${get.each || 'number'} drafted`);
     else if ((count === 'all' || count === 'pick') && s.count[count] !== true) add(`count.${count}`, `${count} is true`);
+    else if (s.count.slots !== undefined) slotsProblems(s.count.slots, s.count[count]).forEach(([at, p]) => add(`count.slots${at}`, p));
   }
 
   // score and rank
@@ -3334,6 +3338,29 @@ function acrossProblems(a) {
   // The show's groups, gender, or another of the season's cast properties by its key (the data rule checks the season has it).
   if (own(VOCAB['get.across.of'], a.of) === undefined && !(typeof a.of === 'string' && /^[a-z][A-Za-z0-9]{0,40}$/.test(a.of))) out.push(['.of', "Spread across what: the show's groups (group), gender, or another of its cast's properties by its key"]);
   if (own(VOCAB['get.across.then'], a.then) === undefined) out.push(['.then', 'After the draft a castaway stays yours wherever they go: keep']);
+  return out;
+}
+
+/**
+ * Cast properties (docs/PLAN-cast-properties.md chunk 5): a lineup's slots, [{ label?, of, values, n }]: "1 QB, 2 RB, 2 WR, 1 TE and a
+ * W/R/T of RB, WR or TE", "start one Interior". Each slot takes anyone whose `of` property counts as one of its values (a FLEX is a
+ * slot of several values); together they're the whole count (every starter has a slot). Which properties the season has is the
+ * data rule's; a sport's position (`of: "position"`) is its roster's.
+ */
+function slotsProblems(slots, total) {
+  if (!Array.isArray(slots) || !slots.length) return [['', 'A lineup\'s slots are a list: [{ label, of, values, n }]']];
+  const out = [];
+  let sum = 0;
+  slots.forEach((x, i) => {
+    if (!isObj(x)) return out.push([`[${i}]`, 'Each slot is { label, of, values, n }']);
+    for (const k of Object.keys(x)) if (!['label', 'of', 'values', 'n'].includes(k)) out.push([`[${i}].${k}`, `A slot takes label, of, values and n, not ${k}`]);
+    if (!(typeof x.of === 'string' && /^[a-z][A-Za-z0-9]{0,40}$/.test(x.of))) out.push([`[${i}].of`, "A slot is of one of the cast's properties, by its key (position, department)"]);
+    if (!(Array.isArray(x.values) && x.values.length && x.values.every((v) => typeof v === 'string' && v.trim()) && new Set(x.values).size === x.values.length)) out.push([`[${i}].values`, 'A slot takes one or more of its values, each once']);
+    if (x.label !== undefined && !(typeof x.label === 'string' && x.label.trim() && x.label.length <= 12)) out.push([`[${i}].label`, "A slot's label is a short word (QB, W/R/T)"]);
+    if (!isInt(x.n, 1)) out.push([`[${i}].n`, 'How many of a slot is a whole number from 1']);
+    else sum += x.n;
+  });
+  if (!out.length && isInt(total, 1) && sum !== total) out.push(['', `The slots add up to ${sum}, and the lineup counts ${total}: every starter has a slot`]);
   return out;
 }
 
@@ -4295,6 +4322,18 @@ function settleProblems(s, ctx, opts) {
       if (!covers({ pool: short, people: teams.n, each: b.least })) out.push(['get.own', `${teams.said} each need ${b.least} from every group, and one has only ${short}: make it shared, so two of you can have the same one`]);
     }
   }
+  // A lineup's slots (chunk 5): each of one of the season's properties (a sport's position is its roster's, never in properties).
+  if (isObj(s.count) && Array.isArray(s.count.slots) && Array.isArray(ctx.properties)) {
+    s.count.slots.forEach((x, i) => {
+      if (!isObj(x) || x.of === 'position') return;
+      const p = ctx.properties.find((y) => isObj(y) && y.key === x.of);
+      if (!p) out.push([`count.slots[${i}].of`, `This season's cast isn't sorted by ${x.of}`]);
+      else if (Array.isArray(p.values) && Array.isArray(x.values)) {
+        const bad = x.values.filter((v) => !p.values.includes(v));
+        if (bad.length) out.push([`count.slots[${i}].values`, `${p.name} is one of ${p.values.join(', ')}`]);
+      }
+    });
+  }
   // What a team needs: each of one of the season's properties with listed values, and one of them (a need of a value a property's
   // flex covers counts those people too: CompositionLogic).
   if (get.by === 'draft' && Array.isArray(get.needs) && Array.isArray(ctx.properties)) {
@@ -4798,7 +4837,7 @@ module.exports = {
   SPEC_VERSION, VOCAB, TAKES, SETTLES_FOR, SEASON_TAKES, EACH_SETTLES_FOR, NAMES, NUMBERS, MAX_WINDOW, LATE_HOURS, windowed,
   RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, WAGER_TOTAL, ODDS, MAX_BANK, BANK, bankOf, drawsOnBank, isTicket, ticketOf, MAX_TICKET_LEGS, MAX_PAYS, TICKET, SHARES, SHRINK_PER, LEGS, MAX_LEGS, MAX_TIMES, MAX_WHEN, WHEN, MAX_JOINED, JOINED, multipliersOf, MAX_BOUNTY, BOUNTY, bountyOf, MAX_ROLE_SEATS, MAX_ROLE_POINTS, MAX_ROLE_NAME, ROLES, rolesOf, MAX_TWISTS, MAX_TWIST_NAME, MAX_TWIST_HOURS, TWIST, twistOf, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
   MAX_GROUP_SLOTS, GROUP_SLOTS, covers, poolFilter, poolCount, inFilter, MAX_LIVES, MAX_BUYBACKS, MAX_MULLIGANS, MAX_BUYBACK_COST, BUYBACK, SECOND_PICK, NEVER, poolParts,
-  DRAFT_ACROSS, DRAW_OWN, spreadBounds, needsProblems, MAX_BUDGET, BUDGET, CAP, AUCTION, MAX_BIDS, ceilingFor, budgetParts, TRADE, MARKET_LEFT,
+  DRAFT_ACROSS, DRAW_OWN, spreadBounds, needsProblems, slotsProblems, MAX_BUDGET, BUDGET, CAP, AUCTION, MAX_BIDS, ceilingFor, budgetParts, TRADE, MARKET_LEFT,
   marketWaivers, marketOf, waiverOwnOf, waiverMoves, KEEP, keepParts, SEATS, MAX_SEAT_PEOPLE, seatPeople, teamsOf,
   MAX_RACE, MAX_CUTS, MAX_CUT_OUT, CUT, CUT_AT, knockoutParts, DRAFT_END, POOL_END, ANSWERS_END, COOP, answerParts, livesQuestion, questionsGame, isPool, poolByPoints,
   MATCHUPS, MATCHUP_KEYS, MAX_PLAYOFF_TEAMS, playoffRounds, matchupParts, TEAMS, MAX_PLAYER_TEAMS, MAX_TEAM_NAME, teamParts,

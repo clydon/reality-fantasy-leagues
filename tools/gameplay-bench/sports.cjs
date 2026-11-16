@@ -11,7 +11,11 @@ const implemented=new Set(['season','short','bestBall','categories','roto']);
 function resolve(league,game='season'){
  const sport=validateLeague(league),entry=PRIORITIES.find(([id])=>id===league),defaults=L.defaultsFor(sport.id,league.split('/')[1]),row=P.sportGames(league).find(g=>g.id===game);
  if(!row||!implemented.has(game))throw Error('The '+game+' sports fixture/interaction adapter is not implemented');
- const spec=G.fullSpec(row.spec),start=spec.count?.start??spec.count?.best??spec.get.each??0;
+ // Cast properties (chunk 5): football's standard games now carry their lineup slots (count.slots); the bench's world stamps no
+ // positions and fills its lineups by position itself (situations.cjs slotLineup), and its frozen states predate slots, so it
+ // plays the spec without them.
+ const bare=JSON.parse(JSON.stringify(row.spec));if(bare.count)delete bare.count.slots;
+ const spec=G.fullSpec(bare),start=spec.count?.start??spec.count?.best??spec.get.each??0;
  return {league,label:entry?.[1]||sport.name+' · '+league.split('/')[1],sport,defaults,row,spec,start,bench:Math.max(0,(spec.get.each||0)-start),context:P.sportPageContext(league)};
 }
 let cachedCatalog;

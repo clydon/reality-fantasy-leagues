@@ -1,5 +1,6 @@
 "use client";
 
+import { matchSlots } from "@/lib/lineup-slots";
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Check, ChevronRight, Lock, MessageCircleQuestion, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -1141,6 +1142,16 @@ export const slotWord = (r: string) => (r === "PK" ? "K" : r === "DST" || r === 
  *  partner as Flex); a show's by rank once scored (your best against their best, "Best", "2nd best": its slots are
  *  interchangeable, so a slot pairing would be invented). Null for a show before it's scored: two plain lists then. */
 export function pairLines(g: GameView, a: Line[], b: Line[], played: boolean): Pair[] | null {
+  // Cast properties (chunk 5): a game with lineup slots pairs slot by slot, each side's starters matched to its slots as the engine
+  // matches them (QB with QB, W/R/T with W/R/T), its own label on each row.
+  const plan = g.slotPlan;
+  if (plan) {
+    const byId = (xs: Line[]) => new Map(xs.map((l) => [l.id, l]));
+    const mineA = byId(a), mineB = byId(b);
+    const oa = matchSlots(a.map((l) => l.id), plan.fits, plan.widths);
+    const ob = matchSlots(b.map((l) => l.id), plan.fits, plan.widths);
+    return plan.labels.map((label, i) => ({ slot: slotWord(label), a: (oa[i] && mineA.get(oa[i]!)) || null, b: (ob[i] && mineB.get(ob[i]!)) || null }));
+  }
   const role = (l: Line) => (faceIn(g, l.id)?.role ?? "").toUpperCase();
   const sport = [...a, ...b].some((l) => role(l));
   const byPts = (xs: Line[]) => [...xs].sort((p, q) => q.points - p.points);

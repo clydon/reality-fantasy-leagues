@@ -16,6 +16,7 @@ import { closeMoves, faceIn, first, openMoves, sheetTabs, useMovesSheet, type Mo
 import { Face, IconBox } from "./parts";
 import { useOpenReveal } from "./reveal";
 import { askAfterSave } from "./remind";
+import { fitsWith, matchSlots } from "@/lib/lineup-slots";
 
 // "Your moves": one sheet with a tab per game you play here (Weekly Lineup, Survival Pool, Outlast's team) and Predictions, which
 // saves through the league routes the classic app uses (lineups, picks, predictions). The games swipe by as a Weekly Lineup
@@ -378,13 +379,24 @@ function LineupPanel({
     if (stuck.has(id)) return toast.quiet(`${first(faceIn(g, id)?.name ?? "")}'s game has started: they stay ${starters.includes(id) ? "in" : "out"} until the day's over`);
     if (starters.includes(id)) return onStarters(starters.filter((x) => x !== id));
     if (starters.length >= l.slots) return toast.quiet("Bench someone first");
+    if (ls && !fitsWith(starters, id, ls.fits, ls.widths)) {
+      // Which slots would take them, all full: say those ("plays QB, and your QB slot is full"), or that nothing takes them.
+      const can = [...new Set((ls.fits[id] ?? []).map((i) => ls.labels[i]))];
+      const who = first(faceIn(g, id)?.name ?? "");
+      return toast.quiet(can.length ? `${who} plays ${can.join(" or ")}, and your ${can.join(" and ")} ${can.length > 1 ? "slots are" : "slot is"} full. Bench someone there first` : `No slot in this lineup takes ${who}`);
+    }
     onStarters([...starters, id]);
   };
+  // Cast properties (chunk 5): a lineup's slots, matched as you edit, each starter's tag its slot ("QB", "W/R/T").
+  const ls = l.lineupSlots;
+  const owner = ls ? matchSlots(starters, ls.fits, ls.widths) : null;
+  const slotOf = (id: string) => (ls && owner ? ls.labels[owner.indexOf(id)] ?? null : null);
+  const open = ls && owner ? ls.labels.filter((_, i) => owner[i] === null) : null;
   const tile = "relative isolate flex aspect-[3/4] flex-col justify-end overflow-hidden rounded-[3px] p-1.5 text-left text-white transition-shadow";
   return (
     <>
       <p className="mb-2.5 text-[13px] text-muted-foreground">
-        Start {l.slots} of your {stillIn}. Tap to start or bench.
+        Start {l.slots} of your {stillIn}{ls ? `: ${ls.summary}` : ""}. Tap to start or bench.
         {l.carried && sameSet(starters, l.starters) ? " Your last lineup carries over unless you change it." : ""}
       </p>
       <div className="grid grid-cols-3 gap-2">
@@ -399,11 +411,12 @@ function LineupPanel({
               />
               <span aria-hidden className="absolute inset-0 -z-[1] bg-[linear-gradient(180deg,transparent_45%,rgba(10,8,14,.92))]" />
               <span
+                data-starter-tag
                 className={`type-caption absolute left-1.5 top-1.5 rounded-[2px] px-1.5 py-0.5 text-[10px] tracking-[0.06em] ${
                   c.left ? "bg-live text-live-foreground" : on ? "bg-chyron text-chyron-foreground" : "bg-[rgba(16,14,21,.8)] text-white/75"
                 }`}
               >
-                {c.left ? (pickup ? "Out · replace" : "Out") : on ? "Starting" : "Bench"}
+                {c.left ? (pickup ? "Out · replace" : "Out") : on ? (slotOf(c.id) ?? "Starting") : "Bench"}
               </span>
               <b className="type-caption text-[15px]">{first(c.name)}</b>
               <small className={`text-[11px] ${c.left ? "text-chyron-line" : "opacity-85"}`}>
@@ -427,11 +440,12 @@ function LineupPanel({
         {Array.from({ length: Math.max(0, l.need - starters.length) }, (_, i) => (
           <div
             key={i}
+            data-open-slot={open?.[i] ?? ""}
             className="flex aspect-[3/4] flex-col items-center justify-center gap-1 rounded-[3px] text-center text-muted-foreground outline-2 -outline-offset-2 outline-dashed outline-input"
           >
             <Plus className="size-[22px]" aria-hidden />
-            <b className="type-caption text-[15px] text-foreground">Open slot</b>
-            <small className="block text-[11px]">Start someone</small>
+            <b className="type-caption text-[15px] text-foreground">{open?.[i] ? `Open · ${open[i]}` : "Open slot"}</b>
+            <small className="block text-[11px]">{open?.[i] ? `Start a ${open[i]}` : "Start someone"}</small>
           </div>
         ))}
       </div>

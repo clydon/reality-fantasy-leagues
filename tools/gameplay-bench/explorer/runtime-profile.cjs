@@ -104,7 +104,7 @@ function inspect(document) {
       // The top scorer's twist (score.twist): its choices per episode, the twist action, stamped as twists.ts stamps them.
       // Outlast in reverse (score.reverse: each holding worth the cast's size + 1 less its place): EliminationOrderScoringStrategy.
       // Multipliers (score.times: an episode's or the finale's points times N): ActiveRosterLogic.timesFor on every read.
-      count: ['start', 'best', 'all', 'pick'], score: ['by', 'points', 'means', 'only', 'hits', 'lives', 'livesOn', 'saves', 'bank', 'bounty', 'parlays', 'times', 'reverse', 'twist', 'captain', 'roles', 'buyback', 'mulligans', 'multiply', ...(sport && stats ? ['categories', 'byPlace', 'byPosition', 'byFormat'] : [])], rank: ['by', 'odd', 'quiet', 'playoffs', 'ties', 'race', 'cut', 'teams'],
+      count: ['start', 'best', 'all', 'pick', 'slots'], score: ['by', 'points', 'means', 'only', 'hits', 'lives', 'livesOn', 'saves', 'bank', 'bounty', 'parlays', 'times', 'reverse', 'twist', 'captain', 'roles', 'buyback', 'mulligans', 'multiply', ...(sport && stats ? ['categories', 'byPlace', 'byPosition', 'byFormat'] : [])], rank: ['by', 'odd', 'quiet', 'playoffs', 'ties', 'race', 'cut', 'teams'],
     };
     // A pool's second pick (get.second): the pick action's second: true; it counts on a night two or more go home (or every night: counts).
     // A draft spread across the cast's groups (get.across, of 'group'): the generated draft spread as SpreadLogic requires, on a world

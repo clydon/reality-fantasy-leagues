@@ -135,7 +135,34 @@ export function defaultsFor(sportId: string, league?: string): SportDefaults | n
   if (!d) return null;
   const own = league ? d.leagues?.[String(league).split("/").pop()!] : undefined;
   // A league's specs over the sport's, one by one (L4 part 1a: F1's own season and short beside racing's pick'em).
-  return own ? { ...d, ...own, ...(own.specs ? { specs: { ...d.specs, ...own.specs } } : {}) } : d;
+  const out = own ? { ...d, ...own, ...(own.specs ? { specs: { ...d.specs, ...own.specs } } : {}) } : d;
+  return withLineupSlots(sportId, out);
+}
+
+/**
+ * Cast properties (docs/PLAN-cast-properties.md chunk 5): football's standard games start its lineup by position, its defaults'
+ * slots as the spec's count.slots (QB, 2 RB, 2 WR, TE, a W/R/T, K, DEF), on each spec counting exactly that many. Football's `takes`
+ * are ESPN positions, which a castaway's stamped `position` (its roster's) names; other sports' are position groups, left as they
+ * were until their games stamp them.
+ */
+const SLOTTED = new WeakMap<SportDefaults, SportDefaults>();
+function withLineupSlots(sportId: string, d: SportDefaults): SportDefaults {
+  if (sportId !== "football" || !d.slots?.lineup?.length) return d;
+  // The same defaults read twice are the same object (college's are football's own).
+  const had = SLOTTED.get(d);
+  if (had) return had;
+  const total = d.slots.lineup.reduce((n, s) => n + s.n, 0);
+  const slots = d.slots.lineup.map((s) => ({ label: s.slot, of: "position", values: [...s.takes], n: s.n }));
+  const specs = Object.fromEntries(
+    Object.entries(d.specs).map(([id, x]) => {
+      const c = (x.spec as { count?: { start?: number; best?: number } }).count;
+      const fits = c && (c.start === total || c.best === total);
+      return [id, fits ? { ...x, spec: { ...x.spec, count: { ...c, slots } } } : x];
+    })
+  );
+  const out = { ...d, specs };
+  SLOTTED.set(d, out);
+  return out;
 }
 
 /**

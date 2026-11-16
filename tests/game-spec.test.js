@@ -67,7 +67,7 @@ const GAME_FIELDS = {
   // A14 part 4: secret roles (secretRoles), an Outlast's or a lineup's.
   // A14 part 5: the top scorer's twist (twist), a lineup's or a pick's scored by moments.
   "classic-draft": [...DRAFT_FIELDS, "teamSize", "reverseOrder", "joinedTimes", "bounty", "secretRoles"],
-  "active-roster": [...DRAFT_FIELDS, "activeSlots", "benchSlots", "eventPoints", "hideStartersUntilLock", "bestBall", "captainTimes", "pointsTimes", "groupSlots", "joinedTimes", "bounty", "secretRoles", "twist", "scoreOnly", "scoreHits", "gameCard",
+  "active-roster": [...DRAFT_FIELDS, "activeSlots", "benchSlots", "eventPoints", "hideStartersUntilLock", "bestBall", "captainTimes", "pointsTimes", "groupSlots", "lineupSlots", "joinedTimes", "bounty", "secretRoles", "twist", "scoreOnly", "scoreHits", "gameCard",
     // L3 part 2: a lineup scored by a sport's stats, its table; everyone drafted counting.
     "statScoring", "countAll"],
   // A10 part 2: a pool's lives, buyback, mulligans, second pick and last one standing. A11 part 2: a pick that never repeats and

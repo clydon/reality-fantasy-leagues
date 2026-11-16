@@ -477,11 +477,11 @@ function sentenceParts(s, w) {
     if (budget && budget.trade && !budget.auction) put(` with ${budget.total} to spend`, 'get');
     else if (budget && !budget.auction) put(` under a salary cap of ${budget.total}`, 'get');
     if (budget && budget.trade) put(`, then buys and sells ${tradeWhen(s, w)}`, 'get');
-    if (count === 'start') put(` and starts ${s.count.start} each ${w.part}`, 'count');
+    if (count === 'start') put(` and starts ${s.count.start} each ${w.part}${slotsOf(s) ? ` (${slotsPhrase(s)})` : ''}`, 'count');
     // A9 part 2: a lineup's captain.
     if (count === 'start' && isObj(s.score.captain) && isNum(s.score.captain.times)) put(`, one of them a captain who scores ${timesWord(s.score.captain.times)}`, 'score');
     // Best ball of the whole team: "all 3 count", never "best 3 of 3" (impeccable's clarify, 2026-11-08).
-    if (count === 'best') put(wholeTeam(s) ? `, and all ${s.count.best} count each ${w.part}` : `, and their best ${s.count.best} count each ${w.part}`, 'count');
+    if (count === 'best') put(wholeTeam(s) ? `, and all ${s.count.best} count each ${w.part}` : `, and their best ${s.count.best} count each ${w.part}${slotsOf(s) ? ` (${slotsPhrase(s)})` : ''}`, 'count');
     // A10 part 1: group slots.
     const slots = groupSlotsOf(s);
     if (slots) put(`, plus ${slots.slots === 1 ? 'a slot' : `${say(slots.slots)} slots`} for a pair or team the show forms`, 'get');
@@ -1301,6 +1301,9 @@ const acrossWord = (s, w) => {
   if (!a || a.of === 'group') return w.group;
   return String(a.of).replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
 };
+/** Cast properties (chunk 5): a lineup's slots (count.slots), or null; "1 QB, 2 RB, 2 WR, 1 TE and 1 W/R/T". */
+const slotsOf = (s) => (isObj(s.count) && Array.isArray(s.count.slots) && s.count.slots.length ? s.count.slots : null);
+const slotsPhrase = (s) => listOf(slotsOf(s).map((x) => `${x.n} ${x.label || x.values.join('/')}`));
 /** Cast properties (chunk 4): what a team needs (get.needs), or null. */
 const needsOf = (s) => (s.get && s.get.by === 'draft' && Array.isArray(s.get.needs) && s.get.needs.length ? s.get.needs : null);
 /** "1 Interior and 1 Deck", "2 men and 2 women": the show's values, a gender's in its plural for more than one. */
@@ -1402,6 +1405,8 @@ function rulesOf(s, w) {
     rules.push(...drawRules(s, w));
     rules.push(...keepRules(s, w));
     if (count === 'start') rules.push(`Before each ${w.part}, start ${say(s.count.start)}. Only starters score.`);
+    // Cast properties (chunk 5): the lineup's slots.
+    if (slotsOf(s)) rules.push(`The lineup is ${slotsPhrase(s)}: each starter fills a slot that takes them${slotsOf(s).some((x) => x.values.length > 1) ? ', a flex any of its positions' : ''}.${count === 'best' ? ' Your best that fit the slots count.' : ''}`);
     // A9 part 2: best ball, a lineup's captain, when the points multiply, Outlast in reverse.
     if (count === 'best') rules.push(wholeTeam(s) ? `Each ${w.part}, all ${say(s.count.best)} count: no lineups to set.` : `Each ${w.part}, your best ${say(s.count.best)} count, whoever they are: no lineups to set.`);
     if (count === 'all' && s.score.by !== 'place') rules.push('Everyone you draft scores.');

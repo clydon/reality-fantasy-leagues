@@ -1000,6 +1000,15 @@ declare const StateLogic: {
     teamProblem(state: LeagueState, castawayIds: string[], keep?: string[]): string | null;
     moveProblem(state: LeagueState, playerId: string, dropId: string, addId: string): string | null;
   };
+  /** Cast properties (chunk 5): a lineup's slots (the spec's count.slots), matched from the stored ids. */
+  SlotLogic: {
+    config(state: LeagueState): import("./game-spec/index.js").LineupSlot[] | null;
+    on(state: LeagueState): boolean;
+    assignment(state: LeagueState, ids: string[]): { label: string; of: string; values: string[]; id: string | null }[];
+    summary(state: LeagueState): string;
+    problem(state: LeagueState, ids: string[]): string | null;
+    best(state: LeagueState, ranked: string[], n: number): string[];
+  };
   /** Step A10 part 3: names out of a hat (the spec's get.order 'draw'), seeded and recorded in state.draw. */
   DrawLogic: {
     on(state: LeagueState): boolean;
