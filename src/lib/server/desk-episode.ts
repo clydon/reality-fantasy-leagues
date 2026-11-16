@@ -1,4 +1,6 @@
 import { publicMediaSrc } from "@/lib/game/selectors";
+import { seasonCastProperties } from "./cast-props";
+import { holdingLabel, propLabel } from "@/lib/game/dated-fact-words";
 import type { FactStatus } from "@/lib/game/fact-status";
 import { buildPasteImportPrompt, researchFromPaste, researchItems } from "@db/episode-research.js";
 import { seasonFormat } from "@db/season-rule-changes.js";
@@ -40,6 +42,8 @@ export type FactState = "wait" | "disputed" | "live" | "canon" | "gone";
 export interface EpisodeFact {
   id: string;
   kind: string;
+  /** A property change's key or a holding's "<twist>:<how>:<name>" (chunks 6, 6b); an event's id. */
+  eventType: string;
   /** The castaway (as corrected), or '' for "Nobody went home". */
   name: string;
   photo: string | null;
@@ -111,7 +115,7 @@ export interface DeskEpisode {
   facts: EpisodeFact[];
   answers: EpisodeAnswer[];
   /** For Correct: the cast still in for the episode (photos), and the show's ways out and moments. */
-  choices: { cast: { name: string; photo: string | null }[]; methods: string[]; events: { id: string; label: string }[]; groups: string[] };
+  choices: { cast: { name: string; photo: string | null }[]; methods: string[]; events: { id: string; label: string }[]; groups: string[]; props: Record<string, string[] | null> };
   trivia: TriviaQuestion[];
   /** Its trivia run is on the season's schedule. */
   triviaOn: boolean;
@@ -371,7 +375,16 @@ export async function deskEpisode(user: SessionUser, id: string, nIn: unknown, n
     const name = f.kind === "noexit" ? "" : f.applied?.castawayName || f.castaway_name;
     const method = f.applied?.method ?? f.method;
     const eventType = f.applied?.eventType || f.event_type;
-    const label = f.kind === "event" ? (events.find((e) => e.id === eventType)?.label ?? readable(eventType)) : f.kind === "noexit" ? "Nobody went home" : method || readable(f.kind);
+    const label =
+      f.kind === "event"
+        ? (events.find((e) => e.id === eventType)?.label ?? readable(eventType))
+        : f.kind === "noexit"
+          ? "Nobody went home"
+          : f.kind === "prop"
+            ? propLabel(eventType, method)
+            : f.kind === "holding"
+              ? holdingLabel(eventType, method)
+              : method || readable(f.kind);
     const said = sources.filter((x) => x.decision_id === f.id && subById.has(x.research_id));
     const by = said.map((x) => x.research_id);
     const yes = new Set(said.map((x) => keyOf(subById.get(x.research_id)!))).size;
@@ -414,6 +427,7 @@ export async function deskEpisode(user: SessionUser, id: string, nIn: unknown, n
     return {
       id: f.id,
       kind: f.kind,
+      eventType,
       name,
       photo: name ? (photo.get(name.toLowerCase()) ?? null) : null,
       label,
@@ -471,6 +485,8 @@ export async function deskEpisode(user: SessionUser, id: string, nIn: unknown, n
       methods: format.data.exitMethods,
       events: events.filter((e) => !e.implied).map((e) => ({ id: e.id, label: e.label })),
       groups: await seasonGroups(id),
+      // Cast properties (chunk 6): each property's values, for a change's Correct.
+      props: Object.fromEntries((await seasonCastProperties(id)).map((p) => [p.key, Array.isArray(p.values) ? [...p.values] : null])),
     },
     trivia: trivia.map((q) => ({
       id: q.id,

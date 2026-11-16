@@ -62,7 +62,11 @@ after, the wizard taking in chunk 7). Commits: 10b6f369 (chunk 1), ad6b0f2b (chu
   bots, best ball) and drawn (Your moves' tags and open slots, the matchup slot by slot). Tests: tests/cast-props-lineup.test.js;
   check-cast-props.js part 5 (`--only=5`: draft-fixture.js `--sport --slots`, Gridiron drafted by position, Week 1 due); the
   suite passes.
-- **Next: chunk 6 (dated changes), then 6b (holdings);** chunk 7 goes with the wizard (step 12).
+- **Chunk 6, a property's change mid-season: built** (the plan's chunk 6 "6 built"): migration **0440** (`prop` and `holding` kinds;
+  **may need renumbering at merge**), research asks it, the desk accepts and corrects it, games apply it per episode behind the
+  spoiler guard, lineups read it as of their episode, the sheet's line and story say it. Tests: tests/cast-props-dated.test.js;
+  check-cast-props.js part 6; the suite passes.
+- **Next: 6b (holdings)**, its build notes in the plan; chunk 7 goes with the wizard (step 12).
 
 ## The design round's step 9, Chat, a light review (2026-11-16; built on branch `explorer-sports`, not committed past it; waits on the user's review)
 src/new/show/chat.tsx `itemsOf(messages, airings, foldEp)`: days, with each episode's airing as a landmark (`kind: "ep"`, the episode

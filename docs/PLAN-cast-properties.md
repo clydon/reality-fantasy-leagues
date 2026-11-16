@@ -267,6 +267,15 @@ Each ends with focused tests; the long checks once per milestone ([long-checks-o
      Episodes 1–4 only, so 5–8 want full runs (`POST /api/desk/seasons/<id>/runs { kind: 'full', episode }`) and 1–4 the short one;
      "Ask again: missing" skips questions that score nothing, so it won't reach these. cast-props-research.js gains an `episodes`
      command for it.
+   **6 built 2026-11-16:** migration **0440** (kinds `prop` and `holding`; may need renumbering at merge, like 0439); `PropChangeLogic`
+   (`ep.props`, `latest`, `changes`), `CastPropLogic.valueOf(..., asOf)` and `SlotLogic` reading as of a lineup's episode;
+   `applyDecision`/`undoDetail`/`ownResults` for both kinds (a holding never touches a league: the season's ledger, 6b); research's
+   `<key>Now` question per changing property (`research.propChanges`, staged by `itemsFromChecklist`); the shared words
+   (src/lib/game/dated-fact-words.ts: "Job: Bosun", "Found a hidden immunity idol") on the desk, a league's plates and
+   season-decisions; the desk's Correct with the property's values; the stats read's `changes` and the latest value, the story's
+   "Lead deckhand from here · was Deckhand". Below Deck's library compile re-saved. No migrate default for `ep.props` (frozen bench
+   states stay byte for byte). **Left for 6b:** everything holdings-specific (the research section, staging, the ledger, the check,
+   the sheet's line, the backfill).
 7. **The wizard and the GPT.** SpecContext carries the season's properties so Start a game offers only rules the season can hold
    ("Draft one from each department"), Randomize can roll them, and the spec's check refuses a property the season lacks.
 

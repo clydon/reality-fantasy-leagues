@@ -708,7 +708,9 @@ function CorrectSheet({ e, f, onClose, decide }: { e: DeskEpisode; f: EpisodeFac
         ? e.choices.events.map((x) => [x.id, x.label] as const)
         : f.kind === "group"
           ? e.choices.groups.map((g) => [g, g] as const)
-          : [];
+          : f.kind === "prop"
+            ? (e.choices.props[f.eventType] ?? []).map((v) => [v, v] as const)
+            : [];
   const current = f.kind === "event" ? (e.choices.events.find((x) => x.label === f.label)?.id ?? "") : f.label;
   // An exit with no way out given (or a moment not in the list) starts on the list's first, as the select shows it.
   const value = what ?? (options.some(([v]) => v === current) ? current : (options[0]?.[0] ?? current));

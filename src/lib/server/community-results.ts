@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { holdingLabel, propLabel } from "@/lib/game/dated-fact-words";
 import type { PoolClient } from "pg";
 import StateLogic from "@/lib/game/state-logic.js";
 import { researchItems } from "@db/episode-research.js";
@@ -26,7 +27,7 @@ export type SubmissionSource = "paste" | "quick" | "hand" | "bot" | "autopilot" 
 
 /** One result a submission reports. `noexit`: nobody went home in the episode (no castaway: castawayName ''). */
 export interface SubmittedFact {
-  kind: "elimination" | "event" | "exiled" | "role" | "group" | "noexit";
+  kind: "elimination" | "event" | "exiled" | "role" | "group" | "noexit" | "prop" | "holding";
   castawayName: string;
   method?: string | null;
   eventType?: string | null;
@@ -660,6 +661,8 @@ export async function couchFillsResults(couchId: string): Promise<boolean> {
 export function factLabel(state: LeagueState, f: { kind: string; method: string; eventType: string }): string {
   if (f.kind === "event") return StateLogic.formatOf(state).events.find((e) => e.id === f.eventType)?.label ?? f.eventType;
   if (f.kind === "group") return `Moved to ${f.method}`;
+  if (f.kind === "prop") return propLabel(f.eventType, f.method);
+  if (f.kind === "holding") return holdingLabel(f.eventType, f.method);
   if (f.kind === "exiled") return "Exiled";
   if (f.kind === "noexit") return "Nobody went home";
   return f.method || f.kind;

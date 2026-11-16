@@ -776,7 +776,9 @@ export function StoryBody({ d, c, names, onFlag, group = true, photo = true, poi
           const left = c.out === e;
           const unsure = d.unsure?.[e]?.[c.name];
           const total = gone || !points ? null : c.perEp[e - 1];
-          const quiet = !gone && !ev.length && !left;
+          // A property's change that episode (chunk 6): "Bosun from here (was Deckhand)".
+          const moved = (c.changes ?? []).filter(([ep]) => ep === e);
+          const quiet = !gone && !ev.length && !left && !moved.length;
           if (!points && gone) return null;
           return (
             <section key={e} data-story-ep={e} className={`border-t border-border py-2 first:border-t-0 ${gone ? "opacity-55" : ""}`}>
@@ -802,6 +804,14 @@ export function StoryBody({ d, c, names, onFlag, group = true, photo = true, poi
                     {x.units !== 1 && <span className="text-muted-foreground"> · {x.units.toLocaleString()}</span>}
                   </span>
                   {points && <span className="type-num flex-none text-[15px]">{pts(x.points)}</span>}
+                </div>
+              ))}
+              {moved.map(([, key, value, was]) => (
+                <div key={key} data-story-change={key} className="flex min-h-8 items-center text-[14px] leading-snug">
+                  <span className="min-w-0 flex-1">
+                    {value} from here
+                    {was && <span className="text-muted-foreground"> · was {was}</span>}
+                  </span>
                 </div>
               ))}
               {left && <div data-story-left className="flex min-h-8 items-center text-[14px] leading-snug text-live">{c.how ?? "Left the game"}</div>}

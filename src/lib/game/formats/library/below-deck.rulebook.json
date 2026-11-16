@@ -39,7 +39,12 @@
         {
           "key": "department",
           "name": "Department",
-          "values": ["Interior", "Deck", "Galley", "Bridge"],
+          "values": [
+            "Interior",
+            "Deck",
+            "Galley",
+            "Bridge"
+          ],
           "changes": "sometimes"
         },
         {
@@ -597,6 +602,20 @@
           "note": "a crew member comments directly on another crew member's behavior in a confessional"
         },
         {
+          "key": "departmentNow",
+          "type": "string",
+          "nullable": true,
+          "note": "new department",
+          "description": "Only if their department changed in THIS episode (a promotion, a demotion, a move): their new department, exactly one of \"Interior\", \"Deck\", \"Galley\", \"Bridge\". Null if it didn't change."
+        },
+        {
+          "key": "jobNow",
+          "type": "string",
+          "nullable": true,
+          "note": "new job",
+          "description": "Only if their job changed in THIS episode (a promotion, a demotion, a move): their new job, in the show's own words. Null if it didn't change."
+        },
+        {
           "key": "notableTwist",
           "type": "string",
           "nullable": true,
@@ -629,6 +648,22 @@
         "tipRevealed",
         "lateNightSocializing",
         "romanticDevelopment"
+      ],
+      "propChanges": [
+        {
+          "key": "department",
+          "answer": "departmentNow",
+          "values": [
+            "Interior",
+            "Deck",
+            "Galley",
+            "Bridge"
+          ]
+        },
+        {
+          "key": "job",
+          "answer": "jobNow"
+        }
       ]
     },
     "rules": {

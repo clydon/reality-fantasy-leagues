@@ -10,7 +10,7 @@ export interface DecisionRow {
   episode_number: number;
   post_merge: boolean;
   /** `noexit`: nobody went home in the episode (step 6c; no castaway, castaway_name ''). */
-  kind: "elimination" | "event" | "exiled" | "role" | "group" | "noexit";
+  kind: "elimination" | "event" | "exiled" | "role" | "group" | "noexit" | "prop" | "holding";
   castaway_name: string;
   method: string;
   event_type: string;
@@ -95,6 +95,15 @@ export function applyDecision(state: LeagueState, d: DecisionFact, cast: CastRef
     StateLogic.addGroupChange(state, ep.id, castaway.id, group || null);
     return { detail: base };
   }
+  // Cast properties (chunk 6): a property's new value from this episode (event_type its key, method the value).
+  if (d.kind === "prop") {
+    const value = d.applied?.method || d.method;
+    if ((ep.props || []).some((p) => p.castawayId === castaway.id && p.key === d.event_type)) return { detail: { ...base, preexisting: true } };
+    if (!StateLogic.addPropChange(state, ep.id, castaway.id, d.event_type, value)) return { skip: `"${d.event_type}" couldn't change` };
+    return { detail: { ...base, eventType: d.event_type } };
+  }
+  // Chunk 6b: a holding is the season's ledger (holdings.ts), never a league's: nothing in a game changes.
+  if (d.kind === "holding") return { detail: { ...base, preexisting: true } };
   if (d.kind === "role") {
     const role = d.applied?.method || d.method;
     if ((ep.roles || []).some((r) => r.castawayId === castaway.id)) return { detail: { ...base, preexisting: true } };
@@ -122,6 +131,10 @@ export function undoDetail(state: LeagueState, detail: LedgerDetail) {
     StateLogic.removeRole(state, ep.id, detail.castawayId);
   } else if (detail.kind === "group") {
     StateLogic.removeGroupChange(state, ep.id, detail.castawayId);
+  } else if (detail.kind === "prop") {
+    StateLogic.removePropChange(state, ep.id, detail.castawayId, detail.eventType);
+  } else if (detail.kind === "holding") {
+    return;
   } else {
     StateLogic.removeExiled(state, ep.id, detail.castawayId);
   }
@@ -152,6 +165,7 @@ export function ownResults(state: LeagueState, details: LedgerDetail[], n: numbe
   for (const x of ep.exiled || []) if (!has("exiled", x.castawayId)) out.push({ kind: "exiled", castawayId: x.castawayId });
   for (const r of ep.roles || []) if (!has("role", r.castawayId)) out.push({ kind: "role", castawayId: r.castawayId });
   for (const g of ep.groups || []) if (!has("group", g.castawayId)) out.push({ kind: "group", castawayId: g.castawayId });
+  for (const p of ep.props || []) if (!mine.some((d) => d.kind === "prop" && d.castawayId === p.castawayId && d.eventType === p.key)) out.push({ kind: "prop", castawayId: p.castawayId, eventType: p.key });
   return out;
 }
 

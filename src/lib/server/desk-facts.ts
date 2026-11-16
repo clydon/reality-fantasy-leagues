@@ -1,4 +1,5 @@
 import { publicMediaSrc } from "@/lib/game/selectors";
+import { seasonCastProperties } from "./cast-props";
 import { coversFact, type FactStatus } from "@/lib/game/fact-status";
 import { seasonFormat } from "@db/season-rule-changes.js";
 import { isUuid, type SessionUser } from "./auth-helpers";
@@ -45,7 +46,7 @@ export interface DeskFact {
   leagues: number;
   rulings: number;
   /** For editing it: the season's cast and the show's ways out and moments. */
-  choices: { cast: string[]; methods: string[]; events: { id: string; label: string }[]; groups: string[] };
+  choices: { cast: string[]; methods: string[]; events: { id: string; label: string }[]; groups: string[]; props: Record<string, string[] | null> };
   history: DeskLine[];
 }
 
@@ -141,6 +142,8 @@ export async function deskFact(id: string): Promise<DeskFact> {
       methods: format.data.exitMethods,
       events: format.data.events.filter((e: { implied?: boolean }) => !e.implied).map((e: { id: string; label: string }) => ({ id: e.id, label: e.label })),
       groups,
+      // Cast properties (chunk 6): each property's values (null: anything in the show's words), for a change's new value.
+      props: Object.fromEntries((await seasonCastProperties(d.season_id)).map((p) => [p.key, Array.isArray(p.values) ? [...p.values] : null])),
     },
     history: byNewest(lines),
   };
@@ -199,6 +202,15 @@ export async function decideFact(user: SessionUser, id: string, body: { decide?:
       const t = typeof e.eventType === "string" && e.eventType.trim() ? e.eventType.trim() : fact.eventType;
       if (!fact.choices.events.some((x) => x.id === t)) throw new HttpError(400, `"${t}" isn't a moment on this show`);
       applied.eventType = t;
+    } else if (fact.kind === "prop") {
+      // Cast properties (chunk 6): the new value, one of the property's values where it lists them.
+      const v = typeof e.method === "string" && e.method.trim() ? e.method.trim().slice(0, 60) : fact.method;
+      const values = fact.choices.props[fact.eventType];
+      if (values && !values.includes(v)) throw new HttpError(400, `"${v}" isn't one of ${values.join(", ")}`);
+      applied.method = v;
+    } else if (fact.kind === "holding") {
+      // Chunk 6b: the other person in it (the one given to, played on), or nobody.
+      applied.method = typeof e.method === "string" ? e.method.trim().slice(0, 120) : fact.method;
     } else if (fact.kind === "group") {
       // A move to the group they went to (Survivor 51's Episode 3 had Carter "to Savu", the tribe he left).
       const g = typeof e.method === "string" && e.method.trim() ? e.method.trim() : fact.method;

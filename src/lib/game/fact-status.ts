@@ -67,7 +67,8 @@ export interface FactOutcome {
 }
 
 /** Kinds whose result carries a method that sources can disagree on. */
-const METHOD_KINDS = new Set(["elimination", "role", "group"]);
+// Cast properties (chunks 6, 6b): a property's new value and a holding's other person are their facts' method too.
+const METHOD_KINDS = new Set(["elimination", "role", "group", "prop", "holding"]);
 
 const lower = (s: string) => s.trim().toLowerCase();
 

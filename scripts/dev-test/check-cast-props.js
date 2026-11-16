@@ -22,6 +22,9 @@
 //      due; zt_dr_ rows, brought up and taken down here): Your moves says the shape and names each open slot; a QB tapped wears
 //      QB, a third WR the W/R/T; a second QB is refused on the page (no open slot) and by the server (400 with the reason); the
 //      saved lineup reads back. Skipped with --only unless asked (it brings its own fixture up).
+//   6. A property's change (chunk 6): an accepted season result of kind 'prop' in Episode 2 (Gus: job Lead deckhand). The desk's
+//      Episode 2 names it ("Job: Lead deckhand"); jo, through Episode 1, still reads Deckhand; through Episode 2, his line and sheet
+//      read Lead deckhand and the story says "Lead deckhand from here · was Deckhand".
 // Screenshots go to <outDir>.
 //
 //   node scripts/lane.js dev                                    (this lane's server; BASE from .env.local)
@@ -290,6 +293,46 @@ async function part2(pool, ids) {
   check(r.status === 200 && !Object.keys((await rows())["Finn Bligh"].props).length, "2: Undo of the Override", JSON.stringify(r.body));
 }
 
+async function part6(pool, ids) {
+  await pool.query("UPDATE season_cast SET props = $2::jsonb WHERE id = $1", [ids.cast["Gus Penn"], JSON.stringify({ department: "Deck", job: "Deckhand" })]);
+  await pool.query(
+    `INSERT INTO season_decisions (season_id, episode_number, kind, castaway_name, method, event_type, status, fact_status, from_research, decided_at)
+     VALUES ($1, 2, 'prop', 'Gus Penn', 'Lead deckhand', 'job', 'accepted', 'confirmed', true, now())`,
+    [ids.s1]
+  );
+  const desk = await api({ user: U("desk"), pass: PASSWORD });
+  const ep = await desk.call("GET", `/api/desk/seasons/${ids.s1}/episodes/2`);
+  const labels = (ep.body.facts || []).map((f) => f.label);
+  check(labels.includes("Job: Lead deckhand"), "6: the desk's Episode 2 names the change", JSON.stringify(labels));
+  const { rows: jo } = await pool.query(`SELECT id FROM "user" WHERE username = $1`, [U("jo")]);
+  const as = await api({ user: U("jo"), pass: PASSWORD });
+  const read = async (seen) => {
+    await pool.query("INSERT INTO show_follows (user_id, season_id, seen_through, following) VALUES ($1, $2, $3, true) ON CONFLICT (user_id, season_id) DO UPDATE SET seen_through = EXCLUDED.seen_through", [jo[0].id, ids.s1, seen]);
+    return ((await as.call("GET", `/api/seasons/${ids.s1}/stats`)).body.cast || []).find((c) => c.name === "Gus Penn");
+  };
+  const before = await read(1);
+  check(before?.props?.job === "Deckhand" && !before.changes, "6: through Episode 1, still Deckhand", JSON.stringify(before && { props: before.props, changes: before.changes }));
+  const after = await read(2);
+  check(after?.props?.job === "Lead deckhand" && JSON.stringify(after.changes) === JSON.stringify([[2, "job", "Lead deckhand", "Deckhand"]]), "6: through Episode 2, Lead deckhand, the change kept", JSON.stringify(after && { props: after.props, changes: after.changes }));
+  if (!out) return;
+  const { page, close } = await open({ user: U("jo"), pass: PASSWORD, width, height: 844 });
+  try {
+    await page.goto(`${process.env.BASE}/show/${ids.s1}/cast`);
+    await page.locator('[data-face-wall] [data-cast="Gus"]').waitFor({ timeout: 30000 });
+    await page.waitForTimeout(800);
+    check((await page.locator('[data-face-wall] [data-cast="Gus"] [data-cast-line]').innerText()).startsWith("Lead deckhand"), "6: his line under his name");
+    await page.locator('[data-face-wall] button[data-cast="Gus"]').click();
+    await page.locator('[data-story-change="job"]').waitFor({ timeout: 15000 });
+    await page.locator('[data-story-change="job"]').scrollIntoViewIfNeeded();
+    await page.waitForTimeout(500);
+    const said = await page.locator('[data-story-change="job"]').innerText();
+    check(/Lead deckhand from here · was Deckhand/.test(said), "6: his story says the change", said);
+    await page.screenshot({ path: path.join(out, "6-change.jpg"), type: "jpeg", quality: 82 });
+  } finally {
+    await close();
+  }
+}
+
 async function part5(pool) {
   const fx = require("./draft-fixture");
   const made = await fx.up(pool, { sport: true, slots: true });
@@ -436,6 +479,7 @@ async function part3(pool, ids) {
     if (runs(2)) await part2(pool, ids);
     if (runs(3)) await part3(pool, ids);
     if (only.includes(5)) await part5(pool);
+    if (runs(6)) await part6(pool, ids);
     if (!keep) await down(pool);
     console.log(failures ? `${failures} FAILED` : "ALL PASS");
     if (failures) process.exitCode = 1;

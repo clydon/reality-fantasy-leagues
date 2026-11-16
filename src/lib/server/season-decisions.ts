@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { holdingLabel, propLabel } from "@/lib/game/dated-fact-words";
 import type { PoolClient } from "pg";
 import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueDecisionSync, LeagueState } from "@/lib/game/types";
@@ -128,6 +129,8 @@ function labelOf(state: LeagueState, d: Pick<DecisionRow, "kind" | "method" | "e
   const type = d.applied?.eventType || d.event_type;
   if (d.kind === "event") return StateLogic.formatOf(state).events.find((e) => e.id === type)?.label ?? type;
   if (d.kind === "group") return `moved to ${d.applied?.method ?? d.method}`;
+  if (d.kind === "prop") return propLabel(type, d.applied?.method ?? d.method);
+  if (d.kind === "holding") return holdingLabel(type, d.applied?.method ?? d.method);
   if (d.kind === "noexit") return "Nobody went home";
   return (d.applied?.method ?? d.method) || d.kind;
 }

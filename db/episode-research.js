@@ -2191,6 +2191,14 @@ function itemsFromChecklist(entry, format, payload, episode) {
   // A group move (a swap, a new tribe, the merge), staged exactly as the wiki's were: method is the
   // group's name. validateResearch already nulled one that just repeats the group they went in on.
   if (format.hasGroups && typeof entry.newGroup === "string" && entry.newGroup.trim()) add("group", "", entry.newGroup.trim());
+  // Cast properties (chunk 6): a property that changed this episode (a promotion), staged as kind 'prop': its key the event type, its
+  // new value the method (one of the property's listed values, matched to its own spelling; anything else left out).
+  for (const p of (format.research && format.research.propChanges) || []) {
+    const said = typeof entry[p.answer] === "string" ? entry[p.answer].trim().replace(/\s+/g, " ") : "";
+    if (!said || /^(null|none|n\/a|unchanged|no change)$/i.test(said)) continue;
+    const value = Array.isArray(p.values) ? p.values.find((v) => v.toLowerCase() === said.toLowerCase()) : said.slice(0, 60);
+    if (value) add("prop", p.key, value);
+  }
   format.research.items(entry, add, ctx);
   return items;
 }

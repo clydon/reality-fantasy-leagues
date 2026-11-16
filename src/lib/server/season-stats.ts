@@ -165,7 +165,16 @@ export async function seasonStats(user: SessionUser, seasonId: string, couchId: 
     properties: propertyViews(properties),
     cast: stats.cast.map((c) => {
       const about = f.about[c.name.toLowerCase()];
-      return { ...c, position: f.positions[c.name.toLowerCase()] ?? null, props: about?.props ?? {}, bio: about?.bio ?? null };
+      // A property's changes up to where you are (chunk 6: accepted 'prop' results, applied to the facts at your mark), over the
+      // season's starting values: the latest shown, each change for the story.
+      const k = f.facts.castaways.find((x) => x.name.toLowerCase() === c.name.toLowerCase());
+      const now: Record<string, string> = { ...(about?.props ?? {}) };
+      const changes: [number, string, string, string | null][] = [];
+      for (const ch of k ? StateLogic.PropChangeLogic.changes(f.facts, k.id) : []) {
+        changes.push([ch.episode, ch.key, ch.value, now[ch.key] ?? null]);
+        now[ch.key] = ch.value;
+      }
+      return { ...c, position: f.positions[c.name.toLowerCase()] ?? null, props: now, bio: about?.bio ?? null, ...(changes.length ? { changes } : {}) };
     }),
     seenThrough: Number.isFinite(f.seen) ? f.seen : null,
     pointsFrom: f.pointsFrom,

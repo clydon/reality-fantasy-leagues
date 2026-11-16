@@ -228,6 +228,8 @@ export interface Episode {
   roles?: { castawayId: string; role: string }[];
   /** Who changed tribe/team this episode (tribeId null = no group now). See GroupLogic. */
   groups?: { castawayId: string; tribeId: string | null }[];
+  /** Cast properties (chunk 6): a property's new value from this episode (a promotion), a season result as a tribe move is. */
+  props?: { castawayId: string; key: string; value: string }[];
   bets: Bet[];
   // Pick'em only (state-logic.js's PickEmLogic) -- one entry per player who's made a pick for
   // this episode, upserted in place rather than accumulated. Always present (EpisodeLogic.add
@@ -885,7 +887,7 @@ export interface SeasonDecision {
   id: string;
   episode_number: number;
   post_merge: boolean;
-  kind: "elimination" | "event" | "exiled" | "role" | "group" | "noexit";
+  kind: "elimination" | "event" | "exiled" | "role" | "group" | "noexit" | "prop" | "holding";
   castaway_name: string;
   /**
    * The exit method for an elimination; the role value ("Traitor") for a role; the new tribe/team's

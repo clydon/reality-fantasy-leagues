@@ -483,6 +483,21 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
     }
     field({ key, type: q.type, ...(q.type === 'answer' ? {} : { nullable: true }) }, q.of === 'episode' ? episodeFields : fields);
   }
+  // Cast properties (docs/PLAN-cast-properties.md chunk 6): a property that changes mid-season (a promotion, a move) asked of each
+  // person every episode, only when it changed: research's season result kind 'prop' (episode-research.js stages it).
+  const propChanges = [];
+  for (const p of list(b.cast && b.cast.properties)) {
+    if (!isObj(p) || p.changes !== 'sometimes' || typeof p.key !== 'string') continue;
+    const key = `${p.key}Now`;
+    if (fieldKeys.has(qk(key))) continue;
+    const name = String(p.name || p.key).toLowerCase();
+    const values = Array.isArray(p.values) ? `exactly one of ${p.values.map((v) => `"${v}"`).join(', ')}` : "in the show's own words";
+    field({
+      key, type: 'string', nullable: true, note: `new ${name}`,
+      description: `Only if their ${name} changed in THIS ${part} (a promotion, a demotion, a move): their new ${name}, ${values}. Null if it didn't change.`,
+    });
+    propChanges.push({ key: p.key, answer: qk(key), ...(Array.isArray(p.values) ? { values: [...p.values] } : {}) });
+  }
   // Somewhere for anything else that happened to someone, and for what the sources disagree on (the research prompt says
   // so when the checklist has it, db/episode-research.js buildPrompt), as every built-in has: unless the rulebook asks it
   // itself (a question asked besides, above). Not on a base (its own questions stay), nor a talk show's (about the night),
@@ -741,6 +756,7 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
       claims: legacy ? [...legacy.research.claims, ...newClaims] : ['leftTheGame', ...newClaims],
       ...(checks && (legacy || checks.length) ? { checks } : {}),
       ...(groupVotes && groupVotes.length ? { groupVotes } : {}),
+      ...(propChanges.length ? { propChanges } : {}),
     },
     rules: { research, implied },
   };

@@ -2674,27 +2674,66 @@ class CastPropLogic {
   static defs(state){ return Array.isArray(state.castPropDefs) ? state.castPropDefs : []; }
   static def(state, key){ return CastPropLogic.defs(state).find(d => d && d.key === key) || null; }
   static has(state){ return !!state.castProps && typeof state.castProps === 'object'; }
-  // Someone's own value of `key` (a castaway or its id), or null.
-  static valueOf(state, c, key){
+  // Someone's own value of `key` (a castaway or its id), or null: the latest dated change (chunk 6: ep.props, a season result) at or
+  // before `asOf` (an episode number; every episode this copy has when left out: a viewer's copy has none past their mark), else
+  // the season's starting value (the stamp).
+  static valueOf(state, c, key, asOf){
     const id = typeof c === 'string' ? c : c && c.id;
     if(key === 'group'){
       const k = typeof c === 'string' ? (state.castaways || []).find(x => x.id === c) : c;
       return k && k.tribeId ? k.tribeId : null;
     }
+    const changed = PropChangeLogic.latest(state, id, key, asOf);
+    if(changed) return changed;
     const p = state.castProps && state.castProps[id];
     return p && typeof p[key] === 'string' && p[key] ? p[key] : null;
   }
   // The values someone counts as for `key`: their own, then any its flex adds ([] with none).
-  static countsAs(state, c, key){
-    const v = CastPropLogic.valueOf(state, c, key);
+  static countsAs(state, c, key, asOf){
+    const v = CastPropLogic.valueOf(state, c, key, asOf);
     if(!v) return [];
     const d = CastPropLogic.def(state, key);
     const f = d && d.flex && Array.isArray(d.flex[v]) ? d.flex[v] : [];
     return [v, ...f.filter(x => x !== v)];
   }
-  static matches(state, c, key, value){ return CastPropLogic.countsAs(state, c, key).includes(value); }
+  static matches(state, c, key, value, asOf){ return CastPropLogic.countsAs(state, c, key, asOf).includes(value); }
   // A value that counts as others (a flex's key: Nonbinary).
   static flexes(state, key, value){ const d = CastPropLogic.def(state, key); return !!(d && d.flex && Array.isArray(d.flex[value]) && d.flex[value].length); }
+}
+
+// ---------- PropChangeLogic: a property's value changing mid-season (docs/PLAN-cast-properties.md chunk 6) ----------
+// A firing is a way out; a promotion, a demotion or a move is a dated fact like a tribe move: `ep.props = [{ castawayId, key,
+// value }]`, a season result (kind 'prop') accepted on the desk and applied per episode (decision-apply.ts), emptied on an episode a
+// viewer hasn't seen (SpoilerLogic.viewThrough). A team's shape is judged at the draft: a later change never breaks a team.
+class PropChangeLogic {
+  static add(state, epId, castawayId, key, value){
+    const ep = state.episodes.find(e => e.id === epId);
+    if(!ep || !Core.getCastaway(state, castawayId) || !key || !value) return false;
+    ep.props = ep.props || [];
+    if(ep.props.some(p => p.castawayId === castawayId && p.key === key)) return false;
+    ep.props.push({ castawayId, key, value: String(value) });
+    return true;
+  }
+  static remove(state, epId, castawayId, key){
+    const ep = state.episodes.find(e => e.id === epId);
+    if(ep) ep.props = (ep.props || []).filter(p => !(p.castawayId === castawayId && (!key || p.key === key)));
+  }
+  // Someone's latest changed value of `key` at or before episode `asOf` (all of this copy's when left out), or null.
+  static latest(state, castawayId, key, asOf){
+    let best = null;
+    for(const ep of state.episodes || []){
+      if(asOf != null && ep.number > asOf) continue;
+      const hit = (ep.props || []).find(p => p.castawayId === castawayId && p.key === key);
+      if(hit && (!best || ep.number > best.n)) best = { n: ep.number, value: hit.value };
+    }
+    return best ? best.value : null;
+  }
+  // Every change of someone's, oldest first: [{ episode, key, value }].
+  static changes(state, castawayId){
+    const out = [];
+    [...(state.episodes || [])].sort((a, b) => a.number - b.number).forEach(ep => (ep.props || []).forEach(p => { if(p.castawayId === castawayId) out.push({ episode: ep.number, key: p.key, value: p.value }); }));
+    return out;
+  }
 }
 
 class SpreadLogic {
@@ -2958,14 +2997,14 @@ class SlotLogic {
     return out;
   }
   // Whether a slot takes someone: a value they count as, or (a sport's position) their roster's position group.
-  static fits(state, id, slot){
-    return slot.values.some(v => CastPropLogic.matches(state, id, slot.of, v) || (slot.of === 'position' && !!state.statGroups && state.statGroups[id] === v));
+  static fits(state, id, slot, asOf){
+    return slot.values.some(v => CastPropLogic.matches(state, id, slot.of, v, asOf) || (slot.of === 'position' && !!state.statGroups && state.statGroups[id] === v));
   }
   // The most of `ids` the slots can take, one each, earlier ids first: { size, owner: slot index -> id }.
-  static match(state, ids, slots){
+  static match(state, ids, slots, asOf){
     const sl = slots || SlotLogic.expanded(state);
     const owner = new Array(sl.length).fill(null);
-    const fits = new Map(ids.map(id => [id, sl.map((s, i) => (SlotLogic.fits(state, id, s) ? i : -1)).filter(i => i >= 0)]));
+    const fits = new Map(ids.map(id => [id, sl.map((s, i) => (SlotLogic.fits(state, id, s, asOf) ? i : -1)).filter(i => i >= 0)]));
     const tryId = (id, seen) => {
       for(const i of fits.get(id) || []){
         if(seen.has(i)) continue;
@@ -3001,10 +3040,10 @@ class SlotLogic {
   static summary(state){
     return (SlotLogic.config(state) || []).map(x => `${x.n} ${x.label || x.values.join('/')}`).join(', ');
   }
-  // Why a lineup has someone no open slot takes, or null.
-  static problem(state, ids){
+  // Why a lineup has someone no open slot takes, or null. `asOf`: the lineup's episode (a property as it stood then: chunk 6).
+  static problem(state, ids, asOf){
     if(!SlotLogic.on(state) || !ids.length) return null;
-    const { size, owner } = SlotLogic.match(state, ids);
+    const { size, owner } = SlotLogic.match(state, ids, undefined, asOf);
     if(size === ids.length) return null;
     const left = ids.find(id => !owner.includes(id));
     const c = Core.getCastaway(state, left);
@@ -4510,7 +4549,7 @@ class ActiveRosterLogic {
       if(!ownerListOf(c).includes(playerId)) return c.name + " isn't on your roster";
     }
     // Cast properties (chunk 5): everyone in a lineup with slots has an open slot that takes them.
-    const unslotted = SlotLogic.problem(state, ids);
+    const unslotted = SlotLogic.problem(state, ids, ep.number);
     if(unslotted) return unslotted;
     // L8 part 1's engine items: a lineup locking at each game's start never moves anyone whose game has started today, in or out
     // (impeccable clarify: who, why, and when it frees up).
@@ -8277,7 +8316,7 @@ class EpisodeLogic {
   // episode has been played" means everywhere below.
   static hasResults(ep){
     return !!ep && (!!ep.noExit || (ep.events||[]).length > 0 || (ep.scoringEvents||[]).length > 0 || (ep.exiled||[]).length > 0
-      || (ep.roles||[]).length > 0 || (ep.groups||[]).length > 0
+      || (ep.roles||[]).length > 0 || (ep.groups||[]).length > 0 || (ep.props||[]).length > 0
       // L3 part 2: a game scored by a sport's stats, once its game's lines are in (StatsLogic.stamp); part 2c, any game reading a
       // sport's, once its game is final.
       || (!!ep.statLines && typeof ep.statLines === 'object') || ep.gameFinal === true);
@@ -9627,7 +9666,7 @@ class SpoilerLogic {
     const visible = s.episodes.filter(e => !ids.has(e.id) && e.number <= seenThrough).sort((a,b) => b.number - a.number)[0];
     s.episodes.forEach(ep => {
       if(!ids.has(ep.id)) return;
-      ep.events = []; ep.scoringEvents = []; ep.exiled = []; ep.roles = []; ep.groups = []; delete ep.formatGroups;
+      ep.events = []; ep.scoringEvents = []; ep.exiled = []; ep.roles = []; ep.groups = []; if(ep.props) ep.props = []; delete ep.formatGroups;
       // A14 part 3: who voted for whom says who went home.
       delete ep.voteRecord;
       // A14 part 4: secret roles revealed after an episode this viewer hasn't seen (below).
@@ -10541,6 +10580,7 @@ return {
   RuleChangeLogic,
   RoleLogic, roleOf: RoleLogic.roleOf, addRole: RoleLogic.add, removeRole: RoleLogic.remove,
   GroupLogic, addGroupChange: GroupLogic.add, removeGroupChange: GroupLogic.remove,
+  PropChangeLogic, addPropChange: PropChangeLogic.add, removePropChange: PropChangeLogic.remove,
   ensureUpcomingEpisode: EpisodeLogic.ensureUpcoming, ensureEpisodeNumber: EpisodeLogic.ensureEpisodeNumber,
   ensureNextEpisode: EpisodeLogic.ensureNextEpisode, seasonUnderway: EpisodeLogic.seasonUnderway, episodeHasResults: EpisodeLogic.hasResults,
   resultsStage: EpisodeLogic.resultsStage, setResultsStage: EpisodeLogic.setResultsStage, setNoExit: EpisodeLogic.setNoExit,

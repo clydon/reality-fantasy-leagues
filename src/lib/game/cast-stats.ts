@@ -79,6 +79,8 @@ export interface CastStat {
    *  stats read (docs/PLAN-cast-properties.md, chunk 3). */
   props?: Record<string, string>;
   bio?: import("./formats/cast-prompt").CastBio | null;
+  /** A property's changes as far as you've seen (chunk 6): [episode, key, new value, what it was]. `props` holds the latest. */
+  changes?: [number, string, string, string | null][];
   /** Over the range asked: points, each stat's count (nonzero only), points per episode (null once out), what was
    *  recorded each episode ([episode, stat key, what it scored, how many units], for their story). */
   points: number;

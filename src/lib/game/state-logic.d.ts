@@ -725,6 +725,13 @@ declare const StateLogic: {
   /** Records that someone changed tribe/team this episode (null/"" = no group now). See GroupLogic. */
   addGroupChange(state: LeagueState, epId: string, castawayId: string, groupName: string | null): boolean;
   removeGroupChange(state: LeagueState, epId: string, castawayId: string): void;
+  /** Cast properties (chunk 6): a property's value changing from an episode on (ep.props). */
+  addPropChange(state: LeagueState, epId: string, castawayId: string, key: string, value: string): boolean;
+  removePropChange(state: LeagueState, epId: string, castawayId: string, key?: string): void;
+  PropChangeLogic: {
+    latest(state: LeagueState, castawayId: string, key: string, asOf?: number): string | null;
+    changes(state: LeagueState, castawayId: string): { episode: number; key: string; value: string }[];
+  };
   GroupLogic: {
     /** Every recorded tribe/team change for one castaway, in episode order. */
     changesFor(state: LeagueState, castawayId: string): { castawayId: string; tribeId: string | null }[];

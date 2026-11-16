@@ -31,7 +31,8 @@ const WIKI_ORDER = ['version', 'voteSections', 'guideSections', 'contextSections
 // checks (research-review.js): conditions over the answers that report a contradiction or repair it, which a data-only
 // format's research runs (a built-in's code half has its own). groupVotes: who was at each vote one group goes to at a
 // time, which research reads to fill in a missed group move (db/episode-research.js tribalGroupProblems).
-const RESEARCH_DATA = ['checklist', 'episodeFields', 'searchHint', 'claims', 'checks', 'groupVotes'];
+// propChanges (cast properties, chunk 6): the questions research asks for a property's change, [{ key, answer, values? }].
+const RESEARCH_DATA = ['checklist', 'episodeFields', 'searchHint', 'claims', 'checks', 'groupVotes', 'propChanges'];
 const RESEARCH_CODE = ['entryProblems', 'notes', 'sentences'];
 // Code a format MAY supply: episodeProblems(payload) checks answers against each other across the whole
 // cast (who attended Tribal against who won immunity, say), repairing what it must and reporting it.
