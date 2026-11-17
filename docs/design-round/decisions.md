@@ -777,3 +777,37 @@
   Add to your team.
 - Why: the slot was the one photo on the screen that did something else, and a stray tap took a pick off.
 - Rejected: keeping the one-tap removal (one tap faster, but a tap on a face would mean two things on one screen).
+
+## 2026-11-17 · An episode opens over a sheet as the night itself: the Episodes tab's page, one part, as a level
+- Decided by: Claude, default, from the rules the user set for the drill pass (every episode on screen opens the level it names;
+  every level is a sheet over the last, back one at a time; the castaway sheet's precedent, one part from every way in)
+- What: a castaway's story ("Episode 4 ›") and their status ("Out · Ep 4 · Voted out ›") open the night: the episode page's own
+  body (episodes.tsx EpisodeNight, which the page renders too) in a sheet over whatever's open, ‹ › through the episodes you've
+  seen. Its jumps (a game's line, Discuss, Replay) leave the sheets as any jump from a sheet does. A game's episode stays that
+  game's own level (everyone's plays that night).
+- Why: a pushed page sits under every sheet (z 70 against 81), so the page can't open from one; the body as a level keeps the
+  stack, and back steps down one level.
+- Rejected: lifting the pushed page over the sheets (pages under sheets is the layering every back relies on, and the page lives
+  on the Episodes tab alone); a night sheet of its own (a near twin of the page, BACKLOG 97's worry); closing the sheets and going to
+  the Episodes tab (back would land without them); leaving the story's episodes dead ends (they name the episode).
+- Rests on: docs/design-round/drill-audit.md, step 3; check-drill-doors.js story-night and status-night.
+
+## 2026-11-17 · A game's weeks and numbers open their week in place, or that castaway at that episode
+- Decided by: Claude, default (the drill audit's rows 7 and 8)
+- What: a week's heading in a person's season turns the lineup above to it; a compare's week (chart or table) turns its heads to
+  it; a number in a person's season or the game table opens the castaway's sheet at that episode of their story; a matchup's
+  best lineup opens the two side by side that week; a lineup's played-week title opens everyone's plays that week, as other
+  games' titles already do. The castaway sheet's game weeks and stat strips open their story in place, as its chart already did.
+- Why: the week is already on the sheet you're in (the lineup above, the heads), so it changes there and back still takes the
+  sheet; a castaway's number asks why, and their story that episode answers it.
+- Rejected: a week heading opening the game's episode level (everyone's plays) from a person's own season (the question there is
+  their week); the game table's headings opening anything but their sort (sorting by a week is that table's job).
+- Rests on: check-drill-doors.js lineup-title, season-cell, season-week, table-cell, compare-week, strip-story.
+
+## 2026-11-17 · Chat's landmark for an episode you've seen opens the episode's page
+- Decided by: Claude, default
+- What: the landmark's chip ("Ep 5 ›") is a link to the episode's page on the Episodes tab, whose back says Chat and whose Discuss
+  comes back; an episode you haven't seen stays a plain divider.
+- Why: mid-chat ("who went home again?") is when the page is wanted, and the divider has no tap of its own to lose.
+- Rejected: leaving it a divider (the page is a tab away, but the episode is named right there).
+- Rests on: check-drill-doors.js chat-episode.

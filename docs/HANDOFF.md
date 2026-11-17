@@ -172,8 +172,14 @@ slot opens the sheet with Take them out; waivers' spot plate faces, the claim pi
 the foot; the row keeps selecting) and Everyone's moves (the castaway, and the person in the game) open theirs. Seat heads, the
 clock, the order, the blind reveal and the run's slides stay. check-drill-doors.js now has three sets (couch, draft, waivers; the
 last two bring their fixtures up and down): 41 pass, 3 skipped; story v3. check-new-draft.js is stale since step 6 (BACKLOG 99).
-**Next: step 3**, episodes: decide how an episode level opens over a sheet (the episode page is a pushed page under every sheet),
-then charts, tables and headers (drill-audit.md rows 7, 8).
+**Step 3** (episodes) committed after it: an episode named over a sheet opens the night, the Episodes tab's page body as a level
+(`EpisodeNight`, loaded on demand; game-sheets.tsx `night` door), from a castaway's story ("Episode 4 ›") and status; a game's
+weeks and numbers open that week in place (a season's heading, a compare's week) or that castaway at that episode (season and
+game-table numbers; a cast door's `episode` scrolls their story); a matchup's best lineup opens the compare; a lineup's played-week
+title opens the game's episode; the castaway sheet's game weeks and stat strips open their story in place; Chat's landmark opens
+an episode you've seen. Stays and the sweep of every episode on screen are in drill-audit.md, step 3. games.tsx's `opens` now
+reads opensSheet when called (a module loop broke the hub's rankings once). check-drill-doors.js on all three fixtures: 57 pass, 4 skipped (data the fixtures lack).
+**Next: step 4**, the hub and sports (drill-audit.md rows 9, 11, with Previously on's episode rows and a sport's game log).
 **Open:** a game's points about 630 px down from its page (the header could
 carry them); Outlast's row opening to one holder line; the board's "Who has them in: Nobody". Still the user's: the Compare flow
 change and the next pass's order (drill-audit.md, with the user's two rules: every cast photo opens their sheet; each dead end gets

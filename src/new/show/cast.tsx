@@ -147,7 +147,7 @@ function ShowCast({ seasonId, show }: { seasonId: string; show: ShowData }) {
             <p className="mb-1 text-[13px] text-muted-foreground" data-lens-head>
               Points as <b className="font-semibold text-foreground">{gameName(game)}</b> counts them, and who holds each
             </p>
-            <GameTable g={game} words={w} onFace={(id) => drill.openCast(game, id)} />
+            <GameTable g={game} words={w} onFace={(id, n) => drill.openCast(game, id, n)} />
           </div>
         ) : (
           <>
@@ -469,7 +469,7 @@ const pts = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n)}`;
 
 /** A castaway's season so far, newest first (the person sheet's story; a game's page shows it with that game's points under "In
  *  this game", U1 step 2b). `points={false}`: the show's facts only (the cast tab, step 5). */
-export function StoryBody({ d, c, names, onFlag, group = true, photo = true, points = true, lit = null, marks = null }: { d: SeasonStats; c: CastStat; names?: Map<string, string>; onFlag?: ((episode: number, who: string) => void) | null; group?: boolean; photo?: boolean; points?: boolean; lit?: number | null; marks?: Map<string, string> | null }) {
+export function StoryBody({ d, c, names, onFlag, onEpisode, group = true, photo = true, points = true, lit = null, marks = null }: { d: SeasonStats; c: CastStat; names?: Map<string, string>; onFlag?: ((episode: number, who: string) => void) | null; onEpisode?: (episode: number) => void; group?: boolean; photo?: boolean; points?: boolean; lit?: number | null; marks?: Map<string, string> | null }) {
   names ??= new Map(d.stats.map((s) => [s.key, s.name]));
   return (
     <div className={`flex gap-3 pb-2 ${photo ? "mt-3" : ""}`} data-story={c.first}>
@@ -509,7 +509,15 @@ export function StoryBody({ d, c, names, onFlag, group = true, photo = true, poi
           return (
             <section key={e} data-story-ep={e} className={`scroll-mt-2 border-t border-border py-2 first:border-t-0 ${gone ? "opacity-55" : ""} ${lit === e ? "nd-lit" : ""}`}>
               <header className="flex min-h-9 items-center gap-2">
-                <b className="type-caption text-[14px] tracking-[0.04em] text-muted-foreground">Episode {e}</b>
+                {onEpisode ? (
+                  // The night itself: who else left, what happened, how it went (the drill pass, 2026-11-17).
+                  <button type="button" data-story-door={e} onClick={() => onEpisode(e)} className="nd-press -my-1 inline-flex min-h-11 items-center gap-0.5 py-1">
+                    <b className="type-caption text-[14px] tracking-[0.04em] text-muted-foreground">Episode {e}</b>
+                    <ChevronRight className="size-3.5 text-muted-foreground" aria-hidden />
+                  </button>
+                ) : (
+                  <b className="type-caption text-[14px] tracking-[0.04em] text-muted-foreground">Episode {e}</b>
+                )}
                 {unsure && (
                   <i data-unsure={unsure} className="whitespace-nowrap rounded-[2px] bg-secondary px-1.5 py-px text-[11px] font-bold not-italic text-muted-foreground">
                     {unsure === "disputed" ? "Disputed" : "1 source"}
@@ -660,7 +668,7 @@ function SportCast({ seasonId, show }: { seasonId: string; show: ShowData }) {
             <p className="mb-1 text-[13px] text-muted-foreground" data-lens-head>
               Points as <b className="font-semibold text-foreground">{gameName(game)}</b> counts them, and who holds each
             </p>
-            <GameTable g={game} words={w} onFace={(id) => drill.openCast(game, id)} />
+            <GameTable g={game} words={w} onFace={(id, n) => drill.openCast(game, id, n)} />
           </div>
         ) : (
           <>

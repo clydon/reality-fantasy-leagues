@@ -18,6 +18,16 @@
 //   episode-out        an episode's page (Episodes): who left opens the castaway's sheet
 //   episode-winner     the same page's What happened: a person (not a tribe) opens their sheet
 //   episode-scorer     the same page's game best this episode: a castaway opens their sheet in that game
+//   lineup-title       Lineup League, alex's season sheet: a played week's title opens everyone's plays that week (the game's episode)
+//   season-cell        the same sheet's season table, a number: that castaway's sheet at that episode of their story
+//   season-week        the same table's week heading: the lineup above turns to that week, in place (one back still takes the sheet)
+//   table-cell         the game page's Everyone in this game, a number: that castaway at that episode of their story
+//   compare-week       a castaway's Compare with…, someone picked, a week's column: the heads read that week, in place
+//   best-lineup        a matchup's "Best lineup … X for Y": the two side by side that week (SKIP: no head to head on the test couch)
+//   story-night        a castaway's story, "Episode N ›": the night (the episode's page as a level) over their sheet
+//   status-night       the castaway sheet's "Out · Ep N": the night they left
+//   strip-story        Their numbers, a row opened, an episode in its strip: that episode of their story, in place
+//   chat-episode       Chat's landmark for an episode alex has seen: the episode's page (a jump to Episodes), back to the chat
 //
 // draft: draft-fixture.js as alex, brought up here (Couch Cup's snake draft six picks in, alex up; the blind draft started), then
 // again with every pick in; taken down at the end unless --keep
@@ -245,6 +255,184 @@ const wanted = (id) => !ONLY || new RegExp(ONLY).test(id);
       await door("episode-out", { go: episode, door: async () => p.locator("[data-episode-page] > div [data-door-cast]").first(), opened: castSheet, still: "[data-episode-page]", skip: "nobody left in Episode 5" });
       await door("episode-winner", { go: episode, door: async () => p.locator("[data-ep-happened] [data-door-cast]").first(), opened: castSheet, still: "[data-episode-page]", skip: "no person in What happened" });
       await door("episode-scorer", { go: episode, door: async () => p.locator("[data-ep-scorers] [data-door-cast]").first(), opened: castSheet, still: "[data-episode-page]", skip: "no best this episode" });
+
+      // A game's weeks and numbers (step 3): Lineup League's page, alex's own season sheet (a lineup and the season under it).
+      const gamePage = async () => {
+        await p.goto(`${BASE}/show/${season}/game/${lineup}`, { waitUntil: "domcontentloaded" });
+        await p.locator("[data-game-page]").first().waitFor({ timeout: 45000 });
+        await wait(p, 1200);
+      };
+      const yourSheet = async () => {
+        await gamePage();
+        await p.locator("[data-door-you]").first().click();
+        await p.locator("[data-sheet-player]").last().waitFor({ timeout: 15000 });
+        await wait(p, 900);
+      };
+      const storyAt = (sel, attr) => async () => {
+        // The castaway's sheet opened at that episode: their story's episode in view (the story runs newest first, so its first
+        // episode can only come up as far as the sheet's end allows).
+        const n = (await p.locator(sel).first().getAttribute(attr))?.split(":")[1];
+        const box = await p.locator(`[data-cast-sheet] [data-story-ep="${n}"]`).last().boundingBox({ timeout: 5000 }).catch(() => null);
+        return box && box.y > 0 && box.y + 24 < H ? null : `Episode ${n} of their story isn't in view (${box ? Math.round(box.y) : "missing"})`;
+      };
+      // The one of several in view (a pager keeps every week's pane in the page, side by side).
+      const inView = async (loc) => {
+        for (let i = 0; i < (await loc.count()); i++) {
+          const b = await loc.nth(i).boundingBox();
+          if (b && b.x >= 0 && b.x < W && b.y >= 0 && b.y < H) return loc.nth(i);
+        }
+        return null;
+      };
+      await door("lineup-title", {
+        go: yourSheet,
+        door: async () => inView(p.locator("[data-sheet-player] [data-week-pane] [data-door-episode]")),
+        opened: async () => p.locator("[data-episode-sheet]").last().waitFor({ timeout: 15000 }),
+        still: "[data-sheet-player]",
+        skip: "no played week in alex's lineup",
+      });
+      await door("season-cell", { go: yourSheet, door: async () => p.locator("[data-season-cell]").first(), opened: castSheet, check: storyAt("[data-season-cell]", "data-season-cell"), still: "[data-sheet-player]", skip: "no numbers in alex's season" });
+      // A week's heading changes the sheet in place (no new level): the lineup turns to it, and one back still takes the sheet.
+      await step("season-week", async () => {
+        await yourSheet();
+        const heads = p.locator("[data-season-week]");
+        if ((await heads.count()) < 2) return "SKIP: fewer than two weeks in alex's season";
+        const h = heads.first();
+        const n = await h.getAttribute("data-season-week");
+        const was = await dialogs(p).count();
+        await h.scrollIntoViewIfNeeded();
+        await shot("season-week", "before");
+        await h.click();
+        await wait(p, 900);
+        await shot("season-week", "after");
+        if ((await dialogs(p).count()) !== was) return "a week's heading opened a level";
+        if ((await h.getAttribute("aria-pressed")) !== "true") return `Ep ${n}'s heading isn't marked as the week shown`;
+        const pane = await p.locator(`[data-sheet-player] [data-week-pane="${n}"]`).first().boundingBox();
+        if (!pane || pane.y < 0 || pane.y > H) return `the lineup didn't come to Ep ${n} in view`;
+        await p.goBack();
+        await wait(p, 900);
+        await shot("season-week", "back");
+        return (await dialogs(p).count()) === was - 1 ? null : "back didn't take the sheet the week changed in";
+      });
+      await door("table-cell", {
+        go: async () => {
+          await gamePage();
+          await p.locator('[data-game-page] button:has-text("Everyone in this game")').first().click();
+          await p.locator("[data-game-table]").last().waitFor({ timeout: 15000 });
+          await wait(p, 900);
+        },
+        door: async () => p.locator("[data-game-table] [data-table-cell]").first(),
+        opened: castSheet,
+        check: storyAt("[data-game-table] [data-table-cell]", "data-table-cell"),
+        still: "[data-game-table]",
+      });
+      // A compare's week: a castaway's Compare with…, someone picked, then a week's column (in place, the heads read it).
+      await step("compare-week", async () => {
+        await gamePage();
+        const face = p.locator("[data-game-page] [data-door-cast]").first();
+        if (!(await face.count())) return "SKIP: no castaway on Lineup League's page";
+        await face.click();
+        await castSheet();
+        await wait(p, 700);
+        await p.locator("[data-compare-with]").last().click();
+        await p.locator("[data-compare-pick]").last().waitFor({ timeout: 15000 });
+        await wait(p, 700);
+        await p.locator("[data-compare-pick] button:not(:disabled)").nth(1).click();
+        const weeks = p.locator("[data-compare] [data-compare-week]");
+        await weeks.first().waitFor({ timeout: 15000 });
+        if ((await weeks.count()) < 2) return "SKIP: one week to compare";
+        const wk = weeks.first();
+        const was = await dialogs(p).count();
+        await shot("compare-week", "before");
+        await wk.click();
+        await wait(p, 700);
+        await shot("compare-week", "after");
+        if ((await dialogs(p).count()) !== was) return "a week's column opened a level";
+        if ((await wk.getAttribute("aria-pressed")) !== "true") return "the column isn't marked as the week read";
+        const heads = await p.locator("[data-compare]").last().innerText();
+        return new RegExp(`Ep ${await wk.getAttribute("data-compare-week")} ·`).test(heads) ? null : "the heads don't read the week";
+      });
+      // The night itself over a sheet (step 3): a castaway's story names its episodes, each opening the episode's page as a level.
+      await door("story-night", {
+        go: async () => {
+          await tonight();
+          await p.locator("[data-last-out][data-door-cast]").first().click();
+          await castSheet();
+          await wait(p, 900);
+        },
+        door: async () => p.locator("[data-cast-sheet] [data-story-door]").first(),
+        opened: async () => p.locator("[data-night-sheet] [data-episode-page]").last().waitFor({ timeout: 15000 }),
+        under: 1,
+        still: "[data-cast-sheet]",
+        skip: "no castaway with a story on Tonight",
+      });
+      const lastOut = async () => {
+        await tonight();
+        await p.locator("[data-last-out][data-door-cast]").first().click();
+        await castSheet();
+        await wait(p, 900);
+      };
+      // The castaway's status names the night they left: it opens that night over their sheet.
+      await door("status-night", {
+        go: lastOut,
+        door: async () => p.locator("[data-cast-sheet] [data-night-door]").first(),
+        opened: async () => p.locator("[data-night-sheet] [data-episode-page]").last().waitFor({ timeout: 15000 }),
+        under: 1,
+        still: "[data-cast-sheet]",
+        skip: "nobody who left on Tonight",
+      });
+      // A stat's strip (Their numbers, a row opened): an episode in it goes to that episode of their story, in place.
+      await step("strip-story", async () => {
+        // Someone on alex's team (Lineup League's page), who has numbers.
+        await gamePage();
+        await p.locator("[data-game-page] [data-door-cast]").first().click();
+        await castSheet();
+        await wait(p, 900);
+        const row = p.locator("[data-cast-sheet] [data-stat-open]").first();
+        if (!(await row.count())) return "SKIP: no numbers for them";
+        await row.scrollIntoViewIfNeeded();
+        await row.click();
+        await wait(p, 600);
+        const marks = p.locator("[data-cast-sheet] [data-strip-episode]:not(:disabled)");
+        if (!(await marks.count())) return "SKIP: no episode in the strip";
+        const ep = marks.first();
+        const n = await ep.getAttribute("data-strip-episode");
+        const was = await dialogs(p).count();
+        await ep.scrollIntoViewIfNeeded();
+        await shot("strip-story", "before");
+        await ep.click();
+        await wait(p, 900);
+        await shot("strip-story", "after");
+        if ((await dialogs(p).count()) !== was) return "the strip opened a level";
+        const box = await p.locator(`[data-cast-sheet] [data-story-ep="${n}"]`).last().boundingBox();
+        return box && box.y > 0 && box.y + 24 < H ? null : `Episode ${n} of their story isn't in view`;
+      });
+      // Chat's landmark for an episode you've seen: the episode's page (a jump to the Episodes tab), back to the chat.
+      await step("chat-episode", async () => {
+        await p.goto(`${BASE}/show/${season}/chat`, { waitUntil: "domcontentloaded" });
+        await p.locator("[data-chat]").first().waitFor({ timeout: 45000 });
+        await wait(p, 1500);
+        const mark = p.locator("[data-ep-door]").last();
+        if (!(await mark.count())) return "SKIP: no landmark for an episode alex has seen";
+        const n = await mark.getAttribute("data-ep-door");
+        const chatUrl = p.url();
+        await mark.scrollIntoViewIfNeeded();
+        await shot("chat-episode", "before");
+        await mark.click();
+        await p.locator(`[data-episode-page="${n}"]`).first().waitFor({ timeout: 20000 });
+        await wait(p, 900);
+        await shot("chat-episode", "after");
+        await p.goBack();
+        await p.locator("[data-chat]").first().waitFor({ timeout: 20000 });
+        await wait(p, 900);
+        await shot("chat-episode", "back");
+        return p.url() === chatUrl ? null : `back landed on ${p.url()}, not the chat`;
+      });
+      await door("best-lineup", {
+        go: async () => {},
+        door: async () => p.locator("[data-best-door]").first(),
+        opened: async () => p.locator("[data-compare]").last().waitFor({ timeout: 15000 }),
+        skip: "the test couch has no head-to-head game (a matchup's best lineup)",
+      });
     }
 
     // The draft room (step 2b): every castaway on it opens the one castaway sheet, the room's action (or who has them) at its foot.

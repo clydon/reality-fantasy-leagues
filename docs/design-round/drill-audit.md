@@ -50,9 +50,11 @@ From a read-only sweep of `src/new` (file:line as of ff043c48 plus the round's c
 Inconsistencies found on the way:
 - "In your games" opened the game's cast sheet on the Cast tab but the game page from the draft room and waivers: one behaviour
   now (the row opens in place).
-- "Episode N" is a door in one person sheet (game-sheets.tsx EpisodeBlock) and plain text in the lineup sheet.
+- "Episode N" is a door in one person sheet (game-sheets.tsx EpisodeBlock) and plain text in the lineup sheet. One door since
+  step 3.
 - The episode page (`?page=epN`) is a pushed page on the Episodes tab only, under every sheet (z 70 against a sheet's 81), so no
-  sheet can open it today; an episode level that works over sheets is a structural question for the next pass.
+  sheet can open it today; an episode level that works over sheets is a structural question for the next pass. Settled in step 3:
+  the night, the page's own body, comes up as a level.
 - The castaway sheet's header differs by the way in (noticed in step 2b): the draft's and waivers' own sheets put the tribe under
   the name ("Jelly", "Blue"); a level of the drill (a move's castaway, Tonight, the episode page) puts the show and how far it's
   seen ("Rob", "Survivor · up to Ep 3") under the crumb. The body is the same part. One header for every way in, the crumb only
@@ -108,6 +110,47 @@ with every pick in; waivers-fixture.js open, processed and idle as Sam), each do
 the row without saving: 24 pass. The whole check: 41 pass, 3 skipped (the test couch has no head to head, no due final result
 and no person in Episode 5's What happened).
 
+## Step 3 done: episodes (2026-11-17)
+
+**An episode over a sheet.** A sheet can't open the Episodes tab's page (a pushed page sits under every sheet), so the episode
+comes up as a level of its own: the night, the page's own body (`episodes.tsx` EpisodeNight, one part, which the page renders too)
+in a sheet over whatever's open, ‹ › through the episodes you've seen, back one level at a time. Its jumps (a game's line, Discuss,
+Replay) leave the sheets, as any jump from a sheet does (sheet-history.ts: a push to another page takes the sheets' entries). A
+game's episode stays that game's own level (everyone's plays that night). The body loads when a night first opens (next/dynamic):
+imported outright, the Episodes tab's imports loop back to game-sheets.tsx, and games.tsx read one of its exports before it was set
+(the hub's rankings broke on it; games.tsx now reads it when called).
+
+| Where | Who taps it, wanting what | Verdict |
+| --- | --- | --- |
+| A castaway's story, each "Episode N" (cast.tsx StoryBody) | Joanna: she was voted out in Ep 4; what happened? | **Door**: the night, over their sheet; the heading ends in › |
+| The castaway sheet's status ("Out · Ep 4 · Voted out", "Sole Survivor · Ep 13") | The night they left | **Door**: the night; the status ends in › |
+| The castaway sheet's other charts: a game's weeks (In the couch's games, opened) and a stat's strip (Their numbers, opened) | Why did she score 4 in Ep 3? | **Door, in place**: that episode of their story, as the season chart's columns already did |
+| A person's season in a lineup game (game-week.tsx PersonSeason): a week's heading | Andrew: my lineup that week | **Door, in place**: the lineup above turns to that week and comes into view, the week shown lit; head to head, the heading is part of that week's matchup door |
+| The same table's numbers, and the game table's (GameTable) | Why did Jenna score 4 that week? | **Door**: the castaway's sheet at that episode of their story; the game table's headings keep sorting (that table's job) |
+| A compare's chart and its table (CompareBody: a matchup's pair, a castaway's Compare with… in a game) | How did they do that week? | **Door, in place**: the heads read that week; a head then opens that castaway at it |
+| A matchup's "Best lineup … Jenna for Kyle" | Would Jenna really have been better? | **Door**: the two side by side that week; the line ends in › |
+| The lineup sheet's title for a played week (row 8) | Everyone's lineups that week | **Door**: the game's episode level, as every other game's title already was; a week still to play **stays** (nothing to see yet) |
+| Chat's landmark for an episode you've seen | Joanna, mid-chat: who went home in Ep 5? | **Door**: the episode's page (a jump: its back says Chat, its Discuss comes back); one not seen stays a divider |
+
+**Stays**, from a sweep of every episode named on a player's screen:
+- A sheet's own title (the game's episode level, a matchup's week) and a task sheet's title or line (Call it · Episode 6, Fill in
+  Episode 5, the bets' and questions' subtitles, Something wrong in Episode 4?): the episode says what the sheet is for, and a door
+  there would pull you off the task.
+- An episode not yet aired, on air or not yet seen (Tonight's Next and On tonight, the Episodes tab's next, waiting and
+  still-to-air rows, a lineup's week to come, a grid's or strip's next column): nothing to open before it's yours to see.
+- A section's title whose rows are doors (Tonight's Last time, which ends in "Ep 5 recap ›"; the game page's week games; Tonight's
+  After the episode, whose plate is the reveal).
+- Moments that play once (the reveal, a watch-along, the waiver run's slides; a tap moves them on) and marks or ranges (Up to
+  Episode 7, Episodes 1–7, Thru Ep 5): a mark is where someone is, not an episode.
+- The Games tab's "Ep 6 · vs Max" inside a game's row, which opens the game page (as "3 behind riley").
+
+Left for step 4: the hub's Previously on (its episode rows open the Episodes list, not the episode; the story so far's faces) and a
+sport's game log ("Ep 4 · vs DAL").
+
+Checked by `check-drill-doors.js`'s couch set, each door with its back (a change in place: nothing opened, and one back still
+takes the sheet it's in): 16 pass, a matchup's best lineup skipped (no head to head on the test couch). The whole check, all three
+fixtures: 57 pass, 4 skipped.
+
 ## The phone's back through the doors (the user, 2026-11-17: "consistent and natural throughout the app")
 
 One rule, from `src/new/ui/sheet-history.ts`: each level that opens over the page is a sheet with its own history entry, so the
@@ -125,5 +168,5 @@ the hub's step 7 redesign (it waits for a guide sheet the card no longer opens t
    that exists already (`person` with `game`).
 2. Castaways wherever they appear: Tonight's Who scored, the episode page, the draft room, waivers' picker (rows 2, 3, 5, 6): the
    one castaway sheet, with the surface's action at its foot where it has one (Draft, Pick). Done (steps 2a and 2b).
-3. Episodes: decide how an episode level opens over a sheet, then charts, tables and headers (rows 7, 8).
+3. Episodes: decide how an episode level opens over a sheet, then charts, tables and headers (rows 7, 8). Done (step 3).
 4. The hub and sports (rows 9, 11).

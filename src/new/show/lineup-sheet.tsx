@@ -67,7 +67,7 @@ const BAR = 64;
 const pillAt = (i: number, n: number) => `translateX(calc(${Math.max(0, Math.min(n - 1, i))} * (100% + 4px)))`;
 const reduced = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-export function LineupSheet({ g, r, week, onWeek, words, onClose, onFace, noTeam }: { g: GameView; r: TableRow; week: number | null; onWeek: (episode: number) => void; words: Words; onClose: () => void; onFace?: (id: string) => void; noTeam?: boolean }) {
+export function LineupSheet({ g, r, week, onWeek, words, onClose, onFace, openEpisode, noTeam }: { g: GameView; r: TableRow; week: number | null; onWeek: (episode: number) => void; words: Words; onClose: () => void; onFace?: (id: string) => void; openEpisode?: (episode: number) => void; noTeam?: boolean }) {
   const next = nextWeek(g);
   const items: Item[] = [...r.weeks.map((w) => ({ n: w.episode, w })), ...(next ? [{ n: next.episode, w: null }] : [])];
   const found = items.findIndex((x) => x.n === week);
@@ -151,7 +151,7 @@ export function LineupSheet({ g, r, week, onWeek, words, onClose, onFace, noTeam
         count={items.length}
         index={index}
         onIndex={(i) => onWeek(items[i].n)}
-        page={(i) => <WeekPane g={g} r={r} it={items[i]} next={next} words={words} onClose={onClose} onFace={onFace} />}
+        page={(i) => <WeekPane g={g} r={r} it={items[i]} next={next} words={words} onClose={onClose} onFace={onFace} openEpisode={openEpisode} />}
         // The bars' highlight follows the week, finger and all.
         onMove={(at, ms, easing) => {
           const p = pill.current;
@@ -171,7 +171,7 @@ export function LineupSheet({ g, r, week, onWeek, words, onClose, onFace, noTeam
 }
 
 /** One week: who started and the bench with that episode's points, or for the episode being set, who's set. */
-function WeekPane({ g, r, it, next, words, onClose, onFace }: { g: GameView; r: TableRow; it: Item; next: ReturnType<typeof nextWeek>; words: Words; onClose: () => void; onFace?: (id: string) => void }) {
+function WeekPane({ g, r, it, next, words, onClose, onFace, openEpisode }: { g: GameView; r: TableRow; it: Item; next: ReturnType<typeof nextWeek>; words: Words; onClose: () => void; onFace?: (id: string) => void; openEpisode?: (episode: number) => void }) {
   const w = it.w;
   const title = `${words.episode} ${it.n}`;
   if (!w) {
@@ -250,7 +250,16 @@ function WeekPane({ g, r, it, next, words, onClose, onFace }: { g: GameView; r: 
     <div data-week-pane={it.n}>
       <div className="flex items-end gap-3">
         <div className="min-w-0 flex-1">
-          <h3 className="type-caption text-[26px]">{title}</h3>
+          {openEpisode ? (
+            // Everyone's plays that week in the game, as another game's week title opens them (the drill pass, 2026-11-17).
+            <h3 className="type-caption text-[26px]">
+              <button type="button" data-door-episode={it.n} onClick={() => openEpisode(it.n)} className="-my-1 py-1 text-left underline decoration-border decoration-2 underline-offset-[5px]">
+                {title}
+              </button>
+            </h3>
+          ) : (
+            <h3 className="type-caption text-[26px]">{title}</h3>
+          )}
           <p className="mt-1 text-[13px] text-muted-foreground">
             {placeWords(weekPlace(g, r.playerId, it.n))} of {g.table.length} that week
             {sq?.late && <span data-late-set> · {LATE_SET}</span>}

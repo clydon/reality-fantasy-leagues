@@ -666,8 +666,8 @@ function YourMoveCard({ g, m }: { g: GameView; m: YourMove }) {
 const weekly = (g: GameView) => g.gameType === "active-roster" && (g.table.some((r) => r.weeks.length > 0) || !!nextWeek(g));
 
 /** Whether a row opens a sheet: every game's (U1 step 2b, the sheet family: calls, bingo and questions too), not a public pool's
- *  strangers. */
-const opens = opensSheet;
+ *  strangers. Read when called, not when this file loads: game-sheets.tsx and the files it imports load in either order. */
+const opens: typeof opensSheet = (g, r) => opensSheet(g, r);
 
 /** What a table's two right-hand columns are, where a game's say it plainly (the pool's number is a streak, not points). */
 const COLUMNS: Record<string, [string, string]> = { pickem: ["Last picks", "Streak"], "classic-draft": ["Team", "Points"] };

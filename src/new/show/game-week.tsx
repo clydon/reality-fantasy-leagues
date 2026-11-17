@@ -684,9 +684,17 @@ export function MatchupBody({ g, pid, n, words, sport, onFace, onCompare, onPers
           {[A, B].map((s, i) => (
             <p key={i} className="text-muted-foreground">
               {s.best ? (
-                s.best.cost > 0 ? (
+                s.best.cost > 0 && s.best.inId && s.best.outId ? (
+                  // The swap that would have scored more: the two side by side that week (the drill pass, 2026-11-17).
+                  <button type="button" data-best-door={`${s.best.inId}:${s.best.outId}`} onClick={() => onCompare(s.best!.inId!, s.best!.outId!)} className="nd-press -my-1 flex min-h-11 w-full items-center gap-1 py-1 text-left">
+                    <span className="min-w-0 flex-1">
+                      Best lineup <b className="type-num text-[15px] text-foreground">{fmt(s.best.best)}</b> (+{fmt(s.best.cost)}): {castName(faceIn(g, s.best.inId), g)} for {castName(faceIn(g, s.best.outId), g)}
+                    </span>
+                    <ChevronRight className="size-4 flex-none" aria-hidden />
+                  </button>
+                ) : s.best.cost > 0 ? (
                   <>
-                    Best lineup <b className="type-num text-[15px] text-foreground">{fmt(s.best.best)}</b> (+{fmt(s.best.cost)}): {castName(faceIn(g, s.best.inId ?? ""), g)} for {castName(faceIn(g, s.best.outId ?? ""), g)}
+                    Best lineup <b className="type-num text-[15px] text-foreground">{fmt(s.best.best)}</b> (+{fmt(s.best.cost)})
                   </>
                 ) : (
                   "Best lineup: as started"
@@ -908,7 +916,7 @@ function useOpenOnLatest(scrollerRef: RefObject<HTMLDivElement | null>) {
 /** A person's season under their week-by-week chart, as one table a week a column: the result each week (head to head: the
  *  square, who, the score), then a castaway a row (started on the raised fill, benched dim, the week they went home marked, their
  *  points for this person pinned at the end), then what the bench cost each week. */
-export function PersonSeason({ g, r, words, sport, onMatchup, onFace }: { g: GameView; r: TableRow; words: ShowData["words"]; sport?: boolean; onMatchup: (episode: number) => void; onFace: (id: string) => void }) {
+export function PersonSeason({ g, r, words, sport, at = null, onMatchup, onWeek, onFace }: { g: GameView; r: TableRow; words: ShowData["words"]; sport?: boolean; at?: number | null; onMatchup: (episode: number) => void; onWeek?: (episode: number) => void; onFace: (id: string, episode?: number) => void }) {
   const weeks = r.weeks;
   const scroller = useRef<HTMLDivElement>(null);
   useOpenOnLatest(scroller);
@@ -944,14 +952,34 @@ export function PersonSeason({ g, r, words, sport, onMatchup, onFace }: { g: Gam
                 return (
                   <th key={w.episode} data-week-col className={`${COL} pb-1 align-bottom font-normal`}>
                     {h2h && s?.result ? (
+                      // The week's matchup: its square, who against and the week's name, one door.
                       <button type="button" data-person-week={w.episode} onClick={() => onMatchup(w.episode)} aria-label={`${words.episode} ${w.episode}: ${s.result.r === "W" ? "won" : s.result.r === "L" ? "lost" : "tied"} against ${o?.name ?? "the middle score"}, ${scoreWords(s.result.us, s.result.them)}`} className="nd-press flex min-h-11 w-full flex-col items-center justify-end gap-0.5">
                         <ResultSquare r={s.result.r === "W" ? "win" : s.result.r === "L" ? "loss" : "tie"} />
                         <span className="text-[11px] font-semibold">{o ? (o.you ? "You" : first(o.name)) : "Mid"}</span>
+                        <span className={`type-caption block text-center text-[13px] ${w.episode === at ? "text-foreground" : "text-muted-foreground"}`}>
+                          {words.ep} {w.episode}
+                        </span>
                       </button>
-                    ) : null}
-                    <span className="type-caption block text-center text-[13px] text-muted-foreground">
-                      {words.ep} {w.episode}
-                    </span>
+                    ) : onWeek ? (
+                      // Their week, in place: the lineup above turns to it and comes into view (the drill pass, 2026-11-17).
+                      <button
+                        type="button"
+                        data-season-week={w.episode}
+                        aria-pressed={w.episode === at}
+                        aria-label={`${words.episode} ${w.episode}: their lineup that ${words.episode.toLowerCase()}`}
+                        onClick={(ev) => {
+                          onWeek(w.episode);
+                          ev.currentTarget.closest<HTMLElement>("[data-sheet-player]")?.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+                        }}
+                        className={`nd-press type-caption flex min-h-11 w-full items-end justify-center text-center text-[13px] underline decoration-border decoration-2 underline-offset-[4px] ${w.episode === at ? "text-foreground" : "text-muted-foreground"}`}
+                      >
+                        {words.ep} {w.episode}
+                      </button>
+                    ) : (
+                      <span className="type-caption block text-center text-[13px] text-muted-foreground">
+                        {words.ep} {w.episode}
+                      </span>
+                    )}
                   </th>
                 );
               })}
@@ -975,9 +1003,16 @@ export function PersonSeason({ g, r, words, sport, onMatchup, onFace }: { g: Gam
                   {weeks.map((w) => {
                     const x = cell(id, w);
                     return (
-                      <td key={w.episode} className={`relative ${COL} h-11 rounded-[2px] border-t border-border text-center align-middle ${x?.start ? "bg-secondary" : ""}`}>
-                        {x ? <span className={`type-num text-[14px] ${x.start ? "text-foreground" : "text-muted-foreground"}`}>{signed(x.p)}</span> : <span className="text-muted-foreground/50">·</span>}
-                        {c?.out === w.episode && <i aria-label="went home" className="absolute right-0.5 top-1 size-1.5 rounded-full bg-live" />}
+                      <td key={w.episode} className={`relative ${COL} h-11 rounded-[2px] border-t border-border p-0 text-center align-middle ${x?.start ? "bg-secondary" : ""}`}>
+                        {x ? (
+                          // That castaway that week: their sheet, at that episode of their story (the drill pass, 2026-11-17).
+                          <button type="button" data-season-cell={`${id}:${w.episode}`} aria-label={`${castName(c, g)}, ${words.episode} ${w.episode}: ${signed(x.p)}${x.start ? "" : " on the bench"}`} onClick={() => onFace(id, w.episode)} className={`nd-press type-num grid h-11 w-full place-items-center text-[14px] ${x.start ? "text-foreground" : "text-muted-foreground"}`}>
+                            {signed(x.p)}
+                          </button>
+                        ) : (
+                          <span className="text-muted-foreground/50">·</span>
+                        )}
+                        {c?.out === w.episode && <i aria-label="went home" className="pointer-events-none absolute right-0.5 top-1 size-1.5 rounded-full bg-live" />}
                       </td>
                     );
                   })}
@@ -1185,7 +1220,7 @@ export function PairedLineups({ g, pairs, a, b, played, onCompare }: { g: GameVi
 /** Two players side by side (from a matchup's pair): this week and every week of this game at its scoring, as one chart the
  *  width of the screen (yours and theirs in their pair of colours, the week you came from tinted, values on the bars when it
  *  fits), then the weeks in numbers. Who has each is said in words. */
-export function CompareBody({ g, a, b, episode, words, onFace }: { g: GameView; a: string; b: string; episode?: number | null; words: ShowData["words"]; onFace: (id: string) => void }) {
+export function CompareBody({ g, a, b, episode, words, onFace, onEpisode }: { g: GameView; a: string; b: string; episode?: number | null; words: ShowData["words"]; onFace: (id: string, episode?: number | null) => void; onEpisode?: (n: number) => void }) {
   const cw = g.castWeeks;
   const holders = (id: string) => g.table.filter((r) => r.team.includes(id));
   const whose = (id: string) => {
@@ -1205,7 +1240,7 @@ export function CompareBody({ g, a, b, episode, words, onFace }: { g: GameView; 
   const bw0 = Math.min(22, (colW - 12) / 2);
   const labels = n <= 6 && Math.max(...[...sa, ...sb].map((v) => signed(v).length)) * 6.5 <= bw0 + 2;
   const head = (c: NonNullable<typeof ca>, total: number, wk: number | null, colour: string) => (
-    <button type="button" data-door-cast={c.id} onClick={() => onFace(c.id)} className="nd-press flex min-w-0 flex-col items-center text-center">
+    <button type="button" data-door-cast={c.id} onClick={() => onFace(c.id, at >= 0 ? episode : null)} className="nd-press flex min-w-0 flex-col items-center text-center">
       <Face src={c.photo} name={c.name} out={c.left} className="size-14 rounded-[3px] text-[22px]" />
       <b className="type-caption mt-1.5 flex max-w-full items-center gap-1 truncate text-[19px] leading-none">
         <i className="inline-block size-2.5 flex-none rounded-[2px]" style={{ background: colour }} aria-hidden />
@@ -1228,6 +1263,7 @@ export function CompareBody({ g, a, b, episode, words, onFace }: { g: GameView; 
       </div>
       <p className="type-caption mb-1 mt-4 text-[14px] tracking-[0.04em] text-muted-foreground">Week by week</p>
       <div className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none]">
+        <div className="relative" style={{ width: SW }}>
         <svg width={SW} height={H + 20} role="img" aria-label={cw.episodes.map((e, i) => `${words.ep} ${e}: ${castName(ca, g)} ${signed(sa[i])}, ${castName(cb, g)} ${signed(sb[i])}`).join("; ")} className="block">
           {at >= 0 && <rect x={at * colW + 1} width={colW - 2} y={0} height={H + 2} rx={3} fill="var(--secondary)" />}
           <line x1={0} x2={SW} y1={y(0)} y2={y(0)} stroke="var(--edge)" strokeWidth={1} />
@@ -1256,6 +1292,15 @@ export function CompareBody({ g, a, b, episode, words, onFace }: { g: GameView; 
             );
           })}
         </svg>
+        {/* Each week a door, in place: the heads above read that week (the drill pass, 2026-11-17). */}
+        {onEpisode && (
+          <div className="absolute inset-0 flex">
+            {cw.episodes.map((e, i) => (
+              <button key={e} type="button" data-compare-week={e} aria-pressed={i === at} aria-label={`${words.ep} ${e}: ${castName(ca, g)} ${signed(sa[i])}, ${castName(cb, g)} ${signed(sb[i])}`} onClick={() => onEpisode(e)} className="h-full flex-none rounded-[3px] active:bg-foreground/[0.06]" style={{ width: colW }} />
+            ))}
+          </div>
+        )}
+        </div>
       </div>
       {!labels && (
         <table className="mt-2 w-full text-[15px]" data-compare-table>
@@ -1269,8 +1314,16 @@ export function CompareBody({ g, a, b, episode, words, onFace }: { g: GameView; 
           <tbody>
             {cw.episodes.map((e, i) => (
               <tr key={e} className={`border-t border-border ${i === at ? "bg-secondary" : ""}`}>
-                <td className="py-1.5 text-muted-foreground">
-                  {words.ep} {e}
+                <td className="text-muted-foreground">
+                  {onEpisode ? (
+                    <button type="button" data-compare-row={e} aria-pressed={i === at} onClick={() => onEpisode(e)} className="flex min-h-11 w-full items-center text-left underline decoration-border decoration-2 underline-offset-[4px]">
+                      {words.ep} {e}
+                    </button>
+                  ) : (
+                    <span className="block py-1.5">
+                      {words.ep} {e}
+                    </span>
+                  )}
                 </td>
                 <td className={`type-num py-1.5 text-right ${sa[i] > sb[i] ? "font-bold" : "text-muted-foreground"}`}>{signed(sa[i])}</td>
                 <td className={`type-num py-1.5 text-right ${sb[i] > sa[i] ? "font-bold" : "text-muted-foreground"}`}>{signed(sb[i])}</td>
@@ -1290,7 +1343,7 @@ export function CompareBody({ g, a, b, episode, words, onFace }: { g: GameView; 
  *  sorted by the total or by any week (tap its heading), opening on the latest week, your rows lifted on the raised fill.
  *  `ground`: what the table sits on (the page; a sheet's panel), which the pinned names and total are filled with, out over the
  *  gutters, so nothing scrolling under them shows past them. */
-export function GameTable({ g, words, onFace, ground = "var(--background)" }: { g: GameView; words: ShowData["words"]; onFace: (id: string) => void; ground?: string }) {
+export function GameTable({ g, words, onFace, ground = "var(--background)" }: { g: GameView; words: ShowData["words"]; onFace: (id: string, episode?: number) => void; ground?: string }) {
   const cw = g.castWeeks;
   const [filter, setFilter] = useState<string>("all");
   const [q, setQ] = useState("");
@@ -1401,8 +1454,15 @@ export function GameTable({ g, words, onFace, ground = "var(--background)" }: { 
                       </button>
                     </th>
                     {eps.map((e, i) => (
-                      <td key={e} className="h-12 w-[46px] border-t border-border text-center align-middle">
-                        {c.left && c.out !== null && e > c.out ? <span className="text-muted-foreground/60">·</span> : <span className={`type-num text-[15px] ${pts[i] > 0 ? "text-foreground" : "text-muted-foreground"}`}>{signed(pts[i])}</span>}
+                      <td key={e} className="h-12 w-[46px] border-t border-border p-0 text-center align-middle">
+                        {c.left && c.out !== null && e > c.out ? (
+                          <span className="text-muted-foreground/60">·</span>
+                        ) : (
+                          // That castaway that week: their sheet, at that episode of their story (the drill pass, 2026-11-17).
+                          <button type="button" data-table-cell={`${c.id}:${e}`} aria-label={`${castName(c, g)}, ${words.ep} ${e}: ${signed(pts[i])}`} onClick={() => onFace(c.id, e)} className={`nd-press type-num grid h-12 w-full place-items-center text-[15px] ${pts[i] > 0 ? "text-foreground" : "text-muted-foreground"}`}>
+                            {signed(pts[i])}
+                          </button>
+                        )}
                       </td>
                     ))}
                     <td className={`sticky right-0 z-[1] border-t border-border pl-3 text-right ${yours ? "" : "bg-(--tg)"}`}>

@@ -3,8 +3,10 @@
 import dynamic from "next/dynamic";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Theme } from "emoji-picker-react";
-import { Eye, MessageCircle, Plus, Send } from "lucide-react";
+import { ChevronRight, Eye, MessageCircle, Plus, Send } from "lucide-react";
 import { openCouchSheet } from "../couch/couch-sheets";
+import { NavLink } from "../nav";
+import { paths } from "../routes";
 import { chatEarlier, useChatActions, useCouchChat, type ChatLine, type CouchChat } from "../data";
 import { GifSheet } from "../ui/gif-sheet";
 import type { ShowData } from "../screens/show-space";
@@ -206,6 +208,8 @@ export function Chat({ seasonId, show }: { seasonId: string; show: ShowData }) {
     .map((e) => ({ n: e.number, at: e.airAt! }))
     .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
   const epWord = show.words.ep;
+  // The episodes you've seen: a landmark for one opens its page (the drill pass, 2026-11-17).
+  const seen = new Set((show.episodes?.episodes ?? []).filter((x) => x.status === "seen").map((x) => x.number));
 
   if (chat.data && "out" in chat.data) {
     return (
@@ -257,10 +261,20 @@ export function Chat({ seasonId, show }: { seasonId: string; show: ShowData }) {
         if (item.kind === "ep") {
           // The episode's landmark: its chip in the app's episode form, when it aired; unlike a day's divider at a glance.
           return (
-            <div key={item.key} data-ep-mark={item.n} role="separator" className="mb-1.5 mt-5 flex items-center gap-2.5">
-              <span className="type-caption -mr-1 flex h-7 items-center bg-secondary pl-2.5 pr-3.5 text-[14px] tracking-[0.04em] [clip-path:polygon(0_0,100%_0,calc(100%_-_8px)_100%,0_100%)]">
-                {epWord} {item.n}
-              </span>
+            <div key={item.key} data-ep-mark={item.n} role={seen.has(item.n) ? undefined : "separator"} className="mb-1.5 mt-5 flex items-center gap-2.5">
+              {seen.has(item.n) ? (
+                // The episode itself (who left, what happened); a taller link than its chip, for the thumb.
+                <NavLink href={`${paths.show(seasonId, "episodes")}?page=ep${item.n}`} data-ep-door={item.n} className="nd-press -my-2 -mr-1 flex-none py-2">
+                  <span className="type-caption flex h-7 items-center gap-0.5 bg-secondary pl-2.5 pr-3.5 text-[14px] tracking-[0.04em] [clip-path:polygon(0_0,100%_0,calc(100%_-_8px)_100%,0_100%)]">
+                    {epWord} {item.n}
+                    <ChevronRight className="size-3.5 text-muted-foreground" aria-hidden />
+                  </span>
+                </NavLink>
+              ) : (
+                <span className="type-caption -mr-1 flex h-7 items-center bg-secondary pl-2.5 pr-3.5 text-[14px] tracking-[0.04em] [clip-path:polygon(0_0,100%_0,calc(100%_-_8px)_100%,0_100%)]">
+                  {epWord} {item.n}
+                </span>
+              )}
               <span className="flex-none text-[13px] text-muted-foreground">
                 aired {item.sameDay ? timeOf(item.at) : `${dayLabel(item.at)} · ${timeOf(item.at)}`}
               </span>

@@ -422,7 +422,7 @@ function Figures({ d, c, go, words, span }: { d: SeasonStats; c: CastStat; go: G
 
 /** A game row open on the scored sheet: their points there each episode on the season chart's own columns, shorter, in the game's
  *  colour, a dot under the weeks they counted for you when only some did. */
-function GameWeeks({ g, id, n, out, words, name, span }: { g: GameView; id: string; n: number; out: number | null; words: Words; name: string; span: number }) {
+function GameWeeks({ g, id, n, out, words, name, span, onEpisode }: { g: GameView; id: string; n: number; out: number | null; words: Words; name: string; span: number; onEpisode?: (n: number) => void }) {
   if (!g.castWeeks || !n) return null;
   const cols = weekColumns(g, id, n, out);
   if (!cols.some((x) => x.parts.length)) return null;
@@ -431,7 +431,7 @@ function GameWeeks({ g, id, n, out, words, name, span }: { g: GameView; id: stri
   const all = Object.values(g.castWeeks.points).flat().filter((v): v is number => typeof v === "number");
   return (
     <div className="pb-1" data-game-weeks={g.leagueId}>
-      <Columns cols={cols} colour={() => gameColour(g.gameName)} out={out} counted={counted} words={words} aria={`${first(name)}'s points in ${gameName(g)} each ${words.episode.toLowerCase()}`} fixedW={fitW(n, span)} cap h={72} scale={{ top: Math.max(1, ...all), bot: Math.min(0, ...all) }} />
+      <Columns cols={cols} colour={() => gameColour(g.gameName)} out={out} counted={counted} words={words} aria={`${first(name)}'s points in ${gameName(g)} each ${words.episode.toLowerCase()}`} onEpisode={onEpisode} fixedW={fitW(n, span)} cap h={72} scale={{ top: Math.max(1, ...all), bot: Math.min(0, ...all) }} />
       <ChartKey items={[]} out={null} counted={countedWord(counted, cols)} words={words} />
     </div>
   );
@@ -439,7 +439,7 @@ function GameWeeks({ g, id, n, out, words, name, span }: { g: GameView; id: stri
 
 /** A numbers row, open: the season's episodes on the chart's own columns, a dot in each it happened (a count in it where more than
  *  one), a tick where it didn't, nothing after they left, the episode numbers under; then the stat's board. */
-function KindStrip({ c, k, n, band, name, of, span, onBoard }: { c: CastStat; k: string; n: number; band: Band; name: string; of: number; span: number; onBoard: () => void }) {
+function KindStrip({ c, k, n, band, name, of, span, onBoard, onEpisode }: { c: CastStat; k: string; n: number; band: Band; name: string; of: number; span: number; onBoard: () => void; onEpisode?: (n: number) => void }) {
   const colW = fitW(n, span);
   const colour = bandColour(band);
   const per = Array.from({ length: n }, (_, i) => c.events.filter((e) => e[1] === k && e[0] === i + 1).reduce((t, e) => t + (e[3] || 1), 0));
@@ -447,6 +447,7 @@ function KindStrip({ c, k, n, band, name, of, span, onBoard }: { c: CastStat; k:
   const said = per.map((x, i) => (x ? `episode ${i + 1}${x > 1 ? ` (${x})` : ""}` : null)).filter(Boolean).join(", ");
   return (
     <div data-kind-strip={k}>
+      <div className="relative" style={{ width: n * colW }}>
       <svg width={n * colW} height={36} className="block" role="img" aria-label={`${name}: ${said || "none"}`}>
         {per.map((x, i) => {
           const cx = i * colW + colW / 2;
@@ -476,6 +477,24 @@ function KindStrip({ c, k, n, band, name, of, span, onBoard }: { c: CastStat; k:
           );
         })}
       </svg>
+      {/* Each episode opens that episode of their story, as the season chart's columns do (the drill pass, 2026-11-17). */}
+      {onEpisode && (
+        <div className="absolute inset-0 flex">
+          {per.map((x, i) => (
+            <button
+              key={i}
+              type="button"
+              data-strip-episode={i + 1}
+              disabled={c.out !== null && i + 1 > c.out}
+              aria-label={`Episode ${i + 1} in their story${x ? `: ${name}${x > 1 ? ` (${x})` : ""}` : ""}`}
+              onClick={() => onEpisode(i + 1)}
+              className="h-full flex-none rounded-[3px] active:bg-foreground/[0.06] disabled:pointer-events-none"
+              style={{ width: colW }}
+            />
+          ))}
+        </div>
+      )}
+      </div>
       {/* Inside the opened row, at the names' indent and in their weight, so it doesn't read as the next row. */}
       <button type="button" data-stat-door={k} onClick={onBoard} className="nd-press flex h-11 w-full items-center justify-between gap-3 pl-3 text-left text-[14px]">
         See all {of}
@@ -490,7 +509,7 @@ function KindStrip({ c, k, n, band, name, of, span, onBoard }: { c: CastStat; k:
 /** Their numbers: each kind they have, most valuable first (the show's points for one; a tie, more of it first), a row each: its
  *  band's mark, the name and its worth, the count and its place in the cast; ⌄ opens in place the episodes it happened in, then the
  *  stat's board (several can be open, to set two side by side). */
-function NumbersRows({ d, c, lens, go, span }: { d: SeasonStats; c: CastStat; lens: GameView | null; go: Go; span: number }) {
+function NumbersRows({ d, c, lens, go, span, onEpisode }: { d: SeasonStats; c: CastStat; lens: GameView | null; go: Go; span: number; onEpisode?: (n: number) => void }) {
   const [open, setOpen] = useState<string[]>([]);
   const bands = bandsOf(d);
   const rows = d.stats
@@ -526,7 +545,7 @@ function NumbersRows({ d, c, lens, go, span }: { d: SeasonStats; c: CastStat; le
               </span>
               <ChevronDown className={`size-4 flex-none text-muted-foreground ${on ? "rotate-180" : ""}`} aria-hidden />
             </button>
-            {on && <KindStrip c={c} k={s.key} n={d.through} band={k} name={s.name} of={d.cast.length} span={span} onBoard={() => go.open({ kind: "stat", key: s.key, title: s.name, from: c.name, lens: lens?.leagueId ?? null })} />}
+            {on && <KindStrip c={c} k={s.key} n={d.through} band={k} name={s.name} of={d.cast.length} span={span} onBoard={() => go.open({ kind: "stat", key: s.key, title: s.name, from: c.name, lens: lens?.leagueId ?? null })} onEpisode={onEpisode} />}
           </div>
         );
       })}
@@ -602,7 +621,7 @@ function holderRows(g: GameView, id: string, words: Words) {
  *  sheet (`scored`) lists every active game on the couch, yours or not (the user, 2026-11-17: a game over by your mark or archived
  *  drops off, the one you came from stays), each with their points there and their place in its cast, opening to their points each
  *  episode on the season chart's columns; an athlete's lists your games. */
-export function GamesRows({ show, seasonId, name, go, from = null, scored = false, n = 0, out = null, span = 358 }: { show: ShowData; seasonId?: string; name: string; go: Go; from?: string | null; scored?: boolean; n?: number; out?: number | null; span?: number }) {
+export function GamesRows({ show, seasonId, name, go, from = null, scored = false, n = 0, out = null, span = 358, onEpisode }: { show: ShowData; seasonId?: string; name: string; go: Go; from?: string | null; scored?: boolean; n?: number; out?: number | null; span?: number; onEpisode?: (n: number) => void }) {
   const [open, setOpen] = useState<string | null>(from);
   const box = useRef<HTMLElement>(null);
   const tapped = useRef(false);
@@ -676,7 +695,7 @@ export function GamesRows({ show, seasonId, name, go, from = null, scored = fals
             </button>
             {on && (
               <div className={`pb-1.5 ${scored ? "" : "pl-3"}`} data-game-holders={g.leagueId}>
-                {scored && <GameWeeks g={g} id={id} n={n} out={out} words={w} name={name} span={span} />}
+                {scored && <GameWeeks g={g} id={id} n={n} out={out} words={w} name={name} span={span} onEpisode={onEpisode} />}
                 {rows.length === 0 && <p className={`py-2 text-[13px] text-muted-foreground ${scored ? "pl-3" : ""}`}>Nobody here holds or has picked {first(name)} so far.</p>}
                 {rows.map((r) => (
                   <button key={r.playerId} type="button" data-door-person={r.playerId} onClick={() => go.open({ kind: "person", playerId: r.playerId, episode: null, game: g.leagueId })} className={`nd-press flex min-h-[52px] w-full items-center gap-3 border-t border-border py-1.5 text-left ${scored ? "pl-3" : ""}`}>
@@ -711,8 +730,17 @@ function standing(d: SeasonStats, c: CastStat, key: string) {
  *  view): the photo; the group and what the show sorts them by (its properties in its own words, a sport's position); who they are
  *  as billed (hometown, age, job); still in or out; what they hold now (chunk 6b: the thing itself, plain words, never good or
  *  bad); the billing's line about them. */
-function Who({ d, c, words }: { d: SeasonStats; c: CastStat; words: Words }) {
+function Who({ d, c, words, onNight }: { d: SeasonStats; c: CastStat; words: Words; onNight?: (n: number) => void }) {
   const colour = d.groups.find((g) => g.name === c.group)?.colour ?? null;
+  const status =
+    c.finish === "won"
+      ? `${finishWord(c)} · ${words.ep} ${c.out}`
+      : c.finish === "final"
+        ? `Finalist · ${words.ep} ${c.out}${c.how && c.how !== "Finalist" ? ` · ${cap(c.how.toLowerCase())}` : ""}`
+        : c.out !== null
+          ? `Out · ${words.ep} ${c.out}${c.how ? ` · ${cap(c.how.toLowerCase())}` : ""}`
+          : "Still in";
+  const statusInk = `text-[15px] font-semibold ${c.finish === "won" ? "text-(--nd-good)" : ""}`;
   const what = propsLine(c.props, d.properties) || c.position || null;
   const bio = bioLine(c.bio);
   return (
@@ -732,17 +760,18 @@ function Who({ d, c, words }: { d: SeasonStats; c: CastStat; words: Words }) {
             </p>
           )}
           {/* Before anything's counted everyone's still in: said only once there's a season to be in. */}
-          {(c.out !== null || d.through > 0) && (
-            <p className={`text-[15px] font-semibold ${c.finish === "won" ? "text-(--nd-good)" : ""}`} data-status>
-              {c.finish === "won"
-                ? `${finishWord(c)} · ${words.ep} ${c.out}`
-                : c.finish === "final"
-                  ? `Finalist · ${words.ep} ${c.out}${c.how && c.how !== "Finalist" ? ` · ${cap(c.how.toLowerCase())}` : ""}`
-                  : c.out !== null
-                    ? `Out · ${words.ep} ${c.out}${c.how ? ` · ${cap(c.how.toLowerCase())}` : ""}`
-                    : "Still in"}
-            </p>
-          )}
+          {(c.out !== null || d.through > 0) &&
+            (c.out !== null && onNight ? (
+              // The night they left (or won): who else, what happened (the drill pass, 2026-11-17).
+              <button type="button" data-status data-night-door={c.out} onClick={() => onNight(c.out!)} className={`nd-press -my-2.5 flex items-center gap-0.5 self-start py-2.5 text-left ${statusInk}`}>
+                {status}
+                <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
+              </button>
+            ) : (
+              <p className={statusInk} data-status>
+                {status}
+              </p>
+            ))}
           {c.start && c.group && c.start !== c.group && <p className="text-[13px] text-muted-foreground">Started on {c.start}</p>}
           {d.roles && (
             <p className="text-[13px] text-muted-foreground" data-role>
@@ -785,10 +814,22 @@ const reduced = () => typeof window !== "undefined" && window.matchMedia("(prefe
 
 /** The castaway's sheet, one part: who; their figures; each episode in its bands; In the couch's games; Their numbers; their story;
  *  Compare with…. `lens`: the game it was opened from, for the stat's board's holders. */
-export function CastSheet({ d, c, show, seasonId, lens, go, onFlag, from = null }: { d: SeasonStats; c: CastStat; show: ShowData; seasonId: string; lens: GameView | null; go: Go; onFlag?: ((episode: number, who: string) => void) | null; from?: string | null }) {
+export function CastSheet({ d, c, show, seasonId, lens, go, onFlag, from = null, episode = null }: { d: SeasonStats; c: CastStat; show: ShowData; seasonId: string; lens: GameView | null; go: Go; onFlag?: ((episode: number, who: string) => void) | null; from?: string | null; episode?: number | null }) {
   const w = show.words;
   const ref = useRef<HTMLDivElement>(null);
   const [lit, setLit] = useState<number | null>(null);
+  // Opened at an episode (a number in a game's table, a week in a compare): that episode in their story, as a chart column
+  // opens it, once the sheet has risen.
+  useEffect(() => {
+    if (episode == null) return;
+    const t = setTimeout(() => {
+      const el = ref.current?.querySelector<HTMLElement>(`[data-story-ep="${episode}"]`);
+      if (!el) return;
+      el.scrollIntoView({ block: "start", behavior: reduced() ? "auto" : "smooth" });
+      if (!reduced()) setLit(episode);
+    }, 420);
+    return () => clearTimeout(t);
+  }, [episode]);
   // The sheet's own width, for every chart and strip on it to share one rail (358 at 390; less on a narrower phone).
   const [span, setSpan] = useState(358);
   useEffect(() => {
@@ -814,13 +855,13 @@ export function CastSheet({ d, c, show, seasonId, lens, go, onFlag, from = null 
   };
   return (
     <div ref={ref} className="pb-2" data-person={c.first} data-cast-sheet={c.name}>
-      <Who d={d} c={c} words={w} />
+      <Who d={d} c={c} words={w} onNight={(n) => go.open({ kind: "night", episode: n })} />
       <Figures d={d} c={c} go={go} words={w} span={span} />
       <SeasonChart d={d} c={c} words={w} onEpisode={toStory} span={span} />
-      <GamesRows key={c.name} show={show} seasonId={seasonId} name={c.name} go={go} from={from} scored n={d.through} out={goneHome(c) ? c.out : null} span={span} />
-      <NumbersRows d={d} c={c} lens={lens} go={go} span={span} />
+      <GamesRows key={c.name} show={show} seasonId={seasonId} name={c.name} go={go} from={from} scored n={d.through} out={goneHome(c) ? c.out : null} span={span} onEpisode={toStory} />
+      <NumbersRows d={d} c={c} lens={lens} go={go} span={span} onEpisode={toStory} />
       <SheetCaption right="Newest first">Their story</SheetCaption>
-      <StoryBody d={d} c={c} onFlag={onFlag ?? null} group={false} photo={false} points={false} lit={lit} marks={bandColours(d)} />
+      <StoryBody d={d} c={c} onFlag={onFlag ?? null} onEpisode={(n) => go.open({ kind: "night", episode: n })} group={false} photo={false} points={false} lit={lit} marks={bandColours(d)} />
       {/* Nothing to compare before anything's counted (a draft before the premiere). */}
       {d.through > 0 && (
         <button type="button" data-compare-with onClick={() => go.open({ kind: "pick", name: c.name, lens: lens?.leagueId ?? null })} className="nd-press mt-4 flex h-12 w-full items-center justify-center rounded-[6px] text-[15px] font-bold outline-1 -outline-offset-1 outline-edge">

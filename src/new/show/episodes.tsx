@@ -457,22 +457,31 @@ function EpisodePage({ seasonId, show }: { seasonId: string; show: ShowData }) {
   return (
     <PushedPage open={ep != null} onClose={back.close} title={`${show.words.episode} ${shown ?? ""}`} back={back.label}>
       {e ? (
-        <EpisodeBody
-          seasonId={seasonId}
-          couchId={show.couch?.id ?? null}
-          e={e}
-          seasonName={show.header ? `${show.header.show.name} ${show.header.seasonNumber}` : "this season"}
-          target={{ seasonId, couchId: show.couch?.id ?? null, episode: e.number, label: showLabel(show), solo: show.solo }}
-          sheets={show.games.filter((g) => g.yourRole && g.gameType === "questions" && !g.archived).map((g) => ({ leagueId: g.leagueId, name: g.name }))}
-          ep={show.words.ep}
-          talk={!show.solo && !!show.couch?.id && !show.readOnly}
-          open={drill.open}
-        />
+        <EpisodeNight seasonId={seasonId} show={show} e={e} open={drill.open} />
       ) : (
         <p className="px-4 pt-6 text-sm text-muted-foreground">Reveal this episode to see it.</p>
       )}
       {drill.sheets}
     </PushedPage>
+  );
+}
+
+/** The night itself, one part: the Episodes tab's page shows it, and so does the episode level a sheet opens over itself (a
+ *  castaway's story: game-sheets.tsx NightLevel; the drill pass, 2026-11-17). `flush`: in a sheet, whose panel has its padding. */
+export function EpisodeNight({ seasonId, show, e, open, flush = false }: { seasonId: string; show: ShowData; e: EpisodeRow; open: (d: Door) => void; flush?: boolean }) {
+  return (
+    <EpisodeBody
+      seasonId={seasonId}
+      couchId={show.couch?.id ?? null}
+      e={e}
+      seasonName={show.header ? `${show.header.show.name} ${show.header.seasonNumber}` : "this season"}
+      target={{ seasonId, couchId: show.couch?.id ?? null, episode: e.number, label: showLabel(show), solo: show.solo }}
+      sheets={show.games.filter((g) => g.yourRole && g.gameType === "questions" && !g.archived).map((g) => ({ leagueId: g.leagueId, name: g.name }))}
+      ep={show.words.ep}
+      talk={!show.solo && !!show.couch?.id && !show.readOnly}
+      open={open}
+      flush={flush}
+    />
   );
 }
 
@@ -504,6 +513,7 @@ function EpisodeBody({
   ep,
   talk,
   open,
+  flush,
 }: {
   seasonId: string;
   couchId: string | null;
@@ -514,6 +524,7 @@ function EpisodeBody({
   ep: string;
   talk: boolean;
   open: (d: Door) => void;
+  flush: boolean;
 }) {
   const out = e.out ?? [];
   const results = useEpisodeResults(seasonId, couchId, e.number);
@@ -523,7 +534,7 @@ function EpisodeBody({
     // Step 4 (docs/design-round/step4-episodes-spec.md, "An episode's page"): the episode first (who left), what happened, the
     // couch's reactions and its talk, then your games each in its own measure (a game's top scorers under that game: its points
     // are its own), and Replay the reveal at the foot (a rewatch follows the content, it doesn't lead it).
-    <div data-episode-page={e.number} data-results-in={results.data ? "" : undefined} className="mb-10 mt-3 px-4 pb-4 pt-4">
+    <div data-episode-page={e.number} data-results-in={results.data ? "" : undefined} className={flush ? "pb-2 pt-1" : "mb-10 mt-3 px-4 pb-4 pt-4"}>
       {e.stage === "early" && (
         <p className="mb-3 rounded-[3px] bg-card px-3 py-2.5 text-sm text-muted-foreground">Early results: who went home is in. {finalWords ? `${finalWords}.` : "Weekly Lineup’s full scores come later."}</p>
       )}
