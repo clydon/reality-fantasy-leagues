@@ -129,9 +129,10 @@ type Item = { kind: "season"; seasonId: string; at: number } | { kind: "episode"
 
 type AnswerStep = "show" | "cast" | "episode";
 
-/** A loaded answer (a rehearsal's) not used yet, for this season's step (and episode). */
+/** An answer we have and haven't used yet for this season's step (and episode): a rehearsal's, loaded, or one asked here on a call
+ *  that then ran out of time (CatchUpBusy), so it's never asked twice. */
 async function loadedAnswer(seasonId: string, step: AnswerStep, n = 0): Promise<string | null> {
-  const { rows } = await pool.query("SELECT answer FROM catchup_answers WHERE season_id = $1 AND step = $2 AND episode_number = $3 AND source = 'loaded' AND used_at IS NULL", [
+  const { rows } = await pool.query("SELECT answer FROM catchup_answers WHERE season_id = $1 AND step = $2 AND episode_number = $3 AND used_at IS NULL", [
     seasonId,
     step,
     n,
@@ -140,7 +141,7 @@ async function loadedAnswer(seasonId: string, step: AnswerStep, n = 0): Promise<
 }
 
 const usedAnswer = (seasonId: string, step: AnswerStep, n = 0) =>
-  pool.query("UPDATE catchup_answers SET used_at = now() WHERE season_id = $1 AND step = $2 AND episode_number = $3 AND source = 'loaded'", [seasonId, step, n]);
+  pool.query("UPDATE catchup_answers SET used_at = now() WHERE season_id = $1 AND step = $2 AND episode_number = $3", [seasonId, step, n]);
 
 /** Every answer asked here, kept as our bot gave it (catch-up-rehearse.js --export writes them out for production to load). */
 async function keepAnswer(seasonId: string, step: AnswerStep, n: number, answer: string, how: { provider?: string; seconds?: number } = {}): Promise<void> {
@@ -313,9 +314,10 @@ async function runEpisode(seasonId: string, n: number, bot: string | undefined, 
   try {
     if (left() < STEP_NEEDS_MS) return;
     const s = await seasonOf(seasonId);
-    const { status, line } = await episodeStep(s, n, bot, left() - 5_000, spread, lane);
+    const { status, line } = await episodeStep(s, n, bot, left() - 5_000, spread, lane, left);
     await set("status = $3, tries = 0, message = $4", [status, line]);
   } catch (e) {
+    if (e instanceof CatchUpBusy) return void (await set("message = $3", [e.message]).catch(() => undefined));
     const message = (e instanceof Error ? e.message : String(e)).slice(0, 300);
     console.error("[catch-up]", seasonId, "episode", n, message);
     await set(`tries = tries + 1, message = $3, status = CASE WHEN tries + 1 >= $4 THEN 'stopped' ELSE 'waiting' END`, [message, TRIES]).catch(() => undefined);
@@ -324,15 +326,33 @@ async function runEpisode(seasonId: string, n: number, bot: string | undefined, 
   }
 }
 
-/** A season's try-and-send one at a time, across every process (a session advisory lock on its own connection). */
+/** Not now (its season's lock is taken, or too little of the request's time is left): asked again on a later call, no try spent. */
+class CatchUpBusy extends Error {}
+
+/**
+ * A season's try-and-send one at a time, across every process. The lock is a transaction's (pg_advisory_xact_lock) on a connection
+ * of its own, and that transaction ends itself after 4 idle minutes: Vercel ends a request at 5, and a session lock held by one it
+ * ended stayed held for good (production, 2026-11-16: every later episode of Survivor 51 waited on it). Waiting for the lock gives
+ * up after 45 s (CatchUpBusy: a later call asks again).
+ */
 async function underSeasonLock<T>(seasonId: string, fn: () => Promise<T>): Promise<T> {
   const client = await pool.connect();
+  let broken = false;
   try {
-    await client.query("SELECT pg_advisory_lock(hashtext($1))", [`catchup:${seasonId}`]);
+    await client.query("BEGIN");
+    await client.query("SET LOCAL idle_in_transaction_session_timeout = '4min'");
+    await client.query("SET LOCAL lock_timeout = '45s'");
+    try {
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`catchup:${seasonId}`]);
+    } catch (e) {
+      if ((e as { code?: string }).code === "55P03") throw new CatchUpBusy("its season's lock is taken: asked again on a later call");
+      throw e;
+    }
     return await fn();
   } finally {
-    await client.query("SELECT pg_advisory_unlock(hashtext($1))", [`catchup:${seasonId}`]).catch(() => undefined);
-    client.release();
+    // A session Postgres ended (it outlived the 4 minutes) can't commit: dropped from the pool rather than handed out again.
+    await client.query("COMMIT").catch(() => (broken = true));
+    client.release(broken);
   }
 }
 
@@ -425,7 +445,8 @@ async function episodeStep(
   bot: string | undefined,
   budgetMs: number,
   spread: number,
-  lane?: BotLane
+  lane?: BotLane,
+  left: () => number = () => budgetMs
 ): Promise<{ status: "sent" | "held"; line: string }> {
   // Dry: read and checked, nothing stored or staged; the original answer stays as it was.
   const read = (answer: string) => researchFromPaste(pool, s.slug, s.season_number, n, answer, { structured: true, dry: true, via: "bot", checkEpisode: true });
@@ -434,7 +455,8 @@ async function episodeStep(
   const given = await loadedAnswer(s.id, "episode", n);
   if (given) {
     run = await read(given).catch(() => null);
-    await usedAnswer(s.id, "episode", n);
+    // One that doesn't read here is set aside, and asked live below.
+    if (!run) await usedAnswer(s.id, "episode", n);
   }
   if (!run) {
     const { prompt } = await buildPasteImportPrompt(pool, s.slug, s.season_number, n, { structured: true });
@@ -455,7 +477,10 @@ async function episodeStep(
     run = await read(answer);
   }
   const input = await inputOf(s.id, n, run);
-  return underSeasonLock(s.id, async () => {
+  const done = await underSeasonLock(s.id, async () => {
+    // A try and a send take a while on a season with many games: with under 90 s of the request left, a later call does it (the
+    // answer is kept, so it isn't asked again).
+    if (left() < 90_000) throw new CatchUpBusy("too little of this call's time left: tried on the next");
     const tried = await tryResults(input);
     if (!tried.games.length) {
       const sent = await sendResults(input, { kind: "results.catchup", text: (count) => `The catch-up asked Episode ${n} again (${count})`, detail: { own: true, via: "catchup" } });
@@ -464,6 +489,9 @@ async function episodeStep(
     await hold(s.id, n, input, tried);
     return { status: "held" as const, line: `Episode ${n}: held, it would change scores in ${tried.games.length === 1 ? "a game" : `${tried.games.length} games`}` };
   });
+  // Used only once it's in (sent or held): a call that ran out of time keeps it for the next.
+  await usedAnswer(s.id, "episode", n);
+  return done;
 }
 
 async function inputOf(seasonId: string, n: number, run: unknown): Promise<SubmitInput> {
