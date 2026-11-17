@@ -54,6 +54,23 @@ Inconsistencies found on the way:
 - The episode page (`?page=epN`) is a pushed page on the Episodes tab only, under every sheet (z 70 against a sheet's 81), so no
   sheet can open it today; an episode level that works over sheets is a structural question for the next pass.
 
+## Step 1 done: people in games (2026-11-17, the user: "continue")
+
+Each dead end in rows 1, 4 and 10, with its verdict:
+
+| Where | Who taps it, wanting what | Verdict |
+| --- | --- | --- |
+| A matchup's two heads (game-week.tsx MatchupBody) | Andrew: who am I playing? Conor: their season and team | **Door**: that person's sheet in the game, at that week |
+| Side bets' callers (game-week.tsx Calls) | Who called it, and how they're doing | **Door**: that person's sheet in the game |
+| The morning sheet's standings (reveal.tsx MorningSheet) | After the final results: riley passed me, what did riley's week look like? | **Door**: that person's sheet in the game, at that episode, over the morning sheet (useGameDrill); the row ends in › |
+| The couch's Power rankings and Head to head (couch-pages.tsx) | Who's this, where are they up to, what do they play? | **Door**: the couch person sheet; the rows end in › |
+| Chat's faces (chat.tsx) | Joanna: where's Andrew up to? | **Door**: the couch person sheet (the bubble keeps its own tap) |
+| "3 behind riley" on the Games tab (games.tsx) | Riley, in that game | **Stays**: the phrase sits inside the game's row, whose tap opens the game page, where riley's row is one tap away; a door inside a door would steal the row's tap |
+
+Checked by `scripts/dev-test/check-drill-doors.js` on the test couch (chat face, rankings row, head to head row, side bet caller:
+each opens its sheet; matchup heads and the morning sheet need a head-to-head game and a due final result, which the test couch
+doesn't have, so they're skipped there).
+
 ## Recommended order for the next pass
 
 1. People in games: the matchup heads, the standings-shaped lists and chat's avatars open a person (rows 1, 4, 10): one door kind

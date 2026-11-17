@@ -260,7 +260,7 @@ const WORTH = [1, 2, 3, 5];
 
 /** The side bets sheet's body: each bet (your call, everyone's once it's locked, the marks once it's settled), Settle for whoever
  *  runs the game, and Post a side bet. */
-export function BetsBody({ g, words, seasonId, runs }: { g: GameView; words: ShowData["words"]; seasonId: string; runs: boolean }) {
+export function BetsBody({ g, words, seasonId, runs, onPerson }: { g: GameView; words: ShowData["words"]; seasonId: string; runs: boolean; onPerson?: (playerId: string) => void }) {
   const qc = useQueryClient();
   const b = g.bets;
   const refresh = () => qc.invalidateQueries({ queryKey: ["new-design", "games", seasonId] });
@@ -271,14 +271,14 @@ export function BetsBody({ g, words, seasonId, runs }: { g: GameView; words: Sho
       {[...b.bets]
         .sort((p, q) => (runs ? Number(q.played && !q.settled) - Number(p.played && !p.settled) : 0))
         .map((x) => (
-          <BetItem key={x.betId} g={g} x={x} words={words} runs={runs} onSaved={refresh} />
+          <BetItem key={x.betId} g={g} x={x} words={words} runs={runs} onSaved={refresh} onPerson={onPerson} />
         ))}
       {b.postTo !== null && <PostBet g={g} episode={b.postTo} words={words} onSaved={refresh} />}
     </div>
   );
 }
 
-function BetItem({ g, x, words, runs, onSaved }: { g: GameView; x: SideBet; words: ShowData["words"]; runs: boolean; onSaved: () => void }) {
+function BetItem({ g, x, words, runs, onSaved, onPerson }: { g: GameView; x: SideBet; words: ShowData["words"]; runs: boolean; onSaved: () => void; onPerson?: (playerId: string) => void }) {
   const [call, setCall] = useState(x.mine?.text ?? "");
   const [busy, setBusy] = useState(false);
   const changed = call.trim() !== (x.mine?.text ?? "");
@@ -323,14 +323,14 @@ function BetItem({ g, x, words, runs, onSaved }: { g: GameView; x: SideBet; word
           )}
         </div>
       ) : (
-        <Calls g={g} x={x} runs={runs} onSaved={onSaved} />
+        <Calls g={g} x={x} runs={runs} onSaved={onSaved} onPerson={onPerson} />
       )}
     </article>
   );
 }
 
 /** Everyone's calls on a locked bet; once its episode is in, the marks, and for whoever runs the game, Settle. */
-function Calls({ g, x, runs, onSaved }: { g: GameView; x: SideBet; runs: boolean; onSaved: () => void }) {
+function Calls({ g, x, runs, onSaved, onPerson }: { g: GameView; x: SideBet; runs: boolean; onSaved: () => void; onPerson?: (playerId: string) => void }) {
   const calls = useMemo(() => x.everyone ?? [], [x.everyone]);
   const answers = useMemo(() => [...new Set(calls.map((c) => c.guess.trim()))], [calls]);
   // The AI's answer, when it gave one it wasn't sure enough to settle with, starts chosen (BACKLOG 87).
@@ -366,10 +366,13 @@ function Calls({ g, x, runs, onSaved }: { g: GameView; x: SideBet; runs: boolean
       <ul className="flex flex-col">
         {calls.map((c) => (
           <li key={c.predId} className="flex min-h-11 items-center gap-2.5" data-call-of={c.playerId}>
-            <Avatar id={g.table.find((r) => r.playerId === c.playerId)?.userId ?? c.playerId} name={c.name} size={26} />
-            <span className="min-w-0 flex-1 text-[15px]">
-              <b className="font-semibold">{c.you ? "You" : first(c.name)}</b> <span className="text-muted-foreground">·</span> {c.guess}
-            </span>
+            {/* Who called it opens their sheet in the game (the drill pass, 2026-11-17). */}
+            <button type="button" data-door-person={c.playerId} disabled={!onPerson} onClick={() => onPerson?.(c.playerId)} className="nd-press flex min-h-11 min-w-0 flex-1 items-center gap-2.5 text-left disabled:pointer-events-none">
+              <Avatar id={g.table.find((r) => r.playerId === c.playerId)?.userId ?? c.playerId} name={c.name} size={26} />
+              <span className="min-w-0 flex-1 text-[15px]">
+                <b className="font-semibold">{c.you ? "You" : first(c.name)}</b> <span className="text-muted-foreground">·</span> {c.guess}
+              </span>
+            </button>
             {c.correct !== null &&
               (canSettle ? (
                 <button type="button" onClick={() => flip(c.predId, c.correct)} aria-label={`${c.correct ? "Right" : "Wrong"}: tap to change`} className="grid size-11 place-items-center">
@@ -606,7 +609,7 @@ function sideLines(g: GameView, who: TableRow | null, w: TableRow["weeks"][numbe
  *  starters on one signed points scale, then its bench (or, before the lock, the other side's whole team, by position); once
  *  played, each side's best lineup from the same people, named as the swap that would have made it (shows only: a sport's slots
  *  by position would make it wrong). Your side, before the lock, opens your lineup. */
-export function MatchupBody({ g, pid, n, words, sport, onFace, onCompare }: { g: GameView; pid: string; n: number; words: ShowData["words"]; sport?: boolean; onFace: (id: string) => void; onCompare: (a: string, b: string) => void }) {
+export function MatchupBody({ g, pid, n, words, sport, onFace, onCompare, onPerson }: { g: GameView; pid: string; n: number; words: ShowData["words"]; sport?: boolean; onFace: (id: string) => void; onCompare: (a: string, b: string) => void; onPerson?: (playerId: string) => void }) {
   const m = matchupOf(g, pid, n);
   const A = sideLines(g, m.a, m.wa, m.lockA, n, m.played, m.sq?.result?.us ?? m.sq?.points ?? null);
   const B = sideLines(g, m.b, m.wb, m.lockB, n, m.played, m.sq?.result?.them ?? null);
@@ -615,15 +618,25 @@ export function MatchupBody({ g, pid, n, words, sport, onFace, onCompare }: { g:
   const neg = all.some((l) => l.points < 0);
   const name = (r: TableRow | null) => (r ? (r.you ? "You" : first(r.name)) : "");
   const res = m.played && m.sq?.result ? m.sq.result : null;
+  const headBody = (r: TableRow, total: number | null) => (
+    <>
+      <Avatar id={r.userId ?? r.playerId} name={r.name} size={44} />
+      <b className="type-caption mt-1.5 max-w-full truncate text-[20px] leading-none">{name(r)}</b>
+      {/* A one-game game's record says nothing the score doesn't. */}
+      <span className="type-num mt-1 text-[13px] text-muted-foreground">{oneGame(g) ? "" : (recordWords(r.record) ?? "")}</span>
+      {total !== null && <b className="type-num mt-1.5 text-[34px] leading-none">{fmt(total)}</b>}
+    </>
+  );
+  // Each head opens that person's sheet in the game (the drill pass, 2026-11-17: who you play, their season and their team).
   const head = (r: TableRow | null, total: number | null) =>
     r ? (
-      <div className="flex min-w-0 flex-col items-center text-center">
-        <Avatar id={r.userId ?? r.playerId} name={r.name} size={44} />
-        <b className="type-caption mt-1.5 max-w-full truncate text-[20px] leading-none">{name(r)}</b>
-        {/* A one-game game's record says nothing the score doesn't. */}
-        <span className="type-num mt-1 text-[13px] text-muted-foreground">{oneGame(g) ? "" : (recordWords(r.record) ?? "")}</span>
-        {total !== null && <b className="type-num mt-1.5 text-[34px] leading-none">{fmt(total)}</b>}
-      </div>
+      onPerson ? (
+        <button type="button" data-door-person={r.playerId} aria-label={`${name(r)}: their season`} onClick={() => onPerson(r.playerId)} className="nd-press flex min-w-0 flex-col items-center rounded-[3px] text-center">
+          {headBody(r, total)}
+        </button>
+      ) : (
+        <div className="flex min-w-0 flex-col items-center text-center">{headBody(r, total)}</div>
+      )
     ) : (
       <div className="flex min-w-0 flex-col items-center text-center">
         <span className="type-caption grid size-11 place-items-center rounded-[3px] border border-dashed border-edge text-muted-foreground">–</span>

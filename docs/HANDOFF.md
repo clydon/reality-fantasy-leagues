@@ -157,6 +157,11 @@ https://claude.ai/artifact/2JSLEE5VNek5qmRgpY9Sq2 (version 3; frames in `.ui-atl
 **Since (2026-11-17):** great is the deeper green and good the lighter one (the user), the round committed (4473f5ae, not pushed);
 then BACKLOG 96 fixed: a winner and finalists keep their colour everywhere (`finishOf` in selectors.ts, `finish` on the season
 stats, `goneHome` in src/new/show/finish.ts; a Finalists group on the face wall; game faces grey on `knocked`).
+**The drill pass, step 1 (people in games) BUILT, uncommitted (2026-11-17, the user: "commit and continue"):** a matchup's heads,
+side bets' callers and the morning sheet's standings open that person in the game; the couch's Power rankings and Head to head
+rows and chat's faces open the couch person sheet; "3 behind riley" stays (inside the game's row). Verdicts in
+docs/design-round/drill-audit.md; `scripts/dev-test/check-drill-doors.js` (4 pass, 2 skipped: no head to head or due final result on
+the test couch); story https://claude.ai/artifact/5ABPLf7uXknLXVcQ6gggC3. Next: step 2, castaways wherever they appear.
 **Open:** a game's points about 630 px down from its page (the header could
 carry them); Outlast's row opening to one holder line; the board's "Who has them in: Nobody". Still the user's: the Compare flow
 change and the next pass's order (drill-audit.md, with the user's two rules: every cast photo opens their sheet; each dead end gets

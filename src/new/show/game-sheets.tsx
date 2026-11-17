@@ -249,7 +249,7 @@ function Level({ level, drill, crumb, plain, ...ctx }: Ctx & { level: Level; dri
         subtitle={t.subtitle}
         stepper={eps.length > 1 ? { prev: at > 0 ? `${show.words.ep} ${eps[at - 1]}` : null, next: at >= 0 && at < eps.length - 1 ? `${show.words.ep} ${eps[at + 1]}` : null, onStep: step } : undefined}
       >
-        <MatchupBody key={`${d.playerId}:${d.episode}`} g={wg} pid={d.playerId} n={d.episode} words={show.words} sport={sport} onFace={(id) => go.open({ kind: "cast", id })} onCompare={(a, b) => go.open({ kind: "compare", a, b, episode: d.episode })} />
+        <MatchupBody key={`${d.playerId}:${d.episode}`} g={wg} pid={d.playerId} n={d.episode} words={show.words} sport={sport} onFace={(id) => go.open({ kind: "cast", id })} onCompare={(a, b) => go.open({ kind: "compare", a, b, episode: d.episode })} onPerson={(playerId) => go.open({ kind: "person", playerId, episode: d.episode })} />
       </Sheet>
     );
   }
@@ -274,7 +274,7 @@ function Level({ level, drill, crumb, plain, ...ctx }: Ctx & { level: Level; dri
     const open = wg.bets?.bets.find((x) => x.open);
     return (
       <Sheet open={level.open} onOpenChange={onOpenChange} crumb={crumb} plain={plain} title="Side bets" subtitle={open ? `${show.words.episode} ${open.episode} · calls close when it starts` : (wg.bets?.postTo ?? null) !== null ? `${show.words.episode} ${wg.bets!.postTo}` : g.gameName}>
-        <BetsBody g={wg} words={show.words} seasonId={seasonId} runs={!!gctx.runs} />
+        <BetsBody g={wg} words={show.words} seasonId={seasonId} runs={!!gctx.runs} onPerson={(playerId) => go.open({ kind: "person", playerId, episode: null })} />
       </Sheet>
     );
   }

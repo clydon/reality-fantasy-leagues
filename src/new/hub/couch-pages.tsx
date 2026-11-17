@@ -38,6 +38,7 @@ import { PushedPage, usePushedPage } from "../ui/page";
 import { Row, SectionHead } from "../ui/parts";
 import { ShowArt } from "../ui/show-bar";
 import { movesByDue } from "./sections";
+import { openCouchSheet } from "../couch/couch-sheets";
 import { goneHome } from "../show/finish";
 
 // More on the couch (the mock's refine.js and couchpages.js): rows on the hub, each opening a page pushed over it
@@ -144,7 +145,7 @@ export function CouchPages({ home, couch, hub }: { home: Home | undefined; couch
   return (
     <>
       <CouchPage k="rankings">
-        <RankingsPage hub={hub} me={home?.user.id ?? ""} />
+        <RankingsPage hub={hub} me={home?.user.id ?? ""} couchId={couch?.id ?? null} />
       </CouchPage>
       <CouchPage k="break">
         <CommercialBreak hub={hub} home={home} couch={couch} />
@@ -218,7 +219,7 @@ const GROUP_COLOURS: Record<PointGroup, string> = { play: "#f2804b", watch: "#50
 const byGroup = (row: RankRow) =>
   POINT_GROUPS.map(({ group }) => ({ group, points: row.byKind.filter((k) => COUCH_POINTS.find((p) => p.kind === k.kind)?.group === group).reduce((n, k) => n + k.points, 0) })).filter((g) => g.points > 0);
 
-function RankList({ rows, me }: { rows: RankRow[]; me: string }) {
+function RankList({ rows, me, couchId = null }: { rows: RankRow[]; me: string; couchId?: string | null }) {
   const max = rows[0]?.total ?? 0;
   const groups = POINT_GROUPS.filter(({ group }) => rows.some((row) => byGroup(row).some((g) => g.group === group)));
   return (
@@ -226,7 +227,16 @@ function RankList({ rows, me }: { rows: RankRow[]; me: string }) {
       {rows.map((row) => {
         const mine = row.userId === me;
         return (
-          <div key={row.userId} data-rank-row={row.name} data-rank={row.rank} className={`flex h-[58px] items-center gap-3 ${mine ? "-mx-2 rounded-[3px] bg-plate px-2 text-plate-foreground" : ""}`}>
+          // A row opens that person on the couch: where they are, their games, their record (the drill pass, 2026-11-17).
+          <button
+            key={row.userId}
+            type="button"
+            data-rank-row={row.name}
+            data-rank={row.rank}
+            disabled={!couchId}
+            onClick={() => couchId && openCouchSheet({ kind: "person", couchId, userId: row.userId })}
+            className={`nd-press flex h-[58px] w-full items-center gap-3 text-left disabled:pointer-events-none ${mine ? "-mx-2 w-[calc(100%+16px)] rounded-[3px] bg-plate px-2 text-plate-foreground" : ""}`}
+          >
             <span className={`type-num w-7 text-[22px] ${row.place === 1 || mine ? "" : "text-muted-foreground"}`}>{row.rank}</span>
             <Avatar id={row.userId} name={row.name} size={30} />
             <span className="min-w-0 flex-1">
@@ -246,7 +256,8 @@ function RankList({ rows, me }: { rows: RankRow[]; me: string }) {
               </span>
             </span>
             <b className="type-num text-[24px]">{row.total}</b>
-          </div>
+            {couchId && <ChevronRight className={`size-4 flex-none ${mine ? "text-plate-muted" : "text-muted-foreground"}`} aria-hidden />}
+          </button>
         );
       })}
       <div className="mt-3 flex flex-wrap gap-x-3.5 gap-y-1.5 text-xs text-muted-foreground" data-rank-legend>
@@ -287,7 +298,7 @@ function HowYouEarn() {
 
 /** Couch points (this year, once the couch has a year before it, and all time), your place as the big number; head to head
  *  against each of them from the games. */
-function RankingsPage({ hub, me }: { hub: CouchHub | undefined; me: string }) {
+function RankingsPage({ hub, me, couchId = null }: { hub: CouchHub | undefined; me: string; couchId?: string | null }) {
   const [picked, setTab] = useState<"year" | "all" | "h2h" | null>(null);
   if (!hub) return <Loading />;
   const r = hub.rankings;
@@ -338,7 +349,14 @@ function RankingsPage({ hub, me }: { hub: CouchHub | undefined; me: string }) {
       {tab === "h2h" ? (
         <div className="px-3">
           {r.h2h.map((h) => (
-            <div key={h.userId} data-h2h={h.name} className="flex h-[58px] items-center gap-3 border-t border-border first:border-t-0">
+            <button
+              key={h.userId}
+              type="button"
+              data-h2h={h.name}
+              disabled={!couchId}
+              onClick={() => couchId && openCouchSheet({ kind: "person", couchId, userId: h.userId })}
+              className="nd-press flex h-[58px] w-full items-center gap-3 border-t border-border text-left first:border-t-0 disabled:pointer-events-none"
+            >
               <Avatar id={h.userId} name={h.name} size={30} />
               <span className="min-w-0 flex-1">
                 <b className="block truncate text-[15px]">{h.name}</b>
@@ -350,7 +368,8 @@ function RankingsPage({ hub, me }: { hub: CouchHub | undefined; me: string }) {
               <b className={`type-num text-[24px] ${h.won > h.lost ? "text-good" : ""}`}>
                 {h.won}–{h.lost}
               </b>
-            </div>
+              {couchId && <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />}
+            </button>
           ))}
         </div>
       ) : (
@@ -358,7 +377,7 @@ function RankingsPage({ hub, me }: { hub: CouchHub | undefined; me: string }) {
           <p className="mx-3 mb-1 mt-2.5 text-[13px] leading-snug text-muted-foreground" data-rank-explainer>
             Points for joining in, not for winning.
           </p>
-          <RankList rows={rows} me={me} />
+          <RankList rows={rows} me={me} couchId={couchId} />
           <HowYouEarn />
         </>
       )}

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } fro
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { ChevronRight, Eye, Send } from "lucide-react";
+import { useGameDrill } from "./game-sheets";
 import { chatCouch, postToCouch, revealEpisode, useAfterReveal, useEpisodeGifs, type CatchUpReveal, type SeasonReveal } from "../data";
 import { ordinal } from "../games";
 import type { ShowData } from "../screens/show-space";
@@ -898,6 +899,8 @@ async function cardImage(show: ShowData, w: { tag: string; head: string; line: s
  * from where it stood that night to where it ends.
  */
 export function MorningSheet({ show, seasonId }: { show: ShowData; seasonId: string }) {
+  // Its people and castaways open their sheets over it (the drill pass, 2026-11-17), through the one drill.
+  const drill = useGameDrill(show);
   const n = useSyncExternalStore(
     (l) => {
       morningListeners.add(l);
@@ -989,7 +992,14 @@ export function MorningSheet({ show, seasonId }: { show: ShowData; seasonId: str
                 {rows.map((x) => {
                   const moved = x.after.place < x.before.place ? "up" : x.after.place > x.before.place ? "down" : null;
                   return (
-                    <div key={x.playerId} data-morning-row={x.name} className={`flex h-12 items-center gap-3 rounded-[3px] px-2 ${x.you ? "bg-plate text-plate-foreground" : ""}`}>
+                    <button
+                      key={x.playerId}
+                      type="button"
+                      data-morning-row={x.name}
+                      data-door-person={x.playerId}
+                      onClick={() => drill.open({ kind: "person", playerId: x.playerId, episode: n, game: r!.table!.leagueId })}
+                      className={`nd-press flex h-12 w-full items-center gap-3 rounded-[3px] px-2 text-left ${x.you ? "bg-plate text-plate-foreground" : ""}`}
+                    >
                       <span className="type-num w-8 text-[20px]">{x.after.rank}</span>
                       <Avatar id={x.userId ?? x.playerId} name={x.name} size={26} />
                       <b className="min-w-0 flex-1 truncate text-[15px]">{x.name}</b>
@@ -1003,7 +1013,8 @@ export function MorningSheet({ show, seasonId }: { show: ShowData; seasonId: str
                         </span>
                       )}
                       <span className="type-num text-[22px]">{x.after.total}</span>
-                    </div>
+                      <ChevronRight className={`size-4 flex-none ${x.you ? "text-plate-muted" : "text-muted-foreground"}`} aria-hidden />
+                    </button>
                   );
                 })}
               </div>
@@ -1028,6 +1039,7 @@ export function MorningSheet({ show, seasonId }: { show: ShowData; seasonId: str
           </>
         )}
       </div>
+      {drill.sheets}
     </Sheet>
   );
 }

@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Theme } from "emoji-picker-react";
 import { Eye, MessageCircle, Plus, Send } from "lucide-react";
+import { openCouchSheet } from "../couch/couch-sheets";
 import { chatEarlier, useChatActions, useCouchChat, type ChatLine, type CouchChat } from "../data";
 import { GifSheet } from "../ui/gif-sheet";
 import type { ShowData } from "../screens/show-space";
@@ -289,7 +290,7 @@ export function Chat({ seasonId, show }: { seasonId: string; show: ShowData }) {
           );
         }
         if (item.kind === "fold") return <Fold key={item.key} lines={item.lines} fold={data.fold} reveal={reveal} epWord={epWord} onShow={showThem} onReveal={openReveal} />;
-        return <Line key={item.m.id} item={item} me={data.you.userId} onOpen={() => setOpen(item.m)} onReact={(e) => actions.react(item.m.id, e).catch((err) => toast.quiet(`Not sent: ${err.message}`))} />;
+        return <Line key={item.m.id} item={item} me={data.you.userId} couchId={couchId} onOpen={() => setOpen(item.m)} onReact={(e) => actions.react(item.m.id, e).catch((err) => toast.quiet(`Not sent: ${err.message}`))} />;
       })}
       {data.you.canPost && <Composer placeholder={placeholder} onGif={data.gifs ? () => setGifOpen(true) : undefined} onSend={async (text) => {
         atBottom.current = true;
@@ -313,7 +314,7 @@ export function Chat({ seasonId, show }: { seasonId: string; show: ShowData }) {
 }
 
 /** One message, or a reveal line. */
-function Line({ item, me, onOpen, onReact }: { item: Extract<Item, { kind: "line" }>; me: string; onOpen: () => void; onReact: (emoji: string) => void }) {
+function Line({ item, me, couchId = null, onOpen, onReact }: { item: Extract<Item, { kind: "line" }>; me: string; couchId?: string | null; onOpen: () => void; onReact: (emoji: string) => void }) {
   const { m, starts, ends } = item;
   if (m.type === "reveal") {
     return (
@@ -329,7 +330,19 @@ function Line({ item, me, onOpen, onReact }: { item: Extract<Item, { kind: "line
   return (
     <div data-msg={m.id} className={`${starts ? "mt-2.5" : "mt-1"} ${ends ? "mb-0.5" : ""}`}>
       <div className={`flex items-end gap-2 ${mine ? "justify-end" : ""}`}>
-        {!mine && (ends ? <Avatar id={m.userId ?? m.name} name={m.name} size={28} /> : <span className="w-7 flex-none" aria-hidden />)}
+        {/* Someone's face opens them on the couch: where they're up to, their games (the drill pass, 2026-11-17). */}
+        {!mine &&
+          (ends ? (
+            couchId && m.userId ? (
+              <button type="button" data-door-person={m.userId} aria-label={`${m.name}: on the couch`} onClick={() => openCouchSheet({ kind: "person", couchId, userId: m.userId! })} className="nd-press flex-none rounded-full">
+                <Avatar id={m.userId} name={m.name} size={28} />
+              </button>
+            ) : (
+              <Avatar id={m.userId ?? m.name} name={m.name} size={28} />
+            )
+          ) : (
+            <span className="w-7 flex-none" aria-hidden />
+          ))}
         <button
           type="button"
           onClick={onOpen}
