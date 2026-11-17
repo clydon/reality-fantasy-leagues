@@ -20,6 +20,7 @@ import { toast } from "../ui/toast";
 import { castName, faceIn, openMoves } from "./moves";
 import { Block, Face } from "./parts";
 import { WaiversRanPlate } from "./waivers";
+import { useGameDrill, type Door } from "./game-sheets";
 import { CatchUpSheet, CatchUpStrips } from "../couch/join-game";
 import { OwnPacePlates } from "./pace-plate";
 import { openPlan, PlanPlates } from "../couch/watch-plans";
@@ -51,6 +52,8 @@ import { GAME_NAMES } from "@/lib/server/league-season";
 export function Tonight({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const playing = show.games.some((g) => g.yourRole);
   const [catchUp, setCatchUp] = useState<GameView | null>(null);
+  // A castaway on Tonight opens their sheet over it (the drill pass, 2026-11-17), through the one drill.
+  const drill = useGameDrill(show);
   return (
     <>
       <BingoLink show={show} />
@@ -65,11 +68,12 @@ export function Tonight({ seasonId, show }: { seasonId: string; show: ShowData }
       {playing && <FillItIn seasonId={seasonId} show={show} />}
       <OnTonight show={show} />
       <AfterEpisode show={show} />
-      <LastTime seasonId={seasonId} show={show} />
-      {playing && <YourGames seasonId={seasonId} show={show} />}
+      <LastTime seasonId={seasonId} show={show} open={drill.open} />
+      {playing && <YourGames seasonId={seasonId} show={show} open={drill.open} />}
       <NextEpisode seasonId={seasonId} show={show} />
       <StatsCard seasonId={seasonId} show={show} />
       {!playing && (!show.solo || !show.ready) && <PlayIt show={show} />}
+      {drill.sheets}
     </>
   );
 }
@@ -293,7 +297,7 @@ function latestSeen(show: ShowData): number | null {
  * (yours first, or a dashed tile to add one), then its two doors: the talk about it, and its recap on Episodes. Each game's
  * result for it is that game's mini, under Your games.
  */
-function LastTime({ seasonId, show }: { seasonId: string; show: ShowData }) {
+function LastTime({ seasonId, show, open }: { seasonId: string; show: ShowData; open: (d: Door) => void }) {
   const n = latestSeen(show);
   const couchId = show.couch?.id ?? null;
   const gifs = useEpisodeGifs(seasonId, couchId, n, !!n && !show.readOnly);
@@ -309,16 +313,17 @@ function LastTime({ seasonId, show }: { seasonId: string; show: ShowData }) {
     <Block title={`Last time · ${ep} ${n}`} aside={e?.stage === "early" ? "Early results" : undefined}>
       <div data-last-time={n} className="flex flex-col gap-3">
         {(e?.out ?? []).map((c) => (
-          <div key={c.id} data-last-out={c.name} className="flex min-h-[64px] items-stretch overflow-hidden rounded-[3px] bg-plate text-plate-foreground shadow-plate">
+          <button key={c.id} type="button" data-last-out={c.name} data-door-cast={c.name} onClick={() => open({ kind: "cast", name: c.name })} className="nd-press flex min-h-[64px] w-full items-stretch overflow-hidden rounded-[3px] bg-plate text-left text-plate-foreground shadow-plate">
             <Face src={c.photo} name={c.name} className="w-16 flex-none text-2xl" />
             <span className="type-caption -mr-[13px] flex items-center bg-live py-0 pl-3 pr-[22px] text-sm tracking-[0.04em] text-live-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_13px)_100%,0_100%)]">
               Out
             </span>
-            <span className="flex flex-1 flex-col justify-center py-2 pl-5 pr-3">
+            <span className="flex flex-1 flex-col justify-center py-2 pl-5 pr-1">
               <b className="type-caption text-[19px]">{c.name}</b>
               <small className="block text-[13px] text-plate-muted">{[c.method, c.place ? `finished ${ordinal(c.place)}` : null].filter(Boolean).join(" · ")}</small>
             </span>
-          </div>
+            <ChevronRight className="mr-3 size-4 flex-none self-center text-plate-muted" aria-hidden />
+          </button>
         ))}
         {show.ready && show.header.show.kind !== "sport" && e && e.out?.length === 0 && <p className="text-[15px] text-muted-foreground">Nobody left in {ep} {n}.</p>}
         {!show.readOnly && d && count === 0 && (
@@ -417,7 +422,7 @@ export const placeOf = (g: GameView) => (!g.you ? "—" : g.you.rank.startsWith(
 
 /** Each game you play here as a mini: an excerpt of its page's This week card, in the game's own measure (never a sum across
  *  games), the last result in a line, its lineup's points one tap open. A stage of a game in stages is its parent's. */
-function YourGames({ seasonId, show }: { seasonId: string; show: ShowData }) {
+function YourGames({ seasonId, show, open }: { seasonId: string; show: ShowData; open: (d: Door) => void }) {
   if (!show.play) return <div aria-busy className="mx-4 mt-[26px] h-[150px] animate-pulse rounded-[4px] bg-card" />;
   const games = show.play.filter((g) => !g.stageOf);
   if (!games.length) return null;
@@ -426,14 +431,14 @@ function YourGames({ seasonId, show }: { seasonId: string; show: ShowData }) {
     <Block title="Your games" aside={games.length > 1 ? `${games.length} on ${show.header ? showLabel(show) : "this show"}` : undefined}>
       <div data-your-games className="flex flex-col">
         {games.map((g) => (
-          <GameMini key={g.leagueId} seasonId={seasonId} show={show} g={g} name={twin(g) && g.name !== g.gameName ? g.name : (GAME_NAMES[g.gameName] ?? g.gameName)} />
+          <GameMini key={g.leagueId} seasonId={seasonId} show={show} g={g} open={open} name={twin(g) && g.name !== g.gameName ? g.name : (GAME_NAMES[g.gameName] ?? g.gameName)} />
         ))}
       </div>
     </Block>
   );
 }
 
-function GameMini({ seasonId, show, g, name }: { seasonId: string; show: ShowData; g: GameView; name: string }) {
+function GameMini({ seasonId, show, g, name, open: openDoor }: { seasonId: string; show: ShowData; g: GameView; name: string; open: (d: Door) => void }) {
   const [open, setOpen] = useState(false);
   const when = (iso: string) => lockTime(Date.parse(iso));
   const move = yourMove(g, { seasonId, episode: show.words.episode, when });
@@ -486,7 +491,7 @@ function GameMini({ seasonId, show, g, name }: { seasonId: string; show: ShowDat
             Who scored · {show.words.ep} {week.episode}
             <ChevronDown className={`size-4 transition-transform duration-200 ${open ? "rotate-180" : ""}`} aria-hidden />
           </button>
-          {open && <Ledger g={g} week={week} />}
+          {open && <Ledger g={g} week={week} open={openDoor} />}
         </>
       )}
     </div>
@@ -570,7 +575,7 @@ const nightWords = (l: { big: string; line: string }) => {
  * Who scored, data round 3's ledger: your starters for the week, each a face, a name, a bar on one points scale shared by every
  * row (a negative an outline left of zero) and the points; then the bench, faint, which didn't count.
  */
-function Ledger({ g, week }: { g: GameView; week: LineupWeek }) {
+function Ledger({ g, week, open }: { g: GameView; week: LineupWeek; open: (d: Door) => void }) {
   const rows = [...week.started.map((s) => ({ ...s, bench: false })), ...week.bench.map((b) => ({ ...b, why: [] as string[], bench: true }))];
   const hi = Math.max(0, ...rows.map((r) => r.points));
   const lo = Math.min(0, ...rows.map((r) => r.points));
@@ -583,7 +588,15 @@ function Ledger({ g, week }: { g: GameView; week: LineupWeek }) {
         const c = faceIn(g, r.id);
         const w = (Math.abs(r.points) / span) * 100;
         return (
-          <div key={`${r.bench ? "b" : "s"}-${r.id}`} data-ledger-row={r.bench ? "bench" : "starter"} className={`flex min-h-12 items-center gap-2.5 py-1 ${r.bench ? "opacity-60" : ""}`}>
+          // Each castaway opens their sheet, in this game (the drill pass, 2026-11-17).
+          <button
+            key={`${r.bench ? "b" : "s"}-${r.id}`}
+            type="button"
+            data-ledger-row={r.bench ? "bench" : "starter"}
+            data-door-cast={c?.name}
+            onClick={() => open({ kind: "cast", id: r.id, game: g.leagueId })}
+            className={`nd-press flex min-h-12 w-full items-center gap-2.5 py-1 text-left ${r.bench ? "opacity-60" : ""}`}
+          >
             <Face src={c?.photo ?? null} name={c?.name} className="size-9 flex-none rounded-[3px] text-sm" />
             <span className="w-[92px] min-w-0 flex-none">
               <b className="block truncate text-[15px] font-semibold leading-tight">{castName(c, g)}</b>
@@ -601,7 +614,8 @@ function Ledger({ g, week }: { g: GameView; week: LineupWeek }) {
               )}
             </span>
             <b className="type-num w-10 flex-none text-right text-[17px]">{fmt(r.points)}</b>
-          </div>
+            <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
+          </button>
         );
       })}
       <p className="mt-1 flex items-baseline justify-between border-t border-border pt-2 text-[14px]">

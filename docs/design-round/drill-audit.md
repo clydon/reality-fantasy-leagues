@@ -71,6 +71,27 @@ Checked by `scripts/dev-test/check-drill-doors.js` on the test couch (chat face,
 each opens its sheet; matchup heads and the morning sheet need a head-to-head game and a due final result, which the test couch
 doesn't have, so they're skipped there).
 
+## Step 2a done: castaways on Tonight and the episode page (2026-11-17)
+
+| Where | Who taps it, wanting what | Verdict |
+| --- | --- | --- |
+| Tonight's Last time: who left (tonight.tsx LastTime) | Joanna: who's that, how did they go? | **Door**: the castaway's sheet; the plate ends in › |
+| Tonight's Who scored rows (tonight.tsx Ledger) | Andrew: why did Eric score 1? | **Door**: the castaway's sheet, that game first and open |
+| An episode's page: who left (episodes.tsx EpisodeBody) | As Last time | **Door**: the castaway's sheet |
+| The same page's What happened | Who won it? | **Door** for a person (the sheet finds them by first name when only one has it); **stays** for a tribe, a group's label (the face wall is grouped by it) |
+| The same page's best this episode | Why did Jenna score 4.5? | **Door**: the castaway's sheet, that game first and open |
+
+## The phone's back through the doors (the user, 2026-11-17: "consistent and natural throughout the app")
+
+One rule, from `src/new/ui/sheet-history.ts`: each level that opens over the page is a sheet with its own history entry, so the
+phone's back takes down the top level alone and lands where you were, as you left it; a level over a level steps down one at a
+time (a caller's sheet, then Side bets, then the game page); a sheet closed by its ×, a swipe or a tap outside takes its entry
+with it, so the next back is never a dead press; a pushed page (an episode's, Power rankings) closes after the sheets over it. A
+row that opens in place (Their numbers' episodes, a game's weeks, Who scored) isn't a level: back doesn't fold it, it takes the
+sheet it's in. `check-drill-doors.js` presses back after every door (one level each, the page still there; twice where a sheet
+sits under the door's), and `check-sheet-back.js` covers sheets in general. Noticed: that check's TV guide case is stale since
+the hub's step 7 redesign (it waits for a guide sheet the card no longer opens that way); BACKLOG 98.
+
 ## Recommended order for the next pass
 
 1. People in games: the matchup heads, the standings-shaped lists and chat's avatars open a person (rows 1, 4, 10): one door kind

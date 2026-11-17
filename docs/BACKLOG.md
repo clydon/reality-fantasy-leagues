@@ -1286,6 +1286,10 @@ Last updated 2026-10-27.
     brainstorm for staying free with a convenience barrier: docs/PLAN-ai-access.md (its Status says where it was left and when
     to revisit). **Who:** the user decides the six open choices; then a design round for the mocks.
 
+98. **check-sheet-back.js's TV guide case is stale** (noticed 2026-11-17 in the drill pass): it waits for the hub's guide sheet
+    (`[data-guide-sheet]`) the way the guide opened before step 7's redesign (2026-11-16) and times out; the other 13 cases pass,
+    stacked sheets included. Who takes it: the next session that touches the hub or the back checks.
+
 ## Decided against (don't re-propose without new information)
 
 - **An AI draft/lineup/pick advisor for players** ("Coach"): rejected. Feels like pay-to-win inside

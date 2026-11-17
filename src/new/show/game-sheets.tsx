@@ -320,10 +320,13 @@ function CastLevel({ show, seasonId, g, d, sheet, go, onLens, onFlag }: { show: 
       </Sheet>
     );
   }
-  const c = stats.data?.cast.find((x) => same(x.name, name)) ?? null;
+  // By their name, else (What happened names people by first name) by a first name only one of the cast has.
+  const all = stats.data?.cast ?? [];
+  const firsts = all.filter((x) => same(x.first, name));
+  const c = all.find((x) => same(x.name, name)) ?? (firsts.length === 1 ? firsts[0] : null);
   const through = stats.data?.through ?? g?.through ?? 0;
   return (
-    <Sheet {...sheet} open={sheet.open && !!name} title={name} subtitle={through ? `${show.header?.show.name ?? ""} · up to ${show.words.ep} ${through}` : (show.header?.show.name ?? undefined)}>
+    <Sheet {...sheet} open={sheet.open && !!name} title={c?.name ?? name} subtitle={through ? `${show.header?.show.name ?? ""} · up to ${show.words.ep} ${through}` : (show.header?.show.name ?? undefined)}>
       {!stats.data ? (
         <Waiting />
       ) : c ? (

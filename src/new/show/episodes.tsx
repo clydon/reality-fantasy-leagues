@@ -24,6 +24,7 @@ import { GAME_NAMES } from "@/lib/server/league-season";
 import { paceReveal, usePaceReveal } from "./pace-plate";
 import { GifRow, GifStack, openGif, showLabel, type GifTarget } from "./react";
 import { CallResults } from "./calls";
+import { useGameDrill, type Door } from "./game-sheets";
 import { SheetResultRow } from "./questions";
 import { BingoResults } from "./bingo";
 import { ShowChangeCard } from "./show-change";
@@ -444,6 +445,8 @@ function EpisodePage({ seasonId, show }: { seasonId: string; show: ShowData }) {
   if (ep != null && ep !== shown) setShown(ep);
   const page = usePushedPage(`ep${shown}`);
   const nav = useNav();
+  // A castaway on the page opens their sheet over it (the drill pass, 2026-11-17).
+  const drill = useGameDrill(show);
   const e = show.episodes?.episodes.find((x) => x.number === shown && x.status === "seen") ?? null;
   // Opened by a link on another of the show's tabs (Tonight's "What happened in Episode 4"): back goes there, and says so.
   const from = useCameFrom();
@@ -463,10 +466,12 @@ function EpisodePage({ seasonId, show }: { seasonId: string; show: ShowData }) {
           sheets={show.games.filter((g) => g.yourRole && g.gameType === "questions" && !g.archived).map((g) => ({ leagueId: g.leagueId, name: g.name }))}
           ep={show.words.ep}
           talk={!show.solo && !!show.couch?.id && !show.readOnly}
+          open={drill.open}
         />
       ) : (
         <p className="px-4 pt-6 text-sm text-muted-foreground">Reveal this episode to see it.</p>
       )}
+      {drill.sheets}
     </PushedPage>
   );
 }
@@ -498,6 +503,7 @@ function EpisodeBody({
   sheets,
   ep,
   talk,
+  open,
 }: {
   seasonId: string;
   couchId: string | null;
@@ -507,6 +513,7 @@ function EpisodeBody({
   sheets: { leagueId: string; name: string }[];
   ep: string;
   talk: boolean;
+  open: (d: Door) => void;
 }) {
   const out = e.out ?? [];
   const results = useEpisodeResults(seasonId, couchId, e.number);
@@ -522,16 +529,17 @@ function EpisodeBody({
       )}
       <div className="flex flex-col gap-2.5">
         {out.map((c) => (
-          <div key={c.id} className="flex min-h-[64px] items-stretch overflow-hidden rounded-[3px] bg-plate text-plate-foreground shadow-plate">
+          <button key={c.id} type="button" data-door-cast={c.name} onClick={() => open({ kind: "cast", name: c.name })} className="nd-press flex min-h-[64px] w-full items-stretch overflow-hidden rounded-[3px] bg-plate text-left text-plate-foreground shadow-plate">
             <Face src={c.photo} name={c.name} out={c.knocked} className="w-16 flex-none text-2xl" />
             <span className="type-caption -mr-[13px] flex items-center bg-live py-0 pl-3 pr-[22px] text-sm tracking-[0.04em] text-live-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_13px)_100%,0_100%)]">
               Out
             </span>
-            <span className="flex flex-1 flex-col justify-center py-2 pl-5 pr-3">
+            <span className="flex flex-1 flex-col justify-center py-2 pl-5 pr-1">
               <b className="type-caption text-[19px]">{c.name}</b>
               <small className="block text-[13px] text-plate-muted">{[c.method, c.place ? `finished ${ordinal(c.place)}` : null].filter(Boolean).join(" · ")}</small>
             </span>
-          </div>
+            <ChevronRight className="mr-3 size-4 flex-none self-center text-plate-muted" aria-hidden />
+          </button>
         ))}
         {out.length === 0 && <p className="text-[15px] text-muted-foreground">Nobody went home this episode.</p>}
       </div>
@@ -542,15 +550,18 @@ function EpisodeBody({
           {(e.happened ?? []).map((h) => (
             <div key={h.label} className="flex min-h-12 flex-wrap items-center gap-2 border-t border-border py-2">
               <span className="type-caption w-[90px] text-sm text-muted-foreground">{h.label}</span>
-              {h.winners.map((w) => (
-                <span
-                  key={w.name}
-                  className={`rounded-[2px] px-2.5 py-1 text-sm font-bold ${w.colour ? "" : "bg-secondary"}`}
-                  style={w.colour ? { background: w.colour, color: "#121018" } : undefined}
-                >
-                  {w.name}
-                </span>
-              ))}
+              {h.winners.map((w) =>
+                w.colour ? (
+                  <span key={w.name} className="rounded-[2px] px-2.5 py-1 text-sm font-bold" style={{ background: w.colour, color: "#121018" }}>
+                    {w.name}
+                  </span>
+                ) : (
+                  <button key={w.name} type="button" data-door-cast={w.name} onClick={() => open({ kind: "cast", name: w.name })} className="nd-press inline-flex min-h-8 items-center gap-1 rounded-[2px] bg-secondary py-1 pl-2.5 pr-1.5 text-sm font-bold">
+                    {w.name}
+                    <ChevronRight className="size-3.5 text-muted-foreground" aria-hidden />
+                  </button>
+                )
+              )}
             </div>
           ))}
         </section>
@@ -576,11 +587,12 @@ function EpisodeBody({
                 <div data-ep-scorers className="mb-2 ml-[128px] flex flex-col">
                   <small className="pb-1 text-[13px] text-muted-foreground">{named(l.gameName)}&rsquo;s best this episode</small>
                   {e.scorers!.slice(0, 4).map((c) => (
-                    <span key={c.name} className="flex h-10 items-center gap-2 text-[14px] font-semibold">
+                    <button key={c.name} type="button" data-door-cast={c.name} onClick={() => open({ kind: "cast", name: c.name, game: l.leagueId })} className="nd-press flex h-10 w-full items-center gap-2 text-left text-[14px] font-semibold">
                       <Face src={c.photo} name={c.name} className="size-7 rounded-[3px] text-xs" />
                       <span className="min-w-0 flex-1 truncate">{first(c.name)}</span>
                       <span className="type-num text-[18px]">+{c.points}</span>
-                    </span>
+                      <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
+                    </button>
                   ))}
                 </div>
               )}

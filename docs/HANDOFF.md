@@ -161,7 +161,13 @@ stats, `goneHome` in src/new/show/finish.ts; a Finalists group on the face wall;
 side bets' callers and the morning sheet's standings open that person in the game; the couch's Power rankings and Head to head
 rows and chat's faces open the couch person sheet; "3 behind riley" stays (inside the game's row). Verdicts in
 docs/design-round/drill-audit.md; `scripts/dev-test/check-drill-doors.js` (4 pass, 2 skipped: no head to head or due final result on
-the test couch); story https://claude.ai/artifact/5ABPLf7uXknLXVcQ6gggC3. Next: step 2, castaways wherever they appear.
+the test couch); story https://claude.ai/artifact/5ABPLf7uXknLXVcQ6gggC3 (v2). Committed (c808fb6d). **Step 2a** (castaways on
+Tonight and the episode page) committed after it: Last time's Out plate, Who scored's rows, the episode page's Out plate, What
+happened's people (a tribe stays a label; the castaway level finds a unique first name) and best this episode open the castaway's
+sheet. **The phone's back** (the user: "consistent and natural"): one level a back everywhere (sheet-history.ts); in-place folds
+aren't levels; check-drill-doors.js presses back after every door; check-sheet-back.js passes but for its stale TV guide case
+(BACKLOG 98). **Next: step 2b**, the draft room (picks board, your slots, taken tiles, queue, seats) and waivers' picker, opening
+DraftFaceSheet-style sheets with the action at the foot (draft.tsx already has DraftFaceSheet).
 **Open:** a game's points about 630 px down from its page (the header could
 carry them); Outlast's row opening to one holder line; the board's "Who has them in: Nobody". Still the user's: the Compare flow
 change and the next pass's order (drill-audit.md, with the user's two rules: every cast photo opens their sheet; each dead end gets
