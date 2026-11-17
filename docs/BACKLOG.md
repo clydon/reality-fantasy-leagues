@@ -1296,6 +1296,17 @@ Last updated 2026-10-27.
     (`data-queue-draft`), the row holding a door too. The room's doors themselves are covered by check-drill-doors.js's draft set.
     Who takes it: the next session that touches the draft room or its checks.
 
+100. **A sport's episode page reads as a show's** (noticed 2026-11-17 in the drill pass's step 4b): a game's page on the Episodes tab
+    (episodes.tsx EpisodeBody, the night) says "Nobody went home this episode" under an empty Out, for a sport whose episodes are
+    games; it should lead with the game itself (the score behind Hide scores, the box score's best), and its words with the show's
+    (a game, not an episode). Step 4b sends an athlete's log to the game's sheet instead. Who takes it: the sports track.
+
+101. **check-sports-links.js's mark cases are stale since U1's sports scores** (noticed 2026-11-17 in the drill pass's step 4b): a
+    sport's results show straight away unless someone hides sports scores (U1, d7a6d216, 2026-11-09), but 13 of its cases still expect
+    people and stats held back by the viewer's mark ("held back until you've seen it", "at Game 0: no so far", "through Game 1");
+    they fail the same with and without step 4b's roster and log changes, and its linking and people cases pass. They'd hold for
+    someone with Hide sports scores on. Who takes it: the sports track, with the check's next change.
+
 ## Decided against (don't re-propose without new information)
 
 - **An AI draft/lineup/pick advisor for players** ("Coach"): rejected. Feels like pay-to-win inside

@@ -182,8 +182,12 @@ reads opensSheet when called (a module loop broke the hub's rankings once). chec
 **Step 4a** (the hub) committed after it: the profile's place opens the Power rankings, its best finish the game, Called it By
 the numbers (the sheet closes; back on Home); Previously on loads its show's drill (useShow), so its faces open their sheet and its
 episodes the night over the page; a Row with nothing behind it is a plain row; the bands' faces stay part of the band's link.
-**Next: step 4b**, sports: a sport's Players tab (an athlete's sheet; a team heading its team's sheet, which needs the roster's
-groups to carry the team's id), the Cast tab's team headings, and an athlete's game log (drill-audit.md row 11).
+**Step 4b** (sports) committed after it: a sport's Players tab's athletes open their sheet; its team headings and a sport's Cast
+tab's open the team's sheet (rosters.ts groups carry `team`, from their games' sides); an athlete's game log opens the game's sheet
+(player-log.ts games carry `game`); past seasons and the athlete chart stay. check-drill-doors.js has a sports set on a stand-in
+ESPN (a seeded TV sport not yet a game, a team's season through Add a show's route). BACKLOG 100: a sport's episode page reads as a
+show's. **The drill pass's four steps are done**: what's left is BACKLOG's noticed items (96-101; 101: check-sports-links.js's mark cases, stale since U1's sports scores) and the castaway sheet's header,
+which differs by the way in (drill-audit.md, Inconsistencies).
 **Open:** a game's points about 630 px down from its page (the header could
 carry them); Outlast's row opening to one holder line; the board's "Who has them in: Nobody". Still the user's: the Compare flow
 change and the next pass's order (drill-audit.md, with the user's two rules: every cast photo opens their sheet; each dead end gets

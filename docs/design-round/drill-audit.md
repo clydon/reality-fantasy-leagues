@@ -167,6 +167,19 @@ fixtures: 57 pass, 4 skipped.
 Checked by `check-drill-doors.js`'s couch set: the profile's place and Called it (the page up, the sheet gone, back on Home) and
 Previously on's four doors with their backs pass; the best finish is skipped (nobody's season has ended on the test couch).
 
+## Step 4b done: sports (2026-11-17)
+
+| Where | Who taps it, wanting what | Verdict |
+| --- | --- | --- |
+| A sport's Players tab before it's a game (roster.tsx): an athlete | Conor: who's this, how's he doing? | **Door**: the athlete's sheet, as a sport's Cast tab's rows already open it; the row ends in › |
+| The same tab's team headings, and a sport's Cast tab's (cast.tsx SportCast) | When do the Hawks play next? | **Door**: the team's sheet (sports/sheets.tsx: its schedule, Follow, a game to play), from the team's id in its games (rosters.ts groups' `team`); a team its games don't name stays a label |
+| An athlete's game log ("Ep 1 · ZT Owls") | That game: the score, who won | **Door**: the game's sheet, the score behind Hide scores (player-log.ts games' `game`); not the night, whose page reads as a show's ("Nobody went home this episode") |
+| An athlete's past seasons | | **Stays**: a past season's line is all the sports data gives; nothing sits under it |
+| The athlete's Game by game chart | | **Stays**: the log under it lists the same games, each a door |
+
+Checked by `check-drill-doors.js`'s sports set, on a stand-in ESPN (a TV sport seeded as Add a show leaves one, and a team's season
+added through Add a show's route): the four doors and their backs, 9 pass.
+
 ## The phone's back through the doors (the user, 2026-11-17: "consistent and natural throughout the app")
 
 One rule, from `src/new/ui/sheet-history.ts`: each level that opens over the page is a sheet with its own history entry, so the
@@ -185,4 +198,4 @@ the hub's step 7 redesign (it waits for a guide sheet the card no longer opens t
 2. Castaways wherever they appear: Tonight's Who scored, the episode page, the draft room, waivers' picker (rows 2, 3, 5, 6): the
    one castaway sheet, with the surface's action at its foot where it has one (Draft, Pick). Done (steps 2a and 2b).
 3. Episodes: decide how an episode level opens over a sheet, then charts, tables and headers (rows 7, 8). Done (step 3).
-4. The hub and sports (rows 9, 11).
+4. The hub and sports (rows 9, 11). Done (steps 4a and 4b).

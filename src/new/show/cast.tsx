@@ -6,6 +6,7 @@ import { ChevronDown, ChevronRight, Ellipsis, Search, Users, Zap } from "lucide-
 import { useAthleteHistory, useRoster, useSeasonStats, useFill, type CastStat, type GameView, type PastSeason, type SeasonStats } from "../data";
 import { GAME_NAMES } from "@/lib/server/league-season";
 import type { ShowData } from "../screens/show-space";
+import { openSports } from "../sports/sheets";
 import { Flip } from "../ui/flip";
 import { EmptyState } from "../ui/parts";
 import { SheetCaption, plate, type Athlete } from "./cast-sheet";
@@ -653,6 +654,7 @@ function SportCast({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const term = q.trim().toLowerCase();
   const found = people.filter((p) => (pos === "all" || slotWord((p.role ?? "").toUpperCase()) === pos) && (!term || p.name.toLowerCase().includes(term) || p.team.toLowerCase().includes(term)));
   const page = found.slice(0, shown);
+  const teamIds = new Map((read.data?.groups ?? []).map((g) => [g.name, g.team ?? null]));
   const teams: [string, Athlete[]][] = [];
   for (const p of page) {
     const t = teams.at(-1);
@@ -713,7 +715,15 @@ function SportCast({ seasonId, show }: { seasonId: string; show: ShowData }) {
             {found.length === 0 && <p className="py-6 text-center text-[14px] text-muted-foreground">Nobody matches “{q.trim()}”.</p>}
             {teams.map(([team, list], i) => (
               <div key={`${team}-${i}`} data-team={team}>
-                <p className="type-caption mt-3 border-b border-border pb-1.5 text-[15px] tracking-[0.02em] text-muted-foreground">{team}</p>
+                {teamIds.get(team) ? (
+                  // The team's own sheet (the drill pass, 2026-11-17).
+                  <button type="button" data-team-door={teamIds.get(team)!.id} onClick={() => openSports({ kind: "team", league: teamIds.get(team)!.league, team: teamIds.get(team)!.id })} className="nd-press type-caption mt-3 flex min-h-11 w-full items-end justify-between gap-2 border-b border-border pb-1.5 text-left text-[15px] tracking-[0.02em] text-muted-foreground">
+                    {team}
+                    <ChevronRight className="size-4 flex-none" aria-hidden />
+                  </button>
+                ) : (
+                  <p className="type-caption mt-3 border-b border-border pb-1.5 text-[15px] tracking-[0.02em] text-muted-foreground">{team}</p>
+                )}
                 {list.map((p) => (
                   <button key={p.name} type="button" data-athlete={p.name} onClick={() => drill.open({ kind: "cast", name: p.name, lens: null })} className="nd-press flex min-h-14 w-full items-center gap-3 border-b border-border py-1.5 text-left">
                     <Face src={p.photoUrl} name={p.name} className="size-9 flex-none rounded-[3px] bg-card" />

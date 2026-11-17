@@ -3,8 +3,8 @@
 // page.goBack(): sheet-history.ts) must take down that level alone, the surface still there as it was, and where the door opened
 // a sheet over a sheet, a second back the one under it (one level a back, the same everywhere: the user, 2026-11-17).
 // Frames before the tap, after it and after the back (<out>/<door>.before.jpg, .after.jpg, .back.jpg), for the round's
-// screenshot story, and a PASS, FAIL or SKIP line each (BACK lines for the backs). Three sets (--set=couch,draft,waivers, all
-// three by default), each on its own fixture:
+// screenshot story, and a PASS, FAIL or SKIP line each (BACK lines for the backs). Four sets (--set=couch,draft,waivers,sports,
+// all four by default), each on its own fixture:
 //
 // couch: new-fixture.js's couch as alex (bring it up first: node scripts/dev-test/new-fixture.js up)
 //   chat-face          the show's Chat: someone else's face opens them on the couch (couch/person-sheet.tsx)
@@ -54,12 +54,22 @@
 //   waiver-move-person the same row's person opens their sheet in the game
 //   waiver-last-face   phase idle: Last time's castaway opens their sheet
 //
-//   node scripts/dev-test/check-drill-doors.js [--set=couch,draft,waivers] [--only=<regex>] [--keep]
+// sports: a stand-in ESPN (fake-espn.js, by the x-gys-sports header: the real one is never asked), as alex (new-fixture.js up): a
+// sport from TV listings that isn't a game yet (seeded as Add a show leaves one: no set_up_at, its three games linked) and the ZT
+// Hawks' season added through Add a show's route (a league season, a game already); everything keyed on the stand-in league
+// football/zt-ddf, taken down at the end unless --keep
+//   roster-person      the TV sport's Players tab: an athlete opens their sheet
+//   roster-team        the same tab's team heading: the team's sheet (its schedule, Follow, a game to play)
+//   athlete-log        the Hawks' season's Cast tab, the QB, a game in his log: that game's sheet over his (two backs)
+//   cast-team          the same season with a Pick'em on it, its Cast tab's team heading: the team's sheet
+//
+//   node scripts/dev-test/check-drill-doors.js [--set=couch,draft,waivers,sports] [--only=<regex>] [--keep]
 //                                              [--out=.ui-atlas/stories/drill-doors/after] [--width=390 --height=844]
 //
 // Needs the dev server (npm run dev; BASE= for another). The couch set reads only; the draft and waivers sets write only their
-// fixtures' zt-dr- / zt-wv- rows (never run beside another check on the same fixture). Refuses a non-local database. A page
-// error prints as a PAGEERROR line.
+// fixtures' zt-dr- / zt-wv- rows, the sports set only its stand-in league's (never run beside another check on the same fixture,
+// nor the sports set beside check-sports-couch.js: both clear the stand-in's cache). Refuses a non-local database. A page error
+// prints as a PAGEERROR line.
 require("dotenv").config({ path: ".env.local", quiet: true });
 const fs = require("fs");
 const path = require("path");
@@ -71,7 +81,7 @@ const opt = (k, d) => args.find((a) => a.startsWith(`--${k}=`))?.slice(k.length 
 const OUT = path.resolve(opt("out", ".ui-atlas/stories/drill-doors/after"));
 const W = Number(opt("width", 390)), H = Number(opt("height", 844));
 const ONLY = opt("only", null);
-const SETS = opt("set", "couch,draft,waivers").split(",");
+const SETS = opt("set", "couch,draft,waivers,sports").split(",");
 const KEEP = args.includes("--keep");
 const BASE = process.env.BASE || "http://localhost:3000";
 const DB = process.env.AUTH_DATABASE_URL || "";
@@ -89,9 +99,9 @@ const wanted = (id) => !ONLY || new RegExp(ONLY).test(id);
   let b = null;
   let p = null;
   /** A browser signed in as `user`, the one the doors below tap in (the last one closed). */
-  async function as(user, pass = "zt-pass-12345") {
+  async function as(user, pass = "zt-pass-12345", headers) {
     if (b) await b.close();
-    b = await open({ user, pass, width: W, height: H, motion: "reduce" });
+    b = await open({ user, pass, width: W, height: H, motion: "reduce", headers });
     p = b.page;
     p.on("pageerror", (e) => console.log(`PAGEERROR ${e.message.split("\n")[0]}`));
     // The dev server's badge sits over a sheet's foot in the frames (story-waivers.js hides it the same way).
@@ -647,6 +657,129 @@ const wanted = (id) => !ONLY || new RegExp(ONLY).test(id);
         }
       } finally {
         if (!KEEP) await wfx.down(pool);
+      }
+    }
+
+    // Sports (step 4b), on a stand-in ESPN (fake-espn.js, by the x-gys-sports header: the real one is never asked), as alex:
+    //  - a sport from TV listings that isn't a game yet ("ZT Drill Ball", seeded as Add a show leaves one: no set_up_at, its three
+    //    games linked to the stand-in's), whose Players tab's own read fills its people from the stand-in's rosters;
+    //  - the ZT Hawks' season added through Add a show's route (a league season is a game already: a sport's Cast tab), its people
+    //    and box score from the stand-in, then a Pick'em on it.
+    const SPORTS = ["roster-person", "roster-team", "athlete-log", "cast-team"];
+    if (SETS.includes("sports") && SPORTS.some(wanted)) {
+      const LG = "football/zt-ddf";
+      const crew = (base, positions) => positions.map((x, i) => ({ id: `${base}${i}`, name: `ZT ${x} ${base}${i}`, position: x }));
+      const TEAMS = [
+        { id: "9601", name: "ZT Hawks", short: "Hawks", location: "ZT Hawkton", abbreviation: "ZHWK", league: LG, color: "a71930", roster: crew("96010", ["QB", "WR", "RB"]) },
+        { id: "9602", name: "ZT Owls", short: "Owls", location: "ZT Owlburg", abbreviation: "ZOWL", league: LG, color: "203731", roster: crew("96020", ["QB", "WR", "RB"]) },
+      ];
+      const DAY = 24 * 3600_000;
+      const when = (ms) => new Date(Math.round((Date.now() + ms) / 60_000) * 60_000).toISOString();
+      const lines = (t, stats) => ({ labels: ["YDS", "TD"], rows: t.roster.map((r, i) => ({ id: r.id, name: r.name, position: r.position, stats: stats[i] })) });
+      const EVENTS = [
+        { league: LG, id: "96101", at: when(-7 * DAY), home: "9601", away: "9602", state: "post", score: [21, 14], box: { 9601: lines(TEAMS[0], [["212", "2"], ["88", "1"], ["54", "0"]]), 9602: lines(TEAMS[1], [["180", "1"], ["61", "1"], ["40", "0"]]) } },
+        { league: LG, id: "96102", at: when(3 * DAY), home: "9602", away: "9601", state: "pre" },
+        { league: LG, id: "96103", at: when(10 * DAY), home: "9601", away: "9602", state: "pre" },
+      ];
+      // Every row of its league: its show (its seasons, cast, follows and lines go with it), the games on it, its events and links.
+      const sportsDown = async () => {
+        const { rows: shows } = await pool.query("SELECT id, slug FROM shows WHERE sports_league LIKE $1", [`%:${LG}`]);
+        if (shows.length) {
+          await pool.query("DELETE FROM leagues WHERE state->'settings'->>'showId' = ANY($1::text[])", [shows.map((x) => x.slug)]);
+          await pool.query("DELETE FROM season_events WHERE league = $1", [LG]);
+          await pool.query("DELETE FROM shows WHERE id = ANY($1::uuid[])", [shows.map((x) => x.id)]);
+        }
+        for (const t of ["sports_events", "team_follows", "sports_recordings", "sports_matchups", "sports_slates", "sports_links", "season_events"]) await pool.query(`DELETE FROM ${t} WHERE league = $1`, [LG]).catch(() => {});
+        await pool.query("DELETE FROM shows WHERE slug = 'zt-ddf-tv'");
+        await pool.query("DELETE FROM sports_cache WHERE key LIKE 'zt-standin:%'");
+      };
+      const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "..", "src") } });
+      const { pool: appPool } = jiti("../../src/lib/server/db.ts");
+      const { leagueShow } = jiti("../../src/lib/server/sports/matchup.ts");
+      const espn = await require("./fake-espn").start({ teams: TEAMS, leagues: [{ league: LG, name: "ZT Drill Football League", short: "ZTDF" }], events: EVENTS });
+      const headers = { "x-gys-sports": espn.url };
+      try {
+        await sportsDown();
+        await leagueShow(appPool, "espn", LG, "", null, { name: "ZT Drill Football League", short: "ZTDF" });
+        // The TV sport, not a game yet: a show with no set_up_at (show-space.ts `ready`), its season's games linked, alex following it.
+        const alexId = (await one(`SELECT id FROM "user" WHERE username = 'zt_nd_alex'`))?.id;
+        const tvShow = (await one(`INSERT INTO shows (slug, name, kind, set_up_at) VALUES ('zt-ddf-tv', 'ZT Drill Ball', 'sport', NULL) RETURNING id`)).id;
+        const tvSeason = (await one(`INSERT INTO show_seasons (show_id, season_number, episode_count) VALUES ($1, 1, 3) RETURNING id`, [tvShow])).id;
+        const sides = JSON.stringify([{ id: "9601", name: "ZT Hawks" }, { id: "9602", name: "ZT Owls" }]);
+        for (const [i, e] of EVENTS.entries()) await pool.query(`INSERT INTO season_episodes (season_id, number, air_at, title) VALUES ($1, $2, $3, $4)`, [tvSeason, i + 1, e.at, `Game ${i + 1}`]);
+        for (const [i, e] of EVENTS.entries())
+          await pool.query(`INSERT INTO season_events (season_id, episode, provider, league, event_id, name, starts_at, teams) VALUES ($1, $2, 'espn', $3, $4, $5, $6, $7)`, [tvSeason, i + 1, LG, e.id, `Game ${i + 1}: ZT Owls at ZT Hawks`, e.at, sides]);
+        await pool.query(`INSERT INTO sports_links (season_id, provider, league, linked, checked_at, next_at) VALUES ($1, 'espn', $2, 3, now(), now() + interval '30 days')`, [tvSeason, LG]);
+        await pool.query(`INSERT INTO show_follows (user_id, season_id, seen_through) VALUES ($1, $2, 1)`, [alexId, tvSeason]);
+        const me = await api({ user: "zt_nd_alex", pass: "zt-pass-12345", headers });
+        const added = await me.call("POST", "/api/sports/add", { league: LG, team: "9601", whole: "season" });
+        const seasonId = added.body?.seasonId;
+        if (!seasonId) throw new Error(`the Hawks' season wasn't added: ${added.status} ${JSON.stringify(added.body).slice(0, 200)}`);
+        // Its people from the stand-in's rosters, then their lines from the box score, as the tab's reads fill them.
+        const until = async (ask, ok, ms = 90000) => {
+          const end = Date.now() + ms;
+          for (;;) {
+            const r = await ask();
+            if (ok(r) || Date.now() > end) return r;
+            await new Promise((res) => setTimeout(res, 2500));
+          }
+        };
+        const filled = (r) => (r.body?.groups ?? []).some((g) => g.people.length) && !r.body?.asking && !r.body?.stats?.asking;
+        await until(() => me.call("GET", `/api/seasons/${tvSeason}/roster`), filled);
+        const roster = await until(() => me.call("GET", `/api/seasons/${seasonId}/roster`), filled);
+        const qb = (roster.body?.groups ?? []).find((g) => g.name === "ZT Hawks")?.people.find((x) => x.role === "QB")?.name ?? null;
+        if (qb) await until(() => me.call("GET", `/api/seasons/${seasonId}/player-log?name=${encodeURIComponent(qb)}`), (r) => (r.body?.games ?? []).length > 0, 60000);
+        await as("zt_nd_alex", "zt-pass-12345", headers);
+        const players = async () => {
+          await p.goto(`${BASE}/show/${tvSeason}/cast`, { waitUntil: "domcontentloaded" });
+          await p.locator("[data-roster-person], [data-roster]").first().waitFor({ timeout: 45000 });
+          await wait(p, 1500);
+        };
+        const sportCast = async (id) => {
+          await p.goto(`${BASE}/show/${id}/cast`, { waitUntil: "domcontentloaded" });
+          await p.locator("[data-sport-list]").first().waitFor({ timeout: 45000 });
+          await wait(p, 1500);
+        };
+        const athlete = async () => p.locator("[data-athlete-sheet]").last().waitFor({ timeout: 20000 });
+        await door("roster-person", { go: players, door: async () => p.locator("[data-roster-person]").first(), opened: athlete, still: "[data-roster]", skip: "nobody on the Players tab" });
+        await door("roster-team", {
+          go: players,
+          door: async () => p.locator("[data-roster] [data-team-door]").first(),
+          opened: async () => p.locator("[data-team-view]").last().waitFor({ timeout: 20000 }),
+          still: "[data-roster]",
+          skip: "no team with its id on the Players tab",
+        });
+        await door("athlete-log", {
+          go: async () => {
+            await sportCast(seasonId);
+            await p.locator(qb ? `[data-sport-list] [data-athlete="${qb}"]` : "[data-sport-list] [data-athlete]").first().click();
+            await athlete();
+            await p.locator("[data-athlete-sheet] [data-log-game]").first().waitFor({ timeout: 20000 }).catch(() => {});
+            await wait(p, 700);
+          },
+          door: async () => p.locator("[data-athlete-sheet] [data-game-door]").first(),
+          opened: async () => p.locator("[data-game-view]").last().waitFor({ timeout: 20000 }),
+          under: 1,
+          still: "[data-athlete-sheet]",
+          skip: "no game in the athlete's log",
+        });
+        // A game on it: the season is a game now, and its Cast tab lists everyone by team.
+        if (wanted("cast-team")) {
+          const couch = (await one(`SELECT cm.couch_id FROM couch_members cm JOIN "user" u ON u.id = cm.user_id WHERE u.username = 'zt_nd_alex' LIMIT 1`))?.couch_id;
+          const started = await me.call("POST", `/api/sports/start?couch=${couch}`, { league: LG, team: "9601", whole: "season", game: "pickem", tell: false });
+          const gameSeason = started.body?.seasonId ?? seasonId;
+          await door("cast-team", {
+            go: () => sportCast(gameSeason),
+            door: async () => p.locator("[data-sport-list] [data-team-door]").first(),
+            opened: async () => p.locator("[data-team-view]").last().waitFor({ timeout: 20000 }),
+            still: "[data-sport-list]",
+            skip: `no team door on the Cast tab (the game's start: ${started.status})`,
+          });
+        }
+      } finally {
+        await espn.close();
+        if (!KEEP) await sportsDown();
+        await appPool.end?.().catch(() => {});
       }
     }
   } finally {

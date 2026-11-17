@@ -16,6 +16,8 @@ export interface LoggedGame {
   /** Their team that game, as the box score said. */
   team: string | null;
   items: StatItem[];
+  /** The game itself in its league, and their team's id in it: the log's line opens the game's sheet (sports/sheets.tsx). */
+  game: { league: string; id: string; team: string } | null;
 }
 
 export async function playerLog(user: SessionUser, seasonId: string, name: string): Promise<{ games: LoggedGame[]; newer: boolean }> {
@@ -26,8 +28,8 @@ export async function playerLog(user: SessionUser, seasonId: string, name: strin
   const mark = Number.isFinite(seen) ? seen : 2_147_483_646;
   const [{ rows }, { rows: later }] = await Promise.all([
     pool.query(
-      `SELECT g.episode, g.team, g.tables, e.starts_at, e.teams
-         FROM game_lines g LEFT JOIN LATERAL (SELECT starts_at, teams FROM season_events x WHERE x.season_id = g.season_id AND x.episode = g.episode ORDER BY starts_at LIMIT 1) e ON true
+      `SELECT g.episode, g.team, g.tables, e.starts_at, e.teams, e.event_id, e.league
+         FROM game_lines g LEFT JOIN LATERAL (SELECT starts_at, teams, event_id, league FROM season_events x WHERE x.season_id = g.season_id AND x.episode = g.episode ORDER BY starts_at LIMIT 1) e ON true
         WHERE g.season_id = $1 AND lower(g.name) = lower($2) AND g.episode BETWEEN 1 AND $3
         ORDER BY g.episode DESC`,
       [seasonId, who, mark]
@@ -38,7 +40,9 @@ export async function playerLog(user: SessionUser, seasonId: string, name: strin
   const games = rows.map((r) => {
     const sides = Array.isArray(r.teams) ? (r.teams as { id: string; name: string }[]) : [];
     const opponent = sides.find((t) => t.name !== r.team && t.id !== r.team)?.name ?? null;
-    return { episode: r.episode as number, at: r.starts_at ? new Date(r.starts_at).toISOString() : null, opponent, team: (r.team as string | null) ?? null, items: addUp([r.tables as LineTable[]]) ?? [] };
+    const theirs = sides.find((t) => t.name === r.team || t.id === r.team) ?? sides[0] ?? null;
+    const game = r.event_id && r.league && theirs?.id ? { league: r.league as string, id: String(r.event_id), team: String(theirs.id) } : null;
+    return { episode: r.episode as number, at: r.starts_at ? new Date(r.starts_at).toISOString() : null, opponent, team: (r.team as string | null) ?? null, items: addUp([r.tables as LineTable[]]) ?? [], game };
   });
   return { games, newer: later.length > 0 };
 }

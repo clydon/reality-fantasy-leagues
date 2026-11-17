@@ -39,6 +39,8 @@ export type { StatItem };
 
 export interface RosterGroup {
   name: string;
+  /** The team itself, in its league, from its games' sides (season_events.teams): its heading opens the team's sheet. */
+  team?: { league: string; id: string } | null;
   /** `comingIn`: the season line from before this began; `soFar`: its games through RosterStats.through. Either can be missing. */
   people: { name: string; role: string | null; photoUrl: string | null; stats?: { comingIn: StatItem[] | null; soFar: StatItem[] | null } }[];
 }
@@ -221,6 +223,7 @@ export async function rosterOf(user: SessionUser, seasonId: string, bot?: string
       `SELECT l.season_id IS NOT NULL AS looked, l.league, l.next_at,
               (SELECT count(*)::int FROM season_events e WHERE e.season_id = $1) AS events,
               (SELECT json_agg(DISTINCT t->>'name') FROM season_events e, jsonb_array_elements(e.teams) t WHERE e.season_id = $1) AS teams,
+              (SELECT json_agg(DISTINCT jsonb_build_object('id', t->>'id', 'name', t->>'name')) FROM season_events e, jsonb_array_elements(e.teams) t WHERE e.season_id = $1) AS sides,
               EXISTS (SELECT 1 FROM season_events e WHERE e.season_id = $1 AND e.starts_at + interval '3 hours' <= now()
                        AND e.starts_at + interval '3 hours' > COALESCE((SELECT f.updated_at FROM cast_fills f WHERE f.season_id = $1 AND f.via = 'sports'), '-infinity')) AS played
          FROM (SELECT 1) one LEFT JOIN sports_links l ON l.season_id = $1`,
@@ -256,6 +259,9 @@ export async function rosterOf(user: SessionUser, seasonId: string, bot?: string
   if (sports !== null && live && fromSports && !kicked && (await statsDue(seasonId)).due) await statsLater(seasonId, { providers: sportsProviders({ base: sports }) });
   const groups: RosterGroup[] = [];
   const people: { p: RosterGroup["people"][number]; ids: Record<string, string> | null }[] = [];
+  // Each team's id in its league, by the name its games give it (the drill pass, 2026-11-17: a team's heading opens its sheet).
+  const sideIds = new Map(((link.sides ?? []) as { id: string | null; name: string | null }[]).filter((t) => t.id && t.name).map((t) => [t.name!.toLowerCase(), t.id!]));
+  const teamOf = (name: string) => (link.league && sideIds.has(name.toLowerCase()) ? { league: link.league as string, id: sideIds.get(name.toLowerCase())! } : null);
   let held = null as Roster["held"];
   for (const r of cast) {
     // Who played a game you haven't seen: not yet.
@@ -265,7 +271,7 @@ export async function rosterOf(user: SessionUser, seasonId: string, bot?: string
     }
     const name = (r.tribe_name as string | null) ?? s.words.people;
     let g = groups.find((x) => x.name === name);
-    if (!g) groups.push((g = { name, people: [] }));
+    if (!g) groups.push((g = { name, people: [], team: teamOf(name) }));
     const p = { name: r.name, role: r.role ?? null, photoUrl: r.photo_url ?? null };
     g.people.push(p);
     people.push({ p, ids: r.provider_ids ?? null });

@@ -823,3 +823,14 @@
 - Rejected: the rankings as a sheet over the profile (a near twin of the page); the bands' faces as doors (24 px marks inside the
   band's own link: a door there steals the band's tap and misses).
 - Rests on: check-drill-doors.js profile-place, profile-called, po-last, po-gone, po-still, po-episode.
+
+## 2026-11-17 · Sports: an athlete opens their sheet, a team its sheet, a game in an athlete's log that game's sheet
+- Decided by: Claude, default, under the user's two rules for the drill pass
+- What: a sport's Players tab's rows open the athlete's sheet; its team headings and a sport's Cast tab's open the team's sheet
+  (the roster read now carries each team's id, from its games' sides); an athlete's game log opens that game's sheet (the log now
+  carries each game's event). Past seasons and the athlete chart stay.
+- Why: a sports fan's levels are the athlete, the team and the game, and each already has its sheet; the night (the episode's page)
+  reads as a show's for a game ("Nobody went home this episode"), so a game opens its own sheet instead.
+- Rejected: the night for a game in the log (the page's wording is a show's, BACKLOG 100); a past season's row opening anything
+  (nothing sits under it in the app).
+- Rests on: check-drill-doors.js's sports set (roster-person, roster-team, athlete-log, cast-team) on a stand-in ESPN.

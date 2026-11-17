@@ -2,12 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { BarChart3, Sparkles, Users } from "lucide-react";
+import { BarChart3, ChevronRight, Sparkles, Users } from "lucide-react";
 import { roster as rosterApi, useRoster, type Roster as RosterData, type StatItem } from "../data";
 import type { ShowData } from "../screens/show-space";
 import { Btn, EmptyState } from "../ui/parts";
 import { toast } from "../ui/toast";
 import { PasteSheet } from "./recaps";
+import { useGameDrill } from "./game-sheets";
+import { openSports } from "../sports/sheets";
 
 // A sport's Players tab (rosters.ts, db/migrations/0144): who's playing, by team, each with what they play. TV listings only list a
 // sport's broadcasters, so a sport nobody's made a game of gets its players from the sports data (0149, sports/cast.ts: its linked
@@ -23,6 +25,8 @@ import { PasteSheet } from "./recaps";
 
 export function Roster({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const read = useRoster(seasonId);
+  // An athlete opens their sheet over the tab, as a sport's Cast tab's do (the drill pass, 2026-11-17).
+  const drill = useGameDrill(show);
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [paste, setPaste] = useState(false);
@@ -132,11 +136,21 @@ export function Roster({ seasonId, show }: { seasonId: string; show: ShowData })
       {r.groups.map((g) => (
         <section key={g.name} className="mt-6 px-4" data-roster-group={g.name}>
           <div className="mb-1 flex items-baseline justify-between gap-3">
-            <h2 className="type-caption text-[22px]">{g.name}</h2>
+            {g.team ? (
+              // The team's own sheet: its schedule, Follow, a game to play (the drill pass, 2026-11-17).
+              <h2 className="type-caption text-[22px]">
+                <button type="button" data-team-door={g.team.id} onClick={() => openSports({ kind: "team", league: g.team!.league, team: g.team!.id })} className="nd-press -my-1.5 inline-flex items-center gap-1 py-1.5 text-left">
+                  {g.name}
+                  <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
+                </button>
+              </h2>
+            ) : (
+              <h2 className="type-caption text-[22px]">{g.name}</h2>
+            )}
             <span className="text-[13px] text-muted-foreground">{g.people.length}</span>
           </div>
           {g.people.map((p) => (
-            <div key={p.name} data-roster-person={p.name} className="flex min-h-[60px] items-center gap-3 border-t border-border py-2">
+            <button key={p.name} type="button" data-roster-person={p.name} onClick={() => drill.open({ kind: "cast", name: p.name })} className="nd-press flex min-h-[60px] w-full items-center gap-3 border-t border-border py-2 text-left">
               {p.photoUrl ? (
                 // The sports data's headshot, or a Wikimedia Commons thumbnail (both credited in Settings, Credits).
                 // eslint-disable-next-line @next/next/no-img-element
@@ -158,7 +172,8 @@ export function Roster({ seasonId, show }: { seasonId: string; show: ShowData })
                 )}
                 {p.stats?.comingIn && <StatLine data="coming-in" label={r.stats.comingInLabel ?? "Coming in"} items={p.stats.comingIn} />}
               </span>
-            </div>
+              <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
+            </button>
           ))}
         </section>
       ))}
@@ -177,6 +192,7 @@ export function Roster({ seasonId, show }: { seasonId: string; show: ShowData })
           {show.words.people}, headshots{r.groups.some((g) => g.people.some((p) => p.stats)) ? " and stats" : ""} from {r.source}.
         </p>
       )}
+      {drill.sheets}
     </div>
   );
 }

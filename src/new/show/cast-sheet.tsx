@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import { openSports } from "../sports/sheets";
 import { useCouchOthers, usePlayerLog, useSeasonStats, type CastStat, type GameView, type SeasonStats } from "../data";
 import { GAME_NAMES } from "@/lib/server/league-season";
 import { bioLine, mainValue, propsLine } from "@/lib/cast-props-words";
@@ -927,18 +928,32 @@ export function AthleteSheet({ seasonId, show, p, lens, lenses, onLens, go, from
         <div aria-busy className="h-24 animate-pulse rounded-[3px] bg-background" />
       ) : log.data?.games.length ? (
         <div data-game-log>
-          {log.data.games.map((x) => (
-            <div key={x.episode} className="border-t border-border py-2" data-log-game={x.episode}>
-              <p className="flex items-baseline justify-between gap-2 text-[14px] font-semibold">
-                <span className="truncate">
-                  {w.ep} {x.episode}
-                  {x.opponent ? ` · ${x.opponent}` : ""}
-                </span>
-                {x.at && <small className="flex-none text-[12px] font-normal text-muted-foreground">{new Date(x.at).toLocaleDateString([], { month: "short", day: "numeric" })}</small>}
-              </p>
-              <p className="mt-1 text-[13px] leading-snug text-muted-foreground">{x.items.length ? x.items.map((i) => `${i.value} ${i.label}`).join(" · ") : "Played, no stats in the box score"}</p>
-            </div>
-          ))}
+          {log.data.games.map((x) => {
+            const body = (
+              <>
+                <p className="flex items-baseline justify-between gap-2 text-[14px] font-semibold">
+                  <span className="truncate">
+                    {w.ep} {x.episode}
+                    {x.opponent ? ` · ${x.opponent}` : ""}
+                  </span>
+                  {x.at && <small className="flex-none text-[12px] font-normal text-muted-foreground">{new Date(x.at).toLocaleDateString([], { month: "short", day: "numeric" })}</small>}
+                </p>
+                <p className="mt-1 text-[13px] leading-snug text-muted-foreground">{x.items.length ? x.items.map((i) => `${i.value} ${i.label}`).join(" · ") : "Played, no stats in the box score"}</p>
+              </>
+            );
+            const game = x.game;
+            // The game itself: its sheet, the score behind Hide scores (the drill pass, 2026-11-17).
+            return game ? (
+              <button key={x.episode} type="button" data-log-game={x.episode} data-game-door={game.id} onClick={() => openSports({ kind: "game", league: game.league, team: game.team, game: game.id })} className="nd-press flex w-full items-center gap-2 border-t border-border py-2 text-left">
+                <span className="min-w-0 flex-1">{body}</span>
+                <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
+              </button>
+            ) : (
+              <div key={x.episode} className="border-t border-border py-2" data-log-game={x.episode}>
+                {body}
+              </div>
+            );
+          })}
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">No games of theirs you&apos;ve seen yet.</p>
