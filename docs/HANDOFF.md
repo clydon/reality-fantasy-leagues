@@ -88,7 +88,16 @@ after, the wizard taking in chunk 7). Commits: 10b6f369 (chunk 1), ad6b0f2b (chu
   production (the deploy rehearsal routine) and show the user the held list; the clock then runs it in production by itself.
 - **Tabled in this lane (docs only, ships with the merge):** docs/PLAN-ai-access.md, AI access and money (BACKLOG 93): the
   user's cost-low direction, what we pay and could earn by size, the DIY link and paid tiers, ads at waits. Revisit later.
-- **Next:** the rehearsal on production's copy, then the merge (0439-0441 renumbered if taken). Chunk 7 goes with the wizard (step
+- **SHIPPED 2026-11-16 (the user's yes):** master 045a4861 (chunks 1-6c, migrations 0439-0441 applied in production) and
+  4ab2e026 (the catch-up's season lock made un-orphanable: a request Vercel ended at 5 minutes had kept Survivor 51's session lock;
+  `scripts/catch-up-locks.js` cleared the orphans, one on S51 and one on The Traitors). The final rehearsal's 43 answers were
+  loaded into production (`scripts/catch-up-load.js`, backups/catchup-answers-2026-11-16.json) and the catch-up driven to the end:
+  Below Deck 13, Survivor 51 and Cutthroat caught up; **six held episodes sent on the user's word** (S51 7, 8; Cutthroat 5, 7, 9,
+  12: the user checked the changes against the episodes). **Waiting:** S51 Episode 3 (production found Brady, not Maggie, finding
+  an extra vote and giving it to Maggie, and no Jelly sit-out; the same points: the user re-confirms, then Send it on the desk);
+  The Traitors' Episode 1 (no rehearsal answer; the clock asks it). Measured capacity is in docs/PLAN-ai-access.md.
+- **Next:** the plan's done notes and HOSTING's changelog say "pushed" (not yet pushed: a docs-only push when convenient).
+  Before: the rehearsal on production's copy, then the merge (0439-0441 renumbered if taken). Chunk 7 goes with the wizard (step
   12). The user's review of the story's chunks.
 ## Pushed: The numbers' holders (2026-11-16, master at this commit; no migrations)
 The Castaways tab's game lens (GameTable, src/new/show/game-week.tsx), from the user's screenshot of it on the real couch ("a bit
