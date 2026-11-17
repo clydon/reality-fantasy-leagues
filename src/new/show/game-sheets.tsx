@@ -2,30 +2,51 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, X } from "lucide-react";
-import { useEpisodeBingo, useEpisodeCalls, useGameQuestions, usePlayerLog, useSeasonStats, type GameView, type QuestionFace, type TableRow } from "../data";
+import { useEpisodeBingo, useEpisodeCalls, useGameQuestions, useRoster, useSeasonStats, type GameView, type QuestionFace, type TableRow } from "../data";
+import { NavLink } from "../nav";
+import { paths } from "../routes";
 import type { ShowData } from "../screens/show-space";
 import { gameColour, ordinal } from "../games";
 import { Avatar } from "../ui/bars";
 import { Sheet } from "../ui/sheet";
 import type { Square } from "@/lib/game/game-plays";
 import { useWithRoles } from "../sports/faces";
-import { StoryBody } from "./cast";
+import { CompareCounts } from "./cast";
+import { AthleteSheet, CastSheet, ComparePick, StatBoard, lensGamesFor, type Athlete } from "./cast-sheet";
 import { LATE_SET, LateMark, LineupSheet, signed } from "./lineup-sheet";
-import { castName, faceIn } from "./moves";
+import { castName, faceIn, first } from "./moves";
 import { Face } from "./parts";
 import { answerWords, verdictWords } from "./questions";
-import { AthleteChart, BetsBody, CastChart, CompareBody, EpisodeGames, GameTable, MatchupBody, MatchupTitle, PersonSeason } from "./game-week";
+import { statValue } from "./stats";
+import { BetsBody, CompareBody, EpisodeGames, GameTable, MatchupBody, MatchupTitle, PersonSeason, slotWord } from "./game-week";
 
-// The sheet family on a game's page and the Games tab (docs/PLAN-start-a-game-gpt.md U1, "Step 2 brief": the sheet family, once;
-// U0's canvas v58, boards R4 and R6, `make_person_sheet.js` and `make_hybrid.js`). Every name, square, episode and face is a door to
-// the next view down, keeping the episode you were on: a person's sheet (their strip of weeks in the game's own terms, the chosen
-// episode's plays in their scored state, then the season), an episode's sheet (everyone's plays that night, ‹ › through the
-// episodes), a castaway in this game (who holds or picked them and how it went, then their story), the rules. Each opens as a sheet
-// over the last with the path back on top ("Survival Pool › Joanna ›", each part a way back); the phone's back takes the top one
-// down (sheet-history.ts), Close shuts them all. The squares come from GameView.plays (game-plays.ts), only as far as you've seen;
-// anyone's next move says only whether it's set. A lineup's sheet is today's (lineup-sheet.tsx), kept as it is.
+// The sheet family on a game's page and every tab (docs/PLAN-start-a-game-gpt.md U1, "Step 2 brief": the sheet family, once;
+// U0's canvas v58, boards R4 and R6, `make_person_sheet.js` and `make_hybrid.js`). Every name, square, episode, face and number is a
+// door to the next view down, keeping the episode you were on: a person's sheet (their strip of weeks in the game's own terms, the
+// chosen episode's plays in their scored state, then the season), an episode's sheet (everyone's plays that night, ‹ › through the
+// episodes), a castaway's sheet (cast-sheet.tsx: one sheet from every way in, counted by the show or a game), a stat's board
+// (everyone ranked on it), a compare, the rules. Each opens as a sheet over the last with the path back on top ("Survival Pool ›
+// Joanna ›", each part a way back); the phone's back takes the top one down (sheet-history.ts), Close shuts them all. A drill may
+// have no game of its own (the Cast tab's, useGameDrill): each door then names the game it reads (`game`), and doors opened from a
+// level read that level's game unless they name another. The squares come from GameView.plays (game-plays.ts), only as far as you've
+// seen; anyone's next move says only whether it's set. A lineup's sheet is today's (lineup-sheet.tsx), kept as it is.
 
-export type Door = { kind: "person"; playerId: string; episode: number | null } | { kind: "episode"; episode: number } | { kind: "cast"; id: string } | { kind: "rules" } | { kind: "matchup"; playerId: string; episode: number } | { kind: "bets" } | { kind: "compare"; a: string; b: string; episode?: number } | { kind: "table" };
+/** `game`: the game a door reads, when it isn't the drill's own (a person from a castaway's In your games, any door on the Cast
+ *  tab). A castaway: by `id` in that game or by `name`; `lens` the game their sheet counts by (null: the show; left out: the game
+ *  it was opened from, when that game counts people week by week). A stat's board: `from` the castaway whose sheet opened it. */
+type In = { game?: string };
+export type Door =
+  | ({ kind: "person"; playerId: string; episode: number | null } & In)
+  | ({ kind: "episode"; episode: number } & In)
+  | ({ kind: "cast"; id?: string; name?: string; lens?: string | null } & In)
+  | ({ kind: "rules" } & In)
+  | ({ kind: "matchup"; playerId: string; episode: number } & In)
+  | ({ kind: "bets" } & In)
+  | ({ kind: "compare"; a: string; b: string; episode?: number } & In)
+  | ({ kind: "table" } & In)
+  | ({ kind: "stat"; key: string; title?: string; from: string | null; lens: string | null } & In)
+  | ({ kind: "pick"; name: string; lens: string | null } & In)
+  | ({ kind: "versus"; a: string; b: string; lens: string | null } & In);
 type Level = { key: number; door: Door; open: boolean };
 export type Drill = { open: (d: Door) => void };
 
@@ -43,7 +64,7 @@ export function useDrill() {
   return {
     levels,
     open: (door: Door) => setLevels((ls) => [...ls.filter((l) => l.open), { key: ++n.current, door, open: true }]),
-    /** The top sheet becomes another (‹ › through the couch or the episodes): no new level, no new entry. */
+    /** The top sheet becomes another (‹ › through the couch or the episodes, a castaway's lens): no new level, no new entry. */
     swap: (key: number, door: Door) => setLevels((ls) => ls.map((l) => (l.key === key ? { ...l, door } : l))),
     /** Down to this level (a part of the path): everything above it closes. */
     to: (key: number) => {
@@ -62,21 +83,32 @@ export function useDrill() {
 }
 export type DrillState = ReturnType<typeof useDrill>;
 
-/** `wg`: the game this week is read from (a game in stages: the stage being played now; else the game itself); `runs`: you run
- *  the game (you settle its side bets). */
-type Ctx = { g: GameView; show: ShowData; seasonId: string; rules: string[]; wg?: GameView; runs?: boolean };
+/** `g`: the drill's game (null: a tab's drill, each door naming its game); `wg`: the game this week is read from (a game in stages:
+ *  the stage being played now; else the game itself); `runs`: you run the game (you settle its side bets); `onFlag`: Something
+ *  wrong on a story's episode; `onRank`: a stat's board's foot sorts the tab's own table (else it links to the Cast tab). */
+type Ctx = { g: GameView | null; show: ShowData; seasonId: string; rules: string[]; wg?: GameView; runs?: boolean; onFlag?: ((episode: number, who: string) => void) | null; onRank?: ((key: string) => void) | null };
+/** A level that reads a game. */
+type GameCtx = Omit<Ctx, "g"> & { g: GameView };
+
+const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+/** The game a door reads: its own when it names one that isn't the drill's, else the drill's. */
+const gameOf = (d: Door, ctx: Ctx): GameView | null => (d.game && d.game !== ctx.g?.leagueId ? (ctx.show.play?.find((x) => x.leagueId === d.game) ?? null) : ctx.g);
 
 /** Every open level as its own sheet, the newest on top. */
 export function DrillSheets({ drill, ...ctx }: Ctx & { drill: DrillState }) {
   const open = drill.levels.filter((l) => l.open);
+  // The path's root: the drill's game, else the game its first sheet opened in (closing them all); the Cast tab's own sheets
+  // have none.
+  const root = ctx.g ?? (open[0] ? gameOf(open[0].door, ctx) : null);
   return (
     <>
       {drill.levels.map((l) => {
         const at = open.findIndex((x) => x.key === l.key);
         const below = at > 0 ? open.slice(0, at) : [];
-        const crumb = l.open && (below.length || at === 0) ? (
+        const parts = [...(root ? [{ key: -1, name: root.gameName }] : []), ...below.map((b) => ({ key: b.key, name: titleOf(b.door, ctx) }))];
+        const crumb = l.open && parts.length ? (
           <span className="flex flex-wrap items-center gap-x-1">
-            {[{ key: -1, name: ctx.g.gameName }, ...below.map((b) => ({ key: b.key, name: titleOf(b.door, ctx) }))].map((b) => (
+            {parts.map((b) => (
               <span key={b.key} className="flex items-center gap-1">
                 <button type="button" data-crumb={b.key} onClick={() => (b.key < 0 ? drill.closeAll() : drill.to(b.key))} className="-my-2 py-2 font-semibold text-foreground underline underline-offset-[3px]">
                   {b.name}
@@ -92,25 +124,63 @@ export function DrillSheets({ drill, ...ctx }: Ctx & { drill: DrillState }) {
   );
 }
 
-function titleOf(d: Door, { g, show }: Ctx): string {
-  if (d.kind === "person") return g.table.find((r) => r.playerId === d.playerId)?.name ?? "";
+function titleOf(d: Door, ctx: Ctx): string {
+  const g = gameOf(d, ctx);
+  const { show } = ctx;
+  if (d.kind === "person") return g?.table.find((r) => r.playerId === d.playerId)?.name ?? "";
   if (d.kind === "episode") return `${show.words.episode} ${d.episode}`;
   if (d.kind === "cast") {
-    const c = faceIn(g, d.id);
+    if (d.name) return show.header?.show.kind === "sport" ? d.name : first(d.name);
+    const c = g && d.id ? faceIn(g, d.id) : undefined;
     return c?.role ? c.name : castName(c, g);
   }
   if (d.kind === "matchup") return `${show.words.ep} ${d.episode}`;
   if (d.kind === "bets") return "Side bets";
-  if (d.kind === "compare") return `${castName(faceIn(g, d.a), g)} vs ${castName(faceIn(g, d.b), g)}`;
+  if (d.kind === "compare") return g ? `${castName(faceIn(g, d.a), g)} vs ${castName(faceIn(g, d.b), g)}` : "Side by side";
   if (d.kind === "table") return "Everyone";
+  if (d.kind === "stat") return d.title ?? "The ranking";
+  if (d.kind === "pick") return "Compare";
+  if (d.kind === "versus") return `${first(d.a)} vs ${first(d.b)}`;
   return "How it plays";
 }
 
+type SheetBits = { open: boolean; onOpenChange: (o: boolean) => void; crumb: ReactNode; plain: boolean };
+const Waiting = () => <div aria-busy className="mt-3 h-40 animate-pulse rounded-[3px] bg-background" />;
+
 function Level({ level, drill, crumb, plain, ...ctx }: Ctx & { level: Level; drill: DrillState; crumb: ReactNode; plain: boolean }) {
-  const { g, show } = ctx;
   const d = level.door;
-  const go: Drill = { open: drill.open };
+  const sport = ctx.show.header?.show.kind === "sport";
+  // The game this level reads (a sport's faces carry their positions), and the doors opened from it read it too unless they name
+  // another.
+  const own = gameOf(d, ctx);
+  const g = useWithRoles(own, ctx.seasonId, sport);
+  const go: Drill = { open: (x) => drill.open(g && !x.game ? { ...x, game: g.leagueId } : x) };
   const onOpenChange = (o: boolean) => !o && drill.close(level.key);
+  const sheet: SheetBits = { open: level.open, onOpenChange, crumb, plain };
+  const { show, seasonId } = ctx;
+  if (d.kind === "cast") {
+    const onFlag = ctx.onFlag
+      ? (episode: number, who: string) => {
+          drill.closeAll();
+          ctx.onFlag!(episode, who);
+        }
+      : null;
+    return <CastLevel show={show} seasonId={seasonId} g={g} d={d} sheet={sheet} go={go} onLens={(lens) => drill.swap(level.key, { ...d, lens })} onFlag={onFlag} />;
+  }
+  if (d.kind === "stat") {
+    const onRank = ctx.onRank
+      ? (key: string) => {
+          drill.closeAll();
+          ctx.onRank!(key);
+        }
+      : null;
+    return <StatLevel show={show} seasonId={seasonId} d={d} sheet={sheet} go={go} onRank={onRank} />;
+  }
+  if (d.kind === "pick") return <PickLevel show={show} seasonId={seasonId} d={d} sheet={sheet} onPick={(b) => drill.swap(level.key, { kind: "versus", a: d.name, b, lens: d.lens, game: d.game })} />;
+  if (d.kind === "versus") return <VersusLevel show={show} seasonId={seasonId} d={d} sheet={sheet} go={go} />;
+  if (!g) return null;
+  // A level on the drill's own game keeps the page's week and rules; one on another game reads that game's.
+  const gctx: GameCtx = { ...ctx, g, wg: own === ctx.g ? ctx.wg : undefined, rules: own === ctx.g ? ctx.rules : g.rules };
   if (d.kind === "person") {
     const people = g.table.filter((r) => opensSheet(g, r));
     const at = people.findIndex((r) => r.playerId === d.playerId);
@@ -132,7 +202,7 @@ function Level({ level, drill, crumb, plain, ...ctx }: Ctx & { level: Level; dri
         {r && (
           // Keyed by player: each one's sheet starts fresh (the sheet slides them in and out).
           <div key={r.playerId} data-sheet-player={r.playerId} className="mt-1">
-            <PersonBody {...ctx} r={r} episode={d.episode} onEpisode={(n) => drill.swap(level.key, { ...d, episode: n })} go={go} onClose={drill.closeAll} />
+            <PersonBody {...gctx} r={r} episode={d.episode} onEpisode={(n) => drill.swap(level.key, { ...d, episode: n })} go={go} onClose={drill.closeAll} />
           </div>
         )}
       </Sheet>
@@ -143,7 +213,7 @@ function Level({ level, drill, crumb, plain, ...ctx }: Ctx & { level: Level; dri
     const at = eps.indexOf(d.episode);
     const step = (dir: 1 | -1) => {
       const to = eps[at + dir];
-      if (to !== undefined) drill.swap(level.key, { kind: "episode", episode: to });
+      if (to !== undefined) drill.swap(level.key, { ...d, episode: to });
     };
     return (
       <Sheet
@@ -155,13 +225,13 @@ function Level({ level, drill, crumb, plain, ...ctx }: Ctx & { level: Level; dri
         subtitle={episodeLine(g, d.episode)}
         stepper={eps.length > 1 ? { prev: at > 0 ? `${show.words.ep} ${eps[at - 1]}` : null, next: at >= 0 && at < eps.length - 1 ? `${show.words.ep} ${eps[at + 1]}` : null, onStep: step } : undefined}
       >
-        <EpisodeBody key={d.episode} {...ctx} episode={d.episode} go={go} />
+        <EpisodeBody key={d.episode} {...gctx} episode={d.episode} go={go} />
       </Sheet>
     );
   }
   if (d.kind === "matchup") {
     // A week of head to head, two lineups on one scale (game-week.tsx); ‹ › through the weeks played and the one to come.
-    const wg = ctx.wg ?? g;
+    const wg = gctx.wg ?? g;
     const eps = [...wg.plays.episodes, ...(wg.plays.next && !wg.plays.episodes.includes(wg.plays.next.episode) ? [wg.plays.next.episode] : [])];
     const at = eps.indexOf(d.episode);
     const t = MatchupTitle(wg, d.playerId, d.episode, show.words);
@@ -179,12 +249,12 @@ function Level({ level, drill, crumb, plain, ...ctx }: Ctx & { level: Level; dri
         subtitle={t.subtitle}
         stepper={eps.length > 1 ? { prev: at > 0 ? `${show.words.ep} ${eps[at - 1]}` : null, next: at >= 0 && at < eps.length - 1 ? `${show.words.ep} ${eps[at + 1]}` : null, onStep: step } : undefined}
       >
-        <MatchupBody key={`${d.playerId}:${d.episode}`} g={wg} pid={d.playerId} n={d.episode} words={show.words} sport={show.header?.show.kind === "sport"} onFace={(id) => go.open({ kind: "cast", id })} onCompare={(a, b) => go.open({ kind: "compare", a, b, episode: d.episode })} />
+        <MatchupBody key={`${d.playerId}:${d.episode}`} g={wg} pid={d.playerId} n={d.episode} words={show.words} sport={sport} onFace={(id) => go.open({ kind: "cast", id })} onCompare={(a, b) => go.open({ kind: "compare", a, b, episode: d.episode })} />
       </Sheet>
     );
   }
   if (d.kind === "compare") {
-    const wg = ctx.wg ?? g;
+    const wg = gctx.wg ?? g;
     return (
       <Sheet open={level.open} onOpenChange={onOpenChange} crumb={crumb} plain={plain} title={titleOf(d, { ...ctx, g: wg })} subtitle="Points at this game's scoring">
         <CompareBody g={wg} a={d.a} b={d.b} episode={d.episode ?? null} words={show.words} onFace={(id) => go.open({ kind: "cast", id })} />
@@ -192,7 +262,7 @@ function Level({ level, drill, crumb, plain, ...ctx }: Ctx & { level: Level; dri
     );
   }
   if (d.kind === "table") {
-    const wg = ctx.wg ?? g;
+    const wg = gctx.wg ?? g;
     return (
       <Sheet open={level.open} onOpenChange={onOpenChange} crumb={crumb} plain={plain} title={`Everyone in ${wg.gameName}`} subtitle="Their points at this game's scoring, and who has them">
         <GameTable g={wg} words={show.words} onFace={(id) => go.open({ kind: "cast", id })} ground="var(--card)" />
@@ -200,31 +270,132 @@ function Level({ level, drill, crumb, plain, ...ctx }: Ctx & { level: Level; dri
     );
   }
   if (d.kind === "bets") {
-    const wg = ctx.wg ?? g;
+    const wg = gctx.wg ?? g;
     const open = wg.bets?.bets.find((x) => x.open);
     return (
       <Sheet open={level.open} onOpenChange={onOpenChange} crumb={crumb} plain={plain} title="Side bets" subtitle={open ? `${show.words.episode} ${open.episode} · calls close when it starts` : (wg.bets?.postTo ?? null) !== null ? `${show.words.episode} ${wg.bets!.postTo}` : g.gameName}>
-        <BetsBody g={wg} words={show.words} seasonId={ctx.seasonId} runs={!!ctx.runs} />
-      </Sheet>
-    );
-  }
-  if (d.kind === "cast") {
-    const c = faceIn(g, d.id);
-    return (
-      <Sheet open={level.open && !!c} onOpenChange={onOpenChange} crumb={crumb} plain={plain} title={c?.name ?? ""} subtitle={c ? castLine(g, show, c) : undefined}>
-        {c && <CastBody {...ctx} id={d.id} go={go} />}
+        <BetsBody g={wg} words={show.words} seasonId={seasonId} runs={!!gctx.runs} />
       </Sheet>
     );
   }
   return (
     <Sheet open={level.open} onOpenChange={onOpenChange} crumb={crumb} plain={plain} title="How it plays" subtitle={g.gameName}>
       <ol className="list-decimal pb-2 pl-[18px] text-[15px] leading-[1.45]" data-rules-sheet>
-        {ctx.rules.map((x) => (
+        {gctx.rules.map((x) => (
           <li key={x} className="mb-2 pl-1">
             {x}
           </li>
         ))}
       </ol>
+    </Sheet>
+  );
+}
+
+// ---------- the castaway, a stat, a compare: levels that need no game of their own (cast-sheet.tsx) ----------
+
+/** A castaway's (or athlete's) sheet: the one part, at the lens its door asks for, else the game it was opened from when that
+ *  game counts people week by week, else the show. The lens changes in place (the door swapped, no new step back). */
+function CastLevel({ show, seasonId, g, d, sheet, go, onLens, onFlag }: { show: ShowData; seasonId: string; g: GameView | null; d: Extract<Door, { kind: "cast" }>; sheet: SheetBits; go: Drill; onLens: (lens: string | null) => void; onFlag: ((episode: number, who: string) => void) | null }) {
+  const sport = show.header?.show.kind === "sport";
+  const stats = useSeasonStats(seasonId, show.couch?.id ?? null, null, !sport);
+  const roster = useRoster(seasonId, sport);
+  const face = g && d.id ? faceIn(g, d.id) : undefined;
+  const name = d.name ?? face?.name ?? "";
+  const lenses = lensGamesFor(show, name);
+  const lensId = d.lens !== undefined ? d.lens : g && lenses.some((x) => x.leagueId === g.leagueId) ? g.leagueId : null;
+  const lens = lenses.find((x) => x.leagueId === lensId) ?? null;
+  if (sport) {
+    const found = (roster.data?.groups ?? []).flatMap((grp) => grp.people.map((p) => ({ p, team: grp.name }))).find((x) => same(x.p.name, name));
+    const soFar = found?.p.stats?.soFar ?? null;
+    const p: Athlete = found
+      ? { name, role: found.p.role, photoUrl: found.p.photoUrl, team: found.team, line: soFar?.length ? soFar.slice(0, 3).map((i) => `${i.value} ${i.label}`).join(" · ") : null }
+      : { name, role: face?.role ?? null, photoUrl: face?.photo ?? null, team: face?.tribe?.name ?? "", line: null };
+    return (
+      <Sheet {...sheet} open={sheet.open && !!name} title={name} subtitle={[p.role ? slotWord(p.role.toUpperCase()) : null, p.team].filter(Boolean).join(" · ") || undefined}>
+        {name && (
+          <div key={name} data-sheet-cast={name}>
+            <AthleteSheet seasonId={seasonId} show={show} p={p} lens={lens} lenses={lenses} onLens={onLens} go={go} from={g?.leagueId ?? null} />
+          </div>
+        )}
+      </Sheet>
+    );
+  }
+  const c = stats.data?.cast.find((x) => same(x.name, name)) ?? null;
+  const through = stats.data?.through ?? g?.through ?? 0;
+  return (
+    <Sheet {...sheet} open={sheet.open && !!name} title={name} subtitle={through ? `${show.header?.show.name ?? ""} · up to ${show.words.ep} ${through}` : (show.header?.show.name ?? undefined)}>
+      {!stats.data ? (
+        <Waiting />
+      ) : c ? (
+        <div key={name} data-sheet-cast={name}>
+          <CastSheet d={stats.data} c={c} show={show} seasonId={seasonId} lens={lens} go={go} onFlag={onFlag} from={g?.leagueId ?? null} />
+        </div>
+      ) : (
+        <p className="mt-3 text-[14px] text-muted-foreground">Nothing recorded for {name} yet.</p>
+      )}
+    </Sheet>
+  );
+}
+
+const rankAll = "nd-press flex h-12 w-full items-center justify-center rounded-[6px] text-[15px] font-bold outline-1 -outline-offset-1 outline-edge";
+
+/** A stat's board: everyone ranked on it, with who holds each in the game chosen at its head: any game you play that has teams,
+ *  starting at the lens the sheet was counting by, else the game it was opened from. */
+function StatLevel({ show, seasonId, d, sheet, go, onRank }: { show: ShowData; seasonId: string; d: Extract<Door, { kind: "stat" }>; sheet: SheetBits; go: Drill; onRank: ((key: string) => void) | null }) {
+  const stats = useSeasonStats(seasonId, show.couch?.id ?? null);
+  const s = stats.data?.stats.find((x) => x.key === d.key);
+  const teams = (show.play ?? []).filter((g) => g.table.some((r) => r.team.length));
+  const [holds, setHolds] = useState<string | null>(() => [d.lens, d.game].find((id) => id && teams.some((g) => g.leagueId === id)) ?? null);
+  const lens = holds ? (teams.find((x) => x.leagueId === holds) ?? null) : null;
+  const have = stats.data ? stats.data.cast.filter((c) => statValue(c, d.key) > 0).length : 0;
+  const foot = (
+    <div className="mt-5">
+      {onRank ? (
+        <button type="button" data-rank-all onClick={() => onRank(d.key)} className={rankAll}>
+          See it beside every stat
+        </button>
+      ) : (
+        <NavLink href={`${paths.show(seasonId, "cast")}?rank=${encodeURIComponent(d.key)}`} data-rank-all className={rankAll}>
+          See it beside every stat
+        </NavLink>
+      )}
+    </div>
+  );
+  return (
+    <Sheet {...sheet} title={s?.name ?? d.title ?? ""} subtitle={stats.data ? `${show.header?.show.name ?? ""} · up to ${show.words.ep} ${stats.data.through} · ${have} of ${stats.data.cast.length} ${have === 1 ? "has" : "have"} it` : undefined}>
+      {stats.data ? <StatBoard d={stats.data} statKey={d.key} from={d.from} lens={lens} games={teams} onLens={setHolds} onCast={(name) => go.open({ kind: "cast", name, lens: d.lens, ...(holds ?? d.lens ? { game: (holds ?? d.lens)! } : {}) })} foot={foot} /> : <Waiting />}
+    </Sheet>
+  );
+}
+
+/** Compare with…: the face wall; a face swaps this sheet for the two side by side. */
+function PickLevel({ show, seasonId, d, sheet, onPick }: { show: ShowData; seasonId: string; d: Extract<Door, { kind: "pick" }>; sheet: SheetBits; onPick: (name: string) => void }) {
+  const stats = useSeasonStats(seasonId, show.couch?.id ?? null);
+  return (
+    <Sheet {...sheet} title={`Compare ${first(d.name)} with…`} subtitle="Tap a face">
+      {stats.data ? <ComparePick d={stats.data} from={d.name} onPick={onPick} /> : <Waiting />}
+    </Sheet>
+  );
+}
+
+/** Two side by side: in a game's lens their points at its scoring (game-week.tsx), else the show's counts. */
+function VersusLevel({ show, seasonId, d, sheet, go }: { show: ShowData; seasonId: string; d: Extract<Door, { kind: "versus" }>; sheet: SheetBits; go: Drill }) {
+  const stats = useSeasonStats(seasonId, show.couch?.id ?? null);
+  const lens = d.lens ? (show.play?.find((x) => x.leagueId === d.lens) ?? null) : null;
+  const ia = lens?.cast.find((x) => same(x.name, d.a))?.id;
+  const ib = lens?.cast.find((x) => same(x.name, d.b))?.id;
+  if (lens && ia && ib) {
+    return (
+      <Sheet {...sheet} title={`${first(d.a)} vs ${first(d.b)}`} subtitle="Points at this game's scoring">
+        <CompareBody g={lens} a={ia} b={ib} episode={null} words={show.words} onFace={(id) => go.open({ kind: "cast", id, game: lens.leagueId, lens: lens.leagueId })} />
+      </Sheet>
+    );
+  }
+  const a = stats.data?.cast.find((x) => same(x.name, d.a));
+  const b = stats.data?.cast.find((x) => same(x.name, d.b));
+  return (
+    <Sheet {...sheet} title="Side by side" subtitle={stats.data ? `${show.header?.show.name ?? ""} · ${show.words.ep} ${stats.data.from === stats.data.to ? stats.data.from : `${stats.data.from}–${stats.data.to}`}` : undefined}>
+      {stats.data && a && b ? <CompareCounts d={stats.data} a={a} b={b} words={show.words} /> : <Waiting />}
     </Sheet>
   );
 }
@@ -261,12 +432,6 @@ function episodeLine(g: GameView, n: number): string {
   return `${g.gameName} · ${best.length ? `best: ${best.join(", ")} ${signed(top)}` : "nobody scored"}`;
 }
 
-function castLine(g: GameView, show: ShowData, c: NonNullable<ReturnType<typeof faceIn>>): string {
-  const bits = [show.header?.show.name ?? "", `up to ${show.words.episode} ${g.through}`];
-  if (c.left && c.out) bits.push(`out in ${show.words.episode} ${c.out}`);
-  return bits.filter(Boolean).join(" · ");
-}
-
 const fmt = (n: number) => String(Math.round(n * 10) / 10);
 const sqOf = (g: GameView, r: TableRow, n: number) => g.plays.rows[r.playerId]?.find((s) => s.episode === n) ?? null;
 /** A seat's first account, for their face. */
@@ -275,7 +440,7 @@ const userOfRow = (r: TableRow) => r.userId ?? r.playerId;
 // ---------- the person ----------
 
 /** A lineup's weeks are today's lineup sheet; any other game, the strip in its own terms, the chosen episode, then the season. */
-export function PersonBody({ g, show, seasonId, r, episode, onEpisode, go, onClose, compact }: Ctx & { r: TableRow; episode: number | null; onEpisode: (n: number) => void; go: Drill; onClose: () => void; compact?: boolean }) {
+export function PersonBody({ g, show, seasonId, r, episode, onEpisode, go, onClose, compact }: GameCtx & { r: TableRow; episode: number | null; onEpisode: (n: number) => void; go: Drill; onClose: () => void; compact?: boolean }) {
   const lineup = r.weeks.length > 0 || (g.gameType === "active-roster" && g.plays.blocks.includes("lineup"));
   if (lineup)
     return (
@@ -670,7 +835,7 @@ function SeasonBlock({ g, r, go, words }: { g: GameView; r: TableRow; go: Drill;
 // ---------- an episode ----------
 
 /** Everyone's plays that night, a row each: a name opens them on this episode, a face its castaway. */
-function EpisodeBody({ g, show, episode, go }: Ctx & { episode: number; go: Drill }) {
+function EpisodeBody({ g, show, episode, go }: GameCtx & { episode: number; go: Drill }) {
   const k = g.plays.kind;
   return (
     <div data-episode-sheet={episode} className="pb-2">
@@ -712,120 +877,17 @@ function EpisodeBody({ g, show, episode, go }: Ctx & { episode: number; go: Dril
   );
 }
 
-// ---------- a castaway in this game ----------
-
-/** A group as a small tag in its own colour (Tags Not Fills), its ink plate ink or white by contrast. */
-export function TribeTag({ name, colour }: { name: string; colour: string }) {
-  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(colour.trim());
-  const lum = m ? [m[1], m[2], m[3]].map((h) => parseInt(h, 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)).reduce((t, c, i) => t + c * [0.2126, 0.7152, 0.0722][i], 0) : 0;
-  return (
-    <span className="type-caption rounded-[2px] px-1.5 py-0.5 text-[12px] tracking-[0.04em]" style={{ background: colour, color: lum > 0.18 ? "var(--plate-foreground)" : "#ffffff" }}>
-      {name}
-    </span>
-  );
-}
-
-/** Who holds or picked them in this game and how it went, then their story (the Castaways tab's), up to your mark. */
-function CastBody({ g, show, seasonId, id, go }: Ctx & { id: string; go: Drill }) {
-  const c = faceIn(g, id)!;
-  // A sport's player: their games (a game log) where a castaway has their story (U1's sports slice).
-  const sport = show.header?.show.kind === "sport";
-  const stats = useSeasonStats(seasonId, show.couch?.id ?? null, null, !sport);
-  const log = usePlayerLog(seasonId, c.name, sport);
-  const story = stats.data?.cast.find((x) => x.name === c.name) ?? null;
-  const rows: { r: TableRow; line: string; ok: boolean | null; points: number | null }[] = [];
-  for (const r of g.table.filter((x) => opensSheet(g, x))) {
-    const picked = (g.plays.rows[r.playerId] ?? []).filter((s) => s.pick?.id === id);
-    if (picked.length) {
-      const last = picked.at(-1)!;
-      rows.push({ r, line: `Picked ${castName(c, g)} for ${picked.map((s) => `${show.words.ep} ${s.episode}`).join(", ")}`, ok: last.pick!.correct, points: null });
-      continue;
-    }
-    const starts = r.weeks.filter((w) => w.started.some((x) => x.id === id));
-    if (r.team.includes(id) || starts.length) {
-      const earned = starts.reduce((t, w) => t + (w.started.find((x) => x.id === id)?.points ?? 0), 0);
-      rows.push({ r, line: starts.length ? `Counted for ${r.you ? "you" : r.name} in ${starts.length} ${starts.length === 1 ? show.words.episode.toLowerCase() : `${show.words.episode.toLowerCase()}s`}` : `On ${r.you ? "your" : `${r.name}'s`} team`, ok: null, points: starts.length ? earned : null });
-    }
-  }
-  const next = g.plays.next;
-  return (
-    <div data-cast-sheet={id} className="pb-2">
-      <div className="mt-1 flex items-center gap-2 text-[13px] text-muted-foreground">
-        {c.role && <span className="type-caption rounded-[2px] px-1.5 py-0.5 text-[12px] tracking-[0.04em] outline-1 -outline-offset-1 outline-edge" data-cast-role>{c.role}</span>}
-        {c.tribe && <TribeTag name={c.tribe.name} colour={c.tribe.colour} />}
-        {!sport && <span>{c.left ? `Out${c.out ? ` · ${show.words.episode} ${c.out}` : ""}` : "Still in"}</span>}
-        {c.points !== null && <span>· {fmt(c.points)} pts in this game</span>}
-      </div>
-      {/* Drawn only where the stats' points are this game's: a couch's Weekly Lineup lends its points to the stats read, and Outlast
-          counts differently (the cast tab's In your games opened the mismatch, step 5). */}
-      {!sport && story && stats.data && (!stats.data.pointsFrom || stats.data.pointsFrom === g.gameName) && <CastChart d={stats.data} c={story} words={show.words} counted={g.you?.weeks.filter((w) => w.started.some((x) => x.id === id)).map((w) => w.episode) ?? []} />}
-      {sport && log.data?.games.length ? <AthleteChart games={log.data.games} words={show.words} /> : null}
-      <Caption right={rows.length ? `${rows.length} on the couch` : undefined}>In this game</Caption>
-      {rows.length === 0 && <p className="text-sm text-muted-foreground">Nobody here holds or has picked {castName(c, g)} so far.</p>}
-      {rows.map(({ r, line, ok, points }) => (
-        <button key={r.playerId} type="button" data-door-person={r.playerId} onClick={() => go.open({ kind: "person", playerId: r.playerId, episode: null })} className="nd-press flex min-h-14 w-full items-center gap-3 border-t border-border py-1.5 text-left">
-          <Avatar id={userOfRow(r)} name={r.name} size={28} />
-          <span className="min-w-0 flex-1">
-            <b className="block truncate text-[15px] font-semibold">{r.you ? "You" : r.name}</b>
-            <small className="block truncate text-[13px] text-muted-foreground">{line}</small>
-          </span>
-          {ok !== null && <Tick ok={ok} className="size-5 flex-none" />}
-          {points !== null && <b className="type-num flex-none text-[22px]">{signed(points)}</b>}
-        </button>
-      ))}
-      {g.plays.kind === "pick" && next && <p className="mt-2 text-[13px] text-muted-foreground">Who&apos;s picked them for {show.words.ep} {next.episode} stays hidden until it&apos;s decided.</p>}
-      {sport ? (
-        <>
-          <Caption right="Newest first">Their games</Caption>
-          {log.isPending ? (
-            <div aria-busy className="h-24 animate-pulse rounded-[3px] bg-background" />
-          ) : log.data?.games.length ? (
-            <div data-game-log>
-              {log.data.games.map((x) => (
-                <div key={x.episode} className="border-t border-border py-2" data-log-game={x.episode}>
-                  <p className="flex items-baseline justify-between gap-2 text-[14px] font-semibold">
-                    <span className="truncate">
-                      {show.words.ep} {x.episode}
-                      {x.opponent ? ` · ${x.opponent}` : ""}
-                    </span>
-                    {x.at && <small className="flex-none text-[12px] font-normal text-muted-foreground">{new Date(x.at).toLocaleDateString([], { month: "short", day: "numeric" })}</small>}
-                  </p>
-                  <p className="mt-1 text-[13px] leading-snug text-muted-foreground">{x.items.length ? x.items.map((i) => `${i.value} ${i.label}`).join(" · ") : "Played, no stats in the box score"}</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">No games of {castName(c, g)}&rsquo;s here yet.</p>
-          )}
-          {log.data?.newer && <p className="mt-2 text-[13px] text-muted-foreground">A later game&rsquo;s line is in: it shows once you&rsquo;ve seen that game.</p>}
-        </>
-      ) : (
-        <>
-          <Caption right="Newest first">Their story</Caption>
-          {stats.isPending ? <div aria-busy className="h-24 animate-pulse rounded-[3px] bg-background" /> : story && stats.data ? <StoryBody d={stats.data} c={story} group={false} photo={false} /> : <p className="text-sm text-muted-foreground">Nothing recorded for {castName(c, g)} yet.</p>}
-        </>
-      )}
-    </div>
-  );
-}
-
-/** The doors of whichever game was tapped (the Games tab's tables): its person sheet first, then down from there. The game is read
- *  fresh from the show each render, so a reveal under an open sheet moves it too. */
-export function useGameDrill(show: ShowData) {
+/** A tab's drill (the Cast tab, the Games tab, the draft room, waivers): no game of its own, each door naming the game it reads, so
+ *  a castaway, a stat's board, a compare and a person in any of your games open as levels of one path. Games are read fresh from
+ *  the show each render, so a reveal under an open sheet moves it too. `onFlag` and `onRank` run after the drill has closed. */
+export function useGameDrill(show: ShowData, opts: { onFlag?: ((episode: number, who: string) => void) | null; onRank?: ((key: string) => void) | null } = {}) {
   const drill = useDrill();
-  const [id, setId] = useState<string | null>(null);
-  // A sport's faces carry their positions (the cast tab opens a game's athletes here too).
-  const g = useWithRoles(id ? (show.play?.find((x) => x.leagueId === id) ?? null) : null, show.header?.seasonId ?? "", show.header?.show.kind === "sport");
   return {
-    openPerson: (row: TableRow, game: GameView, week: number | null) => {
-      setId(game.leagueId);
-      drill.open({ kind: "person", playerId: row.playerId, episode: week });
-    },
-    /** Someone in that game (the cast tab's game lens and a person sheet's In your games, step 5): their sheet there. */
-    openCast: (game: GameView, castId: string) => {
-      setId(game.leagueId);
-      drill.open({ kind: "cast", id: castId });
-    },
-    sheets: g ? <DrillSheets drill={drill} g={g} show={show} seasonId={show.header?.seasonId ?? ""} rules={g.rules} /> : null,
+    open: drill.open,
+    closeAll: drill.closeAll,
+    openPerson: (row: TableRow, game: GameView, week: number | null) => drill.open({ kind: "person", playerId: row.playerId, episode: week, game: game.leagueId }),
+    /** Someone in that game (the Cast tab's game lens): their sheet, counted by that game when it counts people week by week. */
+    openCast: (game: GameView, castId: string) => drill.open({ kind: "cast", id: castId, game: game.leagueId }),
+    sheets: <DrillSheets drill={drill} g={null} show={show} seasonId={show.header?.seasonId ?? ""} rules={[]} onFlag={opts.onFlag ?? null} onRank={opts.onRank ?? null} />,
   };
 }

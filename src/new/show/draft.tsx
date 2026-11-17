@@ -18,7 +18,8 @@ import { toast } from "../ui/toast";
 import { first } from "./moves";
 import { useCastNames } from "../sports/faces";
 import { Face } from "./parts";
-import { AthleteBody, CastSheetBody } from "./cast";
+import { AthleteSheetBody, CastSheetBody } from "./cast-sheet";
+import { useGameDrill } from "./game-sheets";
 
 // The draft room and the blind draft (docs/PLAN-new-design.md step 7; the mock's draft.js), pushed over a show from
 // Tonight's move card, the dock and the show's ⋯ menu. Casual first: no timer unless the Commissioner sets one, nobody
@@ -564,23 +565,26 @@ function Segments<T extends string>({ value, onChange, items }: { value: T; onCh
  */
 function DraftFaceSheet({ seasonId, show, sport, face, onClose, foot }: { seasonId: string; show: ShowData; sport: boolean; face: DraftFace | null; onClose: () => void; foot: ReactNode }) {
   const nm = useContext(CastNames);
-  const nav = useNav();
   const [last, setLast] = useState(face);
   if (face && face !== last) setLast(face);
   const f = face ?? last;
-  const onGame = (g: { leagueId: string }) => nav.push(paths.gamePage(seasonId, g.leagueId));
+  // The sheet's own doors (a stat's board, a holder, a compare) open over it, as levels of one path (game-sheets.tsx).
+  const drill = useGameDrill(show);
   return (
-    <Sheet open={!!face} onOpenChange={(o) => !o && onClose()} title={f?.name ?? ""} subtitle={f ? [nm.role(f.name), f.tribe?.name].filter(Boolean).join(" · ") || undefined : undefined} foot={f ? foot : undefined}>
-      {f && (
-        <div data-draft-sheet-body={f.id}>
-          {sport ? (
-            <AthleteBody seasonId={seasonId} show={show} p={{ name: f.name, role: nm.role(f.name), photoUrl: f.photo, team: f.tribe?.name ?? "", line: null }} onGame={onGame} />
-          ) : (
-            <CastSheetBody seasonId={seasonId} show={show} name={f.name} onGame={onGame} />
-          )}
-        </div>
-      )}
-    </Sheet>
+    <>
+      <Sheet open={!!face} onOpenChange={(o) => !o && onClose()} title={f?.name ?? ""} subtitle={f ? [nm.role(f.name), f.tribe?.name].filter(Boolean).join(" · ") || undefined : undefined} foot={f ? foot : undefined}>
+        {f && (
+          <div data-draft-sheet-body={f.id}>
+            {sport ? (
+              <AthleteSheetBody seasonId={seasonId} show={show} p={{ name: f.name, role: nm.role(f.name), photoUrl: f.photo, team: f.tribe?.name ?? "", line: null }} go={drill} />
+            ) : (
+              <CastSheetBody seasonId={seasonId} show={show} name={f.name} go={drill} />
+            )}
+          </div>
+        )}
+      </Sheet>
+      {drill.sheets}
+    </>
   );
 }
 

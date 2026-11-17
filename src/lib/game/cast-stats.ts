@@ -2,6 +2,7 @@ import StateLogic from "./state-logic.js";
 import { applyDecision, orderPlacementsByEpisode, type DecisionFact } from "./decision-apply";
 import type { GameFormat } from "./formats/index";
 import { momentsFor } from "./formats/rulebook-moments.js";
+import { typicalOf } from "./moment-bands";
 import type { RulebookAliases, RulebookBlocks } from "./formats/rulebook-schema";
 import { publicMediaSrc } from "./selectors";
 import type { Castaway, LeagueSettings, LeagueState } from "./types";
@@ -58,6 +59,12 @@ export interface StatDef {
   name: string;
   /** What a count of it is ("times"; empty for a count of units, like innings). */
   unit: string;
+  /** Its points for one, the rulebook's (the engine's suggested points, at the game's ownership): the castaway sheet's class of
+   *  moment (a big moment, a small one, a setback). Not on Points. */
+  points?: number;
+  /** An amount the rulebook asks for as a number with no test of its own (a gratuity share, a judge's score): counted and ranked
+   *  as an amount, never as moments. */
+  amount?: true;
 }
 
 export interface CastStat {
@@ -114,6 +121,9 @@ export interface CastStats {
   roles: boolean;
   /** Points first, then every stat anyone has, by its full name. */
   stats: StatDef[];
+  /** The rulebook's typical moment (the median of its scoring moments' points, every one of them, not only those that have
+   *  happened): the castaway sheet's bands are measured against it (moment-bands.ts). Null when nothing scores. */
+  typical: number | null;
   /** The stats for Tonight's card, best first: something from your latest episode with one clear leader. */
   featured: string[];
   patterns: Pattern[];
@@ -190,7 +200,9 @@ function statDefs(format: GameFormat, book: StatsBook | null): StatDef[] {
       if (m.from.wayOut) continue;
       // An amount scores per unit; a number with its own test (came 2nd, cancelled any votes) scores once, so it's times.
       const amount = !!m.ask && (m.ask.type === "integer" || m.ask.type === "number") && !m.ask.when;
-      add({ key: book.aliases?.events?.[m.id] ?? m.id, name: m.label, unit: amount ? "" : "times" });
+      // A number that needn't be whole (rulebook-moments.js: innings pitched, a judge's score) is an amount; an integer is a count.
+      const measured = !!m.ask && m.ask.type === "number" && !m.ask.when;
+      add({ key: book.aliases?.events?.[m.id] ?? m.id, name: m.label, unit: amount ? "" : "times", ...(measured ? { amount: true as const } : {}) });
     }
   }
   for (const e of format.events) if (!e.implied) add({ key: e.id, name: e.label, unit: "times" });
@@ -248,7 +260,19 @@ export function castStats(state: LeagueState, opts: { seen: number; book: StatsB
   }
 
   const happened = new Set([...did.values()].flat().map((d) => d.type));
-  const stats = [POINTS, ...statDefs(format, opts.book).filter((s) => happened.has(s.key))];
+  // Each stat's points for one, the rulebook's: the sheet classes moments by them (docs/design-round/drill-person-sheet-scoring-spec.md).
+  const worth = (key: string) => {
+    const ev = format.events.find((e) => e.id === key);
+    return ev ? StateLogic.RuleChangeLogic.suggestedPoints(state, ev) : 0;
+  };
+  const stats = [POINTS, ...statDefs(format, opts.book).filter((s) => happened.has(s.key)).map((s) => ({ ...s, points: worth(s.key) }))];
+  // Every moment the rulebook scores (not its ways out, nor an amount), so the bands don't move as the season's moments arrive.
+  const scoring = opts.book
+    ? momentsFor(opts.book.blocks)
+        .filter((m) => !m.from.wayOut && !(m.ask && m.ask.type === "number" && !m.ask.when))
+        .map((m) => opts.book!.aliases?.events?.[m.id] ?? m.id)
+    : format.events.filter((e) => !e.implied).map((e) => e.id);
+  const typical = typicalOf(scoring.map(worth));
   const statKeys = new Set(stats.map((s) => s.key));
   const first = firstNames(state.castaways);
   const cast: CastStat[] = state.castaways.map((c) => {
@@ -289,6 +313,7 @@ export function castStats(state: LeagueState, opts: { seen: number; book: StatsB
     groups,
     roles: !!format.roles,
     stats,
+    typical,
     featured: featured(stats, cast, to),
     patterns: patterns(cast, groups, opts.book),
     cast,

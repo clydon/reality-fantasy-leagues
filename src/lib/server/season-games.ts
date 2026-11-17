@@ -212,6 +212,35 @@ export async function seasonGames(user: SessionUser, seasonId: string, couchId: 
   return { seenThrough: Number.isFinite(seen) ? seen : null, games: out };
 }
 
+/**
+ * The couch's games here that you don't play (the castaway sheet's In the couch's games: the user, 2026-11-17, "couch games that
+ * are still active"), each read only at your own mark as the desk's read-only view reads one (readOnlyHere), and only while it's
+ * on: not archived, not over by your mark. Asked for by the sheet alone (`?others=1`), so Tonight, the Games tab and every move
+ * stay about your own games.
+ */
+export async function couchOthers(user: SessionUser, seasonId: string, couchId: string): Promise<{ games: GameView[] }> {
+  const [list, seen] = await Promise.all([games(user.id, { couchIds: [couchId], seasonId }), seenThrough(user.id, seasonId)]);
+  const theirs = list.filter((g) => !g.yourRole && !g.archived && !g.solo);
+  if (!theirs.length) return { games: [] };
+  const ids = theirs.map((g) => g.leagueId);
+  const [{ users }, states] = await Promise.all([seatsIn(user.id, ids), leagueStates(ids)]);
+  const out: GameView[] = [];
+  for (const g of theirs) {
+    const state = states.get(g.leagueId);
+    if (!state) continue;
+    try {
+      const ready = await readyLeague(g.leagueId, state);
+      const { state: walked, answers } = await standingHere(g.leagueId, ready, user.id);
+      const h: GameHere = { game: g, ref: refOf(g), state: walked, playerId: "", mark: seen === EVERYTHING ? null : seen, userOf: (p) => users.get(g.leagueId)?.get(p) ?? null, readOnly: true, ...(answers ? { answers } : {}) };
+      const view = await viewWithCalls(user, seasonId, h);
+      if (!view.over) out.push(view);
+    } catch (e) {
+      console.error(`[season-games] couch game ${g.leagueId}:`, e);
+    }
+  }
+  return { games: out };
+}
+
 /** One of your games as you may see it, with the calls or bingo cards it reads (step 12: a pool's Who goes home?, Weekly Calls,
  *  Weekly Bingo), or a game of questions' answers (step A4). */
 export async function viewWithCalls(user: SessionUser, seasonId: string, h: GameHere): Promise<GameView> {

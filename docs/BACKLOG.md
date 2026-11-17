@@ -1248,6 +1248,34 @@ Last updated 2026-10-27.
      them at three slots), only reasoned.
    Who takes them: a small polish session, or the stat table's next round.
 
+96. **Noticed in the person-sheet round, left alone** (2026-11-16; docs/design-round/drill-person-sheet-check.md, "Open"):
+   - **A week's tag on the game page can take white ink on a light colour** (2.6:1: "EP 6" on the show's hsl orange). game-week.tsx
+     `inkOn` reads only hex; tune-in.tsx `colourOf` hands it `hsl(31 68% 56%)`, whose numbers it takes as red, green and blue.
+     Read as hsl it's light (luminance about 0.36) and wants plate ink. Found by Impeccable's detector in the page.
+   - **Something wrong is offered only from the Cast tab's drill**: the game page's DrillSheets passes no `onFlag`, so a
+     castaway's sheet over a game has no ⋯ on its story.
+   - **A failed stats read leaves the drill's castaway, stat, pick and compare levels pulsing**: they check `!stats.data`, never
+     the error (the Cast tab itself says "Couldn't load the cast").
+   - **The sheet's header slices text as content scrolls under it** (ui/sheet.tsx, every sheet): a hairline or a short fade under
+     the header.
+   - **Holdings and a property's changes are told in a castaway's story but not counted in the chart's "moments"**, so a column
+     says 2 over three story lines.
+   - **A season's winner is styled as eliminated** (found 2026-11-17 on the real Survivor 49): Savannah, the Sole Survivor, gets a
+     greyed photo, "Out · Ep 13 · Sole survivor", Episode 13 in live red and "Ep 13: went home" under the chart. The finale's exits
+     ("Sole Survivor", "Lost Final Tribal (Jury Vote)", "Lost Fire-Making") are stored as eliminations, so every face and chart reads
+     them as leaving (DESIGN.md: Live Red is for someone going home). A wrong fact on screen, so fix it any time; it touches faces
+     everywhere (the wall, boards, the sheet). The data to fix it from exists: each rulebook way out has a `means` ('winner',
+     'finalist', 'out'…), and an exit's method matches its way (by `aliases.exits` or name), so cast-stats.ts can say who won or
+     reached the end without matching words (both checks of the scored sheet ranked it first, 2026-11-17).
+   Who takes them: the inkOn fix any time (a wrong colour on screen); the rest the app-wide drill pass (docs/design-round/drill-audit.md).
+
+97. **A scan for near-twin components (TABLED, the user, 2026-11-17)**. The two castaway sheets that stumped a relative were two
+    parts built in different rounds that drifted apart (step 2b's game sheet, step 5's Cast tab sheet, cast properties added to
+    one). Scan `src/new` for others like it: parts that show the same thing, or nearly, in two places (a person, a ranked list, a
+    week's points, a face strip) and could be one part, or at least look and behave as one. **Not automatic:** each pair goes to
+    the user with what differs and why it might, and the user decides "make them one", "make them match" or "leave them".
+    **Who:** a later session, when the user picks it up.
+
 93. **AI access and money: free, the DIY link, paid, and ads (TABLED, the user, 2026-11-16)** (number 93: explorer-sports' 92
     may land first). The structure, what we pay and could earn at today's size, 300 and 1,000 people, the "ask only the
     difference" rule for shared research, the DIY link only ChatGPT reads once, our own GPT posting answers back, and a

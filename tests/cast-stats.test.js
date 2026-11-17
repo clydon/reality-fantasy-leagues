@@ -57,6 +57,9 @@ test("a season's accepted results count as the league they came from: events, po
   const once = stats.stats.filter((s) => ["challengeRunnerUp", "challengeThird", "votesNegated"].includes(s.key));
   assert.ok(once.length, "the demo has some");
   for (const s of once) assert.equal(s.unit, "times", s.key);
+  // The castaway sheet's bands (moment-bands.ts): each stat's rulebook points for one, and the rulebook's typical moment.
+  assert.ok(stats.stats.filter((s) => s.key !== "points").every((s) => typeof s.points === "number"), "every stat has its points");
+  assert.ok(stats.typical > 0, "the rulebook has a typical moment");
   assert.deepEqual(stats.groups.map((g) => g.name), TRIBES);
   for (const c of league.castaways) {
     const mine = stats.cast.find((x) => x.name === c.name);

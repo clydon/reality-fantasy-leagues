@@ -33,15 +33,31 @@ html:has(.nd) body {
 /* A row that's out of play (knocked out, undone, still to air) fades: less on Studio, where its muted words would drop under 3:1. */
 /* --nd-good: the good colour as small text on its own tint (`text-(--nd-good)` on `bg-good/15`), the same way: 3.9:1 on Studio
    as itself. Set in both, so a `dark` piece inside Studio works it out from its own tokens. */
+/* The castaway sheet's four bands of moment, by the show's points for one against its rulebook's typical moment
+   (src/lib/game/moment-bands.ts; docs/design-round/drill-person-sheet-scoring-shape.md): great the deeper green, good a lighter one
+   (the user, 2026-11-17: Safe Teal and a mint on Night, a deeper teal and Safe Teal on Studio), neutral a quiet grey, a setback
+   Ember, always drawn under the line; an amount's bars
+   Bone (a darker Bone on Studio, 4.3:1). Validated on the sheet's panel in each mode (colour-blind ΔE 12.5 on Night, 9.5 on
+   Studio; every mark 3:1). */
 :root {
   --nd-ink-mix: 62%;
   --nd-dim: 0.75;
   --nd-good: color-mix(in oklab, var(--good) 62%, var(--foreground));
+  --nd-band-great: #06463f;
+  --nd-band-good: var(--good);
+  --nd-band-neutral: #8e889c;
+  --nd-band-setback: #b4541c;
+  --nd-amount: #7d7566;
 }
 .dark {
   --nd-ink-mix: 100%;
   --nd-dim: 0.6;
   --nd-good: var(--good);
+  --nd-band-great: var(--good);
+  --nd-band-good: #8fe6d8;
+  --nd-band-neutral: #75708a;
+  --nd-band-setback: #f2804b;
+  --nd-amount: #cfc8bb;
 }
 .nd {
   min-height: 100dvh;
@@ -824,4 +840,30 @@ html[data-nav="right"] .nd-dock {
   .nd-settle .nd-settle-tick {
     animation: none;
   }
+}
+
+/* A castaway's sheet (show/cast-sheet.tsx): a tap on a chart's column scrolls to that episode in their story, which takes the
+   raised fill for a moment, then lets it go (opacity only). Reduced motion: the scroll alone (the class is never set). */
+@keyframes nd-lit {
+  0%,
+  35% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.nd-lit {
+  position: relative;
+  isolation: isolate;
+}
+.nd-lit::before {
+  content: "";
+  position: absolute;
+  inset: 0 -8px;
+  z-index: -1;
+  border-radius: 3px;
+  background: var(--secondary);
+  pointer-events: none;
+  animation: nd-lit 1.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

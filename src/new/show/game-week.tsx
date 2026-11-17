@@ -15,8 +15,6 @@ import { signed } from "./lineup-sheet";
 import { castName, faceIn, first, openMoves } from "./moves";
 import { Face } from "./parts";
 import { oneGame, recordWords, scoreWords, type WeekCard, type WeekSide } from "./this-week";
-import type { CastStat } from "@/lib/game/cast-stats";
-import type { SeasonStats } from "../data";
 
 // The parts a game's own page leads with (the design round's step 2: docs/design-round/step2-game-page-spec.md): This week (the
 // matchup: you and who you play, each with a record, the starters, the one state line and the move), the side bets row and its
@@ -1003,83 +1001,8 @@ export function PersonSeason({ g, r, words, sport, onMatchup, onFace }: { g: Gam
   );
 }
 
-export const STACK = ["#f2804b", "#a76bb0", "#5089c9", "#b9b4c8"];
-
-/** A castaway's season, episode by episode: what they scored as signed bars on one scale, each split by what scored (the three
- *  biggest kinds and the rest), the episode they went home in marked. Stops at the viewer's mark (the stats are cut there). */
-export function CastChart({ d, c, words, counted = [] }: { d: SeasonStats; c: CastStat; words: ShowData["words"]; counted?: number[] }) {
-  const n = c.perEp.length;
-  if (!n || !c.events.length) return null;
-  const weight = new Map<string, number>();
-  for (const [, key, pts] of c.events) weight.set(key, (weight.get(key) ?? 0) + Math.abs(pts));
-  const top = [...weight].sort((p, q) => q[1] - p[1]).slice(0, 3).map(([k]) => k);
-  const keyOf = (k: string) => (top.includes(k) ? k : "rest");
-  const keys = [...top, ...(weight.size > top.length ? ["rest"] : [])];
-  const stacks = Array.from({ length: n }, (_, i) => {
-    const m = new Map<string, number>();
-    for (const [ep, key, pts] of c.events) if (ep === i + 1) m.set(keyOf(key), (m.get(keyOf(key)) ?? 0) + pts);
-    return m;
-  });
-  const pos = stacks.map((m) => [...m.values()].filter((v) => v > 0).reduce((t, v) => t + v, 0));
-  const negs = stacks.map((m) => [...m.values()].filter((v) => v < 0).reduce((t, v) => t + v, 0));
-  const top_ = Math.max(1, ...pos), bot = Math.min(0, ...negs);
-  const H = 120, PAD = 16, colW = n <= 6 ? 52 : n <= 10 ? 34 : 26, W = n * colW;
-  const y = (v: number) => PAD + ((top_ - v) / (top_ - bot)) * (H - PAD * 2);
-  // The episode numbers in a row of their own, under the lowest bar and any negative's value label below it (they collided: the
-  // user, 2026-11-15, "negative values overlap").
-  const axis = y(bot) + (bot < 0 ? 28 : 14), tall = Math.max(H + 18, axis + 6);
-  const name = (k: string) => (k === "rest" ? "The rest" : (d.stats.find((s) => s.key === k)?.name ?? k));
-  return (
-    <section className="mt-3" data-cast-chart>
-      <p className="mb-1 flex items-baseline justify-between gap-2">
-        <span className="type-caption text-[14px] tracking-[0.04em] text-muted-foreground">Each {words.episode.toLowerCase()}</span>
-        <span className="text-[13px] text-muted-foreground">
-          {signed(c.points)} so far
-        </span>
-      </p>
-      <div className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none]">
-        <svg width={Math.max(W, 120)} height={tall} role="img" aria-label={`${c.first}'s points each ${words.episode.toLowerCase()}: ${c.perEp.map((p, i) => `${words.ep} ${i + 1} ${p === null ? "out" : signed(p)}`).join(", ")}`} className="block">
-          <line x1={0} x2={Math.max(W, 120)} y1={y(0)} y2={y(0)} stroke="var(--edge)" strokeWidth={1} />
-          {stacks.map((m, i) => {
-            let up = 0, down = 0;
-            const x = i * colW + 4;
-            return (
-              <g key={i}>
-                {keys.map((k, j) => {
-                  const v = m.get(k) ?? 0;
-                  if (!v) return null;
-                  const from = v > 0 ? up : down;
-                  const to = from + v;
-                  if (v > 0) up = to;
-                  else down = to;
-                  return <rect key={k} x={x} width={colW - 8} y={Math.min(y(from), y(to))} height={Math.max(1, Math.abs(y(to) - y(from)))} fill={STACK[j]} rx={1} />;
-                })}
-                {(pos[i] || negs[i]) && n <= 14 ? (
-                  <text x={x + (colW - 8) / 2} y={negs[i] && !pos[i] ? y(negs[i]) + 12 : y(pos[i]) - 4} textAnchor="middle" fontSize={11} fill="var(--muted-foreground)" className="type-num">
-                    {signed(pos[i] + negs[i])}
-                  </text>
-                ) : null}
-                <text x={x + (colW - 8) / 2} y={axis} textAnchor="middle" fontSize={11} fontWeight={counted.includes(i + 1) ? 700 : 400} textDecoration={counted.includes(i + 1) ? "underline" : undefined} fill={c.out === i + 1 ? "var(--live)" : counted.includes(i + 1) ? "var(--foreground)" : "var(--muted-foreground)"}>
-                  {i + 1}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
-      </div>
-      <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[13px] text-muted-foreground" data-cast-chart-key>
-        {keys.map((k, j) => (
-          <li key={k} className="flex items-center gap-1.5">
-            <i className="size-2.5 rounded-[2px]" style={{ background: STACK[j] }} aria-hidden />
-            {name(k)}
-          </li>
-        ))}
-        {counted.length > 0 && <li className="font-semibold text-foreground underline underline-offset-2">Started for you</li>}
-        {c.out && <li className="text-live">{words.ep} {c.out}: went home</li>}
-      </ul>
-    </section>
-  );
-}
+/** The athlete chart's three stats' colours (Ember, Orchid, Lake: the chart set). */
+export const STACK = ["#f2804b", "#a76bb0", "#5089c9"];
 
 type Logged = { episode: number; opponent: string | null; items: { label: string; value: string }[] };
 

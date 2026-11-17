@@ -330,6 +330,17 @@ export function useSeasonGames(seasonId: string, couchId: string | null, enabled
   });
 }
 
+/** The couch's games on a show that you don't play and that are still on, each at your own mark (GET .../games?others=1): the
+ *  castaway sheet's In the couch's games, read only when a sheet asks. */
+export function useCouchOthers(seasonId: string, couchId: string | null) {
+  return useQuery({
+    queryKey: ["new-design", "games-others", seasonId, couchId],
+    queryFn: () => get<{ games: GameView[] }>(`/api/seasons/${seasonId}/games?couch=${encodeURIComponent(couchId ?? "")}&others=1`),
+    staleTime: 60_000,
+    enabled: !!couchId,
+  });
+}
+
 /** A show's episodes as far as you've seen, what's hidden until you reveal, what's waiting (GET .../episodes). */
 export function useSeasonEpisodes(seasonId: string, couchId: string | null, enabled = true) {
   const query = couchId ? `?couch=${encodeURIComponent(couchId)}` : "";

@@ -8,6 +8,8 @@ import { paths } from "../routes";
 import type { ShowData } from "../screens/show-space";
 import { PushedPage, usePushedPage } from "../ui/page";
 import { GuardChip } from "../ui/parts";
+import { BoardRow, placeOf, placeWord, statColour } from "./cast-sheet";
+import { useGameDrill } from "./game-sheets";
 import { Face } from "./parts";
 
 // Cast stats, no game needed (the mock's stats.js; docs/PLAN-new-design.md step 3): Tonight's Stats card (the stat of
@@ -57,22 +59,18 @@ export function useStatsPage() {
   };
 }
 
-/** A short board: the top few, numbered, faces greyed once out. */
-export function StatRows({ d, statKey, max = 3 }: { d: SeasonStats; statKey: string; max?: number }) {
+/** A short board: the top few, placed (ties share a place), each with its bar on one scale; a row opens that castaway's sheet when
+ *  `onCast` is given. The stat's board's own row (cast-sheet.tsx BoardRow), so a ranking looks the same wherever it's shown. */
+export function StatRows({ d, statKey, max = 3, onCast }: { d: SeasonStats; statKey: string; max?: number; onCast?: (name: string) => void }) {
   const rows = statBoard(d, statKey).slice(0, max);
   if (!rows.length) return <p className="text-[13px] text-muted-foreground">Nothing yet</p>;
+  const values = d.cast.map((c) => statValue(c, statKey));
+  const top = Math.max(1, ...values);
+  const colour = statColour(d, statKey);
   return (
     <>
-      {rows.map((r, i) => (
-        <div key={r.c.name} data-board-row={r.c.first} className={`flex min-h-10 items-center gap-2 border-t border-border ${r.c.out !== null ? "opacity-50" : ""}`}>
-          <span className="type-num w-5 flex-none text-base text-muted-foreground">{i + 1}</span>
-          <Face src={r.c.photo} name={r.c.first} out={r.c.out !== null} className="size-[30px] flex-none rounded-[3px]" />
-          <span className="flex min-w-0 flex-1 flex-col text-sm font-semibold">
-            <span className="truncate">{r.c.first}</span>
-            {r.c.out !== null ? <small className="block text-[10px] text-muted-foreground">Out · Ep {r.c.out}</small> : null}
-          </span>
-          <b className="type-num text-lg">{r.n}</b>
-        </div>
+      {rows.map((r) => (
+        <BoardRow key={r.c.name} c={r.c} v={r.n} place={placeWord(placeOf(values, r.n))} max={top} colour={colour} onTap={onCast ? () => onCast(r.c.name) : undefined} small />
       ))}
     </>
   );
@@ -83,6 +81,7 @@ export function StatRows({ d, statKey, max = 3 }: { d: SeasonStats; statKey: str
 export function StatsCard({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const { data: d } = useSeasonStats(seasonId, show.couch?.id ?? null);
   const page = useStatsPage();
+  const drill = useGameDrill(show);
   if (!d || !d.through || !d.featured.length) return null;
   const [lead, ...rest] = d.featured.map((k) => statOf(d, k));
   const top = statBoard(d, lead.key)[0];
@@ -113,7 +112,7 @@ export function StatsCard({ seasonId, show }: { seasonId: string; show: ShowData
           {two.map((s) => (
             <div key={s.key} className="min-w-0">
               <span className="type-caption mb-1 line-clamp-2 block min-h-[34px] text-[13px] leading-tight text-muted-foreground">{s.name}</span>
-              <StatRows d={d} statKey={s.key} />
+              <StatRows d={d} statKey={s.key} onCast={(name) => drill.open({ kind: "cast", name, lens: null })} />
             </div>
           ))}
         </div>
@@ -121,6 +120,7 @@ export function StatsCard({ seasonId, show }: { seasonId: string; show: ShowData
       <button type="button" data-all-stats onClick={() => page.openAt()} className="mt-2.5 flex h-11 w-full items-center justify-center gap-1 rounded-[3px] font-bold outline-1 -outline-offset-1 outline-input">
         All {count} {count === 1 ? "stat" : "stats"} <ChevronRight className="size-4" aria-hidden />
       </button>
+      {drill.sheets}
     </section>
   );
 }
@@ -128,7 +128,7 @@ export function StatsCard({ seasonId, show }: { seasonId: string; show: ShowData
 // ---------- the stats page: every stat, sorted ----------
 
 /** The page's body: the stat you came for (`focus`) with everyone, then every other stat's top five. */
-function StatsBody({ d, seasonId, focus, fromHub }: { d: SeasonStats; seasonId: string; focus: string | null; fromHub?: boolean }) {
+function StatsBody({ d, seasonId, focus, fromHub, onCast }: { d: SeasonStats; seasonId: string; focus: string | null; fromHub?: boolean; onCast?: (name: string) => void }) {
   const focused = focus && d.stats.some((s) => s.key === focus) ? focus : null;
   const order = [...d.stats.filter((s) => s.key === focused), ...d.stats.filter((s) => s.key !== focused && s.key !== "points")];
   const refocus = (key: string) => {
@@ -164,7 +164,7 @@ function StatsBody({ d, seasonId, focus, fromHub }: { d: SeasonStats; seasonId: 
               <h2 className={`type-caption ${on ? "text-[26px]" : "text-[20px]"} leading-tight`}>{s.name}</h2>
               <span className="flex-none text-xs text-muted-foreground">{on ? "Sorted by this · everyone" : s.unit || "Top five"}</span>
             </button>
-            <StatRows d={d} statKey={s.key} max={on ? 99 : 5} />
+            <StatRows d={d} statKey={s.key} max={on ? 99 : 5} onCast={onCast} />
           </section>
         );
       })}
@@ -172,14 +172,14 @@ function StatsBody({ d, seasonId, focus, fromHub }: { d: SeasonStats; seasonId: 
   );
 }
 
-function StatsPageFrame({ title, d, seasonId, focus, fromHub, open, onClose }: { title: string; d: SeasonStats | undefined; seasonId: string | null; focus: string | null; fromHub?: boolean; open: boolean; onClose: () => void }) {
+function StatsPageFrame({ title, d, seasonId, focus, fromHub, open, onClose, onCast }: { title: string; d: SeasonStats | undefined; seasonId: string | null; focus: string | null; fromHub?: boolean; open: boolean; onClose: () => void; onCast?: (name: string) => void }) {
   return (
     <PushedPage open={open} onClose={onClose} title={title}>
       <div data-stats-page className="px-4 pb-12 pt-3">
         {d && seasonId ? (
           <>
             <GuardChip seenThrough={d.seenThrough} />
-            <StatsBody d={d} seasonId={seasonId} focus={focus} fromHub={fromHub} />
+            <StatsBody d={d} seasonId={seasonId} focus={focus} fromHub={fromHub} onCast={onCast} />
           </>
         ) : (
           <div className="mt-2 h-64 animate-pulse rounded-[4px] bg-card" aria-busy />
@@ -189,12 +189,18 @@ function StatsPageFrame({ title, d, seasonId, focus, fromHub, open, onClose }: {
   );
 }
 
-/** The stats page over a show space (mounted by its frame). */
-export function ShowStatsPage({ seasonId, couchId, name }: { seasonId: string; couchId: string | null; name: string }) {
+/** The stats page over a show space (mounted by its frame): a row opens that castaway's sheet over the page. */
+export function ShowStatsPage({ seasonId, couchId, name, show }: { seasonId: string; couchId: string | null; name: string; show: ShowData }) {
   const page = useStatsPage();
   const focus = useSearchParams().get("stat");
   const { data } = useSeasonStats(seasonId, couchId, null, page.open);
-  return <StatsPageFrame title={`${name} stats`} d={data} seasonId={seasonId} focus={focus} open={page.open} onClose={page.close} />;
+  const drill = useGameDrill(show);
+  return (
+    <>
+      <StatsPageFrame title={`${name} stats`} d={data} seasonId={seasonId} focus={focus} open={page.open} onClose={page.close} onCast={(c) => drill.open({ kind: "cast", name: c, lens: null })} />
+      {drill.sheets}
+    </>
+  );
 }
 
 /** The stats page over the hub (By the numbers opens it for one of your shows: &season=<id>). */

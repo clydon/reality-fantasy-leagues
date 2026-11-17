@@ -17,7 +17,9 @@ import { Btn, BtnLink, EmptyState, SectionHead } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { ShowBar } from "../ui/show-bar";
 import { toast } from "../ui/toast";
-import { AthleteBody, CastSheetBody, EpisodeSlider, Select } from "./cast";
+import { EpisodeSlider, Select } from "./cast";
+import { AthleteSheetBody, CastSheetBody } from "./cast-sheet";
+import { useGameDrill } from "./game-sheets";
 import { first } from "./moves";
 import { useCastNames } from "../sports/faces";
 import { Face, IconBox } from "./parts";
@@ -516,24 +518,27 @@ function MovePlate({ due, tag, title, line, onTap, done }: { due: boolean; tag: 
 /** Their sheet (step 5's person sheet, an athlete's on a sport), with the week's action at its foot. */
 function WaiverFaceSheet({ seasonId, show, face, onClose, foot }: { seasonId: string; show: ShowData; face: WaiverFace | null; onClose: () => void; foot: ReactNode }) {
   const role = useContext(CastRoles);
-  const nav = useNav();
   const [last, setLast] = useState(face);
   if (face && face !== last) setLast(face);
   const f = face ?? last;
-  const onGame = (g: { leagueId: string }) => nav.push(paths.gamePage(seasonId, g.leagueId));
   const sport = show.header?.show.kind === "sport";
+  // The sheet's own doors (a stat's board, a holder, a compare) open over it, as levels of one path (game-sheets.tsx).
+  const drill = useGameDrill(show);
   return (
-    <Sheet open={!!face} onOpenChange={(o) => !o && onClose()} title={f?.name ?? ""} subtitle={f ? [role(f.name), f.group?.name].filter(Boolean).join(" · ") || undefined : undefined} foot={f ? foot : undefined}>
-      {f && (
-        <div data-wv-sheet={f.id}>
-          {sport ? (
-            <AthleteBody seasonId={seasonId} show={show} p={{ name: f.name, role: role(f.name), photoUrl: f.photo, team: f.group?.name ?? "", line: null }} onGame={onGame} />
-          ) : (
-            <CastSheetBody seasonId={seasonId} show={show} name={f.name} onGame={onGame} />
-          )}
-        </div>
-      )}
-    </Sheet>
+    <>
+      <Sheet open={!!face} onOpenChange={(o) => !o && onClose()} title={f?.name ?? ""} subtitle={f ? [role(f.name), f.group?.name].filter(Boolean).join(" · ") || undefined : undefined} foot={f ? foot : undefined}>
+        {f && (
+          <div data-wv-sheet={f.id}>
+            {sport ? (
+              <AthleteSheetBody seasonId={seasonId} show={show} p={{ name: f.name, role: role(f.name), photoUrl: f.photo, team: f.group?.name ?? "", line: null }} go={drill} />
+            ) : (
+              <CastSheetBody seasonId={seasonId} show={show} name={f.name} go={drill} />
+            )}
+          </div>
+        )}
+      </Sheet>
+      {drill.sheets}
+    </>
   );
 }
 

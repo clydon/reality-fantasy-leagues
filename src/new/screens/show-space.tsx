@@ -325,7 +325,7 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
       {show.header && (
         <HowItWorksPage seasonId={seasonId} couchId={show.couch?.id ?? null} name={show.header.show.name} seasonNumber={show.header.seasonNumber} artUrl={show.header.show.artUrl} />
       )}
-      {show.header && <ShowStatsPage seasonId={seasonId} couchId={show.couch?.id ?? null} name={show.header.show.name} />}
+      {show.header && <ShowStatsPage seasonId={seasonId} couchId={show.couch?.id ?? null} name={show.header.show.name} show={show} />}
       {!ro && (
         <>
           {/* The season's public pool (step 9 part 3), pushed from the Games tab or the solo hub (?page=pool). */}

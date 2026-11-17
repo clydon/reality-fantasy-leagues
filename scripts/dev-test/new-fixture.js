@@ -300,7 +300,33 @@ async function seedChat(pool, { couch, season, traitorsSeason, leagues, users })
   }
 }
 
-module.exports = { up, down, PEOPLE, PASSWORD, username, CHAT, TRAITORS_CHAT };
+/**
+ * A game on the fixture's couch that alex doesn't play: "Side Lineup", a Weekly Lineup for riley, jordan and sam (the castaway sheet
+ * lists the couch's active games, yours or not: story-person-sheet.js --side-game). Its slug is zt-nd-side, so down() takes it with
+ * the rest; sideGame(pool, false) takes it alone. Needs up() first.
+ */
+async function sideGame(pool, on = true) {
+  await pool.query(`DELETE FROM leagues WHERE slug = 'zt-nd-side'`);
+  if (!on) return null;
+  const one = async (sql, params) => (await pool.query(sql, params)).rows[0];
+  const lineup = await one(`SELECT couch_id FROM leagues WHERE slug = 'zt-nd-lineup'`);
+  if (!lineup) throw new Error("new-fixture.js isn't up");
+  const who = ["riley", "jordan", "sam"];
+  const ids = Object.fromEntries((await pool.query(`SELECT id, username FROM "user" WHERE username = ANY($1::text[])`, [who.map(username)])).rows.map((r) => [r.username.slice(6), r.id]));
+  const state = JSON.parse(JSON.stringify(buildDemoState({ ...data, players: who.map((key) => ({ key, name: key, color: "#888" })) }, "active-roster", CURSOR)));
+  S.migrateLeagueState(state);
+  state.settings.showId = SHOW;
+  state.settings.wikiSeason = 51;
+  const leagueId = (await one(`INSERT INTO leagues (name, slug, join_code, state, created_by, couch_id) VALUES ('Side Lineup', 'zt-nd-side', 'SIDEOO', $1, $2, $3) RETURNING id`, [JSON.stringify(state), ids.riley, lineup.couch_id])).id;
+  for (const [j, w] of who.entries()) {
+    await pool.query(`INSERT INTO league_memberships (league_id, user_id, player_id, role, results_seen_through) VALUES ($1, $2, $3, $4, $5)`, [
+      leagueId, ids[w], state.players[j].id, w === "riley" ? "commissioner" : "member", SEEN[w],
+    ]);
+  }
+  return leagueId;
+}
+
+module.exports = { up, down, sideGame, PEOPLE, PASSWORD, username, CHAT, TRAITORS_CHAT };
 
 if (require.main === module) {
   if (!/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(DB)) throw new Error("new-fixture runs against a local database only");

@@ -1,26 +1,23 @@
 "use client";
 
-import { startTransition, useMemo, useState, type ReactNode } from "react";
+import { startTransition, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ChevronDown, ChevronRight, Ellipsis, Search, Users, X, Zap } from "lucide-react";
-import { useAthleteHistory, usePlayerLog, useRoster, useSeasonStats, useFill, type CastStat, type GameView, type PastSeason, type SeasonStats } from "../data";
+import { ChevronDown, ChevronRight, Ellipsis, Search, Users, Zap } from "lucide-react";
+import { useAthleteHistory, useRoster, useSeasonStats, useFill, type CastStat, type GameView, type PastSeason, type SeasonStats } from "../data";
 import { GAME_NAMES } from "@/lib/server/league-season";
-import { ordinal } from "../games";
 import type { ShowData } from "../screens/show-space";
 import { Flip } from "../ui/flip";
 import { EmptyState } from "../ui/parts";
-import { Sheet } from "../ui/sheet";
-import { toast } from "../ui/toast";
+import { SheetCaption, plate, type Athlete } from "./cast-sheet";
 import { useGameDrill } from "./game-sheets";
-import { AthleteChart, GameTable, POSITION_ORDER, STACK, slotWord } from "./game-week";
+import { GameTable, POSITION_ORDER, slotWord } from "./game-week";
 import { CastComing, EpisodesComing } from "./getting-ready";
-import { first } from "./moves";
 import { Face } from "./parts";
 import { RecapsCard } from "./recaps";
 import { ScoringLink } from "./scoring";
 import { DisputeSheet } from "./something-wrong";
 import { statValue } from "./stats";
-import { bioLine, mainValue, propsLine } from "@/lib/cast-props-words";
+import { mainValue } from "@/lib/cast-props-words";
 import { propertyMatches } from "@/lib/game/formats/rulebook-schema.js";
 
 // Players / Cast (the design round's step 5: docs/design-round/step5-cast-spec.md, -first-view.md, -shape.md). The show's own
@@ -30,9 +27,8 @@ import { propertyMatches } from "@/lib/game/formats/rulebook-schema.js";
 //   - The numbers: "Counted by" the show (every stat the rulebook records, a column each, counts, a tap on a column sorts) or a
 //     game you play that counts people week by week (step 2c's game table in place, its own sheets). One episode range, capped at
 //     where you are; the one pattern the server found.
-//   - The person sheet (Phase 0 decision 9, one sheet): who they are, what they did each episode drawn (counts, stacked by kind),
-//     their numbers and where each ranks, In your games (each opens their sheet in that game), their story without points, and
-//     Compare with…
+//   - A tap opens the castaway's sheet (cast-sheet.tsx: one sheet from every way in, the drill's levels in game-sheets.tsx), at the
+//     show's lens here; a stat on it opens that stat's board, whose foot sorts The numbers by it (`onRank`).
 // A sport (the short check at hundreds of athletes): no wall: search and positions first, then rows by team with each one's line
 // so far from the box scores, 40 at a time; the athlete's sheet draws their games. Every number is counted on the server up to
 // where you are (GET /api/seasons/[id]/stats); `?rank=<stat>` opens the table sorted by it, `&from=&to=` a range.
@@ -72,16 +68,26 @@ function ShowCast({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const ranged = useSeasonStats(seasonId, couchId, range, !!range);
   const [sort, setSort] = useState<string | null>(params.get("rank"));
   const [lens, setLens] = useState<string>("show");
-  const [story, setStory] = useState<string | null>(null);
   const [flagging, setFlagging] = useState<{ episode: number; who: string } | null>(null);
-  const [comparing, setComparing] = useState<string | null>(null);
-  const [compare, setCompare] = useState<[string, string] | null>(null);
   // A value of one of the show's properties the wall shows only (The Challenge's Rookies), or everyone.
   const [only, setOnly] = useState<{ key: string; value: string } | null>(null);
   const games = lensGames(show);
-  const drill = useGameDrill(show);
-  const move = (fn: () => void) => startTransition(fn);
   const later = (fn: () => void) => setTimeout(fn, 230);
+  // One drill for every sheet this tab opens (game-sheets.tsx): a castaway, a stat's board, a compare, a person in a game. The
+  // drill closes its sheets before either of these runs.
+  const drill = useGameDrill(show, {
+    onFlag: couchId ? (episode, who) => later(() => setFlagging({ episode, who })) : null,
+    onRank: (key) => {
+      startTransition(() => {
+        setLens("show");
+        setRange(null);
+        setSort(key);
+      });
+      later(() => document.querySelector("[data-numbers]")?.scrollIntoView({ block: "start", behavior: "smooth" }));
+    },
+  });
+  const move = (fn: () => void) => startTransition(fn);
+  const tap = (c: CastStat) => drill.open({ kind: "cast", name: c.name, lens: null });
   // A chip shows whoever counts as its value: Nonbinary under Man and Woman too (the user, 2026-11-16).
   const filtered = (people: CastStat[]) => {
     if (!only) return people;
@@ -107,7 +113,7 @@ function ShowCast({ seasonId, show }: { seasonId: string; show: ShowData }) {
         <section data-explorer data-no-stats className="mx-4 mt-4 pb-4">
           <PropertyChips d={all} chosen={only} onChoose={setOnly} />
           {/* Who's in it opens who they are, before any numbers (docs/PLAN-cast-properties.md: a draft before the premiere). */}
-          <FaceWall d={all} people={filtered(all.cast)} onTap={(c) => setStory(c.name)} />
+          <FaceWall d={all} people={filtered(all.cast)} onTap={tap} />
           <p className="mt-5 text-[13.5px] leading-snug text-muted-foreground">
             {all.seenThrough === 0
               ? `Their numbers fill in as you watch, up to the ${w.episode.toLowerCase()} you're on, never past it.`
@@ -115,38 +121,21 @@ function ShowCast({ seasonId, show }: { seasonId: string; show: ShowData }) {
           </p>
           <ScoringLink seasonId={seasonId} variant="line" />
         </section>
-        <PersonSheet d={all} name={story} show={show} onClose={() => setStory(null)} onFlag={null} onGame={(g, id) => later(() => drill.openCast(g, id))} />
+        {drill.sheets}
       </>
     );
   }
   // The range's numbers once they're back (the last range's until then), else the whole season's.
   const d = (range && ranged.data) || all;
   const game = games.find((g) => g.leagueId === lens) ?? null;
-  const tap = (c: CastStat) => {
-    if (comparing && comparing !== c.name) {
-      setCompare([comparing, c.name]);
-      setComparing(null);
-      return;
-    }
-    setComparing(null);
-    setStory(c.name);
-  };
   const pattern = d.patterns[0] ?? null;
 
   return (
     <>
       <RecapsCard seasonId={seasonId} show={show} eps={null} />
       <section data-explorer className="mx-4 mt-4 pb-4">
-        {comparing && (
-          <div data-comparing className="sticky top-[104px] z-[2] mb-2 flex min-h-12 items-center gap-2 rounded-[3px] bg-foreground py-1.5 pl-3 pr-1 text-background">
-            <span className="flex-1 text-[14px] font-semibold">Tap someone to compare with {first(comparing)}</span>
-            <button type="button" aria-label="Stop comparing" onClick={() => setComparing(null)} className="grid size-10 place-items-center">
-              <X className="size-5" aria-hidden />
-            </button>
-          </div>
-        )}
         <PropertyChips d={all} chosen={only} onChoose={setOnly} />
-        <FaceWall d={all} people={filtered(all.cast)} onTap={tap} picking={comparing} />
+        <FaceWall d={all} people={filtered(all.cast)} onTap={tap} />
 
         <h2 className="type-caption mt-8 text-[24px] leading-none" data-numbers>
           The numbers
@@ -179,36 +168,12 @@ function ShowCast({ seasonId, show }: { seasonId: string; show: ShowData }) {
                 <ChevronRight className="size-3.5 flex-none text-muted-foreground" aria-hidden />
               </button>
             )}
-            <NumbersTable d={d} sort={sort} onSort={(k) => move(() => setSort(k))} onTap={tap} picking={comparing} />
+            <NumbersTable d={d} sort={sort} onSort={(k) => move(() => setSort(k))} onTap={tap} />
           </>
         )}
         <ScoringLink seasonId={seasonId} variant="line" />
       </section>
-      <PersonSheet
-        d={all}
-        name={story}
-        show={show}
-        onClose={() => setStory(null)}
-        onFlag={
-          couchId
-            ? (episode, who) => {
-                setStory(null);
-                later(() => setFlagging({ episode, who }));
-              }
-            : null
-        }
-        onCompare={(name) => {
-          setStory(null);
-          setComparing(name);
-          toast.quiet(`Tap someone to compare with ${first(name)}`);
-        }}
-        onGame={(g, id) => {
-          setStory(null);
-          later(() => drill.openCast(g, id));
-        }}
-      />
       {flagging && couchId && <DisputeSheet seasonId={seasonId} couchId={couchId} episode={flagging.episode} who={flagging.who} onClose={() => setFlagging(null)} />}
-      <CompareSheet d={d} pair={compare} title={show.header?.show.name ?? ""} words={w} onClose={() => setCompare(null)} />
       {drill.sheets}
     </>
   );
@@ -245,7 +210,7 @@ function LensRow({ games, lens, onLens, through, own = "The show" }: { games: Ga
             aria-checked={lens === k}
             data-lens-option={k}
             onClick={() => onLens(k)}
-            className={`h-10 flex-none whitespace-nowrap rounded-[3px] px-3.5 text-[14px] font-bold ${lens === k ? "bg-foreground text-background" : "text-muted-foreground outline-1 -outline-offset-1 outline-edge"}`}
+            className={plate(lens === k)}
           >
             {label}
           </button>
@@ -366,7 +331,7 @@ function PropertyChips({ d, chosen, onChoose }: { d: SeasonStats; chosen: { key:
   );
 }
 
-function FaceWall({ d, people, onTap, picking, bare }: { d: SeasonStats; people: CastStat[]; onTap: (c: CastStat) => void; picking?: string | null; bare?: boolean }) {
+export function FaceWall({ d, people, onTap, picking, bare }: { d: SeasonStats; people: CastStat[]; onTap: (c: CastStat) => void; picking?: string | null; bare?: boolean }) {
   const inNow = people.filter((c) => c.out === null);
   const by = groupingProperty(d);
   const groups: [string, CastStat[], string | null][] = d.groups.length
@@ -423,7 +388,7 @@ function FaceWall({ d, people, onTap, picking, bare }: { d: SeasonStats; people:
 
 // ---------- the numbers: one table, every stat a column ----------
 
-function NumbersTable({ d, sort, onSort, onTap, picking }: { d: SeasonStats; sort: string | null; onSort: (k: string) => void; onTap: (c: CastStat) => void; picking: string | null }) {
+function NumbersTable({ d, sort, onSort, onTap, picking = null }: { d: SeasonStats; sort: string | null; onSort: (k: string) => void; onTap: (c: CastStat) => void; picking?: string | null }) {
   // Every stat anyone has in the range, the fullest first (how many people have it), so the first view reads.
   const filled = (k: string) => d.cast.filter((c) => statValue(c, k) > 0).length;
   const cols = d.stats.filter((s) => s.key !== "points" && filled(s.key) > 0).sort((p, q) => filled(q.key) - filled(p.key));
@@ -496,265 +461,12 @@ function NumbersTable({ d, sort, onSort, onTap, picking }: { d: SeasonStats; sor
   );
 }
 
-// ---------- the person sheet ----------
-
-/** Where someone stands in your games: who holds or picked them in each game they're in. */
-function inYourGames(show: ShowData, name: string) {
-  const out: { g: GameView; id: string; line: string }[] = [];
-  for (const g of show.play ?? []) {
-    const c = g.cast.find((x) => x.name.toLowerCase() === name.toLowerCase());
-    if (!c) continue;
-    const holders = g.table.filter((r) => r.team.includes(c.id));
-    const pickers = g.plays?.kind === "pick" ? g.table.filter((r) => (g.plays.rows[r.playerId] ?? []).some((s) => s.pick?.id === c.id)) : [];
-    const names = (rs: typeof holders) => {
-      const others = rs.filter((r) => !r.you).map((r) => first(r.name));
-      return { you: rs.some((r) => r.you), others: others.length > 1 ? `${others.slice(0, -1).join(", ")} and ${others.at(-1)}` : (others[0] ?? "") };
-    };
-    let line: string;
-    if (holders.length) {
-      const n = names(holders);
-      line = n.you ? `On your team${n.others ? ` and ${n.others}'s` : ""}` : `On ${n.others}'s team`;
-    } else if (pickers.length) {
-      const n = names(pickers);
-      line = `Picked by ${[n.you ? "you" : "", n.others].filter(Boolean).join(" and ")}`;
-    } else line = c.left ? "Out" : "On nobody's team";
-    out.push({ g, id: c.id, line });
-  }
-  return out;
-}
-
-function useKept<T>(value: T | null): T | null {
-  const [kept, setKept] = useState(value);
-  if (value && value !== kept) setKept(value);
-  return value ?? kept;
-}
-
-function SheetCaption({ children, right }: { children: ReactNode; right?: ReactNode }) {
-  return (
-    <div className="mb-2 mt-5 flex items-baseline justify-between gap-2">
-      <p className="type-caption text-[14px] tracking-[0.02em] text-muted-foreground">{children}</p>
-      {right && <small className="text-right text-[12.5px] text-muted-foreground">{right}</small>}
-    </div>
-  );
-}
-
-function PersonSheet({
-  d,
-  name,
-  show,
-  onClose,
-  onFlag,
-  onCompare,
-  onGame,
-}: {
-  d: SeasonStats;
-  name: string | null;
-  show: ShowData;
-  onClose: () => void;
-  onFlag: ((episode: number, who: string) => void) | null;
-  onCompare?: (name: string) => void;
-  onGame: (g: GameView, id: string) => void;
-}) {
-  const kept = useKept(name);
-  const c = kept ? d.cast.find((x) => x.name === kept) : null;
-  const title = show.header?.show.name ?? "";
-  return (
-    <Sheet open={!!name} onOpenChange={(o) => !o && onClose()} title={c?.name ?? ""} subtitle={d.through ? `${title} · up to ${show.words.ep} ${d.through}` : title}>
-      {c && <PersonBody d={d} c={c} show={show} onFlag={onFlag} onCompare={onCompare} onGame={onGame} />}
-    </Sheet>
-  );
-}
-
-function PersonBody({ d, c, show, onFlag, onCompare, onGame }: { d: SeasonStats; c: CastStat; show: ShowData; onFlag: ((episode: number, who: string) => void) | null; onCompare?: (name: string) => void; onGame: (g: GameView, id: string) => void }) {
-  const w = show.words;
-  const colour = d.groups.find((g) => g.name === c.group)?.colour ?? null;
-  const numbers = d.stats
-    .filter((s) => s.key !== "points" && statValue(c, s.key) > 0)
-    .map((s) => {
-      const v = statValue(c, s.key);
-      const above = d.cast.filter((x) => statValue(x, s.key) > v).length;
-      const tied = d.cast.filter((x) => x.name !== c.name && statValue(x, s.key) === v).length;
-      return { s, v, where: above === 0 ? (tied ? `Most, with ${tied} ${tied === 1 ? "other" : "others"}` : "Most of anyone") : `${ordinal(above + 1)} most${tied ? ", tied" : ""}` };
-    })
-    .sort((p, q) => q.v - p.v);
-  const games = inYourGames(show, c.name);
-  // What the show sorts them by (its own words, in its order), else a sport's position; then who they are as billed.
-  const what = propsLine(c.props, d.properties) || c.position || null;
-  const bio = bioLine(c.bio);
-  return (
-    <div className="pb-2" data-person={c.first}>
-      <div className="mt-2 flex gap-3">
-        <Face src={c.photo} name={c.first} out={c.out !== null} className="h-[96px] w-[76px] flex-none rounded-[3px]" />
-        <div className="flex min-w-0 flex-1 flex-col justify-center gap-1.5">
-          {(what || c.group) && (
-            <p className="flex items-center gap-1.5 text-[14px] text-muted-foreground" data-person-group>
-              {c.group && colour && <i className="size-2.5 flex-none rounded-[2px]" style={{ background: colour }} aria-hidden />}
-              <span className="min-w-0">{[c.group, what].filter(Boolean).join(" · ")}</span>
-            </p>
-          )}
-          {bio && (
-            <p className="text-[14px] leading-snug" data-person-bio>
-              {bio}
-            </p>
-          )}
-          {/* Before anything's counted everyone's still in: said only once there's a season to be in. */}
-          {(c.out !== null || d.through > 0) && <p className="text-[15px] font-semibold">{c.out !== null ? `Out · ${w.ep} ${c.out}${c.how ? ` · ${cap(c.how.toLowerCase())}` : ""}` : "Still in"}</p>}
-          {c.start && c.group && c.start !== c.group && <p className="text-[13px] text-muted-foreground">Started on {c.start}</p>}
-          {d.roles && <p className="text-[13px] text-muted-foreground" data-role>{c.role ? <><b className="text-foreground">{c.role}</b>, revealed when they left</> : "Their role stays secret until they leave"}</p>}
-        </div>
-      </div>
-      {/* What they hold now (chunk 6b): the thing itself, never good or bad: plain words. */}
-      {!!c.holds?.length && (
-        <div className="mt-3 flex flex-col gap-1" data-person-holds>
-          {c.holds.map((h) => (
-            <p key={h} className="text-[15px] leading-snug">
-              {h}
-            </p>
-          ))}
-        </div>
-      )}
-      {c.bio?.line && (
-        <p className="mt-3 line-clamp-3 text-[15px] leading-snug text-muted-foreground" data-person-line>
-          {c.bio.line}
-        </p>
-      )}
-      <MomentsChart d={d} c={c} words={w} />
-      {numbers.length > 0 && (
-        <>
-          <SheetCaption right={`of ${d.cast.length}`}>Their numbers</SheetCaption>
-          <div data-their-numbers>
-            {numbers.map(({ s, v, where }) => (
-              <div key={s.key} className="flex min-h-11 items-center gap-3 border-t border-border py-1.5">
-                <span className="min-w-0 flex-1 text-[14px] leading-snug">{s.name}</span>
-                <small className="flex-none text-[12.5px] text-muted-foreground">{where}</small>
-                <b className="type-num w-8 flex-none text-right text-[20px]">{v}</b>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-      {games.length > 0 && (
-        <>
-          <SheetCaption>In your games</SheetCaption>
-          {games.map(({ g, id, line }) => (
-            <button key={g.leagueId} type="button" data-person-game={g.leagueId} onClick={() => onGame(g, id)} className="nd-press flex min-h-14 w-full items-center gap-3 border-t border-border py-1.5 text-left">
-              <span className="min-w-0 flex-1">
-                <b className="block truncate text-[15px] font-semibold">{gameName(g)}</b>
-                <small className="block truncate text-[13px] text-muted-foreground">{line}</small>
-              </span>
-              <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
-            </button>
-          ))}
-        </>
-      )}
-      <SheetCaption right="Newest first">Their story</SheetCaption>
-      <StoryBody d={d} c={c} onFlag={onFlag} group={false} photo={false} points={false} />
-      {onCompare && (<button type="button" data-compare-with onClick={() => onCompare(c.name)} className="nd-press mt-4 flex h-12 w-full items-center justify-center rounded-[6px] text-[15px] font-bold outline-1 -outline-offset-1 outline-edge">
-        Compare {c.first} with…
-      </button>)}
-    </div>
-  );
-}
-
-/** How many things someone did each episode, stacked by kind (their three most frequent, then the rest): the show's facts drawn,
- *  not a game's points. The episode they left in is marked. */
-/** The season's three most frequent stats, a colour each for everyone (a key learned on one face holds on the next). */
-function seasonColours(d: SeasonStats): Map<string, string> {
-  const freq = new Map<string, number>();
-  for (const x of d.cast) for (const [, key] of x.events) freq.set(key, (freq.get(key) ?? 0) + 1);
-  return new Map([...freq].sort((p, q) => q[1] - p[1]).slice(0, 3).map(([k], i) => [k, STACK[i]]));
-}
-
-function moments(d: SeasonStats, c: CastStat) {
-  const colours = seasonColours(d);
-  const mine = new Set(c.events.map(([, key]) => key));
-  const top = [...colours.keys()].filter((k) => mine.has(k));
-  const keys = [...top, ...([...mine].some((k) => !colours.has(k)) ? ["rest"] : [])];
-  const n = d.through;
-  const stacks = Array.from({ length: n }, (_, i) => {
-    const m = new Map<string, number>();
-    for (const [ep, key] of c.events) if (ep === i + 1) m.set(top.includes(key) ? key : "rest", (m.get(top.includes(key) ? key : "rest") ?? 0) + 1);
-    return m;
-  });
-  return { keys, stacks, n };
-}
-
-function MomentsChart({ d, c, words }: { d: SeasonStats; c: CastStat; words: ShowData["words"] }) {
-  const { keys, stacks, n } = moments(d, c);
-  const colours = seasonColours(d);
-  const fill = (k: string) => colours.get(k) ?? STACK[3];
-  if (!n) return null;
-  const totals = stacks.map((m) => [...m.values()].reduce((t, v) => t + v, 0));
-  const max = Math.max(1, ...totals);
-  const H = 84, TOP = 16, colW = n <= 6 ? 52 : n <= 10 ? 34 : 26, W = Math.max(n * colW, 120);
-  const y = (v: number) => TOP + (H - TOP) * (1 - v / max);
-  const name = (k: string) => (k === "rest" ? "Everything else" : (d.stats.find((s) => s.key === k)?.name ?? k));
-  const said = totals.map((t, i) => `${words.ep} ${i + 1}: ${c.out !== null && i + 1 > c.out ? "out" : t}`).join(", ");
-  return (
-    <section className="mt-4" data-cast-chart data-moments-chart>
-      <p className="mb-1 flex items-baseline justify-between gap-2">
-        <span className="type-caption text-[14px] tracking-[0.02em] text-muted-foreground">Each {words.episode.toLowerCase()}</span>
-        <span className="text-[13px] text-muted-foreground">{c.events.length} {c.events.length === 1 ? "moment" : "moments"} so far</span>
-      </p>
-      {c.events.length === 0 ? (
-        <p className="text-[14px] text-muted-foreground">Nothing recorded for {c.first} yet.</p>
-      ) : (
-        <>
-          <div className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none]">
-            <svg width={W} height={H + 20} role="img" aria-label={`What ${c.first} did each ${words.episode.toLowerCase()}: ${said}`} className="block">
-              <line x1={0} x2={W} y1={H} y2={H} stroke="var(--edge)" strokeWidth={1} />
-              {stacks.map((m, i) => {
-                const x = i * colW + 4;
-                let up = 0;
-                const gone = c.out !== null && i + 1 > c.out;
-                return (
-                  <g key={i}>
-                    {keys.map((k) => {
-                      const v = m.get(k) ?? 0;
-                      if (!v) return null;
-                      const from = up;
-                      up += v;
-                      return <rect key={k} x={x} width={colW - 8} y={y(up)} height={Math.max(1, y(from) - y(up) - 1)} fill={fill(k)} rx={1} />;
-                    })}
-                    {totals[i] > 0 && (
-                      <text x={x + (colW - 8) / 2} y={y(totals[i]) - 4} textAnchor="middle" fontSize={11} fill="var(--muted-foreground)" className="type-num">
-                        {totals[i]}
-                      </text>
-                    )}
-                    {gone && <circle cx={x + (colW - 8) / 2} cy={H - 4} r={1.5} fill="var(--muted-foreground)" />}
-                    <text x={x + (colW - 8) / 2} y={H + 15} textAnchor="middle" fontSize={11} fontWeight={c.out === i + 1 ? 700 : 400} fill={c.out === i + 1 ? "var(--live)" : "var(--muted-foreground)"}>
-                      {i + 1}
-                    </text>
-                  </g>
-                );
-              })}
-            </svg>
-          </div>
-          <ul className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[13px] text-muted-foreground" data-cast-chart-key>
-            {keys.map((k) => (
-              <li key={k} className="flex items-center gap-1.5">
-                <i className="size-2.5 rounded-[2px]" style={{ background: fill(k) }} aria-hidden />
-                {name(k)}
-              </li>
-            ))}
-            {c.out !== null && (
-              <li className="text-live">
-                {words.ep} {c.out}: went home
-              </li>
-            )}
-          </ul>
-        </>
-      )}
-    </section>
-  );
-}
-
 /** "+2", "−1", "0": a moment's points as the standings write them. */
 const pts = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n)}`;
 
 /** A castaway's season so far, newest first (the person sheet's story; a game's page shows it with that game's points under "In
  *  this game", U1 step 2b). `points={false}`: the show's facts only (the cast tab, step 5). */
-export function StoryBody({ d, c, names, onFlag, group = true, photo = true, points = true }: { d: SeasonStats; c: CastStat; names?: Map<string, string>; onFlag?: ((episode: number, who: string) => void) | null; group?: boolean; photo?: boolean; points?: boolean }) {
+export function StoryBody({ d, c, names, onFlag, group = true, photo = true, points = true, lit = null, marks = null }: { d: SeasonStats; c: CastStat; names?: Map<string, string>; onFlag?: ((episode: number, who: string) => void) | null; group?: boolean; photo?: boolean; points?: boolean; lit?: number | null; marks?: Map<string, string> | null }) {
   names ??= new Map(d.stats.map((s) => [s.key, s.name]));
   return (
     <div className={`flex gap-3 pb-2 ${photo ? "mt-3" : ""}`} data-story={c.first}>
@@ -792,7 +504,7 @@ export function StoryBody({ d, c, names, onFlag, group = true, photo = true, poi
           const quiet = !gone && !ev.length && !left && !moved.length && !held.length;
           if (!points && gone) return null;
           return (
-            <section key={e} data-story-ep={e} className={`border-t border-border py-2 first:border-t-0 ${gone ? "opacity-55" : ""}`}>
+            <section key={e} data-story-ep={e} className={`scroll-mt-2 border-t border-border py-2 first:border-t-0 ${gone ? "opacity-55" : ""} ${lit === e ? "nd-lit" : ""}`}>
               <header className="flex min-h-9 items-center gap-2">
                 <b className="type-caption text-[14px] tracking-[0.04em] text-muted-foreground">Episode {e}</b>
                 {unsure && (
@@ -811,6 +523,8 @@ export function StoryBody({ d, c, names, onFlag, group = true, photo = true, poi
               {ev.map((x, i) => (
                 <div key={`${x.key}-${i}`} data-story-moment={x.key} className={`flex min-h-8 items-center gap-3 text-[14px] leading-snug ${x.points || !points ? "" : "text-muted-foreground"}`}>
                   <span className="min-w-0 flex-1">
+                    {/* The scored sheet: each moment led by its class's mark, so a chart column's colours are found in the story it opens. */}
+                    {marks?.get(x.key) && <i className="mr-2 inline-block h-3 w-1 rounded-[1px] align-[-1px]" style={{ background: marks.get(x.key) }} aria-hidden />}
                     {x.name}
                     {x.units !== 1 && <span className="text-muted-foreground"> · {x.units.toLocaleString()}</span>}
                   </span>
@@ -842,19 +556,11 @@ export function StoryBody({ d, c, names, onFlag, group = true, photo = true, poi
 
 // ---------- two side by side ----------
 
-function CompareSheet({ d, pair, title, words, onClose }: { d: SeasonStats; pair: [string, string] | null; title: string; words: ShowData["words"]; onClose: () => void }) {
-  const kept = useKept(pair);
-  const shown = kept ? kept.map((n) => d.cast.find((c) => c.name === n)).filter((c): c is CastStat => !!c) : [];
-  return (
-    <Sheet open={!!pair} onOpenChange={(o) => !o && onClose()} title="Side by side" subtitle={`${title} · ${words.ep} ${d.from === d.to ? d.from : `${d.from}–${d.to}`}`}>
-      {shown.length === 2 && <CompareBody d={d} a={shown[0]} b={shown[1]} words={words} />}
-    </Sheet>
-  );
-}
-
 const PAIR = ["var(--foreground)", "var(--muted-foreground)"];
 
-function CompareBody({ d, a, b, words }: { d: SeasonStats; a: CastStat; b: CastStat; words: ShowData["words"] }) {
+/** Two castaways side by side in the show's lens (the sheet's Compare with…): one chart of both, an episode a pair of columns,
+ *  then every stat read across, the higher number bold. A game's lens compares points instead (game-week.tsx CompareBody). */
+export function CompareCounts({ d, a, b, words }: { d: SeasonStats; a: CastStat; b: CastStat; words: ShowData["words"] }) {
   const per = (c: CastStat) => Array.from({ length: d.through }, (_, i) => c.events.filter(([ep]) => ep === i + 1).length);
   const [pa, pb] = [per(a), per(b)];
   const max = Math.max(1, ...pa, ...pb);
@@ -908,8 +614,6 @@ function CompareBody({ d, a, b, words }: { d: SeasonStats; a: CastStat; b: CastS
 
 // ---------- a sport: a list, not a wall ----------
 
-export type Athlete = { name: string; role: string | null; photoUrl: string | null; team: string; line: string | null };
-
 const PAGE = 40;
 
 function SportCast({ seasonId, show }: { seasonId: string; show: ShowData }) {
@@ -919,7 +623,6 @@ function SportCast({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const [q, setQ] = useState("");
   const [pos, setPos] = useState("all");
   const [shown, setShown] = useState(PAGE);
-  const [open, setOpen] = useState<string | null>(null);
   const drill = useGameDrill(show);
   const people = useMemo<Athlete[]>(
     () =>
@@ -945,7 +648,6 @@ function SportCast({ seasonId, show }: { seasonId: string; show: ShowData }) {
     if (t && t[0] === p.team) t[1].push(p);
     else teams.push([p.team, [p]]);
   }
-  const person = open ? (people.find((p) => p.name === open) ?? null) : null;
   return (
     <>
       <section data-explorer data-sport-list className="mx-4 mt-4 pb-4">
@@ -1002,7 +704,7 @@ function SportCast({ seasonId, show }: { seasonId: string; show: ShowData }) {
               <div key={`${team}-${i}`} data-team={team}>
                 <p className="type-caption mt-3 border-b border-border pb-1.5 text-[15px] tracking-[0.02em] text-muted-foreground">{team}</p>
                 {list.map((p) => (
-                  <button key={p.name} type="button" data-athlete={p.name} onClick={() => setOpen(p.name)} className="nd-press flex min-h-14 w-full items-center gap-3 border-b border-border py-1.5 text-left">
+                  <button key={p.name} type="button" data-athlete={p.name} onClick={() => drill.open({ kind: "cast", name: p.name, lens: null })} className="nd-press flex min-h-14 w-full items-center gap-3 border-b border-border py-1.5 text-left">
                     <Face src={p.photoUrl} name={p.name} className="size-9 flex-none rounded-[3px] bg-card" />
                     <span className="min-w-0 flex-1">
                       <b className="block truncate text-[15px] font-semibold">{p.name}</b>
@@ -1021,74 +723,8 @@ function SportCast({ seasonId, show }: { seasonId: string; show: ShowData }) {
           </>
         )}
       </section>
-      <Sheet open={!!open} onOpenChange={(o) => !o && setOpen(null)} title={person?.name ?? ""} subtitle={person ? [person.role ? slotWord(person.role.toUpperCase()) : null, person.team].filter(Boolean).join(" · ") : undefined}>
-        {person && (
-          <AthleteBody
-            seasonId={seasonId}
-            show={show}
-            p={person}
-            onGame={(g, id) => {
-              setOpen(null);
-              setTimeout(() => drill.openCast(g, id), 230);
-            }}
-          />
-        )}
-      </Sheet>
       {drill.sheets}
     </>
-  );
-}
-
-export function AthleteBody({ seasonId, show, p, onGame }: { seasonId: string; show: ShowData; p: Athlete; onGame: (g: GameView, id: string) => void }) {
-  const log = usePlayerLog(seasonId, p.name);
-  const w = show.words;
-  const games = inYourGames(show, p.name);
-  return (
-    <div className="pb-2" data-athlete-sheet={p.name}>
-      <div className="mt-2 flex items-center gap-3">
-        <Face src={p.photoUrl} name={p.name} className="size-[72px] flex-none rounded-[3px] bg-card" />
-        {p.line && <p className="text-[14px] text-muted-foreground">{p.line}</p>}
-      </div>
-      {log.data?.games.length ? <AthleteChart games={log.data.games} words={w} /> : null}
-      {games.length > 0 && (
-        <>
-          <SheetCaption>In your games</SheetCaption>
-          {games.map(({ g, id, line }) => (
-            <button key={g.leagueId} type="button" data-person-game={g.leagueId} onClick={() => onGame(g, id)} className="nd-press flex min-h-14 w-full items-center gap-3 border-t border-border py-1.5 text-left">
-              <span className="min-w-0 flex-1">
-                <b className="block truncate text-[15px] font-semibold">{gameName(g)}</b>
-                <small className="block truncate text-[13px] text-muted-foreground">{line}</small>
-              </span>
-              <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
-            </button>
-          ))}
-        </>
-      )}
-      {/* Before this season has a game of theirs, what they did before it comes first (the draft's question). */}
-      {!log.isPending && !log.data?.games.length && <PastSeasons seasonId={seasonId} name={p.name} />}
-      <SheetCaption right="Newest first">This season</SheetCaption>
-      {log.isPending ? (
-        <div aria-busy className="h-24 animate-pulse rounded-[3px] bg-card" />
-      ) : log.data?.games.length ? (
-        <div data-game-log>
-          {log.data.games.map((x) => (
-            <div key={x.episode} className="border-t border-border py-2" data-log-game={x.episode}>
-              <p className="flex items-baseline justify-between gap-2 text-[14px] font-semibold">
-                <span className="truncate">
-                  {w.ep} {x.episode}
-                  {x.opponent ? ` · ${x.opponent}` : ""}
-                </span>
-                {x.at && <small className="flex-none text-[12px] font-normal text-muted-foreground">{new Date(x.at).toLocaleDateString([], { month: "short", day: "numeric" })}</small>}
-              </p>
-              <p className="mt-1 text-[13px] leading-snug text-muted-foreground">{x.items.length ? x.items.map((i) => `${i.value} ${i.label}`).join(" · ") : "Played, no stats in the box score"}</p>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="text-sm text-muted-foreground">No games of theirs you&apos;ve seen yet.</p>
-      )}
-      {!!log.data?.games.length && <PastSeasons seasonId={seasonId} name={p.name} />}
-    </div>
   );
 }
 
@@ -1186,13 +822,4 @@ function SeasonTable({ seasons, cat, title, chart }: { seasons: PastSeason[]; ca
       </div>
     </div>
   );
-}
-
-/** A cast member's sheet body by name, its stats read here: the draft room's (step 6), as the cast tab opens it. */
-export function CastSheetBody({ seasonId, show, name, onGame }: { seasonId: string; show: ShowData; name: string; onGame: (g: GameView, id: string) => void }) {
-  const d = useSeasonStats(seasonId, show.couch?.id ?? null).data;
-  const c = d?.cast.find((x) => x.name === name);
-  if (!d) return <div aria-busy className="mt-3 h-40 animate-pulse rounded-[3px] bg-card" />;
-  if (!c) return <p className="mt-3 text-[14px] text-muted-foreground">Nothing recorded for them yet.</p>;
-  return <PersonBody d={d} c={c} show={show} onFlag={null} onGame={onGame} />;
 }

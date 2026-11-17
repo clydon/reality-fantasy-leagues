@@ -578,3 +578,171 @@
   a sticky progress control (the landmarks carry where you are).
 - Rests on: docs/design-round/step9-chat-spec.md, -first-view.md, -check.md, -critique.md, -pfd-eval.md; the story https://claude.ai/artifact/Dpc8fXXdpnHw5vJkhAvNnc (frames in
   .ui-atlas/stories/step9-chat/).
+
+## 2026-11-16 · The castaway sheet is one part with a lens, Counted by, on the sheet
+- Decided by: Claude (default, inside Phase 0 decision 9; asked in the spec's open questions)
+- Why: the user stumbled showing a relative the app: a castaway from the Cast tab and the same castaway from a game page read as
+  two different things (step 2b's sheet and step 5's, never merged). One sheet with the context named ("Counted by Weekly Lineup")
+  explains the only real difference, a game's points, and reuses the Cast tab's own control for it.
+- Rejected: two sheets kept and restyled alike (the stumble was structural, not a colour); the game's points only inside its row
+  under In your games (the game page's player would scroll past the show's moments to reach the chart step 2b gave them first).
+- Rests on: docs/design-round/drill-person-sheet-spec.md; the before frames in .ui-atlas/stories/person-sheet/before.
+
+## 2026-11-16 · A stat on a sheet opens its board; the board lists everyone, those without it last
+- Decided by: Claude (default, from the user's example: "2nd in never having someone vote them … tapping into that to see a
+  castaway list sorted by" it)
+- Why: the user asked for a castaway list sorted by the stat; everyone without it are part of that list's answer ("who never
+  did?"), so they stay, last.
+- Rejected: opening the Cast tab's table sorted by the stat (leaves the game you're in, and the table's other columns bury the
+  one asked about; the board links to it instead); the stats page as the level (a pushed page sits under every sheet).
+- Rests on: docs/design-round/drill-person-sheet-spec.md, "The stat's board".
+
+## 2026-11-16 · Compare with… opens one picker everywhere
+- Decided by: Claude (default)
+- Why: a game page's sheet stack has no face wall to pick from; one picker (the wall in a sheet) works from every context, so the
+  button does the same thing everywhere.
+- Rejected: the Cast tab's picking mode on the wall kept beside a picker elsewhere (the same button, two flows).
+- Rests on: docs/design-round/drill-person-sheet-spec.md, block 8.
+
+## 2026-11-16 · The one sheet keeps the bio, what they hold and their properties; the stacked chart stays
+- Decided by: the user, mid-round, from production's Cast tab sheet (Sharonda Cox at Episode 7): "there's a bit of beauty in the
+  stacked bar chart here. but i could be convinced against it. what i cant be convinced against is the bio, what they hold, and
+  properties on this view"
+- What: the who block carries the cast-properties work (live since 2026-11-16, master 4ab2e026) in every context, a game's lens
+  included: the group and the show's properties, the billed bio line, still in or out, what they hold now, the billing's line.
+  The stacked chart stays (one chart part, a stat one colour for the season, in both lenses).
+- Also: the round's branch had been cut from the master before cast properties; it was brought up to origin/master (ff043c48)
+  and the round's work put back on top (one conflict, cast.tsx: the property chips and the wall's filter kept, the old picking
+  mode gone). The local database took migrations 0439-0441.
+- Rests on: the user's screenshot; .ui-atlas/stories/person-sheet/before/real-cast-sheet.jpg (the same view, rendered).
+
+## 2026-11-16 · The person-sheet round: built, waiting on the user's review
+- Decided by: Claude, through the three skills in order (Intent's spec and drill tree, PFD's first view, Impeccable's shape and
+  build), one check (Impeccable critique 27/40, dual-agent: an unanchored review and the detector in the page; PFD evaluate 72), one
+  batch, one confirming look (two slips of the batch fixed in it, listed in the check)
+- What: one castaway sheet from every way in, at the context you came from (Counted by), the bio, holdings and properties on it
+  everywhere; every number on it a door (a stat to its board, a chart column to the story's episode, a game row in place to its
+  holders, a holder to their sheet in that game); the stats page's and Tonight's Stats card's ranked rows open the sheet.
+- Rejected: a game's points only inside its row (the lens explains the points the relative stumbled on); 17 rows of nothing under
+  a rare stat's leader (a face grid once they outnumber); "Rank of 21" over a count (the count first, its rank in words); a filled
+  bone plate for a chosen lens (raised and outlined: it outshone the face); Free in a shared game.
+- Open for the user: which three stats take the chart's colours; the lens on the sheet; the Compare flow (wall picking to a picker
+  sheet); the next pass's order (drill-audit.md).
+- Rests on: docs/design-round/drill-person-sheet-*.md, drill-audit.md; the story https://claude.ai/artifact/P42w4GSchZfx7SHwf4Uxsn
+  (frames in .ui-atlas/stories/person-sheet/).
+
+## 2026-11-17 · The chart's colours: the three most frequent stats, the one that separates castaways, the rest grey
+- Decided by: the user ("3 most frequent, 1 that differs the most, the rest"; worked out from the season's numbers for now, a
+  show-specific order maybe later); the measure, the colours and the order by Claude, from the real Survivor 51
+- What: `src/new/show/season-colours.ts`. The three most frequent stats take Lake, Ember and Orchid in the rulebook's order (not by
+  rank: at Survivor 51's Ep 7 and Ep 8 the same three swap ranks, and a stat changing colour as you watch is the rank-painting the
+  dataviz rules forbid); then the stat castaways' counts are most spread out on (standard deviation of each castaway's count) takes
+  Sky; everything else is Slate. The stack's 1px gap between kinds is 2px, at each segment's far end so a bar stays on its zero
+  line. On the real Survivor 51 the fourth is "Voted with the majority" at Ep 7 and at Ep 8.
+- Rejected: ratio measures of "differs" (coefficient of variation, Gini): on the real season both pick a stat one castaway has
+  ("Chosen to join a reward", "2nd in the Immunity challenge"), a colour spent on one face of 21; the rate per episode played
+  (it picks "Played an idol" on the strength of a castaway out early); Safe Teal for the fourth (in the chart set, but teal means
+  good news, and a stat's colour carries no verdict); Sage (deutan ΔE 2.5 from Ember) and Rose (tritan 2.2); the control edge's
+  grey for the rest (ΔE 10.5 from Orchid in normal vision, below the floor of 15).
+- Known: Orchid and Lake stay close for deutan eyes (4.8, in the design system's chart set); Ember sits between them in the stack,
+  the 2px gap separates kinds, and the key names each.
+- Rests on: scripts/dev-test/season-colours.js on the real Survivor 51 through Ep 7 and Ep 8 (story-person-sheet.js --dump-stats);
+  the dataviz validator; tests/season-colours.test.js.
+
+## 2026-11-17 · Every cast photo opens their sheet; each dead end gets a verdict, not a door by default
+- Decided by: the user ("every cast photo opens their stats"; "honestly judge if the dead end should be there or if there's a
+  genuine use case for opening something")
+- What: the drill pass's rules, in drill-audit.md: a photo whose tap is the screen's action keeps it (the sheet carries the action
+  at its foot, or the name opens it); every dead end in the audit is judged, a door only where someone would really want one.
+- Rests on: docs/design-round/drill-audit.md.
+
+## 2026-11-17 · The castaway chart's options, rendered for the user's pick (the key, then the form)
+- Decided by: waiting on the user. Rendered at their request, on real seasons (Survivor 51 at Ep 7, Survivor 49 through the
+  finale, The Traitors (US) S5 at Ep 3) and the test couch (a player's first views; a made-up stretch to 30 episodes).
+- The user's constraints, all standing: seasons up to 30 episodes (Big Brother, Survivor Australia); sports excluded (they get their
+  own components); nothing may push a player's points in each game out of the first view; the sheet is as useful to someone who only
+  watches (moments) as to someone who plays (points), and points get a selector of your games where they count differently.
+- The options: today's stacked chart; 1, the moment grid (a row for each kind, a dot in each episode it happened, in Their numbers'
+  place, fitting 30 episodes, folding after five kinds); 2, bars against the cast; C, the colours on Their numbers' rows; 1+, Points
+  for a player (a plate a game with its points, games counting the same sharing one) and What they did (the grid) for everyone,
+  replacing Counted by and In your games. Recommended: 1+. The key's three earlier options (one kind a line, two columns, rows) are
+  superseded by the choice of form.
+- Open: for a long season, a column per round (Big Brother by week, about 13) as the season picker's round 7 already decided for
+  the wizard, before falling back to 30 narrow columns.
+- Rests on: https://claude.ai/artifact/L81dqjRLHL9a86bAdLWi7Q (frames in .ui-atlas/stories/person-sheet/charts/); the options run
+  behind a TEMP switch in src/new/show/cast-sheet.tsx (`keyVariant`, localStorage gys_keyv; story-person-sheet.js --key-variant).
+
+## 2026-11-17 · The castaway sheet is scored by the show: three classes of moment by the rulebook's points
+- Decided by: the user ("take a step back… modify what is on production today": the chart coloured by standard scoring, negative,
+  0 to 1 neutral, 1.5 and up good; Their numbers ordered by those points and coloured the same; a tap shows when it happened;
+  amounts such as tips or points scored shown in their own way at the top; every game's place and points); the rest of the
+  structure by Claude in the page spec, default while the user hasn't answered
+- What: `docs/design-round/drill-person-sheet-scoring-spec.md`. A kind's class comes from its points for one at the viewer's mark:
+  more than 1, a big moment; 0 to 1, a small moment; below 0, a setback (drawn under the line). The points are the rulebook's for
+  the moment (the engine's suggested points, the season's or the couch's own copy), not a game's own changes, which live in that
+  game's row. An amount (a moment the rulebook asks for as a number, with no test) is a figure of its own, never a moment.
+  Counted by leaves the sheet (the chart never changes meaning); In your games stays above Their numbers (the user's earlier
+  constraint: a player's points per game never pushed out of the first view), each row with the castaway's points and place there
+  whether or not they're yours, the game you came from first and open.
+- Rejected: the season's colour per kind (decided earlier today): three classes mean the same on every sheet and show, and the key
+  never grows with the names; a show-points total (beside a game's points it asks which is right); 1.25 left between the classes
+  (more than 1 is big, so the user's 1.5-and-up holds for every rulebook in half points).
+- Rests on: the rulebooks on hand (Survivor 51 and 49, The Traitors 5, Below Deck's draft); the dataviz validator on the sheet's
+  ground: Night Safe Teal #35b5a5, the edge grey #75708a, Ember #f2804b (colour-blind ΔE 12.5, normal 19.3, all 3:1 on #221f2c);
+  Studio #0b7568, #8e889c, #b4541c (9.5, 17.0, all 3:1).
+- Open: setbacks in Ember (DESIGN.md's Red Is For Leaving: "losing points is not an elimination; use… a down chart bar") or in red
+  as first asked (Night #f2545b also passes: colour-blind ΔE 8.1 from the grey). Rendered both ways for the user.
+
+## 2026-11-17 · The scored sheet's check, fixed in one batch: one scale, one rank form
+- Decided by: Claude, from the round's one check (docs/design-round/drill-person-sheet-scoring-pfd-eval.md, 74/100;
+  drill-person-sheet-scoring-critique.md, 28/40)
+- What: every chart on its season's busiest episode (a game's weeks on that game's whole cast) so a quiet castaway looks quiet;
+  small moments drawn at half the bar's width at first, then back to the full width (the user: "the gray is not matching up");
+  the count over a column is what's over the line (a setback's count under its bar
+  stacked on the episode number, so it went); one rank form, "T10 of 21", as the games' rows say it; Their numbers headed "By the
+  show's points"; "See all 21" inside the opened row; every chart and strip spanning the sheet's measured width; classes said to
+  screen readers; the amount figure at 22 px; `--nd-amount` for its bars (Bone; #7d7566 on Studio); the board's framed row back on
+  its rails (`w-full` beat its wider width).
+- Left open: the winner styled as voted out (BACKLOG 96: a data fix for every surface); a game's points about 630 px down from its
+  page (the header could carry them: the user's call); Outlast's row opening to one holder line; "Who has them in: Nobody".
+- Rests on: https://claude.ai/artifact/2JSLEE5VNek5qmRgpY9Sq2 (frames in .ui-atlas/stories/person-sheet/score/).
+
+## 2026-11-17 · The castaway sheet lists the couch's active games, yours or not
+- Decided by: the user ("I meant couch games that are still active"), answering the spec's open question
+- What: every game on the couch that has the castaway and isn't over by the viewer's mark or archived (the game view's `over` and
+  `archived`), each with their points and place there; a game the viewer doesn't play is read at the viewer's own mark (the
+  read-only path season-games.ts already has), asked for by the sheet alone so the shared games read's other users don't change.
+  The section's label follows: "In the couch's games".
+- Rejected: only the viewer's games (the first reading); finished games kept (a finished game's points are history, not "now").
+- Open: a fourth class for great moments (the user: "unless we want a fourth value to distinct good from great").
+
+## 2026-11-17 · The scored chart stacks its classes with no gap
+- Decided by: the user ("make sure there's no gap between neutral gray and green")
+- What: `Columns` takes `gap` (2px by default, kept for the season-colour stacks); the scored chart passes 0. Teal, grey and Ember
+  are far enough apart without it (colour-blind ΔE 12.5 at the closest pair).
+- Open, proposed to the user: bands from each rulebook's own spread (its typical moment, the median of its scoring moments' points):
+  setback below 0; neutral up to half the typical moment; good; great from 1.5 times it (a brighter mint #8fe6d8 over Safe Teal:
+  a darker "good" teal fails against the grey for colour-blind eyes, ΔE 3.5). Tested on the nine rulebooks on hand.
+
+## 2026-11-17 · The scored sheet is built: four bands from each rulebook's typical moment, the couch's active games
+- Decided by: the user ("lets build and implement!", on the four bands; "order of the stack matters, setback on bottom, then
+  neutral, good, great on top")
+- What: `src/lib/game/moment-bands.ts` (`typicalOf`, `bandOf`, with tests): setback below 0; neutral up to half the typical moment;
+  great from 1.5 times it; good between. `cast-stats.ts` sends `typical` (the median of the points of every moment the rulebook
+  scores, not its ways out nor an amount) and each stat's `points`. The chart stacks neutral, good, great from the line up, setbacks
+  under it; the key reads Great, Good, Neutral, Setbacks. Tokens `--nd-band-great/-good/-neutral/-setback` (Night #8fe6d8,
+  Safe Teal, #75708a, Ember; Studio #06463f, #0b7568, #8e889c, #b4541c), `--nd-amount`. In the couch's games: `couchOthers` in
+  season-games.ts behind the games read's `?others=1` (the sheet alone asks, `useCouchOthers`), games over or archived dropping off,
+  two games of one kind named apart. The TEMP options (keyVariant and every variant) and the season-colour rule
+  (season-colours.ts, its test and script) are gone; Counted by left the castaway sheet (the board's Who has them in and the
+  athlete's sheet keep LensControl). The test couch gained `new-fixture.js sideGame` (story-person-sheet.js `--side-game`).
+- Rejected: a fixed line at 1 point (rulebooks pay on different scales: Survivor 49's rewards +1, 51's +2); the top value as the
+  anchor (one big finale moment would squash the bands); great at twice the typical moment (Survivor's immunity win would be only
+  good, Dancing with the Stars would have no great); red setbacks.
+- Rests on: https://claude.ai/artifact/2JSLEE5VNek5qmRgpY9Sq2 (version 3; frames in .ui-atlas/stories/person-sheet/final/);
+  unit tests 2420/2420; check-game-page.js on the test couch (4 games, 0 failing).
+
+## 2026-11-17 · Great is the deeper green, good the lighter one
+- Decided by: the user ("dark green should be great, and light green is good")
+- What: on Night great is Safe Teal (#35b5a5) and good the mint (#8fe6d8), the reverse of the build; Studio already had the deeper
+  teal for great (#06463f over Safe Teal #0b7568). The same four colours, so the validator's all-pairs result stands.

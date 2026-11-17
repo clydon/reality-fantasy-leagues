@@ -106,6 +106,59 @@ after, the wizard taking in chunk 7). Commits: 10b6f369 (chunk 1), ad6b0f2b (chu
   Watch Wednesday's first quick run; if ChatGPT keeps stalling, Codex still answers.
 - **Next:** the rehearsal on production's copy, then the merge (0439-0441 renumbered if taken). Chunk 7 goes with the wizard (step
   12). The user's review of the story's chunks.
+## The person-sheet round: one castaway sheet, every number a door (2026-11-16; on branch `explorer-sports`, uncommitted; waits on the user's review)
+The user, showing the app to a relative: a castaway from the Cast tab and the same castaway from a game page opened two different
+sheets (step 2b's `CastBody` in game-sheets.tsx and step 5's `PersonBody` in cast.tsx, never merged; cast properties had landed on the
+second only); and "almost everything" should drill down ("2nd in never having someone vote them" should open the cast sorted by it).
+**The branch was first brought up to origin/master (ff043c48: cast properties, the catch-up) and the work put back on top** (one
+conflict in cast.tsx: the property chips and the wall's filter kept, the old picking mode gone); the local database took 0439-0441.
+What's built: `src/new/show/cast-sheet.tsx`, one sheet (who: photo, group and properties, the billed line, status, what they hold,
+the billing's line; Counted by, the lens, over one stacked chart part with a stat one colour for the season; In your games, the game
+you came from first and open, rows opening in place to holders; Their numbers, the count first with its rank in words, each opening
+the stat's board; the story, naming whose points it shows; Compare with… through a picker), and the stat's board (everyone ranked,
+the castaway you came from framed, Who has them in for any game with teams, the rest as a face grid when they outnumber). They are
+levels of the one drill: game-sheets.tsx `Door` gained `cast` by name, `stat`, `pick`, `versus` and an optional `game` on every door;
+`DrillSheets` runs without a game of its own (`useGameDrill(show, { onFlag, onRank })` is now every tab's drill: the Cast tab, the
+Games tab, the draft room's and waivers' sheets, the stats page and Tonight's Stats card, whose ranked rows now open the sheet). Also
+fixed on the way: the old guard compared `pointsFrom` (a league's name) with `gameName`, so a game's chart never drew. Process and
+evidence: `docs/design-round/drill-person-sheet-{spec,first-view,shape,critique,pfd-eval,check}.md`, `drill-audit.md` (the app's ~90
+dead ends and the order for the next pass), decisions.md; frames by the new `scripts/dev-test/story-person-sheet.js` (`--dress-from=
+rfl_castprops` dresses the zt couch with the real billed bios, properties and holdings for the run; `--real-db=rfl_castprops` shoots
+the real Survivor 51 with the dev server pointed at that database); the story https://claude.ai/artifact/P42w4GSchZfx7SHwf4Uxsn.
+Checks: tsc and eslint clean, no overlaps or page errors in the frames; the long checks not run yet. Noticed, not fixed: BACKLOG 96.
+**2026-11-17, the review so far:** the user chose the colour rule (three most frequent + the one that differs most + the rest:
+`src/new/show/season-colours.ts`, with tests; Sky for the fourth, Slate rest, rulebook order), then questioned the chart itself.
+Rendered options for the chart and Their numbers, on real seasons and the test couch:
+https://claude.ai/artifact/L81dqjRLHL9a86bAdLWi7Q (decisions.md, "The castaway chart's options"). **Recommended: 1+** (Points with a
+game selector for a player; What they did, the moment grid, for everyone; Counted by and In your games folded into Points).
+**The options run behind a TEMP switch** in cast-sheet.tsx (`keyVariant()`, localStorage `gys_keyv`: lines, grid, rows, matrix,
+meter, split; nothing set is today's): once the user picks, build that one for real through the three skills and delete the rest
+(MomentGrid, MeterRows, PointsSection, the key options). story-person-sheet.js gained `--real-show/--real-season`, `--key-variant`,
+`--region`, `--click`, `--stretch=<n>` (a made-up longer season for layout) and `--dump-stats`; `season-colours.js` reads a dump.
+**Then the user stepped back** ("modify what is on production today"), and the scored sheet was designed through Intent, PFD and
+Impeccable (`docs/design-round/drill-person-sheet-scoring-{spec,first-view,shape,pfd-eval,critique}.md`), checked once (PFD 74/100,
+Impeccable 28/40), fixed in one batch, and **built for real on the user's word (2026-11-17, "lets build and implement!")**; story
+https://claude.ai/artifact/2JSLEE5VNek5qmRgpY9Sq2 (version 3; frames in `.ui-atlas/stories/person-sheet/final/`). What's built
+(decisions.md, "The scored sheet is built"):
+- **Four bands** from each rulebook's typical moment (`src/lib/game/moment-bands.ts`, tests/moment-bands.test.js): setback below 0,
+  neutral up to half the typical moment, great from 1.5 times it, good between; `cast-stats.ts` sends `typical` and each stat's
+  `points` (and `amount` for a number ask). The chart stacks neutral, good, great from the line up (no gap), setbacks under it, on
+  the season's busiest episode; tokens `--nd-band-*` and `--nd-amount` in new.css.
+- **Their numbers** most valuable first ("+2 each", "T10 of 21", "By the show's points"), each opening in place to its episodes and
+  "See all N" (the board, bars in the band's colour; the stats page's and Tonight's rows too, `statColour`).
+- **Figures** for a rulebook's amounts at the top; **In the couch's games**: every active couch game with them in it, yours or not
+  (`couchOthers` behind the games read's `?others=1`, read at your mark; `useCouchOthers`), the game you came from first and open.
+- **Gone:** every TEMP option (`keyVariant` and its variants), the season-colour rule (season-colours.ts, its test and script), and
+  Counted by on the castaway sheet (the board and the athlete's sheet keep LensControl).
+- Test tools: `new-fixture.js sideGame` (a couch game alex doesn't play) and story-person-sheet.js `--side-game`, `--amount`; the
+  script opens a numbers row before its board. Checks: tsc and eslint clean, unit tests 2420/2420, check-game-page.js on the test
+  couch (4 games, 0 failing), no overlaps in the frames. **Not committed** (the whole person-sheet round is uncommitted on
+  explorer-sports).
+**Open:** the winner styled as voted out (BACKLOG 96, a data fix); a game's points about 630 px down from its page (the header could
+carry them); Outlast's row opening to one holder line; the board's "Who has them in: Nobody". Still the user's: the Compare flow
+change and the next pass's order (drill-audit.md, with the user's two rules: every cast photo opens their sheet; each dead end gets
+an honest verdict).
+
 ## Pushed: The numbers' holders (2026-11-16, master at this commit; no migrations)
 The Castaways tab's game lens (GameTable, src/new/show/game-week.tsx), from the user's screenshot of it on the real couch ("a bit
 cramped"): first names, a last initial only on a clash (castName); who holds each as faces (Episodes' face stack, now shared as
