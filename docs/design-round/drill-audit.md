@@ -53,6 +53,10 @@ Inconsistencies found on the way:
 - "Episode N" is a door in one person sheet (game-sheets.tsx EpisodeBlock) and plain text in the lineup sheet.
 - The episode page (`?page=epN`) is a pushed page on the Episodes tab only, under every sheet (z 70 against a sheet's 81), so no
   sheet can open it today; an episode level that works over sheets is a structural question for the next pass.
+- The castaway sheet's header differs by the way in (noticed in step 2b): the draft's and waivers' own sheets put the tribe under
+  the name ("Jelly", "Blue"); a level of the drill (a move's castaway, Tonight, the episode page) puts the show and how far it's
+  seen ("Rob", "Survivor · up to Ep 3") under the crumb. The body is the same part. One header for every way in, the crumb only
+  where there's a path behind it, is for the polish after the drill pass.
 
 ## Step 1 done: people in games (2026-11-17, the user: "continue")
 
@@ -81,6 +85,29 @@ doesn't have, so they're skipped there).
 | The same page's What happened | Who won it? | **Door** for a person (the sheet finds them by first name when only one has it); **stays** for a tribe, a group's label (the face wall is grouped by it) |
 | The same page's best this episode | Why did Jenna score 4.5? | **Door**: the castaway's sheet, that game first and open |
 
+## Step 2b done: the draft room and waivers (2026-11-17)
+
+| Where | Who taps it, wanting what | Verdict |
+| --- | --- | --- |
+| The room's taken tiles, with Show taken on (draft.tsx WallTile) | Conor: who did sam take, and are they any good? | **Door**: the castaway's sheet, read-only, its foot saying who has them ("Taken by sam", "On your team"); the tile was disabled |
+| Your slots under the clock (YourSlots) | Andrew: who have I got so far? | **Door**: the castaway's sheet ("On your team") |
+| The Picks board's cells (PicksRow), in the room and once the draft is done | Who went where; is riley's pick any good? | **Door**: the castaway's sheet ("Taken by riley" in the room, "On riley's team" when it's done) |
+| The Picks board's seat heads | That person's team | **Stays**: the column under the head is their team |
+| The clock's face and name (ClockCard), the order before the start (OrderList) | Who's up, who's next? | **Stays**: the clock says it in a sentence, and a person's picks are their column on the Picks board |
+| Your queue's rows | Look again before drafting from your list | **Door**: the face and name open the sheet, Queue and Draft at its foot when you're up; the row's own Draft keeps its one tap |
+| The blind draft's slots (BlindRoom) | Who did I pick; should I swap them out? | **Door**: the sheet with Take them out at its foot, as the wall's tiles already open it with Add; a tap on a slot took them out at once before |
+| The blind draft's reveal (BlindReveal) | | **Stays**: a moment that plays once; the same teams are doors on the Picks board after it |
+| Waivers' spot plate (SpotPlate: who's out, who comes in) | Sam: is Jelly really gone; who's my pick again? | **Door**: the castaway's sheet, Swap at its foot only for someone on your team who can still be swapped |
+| The claim picker's rows (PickSheet) | Conor: look before claiming | **Door on the photo**: their sheet over the picker, the row's tap at its foot (Pick, Add as a backup, Take out), then back on the picker to save; the rest of the row keeps selecting, so a pick and its backups in order stay one tap each |
+| Everyone's moves; a quiet week's Last time (MovesList) | Who did Kim get, and what's Kim's team now? | **Door**: the castaway someone got opens their sheet in the game; the person opens their season in the game |
+| The run's slides (WaiverRunScreen's Everyone's moves) | | **Stays**: a moment told in slides; the same moves are doors on the waivers page after it |
+| Waivers' picking order (Order) | Who picks ahead of me? | **Stays**: the line answers it; a person's team isn't what it's for |
+
+Checked by `check-drill-doors.js`'s draft and waivers sets on their own fixtures (draft-fixture.js mid-draft with alex up, then
+with every pick in; waivers-fixture.js open, processed and idle as Sam), each door with its back, and the picker's Pick choosing
+the row without saving: 24 pass. The whole check: 41 pass, 3 skipped (the test couch has no head to head, no due final result
+and no person in Episode 5's What happened).
+
 ## The phone's back through the doors (the user, 2026-11-17: "consistent and natural throughout the app")
 
 One rule, from `src/new/ui/sheet-history.ts`: each level that opens over the page is a sheet with its own history entry, so the
@@ -97,6 +124,6 @@ the hub's step 7 redesign (it waits for a guide sheet the card no longer opens t
 1. People in games: the matchup heads, the standings-shaped lists and chat's avatars open a person (rows 1, 4, 10): one door kind
    that exists already (`person` with `game`).
 2. Castaways wherever they appear: Tonight's Who scored, the episode page, the draft room, waivers' picker (rows 2, 3, 5, 6): the
-   one castaway sheet, with the surface's action at its foot where it has one (Draft, Claim).
+   one castaway sheet, with the surface's action at its foot where it has one (Draft, Pick). Done (steps 2a and 2b).
 3. Episodes: decide how an episode level opens over a sheet, then charts, tables and headers (rows 7, 8).
 4. The hub and sports (rows 9, 11).

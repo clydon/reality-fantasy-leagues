@@ -1,36 +1,61 @@
 // Dev-only check of the drill pass's doors (docs/design-round/drill-audit.md): each face, name or row that now opens a level is
-// tapped on new-fixture.js's couch as alex, and the level it opens must appear over the surface; then the phone's back (the
-// browser's, page.goBack(): sheet-history.ts) must take down that level alone, the surface still there as it was, and where the
-// door opened a sheet over a sheet, a second back the one under it (one level a back, the same everywhere: the user, 2026-11-17).
+// tapped as someone on a zt couch, and the level it opens must appear over the surface; then the phone's back (the browser's,
+// page.goBack(): sheet-history.ts) must take down that level alone, the surface still there as it was, and where the door opened
+// a sheet over a sheet, a second back the one under it (one level a back, the same everywhere: the user, 2026-11-17).
 // Frames before the tap, after it and after the back (<out>/<door>.before.jpg, .after.jpg, .back.jpg), for the round's
-// screenshot story, and a PASS, FAIL or SKIP line each (BACK lines for the backs):
-//   chat-face        the show's Chat: someone else's face opens them on the couch (couch/person-sheet.tsx)
-//   rank-row         the hub's Power rankings: a row opens that person on the couch
-//   h2h-row          the same page's Head to head: a row opens that person on the couch
-//   bet-caller       a game page's Side bets: who called it opens their sheet in the game
-//   matchup-head     a head-to-head matchup's two heads open each person in the game (SKIP: the test couch has no head to head)
-//   morning-row      the final results' morning sheet: a standings row opens that person in the game (SKIP unless one is due)
-//   tonight-out      Tonight's Last time: who left opens the castaway's sheet
-//   tonight-ledger   Tonight's Your games, Who scored opened: a castaway opens their sheet in that game
-//   episode-out      an episode's page (Episodes): who left opens the castaway's sheet
-//   episode-winner   the same page's What happened: a person (not a tribe) opens their sheet
-//   episode-scorer   the same page's game best this episode: a castaway opens their sheet in that game
+// screenshot story, and a PASS, FAIL or SKIP line each (BACK lines for the backs). Three sets (--set=couch,draft,waivers, all
+// three by default), each on its own fixture:
 //
-//   node scripts/dev-test/check-drill-doors.js [--out=.ui-atlas/stories/drill-doors/after] [--only=<regex>] [--width=390 --height=844]
+// couch: new-fixture.js's couch as alex (bring it up first: node scripts/dev-test/new-fixture.js up)
+//   chat-face          the show's Chat: someone else's face opens them on the couch (couch/person-sheet.tsx)
+//   rank-row           the hub's Power rankings: a row opens that person on the couch
+//   h2h-row            the same page's Head to head: a row opens that person on the couch
+//   bet-caller         a game page's Side bets: who called it opens their sheet in the game
+//   matchup-head       a head-to-head matchup's two heads open each person in the game (SKIP: the test couch has no head to head)
+//   morning-row        the final results' morning sheet: a standings row opens that person in the game (SKIP unless one is due)
+//   tonight-out        Tonight's Last time: who left opens the castaway's sheet
+//   tonight-ledger     Tonight's Your games, Who scored opened: a castaway opens their sheet in that game
+//   episode-out        an episode's page (Episodes): who left opens the castaway's sheet
+//   episode-winner     the same page's What happened: a person (not a tribe) opens their sheet
+//   episode-scorer     the same page's game best this episode: a castaway opens their sheet in that game
 //
-// Needs the dev server (npm run dev; BASE= for another) and new-fixture.js up (node scripts/dev-test/new-fixture.js up). Reads only;
-// touches nothing in the database. A page error prints as a PAGEERROR line.
+// draft: draft-fixture.js as alex, brought up here (Couch Cup's snake draft six picks in, alex up; the blind draft started), then
+// again with every pick in; taken down at the end unless --keep
+//   draft-taken        the room's board with Show taken on: someone else's tile opens their sheet, read-only ("Taken by …")
+//   draft-slot         your slots under the clock: one you drafted opens their sheet ("On your team")
+//   draft-board-cell   the Picks board: a pick's cell opens that castaway's sheet
+//   draft-queue-row    your queue: a row opens their sheet, Draft at its foot (alex is up)
+//   draft-blind-slot   Lineup League's blind draft: someone added to your team, then their slot opens their sheet (Take them out)
+//   draft-done-cell    the draft done ("Couch Cup is set"): a cell on the board opens their sheet ("On …'s team")
+//
+// waivers: waivers-fixture.js --ui=new as Sam (zt_wplayer, owed a replacement for Jelly), brought up here phase by phase; taken
+// down at the end unless --keep
+//   waiver-spot        phase open: the spot plate's face (Jelly, out) opens her sheet
+//   waiver-picker-face the claim picker: a free agent's photo opens their sheet over it (Pick at its foot), the picker under it
+//   waiver-picker-pick the same sheet's Pick: back on the picker with that row chosen (nothing saved)
+//   waiver-move-face   phase processed: Everyone's moves, the castaway someone got opens their sheet in the game
+//   waiver-move-person the same row's person opens their sheet in the game
+//   waiver-last-face   phase idle: Last time's castaway opens their sheet
+//
+//   node scripts/dev-test/check-drill-doors.js [--set=couch,draft,waivers] [--only=<regex>] [--keep]
+//                                              [--out=.ui-atlas/stories/drill-doors/after] [--width=390 --height=844]
+//
+// Needs the dev server (npm run dev; BASE= for another). The couch set reads only; the draft and waivers sets write only their
+// fixtures' zt-dr- / zt-wv- rows (never run beside another check on the same fixture). Refuses a non-local database. A page
+// error prints as a PAGEERROR line.
 require("dotenv").config({ path: ".env.local", quiet: true });
 const fs = require("fs");
 const path = require("path");
 const { Pool } = require("pg");
-const { open } = require("./browser");
+const { open, api } = require("./browser");
 
 const args = process.argv.slice(2);
 const opt = (k, d) => args.find((a) => a.startsWith(`--${k}=`))?.slice(k.length + 3) ?? d;
 const OUT = path.resolve(opt("out", ".ui-atlas/stories/drill-doors/after"));
 const W = Number(opt("width", 390)), H = Number(opt("height", 844));
 const ONLY = opt("only", null);
+const SETS = opt("set", "couch,draft,waivers").split(",");
+const KEEP = args.includes("--keep");
 const BASE = process.env.BASE || "http://localhost:3000";
 const DB = process.env.AUTH_DATABASE_URL || "";
 if (!/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(DB)) throw new Error("check-drill-doors runs against a local database only");
@@ -38,38 +63,48 @@ if (!/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(DB)) throw new Error("check-dr
 const wait = (p, ms) => p.waitForTimeout(ms);
 const dialogs = (p) => p.locator('[role="dialog"]');
 const results = [];
+const wanted = (id) => !ONLY || new RegExp(ONLY).test(id);
 
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
   const pool = new Pool({ connectionString: DB });
   const one = async (sql, params) => (await pool.query(sql, params)).rows[0];
-  const season = (await one(`SELECT ss.id FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE s.slug = 'zt-nd-survivor' AND ss.season_number = 51`))?.id;
-  const lineup = (await one(`SELECT id FROM leagues WHERE slug = 'zt-nd-lineup'`))?.id;
-  await pool.end();
-  if (!season || !lineup) throw new Error("new-fixture.js isn't up (no zt-nd season or Lineup League)");
-  const b = await open({ user: "zt_nd_alex", pass: "zt-pass-12345", width: W, height: H, motion: "reduce" });
-  const p = b.page;
-  p.on("pageerror", (e) => console.log(`PAGEERROR ${e.message.split("\n")[0]}`));
-  // The fixture's people are zt_nd_ usernames, which a face draws its initial from: shown without the prefix, as story-numbers.js does.
-  await p.route("**/api/**", async (route) => {
-    const res = await route.fetch().catch(() => null);
-    if (!res) return route.abort();
-    if (!(res.headers()["content-type"] || "").includes("json")) return route.fulfill({ response: res });
-    return route.fulfill({ response: res, body: (await res.text()).replace(/"zt_nd_([a-z]+)"/g, '"$1"') });
-  });
+  let b = null;
+  let p = null;
+  /** A browser signed in as `user`, the one the doors below tap in (the last one closed). */
+  async function as(user, pass = "zt-pass-12345") {
+    if (b) await b.close();
+    b = await open({ user, pass, width: W, height: H, motion: "reduce" });
+    p = b.page;
+    p.on("pageerror", (e) => console.log(`PAGEERROR ${e.message.split("\n")[0]}`));
+    // The dev server's badge sits over a sheet's foot in the frames (story-waivers.js hides it the same way).
+    await p.addInitScript(() => {
+      const hide = () => document.head.appendChild(Object.assign(document.createElement("style"), { textContent: "nextjs-portal{display:none!important}" }));
+      if (document.head) hide();
+      else document.addEventListener("DOMContentLoaded", hide);
+    });
+    // The fixtures' people are zt_ usernames, which a face draws its initial from: shown without the prefix, as story-numbers.js does.
+    await p.route("**/api/**", async (route) => {
+      const res = await route.fetch().catch(() => null);
+      if (!res) return route.abort();
+      if (!(res.headers()["content-type"] || "").includes("json")) return route.fulfill({ response: res });
+      return route.fulfill({ response: res, body: (await res.text()).replace(/"zt_(?:nd|dr)_([a-z]+)"/g, '"$1"') });
+    });
+  }
   const shot = (id, part) => p.screenshot({ path: path.join(OUT, `${id}.${part}.jpg`), type: "jpeg", quality: 84 });
+  const record = (id, verdict, why = "") => {
+    results.push([id, verdict, why]);
+    console.log(`${verdict} ${id}${why ? `: ${why}` : ""}`);
+  };
 
-  /** One door: `go` brings the surface up, `door` finds what to tap, `opened` is what must appear; frames either side of the tap. */
-  async function door(id, { go, door: find, opened, skip, under = 0, still }) {
-    if (ONLY && !new RegExp(ONLY).test(id)) return;
+  /** One door: `go` brings the surface up, `door` finds what to tap, `opened` is what must appear, `check` anything more about it
+   *  (an error, or null); frames either side of the tap. */
+  async function door(id, { go, door: find, opened, check, skip, under = 0, still }) {
+    if (!wanted(id)) return;
     try {
       await go();
       const el = await find();
-      if (!el || !(await el.count())) {
-        const why = skip ?? "nothing to tap";
-        results.push([id, "SKIP", why]);
-        return console.log(`SKIP ${id}: ${why}`);
-      }
+      if (!el || !(await el.count())) return record(id, "SKIP", skip ?? "nothing to tap");
       await el.scrollIntoViewIfNeeded().catch(() => {});
       await wait(p, 500);
       await shot(id, "before");
@@ -78,8 +113,8 @@ const results = [];
       await opened(was);
       await wait(p, 900);
       await shot(id, "after");
-      results.push([id, "PASS", ""]);
-      console.log(`PASS ${id}`);
+      const wrong = check ? await check() : null;
+      record(id, wrong ? "FAIL" : "PASS", wrong ?? "");
       // The phone's back: the level the door opened goes, nothing else; the surface (`still`) is there as it was.
       const url = p.url();
       await p.goBack();
@@ -99,103 +134,284 @@ const results = [];
         console.log(`${ok2 ? "BACK PASS" : "BACK FAIL"} ${id} twice${ok2 ? "" : `: ${after} sheets up (want ${was - under})`}`);
       }
     } catch (e) {
-      results.push([id, "FAIL", e.message.split("\n")[0]]);
-      console.log(`FAIL ${id}: ${e.message.split("\n")[0]}`);
+      record(id, "FAIL", e.message.split("\n")[0]);
+    }
+  }
+  /** A step that isn't a door (an action at a sheet's foot): `run` returns an error, "SKIP: why", or null. */
+  async function step(id, run) {
+    if (!wanted(id)) return;
+    try {
+      const r = await run();
+      if (r && r.startsWith("SKIP: ")) record(id, "SKIP", r.slice(6));
+      else record(id, r ? "FAIL" : "PASS", r ?? "");
+    } catch (e) {
+      record(id, "FAIL", e.message.split("\n")[0]);
     }
   }
   const couchPerson = async () => p.locator("[data-person-sheet]").last().waitFor({ timeout: 15000 });
   const anotherSheet = async (was) => p.waitForFunction((n) => document.querySelectorAll('[role="dialog"]').length > n, was, { timeout: 15000 });
-
-  await door("chat-face", {
-    go: async () => {
-      await p.goto(`${BASE}/show/${season}/chat`, { waitUntil: "domcontentloaded" });
-      await p.locator("[data-chat]").first().waitFor({ timeout: 45000 });
-      await wait(p, 1500);
-    },
-    door: async () => p.locator("[data-msg] [data-door-person]").last(),
-    opened: couchPerson,
-    still: "[data-chat]",
-  });
-  // The couch's pages open over the hub by their ?page= (couch-pages.tsx).
-  const rankings = async () => {
-    await p.goto(`${BASE}/home?page=rankings`, { waitUntil: "domcontentloaded" });
-    await p.locator('[data-couch-page="rankings"]').waitFor({ timeout: 45000 });
-    await wait(p, 1000);
-  };
-  await door("rank-row", { go: rankings, door: async () => p.locator("[data-rank-row]:not(:disabled)").nth(1), opened: couchPerson, still: '[data-couch-page="rankings"]' });
-  await door("h2h-row", {
-    go: async () => {
-      await rankings();
-      await p.locator('[data-couch-page="rankings"] button:has-text("Head to head")').first().click();
-      await wait(p, 700);
-    },
-    door: async () => p.locator("[data-h2h]:not(:disabled)").first(),
-    opened: couchPerson,
-    still: "[data-h2h]",
-  });
-  await door("bet-caller", {
-    go: async () => {
-      await p.goto(`${BASE}/show/${season}/game/${lineup}`, { waitUntil: "domcontentloaded" });
-      await p.locator("[data-game-page]").first().waitFor({ timeout: 45000 });
-      await wait(p, 1200);
-      const row = p.locator("[data-side-bets-row]").first();
-      if (await row.count()) {
-        await row.click();
-        await dialogs(p).last().waitFor({ timeout: 12000 });
-        await wait(p, 900);
-      }
-    },
-    door: async () => p.locator('[role="dialog"] [data-call-of] [data-door-person]:not(:disabled)').first(),
-    opened: anotherSheet,
-    under: 1,
-    still: "[data-bet]",
-    skip: "no side bet with calls on the test couch",
-  });
-  await door("matchup-head", {
-    go: async () => {},
-    door: async () => p.locator("[data-matchup-head] [data-door-person]").first(),
-    opened: anotherSheet,
-    skip: "the test couch has no head-to-head game (the bench's pilot has one)",
-  });
-  await door("morning-row", {
-    go: async () => {},
-    door: async () => p.locator("[data-morning-row]").first(),
-    opened: anotherSheet,
-    skip: "no final results due on the test couch",
-  });
-  // Castaways wherever they appear (the drill pass's step 2): each opens the one castaway sheet over the page, back to the page.
   const castSheet = async () => p.locator("[data-cast-sheet]").last().waitFor({ timeout: 20000 });
-  const tonight = async () => {
-    await p.goto(`${BASE}/show/${season}/tonight`, { waitUntil: "domcontentloaded" });
-    await p.locator("[data-last-time], [data-mini-ledger]").first().waitFor({ timeout: 45000 });
-    await wait(p, 1200);
-  };
-  await door("tonight-out", { go: tonight, door: async () => p.locator("[data-last-out][data-door-cast]").first(), opened: castSheet, still: "[data-last-time]", skip: "nobody left in the episode Tonight shows" });
-  await door("tonight-ledger", {
-    go: async () => {
-      await tonight();
-      const t = p.locator('[data-mini-ledger="closed"]').first();
-      if (await t.count()) {
-        await t.scrollIntoViewIfNeeded();
-        await t.click();
-        await wait(p, 600);
+
+  try {
+    if (SETS.includes("couch")) {
+      const season = (await one(`SELECT ss.id FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE s.slug = 'zt-nd-survivor' AND ss.season_number = 51`))?.id;
+      const lineup = (await one(`SELECT id FROM leagues WHERE slug = 'zt-nd-lineup'`))?.id;
+      if (!season || !lineup) throw new Error("new-fixture.js isn't up (no zt-nd season or Lineup League): node scripts/dev-test/new-fixture.js up, or --set=draft,waivers");
+      await as("zt_nd_alex");
+      await door("chat-face", {
+        go: async () => {
+          await p.goto(`${BASE}/show/${season}/chat`, { waitUntil: "domcontentloaded" });
+          await p.locator("[data-chat]").first().waitFor({ timeout: 45000 });
+          await wait(p, 1500);
+        },
+        door: async () => p.locator("[data-msg] [data-door-person]").last(),
+        opened: couchPerson,
+        still: "[data-chat]",
+      });
+      // The couch's pages open over the hub by their ?page= (couch-pages.tsx).
+      const rankings = async () => {
+        await p.goto(`${BASE}/home?page=rankings`, { waitUntil: "domcontentloaded" });
+        await p.locator('[data-couch-page="rankings"]').waitFor({ timeout: 45000 });
+        await wait(p, 1000);
+      };
+      await door("rank-row", { go: rankings, door: async () => p.locator("[data-rank-row]:not(:disabled)").nth(1), opened: couchPerson, still: '[data-couch-page="rankings"]' });
+      await door("h2h-row", {
+        go: async () => {
+          await rankings();
+          await p.locator('[data-couch-page="rankings"] button:has-text("Head to head")').first().click();
+          await wait(p, 700);
+        },
+        door: async () => p.locator("[data-h2h]:not(:disabled)").first(),
+        opened: couchPerson,
+        still: "[data-h2h]",
+      });
+      await door("bet-caller", {
+        go: async () => {
+          await p.goto(`${BASE}/show/${season}/game/${lineup}`, { waitUntil: "domcontentloaded" });
+          await p.locator("[data-game-page]").first().waitFor({ timeout: 45000 });
+          await wait(p, 1200);
+          const row = p.locator("[data-side-bets-row]").first();
+          if (await row.count()) {
+            await row.click();
+            await dialogs(p).last().waitFor({ timeout: 12000 });
+            await wait(p, 900);
+          }
+        },
+        door: async () => p.locator('[role="dialog"] [data-call-of] [data-door-person]:not(:disabled)').first(),
+        opened: anotherSheet,
+        under: 1,
+        still: "[data-bet]",
+        skip: "no side bet with calls on the test couch",
+      });
+      await door("matchup-head", {
+        go: async () => {},
+        door: async () => p.locator("[data-matchup-head] [data-door-person]").first(),
+        opened: anotherSheet,
+        skip: "the test couch has no head-to-head game (the bench's pilot has one)",
+      });
+      await door("morning-row", {
+        go: async () => {},
+        door: async () => p.locator("[data-morning-row]").first(),
+        opened: anotherSheet,
+        skip: "no final results due on the test couch",
+      });
+      // Castaways wherever they appear (the drill pass's step 2): each opens the one castaway sheet over the page, back to the page.
+      const tonight = async () => {
+        await p.goto(`${BASE}/show/${season}/tonight`, { waitUntil: "domcontentloaded" });
+        await p.locator("[data-last-time], [data-mini-ledger]").first().waitFor({ timeout: 45000 });
+        await wait(p, 1200);
+      };
+      await door("tonight-out", { go: tonight, door: async () => p.locator("[data-last-out][data-door-cast]").first(), opened: castSheet, still: "[data-last-time]", skip: "nobody left in the episode Tonight shows" });
+      await door("tonight-ledger", {
+        go: async () => {
+          await tonight();
+          const t = p.locator('[data-mini-ledger="closed"]').first();
+          if (await t.count()) {
+            await t.scrollIntoViewIfNeeded();
+            await t.click();
+            await wait(p, 600);
+          }
+        },
+        door: async () => p.locator("[data-ledger-row][data-door-cast]").first(),
+        opened: castSheet,
+        still: "[data-ledger]",
+        skip: "no Who scored on Tonight",
+      });
+      const episode = async () => {
+        await p.goto(`${BASE}/show/${season}/episodes?page=ep5`, { waitUntil: "domcontentloaded" });
+        await p.locator("[data-episode-page]").first().waitFor({ timeout: 45000 });
+        await wait(p, 1200);
+      };
+      await door("episode-out", { go: episode, door: async () => p.locator("[data-episode-page] > div [data-door-cast]").first(), opened: castSheet, still: "[data-episode-page]", skip: "nobody left in Episode 5" });
+      await door("episode-winner", { go: episode, door: async () => p.locator("[data-ep-happened] [data-door-cast]").first(), opened: castSheet, still: "[data-episode-page]", skip: "no person in What happened" });
+      await door("episode-scorer", { go: episode, door: async () => p.locator("[data-ep-scorers] [data-door-cast]").first(), opened: castSheet, still: "[data-episode-page]", skip: "no best this episode" });
+    }
+
+    // The draft room (step 2b): every castaway on it opens the one castaway sheet, the room's action (or who has them) at its foot.
+    if (SETS.includes("draft") && ["draft-taken", "draft-slot", "draft-board-cell", "draft-queue-row", "draft-blind-slot", "draft-done-cell"].some(wanted)) {
+      const dfx = require("./draft-fixture");
+      const draftSheet = async () => p.locator("[data-draft-sheet-body]").last().waitFor({ timeout: 20000 });
+      const footSays = (text) => async () => {
+        const t = ((await p.locator("[data-draft-sheet-foot]").last().innerText().catch(() => "")) || "").replace(/\s+/g, " ").trim();
+        return t.includes(text) ? null : `the foot says "${t}", not "${text}"`;
+      };
+      try {
+        const fx = await dfx.up(pool, { live: 6 });
+        // The blind draft's room is live once it's started (alex is its Commissioner).
+        const alexApi = await api({ user: dfx.username("alex"), pass: dfx.PASSWORD });
+        await alexApi.call("POST", `/api/seasons/${fx.seasonId}/draft`, { leagueId: fx.leagues.lineup, action: "start" });
+        await as(dfx.username("alex"), dfx.PASSWORD);
+        const room = (view) => async () => {
+          await p.goto(`${BASE}/show/${fx.seasonId}/draft?game=${fx.leagues.outlast}`, { waitUntil: "domcontentloaded" });
+          await p.locator("[data-draft]").first().waitFor({ timeout: 45000 });
+          await wait(p, 1200);
+          if (view) {
+            await p.locator(`[data-seg="${view}"]`).first().click();
+            await wait(p, 700);
+          }
+        };
+        await door("draft-taken", {
+          go: async () => {
+            await room()();
+            await p.locator("[data-show-taken]").first().click();
+            await wait(p, 700);
+          },
+          door: async () => p.locator('[data-draft-wall] [data-tile][aria-label*="taken by"]:not([aria-label$="taken by alex"])').first(),
+          opened: draftSheet,
+          check: footSays("Taken by"),
+          still: "[data-draft-wall]",
+        });
+        await door("draft-slot", { go: room(), door: async () => p.locator("[data-slot-filled][data-door-cast]").first(), opened: draftSheet, check: footSays("On your team"), still: "[data-draft]", skip: "alex has no pick yet" });
+        await door("draft-board-cell", { go: room("picks"), door: async () => p.locator("[data-pick-cell] [data-door-cast]").first(), opened: draftSheet, still: "[data-pick-cell]" });
+        await door("draft-queue-row", {
+          go: room("queue"),
+          door: async () => p.locator("[data-queue-row] [data-door-cast]").first(),
+          opened: draftSheet,
+          check: async () => ((await p.locator("[data-sheet-draft]").count()) ? null : "no Draft at the foot while alex is up"),
+          still: "[data-queue-row]",
+          skip: "alex's queue is empty",
+        });
+        await door("draft-blind-slot", {
+          go: async () => {
+            await p.goto(`${BASE}/show/${fx.seasonId}/blind?game=${fx.leagues.lineup}`, { waitUntil: "domcontentloaded" });
+            await p.locator("[data-draft]").first().waitFor({ timeout: 45000 });
+            await wait(p, 1200);
+            // Someone onto your team from their sheet (the wall's way), so a slot holds them.
+            await p.locator("[data-draft-wall] [data-tile]").first().click();
+            await draftSheet();
+            await wait(p, 600);
+            await p.locator('[data-draft-sheet-foot] button:has-text("Add to your team")').last().click();
+            await wait(p, 1100);
+          },
+          door: async () => p.locator("[data-my-team] [data-slot][data-door-cast]").first(),
+          opened: draftSheet,
+          check: footSays("Take them out"),
+          still: "[data-my-team]",
+          skip: "nobody on your team in the blind draft",
+        });
+        if (wanted("draft-done-cell")) {
+          // Every pick in: the draft done, its board the teams.
+          await dfx.down(pool);
+          const done = await dfx.up(pool, { live: 99 });
+          await as(dfx.username("alex"), dfx.PASSWORD);
+          await door("draft-done-cell", {
+            go: async () => {
+              await p.goto(`${BASE}/show/${done.seasonId}/draft?game=${done.leagues.outlast}`, { waitUntil: "domcontentloaded" });
+              await p.locator("[data-draft]").first().waitFor({ timeout: 45000 });
+              await wait(p, 1500);
+            },
+            door: async () => p.locator("[data-draft-done] [data-pick-cell] [data-door-cast]").first(),
+            opened: draftSheet,
+            check: footSays("team"),
+            still: "[data-draft-done]",
+            skip: "the draft didn't read as done",
+          });
+        }
+      } finally {
+        if (!KEEP) await dfx.down(pool);
       }
-    },
-    door: async () => p.locator("[data-ledger-row][data-door-cast]").first(),
-    opened: castSheet,
-    still: "[data-ledger]",
-    skip: "no Who scored on Tonight",
-  });
-  const episode = async () => {
-    await p.goto(`${BASE}/show/${season}/episodes?page=ep5`, { waitUntil: "domcontentloaded" });
-    await p.locator("[data-episode-page]").first().waitFor({ timeout: 45000 });
-    await wait(p, 1200);
-  };
-  await door("episode-out", { go: episode, door: async () => p.locator("[data-episode-page] > div [data-door-cast]").first(), opened: castSheet, still: "[data-episode-page]", skip: "nobody left in Episode 5" });
-  await door("episode-winner", { go: episode, door: async () => p.locator("[data-ep-happened] [data-door-cast]").first(), opened: castSheet, still: "[data-episode-page]", skip: "no person in What happened" });
-  await door("episode-scorer", { go: episode, door: async () => p.locator("[data-ep-scorers] [data-door-cast]").first(), opened: castSheet, still: "[data-episode-page]", skip: "no best this episode" });
-  fs.writeFileSync(path.join(OUT, "results.json"), JSON.stringify(results, null, 2));
-  await b.close();
+    }
+
+    // Waivers (step 2b): the spot plate's faces, the picker's photos (its pick at the sheet's foot), and who moved and whom they got.
+    const WAIVERS = { open: ["waiver-spot", "waiver-picker-face", "waiver-picker-pick"], processed: ["waiver-move-face", "waiver-move-person"], idle: ["waiver-last-face"] };
+    if (SETS.includes("waivers") && Object.values(WAIVERS).flat().some(wanted)) {
+      const wfx = require("./waivers-fixture");
+      const wvSheet = async () => p.locator("[data-wv-sheet]").last().waitFor({ timeout: 20000 });
+      try {
+        for (const [phase, ids] of Object.entries(WAIVERS)) {
+          if (!ids.some(wanted)) continue;
+          await wfx.up(pool, [`--phase=${phase}`, "--ui=new"]);
+          const season = (await one(`SELECT id FROM show_seasons WHERE name = 'zt-waivers' ORDER BY season_number DESC LIMIT 1`)).id;
+          await as("zt_wplayer");
+          const page = async () => {
+            await p.goto(`${BASE}/show/${season}/waivers`, { waitUntil: "domcontentloaded" });
+            await p.locator("[data-wv-week], [data-wv-plate]").first().waitFor({ timeout: 45000 });
+            await wait(p, 1500);
+          };
+          const picker = async () => {
+            await page();
+            await p.locator("[data-wv-spot] [data-swap]").first().click();
+            await p.locator("[data-wv-picker]").waitFor({ timeout: 15000 });
+            await wait(p, 900);
+          };
+          if (phase === "open") {
+            await door("waiver-spot", { go: page, door: async () => p.locator("[data-wv-spot] [data-door-cast]").first(), opened: wvSheet, still: "[data-wv-spot]", skip: "no spot to fill" });
+            await door("waiver-picker-face", {
+              go: picker,
+              door: async () => p.locator("[data-wv-picker] [data-door-cast]").first(),
+              opened: wvSheet,
+              check: async () => {
+                const t = ((await p.locator("[data-wv-sheet-pick]").last().innerText().catch(() => "")) || "").trim();
+                return /^Pick /.test(t) ? null : `the foot says "${t}", not Pick …`;
+              },
+              under: 1,
+              still: "[data-wv-picker]",
+            });
+            await step("waiver-picker-pick", async () => {
+              await picker();
+              // What's up with the picker alone (the waivers page's own layers count too), to come back to after Pick.
+              const base = await dialogs(p).count();
+              const face = p.locator("[data-wv-picker] [data-door-cast]").nth(1);
+              if (!(await face.count())) return "SKIP: fewer than two free";
+              const name = await face.getAttribute("data-door-cast");
+              await face.click();
+              await wvSheet();
+              await wait(p, 700);
+              await p.locator("[data-wv-sheet-pick]").last().click();
+              await wait(p, 1000);
+              await shot("waiver-picker-pick", "after");
+              const sheets = await dialogs(p).count();
+              const pressed = await p.locator("[data-wv-picker] [data-fa]").filter({ has: p.locator(`text=${name}`) }).first().getAttribute("aria-pressed");
+              if (sheets !== base) {
+                const what = await p.$$eval('[role="dialog"]', (ds) => ds.map((d) => `${d.querySelector("h2")?.textContent ?? "?"} (${d.getAttribute("data-state") ?? "-"}, ${d.getBoundingClientRect().height | 0}px)`));
+                return `${sheets} sheets up after Pick (want ${base}, the picker's): ${what.join("; ")}`;
+              }
+              return pressed === "true" ? null : `${name}'s row isn't chosen`;
+            });
+          }
+          if (phase === "processed") {
+            await door("waiver-move-face", { go: page, door: async () => p.locator("[data-wv-move] [data-door-cast]").first(), opened: castSheet, still: "[data-wv-week]", skip: "nobody moved" });
+            await door("waiver-move-person", {
+              go: page,
+              door: async () => p.locator("[data-wv-move] [data-door-person]").first(),
+              opened: async () => p.locator("[data-person-sheet]").last().waitFor({ timeout: 20000 }),
+              still: "[data-wv-week]",
+              skip: "nobody moved",
+            });
+          }
+          if (phase === "idle") {
+            await door("waiver-last-face", { go: page, door: async () => p.locator("[data-wv-last] [data-door-cast]").first(), opened: castSheet, still: "[data-wv-last]", skip: "no Last time on a quiet week" });
+          }
+        }
+      } finally {
+        if (!KEEP) await wfx.down(pool);
+      }
+    }
+  } finally {
+    fs.writeFileSync(path.join(OUT, "results.json"), JSON.stringify(results, null, 2));
+    if (b) await b.close();
+    await pool.end();
+  }
   const failed = results.filter((r) => r[1] === "FAIL").length;
   console.log(`${results.length} doors: ${results.filter((r) => r[1] === "PASS").length} pass, ${failed} fail, ${results.filter((r) => r[1] === "SKIP").length} skipped`);
   process.exitCode = failed ? 1 : 0;

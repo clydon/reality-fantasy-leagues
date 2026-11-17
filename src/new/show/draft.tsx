@@ -186,7 +186,7 @@ export function DraftScreen({ seasonId, kind }: { seasonId: string; kind: "snake
         <EmptyState icon={Users} title="The cast isn't in yet" line="Once the season's cast is in, the draft can start. Whoever runs the game adds it." />
       ) : game.kind === "snake" ? (
         game.phase === "done" ? (
-          <DraftDone key={game.leagueId} seasonId={seasonId} show={show} game={game} />
+          <DraftDone key={game.leagueId} seasonId={seasonId} show={show} game={game} sport={sport} />
         ) : (
           <SnakeRoom key={game.leagueId} seasonId={seasonId} show={show} game={game} onSettings={() => setSettings(true)} sport={sport} />
         )
@@ -240,7 +240,7 @@ function ClockCard({ tone, lead, kick, line, sub, end }: { tone: "you" | "away" 
 
 /** Your team as it fills (step 6): numbered slots, faces as they're drafted, and the line under them for what it still needs ("Needs:
  *  1 Interior": docs/PLAN-cast-properties.md, after the round). Until that rule exists a sport says what it holds by position. */
-function YourSlots({ game, ids, needs }: { game: DraftGame; ids: string[]; needs?: string | null }) {
+function YourSlots({ game, ids, needs, onFace }: { game: DraftGame; ids: string[]; needs?: string | null; onFace?: (c: DraftFace) => void }) {
   const nm = useContext(CastNames);
   const faces = new Map(game.cast.map((c) => [c.id, c]));
   // Past eight (a sport's fifteen), the faces drafted and the count: empty boxes would push the pool a third of a screen down.
@@ -258,10 +258,10 @@ function YourSlots({ game, ids, needs }: { game: DraftGame; ids: string[]; needs
         {Array.from({ length: slots }, (_, k) => {
           const c = faces.get(ids[k]);
           return c ? (
-            <span key={k} className="min-w-0" data-slot-filled={c.id}>
+            <button key={k} type="button" className="nd-press min-w-0 text-left" data-slot-filled={c.id} data-door-cast={c.name} aria-label={`${c.name}: their season`} disabled={!onFace} onClick={() => onFace?.(c)}>
               <Face src={c.photo} name={c.name} title={c.name} className="aspect-square w-full rounded-[3px] text-xs" />
               {!many && <small className="mt-0.5 block truncate text-[11px] text-muted-foreground">{nm.name(c.name)}</small>}
-            </span>
+            </button>
           ) : (
             <span key={k} className="type-num grid aspect-square place-items-center rounded-[3px] text-[15px] text-muted-foreground outline-[1.5px] -outline-offset-[1.5px] outline-dashed outline-input">
               {k + 1}
@@ -463,7 +463,7 @@ function ListRow({ face, line, selected, starred, onTap, onStar }: { face: Draft
 
 /** The draft board (step 6): a column per person in the order, a row per round, each cell the face taken (the pick number in an
  *  empty one, so the snake's direction reads), the cell on the clock outlined. It stands for the ticker, the order strip and Teams. */
-function PicksBoard({ game }: { game: DraftGame }) {
+function PicksBoard({ game, onFace }: { game: DraftGame; onFace?: (c: DraftFace) => void }) {
   const nm = useContext(CastNames);
   const faces = new Map(game.cast.map((c) => [c.id, c]));
   const order = game.turns.slice(0, game.seats.length);
@@ -488,14 +488,14 @@ function PicksBoard({ game }: { game: DraftGame }) {
           );
         })}
         {Array.from({ length: rounds }, (_, r) => (
-          <PicksRow key={r} r={r} cols={order.length} at={(c) => cell(r, c)} game={game} faces={faces} name={nm.name} />
+          <PicksRow key={r} r={r} cols={order.length} at={(c) => cell(r, c)} game={game} faces={faces} name={nm.name} onFace={onFace} />
         ))}
       </div>
     </div>
   );
 }
 
-function PicksRow({ r, cols, at, game, faces, name }: { r: number; cols: number; at: (c: number) => number; game: DraftGame; faces: Map<string, DraftFace>; name: (n: string) => string }) {
+function PicksRow({ r, cols, at, game, faces, name, onFace }: { r: number; cols: number; at: (c: number) => number; game: DraftGame; faces: Map<string, DraftFace>; name: (n: string) => string; onFace?: (c: DraftFace) => void }) {
   return (
     <>
       <span className="type-num self-center text-[13px] text-muted-foreground">R{r + 1}</span>
@@ -508,10 +508,10 @@ function PicksRow({ r, cols, at, game, faces, name }: { r: number; cols: number;
         return (
           <span key={c} data-pick-cell={n + 1} data-now={now || undefined} className={`flex min-w-0 flex-col items-center rounded-[3px] py-1 ${now ? "outline-2 -outline-offset-2 outline-chyron-line" : ""}`}>
             {face ? (
-              <>
+              <button type="button" data-door-cast={face.name} disabled={!onFace} onClick={() => onFace?.(face)} className="nd-press flex w-full min-w-0 flex-col items-center">
                 <Face src={face.photo} name={face.name} className="size-9 rounded-[3px] text-xs" />
                 <small className="mt-0.5 max-w-full truncate text-[11px]">{name(face.name)}</small>
-              </>
+              </button>
             ) : (
               <span className={`type-num grid size-9 place-items-center text-[13px] ${now ? "text-chyron-line" : "text-muted-foreground/60"}`}>{n + 1}</span>
             )}
@@ -682,7 +682,6 @@ function SnakeRoom({ seasonId, show, game, onSettings, sport }: { seasonId: stri
         selected={selected?.id === c.id}
         taken={owner ? { id: seatOf(game, owner)?.userId ?? owner, name: seatOf(game, owner)?.name ?? "someone" } : null}
         starred={queue.includes(c.id)}
-        disabled={!!owner}
         onTap={() => tap(c)}
         onStar={game.you ? () => void toggle(c.id, c.name) : undefined}
       />
@@ -780,7 +779,7 @@ function SnakeRoom({ seasonId, show, game, onSettings, sport }: { seasonId: stri
       {!live && <OrderList seasonId={seasonId} show={show} game={game} />}
 
       {/* Your team as it fills, with the line for what it still needs (cast properties, after the round). */}
-      {live && game.you && <YourSlots game={game} ids={mineIds} needs={game.needs ?? (sport ? holds(mineIds, game.cast, (n) => nm.role(n)) : null)} />}
+      {live && game.you && <YourSlots game={game} ids={mineIds} needs={game.needs ?? (sport ? holds(mineIds, game.cast, (n) => nm.role(n)) : null)} onFace={tap} />}
 
       <Segments
         value={view}
@@ -822,7 +821,7 @@ function SnakeRoom({ seasonId, show, game, onSettings, sport }: { seasonId: stri
           </>
         ))}
 
-      {view === "picks" && <PicksBoard game={game} />}
+      {view === "picks" && <PicksBoard game={game} onFace={tap} />}
 
       <DraftFaceSheet
         seasonId={seasonId}
@@ -834,7 +833,7 @@ function SnakeRoom({ seasonId, show, game, onSettings, sport }: { seasonId: stri
           const c = looking;
           if (!c) return null;
           const owner = ownerOf(c.id);
-          if (owner) return <SheetFoot line={`Taken by ${seatName(game, owner)}`}>{null}</SheetFoot>;
+          if (owner) return <SheetFoot line={owner === game.you ? "On your team" : `Taken by ${seatName(game, owner)}`}>{null}</SheetFoot>;
           const queued = queue.includes(c.id);
           const star = game.you ? (
             <Btn data-sheet-queue onClick={() => void toggle(c.id, c.name)} className="h-12 flex-1">
@@ -868,15 +867,19 @@ function SnakeRoom({ seasonId, show, game, onSettings, sport }: { seasonId: stri
               const owner = ownerOf(id);
               return (
                 <div key={id} data-queue-row={id} className={`mx-4 flex min-h-[62px] items-center gap-2.5 border-t border-border ${owner ? "opacity-45" : ""}`}>
-                  <span className="type-num w-5 text-[20px] text-muted-foreground">{i + 1}</span>
-                  <Face src={c.photo} name={c.name} className="size-[42px] rounded-[3px]" />
-                  <span className="min-w-0 flex-1">
-                    <b className="block truncate text-[15px]">{c.name}</b>
-                    <small className="block text-xs text-muted-foreground">{owner ? `Taken by ${seatName(game, owner)}` : [nm.role(c.name), c.tribe?.name, c.points != null ? pts(c.points) : null].filter(Boolean).join(" · ")}</small>
-                  </span>
+                  {/* The row opens their sheet (Draft at its foot when you're up); its Draft button keeps its one tap. */}
+                  <button type="button" data-door-cast={c.name} onClick={() => tap(c)} className="nd-press flex min-h-[62px] min-w-0 flex-1 items-center gap-2.5 text-left">
+                    <span className="type-num w-5 text-[20px] text-muted-foreground">{i + 1}</span>
+                    <Face src={c.photo} name={c.name} className="size-[42px] rounded-[3px]" />
+                    <span className="min-w-0 flex-1">
+                      <b className="block truncate text-[15px]">{c.name}</b>
+                      <small className="block text-xs text-muted-foreground">{owner ? `Taken by ${seatName(game, owner)}` : [nm.role(c.name), c.tribe?.name, c.points != null ? pts(c.points) : null].filter(Boolean).join(" · ")}</small>
+                    </span>
+                  </button>
                   {!owner && acting && (
                     <button
                       type="button"
+                      data-queue-draft
                       onClick={() => {
                         setSel({ n: clock!.n, id });
                         setView("board");
@@ -1001,8 +1004,11 @@ function OrderList({ seasonId, show, game }: { seasonId: string; show: ShowData;
   );
 }
 
-function DraftDone({ seasonId, show, game }: { seasonId: string; show: ShowData; game: DraftGame }) {
+function DraftDone({ seasonId, show, game, sport }: { seasonId: string; show: ShowData; game: DraftGame; sport: boolean }) {
   const name = showName(show);
+  // The board's faces open their sheet, whose team they're on at its foot (the drill pass, 2026-11-17).
+  const [looking, setLooking] = useState<DraftFace | null>(null);
+  const owner = looking ? game.owners[looking.id]?.[0] : null;
   const picks = game.teams.reduce((n, t) => n + t.castawayIds.length, 0);
   return (
     <div data-draft-done className="pb-6">
@@ -1022,8 +1028,9 @@ function DraftDone({ seasonId, show, game }: { seasonId: string; show: ShowData;
       </div>
       {/* The board is the teams: a column each, in the order they picked (step 6). */}
       <div className="nd-team-in" style={{ ["--d" as string]: "0.1s" }}>
-        <PicksBoard game={game} />
+        <PicksBoard game={game} onFace={setLooking} />
       </div>
+      <DraftFaceSheet seasonId={seasonId} show={show} sport={sport} face={looking} onClose={() => setLooking(null)} foot={owner ? <SheetFoot line={owner === game.you ? "On your team" : `On ${seatName(game, owner)}'s team`}>{null}</SheetFoot> : null} />
       <div className="px-4 pt-6">
         <BtnLink tone="ink" wide href={paths.show(seasonId)} replace>
           Go to {name}
@@ -1135,8 +1142,9 @@ function BlindRoom({ seasonId, show, game, onSettings, sport }: { seasonId: stri
                 key={i}
                 type="button"
                 data-slot={c.id}
-                onClick={() => !lockedHere && setTeam(team.filter((x) => x !== c.id))}
-                aria-label={lockedHere ? c.name : `Take ${nm.name(c.name)} out`}
+                data-door-cast={c.name}
+                onClick={() => setLooking(c)}
+                aria-label={c.name}
                 className="relative isolate flex aspect-square items-end overflow-hidden rounded-[3px] p-1 text-white"
               >
                 <Face src={c.photo} name={c.name} className="absolute inset-0 -z-10 size-full" />

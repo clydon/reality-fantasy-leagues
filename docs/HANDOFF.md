@@ -166,8 +166,14 @@ Tonight and the episode page) committed after it: Last time's Out plate, Who sco
 happened's people (a tribe stays a label; the castaway level finds a unique first name) and best this episode open the castaway's
 sheet. **The phone's back** (the user: "consistent and natural"): one level a back everywhere (sheet-history.ts); in-place folds
 aren't levels; check-drill-doors.js presses back after every door; check-sheet-back.js passes but for its stale TV guide case
-(BACKLOG 98). **Next: step 2b**, the draft room (picks board, your slots, taken tiles, queue, seats) and waivers' picker, opening
-DraftFaceSheet-style sheets with the action at the foot (draft.tsx already has DraftFaceSheet).
+(BACKLOG 98). **Step 2b** (the draft room and waivers) committed after it: taken tiles (read-only), your slots, the Picks board's
+cells (in the room and once done) and queue rows open DraftFaceSheet with who has them or Queue and Draft at its foot; a blind
+slot opens the sheet with Take them out; waivers' spot plate faces, the claim picker's photos (Pick, Add as a backup or Take out at
+the foot; the row keeps selecting) and Everyone's moves (the castaway, and the person in the game) open theirs. Seat heads, the
+clock, the order, the blind reveal and the run's slides stay. check-drill-doors.js now has three sets (couch, draft, waivers; the
+last two bring their fixtures up and down): 41 pass, 3 skipped; story v3. check-new-draft.js is stale since step 6 (BACKLOG 99).
+**Next: step 3**, episodes: decide how an episode level opens over a sheet (the episode page is a pushed page under every sheet),
+then charts, tables and headers (drill-audit.md rows 7, 8).
 **Open:** a game's points about 630 px down from its page (the header could
 carry them); Outlast's row opening to one holder line; the board's "Who has them in: Nobody". Still the user's: the Compare flow
 change and the next pass's order (drill-audit.md, with the user's two rules: every cast photo opens their sheet; each dead end gets

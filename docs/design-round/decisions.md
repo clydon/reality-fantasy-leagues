@@ -757,3 +757,23 @@
   instead of `left`, and a game sheet's row says Won or Finalist.
 - Rests on: tests/finish.test.js; the real Survivor 49 (Savannah, Sage, Sophi) in https://claude.ai/artifact/2JSLEE5VNek5qmRgpY9Sq2
   (version 4); check-game-page.js on the test couch.
+
+## 2026-11-17 · The draft room and waivers open the castaway's sheet, the screen's action at its foot (the drill pass, step 2b)
+- Decided by: the user ("continue with 2b", under the two rules: every cast photo opens their sheet; each dead end gets an honest
+  verdict); each verdict by Claude, default, in docs/design-round/drill-audit.md
+- What: in the draft room, taken tiles (read-only), your slots, the Picks board's cells (in the room and once it's done) and the
+  queue's rows open the castaway's sheet (DraftFaceSheet), its foot saying who has them or carrying Queue and Draft; in waivers,
+  the spot plate's faces, the claim picker's photos, and Everyone's moves (the castaway someone got; the person, their season in
+  the game). Seat heads, the clock, the order, the blind reveal, the run's slides and the picking order stay dead ends.
+- Why: the picker is a list worked down in order (a pick, then backups), so its row keeps its one tap and the photo is the door,
+  the rule's photo, with the row's tap at the sheet's foot (Pick, Add as a backup, Take out) for whoever looked first.
+- Rejected: the whole picker row opening the sheet, the draft's way (a tap more for every pick and backup); the name opening it,
+  the rule's other way (the name is where a thumb lands to pick).
+- Rests on: scripts/dev-test/check-drill-doors.js, its draft and waivers sets (24 pass); the story, version 3.
+
+## 2026-11-17 · A blind draft's slot opens the sheet instead of taking them out on one tap
+- Decided by: Claude, default, under the user's rule (every cast photo opens their sheet)
+- What: a filled slot in the blind draft opens the castaway's sheet with Take them out at its foot, as a wall tile opens it with
+  Add to your team.
+- Why: the slot was the one photo on the screen that did something else, and a stray tap took a pick off.
+- Rejected: keeping the one-tap removal (one tap faster, but a tap on a face would mean two things on one screen).

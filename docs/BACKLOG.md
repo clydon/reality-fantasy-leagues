@@ -1289,6 +1289,12 @@ Last updated 2026-10-27.
 98. **check-sheet-back.js's TV guide case is stale** (noticed 2026-11-17 in the drill pass): it waits for the hub's guide sheet
     (`[data-guide-sheet]`) the way the guide opened before step 7's redesign (2026-11-16) and times out; the other 13 cases pass,
     stacked sheets included. Who takes it: the next session that touches the hub or the back checks.
+99. **check-new-draft.js is stale since the design round's step 6** (noticed 2026-11-17 in the drill pass's step 2b): it waits for
+    the room's old ticker (`[data-ticker]`, gone with the one clock in d4e4684c, 2026-11-15) and fails there, after 23 passes; its
+    tile taps further on (Pick for riley's confirm bar, the blind draft's four taps) also predate a tap opening the castaway's
+    sheet, so each needs the sheet's foot (Draft, Add to your team). Step 2b pointed its queue step at the row's Draft
+    (`data-queue-draft`), the row holding a door too. The room's doors themselves are covered by check-drill-doors.js's draft set.
+    Who takes it: the next session that touches the draft room or its checks.
 
 ## Decided against (don't re-propose without new information)
 

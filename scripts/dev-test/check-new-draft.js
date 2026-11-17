@@ -183,7 +183,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     check(page.url().includes(`/draft?game=${L.outlast}`), "its Draft goes to the room");
     await page.locator('[data-seg="queue"]').click();
     check(/Taken by riley/.test(await page.locator(`[data-queue-row="${cid("Brady")}"]`).innerText()), "the queue: Brady, taken by riley");
-    await page.locator(`[data-queue-row="${cid("Maggie")}"] button`).click();
+    await page.locator(`[data-queue-row="${cid("Maggie")}"] [data-queue-draft]`).click();
     await page.locator("[data-draft-go]").click();
     check(await toast(page, "You drafted Maggie"), "Draft from the queue: You drafted Maggie");
     s = await state("outlast");

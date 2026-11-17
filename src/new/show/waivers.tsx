@@ -19,7 +19,7 @@ import { ShowBar } from "../ui/show-bar";
 import { toast } from "../ui/toast";
 import { EpisodeSlider, Select } from "./cast";
 import { AthleteSheetBody, CastSheetBody } from "./cast-sheet";
-import { useGameDrill } from "./game-sheets";
+import { useGameDrill, type Door } from "./game-sheets";
 import { first } from "./moves";
 import { useCastNames } from "../sports/faces";
 import { Face, IconBox } from "./parts";
@@ -399,9 +399,9 @@ function Week({ seasonId, show, week }: { seasonId: string; show: ShowData; week
       ) : week.stage === "open" && (week.replace.length || week.swapsAllowed) ? (
         <OpenWeek seasonId={seasonId} show={show} week={week} />
       ) : week.stage === "processed" ? (
-        <RanWeek week={week} />
+        <RanWeek week={week} show={show} />
       ) : (
-        <Quiet week={week} />
+        <Quiet week={week} show={show} />
       )}
       {!week.revealFirst && rows}
       <WaiversHow open={how} onOpenChange={setHow} how={week.how} gameName={week.gameName} />
@@ -547,7 +547,7 @@ function WaiverFaceSheet({ seasonId, show, face, onClose, foot }: { seasonId: st
  * isn't there... I'd rather the Swap button exist and it bring up Who comes in for Carter"): who's leaving, by face, the deadline
  * once, and Swap (the page's one yellow) opening the picker. Once claimed, the quiet panel: who's leaving, who comes in, Change.
  */
-function SpotPlate({ out, add, line, onSwap }: { out: WaiverFace; add: WaiverFace | null; line: string; onSwap: () => void }) {
+function SpotPlate({ out, add, line, onSwap, onFace }: { out: WaiverFace; add: WaiverFace | null; line: string; onSwap: () => void; onFace?: (f: WaiverFace) => void }) {
   const nm = useContext(CastNames);
   const due = !add;
   return (
@@ -558,12 +558,14 @@ function SpotPlate({ out, add, line, onSwap }: { out: WaiverFace; add: WaiverFac
     >
       {add ? (
         // Claimed: who comes in, with who's leaving small and faded at its corner (room for the words beside them).
-        <span className="relative flex-none pb-2 pr-2">
+        <button type="button" data-door-cast={add.name} aria-label={`${add.name}: their season`} onClick={() => onFace?.(add)} disabled={!onFace} className="nd-press relative flex-none pb-2 pr-2">
           <Face src={add.photo} name={add.name} className="size-14 rounded-[3px]" />
           <Face src={out.photo} name={out.name} out className="absolute bottom-0 right-0 size-7 rounded-[2px] outline-2 outline-card" />
-        </span>
+        </button>
       ) : (
-        <Face src={out.photo} name={out.name} out className="size-14 flex-none rounded-[3px]" />
+        <button type="button" data-door-cast={out.name} aria-label={`${out.name}: their season`} onClick={() => onFace?.(out)} disabled={!onFace} className="nd-press flex-none">
+          <Face src={out.photo} name={out.name} out className="size-14 rounded-[3px]" />
+        </button>
       )}
       <span className="min-w-0 flex-1">
         <b data-wv-head className="block text-[17px] font-bold leading-tight">
@@ -633,7 +635,7 @@ function OpenWeek({ seasonId, show, week }: { seasonId: string; show: ShowData; 
             const line = add
               ? [adds.length > 1 ? `Backup${adds.length > 2 ? "s" : ""}: ${adds.slice(1).map(nameOf).join(", ")}` : week.shared ? null : "If taken, the best one left", until ? `change until ${until}` : null].filter(Boolean).join(" · ")
               : [week.needs, `Out · Ep ${out.out ?? episode}`, until ? `by ${until}` : null, due != null ? stated(due, now) : null].filter(Boolean).join(" · ");
-            return <SpotPlate key={id} out={out} add={add} line={line} onSwap={() => setPicking(id)} />;
+            return <SpotPlate key={id} out={out} add={add} line={line} onSwap={() => setPicking(id)} onFace={setLooking} />;
           })
         ) : total ? (
           <MovePlate due={false} done tag={episode ? `Ep ${episode}` : "In"} title={`${total} swap${total === 1 ? "" : "s"} in`} line={until ? `Change anything until ${until}` : "Change anything until they run"} />
@@ -704,6 +706,7 @@ function OpenWeek({ seasonId, show, week }: { seasonId: string; show: ShowData; 
       {picking && (
         <PickSheet
           seasonId={seasonId}
+          show={show}
           couchId={show.couch?.id ?? null}
           week={week}
           drop={byId.get(picking)!}
@@ -718,7 +721,7 @@ function OpenWeek({ seasonId, show, week }: { seasonId: string; show: ShowData; 
         onClose={() => setLooking(null)}
         foot={(() => {
           const f = looking;
-          if (!f || f.out != null || left <= 0 || spots.get(f.id)?.length) return null;
+          if (!f || f.out != null || left <= 0 || spots.get(f.id)?.length || !week.team.some((t) => t.id === f.id)) return null;
           return (
             <Btn
               wide
@@ -760,7 +763,9 @@ function Order({ week, due }: { week: WaiverWeek; due: string | null }) {
   );
 }
 
-function Quiet({ week }: { week: WaiverWeek }) {
+function Quiet({ week, show }: { week: WaiverWeek; show: ShowData }) {
+  // Who moved and whom they got open their sheets over the page (the drill pass, 2026-11-17).
+  const drill = useGameDrill(show);
   const next = week.how.lanes.episodes.find((n, i) => n > week.how.lanes.now && (week.how.lanes.swap[i] || week.how.lanes.replace[i]));
   // Last time: the latest week anyone moved in, so a quiet week still shows the game moving.
   const last = [...week.runs].reverse().find((r) => movesIn(r) > 0) ?? null;
@@ -777,10 +782,11 @@ function Quiet({ week }: { week: WaiverWeek }) {
       {last && (
         <section data-wv-last className="mt-[22px] px-4">
           <SectionHead title="Last time" aside={`After Ep ${last.episode}`} flush />
-          <MovesList moves={[...last.moves.filter((m) => m.outcome === "got"), ...last.freeAgency.filter((m) => m.add)]} shared={week.shared} />
+          <MovesList moves={[...last.moves.filter((m) => m.outcome === "got"), ...last.freeAgency.filter((m) => m.add)]} shared={week.shared} open={drill.open} game={week.leagueId} />
         </section>
       )}
       <Order week={week} due={null} />
+      {drill.sheets}
     </>
   );
 }
@@ -793,8 +799,9 @@ function moveLine(m: WaiverMove, shared: boolean, nm: Namer): { title: string; l
   return { title: `${who} got ${nm(m.add.name)}`, line: `for ${m.drop ? nm(m.drop.name) : "a spot"}${shared ? "" : ` · ${m.why}`}` };
 }
 
-function RanWeek({ week }: { week: WaiverWeek }) {
+function RanWeek({ week, show }: { week: WaiverWeek; show: ShowData }) {
   const nm = useContext(CastNames);
+  const drill = useGameDrill(show);
   const [fa, setFa] = useState(false);
   const [faPick, setFaPick] = useState<WaiverFace | null>(null);
   const can = week.freeAgency && (week.replace.length > 0 || week.swapsLeft > 0);
@@ -824,7 +831,7 @@ function RanWeek({ week }: { week: WaiverWeek }) {
       {run && run.moves.some((m) => m.outcome === "got") && (
         <section className="mt-[26px] px-4">
           <SectionHead title="Everyone's moves" aside={week.shared ? undefined : "In picking order"} flush />
-          <MovesList moves={run.moves.filter((m) => m.outcome === "got")} shared={week.shared} />
+          <MovesList moves={run.moves.filter((m) => m.outcome === "got")} shared={week.shared} open={drill.open} game={week.leagueId} />
         </section>
       )}
       {/* Free agency while it's open: one button into its list, where the choice is made (the user, 2026-11-16). */}
@@ -840,11 +847,12 @@ function RanWeek({ week }: { week: WaiverWeek }) {
         </section>
       )}
       <FreeAgencySheet key={faPick?.id ?? "all"} open={fa} onOpenChange={setFa} week={week} pick={faPick} />
+      {drill.sheets}
     </>
   );
 }
 
-function MovesList({ moves, shared, numbered }: { moves: WaiverMove[]; shared: boolean; numbered?: boolean }) {
+function MovesList({ moves, shared, numbered, open, game }: { moves: WaiverMove[]; shared: boolean; numbered?: boolean; open?: (d: Door) => void; game?: string }) {
   const nm = useContext(CastNames);
   return (
     <ul className="flex flex-col">
@@ -853,8 +861,21 @@ function MovesList({ moves, shared, numbered }: { moves: WaiverMove[]; shared: b
         return (
           <li key={`${m.playerId}-${m.add?.id ?? i}`} data-wv-move={m.name} className={`flex min-h-[56px] items-center gap-2.5 border-t border-border py-2 first:border-t-0 ${m.you ? "font-semibold" : ""}`}>
             {numbered && <span className="type-num w-5 text-center text-[18px] text-muted-foreground">{i + 1}</span>}
-            <Avatar id={m.userId ?? m.playerId} name={m.name} size={30} />
-            {m.add && <Face src={m.add.photo} name={m.add.name} className="size-9 flex-none rounded-[3px]" />}
+            {open ? (
+              <button type="button" data-door-person={m.playerId} aria-label={`${m.name}: their season`} onClick={() => open({ kind: "person", playerId: m.playerId, episode: null, game })} className="nd-press flex-none rounded-full">
+                <Avatar id={m.userId ?? m.playerId} name={m.name} size={30} />
+              </button>
+            ) : (
+              <Avatar id={m.userId ?? m.playerId} name={m.name} size={30} />
+            )}
+            {m.add &&
+              (open ? (
+                <button type="button" data-door-cast={m.add.name} aria-label={`${m.add.name}: their season`} onClick={() => open({ kind: "cast", id: m.add!.id, name: m.add!.name, game })} className="nd-press flex-none rounded-[3px]">
+                  <Face src={m.add.photo} name={m.add.name} className="size-9 rounded-[3px]" />
+                </button>
+              ) : (
+                <Face src={m.add.photo} name={m.add.name} className="size-9 flex-none rounded-[3px]" />
+              ))}
             <span className="min-w-0 flex-1">
               <b className="block text-[15px]">{t.title}</b>
               <small className="block text-[13px] text-muted-foreground">{t.line}</small>
@@ -870,6 +891,7 @@ function MovesList({ moves, shared, numbered }: { moves: WaiverMove[]; shared: b
 
 function PickSheet({
   seasonId,
+  show,
   couchId,
   week,
   drop,
@@ -877,6 +899,7 @@ function PickSheet({
   onClose,
 }: {
   seasonId: string;
+  show: ShowData;
   couchId: string | null;
   week: WaiverWeek;
   drop: WaiverFace;
@@ -892,6 +915,8 @@ function PickSheet({
   const [stat, setStat] = useState("points");
   const [group, setGroup] = useState("all");
   const [busy, setBusy] = useState(false);
+  // A row opens their sheet with the pick at its foot (the drill pass, 2026-11-17: look before claiming, the draft's way).
+  const [looking, setLooking] = useState<WaiverFace | null>(null);
   const full = useSeasonStats(seasonId, couchId);
   const ranged = useSeasonStats(seasonId, couchId, range, !!range);
   const after = useAfterWaivers();
@@ -939,7 +964,10 @@ function PickSheet({
       setBusy(false);
     }
   };
+  const lk = looking ? list.indexOf(looking.id) : -1;
+  const backup = own && !week.shared && list.length > 0;
   return (
+    <>
     <Sheet
       open
       onOpenChange={(o) => !o && onClose()}
@@ -965,7 +993,7 @@ function PickSheet({
               const k = list.indexOf(f.id);
               const v = value(f);
               return (
-                <li key={f.id}>
+                <li key={f.id} className="relative">
                   <button
                     type="button"
                     data-fa={f.name}
@@ -976,7 +1004,7 @@ function PickSheet({
                     <span className="type-num w-6 flex-none text-center text-[18px]">
                       {k === 0 && !(own && list.length > 1) ? <Check className="mx-auto size-[18px]" strokeWidth={3} aria-hidden /> : k >= 0 ? k + 1 : i + 1}
                     </span>
-                    <Face src={f.photo} name={f.name} className="size-11 flex-none rounded-[3px]" />
+                    <span className="size-11 flex-none" aria-hidden />
                     <span className="min-w-0 flex-1">
                       <b className="flex items-center gap-1.5 text-[15px]">
                         <span className="truncate">{f.name}</span>
@@ -995,6 +1023,17 @@ function PickSheet({
                       <b className="type-num block text-[20px] leading-none">{Math.round(v * 10) / 10}</b>
                       <small className="text-[11px] text-muted-foreground">{unit || (v === 1 ? "time" : "times")}</small>
                     </span>
+                  </button>
+                  {/* Their photo opens their sheet with the pick at its foot (the drill pass, 2026-11-17: look before claiming); a
+                      sibling over the row's spot for it (6px padding + the 24px number + the 10px gap), as a button can't hold one. */}
+                  <button
+                    type="button"
+                    data-door-cast={f.name}
+                    aria-label={`${f.name}: their season`}
+                    onClick={() => setLooking(f)}
+                    className="nd-press absolute inset-y-0 left-10 my-auto size-11 rounded-[3px]"
+                  >
+                    <Face src={f.photo} name={f.name} className="size-11 rounded-[3px]" />
                   </button>
                 </li>
               );
@@ -1044,6 +1083,28 @@ function PickSheet({
         )}
       </div>
     </Sheet>
+    <WaiverFaceSheet
+      seasonId={seasonId}
+      show={show}
+      face={looking}
+      onClose={() => setLooking(null)}
+      foot={
+        looking ? (
+          <Btn
+            wide
+            data-wv-sheet-pick
+            tone={lk >= 0 ? "optional" : "must"}
+            onClick={() => {
+              tap(looking.id);
+              setLooking(null);
+            }}
+          >
+            {lk >= 0 ? `Take ${nm(looking.name)} out` : backup ? `Add ${nm(looking.name)} as a backup` : `Pick ${nm(looking.name)}`}
+          </Btn>
+        ) : null
+      }
+    />
+    </>
   );
 }
 
