@@ -93,9 +93,9 @@ after, the wizard taking in chunk 7). Commits: 10b6f369 (chunk 1), ad6b0f2b (chu
   `scripts/catch-up-locks.js` cleared the orphans, one on S51 and one on The Traitors). The final rehearsal's 43 answers were
   loaded into production (`scripts/catch-up-load.js`, backups/catchup-answers-2026-11-16.json) and the catch-up driven to the end:
   Below Deck 13, Survivor 51 and Cutthroat caught up; **six held episodes sent on the user's word** (S51 7, 8; Cutthroat 5, 7, 9,
-  12: the user checked the changes against the episodes). **Waiting:** S51 Episode 3 (production found Brady, not Maggie, finding
-  an extra vote and giving it to Maggie, and no Jelly sit-out; the same points: the user re-confirms, then Send it on the desk);
-  The Traitors' Episode 1 (no rehearsal answer; the clock asks it). Measured capacity is in docs/PLAN-ai-access.md.
+  12: the user checked the changes against the episodes), and **S51 Episode 3 sent on the user's re-confirm** (production found
+  Brady, not Maggie, finding an extra vote and giving it to Maggie, and no Jelly sit-out; the same points). Nothing held.
+  **Waiting:** The Traitors' Episode 1 (no rehearsal answer; the clock asks it). Measured capacity is in docs/PLAN-ai-access.md.
 - **Next:** the plan's done notes and HOSTING's changelog say "pushed" (not yet pushed: a docs-only push when convenient).
   Before: the rehearsal on production's copy, then the merge (0439-0441 renumbered if taken). Chunk 7 goes with the wizard (step
   12). The user's review of the story's chunks.
