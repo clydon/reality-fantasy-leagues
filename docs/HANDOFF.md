@@ -106,7 +106,21 @@ after, the wizard taking in chunk 7). Commits: 10b6f369 (chunk 1), ad6b0f2b (chu
   Watch Wednesday's first quick run; if ChatGPT keeps stalling, Codex still answers.
 - **Next:** the rehearsal on production's copy, then the merge (0439-0441 renumbered if taken). Chunk 7 goes with the wizard (step
   12). The user's review of the story's chunks.
-## The person-sheet round: one castaway sheet, every number a door (2026-11-16; on branch `explorer-sports`, uncommitted; waits on the user's review)
+## Pushed: the scored castaway sheet and the drill pass are live (2026-11-17, master 484c323c, no migration)
+explorer-sports fast-forwarded master (8 commits: the scored castaway sheet 4473f5ae, BACKLOG 96 3769590f, the drill pass's steps
+1 to 4: c808fb6d, 6f1cda69, 0a26887b, 8eea242f, c21f8b7a, 484c323c), pushed at 15:12 ET on a Tuesday (Survivor 51 airs Wednesday).
+explorer-sports was already up to date with master (nothing to merge). No migration and no dependency change, so no Neon rehearsal.
+Checks at the push: unit 2422/2422; the type check; lint on the changed src (only lineup-sheet.tsx's two, both on master already);
+the production build (`npm run build`) in rfl-merge; check-drill-doors.js's four sets 76 pass, 5 skipped (data the fixtures lack);
+check-game-page.js 4 games, 0 failing; couches 114/114; hub-next 17/17; check-sheet-back.js 14 pass and its stale TV guide case
+(BACKLOG 98); the public-repo scan clean. Vercel deployed in about 4 minutes. The live look in the Playwright browser (signed in):
+the hub, Survivor 51's Cast tab and a castaway's scored sheet, their story's episode opening the night, Previously on and its
+Last time opening Abby's sheet on real Traitors data, Backstage; no console errors. Backstage's very first load answered 500 (a
+database connection dropped at a fresh instance's start, BACKLOG 39) and loaded on the next; the logs' other error-level lines are
+pg's SSL-mode warning. Noticed on the live look: Previously on draws "Nothing to recap yet" while Home is still loading (BACKLOG 102).
+Stale checks left as they were: check-new-draft.js (BACKLOG 99), check-sports-links.js's mark cases (BACKLOG 101).
+
+## The person-sheet round: one castaway sheet, every number a door (2026-11-16; committed 2026-11-17 and pushed with the drill pass, master 484c323c)
 The user, showing the app to a relative: a castaway from the Cast tab and the same castaway from a game page opened two different
 sheets (step 2b's `CastBody` in game-sheets.tsx and step 5's `PersonBody` in cast.tsx, never merged; cast properties had landed on the
 second only); and "almost everything" should drill down ("2nd in never having someone vote them" should open the cast sorted by it).

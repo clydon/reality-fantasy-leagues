@@ -407,7 +407,10 @@ Last updated 2026-10-27.
     (`checksSchema` in @better-auth/core reads it) and saves a database round trip on every cold start. Also at error
     level in the same logs: pg's "SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'"
     warning on each instance's first connection; `sslmode=verify-full` in the connection string silences it (a change to
-    the Vercel and GitHub secrets: the user's). For any session: small.
+    the Vercel and GitHub secrets: the user's). For any session: small. **Worse once (2026-11-17, the drill pass's live look):**
+    Backstage's first load after the deploy answered 500 (`Connection terminated unexpectedly` beside the same Better Auth
+    line), then loaded on the next try; so a cold start can cost a real request, not just log noise. Worth the
+    `validateSchema: false` and a pg pool that drops a dead connection before using it.
 
 40. **What U1 step 1 left (noticed 2026-11-08, building the generated game page; branch `u1-game-page`).**
     - **Left by U1 step 2b (2026-11-09, the person and cast sheets and the season grid):**
@@ -1306,6 +1309,11 @@ Last updated 2026-10-27.
     people and stats held back by the viewer's mark ("held back until you've seen it", "at Game 0: no so far", "through Game 1");
     they fail the same with and without step 4b's roster and log changes, and its linking and people cases pass. They'd hold for
     someone with Hide sports scores on. Who takes it: the sports track, with the check's next change.
+
+102. **Previously on says "Nothing to recap yet" while Home loads** (noticed 2026-11-17 on production, the drill pass's live
+    look): opened straight from its link (`/home?page=previously`), the page draws its empty state until Home's data comes back,
+    then fills in (couch-pages.tsx PreviouslyOn: `shows` is empty while loading). It should wait (a skeleton) and only say
+    there's nothing when Home has said so. Who takes it: the next session that touches the hub's couch pages; small.
 
 ## Decided against (don't re-propose without new information)
 
