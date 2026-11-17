@@ -96,8 +96,15 @@ after, the wizard taking in chunk 7). Commits: 10b6f369 (chunk 1), ad6b0f2b (chu
   12: the user checked the changes against the episodes), and **S51 Episode 3 sent on the user's re-confirm** (production found
   Brady, not Maggie, finding an extra vote and giving it to Maggie, and no Jelly sit-out; the same points). Nothing held.
   **Waiting:** The Traitors' Episode 1 (no rehearsal answer; the clock asks it). Measured capacity is in docs/PLAN-ai-access.md.
-- **Next:** the plan's done notes and HOSTING's changelog say "pushed" (not yet pushed: a docs-only push when convenient).
-  Before: the rehearsal on production's copy, then the merge (0439-0441 renumbered if taken). Chunk 7 goes with the wizard (step
+- **Checked 2026-11-17 ~02:45 UTC (docs pushed to master on the user's OK):** the desk's catch-up line for The Traitors reads
+  "Catching up: 9 of 10 episodes in", not stuck, nothing held, and its season has 0 games, so the last answer can't move a score.
+  The clock retries a failed episode after 5, 15 and 45 min, then every 2 h, and stops at 6 tries (the desk's Inbox, Try again).
+  **The VM bot before Wednesday's S51:** up 3 days, 725 MB free, the tunnel, the tick and the canary timers active. The hourly
+  canary has passed on ChatGPT since 21:08 UTC (36-49 s); it failed 18:14-20:14 UTC ("server unreachable: timed out") while the
+  catch-up kept the micro busy, when ChatGPT fell back to Codex nine times ("No reply after 180-260s"). Two ChatGPT asks
+  were stopped at 350 s tonight (01:57, 02:14 UTC) and Codex answered. Codex: 5-hour 28%, week 20% (resets 2026-11-23 19:27 UTC).
+  Watch Wednesday's first quick run; if ChatGPT keeps stalling, Codex still answers.
+- **Next:** the rehearsal on production's copy, then the merge (0439-0441 renumbered if taken). Chunk 7 goes with the wizard (step
   12). The user's review of the story's chunks.
 ## Pushed: The numbers' holders (2026-11-16, master at this commit; no migrations)
 The Castaways tab's game lens (GameTable, src/new/show/game-week.tsx), from the user's screenshot of it on the real couch ("a bit
