@@ -16,6 +16,7 @@ import { Face } from "./parts";
 import { RecapsCard } from "./recaps";
 import { ScoringLink } from "./scoring";
 import { DisputeSheet } from "./something-wrong";
+import { finishWord, goneHome } from "./finish";
 import { statValue } from "./stats";
 import { mainValue } from "@/lib/cast-props-words";
 import { propertyMatches } from "@/lib/game/formats/rulebook-schema.js";
@@ -339,7 +340,9 @@ export function FaceWall({ d, people, onTap, picking, bare }: { d: SeasonStats; 
     : by
       ? [...by.values!.map((v) => [v, inNow.filter((c) => c.props?.[by.key] === v), null] as [string, CastStat[], null]), ["Still in", inNow.filter((c) => !by.values!.includes(c.props?.[by.key] ?? "")), null]]
       : [["Still in", inNow, null]];
-  groups.push(["Out", people.filter((c) => c.out !== null).sort((p, q) => q.out! - p.out!), null]);
+  // Who reached the end keeps their colour in a group of their own, the winner first (BACKLOG 96); then everyone who went home.
+  groups.push(["Finalists", people.filter((c) => c.out !== null && c.finish).sort((p, q) => Number(q.finish === "won") - Number(p.finish === "won") || p.first.localeCompare(q.first)), null]);
+  groups.push(["Out", people.filter(goneHome).sort((p, q) => q.out! - p.out!), null]);
   return (
     <div data-face-wall>
       {groups
@@ -353,13 +356,13 @@ export function FaceWall({ d, people, onTap, picking, bare }: { d: SeasonStats; 
             </div>
             <div className="grid grid-cols-4 gap-x-2 gap-y-2.5">
               {list.map((c) => {
-                const out = c.out !== null;
+                const out = goneHome(c);
                 const what = mainValue(c.props, d.properties) ?? c.position ?? null;
                 const body = (
                   <>
                     <Face src={c.photo} name={c.first} out={out} className={`mb-1 aspect-[4/5] w-full rounded-[3px] ${out ? "opacity-60" : ""}`} />
                     <b className={`type-caption block truncate text-[14px] leading-tight ${out ? "text-muted-foreground" : ""}`}>{c.first}</b>
-                    {(out || what) && <small className="block truncate text-[12px] leading-tight text-muted-foreground" data-cast-line>{[what, out ? `Ep ${c.out}` : null].filter(Boolean).join(" · ")}</small>}
+                    {(out || what || c.finish) && <small className="block truncate text-[12px] leading-tight text-muted-foreground" data-cast-line>{[what, out ? `Ep ${c.out}` : finishWord(c)].filter(Boolean).join(" · ")}</small>}
                   </>
                 );
                 return bare ? (
@@ -394,7 +397,7 @@ function NumbersTable({ d, sort, onSort, onTap, picking = null }: { d: SeasonSta
   const cols = d.stats.filter((s) => s.key !== "points" && filled(s.key) > 0).sort((p, q) => filled(q.key) - filled(p.key));
   if (!cols.length) return <p className="mt-2 text-[14px] text-muted-foreground">Nothing recorded in these episodes yet.</p>;
   const by = cols.find((s) => s.key === sort) ?? cols[0];
-  const rows = [...d.cast].sort((p, q) => statValue(q, by.key) - statValue(p, by.key) || Number(p.out !== null) - Number(q.out !== null) || p.first.localeCompare(q.first));
+  const rows = [...d.cast].sort((p, q) => statValue(q, by.key) - statValue(p, by.key) || Number(goneHome(p)) - Number(goneHome(q)) || p.first.localeCompare(q.first));
   const sticky = "sticky left-0 z-[1] bg-background shadow-[6px_0_8px_-6px_rgba(0,0,0,.25)] dark:shadow-[6px_0_8px_-6px_rgba(0,0,0,.7)]";
   return (
     <div className="relative -mx-4 mt-1">
@@ -426,7 +429,7 @@ function NumbersTable({ d, sort, onSort, onTap, picking = null }: { d: SeasonSta
         <tbody>
           {rows.map((c) => (
             <Flip key={c.name} id={`row-${c.first}`}>
-              <tr data-cast-row={c.first} onClick={() => onTap(c)} className={`cursor-pointer ${c.out !== null ? "opacity-55" : ""} ${picking === c.name ? "bg-secondary" : ""}`}>
+              <tr data-cast-row={c.first} onClick={() => onTap(c)} className={`cursor-pointer ${goneHome(c) ? "opacity-55" : ""} ${picking === c.name ? "bg-secondary" : ""}`}>
                 <td className={`${sticky} border-b border-border pl-4`}>
                   <button
                     type="button"
@@ -436,7 +439,7 @@ function NumbersTable({ d, sort, onSort, onTap, picking = null }: { d: SeasonSta
                     }}
                     className="flex h-12 w-full min-w-0 items-center gap-2 pr-2 text-left"
                   >
-                    <Face src={c.photo} name={c.first} out={c.out !== null} className="size-7 flex-none rounded-[3px]" />
+                    <Face src={c.photo} name={c.first} out={goneHome(c)} className="size-7 flex-none rounded-[3px]" />
                     <span className="min-w-0">
                       <b className="block truncate text-[15px] font-semibold leading-tight">{c.first}</b>
                       {c.position && <small className="block truncate text-[12px] leading-tight text-muted-foreground">{c.position}</small>}
@@ -470,7 +473,7 @@ export function StoryBody({ d, c, names, onFlag, group = true, photo = true, poi
   names ??= new Map(d.stats.map((s) => [s.key, s.name]));
   return (
     <div className={`flex gap-3 pb-2 ${photo ? "mt-3" : ""}`} data-story={c.first}>
-      {photo && <Face src={c.photo} name={c.first} out={c.out !== null} className="h-[90px] w-[72px] flex-none rounded-[3px]" />}
+      {photo && <Face src={c.photo} name={c.first} out={goneHome(c)} className="h-[90px] w-[72px] flex-none rounded-[3px]" />}
       <div className="min-w-0 flex-1">
         {group && c.group && (
           <p className="text-sm text-muted-foreground">
@@ -544,7 +547,7 @@ export function StoryBody({ d, c, names, onFlag, group = true, photo = true, poi
                   {line}
                 </div>
               ))}
-              {left && <div data-story-left className="flex min-h-8 items-center text-[14px] leading-snug text-live">{c.how ?? "Left the game"}</div>}
+              {left && <div data-story-left className={`flex min-h-8 items-center text-[14px] leading-snug ${c.finish === "won" ? "text-(--nd-good)" : c.finish ? "" : "text-live"}`}>{c.how ?? "Left the game"}</div>}
               {(quiet || gone) && <div className="flex min-h-8 items-center text-[14px] text-muted-foreground">{gone ? "Already out" : "Nothing recorded"}</div>}
             </section>
           );
@@ -571,7 +574,7 @@ export function CompareCounts({ d, a, b, words }: { d: SeasonStats; a: CastStat;
       <div className="mb-2 flex justify-between">
         {[a, b].map((c, i) => (
           <span key={c.name} className="flex w-[45%] flex-col items-center gap-1">
-            <Face src={c.photo} name={c.first} out={c.out !== null} className="size-16 rounded-[3px]" />
+            <Face src={c.photo} name={c.first} out={goneHome(c)} className="size-16 rounded-[3px]" />
             <b className="flex items-center gap-1.5">
               <i className="size-2.5 rounded-[2px]" style={{ background: PAIR[i] }} aria-hidden />
               {c.first}

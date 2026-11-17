@@ -4,7 +4,7 @@ import type { GameFormat } from "./formats/index";
 import { momentsFor } from "./formats/rulebook-moments.js";
 import { typicalOf } from "./moment-bands";
 import type { RulebookAliases, RulebookBlocks } from "./formats/rulebook-schema";
-import { publicMediaSrc } from "./selectors";
+import { finishOf, publicMediaSrc } from "./selectors";
 import type { Castaway, LeagueSettings, LeagueState } from "./types";
 
 // The cast's stats for the new design's Cast tab, Tonight's Stats card, the stats page and By the numbers
@@ -78,6 +78,9 @@ export interface CastStat {
   /** The episode they left in, and how, when you've seen it. */
   out: number | null;
   how: string | null;
+  /** They left by reaching the end (BACKLOG 96): the winner ("won") or a finalist ("final"); every face and chart keeps them in
+   *  colour, never as going home. Absent for anyone in, or knocked out. */
+  finish?: "won" | "final";
   /** A secret role, only once they've left by your episode. */
   role: string | null;
   /** What they do, never a secret (season_cast.role: a crew's "Chief stew", a sport's "WR"); added by the stats read (step 5). */
@@ -291,6 +294,7 @@ export function castStats(state: LeagueState, opts: { seen: number; book: StatsB
       start: groupOf(c.startTribeId === undefined ? c.tribeId : c.startTribeId),
       out: left,
       how: left !== null ? c.exitMethod || null : null,
+      ...(left !== null && finishOf(state, c) ? { finish: finishOf(state, c)! } : {}),
       role: left !== null && format.roles ? StateLogic.roleOf(state, c.id) : null,
       points: round(mine.reduce((a, d) => a + d.points, 0)),
       counts,

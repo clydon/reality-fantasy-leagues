@@ -107,3 +107,12 @@ export function medalFor(state: LeagueState, placementOrder: number | undefined)
 export function isKnockedOut(state: LeagueState, c: Castaway): boolean {
   return c.status === "eliminated" && !StateLogic.formatOf(state).endgameExitMethods.includes(c.exitMethod ?? "");
 }
+
+/** How someone finished when they left by reaching the end (BACKLOG 96: a winner and the finalists aren't "out"): the winner
+ *  ("won", the format's winner exit) or a finalist ("final", any other end-of-game exit); null while in, or once knocked out. */
+export function finishOf(state: LeagueState, c: Castaway): "won" | "final" | null {
+  if (c.status !== "eliminated") return null;
+  const format = StateLogic.formatOf(state) as { endgameExitMethods?: string[]; winnerExitMethod?: string | null };
+  if (!(format.endgameExitMethods ?? []).includes(c.exitMethod ?? "")) return null;
+  return format.winnerExitMethod && c.exitMethod === format.winnerExitMethod ? "won" : "final";
+}

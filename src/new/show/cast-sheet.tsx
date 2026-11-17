@@ -15,6 +15,7 @@ import { AthleteChart, slotWord } from "./game-week";
 import { signed } from "./lineup-sheet";
 import { castName, first } from "./moves";
 import { Face } from "./parts";
+import { finishWord, goneHome } from "./finish";
 import { statValue } from "./stats";
 
 // The castaway sheet, one part (docs/design-round/drill-person-sheet-spec.md; scored by the show since 2026-11-17:
@@ -351,7 +352,7 @@ export function SeasonChart({ d, c, words, onEpisode, span }: { d: SeasonStats; 
         <p className="text-[14px] text-muted-foreground">Nothing recorded for {c.first} yet.</p>
       ) : (
         <>
-          <Columns cols={cols} colour={(k) => bandColour(k as Band)} out={c.out} counted={[]} words={words} aria={`What ${c.first} did each ${words.episode.toLowerCase()}, by the show's points: ${said.join("; ")}`} onEpisode={onEpisode} fixedW={fitW(n, span)} cap scale={seasonScale(d, bands)} gap={0} />
+          <Columns cols={cols} colour={(k) => bandColour(k as Band)} out={goneHome(c) ? c.out : null} counted={[]} words={words} aria={`What ${c.first} did each ${words.episode.toLowerCase()}, by the show's points: ${said.join("; ")}`} onEpisode={onEpisode} fixedW={fitW(n, span)} cap scale={seasonScale(d, bands)} gap={0} />
           <ul className="mt-1.5 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[13px] text-muted-foreground" data-cast-chart-key data-band-key>
             {BANDS.map((k) => (
               <li key={k} className="flex items-center gap-1.5">
@@ -359,9 +360,14 @@ export function SeasonChart({ d, c, words, onEpisode, span }: { d: SeasonStats; 
                 {BAND_WORDS[k]}
               </li>
             ))}
-            {c.out !== null && (
+            {goneHome(c) && (
               <li className="text-live">
                 {words.ep} {c.out}: went home
+              </li>
+            )}
+            {c.finish && c.out !== null && (
+              <li className={c.finish === "won" ? "text-(--nd-good)" : ""} data-finish={c.finish}>
+                {words.ep} {c.out}: {finishWord(c)}
               </li>
             )}
           </ul>
@@ -462,7 +468,7 @@ function KindStrip({ c, k, n, band, name, of, span, onBoard }: { c: CastStat; k:
                 </>
               )}
               {axisShows(ep, colW, c.out) && (
-                <text x={cx} y={33} textAnchor="middle" fontSize={colW < 18 ? 10 : 11} fontWeight={c.out === ep ? 700 : 400} fill={c.out === ep ? "var(--live)" : "var(--muted-foreground)"}>
+                <text x={cx} y={33} textAnchor="middle" fontSize={colW < 18 ? 10 : 11} fontWeight={c.out === ep && goneHome(c) ? 700 : 400} fill={c.out === ep && goneHome(c) ? "var(--live)" : "var(--muted-foreground)"}>
                   {ep}
                 </text>
               )}
@@ -712,7 +718,7 @@ function Who({ d, c, words }: { d: SeasonStats; c: CastStat; words: Words }) {
   return (
     <div data-who>
       <div className="mt-2 flex gap-3">
-        <Face src={c.photo} name={c.first} out={c.out !== null} className="h-[96px] w-[76px] flex-none rounded-[3px]" />
+        <Face src={c.photo} name={c.first} out={goneHome(c)} className="h-[96px] w-[76px] flex-none rounded-[3px]" />
         <div className="flex min-w-0 flex-1 flex-col justify-center gap-1.5">
           {(what || c.group) && (
             <p className="flex items-center gap-1.5 text-[14px] text-muted-foreground" data-person-group>
@@ -726,7 +732,17 @@ function Who({ d, c, words }: { d: SeasonStats; c: CastStat; words: Words }) {
             </p>
           )}
           {/* Before anything's counted everyone's still in: said only once there's a season to be in. */}
-          {(c.out !== null || d.through > 0) && <p className="text-[15px] font-semibold">{c.out !== null ? `Out · ${words.ep} ${c.out}${c.how ? ` · ${cap(c.how.toLowerCase())}` : ""}` : "Still in"}</p>}
+          {(c.out !== null || d.through > 0) && (
+            <p className={`text-[15px] font-semibold ${c.finish === "won" ? "text-(--nd-good)" : ""}`} data-status>
+              {c.finish === "won"
+                ? `${finishWord(c)} · ${words.ep} ${c.out}`
+                : c.finish === "final"
+                  ? `Finalist · ${words.ep} ${c.out}${c.how && c.how !== "Finalist" ? ` · ${cap(c.how.toLowerCase())}` : ""}`
+                  : c.out !== null
+                    ? `Out · ${words.ep} ${c.out}${c.how ? ` · ${cap(c.how.toLowerCase())}` : ""}`
+                    : "Still in"}
+            </p>
+          )}
           {c.start && c.group && c.start !== c.group && <p className="text-[13px] text-muted-foreground">Started on {c.start}</p>}
           {d.roles && (
             <p className="text-[13px] text-muted-foreground" data-role>
@@ -801,7 +817,7 @@ export function CastSheet({ d, c, show, seasonId, lens, go, onFlag, from = null 
       <Who d={d} c={c} words={w} />
       <Figures d={d} c={c} go={go} words={w} span={span} />
       <SeasonChart d={d} c={c} words={w} onEpisode={toStory} span={span} />
-      <GamesRows key={c.name} show={show} seasonId={seasonId} name={c.name} go={go} from={from} scored n={d.through} out={c.out} span={span} />
+      <GamesRows key={c.name} show={show} seasonId={seasonId} name={c.name} go={go} from={from} scored n={d.through} out={goneHome(c) ? c.out : null} span={span} />
       <NumbersRows d={d} c={c} lens={lens} go={go} span={span} />
       <SheetCaption right="Newest first">Their story</SheetCaption>
       <StoryBody d={d} c={c} onFlag={onFlag ?? null} group={false} photo={false} points={false} lit={lit} marks={bandColours(d)} />
@@ -905,7 +921,9 @@ export function AthleteSheetBody({ seasonId, show, p, go }: { seasonId: string; 
  *  scale, the count; in a game's lens who holds them; a chevron when it opens. `from`: the castaway you came from, framed (not the
  *  raised fill: that's yours). */
 export function BoardRow({ c, v, place, max, colour, from, holders, onTap, small, what = null, shown }: { c: CastStat; v: number; place: string | null; max: number; colour: string; from?: boolean; holders?: ReactNode; onTap?: () => void; small?: boolean; what?: string | null; shown?: (v: number) => string }) {
-  const out = c.out !== null;
+  const out = goneHome(c);
+  // How they're placed beside their name: out, how they finished, else what the show sorts them by.
+  const said = out ? `Out · Ep ${c.out}` : finishWord(c);
   const body = (
     <>
       {place !== null && <span className={`type-num flex-none text-muted-foreground ${small ? "w-5 text-[15px]" : "w-7 text-[17px]"}`}>{place}</span>}
@@ -913,9 +931,9 @@ export function BoardRow({ c, v, place, max, colour, from, holders, onTap, small
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 items-baseline gap-1.5">
           <b className={`truncate text-[15px] ${from ? "font-bold" : "font-semibold"} ${out ? "text-muted-foreground" : ""}`}>{c.first}</b>
-          {!small && (out || what || c.position) && <small className="flex-none text-[13px] text-muted-foreground">{out ? `Out · Ep ${c.out}` : (what ?? c.position)}</small>}
+          {!small && (said || what || c.position) && <small className="flex-none text-[13px] text-muted-foreground">{said ?? what ?? c.position}</small>}
         </span>
-        {small && out && <small className="block text-[11px] text-muted-foreground">Out · Ep {c.out}</small>}
+        {small && said && <small className="block text-[11px] text-muted-foreground">{said}</small>}
         {v > 0 && (
           <span className="mt-1 block h-1" aria-hidden>
             <i className="block h-1 rounded-[1px]" style={{ width: `${Math.max(4, (v / Math.max(1, max)) * 100)}%`, background: colour }} />
@@ -964,7 +982,7 @@ export function StatBoard({ d, statKey, from, lens, games = [], onLens, onCast, 
   const rows = d.cast.map((c) => ({ c, v: statValue(c, statKey) }));
   const values = rows.map((r) => r.v);
   const max = Math.max(1, ...values);
-  const tidy = (p: (typeof rows)[number], q: (typeof rows)[number]) => q.v - p.v || Number(p.c.out !== null) - Number(q.c.out !== null) || p.c.first.localeCompare(q.c.first);
+  const tidy = (p: (typeof rows)[number], q: (typeof rows)[number]) => q.v - p.v || Number(goneHome(p.c)) - Number(goneHome(q.c)) || p.c.first.localeCompare(q.c.first);
   const have = rows.filter((r) => r.v > 0).sort(tidy);
   const none = rows.filter((r) => !r.v).sort(tidy);
   const colour = statColour(d, statKey);
@@ -993,9 +1011,9 @@ export function StatBoard({ d, statKey, from, lens, games = [], onLens, onCast, 
         {have.length > 0 && grid && (
           <div className="grid grid-cols-6 gap-x-1.5 gap-y-2" data-none-grid>
             {none.map((r) => (
-              <button key={r.c.name} type="button" data-stat-row={r.c.first} onClick={() => onCast(r.c.name)} className="nd-press min-w-0 text-left" aria-label={`${r.c.name}: none${r.c.out !== null ? `, out in episode ${r.c.out}` : ""}`}>
-                <Face src={r.c.photo} name={r.c.first} out={r.c.out !== null} className={`aspect-square w-full rounded-[3px] ${r.c.out !== null ? "opacity-60" : ""}`} />
-                <span className={`type-caption mt-0.5 block truncate text-[12px] leading-tight ${r.c.out !== null ? "text-muted-foreground" : ""}`}>{r.c.first}</span>
+              <button key={r.c.name} type="button" data-stat-row={r.c.first} onClick={() => onCast(r.c.name)} className="nd-press min-w-0 text-left" aria-label={`${r.c.name}: none${goneHome(r.c) ? `, out in episode ${r.c.out}` : ""}`}>
+                <Face src={r.c.photo} name={r.c.first} out={goneHome(r.c)} className={`aspect-square w-full rounded-[3px] ${goneHome(r.c) ? "opacity-60" : ""}`} />
+                <span className={`type-caption mt-0.5 block truncate text-[12px] leading-tight ${goneHome(r.c) ? "text-muted-foreground" : ""}`}>{r.c.first}</span>
               </button>
             ))}
           </div>

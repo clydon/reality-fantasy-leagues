@@ -746,3 +746,14 @@
 - Decided by: the user ("dark green should be great, and light green is good")
 - What: on Night great is Safe Teal (#35b5a5) and good the mint (#8fe6d8), the reverse of the build; Studio already had the deeper
   teal for great (#06463f over Safe Teal #0b7568). The same four colours, so the validator's all-pairs result stands.
+
+## 2026-11-17 · A season's winner and finalists keep their colour everywhere (BACKLOG 96)
+- Decided by: the user ("fix backlog 96")
+- What: who finished comes from the format's end-of-game exits (`selectors.ts finishOf`: the winner's exit "won", any other
+  end-of-game exit "final"), the same rule a game's view already used for `knocked`; the season stats carry it as `finish`.
+  `src/new/show/finish.ts goneHome` decides every grey and red: the castaway sheet (the photo, "Sole Survivor · Ep 13" in the
+  good-news colour or "Finalist · Ep 13 · …", no red episode and no "went home"), the face wall (a Finalists group, the winner
+  first, before Out), the rank view, boards, the story's last line and the hub's recap. A game's own faces grey on `knocked`
+  instead of `left`, and a game sheet's row says Won or Finalist.
+- Rests on: tests/finish.test.js; the real Survivor 49 (Savannah, Sage, Sophi) in https://claude.ai/artifact/2JSLEE5VNek5qmRgpY9Sq2
+  (version 4); check-game-page.js on the test couch.

@@ -80,7 +80,7 @@ function Starters({ g, faces, count, className = "" }: { g: GameView; faces: str
         const c = faceIn(g, id);
         return (
           <span key={id} className="flex w-[32px] flex-col items-center">
-            <Face src={c?.photo ?? null} name={c?.name} out={c?.left} className="size-[30px] rounded-[2px] text-[13px]" />
+            <Face src={c?.photo ?? null} name={c?.name} out={c?.knocked} className="size-[30px] rounded-[2px] text-[13px]" />
             {c?.role && <span className="mt-0.5 text-[11px] font-bold tracking-[0.02em] text-muted-foreground">{c.role}</span>}
           </span>
         );
@@ -496,7 +496,7 @@ function PostBet({ g, episode, words, onSaved }: { g: GameView; episode: number;
 export function YourTeam({ g, words, exclusive, onFace, onSheet }: { g: GameView; words: ShowData["words"]; exclusive: boolean; onFace: (id: string) => void; onSheet: () => void }) {
   const r = g.you;
   if (!r || !r.team.length) return null;
-  const ids = [...r.team].sort((a, b) => Number(!!faceIn(g, a)?.left) - Number(!!faceIn(g, b)?.left));
+  const ids = [...r.team].sort((a, b) => Number(!!faceIn(g, a)?.knocked) - Number(!!faceIn(g, b)?.knocked));
   return (
     <section className="mt-8 px-4" data-your-team data-game-you>
       <div className="mb-1 flex items-baseline justify-between gap-3">
@@ -515,9 +515,9 @@ export function YourTeam({ g, words, exclusive, onFace, onSheet }: { g: GameView
           return (
             <li key={id}>
               <button type="button" data-door-cast={id} onClick={() => onFace(id)} className="nd-press flex min-h-14 w-full items-center gap-3 border-t border-border py-1.5 text-left">
-                <Face src={c.photo} name={c.name} out={c.left} className="size-10 flex-none rounded-[2px] text-[15px]" />
+                <Face src={c.photo} name={c.name} out={c.knocked} className="size-10 flex-none rounded-[2px] text-[15px]" />
                 <span className="min-w-0 flex-1">
-                  <b className={`block truncate text-[16px] font-semibold ${c.left ? "text-muted-foreground" : ""}`}>{c.name}</b>
+                  <b className={`block truncate text-[16px] font-semibold ${c.knocked ? "text-muted-foreground" : ""}`}>{c.name}</b>
                   <small className="block text-[13px] text-muted-foreground">{line}</small>
                 </span>
                 <span className="type-num text-[22px]">{fmt(c.points ?? 0)}</span>
@@ -729,7 +729,7 @@ function Column({ g, who, total, lines: given, max, neg, played, dim, noBars, la
               <li key={l.id}>
                 <button type="button" data-door-cast={l.id} onClick={() => onFace(l.id)} className={`nd-press flex min-h-11 w-full flex-col justify-center border-t border-border py-1.5 text-left ${dim ? "text-muted-foreground" : ""}`}>
                   <span className="flex w-full items-center gap-1.5">
-                    <Face src={c?.photo ?? null} name={c?.name} out={c?.left} className="size-7 flex-none rounded-[2px] text-[12px]" />
+                    <Face src={c?.photo ?? null} name={c?.name} out={c?.knocked} className="size-7 flex-none rounded-[2px] text-[12px]" />
                     <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">{castName(c, g)}</span>
                     {c?.role && <span className="text-[11px] font-bold tracking-[0.04em] text-muted-foreground">{c.role}</span>}
                     {played ? <b className={`type-num text-[17px] ${l.points > 0 ? "text-good" : "text-muted-foreground"}`}>{signed(l.points)}</b> : <span className="type-num text-[14px] text-muted-foreground">{fmt(c?.points ?? 0)}</span>}
@@ -954,8 +954,8 @@ export function PersonSeason({ g, r, words, sport, onMatchup, onFace }: { g: Gam
                 <tr key={id}>
                   <th scope="row" className="sticky left-0 z-[1] bg-card pr-1 text-left font-normal">
                     <button type="button" data-door-cast={id} onClick={() => onFace(id)} className="flex min-h-11 max-w-[104px] items-center gap-1.5">
-                      <Face src={c?.photo ?? null} name={c?.name} out={c?.left} className="size-6 flex-none rounded-[2px] text-[11px]" />
-                      <span className={`truncate text-[13px] font-semibold ${c?.left ? "text-muted-foreground" : ""}`}>{castName(c, g)}</span>
+                      <Face src={c?.photo ?? null} name={c?.name} out={c?.knocked} className="size-6 flex-none rounded-[2px] text-[11px]" />
+                      <span className={`truncate text-[13px] font-semibold ${c?.knocked ? "text-muted-foreground" : ""}`}>{castName(c, g)}</span>
                       {c?.role && <span className="text-[11px] font-bold text-muted-foreground">{c.role}</span>}
                     </button>
                   </th>
@@ -1134,7 +1134,7 @@ function PairRow({ g, p, max, played, onCompare }: { g: GameView; p: Pair; max: 
             <span className={`block truncate text-[14px] ${strong || !played ? "font-semibold" : "text-muted-foreground"}`}>{castName(c, g)}</span>
             {p.slot === "Flex" && c?.role && <span className="block text-[11px] font-bold text-muted-foreground">{slotWord(c.role.toUpperCase())}</span>}
           </span>
-          <Face src={c?.photo ?? null} name={c?.name} out={c?.left} className="size-7 flex-none rounded-[2px] text-[12px]" />
+          <Face src={c?.photo ?? null} name={c?.name} out={c?.knocked} className="size-7 flex-none rounded-[2px] text-[12px]" />
         </span>
         {played && (
           <span className={`mt-1 flex h-1.5 w-full ${end ? "" : "justify-end"}`} aria-hidden>

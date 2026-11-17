@@ -9,6 +9,7 @@ import type { ShowData } from "../screens/show-space";
 import { PushedPage, usePushedPage } from "../ui/page";
 import { GuardChip } from "../ui/parts";
 import { BoardRow, placeOf, placeWord, statColour } from "./cast-sheet";
+import { goneHome } from "./finish";
 import { useGameDrill } from "./game-sheets";
 import { Face } from "./parts";
 
@@ -32,7 +33,7 @@ export function statBoard(d: SeasonStats, key: string) {
   return d.cast
     .map((c) => ({ c, n: statValue(c, key) }))
     .filter((r) => r.n > 0)
-    .sort((a, b) => b.n - a.n || Number(a.c.out !== null) - Number(b.c.out !== null));
+    .sort((a, b) => b.n - a.n || Number(goneHome(a.c)) - Number(goneHome(b.c)));
 }
 
 /** The castaways on your teams here (Outlast's, Weekly Lineup's), by name: the explorer's "Your team". */

@@ -38,6 +38,7 @@ import { PushedPage, usePushedPage } from "../ui/page";
 import { Row, SectionHead } from "../ui/parts";
 import { ShowArt } from "../ui/show-bar";
 import { movesByDue } from "./sections";
+import { goneHome } from "../show/finish";
 
 // More on the couch (the mock's refine.js and couchpages.js): rows on the hub, each opening a page pushed over it
 // (?page=), so the back gesture closes it. Real since step 8 (Hub I), from the couch's own games as you may see them
@@ -806,9 +807,9 @@ function PreviouslyOn({ shows, couch }: { shows: HomeShow[]; couch: Couch | null
   const last = seen.find((r) => r.number === w) ?? seen[seen.length - 1];
   const cast = d?.cast ?? [];
   const gone = cast.length
-    ? cast.filter((c) => c.out !== null).sort((a, b) => (a.out ?? 0) - (b.out ?? 0)).map((c) => ({ name: c.first, photo: c.photo, ep: c.out! }))
+    ? cast.filter(goneHome).sort((a, b) => (a.out ?? 0) - (b.out ?? 0)).map((c) => ({ name: c.first, photo: c.photo, ep: c.out! }))
     : seen.flatMap((r) => (r.out ?? []).map((o) => ({ name: first(o.name), photo: o.photo, ep: r.number })));
-  const still = cast.filter((c) => c.out === null);
+  const still = cast.filter((c) => !goneHome(c));
   const groups = d && d.groups.length && !d.roles ? d.groups.map((g) => ({ ...g, people: still.filter((c) => c.group === g.name) })).filter((g) => g.people.length) : [{ name: "Still in", colour: "", people: still }];
   const lineOf = (r: (typeof seen)[number]) =>
     r.out?.length ? r.out.map((o) => `${first(o.name)} ${(o.method ?? "out").toLowerCase()}`).join(", ") : r.happened?.[0] ? `${r.happened[0].label}: ${r.happened[0].winners.map((x) => x.name).join(", ")}` : "Nobody went home";

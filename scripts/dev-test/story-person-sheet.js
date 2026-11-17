@@ -18,7 +18,8 @@
 //   chart-episode     the sheet's chart, a tap on an episode's column (--ep, default 2): their story at that episode
 //   compare-pick / compare-versus   Compare with…: the face wall in a sheet, then the two side by side
 //   stats-card        Tonight's Stats card, a tap on a row: that castaway's sheet over Tonight
-//   real-cast-sheet / real-stat-level / real-stat-person   (--real-db) the sheet, a stat's board and someone on it, on the real
+//   real-wall / real-cast-sheet / real-stat-level / real-stat-person   (--real-db) the Cast tab's wall (at its Finalists when the
+//                     season's done), the sheet, a stat's board and someone on it, on the real
 //                     Survivor 51 in another local database (a production copy: the cast-props lane's rfl_castprops has its billed
 //                     bios, properties and holdings), as zt_ps_viewer, made there for the run (following the season, no game, no
 //                     couch: no real person's data on screen) and deleted after. The dev server must be reading that database too
@@ -342,6 +343,15 @@ async function realFrames(phones) {
       console.log(`[real] the season's stats through Ep ${at} written to ${dump}`);
       if (has("dump-only")) return;
     }
+    // The Cast tab's face wall, scrolled to who reached the end (a finished season's Finalists, BACKLOG 96), else its top.
+    await shot("real-wall", async () => {
+      await p.goto(`${BASE}/show/${real.id}/cast`, { waitUntil: "domcontentloaded" });
+      await p.locator("[data-face-wall]").first().waitFor({ timeout: 45000 });
+      await wait(p, 1200);
+      const g = p.locator('[data-group="Finalists"]').first();
+      if (await g.count()) await g.evaluate((e) => e.scrollIntoView({ block: "center" }));
+      await wait(p, 400);
+    });
     await shot("real-cast-sheet", () => castSheet(p, real.id, REAL_NAME));
     await shot("real-stat-level", () => statDoor(p));
     await shot("real-stat-person", async () => {

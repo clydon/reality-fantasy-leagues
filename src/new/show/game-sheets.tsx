@@ -699,7 +699,7 @@ function TeamBlock({ g, r, go }: BlockProps) {
       <Caption right="Points this season">The team</Caption>
       {r.team.map((id) => {
         const c = faceIn(g, id);
-        return <CastRow key={id} g={g} id={id} go={go} line={c?.left ? `Out${c.out ? ` · Ep ${c.out}` : ""}` : "Still in"} dim={!!c?.knocked} end={c?.points != null ? <b className="type-num flex-none text-[22px]">{fmt(c.points)}</b> : undefined} />;
+        return <CastRow key={id} g={g} id={id} go={go} line={c?.knocked ? `Out${c.out ? ` · Ep ${c.out}` : ""}` : c?.left ? `${c.place === 1 ? "Won" : "Finalist"}${c.out ? ` · Ep ${c.out}` : ""}` : "Still in"} dim={!!c?.knocked} end={c?.points != null ? <b className="type-num flex-none text-[22px]">{fmt(c.points)}</b> : undefined} />;
       })}
     </>
   );
@@ -817,7 +817,7 @@ function SeasonBlock({ g, r, go, words }: { g: GameView; r: TableRow; go: Drill;
         <Caption right={`${fmt(r.total)} pts`}>The team now</Caption>
         {r.team.map((id) => {
           const c = faceIn(g, id);
-          return <CastRow key={id} g={g} id={id} go={go} line={c?.left ? `Out${c.out ? ` · ${words.episode} ${c.out}` : ""}${c.place ? ` · finished ${ordinal(c.place)}` : ""}` : "Still in"} dim={!!c?.knocked} end={<b className="type-num flex-none text-[22px]">{fmt(c?.points ?? 0)}</b>} />;
+          return <CastRow key={id} g={g} id={id} go={go} line={c?.knocked ? `Out${c.out ? ` · ${words.episode} ${c.out}` : ""}${c.place ? ` · finished ${ordinal(c.place)}` : ""}` : c?.left ? `${c.place === 1 ? "Won" : `Finalist${c.place ? ` · finished ${ordinal(c.place)}` : ""}`}${c.out ? ` · ${words.episode} ${c.out}` : ""}` : "Still in"} dim={!!c?.knocked} end={<b className="type-num flex-none text-[22px]">{fmt(c?.points ?? 0)}</b>} />;
         })}
       </>
     );

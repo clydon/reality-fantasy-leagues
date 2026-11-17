@@ -1260,7 +1260,11 @@ Last updated 2026-10-27.
      the header.
    - **Holdings and a property's changes are told in a castaway's story but not counted in the chart's "moments"**, so a column
      says 2 over three story lines.
-   - **A season's winner is styled as eliminated** (found 2026-11-17 on the real Survivor 49): Savannah, the Sole Survivor, gets a
+   - **FIXED 2026-11-17 (the user: "fix backlog 96"):** `selectors.ts finishOf` (the format's end-of-game exits: the winner's, a
+     finalist's) sets the season stats' `finish`; `src/new/show/finish.ts goneHome` decides every grey and red on the sheet, the
+     face wall (a Finalists group, the winner first), the rank view, boards, the story and the hub's recap; a game's own faces grey on
+     `knocked`, not `left`; a game sheet's row says Won or Finalist. tests/finish.test.js. Was:
+     **A season's winner is styled as eliminated** (found 2026-11-17 on the real Survivor 49): Savannah, the Sole Survivor, gets a
      greyed photo, "Out · Ep 13 · Sole survivor", Episode 13 in live red and "Ep 13: went home" under the chart. The finale's exits
      ("Sole Survivor", "Lost Final Tribal (Jury Vote)", "Lost Fire-Making") are stored as eliminations, so every face and chart reads
      them as leaving (DESIGN.md: Live Red is for someone going home). A wrong fact on screen, so fix it any time; it touches faces
