@@ -179,7 +179,11 @@ game-table numbers; a cast door's `episode` scrolls their story); a matchup's be
 title opens the game's episode; the castaway sheet's game weeks and stat strips open their story in place; Chat's landmark opens
 an episode you've seen. Stays and the sweep of every episode on screen are in drill-audit.md, step 3. games.tsx's `opens` now
 reads opensSheet when called (a module loop broke the hub's rankings once). check-drill-doors.js on all three fixtures: 57 pass, 4 skipped (data the fixtures lack).
-**Next: step 4**, the hub and sports (drill-audit.md rows 9, 11, with Previously on's episode rows and a sport's game log).
+**Step 4a** (the hub) committed after it: the profile's place opens the Power rankings, its best finish the game, Called it By
+the numbers (the sheet closes; back on Home); Previously on loads its show's drill (useShow), so its faces open their sheet and its
+episodes the night over the page; a Row with nothing behind it is a plain row; the bands' faces stay part of the band's link.
+**Next: step 4b**, sports: a sport's Players tab (an athlete's sheet; a team heading its team's sheet, which needs the roster's
+groups to carry the team's id), the Cast tab's team headings, and an athlete's game log (drill-audit.md row 11).
 **Open:** a game's points about 630 px down from its page (the header could
 carry them); Outlast's row opening to one holder line; the board's "Who has them in: Nobody". Still the user's: the Compare flow
 change and the next pass's order (drill-audit.md, with the user's two rules: every cast photo opens their sheet; each dead end gets

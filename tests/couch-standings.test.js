@@ -129,7 +129,7 @@ test("the trophy shelf waits for a season to end, then titles, plaques, ran it b
   assert.deepEqual([you.points, you.place, you.thisYear], [10, "1", false], "your Couch points and place, all time while there's no year before this one");
   assert.equal(you.titles, 1);
   assert.equal(you.seasons, 3);
-  assert.deepEqual(you.bestFinish, { rank: "1", label: "Survivor 50", gameName: "Survival Pool" });
+  assert.deepEqual(you.bestFinish, { rank: "1", label: "Survivor 50", gameName: "Survival Pool", seasonId: "s50", leagueId: "c" });
   assert.equal(you.bestShow.name, "Survivor");
 });
 

@@ -388,8 +388,8 @@ export interface YourNumbers {
   /** The show you do best at: the most points per game. */
   bestShow: { showId: string; name: string; seasonId: string; artUrl: string | null } | null;
   called: number;
-  /** Your best finish in a season that's over. */
-  bestFinish: { rank: string; label: string; gameName: string } | null;
+  /** Your best finish in a season that's over, and its game (the profile's row opens it). */
+  bestFinish: { rank: string; label: string; gameName: string; seasonId: string; leagueId: string } | null;
 }
 
 export function yourNumbers(games: GameStanding[], rankings: Rankings | null, trophies: TrophyShelf | null, me: string): YourNumbers {
@@ -416,7 +416,7 @@ export function yourNumbers(games: GameStanding[], rankings: Rankings | null, tr
     seasons: seasonsOf(games, me),
     bestShow: best ? { showId: best.g.showId, name: best.g.showName, seasonId: best.g.seasonId, artUrl: best.g.artUrl } : null,
     called: games.reduce((n, g) => n + (g.rows.find((r) => r.userId === me)?.called ?? 0), 0),
-    bestFinish: top ? { rank: top.r.rank.replace(/^T/, ""), label: top.g.label, gameName: top.g.gameName } : null,
+    bestFinish: top ? { rank: top.r.rank.replace(/^T/, ""), label: top.g.label, gameName: top.g.gameName, seasonId: top.g.seasonId, leagueId: top.g.leagueId } : null,
   };
 }
 

@@ -151,6 +151,22 @@ Checked by `check-drill-doors.js`'s couch set, each door with its back (a change
 takes the sheet it's in): 16 pass, a matchup's best lineup skipped (no head to head on the test couch). The whole check, all three
 fixtures: 57 pass, 4 skipped.
 
+## Step 4a done: the hub (2026-11-17)
+
+| Where | Who taps it, wanting what | Verdict |
+| --- | --- | --- |
+| The bands' faces on the ruler (bands.tsx) | Where's Andrew up to? | **Stays**: the band's tap is the show, and its faces are 24 px marks on a ruler, overlapping, so a door there would steal the band's tap and miss as often as it hit; where they are is the face's place on the ruler, and their sheet is a tap away in the show's Where everyone is and the hub's On the couch |
+| The profile's place on the couch | How do I stand? | **Door**: the Power rankings; a page can't open over a sheet, so the sheet closes in the same tap and back lands on Home |
+| The profile's best finish | That game | **Door**: the game's page |
+| The profile's Called it | Who called more than me? | **Door**: By the numbers (Called it most) |
+| The profile's figures (Titles, Couch points, Seasons played) | | **Stays**: the rows under them open where each is compared |
+| A row with nothing behind it (Settings' Signed in as and email) | | Now a plain row, not a button that did nothing (ui/parts.tsx Row) |
+| Previously on: Last time, The story so far's faces, Still in | Joanna: who's that again? | **Door**: their sheet over the page, through the show's own drill (useShow, loaded with the page) |
+| Previously on: Last time when nobody left, Episode by episode | What happened that night? | **Door**: the night over the page (they opened the Episodes list, not the episode they name) |
+
+Checked by `check-drill-doors.js`'s couch set: the profile's place and Called it (the page up, the sheet gone, back on Home) and
+Previously on's four doors with their backs pass; the best finish is skipped (nobody's season has ended on the test couch).
+
 ## The phone's back through the doors (the user, 2026-11-17: "consistent and natural throughout the app")
 
 One rule, from `src/new/ui/sheet-history.ts`: each level that opens over the page is a sheet with its own history entry, so the

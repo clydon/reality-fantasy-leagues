@@ -40,6 +40,8 @@ import { ShowArt } from "../ui/show-bar";
 import { movesByDue } from "./sections";
 import { openCouchSheet } from "../couch/couch-sheets";
 import { goneHome } from "../show/finish";
+import { useShow } from "../screens/show-space";
+import { useGameDrill } from "../show/game-sheets";
 
 // More on the couch (the mock's refine.js and couchpages.js): rows on the hub, each opening a page pushed over it
 // (?page=), so the back gesture closes it. Real since step 8 (Hub I), from the couch's own games as you may see them
@@ -817,17 +819,26 @@ const first = (name: string) => name.split(" ")[0];
 function PreviouslyOn({ shows, couch }: { shows: HomeShow[]; couch: Couch | null }) {
   const [pick, setPick] = useState<string | null>(null);
   const s = shows.find((x) => x.seasonId === pick) ?? shows[0];
-  const eps = useSeasonEpisodes(s?.seasonId ?? "", couch?.id ?? null, !!s);
-  const stats = useSeasonStats(s?.seasonId ?? "", couch?.id ?? null, null, !!s);
   if (!s) return <Empty icon={Tv} title="Nothing to recap yet" line="Add a show and say where you are; its story so far shows up here." />;
+  return <ShowRecap key={s.seasonId} s={s} shows={shows} couch={couch} onPick={setPick} />;
+}
+
+/** One show's recap, with that show's drill (the drill pass, 2026-11-17): a castaway's face opens their sheet and an episode the
+ *  night itself, as levels over this page, back to it one at a time. */
+function ShowRecap({ s, shows, couch, onPick }: { s: HomeShow; shows: HomeShow[]; couch: Couch | null; onPick: (seasonId: string) => void }) {
+  const setPick = onPick;
+  const eps = useSeasonEpisodes(s.seasonId, couch?.id ?? null);
+  const stats = useSeasonStats(s.seasonId, couch?.id ?? null);
+  const show = useShow(s.seasonId);
+  const drill = useGameDrill(show);
   const d = stats.isPlaceholderData ? undefined : stats.data;
   const seen = (eps.data?.episodes ?? []).filter((r) => r.status === "seen").sort((a, b) => a.number - b.number);
   const w = eps.data ? (eps.data.seenThrough ?? Math.max(0, ...seen.map((r) => r.number))) : null;
   const last = seen.find((r) => r.number === w) ?? seen[seen.length - 1];
   const cast = d?.cast ?? [];
   const gone = cast.length
-    ? cast.filter(goneHome).sort((a, b) => (a.out ?? 0) - (b.out ?? 0)).map((c) => ({ name: c.first, photo: c.photo, ep: c.out! }))
-    : seen.flatMap((r) => (r.out ?? []).map((o) => ({ name: first(o.name), photo: o.photo, ep: r.number })));
+    ? cast.filter(goneHome).sort((a, b) => (a.out ?? 0) - (b.out ?? 0)).map((c) => ({ name: c.first, full: c.name, photo: c.photo, ep: c.out! }))
+    : seen.flatMap((r) => (r.out ?? []).map((o) => ({ name: first(o.name), full: o.name, photo: o.photo, ep: r.number })));
   const still = cast.filter((c) => !goneHome(c));
   const groups = d && d.groups.length && !d.roles ? d.groups.map((g) => ({ ...g, people: still.filter((c) => c.group === g.name) })).filter((g) => g.people.length) : [{ name: "Still in", colour: "", people: still }];
   const lineOf = (r: (typeof seen)[number]) =>
@@ -875,11 +886,14 @@ function PreviouslyOn({ shows, couch }: { shows: HomeShow[]; couch: Couch | null
             {last.out?.length ? (
               <div className={last.out.length > 1 ? "grid grid-cols-2 gap-2.5" : ""}>
                 {last.out.map((c) => (
-                  <NavLink
+                  // Who left: their sheet, as Tonight's Last time opens it (it says the night they left, a tap on).
+                  <button
                     key={c.id}
-                    href={paths.show(s.seasonId, "episodes")}
+                    type="button"
+                    onClick={() => drill.open({ kind: "cast", name: c.name })}
                     data-po-last={c.name}
-                    className={`relative block overflow-hidden rounded-[4px] shadow-[0_14px_34px_rgba(0,0,0,.45)] ${last.out!.length > 1 ? "aspect-[3/4]" : "aspect-[4/3.6]"}`}
+                    data-door-cast={c.name}
+                    className={`nd-press relative block w-full overflow-hidden rounded-[4px] text-left shadow-[0_14px_34px_rgba(0,0,0,.45)] ${last.out!.length > 1 ? "aspect-[3/4]" : "aspect-[4/3.6]"}`}
                   >
                     <Face src={c.photo} name={c.name} className="absolute inset-0 size-full text-[64px] [filter:grayscale(.2)]" />
                     <span className="type-caption absolute bottom-[70px] left-0 bg-live py-1.5 pl-2.5 pr-5 text-sm tracking-[0.05em] text-live-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_10px)_100%,0_100%)]">
@@ -889,14 +903,15 @@ function PreviouslyOn({ shows, couch }: { shows: HomeShow[]; couch: Couch | null
                       <b className="type-caption block truncate text-[30px] leading-none">{first(c.name)}</b>
                       {c.place && <small className="mt-1 block text-[12.5px] text-plate-muted">Finished {ordinal(c.place)}</small>}
                     </span>
-                  </NavLink>
+                  </button>
                 ))}
               </div>
             ) : (
-              <NavLink href={paths.show(s.seasonId, "episodes")} className="flex items-center gap-4 rounded-[4px] bg-card p-4" data-po-last="">
+              // Nobody left: the night itself.
+              <button type="button" onClick={() => drill.open({ kind: "night", episode: last.number })} className="nd-press flex w-full items-center gap-4 rounded-[4px] bg-card p-4 text-left" data-po-last="">
                 <b className="type-num text-[72px] leading-[.8]">{last.number}</b>
                 <p className="type-caption text-[26px] leading-tight">{lineOf(last)}</p>
-              </NavLink>
+              </button>
             )}
           </section>
           {gone.length > 0 && (
@@ -904,11 +919,11 @@ function PreviouslyOn({ shows, couch }: { shows: HomeShow[]; couch: Couch | null
               <SectionHead title="The story so far" aside={`${gone.length} gone${cast.length ? ` · ${still.length} still in` : ""}`} flush />
               <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:none]" data-po-gone>
                 {gone.map((c, i) => (
-                  <span key={`${c.name}-${c.ep}`} className="flex w-16 flex-none flex-col gap-1 text-center">
+                  <button key={`${c.name}-${c.ep}`} type="button" data-door-cast={c.full} onClick={() => drill.open({ kind: "cast", name: c.full })} className="nd-press flex w-16 flex-none flex-col gap-1 text-center">
                     <Face src={c.photo} name={c.name} className={`aspect-square w-full rounded-[3px] text-[24px] ${i === gone.length - 1 ? "outline-2 -outline-offset-2 outline-live" : "[filter:grayscale(1)]"}`} />
-                    <b className="truncate text-xs">{c.name}</b>
+                    <b className="w-full truncate text-xs">{c.name}</b>
                     <small className="type-caption text-[10px] text-muted-foreground">Ep {c.ep}</small>
-                  </span>
+                  </button>
                 ))}
               </div>
             </section>
@@ -927,10 +942,10 @@ function PreviouslyOn({ shows, couch }: { shows: HomeShow[]; couch: Couch | null
                   )}
                   <div className="grid grid-cols-6 gap-1.5">
                     {g.people.map((c) => (
-                      <span key={c.name} className="flex min-w-0 flex-col items-center gap-1">
+                      <button key={c.name} type="button" data-door-cast={c.name} onClick={() => drill.open({ kind: "cast", name: c.name })} className="nd-press flex min-w-0 flex-col items-center gap-1">
                         <Face src={c.photo} name={c.name} className="aspect-square w-full rounded-[3px] text-[18px]" />
                         <small className="w-full truncate text-center text-[11px]">{c.first}</small>
-                      </span>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -940,7 +955,8 @@ function PreviouslyOn({ shows, couch }: { shows: HomeShow[]; couch: Couch | null
           <section className="mt-6 px-3">
             <SectionHead title="Episode by episode" flush />
             {[...seen].reverse().map((r) => (
-              <NavLink key={r.number} data-po-ep={r.number} href={paths.show(s.seasonId, "episodes")} className="flex min-h-14 items-center gap-3 border-t border-border">
+              // The night itself, over this page (it opened the Episodes list before, not the episode it names).
+              <button key={r.number} type="button" data-po-ep={r.number} onClick={() => drill.open({ kind: "night", episode: r.number })} className="nd-press flex min-h-14 w-full items-center gap-3 border-t border-border text-left">
                 <b className="type-num w-7 flex-none text-[26px] text-muted-foreground">{r.number}</b>
                 {!!r.out?.length && (
                   <span className="flex flex-none">
@@ -951,7 +967,7 @@ function PreviouslyOn({ shows, couch }: { shows: HomeShow[]; couch: Couch | null
                 )}
                 <span className="min-w-0 flex-1 text-[15px]">{lineOf(r)}</span>
                 <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
-              </NavLink>
+              </button>
             ))}
           </section>
           <NavLink
@@ -964,6 +980,7 @@ function PreviouslyOn({ shows, couch }: { shows: HomeShow[]; couch: Couch | null
           </NavLink>
         </>
       )}
+      {drill.sheets}
     </div>
   );
 }

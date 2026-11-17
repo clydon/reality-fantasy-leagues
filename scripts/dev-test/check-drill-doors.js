@@ -28,6 +28,13 @@
 //   status-night       the castaway sheet's "Out · Ep N": the night they left
 //   strip-story        Their numbers, a row opened, an episode in its strip: that episode of their story, in place
 //   chat-episode       Chat's landmark for an episode alex has seen: the episode's page (a jump to Episodes), back to the chat
+//   profile-place      the hub's profile, your place on the couch: the Power rankings page (the sheet closes; back lands on Home)
+//   profile-called     the same profile's Called it: By the numbers
+//   profile-finish     the same profile's best finish: that game's page (SKIP: no season over on the test couch)
+//   po-last            the hub's Previously on, Last time: who left opens their sheet over the page (the night, when nobody left)
+//   po-gone            the same page's The story so far: a face opens their sheet
+//   po-still           the same page's Still in: a face opens their sheet
+//   po-episode         the same page's Episode by episode: a row opens the night over the page
 //
 // draft: draft-fixture.js as alex, brought up here (Couch Cup's snake draft six picks in, alex up; the blind draft started), then
 // again with every pick in; taken down at the end unless --keep
@@ -426,6 +433,53 @@ const wanted = (id) => !ONLY || new RegExp(ONLY).test(id);
         await wait(p, 900);
         await shot("chat-episode", "back");
         return p.url() === chatUrl ? null : `back landed on ${p.url()}, not the chat`;
+      });
+      // The hub (step 4a). The profile's numbers open the page each is compared on: the sheet closes in the same tap (a page can't
+      // open over a sheet), and back lands on Home.
+      const profileRow = (id, attr, page) =>
+        step(id, async () => {
+          await p.goto(`${BASE}/home`, { waitUntil: "domcontentloaded" });
+          await p.locator('button[aria-label="Your profile"]').first().waitFor({ timeout: 45000 });
+          await wait(p, 1200);
+          await p.locator('button[aria-label="Your profile"]').first().click();
+          const row = p.locator(`[${attr}] :is(button, a)`).first();
+          await row.waitFor({ timeout: 15000 }).catch(() => {});
+          if (!(await row.count())) return `SKIP: no ${attr.replace("data-your-", "")} row for alex`;
+          await wait(p, 700);
+          await shot(id, "before");
+          await row.click();
+          const target = page.startsWith("[") ? page : `[data-couch-page="${page}"]`;
+          await p.locator(target).first().waitFor({ timeout: 20000 });
+          await wait(p, 900);
+          await shot(id, "after");
+          // (A pushed page is a dialog too: the profile sheet's own content is what mustn't be up.)
+          if (await p.locator("[data-your-numbers]").first().isVisible().catch(() => false)) return "the profile sheet is still up over the page";
+          await p.goBack();
+          await wait(p, 1200);
+          await shot(id, "back");
+          const home = new URL(p.url());
+          const stillUp = await p.locator(`${target}, [data-your-numbers]`).first().isVisible().catch(() => false);
+          return home.pathname === "/home" && !home.searchParams.get("page") && !stillUp ? null : `back landed on ${p.url()}${stillUp ? " with something still up" : ""}`;
+        });
+      await profileRow("profile-place", "data-your-place", "rankings");
+      await profileRow("profile-called", "data-your-called", "numbers");
+      await profileRow("profile-finish", "data-your-finish", "[data-game-page]");
+      // Previously on: the show's own drill over the page. A face opens their sheet, an episode the night.
+      const previously = async () => {
+        await p.goto(`${BASE}/home?page=previously`, { waitUntil: "domcontentloaded" });
+        await p.locator("[data-previously]").first().waitFor({ timeout: 45000 });
+        await wait(p, 1500);
+      };
+      const castOrNight = async () => p.locator("[data-cast-sheet], [data-night-sheet]").last().waitFor({ timeout: 20000 });
+      await door("po-last", { go: previously, door: async () => p.locator("[data-po-last]").first(), opened: castOrNight, still: "[data-previously]", skip: "no Last time" });
+      await door("po-gone", { go: previously, door: async () => p.locator("[data-po-gone] [data-door-cast]").first(), opened: castSheet, still: "[data-previously]", skip: "nobody gone yet" });
+      await door("po-still", { go: previously, door: async () => p.locator("[data-po-still] [data-door-cast]").first(), opened: castSheet, still: "[data-previously]", skip: "nobody still in" });
+      await door("po-episode", {
+        go: previously,
+        door: async () => p.locator("[data-po-ep]").first(),
+        opened: async () => p.locator("[data-night-sheet] [data-episode-page]").last().waitFor({ timeout: 20000 }),
+        still: "[data-previously]",
+        skip: "no episode seen",
       });
       await door("best-lineup", {
         go: async () => {},

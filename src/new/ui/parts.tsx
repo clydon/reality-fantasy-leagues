@@ -73,6 +73,7 @@ function RowBody({ icon: Icon, iconClass = "bg-secondary", title, detail, end, d
 }
 
 const ROW = "nd-press flex min-h-[60px] w-full items-center gap-3 border-t border-border py-2 text-left first:border-t-0";
+const ROW_PLAIN = "flex min-h-[60px] w-full items-center gap-3 border-t border-border py-2 text-left first:border-t-0";
 
 /** A list row: an icon box, a title with one muted line, and what's on its end. A link when it has `href`. */
 export function Row(props: RowBase & ({ href: string; onClick?: never } | { href?: never; onClick?: () => void })) {
@@ -83,9 +84,17 @@ export function Row(props: RowBase & ({ href: string; onClick?: never } | { href
       </NavLink>
     );
   }
+  // Nothing behind it (a fact, like who you're signed in as): a plain row, not a button that does nothing (the drill pass, 2026-11-17).
+  if (!props.onClick) {
+    return (
+      <div className={ROW_PLAIN}>
+        <RowBody {...props} />
+      </div>
+    );
+  }
   return (
     <button type="button" onClick={props.onClick} className={ROW}>
-      <RowBody {...props} chevron={!!props.onClick} />
+      <RowBody {...props} chevron />
     </button>
   );
 }

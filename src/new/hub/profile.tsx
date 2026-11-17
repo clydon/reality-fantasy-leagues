@@ -10,6 +10,7 @@ import { paths } from "../routes";
 import { useMe } from "../session";
 import { BackToAdminRow } from "../desk/view-as";
 import { askTour } from "../tour/store";
+import { usePushedPage } from "../ui/page";
 import { Row } from "../ui/parts";
 import { ShowArt } from "../ui/show-bar";
 import { Sheet } from "../ui/sheet";
@@ -22,8 +23,12 @@ import { Sheet } from "../ui/sheet";
 // tour/store.ts; the user, 2026-11-01) and Settings. (Step 12 part 1's Agree with the couch and taste twin went with Rate
 // it's stars on 2026-11-01.) (A site admin's test couch switches went 2026-10-31 with the test couch, the user's call.)
 
-/** Your numbers on the couch, or a line saying they fill in as it plays. */
-function YourNumbers({ hub }: { hub: CouchHub | undefined }) {
+/** Your numbers on the couch, or a line saying they fill in as it plays. Each row opens where it's compared (the drill pass,
+ *  2026-11-17): your place, the Power rankings; your best finish, that game; your calls, By the numbers (who called it most). A
+ *  page can't open over this sheet, so the sheet closes in the same tap and back lands on Home. */
+function YourNumbers({ hub, close }: { hub: CouchHub | undefined; close: () => void }) {
+  const rankings = usePushedPage("rankings");
+  const numbers = usePushedPage("numbers");
   if (!hub) return <div aria-busy className="h-[180px] animate-pulse rounded-[4px] bg-card" />;
   const y = hub.you;
   const stats: [string, string][] = [
@@ -59,11 +64,31 @@ function YourNumbers({ hub }: { hub: CouchHub | undefined }) {
               icon={Star}
               title={`${y.place.startsWith("T") ? `Tied ${ordinal(Number(y.place.slice(1)))}` : ordinal(Number(y.place))} on the couch${y.thisYear ? " this year" : ""}`}
               detail={`${y.points} Couch points`}
+              onClick={() => {
+                close();
+                rankings.show();
+              }}
             />
           </span>
         )}
-        {y.bestFinish && <Row icon={Medal} title={`Best finish: ${ordinal(Number(y.bestFinish.rank))}`} detail={`${y.bestFinish.gameName} · ${y.bestFinish.label}`} />}
-        {y.called > 0 && <Row icon={Zap} title={`Called it: ${y.called} ${y.called === 1 ? "prediction" : "predictions"} right`} detail="In every game on the couch, as far as you've seen" />}
+        {y.bestFinish && (
+          <span data-your-finish className="contents">
+            <Row icon={Medal} title={`Best finish: ${ordinal(Number(y.bestFinish.rank))}`} detail={`${y.bestFinish.gameName} · ${y.bestFinish.label}`} href={paths.gamePage(y.bestFinish.seasonId, y.bestFinish.leagueId)} />
+          </span>
+        )}
+        {y.called > 0 && (
+          <span data-your-called className="contents">
+            <Row
+              icon={Zap}
+              title={`Called it: ${y.called} ${y.called === 1 ? "prediction" : "predictions"} right`}
+              detail="In every game on the couch, as far as you've seen"
+              onClick={() => {
+                close();
+                numbers.show();
+              }}
+            />
+          </span>
+        )}
       </div>
     </div>
   );
@@ -110,7 +135,7 @@ export function ProfileSheet({ open, onOpenChange, me, couch, hub }: { open: boo
           <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
         </button>
       )}
-      {couch && <YourNumbers hub={hub} />}
+      {couch && <YourNumbers hub={hub} close={() => onOpenChange(false)} />}
       {admin && (
         <NavLink href={paths.desk()} data-admin-row className="nd-press mt-3.5 flex min-h-[60px] items-center gap-3 rounded-[3px] bg-card px-3">
           <span className="grid size-9 flex-none place-items-center rounded-[3px] bg-foreground text-background">

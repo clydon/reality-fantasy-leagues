@@ -811,3 +811,15 @@
 - Why: mid-chat ("who went home again?") is when the page is wanted, and the divider has no tap of its own to lose.
 - Rejected: leaving it a divider (the page is a tab away, but the episode is named right there).
 - Rests on: check-drill-doors.js chat-episode.
+
+## 2026-11-17 · The hub: the profile's numbers open where they're compared; Previously on opens its faces and nights
+- Decided by: Claude, default, under the user's two rules for the drill pass
+- What: on the profile, your place opens the Power rankings, your best finish its game's page, Called it By the numbers (the sheet
+  closes in the same tap; back lands on Home). Previously on loads its show's own drill (useShow): its faces open their sheet and
+  its episodes the night, as levels over the page. A Row with nothing behind it is a plain row. The bands' faces stay part of the
+  band's link.
+- Why: a page can't open over a sheet, and the profile's other rows (your best show, Admin, Settings) already leave it; Previously
+  on is a page, so levels open over it and back returns to it.
+- Rejected: the rankings as a sheet over the profile (a near twin of the page); the bands' faces as doors (24 px marks inside the
+  band's own link: a door there steals the band's tap and misses).
+- Rests on: check-drill-doors.js profile-place, profile-called, po-last, po-gone, po-still, po-episode.
