@@ -368,6 +368,20 @@ then approval.
     - **E1c. Cards, calls and bingo** (each its own small step, after a named question to the user: a bingo card or a call is
       honour-based, tapped by whoever sees it; should a computer player mark its card from what research settles after the
       episode, or sit those games out?). Until then they stay dashed in Who's playing with the reason.
+      **Done (2026-11-18), on the user's answers ("calls are guesses so that could be essentially randomized. Bingo is settled by AI
+      too, so sure"; "make sure bots have their profile picture a robot icon"):**
+      - **Weekly Calls:** a computer player's calls are made up as each episode is graded (calls.ts `botCalls`): who goes home,
+        someone still in before that episode at random; each other call yes or no, a sharp one leaning to no. The same every read
+        (by seat, episode and question), never stored; tallied by seat beside people's. Probed through the real routes on
+        new-fixture's season (results through Episode 5): three computer players called 5, 4 and 3 right.
+      - **Weekly Bingo:** a computer player's card is dealt from each episode's bank by its seat (the same card every read, never
+        stored), each square ticked once it's settled as happened (the couch's says, or the results), every full line called
+        (bingo.ts `bingoLines`). Probed with a bank whose squares two of the couch said happened: 8 lines an episode each.
+      - `botsPlay` and the gallery's `botsFit` take both; check-start-a-game.js starts each with computer players and reads them
+        back as computer players; tests/computer-players.test.js holds the new rule.
+      - **A robot for a computer player's face:** the games read marks their seats (`ui/bot-seats.ts`), and `Avatar` draws a robot
+        on a quiet tile for any of them (Backstage › Members already drew one), so every face of a seat (the season grid, matchups,
+        sheets) says it's a computer.
     - **E1d. Proof across the corpus:** blind.js plays every spec in the corpus to its end with one person and a computer player;
       the tracker records which kinds bots play; the GPT's manual and Randomize's pieces learn `bots`; the practice couch (hidden
       since 2026-11-18) is retired or reborn as "Just me and the bot" on the user's word.

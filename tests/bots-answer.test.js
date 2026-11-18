@@ -123,8 +123,9 @@ test("at your own pace a game of questions takes no computer players yet; a draf
   assert.ok(botsPlay(d), "a draft at your own pace: its finale picks are finalePicks', so it still takes them");
 });
 
-test("the gallery: Weekly Calls and a stake say why; Sharp and Normal differ on what usually happens", () => {
-  assert.match(C.botsFit({ preset: "weekly-calls" }), /calls/);
+test("the gallery: Weekly Calls and Bingo play, a stake says why; Sharp and Normal differ on what usually happens", () => {
+  assert.equal(C.botsFit({ preset: "weekly-calls" }), null, "Weekly Calls: their calls are guesses (E1c)");
+  assert.equal(C.botsFit(C.baseById("bingo").spec), null, "Bingo: they tick what's settled (E1c)");
   assert.match(C.botsFit(game([{ ...IDOL, wager: "total" }])), /stake points/);
   const sharp = league([IDOL], ["sharp", "sharp", "sharp", "sharp", "sharp", "sharp", "sharp", "sharp"]);
   const casual = league([IDOL], ["casual", "casual", "casual", "casual", "casual", "casual", "casual", "casual"]);

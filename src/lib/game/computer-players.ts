@@ -36,7 +36,9 @@ export const levelOf = (p: Seat): BotLevel => LEVEL_OF[p.botLevel ?? "solid"] ??
  *  it answers; not calls or bingo yet. */
 export function botsPlay(s: LeagueState): boolean {
   const t = StateLogic.piecesOf(s);
-  if (t.hasCalls || t.hasBingo) return false;
+  // E1c: Weekly Calls' calls are guesses, made up for them as they're graded (calls.ts botCalls).
+  // And Weekly Bingo's cards, dealt by seat and ticked from what's settled (bingo.ts bingoLines).
+  if ((t.hasCalls || t.hasBingo) && !t.hasQuestions) return true;
   // At your own pace (a season that's aired, or a game set to it) a computer player catches up on its own copy, where it answers
   // nothing yet (E1b's second slice): a game of questions waits there, whichever way they'd join (Start a game, Backstage).
   if (t.hasQuestions) return Bots.answersAll(s) && !(StateLogic.GhostLogic.ownPace(s) && Bots.answeredQuestions(s).length > 0);

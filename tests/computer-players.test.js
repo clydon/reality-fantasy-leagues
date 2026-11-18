@@ -26,12 +26,12 @@ function league(type) {
   return s;
 }
 
-test("they play the drafts and Survival Pool, not the calls or bingo games", () => {
+test("they play the drafts, Survival Pool, and (E1c, the user, 2026-11-18) Weekly Calls' guesses and Weekly Bingo's cards", () => {
   assert.ok(CP.botsPlay(league("classic-draft")));
   assert.ok(CP.botsPlay(league("active-roster")));
   assert.ok(CP.botsPlay(league("pickem")));
-  assert.equal(CP.botsPlay(league("weekly-calls")), false);
-  assert.equal(CP.botsPlay(league("weekly-bingo")), false);
+  assert.ok(CP.botsPlay(league("weekly-calls")), "calls are guesses: made up for them as they're graded");
+  assert.ok(CP.botsPlay(league("weekly-bingo")), "bingo's squares are settled by research and the couch: they tick what's settled");
 });
 
 // A sport (start-game.ts): Weekly Lineup's blind draft of the whole grid, and a pool whose pick survives by scoring. Nobody

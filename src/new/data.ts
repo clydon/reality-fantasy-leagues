@@ -325,7 +325,12 @@ export function useSeasonGames(seasonId: string, couchId: string | null, enabled
   const query = couchId ? `?couch=${encodeURIComponent(couchId)}` : "";
   return useQuery({
     queryKey: ["new-design", "games", seasonId, couchId],
-    queryFn: () => get<{ seenThrough: number | null; games: GameView[] }>(`/api/seasons/${seasonId}/games${query}`),
+    // Each game's computer players, kept for their faces (ui/bot-seats.ts: a robot wherever their seat's face is drawn).
+    queryFn: () =>
+      get<{ seenThrough: number | null; games: GameView[] }>(`/api/seasons/${seasonId}/games${query}`).then((r) => {
+        markBotSeats((r.games ?? []).flatMap((g) => (g.table ?? []).filter((x) => x.bot).map((x) => x.playerId)));
+        return r;
+      }),
     staleTime: 60_000,
     enabled,
   });
@@ -2013,6 +2018,7 @@ export const sportsApi = {
 
 export type { LoggedGame } from "@/lib/server/sports/player-log";
 import type { LoggedGame } from "@/lib/server/sports/player-log";
+import { markBotSeats } from "./ui/bot-seats";
 
 /** A sport's player's games in a season, newest first, up to where you may be told. */
 /** A sport's athlete's past seasons (sports/history.ts): the last three before this one, asked when their sheet opens. */

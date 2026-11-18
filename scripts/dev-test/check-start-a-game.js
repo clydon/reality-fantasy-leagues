@@ -159,8 +159,18 @@ async function apiHalf(pool, fx, bot) {
   const asks = (sheet.ask || []).length;
   check(bots.status === 200 && botAnswers.length === 2 * asks, `computer players on a Prediction sheet: started, their ${2 * asks} answers in at once (${botAnswers.length}: ${botAnswers.map((a) => `${a.question}=${JSON.stringify(a.answer)}`).slice(0, 3).join(", ")})`, JSON.stringify(bots.body).slice(0, 200));
   const { spec: bingo } = baseGame(o, "bingo", { from: o.from, to: o.from });
-  const noBots = await alex.call("POST", url, { spec: bingo, tell: false, bots: 1 });
-  check(noBots.status === 409, `computer players on a Bingo card: not yet (${noBots.status}: ${noBots.body && noBots.body.error})`);
+  // E1c: Bingo and Weekly Calls take computer players (cards dealt by seat and ticked from what's settled; calls guessed), and the
+  // season's games read lists them as computer players with a count of their own.
+  const bingoBots = await alex.call("POST", url, { spec: bingo, tell: false, bots: 1, pace: "live" });
+  check(bingoBots.status === 200, `computer players on a Bingo card: started (${bingoBots.status}: ${bingoBots.body && (bingoBots.body.error || bingoBots.body.name)})`);
+  const callsBots = await alex.call("POST", url, { spec: { preset: "weekly-calls", span: { from: o.from, to: null } }, name: "Weekly Calls", tell: false, bots: 2, pace: "live" });
+  check(callsBots.status === 200, `computer players in Weekly Calls: started (${callsBots.status}: ${callsBots.body && (callsBots.body.error || callsBots.body.name)})`);
+  const read = (await alex.call("GET", `/api/seasons/${sid}/games?couch=${couch}`)).body;
+  const rowsOf = (id) => (((read.games || []).find((g) => g.leagueId === id) || {}).table || []);
+  const botRows = [...rowsOf(bingoBots.body && bingoBots.body.leagueId), ...rowsOf(callsBots.body && callsBots.body.leagueId)].filter((r) => r.bot);
+  check(botRows.length === 3 && botRows.every((r) => !r.userId), `...the games read lists their 3 computer players as such (${botRows.map((r) => r.name).join(", ")})`);
+  const noBots = await alex.call("POST", url, { spec: { ...sheet, ask: [...(sheet.ask || []), { id: "ord", ask: "The order they go", answer: "order", points: 2, asked: "once", pick: 5, within: 2, settle: { by: "results", take: "order" } }] }, tell: false, bots: 1, pace: "live" });
+  check(noBots.status === 409, `computer players on a question they don't answer yet (an order): refused (${noBots.status}: ${noBots.body && noBots.body.error})`);
   const ownBots = await alex.call("POST", url, { spec: sheet, tell: false, bots: 1, pace: "own" });
   check(ownBots.status === 409 && /own pace/.test((ownBots.body && ownBots.body.error) || ""), `computer players on a Prediction sheet at your own pace: not yet (${ownBots.status}: ${ownBots.body && ownBots.body.error})`);
   const casey = await signIn({ user: "zt_nd_casey", pass: fixture.PASSWORD, headers });
@@ -309,10 +319,10 @@ async function browserHalf(pool, fx, bot) {
   await tap("[data-gallery-row=who]");
   check((await page.locator('[data-gallery-choice="bot"]:not([data-off])').count()) === 1, "on a Prediction sheet played Together, Computer players offered: they answer its questions");
   await openSheet();
-  await tap('[data-gallery-lead="bingo"], [data-gallery-base="bingo"]');
+  await tap('[data-gallery-lead="props"], [data-gallery-base="props"]');
   await page.locator("[data-gallery=base]").waitFor({ timeout: 10000 });
   await tap("[data-gallery-row=who]");
-  check((await page.locator('[data-gallery-choice="bot"][data-off]').count()) === 1 && /bingo card yet/.test(await page.locator('[data-gallery-choice="bot"]').innerText()), "on Bingo, Computer players dashed: they don't play a bingo card yet");
+  check((await page.locator('[data-gallery-choice="bot"][data-off]').count()) === 1 && /card's lines yet/.test(await page.locator('[data-gallery-choice="bot"]').innerText()), "on Prop bets, Computer players dashed: they don't play a card's lines yet");
   await shot("05-fantasy-page");
 
   // Saved games on the account: the heart beside Start, the row in Community and saved games, reopened, taken off; and a browser's
