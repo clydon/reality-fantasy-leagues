@@ -162,6 +162,33 @@ test("stakes: a share of house points; of points or a bank as they stand, within
   }
 });
 
+test("a card's lines (Prop bets): none while its card isn't out, then each line the card has, staked; Objectives plays, a host's card doesn't", () => {
+  const ctx = { ...CTX, moments: ["idolFound", "idolPlayed", "votesNegated", "wentOnJourney", "learnedOfAdvantage", "advantageTargeted", "rewardWin", "tribeImmunity", "individualImmunity", "zeroVotesSafe", "survivedVotes", "challengeRunnerUp"].map((id) => ({ id, label: id, defaultPoints: 1, answeredBy: "research" })) };
+  const s = S.defaultState();
+  S.ensureNextEpisode(s);
+  S.updateSettings(s, "showId", "survivor");
+  S.updateSettings(s, "leagueTypeId", "pickem");
+  S.updateSettings(s, "wikiSeason", 51);
+  for (let i = 0; i < 8; i++) S.addCastaway(s, `Castaway ${i}`);
+  s.players = [{ id: "ann", name: "ann", color: "#000" }, { id: "bot0", name: "Bot", color: "#000", automated: true, botLevel: "solid" }];
+  S.updateSettings(s, "setupComplete", true);
+  assert.deepEqual(S.setGame(s, C.baseById("props").spec, { ctx }), []);
+  const rooms = new Map([["bot0|live", { points: 500, held: new Map() }]]);
+  const before = Bots.answers(s, [], { now: 0, rooms });
+  assert.deepEqual(before.map((a) => a.question), ["boot"], "the card's not out: who goes home only (the ticket waits for a second leg of its own)");
+  const ep = s.episodes.find((e) => e.number === S.AnswerLogic.episodeNow(s));
+  ep.cardChoice = { moments: ["rewardWin", "idolFound"], cannot: [] };
+  const next = Bots.answers(s, before, { now: 0, rooms });
+  const after = next.filter((a) => a.question.startsWith("sheet."));
+  assert.equal(after.length, 4, "the card's four lines");
+  const ticket = next.find((a) => a.question === "ticket");
+  assert.ok(ticket && ticket.answer.legs.length === 2 && ticket.answer.legs.every((id) => id === "boot" || after.some((a) => a.question === id)), `then the ticket, on its own answers (${JSON.stringify(ticket)})`);
+  assert.ok(after.every((a) => ["yes", "no"].includes(a.answer.answer) && Number.isInteger(a.answer.stake)), JSON.stringify(after));
+  assert.equal(C.botsFit(C.baseById("props").spec), null, "Prop bets: played");
+  assert.equal(C.botsFit(C.baseById("objectives").spec), null, "Objectives: its picks played");
+  assert.match(C.botsFit(C.baseById("host").spec), /don't host a card yet/);
+});
+
 test("the gallery's Computer players square says the same: on for questions they answer, dashed with the reason for the rest", () => {
   assert.equal(C.botsFit(game([OUT, IDOL, WINS, HOW])), null);
   assert.match(C.botsFit(game([OUT, TRIVIA])), /don't answer "Trivia about the episode before" yet/);

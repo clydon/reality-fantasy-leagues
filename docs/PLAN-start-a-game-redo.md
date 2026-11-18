@@ -420,9 +420,21 @@ then approval.
         (150 + 105 + 73 + 51 of 500) and its ticket on its own answers; trivia still refused. Probed at your own pace from Episode
         1: each week's stakes from its room at its mark (500, then about 223, 307 and 137 as its bets settled), nothing past the
         game's last episode, the games read's total 75. 2,433 unit tests pass.
-      **Left for E1b's second slice:** a card's lines (Prop bets, Objectives, the host's card: the card is the bot's, known from the
-      server's facts), trivia (the round's key), a side, a bracket, a question about each person or game; Prop bets and Beat the
-      bot played to their ends with computer players.
+      **E1b's second slice, part 4, done (2026-11-18): a card's lines, and Objectives.** A line of a card our bot chooses (Prop bets)
+      is answered once its card is out (the episode's stamp, `cardChoiceAt`; `Spec.cardWaiting`) and only for a line the card has
+      that week, as answers.ts holds a person's; a yes or no by its lean, staked as any. A ticket's legs are only questions it has
+      answered that week (stored or this run: `answeredIn`), its fewest, and it waits while it has too few (on Prop bets, until the
+      card's out), as answers.ts refuses a person's ticket with a blank leg. Objectives (picks scored by the card's moments) was held
+      back only by the gallery's blanket "a card" reason; its weekly picks were already played. A host's card stays held back
+      ("Computer players don't host a card yet"): the host rotation takes every seat (`HostLogic.turn`), so a computer player
+      hosting would need to write a card (its turn falls back to the list in turn today). Proof: tests/bots-answer.test.js (Prop
+      bets: only who goes home while the card's not out, then the card's four lines staked and the ticket on its own answers;
+      Objectives played; a host's card dashed); check-start-a-game.js (Prop bets offered, Host's card dashed with the reason); 2,434
+      unit tests pass. Noticed once, not again on a rerun: check-start-a-game.js's browser run caught a page error "Transition was
+      aborted because of timeout in DOM update" (a view transition under quick taps); the rerun passed clean.
+      **Left for E1b's second slice:** a host's card (a computer player writing its card when its turn comes), trivia (the round's
+      key), a side, a bracket, a question about each person or game; Prop bets and Beat the bot played to their ends with computer
+      players.
     - **E1c. Cards, calls and bingo** (each its own small step, after a named question to the user: a bingo card or a call is
       honour-based, tapped by whoever sees it; should a computer player mark its card from what research settles after the
       episode, or sit those games out?). Until then they stay dashed in Who's playing with the reason.
