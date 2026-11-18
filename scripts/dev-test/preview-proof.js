@@ -120,7 +120,7 @@ function ratesOf(r) {
 function shapedMoments(seed, n, still, outs, known, merged) {
   const r = recorded(), rates = ratesOf(r), out = new Set(outs.map((o) => o.castawayId)), list = [];
   const safe = new Set(["zeroVotesSafe", "survivedVotes", "votedWithMajority"]);
-  const kinds = Object.keys(rates).filter((t) => known.has(t) && !(merged && t === "tribeImmunity")).sort();
+  const kinds = Object.keys(rates).filter((t) => known.has(t) && !(merged && (t === "tribeImmunity" || t === "individualImmunity"))).sort();
   for (const type of kinds) {
     const want = rates[type] * still.length, k = Math.floor(want) + ((roll(seed, n, type, "frac") % 1000) / 1000 < want - Math.floor(want) ? 1 : 0);
     const pool = still.filter((id) => !(safe.has(type) && out.has(id))).sort((a, b) => roll(seed, n, type, a) - roll(seed, n, type, b));
@@ -471,7 +471,7 @@ async function story() {
 }
 const who2name = (id) => (COUCH.find((p) => p.id === id) || { name: id }).name;
 
-module.exports = { definition, galleryFacts, gallerySpec, COUCH, openCase, advance, STOPS };
+module.exports = { definition, galleryFacts, gallerySpec, COUCH, openCase, advance, STOPS, _h: { lineups, night, resultsFor, teamsOf, stagesOf } };
 
 if (require.main === module) {
   const fail = (e) => { console.error(e); process.exitCode = 1; };
