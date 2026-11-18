@@ -125,3 +125,26 @@ database goes.
    a user"). And the answer is **a visual story, not words and paragraphs: quick, intuitive and to the point** ("the solution to
    this problem isnt words and paragraphs, its a visual story, it should be quick. intuitive. and to the point"). The real screens
    become a drill-in from it. A or B waits until that story is designed, since it only decides the drill-in.
+4. **The last card's buttons:** "Go back" (to the setup) and "Create this game" (the one yellow): "i think the last button should
+   be go back or create this game".
+5. **The story belongs to the bench:** "we will want this to be a part of the test bench so when we are brute forcing through
+   hundreds of games we can also look at these previews and say 'yes that makes sense and is an accurate representation'". The
+   user also asked whether the story is accurate to the played game and follows the game's UI when it changes.
+
+   Where the first build stands on that (2026-11-18):
+   - **From the engine, as the app shows them:** teams, each castaway's points each week, who started and who sat, totals,
+     places, who went home. They are read from the production game view (`project(game, person).game`) of the explorer
+     runtime, which P0 showed agrees with the server (Ep 9's lineup, the merge's draft, the finale).
+   - **Restated in the story:** the best and worst lineup of a week (the top and bottom picks by points, added up). That is
+     the rule of this game only; a captain or a multiplier would make it wrong. "Alike" and "on every team" are counts over
+     the teams, not rules.
+   - **Not dynamic:** the data is a file the script writes, not a live run; the six cards are drawn for this one game shape
+     (stages and a merge draft) and use none of the game's own components, so a change to the game's screens doesn't reach
+     them; the fix redraws the merge only.
+
+   For the bench it needs: (a) the story built from any definition and seed by a bench adapter, cards chosen by what the game
+   has (a draft, a weekly move, stages, questions), each card a production read and nothing restated (the lineup's best and
+   worst from the engine's own scoring); (b) the cards drawn with the app's own pieces (faces, standings rows, the lineup
+   tile) where they exist, so a UI change shows up in them; (c) a bench view of a case's story, and a contact sheet of many
+   cases' cards at 390 to scan; (d) a sample of cases checked against the real routes on the live tier, as P0 did, so
+   "accurate" is a check, not a claim; (e) the campaign runner for many seasons (30 take about 50 s today).

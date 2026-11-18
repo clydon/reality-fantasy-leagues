@@ -536,12 +536,12 @@ export function PreviewStory({ data }: { data: StoryData }) {
         <div className="flex items-center gap-2 px-4 pb-[max(16px,env(safe-area-inset-bottom,0px))] pt-2">
           {last ? (
             <>
-              {/* Back to the game's setup (the gallery's sheet) once wired; here it stays put. */}
-              <Btn tone="optional" className="flex-1" data-change>
-                Change it
+              {/* Go back: to the game's setup (the gallery's sheet) once wired; here it stays put. */}
+              <Btn tone="optional" className="flex-1" data-go-back>
+                Go back
               </Btn>
-              <Btn tone="must" className="flex-[1.4]">
-                Start this game
+              <Btn tone="must" className="flex-[1.4]" data-create>
+                Create this game
               </Btn>
             </>
           ) : (

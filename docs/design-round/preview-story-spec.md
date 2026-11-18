@@ -89,7 +89,7 @@ the draft's "×N" became the other holders' chips; the race's new draft between 
 the merge's columns fixed across the fix, its flag carrying Check; the finale's legend matching its bars and "a close finish" as its
 typical; type snapped to the ramp, labels inside the gutter, no overlaps. The story: https://claude.ai/artifact/KzNrXUwPap7yTpFsGoueKQ.
 
-**Choices for the user:** the last card's buttons (Start this game yellow, as DESIGN.md's action rule; or equal, as PFD's R5
-asked; recommended: yellow); the stages' names ("Before Merged" is the gallery's; recommended: fix them in the gallery).
+**Decided:** the last card's buttons are "Go back" and "Create this game" (yellow), the user, 2026-11-18.
+**Choice for the user:** the stages' names ("Before Merged" is the gallery's; recommended: fix them in the gallery).
 **Open:** the fix redraws the merge only (the race and finale still show the game as set); Close, Change it, Use and the drill-ins
 aren't wired; one game type; 30 seasons take about 50 s headless; the season card's lower third is empty.
