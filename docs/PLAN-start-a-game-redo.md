@@ -394,6 +394,11 @@ then approval.
       `check-questions.js`, `check-own-pace-start.js`, `check-new-start-game.js` (their `--api` halves stand), `check-new-tour.js`'s
       practice, `story-start-wizard.js` (Round 1's "before": kept as history, it can't run now), `check-gameplay-bench-flows.js`'s
       wizard surface, `check-sports-couch.js`'s team sheet (chunk 5).
+    - Chunk 4 committed: `known.ts` is gone. Each base's fans' names (`aka`), its other shelves (`shelves`) and the renamed bases
+      (Prop bets, Parlay) are in bases.json; each category's `leads` and `storyLeads` too; the sports' names and leads in
+      sports.json (in the file's own one-line style); the changes' names (A new card each episode, Parlay) and what people call
+      them (`aka`) in index.js, with `searchKnown`. The coverage table regenerated (210 of 210 homed, 209 proven) now says the
+      catalog's names; `sport-gallery-check.js` passes (181 rows).
     - Noticed, not fixed: `check-episode-lock.js` fails "and a new pick doesn't go in" (a pick after Backstage › Settings locks the
       episode); the lock API, untouched here. `check-new-computer-players.js` still expects the practice couch the user hid on
       2026-11-18. Both for the main session at the merge.

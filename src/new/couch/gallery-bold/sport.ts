@@ -66,31 +66,6 @@ export const SPORT_ICON: Record<string, string> = {
 };
 export const sportIcon = (id: string) => SPORT_ICON[id] ?? (id.startsWith("ev-") ? "trophy" : "sheet");
 
-/** What a sport's fans also call its games (beside the show bases' AKA). */
-export const SPORT_AKA: Record<string, string[]> = {
-  "sp-league": ["season-long", "redraft", "head-to-head fantasy"],
-  "sp-bestball": ["draft and forget", "no lineups"],
-  "sp-cats": ["H2H categories", "9-cat", "5x5"],
-  "sp-roto": ["rotisserie", "roto 5x5"],
-  "sp-guillotine": ["chopping block", "elimination league"],
-  "sp-keeper": ["keepers"],
-  "sp-dynasty": ["dynasty league"],
-  "sp-cap": ["salary cap", "daily fantasy", "DFS"],
-  "sp-pickem": ["pick'em", "game picks", "straight up"],
-  "sp-pickem-team": ["pick'em", "who wins"],
-  "sp-confidence": ["confidence pool"],
-  "sp-ats": ["against the spread", "ATS"],
-  "sp-survivor": ["survivor pool", "eliminator", "last man standing"],
-  "sp-hr-pool": ["home run pool", "dinger pool"],
-  "sp-streak": ["beat the streak"],
-  "sp-props": ["prop bets", "props"],
-  "sp-ou": ["totals", "over under"],
-  "sp-squares": ["super bowl squares", "boxes", "football pool grid"],
-  "sp-bank": ["betting game", "bankroll"],
-  "sp-parlay": ["same-game parlay", "SGP"],
-  "sp-bracket": ["bracket challenge", "playoff bracket"],
-  "sp-first-scorer": ["first touchdown", "first scorer"],
-};
 
 /** A sport's categories in its fans' words, the chip saying what its heading says. */
 const CAT_WORDS: Record<string, { short: string; name: string }> = {
@@ -108,7 +83,7 @@ export function sportView(sm: SM, page: { ctx: SpecContext; pack?: Pack }, leagu
   for (const v of vs) {
     // A game type for another page is still on the shelf (a fan looking for it here finds where it plays), dashed with why.
     const elsewhere = v.state === "elsewhere";
-    bases.push({ id: v.id, cat: v.cat, name: v.name, plain: v.plain, about: v.about, effort: v.effort, len: v.len, ref: "", spec: v.spec ?? null, coming: v.state === "coming" ? v.gap ?? v.why ?? "Coming" : undefined, needs: elsewhere ? v.why ?? "Plays on the league's whole season" : v.needs ?? undefined } as unknown as Base);
+    bases.push({ id: v.id, cat: v.cat, name: v.name, aka: (v as { aka?: string[] }).aka ?? [], plain: v.plain, about: v.about, effort: v.effort, len: v.len, ref: "", spec: v.spec ?? null, coming: v.state === "coming" ? v.gap ?? v.why ?? "Coming" : undefined, needs: elsewhere ? v.why ?? "Plays on the league's whole season" : v.needs ?? undefined } as unknown as Base);
     const state: "plays" | "off" | "coming" | "needs" = v.state === "elsewhere" ? "needs" : v.state;
     verdicts.set(v.id, { id: v.id, state, why: elsewhere ? v.why ?? "Plays on the league's whole season" : v.why, fitted: v.fitted });
     if (v.spec && !elsewhere) specs.set(v.id, v.spec);

@@ -523,7 +523,7 @@ const CHANGES = [
     off: offBets,
   },
   {
-    id: 'parlay', row: 'bets', name: 'A parlay', line: 'All right together pays more', icon: 'link',
+    id: 'parlay', row: 'bets', name: 'Parlay', line: 'All right together pays more', icon: 'link',
     homes: { 'multiply.on': ['legs'] },
     fits: (s) => fitsOr(T.parlay.fits(offBets(s)), 'A parlay needs two guesses each episode'),
     on: (s) => isObj(s.score) && Array.isArray(s.score.parlays),
@@ -721,7 +721,7 @@ const CHANGES = [
   // ---- The questions ----
   { id: 'addq', row: 'play', kinds: ['questions'], name: 'Add a question', line: 'Who goes home, who does a moment, how many, the order…', icon: 'plus', on: () => false, sheet: 'question' },
   {
-    id: 'card', row: 'play', kinds: ['questions'], name: 'A new sheet each episode', line: 'Lines drawn from the show’s moments, or our bot’s pick', icon: 'sheet',
+    id: 'card', row: 'play', kinds: ['questions'], name: 'A new card each episode', line: 'Lines drawn from the show’s moments, or our bot’s pick', icon: 'sheet',
     homes: { 'card.from': ['moments', 'bot'] },
     fits: (s, pg) => fitsOr(isQuestions(s) && pg.moments.length >= 2, 'A sheet needs moments to draw from'),
     on: (s) => isObj(s.card) && s.card.from !== 'host',
@@ -1135,7 +1135,77 @@ function homesOf() {
   return out;
 }
 
+// ---------- the names people call things (the bold pass's, B1: one name means one thing; docs/design-round/decisions.md 2026-11-18) ----------
+
+/** What people call a change, read by Find a change beside its name and line. */
+const CHANGE_AKA = {
+  matchups: "h2h versus vs matchup duel",
+  captain: "double captain star",
+  knockouts: "elimination cut chop guillotine lowest out",
+  standing: "lives life second chance",
+  race: "first to target",
+  coop: "co-op together team up",
+  bank: "bankroll betting wager money",
+  side: "side bets prop",
+  stake: "wager stake bet",
+  pot: "split share pot",
+  jackpot: "rollover carry over",
+  repeat: "never twice same pick again",
+  second: "two picks double pick",
+  cap: "salary budget price",
+  market: "trade buy sell stocks",
+  waivers: "pickups free agents add drop",
+  keepers: "dynasty keep",
+  redraft: "redraft new draft merge",
+  shakeup: "redraft swap",
+  traitors: "mafia werewolf secret",
+  bootcall: "boot who goes home vote",
+  reverse: "worst flip upside down",
+  only: "big moments only some",
+  what: "points scoring place",
+  teams: "teams tribes sides",
+  solo: "alone single player just me",
+  bot: "computer ai bot",
+  hidden: "secret lineups hidden",
+  room: "draft time when",
+  size: "how many each team size roster",
+  draft: "snake order auction draft",
+};
+for (const c of CHANGES) c.aka = CHANGE_AKA[c.id] || '';
+
+/** Search: a base's own words, then what fans call it (each base's `aka`); `aka` in a result is the fan's name that matched, said on
+ *  its square. */
+function searchKnown(q, bases) {
+  const STOP = new Set(["a", "an", "the", "to", "of", "and", "or", "for", "with", "on", "in", "we", "i", "my", "our", "game", "games", "lets", "let's", "play"]);
+  const words = (s) => s.toLowerCase().replace(/[^a-z0-9' ]+/g, " ").split(/\s+/).filter((w) => w && !STOP.has(w));
+  const ws = words(q);
+  const phrase = q.trim().toLowerCase();
+  if (!ws.length) return [];
+  const out = [];
+  for (const b of bases) {
+    const name = words(b.name).join(" ");
+    const aka = (b.aka || []).map((a) => a.toLowerCase());
+    const hay = [name, b.plain.toLowerCase(), b.about.toLowerCase(), ...aka].join(" ");
+    let score = 0;
+    let matched = null;
+    for (const w of ws) {
+      if (name.split(" ").includes(w)) score += 6;
+      else if (aka.some((a) => a.split(/\s+/).includes(w))) {
+        score += 5;
+        matched = matched ?? aka.find((a) => a.split(/\s+/).includes(w)) ?? null;
+      } else if (hay.includes(w)) score += 2;
+    }
+    if (phrase.length > 3 && (name.includes(phrase) || aka.some((a) => a.includes(phrase)))) {
+      score += 12;
+      if (!name.includes(phrase)) matched = aka.find((a) => a.includes(phrase)) ?? matched;
+    }
+    if (score) out.push({ base: b, score, aka: name.split(" ").some((w) => ws.includes(w)) ? null : matched });
+  }
+  return out.sort((a, b) => b.score - a.score).slice(0, 8);
+}
+
 module.exports = {
   CATS, BASES, SPORT, ROWS, CHANGES, QUESTION_KINDS, QUESTION_CONTROLS,
   kindOf, expand, pageFacts, check, baseById, baseSpec, galleryFor, playRow, changeStates, changeById, applyChange, dropChange, setControl, rowLine, homesOf, betOn, offBets,
+  searchKnown,
 };

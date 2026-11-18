@@ -24,10 +24,9 @@ import { colourOf } from "@/lib/people";
 import { toast } from "../../ui/toast";
 import { baseOfGame, communityOf, costWords, effortOf, fitWords, inputOf, isSentence, lengthId, lengthsOf, lockOf, lockWords, readyOf, say, shortDate, shortWhy, sizeFit, stretchLine, stripOf, withSpan, type Community, type Input, type Pace, type Span } from "./model";
 import { keyOf, savedRows, useSaved, useToggleSaved, type SavedRow } from "./saved";
-import { AKA, CHANGE_AKA, LEADS, SHELVES, STORY_LEADS, baseName, changeName, searchKnown } from "./known";
 import { nextStep, type Goal, type Step } from "./ladders";
 import { OwnMomentsBody, type OwnMoment } from "./own-moments";
-import { SPORT_AKA, nextGame, sidesOf, sportIcon, sportStep, sportView, useTeamMarks, type Mark, type SportView } from "./sport";
+import { nextGame, sidesOf, sportIcon, sportStep, sportView, useTeamMarks, type Mark, type SportView } from "./sport";
 import { TeamMark, teamBg, teamInk } from "../../sports/parts";
 import { usualLen } from "./parts";
 import { LeadTile } from "./leads";
@@ -337,7 +336,7 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
     const s = spec ?? gm.baseSpec(b, sp, pg);
     if (!s) return;
     const fitted = (s as unknown as { __fitted?: Game["fitted"] }).__fitted ?? null;
-    setGame({ base: b, spec: withSpan(s, sp), span: sp, pace: null, before: {}, asked: false, from, name: name ?? baseName(b.id, b.name), moment: null, fitted, own: [] });
+    setGame({ base: b, spec: withSpan(s, sp), span: sp, pace: null, before: {}, asked: false, from, name: name ?? b.name, moment: null, fitted, own: [] });
     push({ k: "base" });
   };
   // Run it back: the old game reopened on its base's screen, on this season (where it started: a phase still to come, or the next
@@ -374,7 +373,7 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
     const was = game;
     if (st.base) {
       const fitted = (st.spec as unknown as { __fitted?: Game["fitted"] }).__fitted ?? null;
-      setGame({ ...game, base: st.base, spec: withSpan(st.spec, game.span), before: {}, name: baseName(st.base.id, st.base.name), fitted });
+      setGame({ ...game, base: st.base, spec: withSpan(st.spec, game.span), before: {}, name: st.base.name, fitted });
     } else setGame({ ...game, spec: st.spec, before: st.row && !(st.row in game.before) ? { ...game.before, [st.row]: game.spec } : game.before });
     toast(`${st.goal === "comp" ? "More competitive" : st.goal === "casual" ? "More casual" : "Different scoring"}: ${st.says}`, { undo: () => setGame(was) });
   };
@@ -770,16 +769,16 @@ function GalleryBody(p: {
   const cats = (p.sport ? p.sport.cats : gm.CATS)
     .filter((c) => c.id !== "community")
     .map((c) => {
-      const all = p.bases.filter((b) => (b.cat === c.id || b.also === c.id || (SHELVES[c.id] ?? []).includes(b.id)) && shown(b));
+      const all = p.bases.filter((b) => (b.cat === c.id || b.also === c.id || (b.shelves ?? []).includes(c.id)) && shown(b));
       const plays = (id: string) => verdicts.get(id)?.state === "plays";
-      const leads = (p.flavorKind === "series" || p.flavorKind === "talk" ? STORY_LEADS[c.id] : null) ?? LEADS[c.id] ?? [];
+      const leads = (p.flavorKind === "series" || p.flavorKind === "talk" ? c.storyLeads : null) ?? c.leads ?? [];
       const leadId = leads.find((id) => plays(id) && all.some((b) => b.id === id)) ?? all.find((b) => plays(b.id))?.id;
       const lead = all.find((b) => b.id === leadId) ?? null;
       const rank = (b: Base) => ({ plays: 0, needs: 1, off: 2, coming: 3 })[verdicts.get(b.id)?.state ?? "coming"] ?? 3;
       return { ...c, says: say(c.says, input.nouns, true), bases: all.filter((b) => b !== lead).sort((a, b) => rank(a) - rank(b)), lead };
     })
     .filter((c) => c.bases.length || c.lead);
-  const found = q.trim() ? searchKnown(q, p.bases.filter(shown)) : [];
+  const found = q.trim() ? gm.searchKnown(q, p.bases.filter(shown)) : [];
   // The faces still in as far as you've seen (the Cast tab's own read), photos first: the lead tiles' people.
   const stats = useSeasonStats(input.seasonId, input.couch.id);
   const faces = useMemo(() => (stats.data?.cast ?? []).filter((c) => c.out == null || c.finish).sort((a, b) => Number(!!b.photo) - Number(!!a.photo)), [stats.data]);
@@ -830,7 +829,7 @@ function GalleryBody(p: {
           {found.length ? (
             <div className="grid grid-cols-2 gap-3">
               {found.map(({ base, aka }) => (
-                <BaseSquare key={base.id} base={{ ...base, name: say(baseName(base.id, base.name), input.nouns, true) }} state={verdicts.get(base.id)!.state} why={verdicts.get(base.id)!.why} line={aka ? `Also called ${aka}` : fitWords(say(base.plain, input.nouns, true), verdicts.get(base.id)!.fitted)} icon={p.sport ? sportIcon(base.id) : undefined} onOpen={() => p.onBase(base)} />
+                <BaseSquare key={base.id} base={{ ...base, name: say(base.name, input.nouns, true) }} state={verdicts.get(base.id)!.state} why={verdicts.get(base.id)!.why} line={aka ? `Also called ${aka}` : fitWords(say(base.plain, input.nouns, true), verdicts.get(base.id)!.fitted)} icon={p.sport ? sportIcon(base.id) : undefined} onOpen={() => p.onBase(base)} />
               ))}
             </div>
           ) : (
@@ -936,7 +935,7 @@ function GalleryBody(p: {
                   />
                 )}
                 {c.bases.map((b) => (
-                  <BaseSquare key={`${c.id}-${b.id}`} base={{ ...b, name: say(baseName(b.id, b.name), input.nouns, true) }} state={verdicts.get(b.id)!.state} why={verdicts.get(b.id)!.why} line={fitWords(say(b.plain, input.nouns, true), verdicts.get(b.id)!.fitted)} icon={p.sport ? sportIcon(b.id) : undefined} onOpen={() => p.onBase(b)} />
+                  <BaseSquare key={`${c.id}-${b.id}`} base={{ ...b, name: say(b.name, input.nouns, true) }} state={verdicts.get(b.id)!.state} why={verdicts.get(b.id)!.why} line={fitWords(say(b.plain, input.nouns, true), verdicts.get(b.id)!.fitted)} icon={p.sport ? sportIcon(b.id) : undefined} onOpen={() => p.onBase(b)} />
                 ))}
               </div>
             </section>
@@ -1080,7 +1079,7 @@ function BaseBody(p: {
     const st: Step | { why: string } = swap ? { goal: g, says: swap.says, spec: swap.spec, row: null, base: swap.base } : nextStep(gm, g, game.base, game.spec, game.span, pg, input.ep);
     return { goal: g, label, icon, next: "says" in st ? st.says : null, why: "why" in st ? st.why : null, onTap: () => ("says" in st ? p.onStep(st) : undefined) };
   });
-  const isBase = game.name === baseName(game.base.id, game.base.name);
+  const isBase = game.name === game.base.name;
   const setLength = (id: string) => {
     const l = lengths.find((x) => x.id === id);
     if (!l) return;
@@ -1101,7 +1100,7 @@ function BaseBody(p: {
       <TitleCard
         name={say(game.name, input.nouns, true)}
         art={p.art}
-        aka={isBase ? AKA[game.base.id] ?? SPORT_AKA[game.base.id] ?? [] : []}
+        aka={isBase ? game.base.aka ?? [] : []}
         sentence={sentences[0]}
         mark={
           p.sport ? (
@@ -1258,7 +1257,7 @@ function FindChange({ gm, game, pg, onToggle }: { gm: GM; game: Game; pg: Input[
     ? ["who", "compete", "bets", "play", "scoring", "twists", "season", "details"]
         .flatMap((row) => gm.changeStates(game.spec, row, pg).map((st) => ({ row, st })))
         .filter(({ st }) => {
-          const hay = `${changeName(st.id, st.name)} ${st.line} ${CHANGE_AKA[st.id] ?? ""}`.toLowerCase();
+          const hay = `${st.name} ${st.line} ${gm.changeById(st.id)?.aka ?? ""}`.toLowerCase();
           return ws.every((w) => hay.includes(w));
         })
         .slice(0, 6)
@@ -1274,7 +1273,7 @@ function FindChange({ gm, game, pg, onToggle }: { gm: GM; game: Game; pg: Input[
         (found.length ? (
           <div className="mt-3 grid grid-cols-2 gap-3">
             {found.map(({ row, st }) => (
-              <ChoiceSquare key={`${row}-${st.id}`} c={{ ...st, name: changeName(st.id, st.name) }} chosen={st.on} onPick={() => onToggle(st.id, row)} />
+              <ChoiceSquare key={`${row}-${st.id}`} c={st} chosen={st.on} onPick={() => onToggle(st.id, row)} />
             ))}
           </div>
         ) : (

@@ -4,55 +4,113 @@
    "id": "fantasy",
    "short": "Fantasy",
    "name": "Fantasy leagues",
-   "says": "Pick a team of castaways"
+   "says": "Pick a team of castaways",
+   "leads": [
+    "fantasy",
+    "outlast",
+    "bestball"
+   ]
   },
   {
    "id": "pools",
    "short": "Pools",
    "name": "Pools",
-   "says": "One pick each episode"
+   "says": "One pick each episode",
+   "leads": [
+    "pool",
+    "picks",
+    "lives"
+   ],
+   "storyLeads": [
+    "picks",
+    "objectives",
+    "pool"
+   ]
   },
   {
    "id": "predict",
    "short": "Predictions",
    "name": "Predictions",
-   "says": "Guess what happens"
+   "says": "Guess what happens",
+   "leads": [
+    "sheet",
+    "calls",
+    "seasonpred"
+   ],
+   "storyLeads": [
+    "calls",
+    "sheet",
+    "seasonpred"
+   ]
   },
   {
    "id": "bets",
    "short": "Betting",
    "name": "Betting",
-   "says": "Bet points, never money"
+   "says": "Bet points, never money",
+   "leads": [
+    "bank",
+    "props",
+    "pot"
+   ]
   },
   {
    "id": "versus",
    "short": "Head to head",
    "name": "Head to head & teams",
-   "says": "Who you play against"
+   "says": "Who you play against",
+   "leads": [
+    "h2h",
+    "h2hpicks",
+    "teams"
+   ]
   },
   {
    "id": "quiz",
    "short": "Bingo & trivia",
    "name": "Bingo & trivia",
-   "says": "A card while it's on, a quiz after"
+   "says": "A card while it's on, a quiz after",
+   "leads": [
+    "bingo",
+    "trivia"
+   ]
   },
   {
    "id": "party",
    "short": "Party",
    "name": "Party games",
-   "says": "Twists between friends"
+   "says": "Twists between friends",
+   "leads": [
+    "traitors",
+    "majority",
+    "host"
+   ],
+   "storyLeads": [
+    "majority",
+    "host",
+    "traitors"
+   ]
   },
   {
    "id": "solo",
    "short": "Just you",
    "name": "Just you",
-   "says": "Alone, or against the bot"
+   "says": "Alone, or against the bot",
+   "leads": [
+    "beatbot",
+    "solo"
+   ]
   },
   {
    "id": "season",
    "short": "Big season",
    "name": "Big season games",
-   "says": "A game that changes shape"
+   "says": "A game that changes shape",
+   "leads": [
+    "halves",
+    "redraft",
+    "minis"
+   ]
   }
  ],
  "bases": [
@@ -60,6 +118,11 @@
    "id": "fantasy",
    "cat": "fantasy",
    "name": "Fantasy league",
+   "aka": [
+    "season-long league",
+    "weekly lineup",
+    "redraft league"
+   ],
    "plain": "Pick 5; choose 3 to play each week",
    "about": "Everyone picks a team of five castaways. Before each episode you choose three to play, and they score for what they do: winning immunity, finding an idol, surviving a vote.",
    "effort": "Choose who plays each episode",
@@ -74,6 +137,10 @@
    "cat": "fantasy",
    "also": "versus",
    "name": "Head-to-head league",
+   "aka": [
+    "matchups",
+    "head-to-head fantasy"
+   ],
    "plain": "Your team vs a friend's each week",
    "about": "A fantasy league where each episode your team plays one of the couch's, and more points wins the episode. The two with the most wins meet in a final at the end.",
    "effort": "Choose who plays each episode",
@@ -93,6 +160,10 @@
    "id": "outlast",
    "cat": "fantasy",
    "name": "Outlast",
+   "aka": [
+    "draft and watch",
+    "survivor draft"
+   ],
    "plain": "Pick 3, then cheer for them to last",
    "about": "Take turns picking three castaways, then just watch. Each scores a point for everyone who goes home before them, so the last one standing carries you.",
    "effort": "Pick once, then just watch",
@@ -106,6 +177,10 @@
    "id": "bestball",
    "cat": "fantasy",
    "name": "Best ball",
+   "aka": [
+    "draft and forget",
+    "no lineups"
+   ],
    "plain": "Pick 5; your best 3 count for you",
    "about": "A fantasy league with nothing to do each week. Everyone picks five, and every episode your three best scorers count by themselves.",
    "effort": "Pick once, then just watch",
@@ -126,6 +201,10 @@
    "id": "auction",
    "cat": "fantasy",
    "name": "Auction draft",
+   "aka": [
+    "salary auction",
+    "bidding draft"
+   ],
    "plain": "Bid for your team, 100 to spend",
    "about": "Everyone has 100 to bid, in private, on the castaways they want; the highest bid gets each one. Then choose three to play each episode.",
    "effort": "Bid once, then just watch",
@@ -151,6 +230,11 @@
    "id": "cap",
    "cat": "fantasy",
    "name": "Salary cap",
+   "aka": [
+    "salary cap",
+    "daily fantasy",
+    "DFS"
+   ],
    "plain": "Buy a team; prices follow form",
    "about": "Every castaway has a price that follows how they're doing, the best costing most. Pick four under a cap of 100; two play each episode.",
    "effort": "Choose who plays each episode",
@@ -176,6 +260,10 @@
    "id": "market",
    "cat": "fantasy",
    "name": "Stock market",
+   "aka": [
+    "stocks",
+    "buy low, sell high"
+   ],
    "plain": "Buy and sell castaways like shares",
    "about": "Castaways trade like shares, their prices following how they play. Buy and sell after each episode; your cash plus your team's worth is your score.",
    "effort": "Buy and sell each week",
@@ -205,6 +293,10 @@
    "id": "guillotine",
    "cat": "fantasy",
    "name": "Guillotine",
+   "aka": [
+    "elimination league",
+    "chopping block"
+   ],
    "plain": "Lowest score each week is out",
    "about": "Take turns picking four castaways. Each episode the lowest score is out and their castaways go back up for grabs; the last one left wins.",
    "effort": "Choose who plays each episode",
@@ -254,6 +346,10 @@
    "id": "reverse",
    "cat": "fantasy",
    "name": "Reverse draft",
+   "aka": [
+    "worst team wins",
+    "boot draft"
+   ],
    "plain": "Points for going home first",
    "about": "Take turns picking three castaways you think go home first. The sooner they're out, the more they score.",
    "effort": "Pick once, then just watch",
@@ -271,6 +367,11 @@
    "id": "hat",
    "cat": "fantasy",
    "name": "Out of a hat",
+   "aka": [
+    "random draft",
+    "sweepstake",
+    "office pool"
+   ],
    "plain": "Dealt at random; just watch",
    "about": "Everyone is dealt a castaway at random: nothing to pick, nothing to set. Whoever's lasts longest wins.",
    "effort": "Nothing to do",
@@ -290,6 +391,10 @@
    "id": "spread",
    "cat": "fantasy",
    "name": "One from each tribe",
+   "aka": [
+    "one per tribe",
+    "one from each group"
+   ],
    "plain": "One from each tribe, then watch",
    "about": "Take turns picking three castaways, spread across the tribes (Toka and Savu), then just watch. The longer they last, the more they score.",
    "effort": "Pick once, then just watch",
@@ -312,6 +417,10 @@
    "id": "keeper",
    "cat": "fantasy",
    "name": "Keeper league",
+   "aka": [
+    "dynasty",
+    "keepers"
+   ],
    "plain": "Keep some of last season's team",
    "about": "Keep a few from your team in this couch's last season of the show, then pick the rest. For shows whose cast comes back.",
    "effort": "Choose who plays each episode",
@@ -325,6 +434,10 @@
    "cat": "fantasy",
    "also": "party",
    "name": "One-moment draft",
+   "aka": [
+    "crying draft",
+    "single-moment draft"
+   ],
    "plain": "Only one moment scores, like crying",
    "about": "Everyone picks three castaways, but only one moment scores, and you choose it: crying, a confessional, a blindside. The most of it wins.",
    "effort": "Pick once, then just watch",
@@ -359,6 +472,14 @@
    "id": "pool",
    "cat": "pools",
    "name": "Survival pool",
+   "aka": [
+    "survivor pool",
+    "eliminator pool",
+    "last man standing"
+   ],
+   "shelves": [
+    "solo"
+   ],
    "plain": "Pick 1 who stays, each week",
    "about": "No team. Before each episode, pick one castaway you think stays in. Every right pick adds to your streak; the longest streak wins.",
    "effort": "1 pick an episode",
@@ -372,6 +493,13 @@
    "id": "lives",
    "cat": "pools",
    "name": "Last one standing",
+   "aka": [
+    "survivor pool with lives",
+    "second chance pool"
+   ],
+   "shelves": [
+    "solo"
+   ],
    "plain": "Pick who stays; 2 lives",
    "about": "Before each episode, pick one castaway you think stays in. A wrong pick costs one of your two lives, and you can buy back in once before the merge.",
    "effort": "1 pick an episode",
@@ -398,6 +526,10 @@
    "id": "norepeat",
    "cat": "pools",
    "name": "No repeats",
+   "aka": [
+    "never twice pool",
+    "use each once"
+   ],
    "plain": "Pick who stays, never twice",
    "about": "Before each episode, pick one castaway you think stays in, never the same one twice. One wrong pick and you're out; the last one left wins.",
    "effort": "1 pick an episode",
@@ -424,6 +556,10 @@
    "id": "picks",
    "cat": "pools",
    "name": "Weekly picks",
+   "aka": [
+    "pick of the week",
+    "weekly pick"
+   ],
    "plain": "Pick 1; get their points",
    "about": "Before each episode, pick one castaway; you get the points they score in it. Pick anyone, even the same one again.",
    "effort": "1 pick an episode",
@@ -450,6 +586,10 @@
    "id": "objectives",
    "cat": "pools",
    "name": "Objectives",
+   "aka": [
+    "missions",
+    "challenges"
+   ],
    "plain": "Pick 3 to hit the week's goals",
    "about": "Each episode comes with five goals, like winning a challenge or finding an idol. Pick three castaways; a point for each goal they hit.",
    "effort": "3 picks an episode",
@@ -494,6 +634,13 @@
    "id": "confidence",
    "cat": "pools",
    "name": "Confidence picks",
+   "aka": [
+    "confidence pool",
+    "ranked picks"
+   ],
+   "shelves": [
+    "predict"
+   ],
    "plain": "Rank who's going home, surest first",
    "about": "Before each episode, rank everyone by how likely they are to go home, surest first. The higher you ranked whoever goes, the more you score.",
    "effort": "A ranking an episode",
@@ -529,6 +676,11 @@
    "id": "sheet",
    "cat": "predict",
    "name": "Prediction sheet",
+   "aka": [
+    "prediction game",
+    "picks sheet",
+    "who goes home"
+   ],
    "plain": "3 guesses before each episode",
    "about": "Before each episode, answer three questions: who goes home, who wins immunity, does anyone find an idol. Points for each right answer.",
    "effort": "3 guesses an episode",
@@ -587,6 +739,11 @@
    "id": "seasonpred",
    "cat": "predict",
    "name": "Season predictions",
+   "aka": [
+    "preseason picks",
+    "winner pick",
+    "final three"
+   ],
    "plain": "Guess the winner and final three",
    "about": "Before it starts, guess the winner and the final three, then watch it play out. 5 points for the winner, 1 for each finalist.",
    "effort": "Once, then just watch",
@@ -634,6 +791,10 @@
    "id": "bootorder",
    "cat": "predict",
    "name": "Boot order",
+   "aka": [
+    "boot list",
+    "elimination order"
+   ],
    "plain": "Guess the order they go home",
    "about": "Before it starts, put everyone in the order you think they'll go home. 2 points for each one within two places.",
    "effort": "Once, then just watch",
@@ -670,6 +831,10 @@
    "cat": "predict",
    "also": "party",
    "name": "Who does it most?",
+   "aka": [
+    "who cries most",
+    "over the season"
+   ],
    "plain": "Who cries most? Or any moment",
    "about": "Pick any moment, even one the show doesn't score, like crying. Guess who does it most by the finale: 5 points if you're right.",
    "effort": "1 guess, then just watch",
@@ -706,6 +871,10 @@
    "id": "calls",
    "cat": "predict",
    "name": "The show's calls",
+   "aka": [
+    "calls",
+    "episode picks"
+   ],
    "plain": "2 guesses each episode",
    "about": "Before each episode, make two guesses about what happens in it. The couch settles them as you watch; the most right wins.",
    "effort": "2 guesses an episode",
@@ -719,6 +888,10 @@
    "id": "livecalls",
    "cat": "predict",
    "name": "Live calls",
+   "aka": [
+    "live picks",
+    "in-play"
+   ],
    "plain": "Guess while it's on; early pays",
    "about": "Guess what happens while it's on, as it unfolds. The earlier you call it, the more it pays.",
    "effort": "Guesses while you watch",
@@ -731,6 +904,10 @@
    "id": "overunder",
    "cat": "predict",
    "name": "Over / under",
+   "aka": [
+    "over under",
+    "totals"
+   ],
    "plain": "Over or under a number?",
    "about": "Will a number end up over or under a line? Idols played this season: over or under 6.5.",
    "effort": "Once, then just watch",
@@ -766,6 +943,10 @@
    "id": "pairs",
    "cat": "predict",
    "name": "Who outlasts whom",
+   "aka": [
+    "head to head picks",
+    "who lasts longer"
+   ],
    "plain": "Pairs: who lasts longer?",
    "about": "Ten pairs of castaways, the same for everyone: guess who lasts longer in each. A point for each one you get.",
    "effort": "Once, then just watch",
@@ -800,6 +981,10 @@
    "id": "split",
    "cat": "predict",
    "name": "The final vote",
+   "aka": [
+    "jury vote",
+    "final vote"
+   ],
    "plain": "Guess the jury's vote split",
    "about": "Guess how the jury splits its votes at the finale. 5 points for the split exactly.",
    "effort": "Once, then just watch",
@@ -833,6 +1018,10 @@
    "id": "quote",
    "cat": "predict",
    "name": "Title quote",
+   "aka": [
+    "title quote",
+    "who says it"
+   ],
    "plain": "Who says the episode's title?",
    "about": "Every episode is named for something someone says in it. Guess who says it; a point if you're right.",
    "effort": "1 guess an episode",
@@ -868,6 +1057,10 @@
    "id": "seal",
    "cat": "predict",
    "name": "Seal your winner",
+   "aka": [
+    "lock your winner",
+    "early winner pick"
+   ],
    "plain": "Guess the winner; early pays more",
    "about": "Guess who wins whenever you're ready: the earlier you call it, the more it's worth. Everyone right splits the points.",
    "effort": "1 guess, change it if you like",
@@ -907,6 +1100,11 @@
    "id": "bank",
    "cat": "bets",
    "name": "Betting pool",
+   "aka": [
+    "betting game",
+    "bankroll",
+    "wagers"
+   ],
    "plain": "Bet points on your guesses",
    "about": "Everyone starts with 500 points to bet on three guesses each episode, or on a ticket of them. Right bets win, wrong ones lose. Points, never money.",
    "effort": "Bets each episode",
@@ -987,7 +1185,12 @@
   {
    "id": "props",
    "cat": "bets",
-   "name": "Prop sheet",
+   "name": "Prop bets",
+   "aka": [
+    "props",
+    "prop sheet",
+    "side bets"
+   ],
    "plain": "A new sheet of bets each week",
    "about": "Each episode brings a sheet of five things to bet on, like who goes home or does anyone go on a journey. Bet from a bank of 500; points, never money.",
    "effort": "Bets each episode",
@@ -1068,7 +1271,11 @@
   {
    "id": "parlay",
    "cat": "bets",
-   "name": "Parlay ticket",
+   "name": "Parlay",
+   "aka": [
+    "parlay ticket",
+    "multi"
+   ],
    "plain": "Both guesses right: triple",
    "about": "Guess who goes home and who wins immunity. Get both right and your points triple.",
    "effort": "A ticket of guesses each episode",
@@ -1124,6 +1331,10 @@
    "id": "pot",
    "cat": "bets",
    "name": "Split the pot",
+   "aka": [
+    "split pot",
+    "pick pot"
+   ],
    "plain": "Everyone right splits 10 points",
    "about": "Each episode, 10 points go to whoever guesses who goes home, split between everyone right: the fewer of you, the more each gets.",
    "effort": "1 guess an episode",
@@ -1159,6 +1370,10 @@
    "id": "double",
    "cat": "bets",
    "name": "Double or nothing",
+   "aka": [
+    "all in",
+    "double up"
+   ],
    "plain": "Bet your points: double or nothing",
    "about": "Guess who goes home and bet any of your points on it. Right, you win as many again; wrong, you lose them.",
    "effort": "1 guess an episode",
@@ -1194,6 +1409,10 @@
    "id": "jackpot",
    "cat": "bets",
    "name": "Jackpot",
+   "aka": [
+    "rollover",
+    "carry over"
+   ],
    "plain": "Nobody right? It rolls over",
    "about": "Guess who goes home. If nobody's right, the points roll over to the next episode and the pot grows.",
    "effort": "1 guess an episode",
@@ -1229,6 +1448,13 @@
    "id": "h2hpicks",
    "cat": "versus",
    "name": "Head-to-head picks",
+   "aka": [
+    "pick'em head to head",
+    "duel"
+   ],
+   "shelves": [
+    "pools"
+   ],
    "plain": "Your pick vs a friend's each week",
    "about": "Before each episode, pick one castaway you think stays in, and play one of the couch: whoever's pick stays wins the episode. Most wins takes it.",
    "effort": "1 pick an episode",
@@ -1245,6 +1471,10 @@
    "id": "teams",
    "cat": "versus",
    "name": "Team battle",
+   "aka": [
+    "team vs team",
+    "tribes"
+   ],
    "plain": "The couch in two teams",
    "about": "The couch splits into two teams at random. Everyone plays their own fantasy team, and a team's score is its players' average.",
    "effort": "Choose who plays each episode",
@@ -1264,6 +1494,10 @@
    "id": "race",
    "cat": "versus",
    "name": "Race to a target",
+   "aka": [
+    "first to",
+    "race"
+   ],
    "plain": "First to 50 points wins",
    "about": "A fantasy league with a finish line: the first to 50 points wins, and the game ends there.",
    "effort": "Choose who plays each episode",
@@ -1283,6 +1517,11 @@
    "id": "coop",
    "cat": "versus",
    "name": "Together vs the show",
+   "aka": [
+    "co-op",
+    "together",
+    "beat the show"
+   ],
    "plain": "Together vs the show; 3 lives",
    "about": "Everyone guesses who goes home, together against the show. You share three lives; an episode nobody gets right costs one.",
    "effort": "1 guess an episode",
@@ -1318,6 +1557,10 @@
    "id": "twovone",
    "cat": "versus",
    "name": "Two against one",
+   "aka": [
+    "2 v 1",
+    "handicap match"
+   ],
    "plain": "Three of you: two against one",
    "about": "For a couch of three: each episode two of you team up against the third, taking turns.",
    "effort": "Choose who plays each episode",
@@ -1330,6 +1573,13 @@
    "id": "bingo",
    "cat": "quiz",
    "name": "Bingo",
+   "aka": [
+    "bingo cards",
+    "drinking game card"
+   ],
+   "shelves": [
+    "party"
+   ],
    "plain": "Tick off moments as they happen",
    "about": "A new bingo card every episode: eight things that might happen. Tick them as they do; three in a row is a line.",
    "effort": "A card while you watch",
@@ -1343,6 +1593,11 @@
    "id": "trivia",
    "cat": "quiz",
    "name": "Trivia",
+   "aka": [
+    "quiz",
+    "pub quiz",
+    "recap quiz"
+   ],
    "plain": "A quiz on the last episode",
    "about": "A few questions about the episode before, the same for everyone. A point for each right answer.",
    "effort": "A quiz an episode",
@@ -1376,6 +1631,9 @@
    "id": "bingotrivia",
    "cat": "quiz",
    "name": "Bingo & trivia",
+   "aka": [
+    "bingo and quiz"
+   ],
    "plain": "A bingo card and a quiz",
    "about": "A bingo card while you watch and a few trivia questions before the next. 5 points a line, 1 a right answer.",
    "effort": "A card and a quiz",
@@ -1435,6 +1693,11 @@
    "id": "traitors",
    "cat": "party",
    "name": "Secret Traitors",
+   "aka": [
+    "mafia",
+    "werewolf",
+    "secret roles"
+   ],
    "plain": "2 of you are secret traitors",
    "about": "Take turns picking three castaways, but two of you are secretly Traitors, scoring when the others' castaways go home. Nobody knows who until the end.",
    "effort": "Pick once, then just watch",
@@ -1456,6 +1719,10 @@
    "id": "host",
    "cat": "party",
    "name": "Rotating host",
+   "aka": [
+    "question master",
+    "game master"
+   ],
    "plain": "Take turns setting the questions",
    "about": "Each episode a different one of you picks three moments for everyone to guess on, and plays too.",
    "effort": "3 guesses an episode",
@@ -1507,6 +1774,13 @@
    "id": "majority",
    "cat": "party",
    "name": "Match the majority",
+   "aka": [
+    "family feud",
+    "guess the room"
+   ],
+   "shelves": [
+    "party"
+   ],
    "plain": "Guess what most of you will say",
    "about": "Guess who goes home, but you score for matching what most of the couch says. Read your friends, not the show.",
    "effort": "1 guess an episode",
@@ -1541,6 +1815,10 @@
    "id": "bounty",
    "cat": "party",
    "name": "Bounty hunters",
+   "aka": [
+    "vote steal",
+    "bounty hunter"
+   ],
    "plain": "Vote theirs out, steal their points",
    "about": "Take turns picking three castaways. When one of yours votes out someone else's, you take 2 points from them.",
    "effort": "Pick once, then just watch",
@@ -1560,6 +1838,10 @@
    "id": "twist",
    "cat": "party",
    "name": "Twist of the week",
+   "aka": [
+    "power up",
+    "chaos"
+   ],
    "plain": "The top scorer picks a twist",
    "about": "A fantasy league where each episode's top scorer picks the next one's twist: double points, or half.",
    "effort": "Choose who plays each episode",
@@ -1591,6 +1873,11 @@
    "id": "solo",
    "cat": "solo",
    "name": "Solo predictions",
+   "aka": [
+    "just me",
+    "practice",
+    "single player"
+   ],
    "plain": "Just you and your guesses",
    "about": "Just you: guess who goes home each episode and see how you do across the season.",
    "effort": "1 guess an episode",
@@ -1625,6 +1912,14 @@
    "id": "beatbot",
    "cat": "solo",
    "name": "Beat the bot",
+   "aka": [
+    "vs the computer",
+    "beat the AI"
+   ],
+   "shelves": [
+    "solo",
+    "predict"
+   ],
    "plain": "Score when the bot is wrong",
    "about": "Guess who goes home. Our bot guesses too; you score when you're right and it's wrong.",
    "effort": "1 guess an episode",
@@ -1663,6 +1958,10 @@
    "cat": "solo",
    "also": "versus",
    "name": "Me vs the bot",
+   "aka": [
+    "computer player",
+    "bot player"
+   ],
    "plain": "Our bot plays as a player",
    "about": "Play any game with our bot as the other player. For when it's just you.",
    "effort": "Any game",
@@ -1675,6 +1974,10 @@
    "id": "minis",
    "cat": "season",
    "name": "Season of mini-games",
+   "aka": [
+    "mini games",
+    "variety"
+   ],
    "plain": "A new game every few weeks",
    "about": "A different game for each stretch of the season: bingo, then a draft, then guesses.",
    "effort": "Changes as it goes",
@@ -1687,6 +1990,10 @@
    "id": "halves",
    "cat": "season",
    "name": "Two halves",
+   "aka": [
+    "pre and post merge",
+    "two leagues"
+   ],
    "plain": "One game to the merge, one after",
    "about": "Two games in one: pick a team until the merge, then a new one after it. Win more halves to win.",
    "effort": "A new team at the merge",
@@ -1738,6 +2045,10 @@
    "id": "redraft",
    "cat": "season",
    "name": "Redraft on a shake-up",
+   "aka": [
+    "redraft",
+    "shake-up draft"
+   ],
    "plain": "New teams when the show changes",
    "about": "Whenever the show shakes things up (a swap, the merge), everyone picks a new team. Points add up across them all.",
    "effort": "A new team at each shake-up",
@@ -1784,6 +2095,10 @@
    "id": "twoshows",
    "cat": "season",
    "name": "Two shows, one league",
+   "aka": [
+    "crossover",
+    "two seasons"
+   ],
    "plain": "One league, two shows",
    "about": "One league across two shows, like Survivor then The Traitors: a team for each, one set of standings.",
    "effort": "A team for each show",
