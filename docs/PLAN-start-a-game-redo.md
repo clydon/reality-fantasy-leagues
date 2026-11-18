@@ -441,6 +441,26 @@ then approval.
       a SKIP with its reason (the jury split runs to the season's end). Run 2026-11-18: sheet, props (48 stakes), beatbot, bank (32
       stakes) at your own pace over Episodes 1-4, all pass (a probe with other stand-in calls had Beat the bot's two computer
       players on 2 each); pairs and boot order (asked once) pass; live: sheet, bank, confidence, pairs start with their answers.
+      **Reviewed** (`/code-review high` on e29bb62f..8ff17c50, 2026-11-18): nine of ten fixed, one not a bug.
+      - A catch-up that jumps several weeks staked later weeks from a room read before the earlier ones were written: bots.ts
+        `catchUpWrite` now goes one seat-week at a time (`catchUpAnswers(…, only)`), each week's room read after the weeks before
+        it are written, on the same transaction's rows.
+      - A late joiner's computer player catching up in a live game answered by its mark, where a person there is refused:
+        `catchUpWeeks` and bots.ts take only `AnswerLogic.ownWeek` seats.
+      - The own-pace lock skipped a hand lock: Backstage's lock before an episode starts (`lineupsLocked`) now closes it for a seat
+        catching up at its own pace too, as `GhostLogic.lateWindow` does for one live at its own pace.
+      - A jury of three could be guessed a split of 3-1: every guess now adds up to the jury.
+      - The page's "Locks when you reveal it" read any late joiner's `catchingUp`: now only a game at your own pace (`g.pace`).
+      - Rooms were read on every write in a staking game: now only for a seat with a staked question still to answer there
+        (`Bots.needsRoom`); `answeredIn` only for a ticket; one `bare()` unwraps a wager; ratings read once for pairs.
+      - check-bots-play-through.js said stakes stay "within what each may stake" but only checked whole numbers: it now checks a
+        bank game's stakes in any one week stay within the bank's start, and says so; stale comments in bot-logic.js and
+        answers.js corrected.
+      - Not a bug: a ticket's once-asked leg. A ticket's legs are asked the same way as the ticket (schema.js's ticket problems), so
+        they share its window.
+      Proof: tests/bots-answer.test.js adds the review's cases (13 tests); the unit suite 2,434 of 2,435 (ui-atlas.test.js's local
+      proxy test failed once in the parallel run and passes alone, 9 of 9: a flake, not this change); check-bots-play-through.js
+      (each week's stakes within the bank: Prop bets at most 440 of 500, Bank 379) and check-start-a-game.js --api all pass.
       **Left for E1b:** a host's card (a computer player writing its card when its turn comes), trivia (the round's key), a side, a
       bracket, a question about each person or game. Then E1d.
     - **E1c. Cards, calls and bingo** (each its own small step, after a named question to the user: a bingo card or a call is

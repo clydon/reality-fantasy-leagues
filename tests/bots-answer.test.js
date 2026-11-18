@@ -189,6 +189,33 @@ test("a card's lines (Prop bets): none while its card isn't out, then each line 
   assert.match(C.botsFit(C.baseById("host").spec), /don't host a card yet/);
 });
 
+test("the review's (E1b): a small jury's split adds up; a live late joiner waits; a hand lock binds; one seat-week; a room only when due", () => {
+  // A cast of 8: a jury of 3, every guess adding up to it.
+  for (const level of ["sharp", "solid", "casual"]) {
+    const s = league([SPLIT], [level, level, level]);
+    for (const a of Bots.answers(s, [], { now: 0 })) assert.equal(a.answer.reduce((x, y) => x + y, 0), 3, JSON.stringify(a));
+  }
+  // A late joiner catching up in a live game answers by the live episode, as a person there does: nothing by its mark.
+  const live = league([OUT]);
+  live.players[1].lateJoin = { startEpisode: 1, catchingUp: true, seenThrough: 0 };
+  assert.deepEqual(Bots.catchUpWeeks(live, null), []);
+  // Backstage's lock by hand binds a seat catching up at its own pace too (as lateWindow).
+  const s = aired([OUT, IDOL], [7, 6, 5]);
+  const out = S.AnswerLogic.questions(s).find((q) => q.id === "out");
+  assert.ok(!S.AnswerLogic.closed(s, out, 3, { mark: 2, player: "ann" }));
+  s.episodes.find((e) => e.number === 3).lineupsLocked = true;
+  assert.ok(S.AnswerLogic.closed(s, out, 3, { mark: 2, player: "ann" }), "locked by hand: closed for her too");
+  // One seat-week at a time (the server's, so each week's room follows the weeks before it).
+  const t = aired([OUT, IDOL], [7, 6, 5]);
+  const one = Bots.catchUpAnswers(t, [], 2, undefined, { playerId: "bot1", week: 2 });
+  assert.deepEqual([...new Set(one.map((a) => `${a.playerId} ${a.episode}`))], ["bot1 2"]);
+  // A room is read only while a staked question is still to answer there.
+  const b = banked();
+  assert.ok(Bots.needsRoom(b, [], "bot0", null), "nothing answered: the room's needed");
+  const due = Bots.answers(b, [], { now: 0, rooms: new Map([["bot0|live", { points: 500, held: new Map() }]]) });
+  assert.ok(!Bots.needsRoom(b, due, "bot0", null), "all answered: no room read");
+});
+
 test("the gallery's Computer players square says the same: on for questions they answer, dashed with the reason for the rest", () => {
   assert.equal(C.botsFit(game([OUT, IDOL, WINS, HOW])), null);
   assert.match(C.botsFit(game([OUT, TRIVIA])), /don't answer "Trivia about the episode before" yet/);

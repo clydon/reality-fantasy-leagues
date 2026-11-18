@@ -8948,7 +8948,11 @@ class AnswerLogic {
       const last = lastEpisode(state);
       if(last !== null && opt.mark >= last) return true;
       const at = AnswerLogic.closesAt(state, q, episode, opt.finale);
-      return at !== null && at <= opt.mark;
+      if(at === null) return false;
+      // Whoever runs the game locked it by hand before it started (Backstage's lock, ep.lineupsLocked): the one exception to the
+      // game's pace, for everyone (as GhostLogic.lateWindow).
+      const lockEp = (state.episodes || []).find(e => e.number === at);
+      return at <= opt.mark || !!(lockEp && lockEp.lineupsLocked);
     }
     if(gameOver(state)) return true;
     const at = AnswerLogic.closesAt(state, q, episode, opt.finale);

@@ -1414,7 +1414,7 @@ function factsThrough(facts, k) {
 
 // ---- computer players (docs/PLAN-start-a-game-redo.md E1b) ----
 
-/** The answer kinds a computer player gives (bot-logic.js answers); the rest wait for E1b's second slice. */
+/** The answer kinds a computer player gives (bot-logic.js answers); the rest (trivia, a side, a bracket) wait. */
 const BOT_ANSWERS = ['person', 'group', 'yesNo', 'number', 'overUnder', 'choice', 'order', 'confidence', 'chips', 'pairs', 'split', 'ticket'];
 /** Whether a computer player answers this question: one of BOT_ANSWERS (staked too, and a card's lines once the card's out: E1b's
  *  second slice), and not about each person or game, a line of a host's card (a computer player hosting would have to write one:

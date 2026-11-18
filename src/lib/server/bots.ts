@@ -40,18 +40,31 @@ async function writeAnswers(client: Client, leagueId: string, due: (Answered & {
     );
   }
 }
-/** Each computer player's room to stake (E1b's second slice), read as a person's is (answer-points.ts seatStakeRoom), for a game
- *  where any question they answer is staked from points or a bank: live ones as their points stand ("seat|live"), and each one
- *  catching up at the week before each week it answers ("seat|mark"). None otherwise. */
-async function roomsFor(leagueId: string, state: LeagueState, rows: AnswerRow[], live: boolean, n: number | null | undefined): Promise<Map<string, StakeRoom> | undefined> {
+/** Each live computer player's room to stake (E1b's second slice), read as a person's is (answer-points.ts seatStakeRoom), for one
+ *  with a question staked from its points or a bank still to answer this week ("seat|live"); none otherwise. */
+async function liveRooms(leagueId: string, state: LeagueState, rows: AnswerRow[]): Promise<Map<string, StakeRoom> | undefined> {
   if (!Bots.stakesPoints(state)) return undefined;
-  const { seatStakeRoom } = await points();
   const rooms = new Map<string, StakeRoom>();
-  if (live) for (const pid of Bots.botIds(state)) rooms.set(`${pid}|live`, await seatStakeRoom(leagueId, state, pid, null, rows));
-  if (n !== undefined) for (const { playerId, week } of Bots.catchUpWeeks(state, n)) rooms.set(`${playerId}|${week - 1}`, await seatStakeRoom(leagueId, state, playerId, week - 1, rows));
+  for (const pid of Bots.botIds(state)) if (Bots.needsRoom(state, rows, pid, null)) rooms.set(`${pid}|live`, await (await points()).seatStakeRoom(leagueId, state, pid, null, rows));
   return rooms;
 }
-const catchingUp = (state: LeagueState) => state.players.some((p) => Bots.isBot(p) && StateLogic.GhostLogic.isCatchingUp(state, p.id));
+/** Computer players catching up at their own pace answer each week, one seat-week at a time, through the week after `n` (null: its own
+ *  mark): each week's room (where it has a staked question there) read after the weeks before it are written, so a jump of several
+ *  weeks stakes as their bets settled. Written on the caller's transaction; `rows` (the game's answers) grows with them. */
+async function catchUpWrite(client: Client, leagueId: string, state: LeagueState, rows: AnswerRow[], n: number | null): Promise<number> {
+  const stakes = Bots.stakesPoints(state);
+  let made = 0;
+  for (const only of Bots.catchUpWeeks(state, n)) {
+    const room = stakes && Bots.needsRoom(state, rows, only.playerId, only.week) ? await (await points()).seatStakeRoom(leagueId, state, only.playerId, only.week - 1, rows) : null;
+    const due = Bots.catchUpAnswers(state, rows, n, room ? new Map([[`${only.playerId}|${only.week - 1}`, room]]) : undefined, only);
+    await writeAnswers(client, leagueId, due);
+    rows.push(...due.map((d) => ({ ...d, late: 0, changes: 0 })));
+    made += due.length;
+  }
+  return made;
+}
+// Catching up at its own pace (AnswerLogic.ownWeek): it answers by its own mark, as a person there does.
+const catchingUp = (state: LeagueState) => state.players.some((p) => Bots.isBot(p) && StateLogic.AnswerLogic.ownWeek(state, p.id));
 
 /**
  * At your own pace (E1b's second slice): computer players catch up to `n` with whoever revealed it first, answering each week's
@@ -59,10 +72,7 @@ const catchingUp = (state: LeagueState) => state.players.some((p) => Bots.isBot(
  * playing its picks and lineups (catchUpTo). Inside the caller's league lock (reveal.ts, late-join.ts).
  */
 export async function catchUpBots(client: PoolClient, leagueId: string, state: LeagueState, n: number): Promise<void> {
-  if (Bots.answeredQuestions(state).length && catchingUp(state)) {
-    const rows = await storedAnswers(leagueId, client);
-    await writeAnswers(client, leagueId, Bots.catchUpAnswers(state, rows, n, await roomsFor(leagueId, state, rows, false, n)));
-  }
+  if (Bots.answeredQuestions(state).length && catchingUp(state)) await catchUpWrite(client, leagueId, state, await storedAnswers(leagueId, client), n);
   Bots.catchUpTo(state, n);
 }
 
@@ -79,8 +89,8 @@ export async function answerForBots(client: Client, leagueId: string, state: Lea
   const behind = catchingUp(state);
   if (!live && !behind) return 0;
   const stored = await storedAnswers(leagueId, client);
-  const rooms = await roomsFor(leagueId, state, stored, live, behind ? null : undefined);
-  const due = [...(live ? Bots.answers(state, stored, { now, rooms }) : []), ...(behind ? Bots.catchUpAnswers(state, stored, null, rooms) : [])];
+  const due = live ? Bots.answers(state, stored, { now, rooms: await liveRooms(leagueId, state, stored) }) : [];
   await writeAnswers(client, leagueId, due);
-  return due.length;
+  stored.push(...due.map((d) => ({ ...d, late: 0, changes: 0 })));
+  return due.length + (behind ? await catchUpWrite(client, leagueId, state, stored, null) : 0);
 }

@@ -552,8 +552,9 @@ function hasWork(state) {
 // best rated; yes or no, a number, over or under, a choice: its taste for that question that episode, a sharp player leaning to
 // what usually happens (no, the low count). Deterministic like the rest: run twice, the second run has nothing to add.
 //
-// The kinds it answers; the rest (an order, confidence, chips, pairs, a split, trivia, a side, a bracket, a ticket, a stake from a
-// bank, a card's lines, Weekly Calls) wait, and the gallery says so (start-gallery/index.js botsFit keeps the same list).
+// The kinds it answers (Spec.BOT_ANSWERS: E1b's second slice added an order, confidence, chips, pairs, a split and a ticket, stakes
+// and a card's lines); the rest (trivia, a side, a bracket, a question about each person or game, a host's card) wait, and the
+// gallery says so (start-gallery/index.js botsFit reads the same rule). Weekly Calls are calls.ts's (botCalls).
 const ANSWERS = Spec.BOT_ANSWERS;
 /** Whether a computer player answers this question (the spec's one rule: game-spec answers.js botAnswers). */
 const answersQuestion = (q) => Spec.botAnswers(q);
@@ -570,9 +571,11 @@ function answeredQuestions(state) {
 function inState(state, q) {
   return !!StateLogic.finaleOfGame(state) && (q.id === "top3" || q.id === "winner");
 }
+// A wager (E1b's second slice): its answer is the question's own; its stake is added where what it may stake is known (staked). A
+// ticket keeps its own (its stake is part of its answer).
+const bare = (q) => (q.wager !== undefined && q.answer !== "ticket" ? Spec.unwagered(q) : q);
 function answerFor(state, playerId, q0, faces, ep, answered) {
-  // A wager (E1b's second slice): its answer is the question's own; its stake is added where what it may stake is known (staked).
-  const q = q0.wager !== undefined && q0.answer !== "ticket" ? Spec.unwagered(q0) : q0;
+  const q = bare(q0);
   const level = levelOf(state, playerId);
   const ids = faces.map((f) => f.id);
   const feel = (key) => hashOf(`${playerId}|${q.id}|${ep}|${key}`);
@@ -616,8 +619,8 @@ function answerFor(state, playerId, q0, faces, ep, answered) {
     const pairs = Spec.pairsFrom(q, StateLogic.AnswerLogic.startIn(state));
     if (!pairs.length) return null;
     const inNow = new Set(ids);
-    const r = ratings(state, level);
-    const lasts = (id) => (inNow.has(id) ? 1000 : 0) + (r[id] ? r[id].safety : 0) + taste(playerId, `${q.id}|${id}`, level) * 2;
+    rate = rate || ratings(state, level);
+    const lasts = (id) => (inNow.has(id) ? 1000 : 0) + (rate[id] ? rate[id].safety : 0) + taste(playerId, `${q.id}|${id}`, level) * 2;
     return Object.fromEntries(pairs.map((p) => [Spec.pairKey(p), lasts(p[0]) >= lasts(p[1]) ? p[0] : p[1]]));
   }
   // A ticket: its fewest legs, picked by its taste from the questions it's built of that it has answered that week (`answered`: a
@@ -631,7 +634,8 @@ function answerFor(state, playerId, q0, faces, ep, answered) {
   // A jury's split: a guess sized to the cast (a jury of about half of who's left after the final three), lopsided for a sharp one.
   if (q.answer === "split") {
     const jury = Math.max(3, Math.round(((state.castaways || []).length - 3) / 2));
-    const shapes = [[jury - 2, 2], [jury - 1, 1], [jury], [jury - 3, 3], [jury - 3, 2, 1], [jury - 4, 3, 1]].map((s) => s.filter((n) => n > 0));
+    // Each one a split this jury can give (every vote cast; a small jury has fewer).
+    const shapes = [[jury - 2, 2], [jury - 1, 1], [jury], [jury - 3, 3], [jury - 3, 2, 1], [jury - 4, 3, 1]].filter((s) => s.every((n) => n > 0));
     return shapes[Math.floor(feel("split") * (level.read >= LEVELS.sharp.read ? 3 : shapes.length))];
   }
   // A sharp player leans hardest to what usually happens (nothing; the low end), a normal one less, an easy one goes on its gut.
@@ -671,6 +675,24 @@ function mostFor(state, q, key, room, staking) {
 const answeredIn = (stored, out, pid, ep) => new Set([...(stored || []), ...out].filter((r) => r.playerId === pid && r.episode === ep).map((r) => r.question));
 /** Tickets last: a ticket's legs are its own answers, made first. */
 const ticketsLast = (qs) => [...qs.filter((q) => q.answer !== "ticket"), ...qs.filter((q) => q.answer === "ticket")];
+/** Whether a seat has a question staked from its points or a bank still to answer (`week`: a catching-up seat's week, on its copy
+ *  before it; null: playing live, this week's): open, its card out, not answered. The server reads its room only then (bots.ts). */
+function needsRoom(state, stored, pid, week) {
+  const AL = StateLogic.AnswerLogic;
+  const bank = Spec.bankOf(StateLogic.gameOf(state));
+  const qs = answeredQuestions(state).filter((q) => Spec.drawsOnBank(q, bank));
+  if (!qs.length) return false;
+  const have = new Set((stored || []).filter((r) => r.playerId === pid).map((r) => `${r.question}|${r.episode}`));
+  const at = week === null ? state : StateLogic.GhostLogic.viewFor(state, pid, week - 1);
+  const now = week === null ? AL.episodeNow(state) : week;
+  const choices = AL.cardChoices(at);
+  return qs.some((q) => {
+    const ep = q.asked === "once" ? 0 : AL.windowAt(at, q, now, week === null ? undefined : week - 1);
+    if (ep === null || ep === undefined || (week !== null && q.asked !== "once" && ep !== week) || have.has(`${q.id}|${ep}`)) return false;
+    if (Spec.isCardLine(q) && Spec.cardWaiting(q, ep, choices ? choices.get(ep) : undefined)) return false;
+    return !AL.closed(at, q, ep, week === null ? {} : { mark: week - 1, player: pid });
+  });
+}
 /** Whether any question it answers is staked from points or a bank: the server reads each seat's room for those (bots.ts). */
 function stakesPoints(state) {
   const bank = Spec.bankOf(StateLogic.gameOf(state));
@@ -697,7 +719,7 @@ function oneAnswer(state, pid, q, ep, room, staking, answered) {
 /** What an answer is checked against, as answers.ts checks a person's: who it can name or rank or put chips on (still in), each pair's
  *  "pair:who"; nothing for the rest. */
 function faceSet(state, q0, faces) {
-  const q = q0.wager !== undefined && q0.answer !== "ticket" ? Spec.unwagered(q0) : q0;
+  const q = bare(q0);
   if (Spec.NAMES.includes(q.answer) || Spec.RANKS.includes(q.answer) || q.answer === "chips") return new Set(faces.map((f) => f.id));
   if (q.answer === "pairs") return new Set(Spec.pairsFrom(q, StateLogic.AnswerLogic.startIn(state)).flatMap((p) => p.map((id) => `${Spec.pairKey(p)}:${id}`)));
   return undefined;
@@ -722,7 +744,7 @@ function answers(state, stored, o) {
       const ep = q.asked === "once" ? 0 : AL.windowAt(state, q, now);
       if (ep === null || ep === undefined || have.has(`${pid}|${q.id}|${ep}`)) continue;
       if (AL.closed(state, q, ep, { now: opt.now, finale: opt.finale })) continue;
-      const value = oneAnswer(state, pid, q, ep, opt.rooms ? opt.rooms.get(`${pid}|live`) : null, staking, answeredIn(stored, out, pid, ep));
+      const value = oneAnswer(state, pid, q, ep, opt.rooms ? opt.rooms.get(`${pid}|live`) : null, staking, q.answer === "ticket" ? answeredIn(stored, out, pid, ep) : null);
       if (value === null) continue;
       out.push({ playerId: pid, question: q.id, episode: ep, answer: value });
     }
@@ -736,14 +758,17 @@ function answers(state, stored, o) {
  * before that week (GhostLogic.viewFor at the week before: that week's results unseen), so nothing it answers knows the outcome.
  * Call before catchUpTo moves them on (bots.ts catchUpBots), and after every write for their next week (answerForBots).
  */
-function catchUpAnswers(state, stored, n, rooms) {
+function catchUpAnswers(state, stored, n, rooms, only) {
   const G = StateLogic.GhostLogic;
   const AL = StateLogic.AnswerLogic;
   const qs = ticketsLast(answeredQuestions(state));
   if (!qs.length) return [];
   const have = new Set((stored || []).map((r) => `${r.playerId}|${r.question}|${r.episode}`));
   const out = [];
-  catchUpWeeks(state, n).forEach(({ playerId: pid, week }) => {
+  // `only` ({ playerId, week }): that one seat-week (the server goes a week at a time where stakes need each week's room as the weeks
+  // before it left it).
+  const weeks = only ? [only] : catchUpWeeks(state, n);
+  weeks.forEach(({ playerId: pid, week }) => {
     let view = null;
     const staking = new Map();
     for (const q of qs) {
@@ -754,7 +779,7 @@ function catchUpAnswers(state, stored, n, rooms) {
       if (ep === null || ep === undefined || (q.asked !== "once" && ep !== week)) continue;
       const key = `${pid}|${q.id}|${ep}`;
       if (have.has(key) || AL.closed(view, q, ep, { mark: week - 1, player: pid })) continue;
-      const value = oneAnswer(view, pid, q, ep, rooms ? rooms.get(`${pid}|${week - 1}`) : null, staking, answeredIn(stored, out, pid, ep));
+      const value = oneAnswer(view, pid, q, ep, rooms ? rooms.get(`${pid}|${week - 1}`) : null, staking, q.answer === "ticket" ? answeredIn(stored, out, pid, ep) : null);
       if (value === null) continue;
       have.add(key);
       out.push({ playerId: pid, question: q.id, episode: ep, answer: value });
@@ -768,7 +793,9 @@ function catchUpWeeks(state, n) {
   const G = StateLogic.GhostLogic;
   const aired = new Set(state.episodes.map((e) => e.number));
   const out = [];
-  state.players.filter((p) => isBot(p) && G.isCatchingUp(state, p.id)).forEach((p) => {
+  // Only a seat that answers by its own mark (catching up at your own pace: AnswerLogic.ownWeek), as answers.ts lets a person; a late
+  // joiner catching up in a live game waits for the live episode, as a person there does.
+  state.players.filter((p) => isBot(p) && StateLogic.AnswerLogic.ownWeek(state, p.id)).forEach((p) => {
     const lj = p.lateJoin;
     if (!lj || !Number.isInteger(lj.seenThrough)) return;
     const to = Math.max(Number.isInteger(n) ? n : lj.seenThrough, lj.seenThrough) + 1;
@@ -777,4 +804,4 @@ function catchUpWeeks(state, n) {
   return out;
 }
 
-module.exports = { LEVELS, DEFAULT_LEVEL, isBot, botIds, ratings, run, hasWork, catchUpTo, paceTeams, blindSubmissions, auctionBids, waiverClaim, groupSlotPicks, ANSWERS, answersQuestion, answersAll, answeredQuestions, answers, catchUpAnswers, catchUpWeeks, stakesPoints };
+module.exports = { LEVELS, DEFAULT_LEVEL, isBot, botIds, ratings, run, hasWork, catchUpTo, paceTeams, blindSubmissions, auctionBids, waiverClaim, groupSlotPicks, ANSWERS, answersQuestion, answersAll, answeredQuestions, answers, catchUpAnswers, catchUpWeeks, stakesPoints, needsRoom };

@@ -52,7 +52,9 @@ export function answeredQuestions(state: LeagueState): unknown[];
 export function answers(state: LeagueState, stored: { playerId: string; question: string; episode: number }[], o?: { now?: number; finale?: number | null; rooms?: Map<string, StakeRoom> }): { playerId: string; question: string; episode: number; answer: unknown }[];
 /** At your own pace: the answers each catching-up computer player gives as it reaches each week, through the week after `n` (null:
  *  its own mark), each on its own copy before that week (call before catchUpTo). */
-export function catchUpAnswers(state: LeagueState, stored: { playerId: string; question: string; episode: number }[], n: number | null, rooms?: Map<string, StakeRoom>): { playerId: string; question: string; episode: number; answer: unknown }[];
+export function catchUpAnswers(state: LeagueState, stored: { playerId: string; question: string; episode: number }[], n: number | null, rooms?: Map<string, StakeRoom>, only?: { playerId: string; week: number }): { playerId: string; question: string; episode: number; answer: unknown }[];
+/** Whether a seat has a question staked from its points or a bank still to answer (`week`: a catching-up seat's; null: live). */
+export function needsRoom(state: LeagueState, stored: { playerId: string; question: string; episode: number }[], playerId: string, week: number | null): boolean;
 /** A seat's room to stake (answer-points.ts seatStakeRoom), keyed "seat|live" or "seat|mark". */
 export type StakeRoom = { points: number; held: Map<string, number> };
 /** The weeks each catching-up computer player answers for, through the week after `n` (null: its own mark). */

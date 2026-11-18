@@ -4,7 +4,8 @@
 // check reads game_answers and the season's games read.
 //   - every computer player answers every question the game asks each week it plays (a card's lines and a ticket too), through
 //     the game's last episode and none after it;
-//   - staked answers stay within what each may stake;
+//   - staked answers are whole numbers of points, and in a game with a bank (C6) a computer player's stakes in any one week add up to
+//     no more than the bank's start (the room itself, its points as they stand, is the unit tests': tests/bots-answer.test.js);
 //   - the games read lists them as computer players with a total, and the game is over once alex has revealed its last;
 //   - Beat the bot: our bot's call each week is written as the stand-in's (bot_calls made_by 'stand-in': the lane's AI keys are
 //     blank), someone still in going into it, so the game grades.
@@ -104,8 +105,15 @@ const check = (ok, what, more) => {
         for (let n = from; n <= to; n++) weeks.push(weekOf(rows, n).length);
         if (perWeek) check(weeks.every((k) => k === perWeek * bots.length) && weekOf(rows, to + 1).length === 0, `${id}: every week through Episode ${to}, each computer player answers all ${perWeek}; none after (${weeks.join(", ")})`);
         if (perGame) check(weekOf(rows, 0).length === perGame * bots.length, `${id}: what's asked once, answered once each (${weekOf(rows, 0).length})`);
-        const stakes = rows.filter((r) => bots.includes(r.player_id) && r.answer && typeof r.answer === "object" && "stake" in r.answer).map((r) => r.answer.stake);
+        const staked = rows.filter((r) => bots.includes(r.player_id) && r.answer && typeof r.answer === "object" && "stake" in r.answer);
+        const stakes = staked.map((r) => r.answer.stake);
         if (stakes.length) check(stakes.every((n) => Number.isInteger(n) && n >= 0), `${id}: ${stakes.length} stakes, each a whole number of points`);
+        const bank = spec.score && spec.score.bank && spec.score.bank.start;
+        if (stakes.length && bank) {
+          const weekly = new Map();
+          for (const r of staked) weekly.set(`${r.player_id}|${r.episode}`, (weekly.get(`${r.player_id}|${r.episode}`) || 0) + r.answer.stake);
+          check([...weekly.values()].every((n) => n <= bank), `${id}: each computer player's stakes in a week within the bank's ${bank} (most ${Math.max(...weekly.values())})`);
+        }
       }
       const read = (await alex.call("GET", `/api/seasons/${fx.seasonId}/games?couch=${fx.couchId}`)).body;
       const game = (read.games || []).find((g) => g.leagueId === leagueId);
