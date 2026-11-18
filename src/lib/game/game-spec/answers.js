@@ -1412,4 +1412,15 @@ function factsThrough(facts, k) {
   };
 }
 
-module.exports = { WAITING, DRAW, lineKey, readsTimeline, verdictOf, rightAnswers, pointsFor, windowPoints, wagerParts, stakeLines, unwagered, ticketVerdict, allRight, shrunk, isRight, answerProblem, spanEpisodes, pairsFrom, pairKey, windowOf, factsThrough, botKey, botCall, botRight };
+// ---- computer players (docs/PLAN-start-a-game-redo.md E1b) ----
+
+/** The answer kinds a computer player gives (bot-logic.js answers); the rest wait for E1b's second slice. */
+const BOT_ANSWERS = ['person', 'group', 'yesNo', 'number', 'overUnder', 'choice'];
+/** Whether a computer player answers this question: one of BOT_ANSWERS, and not about each person or game, staked, a card's line
+ *  or an over/under on the game's own line (read from ESPN as it opens). The gallery (start-gallery botsFit) and the server
+ *  (computer-players.ts botsPlay, through bot-logic.js) both read this one rule. */
+function botAnswers(q) {
+  return !!q && BOT_ANSWERS.includes(q.answer) && !q.each && !q.wager && !q.stake && !q.card && !(q.answer === 'overUnder' && q.line === 'game');
+}
+
+module.exports = { BOT_ANSWERS, botAnswers, WAITING, DRAW, lineKey, readsTimeline, verdictOf, rightAnswers, pointsFor, windowPoints, wagerParts, stakeLines, unwagered, ticketVerdict, allRight, shrunk, isRight, answerProblem, spanEpisodes, pairsFrom, pairKey, windowOf, factsThrough, botKey, botCall, botRight };

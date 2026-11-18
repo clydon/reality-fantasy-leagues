@@ -554,20 +554,17 @@ function hasWork(state) {
 //
 // The kinds it answers; the rest (an order, confidence, chips, pairs, a split, trivia, a side, a bracket, a ticket, a stake from a
 // bank, a card's lines, Weekly Calls) wait, and the gallery says so (start-gallery/index.js botsFit keeps the same list).
-const ANSWERS = ["person", "group", "yesNo", "number", "overUnder", "choice"];
-/** Whether a computer player answers this question (E1b's first slice). */
-function answersQuestion(q) {
-  if (!q || !ANSWERS.includes(q.answer)) return false;
-  if (q.each || q.wager || q.stake || q.card || Spec.isCalls(q) || Spec.isTicket(q) || Spec.isTrivia(q)) return false;
-  if (q.answer === "overUnder" && q.line === Spec.LINE_GAME) return false;
-  return true;
-}
-/** Whether computer players play every question this game asks (none: a game with no questions of its own). */
+const ANSWERS = Spec.BOT_ANSWERS;
+/** Whether a computer player answers this question (the spec's one rule: game-spec answers.js botAnswers). */
+const answersQuestion = (q) => Spec.botAnswers(q);
+/** Whether computer players play every question this game asks that's kept outside its state (a draft's finale picks are
+ *  finalePicks'): none, a game with no questions of its own. */
 function answersAll(state) {
-  return AnswerLogicOf().questions(state).filter((q) => !Spec.isCalls(q)).every(answersQuestion);
+  return StateLogic.AnswerLogic.questions(state).filter((q) => !Spec.isCalls(q) && !inState(state, q)).every(answersQuestion);
 }
-function AnswerLogicOf() {
-  return StateLogic.AnswerLogic;
+/** The questions a computer player answers into game_answers (bots.ts reads the table only for a game that has one). */
+function answeredQuestions(state) {
+  return StateLogic.AnswerLogic.questions(state).filter((q) => !Spec.isCalls(q) && answersQuestion(q) && !inState(state, q));
 }
 // The finale picks a draft keeps in its state (top3, winner): finalePicks plays those.
 function inState(state, q) {
@@ -590,8 +587,8 @@ function answerFor(state, playerId, q, faces, ep) {
     const n = Math.max(1, Math.min(q.pick || 1, best.length));
     return n === 1 ? best[0] : best.slice(0, n);
   }
-  // A sharp player leans to what usually happens (nothing; the low end); an easy one goes more on its gut.
-  const lean = level.read >= 1 ? 0.3 : level.read >= 0.6 ? 0.4 : 0.5;
+  // A sharp player leans hardest to what usually happens (nothing; the low end), a normal one less, an easy one goes on its gut.
+  const lean = level.read >= LEVELS.sharp.read ? 0.25 : level.read >= LEVELS.solid.read ? 0.35 : 0.5;
   if (q.answer === "yesNo") return feel("yn") < lean ? "yes" : "no";
   if (q.answer === "overUnder") return feel("ou") < lean ? "over" : "under";
   if (q.answer === "choice") {
@@ -600,7 +597,8 @@ function answerFor(state, playerId, q, faces, ep) {
     const i = Math.min(opts.length - 1, Math.floor(feel("ch") * (feel("lo") < lean ? opts.length : Math.ceil(opts.length / 2))));
     return opts[i];
   }
-  if (q.answer === "number") return [1, 2, 0, 3, 4, 5][Math.floor(feel("n") * 3)];
+  // A count: the low end for a sharp one (things rarely happen twice), wider for an easy one.
+  if (q.answer === "number") return [1, 0, 2, 3][Math.floor(feel("n") * (level.read >= LEVELS.solid.read ? 2 : 4))];
   return null;
 }
 /**
@@ -611,7 +609,7 @@ function answerFor(state, playerId, q, faces, ep) {
 function answers(state, stored, o) {
   const opt = o || {};
   const AL = StateLogic.AnswerLogic;
-  const qs = AL.questions(state).filter((q) => !Spec.isCalls(q) && answersQuestion(q) && !inState(state, q));
+  const qs = answeredQuestions(state);
   const bots = botIds(state);
   if (!qs.length || !bots.length) return [];
   const have = new Set((stored || []).map((r) => `${r.playerId}|${r.question}|${r.episode}`));
@@ -633,4 +631,4 @@ function answers(state, stored, o) {
   return out;
 }
 
-module.exports = { LEVELS, DEFAULT_LEVEL, isBot, botIds, ratings, run, hasWork, catchUpTo, paceTeams, blindSubmissions, auctionBids, waiverClaim, groupSlotPicks, ANSWERS, answersQuestion, answersAll, answers };
+module.exports = { LEVELS, DEFAULT_LEVEL, isBot, botIds, ratings, run, hasWork, catchUpTo, paceTeams, blindSubmissions, auctionBids, waiverClaim, groupSlotPicks, ANSWERS, answersQuestion, answersAll, answeredQuestions, answers };

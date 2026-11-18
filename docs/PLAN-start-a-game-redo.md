@@ -352,6 +352,16 @@ then approval.
       players has their six answers in at once; a Bingo card refused; the square offered on a Prediction sheet and dashed on Bingo);
       the whole unit suite (2,427) passes. Also: tests/pieces.test.js's guard now reads the catalog's own kinds as kinds (`KIND`),
       which it had flagged since Round 2.
+      **Reviewed** (`/code-review high` on the E1 commits, 2026-11-18), all ten fixed and re-checked (2,429 unit tests;
+      check-start-a-game.js all pass): own pace counts a game set to it (the lock card), not only a season that's aired, and lives in
+      `botsPlay` (Backstage's add follows it), while a draft with finale picks at your own pace still takes them; Weekly Calls and
+      Bingo say why by their preset; a stake says "Computer players don't stake points yet"; Sharp and Normal differ on yes or no,
+      over or under, a choice and a count; the write after a start can't fail it; one rule for which questions they answer
+      (game-spec answers.js `botAnswers`, read by bot-logic and the gallery); bots.ts reads the table only for a game with such a
+      question. So on a show's game, which starts at your own pace, Computer players on a game of questions wait until Together is
+      chosen, and the square says so.
+      Noticed: with no results yet, a computer player's "who goes home" and "who wins immunity" can name the same person (its taste
+      is the only signal before results); they part as results come in.
       **Left for E1b's second slice:** the held-back kinds above (an order and confidence from the ratings; chips spread by them;
       pairs; a stake: a share of the bank by level); answers at your own pace (catchUpTo answering each episode as the bot reaches
       it); a prop card with wagers and Beat the bot played to their ends with computer players.

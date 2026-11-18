@@ -232,8 +232,6 @@ export async function startFromSpec(
         st.aboutOf = gameFingerprint(StateLogic.gameOf(s));
       }
       if (bots && !botsPlay(s)) throw new HttpError(409, "Computer players don't play this game");
-      // E1b: at your own pace a computer player catches up on its own copy, where it answers no questions yet.
-      if (bots && opts.ownPace && StateLogic.AnswerLogic.questions(s).length) throw new HttpError(409, "At your own pace, computer players answer questions later");
       if (StateLogic.readsPhases(s) || StateLogic.startPhase(s) || StateLogic.endPhase(s)) {
         settleIn(s, await leaguePhases(client, id, seasonId), await scheduleOf(seasonId, now), now);
         settled = StateLogic.startEpisode(s);
@@ -261,6 +259,8 @@ export async function startFromSpec(
       // From an episode still to air: at your own pace (made and drafted as a live game, waiting for people from its first results
       // on), or strict.
       applyPace(s, opts, pace);
+      // E1b: and once the pace is set, at your own pace a game of questions takes none yet (botsPlay reads it).
+      if (bots && !botsPlay(s)) throw new HttpError(409, "At your own pace, computer players answer questions later");
       await recordChange(client, id, s, {
         userId: user.id,
         kind: "game.start",
@@ -283,7 +283,8 @@ export async function startFromSpec(
   }
   // Computer players answering questions (E1b): a write through the league's lock runs them, so their answers to the first open
   // questions are in from the start (bots.ts answerForBots).
-  if (bots) await withLeagueLock(leagueId, () => undefined);
+  // A failure here doesn't undo a game that's made: their answers then come with the next write to it.
+  if (bots) await withLeagueLock(leagueId, () => undefined).catch((e) => console.error(`[start-spec] computer players' first answers for ${leagueId}:`, e));
   const linked = await linkIn(leagueId, here, user.id).catch((e) => {
     console.error(`[start-spec] couldn't link ${leagueId}:`, e);
     return false;

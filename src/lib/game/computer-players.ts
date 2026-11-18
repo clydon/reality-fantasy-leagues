@@ -37,7 +37,9 @@ export const levelOf = (p: Seat): BotLevel => LEVEL_OF[p.botLevel ?? "solid"] ??
 export function botsPlay(s: LeagueState): boolean {
   const t = StateLogic.piecesOf(s);
   if (t.hasCalls || t.hasBingo) return false;
-  if (t.hasQuestions) return Bots.answersAll(s);
+  // At your own pace (a season that's aired, or a game set to it) a computer player catches up on its own copy, where it answers
+  // nothing yet (E1b's second slice): a game of questions waits there, whichever way they'd join (Start a game, Backstage).
+  if (t.hasQuestions) return Bots.answersAll(s) && !(StateLogic.GhostLogic.ownPace(s) && Bots.answeredQuestions(s).length > 0);
   return !!(t.hasRoster || t.hasWeeklyPicks);
 }
 

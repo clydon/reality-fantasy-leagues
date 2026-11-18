@@ -46,5 +46,7 @@ export const ANSWERS: string[];
 export function answersQuestion(q: unknown): boolean;
 /** Whether computer players play every question this game asks. */
 export function answersAll(state: LeagueState): boolean;
+/** The questions a computer player answers into game_answers. */
+export function answeredQuestions(state: LeagueState): unknown[];
 /** The answers computer players would give now (the server writes them into game_answers: bots.ts). */
 export function answers(state: LeagueState, stored: { playerId: string; question: string; episode: number }[], o?: { now?: number; finale?: number | null }): { playerId: string; question: string; episode: number; answer: unknown }[];

@@ -17,7 +17,7 @@
 //   rowLine(row, spec, pg) what a row says on the base's screen ("Head to head · the top 2 meet in a final")
 //   homesOf()              every VOCAB value's home: [{ value, row, change, control }] (the coverage table's)
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ../game-spec/schema.js */
-const S = require('../game-spec/schema.js');
+const S = { ...require('../game-spec/schema.js'), ...require('../game-spec/answers.js') };
 const { describeSpec } = require('../game-spec/describe.js');
 const R = require('../game-spec/roll.js');
 const DATA = require('./bases.json');
@@ -1104,20 +1104,21 @@ function changeStates(spec, row, pg) {
 const changeById = (id) => CHANGES.find((c) => c.id === id) || null;
 /** Why computer players can't play this game yet, or null (E1a; mirrors computer-players.ts botsPlay on the spec's kind: a draft or a
  *  pick, with no questions, card, calls or bingo; questions come with E1b). */
-// E1b: the questions computer players answer: bot-logic.js ANSWERS and answersQuestion, kept the same here (tests/bots-answer.test.js
-// holds them together).
-const BOT_ANSWERS = ['person', 'group', 'yesNo', 'number', 'overUnder', 'choice'];
-const botAnswers = (q) => isObj(q) && BOT_ANSWERS.includes(q.answer) && !q.each && !q.wager && !q.stake && !q.card && q.answer !== 'calls' && q.answer !== 'ticket' && q.answer !== 'trivia' && !(q.answer === 'overUnder' && q.line === 'game');
+// E1b: the questions computer players answer: the spec's one rule (game-spec answers.js botAnswers), as bot-logic.js reads it.
+// A preset game whose own questions aren't in its spec (Weekly Calls' calls, Weekly Bingo's card): by its preset's name.
+const BOTS_PRESET_NOT = { 'weekly-calls': "Computer players don't make calls yet", 'weekly-bingo': "Computer players don't play a bingo card yet" };
 // The catalog's kinds (kindOf), not league types: what each says before any question is read.
 const BOTS_NOT_YET = { stages: 'Computer players play a game in stages later', card: "Computer players don't play a bingo card yet" };
 const BOTS_PLAY = new Set(['draft', 'pick', 'questions']);
 function botsFit(s) {
+  if (s.preset && BOTS_PRESET_NOT[s.preset]) return BOTS_PRESET_NOT[s.preset];
   const k = kindOf(s);
   if (BOTS_NOT_YET[k]) return BOTS_NOT_YET[k];
   if (isObj(s.card)) return "Computer players don't play a card's lines yet";
   const qs = asks(s).filter((q) => !(isObj(q) && q.answer === 'calls'));
   if (asks(s).some((q) => isObj(q) && q.answer === 'calls')) return "Computer players don't make calls yet";
-  const not = qs.find((q) => !botAnswers(q));
+  const not = qs.find((q) => !S.botAnswers(q));
+  if (not && (not.wager || not.stake)) return "Computer players don't stake points yet";
   if (not) return `Computer players don't answer "${not.ask || 'that question'}" yet`;
   return BOTS_PLAY.has(k) ? null : 'Computer players play this kind of game later';
 }

@@ -161,6 +161,8 @@ async function apiHalf(pool, fx, bot) {
   const { spec: bingo } = baseGame(o, "bingo", { from: o.from, to: o.from });
   const noBots = await alex.call("POST", url, { spec: bingo, tell: false, bots: 1 });
   check(noBots.status === 409, `computer players on a Bingo card: not yet (${noBots.status}: ${noBots.body && noBots.body.error})`);
+  const ownBots = await alex.call("POST", url, { spec: sheet, tell: false, bots: 1, pace: "own" });
+  check(ownBots.status === 409 && /own pace/.test((ownBots.body && ownBots.body.error) || ""), `computer players on a Prediction sheet at your own pace: not yet (${ownBots.status}: ${ownBots.body && ownBots.body.error})`);
   const casey = await signIn({ user: "zt_nd_casey", pass: fixture.PASSWORD, headers });
   const off = await casey.call("POST", url, { spec: captained, tell: false });
   check(off.status === 403 || off.status === 404, `someone not on the couch (${off.status})`);
@@ -296,8 +298,16 @@ async function browserHalf(pool, fx, bot) {
   await openSheet();
   await tap('[data-gallery-lead="sheet"], [data-gallery-base="sheet"]');
   await page.locator("[data-gallery=base]").waitFor({ timeout: 10000 });
+  // At your own pace (where a show's game starts) they're dashed with the reason; Together, offered.
+  if ((await page.locator("[data-gallery-option=lock-own][data-chosen]").count()) === 1) {
+    await tap("[data-gallery-row=who]");
+    check((await page.locator('[data-gallery-choice="bot"][data-off]').count()) === 1 && /own pace/.test(await page.locator('[data-gallery-choice="bot"]').innerText()), "on a Prediction sheet at your own pace, Computer players dashed: they answer questions later there");
+    await tap("[data-gallery-done]");
+    await page.locator("[data-gallery=base]").waitFor({ timeout: 10000 });
+  }
+  await tap("[data-gallery-option=lock-live]");
   await tap("[data-gallery-row=who]");
-  check((await page.locator('[data-gallery-choice="bot"]:not([data-off])').count()) === 1, "on a Prediction sheet, Computer players offered: they answer its questions");
+  check((await page.locator('[data-gallery-choice="bot"]:not([data-off])').count()) === 1, "on a Prediction sheet played Together, Computer players offered: they answer its questions");
   await openSheet();
   await tap('[data-gallery-lead="bingo"], [data-gallery-base="bingo"]');
   await page.locator("[data-gallery=base]").waitFor({ timeout: 10000 });

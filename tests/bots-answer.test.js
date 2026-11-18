@@ -102,3 +102,32 @@ test("played through: as each episode's results land, the next window opens and 
   assert.equal(stored.filter((a) => a.question === "out").length, 2 * 4);
   assert.ok(stored.filter((a) => a.question === "out").every((a) => !stored.some((b) => b !== a && b.playerId === a.playerId && b.question === "out" && b.episode === a.episode)), "one answer a window");
 });
+
+test("at your own pace a game of questions takes no computer players yet; a draft with finale picks still does (the review, E1)", () => {
+  const path = require("path");
+  const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
+  const { botsPlay } = jiti("../src/lib/game/computer-players.ts");
+  const s = league([OUT, IDOL]);
+  assert.ok(botsPlay(s), "live: they answer");
+  s.settings.ownPace = true;
+  assert.ok(!botsPlay(s), "at your own pace: not yet");
+  const d = S.defaultState();
+  S.ensureNextEpisode(d);
+  S.updateSettings(d, "showId", "survivor");
+  S.updateSettings(d, "leagueTypeId", "classic-draft");
+  S.updateSettings(d, "wikiSeason", 51);
+  for (let i = 0; i < 8; i++) S.addCastaway(d, `Castaway ${i}`);
+  d.players = [{ id: "ann", name: "ann", color: "#000" }, { id: "bot0", name: "Bot", color: "#000", automated: true }];
+  S.updateSettings(d, "setupComplete", true);
+  d.settings.ownPace = true;
+  assert.ok(botsPlay(d), "a draft at your own pace: its finale picks are finalePicks', so it still takes them");
+});
+
+test("the gallery: Weekly Calls and a stake say why; Sharp and Normal differ on what usually happens", () => {
+  assert.match(C.botsFit({ preset: "weekly-calls" }), /calls/);
+  assert.match(C.botsFit(game([{ ...IDOL, wager: "total" }])), /stake points/);
+  const sharp = league([IDOL], ["sharp", "sharp", "sharp", "sharp", "sharp", "sharp", "sharp", "sharp"]);
+  const casual = league([IDOL], ["casual", "casual", "casual", "casual", "casual", "casual", "casual", "casual"]);
+  const yes = (s) => Bots.answers(s, [], { now: 0 }).filter((a) => a.answer === "yes").length;
+  assert.ok(yes(sharp) <= yes(casual), `sharp says yes no more often than casual (${yes(sharp)} vs ${yes(casual)})`);
+});
