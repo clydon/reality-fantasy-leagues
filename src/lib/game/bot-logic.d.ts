@@ -49,7 +49,13 @@ export function answersAll(state: LeagueState): boolean;
 /** The questions a computer player answers into game_answers. */
 export function answeredQuestions(state: LeagueState): unknown[];
 /** The answers computer players would give now (the server writes them into game_answers: bots.ts). */
-export function answers(state: LeagueState, stored: { playerId: string; question: string; episode: number }[], o?: { now?: number; finale?: number | null }): { playerId: string; question: string; episode: number; answer: unknown }[];
+export function answers(state: LeagueState, stored: { playerId: string; question: string; episode: number }[], o?: { now?: number; finale?: number | null; rooms?: Map<string, StakeRoom> }): { playerId: string; question: string; episode: number; answer: unknown }[];
 /** At your own pace: the answers each catching-up computer player gives as it reaches each week, through the week after `n` (null:
  *  its own mark), each on its own copy before that week (call before catchUpTo). */
-export function catchUpAnswers(state: LeagueState, stored: { playerId: string; question: string; episode: number }[], n: number | null): { playerId: string; question: string; episode: number; answer: unknown }[];
+export function catchUpAnswers(state: LeagueState, stored: { playerId: string; question: string; episode: number }[], n: number | null, rooms?: Map<string, StakeRoom>): { playerId: string; question: string; episode: number; answer: unknown }[];
+/** A seat's room to stake (answer-points.ts seatStakeRoom), keyed "seat|live" or "seat|mark". */
+export type StakeRoom = { points: number; held: Map<string, number> };
+/** The weeks each catching-up computer player answers for, through the week after `n` (null: its own mark). */
+export function catchUpWeeks(state: LeagueState, n: number | null): { playerId: string; week: number }[];
+/** Whether any question computer players answer is staked from points or a bank (the server reads their rooms for those). */
+export function stakesPoints(state: LeagueState): boolean;

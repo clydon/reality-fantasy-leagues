@@ -29,8 +29,10 @@ const CONF = { id: "conf", ask: "Rank who goes home", answer: "confidence", poin
 const CHIPS = { id: "chips", ask: "Your chips on who wins", answer: "chips", points: 1, chips: 10, settle: { by: "results", take: "winner" } };
 const PAIRS = { id: "pairs", ask: "Who outlasts whom?", answer: "pairs", points: 1, pairs: 3, settle: { by: "results", take: "outlast" } };
 const SPLIT = { id: "split", ask: "The jury's split", answer: "split", points: 5, settle: { by: "results", take: "split" } };
-// A stake: still one they don't play (they'd need their points as they stand).
+// Staked (E1b's second slice): a wager of house points, of your points as they stand, a bank's, a ticket.
 const BET = { id: "bet", ask: "An idol played? Stake on it", answer: "yesNo", points: 1, asked: "each", wager: 3, settle: { by: "moment", moment: "idolPlayed", take: "happened" } };
+// Still one they don't play: trivia (they'd need the round's key).
+const TRIVIA = { id: "trivia", ask: "Trivia about the episode before", answer: "trivia", points: 1, asked: "each", settle: { by: "trivia" } };
 const game = (ask) => ({ spec: 1, get: { by: "none" }, score: { by: "answers" }, ask });
 
 /** A game of questions as Start a game makes one, on Survivor, ann the person and two computer players (castaway ids c0-c7, so two
@@ -79,12 +81,12 @@ test("who goes home: someone still in, never someone out; who wins: the best rat
 });
 
 test("a closed question gets none, and a kind it doesn't answer yet gets none", () => {
-  const s = league([OUT, BET]);
+  const s = league([OUT, TRIVIA]);
   const now = S.AnswerLogic.episodeNow(s);
   const ep = s.episodes.find((e) => e.number === now);
   ep.airsAt = new Date(Date.now() - 3600 * 1000).toISOString();
   assert.deepEqual(Bots.answers(s, [], { now: Date.now() }).filter((a) => a.question === "out"), [], "the episode has started: closed");
-  assert.ok(!Bots.answersQuestion(BET) && !Bots.answersAll(s), "a stake: not yet");
+  assert.ok(!Bots.answersQuestion(TRIVIA) && !Bots.answersAll(s), "trivia: not yet");
   assert.ok(Bots.answersQuestion(OUT) && Bots.answersQuestion(IDOL) && Bots.answersQuestion(HOW));
 });
 
@@ -114,9 +116,56 @@ test("an order, confidence, chips, pairs and a split: answers the engine accepts
   assert.ok(later.every((a) => !a.answer.includes("c7") && a.answer.length === 7));
 });
 
+/** A game of questions with a bank (C6), as the Bank base makes one: who goes home and an idol, each staked from it, and a ticket of both. */
+function banked(levels = ["casual"]) {
+  const s = S.defaultState();
+  S.ensureNextEpisode(s);
+  S.updateSettings(s, "showId", "survivor");
+  S.updateSettings(s, "leagueTypeId", "pickem");
+  S.updateSettings(s, "wikiSeason", 51);
+  for (let i = 0; i < 8; i++) S.addCastaway(s, `Castaway ${i}`);
+  s.castaways.forEach((c, i) => { c.id = `c${i}`; });
+  s.players = [{ id: "ann", name: "ann", color: "#000" }, ...levels.map((botLevel, i) => ({ id: `bot${i}`, name: `Bot ${i}`, color: "#000", automated: true, botLevel }))];
+  S.updateSettings(s, "setupComplete", true);
+  const ask = [
+    { ...OUT, points: 0, wager: "total" },
+    { ...IDOL, points: 0, wager: "total" },
+    { id: "ticket", ask: "Build a ticket", answer: "ticket", points: 0, asked: "each", wager: "total", settle: { by: "legs", of: ["out", "idol"] } },
+  ];
+  assert.deepEqual(S.setGame(s, { spec: 1, get: { by: "none" }, score: { by: "answers", bank: { start: 500 } }, rank: { by: "total" }, ask }, { ctx: CTX }), []);
+  return s;
+}
+
+test("stakes: a share of house points; of points or a bank as they stand, within what's left this week; a ticket of its own answers", () => {
+  // A wager of house points (up to 3): no room needed.
+  const house = Bots.answers(league([BET], ["casual"]), [], { now: 0 }).find((a) => a.question === "bet");
+  assert.ok(house && ["yes", "no"].includes(house.answer.answer) && house.answer.stake === 1, `half of 3, rounded down (${JSON.stringify(house)})`);
+  // A bank's: without its room, nothing (the server always reads it); with it, each stake a share of what's left after the others.
+  const s = banked();
+  assert.deepEqual(Bots.answers(s, [], { now: 0 }), [], "no room read: no answer");
+  const rooms = new Map([["bot0|live", { points: 500, held: new Map() }]]);
+  const out = Bots.answers(s, [], { now: 0, rooms });
+  const by = (q) => out.find((a) => a.question === q).answer;
+  assert.deepEqual(out.map((a) => a.question), ["out", "idol", "ticket"], "the ticket last, after its legs");
+  assert.equal(by("out").stake, 250, "half the bank");
+  assert.equal(by("idol").stake, 125, "half of what's left");
+  assert.equal(by("ticket").stake, 62, "and half of that");
+  assert.equal(by("ticket").legs.length, 2);
+  assert.ok(by("ticket").legs.every((id) => ["out", "idol"].includes(id)), "its legs its own answers");
+  // Points already on the line elsewhere count against it.
+  const held = Bots.answers(s, [], { now: 0, rooms: new Map([["bot0|live", { points: 500, held: new Map([["out|0", 400]]) }]]) });
+  assert.equal(held.find((a) => a.question === "out").answer.stake, 50, "500 less 400 held, halved");
+  // Each one accepted by the engine, with what it may stake.
+  for (const a of out) {
+    const q = S.AnswerLogic.questions(s).find((x) => x.id === a.question);
+    assert.equal(G.answerProblem(q, a.answer, q.answer === "person" ? new Set(s.castaways.map((c) => c.id)) : undefined, { most: 500 }), null, JSON.stringify(a));
+  }
+});
+
 test("the gallery's Computer players square says the same: on for questions they answer, dashed with the reason for the rest", () => {
   assert.equal(C.botsFit(game([OUT, IDOL, WINS, HOW])), null);
-  assert.match(C.botsFit(game([OUT, BET])), /stake points/);
+  assert.match(C.botsFit(game([OUT, TRIVIA])), /don't answer "Trivia about the episode before" yet/);
+  assert.equal(C.botsFit(game([OUT, BET])), null, "a stake: played");
   assert.equal(C.botsFit(game([OUT, ORDER, CONF, CHIPS, PAIRS, SPLIT])), null, "an order, confidence, chips, pairs and a split: played");
   assert.equal(C.botsFit({ ...G.PRESETS.outlast }), null, "a draft");
   for (const kind of Bots.ANSWERS) assert.ok(Bots.answersQuestion({ id: "q", ask: "x?", answer: kind }) === (C.botsFit(game([{ id: "q", ask: "x?", answer: kind }])) === null), kind);
@@ -157,7 +206,7 @@ test("at your own pace they play a game of questions too, and a draft with final
   assert.ok(botsPlay(s), "live: they answer");
   s.settings.ownPace = true;
   assert.ok(botsPlay(s), "at your own pace: they answer as they catch up");
-  assert.ok(!botsPlay(league([OUT, BET])), "a stake: not yet, at any pace");
+  assert.ok(!botsPlay(league([OUT, TRIVIA])), "trivia: not yet, at any pace");
   const d = S.defaultState();
   S.ensureNextEpisode(d);
   S.updateSettings(d, "showId", "survivor");
@@ -208,10 +257,10 @@ test("a person catching up at their own pace answers the episode after their mar
   assert.ok(!AL.ownWeek(live, "ann"), "a late joiner catching up in a live game: still on the live episode");
 });
 
-test("the gallery: Weekly Calls and Bingo play, a stake says why; Sharp and Normal differ on what usually happens", () => {
+test("the gallery: Weekly Calls, Bingo and a stake play; Sharp and Normal differ on what usually happens", () => {
   assert.equal(C.botsFit({ preset: "weekly-calls" }), null, "Weekly Calls: their calls are guesses (E1c)");
   assert.equal(C.botsFit(C.baseById("bingo").spec), null, "Bingo: they tick what's settled (E1c)");
-  assert.match(C.botsFit(game([{ ...IDOL, wager: "total" }])), /stake points/);
+  assert.equal(C.botsFit(game([{ ...IDOL, wager: "total" }])), null, "a stake of your points (E1b's second slice)");
   const sharp = league([IDOL], ["sharp", "sharp", "sharp", "sharp", "sharp", "sharp", "sharp", "sharp"]);
   const casual = league([IDOL], ["casual", "casual", "casual", "casual", "casual", "casual", "casual", "casual"]);
   const yes = (s) => Bots.answers(s, [], { now: 0 }).filter((a) => a.answer === "yes").length;

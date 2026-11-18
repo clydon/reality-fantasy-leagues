@@ -570,7 +570,9 @@ function answeredQuestions(state) {
 function inState(state, q) {
   return !!StateLogic.finaleOfGame(state) && (q.id === "top3" || q.id === "winner");
 }
-function answerFor(state, playerId, q, faces, ep) {
+function answerFor(state, playerId, q0, faces, ep) {
+  // A wager (E1b's second slice): its answer is the question's own; its stake is added where what it may stake is known (staked).
+  const q = q0.wager !== undefined && q0.answer !== "ticket" ? Spec.unwagered(q0) : q0;
   const level = levelOf(state, playerId);
   const ids = faces.map((f) => f.id);
   const feel = (key) => hashOf(`${playerId}|${q.id}|${ep}|${key}`);
@@ -618,6 +620,13 @@ function answerFor(state, playerId, q, faces, ep) {
     const lasts = (id) => (inNow.has(id) ? 1000 : 0) + (r[id] ? r[id].safety : 0) + taste(playerId, `${q.id}|${id}`, level) * 2;
     return Object.fromEntries(pairs.map((p) => [Spec.pairKey(p), lasts(p[0]) >= lasts(p[1]) ? p[0] : p[1]]));
   }
+  // A ticket: its fewest legs, picked by its taste from the questions it's built of (all of them its own answers: stakeAll answers
+  // them first).
+  if (q.answer === "ticket") {
+    const t = Spec.ticketOf(q);
+    if (!t) return null;
+    return { legs: t.of.slice().sort((a, b) => feel(`leg|${a}`) - feel(`leg|${b}`)).slice(0, t.min) };
+  }
   // A jury's split: a guess sized to the cast (a jury of about half of who's left after the final three), lopsided for a sharp one.
   if (q.answer === "split") {
     const jury = Math.max(3, Math.round(((state.castaways || []).length - 3) / 2));
@@ -638,9 +647,48 @@ function answerFor(state, playerId, q, faces, ep) {
   if (q.answer === "number") return [1, 0, 2, 3][Math.floor(feel("n") * (level.read >= LEVELS.solid.read ? 2 : 4))];
   return null;
 }
+/** A stake's share of what it may stake: an easy one bets big, a sharp one small. */
+const stakeShare = (level) => (level.read >= LEVELS.sharp.read ? 0.2 : level.read >= LEVELS.solid.read ? 0.3 : 0.5);
+/** A question's answer with its stake (E1b's second slice): a wager's { answer, stake }, a ticket's { legs, stake }, a share of what it
+ *  may stake (`most`); null when that can't be read (drawn from points as they stand, with no room given). */
+function staked(q, value, level, most) {
+  if (q.wager === undefined) return value;
+  if (most === null) return null;
+  const stake = Math.floor(most * stakeShare(level));
+  return q.answer === "ticket" ? { ...value, stake } : { answer: value, stake };
+}
+/** The most a seat may stake on `q` in a window (`key`): a wager of house points, up to it; one drawn from its points or a bank
+ *  (Spec.drawsOnBank), what's left of them as they stand (`room`: { points, held }, as answers.ts reads a person's), less what this
+ *  run stakes elsewhere (`staking`); null with no room. */
+function mostFor(state, q, key, room, staking) {
+  const cap = Number.isInteger(q.wager) ? q.wager : Infinity;
+  if (!Spec.drawsOnBank(q, Spec.bankOf(StateLogic.gameOf(state)))) return Number.isFinite(cap) ? cap : null;
+  if (!room) return null;
+  return Math.min(cap, Spec.stakeMost(room.points, room.held, key, staking));
+}
+/** Tickets last: a ticket's legs are its own answers, made first. */
+const ticketsLast = (qs) => [...qs.filter((q) => q.answer !== "ticket"), ...qs.filter((q) => q.answer === "ticket")];
+/** Whether any question it answers is staked from points or a bank: the server reads each seat's room for those (bots.ts). */
+function stakesPoints(state) {
+  const bank = Spec.bankOf(StateLogic.gameOf(state));
+  return answeredQuestions(state).some((q) => Spec.drawsOnBank(q, bank));
+}
+/** One answer, checked as a person's is: its stake added, against who it can name, rank or pair, and what it may stake. */
+function oneAnswer(state, pid, q, ep, room, staking) {
+  const AL = StateLogic.AnswerLogic;
+  const faces = AL.faces(state, q, { playerId: pid });
+  const key = `${q.id}|${ep}`;
+  const most = q.wager === undefined ? null : mostFor(state, q, key, room, staking);
+  const value = staked(q, answerFor(state, pid, q, faces, ep), levelOf(state, pid), most);
+  if (value === null || value === undefined) return null;
+  if (Spec.answerProblem(q, value, faceSet(state, q, faces), most === null ? undefined : { most })) return null;
+  if (q.wager !== undefined && Spec.drawsOnBank(q, Spec.bankOf(StateLogic.gameOf(state)))) staking.set(key, value.stake);
+  return value;
+}
 /** What an answer is checked against, as answers.ts checks a person's: who it can name or rank or put chips on (still in), each pair's
  *  "pair:who"; nothing for the rest. */
-function faceSet(state, q, faces) {
+function faceSet(state, q0, faces) {
+  const q = q0.wager !== undefined && q0.answer !== "ticket" ? Spec.unwagered(q0) : q0;
   if (Spec.NAMES.includes(q.answer) || Spec.RANKS.includes(q.answer) || q.answer === "chips") return new Set(faces.map((f) => f.id));
   if (q.answer === "pairs") return new Set(Spec.pairsFrom(q, StateLogic.AnswerLogic.startIn(state)).flatMap((p) => p.map((id) => `${Spec.pairKey(p)}:${id}`)));
   return undefined;
@@ -653,21 +701,20 @@ function faceSet(state, q, faces) {
 function answers(state, stored, o) {
   const opt = o || {};
   const AL = StateLogic.AnswerLogic;
-  const qs = answeredQuestions(state);
+  const qs = ticketsLast(answeredQuestions(state));
   const bots = botIds(state);
   if (!qs.length || !bots.length) return [];
   const have = new Set((stored || []).map((r) => `${r.playerId}|${r.question}|${r.episode}`));
   const now = AL.episodeNow(state);
   const out = [];
   for (const pid of bots) {
+    const staking = new Map();
     for (const q of qs) {
       const ep = q.asked === "once" ? 0 : AL.windowAt(state, q, now);
       if (ep === null || ep === undefined || have.has(`${pid}|${q.id}|${ep}`)) continue;
       if (AL.closed(state, q, ep, { now: opt.now, finale: opt.finale })) continue;
-      const faces = AL.faces(state, q, { playerId: pid });
-      const value = answerFor(state, pid, q, faces, ep);
-      if (value === null || value === undefined) continue;
-      if (Spec.answerProblem(q, value, faceSet(state, q, faces))) continue;
+      const value = oneAnswer(state, pid, q, ep, opt.rooms ? opt.rooms.get(`${pid}|live`) : null, staking);
+      if (value === null) continue;
       out.push({ playerId: pid, question: q.id, episode: ep, answer: value });
     }
   }
@@ -680,38 +727,45 @@ function answers(state, stored, o) {
  * before that week (GhostLogic.viewFor at the week before: that week's results unseen), so nothing it answers knows the outcome.
  * Call before catchUpTo moves them on (bots.ts catchUpBots), and after every write for their next week (answerForBots).
  */
-function catchUpAnswers(state, stored, n) {
+function catchUpAnswers(state, stored, n, rooms) {
   const G = StateLogic.GhostLogic;
   const AL = StateLogic.AnswerLogic;
-  const qs = answeredQuestions(state);
+  const qs = ticketsLast(answeredQuestions(state));
   if (!qs.length) return [];
   const have = new Set((stored || []).map((r) => `${r.playerId}|${r.question}|${r.episode}`));
+  const out = [];
+  catchUpWeeks(state, n).forEach(({ playerId: pid, week }) => {
+    let view = null;
+    const staking = new Map();
+    for (const q of qs) {
+      // Already answered (the usual case after the first time): no copy to make.
+      if (have.has(`${pid}|${q.id}|${q.asked === "once" ? 0 : week}`)) continue;
+      view = view || G.viewFor(state, pid, week - 1);
+      const ep = q.asked === "once" ? 0 : AL.windowAt(view, q, week, week - 1);
+      if (ep === null || ep === undefined || (q.asked !== "once" && ep !== week)) continue;
+      const key = `${pid}|${q.id}|${ep}`;
+      if (have.has(key) || AL.closed(view, q, ep, { mark: week - 1, player: pid })) continue;
+      const value = oneAnswer(view, pid, q, ep, rooms ? rooms.get(`${pid}|${week - 1}`) : null, staking);
+      if (value === null) continue;
+      have.add(key);
+      out.push({ playerId: pid, question: q.id, episode: ep, answer: value });
+    }
+  });
+  return out;
+}
+/** The weeks each computer player catching up answers for, through the week after `n` (null: its own mark): [{ playerId, week }],
+ *  each on its copy as of week - 1 (catchUpAnswers; and the server reads each one's room to stake there: bots.ts). */
+function catchUpWeeks(state, n) {
+  const G = StateLogic.GhostLogic;
   const aired = new Set(state.episodes.map((e) => e.number));
   const out = [];
   state.players.filter((p) => isBot(p) && G.isCatchingUp(state, p.id)).forEach((p) => {
     const lj = p.lateJoin;
     if (!lj || !Number.isInteger(lj.seenThrough)) return;
     const to = Math.max(Number.isInteger(n) ? n : lj.seenThrough, lj.seenThrough) + 1;
-    for (let week = lj.seenThrough + 1; week <= to && aired.has(week); week++) {
-      let view = null;
-      for (const q of qs) {
-        // Already answered (the usual case after the first time): no copy to make.
-        if (have.has(`${p.id}|${q.id}|${q.asked === "once" ? 0 : week}`)) continue;
-        view = view || G.viewFor(state, p.id, week - 1);
-        const ep = q.asked === "once" ? 0 : AL.windowAt(view, q, week, week - 1);
-        if (ep === null || ep === undefined || (q.asked !== "once" && ep !== week)) continue;
-        const key = `${p.id}|${q.id}|${ep}`;
-        if (have.has(key) || AL.closed(view, q, ep, { mark: week - 1, player: p.id })) continue;
-        const faces = AL.faces(view, q, { playerId: p.id });
-        const value = answerFor(view, p.id, q, faces, ep);
-        if (value === null || value === undefined) continue;
-        if (Spec.answerProblem(q, value, faceSet(view, q, faces))) continue;
-        have.add(key);
-        out.push({ playerId: p.id, question: q.id, episode: ep, answer: value });
-      }
-    }
+    for (let week = lj.seenThrough + 1; week <= to && aired.has(week); week++) out.push({ playerId: p.id, week });
   });
   return out;
 }
 
-module.exports = { LEVELS, DEFAULT_LEVEL, isBot, botIds, ratings, run, hasWork, catchUpTo, paceTeams, blindSubmissions, auctionBids, waiverClaim, groupSlotPicks, ANSWERS, answersQuestion, answersAll, answeredQuestions, answers, catchUpAnswers };
+module.exports = { LEVELS, DEFAULT_LEVEL, isBot, botIds, ratings, run, hasWork, catchUpTo, paceTeams, blindSubmissions, auctionBids, waiverClaim, groupSlotPicks, ANSWERS, answersQuestion, answersAll, answeredQuestions, answers, catchUpAnswers, catchUpWeeks, stakesPoints };

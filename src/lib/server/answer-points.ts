@@ -37,8 +37,8 @@ export interface AnswerRow {
 }
 
 /** Every answer stored for a game (game_answers, migrations 0200 and 0201). */
-export async function storedAnswers(leagueId: string): Promise<AnswerRow[]> {
-  const { rows } = await pool.query("SELECT player_id, question, episode, answer, late, changes FROM game_answers WHERE league_id = $1", [leagueId]);
+export async function storedAnswers(leagueId: string, client: { query: typeof pool.query } = pool): Promise<AnswerRow[]> {
+  const { rows } = await client.query("SELECT player_id, question, episode, answer, late, changes FROM game_answers WHERE league_id = $1", [leagueId]);
   return rows.map((r) => ({ playerId: r.player_id as string, question: r.question as string, episode: r.episode as number, answer: r.answer, late: r.late as number, changes: r.changes as number }));
 }
 
@@ -47,6 +47,20 @@ export async function storedAnswers(leagueId: string): Promise<AnswerRow[]> {
 export function keepsAnswers(state: LeagueState): boolean {
   const p = StateLogic.piecesOf(state);
   return !!p.hasQuestions || !!p.hasDraftQuestions;
+}
+
+/**
+ * A seat's room to stake (E1b's second slice: a computer player's, read as answers.ts reads a person's, stakeRoom): its points as they
+ * stand at `mark` (null: as they come; a catching-up seat's own week before), less its stakes of them still on the line. `rows`: the
+ * game's answers, read on the caller's transaction.
+ */
+export async function seatStakeRoom(leagueId: string, state: LeagueState, playerId: string, mark: number | null, rows: AnswerRow[]): Promise<{ points: number; held: Map<string, number> }> {
+  const w = await walked({ leagueId, state, playerId, mark, rows });
+  const all = keepsAnswers(state) ? w.rows : [];
+  const graded = StateLogic.AnswerLogic.grade(w.view, all, w.facts);
+  const points = w.walk ? (w.walk.totals[playerId] ?? 0) : (graded.points.get(playerId) ?? 0);
+  const qs = StateLogic.AnswerLogic.questions(state).filter((q) => !Spec.isCalls(q));
+  return { points, held: Spec.heldStakes(qs, all, graded.verdicts, playerId, Spec.bankOf(StateLogic.gameOf(state))) };
 }
 
 /** The season's last episode, when the season says how many it has: what finale predictions wait for. */

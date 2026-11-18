@@ -9,9 +9,9 @@
 //     alex its Commissioner, linked into the couch's group, its spec as built, a line in Recent changes; the couch told only after
 //     the 10-second hold; Undo inside the hold takes it back (deleted, restorable) and nobody hears; Undo too late, or someone
 //     else's, is refused; a game in stages (the redraft) made with a league for each stage; refusals (a start the listing doesn't
-//     have, a spec our check refuses, computer players on a question they don't answer yet (a stake), someone not on the couch); computer
+//     have, a spec our check refuses, computer players on a question they don't answer yet (trivia), someone not on the couch); computer
 //     players answering a Prediction sheet (at once Together; at your own pace, each week as alex reveals the one before, never past
-//     the game: E1b), answering a boot order (E1b), playing Bingo and Weekly Calls (E1c);
+//     the game: E1b), answering a boot order and staking the Bank game's (E1b), playing Bingo and Weekly Calls (E1c);
 //   - Run it back's page: `again` gives the old game's rules (`againSpec`, its dates left out);
 //   - a moment added for research from our AI's offer (added-moments: what Describe's "Add it for research" calls), read back
 //     on the page and scored by a game built with it.
@@ -172,12 +172,23 @@ async function apiHalf(pool, fx, bot) {
   const rowsOf = (id) => (((read.games || []).find((g) => g.leagueId === id) || {}).table || []);
   const botRows = [...rowsOf(bingoBots.body && bingoBots.body.leagueId), ...rowsOf(callsBots.body && callsBots.body.leagueId)].filter((r) => r.bot);
   check(botRows.length === 3 && botRows.every((r) => !r.userId), `...the games read lists their 3 computer players as such (${botRows.map((r) => r.name).join(", ")})`);
-  // E1b's second slice: an order, confidence, chips, pairs and a split they answer; a stake (their points as they stand) not yet.
+  // E1b's second slice: an order, confidence, chips, pairs and a split they answer, and stakes; trivia (the round's key) not yet.
   const orderBots = await alex.call("POST", url, { spec: { ...sheet, ask: [...(sheet.ask || []), { id: "ord", ask: "The order they go", answer: "order", points: 2, asked: "once", pick: 5, within: 2, settle: { by: "results", take: "order" } }] }, name: "Order with a bot", tell: false, bots: 1, pace: "live" });
   const { rows: ordered } = orderBots.status === 200 ? await pool.query("SELECT answer FROM game_answers WHERE league_id = $1 AND question = 'ord'", [orderBots.body.leagueId]) : { rows: [] };
   check(orderBots.status === 200 && ordered.length === 1 && Array.isArray(ordered[0].answer) && ordered[0].answer.length === 5, `computer players on a boot order: started, its five in order at once (${orderBots.status}: ${(orderBots.body && orderBots.body.error) || JSON.stringify(ordered.map((r) => r.answer))})`);
-  const noBots = await alex.call("POST", url, { spec: { ...sheet, ask: [...(sheet.ask || []), { id: "bet", ask: "An idol found? Stake on it", answer: "yesNo", points: 1, asked: "each", wager: 3, settle: { by: "moment", moment: "idolFound", take: "happened" } }] }, tell: false, bots: 1, pace: "live" });
-  check(noBots.status === 409, `computer players on a question they don't answer yet (a stake): refused (${noBots.status}: ${noBots.body && noBots.body.error})`);
+  // E1b's second slice: the Bank game's stakes (each a share of what's left of the bank as it stands) and a ticket of its own answers.
+  const { spec: bankSpec } = baseGame(o, "bank");
+  const bankBots = bankSpec ? await alex.call("POST", url, { spec: bankSpec, name: "Bank with a bot", tell: false, bots: 1, pace: "live" }) : { status: 0, body: { error: "no Bank game here" } };
+  const { rows: banked } = bankBots.status === 200 ? await pool.query("SELECT question, answer FROM game_answers WHERE league_id = $1", [bankBots.body.leagueId]) : { rows: [] };
+  const stakes = banked.map((r) => r.answer && r.answer.stake);
+  const ticket = (banked.find((r) => r.question === "ticket") || {}).answer;
+  check(
+    bankBots.status === 200 && banked.length === (bankSpec.ask || []).length && stakes.every((n) => Number.isInteger(n) && n >= 0) && stakes.reduce((a, b) => a + b, 0) <= 500 && ticket && ticket.legs.every((id) => banked.some((r) => r.question === id)),
+    `computer players on the Bank game: started, every answer staked within the bank (${stakes.join(" + ")} of 500), the ticket on its own answers (${ticket ? ticket.legs.join(", ") : "none"})`,
+    bankBots.body && bankBots.body.error
+  );
+  const noBots = await alex.call("POST", url, { spec: { ...sheet, ask: [...(sheet.ask || []), { id: "triv", ask: "Trivia about the episode before", answer: "trivia", points: 1, asked: "each", settle: { by: "trivia" } }] }, tell: false, bots: 1, pace: "live" });
+  check(noBots.status === 409 && /Computer players/.test((noBots.body && noBots.body.error) || ""), `computer players on a question they don't answer yet (trivia): refused (${noBots.status}: ${noBots.body && noBots.body.error})`);
   // E1b's second slice: at your own pace too. Each catches up with whoever reveals first, answering each week (and the week after's,
   // so it's in before anyone opens it) on its own copy before it: Episode 1's at the start, Episode 2's on revealing Episode 1, and
   // nothing past the game's last.

@@ -449,28 +449,9 @@ const HOST_SITS_OUT = "You chose this episode's card, so you sit it out.";
 /** The game's bank (step C6: score.bank), or null: beside one, every stake is drawn from it (Spec.drawsOnBank). */
 const bankOf = (state: LeagueState) => Spec.bankOf(StateLogic.gameOf(state));
 
-/** What you've staked on wagers of any of your points (A9) still to settle as far as you've seen, by window ("question|episode"):
- *  points that are already on the line, so a new stake of them can't count them again. Step C6: beside a bank (`bank`), every stake. */
-function heldStakes(qs: Question[], answers: AnswerRow[], verdicts: Map<string, Verdict>, me: string, bank: { start: number } | null): Map<string, number> {
-  const held = new Map<string, number>();
-  for (const a of answers) {
-    const q = qs.find((x) => x.id === a.question);
-    if (a.playerId !== me || !q || !Spec.drawsOnBank(q, bank)) continue;
-    const key = `${q.id}|${q.asked === "once" ? 0 : a.episode}`;
-    const stake = (a.answer as { stake?: unknown } | null)?.stake;
-    if (verdicts.get(key)?.state !== "waiting" || !Number.isInteger(stake) || (stake as number) <= 0) continue;
-    held.set(key, stake as number);
-  }
-  return held;
-}
-/** The most you can stake on a wager of any of your points (A9) in a window (`key`): your points as they stand for you, less what's
- *  on the line in your other wagers of them still to settle (`held`, and `staking`: the ones this answer sends); at least 0. */
-function stakeMost(points: number, held: Map<string, number>, key: string, staking?: Map<string, number>): number {
-  let most = points;
-  for (const [k, n] of held) if (k !== key && !staking?.has(k)) most -= n;
-  for (const [k, n] of staking ?? []) if (k !== key) most -= n;
-  return Math.max(0, Math.floor(most));
-}
+/** What you've staked still to settle, and the most you can stake in a window (A9, C6): the engine's (game-spec answers.js). */
+const heldStakes = Spec.heldStakes;
+const stakeMost = Spec.stakeMost;
 /** Your points as they stand for you (at your mark) and your stakes still on the line: what a wager of any of them (A9) can stake. */
 async function stakeRoom(r: Read): Promise<{ points: number; held: Map<string, number> }> {
   const all = keepsAnswers(r.h.state) ? r.rows : [];

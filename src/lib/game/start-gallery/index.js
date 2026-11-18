@@ -1115,7 +1115,6 @@ function botsFit(s) {
   if (isObj(s.card)) return "Computer players don't play a card's lines yet";
   const qs = asks(s).filter((q) => !(isObj(q) && q.answer === 'calls'));
   const not = qs.find((q) => !S.botAnswers(q));
-  if (not && (not.wager || not.stake)) return "Computer players don't stake points yet";
   if (not) return `Computer players don't answer "${not.ask || 'that question'}" yet`;
   return BOTS_PLAY.has(k) ? null : 'Computer players play this kind of game later';
 }

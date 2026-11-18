@@ -401,9 +401,28 @@ then approval.
       confidence never ranking someone gone); a season played through five episodes grades the boot order, confidence and pairs
       (every verdict known); check-start-a-game.js starts a sheet with a boot order and reads the computer player's five back;
       the bases Confidence, Boot order, Who outlasts whom and the jury split now take computer players. 2,432 unit tests pass.
-      **Left for E1b's second slice:** a stake (a wager, a bank, a ticket: a computer player needs its points as they stand, which
-      answers.ts reads per person), a card's lines (Prop bets, Objectives, the host's card), trivia, a side, a bracket, a question
-      about each person or game; a prop card with wagers and Beat the bot played to their ends with computer players.
+      **E1b's second slice, part 3, done (2026-11-18): stakes and tickets.** A computer player stakes a share of what it may (an easy
+      one half, a normal one 30%, a sharp one 20%): a wager of house points, of that; one drawn from its points or a bank, of what's
+      left of them as they stand, less what's on the line in its other wagers and what it stakes elsewhere that week (so a week's
+      stakes never pass its bank). A ticket takes its fewest legs from the questions it's built of, its own answers made first.
+      - **One rule for a person's and a computer player's room.** `heldStakes` and `stakeMost` moved from answers.ts into the
+        engine (game-spec answers.js); answer-points.ts `seatStakeRoom(leagueId, state, seat, mark, rows)` reads a seat's room as
+        answers.ts reads a person's (`walked` at its mark, graded, the walk's totals or the grade's points, its held stakes).
+        bots.ts reads each one's room (live: "seat|live"; catching up: "seat|mark" for each week it answers) on the write's own
+        transaction (`storedAnswers` takes a client now), for a game where any question is staked from points or a bank
+        (`Bots.stakesPoints`). bots.ts loads answer-points.ts only when a computer player has questions to answer (every write
+        runs runBots, and that module brings the grading's server side and an alias the unit tests don't map).
+      - **The gallery.** `BOT_ANSWERS` takes a ticket and `botAnswers` a wager, so Bank and Double down take computer players;
+        botsFit's "don't stake points yet" is gone.
+      - **Proof.** tests/bots-answer.test.js: half of a house wager of 3; with no room read, no staked answer; a bank of 500 staked
+        250, then 125 of what's left, then 62 on the ticket, its legs its own answers; 400 held elsewhere leaves 50; each accepted by
+        the engine. check-start-a-game.js: the Bank game started with a computer player has every answer staked within the bank
+        (150 + 105 + 73 + 51 of 500) and its ticket on its own answers; trivia still refused. Probed at your own pace from Episode
+        1: each week's stakes from its room at its mark (500, then about 223, 307 and 137 as its bets settled), nothing past the
+        game's last episode, the games read's total 75. 2,433 unit tests pass.
+      **Left for E1b's second slice:** a card's lines (Prop bets, Objectives, the host's card: the card is the bot's, known from the
+      server's facts), trivia (the round's key), a side, a bracket, a question about each person or game; Prop bets and Beat the
+      bot played to their ends with computer players.
     - **E1c. Cards, calls and bingo** (each its own small step, after a named question to the user: a bingo card or a call is
       honour-based, tapped by whoever sees it; should a computer player mark its card from what research settles after the
       episode, or sit those games out?). Until then they stay dashed in Who's playing with the reason.

@@ -73,7 +73,7 @@
 //   factsThrough(facts, k)        the facts as they stood once episode k was in (A11 part 2b's walk)
 //   answerProblem(q, value, faces) why an answer can't be given (null: it can), faces: who (or which groups) it can name
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { YES_NO, NAMES, NUMBERS, optionRange, isBeat, ODDS, ticketOf, isCardLine, cardMoment, cardWaiting, outsideKey, LINE_GAME } = require('./schema.js');
+const { YES_NO, NAMES, NUMBERS, optionRange, isBeat, ODDS, ticketOf, isCardLine, cardMoment, cardWaiting, outsideKey, LINE_GAME, drawsOnBank } = require('./schema.js');
 // C2 part 3 (docs/PLAN-start-a-game-gpt.md track C): a window's points are the scoring sequence's lines and combines; the grading
 // (which answers are right, and how many right ones each has) is here.
 const Seq = require('../sequence/index.js');
@@ -1415,12 +1415,38 @@ function factsThrough(facts, k) {
 // ---- computer players (docs/PLAN-start-a-game-redo.md E1b) ----
 
 /** The answer kinds a computer player gives (bot-logic.js answers); the rest wait for E1b's second slice. */
-const BOT_ANSWERS = ['person', 'group', 'yesNo', 'number', 'overUnder', 'choice', 'order', 'confidence', 'chips', 'pairs', 'split'];
-/** Whether a computer player answers this question: one of BOT_ANSWERS, and not about each person or game, staked, a card's line
- *  or an over/under on the game's own line (read from ESPN as it opens). The gallery (start-gallery botsFit) and the server
- *  (computer-players.ts botsPlay, through bot-logic.js) both read this one rule. */
+const BOT_ANSWERS = ['person', 'group', 'yesNo', 'number', 'overUnder', 'choice', 'order', 'confidence', 'chips', 'pairs', 'split', 'ticket'];
+/** Whether a computer player answers this question: one of BOT_ANSWERS (staked too, E1b's second slice), and not about each person
+ *  or game, a card's line or an over/under on the game's own line (read from ESPN as it opens). The gallery (start-gallery botsFit)
+ *  and the server (computer-players.ts botsPlay, through bot-logic.js) both read this one rule. */
 function botAnswers(q) {
-  return !!q && BOT_ANSWERS.includes(q.answer) && !q.each && !q.wager && !q.stake && !q.card && !(q.answer === 'overUnder' && q.line === 'game');
+  return !!q && BOT_ANSWERS.includes(q.answer) && !q.each && !q.card && !(q.answer === 'overUnder' && q.line === 'game');
 }
 
-module.exports = { BOT_ANSWERS, botAnswers, WAITING, DRAW, lineKey, readsTimeline, verdictOf, rightAnswers, pointsFor, windowPoints, wagerParts, stakeLines, unwagered, ticketVerdict, allRight, shrunk, isRight, answerProblem, spanEpisodes, pairsFrom, pairKey, windowOf, factsThrough, botKey, botCall, botRight };
+/** What someone has staked on wagers of any of their points (A9) still to settle, by window ("question|episode"): points already on
+ *  the line, so a new stake of them can't count them again. Step C6: beside a bank (`bank`), every stake. `answers`: the game's
+ *  answer rows ({ playerId, question, episode, answer }), `verdicts` each window's as graded. (Was answers.ts's; a computer player's
+ *  stake is held to it too.) */
+function heldStakes(qs, answers, verdicts, me, bank) {
+  const held = new Map();
+  for (const a of answers) {
+    const q = qs.find((x) => x.id === a.question);
+    if (a.playerId !== me || !q || !drawsOnBank(q, bank)) continue;
+    const key = `${q.id}|${q.asked === 'once' ? 0 : a.episode}`;
+    const stake = a.answer && typeof a.answer === 'object' ? a.answer.stake : undefined;
+    const v = verdicts.get(key);
+    if (!v || v.state !== 'waiting' || !Number.isInteger(stake) || stake <= 0) continue;
+    held.set(key, stake);
+  }
+  return held;
+}
+/** The most someone can stake on a wager of any of their points (A9) in a window (`key`): their points as they stand, less what's on
+ *  the line in their other wagers of them still to settle (`held`, and `staking`: the ones this answer sends); at least 0. */
+function stakeMost(points, held, key, staking) {
+  let most = points;
+  for (const [k, n] of held) if (k !== key && !(staking && staking.has(k))) most -= n;
+  for (const [k, n] of staking || []) if (k !== key) most -= n;
+  return Math.max(0, Math.floor(most));
+}
+
+module.exports = { BOT_ANSWERS, botAnswers, heldStakes, stakeMost, WAITING, DRAW, lineKey, readsTimeline, verdictOf, rightAnswers, pointsFor, windowPoints, wagerParts, stakeLines, unwagered, ticketVerdict, allRight, shrunk, isRight, answerProblem, spanEpisodes, pairsFrom, pairKey, windowOf, factsThrough, botKey, botCall, botRight };
