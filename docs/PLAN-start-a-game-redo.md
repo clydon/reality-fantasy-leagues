@@ -309,6 +309,36 @@ then approval.
   - The bot answers every kind: a pick, a lineup, questions, a card, calls and a draft. It picks at random or by the points so far,
     and keeps pace at your own pace.
   - Proof: every spec in the corpus plays to its end with one person and a bot (blind.js).
+  - **E1, planned (the wizard lane, 2026-11-18, after B1; not started until the user says go).** Where it stands: bot-logic.js plays
+    drafts (snake, blind, auction), lineups, group slots, Survival/Eliminator picks, waiver claims and finale picks, at three levels
+    (easy, normal, sharp), deterministically, run by `server/bots.ts` after every write and when a league is read with a bot move
+    waiting; `botsPlay` refuses anything with questions, calls or bingo; startFromSpec already takes `bots` and `level` (up to 5);
+    Backstage › Members adds and removes them. What doesn't exist: a bot's answer to a question (answers live in `game_answers`,
+    outside state, like blind-draft submissions), a bot's bingo card or calls, and Start a game offering any of it.
+    - **E1a. Who's playing offers computer players where they play today** (a small UI change: Impeccable alone). The "Me and the
+      bot" square (`CHANGES` id `bot`, `coming: 'E1'`) becomes "Computer players", a change with two controls in the approved
+      grammar: How many (1 to 5, 1 first) and How sharp (Easy, Normal, Sharp; Normal first). It's dashed with its reason on a base
+      they can't play yet ("Computer players answer questions with E1b"), from a catalog predicate mirroring `botsPlay` on the
+      spec's kind (a draft or a pick: yes; questions, a card, calls, bingo: not yet). The game carries the choice outside its spec
+      (a field on the sheet's Game, sent as `bots` and `level`); Ready to start and the Start bar say "with 2 computer players".
+      "Just me" starts a game that tells nobody (already the server's: Start with no one else watching). Checks:
+      check-start-a-game.js (a draft started with two, their seats and level), check-new-computer-players.js back to Start a game,
+      wizard-coverage.js (the new controls are values too).
+    - **E1b. Computer players answer questions** (the engine lane). `bot-logic.js answersFor(state, ask, level)` for each answer
+      kind the corpus uses, from what the league knows (the ratings it already keeps): a person (who goes home: the most in danger;
+      who wins: the best rated), yes or no (the moment's rate so far), a number and over/under (the median so far), a choice (its
+      taste, seeded), an order and confidence (the ratings), pairs, chips; easy plays more at random, sharp reads more. The server
+      writes them into `game_answers` before each question locks (bots.ts, beside the blind submissions), and at your own pace as
+      each bot reaches the episode (catchUpTo). Proof: a unit test per answer kind; a Prediction sheet, a prop card with wagers
+      and a Beat the bot game played to their ends with one person and two bots.
+    - **E1c. Cards, calls and bingo** (each its own small step, after a named question to the user: a bingo card or a call is
+      honour-based, tapped by whoever sees it; should a computer player mark its card from what research settles after the
+      episode, or sit those games out?). Until then they stay dashed in Who's playing with the reason.
+    - **E1d. Proof across the corpus:** blind.js plays every spec in the corpus to its end with one person and a computer player;
+      the tracker records which kinds bots play; the GPT's manual and Randomize's pieces learn `bots`; the practice couch (hidden
+      since 2026-11-18) is retired or reborn as "Just me and the bot" on the user's word.
+    - Sizes: E1a one session (UI and checks); E1b one to two (the engine's answer kinds, then the server and own pace); E1c one each
+      after the user's answer; E1d one. No migration expected (bots are seats; answers use `game_answers`).
 - **E2. Short games at scale.**
   - A finished game's result is kept small: its final places and winner, as of its last episode.
   - The show's page reads only running games in full.
