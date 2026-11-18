@@ -22,7 +22,7 @@ const FRAMES = [
   { id: "s1-card2-revealed", q: "card=2&season=1&screen=2" },
   { id: "s1-card3-moves", q: "card=3&season=1&screen=2" },
   { id: "s1-card4-tonight", q: "card=4&season=1&screen=2" },
-  { id: "s1-card6-page", q: "card=6&season=1&screen=2" },
+  { id: "s1-card6-reveal", q: "card=6&season=1&screen=2" },
   // The fix taken; a real screen at full size; another season.
   { id: "s1-card5-fix", q: "card=5&season=1&fix=1" },
   { id: "s1-card3-full", q: "card=3&season=1&screen=2&full=1" },

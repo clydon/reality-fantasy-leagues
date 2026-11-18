@@ -138,3 +138,22 @@ The phone: the shot as the phone shows it (390 x 844, at 2x), its foot under the
 the moment's screens; a tap opens the screen at full size, which on a phone is exactly the app. Shuffle and the fix swap in
 another live run's screens. The screens show the app as it is, bugs included: that's the point of looking (Tonight's game section
 says "0 of 0 still in"; the finale's reveal shows the first stage's standings while the overall says otherwise).
+
+**The round (2026-11-18, decision 6).** Built, then checked once each: Impeccable's critique 20/40, PFD's evaluation 63/100. One
+batch of fixes:
+- The capture records where the thing that proves each card's line sits on its screen (Brady's ×4 on every team, your row, the
+  lineup strip, the starters, the Games tab's game, the final standing), and checks what each screen says against the season: "All
+  set" while a draft is due (the Games tab, Tonight, Tonight at the merge), "0 of 0 still in" in a points game, Your team's numbers
+  against your score, the finale's reveal table against who wins overall.
+- The story rings the proof and marks a contradiction with a dashed ring and an "App differs" line. The screen a card opens on is
+  the first that doesn't differ (the finale opens on the game page).
+- The line is the headline; the moment's name sits in the top bar (no eyebrow). The check sits under the line and counts "made-up
+  seasons"; the draft has its own same-castaway check (17 of 30).
+- The phone shows whole, tab bar and Lock in included, sized to the room; its status bar says "Made-up season". Full size fits the
+  screen above its own bar.
+- Tabs are underlines; "Revealed" is "The teams". "Use" is gone: trying 3 each carries to Create this game, the top bar says
+  "Trying 3 each". The last card keeps its back arrow.
+- The couch's colours are chosen through the real profile route (fixed, distinct, the same in every run); the seeded couch chat is
+  left out (a made-up season has none; its GIFs didn't load).
+- Not changed: the made-up Episodes 1 to 8 copy how many went home each aired episode (P0's choice). Inventing the counts left 13
+  still in at Episode 9 where 10 really are; which results a preview may show is a question for the user.
