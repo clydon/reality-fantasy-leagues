@@ -20,6 +20,38 @@ next and your GIF slot among the couch's, Back from it is Not yet, and Live keep
 `scripts/dev-test/check-step-through.js` and frames `story-step-through.js` on `step-fixture.js` (zt-st- rows, runs beside zt_nd).
 Noticed and left: BACKLOG 103. A standing preference from it: an episode named for someone to recognise shows when it aired.
 
+## Next: Start a game, redone (the user's priority, 2026-11-17)
+The user: "I really want to prioritize the create a game wizard. But with that probably should be remaining engine ideas, and
+related fixes. Also update the UIUX to properly display one episode/one game games. As in have some kind of game archive on a show
+so we don't show all games that ever existed (because we want to hope daily games are frequent, whether is against other players
+or against a bot)"; then: "I really don't like our current wizard so I think there's a lot of room for redesigns and mockups
+to approve. We want every and any game to be possible to create from the wizard in an easy intuitive way." **The plan:
+docs/PLAN-start-a-game-redo.md** (written 2026-11-17 on `explorer-sports`, not committed). Design leads, with a pause for the
+user's approval after each round: Round 1 directions, low-fi, three or four tried on ten tasks (xhigh); Round 2 the pick in full,
+hi-fi in the app, with a coverage table of every dial; Round 3 a show's games when short games are frequent, and the archive;
+Round 4 changing a game later. Engine steps in a lane beside them (E1 solo and the simple bot, E2 short games at scale: the show's
+page reads every game in full today, E3 the remaining engine ideas, E4 what the approved design reads), then the build (B1 to
+B4). The measure: every game the engine makes, by taps, with Describe and Randomize as shortcuts. A15 (live calls) is the round
+after (the main session's call; the user may overturn it). Also unpushed: f9100703 (the drill pass's ship notes).
+
+**Round 1 done, waiting on the user's pick (2026-11-17, uncommitted on `explorer-sports`).** The story:
+https://claude.ai/artifact/S8Xxqv7UJJ2MyLAb2mToyR (today's Start a game in 12 situations, then four low-fi directions, A the menu,
+B the sentence, C the interview, D the slip, each walked through the ten tasks: taps A 60, B 59, C 54, D 47; today reaches 3 of 10).
+Recommended: C's front with D's slip as its game screen. The round's papers: `docs/design-round/wizard-r1-{prep,spec,first-view,
+shape,directions}.md` (prep: the coverage target, the before's findings, U0's canvas, Designs needed confirmed: 28 built, 10, 21, 24,
+26, 27, 30 open), five decisions in decisions.md. Tools: `scripts/dev-test/story-start-wizard.js` (the before, reusable for Round
+2's before/after); the low-fi generators are one-offs in `.impeccable/mocks/wizard-r1/` (read-pages.js reads real wizard pages
+through the castprops lane's server; build-data.js runs every task's game through the engine; make-frames.js, make-story.js). Found:
+today's wizard reads Survivor 51's last listed episode (10) as its last, so its season is "2 eps" and Outlast and the pool vanish
+(the plan's Noticed). **Then the user added** (same day): a game library with common built-in games (BACKLOG 93's place) and an end
+goal, a silly season game about a moment the show doesn't track (who cries the most, guessed or drafted), made easily: in the plan
+as task 11, "the silly-moment test", "one game library" and E5; story version 2 adds the library and task 11 in all four (6 taps
+each, 7 for C's draft; both forms play in the engine once crying is added). **Then the user set all four aside** ("I don't see a
+simple way to do head to head or teams or betting") for their own direction: a big gallery of every base a person would name, square
+icon tiles by human category, then drill-down changes. Drawn as Round 1b: https://claude.ai/artifact/LWAkJjLjdvZNLCpMXHxRDL
+(docs/design-round/wizard-r1b-gallery.md; 56 show bases and 13 sport bases, 50 of the 56 playing as checked on Survivor 51; tasks 49
+taps against 59 to 72). Version 2 adds each change's controls (betting in full, a ticket, head to head, teams, lives, your team, scoring, one question) and the inventory of every change's inputs against the engine's ranges. Version 3 adds the user's five asks: a four-card preview of how a game plays (its third card replays an episode the viewer has seen with the game's points) with Ask the couch first, Describe as the search field with an AI interview, community games (the made-for library standing in), plain words on every base, and the game's length in each square, first on each screen and on Start's line. Version 4 answers the user's notes on it: the preview's card 3 falls back to an earlier season's episode, then to an example from the show's own moments (Below Deck 13 has no results locally); length starts and ends at the show's own stages (Survivor 51 two, Below Deck 13 three); and How it runs (live or own pace) sits under length with today's reasons when only one works. Version 5 puts the preview on the real screens: the practice round (2026-10-11) offered before the game exists, built from its spec, Next always there; made-up results use the real cast under the red tag; the story has a working sample (pick three, play Survivor 51's Episode 8). Version 6 keeps today's When moves lock (version 4's invented "How it runs" is gone), opened to show where the couch is and what each choice means for someone a day late or a couple behind, plus where a game syncs at your own pace. Version 7 draws the user's pick: closed, it names someone only when the setting would cost them a move ("riley is 2 episodes behind and would miss moves"), with the fix as one tap ("Wait for riley"). Next (the user, 2026-11-17): **Round 2 in a fresh session**, the gallery in the app at 390 with the coverage table, icons from nano-banana; the story's open questions (its last section) go to the user one at a time as Round 2 reaches them. Then the design round's step 10, Sports in full, then step 11. The engine lane runs beside Round 2, starting with what the gallery leans on: Designs needed 33 (a game in stages starting from Start a game), BACKLOG 42's second part (a choice the engine can change locally skips the bot's wait: the interview's instant answers), the practice round built from a spec (the preview), then E1 (the simple bot); the rest of E3 adds squares whenever. No merges on Wednesday 18's Survivor 51 night (also the own-pace watch night, BACKLOG 65).
+
 ## Cast properties, chunks 1 to 3 (2026-11-16; lane `castprops`: `../rfl-castprops`, branch `cast-props` from `explorer-sports` at 4ec5985e, port 3012, database `rfl_castprops`; committed, not pushed or merged; migration 0439)
 docs/PLAN-cast-properties.md, its "When" now the user's new order (cast properties beside or after step 8, the round's steps 9–12
 after, the wizard taking in chunk 7). Commits: 10b6f369 (chunk 1), ad6b0f2b (chunk 2), e3c18650 (chunk 3), f183b123 (gender).
