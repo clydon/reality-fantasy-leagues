@@ -168,16 +168,14 @@ function check(ok, what, detail = "") {
       await shot("games-practice");
       await wide("the Games tab");
 
+      // Start a game (docs/PLAN-start-a-game-redo.md B1) offers computer players in Who's playing with E1, on every base they can
+      // play; until then they join from Backstage › Members (below), and Who's playing says they're coming.
       await page.locator('[data-start-row="start"]').click();
-      // U1's wizard: computer players come with a draft or a pool (the season's game), not tonight's questions.
-      await page.locator('[data-start-mode="season"]').click({ timeout: 15000 }).catch(() => {});
-      await page.locator("[data-start-bots]").waitFor({ timeout: 10000 }).catch(() => {});
-      check((await page.locator("[data-start-bots]").count()) === 1, "Start a game: Computer players, for a competition's game");
-      check((await page.locator("[data-start-bots-level]").count()) === 0, "how sharp only once there are some");
-      await page.locator('[data-start-bots-count="2"]').click();
-      check((await page.locator("[data-start-bots-level]").count()) === 3 && (await page.locator('[data-start-bots-level="normal"]').getAttribute("aria-checked")) === "true", "two: Easy, Normal (picked), Sharp");
-      await page.locator("[data-start-bots]").scrollIntoViewIfNeeded();
-      await b.settle();
+      await page.locator("[data-gallery=gallery]").waitFor({ timeout: 60000 });
+      await page.locator("[data-gallery-lead]").first().click();
+      await page.locator("[data-gallery-row=who]").click();
+      await page.locator('[data-gallery-choice="bot"]').waitFor({ timeout: 10000 }).catch(() => {});
+      check(/Coming/.test((await page.locator('[data-gallery-choice="bot"]').innerText().catch(() => "")) || ""), "Start a game: Who's playing says the bot is coming (E1)");
       await shot("start-bots");
       await wide("Start a game");
       await page.keyboard.press("Escape");

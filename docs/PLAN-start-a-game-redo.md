@@ -353,6 +353,58 @@ then approval.
     - `check-start-a-game.js`, rewritten;
     - a coverage check that drives the wizard to each dial value;
     - `check-game-page.js`.
+
+  **B1 as run (the wizard lane, 2026-11-18 on; branch `wizard`, port 3013, database rfl_wizard).** In chunks, each committed on
+  `wizard` once its checks pass; nothing merged or pushed.
+  - **Chunk 1. The bold sheet is Start a game for every start.** `start-game.tsx`'s StartRouter opens `gallery-bold/` for a live
+    season, a season that's aired (at your own pace: where you are, or from the top), Run it back (the old game's spec reopened on
+    its base screen, `again.spec` from startOptions), a sport's season, Include it (the episode on now), Make it a game's chain and
+    the first-time tour's practice (Start ends on the practice finish, nothing made). The `?start=` switch, the old list
+    (StartSheet), today's wizard (`start-wizard.tsx`) and Round 2's `gallery/` go; what bold read from `gallery/` (model, saved,
+    icons) moves into `gallery-bold/`. The wizard's logic library (`src/lib/game/start-wizard/`) stays: the made-for games and the
+    bench read it.
+  - **Chunk 2. Start starts the game.** Ready to start's Start sends the spec (`wizardApi.start`: name, pace, late, `made` with
+    its base and where it came from), the couch hears after the 10-second Undo, and the game's page opens (`paths.gamePage`).
+    Pieces that don't play yet aren't offered to people (the plan's rule): Try it (the preview lane's P0), Ask the couch first (no
+    post exists yet), Your own moments (E8) and the suggested moments (E5) are held behind flags in `gallery-bold/flags.ts`, each
+    named there with the step that turns it on. A game in stages is refused by the server (`startFromSpec`), so its Start says so
+    until the engine starts one from a spec. Describe asks our AI for real (the wizard's job store, kept past the sheet); with the
+    lane's keys blank it shows its away state.
+  - **Chunk 3. Saved games on the account.** Migration **0442_saved_games** (master's last is 0441; another lane that takes 0442
+    renumbers at the merge): a recipe per person (base, rules without dates, length, its name, the season it was saved on), keyed
+    by its recipe; `GET/POST/DELETE /api/me/saved-games`; `saved.ts` reads it (react-query), and a browser's localStorage saves from
+    Round 2 move up once. Re-fitted on the season it opens on (fitCouch, the season's own moments) as before. Snapshot rule kept
+    (a changed game saves another).
+  - **Chunk 4. Known names in the catalog.** `known.ts`'s fans' names, shelves, leads and names move into
+    `src/lib/game/start-gallery` (bases.json `aka`, `shelves`; `searchKnown`; `LEADS`), the sports' into sports.json; the coverage
+    table reads them.
+  - **Chunk 5. A team and a slate.** A team's Start a game… and a league's slate add their games (`/api/sports/add`) and open the
+    same sheet on that season, its length chosen from what was asked (the next game, a rival's meetings, a run); today's
+    `start-sport.tsx` goes. Play the next game (one tap, Pick'em) stays.
+  - **Chunk 6. The checks.** `check-start-a-game.js` rewritten for the bold sheet (API and browser: every start, Start, Undo, saves,
+    Describe's away state, refusals); `wizard-coverage.js`, a browser run driving the sheet to each catalog value (the coverage
+    table's homes) and starting a sample; `check-game-page.js`; `story-start-gallery.js --db=rfl_wizard --base-url=http://localhost:3013`.
+  - **Chunk 7. The game page opens on its title card** (the user's call). Not designed yet, so it goes through DESIGN-PROCESS.md:
+    Intent, PFD, Impeccable, one check, the captioned before/after story at 390 as an Artifact, then a stop for the user's review.
+  - **Progress.**
+    - Chunks 1 to 3 committed together (one commit: the router, Start and saves touch the same sheet). `check-start-a-game.js`
+      rewritten and passing (API and browser, 390). Ported to the sheet and passing: `check-own-pace.js`, `check-made-games.js
+      --screens`, `check-episode-lock.js`'s Include it, `check-new-computer-players.js` (Who's playing says the bot is coming),
+      `capture-show-overview.js`. Still driving the old sheets, for chunk 6: `check-spans.js`, `check-phase-starts.js`,
+      `check-questions.js`, `check-own-pace-start.js`, `check-new-start-game.js` (their `--api` halves stand), `check-new-tour.js`'s
+      practice, `story-start-wizard.js` (Round 1's "before": kept as history, it can't run now), `check-gameplay-bench-flows.js`'s
+      wizard surface, `check-sports-couch.js`'s team sheet (chunk 5).
+    - Noticed, not fixed: `check-episode-lock.js` fails "and a new pick doesn't go in" (a pick after Backstage › Settings locks the
+      episode); the lock API, untouched here. `check-new-computer-players.js` still expects the practice couch the user hid on
+      2026-11-18. Both for the main session at the merge.
+    - Dropped from the old list on purpose: the practice show's two-second "getting its rules" wait (the practice opens the gallery
+      straight away); a span picked like dates and a later listed episode as the start (the bold design's lengths are the show's
+      stages; Pick episodes was never built in Round 2b); Tell the couch as a switch (the Start bar says who it tells; it always does).
+  - **After B1: E1, computer players in Who's playing** (planned, not started): Who's playing's "Just me" and "Against the bot"
+    squares (today "coming") become how many computer players and how sharp, on every base where `botsPlay` holds; a base where
+    they can't play yet says Coming with its reason. Until then computer players join from Backstage › Members, as today; Start a
+    game no longer offers them (today's wizard did, for drafts and pools).
+
 - **B2. The play screens for every piece the wizard makes that the page can't play yet,** each before the wizard offers that piece
   to people.
 - **B3. The show's games and the archive** (Round 3's design).

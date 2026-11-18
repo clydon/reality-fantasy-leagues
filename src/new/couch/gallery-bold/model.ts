@@ -465,3 +465,30 @@ export function say(text: string, n: Nouns, line = false): string {
     .join(" ");
   return swap(out || text);
 }
+
+// ---------- a game's base ----------
+
+/** The base a game was made from, for a game that comes without one (Run it back's, our AI's): baseFor's, else the catalog's base
+ *  whose shape is nearest (its kind, how people are got and owned, how it scores, its preset): a sport's bases, say. */
+export const baseOfGame = (spec: Spec, bases: Base[], gm: G): Base | null => baseFor(spec, bases, gm) ?? nearestBase(spec, bases, gm);
+
+function nearestBase(spec: Spec, bases: Base[], gm: G): Base | null {
+  const sig = (s: Spec) => {
+    const x = s as { preset?: string; get?: { by?: string; own?: string }; score?: { by?: string }; count?: { start?: number }; stages?: unknown[]; ask?: unknown[]; card?: unknown };
+    return { kind: gm.kindOf(s), get: x.get?.by ?? null, own: x.get?.own ?? null, score: x.score?.by ?? null, preset: x.preset ?? null, lineup: !!x.count && "start" in (x.count ?? {}), stages: Array.isArray(x.stages) ? x.stages.length : 0 };
+  };
+  const want = sig(spec);
+  let best: Base | null = null;
+  let top = 0;
+  for (const b of bases) {
+    if (!b.spec) continue;
+    const have = sig(b.spec as Spec);
+    if (have.kind !== want.kind) continue;
+    const n = 4 + (have.get === want.get ? 2 : 0) + (have.own === want.own ? 2 : 0) + (have.score === want.score ? 2 : 0) + (have.preset === want.preset ? 3 : 0) + (have.lineup === want.lineup ? 1 : 0) + (have.stages === want.stages ? 1 : 0);
+    if (n > top) {
+      top = n;
+      best = b;
+    }
+  }
+  return best;
+}

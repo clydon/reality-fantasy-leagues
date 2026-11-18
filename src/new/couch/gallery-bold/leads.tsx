@@ -12,7 +12,7 @@ import { TeamMark } from "../../sports/parts";
 import { Avatar } from "../../ui/bars";
 import { Face } from "../../show/parts";
 import { FOCUS, LengthMark } from "./parts";
-import { lockWords, say, type Input } from "../gallery/model";
+import { lockWords, say, type Input } from "./model";
 import { baseName } from "./known";
 
 // The lead tile (docs/design-round/wizard-r2b-shape.md): each category's best-known game drawn with this season's own things, so

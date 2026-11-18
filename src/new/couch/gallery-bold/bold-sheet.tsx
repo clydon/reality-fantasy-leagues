@@ -1,19 +1,29 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { BookHeart, Calculator, ChevronDown, ChevronRight, Heart, Play, Search, Sofa, Sparkles, Shuffle, Swords } from "lucide-react";
+import { BookHeart, Calculator, ChevronDown, ChevronRight, Heart, Play, Search, Sofa, Sparkles, Shuffle, Swords, Users } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import type * as GalleryModule from "@/lib/game/start-gallery/index.js";
 import type * as SportsModule from "@/lib/game/start-gallery/sports.js";
 import type { Base, ChangeState, Spec } from "@/lib/game/start-gallery/index.js";
-import { useHome, useSeasonStats, type WizardOptions } from "../../data";
+import { useAfterReveal, useHome, useSeasonStats, wizardApi, type WizardOptions } from "../../data";
+import { useNav } from "../../nav";
+import { paths } from "../../routes";
+import { PracticeFinish, PracticeStrip } from "../../tour/practice";
+import type { StartPractice } from "../start-game";
+import { openCouchSheet } from "../couch-sheets";
+import { Btn } from "../../ui/parts";
 import { Sheet } from "../../ui/sheet";
-import { Pictogram } from "../gallery/icons";
+import { jobKey, setJob } from "./ai-jobs";
+import { DescribeBody } from "./describe";
+import { ASK_FIRST, OWN_MOMENTS, SUGGESTED_MOMENTS, TRY_IT } from "./flags";
+import { Pictogram } from "./icons";
 import { BaseSquare, CatHead, ChipRow, ChoiceSquare, Controls, EffortMark, Finder, Label, MakeIt, OptionCard, QuestionHead, RuleLine, StartBar, StepLine, Timeline, TitleCard } from "./parts";
 import { Avatar } from "../../ui/bars";
 import { colourOf } from "@/lib/people";
 import { toast } from "../../ui/toast";
-import { communityOf, costWords, effortOf, fitWords, inputOf, isSentence, lengthId, lengthsOf, lockOf, lockWords, readyOf, say, searchBases, shortDate, shortWhy, sizeFit, stretchLine, stripOf, withSpan, type Community, type Input, type Pace, type Span } from "../gallery/model";
-import { keyOf, savedRows, toggleSaved, useSaved, type SavedRow } from "../gallery/saved";
+import { baseOfGame, communityOf, costWords, effortOf, fitWords, inputOf, isSentence, lengthId, lengthsOf, lockOf, lockWords, readyOf, say, shortDate, shortWhy, sizeFit, stretchLine, stripOf, withSpan, type Community, type Input, type Pace, type Span } from "./model";
+import { keyOf, savedRows, useSaved, useToggleSaved, type SavedRow } from "./saved";
 import { AKA, CHANGE_AKA, LEADS, SHELVES, STORY_LEADS, baseName, changeName, searchKnown } from "./known";
 import { nextStep, type Goal, type Step } from "./ladders";
 import { OwnMomentsBody, type OwnMoment } from "./own-moments";
@@ -22,22 +32,21 @@ import { TeamMark, teamBg, teamInk } from "../../sports/parts";
 import { usualLen } from "./parts";
 import { LeadTile } from "./leads";
 
-// Start a game, the gallery (docs/PLAN-start-a-game-redo.md Round 2; docs/design-round/wizard-r2-spec.md, -first-view.md, -shape.md):
-// TEMP-UI behind a switch (`?start=gallery`, or localStorage gys_start=gallery) until the user approves the round; Start saves
-// nothing here (the would-start screen shows the game our check passed). Every game and change comes from the catalog
-// (src/lib/game/start-gallery) on the season's own page, checked and worded by the engine on the phone, as the wizard does.
+// Start a game (docs/PLAN-start-a-game-redo.md B1: the bold pass, Rounds 2b and 2c, approved 2026-11-18, built for every start). Every
+// game and change comes from the catalog (src/lib/game/start-gallery; a sport's from sports.js) on the season's own page, checked
+// and worded by the engine on the phone; Start sends the spec, and the server checks it again before it makes anything
+// (start-spec.ts startFromSpec). Three named steps: Choose a game, Set it up, Start.
 //
 //   the gallery      the field, the ready game folded into the collapsed community section, the category chips, the squares
-//   a base           its sentence, what everyone does, How long? (the timeline, the length cards), Together, or at your own pace?
-//                    (two plain cards, Together naming whoever it costs), Try it, Make it…, the rules one at a time, the
-//                    community's of its kind; Start docked
+//   a base           its sentence, what everyone does, How long? (the timeline, the length cards; Include it while one's on;
+//                    where from at your own pace), Together, or at your own pace? (two plain cards, Together naming whoever it
+//                    costs), Make it…, the rules one at a time, the community's of its kind; Start docked
 //   a change         the row's squares, the chosen one's controls under it, Done
 //   the questions    a game of questions' own row: its questions, Add a question
-//   preview          the practice round's four steps on the real screens (the user, Round 2)
-//   ask              Ask the couch first: the post as the couch sees it
-//   describe         our AI's one turn (the wait, its errors, the interview whose answers apply at once)
+//   describe         our AI's one turn (describe.tsx: the wait, its errors, what it heard, what's left to settle)
 //   community        the made-for library as the community's, your saved games (the heart beside Start), a game's own screen
-//   done             what Start would do (Round 2 saves nothing)
+//   done             Ready to start: the game Start makes and who it tells (a ready game's or our AI's, one tap from the gallery)
+// Held back until they play (flags.ts): Try it, Ask the couch first, your own moments, the suggested moments.
 
 type GM = typeof GalleryModule;
 let loaded: GM | null = null;
@@ -67,19 +76,6 @@ function useSportsModule(on: boolean): SM | null {
   return m;
 }
 
-/** The switch: the bold pass (Round 2b) in place of the wizard, beside Round 2's `?start=gallery`. */
-export function boldOn(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    const q = new URLSearchParams(window.location.search).get("start");
-    if (q === "bold") localStorage.setItem("gys_start", "bold");
-    if (q === "wizard") localStorage.removeItem("gys_start");
-    return localStorage.getItem("gys_start") === "bold";
-  } catch {
-    return false;
-  }
-}
-
 type Level =
   | { k: "gallery" }
   | { k: "base" }
@@ -102,7 +98,7 @@ interface Game {
   /** The spec before each row's first change, for that row's Undo. */
   before: Record<string, Spec>;
   asked: boolean;
-  from: "base" | "community" | "describe" | "saved";
+  from: "base" | "community" | "describe" | "saved" | "again";
   name: string;
   moment: string | null;
   /** Your own moments (the user, 2026-11-18): what the results won't catch, settled by the couch or our research. */
@@ -156,34 +152,84 @@ const ROW_ASK: Record<string, string> = {
 const EXCLUSIVE = new Set(["who", "compete", "bets", "season"]);
 const ROW_ICON: Record<string, string> = { who: "teams", compete: "trophy", bets: "bank", play: "fantasy", scoring: "seasonpred", twists: "twist", season: "halves", details: "keeper", questions: "sheet" };
 
-export function BoldSheet({ open, onOpenChange, o, loading, error, couchId }: { open: boolean; onOpenChange: (o: boolean) => void; o: WizardOptions | undefined; loading: boolean; error: Error | null; couchId: string | null }) {
+/** Where this start came from, and what it can change: the episode on now (Include it), where an own-pace game starts, Run it back's
+ *  game, the tour's practice, the view to open on (Describe's See it). */
+export interface StartCtx {
+  late: boolean;
+  setLate: (on: boolean) => void;
+  catchUp: number | null;
+  setCatchUp: (n: number | null) => void;
+  practice?: StartPractice;
+  again: string | null;
+  screen: "describe" | null;
+}
+
+export function BoldSheet({ open, onOpenChange, o, loading, error, couchId, start }: { open: boolean; onOpenChange: (o: boolean) => void; o: WizardOptions | undefined; loading: boolean; error: Error | null; couchId: string | null; start: StartCtx }) {
   const gm = useGalleryModule();
   const { data: home } = useHome();
+  const nav = useNav();
   const input = useMemo(() => (gm && o ? inputOf(o, home, couchId, gm) : null), [gm, o, home, couchId]);
   // A sport's season: the same gallery, its shelves from the sports catalog (the user, 2026-11-18).
   const sm = useSportsModule(!!o?.sport);
   const sport = useMemo(() => (o?.sport && o.wizard && sm ? sportView(sm, o.wizard.page, o.sport.league) : null), [o, sm]);
-  if (!couchId || error || !o || !gm || !input || loading || (o.sport && !sport)) {
+  const stop = !couchId || error || o?.blocked;
+  // The first read only: a read again (Include it, where it starts) keeps the sheet where it is, Start held until it's in.
+  if (stop || !o || !gm || !input || (o.sport && !sport)) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange} title="Start a game" subtitle={o ? `${o.label} · ${o.couch.name}` : undefined}>
-        <div data-gallery={error ? "error" : "loading"} className="pb-2">
-          {error ? <p className="text-[15px] text-muted-foreground">{error.message}</p> : !couchId ? <p className="text-[15px] text-muted-foreground">Games are played on a couch.</p> : <div aria-busy className="h-72 animate-pulse rounded-[4px] bg-secondary" />}
+        <div data-gallery={!couchId ? "no-couch" : error ? "error" : o?.blocked ? "blocked" : "loading"} className="flex flex-col gap-3 pb-2">
+          {!couchId ? (
+            <>
+              <p className="text-[15px] leading-snug text-muted-foreground">Games are played on a couch. Start one and send the code, or join one with a code.</p>
+              {!start.practice && (
+                <Btn tone="must" wide onClick={() => openCouchSheet({ kind: "new" })}>
+                  <Users className="size-5" aria-hidden />
+                  Start a couch
+                </Btn>
+              )}
+            </>
+          ) : error ? (
+            <p className="text-[15px] text-muted-foreground">{error.message}</p>
+          ) : o?.blocked ? (
+            <>
+              <p data-start-blocked className="text-[15px] leading-snug text-muted-foreground">
+                {o.blocked}.
+              </p>
+              {/Make .* a game first/.test(o.blocked) && !start.practice && (
+                <Btn
+                  tone="must"
+                  wide
+                  onClick={() => {
+                    onOpenChange(false);
+                    nav.push(`${paths.show(o.seasonId, "games")}?page=make&then=start`);
+                  }}
+                >
+                  Make it a game
+                </Btn>
+              )}
+            </>
+          ) : (
+            <div aria-busy className="h-72 animate-pulse rounded-[4px] bg-secondary" />
+          )}
         </div>
       </Sheet>
     );
   }
-  return <Gallery key={o.seasonId} open={open} onOpenChange={onOpenChange} gm={gm} input={input} sport={sport} />;
+  return <Gallery key={o.seasonId} open={open} onOpenChange={onOpenChange} gm={gm} o={o} input={input} sport={sport} start={start} refreshing={loading} />;
 }
 
-function Gallery({ open, onOpenChange, gm, input, sport }: { open: boolean; onOpenChange: (o: boolean) => void; gm: GM; input: Input; sport: SportView | null }) {
+function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }: { open: boolean; onOpenChange: (o: boolean) => void; gm: GM; o: WizardOptions; input: Input; sport: SportView | null; start: StartCtx; refreshing: boolean }) {
   const { data: home } = useHome();
+  const nav = useNav();
+  const refresh = useAfterReveal();
+  const qc = useQueryClient();
   const showInfo = home?.shows.find((s) => s.seasonId === input.seasonId)?.show ?? null;
   const art = showInfo?.artUrl ?? null;
   const flavor = sport ? `sport ${sport.league}` : `${showInfo?.kind ?? (input.sport ? "sport" : "competition")} ${input.label}`;
   const bases = sport ? sport.bases : gm.BASES;
   const marks = useTeamMarks(sport);
   const flavorKind = sport ? "sport" : showInfo?.kind ?? "competition";
-  const [levels, setLevels] = useState<Level[]>([{ k: "gallery" }]);
+  const [levels, setLevels] = useState<Level[]>(() => (start.screen === "describe" ? [{ k: "gallery" }, { k: "describe" }] : [{ k: "gallery" }]));
   const level = levels[levels.length - 1];
   // Each level opens at its top, and Back returns to where you were on the one before (the gallery's scroll and chip, a game's
   // screen at the row you opened): the scroll each level was left at, by depth.
@@ -220,6 +266,56 @@ function Gallery({ open, onOpenChange, gm, input, sport }: { open: boolean; onOp
   }, [levels.length]);
   const pg = input.pg;
 
+  // ---------- starting it ----------
+  const [busy, setBusy] = useState(false);
+  // The tour's practice: Start makes nothing; its finish says so.
+  const [practiced, setPracticed] = useState<string | null>(null);
+  /** Start: the spec to the server (checked again there), the couch told after the 10-second Undo, then the game's own page. */
+  const startGame = async (g: { base: Base; spec: Spec; span: Span; name: string; from: Game["from"]; pace: Pace | null }, extra: Record<string, unknown> = {}) => {
+    if (start.practice) return setPracticed(say(g.name, input.nouns, true));
+    if (busy) return;
+    const lock0 = lockOf(g.spec, g.span, input, g.pace);
+    const pace: Pace = lock0.value === "strict" ? "live" : lock0.value;
+    setBusy(true);
+    try {
+      const r = await wizardApi.start(input.seasonId, input.couch.id, {
+        spec: g.spec,
+        name: say(g.name, input.nouns, true),
+        tell: true,
+        ...(start.late ? { late: true } : {}),
+        ...(input.ownPace ? {} : { pace }),
+        made: { how: g.from, base: g.base.id, ...(start.again ? { again: start.again } : {}), ...extra },
+      });
+      await refresh();
+      toast(`${r.name} started${r.told ? " · the couch hears in 10 seconds" : ""}`, {
+        ms: r.holdMs,
+        undo: () => {
+          wizardApi.undo(input.seasonId, input.couch.id, r.leagueId).then(
+            async () => {
+              await refresh();
+              toast(`${r.name} taken back${r.told ? ": nobody heard" : ""}`);
+            },
+            (e: Error) => toast.quiet(e.message)
+          );
+        },
+      });
+      onOpenChange(false);
+      nav.push(paths.gamePage(input.seasonId, r.leagueId));
+    } catch (e) {
+      toast.quiet((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  /** Why Start can't go yet (the engine's own reason), or null. */
+  const cantStart = (spec: Spec): string | null => {
+    if (refreshing) return "Reading the season again…";
+    const v = gm.check(spec, pg);
+    if (!v.ok) return v.problems[0] ? `Can't start yet: ${v.problems[0]}` : v.waits[0] ? `Not yet: ${v.waits[0]}` : "Can't start yet";
+    if (input.ownPace && Array.isArray(spec.stages)) return "A game in stages can't be played at your own pace yet";
+    return null;
+  };
+
   const verdicts = useMemo(() => (sport ? (sport.verdicts as unknown as Map<string, ReturnType<GM["galleryFor"]>[number]>) : new Map(gm.galleryFor(pg, { from: input.from, to: null }).map((v) => [v.id, v]))), [gm, pg, input.from, sport]);
   const community = useMemo(() => communityOf(input, gm.BASES, gm), [gm, input]);
   // The ready game: a show's made-for game for the next episode; a sport's next game as Pick'em (one tap, as on a show).
@@ -244,6 +340,29 @@ function Gallery({ open, onOpenChange, gm, input, sport }: { open: boolean; onOp
     setGame({ base: b, spec: withSpan(s, sp), span: sp, pace: null, before: {}, asked: false, from, name: name ?? baseName(b.id, b.name), moment: null, fitted, own: [] });
     push({ k: "base" });
   };
+  // Run it back: the old game reopened on its base's screen, on this season (where it started: a phase still to come, or the next
+  // episode; to the span's next stretch, or the season's end). Adjusted while rendering, once its spec is in.
+  const [againOpened, setAgainOpened] = useState(false);
+  if (!againOpened && start.again && o.againSpec && o.again) {
+    setAgainOpened(true);
+    const spec0 = o.againSpec as Spec;
+    const b = baseOfGame(spec0, bases, gm);
+    if (b) {
+      const sp: Span = o.again.phase ? { from: { phase: o.again.phase }, to: null } : { from: input.from, to: o.again.to ?? null };
+      setGame({ base: b, spec: withSpan(spec0, sp), span: sp, pace: null, before: {}, asked: false, from: "again", name: o.again.name, moment: null, fitted: null, own: [] });
+      setLevels([{ k: "gallery" }, { k: "base" }]);
+    }
+  }
+  // Include it, or a different start at your own pace: the options come again from the new start, and the game moves with them.
+  const [fromWas, setFromWas] = useState(input.from);
+  if (fromWas !== input.from) {
+    setFromWas(input.from);
+    if (game && typeof game.span.from === "number" && game.span.from !== input.from) {
+      const span: Span = { from: input.from, to: game.span.to === game.span.from ? input.from : typeof game.span.to === "number" && game.span.to < input.from ? null : game.span.to };
+      setGame({ ...game, span, spec: withSpan(game.spec, span) });
+    }
+  }
+
   /** A change to the game, its row marked (and its Undo kept: the spec before the row's first change). */
   const change = (row: string, next: Spec) => {
     if (!game) return;
@@ -274,9 +393,10 @@ function Gallery({ open, onOpenChange, gm, input, sport }: { open: boolean; onOp
     [saved, input, gm, sport]
   );
   const savedKeys = useMemo(() => new Set(saved.map((x) => x.key)), [saved]);
-  const toggleSave = (g: { base: Base; spec: Spec; span: Span; name: string; from: Game["from"] }) => {
-    const on = toggleSaved(g, input);
-    setSaid(on ? "Saved. It's in Community and saved games" : "Taken off your saved games");
+  const toggleSaved = useToggleSaved();
+  const toggleSave = async (g: { base: Base; spec: Spec; span: Span; name: string; from: Game["from"] }) => {
+    const on = await toggleSaved(g, input, saved);
+    if (on !== null) setSaid(on ? "Saved. It's in Community and saved games" : "Taken off your saved games");
   };
   /** A saved game opened: its screen, from the next episode, for the length it was saved with. */
   const openSaved = (r: SavedRow) => {
@@ -340,7 +460,6 @@ function Gallery({ open, onOpenChange, gm, input, sport }: { open: boolean; onOp
     title = "Set it up";
     subtitle = <StepLine step={2} text={`Set it up · ${game.from === "saved" ? "your saved game" : game.from === "community" ? "a ready-made game" : input.label}`} />;
     backTo = { label: "All games", onClick: back };
-    const v = gm.check(game.spec, pg);
     const lock0 = lockOf(game.spec, game.span, input, game.pace);
     const lock = lock0.value === "strict" ? lockOf(game.spec, game.span, input, "live") : lock0;
     const first = input.listed.find((e) => typeof game.span.from === "number" && e.number === game.span.from);
@@ -378,6 +497,8 @@ function Gallery({ open, onOpenChange, gm, input, sport }: { open: boolean; onOp
         onOwn={() => push({ k: "own" })}
         sport={sport}
         marks={marks}
+        o={o}
+        start={start}
       />
     );
     foot = (
@@ -394,10 +515,11 @@ function Gallery({ open, onOpenChange, gm, input, sport }: { open: boolean; onOp
         label={`Start ${Object.keys(game.before).length || game.own.length ? "your " : ""}${game.name}`}
         tells={input.tells ? `Tells ${input.tells} who watch it` : "Just you for now"}
         asked={game.asked ? `Asked the couch · 0 of ${Math.max(1, input.couch.members - 1)} in so far` : null}
-        disabled={v.ok ? null : v.problems[0] ? `Can't start yet: ${v.problems[0]}` : null}
+        disabled={cantStart(game.spec)}
+        busy={busy}
         save={{ on: savedKeys.has(keyOf(game.base.id, game.spec)), onToggle: () => toggleSave(game) }}
-        onStart={() => push({ k: "done" })}
-        onAsk={() => push({ k: "ask" })}
+        onStart={() => startGame(game)}
+        onAsk={ASK_FIRST ? () => push({ k: "ask" }) : null}
       />
     );
   } else if (game && level.k === "change") {
@@ -453,14 +575,24 @@ function Gallery({ open, onOpenChange, gm, input, sport }: { open: boolean; onOp
     backTo = { label: "All games", onClick: back };
     body = (
       <DescribeBody
-        gm={gm}
         input={input}
         words={q}
-        onOpen={(b, spec, name) => openBase(b, spec, spec.span as Span, "describe", name)}
-        onStart={(b, spec, name) => {
-          openBase(b, spec, spec.span as Span, "describe", name);
+        bases={bases.filter((b) => verdicts.get(b.id)?.state === "plays")}
+        onBase={(b) => openBase(b)}
+        onOpen={(spec, name) => {
+          const b = baseOfGame(spec, bases, gm);
+          if (!b) return toast.quiet("That game isn't one the gallery can open: start it as it is");
+          setJob(jobKey(input.seasonId), null);
+          openBase(b, spec, (spec.span as Span | undefined) ?? undefined, "describe", name);
+        }}
+        onStart={(spec, name) => {
+          const b = baseOfGame(spec, bases, gm);
+          if (!b) return toast.quiet("That game isn't one the gallery can open");
+          setJob(jobKey(input.seasonId), null);
+          openBase(b, spec, (spec.span as Span | undefined) ?? undefined, "describe", name);
           push({ k: "done" });
         }}
+        onAdded={() => qc.invalidateQueries({ queryKey: ["new-design", "start-wizard", input.seasonId] })}
       />
     );
   } else if (level.k === "community") {
@@ -480,11 +612,15 @@ function Gallery({ open, onOpenChange, gm, input, sport }: { open: boolean; onOp
         c={c}
         saved={!!c.base && savedKeys.has(keyOf(c.base.id, c.spec))}
         onChange={() => c.base && openBase(c.base, c.spec, c.spec.span as Span, "community", c.name)}
-        onTry={() => {
-          if (!c.base) return;
-          openBase(c.base, c.spec, c.spec.span as Span, "community", c.name);
-          push({ k: "preview" });
-        }}
+        onTry={
+          TRY_IT
+            ? () => {
+                if (!c.base) return;
+                openBase(c.base, c.spec, c.spec.span as Span, "community", c.name);
+                push({ k: "preview" });
+              }
+            : null
+        }
       />
     ) : null;
     if (c?.base) {
@@ -504,9 +640,11 @@ function Gallery({ open, onOpenChange, gm, input, sport }: { open: boolean; onOp
           label="Start your own copy"
           tells={input.tells ? `Tells ${input.tells} who watch it` : "Just you for now"}
           asked={null}
+          disabled={cantStart(c.spec)}
+          busy={busy}
           save={{ on: savedKeys.has(keyOf(base.id, c.spec)), onToggle: () => toggleSave({ base, spec: c.spec, span: cspan, name: c.name, from: "community" }) }}
-          onStart={() => open(null, "done")}
-          onAsk={() => open(null, "ask")}
+          onStart={() => startGame({ base, spec: c.spec, span: cspan, name: c.name, from: "community", pace: null })}
+          onAsk={ASK_FIRST ? () => open(null, "ask") : null}
         />
       );
     }
@@ -540,7 +678,40 @@ function Gallery({ open, onOpenChange, gm, input, sport }: { open: boolean; onOp
     title = "Ready to start";
     subtitle = <StepLine step={3} text={`Start · ${game.name}`} />;
     backTo = { label: game.name, onClick: back };
-    body = <DoneBody gm={gm} input={input} game={game} onWait={() => setGame({ ...game, pace: "own" })} onAsk={() => push({ k: "ask" })} />;
+    body = <DoneBody gm={gm} input={input} game={game} onWait={() => setGame({ ...game, pace: "own" })} onAsk={ASK_FIRST ? () => push({ k: "ask" }) : null} />;
+    const dlock0 = lockOf(game.spec, game.span, input, game.pace);
+    const dlock = dlock0.value === "strict" ? lockOf(game.spec, game.span, input, "live") : dlock0;
+    const dfirst = input.listed.find((e) => typeof game.span.from === "number" && e.number === game.span.from);
+    foot = (
+      <StartBar
+        line={lockLineOf(input, dlock.value, game.spec, dfirst ? ` · first move by ${lockWords(dfirst.airAt)}` : "")}
+        warn={null}
+        label={`Start ${say(game.name, input.nouns, true)}`}
+        tells={input.tells ? `Tells ${input.tells} who watch it` : "Just you for now"}
+        asked={null}
+        disabled={cantStart(game.spec)}
+        busy={busy}
+        save={{ on: savedKeys.has(keyOf(game.base.id, game.spec)), onToggle: () => toggleSave(game) }}
+        onStart={() => startGame(game)}
+        onAsk={null}
+      />
+    );
+  }
+
+  // The tour's practice: its strip on every view, and Start's finish in place of the game.
+  if (start.practice && practiced) {
+    title = "That's how a game starts";
+    subtitle = "Practice run";
+    backTo = undefined;
+    foot = null;
+    body = <PracticeFinish line={`${practiced} for ${input.label} isn't saved: this was just to show you how.`} onDone={() => onOpenChange(false)} />;
+  } else if (start.practice) {
+    body = (
+      <>
+        <PracticeStrip />
+        {body}
+      </>
+    );
   }
 
   useEffect(() => {
@@ -865,6 +1036,8 @@ function BaseBody(p: {
   onOwn: () => void;
   sport: SportView | null;
   marks: Map<string, Mark>;
+  o: WizardOptions;
+  start: StartCtx;
 }) {
   const { gm, input, game, lock } = p;
   const pg = input.pg;
@@ -951,9 +1124,11 @@ function BaseBody(p: {
             </span>
           )}
         </p>
-        <button type="button" data-gallery-preview onClick={p.onPreview} className="nd-press flex h-11 flex-none items-center gap-1.5 rounded-[3px] px-3 text-[14px] font-bold outline-1 -outline-offset-1 outline-input">
-          <Play className="size-4" aria-hidden /> Try it
-        </button>
+        {TRY_IT && (
+          <button type="button" data-gallery-preview onClick={p.onPreview} className="nd-press flex h-11 flex-none items-center gap-1.5 rounded-[3px] px-3 text-[14px] font-bold outline-1 -outline-offset-1 outline-input">
+            <Play className="size-4" aria-hidden /> Try it
+          </button>
+        )}
       </div>
       {game.base.moment && <MomentRow input={input} game={game} setGame={p.setGame} gm={gm} />}
 
@@ -965,6 +1140,7 @@ function BaseBody(p: {
             <OptionCard key={l.id} data={`length-${l.id}`} title={l.label} line={l.ok ? lengthLine(l) : undefined} off={l.ok ? null : shortWhy(l.why ?? "")} chosen={l.id === lid} onPick={() => setLength(l.id)} />
           ))}
         </div>
+        <StartsFrom o={p.o} start={p.start} input={input} />
       </section>
 
       <section data-gallery-lock={lock.value} className="mt-8">
@@ -1055,7 +1231,7 @@ function BaseBody(p: {
         {rows.map((r) => (
           <RuleLine key={r} data={r} icon={ROW_ICON[r]} label={rowName(r)} value={valueOf(r)} changed={r in game.before} onClick={() => p.onRow(r)} onUndo={() => p.onUndo(r)} />
         ))}
-        <RuleLine data="own" icon="onemoment" label="Your own moments" value={game.own.length ? `${game.own.map((m) => m.label).join(", ")} · the couch settles ${game.own.length === 1 ? "it" : "them"}` : "None yet · add what the results won't catch"} changed={game.own.length > 0} onClick={p.onOwn} />
+        {OWN_MOMENTS && <RuleLine data="own" icon="onemoment" label="Your own moments" value={game.own.length ? `${game.own.map((m) => m.label).join(", ")} · the couch settles ${game.own.length === 1 ? "it" : "them"}` : "None yet · add what the results won't catch"} changed={game.own.length > 0} onClick={p.onOwn} />}
       </div>
       <FindChange gm={gm} game={game} pg={pg} onToggle={(id, row) => p.onPopular(id, row)} />
 
@@ -1119,7 +1295,7 @@ const SUGGESTED: { id: string; label: string }[] = [
 /** The moment a base leaves open (Who does it most?, the one-moment draft): the season's own moments, then suggested ones. */
 function MomentRow({ input, game, setGame, gm }: { input: Input; game: Game; setGame: (g: Game) => void; gm: GM }) {
   const own = input.pg.moments.slice(0, 12).map((m) => ({ id: m.id, label: m.label ?? m.id, own: true }));
-  const all = [...SUGGESTED.filter((s) => !own.some((o) => o.id === s.id)).map((s) => ({ ...s, own: false })), ...own];
+  const all = [...(SUGGESTED_MOMENTS ? SUGGESTED.filter((s) => !own.some((o) => o.id === s.id)).map((s) => ({ ...s, own: false })) : []), ...own];
   const current = all.find((m) => m.id === game.moment) ?? own[0];
   const pick = (id: string, isOwn: boolean) => {
     const m = all.find((x) => x.id === id);
@@ -1316,93 +1492,6 @@ function AskBody({ gm, input, game, line }: { gm: GM; input: Input; game: Game; 
   );
 }
 
-// ---------- describe ----------
-
-// TEMP (Round 2): our AI's reply is a fixture behind the switch (no ask is spent): the reply the user chose (each answer carrying
-// its change) for "guess who wins immunity and who goes home each week, double or nothing on the boot, finale counts double".
-// ?describe=away or ?describe=used shows its errors.
-function DescribeBody({ gm, input, words, onOpen, onStart }: { gm: GM; input: Input; words: string; onOpen: (b: Base, spec: Spec, name: string) => void; onStart: (b: Base, spec: Spec, name: string) => void }) {
-  const forced = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("describe") : null;
-  const [state, setState] = useState<"wait" | "result" | "away" | "used">(forced === "away" || forced === "used" ? forced : "wait");
-  const [answer, setAnswer] = useState<Record<number, number>>({});
-  useEffect(() => {
-    if (forced === "away" || forced === "used" || forced === "wait") return;
-    const t = setTimeout(() => setState("result"), 2600);
-    return () => clearTimeout(t);
-  }, [forced]);
-  const said = words.trim() || "Guess who wins immunity and who goes home each week, double or nothing on the boot, finale counts double";
-  const sheet = gm.baseById("sheet")!;
-  const base = gm.baseSpec(sheet, { from: input.from, to: null }, input.pg)!;
-  const spec0: Spec = { ...base, ask: (base.ask ?? []).slice(0, 2).map((q, i) => (i === 0 ? { ...q, wager: "total" } : q)) };
-  const answers: { label: string; line: string; spec: Spec }[] = [
-    { label: "Keep it guesses", line: "No double: a game of guesses can't double its finale yet", spec: spec0 },
-    { label: "A team game, finale ×2", line: "Pick a team; what they do scores, and the finale counts double", spec: gm.applyChange(gm.baseSpec(gm.baseById("fantasy")!, { from: input.from, to: null }, input.pg)!, "times", input.pg) },
-  ];
-  const chosen = answers[answer[0] ?? 0];
-  if (state === "wait")
-    return (
-      <div data-gallery-describe="wait" className="flex flex-col items-start gap-3">
-        <p className="text-[15px] leading-snug">&ldquo;{said}&rdquo;</p>
-        <div className="w-full rounded-[4px] bg-secondary p-3">
-          <span className="type-caption text-[17px]">Our AI is building it</span>
-          <div className="relative mt-3 h-1.5 overflow-hidden rounded-full bg-background">
-            <i className="roll-sweep absolute inset-y-0 left-0 w-1/3 rounded-full bg-foreground/70" />
-          </div>
-          <p className="mt-2 text-[13px] text-muted-foreground">About 40 seconds{input.asksLeft != null ? ` · ${input.asksLeft} asks left today` : ""}. Leave if you like: it&rsquo;s here when you&rsquo;re back.</p>
-        </div>
-      </div>
-    );
-  if (state === "away" || state === "used")
-    return (
-      <div data-gallery-describe={state} className="flex flex-col gap-3">
-        <p className="text-[15px] leading-snug">&ldquo;{said}&rdquo;</p>
-        <div className="rounded-[4px] border border-dashed border-edge p-3">
-          <b className="block text-[15px] font-semibold">{state === "away" ? "Our AI is away right now" : "That's today's ten asks"}</b>
-          <p className="mt-1 text-[14px] leading-snug text-muted-foreground">{state === "away" ? "Everything in the gallery works by tapping. Try the closest games below, or ask again in a while." : "Back tomorrow at 7 AM. Every game in the gallery still works by tapping."}</p>
-        </div>
-        <Label>Closest by tapping</Label>
-        <div className="grid grid-cols-2 gap-3">
-          {searchBases(said, gm.BASES.filter((b) => b.spec)).slice(0, 2).map(({ base }) => (
-            <BaseSquare key={base.id} base={base} state="plays" onOpen={() => onOpen(base, gm.baseSpec(base, { from: input.from, to: null }, input.pg)!, base.name)} />
-          ))}
-        </div>
-      </div>
-    );
-  return (
-    <div data-gallery-describe="result" className="flex flex-col gap-4">
-      <div>
-        <Label>What we heard</Label>
-        <p className="text-[15px] leading-snug">
-          <mark className="rounded-[2px] bg-foreground/15 px-0.5 text-foreground">Guess who wins immunity and who goes home</mark> each week,{" "}
-          <mark className="rounded-[2px] bg-foreground/15 px-0.5 text-foreground">double or nothing on the boot</mark>, <span className="text-muted-foreground line-through decoration-1">finale counts double</span>
-        </p>
-        <p className="mt-2 text-[13px] leading-snug text-muted-foreground">A doubled finale works in a team game, not yet in a game of guesses.</p>
-      </div>
-      <div data-gallery-interview>
-        <Label>One thing to settle</Label>
-        <p className="mb-2 text-[15px] font-semibold">Keep it guesses, or make it a team game with the finale doubled?</p>
-        <div className="flex flex-col gap-2">
-          {answers.map((a, i) => (
-            <button key={a.label} type="button" data-gallery-answer={i} aria-pressed={(answer[0] ?? 0) === i} onClick={() => setAnswer({ 0: i })} className={`nd-press rounded-[4px] p-3 text-left ${(answer[0] ?? 0) === i ? "bg-foreground text-background" : "bg-secondary"}`}>
-              <b className="block text-[15px] font-semibold">{a.label}</b>
-              <small className={`block text-[13px] ${(answer[0] ?? 0) === i ? "text-background/75" : "text-muted-foreground"}`}>{a.line}</small>
-            </button>
-          ))}
-        </div>
-        <p className="mt-2 text-[13px] text-muted-foreground">Each answer is already checked by our engine: a tap changes it now, nothing waits.</p>
-      </div>
-      <div className="flex flex-col gap-2">
-        <button type="button" data-gallery-describe-start onClick={() => onStart((answer[0] ?? 0) === 0 ? sheet : gm.baseById("fantasy")!, chosen.spec, (answer[0] ?? 0) === 0 ? "Your guesses" : "Your team game")} className="nd-press type-caption flex h-[52px] w-full items-center justify-center rounded-[3px] bg-chyron text-[20px] text-chyron-foreground">
-          Start it
-        </button>
-        <button type="button" data-gallery-describe-open onClick={() => onOpen((answer[0] ?? 0) === 0 ? sheet : gm.baseById("fantasy")!, chosen.spec, (answer[0] ?? 0) === 0 ? "Your guesses" : "Your team game")} className="nd-press h-12 w-full rounded-[3px] text-[15px] font-bold outline-1 -outline-offset-1 outline-input">
-          Open it to change more
-        </button>
-      </div>
-    </div>
-  );
-}
-
 // ---------- the community ----------
 
 function CommunityList({ input, community, saved, savedKeys, onGame, onSaved }: { input: Input; community: Community[]; saved: SavedRow[]; savedKeys: Set<string>; onGame: (i: number) => void; onSaved: (r: SavedRow) => void }) {
@@ -1434,7 +1523,7 @@ function CommunityList({ input, community, saved, savedKeys, onGame, onSaved }: 
   );
 }
 
-function CommunityGame({ gm, input, c, saved, onChange, onTry }: { gm: GM; input: Input; c: Community; saved: boolean; onChange: () => void; onTry: () => void }) {
+function CommunityGame({ gm, input, c, saved, onChange, onTry }: { gm: GM; input: Input; c: Community; saved: boolean; onChange: () => void; onTry: (() => void) | null }) {
   const v = gm.check(c.spec, input.pg);
   const strip = stripOf(input, c.spec.span as Span);
   return (
@@ -1451,10 +1540,12 @@ function CommunityGame({ gm, input, c, saved, onChange, onTry }: { gm: GM; input
         <QuestionHead id="cgame-length" question="How long?" answer={sportSay(input, stretchLine(c.spec.span as Span, input))} />
         <Timeline cells={strip.cells} stages={strip.stages} />
       </section>
-      <div className="mt-5 grid grid-cols-2 gap-2">
-        <button type="button" data-gallery-cgame-try onClick={onTry} className="nd-press flex h-11 items-center justify-center gap-1.5 rounded-[3px] text-[14px] font-bold outline-1 -outline-offset-1 outline-input">
-          <Play className="size-4" aria-hidden /> Try it
-        </button>
+      <div className={`mt-5 grid gap-2 ${onTry ? "grid-cols-2" : "grid-cols-1"}`}>
+        {onTry && (
+          <button type="button" data-gallery-cgame-try onClick={onTry} className="nd-press flex h-11 items-center justify-center gap-1.5 rounded-[3px] text-[14px] font-bold outline-1 -outline-offset-1 outline-input">
+            <Play className="size-4" aria-hidden /> Try it
+          </button>
+        )}
         <button type="button" data-gallery-change-first onClick={onChange} className="nd-press h-11 rounded-[3px] text-[14px] font-bold outline-1 -outline-offset-1 outline-input">
           Change it first
         </button>
@@ -1463,9 +1554,9 @@ function CommunityGame({ gm, input, c, saved, onChange, onTry }: { gm: GM; input
   );
 }
 
-// ---------- would start (Round 2 saves nothing) ----------
+// ---------- ready to start ----------
 
-function DoneBody({ gm, input, game, onWait, onAsk }: { gm: GM; input: Input; game: Game; onWait: () => void; onAsk: () => void }) {
+function DoneBody({ gm, input, game, onWait, onAsk }: { gm: GM; input: Input; game: Game; onWait: () => void; onAsk: (() => void) | null }) {
   const v = gm.check(game.spec, input.pg);
   const lock0 = lockOf(game.spec, game.span, input, game.pace);
   const lock = lock0.value === "strict" ? lockOf(game.spec, game.span, input, "live") : lock0;
@@ -1473,16 +1564,21 @@ function DoneBody({ gm, input, game, onWait, onAsk }: { gm: GM; input: Input; ga
     <div data-gallery-would-start className="flex flex-col gap-3">
       <p className="text-[16px] font-semibold leading-snug">This is the game Start makes, and who it tells.</p>
       <p data-gallery-done-tells className="text-[15px] leading-snug">
-        {tellsOf(input)}{" "}
-        <button type="button" data-gallery-done-ask onClick={onAsk} className="min-h-11 font-semibold underline decoration-1 underline-offset-[3px]">
-          Ask them first
-        </button>
+        {tellsOf(input)}
+        {onAsk && (
+          <>
+            {" "}
+            <button type="button" data-gallery-done-ask onClick={onAsk} className="min-h-11 font-semibold underline decoration-1 underline-offset-[3px]">
+              Ask them first
+            </button>
+          </>
+        )}
       </p>
       <div className="rounded-[4px] bg-secondary p-3">
-        <b className="type-caption block text-[22px]">{v.short?.title ?? game.name}</b>
+        <b className="type-caption block text-[22px]">{say(game.name, input.nouns, true)}</b>
         <p className="mt-1 text-[14px]">{v.short?.line}</p>
         <p className="mt-1 text-[13px] text-muted-foreground">
-          {stretchLine(game.span, input)} · {lock.value === "own" ? PLAIN_LOCK.own.title : PLAIN_LOCK.live.title}
+          {sportSay(input, stretchLine(game.span, input))} · {lock.value === "own" ? PLAIN_LOCK.own.title : PLAIN_LOCK.live.title}
         </p>
       </div>
       <p className="text-[15px] leading-snug">{v.sentence}</p>
@@ -1496,16 +1592,51 @@ function DoneBody({ gm, input, game, onWait, onAsk }: { gm: GM; input: Input; ga
           )}
         </p>
       )}
-      {game.own.length > 0 && (
-        <p data-gallery-own-done className="text-[14px] leading-snug">
-          <b className="font-semibold">Your own moments, added when it starts:</b> {game.own.map((m) => `${m.label} (${m.points}, ${m.by === "couch" ? "the couch settles it" : "our research"})`).join("; ")}.
-        </p>
-      )}
-      <p className="rounded-[3px] border border-dashed border-edge px-3 py-2 text-[13px] leading-snug text-muted-foreground">Nothing is saved yet: this is the game our check passed, and what Start would make. {v.ok ? "It plays." : `It doesn't play yet: ${v.problems[0] ?? v.waits[0]}`}</p>
-      <details className="text-[12px] text-muted-foreground">
-        <summary className="cursor-pointer text-[13px] font-semibold">The spec</summary>
-        <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-all rounded-[3px] bg-background p-2 font-mono">{JSON.stringify(game.spec, null, 1)}</pre>
-      </details>
+      {!v.ok && <p className="rounded-[3px] border border-dashed border-edge px-3 py-2 text-[13px] leading-snug text-muted-foreground">It doesn&rsquo;t play yet: {v.problems[0] ?? v.waits[0]}</p>}
     </div>
+  );
+}
+
+/** Where it starts, when that's a choice: Include the episode on now (its moves open past the start until its results are in), or,
+ *  at your own pace, where you are or from the top (the old list's Starts, as option cards). */
+function StartsFrom({ o, start, input }: { o: WizardOptions; start: StartCtx; input: Input }) {
+  const E = input.ep[0].toUpperCase() + input.ep.slice(1);
+  const pace = o.pace;
+  const finished = !!pace && o.starts.length === 0;
+  const opts: { id: string; title: string; line: string; n: number | null }[] = [];
+  if (pace && pace.here !== null && !start.late) {
+    if (!finished) opts.push({ id: "next", title: `With ${E} ${o.nextEpisode}`, line: "The next to air, together with everyone", n: null });
+    const seen = pace.here - 1;
+    opts.push({ id: "here", title: `${E} ${pace.here} · where you are`, line: seen <= 0 ? "You haven't watched any yet" : seen === 1 ? `You've seen ${E} 1` : `You've seen 1 to ${seen}; catch up one at a time`, n: pace.here });
+    if (finished && pace.here !== pace.top) opts.push({ id: "top", title: `${E} ${pace.top} · from the top`, line: "A rewatch", n: pace.top });
+  }
+  const chosen = (n: number | null) => (n === null ? !input.ownPace : input.ownPace && input.from === n);
+  return (
+    <>
+      {o.onAir && !input.ownPace && (
+        <div className="mt-2">
+          <OptionCard
+            data="late"
+            title={`Include ${E} ${o.onAir.number} · on now`}
+            line={`Moves stay open past its start, on the honour system, until its results are in.`}
+            chosen={start.late}
+            onPick={() => {
+              start.setCatchUp(null);
+              start.setLate(!start.late);
+            }}
+          />
+        </div>
+      )}
+      {opts.length > 1 && (
+        <div data-gallery-starts className="mt-4">
+          <Label>Where it starts</Label>
+          <div className="flex flex-col gap-2">
+            {opts.map((x) => (
+              <OptionCard key={x.id} data={`from-${x.id}`} title={x.title} line={x.line} chosen={chosen(x.n)} onPick={() => start.setCatchUp(x.n)} />
+            ))}
+          </div>
+        </div>
+      )}
+    </>
   );
 }

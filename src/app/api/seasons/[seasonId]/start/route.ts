@@ -20,8 +20,9 @@ import { startFromSpec, undoStart, wizardOptions } from "@/lib/server/start-spec
 //                           to the season's end), `bots` computer players (0-5, a game whose `bots` is true) at `level` (easy,
 //                           normal, sharp), `late` from the episode on now, open past its start.
 //                           -> { leagueId, name, ... }
-//   GET ?wizard=1            the same, plus `wizard`: the page the wizard rolls and checks on, the season's last episode, asks left
-//                           (docs/PLAN-start-a-game-gpt.md U1; start-spec.ts)
+//   GET ?wizard=1&again=     the same, plus `wizard`: the page Start a game checks on, the season's last episode, asks left
+//                           (docs/PLAN-start-a-game-redo.md B1; start-spec.ts), and with `again` Run it back's game as a spec
+//                           (`againSpec`)
 //   POST { spec, name, tell, bots, level, late, made }   Start from a spec: the wizard's game, checked again here; the couch is told
 //                           after a 10-second hold (TELL_HOLD_MS) -> { leagueId, name, from, to, told, holdMs }
 //   POST { undo: leagueId }  take back a game you started a moment ago (inside the hold, nobody hears)
@@ -36,7 +37,7 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ seasonId
   const { seasonId } = await params;
   const user = await requireAuth(req);
   const q = new URL(req.url).searchParams;
-  if (q.get("wizard") === "1" && !q.get("again")) return NextResponse.json(await wizardOptions(user, seasonId, q.get("couch"), new Date(), q.get("late") === "1", Number(q.get("start")) || null));
+  if (q.get("wizard") === "1") return NextResponse.json(await wizardOptions(user, seasonId, q.get("couch"), new Date(), q.get("late") === "1", Number(q.get("start")) || null, q.get("again")));
   return NextResponse.json(await startOptions(user, seasonId, q.get("couch"), q.get("again"), new Date(), q.get("late") === "1", startParam(q.get("start"))));
 });
 

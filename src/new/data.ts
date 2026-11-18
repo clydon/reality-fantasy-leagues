@@ -38,6 +38,7 @@ import type { ListingSeason } from "@/lib/server/listings";
 import type { MakeState } from "@/lib/server/make-game";
 import type { Started, StartOptions } from "@/lib/server/start-game";
 import type { SpecStarted, WizardOptions } from "@/lib/server/start-spec";
+import type { SavedGame } from "@/lib/server/saved-games";
 import type { GameWordsResult } from "@/lib/server/game-words";
 import type { DeletePreview, EndGame } from "@/lib/server/end-game";
 import type { HiddenShow, WeekEpisode } from "@/lib/server/guide";
@@ -1425,17 +1426,30 @@ export function useStartOptions(seasonId: string | null, couchId: string | null,
   });
 }
 
-/** Start a game's wizard (docs/PLAN-start-a-game-gpt.md U1; start-spec.ts): startOptions plus the page the sheet rolls and checks
- *  on. `wizard` is null where the list still serves (a season that's aired: at your own pace). `late`: from the episode on now. */
-export function useWizardOptions(seasonId: string | null, couchId: string | null, enabled = true, late = false, start: number | null = null) {
+/** Start a game (docs/PLAN-start-a-game-redo.md B1; start-spec.ts): startOptions plus the page the sheet checks and words games on.
+ *  `wizard` is null only when the season can't start a game (`blocked`). `late`: from the episode on now; `start`: an aired episode
+ *  to start from at your own pace; `again`: Run it back's game (its spec in `againSpec`). */
+export function useWizardOptions(seasonId: string | null, couchId: string | null, enabled = true, late = false, start: number | null = null, again: string | null = null) {
   return useQuery({
-    queryKey: ["new-design", "start-wizard", seasonId, couchId, late, start],
-    queryFn: () => get<WizardOptions>(seasonUrl(seasonId!, "/start", { couch: couchId!, wizard: "1", ...(late ? { late: "1" } : {}), ...(start ? { start: String(start) } : {}) })),
+    queryKey: ["new-design", "start-wizard", seasonId, couchId, late, start, again],
+    queryFn: () =>
+      get<WizardOptions>(seasonUrl(seasonId!, "/start", { couch: couchId!, wizard: "1", ...(late ? { late: "1" } : {}), ...(start ? { start: String(start) } : {}), ...(again ? { again } : {}) })),
     placeholderData: (prev) => prev,
     enabled: enabled && !!seasonId && !!couchId,
     staleTime: 0,
   });
 }
+
+/** Your saved games (docs/PLAN-start-a-game-redo.md B1; saved-games.ts): the heart beside Start in Start a game. */
+export const SAVED_KEY = ["new-design", "saved-games"] as const;
+export function useSavedGames(enabled = true) {
+  return useQuery({ queryKey: SAVED_KEY, queryFn: () => get<{ games: SavedGame[] }>("/api/me/saved-games"), enabled, staleTime: 60_000 });
+}
+export const savedApi = {
+  save: (game: { base: string; name: string; spec: unknown; length: SavedGame["length"]; from: SavedGame["from"]; on: string; seasonId?: string } | { games: unknown[] }) =>
+    post<{ games: SavedGame[] }>("/api/me/saved-games", game),
+  unsave: (key: string) => post<{ games: SavedGame[] }>("/api/me/saved-games", { unsave: key }),
+};
 
 export const wizardApi = {
   /** Start from a spec: the wizard's game, checked again on the server; the couch hears after the hold. */

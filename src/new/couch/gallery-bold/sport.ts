@@ -4,7 +4,7 @@ import type { Base, Cat, Spec } from "@/lib/game/start-gallery/index.js";
 import type { Pack } from "@/lib/game/game-words/index.js";
 import type { SpecContext } from "@/lib/game/game-spec/index.js";
 import { useTeamSchedule } from "../../data";
-import { withSpan, type Span } from "../gallery/model";
+import { withSpan, type Span } from "./model";
 
 // A sport through the same gallery as a show (the user, 2026-11-18: "the sport create a game should at least feel and navigate just
 // like the show even if its technincally different"). The sports catalog (src/lib/game/start-gallery/sports.json, sports.js) gives

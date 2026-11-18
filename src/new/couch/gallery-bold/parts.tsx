@@ -3,8 +3,8 @@
 import { useState, type ReactNode } from "react";
 import { Check, ChevronDown, ChevronRight, Heart, Minus, Plus, Search } from "lucide-react";
 import type { Base, ChangeState, Control } from "@/lib/game/start-gallery/index.js";
-import { Pictogram } from "../gallery/icons";
-import type { Cell } from "../gallery/model";
+import { Pictogram } from "./icons";
+import type { Cell } from "./model";
 
 // The gallery's parts (docs/design-round/wizard-r2-shape.md): one visual grammar across its screens (PFD R3). A square is a
 // choice of game or change; a row is a setting that opens; chips are one pick among a few; a bone fill is "chosen"; a dashed edge
@@ -382,7 +382,7 @@ export function SaveHeart({ on, onToggle }: { on: boolean; onToggle: () => void 
   );
 }
 
-export function StartBar({ line, label, tells, asked, onStart, onAsk, disabled, save, warn }: { line: string; label: string; tells: string; asked: string | null; onStart: () => void; onAsk: () => void; disabled?: string | null; save?: { on: boolean; onToggle: () => void }; warn?: { text: string; fix: { label: string; onClick: () => void } | null } | null }) {
+export function StartBar({ line, label, tells, asked, onStart, onAsk, disabled, busy, save, warn }: { line: string; label: string; tells: string; asked: string | null; onStart: () => void; onAsk?: (() => void) | null; disabled?: string | null; busy?: boolean; save?: { on: boolean; onToggle: () => void }; warn?: { text: string; fix: { label: string; onClick: () => void } | null } | null }) {
   return (
     <div data-gallery-startbar>
       <p className={`truncate text-center text-[14px] text-muted-foreground ${warn && !disabled ? "mb-0.5" : "mb-2"}`} data-gallery-stretch>
@@ -400,8 +400,8 @@ export function StartBar({ line, label, tells, asked, onStart, onAsk, disabled, 
       )}
       <div className="flex gap-2">
         {save && <SaveHeart on={save.on} onToggle={save.onToggle} />}
-        <button type="button" data-gallery-start onClick={onStart} disabled={!!disabled} className="nd-press type-caption flex h-[52px] min-w-0 flex-1 items-center justify-center rounded-[3px] bg-chyron px-4 text-[20px] text-chyron-foreground hover:brightness-110 disabled:bg-secondary disabled:text-muted-foreground">
-          <span className="truncate">{label}</span>
+        <button type="button" data-gallery-start onClick={onStart} disabled={!!disabled || busy} className="nd-press type-caption flex h-[52px] min-w-0 flex-1 items-center justify-center rounded-[3px] bg-chyron px-4 text-[20px] text-chyron-foreground hover:brightness-110 disabled:bg-secondary disabled:text-muted-foreground">
+          <span className="truncate">{busy ? "Starting…" : label}</span>
         </button>
       </div>
       {asked ? (
@@ -409,11 +409,13 @@ export function StartBar({ line, label, tells, asked, onStart, onAsk, disabled, 
           {asked}
         </p>
       ) : (
-        <div className="mt-2 flex items-center justify-between gap-3">
+        <div className={`mt-2 flex items-center gap-3 ${onAsk ? "justify-between" : "justify-center"}`}>
           <span className="min-w-0 text-[13px] text-muted-foreground">{tells}</span>
-          <button type="button" data-gallery-ask onClick={onAsk} className="nd-press h-11 flex-none rounded-[3px] px-3 text-[14px] font-bold outline-1 -outline-offset-1 outline-input">
-            Ask the couch first
-          </button>
+          {onAsk && (
+            <button type="button" data-gallery-ask onClick={onAsk} className="nd-press h-11 flex-none rounded-[3px] px-3 text-[14px] font-bold outline-1 -outline-offset-1 outline-input">
+              Ask the couch first
+            </button>
+          )}
         </div>
       )}
     </div>

@@ -1,6 +1,7 @@
 import { after } from "next/server";
 import Bots from "@/lib/game/bot-logic.js";
 import StateLogic from "@/lib/game/state-logic.js";
+import type { LeagueState } from "@/lib/game/types";
 import { addBot, botsPlay, MAX_BOTS, type BotLevel } from "@/lib/game/computer-players";
 import * as Spec from "@/lib/game/game-spec/index.js";
 import type { SpecContext } from "@/lib/game/game-spec/index.js";
@@ -11,6 +12,7 @@ import { recordChange } from "./change-log";
 import { couchMembers } from "./couches";
 import { HttpError, pool } from "./db";
 import { deleteLeague } from "./end-game";
+import { makeStages } from "./engine-lab";
 import { followLeagueProgress } from "./follows";
 import { asksToday, packFor } from "./game-words";
 import { refused } from "./game-writes";
@@ -35,7 +37,7 @@ import { applyPace, couchGamesOn, freeName, linkIn, paceAsked, startOptions, wat
 //
 // Start it tells the couch (only those who watch the show or play it there: U1's note) after a 10-second hold: the push waits in
 // the request's `after` and goes only if the game is still standing, so Undo inside the hold takes it back before anyone hears.
-// A game in stages (the redraft, trivia too) isn't made here yet: the sheet doesn't offer those twists.
+// A game in stages (the redraft, trivia too) is made as the engine lab makes one: its game, and a league for each stage.
 
 /** How long Start it holds the couch's push for Undo. */
 export const TELL_HOLD_MS = 10_000;
@@ -55,18 +57,32 @@ export interface WizardPage {
   made: MadeGame[];
 }
 
-export type WizardOptions = StartOptions & { wizard: WizardPage | null };
+export type WizardOptions = StartOptions & {
+  wizard: WizardPage | null;
+  /** Run it back: the game it plays again, as its rules (its spec, its dates left out: the sheet sets them on this season). */
+  againSpec: Record<string, unknown> | null;
+};
 
-/** What can start, and (for a season with episodes still to air, set up) the wizard's page. */
-export async function wizardOptions(user: SessionUser, seasonId: string, couchId: string | null, now = new Date(), late = false, start: number | null = null): Promise<WizardOptions> {
+/** What can start, and (for a season set up) the page Start a game checks and words games on. */
+export async function wizardOptions(user: SessionUser, seasonId: string, couchId: string | null, now = new Date(), late = false, start: number | null = null, again: string | null = null): Promise<WizardOptions> {
   // `start`: an episode that's aired, to catch up from at your own pace (where you are, on a season still airing).
-  const opts = await startOptions(user, seasonId, couchId, null, now, late, start);
+  const opts = await startOptions(user, seasonId, couchId, again, now, late, start);
   // An aired season at your own pace takes the wizard too (the user, 2026-11-09): it starts where the season's starts say.
-  if (opts.blocked) return { ...opts, wizard: null };
+  if (opts.blocked) return { ...opts, wizard: null, againSpec: null };
   const [{ pack, ctx }, asks, tells, made] = await Promise.all([packFor(user, seasonId, opts.couch.id, now), asksToday(user), audience(user, opts.couch.id, seasonId), madeGames(seasonId)]);
   const listed = Math.max(0, ...opts.starts.map((e) => e.number));
   const last = pack.episodes.total ?? (listed >= opts.from ? listed : null);
-  return { ...opts, wizard: { page: { ctx, pack }, last, asksLeft: asks.left, tells: tells.length, made } };
+  return { ...opts, wizard: { page: { ctx, pack }, last, asksLeft: asks.left, tells: tells.length, made }, againSpec: opts.again ? await againSpecOf(opts.again.leagueId) : null };
+}
+
+/** Run it back's game as its rules: the league's spec (StateLogic.gameOf), its span left for the sheet to set on this season. */
+async function againSpecOf(leagueId: string): Promise<Record<string, unknown> | null> {
+  const { rows } = await pool.query("SELECT state FROM leagues WHERE id = $1 AND deleted_at IS NULL", [leagueId]);
+  const state = rows[0]?.state as LeagueState | undefined;
+  if (!state) return null;
+  const spec = structuredClone(StateLogic.gameOf(state)) as unknown as Record<string, unknown>;
+  delete spec.span;
+  return spec;
 }
 
 /** Who Start it tells: the couch's members who watch the show or play it here, never the starter. */
@@ -114,7 +130,9 @@ export async function startFromSpec(
   const couch = opts.couch.id;
   const { ctx } = await packFor(user, seasonId, couch, now);
   const spec = structuredClone(body.spec) as Record<string, unknown>;
-  if (Array.isArray(spec.stages)) throw new HttpError(409, "A game in stages can't start from here yet");
+  // A game in stages (A12): its game and a league for each stage (engine-lab.ts makeStages, as the lab makes them), on this season.
+  const staged = Array.isArray(spec.stages);
+  if (staged && opts.ownPace) throw new HttpError(409, "A game in stages can't be played at your own pace yet");
 
   // Where it starts: the next to air (or the one on now, with `late`), a later listed one, or a phase still to come; where it ends:
   // the season's end, a later episode, or a phase.
@@ -163,8 +181,9 @@ export async function startFromSpec(
   const leagueId = await makeLeague(row, {
     name,
     createdBy: user.id,
-    // A game of questions (or one of the newer kinds with nothing held) starts from Survival Pool's type, as the lab's do.
-    type: type === "questions" ? "pickem" : type,
+    // A game of questions (or one of the newer kinds with nothing held) starts from Survival Pool's type, as the lab's do; a game in
+    // stages too (its stages are leagues of their own).
+    type: type === "questions" || type === "stages" ? "pickem" : type,
     couchId: couch,
     rulebookId: copy?.id ?? null,
     before: (s) => {
@@ -223,6 +242,12 @@ export async function startFromSpec(
     throw e;
   });
   if (!leagueId) throw new HttpError(500, "Couldn't make the game, try again");
+  if (staged) {
+    await makeStages(user, leagueId, name, spec, { ...row, label: opts.label }, couch, copy?.id ?? null, ctx, new Map(), false).catch(async (e) => {
+      await pool.query("DELETE FROM leagues WHERE id = $1 AND created_by = $2", [leagueId, user.id]);
+      throw e;
+    });
+  }
   const linked = await linkIn(leagueId, here, user.id).catch((e) => {
     console.error(`[start-spec] couldn't link ${leagueId}:`, e);
     return false;

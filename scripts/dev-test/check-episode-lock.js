@@ -124,15 +124,17 @@ function check(ok, what, detail = "") {
       };
 
       await page.goto(`${BASE}/show/${sid}/games`, { waitUntil: "load" });
+      // Start a game (docs/PLAN-start-a-game-redo.md B1): Include it is a card under a game's How long?.
       await page.locator('[data-start-row="start"]').click();
-      await page.locator("[data-start-late]").waitFor({ timeout: 10000 }).catch(() => {});
-      check((await page.locator('[data-start-late="off"]').count()) === 1, "Start a game: Include Episode 6 · on now, off");
-      await page.locator("[data-start-late]").click();
-      // U1's wizard: the readout says the stretch, the episode on now.
-      await page.locator('[data-start-late="on"]').waitFor({ timeout: 8000 }).catch(() => {});
-      const readout = await page.locator("[data-start-readout]").innerText().catch(() => "");
-      check((await page.locator('[data-start-late="on"]').count()) === 1 && /Episode 6/i.test(readout), `on: the sheet starts from Episode 6 (${readout.split(/\s*\n\s*/).join(" · ")})`);
-      await page.locator("[data-start-late]").scrollIntoViewIfNeeded();
+      await page.locator("[data-gallery=gallery]").waitFor({ timeout: 60000 });
+      await page.locator("[data-gallery-lead]").first().click();
+      await page.locator("[data-gallery-option=late]").waitFor({ timeout: 10000 }).catch(() => {});
+      check((await page.locator("[data-gallery-option=late]:not([data-chosen])").count()) === 1, "Start a game: Include Episode 6 · on now, not chosen");
+      await page.locator("[data-gallery-option=late]").click();
+      await page.locator("[data-gallery-option=late][data-chosen]").waitFor({ timeout: 15000 }).catch(() => {});
+      const readout = await page.locator("[data-gallery-length]").innerText().catch(() => "");
+      check((await page.locator("[data-gallery-option=late][data-chosen]").count()) === 1 && /Episode 6/i.test(readout), `chosen: the game starts from Episode 6 (${readout.split(/\s*\n\s*/).slice(0, 3).join(" · ")})`);
+      await page.locator("[data-gallery-option=late]").scrollIntoViewIfNeeded();
       await page.waitForTimeout(400); // not b.settle(): its evaluate crashed the tab here (2026-10-27), the page itself fine
       await shot("start-include");
       await wide("Start a game");
