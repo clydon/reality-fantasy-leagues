@@ -1415,7 +1415,7 @@ function factsThrough(facts, k) {
 // ---- computer players (docs/PLAN-start-a-game-redo.md E1b) ----
 
 /** The answer kinds a computer player gives (bot-logic.js answers); the rest wait for E1b's second slice. */
-const BOT_ANSWERS = ['person', 'group', 'yesNo', 'number', 'overUnder', 'choice'];
+const BOT_ANSWERS = ['person', 'group', 'yesNo', 'number', 'overUnder', 'choice', 'order', 'confidence', 'chips', 'pairs', 'split'];
 /** Whether a computer player answers this question: one of BOT_ANSWERS, and not about each person or game, staked, a card's line
  *  or an over/under on the game's own line (read from ESPN as it opens). The gallery (start-gallery botsFit) and the server
  *  (computer-players.ts botsPlay, through bot-logic.js) both read this one rule. */

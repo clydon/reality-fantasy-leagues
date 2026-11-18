@@ -391,9 +391,19 @@ then approval.
         `[data-move='lineup-…']` card, an attribute nothing renders since Tonight's rebuild; a stale selector, not this change. A
         shrinking call (`shrink`) made at your own pace on a season that's aired counts every episode as started (`startedNow`), so
         it's worth its least; a question closing at the finale reads the schedule's finale, which a catching-up seat answers up to.
-      **Left for E1b's second slice:** the held-back kinds above (an order and confidence from the ratings; chips spread by them;
-      pairs; a stake: a share of the bank by level); a prop card with wagers and Beat the bot played to their ends with computer
-      players.
+      **E1b's second slice, part 2, done (2026-11-18): an order, confidence, chips, pairs and a split.** `BOT_ANSWERS` takes them
+      (so the gallery's square, `botsPlay` and the server all do). bot-logic.js `answerFor`: an order or confidence ranks everyone
+      still in by the league's ratings, likeliest first (going home for who goes home and a boot order, doing well for the rest),
+      up to its count; chips go 70/30 for a sharp one, 50/30/20 for a normal one, spread over four for an easy one; pairs name
+      whoever's still in and safer in each of the pairs everyone gets (`Spec.pairsFrom`); a jury's split is a guess sized to the
+      cast, lopsided for a sharp one. Each is checked against the faces a person's is (`faceSet`: who's still in, each pair's
+      "pair:who"). Proof: tests/bots-answer.test.js (each kind's answer accepted, a sharp one's chips on fewer than an easy one's,
+      confidence never ranking someone gone); a season played through five episodes grades the boot order, confidence and pairs
+      (every verdict known); check-start-a-game.js starts a sheet with a boot order and reads the computer player's five back;
+      the bases Confidence, Boot order, Who outlasts whom and the jury split now take computer players. 2,432 unit tests pass.
+      **Left for E1b's second slice:** a stake (a wager, a bank, a ticket: a computer player needs its points as they stand, which
+      answers.ts reads per person), a card's lines (Prop bets, Objectives, the host's card), trivia, a side, a bracket, a question
+      about each person or game; a prop card with wagers and Beat the bot played to their ends with computer players.
     - **E1c. Cards, calls and bingo** (each its own small step, after a named question to the user: a bingo card or a call is
       honour-based, tapped by whoever sees it; should a computer player mark its card from what research settles after the
       episode, or sit those games out?). Until then they stay dashed in Who's playing with the reason.

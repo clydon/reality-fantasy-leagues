@@ -25,6 +25,12 @@ const IDOL = { id: "idol", ask: "An idol played?", answer: "yesNo", points: 1, a
 const WINS = { id: "wins", ask: "Who wins?", answer: "person", points: 5, settle: { by: "results", take: "winner" } };
 const HOW = { id: "how", ask: "How many idols?", answer: "choice", points: 1, asked: "each", options: ["0", "1", "2+"], settle: { by: "moment", moment: "idolPlayed", take: "count" } };
 const ORDER = { id: "order", ask: "The order they go", answer: "order", points: 2, asked: "once", pick: 5, within: 2, settle: { by: "results", take: "order" } };
+const CONF = { id: "conf", ask: "Rank who goes home", answer: "confidence", points: 1, pick: 8, asked: "each", settle: { by: "results", take: "out" } };
+const CHIPS = { id: "chips", ask: "Your chips on who wins", answer: "chips", points: 1, chips: 10, settle: { by: "results", take: "winner" } };
+const PAIRS = { id: "pairs", ask: "Who outlasts whom?", answer: "pairs", points: 1, pairs: 3, settle: { by: "results", take: "outlast" } };
+const SPLIT = { id: "split", ask: "The jury's split", answer: "split", points: 5, settle: { by: "results", take: "split" } };
+// A stake: still one they don't play (they'd need their points as they stand).
+const BET = { id: "bet", ask: "An idol played? Stake on it", answer: "yesNo", points: 1, asked: "each", wager: 3, settle: { by: "moment", moment: "idolPlayed", take: "happened" } };
 const game = (ask) => ({ spec: 1, get: { by: "none" }, score: { by: "answers" }, ask });
 
 /** A game of questions as Start a game makes one, on Survivor, ann the person and two computer players (castaway ids c0-c7, so two
@@ -73,18 +79,45 @@ test("who goes home: someone still in, never someone out; who wins: the best rat
 });
 
 test("a closed question gets none, and a kind it doesn't answer yet gets none", () => {
-  const s = league([OUT, ORDER]);
+  const s = league([OUT, BET]);
   const now = S.AnswerLogic.episodeNow(s);
   const ep = s.episodes.find((e) => e.number === now);
   ep.airsAt = new Date(Date.now() - 3600 * 1000).toISOString();
   assert.deepEqual(Bots.answers(s, [], { now: Date.now() }).filter((a) => a.question === "out"), [], "the episode has started: closed");
-  assert.ok(!Bots.answersQuestion(ORDER) && !Bots.answersAll(s), "an order: not yet");
+  assert.ok(!Bots.answersQuestion(BET) && !Bots.answersAll(s), "a stake: not yet");
   assert.ok(Bots.answersQuestion(OUT) && Bots.answersQuestion(IDOL) && Bots.answersQuestion(HOW));
+});
+
+test("an order, confidence, chips, pairs and a split: answers the engine accepts, read from the league (E1b's second slice)", () => {
+  const ask = [ORDER, CONF, CHIPS, PAIRS, SPLIT];
+  const s = league(ask, ["sharp", "casual"]);
+  const out = Bots.answers(s, [], { now: 0 });
+  assert.deepEqual(out.map((a) => `${a.playerId} ${a.question}`).sort(), ["bot0", "bot1"].flatMap((b) => ask.map((q) => `${b} ${q.id}`)).sort(), JSON.stringify(out));
+  const still = new Set(s.castaways.filter((c) => c.status !== "eliminated").map((c) => c.id));
+  const by = (b, q) => out.find((a) => a.playerId === b && a.question === q).answer;
+  for (const b of ["bot0", "bot1"]) {
+    assert.equal(by(b, "order").length, 5, "the boot order: its five");
+    assert.equal(by(b, "conf").length, 8, "confidence: everyone still in");
+    assert.ok(by(b, "conf").every((id) => still.has(id)));
+    const chips = by(b, "chips");
+    assert.equal(Object.values(chips).reduce((x, y) => x + y, 0), 10, "every chip down");
+    assert.equal(Object.keys(by(b, "pairs")).length, 3, "a pick in each pair");
+    assert.ok(by(b, "split").every((n) => Number.isInteger(n) && n > 0));
+  }
+  assert.ok(Object.keys(by("bot0", "chips")).length < Object.keys(by("bot1", "chips")).length, "sharp concentrates its chips, easy spreads them");
+  // Ranked as who goes home, the most in danger first: once someone's gone, never them.
+  const e1 = S.ensureEpisodeNumber(s, 1, false);
+  S.addElimination(s, e1.id, "c7", "Voted Out");
+  S.ensureNextEpisode(s);
+  const later = Bots.answers(s, out, { now: 0 }).filter((a) => a.question === "conf");
+  assert.equal(later.length, 2, "Episode 2's confidence");
+  assert.ok(later.every((a) => !a.answer.includes("c7") && a.answer.length === 7));
 });
 
 test("the gallery's Computer players square says the same: on for questions they answer, dashed with the reason for the rest", () => {
   assert.equal(C.botsFit(game([OUT, IDOL, WINS, HOW])), null);
-  assert.match(C.botsFit(game([OUT, ORDER])), /don't answer "The order they go" yet/);
+  assert.match(C.botsFit(game([OUT, BET])), /stake points/);
+  assert.equal(C.botsFit(game([OUT, ORDER, CONF, CHIPS, PAIRS, SPLIT])), null, "an order, confidence, chips, pairs and a split: played");
   assert.equal(C.botsFit({ ...G.PRESETS.outlast }), null, "a draft");
   for (const kind of Bots.ANSWERS) assert.ok(Bots.answersQuestion({ id: "q", ask: "x?", answer: kind }) === (C.botsFit(game([{ id: "q", ask: "x?", answer: kind }])) === null), kind);
 });
@@ -124,7 +157,7 @@ test("at your own pace they play a game of questions too, and a draft with final
   assert.ok(botsPlay(s), "live: they answer");
   s.settings.ownPace = true;
   assert.ok(botsPlay(s), "at your own pace: they answer as they catch up");
-  assert.ok(!botsPlay(league([OUT, ORDER])), "an order: not yet, at any pace");
+  assert.ok(!botsPlay(league([OUT, BET])), "a stake: not yet, at any pace");
   const d = S.defaultState();
   S.ensureNextEpisode(d);
   S.updateSettings(d, "showId", "survivor");

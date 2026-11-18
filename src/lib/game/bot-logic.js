@@ -574,18 +574,55 @@ function answerFor(state, playerId, q, faces, ep) {
   const level = levelOf(state, playerId);
   const ids = faces.map((f) => f.id);
   const feel = (key) => hashOf(`${playerId}|${q.id}|${ep}|${key}`);
+  // Who it names first: going home (who goes home, a boot order, ranked by who's likeliest to go), else doing well (who wins, scores,
+  // a leaderboard). By the league's own ratings, with its taste.
+  const st = q.settle || {};
+  const goes = st.take === "out" || (st.by === "results" && st.take === "order");
+  let rate = null;
+  const scoreOf = (id) => {
+    rate = rate || ratings(state, level);
+    const r = rate[id];
+    const base = r ? (goes ? -r.safety : r.points) : 0;
+    return base + taste(playerId, `${q.id}|${id}`, level) * 2;
+  };
+  const ranked = (list) => list.slice().sort((a, b) => scoreOf(b) - scoreOf(a));
   if (Spec.NAMES.includes(q.answer)) {
     if (!ids.length) return null;
-    const rate = ratings(state, level);
-    const out = !!(q.settle && q.settle.take === "out");
-    const scoreOf = (id) => {
-      const r = rate[id];
-      const base = r ? (out ? -r.safety : r.points) : 0;
-      return base + taste(playerId, `${q.id}|${id}`, level) * 2;
-    };
-    const best = ids.slice().sort((a, b) => scoreOf(b) - scoreOf(a));
+    const best = ranked(ids);
     const n = Math.max(1, Math.min(q.pick || 1, best.length));
     return n === 1 ? best[0] : best.slice(0, n);
+  }
+  // An order or confidence (E1b's second slice): everyone still in, likeliest first, up to its count.
+  if (Spec.RANKS.includes(q.answer)) return ids.length ? ranked(ids).slice(0, Math.max(1, Math.min(q.pick || ids.length, ids.length))) : null;
+  // Chips: a sharp one puts most on its first choice, an easy one spreads them.
+  if (q.answer === "chips") {
+    const total = Number.isInteger(q.chips) && q.chips > 0 ? q.chips : 0;
+    if (!ids.length || !total) return null;
+    const shares = level.read >= LEVELS.sharp.read ? [0.7, 0.3] : level.read >= LEVELS.solid.read ? [0.5, 0.3, 0.2] : [0.25, 0.25, 0.25, 0.25];
+    const best = ranked(ids).slice(0, shares.length);
+    const out = {};
+    let left = total;
+    best.forEach((id, i) => {
+      const n = i === best.length - 1 ? left : Math.min(left, Math.round(total * shares[i]));
+      if (n > 0) out[id] = n;
+      left -= n;
+    });
+    return Object.keys(out).length ? out : { [best[0]]: total };
+  }
+  // Who outlasts whom: in each pair, whoever's still in and safer (Spec.pairsFrom, the pairs everyone gets).
+  if (q.answer === "pairs") {
+    const pairs = Spec.pairsFrom(q, StateLogic.AnswerLogic.startIn(state));
+    if (!pairs.length) return null;
+    const inNow = new Set(ids);
+    const r = ratings(state, level);
+    const lasts = (id) => (inNow.has(id) ? 1000 : 0) + (r[id] ? r[id].safety : 0) + taste(playerId, `${q.id}|${id}`, level) * 2;
+    return Object.fromEntries(pairs.map((p) => [Spec.pairKey(p), lasts(p[0]) >= lasts(p[1]) ? p[0] : p[1]]));
+  }
+  // A jury's split: a guess sized to the cast (a jury of about half of who's left after the final three), lopsided for a sharp one.
+  if (q.answer === "split") {
+    const jury = Math.max(3, Math.round(((state.castaways || []).length - 3) / 2));
+    const shapes = [[jury - 2, 2], [jury - 1, 1], [jury], [jury - 3, 3], [jury - 3, 2, 1], [jury - 4, 3, 1]].map((s) => s.filter((n) => n > 0));
+    return shapes[Math.floor(feel("split") * (level.read >= LEVELS.sharp.read ? 3 : shapes.length))];
   }
   // A sharp player leans hardest to what usually happens (nothing; the low end), a normal one less, an easy one goes on its gut.
   const lean = level.read >= LEVELS.sharp.read ? 0.25 : level.read >= LEVELS.solid.read ? 0.35 : 0.5;
@@ -600,6 +637,13 @@ function answerFor(state, playerId, q, faces, ep) {
   // A count: the low end for a sharp one (things rarely happen twice), wider for an easy one.
   if (q.answer === "number") return [1, 0, 2, 3][Math.floor(feel("n") * (level.read >= LEVELS.solid.read ? 2 : 4))];
   return null;
+}
+/** What an answer is checked against, as answers.ts checks a person's: who it can name or rank or put chips on (still in), each pair's
+ *  "pair:who"; nothing for the rest. */
+function faceSet(state, q, faces) {
+  if (Spec.NAMES.includes(q.answer) || Spec.RANKS.includes(q.answer) || q.answer === "chips") return new Set(faces.map((f) => f.id));
+  if (q.answer === "pairs") return new Set(Spec.pairsFrom(q, StateLogic.AnswerLogic.startIn(state)).flatMap((p) => p.map((id) => `${Spec.pairKey(p)}:${id}`)));
+  return undefined;
 }
 /**
  * The answers computer players would give now: [{ playerId, question, episode, answer }] for each bot seat playing live and each
@@ -623,8 +667,7 @@ function answers(state, stored, o) {
       const faces = AL.faces(state, q, { playerId: pid });
       const value = answerFor(state, pid, q, faces, ep);
       if (value === null || value === undefined) continue;
-      const faceIds = Spec.NAMES.includes(q.answer) ? new Set(faces.map((f) => f.id)) : undefined;
-      if (Spec.answerProblem(q, value, faceIds)) continue;
+      if (Spec.answerProblem(q, value, faceSet(state, q, faces))) continue;
       out.push({ playerId: pid, question: q.id, episode: ep, answer: value });
     }
   }
@@ -662,8 +705,7 @@ function catchUpAnswers(state, stored, n) {
         const faces = AL.faces(view, q, { playerId: p.id });
         const value = answerFor(view, p.id, q, faces, ep);
         if (value === null || value === undefined) continue;
-        const faceIds = Spec.NAMES.includes(q.answer) ? new Set(faces.map((f) => f.id)) : undefined;
-        if (Spec.answerProblem(q, value, faceIds)) continue;
+        if (Spec.answerProblem(q, value, faceSet(view, q, faces))) continue;
         have.add(key);
         out.push({ playerId: p.id, question: q.id, episode: ep, answer: value });
       }
