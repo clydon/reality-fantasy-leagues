@@ -148,3 +148,7 @@ database goes.
    tile) where they exist, so a UI change shows up in them; (c) a bench view of a case's story, and a contact sheet of many
    cases' cards at 390 to scan; (d) a sample of cases checked against the real routes on the live tier, as P0 did, so
    "accurate" is a check, not a claim; (e) the campaign runner for many seasons (30 take about 50 s today).
+
+   **Done the same day (the user: "Yes"):** the cards rebuilt on the game's own components and the production views, the fix
+   played whole, the typical counts made with `bestOf` in the page (docs/design-round/preview-story-spec.md, "The rebuild"). Still
+   for the bench: (c) to (e) above, and the views read live rather than from the script's file.

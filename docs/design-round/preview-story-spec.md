@@ -93,3 +93,25 @@ typical; type snapped to the ramp, labels inside the gutter, no overlaps. The st
 **Choice for the user:** the stages' names ("Before Merged" is the gallery's; recommended: fix them in the gallery).
 **Open:** the fix redraws the merge only (the race and finale still show the game as set); Close, Change it, Use and the drill-ins
 aren't wired; one game type; 30 seasons take about 50 s headless; the season card's lower third is empty.
+
+## The rebuild on the game's own parts (2026-11-18, decision 5)
+
+The user: the preview must follow the game's UI and be accurate, so the bench can show it for hundreds of games. Now the data is
+the production game view at three moments (before results, when a stage ends, the end), unchanged
+(scripts/dev-test/preview-story-data.js, schema 2). Whatever the game shows is drawn by its own component: Your team at the draft
+(card 2), the person's week-by-week season with its bench cost (card 3, `PersonSeason`, `bestOf`), the overall season grid
+(card 6, `SeasonGrid`, now exported), faces and people's squares everywhere. Only the strip (card 1), the race, the merge's teams side
+by side and the "N of 30" ticks are the preview's own; the ticks are counted in the page from each season's end tables with the
+game's own `bestOf`. The fix is now played whole: every card follows "Try 3 each". The race's sums equal the game's totals
+(24 of 24 checked).
+
+Checked once each: Impeccable's critique 23/36, PFD's evaluation 62/100. One batch of fixes: card 2 at the draft's moment, not
+the stage's end (the end showed points a benched castaway scored, adding to 22.5 against a score of 22); card 3 one stage, led by
+"Your bench cost 4 · you lost by 1.5" and "2nd's best lineups would have won" (27 of 30); the race lights you and the winner only
+(the app gave two people the same blue) and marks where the lead last changed; the finale drops the stages' sentence; card 1 drops
+the winner (the finale's) for the crown on the last episode and larger moves; the merge names who's on every team, says YOU, and
+quiets Next while the fix is on.
+
+**Found in the app by its own parts:** Your team's number is a castaway's points in the game, started or benched, so a team's numbers
+don't add up to its score; people's colours come from their id and collide (two of this couch's four are the same blue); the game's
+line says "Redraft at merged".

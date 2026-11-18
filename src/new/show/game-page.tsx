@@ -680,7 +680,7 @@ function keyWords(g: GameView): string {
 
 /** The league's table as the season grid, framed in its panel (the user's pick, C): a row a person, a column an episode, a square by
  *  kind, the next episode only Set, Due or –; your row lit; every name, square and episode a door. */
-function SeasonGrid({ g, m, words, due, drill }: { g: GameView; m: PageModel; words: ShowData["words"]; due: boolean; drill: DrillState }) {
+export function SeasonGrid({ g, m, words, due, drill }: { g: GameView; m: PageModel; words: ShowData["words"]; due: boolean; drill: DrillState }) {
   const p = g.plays;
   const all = [...m.couch.podium, ...m.couch.rows];
   const [open, setOpen] = useState(false);
