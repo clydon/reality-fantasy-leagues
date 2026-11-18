@@ -77,3 +77,19 @@ game of questions, sports, own pace.
 
 Close (or back) from any card: the sheet, unchanged. Fix taken: the sheet with the change, the story closed (seeing it again shows
 the fixed game). Shuffle: the same card of another season. A drill-in returns to the card it left.
+
+## The round (2026-11-18)
+
+Built as a development-only mock at /start/preview-story (src/new/preview/story.tsx), fed by scripts/dev-test/preview-story-data.js
+(three sample seasons for Shuffle, 30 for what's typical, the merge drafted smaller as the fix); frames by
+scripts/dev-test/story-preview.js. Checked once each: Impeccable's critique (design review 25/40; the detector: 18 advisory type
+sizes, one contrast miss and labels past the gutter on Each week) and PFD's evaluation (61/100). One batch of fixes: YOU on every
+card; Each week shows a typical, named week with the bench dimmed (grey stays "gone home") and what's typical as a bracket on the bar;
+the draft's "×N" became the other holders' chips; the race's new draft between 11 and 12, labelled stages, totals at the line ends;
+the merge's columns fixed across the fix, its flag carrying Check; the finale's legend matching its bars and "a close finish" as its
+typical; type snapped to the ramp, labels inside the gutter, no overlaps. The story: https://claude.ai/artifact/KzNrXUwPap7yTpFsGoueKQ.
+
+**Choices for the user:** the last card's buttons (Start this game yellow, as DESIGN.md's action rule; or equal, as PFD's R5
+asked; recommended: yellow); the stages' names ("Before Merged" is the gallery's; recommended: fix them in the gallery).
+**Open:** the fix redraws the merge only (the race and finale still show the game as set); Close, Change it, Use and the drill-ins
+aren't wired; one game type; 30 seasons take about 50 s headless; the season card's lower third is empty.

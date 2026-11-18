@@ -102,6 +102,11 @@ database goes.
     its exits per episode, at random people. The world can't carry the season's rulebook (it keeps the format's moments). The
     dress carries names and photos, not tribes or bios. The bench's GIFs are placeholders labelled with zt usernames. No frame says
     "Sample results, not the show's" (P1's screen).
+- **The visual story, first build (2026-11-18, after decision 3):** six cards (the season, the draft, each week, the race, the
+  merge, the finale) from made-up seasons the engine played headless, typical shown as ticks of 30 seasons, the merge's overlap
+  flagged with its fix redrawn in place; through Intent, PFD and Impeccable, one check and one batch of fixes
+  (docs/design-round/preview-story-spec.md, -first-view.md). The story: https://claude.ai/artifact/KzNrXUwPap7yTpFsGoueKQ; two
+  choices wait on the user there. This is P1's direction; the A-or-B decision now covers only the cards' drill-ins.
 - **P1. The preview's own screen** through the design process: the stepper, the screens at each stage, Shuffle, "Sample results",
   leaving back to the game's screen with nothing changed.
 - **P2. A, built:** the preview database, the request-scoped pool, the materializer in the app, the cleanup, the spoiler check (no

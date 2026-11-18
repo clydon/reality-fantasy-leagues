@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
-import { ChevronLeft, Crown, Shuffle, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Crown, Shuffle, X } from "lucide-react";
 import { Btn } from "../ui/parts";
 
 // TEMP mock (docs/design-round/preview-story-spec.md, -first-view.md): a game's preview as a short story of cards, from a made-up
@@ -56,13 +56,19 @@ function seasonOf(d: StoryData, s: Sample, fix: boolean) {
   const stillIn = (n: number) => s.cast.filter((c) => !((outEp.get(c.id) ?? Infinity) < n)).map((c) => c.id);
   return { eps, people, cast, stages, stageAt, run, order, start: s.drafts[0], merge, gone, stillIn, you: people.find((p) => p.you) ?? people[0] };
 }
-type Season = ReturnType<typeof seasonOf>;
+type Season = ReturnType<typeof seasonOf> & { mergeAsSet?: Draft | null };
 
 // ---- Small parts ----
-function Person({ p, size = 28 }: { p: { name: string; colour: string }; size?: number }) {
+type Who = { id: string; name: string; colour: string; you: boolean };
+/** A person as the couch's chip: their colour; "You" on yours (the one you are, on every card). */
+function Person({ p, size = 30, wide }: { p: Who; size?: number; wide?: boolean }) {
   return (
-    <span aria-hidden className="type-num grid flex-none place-items-center rounded-[3px]" style={{ width: size, height: size, background: p.colour, color: INK, fontSize: Math.round(size * 0.48) }}>
-      {p.name.slice(0, 1)}
+    <span
+      aria-label={p.you ? "You" : p.name}
+      className="type-num grid flex-none place-items-center rounded-[3px] leading-none"
+      style={{ width: p.you && wide ? size * 1.6 : size, height: size, background: p.colour, color: INK, fontSize: p.you ? Math.round(size * (wide ? 0.42 : 0.36)) : Math.round(size * 0.48) }}
+    >
+      {p.you ? "YOU" : p.name.slice(0, 1)}
     </span>
   );
 }
@@ -72,15 +78,26 @@ function Photo({ src, out, size, className = "", style }: { src: string | null |
     <img src={src ?? ""} alt="" draggable={false} className={`block flex-none rounded-[3px] bg-secondary object-cover object-[center_20%] ${out ? "grayscale opacity-60" : ""} ${className}`} style={{ width: size, height: size, ...style }} />
   );
 }
+/** A slanted caption tag, the app's: quiet, ink (bone fill) or check (the one thing to look at). */
+function Tag({ children, tone = "quiet" }: { children: ReactNode; tone?: "quiet" | "ink" }) {
+  return (
+    <span
+      className={`type-caption inline-flex h-6 flex-none items-center pl-2 pr-4 text-[13px] tracking-[0.04em] [clip-path:polygon(0_0,100%_0,calc(100%-8px)_100%,0_100%)] ${tone === "ink" ? "bg-foreground text-background" : "bg-secondary text-foreground"}`}
+    >
+      {children}
+    </span>
+  );
+}
 /** "Typical": a tick for each season played, filled where it happened. */
-function Ticks({ n, of, label }: { n: number; of: number; label: ReactNode }) {
+function Ticks({ n, of, label, check }: { n: number; of: number; label: ReactNode; check?: boolean }) {
   return (
     <div className="flex flex-col gap-2" data-ticks={`${n}/${of}`}>
-      <div className="flex items-baseline justify-between gap-3">
-        <span className="type-caption text-[15px] tracking-[0.04em] text-muted-foreground">{label}</span>
-        <span className="type-num text-[22px]">
+      <div className="flex items-center gap-2">
+        {check && <Tag tone="ink">Check</Tag>}
+        <span className="type-caption min-w-0 flex-1 text-[15px] tracking-[0.04em] text-muted-foreground">{label}</span>
+        <span className="type-num flex-none text-[22px]">
           {n}
-          <span className="text-[15px] text-muted-foreground"> of {of} seasons</span>
+          <span className="text-[13px] text-muted-foreground"> of {of} seasons</span>
         </span>
       </div>
       <div className="flex gap-[3px]" aria-hidden>
@@ -91,13 +108,16 @@ function Ticks({ n, of, label }: { n: number; of: number; label: ReactNode }) {
     </div>
   );
 }
-function Tag({ children, tone = "quiet" }: { children: ReactNode; tone?: "quiet" | "ink" }) {
+/** The two stages' names, as the game has them. */
+function Bands({ x, col }: { x: Season; col: (n: number) => number }) {
   return (
-    <span
-      className={`type-caption inline-flex h-6 flex-none items-center pl-2 pr-4 text-[13px] tracking-[0.04em] [clip-path:polygon(0_0,100%_0,calc(100%-8px)_100%,0_100%)] ${tone === "ink" ? "bg-foreground text-background" : "bg-secondary text-foreground"}`}
-    >
-      {children}
-    </span>
+    <>
+      {x.stages.map((st, i) => (
+        <div key={st.id} className="type-caption flex h-10 items-center px-2.5 text-[15px] tracking-[0.04em]" style={{ gridColumn: `${col(st.from)} / ${col(st.to) + 1}`, gridRow: 1, background: BAND[i] }}>
+          {stageWord(st.name)}
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -107,52 +127,45 @@ function SeasonCard({ x, d, toMerge }: { x: Season; d: StoryData; toMerge: () =>
   const winner = x.people.find((p) => p.id === x.order[0].id)!;
   const margin = x.order[0].total - x.order[1].total;
   const flagged = d.typical.mergeMostHeldAll * 2 > d.typical.seasons;
+  const cols = { gridTemplateColumns: `repeat(${x.eps.length}, minmax(0, 1fr))` };
   return (
-    <div className="flex flex-col gap-6">
-      <div className="grid gap-y-2" style={{ gridTemplateColumns: `repeat(${x.eps.length}, minmax(0, 1fr))` }}>
-        {x.stages.map((st, i) => (
-          <div key={st.id} className="type-caption flex h-9 items-center px-2 text-[14px] tracking-[0.04em]" style={{ gridColumn: `${col(st.from)} / ${col(st.to) + 1}`, gridRow: 1, background: BAND[i] }}>
-            {stageWord(st.name)}
-          </div>
-        ))}
+    <div className="flex flex-col gap-7">
+      <div className="grid gap-y-3" style={cols}>
+        <Bands x={x} col={col} />
         {x.eps.map((n) => (
-          <div key={n} className="flex flex-col items-start gap-0.5 px-2 pt-1" style={{ gridColumn: col(n), gridRow: 2 }}>
-            <span className="type-num text-[30px] leading-none">{n}</span>
-            {n === d.game.last && <span className="type-caption text-[12px] tracking-[0.04em] text-muted-foreground">Finale</span>}
+          <div key={n} className="flex h-[60px] flex-col justify-end px-2.5" style={{ gridColumn: col(n), gridRow: 2 }}>
+            <span className="type-num text-[44px] leading-[0.8]">{n}</span>
           </div>
         ))}
-        {/* Your moves: a draft where a stage starts, then a lineup every episode (three of your five). */}
-        {x.eps.map((n) => (
-          <div key={n} className="flex flex-col items-start gap-1.5 px-2" style={{ gridColumn: col(n), gridRow: 3 }}>
-            {x.stages.some((st) => st.from === n) && <Tag tone="ink">Draft</Tag>}
-            <span className="flex gap-[3px]" aria-label="Start 3 of 5">
-              {Array.from({ length: d.game.rules.each }, (_, k) => (
-                <span key={k} className="size-[7px] rounded-[1px]" style={{ background: k < d.game.rules.start ? "var(--foreground)" : "color-mix(in oklab, var(--foreground) 22%, transparent)" }} />
-              ))}
-            </span>
-          </div>
-        ))}
-        {/* Who went home (made up): their faces under the night it happened. */}
-        {x.eps.map((n) => {
-          const gone = x.gone(n);
-          return (
-            <div key={n} className="flex px-2 pt-2" style={{ gridColumn: col(n), gridRow: 4 }}>
-              {gone.slice(0, n === d.game.last ? 4 : 2).map((c, k) => (
-                <Photo key={c.id} src={c.photo} out size={n === d.game.last ? 22 : 36} style={{ marginLeft: k ? (n === d.game.last ? -9 : -14) : 0, boxShadow: "0 0 0 2px var(--background)" }} />
-              ))}
-            </div>
-          );
-        })}
-      </div>
-      <div className="flex items-center gap-3">
-        <span className="relative">
-          <Person p={winner} size={52} />
-          <Crown className="absolute -top-4 left-1/2 size-5 -translate-x-1/2 text-foreground" aria-hidden />
+        {/* Your moves, one row: a draft where a stage starts, then three of your five every episode. */}
+        <span className="type-caption px-2.5 pt-2 text-[13px] tracking-[0.04em] text-muted-foreground" style={{ gridColumn: `1 / ${x.eps.length + 1}`, gridRow: 3 }}>
+          Your moves
         </span>
-        <div className="flex flex-col">
-          <span className="type-caption text-[28px] leading-none">{winner.you ? "You win" : `${winner.name} wins`}</span>
-          <span className="text-[14px] text-muted-foreground">
-            {fmt(x.order[0].total)} pts · by {fmt(margin)}
+        {x.eps.map((n) => (
+          <div key={n} className="flex h-6 items-center px-2.5" style={{ gridColumn: col(n), gridRow: 4 }}>
+            {x.stages.some((st) => st.from === n) && <Tag tone="ink">Draft</Tag>}
+          </div>
+        ))}
+        {x.eps.map((n) => (
+          <div key={n} className="flex gap-1 px-2.5" style={{ gridColumn: col(n), gridRow: 5 }} aria-label={`Start ${d.game.rules.start} of ${d.game.rules.each}`}>
+            {Array.from({ length: d.game.rules.each }, (_, k) => (
+              <span key={k} className="size-2.5 rounded-[1px]" style={{ background: k < d.game.rules.start ? x.you.colour : "color-mix(in oklab, var(--foreground) 22%, transparent)" }} />
+            ))}
+          </div>
+        ))}
+        <span className="type-caption px-2.5 pt-1 text-[13px] tracking-[0.04em] text-muted-foreground" style={{ gridColumn: col(d.game.last), gridRow: 6 }}>
+          Finale
+        </span>
+      </div>
+      <div className="flex items-center gap-4">
+        <span className="relative mt-4">
+          <Person p={winner} size={64} />
+          <Crown className="absolute -top-6 left-1/2 size-6 -translate-x-1/2" aria-hidden />
+        </span>
+        <div className="flex flex-col gap-1">
+          <span className="type-caption text-[30px] leading-none">{winner.you ? "You win" : `${winner.name} wins`}</span>
+          <span className="text-[13px] text-muted-foreground">
+            <b className="type-num text-[19px] text-foreground">{fmt(x.order[0].total)}</b> points · by {fmt(margin)}
           </span>
         </div>
       </div>
@@ -160,7 +173,7 @@ function SeasonCard({ x, d, toMerge }: { x: Season; d: StoryData; toMerge: () =>
         <button type="button" data-flag onClick={toMerge} className="nd-press flex h-[52px] items-stretch overflow-hidden rounded-[3px] bg-card text-left outline-1 -outline-offset-1 outline-input">
           <span className="type-caption flex items-center bg-foreground pl-3 pr-5 text-[15px] tracking-[0.04em] text-background [clip-path:polygon(0_0,100%_0,calc(100%-10px)_100%,0_100%)]">Check</span>
           <span className="flex flex-1 items-center px-3 text-[16px] font-semibold">The merge’s teams</span>
-          <span className="type-caption flex items-center pr-3 text-[15px] text-muted-foreground">Card 5</span>
+          <ChevronRight className="mr-3 size-5 self-center text-muted-foreground" aria-hidden />
         </button>
       )}
     </div>
@@ -169,28 +182,39 @@ function SeasonCard({ x, d, toMerge }: { x: Season; d: StoryData; toMerge: () =>
 
 function DraftCard({ x }: { x: Season }) {
   const teams = x.start.teams, mine = teams[x.you.id] ?? [];
-  const held = (id: string) => Object.values(teams).filter((t) => t.includes(id)).length;
+  const others = x.people.filter((p) => !p.you);
   return (
-    <div className="flex flex-col gap-5">
-      <div className="grid grid-cols-3 gap-2">
-        {mine.map((id) => {
-          const c = x.cast.get(id);
-          return (
-            <div key={id} className="relative overflow-hidden rounded-[3px] bg-card">
-              <Photo src={c?.photo} className="h-[112px] w-full rounded-none" />
-              <span className="type-caption block truncate px-2 py-1.5 text-[17px]">{firstName(c?.name ?? "")}</span>
-              {held(id) > 1 && <span className="type-num absolute right-1.5 top-1.5 rounded-[2px] bg-background/85 px-1.5 py-0.5 text-[14px]">×{held(id)}</span>}
-            </div>
-          );
-        })}
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-2">
+        <span className="type-caption text-[19px]">Your five</span>
+        <div className="grid grid-cols-3 gap-2">
+          {mine.map((id) => {
+            const c = x.cast.get(id);
+            const also = others.filter((p) => teams[p.id]?.includes(id));
+            return (
+              <div key={id} className="relative overflow-hidden rounded-[3px] bg-card">
+                <Photo src={c?.photo} className="h-[118px] w-full rounded-none" />
+                <span className="type-caption block truncate px-2 py-1.5 text-[19px]">{firstName(c?.name ?? "")}</span>
+                {/* Who else has them: their chips, the same as everywhere. */}
+                {also.length > 0 && (
+                  <span className="absolute right-1.5 top-1.5 flex gap-1" aria-label={`Also on ${also.map((p) => p.name).join(", ")}’s team`}>
+                    {also.map((p) => (
+                      <Person key={p.id} p={p} size={20} />
+                    ))}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
       <div className="flex flex-col gap-2.5">
-        {x.people.filter((p) => !p.you).map((p) => (
+        {others.map((p) => (
           <div key={p.id} className="flex items-center gap-3">
-            <Person p={p} size={30} />
+            <Person p={p} />
             <div className="flex gap-1.5">
               {(teams[p.id] ?? []).map((id) => (
-                <Photo key={id} src={x.cast.get(id)?.photo} size={44} style={mine.includes(id) ? { boxShadow: `0 0 0 2px var(--background), 0 0 0 4px ${x.you.colour}` } : undefined} />
+                <Photo key={id} src={x.cast.get(id)?.photo} size={48} />
               ))}
             </div>
           </div>
@@ -201,101 +225,133 @@ function DraftCard({ x }: { x: Season }) {
 }
 
 function WeekCard({ x, d }: { x: Season; d: StoryData }) {
-  // The week that shows the choice best: where your bench outscored your lineup the most.
   const weeks = x.stages.flatMap((st) => st.weeks[x.you.id] ?? []);
   const pts = (w: StoryWeek) => [...w.started, ...w.bench].map((c) => c.points).sort((a, b) => b - a);
   const sum = (xs: number[]) => xs.reduce((t, v) => t + v, 0);
   const best = (w: StoryWeek) => sum(pts(w).slice(0, w.started.length));
   const worst = (w: StoryWeek) => sum(pts(w).slice(-w.started.length));
-  const w = [...weeks].sort((a, b) => best(b) - b.total - (best(a) - a.total) || best(b) - worst(b) - (best(a) - worst(a)))[0];
+  // A typical week, not the most extreme: the one whose swing is nearest what's typical across seasons.
+  const w = [...weeks].sort((a, b) => Math.abs(best(a) - worst(a) - d.typical.swing) - Math.abs(best(b) - worst(b) - d.typical.swing))[0];
   if (!w) return null;
-  const lo = Math.min(0, worst(w)), hi = Math.max(best(w), lo + d.typical.swing), at = (v: number) => `${((v - lo) / (hi - lo || 1)) * 100}%`;
+  const lo = Math.min(0, worst(w)), hi = Math.max(best(w), lo + d.typical.swing);
+  const at = (v: number) => ((v - lo) / (hi - lo || 1)) * 100;
+  // A label centred on its mark, held inside the column.
+  const place = (v: number): CSSProperties => (at(v) < 12 ? { left: 0 } : at(v) > 88 ? { right: 0 } : { left: `${at(v)}%`, transform: "translateX(-50%)" });
   const tile = (c: { id: string; points: number }, on: boolean) => {
     const cast = x.cast.get(c.id);
     return (
-      <div key={c.id} className={`flex flex-col gap-1 ${on ? "" : "opacity-55"}`}>
-        <Photo src={cast?.photo} className="h-[84px] w-full" out={!on} />
-        <span className="type-caption truncate text-[14px]">{firstName(cast?.name ?? "")}</span>
-        <span className="type-num text-[22px] leading-none" style={{ color: c.points > 0 ? "var(--nd-good)" : c.points < 0 ? "var(--nd-band-setback)" : undefined }}>
+      <div key={c.id} className="flex flex-col gap-1">
+        <Photo src={cast?.photo} className={`h-[92px] w-full ${on ? "" : "opacity-40"}`} />
+        <span className={`type-caption truncate text-[15px] ${on ? "" : "text-muted-foreground"}`}>{firstName(cast?.name ?? "")}</span>
+        <span className="type-num text-[22px] leading-none" style={{ color: !on ? "var(--muted-foreground)" : c.points > 0 ? "var(--nd-good)" : c.points < 0 ? "var(--nd-band-setback)" : undefined }}>
           {signed(c.points)}
         </span>
       </div>
     );
   };
   return (
-    <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-5 gap-2">
-        {w.started.map((c) => tile(c, true))}
-        {w.bench.map((c) => tile(c, false))}
-      </div>
-      <div className="flex flex-col gap-3">
-        <div className="relative h-11">
-          <span className="absolute inset-x-0 top-1/2 h-[3px] -translate-y-1/2 rounded-full" style={{ background: "color-mix(in oklab, var(--foreground) 16%, transparent)" }} />
-          <span className="absolute top-1/2 h-[3px] -translate-y-1/2" style={{ left: at(worst(w)), width: `calc(${at(best(w))} - ${at(worst(w))})`, background: "color-mix(in oklab, var(--foreground) 45%, transparent)" }} />
-          {[
-            { v: worst(w), label: "Worst", strong: false },
-            { v: w.total, label: "You", strong: true },
-            { v: best(w), label: "Best", strong: false },
-          ].map((m) => (
-            <span key={m.label} className="absolute top-0 flex -translate-x-1/2 flex-col items-center" style={{ left: at(m.v) }}>
-              <span className={`block w-[3px] rounded-full ${m.strong ? "h-11 bg-foreground" : "h-6 translate-y-2.5 bg-muted-foreground"}`} />
-            </span>
-          ))}
+    <div className="flex flex-col gap-7">
+      <div className="flex flex-col gap-2">
+        <Tag tone="ink">Episode {w.episode}</Tag>
+        <div className="grid grid-cols-5 gap-2">
+          <span className="type-caption text-[13px] tracking-[0.04em] text-muted-foreground" style={{ gridColumn: `1 / ${w.started.length + 1}` }}>
+            Started
+          </span>
+          <span className="type-caption text-[13px] tracking-[0.04em] text-muted-foreground" style={{ gridColumn: `${w.started.length + 1} / 6` }}>
+            Bench
+          </span>
+          {w.started.map((c) => tile(c, true))}
+          {w.bench.map((c) => tile(c, false))}
         </div>
-        <div className="relative h-10">
+      </div>
+      <div className="flex flex-col gap-2">
+        <span className="type-caption text-[15px] tracking-[0.04em] text-muted-foreground">Your three, against the best and worst three</span>
+        <div className="relative h-11">
+          <span className="absolute bottom-0 flex flex-col items-center" style={place(w.total)}>
+            <span className="text-[13px] text-muted-foreground">you</span>
+            <span className="type-num text-[26px] leading-none">{signed(w.total)}</span>
+          </span>
+        </div>
+        <div className="relative h-12">
+          <span className="absolute inset-x-0 top-1/2 h-[3px] -translate-y-1/2 rounded-full" style={{ background: "color-mix(in oklab, var(--foreground) 14%, transparent)" }} />
+          <span className="absolute top-1/2 h-[7px] -translate-y-1/2 rounded-[2px]" style={{ left: `${at(worst(w))}%`, width: `${at(best(w)) - at(worst(w))}%`, background: "color-mix(in oklab, var(--foreground) 32%, transparent)" }} />
+          <span className="absolute top-0 h-12 w-[4px] -translate-x-1/2 rounded-full bg-foreground" style={{ left: `clamp(2px, ${at(w.total)}%, calc(100% - 2px))` }} />
+        </div>
+        <div className="relative h-11">
           {[
             { v: worst(w), label: "worst" },
-            { v: w.total, label: "you" },
             { v: best(w), label: "best" },
           ].map((m) => (
-            <span key={m.label} className="absolute top-0 flex -translate-x-1/2 flex-col items-center" style={{ left: at(m.v) }}>
-              <span className="type-num text-[22px] leading-none">{fmt(m.v)}</span>
-              <span className="text-[12px] text-muted-foreground">{m.label}</span>
+            <span key={m.label} className="absolute top-0 flex flex-col items-center" style={place(m.v)}>
+              <span className="type-num text-[24px] leading-none">{signed(m.v)}</span>
+              <span className="text-[13px] text-muted-foreground">{m.label}</span>
             </span>
           ))}
         </div>
+        {/* What's typical, on the same scale: how far a week's best and worst lineups sit apart. */}
+        <div className="flex flex-col gap-1 pt-1">
+          <span className="relative h-3 flex-none" style={{ width: `${Math.min(100, (d.typical.swing / (hi - lo || 1)) * 100)}%` }} aria-hidden>
+            <span className="absolute inset-x-0 top-1/2 h-[2px] -translate-y-1/2 bg-muted-foreground" />
+            <span className="absolute inset-y-0 left-0 w-[2px] bg-muted-foreground" />
+            <span className="absolute inset-y-0 right-0 w-[2px] bg-muted-foreground" />
+          </span>
+          <span className="flex-none text-[13px] text-muted-foreground">
+            typical: <b className="type-num text-[16px] text-foreground">{fmt(Math.round(d.typical.swing))}</b>
+          </span>
+        </div>
       </div>
-      <p className="text-[14px] text-muted-foreground">
-        Your pick moves a week by about <b className="type-num text-[17px] text-foreground">{fmt(Math.round(d.typical.swing))}</b> points, typically.
-      </p>
     </div>
   );
 }
 
 function RaceCard({ x }: { x: Season }) {
-  const W = 358, H = 300, L = 8, R = 44, T = 18, B = 34;
+  const W = 358, H = 420, L = 8, R = 84, T = 34, B = 34;
   const xs = [x.eps[0] - 1, ...x.eps];
-  const max = Math.max(1, ...Object.values(x.run).flat());
+  const all = Object.values(x.run).flat();
+  const max = Math.max(1, ...all), min = Math.min(0, ...all);
   const px = (n: number) => L + ((n - xs[0]) / (xs[xs.length - 1] - xs[0])) * (W - L - R);
-  const py = (v: number) => T + (1 - v / max) * (H - T - B);
+  const py = (v: number) => T + (1 - (v - min) / (max - min)) * (H - T - B);
   const leader = x.order[0].id;
-  // End labels, nudged apart when two finish close.
-  const ends = x.people.map((p) => ({ p, y: py(x.run[p.id].at(-1) ?? 0) })).sort((a, b) => a.y - b.y);
-  for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 22) ends[i].y = ends[i - 1].y + 22;
+  const ends = x.people.map((p) => ({ p, v: x.run[p.id].at(-1) ?? 0, y: py(x.run[p.id].at(-1) ?? 0) })).sort((a, b) => a.y - b.y);
+  for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 26) ends[i].y = ends[i - 1].y + 26;
+  // The new draft comes between a stage's last episode and the next's first.
+  const edge = (st: { from: number }, i: number) => (i ? px(st.from - 0.5) : px(xs[0]));
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Everyone's running total, episode by episode">
-      {x.stages.map((st, i) => (
-        <rect key={st.id} x={px(st.from - 1)} y={T - 6} width={px(st.to) - px(st.from - 1)} height={H - T - B + 6} fill={BAND[i]} />
-      ))}
+      {x.stages.map((st, i) => {
+        const x0 = edge(st, i), x1 = i < x.stages.length - 1 ? px(x.stages[i + 1].from - 0.5) : px(st.to);
+        return (
+          <g key={st.id}>
+            <rect x={x0} y={T - 26} width={x1 - x0} height={H - B - T + 26} fill={BAND[i]} />
+            <text x={x0 + 8} y={T - 9} className="type-caption" fontSize={13} letterSpacing="0.04em" fill="var(--foreground)">
+              {stageWord(st.name).toUpperCase()}
+            </text>
+          </g>
+        );
+      })}
       {x.stages.slice(1).map((st) => (
-        <g key={st.id}>
-          <line x1={px(st.from - 1)} x2={px(st.from - 1)} y1={T - 6} y2={H - B} stroke="var(--foreground)" strokeDasharray="3 4" strokeWidth={1.5} />
-        </g>
+        <line key={st.id} x1={px(st.from - 0.5)} x2={px(st.from - 0.5)} y1={T - 26} y2={H - B} stroke="var(--foreground)" strokeDasharray="3 4" strokeWidth={1.5} />
       ))}
-      <line x1={L} x2={W - R} y1={H - B} y2={H - B} stroke="var(--border)" />
+      <line x1={L} x2={W - R} y1={py(0)} y2={py(0)} stroke="color-mix(in oklab, var(--foreground) 30%, transparent)" />
+      <text x={L + 4} y={py(0) - 5} className="type-num" fontSize={13} fill="var(--muted-foreground)">
+        0
+      </text>
       {xs.slice(1).map((n) => (
-        <text key={n} x={px(n)} y={H - 12} textAnchor="middle" className="type-num" fontSize={16} fill="var(--muted-foreground)">
+        <text key={n} x={px(n)} y={H - 10} textAnchor="middle" className="type-num" fontSize={16} fill="var(--muted-foreground)">
           {n}
         </text>
       ))}
       {x.people.map((p) => (
         <polyline key={p.id} fill="none" stroke={p.colour} strokeWidth={p.id === leader ? 4 : 3} strokeLinejoin="round" strokeLinecap="round" points={[[px(xs[0]), py(0)], ...x.eps.map((n, i) => [px(n), py(x.run[p.id][i])])].map(([a, b]) => `${a},${b}`).join(" ")} />
       ))}
-      {ends.map(({ p, y }) => (
-        <g key={p.id} transform={`translate(${W - R + 8}, ${y - 11})`}>
-          <rect width={22} height={22} rx={3} fill={p.colour} />
-          <text x={11} y={16} textAnchor="middle" className="type-num" fontSize={14} fill={INK}>
-            {p.name.slice(0, 1)}
+      {ends.map(({ p, v, y }) => (
+        <g key={p.id} transform={`translate(${W - R + 8}, ${y - 12})`}>
+          <rect width={p.you ? 34 : 24} height={24} rx={3} fill={p.colour} />
+          <text x={p.you ? 17 : 12} y={17} textAnchor="middle" className="type-num" fontSize={p.you ? 12 : 15} fill={INK}>
+            {p.you ? "YOU" : p.name.slice(0, 1)}
+          </text>
+          <text x={p.you ? 40 : 30} y={18} className="type-num" fontSize={17} fill="var(--foreground)">
+            {fmt(v)}
           </text>
         </g>
       ))}
@@ -306,31 +362,33 @@ function RaceCard({ x }: { x: Season }) {
 function MergeCard({ x, d, fix, setFix }: { x: Season; d: StoryData; fix: boolean; setFix: (v: boolean) => void }) {
   const m = x.merge;
   if (!m) return null;
-  // Columns: everyone still in, the most-held first, so a castaway on every team reads as a full column.
-  const held = (id: string) => Object.values(m.teams).filter((t) => t.includes(id)).length;
-  const cols = x.stillIn(m.before).sort((a, b) => held(b) - held(a) || (a < b ? -1 : 1));
-  const all = cols.filter((id) => held(id) === x.people.length);
+  // Columns: everyone still in, in one fixed order (the most-held first in the game as set), so a castaway on every team reads as a
+  // full column and the fix redraws the same picture.
+  const as = x.mergeAsSet ?? m;
+  const heldIn = (t: Record<string, string[]>, id: string) => Object.values(t).filter((v) => v.includes(id)).length;
+  const cols = x.stillIn(m.before).sort((a, b) => heldIn(as.teams, b) - heldIn(as.teams, a) || (a < b ? -1 : 1));
+  const all = cols.filter((id) => heldIn(m.teams, id) === x.people.length);
   const t = fix ? d.typicalSmall : d.typical;
-  const cell = 40;
+  const cell = 38, gap = 6, chip = 46;
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1.5">
-        <div className="flex items-end gap-1.5 pl-[42px]">
+        <div className="flex items-end" style={{ gap, paddingLeft: chip }}>
           {cols.map((id) => (
-            <div key={id} className="flex flex-col items-center gap-1" style={{ width: cell }}>
-              <span className="type-caption w-full truncate text-center text-[11px] tracking-[0.02em] text-muted-foreground">{firstName(x.cast.get(id)?.name ?? "")}</span>
-            </div>
+            <span key={id} className="type-caption truncate text-center text-[13px] text-muted-foreground" style={{ width: cell }}>
+              {firstName(x.cast.get(id)?.name ?? "").slice(0, 6)}
+            </span>
           ))}
         </div>
         <div className="relative flex flex-col gap-1.5">
           {/* The castaway on every team: one frame down their column, the card's one accent. */}
           {all.map((id) => (
-            <span key={id} aria-hidden className="pointer-events-none absolute -bottom-1 -top-1 rounded-[4px] outline-[3px] outline-foreground [outline-style:solid]" style={{ left: 42 + cols.indexOf(id) * (cell + 6) - 3, width: cell + 6 }} />
+            <span key={id} aria-hidden className="pointer-events-none absolute -bottom-1 -top-1 rounded-[4px] outline-[3px] outline-foreground [outline-style:solid]" style={{ left: chip + cols.indexOf(id) * (cell + gap) - 3, width: cell + 6 }} />
           ))}
           {x.people.map((p) => (
-            <div key={p.id} className="flex items-center gap-1.5">
-              <span className="mr-1.5">
-                <Person p={p} size={30} />
+            <div key={p.id} className="flex items-center" style={{ gap }}>
+              <span className="flex-none" style={{ width: chip - gap }}>
+                <Person p={p} wide={false} />
               </span>
               {cols.map((id) =>
                 m.teams[p.id]?.includes(id) ? (
@@ -343,7 +401,7 @@ function MergeCard({ x, d, fix, setFix }: { x: Season; d: StoryData; fix: boolea
           ))}
         </div>
       </div>
-      <Ticks n={t.mergeMostHeldAll} of={t.seasons} label="Someone on every team" />
+      <Ticks n={t.mergeMostHeldAll} of={t.seasons} label="Same castaway on every team" check={t.mergeMostHeldAll * 2 > t.seasons} />
       <div className="flex flex-col gap-2">
         <div role="radiogroup" aria-label="How many each at the merge" className="grid grid-cols-2 gap-1 rounded-[4px] bg-card p-1 outline-1 -outline-offset-1 outline-input">
           {[false, true].map((v) => (
@@ -354,15 +412,15 @@ function MergeCard({ x, d, fix, setFix }: { x: Season; d: StoryData; fix: boolea
               aria-checked={fix === v}
               data-fix={v ? "on" : "off"}
               onClick={() => setFix(v)}
-              className={`nd-press h-11 rounded-[3px] text-[15px] font-bold ${fix === v ? "bg-foreground text-background" : "text-muted-foreground"}`}
+              className={`nd-press h-11 rounded-[3px] text-[16px] font-bold ${fix === v ? "bg-foreground text-background" : "text-muted-foreground"}`}
             >
-              {v ? `${d.game.rules.small.each} each, start ${d.game.rules.small.start}` : `${d.game.rules.each} each, start ${d.game.rules.start}`}
+              {v ? `Try ${d.game.rules.small.each} each` : `${d.game.rules.each} each, as set`}
             </button>
           ))}
         </div>
         {fix && (
-          <Btn tone="optional" wide data-fix-use>
-            Use {d.game.rules.small.each} each at the merge
+          <Btn tone="ink" wide data-fix-use>
+            Use {d.game.rules.small.each} each, start {d.game.rules.small.start}
           </Btn>
         )}
       </div>
@@ -374,17 +432,18 @@ function FinaleCard({ x, d }: { x: Season; d: StoryData }) {
   const winner = x.people.find((p) => p.id === x.order[0].id)!;
   const by = (pid: string, i: number) => x.stages[i]?.table.find((r) => r.id === pid)?.total ?? 0;
   const max = Math.max(1, ...x.order.map((r) => r.total));
+  const part = (colour: string, i: number) => (i ? colour : `color-mix(in oklab, ${colour} 42%, var(--background))`);
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-7">
       <div className="flex items-center gap-4">
-        <span className="relative">
-          <Person p={winner} size={72} />
-          <Crown className="absolute -top-5 left-1/2 size-6 -translate-x-1/2" aria-hidden />
+        <span className="relative mt-5">
+          <Person p={winner} size={76} wide />
+          <Crown className="absolute -top-7 left-1/2 size-7 -translate-x-1/2" aria-hidden />
         </span>
-        <div className="flex flex-col">
-          <span className="type-caption text-[34px] leading-none">{winner.name}</span>
-          <span className="text-[14px] text-muted-foreground">
-            wins by <b className="type-num text-[17px] text-foreground">{fmt(x.order[0].total - x.order[1].total)}</b>
+        <div className="flex flex-col gap-1">
+          <span className="type-caption text-[44px] leading-[0.86]">{winner.you ? "You" : winner.name}</span>
+          <span className="text-[13px] text-muted-foreground">
+            win{winner.you ? "" : "s"} by <b className="type-num text-[19px] text-foreground">{fmt(x.order[0].total - x.order[1].total)}</b>
           </span>
         </div>
       </div>
@@ -393,26 +452,28 @@ function FinaleCard({ x, d }: { x: Season; d: StoryData }) {
           const p = x.people.find((q) => q.id === r.id)!;
           return (
             <div key={r.id} className="flex items-center gap-3">
-              <Person p={p} size={30} />
-              <div className="flex h-7 flex-1 overflow-hidden rounded-[2px]">
+              <span className="w-12 flex-none">
+                <Person p={p} wide />
+              </span>
+              <div className="flex h-8 flex-1 overflow-hidden rounded-[2px]">
                 {x.stages.map((st, i) => (
-                  <span key={st.id} className="h-full" style={{ width: `${(Math.max(0, by(r.id, i)) / max) * 100}%`, background: i ? p.colour : `color-mix(in oklab, ${p.colour} 45%, var(--background))` }} />
+                  <span key={st.id} className="h-full" style={{ width: `${(Math.max(0, by(r.id, i)) / max) * 100}%`, background: part(p.colour, i) }} />
                 ))}
               </div>
-              <span className="type-num w-12 text-right text-[24px]">{fmt(r.total)}</span>
+              <span className="type-num w-12 flex-none text-right text-[26px]">{fmt(r.total)}</span>
             </div>
           );
         })}
-        <div className="flex gap-4 pl-[42px] text-[12px] text-muted-foreground">
+        <div className="flex gap-4 pl-[60px] text-[13px] text-muted-foreground">
           {x.stages.map((st, i) => (
             <span key={st.id} className="flex items-center gap-1.5">
-              <span className="size-2.5 rounded-[1px]" style={{ background: i ? "var(--foreground)" : "color-mix(in oklab, var(--foreground) 45%, var(--background))" }} />
+              <span className="h-3 w-5 rounded-[1px]" style={{ background: part(x.you.colour, i) }} />
               {stageWord(st.name)}
             </span>
           ))}
         </div>
       </div>
-      <Ticks n={d.typical.firstStageLeaderWins} of={d.typical.seasons} label="The leader at the merge wins" />
+      <Ticks n={d.typical.closeFinish} of={d.typical.seasons} label="A close finish, 3 or less" />
     </div>
   );
 }
@@ -430,7 +491,7 @@ export function PreviewStory({ data }: { data: StoryData }) {
     if (q.get("fix") === "1") setFix(true);
   }, [data.samples.length]);
   const sample = data.samples[which];
-  const x = useMemo(() => seasonOf(data, sample, fix), [data, sample, fix]);
+  const x = useMemo(() => ({ ...seasonOf(data, sample, fix), mergeAsSet: sample.drafts[1] ?? null }), [data, sample, fix]);
   const last = k === CARDS.length - 1;
   const detail = [
     `${data.game.show} ${data.game.season} · Episodes ${data.game.from} to ${data.game.last}`,
@@ -438,7 +499,7 @@ export function PreviewStory({ data }: { data: StoryData }) {
     `Start ${data.game.rules.start} of your ${data.game.rules.each}, every episode`,
     "Everyone’s points, episode by episode",
     x.merge ? `After Episode ${x.merge.before - 1} · ${x.merge.left} still in · ${fix ? data.game.rules.small.each : data.game.rules.each} each` : "",
-    `Episode ${data.game.last}`,
+    `After the finale, Episode ${data.game.last}`,
   ][k];
   const go = (n: number) => setK(Math.max(0, Math.min(CARDS.length - 1, n)));
   return (
@@ -452,16 +513,16 @@ export function PreviewStory({ data }: { data: StoryData }) {
           ))}
         </div>
         <div className="flex h-14 items-center gap-3 px-4">
-          <span className="type-caption inline-flex h-7 items-center bg-secondary pl-2.5 pr-5 text-[14px] tracking-[0.04em] [clip-path:polygon(0_0,100%_0,calc(100%-9px)_100%,0_100%)]">Made-up season</span>
-          <span className="min-w-0 flex-1 truncate text-[14px] text-muted-foreground">{data.game.name}</span>
+          <span className="type-caption inline-flex h-7 items-center bg-secondary pl-2.5 pr-5 text-[15px] tracking-[0.04em] [clip-path:polygon(0_0,100%_0,calc(100%-9px)_100%,0_100%)]">Made-up season</span>
+          <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">{data.game.name}</span>
           <button type="button" aria-label="Close" className="nd-press -mr-2 grid size-11 place-items-center">
             <X className="size-6" />
           </button>
         </div>
-        <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-4 pb-4 pt-2" key={`${k}-${which}`} data-card-body>
-          <div className="flex flex-col gap-1">
-            <h1 className="type-caption text-[40px] leading-[0.9]">{CARDS[k]}</h1>
-            <span className="text-[14px] text-muted-foreground">{detail}</span>
+        <div className="flex flex-1 flex-col gap-6 overflow-y-auto px-4 pb-4 pt-2" key={`${k}-${which}`} data-card-body>
+          <div className="flex flex-col gap-1.5">
+            <h1 className="type-caption text-[30px] leading-[0.9]">{CARDS[k]}</h1>
+            <span className="text-[13px] text-muted-foreground">{detail}</span>
           </div>
           <div className="nd-story-in">
             {k === 0 && <SeasonCard x={x} d={data} toMerge={() => go(4)} />}
@@ -475,7 +536,8 @@ export function PreviewStory({ data }: { data: StoryData }) {
         <div className="flex items-center gap-2 px-4 pb-[max(16px,env(safe-area-inset-bottom,0px))] pt-2">
           {last ? (
             <>
-              <Btn tone="optional" onClick={() => go(0)} className="flex-1">
+              {/* Back to the game's setup (the gallery's sheet) once wired; here it stays put. */}
+              <Btn tone="optional" className="flex-1" data-change>
                 Change it
               </Btn>
               <Btn tone="must" className="flex-[1.4]">
