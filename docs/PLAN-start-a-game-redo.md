@@ -432,9 +432,17 @@ then approval.
       Objectives played; a host's card dashed); check-start-a-game.js (Prop bets offered, Host's card dashed with the reason); 2,434
       unit tests pass. Noticed once, not again on a rerun: check-start-a-game.js's browser run caught a page error "Transition was
       aborted because of timeout in DOM update" (a view transition under quick taps); the rerun passed clean.
-      **Left for E1b's second slice:** a host's card (a computer player writing its card when its turn comes), trivia (the round's
-      key), a side, a bracket, a question about each person or game; Prop bets and Beat the bot played to their ends with computer
-      players.
+      **E1b's proof, done (2026-11-18): played to their ends.** New `scripts/dev-test/check-bots-play-through.js` (reusable: `--bases`,
+      `--pace=own|live`, `--from`, `--to`, `--bots`, `--level`, `--keep`; new-fixture's couch, taken down after): alex starts each
+      base with computer players and reveals each episode to the game's last; every computer player answers every question each
+      week (a card's lines and the ticket too) and none after, what's asked once once; stakes whole; the games read lists them with
+      totals; the game over at its end. Beat the bot's calls are written as the stand-in's (`bot_calls` made_by 'stand-in': the
+      lane's AI keys are blank; with no call, Beat the bot grades nothing, for people too). A base whose own rules refuse the span is
+      a SKIP with its reason (the jury split runs to the season's end). Run 2026-11-18: sheet, props (48 stakes), beatbot, bank (32
+      stakes) at your own pace over Episodes 1-4, all pass (a probe with other stand-in calls had Beat the bot's two computer
+      players on 2 each); pairs and boot order (asked once) pass; live: sheet, bank, confidence, pairs start with their answers.
+      **Left for E1b:** a host's card (a computer player writing its card when its turn comes), trivia (the round's key), a side, a
+      bracket, a question about each person or game. Then E1d.
     - **E1c. Cards, calls and bingo** (each its own small step, after a named question to the user: a bingo card or a call is
       honour-based, tapped by whoever sees it; should a computer player mark its card from what research settles after the
       episode, or sit those games out?). Until then they stay dashed in Who's playing with the reason.
