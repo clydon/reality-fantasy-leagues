@@ -924,7 +924,7 @@ const ownTeamsOf = (spec: Spec | null): boolean => spec?.get?.by === "draft" && 
 /** Each pace by the latest moment a move can be made, so the heading reads on into the choice ("When moves lock: at airtime").
  *  Backstage > Game settings uses the same names (backstage/settings.tsx Pace). `ownTeams`: own pace then closes the game to new
  *  players at its draft, said where it's chosen (BACKLOG 68: an explanation, not a lock). */
-const PACE_WORDS: Record<PaceMode, { title: string; line: (ep: string, drafts: boolean, ownTeams: boolean) => string }> = {
+export const PACE_WORDS: Record<PaceMode, { title: string; line: (ep: string, drafts: boolean, ownTeams: boolean) => string }> = {
   own: {
     title: "When you’ve watched it",
     line: (_ep, drafts, ownTeams) => `However late that is: ${drafts ? "after the draft, " : ""}the game waits for each of you.${ownTeams ? " Nobody can join once the draft starts." : ""}`,

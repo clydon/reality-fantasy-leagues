@@ -18,6 +18,8 @@ import { toast } from "../ui/toast";
 import { openCouchSheet } from "./couch-sheets";
 import { setReopen, WizardSheet, type Screen } from "./start-wizard";
 import { SportStartSheet } from "../sports/start-sport";
+import { GallerySheet, galleryOn } from "./gallery/gallery-sheet";
+import { BoldSheet, boldOn } from "./gallery-bold/bold-sheet";
 
 // Start a game (docs/PLAN-new-design.md step 10 part 2b; the mock's rulebook.js newGameW and hubplus.js startGamePicker),
 // opened from anywhere signed in with openStartGame:
@@ -125,6 +127,10 @@ function StartRouter({ target: asked, onOpenChange }: { target: StartTarget | nu
   // A sport's league season (a matchup's or a slate's) starts the sport's own games (U1's sports slice: sports/start-sport.tsx);
   // any other sport's season (a TV listing's) keeps the list.
   const sport = wizardWanted && wiz.data?.sport && !wiz.data.blocked ? wiz.data : null;
+  // The bold pass (Round 2b) takes a sport's season through the same gallery as a show's (the user, 2026-11-18: "the sport create a
+  // game should at least feel and navigate just like the show even if its technincally different").
+  if (sport && target && sport.wizard && boldOn() && !target.practice)
+    return <BoldSheet open={!!asked} onOpenChange={onOpenChange} o={wiz.data} loading={wiz.isLoading || (wiz.isPlaceholderData && wiz.isFetching)} error={(wiz.error as Error | null) ?? null} couchId={couchId} />;
   if (sport && target)
     return (
       <SportStartSheet
@@ -134,6 +140,13 @@ function StartRouter({ target: asked, onOpenChange }: { target: StartTarget | nu
     );
   const list = !!target?.again || (wizardWanted && !!wiz.data && ((!wiz.data.wizard && !wiz.data.blocked) || wiz.data.kind === "sport"));
   if (list || !target) return <StartSheet target={asked} onOpenChange={onOpenChange} />;
+  // TEMP-UI (Round 2 of the redo, docs/design-round/wizard-r2-spec.md): the gallery in place of the wizard behind ?start=gallery
+  // (kept in localStorage gys_start; ?start=wizard turns it off). It saves nothing.
+  // The bold pass (Round 2b), beside Round 2: `?start=bold` (kept or reverted on the user's review).
+  if (boldOn() && !target.practice)
+    return <BoldSheet open={!!asked} onOpenChange={onOpenChange} o={wiz.data} loading={wiz.isLoading || (wiz.isPlaceholderData && wiz.isFetching)} error={(wiz.error as Error | null) ?? null} couchId={couchId} />;
+  if (galleryOn() && !target.practice)
+    return <GallerySheet open={!!asked} onOpenChange={onOpenChange} o={wiz.data} loading={wiz.isLoading || (wiz.isPlaceholderData && wiz.isFetching)} error={(wiz.error as Error | null) ?? null} couchId={couchId} />;
   return (
     <WizardSheet
       open={!!asked}

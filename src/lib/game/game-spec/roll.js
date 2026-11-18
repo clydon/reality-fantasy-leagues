@@ -690,4 +690,6 @@ const ROLL = {
   tries: MAX_TRIES,
 };
 
-module.exports = { rollSpec, weightsFrom, ROLL, MAX_TRIES, ROLL_BUDGET: BUDGET };
+// The pieces themselves, for Start a game's gallery (src/lib/game/start-gallery): each piece's own fits and seen, so a change offered
+// by taps goes where the roll's would and reads the same way; pageOf for the page facts both read.
+module.exports = { rollSpec, weightsFrom, ROLL, MAX_TRIES, ROLL_BUDGET: BUDGET, pageOf, PIECES: { BASES, WINS, TWISTS, LENGTHS } };

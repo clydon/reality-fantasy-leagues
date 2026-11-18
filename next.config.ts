@@ -9,6 +9,9 @@ const EMBEDDING_ROUTES = [
 ];
 
 const nextConfig: NextConfig = {
+  // A second dev server from this folder (another port, another local database: a real-data story's shoot, beside the dev server
+  // already on :3000) needs its own build folder, since next dev locks its folder: NEXT_DIST_DIR=.next-real. Unset, it's .next.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   // Metadata goes in <head>, never streamed into <body>. The root layout reads cookies (the landing
   // page decides signed in or out on the server), which made every page dynamic and its metadata
   // streamed into a hidden <div>; hydration then sometimes raced it and failed. Our metadata is

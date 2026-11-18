@@ -1007,3 +1007,243 @@
 - Why: casual starters stay on the defaults and don't open settings, so a cost to a friend has to show closed; naming people every time turns the line into wallpaper; a name lands faster than a rule; a one-tap fix ("Wait for riley") beats a menu.
 - Rejected: always naming who's behind (wallpaper); naming them only once opened (the starter who never opens it never learns riley's cut off).
 - Rests on: docs/design-round/wizard-r1b-gallery.md "Version 6" (the closed state's table); frames g41, g42, g4, g30.
+
+## 2026-11-17 · Community games are a collapsed section, first in the gallery, made for this season leading, each with a length badge
+- Decided by: the user ("I think the community games should be a collapsed section. Then yes, #1 made for this season"), and their question "Would it be useful for the community games to have a length badge: stage, one episode, full season?" answered yes
+- Why: the first view's job is the bases; a ready game made on this season's own stages is checked and always there, where likes start empty; length is the commitment, so a community row says it in the squares' words.
+- Rejected: most liked first; community squares open in the first view (version 3).
+- Rests on: docs/design-round/wizard-r2-spec.md section 1.
+
+## 2026-11-17 · The bases keep their known names, each with its plain line
+- Decided by: the user (Round 2's question: "Known names")
+- Why: Outlast, Best ball and Survival pool are what players and the app already call them; the square's plain line teaches a newcomer, and search finds plain words too.
+- Rejected: plain names ("Draft & watch"); a plain name with the known one as a tag (busier squares).
+- Rests on: .impeccable/mocks/wizard-r1/bases.js WORDS, now src/lib/game/start-gallery/bases.json.
+
+## 2026-11-17 · Start a game says "guess"; the game pages keep "call"
+- Decided by: the user (Round 2's question: "Guess")
+- Why: everyone knows "guess", and "call" reads as a phone call to someone new; where people already play, "call" stays (Weekly Calls, Called it).
+- Rejected: "call" everywhere; "guess" everywhere this round.
+- Rests on: docs/design-round/wizard-r1b-gallery.md "Plain words".
+
+## 2026-11-17 · On a season that's finished airing, the gallery opens up: every game at your own pace, the engine opening what it can't yet
+- Decided by: the user ("I want to push back that that is the technical limit and we should open it up much more of what's possible")
+- Why: the user's own direction of 2026-11-09 ("the wizard for everything … the same limitless options"); start-game.ts PACED (the pool, Outlast, the lineup) marks what has its catch-up loop, not what a game can be.
+- Rejected: leaving them off with a line; off entirely; dashed in place.
+- Rests on: docs/PLAN-own-pace-games.md "Every game at your own pace, through the wizard"; src/lib/server/start-game.ts PACED; the plan's engine step E6.
+
+## 2026-11-17 · A stage carries a short start name, from research, for How long's chips and the engine's words
+- Decided by: the user (Round 2's question: "A short start name")
+- Why: "Until Merged" names a state, not an event; "Till the merge" is what people say; research already names each stage, so one more word per stage is cheap, and the desk can correct it.
+- Rejected: research's names as they are; generic words ("stage 2").
+- Rests on: docs/design-round/wizard-r2-spec.md section 4; the rulebook's phases (a field to add, with research's ask and a catch-up).
+
+## 2026-11-17 · The preview is the real screens: the practice round before the game exists; friends are offered it, never opened into it
+- Decided by: the user (Round 2's questions: "Real screens are the preview"; "Offer it, don't open it")
+- Why: the real screens are what everyone uses all season; the cards described them. A preview that opens by itself stands between a friend and the game.
+- Rejected: version 3's four cards as the preview (cards first, then the real screens); opening it once on a friend's first visit.
+- Rests on: docs/design-round/wizard-r2-spec.md section 6; docs/PLAN-practice-round.md.
+
+## 2026-11-17 · Our AI's reply carries each answer's change, so the interview's taps apply at once
+- Decided by: the user (Round 2's question: "Reply carries changes")
+- Why: one turn is about 40 seconds and ten asks a day; an answer that asks again costs both.
+- Rejected: today's way (a different answer is another ask); no interview (marked rows instead).
+- Rests on: src/new/couch/start-wizard.tsx AskResult; BACKLOG 42's second part.
+
+## 2026-11-17 · Any couch shares a game to the community once it has started, its rules only
+- Decided by: the user (Round 2's question: "Any couch, once started")
+- Why: a game that's been played is worth sharing; who played and how they did stay the couch's.
+- Rejected: sharing from Start a game before it's played; only our made-for games for now.
+- Rests on: docs/design-round/wizard-r2-spec.md section 9; BACKLOG 93.
+
+## 2026-11-17 · A base's screen names its rows by the person's question: How you win, not Compete
+- Decided by: Claude, default
+- Why: the rows are questions a person asks (Who's playing, How long, How you win); "Compete" was the one verb among them. Round 1's taxonomy decision labels pieces by the person's question.
+- Rejected: "Compete" (versions 2 to 7).
+- Rests on: decisions.md 2026-11-17 "Start a game labels a game's pieces by the person's question".
+
+## 2026-11-17 · Surprise me stays, as the gallery's last row beside Describe your game
+- Decided by: Claude, default
+- Why: Randomize is one of Create a game's two shortcuts (G4, live); the gallery's versions left it out without a decision.
+- Rejected: dropping it; a button in the first view (it competes with the bases).
+- Rests on: src/lib/game/game-spec/roll.js; memory randomize-a-game.
+
+## 2026-11-17 · The gallery's structure is one data module that the screens render and the coverage table walks
+- Decided by: Claude, default
+- Why: a coverage table typed by hand drifts from the screens; one catalog (src/lib/game/start-gallery) names every change's controls and the engine values each sets, so the table proves each value by making that game and passing our check (209 of the 210 values the engine plays now; TVmaze's ratings left out on the user's no).
+- Rejected: a hand-written table; a screen per base.
+- Rests on: scripts/dev-test/gallery-coverage.js; docs/design-round/wizard-r2-coverage.md.
+
+## 2026-11-18 · A base's draft is fitted to who's left, and every surface says the fitted number
+- Decided by: Claude, default (found on the real Survivor 51: 10 still in for a couch of 4, so 3 each by turns doesn't fit and the engine refused Outlast and every all-yours draft)
+- Why: the gallery hid Outlast, the most named base; roll.js's own Outlast already fits its picks to who's left (exclusiveFits). The square, the screen's sentence and what everyone does say "2" (PFD's check: the earliest surface states the fitted number, not a note on a later one).
+- Rejected: leaving such bases off the season's gallery; making them shared silently; a note only on the base's screen.
+- Rests on: src/lib/game/start-gallery fitCouch; docs/design-round/wizard-r2-pfd-eval.md L3.
+
+## 2026-11-18 · Try it sits on the line that says what everyone does; the ready game is the collapsed community section's face
+- Decided by: Claude, from Perception-First Design's requirements (R1, R5)
+- Why: the preview has to be in a base's first view whatever else is there (a fitted note, a warning), and it is what you'd try; the ready game is one of the community's, so one block holds both (a chunk saved).
+- Rejected: version 3's full-width Preview row under When moves lock (below the fold when the lock warns); the ready line and the community section as two blocks.
+- Rests on: docs/design-round/wizard-r2-first-view.md; frames b1-outlast, g1-first.
+
+## 2026-11-18 · A square's length is quiet when it's the season and a bone badge when it isn't; lengths are offered most wanted first
+- Decided by: Claude, from PFD's gap and the user's U0 rule ("tonight, then the whole season, then a stage, then a span")
+- Why: "Season" printed on forty squares hid the one-episode games the user wanted to see at a glance; the chosen length has to be in view without scrolling the chips.
+- Rejected: the same word on every square (version 3); stage chips before the season.
+- Rests on: docs/design-round/wizard-r2-first-view.md "The gap"; src/new/couch/gallery/model.ts lengthsOf.
+
+## 2026-11-18 · Ask the couch first is a control beside who Start tells, and Describe's result ends on Start
+- Decided by: Claude, from PFD's evaluation (L4)
+- Why: for a choice made for others, asking is half the decision, so it gets a 44 px control, not an underlined phrase; the interview's point is a game ready in one turn.
+- Rejected: version 3's link under Start; a result that only opens the game's screen.
+- Rests on: docs/design-round/wizard-r2-pfd-eval.md.
+
+## 2026-11-18 · A base written in Survivor's words reads in the season's nouns, and a Survivor-only sentence leaves on other shows
+- Decided by: Claude, default (Round 2 only; each show's own words are the build's)
+- Why: Below Deck 13 and The Challenge 42 read "castaways", "immunity" and "an idol" from words written for Survivor 51; the engine's own sentence for the season is a tap away (Every rule).
+- Rejected: Survivor's words on every show; writing 56 bases' words per show by hand in this round.
+- Rests on: frames bd2-base, c42-base; the plan's "A show's gallery builds each base from its own answerable moments and results" (B1).
+
+## 2026-11-18 · Trivia's category is Bingo & trivia ("A card while it's on, a quiz after"), and Live calls moves to Predictions
+- Decided by: the user's note ("Should Trivia really belong in 'play along?' ... Maybe its just the name of the category"), the name and the move Claude's
+- Why: trivia is a quiz on the episode before, so "Play along · While it's on" misdescribed it; a category named for what's in it is found by name (someone looking for trivia reads "trivia"). Live calls is a guess about what happens, a sibling of The show's calls; a sport's live calls moved with it.
+- Rejected: a broader name keeping all four ("Episode games", "Quick games": they say less and overlap Pools); moving Trivia alone to Predictions (a quiz on what happened isn't a guess about what will).
+- Rests on: src/lib/game/start-gallery/bases.json (category `quiz`); frames n8-quiz, n9-predict (.ui-atlas/stories/wizard-r2-notes).
+
+## 2026-11-18 · Any game can be saved with one heart beside Start; the section is Community and saved games
+- Decided by: the user's note ("a way to favorite games so you can repeat it easily. Rename the 21 more ready games, into Community and Saved Games. Have an icon so its not so subtle of a button"); where the heart sits and what it keeps are Claude's
+- Why: one place on every game's screen (left of Start, as a wishlist heart sits beside a buy button) keeps saving where the decision is; the square stays outlined and only the heart fills, so Start stays the one heavy fill. A saved game is its recipe (its base and rules, dates left out, the length it was saved with), so it opens on any season from the next episode; the toast says where it went. The section's row is an icon tile, its name and its count ("1 saved · 22 made for Survivor 51"), the gallery's one grammar for a row that opens; it stays open or closed as the person left it.
+- Rejected: a heart in the sheet's header (the shared sheet); a Save button on the Start bar's second row (crowded at 390); opening the section by itself when there are saves (Round 2's first view).
+- Rests on: src/new/couch/gallery/saved.ts, parts.tsx SaveHeart; frames n1 to n11.
+
+## 2026-11-18 · A ready game's heart is its save: likes and saves are one count
+- Decided by: Claude, default (the one most likely to be overturned)
+- Why: a like that kept the game nowhere did nothing for the person tapping it; one heart, one meaning ("I want this one again"), and the count says how many saved it.
+- Rejected: a separate like and save on every ready game (two controls, two counts).
+- Rests on: frames n6-list, n7-cgame.
+
+## 2026-11-18 · A saved game is a snapshot; changing it and tapping the heart saves another
+- Decided by: Claude, default (TEMP: this browser's localStorage until the build keeps saves on the account)
+- Why: the simplest rule that never loses a saved game; "Save changes" to one in place is the build's question.
+- Rejected: updating the saved game in place silently.
+- Rests on: src/new/couch/gallery/saved.ts keyOf.
+
+## 2026-11-18 · A game's words take its own draft size
+- Decided by: Claude (found on the saved Outlast: 2 each reopened saying "picking three")
+- Why: the words came from the base and its fitted note, so a size changed by a control, or a saved game, read the base's number; now they read the game's (sizeFit), and the fitted note shows only while the fitted size stands.
+- Rejected: storing the fitted note with each saved game.
+- Rests on: src/new/couch/gallery/model.ts sizeFit; frames n3-heart, n11-repeat.
+
+## 2026-11-18 · The bold pass is built beside Round 2, behind its own switch, to keep or revert
+- Decided by: the user ("At the end i can tell you if this pass is something we should carry over or revert back"); the way is Claude's
+- Why: both can be tried in the app on the same seasons (`?start=gallery` and `?start=bold`), and reverting is deleting `src/new/couch/gallery-bold/` and its switch line; Round 2's files were snapshotted (.ui-atlas/snapshots/gallery-r2-notes-2026-11-18/).
+- Rejected: editing Round 2 in place (no side-by-side; a revert needs the snapshot).
+- Rests on: docs/design-round/wizard-r2b-spec.md.
+
+## 2026-11-18 · Each category leads with its best-known game drawn with the season's own people and moments
+- Decided by: Claude, from Intent's spec and PFD's R2 and R4 (the user's "bold, has character & soul")
+- Why: a game is recognised by what playing it looks like before its name is read; the faces still in (as far as you've seen: the Cast tab's read), the next episode's real questions, a bingo card of the season's own moments, the couch paired off or two of them masked, one worked bet, the season in its stages. One composition per tile keeps the first view at five chunks.
+- Rejected: faces on every square (busy); decorative art or slogans (the 2026-11-12 direction: expressive data, not decoration).
+- Rests on: src/new/couch/gallery-bold/leads.tsx; frames g1-first, y1 to y7.
+
+## 2026-11-18 · A game's screen opens as its own page will look, and changes by goal come back (Make it…)
+- Decided by: Claude; the ladders are the user's settled U0 quick changes (2026-11-08)
+- Why: the title card (its name over the show's art) is the first impression of the game once started; More competitive, More casual and Different scoring name their next step before the tap and undo on the toast. They repeat the rules' changes by goal, as the user allowed ("it's okay to repeat yourself in the UI").
+- Rejected: Round 2's Popular changes (unnamed as steps); hiding half the rules under More changes (every rule is now a line, its value first).
+- Rests on: src/new/couch/gallery-bold/ladders.ts, parts.tsx TitleCard, MakeIt, RuleLine; frames y8 to y11, y14.
+
+## 2026-11-18 · Every base carries what fans call it, sits on every shelf they'd look on, and one name means one thing
+- Decided by: Claude, from the user's "ensure all game types are possible and intuitive to create" and the writer spike's collisions
+- Why: "eliminator", "best ball", "props" find their game; Survival pool sits in Just you too, Bingo in Party, Beat the bot in Predictions; Prop sheet is Prop bets, Parlay ticket is Parlay (the change's own word), A new sheet each episode is A new card each episode.
+- Rejected: renaming in the shared catalog now (Round 2 stays as it was for the comparison; the names move into the catalog if the pass is kept).
+- Rests on: src/new/couch/gallery-bold/known.ts; frame y13-aka.
+
+## 2026-11-18 · Your own moments on every game's screen, shows and sports alike
+- Decided by: the user ("i do want sports to include custom moments... fan ran on field, or overturned ABS calls"); the screen is Claude's
+- Why: the results (a show's research, ESPN's box score) miss the oddities fans love; a moment in a few words, its points, and who settles it (the couch, whoever sees it taps it and the others confirm, or research for what recaps report), with each world's own suggestions.
+- Rejected: custom moments for shows only; a separate sports screen for them.
+- Rests on: src/new/couch/gallery-bold/own-moments.tsx; frame y12-own. The engine step (a couch-settled moment in a sport's game) is the plan's.
+
+## 2026-11-18 · A sport's Start a game is the same gallery and screens as a show's
+- Decided by: the user ("the sport create a game should at least feel and navigate just like the show even if its technincally different")
+- Why: one way to make a game, learned once; the sport's own games, words and character come through the same parts (a sport adapter, not a separate design).
+- Rejected: today's separate sport sheet as the sports path.
+- Rests on: docs/design-round/wizard-r2b-spec.md §4.
+
+## 2026-11-18 · The bold pass's check (PFD 62/100, Impeccable 26/40), fixed in one batch
+- Decided by: Claude, from both checks' findings (docs/design-round/wizard-r2b-pfd-eval.md, wizard-r2b-critique.md)
+- Why: the lock's cost moves to the Start bar (it had slipped below the fold); sports carry the teams' marks and speak sports; a team's page shows every game type, the ones for another page dashed with where; Make it… steps between a sport's own game types; focus rings; no invented counts; one surface for lead tiles and squares.
+- Rejected: hiding a sport's season-long games on a team's page (a fan looking for fantasy football found nothing).
+- Rests on: frames in .ui-atlas/stories/wizard-r2b/after; the story https://claude.ai/artifact/7xMs5C3w67EL9c9yXD9ZBF.
+
+## 2026-11-18 · A made-for game's heart shows only your own save until couches share
+- Decided by: Claude, from both checks (the counts were made up)
+- Why: an invented number is a false signal; the one-heart rule stands (a ready game's heart is its save), and the count comes back with the community.
+- Rejected: keeping made-up counts with a footnote.
+- Rests on: the earlier entry "A ready game's heart is its save" (its count part is paused).
+
+## 2026-11-18 · Starting a game is three named steps, and every view says its step and its job
+- Decided by: the user ("make sure each step thru the Create a Game process is clear to the user so they know what part of the game create they are at"); the three steps and the words are Claude's
+- Why: Choose a game, Set it up, Start, as a step line in every view's head (DESIGN.md's progress segments in chyron-line); each view headed by its question or job, with a first line saying what it's for.
+- Rejected: a separate screen per decision (more taps for someone driving by; the one setup screen stays); section chips on the setup screen (busy).
+- Rests on: docs/design-round/wizard-r2c-steps.md; the check docs/design-round/wizard-r2c-check.md (PFD 68/100, Impeccable 29/40).
+
+## 2026-11-18 · Each decision is a question, its answer, and its options as cards; chosen is the flow's white plate everywhere
+- Decided by: Claude, from PFD's R2 and R3 and DESIGN.md's full-screen flow
+- Why: How long was a 15 px label over form boxes and a chip row cut off at the edge; now "How long?" at section size, a season timeline with the stretch as one band, and every length as a card; When do moves lock shows where the couch is and each way as a card naming who it would cost (choosing the card is the fix, no separate screen).
+- Rejected: Round 2's chips; the bone fill for chosen in some places and a plate in others.
+- Rests on: src/new/couch/gallery-bold/parts.tsx StepLine, QuestionHead, OptionCard, Timeline.
+
+## 2026-11-18 · The bold pass and Round 2c are the direction; the build comes next
+- Decided by: the user ("i think i agree with the direct and ready to start")
+- Why: the gallery's lead tiles, a game's own page, Make it…, sports through the same screens, and the three named steps.
+- Rejected: reverting to Round 2's gallery (kept as `?start=gallery` only until the build replaces both).
+- Rests on: the stories https://claude.ai/artifact/7xMs5C3w67EL9c9yXD9ZBF and https://claude.ai/artifact/RwNsSV5pJz8Q7FuDFvTDUt.
+
+## 2026-11-18 · The practice couch is hidden until computer players play every game
+- Decided by: the user ("that was a misinterpretation of what i actually wanted: the ability to play any game against a bot and/or add bots to a game so you can have real players and bots. not saying we should delete that outright, but maybe hide it for now")
+- Why: what they want is computer players in every kind of game, alone or beside real people (the plan's E1); today they play drafts and survival pools only (src/lib/game/computer-players.ts), and the practice couch was a narrow stand-in. `PRACTICE_COUCH = false` in src/new/show/solo.tsx hides its entry points (a show's Games tab, the hub's Play on your own); the code stays, and practice games already started still show in their owners' lists.
+- Rejected: deleting the feature.
+- Rests on: docs/PLAN-start-a-game-redo.md E1.
+
+## 2026-11-18 · How moves lock is two plain cards on every game: Together, or At your own pace
+- Decided by: the user ("Always two plain cards", after "if im still confused im CERTAIN people like joanna would be confused" about the three ways); the cards' words are Claude's
+- Why: the three ways were named by their mechanism (When you've watched it, When the next one airs, At airtime). The two cards say what the couch does: Together, everyone's move for each episode locks when it airs, and whoever is behind is named with what it costs them; At your own pace, your move locks when you start watching, nobody is cut off, and the standings sit at different episodes for different people. A draft where each castaway is one person's adds that the draft is together first and no one new can join once it starts. The Start bar and Ready to start use the same two names.
+- Rejected: asking only when someone is behind (the recommendation; it hid the choice from a couch that's caught up); always at your own pace; keeping "at airtime" in Start a game (a game the engine would start strict starts Together; the engine's strict pace stays for games that use it); a Recommended tag.
+- Rests on: src/new/couch/gallery-bold/bold-sheet.tsx PLAIN_LOCK; the story https://claude.ai/artifact/RwNsSV5pJz8Q7FuDFvTDUt (version 2, its first section).
+
+## 2026-11-18 · The card that starts chosen stays as it was: Together for a draft of each person's own castaways, at your own pace for every other game
+- Decided by: Claude, default (the user's earlier call for drafts, BACKLOG 68; the user found the question about it confusing as worded and answered the cards instead)
+- Why: a draft of exclusive teams has to be together at least once, and Together keeps its standings in step; everything else waits for each person by default. Whoever Together would cost is named on its card and in the Start bar, with At your own pace one tap away.
+- Rejected: starting every draft at your own pace once someone is two behind ("follow the couch"), not chosen while the question was unclear.
+- Rests on: src/new/couch/gallery/model.ts lockOf (runs.exclusive, runs.recommended).
+
+## 2026-11-18 · The game preview is proved first, then A or B is picked; the couch's real names play beside you
+- Decided by: the user ("Prove it first, then pick"; "My couch's names")
+- Why: P0, a development-only screenshot story of a Survivor 51 Fantasy league on the real screens with made-up results, shows the shape before any product work; a preview with the couch's own names is the game you'd actually play with them, their moves made up by the engine.
+- Rejected: committing to A (a preview database) or B (routes split into load and build) before seeing the proof; computer players in every seat.
+- Rests on: docs/PLAN-game-preview.md.
+
+## 2026-11-18 · Your own moments in a draft: about a player, whoever has that player scores; about the game, a yes or no call everyone answers
+- Decided by: the user ("Player's owner, else a call")
+- Why: a batter's overturned call belongs to the batter, so the moment scores whoever drafted that batter; a fan on the field belongs to nobody's player, so it becomes a call answered before the episode or game, and right calls score.
+- Rejected: player moments only in drafts; everyone on the couch scoring it; a side tally beside the standings.
+- Rests on: docs/PLAN-start-a-game-redo.md E8.
+
+## 2026-11-18 · The game's title card comes back on the started game's page
+- Decided by: the user ("Bring it back on the game page")
+- Why: the setup screen opens on the game's name over the show's art, and the game page opening the same way makes making a game and playing it feel continuous.
+- Rejected: keeping the title card on the setup screen only.
+- Rests on: docs/PLAN-start-a-game-redo.md B1.
+
+## 2026-11-18 · The local game writer is built for a remote server production can call, sized like a free VM
+- Decided by: the user ("i want this ability to parse plain language into a game to be able to eventually be run on a remote server so it can work directly on prod. if that means setting up something locally first, so be it. but remember the free servers/vm will be much lower spec than my laptop 4090")
+- Why: production can't depend on a PC that sleeps; a model is chosen by its accuracy and its speed on a few CPU cores, and the 4090 only trains and tests it. W4 may install a runtime and download two or three small models on the PC.
+- Rejected: serving from the PC; free hosted model APIs (rate limits, training on what's sent).
+- Rests on: docs/PLAN-local-game-writer.md W4, W5.
+
+## 2026-11-18 · Typed games stay in AI access's kind C split, even once the writer is instant
+- Decided by: the user ("Yes, keep the direction")
+- Why: the 2026-11-08 direction stands: free with a short ad, or paid and fast; how the split looks when the answer takes a second is W6's to design.
+- Rejected: making typed games free once they're instant (the recommendation); deciding later.
+- Rests on: docs/PLAN-local-game-writer.md; docs/PLAN-ai-access.md.

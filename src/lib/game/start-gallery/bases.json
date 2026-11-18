@@ -1,0 +1,1929 @@
+{
+ "cats": [
+  {
+   "id": "fantasy",
+   "short": "Fantasy",
+   "name": "Fantasy leagues",
+   "says": "Pick a team of castaways"
+  },
+  {
+   "id": "pools",
+   "short": "Pools",
+   "name": "Pools",
+   "says": "One pick each episode"
+  },
+  {
+   "id": "predict",
+   "short": "Predictions",
+   "name": "Predictions",
+   "says": "Guess what happens"
+  },
+  {
+   "id": "bets",
+   "short": "Betting",
+   "name": "Betting",
+   "says": "Bet points, never money"
+  },
+  {
+   "id": "versus",
+   "short": "Head to head",
+   "name": "Head to head & teams",
+   "says": "Who you play against"
+  },
+  {
+   "id": "quiz",
+   "short": "Bingo & trivia",
+   "name": "Bingo & trivia",
+   "says": "A card while it's on, a quiz after"
+  },
+  {
+   "id": "party",
+   "short": "Party",
+   "name": "Party games",
+   "says": "Twists between friends"
+  },
+  {
+   "id": "solo",
+   "short": "Just you",
+   "name": "Just you",
+   "says": "Alone, or against the bot"
+  },
+  {
+   "id": "season",
+   "short": "Big season",
+   "name": "Big season games",
+   "says": "A game that changes shape"
+  }
+ ],
+ "bases": [
+  {
+   "id": "fantasy",
+   "cat": "fantasy",
+   "name": "Fantasy league",
+   "plain": "Pick 5; choose 3 to play each week",
+   "about": "Everyone picks a team of five castaways. Before each episode you choose three to play, and they score for what they do: winning immunity, finding an idol, surviving a vote.",
+   "effort": "Choose who plays each episode",
+   "len": "Season",
+   "ref": "preset weekly-lineup",
+   "spec": {
+    "preset": "weekly-lineup"
+   }
+  },
+  {
+   "id": "h2h",
+   "cat": "fantasy",
+   "also": "versus",
+   "name": "Head-to-head league",
+   "plain": "Your team vs a friend's each week",
+   "about": "A fantasy league where each episode your team plays one of the couch's, and more points wins the episode. The two with the most wins meet in a final at the end.",
+   "effort": "Choose who plays each episode",
+   "len": "Season",
+   "ref": "dial: head to head with playoffs",
+   "spec": {
+    "preset": "weekly-lineup",
+    "rank": {
+     "by": "matchups",
+     "playoffs": {
+      "teams": 2
+     }
+    }
+   }
+  },
+  {
+   "id": "outlast",
+   "cat": "fantasy",
+   "name": "Outlast",
+   "plain": "Pick 3, then cheer for them to last",
+   "about": "Take turns picking three castaways, then just watch. Each scores a point for everyone who goes home before them, so the last one standing carries you.",
+   "effort": "Pick once, then just watch",
+   "len": "Season",
+   "ref": "preset outlast",
+   "spec": {
+    "preset": "outlast"
+   }
+  },
+  {
+   "id": "bestball",
+   "cat": "fantasy",
+   "name": "Best ball",
+   "plain": "Pick 5; your best 3 count for you",
+   "about": "A fantasy league with nothing to do each week. Everyone picks five, and every episode your three best scorers count by themselves.",
+   "effort": "Pick once, then just watch",
+   "len": "Season",
+   "ref": "s09",
+   "spec": {
+    "preset": "weekly-lineup",
+    "get": {
+     "by": "draft",
+     "each": 5
+    },
+    "count": {
+     "best": 3
+    }
+   }
+  },
+  {
+   "id": "auction",
+   "cat": "fantasy",
+   "name": "Auction draft",
+   "plain": "Bid for your team, 100 to spend",
+   "about": "Everyone has 100 to bid, in private, on the castaways they want; the highest bid gets each one. Then choose three to play each episode.",
+   "effort": "Bid once, then just watch",
+   "len": "Season",
+   "ref": "s03",
+   "spec": {
+    "preset": "weekly-lineup",
+    "get": {
+     "by": "draft",
+     "each": 5,
+     "order": "auction",
+     "budget": {
+      "total": 100
+     },
+     "own": "exclusive"
+    },
+    "count": {
+     "start": 3
+    }
+   }
+  },
+  {
+   "id": "cap",
+   "cat": "fantasy",
+   "name": "Salary cap",
+   "plain": "Buy a team; prices follow form",
+   "about": "Every castaway has a price that follows how they're doing, the best costing most. Pick four under a cap of 100; two play each episode.",
+   "effort": "Choose who plays each episode",
+   "len": "Season",
+   "ref": "s04",
+   "spec": {
+    "preset": "weekly-lineup",
+    "get": {
+     "by": "draft",
+     "each": 4,
+     "order": "blind",
+     "own": "shared",
+     "budget": {
+      "total": 100
+     }
+    },
+    "count": {
+     "start": 2
+    }
+   }
+  },
+  {
+   "id": "market",
+   "cat": "fantasy",
+   "name": "Stock market",
+   "plain": "Buy and sell castaways like shares",
+   "about": "Castaways trade like shares, their prices following how they play. Buy and sell after each episode; your cash plus your team's worth is your score.",
+   "effort": "Buy and sell each week",
+   "len": "Season",
+   "ref": "s22",
+   "spec": {
+    "preset": "weekly-lineup",
+    "get": {
+     "by": "draft",
+     "each": 5,
+     "order": "blind",
+     "own": "shared",
+     "budget": {
+      "total": 100,
+      "trade": {}
+     }
+    },
+    "count": {
+     "start": 3
+    },
+    "rank": {
+     "by": "worth"
+    }
+   }
+  },
+  {
+   "id": "guillotine",
+   "cat": "fantasy",
+   "name": "Guillotine",
+   "plain": "Lowest score each week is out",
+   "about": "Take turns picking four castaways. Each episode the lowest score is out and their castaways go back up for grabs; the last one left wins.",
+   "effort": "Choose who plays each episode",
+   "len": "Season",
+   "ref": "s01",
+   "spec": {
+    "preset": "weekly-lineup",
+    "get": {
+     "by": "draft",
+     "each": 4,
+     "order": "snake",
+     "own": "exclusive"
+    },
+    "count": {
+     "best": 4
+    },
+    "rank": {
+     "by": "standing",
+     "cut": [
+      {
+       "at": {
+        "every": 1
+       },
+       "out": 1
+      }
+     ]
+    },
+    "extras": {
+     "waivers": {
+      "feel": "balanced",
+      "replace": "always",
+      "short": null,
+      "windows": {
+       "schedule": "everyEpisode",
+       "every": 3,
+       "swaps": 1
+      },
+      "order": "rolling",
+      "hours": 24,
+      "freeAgency": true,
+      "autoFill": true
+     }
+    }
+   }
+  },
+  {
+   "id": "reverse",
+   "cat": "fantasy",
+   "name": "Reverse draft",
+   "plain": "Points for going home first",
+   "about": "Take turns picking three castaways you think go home first. The sooner they're out, the more they score.",
+   "effort": "Pick once, then just watch",
+   "len": "Season",
+   "ref": "s07",
+   "spec": {
+    "preset": "outlast",
+    "score": {
+     "by": "place",
+     "reverse": true
+    }
+   }
+  },
+  {
+   "id": "hat",
+   "cat": "fantasy",
+   "name": "Out of a hat",
+   "plain": "Dealt at random; just watch",
+   "about": "Everyone is dealt a castaway at random: nothing to pick, nothing to set. Whoever's lasts longest wins.",
+   "effort": "Nothing to do",
+   "len": "Season",
+   "ref": "s38",
+   "spec": {
+    "preset": "outlast",
+    "get": {
+     "by": "draft",
+     "each": 1,
+     "order": "draw",
+     "own": "exclusive"
+    }
+   }
+  },
+  {
+   "id": "spread",
+   "cat": "fantasy",
+   "name": "One from each tribe",
+   "plain": "One from each tribe, then watch",
+   "about": "Take turns picking three castaways, spread across the tribes (Toka and Savu), then just watch. The longer they last, the more they score.",
+   "effort": "Pick once, then just watch",
+   "len": "Season",
+   "ref": "s05",
+   "spec": {
+    "preset": "outlast",
+    "get": {
+     "by": "draft",
+     "each": 3,
+     "order": "snake",
+     "own": "exclusive",
+     "across": {
+      "of": "group"
+     }
+    }
+   }
+  },
+  {
+   "id": "keeper",
+   "cat": "fantasy",
+   "name": "Keeper league",
+   "plain": "Keep some of last season's team",
+   "about": "Keep a few from your team in this couch's last season of the show, then pick the rest. For shows whose cast comes back.",
+   "effort": "Choose who plays each episode",
+   "len": "Season",
+   "ref": "s17 (needs this couch's game last season)",
+   "needs": "a game on this couch last season",
+   "spec": null
+  },
+  {
+   "id": "onemoment",
+   "cat": "fantasy",
+   "also": "party",
+   "name": "One-moment draft",
+   "plain": "Only one moment scores, like crying",
+   "about": "Everyone picks three castaways, but only one moment scores, and you choose it: crying, a confessional, a blindside. The most of it wins.",
+   "effort": "Pick once, then just watch",
+   "len": "Season",
+   "ref": "new (a draft scored by one moment)",
+   "spec": {
+    "get": {
+     "by": "draft",
+     "each": 3,
+     "order": "blind",
+     "own": "shared"
+    },
+    "count": {
+     "best": 3
+    },
+    "score": {
+     "by": "moments",
+     "points": {
+      "cried": 1
+     },
+     "only": [
+      "cried"
+     ]
+    },
+    "rank": {
+     "by": "total"
+    }
+   },
+   "moment": true
+  },
+  {
+   "id": "pool",
+   "cat": "pools",
+   "name": "Survival pool",
+   "plain": "Pick 1 who stays, each week",
+   "about": "No team. Before each episode, pick one castaway you think stays in. Every right pick adds to your streak; the longest streak wins.",
+   "effort": "1 pick an episode",
+   "len": "Season",
+   "ref": "preset survival-pool",
+   "spec": {
+    "preset": "survival-pool"
+   }
+  },
+  {
+   "id": "lives",
+   "cat": "pools",
+   "name": "Last one standing",
+   "plain": "Pick who stays; 2 lives",
+   "about": "Before each episode, pick one castaway you think stays in. A wrong pick costs one of your two lives, and you can buy back in once before the merge.",
+   "effort": "1 pick an episode",
+   "len": "Season",
+   "ref": "s10",
+   "spec": {
+    "preset": "survival-pool",
+    "score": {
+     "by": "survive",
+     "lives": 2,
+     "buyback": {
+      "times": 1,
+      "before": {
+       "phase": "merged"
+      }
+     }
+    },
+    "rank": {
+     "by": "standing"
+    }
+   }
+  },
+  {
+   "id": "norepeat",
+   "cat": "pools",
+   "name": "No repeats",
+   "plain": "Pick who stays, never twice",
+   "about": "Before each episode, pick one castaway you think stays in, never the same one twice. One wrong pick and you're out; the last one left wins.",
+   "effort": "1 pick an episode",
+   "len": "Season",
+   "ref": "w047",
+   "spec": {
+    "preset": "survival-pool",
+    "get": {
+     "by": "pick",
+     "repeat": "never"
+    },
+    "score": {
+     "by": "survive",
+     "lives": 1
+    },
+    "rank": {
+     "by": "standing",
+     "oneLeft": "ends",
+     "allOut": "share"
+    }
+   }
+  },
+  {
+   "id": "picks",
+   "cat": "pools",
+   "name": "Weekly picks",
+   "plain": "Pick 1; get their points",
+   "about": "Before each episode, pick one castaway; you get the points they score in it. Pick anyone, even the same one again.",
+   "effort": "1 pick an episode",
+   "len": "Season",
+   "ref": "base picks",
+   "spec": {
+    "get": {
+     "by": "pick",
+     "each": 1
+    },
+    "count": {
+     "pick": true
+    },
+    "score": {
+     "by": "moments",
+     "points": null
+    },
+    "rank": {
+     "by": "total"
+    }
+   }
+  },
+  {
+   "id": "objectives",
+   "cat": "pools",
+   "name": "Objectives",
+   "plain": "Pick 3 to hit the week's goals",
+   "about": "Each episode comes with five goals, like winning a challenge or finding an idol. Pick three castaways; a point for each goal they hit.",
+   "effort": "3 picks an episode",
+   "len": "Season",
+   "ref": "p12",
+   "spec": {
+    "get": {
+     "by": "pick",
+     "each": 3
+    },
+    "count": {
+     "pick": true
+    },
+    "score": {
+     "by": "moments",
+     "points": null,
+     "only": "card",
+     "hits": "pick"
+    },
+    "rank": {
+     "by": "weeks"
+    },
+    "card": {
+     "from": "moments",
+     "each": 5,
+     "of": [
+      "individualImmunity",
+      "rewardWin",
+      "idolFound",
+      "idolPlayed",
+      "zeroVotesSafe",
+      "wentOnJourney",
+      "votesNegated",
+      "survivedVotes",
+      "challengeRunnerUp",
+      "learnedOfAdvantage"
+     ]
+    }
+   }
+  },
+  {
+   "id": "confidence",
+   "cat": "pools",
+   "name": "Confidence picks",
+   "plain": "Rank who's going home, surest first",
+   "about": "Before each episode, rank everyone by how likely they are to go home, surest first. The higher you ranked whoever goes, the more you score.",
+   "effort": "A ranking an episode",
+   "len": "Season",
+   "ref": "s12",
+   "spec": {
+    "get": {
+     "by": "none"
+    },
+    "score": {
+     "by": "answers"
+    },
+    "rank": {
+     "by": "total"
+    },
+    "ask": [
+     {
+      "id": "confidence",
+      "ask": "Rank everyone from most to least likely to go home",
+      "answer": "confidence",
+      "points": 1,
+      "pick": 18,
+      "asked": "each",
+      "settle": {
+       "by": "results",
+       "take": "out"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "sheet",
+   "cat": "predict",
+   "name": "Prediction sheet",
+   "plain": "3 guesses before each episode",
+   "about": "Before each episode, answer three questions: who goes home, who wins immunity, does anyone find an idol. Points for each right answer.",
+   "effort": "3 guesses an episode",
+   "len": "1 episode",
+   "ref": "base questions",
+   "spec": {
+    "get": {
+     "by": "none"
+    },
+    "score": {
+     "by": "answers"
+    },
+    "rank": {
+     "by": "total"
+    },
+    "ask": [
+     {
+      "id": "boot",
+      "ask": "Who goes home?",
+      "answer": "person",
+      "points": 2,
+      "asked": "each",
+      "settle": {
+       "by": "results",
+       "take": "out"
+      }
+     },
+     {
+      "id": "imm",
+      "ask": "Who wins immunity?",
+      "answer": "person",
+      "points": 2,
+      "asked": "each",
+      "settle": {
+       "by": "moment",
+       "moment": "individualImmunity",
+       "take": "who"
+      }
+     },
+     {
+      "id": "idol",
+      "ask": "Does anyone find an idol?",
+      "answer": "yesNo",
+      "points": 1,
+      "asked": "each",
+      "settle": {
+       "by": "moment",
+       "moment": "idolFound",
+       "take": "happened"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "seasonpred",
+   "cat": "predict",
+   "name": "Season predictions",
+   "plain": "Guess the winner and final three",
+   "about": "Before it starts, guess the winner and the final three, then watch it play out. 5 points for the winner, 1 for each finalist.",
+   "effort": "Once, then just watch",
+   "len": "Season",
+   "ref": "w070, w066",
+   "spec": {
+    "get": {
+     "by": "none"
+    },
+    "score": {
+     "by": "answers"
+    },
+    "rank": {
+     "by": "total"
+    },
+    "ask": [
+     {
+      "id": "winner",
+      "ask": "Who wins?",
+      "answer": "person",
+      "points": 5,
+      "asked": "once",
+      "settle": {
+       "by": "results",
+       "take": "winner"
+      }
+     },
+     {
+      "id": "top3",
+      "ask": "Who makes the final three?",
+      "answer": "person",
+      "pick": 3,
+      "points": 1,
+      "asked": "once",
+      "settle": {
+       "by": "results",
+       "take": "top",
+       "place": 3
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "bootorder",
+   "cat": "predict",
+   "name": "Boot order",
+   "plain": "Guess the order they go home",
+   "about": "Before it starts, put everyone in the order you think they'll go home. 2 points for each one within two places.",
+   "effort": "Once, then just watch",
+   "len": "Season",
+   "ref": "s13",
+   "spec": {
+    "get": {
+     "by": "none"
+    },
+    "score": {
+     "by": "answers"
+    },
+    "rank": {
+     "by": "total"
+    },
+    "ask": [
+     {
+      "id": "bootOrder",
+      "ask": "The boot order",
+      "answer": "order",
+      "points": 2,
+      "pick": 18,
+      "within": 2,
+      "settle": {
+       "by": "results",
+       "take": "order"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "most",
+   "cat": "predict",
+   "also": "party",
+   "name": "Who does it most?",
+   "plain": "Who cries most? Or any moment",
+   "about": "Pick any moment, even one the show doesn't score, like crying. Guess who does it most by the finale: 5 points if you're right.",
+   "effort": "1 guess, then just watch",
+   "len": "Season",
+   "ref": "new (settled by a moment's most)",
+   "spec": {
+    "get": {
+     "by": "none"
+    },
+    "score": {
+     "by": "answers"
+    },
+    "rank": {
+     "by": "total"
+    },
+    "ask": [
+     {
+      "id": "most",
+      "ask": "Who cries the most?",
+      "answer": "person",
+      "points": 5,
+      "asked": "once",
+      "settle": {
+       "by": "moment",
+       "moment": "cried",
+       "take": "most"
+      }
+     }
+    ]
+   },
+   "moment": true
+  },
+  {
+   "id": "calls",
+   "cat": "predict",
+   "name": "The show's calls",
+   "plain": "2 guesses each episode",
+   "about": "Before each episode, make two guesses about what happens in it. The couch settles them as you watch; the most right wins.",
+   "effort": "2 guesses an episode",
+   "len": "Season",
+   "ref": "preset weekly-calls",
+   "spec": {
+    "preset": "weekly-calls"
+   }
+  },
+  {
+   "id": "livecalls",
+   "cat": "predict",
+   "name": "Live calls",
+   "plain": "Guess while it's on; early pays",
+   "about": "Guess what happens while it's on, as it unfolds. The earlier you call it, the more it pays.",
+   "effort": "Guesses while you watch",
+   "len": "1 episode",
+   "ref": "s49-s57 (A15: not built)",
+   "coming": "A15",
+   "spec": null
+  },
+  {
+   "id": "overunder",
+   "cat": "predict",
+   "name": "Over / under",
+   "plain": "Over or under a number?",
+   "about": "Will a number end up over or under a line? Idols played this season: over or under 6.5.",
+   "effort": "Once, then just watch",
+   "len": "Season",
+   "ref": "w073",
+   "spec": {
+    "get": {
+     "by": "none"
+    },
+    "score": {
+     "by": "answers"
+    },
+    "rank": {
+     "by": "total"
+    },
+    "ask": [
+     {
+      "id": "idols",
+      "ask": "Idols played this season: over or under 6.5?",
+      "answer": "overUnder",
+      "line": 6.5,
+      "points": 2,
+      "settle": {
+       "by": "moment",
+       "moment": "idolPlayed",
+       "take": "count"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "pairs",
+   "cat": "predict",
+   "name": "Who outlasts whom",
+   "plain": "Pairs: who lasts longer?",
+   "about": "Ten pairs of castaways, the same for everyone: guess who lasts longer in each. A point for each one you get.",
+   "effort": "Once, then just watch",
+   "len": "Season",
+   "ref": "s46",
+   "spec": {
+    "get": {
+     "by": "none"
+    },
+    "score": {
+     "by": "answers"
+    },
+    "rank": {
+     "by": "total"
+    },
+    "ask": [
+     {
+      "id": "pairs",
+      "ask": "Who outlasts whom?",
+      "answer": "pairs",
+      "points": 1,
+      "pairs": 10,
+      "settle": {
+       "by": "results",
+       "take": "outlast"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "split",
+   "cat": "predict",
+   "name": "The final vote",
+   "plain": "Guess the jury's vote split",
+   "about": "Guess how the jury splits its votes at the finale. 5 points for the split exactly.",
+   "effort": "Once, then just watch",
+   "len": "Season",
+   "ref": "s47",
+   "spec": {
+    "get": {
+     "by": "none"
+    },
+    "score": {
+     "by": "answers"
+    },
+    "rank": {
+     "by": "total"
+    },
+    "ask": [
+     {
+      "id": "split",
+      "ask": "The final jury vote split",
+      "answer": "split",
+      "points": 5,
+      "settle": {
+       "by": "results",
+       "take": "split"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "quote",
+   "cat": "predict",
+   "name": "Title quote",
+   "plain": "Who says the episode's title?",
+   "about": "Every episode is named for something someone says in it. Guess who says it; a point if you're right.",
+   "effort": "1 guess an episode",
+   "len": "Season",
+   "ref": "s28",
+   "spec": {
+    "get": {
+     "by": "none"
+    },
+    "score": {
+     "by": "answers"
+    },
+    "rank": {
+     "by": "total"
+    },
+    "ask": [
+     {
+      "id": "quote",
+      "ask": "Who says the title quote?",
+      "answer": "person",
+      "points": 1,
+      "asked": "each",
+      "settle": {
+       "by": "fact",
+       "fact": "titleQuote",
+       "take": "who"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "seal",
+   "cat": "predict",
+   "name": "Seal your winner",
+   "plain": "Guess the winner; early pays more",
+   "about": "Guess who wins whenever you're ready: the earlier you call it, the more it's worth. Everyone right splits the points.",
+   "effort": "1 guess, change it if you like",
+   "len": "Season",
+   "ref": "p13",
+   "spec": {
+    "get": {
+     "by": "none"
+    },
+    "score": {
+     "by": "answers"
+    },
+    "rank": {
+     "by": "total"
+    },
+    "ask": [
+     {
+      "id": "winner",
+      "ask": "Who wins?",
+      "answer": "person",
+      "points": 10,
+      "closes": "finale",
+      "shrink": {
+       "points": 1,
+       "per": "episode"
+      },
+      "settle": {
+       "by": "results",
+       "take": "winner"
+      },
+      "share": "split"
+     }
+    ]
+   }
+  },
+  {
+   "id": "bank",
+   "cat": "bets",
+   "name": "Betting pool",
+   "plain": "Bet points on your guesses",
+   "about": "Everyone starts with 500 points to bet on three guesses each episode, or on a ticket of them. Right bets win, wrong ones lose. Points, never money.",
+   "effort": "Bets each episode",
+   "len": "Season",
+   "ref": "p26",
+   "spec": {
+    "get": {
+     "by": "none"
+    },
+    "count": null,
+    "score": {
+     "by": "answers",
+     "bank": {
+      "start": 500
+     }
+    },
+    "rank": {
+     "by": "total"
+    },
+    "ask": [
+     {
+      "id": "boot",
+      "ask": "Who goes home?",
+      "answer": "person",
+      "points": 0,
+      "asked": "each",
+      "wager": "total",
+      "settle": {
+       "by": "results",
+       "take": "out"
+      }
+     },
+     {
+      "id": "imm",
+      "ask": "Who wins immunity?",
+      "answer": "person",
+      "points": 0,
+      "asked": "each",
+      "wager": "total",
+      "settle": {
+       "by": "moment",
+       "moment": "individualImmunity",
+       "take": "who"
+      }
+     },
+     {
+      "id": "idol",
+      "ask": "Is an idol found?",
+      "answer": "yesNo",
+      "points": 0,
+      "asked": "each",
+      "wager": "total",
+      "settle": {
+       "by": "moment",
+       "moment": "idolFound",
+       "take": "happened"
+      }
+     },
+     {
+      "id": "ticket",
+      "ask": "Build a ticket",
+      "answer": "ticket",
+      "points": 0,
+      "asked": "each",
+      "wager": "total",
+      "settle": {
+       "by": "legs",
+       "of": [
+        "boot",
+        "imm",
+        "idol"
+       ]
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "props",
+   "cat": "bets",
+   "name": "Prop sheet",
+   "plain": "A new sheet of bets each week",
+   "about": "Each episode brings a sheet of five things to bet on, like who goes home or does anyone go on a journey. Bet from a bank of 500; points, never money.",
+   "effort": "Bets each episode",
+   "len": "Season",
+   "ref": "p10",
+   "spec": {
+    "get": {
+     "by": "none"
+    },
+    "count": null,
+    "score": {
+     "by": "answers",
+     "bank": {
+      "start": 500
+     }
+    },
+    "rank": {
+     "by": "total"
+    },
+    "card": {
+     "from": "bot",
+     "each": 4,
+     "of": [
+      "idolFound",
+      "idolPlayed",
+      "votesNegated",
+      "wentOnJourney",
+      "learnedOfAdvantage",
+      "advantageTargeted",
+      "rewardWin",
+      "tribeImmunity"
+     ]
+    },
+    "ask": [
+     {
+      "id": "boot",
+      "ask": "Who goes home?",
+      "answer": "person",
+      "points": 0,
+      "asked": "each",
+      "wager": "total",
+      "settle": {
+       "by": "results",
+       "take": "out"
+      }
+     },
+     {
+      "id": "sheet",
+      "ask": "This week's sheet",
+      "answer": "yesNo",
+      "points": 0,
+      "asked": "each",
+      "wager": "total",
+      "card": true,
+      "settle": {
+       "by": "moment",
+       "take": "happened"
+      }
+     },
+     {
+      "id": "ticket",
+      "ask": "Build a ticket",
+      "answer": "ticket",
+      "points": 0,
+      "asked": "each",
+      "wager": "total",
+      "settle": {
+       "by": "legs",
+       "of": [
+        "boot",
+        "sheet"
+       ]
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "parlay",
+   "cat": "bets",
+   "name": "Parlay ticket",
+   "plain": "Both guesses right: triple",
+   "about": "Guess who goes home and who wins immunity. Get both right and your points triple.",
+   "effort": "A ticket of guesses each episode",
+   "len": "Season",
+   "ref": "s15",
+   "spec": {
+    "get": {
+     "by": "none"
+    },
+    "score": {
+     "by": "answers",
+     "parlays": [
+      {
+       "of": [
+        "out",
+        "imm"
+       ],
+       "times": 3
+      }
+     ]
+    },
+    "rank": {
+     "by": "total"
+    },
+    "ask": [
+     {
+      "id": "out",
+      "ask": "Who goes home?",
+      "answer": "person",
+      "points": 2,
+      "asked": "each",
+      "settle": {
+       "by": "results",
+       "take": "out"
+      }
+     },
+     {
+      "id": "imm",
+      "ask": "Who wins immunity?",
+      "answer": "person",
+      "points": 2,
+      "asked": "each",
+      "settle": {
+       "by": "moment",
+       "moment": "individualImmunity",
+       "take": "who"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "pot",
+   "cat": "bets",
+   "name": "Split the pot",
+   "plain": "Everyone right splits 10 points",
+   "about": "Each episode, 10 points go to whoever guesses who goes home, split between everyone right: the fewer of you, the more each gets.",
+   "effort": "1 guess an episode",
+   "len": "Season",
+   "ref": "s29",
+   "spec": {
+    "get": {
+     "by": "none"
+    },
+    "score": {
+     "by": "answers"
+    },
+    "rank": {
+     "by": "total"
+    },
+    "ask": [
+     {
+      "id": "boot",
+      "ask": "Who goes home?",
+      "answer": "person",
+      "points": 10,
+      "asked": "each",
+      "share": "split",
+      "settle": {
+       "by": "results",
+       "take": "out"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "double",
+   "cat": "bets",
+   "name": "Double or nothing",
+   "plain": "Bet your points: double or nothing",
+   "about": "Guess who goes home and bet any of your points on it. Right, you win as many again; wrong, you lose them.",
+   "effort": "1 guess an episode",
+   "len": "Season",
+   "ref": "s34",
+   "spec": {
+    "get": {
+     "by": "none"
+    },
+    "score": {
+     "by": "answers"
+    },
+    "rank": {
+     "by": "total"
+    },
+    "ask": [
+     {
+      "id": "boot",
+      "ask": "Who goes home?",
+      "answer": "person",
+      "points": 1,
+      "asked": "each",
+      "wager": "total",
+      "settle": {
+       "by": "results",
+       "take": "out"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "jackpot",
+   "cat": "bets",
+   "name": "Jackpot",
+   "plain": "Nobody right? It rolls over",
+   "about": "Guess who goes home. If nobody's right, the points roll over to the next episode and the pot grows.",
+   "effort": "1 guess an episode",
+   "len": "Season",
+   "ref": "s32",
+   "spec": {
+    "get": {
+     "by": "none"
+    },
+    "score": {
+     "by": "answers"
+    },
+    "rank": {
+     "by": "total"
+    },
+    "ask": [
+     {
+      "id": "boot",
+      "ask": "Who goes home?",
+      "answer": "person",
+      "points": 3,
+      "asked": "each",
+      "rollover": true,
+      "settle": {
+       "by": "results",
+       "take": "out"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "h2hpicks",
+   "cat": "versus",
+   "name": "Head-to-head picks",
+   "plain": "Your pick vs a friend's each week",
+   "about": "Before each episode, pick one castaway you think stays in, and play one of the couch: whoever's pick stays wins the episode. Most wins takes it.",
+   "effort": "1 pick an episode",
+   "len": "Season",
+   "ref": "p18",
+   "spec": {
+    "preset": "survival-pool",
+    "rank": {
+     "by": "matchups"
+    }
+   }
+  },
+  {
+   "id": "teams",
+   "cat": "versus",
+   "name": "Team battle",
+   "plain": "The couch in two teams",
+   "about": "The couch splits into two teams at random. Everyone plays their own fantasy team, and a team's score is its players' average.",
+   "effort": "Choose who plays each episode",
+   "len": "Season",
+   "ref": "p21 (teams)",
+   "spec": {
+    "preset": "weekly-lineup",
+    "rank": {
+     "by": "total",
+     "teams": {
+      "of": 2
+     }
+    }
+   }
+  },
+  {
+   "id": "race",
+   "cat": "versus",
+   "name": "Race to a target",
+   "plain": "First to 50 points wins",
+   "about": "A fantasy league with a finish line: the first to 50 points wins, and the game ends there.",
+   "effort": "Choose who plays each episode",
+   "len": "Season",
+   "ref": "s36 (to 50)",
+   "spec": {
+    "preset": "weekly-lineup",
+    "rank": {
+     "by": "total",
+     "race": {
+      "to": 50
+     }
+    }
+   }
+  },
+  {
+   "id": "coop",
+   "cat": "versus",
+   "name": "Together vs the show",
+   "plain": "Together vs the show; 3 lives",
+   "about": "Everyone guesses who goes home, together against the show. You share three lives; an episode nobody gets right costs one.",
+   "effort": "1 guess an episode",
+   "len": "Season",
+   "ref": "dial: co-op",
+   "spec": {
+    "get": {
+     "by": "none"
+    },
+    "score": {
+     "by": "answers",
+     "lives": 3
+    },
+    "rank": {
+     "by": "coop"
+    },
+    "ask": [
+     {
+      "id": "boot",
+      "ask": "Who goes home?",
+      "answer": "person",
+      "points": 2,
+      "asked": "each",
+      "settle": {
+       "by": "results",
+       "take": "out"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "twovone",
+   "cat": "versus",
+   "name": "Two against one",
+   "plain": "Three of you: two against one",
+   "about": "For a couch of three: each episode two of you team up against the third, taking turns.",
+   "effort": "Choose who plays each episode",
+   "len": "Season",
+   "ref": "p29 (C8: not built)",
+   "coming": "C8",
+   "spec": null
+  },
+  {
+   "id": "bingo",
+   "cat": "quiz",
+   "name": "Bingo",
+   "plain": "Tick off moments as they happen",
+   "about": "A new bingo card every episode: eight things that might happen. Tick them as they do; three in a row is a line.",
+   "effort": "A card while you watch",
+   "len": "1 episode",
+   "ref": "preset weekly-bingo",
+   "spec": {
+    "preset": "weekly-bingo"
+   }
+  },
+  {
+   "id": "trivia",
+   "cat": "quiz",
+   "name": "Trivia",
+   "plain": "A quiz on the last episode",
+   "about": "A few questions about the episode before, the same for everyone. A point for each right answer.",
+   "effort": "A quiz an episode",
+   "len": "Season",
+   "ref": "dial: trivia",
+   "spec": {
+    "get": {
+     "by": "none"
+    },
+    "score": {
+     "by": "answers"
+    },
+    "rank": {
+     "by": "total"
+    },
+    "ask": [
+     {
+      "id": "trivia",
+      "ask": "Trivia about the episode before",
+      "answer": "trivia",
+      "points": 1,
+      "asked": "each",
+      "settle": {
+       "by": "trivia"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "bingotrivia",
+   "cat": "quiz",
+   "name": "Bingo & trivia",
+   "plain": "A bingo card and a quiz",
+   "about": "A bingo card while you watch and a few trivia questions before the next. 5 points a line, 1 a right answer.",
+   "effort": "A card and a quiz",
+   "len": "Season",
+   "ref": "p1",
+   "spec": {
+    "stages": [
+     {
+      "id": "bingo",
+      "name": "Bingo",
+      "game": {
+       "preset": "weekly-bingo",
+       "span": {
+        "from": 1
+       },
+       "score": {
+        "by": "lines",
+        "points": 5
+       }
+      }
+     },
+     {
+      "id": "trivia",
+      "name": "Trivia",
+      "alongside": true,
+      "game": {
+       "get": {
+        "by": "none"
+       },
+       "score": {
+        "by": "answers"
+       },
+       "rank": {
+        "by": "total"
+       },
+       "ask": [
+        {
+         "id": "trivia",
+         "ask": "Trivia about the episode before",
+         "answer": "trivia",
+         "points": 1,
+         "asked": "each",
+         "settle": {
+          "by": "trivia"
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "overall": {
+     "by": "points"
+    }
+   }
+  },
+  {
+   "id": "traitors",
+   "cat": "party",
+   "name": "Secret Traitors",
+   "plain": "2 of you are secret traitors",
+   "about": "Take turns picking three castaways, but two of you are secretly Traitors, scoring when the others' castaways go home. Nobody knows who until the end.",
+   "effort": "Pick once, then just watch",
+   "len": "Season",
+   "ref": "s24",
+   "spec": {
+    "preset": "outlast",
+    "score": {
+     "by": "place",
+     "roles": {
+      "count": 2,
+      "points": 2,
+      "on": "votedOut"
+     }
+    }
+   }
+  },
+  {
+   "id": "host",
+   "cat": "party",
+   "name": "Rotating host",
+   "plain": "Take turns setting the questions",
+   "about": "Each episode a different one of you picks three moments for everyone to guess on, and plays too.",
+   "effort": "3 guesses an episode",
+   "len": "Season",
+   "ref": "s43",
+   "spec": {
+    "get": {
+     "by": "none"
+    },
+    "count": null,
+    "score": {
+     "by": "answers"
+    },
+    "rank": {
+     "by": "total"
+    },
+    "card": {
+     "from": "host",
+     "each": 3,
+     "of": [
+      "idolFound",
+      "idolPlayed",
+      "votesNegated",
+      "wentOnJourney",
+      "learnedOfAdvantage",
+      "advantageTargeted",
+      "rewardWin",
+      "tribeImmunity",
+      "individualImmunity"
+     ]
+    },
+    "ask": [
+     {
+      "id": "host",
+      "ask": "The host's questions",
+      "answer": "yesNo",
+      "points": 1,
+      "asked": "each",
+      "card": true,
+      "settle": {
+       "by": "moment",
+       "take": "happened"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "majority",
+   "cat": "party",
+   "name": "Match the majority",
+   "plain": "Guess what most of you will say",
+   "about": "Guess who goes home, but you score for matching what most of the couch says. Read your friends, not the show.",
+   "effort": "1 guess an episode",
+   "len": "Season",
+   "ref": "s31",
+   "spec": {
+    "get": {
+     "by": "none"
+    },
+    "score": {
+     "by": "answers"
+    },
+    "rank": {
+     "by": "total"
+    },
+    "ask": [
+     {
+      "id": "herd",
+      "ask": "Who goes home? Pick who most of us will",
+      "answer": "person",
+      "points": 1,
+      "asked": "each",
+      "settle": {
+       "by": "players",
+       "take": "majority"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "bounty",
+   "cat": "party",
+   "name": "Bounty hunters",
+   "plain": "Vote theirs out, steal their points",
+   "about": "Take turns picking three castaways. When one of yours votes out someone else's, you take 2 points from them.",
+   "effort": "Pick once, then just watch",
+   "len": "Season",
+   "ref": "s16",
+   "spec": {
+    "preset": "outlast",
+    "score": {
+     "by": "place",
+     "bounty": {
+      "points": 2
+     }
+    }
+   }
+  },
+  {
+   "id": "twist",
+   "cat": "party",
+   "name": "Twist of the week",
+   "plain": "The top scorer picks a twist",
+   "about": "A fantasy league where each episode's top scorer picks the next one's twist: double points, or half.",
+   "effort": "Choose who plays each episode",
+   "len": "Season",
+   "ref": "s40",
+   "spec": {
+    "preset": "weekly-lineup",
+    "score": {
+     "by": "moments",
+     "points": null,
+     "twist": {
+      "of": [
+       {
+        "id": "double",
+        "name": "Double points",
+        "times": 2
+       },
+       {
+        "id": "half",
+        "name": "Half points",
+        "times": 0.5
+       }
+      ]
+     }
+    }
+   }
+  },
+  {
+   "id": "solo",
+   "cat": "solo",
+   "name": "Solo predictions",
+   "plain": "Just you and your guesses",
+   "about": "Just you: guess who goes home each episode and see how you do across the season.",
+   "effort": "1 guess an episode",
+   "len": "Season",
+   "ref": "w013",
+   "spec": {
+    "get": {
+     "by": "none"
+    },
+    "score": {
+     "by": "answers"
+    },
+    "rank": {
+     "by": "total"
+    },
+    "ask": [
+     {
+      "id": "out",
+      "ask": "Who goes home?",
+      "answer": "person",
+      "points": 2,
+      "asked": "each",
+      "settle": {
+       "by": "results",
+       "take": "out"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "beatbot",
+   "cat": "solo",
+   "name": "Beat the bot",
+   "plain": "Score when the bot is wrong",
+   "about": "Guess who goes home. Our bot guesses too; you score when you're right and it's wrong.",
+   "effort": "1 guess an episode",
+   "len": "Season",
+   "ref": "s35",
+   "spec": {
+    "get": {
+     "by": "none"
+    },
+    "score": {
+     "by": "answers"
+    },
+    "rank": {
+     "by": "total"
+    },
+    "ask": [
+     {
+      "id": "boot",
+      "ask": "Who goes home?",
+      "answer": "person",
+      "points": 2,
+      "asked": "each",
+      "settle": {
+       "by": "results",
+       "take": "out"
+      },
+      "beat": {
+       "by": "bot"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "vsbot",
+   "cat": "solo",
+   "also": "versus",
+   "name": "Me vs the bot",
+   "plain": "Our bot plays as a player",
+   "about": "Play any game with our bot as the other player. For when it's just you.",
+   "effort": "Any game",
+   "len": "1 episode",
+   "ref": "E1 (the simple bot: not built)",
+   "coming": "E1",
+   "spec": null
+  },
+  {
+   "id": "minis",
+   "cat": "season",
+   "name": "Season of mini-games",
+   "plain": "A new game every few weeks",
+   "about": "A different game for each stretch of the season: bingo, then a draft, then guesses.",
+   "effort": "Changes as it goes",
+   "len": "Season",
+   "ref": "dial: a season of mini-games",
+   "from": "dials",
+   "spec": null
+  },
+  {
+   "id": "halves",
+   "cat": "season",
+   "name": "Two halves",
+   "plain": "One game to the merge, one after",
+   "about": "Two games in one: pick a team until the merge, then a new one after it. Win more halves to win.",
+   "effort": "A new team at the merge",
+   "len": "Season",
+   "ref": "s39",
+   "spec": {
+    "stages": [
+     {
+      "id": "pre",
+      "name": "Pre-merge",
+      "game": {
+       "preset": "outlast",
+       "get": {
+        "by": "draft",
+        "each": 3,
+        "order": "snake",
+        "own": "exclusive"
+       },
+       "span": {
+        "from": 1
+       }
+      }
+     },
+     {
+      "id": "post",
+      "name": "Post-merge",
+      "game": {
+       "preset": "outlast",
+       "get": {
+        "by": "draft",
+        "each": 3,
+        "order": "snake",
+        "own": "exclusive"
+       },
+       "span": {
+        "from": {
+         "phase": "merged"
+        }
+       }
+      }
+     }
+    ],
+    "overall": {
+     "by": "wins"
+    }
+   }
+  },
+  {
+   "id": "redraft",
+   "cat": "season",
+   "name": "Redraft on a shake-up",
+   "plain": "New teams when the show changes",
+   "about": "Whenever the show shakes things up (a swap, the merge), everyone picks a new team. Points add up across them all.",
+   "effort": "A new team at each shake-up",
+   "len": "Season",
+   "ref": "p7",
+   "spec": {
+    "stages": [
+     {
+      "id": "draft",
+      "name": "Draft",
+      "game": {
+       "preset": "outlast",
+       "get": {
+        "by": "draft",
+        "each": 3,
+        "order": "snake",
+        "own": "exclusive"
+       },
+       "span": {
+        "from": 1
+       }
+      }
+     },
+     {
+      "id": "redraft",
+      "name": "New draft",
+      "on": {
+       "again": true
+      },
+      "game": {
+       "preset": "outlast",
+       "get": {
+        "by": "draft",
+        "each": 3,
+        "order": "snake",
+        "own": "exclusive"
+       }
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "twoshows",
+   "cat": "season",
+   "name": "Two shows, one league",
+   "plain": "One league, two shows",
+   "about": "One league across two shows, like Survivor then The Traitors: a team for each, one set of standings.",
+   "effort": "A team for each show",
+   "len": "Season",
+   "ref": "s20 (plays on its page; needs the second season set up as a game)",
+   "needs": "the second show's season set up",
+   "spec": null
+  }
+ ],
+ "sport": [
+  {
+   "id": "s-season",
+   "cat": "fantasy",
+   "name": "Season league",
+   "plain": "Players; a lineup each game day",
+   "about": "Pick a team of players and choose who plays each game day; each week you play one of the couch.",
+   "effort": "Choose who plays each day",
+   "len": "Season",
+   "ref": "basketball.json season"
+  },
+  {
+   "id": "s-best",
+   "cat": "fantasy",
+   "name": "Best ball",
+   "plain": "Players; your best count for you",
+   "about": "Pick a team of players once; each week your best ones count by themselves.",
+   "effort": "Pick once, then just watch",
+   "len": "Season",
+   "ref": "basketball.json bestBall"
+  },
+  {
+   "id": "s-cats",
+   "cat": "fantasy",
+   "name": "Categories league",
+   "plain": "Win more stats than a friend",
+   "about": "Each week you face one of the couch across nine stats (points, rebounds, assists and more). Win more of them to win the week.",
+   "effort": "Choose who plays each day",
+   "len": "Season",
+   "ref": "basketball.json categories"
+  },
+  {
+   "id": "s-roto",
+   "cat": "fantasy",
+   "name": "Roto league",
+   "plain": "Rank in every stat",
+   "about": "Every stat ranks the whole couch; add up your places across them all.",
+   "effort": "Choose who plays each day",
+   "len": "Season",
+   "ref": "basketball.json roto"
+  },
+  {
+   "id": "s-short",
+   "cat": "fantasy",
+   "name": "Game-night draft",
+   "plain": "A few players, one game",
+   "about": "Pick a few players for one game. Most points that night wins.",
+   "effort": "Pick once, then just watch",
+   "len": "1 game",
+   "ref": "basketball.json short"
+  },
+  {
+   "id": "s-pickem",
+   "cat": "pools",
+   "name": "Pick'em",
+   "plain": "Pick who wins each game",
+   "about": "Pick the winner of each game. Most right picks wins.",
+   "effort": "1 pick a game",
+   "len": "Season",
+   "ref": "basketball.json pickem"
+  },
+  {
+   "id": "s-few",
+   "cat": "pools",
+   "name": "Pick a few",
+   "plain": "Pick 3 to score most",
+   "about": "Pick three players; their points are yours.",
+   "effort": "3 picks a game",
+   "len": "1 game",
+   "ref": "basketball.json pickAFew"
+  },
+  {
+   "id": "s-props",
+   "cat": "predict",
+   "name": "Game day props",
+   "plain": "Winner, top scorer, the total",
+   "about": "Three guesses before tip-off: who wins, who scores most, and is the total over or under the line.",
+   "effort": "3 guesses a game",
+   "len": "1 game",
+   "ref": "w003"
+  },
+  {
+   "id": "s-ou",
+   "cat": "predict",
+   "name": "Over / under",
+   "plain": "Over or under the total?",
+   "about": "Will the game's total be over or under the line?",
+   "effort": "1 guess a game",
+   "len": "1 game",
+   "ref": "w031 (line: game)"
+  },
+  {
+   "id": "s-bracket",
+   "cat": "predict",
+   "name": "Playoff bracket",
+   "plain": "Pick every playoff round",
+   "about": "Fill in the playoff bracket; points for each round you get.",
+   "effort": "Once, then just watch",
+   "len": "Playoffs",
+   "ref": "bracket on playoffs (on a playoffs slate)"
+  },
+  {
+   "id": "s-bank",
+   "cat": "bets",
+   "name": "Betting pool",
+   "plain": "Bet points on the game",
+   "about": "Bet from a bank of points on the game's calls. Points, never money.",
+   "effort": "Bets each game",
+   "len": "1 game",
+   "ref": "bank + wager (C6)"
+  },
+  {
+   "id": "s-squares",
+   "cat": "bets",
+   "name": "Squares",
+   "plain": "A grid of the score's last digits",
+   "about": "Take squares on a 10-by-10 grid of the scores' last digits. When a quarter ends, the matching square wins.",
+   "effort": "Take squares once",
+   "len": "1 game",
+   "ref": "basketball.json squares"
+  },
+  {
+   "id": "s-live",
+   "cat": "predict",
+   "name": "Live calls",
+   "plain": "Guess each play as it happens",
+   "about": "Guess each play as it happens.",
+   "effort": "Guesses while you watch",
+   "len": "1 game",
+   "ref": "s59-s60 (A15, L4: not built)",
+   "coming": "A15"
+  }
+ ]
+}

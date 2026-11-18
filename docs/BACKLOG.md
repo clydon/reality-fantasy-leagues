@@ -1321,6 +1321,28 @@ Last updated 2026-10-27.
    red count on a played show (the Red Is For Leaving rule); step-fixture.js seeds no couch GIFs (the app shows only KLIPY's, and the
    GIF check's stand-in isn't wired to it), so the recap end's slot is only drawn in its empty state.
 
+104. **A bounce easing on every page** (noticed 2026-11-18 by Round 2's detector): `cubic-bezier(.34, 1.45, .64, 1)` in
+    `src/app/(new)/new.css` (lines 317, 350, 520, 524) and `src/new/ui/show-bar.tsx:199`; DESIGN.md's motion rule says no bounce.
+    Who takes it: a polish pass on the new design; small, but check what each animates first.
+105. **The shared sheet's Back and Close are 40 px** (noticed 2026-11-18, Round 2's browser check): `src/new/ui/sheet.tsx`, under the
+    44 px rule every other control keeps. Who takes it: the next session touching the sheet; small, app-wide.
+106. **DESIGN.md's type ramp leaves out sizes the app uses everywhere** (noticed 2026-11-18): 14 px (483 uses), 12 px (114), 17 px
+    (106) and 20 px (65) aren't in its ramp, so the detector flags them as off-system. Either name them in DESIGN.md or fold them in.
+    Who takes it: a `document` pass with the user; not urgent.
+107. **The nano-banana MCP server doesn't get its key** (noticed 2026-11-18): it started with the literal `${GEMINI_API_KEY}` though the
+    environment has it (`.mcp.json` passes it through); a reconnect may fix it. Separately the key's Google billing has an outstanding
+    balance, so generation fails either way until it's settled. Who takes it: the user (billing), then any session that needs images.
+
+108. **A slate's Pick'em may never be graded** (noticed 2026-11-18 by reading the code, not run; the bold pass's sports catalog):
+    the sports rail offers its default Pick'em (one plain side question each week) on a league's slate, and `POST /api/sports/start`
+    starts it, but on a slate the server keeps no single game per week (`score.ts` `leagueGames`), so any answer is accepted and none
+    is ever graded. The catalog's slate Pick'em asks each game (`each: 'game'`, tracker w029's shape). Our check can't tell a slate
+    from a game page, so plain final or stat questions, squares and survival pools on a slate pass it and never settle. Who takes
+    it: the sports lane; reproduce with `check-slate.js` before fixing, and give the check the page kind.
+109. **A gallery level opens at the last level's scroll** (noticed 2026-11-18 in the bold pass; Round 2's gallery too): the sheet keeps
+    its scroll between levels, so a game opened from far down the shelf opens partway down its screen. The bold pass keeps each
+    level's scroll by depth (`gallery-bold/bold-sheet.tsx`); Round 2's gallery needs the same if the bold pass is reverted.
+
 ## Decided against (don't re-propose without new information)
 
 - **An AI draft/lineup/pick advisor for players** ("Coach"): rejected. Feels like pay-to-win inside

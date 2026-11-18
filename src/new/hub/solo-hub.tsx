@@ -10,7 +10,7 @@ import { paths } from "../routes";
 import { Avatar } from "../ui/bars";
 import { Btn, SectionHead } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
-import { PoolCard, PracticeCard, PracticeSheet, poolShown, practiceShown, type PracticeSeason } from "../show/solo";
+import { PoolCard, PracticeCard, PracticeSheet, PRACTICE_COUCH, poolShown, practiceShown, type PracticeSeason } from "../show/solo";
 import { openTrivia } from "../show/trivia";
 import { Foot, nextShow, StatusLine, UpNext, YourShows } from "./sections";
 import { OnTvRow } from "./guide";
@@ -83,7 +83,7 @@ function PlayOnYourOwn({ home }: { home: Home }) {
         {pools.map((s) => (
           <PoolCard key={s.seasonId} info={s.pool} art={art(s)} onOpen={() => nav.push(`${paths.show(s.seasonId, "games")}?page=pool`)} />
         ))}
-        {(yours || open.length > 0) && <PracticeCard info={(yours ?? open[0]).practice} onOpen={() => setSheet(true)} />}
+        {PRACTICE_COUCH && (yours || open.length > 0) && <PracticeCard info={(yours ?? open[0]).practice} onOpen={() => setSheet(true)} />}
       </div>
       <PracticeSheet open={sheet} onOpenChange={setSheet} seasons={yours ? [sheetFor(yours)] : open.map(sheetFor)} />
     </section>

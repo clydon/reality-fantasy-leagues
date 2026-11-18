@@ -118,7 +118,12 @@ export function PracticeCard({ info, onOpen }: { info: PracticeInfo; onOpen: () 
 
 /** Whether a season's pool or practice couch is worth a card: it's open to you, or it's yours already. */
 export const poolShown = (p: PoolInfo) => p.joined || !p.blocked;
-export const practiceShown = (p: PracticeInfo) => !!p.leagueId || !p.blocked;
+/** The practice couch (step 9 part 3), hidden for now (the user, 2026-11-18): "that was a misinterpretation of what i actually wanted: the
+ *  ability to play any game against a bot and/or add bots to a game so you can have real players and bots. not saying we should
+ *  delete that outright, but maybe hide it for now until our desired outcome is achieved." That outcome is computer players in every
+ *  kind of game (docs/PLAN-start-a-game-redo.md E1). The code stays; this switch turns its entry points back on. */
+export const PRACTICE_COUCH = false;
+export const practiceShown = (p: PracticeInfo) => PRACTICE_COUCH && (!!p.leagueId || !p.blocked);
 
 // ---------- the Games tab, solo ----------
 

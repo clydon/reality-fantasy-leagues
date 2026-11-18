@@ -195,6 +195,84 @@ lane beside Round 2 starts with Designs needed 33, BACKLOG 42's second part, the
 - **A blind test on the tasks, optional.** It's costly: about 80k tokens a tester in U0, so it's the user's call.
 - **The story, then approval.**
 
+**As run (2026-11-18).** The gallery built in the app behind `?start=gallery` (TEMP-UI, saves nothing), on the real Survivor 51, Below
+Deck 13 and The Challenge 42 (a second dev server on `rfl_castprops`), through Intent ([wizard-r2-spec.md](design-round/wizard-r2-spec.md)),
+PFD ([wizard-r2-first-view.md](design-round/wizard-r2-first-view.md)) and Impeccable ([wizard-r2-shape.md](design-round/wizard-r2-shape.md)),
+checked once (PFD 74/100, [wizard-r2-pfd-eval.md](design-round/wizard-r2-pfd-eval.md); Impeccable 26/40 from two isolated reviewers,
+[wizard-r2-critique.md](design-round/wizard-r2-critique.md)), fixed in one batch, one confirming look. The story: https://claude.ai/artifact/KcBwn263YnZ45Yh5Xib1D5.
+- **The coverage table** ([wizard-r2-coverage.md](design-round/wizard-r2-coverage.md), `scripts/dev-test/gallery-coverage.js`) is generated
+  from the catalog the screens render (`src/lib/game/start-gallery`): of the 210 values the engine plays now, 209 have a home proven by
+  a game our check passes from it (TVmaze's ratings left out on the user's no); 40 limits tied to controls; the tracker's 239 playing
+  requests each given a base and path, 228 within 6 taps (median 2).
+- **The user's answers to the story's nine open questions** (decisions.md, 2026-11-17 and 18): community a collapsed section, made for
+  this season first, with length badges; known names; "guess"; an aired season gets the whole gallery (E6 below); a stage's short
+  start name from research; the preview is the real screens, offered to friends, never opened; our AI's reply carries each answer's
+  change; any couch shares once started; solid pictograms.
+- **Built:** the gallery, a base's screen, a change with its controls, How long by stages, When moves lock (closed and opened, the
+  cost said once), the questions, the moment picker (task 11 in 4 taps), Ask the couch first, Describe (wait, result, errors), the
+  community list and a game's screen, Start (saves nothing). Fixture and frames: `scripts/dev-test/gallery-fixture.js`,
+  `scripts/dev-test/story-start-gallery.js` (`--before` for today's wizard on the same seasons).
+- **Not built in the round:** the sport's gallery, a question's own moment picker, Pick episodes, the practice copy behind Try it
+  (B-lane), the nano-banana icons (vector stand-ins; the Gemini account's billing was paused on 2026-11-18).
+- **One choice waits on the user:** start on When you've watched it whenever the recommended lock would cost someone on this couch?
+  (PFD's R4 against BACKLOG 68's live default for all-yours drafts.)
+- **The user's notes on Round 2 (2026-11-18), built the same day** (the story: https://claude.ai/artifact/48NzZXE1SkYabuYcWhsVVL;
+  decisions.md 2026-11-18): **saved games**, one heart beside Start on every game's screen (and beside Start your own copy), kept as
+  the game's recipe and opened on any season from the next episode (`src/new/couch/gallery/saved.ts`; TEMP in this browser's
+  localStorage); the collapsed section is **Community and saved games**, a row with an icon tile and its count, Saved first when
+  opened; a ready game's heart counts saves (likes folded in); Trivia's category is **Bingo & trivia** ("A card while it's on, a
+  quiz after") and Live calls moved to Predictions. Two fixes found on the way: a game's words follow its own draft size (sizeFit),
+  and the chip row slides to keep the lit chip in view. Their other note, a game writer on our own machines, is
+  docs/PLAN-local-game-writer.md.
+- **For the build (B1), from the notes:** saves on the account (a table of recipes per person: base, rules without dates, length,
+  where it was saved), re-fitted to the season they're opened on (fitCouch, fitMoments) and counted per community game; whether a
+  saved game updates in place ("Save changes") or saves another (today's snapshot rule).
+
+### Round 2b: the bold pass (2026-11-18, built beside Round 2 for the user to keep or revert)
+
+The user, after Round 2's notes: "another pass on the design and make sure its bold, has character & soul for both shows and all
+supported sports (especially our core sports), and improves on readability, intuitive entry and modification. and ensure all game
+types are possible and intuite to create (its okay to repeat yourself in the UI ...). At the end i can tell you if this pass is
+something we should carry over or revert back." Mid-pass: sports get custom moments ("fan ran on field, or overturned ABS calls"),
+and "the sport create a game should at least feel and navigate just like the show even if its technincally different."
+
+- **Where it lives:** `src/new/couch/gallery-bold/` behind `?start=bold` (Round 2 stays at `?start=gallery`); a sport's season takes
+  it too (`start-game.tsx`'s router, before today's sport sheet). Reverting deletes the folder and its two switch lines; Round 2's
+  files are snapshotted in `.ui-atlas/snapshots/gallery-r2-notes-2026-11-18/`.
+- **Papers:** [wizard-r2b-spec.md](design-round/wizard-r2b-spec.md) (Intent), [wizard-r2b-first-view.md](design-round/wizard-r2b-first-view.md)
+  (PFD), [wizard-r2b-shape.md](design-round/wizard-r2b-shape.md) (Impeccable); decisions.md 2026-11-18.
+- **Built:** a lead tile per category drawn with the season (faces still in as far as you've seen, the next episode's questions, a
+  bingo card of the season's moments, the couch paired off or masked, a worked bet, the season's stages; a sport's players, next
+  games, line and a squares corner); a game's screen opening on its title card over the show's art; Make it… (U0's ladders on the
+  catalog's changes); every rule as a line with its value first; Find a change; Your own moments (shows and sports); known names,
+  extra shelves and one name per thing; the sports catalog (`src/lib/game/start-gallery/sports.json`, `sports.js`: 48 game types
+  across nine families, `scripts/dev-test/sport-gallery-check.js` proving each) through the same screens, its next game as the ready
+  plate.
+- **Engine steps it surfaced** (the user's rule: open the limits, don't design around them):
+  - **E8. Your own moments in a game:** a moment added at start (its words, points, who settles it) carried in the spec; the couch's
+    settle (whoever sees it taps it, the others confirm) for a sport's oddities ESPN won't carry; research's ask for what recaps
+    report (G1's added moments). **Who scores it (the user, 2026-11-18, "Player's owner, else a call"):** a moment about a player
+    (a batter's overturned call) scores whoever has that player; a moment about the game (a fan on the field) becomes a yes or no
+    call everyone answers before the episode or game, and right calls score. Proof: a couch-settled moment scores in a sport's
+    game and a show's, both ways.
+  - **E9. A sport's missing game types:** a survivor pool on a sport (one team to win each week, never twice), against the spread
+    (a line kept per game), a salary cap priced by stats, dynasty's rookie draft, first scorer (play order), an exact-score answer,
+    a stake on who wins; our check told a slate from a game page (BACKLOG 108). Each is shown Coming with its reason until then.
+  - **E10. A team's colour, abbreviation and logo in the wizard's page,** so a sport's tiles carry its teams' tags (today they're in
+    ESPN's team list, not the payload).
+- **Noticed:** a gallery level opened at the previous level's scroll (fixed in the pass; BACKLOG 109 for Round 2); the slate Pick'em
+  that may never grade (BACKLOG 108).
+- **The user's calls on it (2026-11-18):**
+  - **Kept:** the bold pass and Round 2c are the direction ("i think i agree with the direct and ready to start").
+  - **How moves lock is two plain cards on every game:** "Together" (everyone's move for each episode locks when it airs, and
+    whoever is behind is named with what it costs them) and "At your own pace" (your move locks when you start watching; nobody's
+    cut off). The stricter "at airtime" way isn't offered in Start a game, and neither card is marked Recommended; the card that
+    starts chosen is unchanged (a draft where each castaway is one person's starts on Together, every other game at your own
+    pace). Asked after the three ways confused the user: "if im still confused im CERTAIN people like joanna would be confused."
+  - **The title card comes back on the game page:** the started game's page opens the way its setup screen did (the game's name
+    over the show's art), so making a game and playing it feel continuous. A step for the build (B1's game page part), through
+    docs/DESIGN-PROCESS.md.
+
 ### Round 3: a show's games when short games are frequent
 
 - **The Games tab** holds only what's on: running games, tonight's, and games starting soon.
@@ -222,6 +300,11 @@ then approval.
 ### Engine (a lane, beside the rounds)
 
 - **E1. Solo play and the simple bot.**
+  - **The user's aim (2026-11-18):** "the ability to play any game against a bot and/or add bots to a game so you can have real players
+    and bots." Computer players (`computer-players.ts`) already take seats in drafts and survival pools, at a level, from today's
+    wizard and Backstage › Members; E1 makes them play every kind, and Start a game's Who's playing offers them (how many, how
+    sharp) on every base, Coming where the bot can't play yet. The practice couch is hidden until then (`PRACTICE_COUCH` in
+    src/new/show/solo.tsx); the bold gallery doesn't offer computer players yet, a gap for the build.
   - A couch of one can start any game. Someone invited later joins where they are.
   - The bot answers every kind: a pick, a lineup, questions, a card, calls and a draft. It picks at random or by the points so far,
     and keeps pace at your own pace.
@@ -251,11 +334,21 @@ then approval.
   moments (crying, a blindside, a fish caught) rated at its setup the way made-for games are made, so picking one is instant and only
   a typed moment waits for our AI. The public library (BACKLOG 93) stays later; the design leaves its place.
 
+- **E6. Every game at your own pace on a season that's aired** (the user, Round 2, 2026-11-17: "I want to push back that that is the
+  technical limit and we should open it up much more of what's possible"; their own 2026-11-09 direction). Today only the pool,
+  Outlast and the lineup have a catch-up loop (`start-game.ts` PACED). The loop for every kind of spec game, `paceOf(spec)` naming its
+  sync points (part of E4), then PACED goes. Proof: every spec in the corpus plays from an aired episode at your own pace (blind.js).
+- **E7. A stage's short start name** (the user, Round 2): research writes one with each phase ("the merge"), the desk edits it, a
+  catch-up fills seasons already in; How long's chips and the engine's sentences read it (the gallery's TEMP map until then).
+
 ### Build (after the approvals)
 
-- **B1. The wizard, everywhere.**
+- **B1. The wizard, everywhere** (the bold pass's code, `src/new/couch/gallery-bold/`, becomes the wizard; Round 2's
+  `gallery/` and today's wizard go).
   - It covers every start: a live season, a season that's aired, Run it back, a sport's season, a team. The old list goes
     (`start-game.tsx` StartRouter).
+  - How moves lock as the two plain cards (the user's call above); the engine's strict pace stays for games that already use it.
+  - The game page opens on the game's title card, as its setup screen does.
   - Its checks:
     - `check-start-a-game.js`, rewritten;
     - a coverage check that drives the wizard to each dial value;
@@ -334,3 +427,9 @@ A lane can take these beside the main steps.
   takes a league's state, and scripts exist for lineups, Outlast drafts and pools (`practice-steps.ts`). A preview before the start
   needs it built from a spec on a season, with steps made from the spec's moves for every kind of game. Who takes it: Round 2's
   design, then the build (B-lane).
+- **Round 2 (2026-11-18): a base on a season late in it can't seat everyone.** Survivor 51 with 10 still in for a couch of 4: every
+  all-yours draft of 3 is refused by our check. The gallery fits each to who's left (2 each, else shared: roll.js exclusiveFits' way)
+  and says the number on its square; the build (B1) keeps that, and the engine's words should say it too.
+- **Round 2: the bases' plain words are Survivor's.** The gallery swaps nouns and drops Survivor-only sentences on other shows (a
+  stand-in); a show's own words for each base come with B1 (the plan's "A show's gallery builds each base from its own answerable
+  moments and results").

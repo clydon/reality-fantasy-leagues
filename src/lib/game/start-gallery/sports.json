@@ -1,0 +1,532 @@
+{
+  "about": "Start a game's gallery, sports (docs/PLAN-start-a-game-redo.md Round 2): every game type a sport's fans already know, per sport family, named the way they say it, each with an engine spec our check passes on the sport's page (scripts/dev-test/sport-gallery-check.js) or `coming` with the step or engine piece that would bring it. Read by sports.js (its header says how a spec, a `by` and a `len` resolve). One game type can be the same engine spec as another: the gallery repeats itself where the engine isn't one to one. `spec` is a whole spec, or { standard, with }: one of the sport's standard games (src/lib/sports/defaults, as defaultsFor gives them: a league's own over the sport's, football's lineup slots) with `with`'s parts over it, one level deep. `by` keys a family (\"soccer\") or a league (\"football/college-football\"): its words, spec or coming over the base's, the league's last. `on`: the pages it's made for (pages, below). `lens`: its length on another page. `needs`: something the page has to supply (keepers: last season's game, PageFacts.lastSeason). `gap`: the fuller reason behind a `coming`.",
+  "one": ["1 game", "This week", "This round", "Tonight", "1 tournament", "1 race", "1 card", "1 event"],
+  "cats": [
+    { "id": "fantasy", "short": "Fantasy", "name": "Fantasy leagues", "says": "Draft a team of players" },
+    { "id": "pools", "short": "Pools", "name": "Pick'em and pools", "says": "Picks each game or week" },
+    { "id": "predict", "short": "Predictions", "name": "Props and brackets", "says": "Call what happens" },
+    { "id": "bets", "short": "Betting", "name": "Squares and betting", "says": "Bet points, never money" },
+    { "id": "versus", "short": "Head to head", "name": "Head to head", "says": "Your week against a friend's" }
+  ],
+  "pages": [
+    { "id": "slate", "name": "A league's season", "says": "Every game in the league, a week (or a day, or a round) at a time" },
+    { "id": "playoffs", "name": "The playoffs", "says": "A league's playoffs, every game of them" },
+    { "id": "game", "name": "A team's games", "says": "One game, a series, a rivalry or a team's season: a game at a time" },
+    { "id": "event", "name": "Events", "says": "A tournament, a race weekend, a fight card: one, or a season of them" }
+  ],
+  "families": [
+    { "id": "football", "name": "Football", "says": "NFL and college", "core": "football/nfl", "leagues": ["football/nfl", "football/college-football"], "pages": ["slate", "playoffs", "game"] },
+    { "id": "basketball", "name": "Basketball", "says": "NBA, WNBA and college", "core": "basketball/nba", "leagues": ["basketball/nba", "basketball/wnba", "basketball/mens-college-basketball", "basketball/womens-college-basketball"], "pages": ["slate", "playoffs", "game"] },
+    { "id": "baseball", "name": "Baseball", "says": "MLB and college", "core": "baseball/mlb", "leagues": ["baseball/mlb", "baseball/college-baseball"], "pages": ["slate", "playoffs", "game"] },
+    { "id": "hockey", "name": "Hockey", "says": "NHL", "core": "hockey/nhl", "leagues": ["hockey/nhl"], "pages": ["slate", "playoffs", "game"] },
+    { "id": "soccer", "name": "Soccer", "says": "Every league ESPN carries", "core": "soccer/eng.1", "open": true, "leagues": ["soccer/eng.1", "soccer/usa.1", "soccer/uefa.champions"], "pages": ["slate", "playoffs", "game"] },
+    { "id": "golf", "name": "Golf", "says": "The stroke-play tours", "core": "golf/pga", "leagues": ["golf/pga", "golf/lpga", "golf/eur", "golf/liv", "golf/champions-tour", "golf/ntw", "golf/mens-olympics-golf", "golf/womens-olympics-golf"], "pages": ["event"] },
+    { "id": "racing", "name": "Racing", "says": "F1, NASCAR and IndyCar", "core": "racing/f1", "leagues": ["racing/f1", "racing/nascar-premier", "racing/nascar-secondary", "racing/nascar-truck", "racing/irl"], "pages": ["event"] },
+    { "id": "mma", "name": "MMA", "says": "The UFC and every promotion ESPN carries", "core": "mma/ufc", "open": true, "leagues": ["mma/ufc", "mma/pfl", "mma/lfa"], "pages": ["event"] },
+    { "id": "tennis", "name": "Tennis", "says": "The ATP and WTA tours", "core": "tennis/atp", "leagues": ["tennis/atp", "tennis/wta"], "pages": ["event"] }
+  ],
+  "bases": [
+    {
+      "id": "sp-league", "sports": ["football", "basketball", "baseball", "hockey", "soccer"], "cat": "fantasy", "on": ["slate"],
+      "name": "Head-to-head points", "plain": "Draft a team; face a friend each week",
+      "about": "Draft a full roster and set your lineup. Each week your starters' points face one of the couch's teams, and the most wins takes the season.",
+      "effort": "Set your lineup each day", "len": "Season",
+      "spec": { "standard": "season" },
+      "by": {
+        "football": { "name": "Fantasy football", "plain": "Draft a team; face a friend each week", "about": "Draft a full roster and set your lineup by position: a quarterback, two running backs, two receivers, a tight end, a flex, a kicker and a defense. Each week your starters' points face one of the couch's teams, and the most wins takes the season.", "effort": "Set your lineup each week" },
+        "soccer": { "name": "Draft league", "plain": "FPL-style: draft a squad, face a friend", "about": "Draft a squad of 15 and start 11 each round, scored the way Fantasy Premier League scores. Each round your points face one of the couch's teams.", "effort": "Pick your 11 each round" }
+      }
+    },
+    {
+      "id": "sp-points", "sports": ["football", "basketball", "baseball", "hockey", "soccer"], "cat": "fantasy", "on": ["slate"],
+      "name": "Season points", "plain": "Most points all season wins",
+      "about": "Draft a full roster and set your lineup, with no matchups. Every point your starters score adds up, and the most at the end wins.",
+      "effort": "Set your lineup each day", "len": "Season",
+      "spec": { "standard": "season", "with": { "rank": { "by": "total" } } },
+      "by": { "football": { "effort": "Set your lineup each week" }, "soccer": { "effort": "Pick your 11 each round" } }
+    },
+    {
+      "id": "sp-bestball", "sports": ["football", "basketball", "baseball", "hockey", "soccer"], "cat": "fantasy", "on": ["slate"],
+      "name": "Best ball", "plain": "Draft once; your best count by themselves",
+      "about": "Draft a full roster once and never set a lineup. Each game your best players' points count for you on their own.",
+      "effort": "Draft once, then just watch", "len": "Season",
+      "spec": { "standard": "bestBall" }
+    },
+    {
+      "id": "sp-cats", "sports": ["basketball", "baseball", "hockey"], "cat": "fantasy", "on": ["slate"],
+      "name": "Head-to-head categories", "plain": "Win more stat columns than a friend",
+      "about": "Draft a full roster and set your lineup. Each week you face one of the couch across the standard categories, and every category you win counts as a win.",
+      "effort": "Set your lineup each day", "len": "Season",
+      "spec": { "standard": "categories" },
+      "by": {
+        "basketball": { "name": "9-cat head to head", "about": "Draft a full roster and set your lineup. Each week you face one of the couch across nine categories (points, rebounds, assists, steals, blocks, threes, both shooting percentages and turnovers), and every category you win counts as a win." },
+        "baseball": { "name": "5x5 head to head", "about": "Draft a full roster and set your lineup. Each week you face one of the couch across the 5x5: runs, homers, RBI, steals and average for your hitters; wins, saves, strikeouts, ERA and WHIP for your pitchers. Every category you win counts as a win." },
+        "hockey": { "about": "Draft a full roster and set your lineup. Each week you face one of the couch across ten categories, six for skaters and four for goalies, and every category you win counts as a win." }
+      }
+    },
+    {
+      "id": "sp-roto", "sports": ["basketball", "baseball", "hockey"], "cat": "fantasy", "on": ["slate"],
+      "name": "Roto", "plain": "Ranked in every stat, all season",
+      "about": "Draft a full roster and set your lineup. Every category ranks the whole couch over the season, and your places add up: the most points from them wins.",
+      "effort": "Set your lineup each day", "len": "Season",
+      "spec": { "standard": "roto" },
+      "by": { "baseball": { "name": "Roto 5x5" } }
+    },
+    {
+      "id": "sp-guillotine", "sports": ["football", "basketball", "baseball", "hockey", "soccer"], "cat": "fantasy", "on": ["slate"],
+      "name": "Guillotine league", "plain": "Lowest score each week is out",
+      "about": "Draft a team and set your lineup. Each week the lowest score is cut and their players go back up for grabs; the last team standing wins.",
+      "effort": "Set your lineup each day", "len": "Season",
+      "spec": { "standard": "season", "with": { "rank": { "by": "standing", "cut": [{ "at": { "every": 1 }, "out": 1 }] } } },
+      "by": { "football": { "effort": "Set your lineup each week" }, "soccer": { "effort": "Pick your 11 each round" } }
+    },
+    {
+      "id": "sp-keeper", "sports": ["football", "basketball", "baseball", "hockey", "soccer"], "cat": "fantasy", "on": ["slate"],
+      "name": "Keeper league", "plain": "Keep two from last season's team",
+      "about": "Keep two players from your team in this couch's game last season, each costing one of your earliest draft rounds, then draft the rest. Then face one of the couch each week.",
+      "effort": "Set your lineup each day", "len": "Season",
+      "needs": "your couch's game on last season",
+      "spec": { "standard": "season", "with": { "get": { "keep": { "each": 2, "from": null, "cost": "round", "fallback": "best" } } } },
+      "by": { "football": { "effort": "Set your lineup each week" }, "soccer": { "effort": "Pick your 11 each round" } }
+    },
+    {
+      "id": "sp-dynasty", "sports": ["football", "basketball", "baseball", "hockey", "soccer"], "cat": "fantasy", "on": ["slate"],
+      "name": "Dynasty league", "plain": "Keep your whole team, year after year",
+      "about": "Your roster is yours for good: keep everyone each year and add the new players in a rookie draft.",
+      "effort": "Set your lineup each week", "len": "Season",
+      "coming": "No step yet: a rookie draft",
+      "gap": "Keepers keep up to a whole team across seasons (A10 part 4's get.keep), but nothing drafts only the year's new players: a roster doesn't say who's a rookie, so no pool can be just them."
+    },
+    {
+      "id": "sp-auction", "sports": ["football", "basketball", "baseball", "hockey", "soccer"], "cat": "fantasy", "on": ["slate"],
+      "name": "Auction draft", "plain": "Bid for your team, 200 to spend",
+      "about": "Everyone has 200 to bid, in private, on the players they want, and the highest bid gets each one. Then set your lineup and face one of the couch each week.",
+      "effort": "Set your lineup each day", "len": "Season",
+      "spec": { "standard": "season", "with": { "get": { "order": "auction", "own": "exclusive", "budget": { "total": 200 } } } },
+      "by": { "football": { "effort": "Set your lineup each week" }, "soccer": { "effort": "Pick your 11 each round" } }
+    },
+    {
+      "id": "sp-cap", "sports": ["football", "basketball", "baseball", "hockey", "soccer"], "cat": "fantasy", "on": ["slate", "game"],
+      "name": "Salary cap", "plain": "Daily-fantasy style: fit a team under a cap",
+      "about": "Every player has a price; build a team under the cap for the night or the week. Two of you can have the same player.",
+      "effort": "A new team each week", "len": "This week",
+      "lens": { "game": "1 game" },
+      "coming": "No step yet: a price for each player",
+      "gap": "A salary cap prices each castaway by their points so far in a draft scored by moments (A10 part 3b); a sport's stats price nobody, so the cap has nothing to cost (our check: \"A salary cap's prices are each castaway's points so far by the game's rules: a draft scored by moments\")."
+    },
+    {
+      "id": "sp-week-draft", "sports": ["football", "basketball", "baseball", "hockey", "soccer"], "cat": "fantasy", "on": ["slate"],
+      "name": "One-week draft", "plain": "Draft 3 players for this week only",
+      "about": "Everyone drafts three players for this week's games, and every one of them scores. Most points when the week's games are over wins.",
+      "effort": "Draft once, then just watch", "len": "This week",
+      "spec": { "standard": "short" },
+      "by": { "soccer": { "name": "One-round draft", "plain": "Draft 3 players for this round only", "about": "Everyone drafts three players for this round's matches, and every one of them scores. Most points when the round is over wins.", "len": "This round" } }
+    },
+    {
+      "id": "sp-game-draft", "sports": ["football", "basketball", "baseball", "hockey", "soccer"], "cat": "fantasy", "on": ["game"],
+      "name": "Game-night draft", "plain": "3 players each, one game",
+      "about": "Like daily fantasy without the salaries: everyone drafts three players from the two teams, and every one of them scores. Most points at the final whistle wins.",
+      "effort": "Draft once, then just watch", "len": "1 game",
+      "spec": { "standard": "short" },
+      "by": { "baseball": { "about": "Like daily fantasy without the salaries: everyone drafts three players from the two teams, and every one of them scores. Most points after the last out wins." }, "basketball": { "about": "Like daily fantasy without the salaries: everyone drafts three players from the two teams, and every one of them scores. Most points at the final buzzer wins." }, "hockey": { "about": "Like daily fantasy without the salaries: everyone drafts three players from the two teams, and every one of them scores. Most points at the final horn wins." } }
+    },
+    {
+      "id": "sp-playoff-draft", "sports": ["football", "basketball", "baseball", "hockey"], "cat": "fantasy", "on": ["playoffs"],
+      "name": "Playoff fantasy", "plain": "Draft 8 for the whole playoffs",
+      "about": "Before the playoffs start, everyone drafts eight players, and every one of them scores in every playoff game they play. Players on teams that go deep score the most.",
+      "effort": "Draft once, then just watch", "len": "Playoffs",
+      "spec": { "standard": "short", "with": { "get": { "each": 8 } } },
+      "by": { "football": { "name": "Playoff challenge" } }
+    },
+    {
+      "id": "sp-pickem", "sports": ["football", "basketball", "baseball", "hockey", "soccer"], "cat": "pools", "on": ["slate", "playoffs"],
+      "name": "Pick'em", "plain": "Pick the winner of every game",
+      "about": "Each week, pick the winner of every game before it starts; each pick locks at its own game's start. A point for every one right, and the most points wins.",
+      "effort": "A pick for every game", "len": "Season", "lens": { "playoffs": "Playoffs" },
+      "spec": { "spec": 1, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "winner", "ask": "Who wins?", "answer": "side", "each": "game", "asked": "each", "points": 1, "settle": { "by": "final", "take": "winner" }, "closes": "start" }] },
+      "by": { "soccer": { "plain": "Win, lose or draw: every match", "about": "Each round, call every match before it kicks off: either side, or a draw. A point for every one right, and the most points wins.", "effort": "A call for every match", "spec": { "spec": 1, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "winner", "ask": "Who wins, or is it a draw?", "answer": "side", "draw": true, "each": "game", "asked": "each", "points": 1, "settle": { "by": "final", "take": "winner" }, "closes": "start" }] } } }
+    },
+    {
+      "id": "sp-pickem-team", "sports": ["football", "basketball", "baseball", "hockey", "soccer"], "cat": "pools", "on": ["game"],
+      "name": "Pick'em", "plain": "Who wins each of their games",
+      "about": "Before each of their games, pick who wins. A point for every one right (a tie counts for nobody), and the most points wins.",
+      "effort": "1 pick a game", "len": "Their games",
+      "spec": { "standard": "pickem" },
+      "by": { "soccer": { "plain": "Win, lose or draw, each match", "about": "Before each of their matches, call it: either side, or a draw. A point for every one right, and the most points wins." } }
+    },
+    {
+      "id": "sp-confidence", "sports": ["football"], "cat": "pools", "on": ["slate", "playoffs"],
+      "name": "Confidence pool", "plain": "Rank your picks, surest first",
+      "about": "Pick the winner of every game, then rank your picks by how sure you are: your surest is worth the most. A right pick scores its rank, and the most points wins.",
+      "effort": "Every game, ranked", "len": "Season", "lens": { "playoffs": "Playoffs" },
+      "spec": { "spec": 1, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "winner", "ask": "Who wins? Rank your picks, surest first", "answer": "side", "each": "game", "confidence": true, "asked": "each", "points": 1, "settle": { "by": "final", "take": "winner" }, "closes": "start" }] },
+      "by": { "football/college-football": { "about": "Pick the winner of every game, bowl season included, then rank your picks by how sure you are: your surest is worth the most. A right pick scores its rank, and the most points wins." } }
+    },
+    {
+      "id": "sp-h2h-pickem", "sports": ["football", "soccer"], "cat": "versus", "on": ["slate"],
+      "name": "Head-to-head pick'em", "plain": "Your picks against a friend's each week",
+      "about": "Pick the winner of every game each week, and face one of the couch: whoever gets more right wins the week. The most wins takes the season.",
+      "effort": "A pick for every game", "len": "Season",
+      "spec": { "spec": 1, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "matchups" }, "closes": "start", "ask": [{ "id": "winner", "ask": "Who wins?", "answer": "side", "each": "game", "asked": "each", "points": 1, "settle": { "by": "final", "take": "winner" }, "closes": "start" }] },
+      "by": { "soccer": { "spec": { "spec": 1, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "matchups" }, "closes": "start", "ask": [{ "id": "winner", "ask": "Who wins, or is it a draw?", "answer": "side", "draw": true, "each": "game", "asked": "each", "points": 1, "settle": { "by": "final", "take": "winner" }, "closes": "start" }] } } }
+    },
+    {
+      "id": "sp-ats", "sports": ["football", "basketball"], "cat": "pools", "on": ["slate"],
+      "name": "Against the spread", "plain": "Pick every game with the points",
+      "about": "Pick every game against the betting line: the favourite has to win by more than the spread. A point for every one right.",
+      "effort": "A pick for every game", "len": "Season",
+      "coming": "No step yet: each game's spread",
+      "gap": "The engine keeps each game's over/under line as its pick opens (L3 part 3b, line 'game'), never its spread, though ESPN's odds have one; and a side is graded by who won outright."
+    },
+    {
+      "id": "sp-survivor", "sports": ["football", "soccer"], "cat": "pools", "on": ["slate"],
+      "name": "Survivor pool", "plain": "Pick one team to win; never the same twice",
+      "about": "Each week, pick one team to win. Right, you're through; wrong, you're out. You can't use a team twice, and the last one standing wins.",
+      "effort": "1 pick a week", "len": "Season",
+      "coming": "No step yet: one team a week from the slate",
+      "gap": "A pool's picks are players (get.by 'pick', repeat 'never'), and a pick of a side is one game's: each: 'game' asks every game of the week. Nothing picks one team from all of the week's games, never the same twice. (Our check passes a lone side question on a slate, but the grader keeps no single game for a slate's week, so it would never count.)",
+      "by": { "soccer": { "name": "Last man standing", "about": "Each round, pick one team to win. Right, you're through; a draw or a loss and you're out. You can't use a team twice, and the last one standing wins.", "effort": "1 pick a round" } }
+    },
+    {
+      "id": "sp-pick-a-few", "sports": ["football", "basketball", "baseball", "hockey", "soccer"], "cat": "pools", "on": ["game"],
+      "name": "Pick a few", "plain": "Pick 3: who has the most?",
+      "about": "Before each of their games, pick three players. Three points for each one who leads the game in the stat, and the most points wins.",
+      "effort": "3 picks a game", "len": "Their games",
+      "spec": { "standard": "pickAFew" },
+      "by": {
+        "football": { "plain": "Pick 3: who gets the most receiving yards?", "about": "Before each of their games, pick three players. Three points if one of them has the most receiving yards in the game, and the most points wins." },
+        "basketball": { "plain": "Pick 3: who scores the most?", "about": "Before each of their games, pick three players. Three points if one of them is the game's top scorer, and the most points wins." },
+        "baseball": { "plain": "Pick 3: who gets the most total bases?", "about": "Before each of their games, pick three players. Three points if one of them has the most total bases in the game, and the most points wins." },
+        "hockey": { "plain": "Pick 3: who gets the most points?", "about": "Before each of their games, pick three players. Three points if one of them has the most points (goals and assists) in the game, and the most points wins." },
+        "soccer": { "plain": "Pick 3: who scores the most?", "about": "Before each of their matches, pick three players. Three points if one of them scores the most goals in it, and the most points wins." }
+      }
+    },
+    {
+      "id": "sp-scorer-pool", "sports": ["football", "baseball", "hockey", "soccer"], "cat": "pools", "on": ["game"],
+      "name": "Scorer pool", "plain": "Pick 3; a point for every score",
+      "about": "Everyone picks three players in private, and two of you can pick the same one. A point for every time one of yours scores, and the most points wins.",
+      "effort": "3 picks, then just watch", "len": "1 game",
+      "spec": { "spec": 1, "pool": { "of": "cast", "where": null }, "get": { "by": "draft", "each": 3, "order": "blind", "own": "shared" }, "count": { "all": true }, "score": { "by": "stats", "points": { "G": 1 } }, "rank": { "by": "total" }, "closes": "start" },
+      "by": {
+        "football": { "name": "Touchdown pool", "plain": "Pick 3; a point for every touchdown", "about": "Everyone picks three players in private, and two of you can pick the same one. A point for every rushing or receiving touchdown they score, and the most points wins.", "spec": { "spec": 1, "pool": { "of": "cast", "where": null }, "get": { "by": "draft", "each": 3, "order": "blind", "own": "shared" }, "count": { "all": true }, "score": { "by": "stats", "points": { "RTD": 1, "RECTD": 1 } }, "rank": { "by": "total" }, "closes": "start" } },
+        "baseball": { "name": "Homer pick", "plain": "Pick 3 hitters; a point for every homer", "about": "Everyone picks three hitters in private, and two of you can pick the same one. A point for every home run they hit, and the most points wins.", "spec": { "spec": 1, "pool": { "of": "cast", "where": { "positions": ["batters"] } }, "get": { "by": "draft", "each": 3, "order": "blind", "own": "shared" }, "count": { "all": true }, "score": { "by": "stats", "points": { "HR": 1 } }, "rank": { "by": "total" }, "closes": "start" } },
+        "hockey": { "name": "Goal pool", "plain": "Pick 3; a point for every goal" },
+        "soccer": { "name": "Goalscorer pool", "plain": "Pick 3; a point for every goal" }
+      }
+    },
+    {
+      "id": "sp-hr-pool", "sports": ["baseball"], "cat": "pools", "on": ["slate"],
+      "name": "Home run pool", "plain": "Pick 8 hitters; most homers all season",
+      "about": "Everyone picks eight hitters before the season, in private, and two of you can pick the same one. Every home run they hit counts, and the most at the end wins.",
+      "effort": "Pick once, then just watch", "len": "Season",
+      "spec": { "spec": 1, "pool": { "of": "cast", "where": { "positions": ["batters"] } }, "get": { "by": "draft", "each": 8, "order": "blind", "own": "shared" }, "count": { "all": true }, "score": { "by": "stats", "points": { "HR": 1 } }, "rank": { "by": "total" }, "closes": "start" }
+    },
+    {
+      "id": "sp-streak", "sports": ["baseball"], "cat": "pools", "on": ["slate"],
+      "name": "Beat the Streak", "plain": "Pick a hitter a day; keep the hits coming",
+      "about": "Each day, pick one hitter. A hit keeps your streak alive; a hitless day ends it. The longest streak wins.",
+      "effort": "1 pick a day", "len": "Season",
+      "coming": "No step yet: a pick scored by a stat",
+      "gap": "A pick each day scored by a sport's stats has no place yet (our check: \"a pick each episode scored by its stats has no place yet: a draft's lineup or best ball does\"); a pool's pick survives by staying in or by moments, and nothing reads a sport's stats for a pick."
+    },
+    {
+      "id": "sp-props", "sports": ["football", "basketball", "baseball", "hockey", "soccer"], "cat": "predict", "on": ["game"],
+      "name": "Prop sheet", "plain": "Winner, top player, the total",
+      "about": "Three calls before each of their games: who wins, who leads the game in the big stat, and is the total over or under the line. A point for each right.",
+      "effort": "3 calls a game", "len": "Their games",
+      "spec": { "spec": 1, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [
+        { "id": "winner", "ask": "Who wins?", "answer": "side", "points": 1, "settle": { "by": "final", "take": "winner" }, "asked": "each", "closes": "start" },
+        { "id": "top", "ask": "Who scores the most points?", "answer": "person", "pick": 1, "from": "cast", "points": 1, "settle": { "by": "stat", "stat": "PTS", "take": "most" }, "asked": "each", "closes": "start" },
+        { "id": "total", "ask": "Total points: over or under?", "answer": "overUnder", "line": "game", "points": 1, "settle": { "by": "final", "take": "total" }, "asked": "each", "closes": "start" }
+      ] },
+      "by": {
+        "football": { "plain": "Winner, top passer, the total", "about": "Three calls before each of their games: who wins, who throws for the most yards, and are the total points over or under the line. A point for each right; the Super Bowl's party sheet.", "spec": { "spec": 1, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [
+          { "id": "winner", "ask": "Who wins?", "answer": "side", "points": 1, "settle": { "by": "final", "take": "winner" }, "asked": "each", "closes": "start" },
+          { "id": "top", "ask": "Who throws for the most yards?", "answer": "person", "pick": 1, "from": "cast", "points": 1, "settle": { "by": "stat", "stat": "PYDS", "take": "most" }, "asked": "each", "closes": "start" },
+          { "id": "total", "ask": "Total points: over or under?", "answer": "overUnder", "line": "game", "points": 1, "settle": { "by": "final", "take": "total" }, "asked": "each", "closes": "start" }
+        ] } },
+        "basketball": { "plain": "Winner, top scorer, the total", "about": "Three calls before each of their games: who wins, who scores the most, and are the total points over or under the line. A point for each right." },
+        "baseball": { "plain": "Winner, most hits, total runs", "about": "Three calls before each of their games: who wins, who gets the most hits, and are the total runs over or under the line. A point for each right.", "spec": { "spec": 1, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [
+          { "id": "winner", "ask": "Who wins?", "answer": "side", "points": 1, "settle": { "by": "final", "take": "winner" }, "asked": "each", "closes": "start" },
+          { "id": "top", "ask": "Who gets the most hits?", "answer": "person", "pick": 1, "from": "cast", "points": 1, "settle": { "by": "stat", "stat": "H", "take": "most" }, "asked": "each", "closes": "start" },
+          { "id": "total", "ask": "Total runs: over or under?", "answer": "overUnder", "line": "game", "points": 1, "settle": { "by": "final", "take": "total" }, "asked": "each", "closes": "start" }
+        ] } },
+        "hockey": { "plain": "Winner, top scorer, total goals", "about": "Three calls before each of their games: who wins, who gets the most points, and are the total goals over or under the line. A point for each right.", "spec": { "spec": 1, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [
+          { "id": "winner", "ask": "Who wins?", "answer": "side", "points": 1, "settle": { "by": "final", "take": "winner" }, "asked": "each", "closes": "start" },
+          { "id": "top", "ask": "Who gets the most points?", "answer": "person", "pick": 1, "from": "cast", "points": 1, "settle": { "by": "stat", "stat": "PTS", "take": "most" }, "asked": "each", "closes": "start" },
+          { "id": "total", "ask": "Total goals: over or under?", "answer": "overUnder", "line": "game", "points": 1, "settle": { "by": "final", "take": "total" }, "asked": "each", "closes": "start" }
+        ] } },
+        "soccer": { "plain": "Result, top scorer, total goals", "about": "Three calls before each of their matches: the result (a draw counts), who scores the most, and are the total goals over or under the line. A point for each right.", "spec": { "spec": 1, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [
+          { "id": "winner", "ask": "Who wins, or is it a draw?", "answer": "side", "draw": true, "points": 1, "settle": { "by": "final", "take": "winner" }, "asked": "each", "closes": "start" },
+          { "id": "top", "ask": "Who scores the most goals?", "answer": "person", "pick": 1, "from": "cast", "points": 1, "settle": { "by": "stat", "stat": "G", "take": "most" }, "asked": "each", "closes": "start" },
+          { "id": "total", "ask": "Total goals: over or under?", "answer": "overUnder", "line": "game", "points": 1, "settle": { "by": "final", "take": "total" }, "asked": "each", "closes": "start" }
+        ] } }
+      }
+    },
+    {
+      "id": "sp-ou", "sports": ["football", "basketball", "baseball", "hockey", "soccer"], "cat": "predict", "on": ["game"],
+      "name": "Over / under", "plain": "Over or under the line?",
+      "about": "Before each of their games, call the total over or under the sportsbook's line, kept from when the pick opens. A point for each right.",
+      "effort": "1 call a game", "len": "Their games",
+      "spec": { "spec": 1, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "total", "ask": "The total: over or under?", "answer": "overUnder", "line": "game", "points": 1, "settle": { "by": "final", "take": "total" }, "asked": "each", "closes": "start" }] }
+    },
+    {
+      "id": "sp-totals", "sports": ["football", "basketball", "baseball", "hockey", "soccer"], "cat": "predict", "on": ["slate", "playoffs"],
+      "name": "Over/under pick'em", "plain": "Over or under, every game",
+      "about": "Each week, call every game's total over or under its own line, each kept from when its pick opens. A point for every one right.",
+      "effort": "A call for every game", "len": "Season", "lens": { "playoffs": "Playoffs" },
+      "spec": { "spec": 1, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "total", "ask": "The total: over or under?", "answer": "overUnder", "line": "game", "each": "game", "asked": "each", "points": 1, "settle": { "by": "final", "take": "total" }, "closes": "start" }] }
+    },
+    {
+      "id": "sp-margin", "sports": ["football", "basketball", "baseball", "hockey", "soccer"], "cat": "predict", "on": ["game"],
+      "name": "Winner and margin", "plain": "Who wins, and by how much?",
+      "about": "Before each of their games, pick the winner and guess the margin. A point for the winner, and a point for whoever's closest on the margin.",
+      "effort": "2 calls a game", "len": "Their games",
+      "spec": { "spec": 1, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [
+        { "id": "winner", "ask": "Who wins?", "answer": "side", "points": 1, "settle": { "by": "final", "take": "winner" }, "asked": "each", "closes": "start" },
+        { "id": "margin", "ask": "By how many?", "answer": "number", "points": 1, "settle": { "by": "final", "take": "margin" }, "asked": "each", "closes": "start" }
+      ] }
+    },
+    {
+      "id": "sp-score", "sports": ["football", "soccer", "hockey"], "cat": "predict", "on": ["game"],
+      "name": "Score predictor", "plain": "Call the exact final score",
+      "about": "Before each game, call the final score. Points for the right result, more for the exact score.",
+      "effort": "1 call a game", "len": "Their games",
+      "coming": "No step yet: each side's own score as an answer",
+      "gap": "A game's final settles who won, the total or the margin (answers.js standingIn), never each side's score; two numbers (total and margin) can't say an exact score either."
+    },
+    {
+      "id": "sp-first-scorer", "sports": ["football", "hockey", "soccer"], "cat": "predict", "on": ["game"],
+      "name": "First scorer", "plain": "Who scores first?",
+      "about": "Before each game, pick who scores first. Points if you're right.",
+      "effort": "1 pick a game", "len": "Their games",
+      "coming": "No step yet: the order of a game's plays",
+      "gap": "Who scored first needs the order of a game's plays; the engine keeps each game's box score (its counts), not its plays, and a stat's settle takes the most, the least or a value.",
+      "by": { "football": { "name": "First touchdown scorer", "plain": "Who scores the first touchdown?" }, "soccer": { "name": "First goalscorer", "plain": "Who scores the first goal?" }, "hockey": { "name": "First goal", "plain": "Who scores the first goal?" } }
+    },
+    {
+      "id": "sp-squares", "sports": ["football", "basketball"], "cat": "bets", "on": ["game"],
+      "name": "Squares", "plain": "A grid of the scores' last digits",
+      "about": "Take squares on a 10-by-10 grid; the digits are drawn once everyone has theirs. When a quarter ends, the square matching the two scores' last digits wins.",
+      "effort": "Take squares once", "len": "1 game",
+      "spec": { "standard": "squares" },
+      "by": {
+        "football": { "name": "Football squares", "plain": "The Super Bowl party grid" },
+        "basketball/mens-college-basketball": { "about": "Take squares on a 10-by-10 grid; the digits are drawn once everyone has theirs. At halftime and at the final, the square matching the two scores' last digits wins." }
+      }
+    },
+    {
+      "id": "sp-bank", "sports": ["football", "basketball", "baseball", "hockey", "soccer"], "cat": "bets", "on": ["game"],
+      "name": "Betting pool", "plain": "Bet points on the total, the margin, the top player",
+      "about": "Everyone starts with 500 points to bet on each of their games: the total over or under the line, the margin, and who leads the game in the big stat, or a ticket of them. Points, never money.",
+      "effort": "Bets each game", "len": "Their games",
+      "spec": { "spec": 1, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers", "bank": { "start": 500 } }, "rank": { "by": "total" }, "closes": "start", "ask": [
+        { "id": "total", "ask": "Total points: over or under?", "answer": "overUnder", "line": "game", "points": 0, "wager": "total", "settle": { "by": "final", "take": "total" }, "asked": "each", "closes": "start" },
+        { "id": "margin", "ask": "By how many?", "answer": "choice", "options": ["1-5", "6-10", "11+"], "points": 0, "wager": "total", "settle": { "by": "final", "take": "margin" }, "asked": "each", "closes": "start" },
+        { "id": "top", "ask": "Who scores the most points?", "answer": "person", "pick": 1, "from": "cast", "points": 0, "wager": "total", "settle": { "by": "stat", "stat": "PTS", "take": "most" }, "asked": "each", "closes": "start" },
+        { "id": "ticket", "ask": "Build a ticket", "answer": "ticket", "points": 0, "wager": "total", "settle": { "by": "legs", "of": ["total", "margin", "top"] }, "asked": "each", "closes": "start" }
+      ] },
+      "by": {
+        "football": { "spec": { "spec": 1, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers", "bank": { "start": 500 } }, "rank": { "by": "total" }, "closes": "start", "ask": [
+          { "id": "total", "ask": "Total points: over or under?", "answer": "overUnder", "line": "game", "points": 0, "wager": "total", "settle": { "by": "final", "take": "total" }, "asked": "each", "closes": "start" },
+          { "id": "margin", "ask": "By how many?", "answer": "choice", "options": ["1-6", "7-13", "14+"], "points": 0, "wager": "total", "settle": { "by": "final", "take": "margin" }, "asked": "each", "closes": "start" },
+          { "id": "top", "ask": "Who throws for the most yards?", "answer": "person", "pick": 1, "from": "cast", "points": 0, "wager": "total", "settle": { "by": "stat", "stat": "PYDS", "take": "most" }, "asked": "each", "closes": "start" },
+          { "id": "ticket", "ask": "Build a ticket", "answer": "ticket", "points": 0, "wager": "total", "settle": { "by": "legs", "of": ["total", "margin", "top"] }, "asked": "each", "closes": "start" }
+        ] } },
+        "baseball": { "spec": { "spec": 1, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers", "bank": { "start": 500 } }, "rank": { "by": "total" }, "closes": "start", "ask": [
+          { "id": "total", "ask": "Total runs: over or under?", "answer": "overUnder", "line": "game", "points": 0, "wager": "total", "settle": { "by": "final", "take": "total" }, "asked": "each", "closes": "start" },
+          { "id": "margin", "ask": "By how many runs?", "answer": "choice", "options": ["1", "2-3", "4+"], "points": 0, "wager": "total", "settle": { "by": "final", "take": "margin" }, "asked": "each", "closes": "start" },
+          { "id": "top", "ask": "Who gets the most hits?", "answer": "person", "pick": 1, "from": "cast", "points": 0, "wager": "total", "settle": { "by": "stat", "stat": "H", "take": "most" }, "asked": "each", "closes": "start" },
+          { "id": "ticket", "ask": "Build a ticket", "answer": "ticket", "points": 0, "wager": "total", "settle": { "by": "legs", "of": ["total", "margin", "top"] }, "asked": "each", "closes": "start" }
+        ] } },
+        "hockey": { "spec": { "spec": 1, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers", "bank": { "start": 500 } }, "rank": { "by": "total" }, "closes": "start", "ask": [
+          { "id": "total", "ask": "Total goals: over or under?", "answer": "overUnder", "line": "game", "points": 0, "wager": "total", "settle": { "by": "final", "take": "total" }, "asked": "each", "closes": "start" },
+          { "id": "margin", "ask": "By how many goals?", "answer": "choice", "options": ["1", "2", "3+"], "points": 0, "wager": "total", "settle": { "by": "final", "take": "margin" }, "asked": "each", "closes": "start" },
+          { "id": "top", "ask": "Who gets the most points?", "answer": "person", "pick": 1, "from": "cast", "points": 0, "wager": "total", "settle": { "by": "stat", "stat": "PTS", "take": "most" }, "asked": "each", "closes": "start" },
+          { "id": "ticket", "ask": "Build a ticket", "answer": "ticket", "points": 0, "wager": "total", "settle": { "by": "legs", "of": ["total", "margin", "top"] }, "asked": "each", "closes": "start" }
+        ] } },
+        "soccer": { "spec": { "spec": 1, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers", "bank": { "start": 500 } }, "rank": { "by": "total" }, "closes": "start", "ask": [
+          { "id": "total", "ask": "Total goals: over or under?", "answer": "overUnder", "line": "game", "points": 0, "wager": "total", "settle": { "by": "final", "take": "total" }, "asked": "each", "closes": "start" },
+          { "id": "margin", "ask": "By how many goals?", "answer": "choice", "options": ["0", "1", "2+"], "points": 0, "wager": "total", "settle": { "by": "final", "take": "margin" }, "asked": "each", "closes": "start" },
+          { "id": "top", "ask": "Who scores the most goals?", "answer": "person", "pick": 1, "from": "cast", "points": 0, "wager": "total", "settle": { "by": "stat", "stat": "G", "take": "most" }, "asked": "each", "closes": "start" },
+          { "id": "ticket", "ask": "Build a ticket", "answer": "ticket", "points": 0, "wager": "total", "settle": { "by": "legs", "of": ["total", "margin", "top"] }, "asked": "each", "closes": "start" }
+        ] } }
+      }
+    },
+    {
+      "id": "sp-parlay", "sports": ["football", "basketball", "baseball", "hockey", "soccer"], "cat": "bets", "on": ["game"],
+      "name": "Same-game parlay", "plain": "Both calls right: triple",
+      "about": "Before each of their games, call the total over or under the line and who leads the game in the big stat. Get both right and your points triple.",
+      "effort": "2 calls a game", "len": "Their games",
+      "spec": { "spec": 1, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers", "parlays": [{ "of": ["total", "top"], "times": 3 }] }, "rank": { "by": "total" }, "closes": "start", "ask": [
+        { "id": "total", "ask": "Total points: over or under?", "answer": "overUnder", "line": "game", "points": 2, "settle": { "by": "final", "take": "total" }, "asked": "each", "closes": "start" },
+        { "id": "top", "ask": "Who scores the most points?", "answer": "person", "pick": 1, "from": "cast", "points": 2, "settle": { "by": "stat", "stat": "PTS", "take": "most" }, "asked": "each", "closes": "start" }
+      ] },
+      "by": {
+        "football": { "spec": { "spec": 1, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers", "parlays": [{ "of": ["total", "top"], "times": 3 }] }, "rank": { "by": "total" }, "closes": "start", "ask": [
+          { "id": "total", "ask": "Total points: over or under?", "answer": "overUnder", "line": "game", "points": 2, "settle": { "by": "final", "take": "total" }, "asked": "each", "closes": "start" },
+          { "id": "top", "ask": "Who throws for the most yards?", "answer": "person", "pick": 1, "from": "cast", "points": 2, "settle": { "by": "stat", "stat": "PYDS", "take": "most" }, "asked": "each", "closes": "start" }
+        ] } },
+        "baseball": { "spec": { "spec": 1, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers", "parlays": [{ "of": ["total", "top"], "times": 3 }] }, "rank": { "by": "total" }, "closes": "start", "ask": [
+          { "id": "total", "ask": "Total runs: over or under?", "answer": "overUnder", "line": "game", "points": 2, "settle": { "by": "final", "take": "total" }, "asked": "each", "closes": "start" },
+          { "id": "top", "ask": "Who gets the most hits?", "answer": "person", "pick": 1, "from": "cast", "points": 2, "settle": { "by": "stat", "stat": "H", "take": "most" }, "asked": "each", "closes": "start" }
+        ] } },
+        "hockey": { "spec": { "spec": 1, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers", "parlays": [{ "of": ["total", "top"], "times": 3 }] }, "rank": { "by": "total" }, "closes": "start", "ask": [
+          { "id": "total", "ask": "Total goals: over or under?", "answer": "overUnder", "line": "game", "points": 2, "settle": { "by": "final", "take": "total" }, "asked": "each", "closes": "start" },
+          { "id": "top", "ask": "Who gets the most points?", "answer": "person", "pick": 1, "from": "cast", "points": 2, "settle": { "by": "stat", "stat": "PTS", "take": "most" }, "asked": "each", "closes": "start" }
+        ] } },
+        "soccer": { "spec": { "spec": 1, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers", "parlays": [{ "of": ["total", "top"], "times": 3 }] }, "rank": { "by": "total" }, "closes": "start", "ask": [
+          { "id": "total", "ask": "Total goals: over or under?", "answer": "overUnder", "line": "game", "points": 2, "settle": { "by": "final", "take": "total" }, "asked": "each", "closes": "start" },
+          { "id": "top", "ask": "Who scores the most goals?", "answer": "person", "pick": 1, "from": "cast", "points": 2, "settle": { "by": "stat", "stat": "G", "take": "most" }, "asked": "each", "closes": "start" }
+        ] } }
+      }
+    },
+    {
+      "id": "sp-bracket", "sports": ["football", "basketball", "baseball", "hockey"], "cat": "predict", "on": ["playoffs"],
+      "name": "Playoff bracket", "plain": "Pick every round to the title",
+      "about": "Before the playoffs start, pick who wins every series, round by round to the title. A point for each right in the first round, doubling every round after.",
+      "effort": "Once, then just watch", "len": "Playoffs",
+      "spec": { "standard": "bracket" },
+      "by": {
+        "football": { "about": "Before the playoffs start, pick who wins every game, round by round to the Super Bowl. A point for each right in the first round, doubling every round after." },
+        "football/college-football": { "name": "College Football Playoff bracket", "coming": "No step yet: college's postseason as one bracket", "gap": "A bracket reads a league's playoffs as one draw (src/lib/sports/playoffs.ts); college's postseason (the bowls and the playoff on one calendar) isn't read as one, and college football's defaults have no bracket." },
+        "basketball/mens-college-basketball": { "name": "March Madness bracket", "coming": "L4: college's tournament as a playoffs slate", "gap": "The tracker's w056: a bracket of a league's playoffs plays on the NBA's and WNBA's (L8 part 1's engine items, part 2: the defaults' bracket); college's tournament isn't read as a playoffs slate yet." },
+        "basketball/womens-college-basketball": { "name": "March Madness bracket", "coming": "L4: college's tournament as a playoffs slate", "gap": "As the men's (the tracker's w056): college's tournament isn't read as a playoffs slate yet." },
+        "baseball/college-baseball": { "name": "College World Series bracket", "coming": "No step yet: college's postseason as one bracket", "gap": "A bracket reads a league's playoffs as one draw (src/lib/sports/playoffs.ts); college's postseason isn't read as one, and college baseball's defaults have no bracket." }
+      }
+    },
+    {
+      "id": "sp-cup-bracket", "sports": ["soccer"], "cat": "predict", "on": ["playoffs"],
+      "name": "Knockout bracket", "plain": "Pick every tie to the final",
+      "about": "Before the knockout rounds start, pick who goes through in every tie, round by round to the final. More points for each later round.",
+      "effort": "Once, then just watch", "len": "Playoffs",
+      "coming": "No step yet: a cup's knockout rounds as one bracket",
+      "gap": "A bracket of a league's playoffs plays where the sport's defaults have one (the NFL's, NBA's, WNBA's, NHL's and MLB's: L8 part 1's engine items, part 2); soccer's defaults have none, and a cup's knockout rounds (two legs, extra time, penalties) aren't read as one draw."
+    },
+    {
+      "id": "sp-weeks", "sports": ["football", "basketball", "baseball", "hockey", "soccer"], "cat": "versus", "on": ["slate"],
+      "name": "Weekly high score", "plain": "Top score each week wins the week",
+      "about": "Draft a full roster and set your lineup. Each week's top score wins the week, and the most weeks won takes the season.",
+      "effort": "Set your lineup each day", "len": "Season",
+      "spec": { "standard": "season", "with": { "rank": { "by": "weeks" } } },
+      "by": { "football": { "effort": "Set your lineup each week" }, "soccer": { "effort": "Pick your 11 each round", "plain": "Top score each round wins the round" } }
+    },
+    {
+      "id": "sp-live", "sports": ["football", "basketball", "baseball", "hockey", "soccer"], "cat": "predict", "on": ["game"],
+      "name": "Live calls", "plain": "Guess each play as it happens",
+      "about": "Call what happens next while the game is on: the next drive, the next at-bat, the next goal. The earlier you call it, the more it pays.",
+      "effort": "Calls while you watch", "len": "1 game",
+      "coming": "A15 and L4: calls on the game's clock",
+      "gap": "The tracker's s59 to s61 (A15: calls on the episode's clock) and live.plays (L4: a call on every play)."
+    },
+    {
+      "id": "ev-season", "sports": ["golf", "racing", "mma", "tennis"], "cat": "fantasy", "on": ["event"],
+      "name": "Season league", "plain": "Draft a stable; start some each event",
+      "about": "Draft a stable before the season and choose who starts each event. Everyone you start scores what they do, and the most points over the season wins.",
+      "effort": "Choose who starts each event", "len": "Season",
+      "spec": { "standard": "season" },
+      "by": {
+        "golf": { "name": "Season of tournaments", "plain": "Draft 8 golfers; start 6 each week", "about": "Draft eight golfers before the season and start six each tournament: birdies, bogey-free rounds and the finish all score. The most points over the season wins.", "effort": "Choose who starts each tournament" },
+        "racing": { "plain": "Draft drivers; start some each race", "about": "Draft a stable of drivers before the season and start most of them each race: the finish, laps led and fastest laps score. The most points over the season wins.", "effort": "Choose who starts each race" },
+        "mma": { "name": "Season of cards", "plain": "Draft 8 fighters; start 6 each card", "about": "Draft eight fighters and start six each card; each starter scores on the nights they fight, for strikes, takedowns and the way they win. The most points over the season wins.", "effort": "Choose who starts each card" },
+        "tennis": { "plain": "Draft 8 players; start 6 each event", "about": "Draft eight players and start six each tournament; every match they play scores, games and sets won included. The most points over the season wins.", "effort": "Choose who starts each tournament" }
+      }
+    },
+    {
+      "id": "ev-draft", "sports": ["golf", "racing", "mma", "tennis"], "cat": "fantasy", "on": ["event"],
+      "name": "Tournament draft", "plain": "A few each, one event",
+      "about": "Everyone drafts a few for this one event, and every one of them scores. The most points when it's over wins.",
+      "effort": "Draft once, then just watch", "len": "1 event",
+      "spec": { "standard": "short" },
+      "by": {
+        "golf": { "plain": "3 golfers each, one tournament", "about": "Everyone drafts three golfers for this tournament, and every hole they play scores. The most points after Sunday wins.", "len": "1 tournament" },
+        "racing": { "name": "Race-day draft", "plain": "3 drivers each, one race", "about": "Everyone drafts three drivers for this race, and every one of them scores: the finish, laps led and fastest laps. The most points at the flag wins.", "len": "1 race" },
+        "mma": { "name": "Fight-night draft", "plain": "3 fighters each, one card", "about": "Everyone drafts three fighters from tonight's card, and every one of them scores for what they do in the cage. The most points after the main event wins.", "len": "1 card" },
+        "tennis": { "plain": "3 players each, one tournament", "about": "Everyone drafts three players for this tournament, and every match they play scores. The most points after the final wins.", "len": "1 tournament" }
+      }
+    },
+    {
+      "id": "ev-bestball", "sports": ["golf"], "cat": "fantasy", "on": ["event"],
+      "name": "Best ball", "plain": "Draft 6 golfers; your best 4 count",
+      "about": "Draft six golfers once and never set a lineup. Each tournament your best four count by themselves.",
+      "effort": "Draft once, then just watch", "len": "Season",
+      "spec": { "standard": "bestBall" }
+    },
+    {
+      "id": "ev-winner", "sports": ["golf", "racing", "mma", "tennis"], "cat": "pools", "on": ["event"],
+      "name": "Pick the winner", "plain": "One pick each event: who wins?",
+      "about": "Before each event, pick the winner. Five points if you're right, and the most points over the season wins.",
+      "effort": "1 pick an event", "len": "Season",
+      "spec": { "standard": "pickem" },
+      "by": {
+        "golf": { "about": "Before each tournament, pick the winner. Five points if you're right, and the most points over the season wins.", "effort": "1 pick a tournament" },
+        "racing": { "about": "Before each race weekend, pick the winner. Five points if you're right, and the most points over the season wins.", "effort": "1 pick a race" },
+        "mma": { "name": "Main event pick", "plain": "Who wins the main event?", "about": "Before each card, pick who wins the main event. Five points if you're right (a draw or no contest counts for nobody), and the most points wins.", "effort": "1 pick a card" },
+        "tennis": { "name": "Pick the champion", "plain": "Who wins the final?", "about": "Before each tournament, pick who wins it. Five points if you're right, and the most points over the season wins.", "effort": "1 pick a tournament" }
+      }
+    },
+    {
+      "id": "ev-pick-a-few", "sports": ["golf", "racing"], "cat": "pools", "on": ["event"],
+      "name": "Pick three", "plain": "3 picks; one of them wins?",
+      "about": "Before each event, pick three. Five points if one of them wins, and the most points over the season wins.",
+      "effort": "3 picks an event", "len": "Season",
+      "spec": { "standard": "pickAFew" },
+      "by": { "golf": { "plain": "3 golfers; one of them wins?", "effort": "3 picks a tournament" }, "racing": { "plain": "3 drivers; one of them wins?", "effort": "3 picks a race" } }
+    },
+    {
+      "id": "ev-top", "sports": ["golf", "racing"], "cat": "predict", "on": ["event"],
+      "name": "Podium pick", "plain": "Pick the top 3",
+      "about": "Before each race, pick the three on the podium. A point for each one who finishes in the top three.",
+      "effort": "3 picks a race", "len": "Season",
+      "spec": { "spec": 1, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "podium", "ask": "Who finishes on the podium?", "answer": "person", "pick": 3, "from": "cast", "points": 1, "settle": { "by": "final", "take": "top", "place": 3 }, "asked": "each", "closes": "start" }] },
+      "by": { "golf": { "name": "Top 5 pick", "plain": "Pick 5 for the top 5", "about": "Before each tournament, pick five golfers. A point for each one who finishes in the top five (ties at fifth all count).", "effort": "5 picks a tournament", "spec": { "spec": 1, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "top", "ask": "Who finishes in the top 5?", "answer": "person", "pick": 5, "from": "cast", "points": 1, "settle": { "by": "final", "take": "top", "place": 5 }, "asked": "each", "closes": "start" }] } } }
+    },
+    {
+      "id": "ev-one-and-done", "sports": ["golf", "racing"], "cat": "pools", "on": ["event"],
+      "name": "One and done", "plain": "One pick each event; never the same twice",
+      "about": "Each event, pick one; they score for you, and you can't use them again all season. The most points wins.",
+      "effort": "1 pick an event", "len": "Season",
+      "coming": "No step yet: a pick scored by a sport's stats",
+      "gap": "A pick that never repeats plays (A11 part 2's repeat 'never'), but a pick each event scored by a sport's stats has no place yet (our check: \"a pick each episode scored by its stats has no place yet: a draft's lineup or best ball does\")."
+    },
+    {
+      "id": "ev-tiers", "sports": ["golf"], "cat": "pools", "on": ["event"],
+      "name": "Tiered pool", "plain": "One golfer from each tier",
+      "about": "The majors' office pool: pick one golfer from each tier, favourites to long shots, and your best scores count.",
+      "effort": "Picks once a tournament", "len": "1 tournament",
+      "coming": "No step yet: tiers of golfers",
+      "gap": "A draft can spread across groups the data has (A10 part 3's get.across), but a golf field has none: no odds or world ranking per golfer to tier them by."
+    },
+    {
+      "id": "ev-budget", "sports": ["racing"], "cat": "fantasy", "on": ["event"],
+      "name": "Budget fantasy", "plain": "F1 Fantasy style: a team under a budget",
+      "about": "Every driver has a price; build a team under the budget and change it between races.",
+      "effort": "Transfers each race", "len": "Season",
+      "coming": "No step yet: a price for each driver",
+      "gap": "A salary cap prices each castaway by their points so far in a draft scored by moments (A10 part 3b); a sport's stats price nobody."
+    },
+    {
+      "id": "ev-card-pickem", "sports": ["mma"], "cat": "pools", "on": ["event"],
+      "name": "Fight card pick'em", "plain": "Pick every fight on the card",
+      "about": "Before the card, pick the winner of every bout. A point for each right, and the most points wins.",
+      "effort": "A pick for every fight", "len": "Season",
+      "coming": "No step yet: a pick for each bout",
+      "gap": "A question about each game is a slate's games (each: 'game'); a card's bouts are one event, and a bout's own pick is only the main event's (settle.of 'main')."
+    },
+    {
+      "id": "ev-method", "sports": ["mma"], "cat": "predict", "on": ["event"],
+      "name": "Method of victory", "plain": "KO, submission or decision?",
+      "about": "Before the main event, call how it ends: a knockout, a submission or the judges. Points if you're right.",
+      "effort": "1 call a card", "len": "Season",
+      "coming": "No step yet: how a bout ended, as an answer",
+      "gap": "A bout's final settles who won (answers.js standingIn); the way it ended is kept (its outcome) but no question takes it."
+    },
+    {
+      "id": "ev-bracket", "sports": ["tennis"], "cat": "predict", "on": ["event"],
+      "name": "Draw bracket", "plain": "Pick every match of the draw",
+      "about": "Before each tournament, pick the winner of every match of the singles draw, round by round to the final. A point for each right in the first round, doubling every round after.",
+      "effort": "Once a tournament", "len": "Season",
+      "spec": { "standard": "bracket" }
+    }
+  ]
+}
