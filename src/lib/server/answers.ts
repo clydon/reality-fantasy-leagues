@@ -1,6 +1,7 @@
 import StateLogic from "@/lib/game/state-logic.js";
 import * as Spec from "@/lib/game/game-spec/index.js";
 import type { AnswerFacts, FormatGroups, Question, SpecContext, SportsGameFacts, Verdict } from "@/lib/game/game-spec/index.js";
+import type { BracketField } from "@/lib/game/sequence/bracket";
 import type { RulebookBlocks } from "@/lib/game/formats/rulebook-schema";
 import type { LeagueState } from "@/lib/game/types";
 import type { CallBook } from "@/lib/game/calls";
@@ -254,6 +255,23 @@ function gamesView(facts: AnswerFacts, q: Question, ep: number, now: number): No
       called: g.status === "off" ? (g.called ?? null) : null,
     }))
     .sort((a, b) => (a.startsAt ?? "").localeCompare(b.startsAt ?? "") || a.id.localeCompare(b.id));
+}
+
+/** Whether a question's faces come from the server's facts (factFaces): about each game, a trivia round, a side, a bracket. */
+export const fromFacts = (q: Question) => q.each === "game" || Spec.isTrivia(q) || q.answer === "side" || q.answer === "bracket";
+/**
+ * The faces an answer is checked against that come from the server's facts, as answerQuestions checks a person's and bots.ts a
+ * computer player's (E1b): a question about each game, each of the window's games by event id with its sides; a trivia round (A13),
+ * each of its questions' "id:option"; a side (L3 part 1), its game's teams (a question asked once: the game's first's); a bracket
+ * (L3 part 2e), its draw as listed now (who's in it, its matches so far). Null when there's none yet.
+ */
+export async function factFaces(state: LeagueState, q: Question, ep: number, facts: AnswerFacts): Promise<Set<string> | Map<string, Set<string>> | BracketField | null> {
+  if (q.each === "game") return gameFaces(facts, ep);
+  if (Spec.isTrivia(q)) return new Set((facts.trivia?.get(ep) ?? []).flatMap((t) => t.options.map((o) => `${t.id}:${o}`)));
+  const at = ep || (StateLogic.startEpisode(state) ?? 1);
+  if (q.answer === "side") return sidesFor(state, at, facts.games);
+  if (q.answer === "bracket") return drawNow(state, at, (q.settle as { of?: string }).of ?? "", { games: facts.games, playoffs: facts.playoffs ?? null });
+  return null;
 }
 
 /** L3 part 2f part 2: a question about each game's faces at a window, each game by event id with its sides. */
@@ -761,22 +779,13 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
       if (seen !== null && mark < seen) throw new HttpError(403, Spec.isTrivia(q) ? `See Episode ${seen} first: the round is about it` : `See Episode ${seen} first: it says who's still in`);
       // Who it can name (still in, your team, a group); for a pairs question, each pair's "index:id" (A8); a trivia round (A13), each
       // of its questions' "id:option".
-      const faces =
-        q.each === "game"
-          ? gameFaces(r.facts, ep)
-          : q.answer === "pairs"
+      const faces = fromFacts(q)
+        ? await factFaces(h.state, q, ep, r.facts)
+        : q.answer === "pairs"
           ? new Set(pairsOf(h.state, q).flatMap((p) => p.ids.map((id) => `${p.key}:${id}`)))
-          : Spec.isTrivia(q)
-            ? new Set(roundKey(r, ep).flatMap((t) => t.options.map((o) => `${t.id}:${o}`)))
-            : namesSomeone(q)
-              ? new Set(facesFor(view, q, h.playerId, r.facts.formatGroups?.get(ep)).map((f) => f.id))
-              : q.answer === "side"
-                ? // L3 part 1: a side is one of its game's teams (a question asked once: the game's first).
-                  await sidesFor(h.state, ep || (StateLogic.startEpisode(h.state) ?? 1), r.facts.games)
-                : q.answer === "bracket"
-                  ? // L3 part 2e: a bracket, its draw as listed now (who's in it, its matches so far).
-                    await drawNow(h.state, ep || (StateLogic.startEpisode(h.state) ?? 1), (q.settle as { of?: string }).of ?? "", { games: r.facts.games, playoffs: r.facts.playoffs ?? null })
-                  : null;
+          : namesSomeone(q)
+            ? new Set(facesFor(view, q, h.playerId, r.facts.formatGroups?.get(ep)).map((f) => f.id))
+            : null;
       let most: number | undefined;
       if (Spec.drawsOnBank(q, bank)) {
         room ??= await stakeRoom(r);

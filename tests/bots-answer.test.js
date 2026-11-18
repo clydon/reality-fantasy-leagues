@@ -31,8 +31,10 @@ const PAIRS = { id: "pairs", ask: "Who outlasts whom?", answer: "pairs", points:
 const SPLIT = { id: "split", ask: "The jury's split", answer: "split", points: 5, settle: { by: "results", take: "split" } };
 // Staked (E1b's second slice): a wager of house points, of your points as they stand, a bank's, a ticket.
 const BET = { id: "bet", ask: "An idol played? Stake on it", answer: "yesNo", points: 1, asked: "each", wager: 3, settle: { by: "moment", moment: "idolPlayed", take: "happened" } };
-// Still one they don't play: trivia (they'd need the round's key).
+// Trivia (E1b's leftovers: from the round's key, which the server reads).
 const TRIVIA = { id: "trivia", ask: "Trivia about the episode before", answer: "trivia", points: 1, asked: "each", settle: { by: "trivia" } };
+// Still one they don't play: an over/under on a game's own line (read from ESPN as it opens).
+const LINE = { id: "line", ask: "Over or under the line?", answer: "overUnder", points: 1, asked: "each", line: "game", settle: { by: "final", take: "total" } };
 const game = (ask) => ({ spec: 1, get: { by: "none" }, score: { by: "answers" }, ask });
 
 /** A game of questions as Start a game makes one, on Survivor, ann the person and two computer players (castaway ids c0-c7, so two
@@ -86,7 +88,8 @@ test("a closed question gets none, and a kind it doesn't answer yet gets none", 
   const ep = s.episodes.find((e) => e.number === now);
   ep.airsAt = new Date(Date.now() - 3600 * 1000).toISOString();
   assert.deepEqual(Bots.answers(s, [], { now: Date.now() }).filter((a) => a.question === "out"), [], "the episode has started: closed");
-  assert.ok(!Bots.answersQuestion(TRIVIA) && !Bots.answersAll(s), "trivia: not yet");
+  assert.ok(!Bots.answersQuestion(LINE), "an over/under on the game's own line: not yet");
+  assert.ok(Bots.answersQuestion(TRIVIA) && Bots.answersAll(s), "trivia: played (from the round's key)");
   assert.ok(Bots.answersQuestion(OUT) && Bots.answersQuestion(IDOL) && Bots.answersQuestion(HOW));
 });
 
@@ -249,9 +252,89 @@ test("the review's (E1b): a small jury's split adds up; a live late joiner waits
   assert.ok(!Bots.needsRoom(b, due, "bot0", null), "all answered: no room read");
 });
 
+test("about each person: an answer for each one still in, yes only for the one most in danger (E1b's leftovers)", () => {
+  const EACH = { id: "each", ask: "Each one: out?", answer: "yesNo", points: 1, asked: "each", each: "person", settle: { by: "results", take: "out" } };
+  const s = league([EACH]);
+  const out = Bots.answers(s, [], { now: 0 });
+  assert.equal(out.length, 2);
+  for (const a of out) {
+    assert.deepEqual(Object.keys(a.answer).sort(), s.castaways.map((c) => c.id).sort(), "each one still in");
+    assert.equal(Object.values(a.answer).filter((v) => v === "yes").length, 1, "yes for one");
+    const q = S.AnswerLogic.questions(s)[0];
+    assert.equal(G.answerProblem(q, a.answer, new Set(s.castaways.map((c) => c.id))), null);
+  }
+});
+
+test("trivia, from the round's key the server reads: each of its questions, one of its options; none without the key", () => {
+  const s = league([TRIVIA], ["sharp", "casual"]);
+  const ep = S.AnswerLogic.episodeNow(s);
+  assert.deepEqual(Bots.answers(s, [], { now: 0 }), [], "no key read: nothing");
+  const key = Array.from({ length: 12 }, (_, i) => ({ id: `t${i}`, answer: "A", options: ["A", "B", "C", "D"], question: `Q${i}`, kind: "text", episode: ep - 1, seasonId: "s", why: null, source: null }));
+  const ctx = { facts: { trivia: new Map([[ep, key]]) }, faces: new Map([[`trivia|${ep}`, new Set(key.flatMap((t) => t.options.map((o) => `${t.id}:${o}`)))]]) };
+  const out = Bots.answers(s, [], { now: 0, ctx });
+  assert.equal(out.length, 2);
+  for (const a of out) assert.equal(Object.keys(a.answer).length, 12, "every question in the round");
+  const right = (b) => Object.values(out.find((a) => a.playerId === b).answer).filter((x) => x === "A").length;
+  assert.ok(right("bot0") > right("bot1"), `a sharp one remembers more (${right("bot0")} to ${right("bot1")})`);
+  assert.deepEqual(Bots.answers(s, [], { now: 0, ctx }), out, "the same every time");
+});
+
+test("a sport: a side, each game (only those still to start, ranked where it asks) and a playoffs bracket, from the server's facts", () => {
+  const path = require("path");
+  const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
+  const { sportOf, specContextOf, defaultsFor } = jiti("../src/lib/sports/index.ts");
+  const nba = sportOf("basketball/nba");
+  const make = (ask, ctx = specContextOf(nba)) => {
+    const s = S.defaultState();
+    for (let i = 0; i < 4; i++) S.addCastaway(s, `P${i}`);
+    s.players = [{ id: "ann", name: "ann", color: "#000" }, { id: "bot0", name: "Bot", color: "#000", automated: true, botLevel: "solid" }];
+    S.updateSettings(s, "setupComplete", true);
+    assert.deepEqual(S.setGame(s, { spec: 1, get: { by: "none" }, score: { by: "answers" }, ask }, { ctx }), []);
+    for (let n = 1; n <= 2; n++) S.ensureEpisodeNumber(s, n, false);
+    return s;
+  };
+  const SIDE = { id: "w", ask: "Who wins?", answer: "side", points: 1, asked: "each", closes: "start", settle: { by: "final", take: "winner" } };
+  const s = make([SIDE]);
+  const ep = S.AnswerLogic.episodeNow(s);
+  const side = Bots.answers(s, [], { now: 0, ctx: { facts: {}, faces: new Map([[`w|${ep}`, new Set(["20", "5"])]]) } });
+  assert.ok(side.length === 1 && ["20", "5"].includes(side[0].answer), JSON.stringify(side));
+  // Each game: a started game's pick can't be added, so only the one still to start; ranked 1 to the games' count where it asks.
+  const later = new Date(Date.now() + 86400000).toISOString();
+  const slate = new Map([[ep, new Map([["e1", { status: "pre", listing: { startsAt: later } }], ["e2", { status: "in", listing: { startsAt: new Date(0).toISOString() } }]])]]);
+  const games = new Map([["e1", new Set(["20", "5"])], ["e2", new Set(["1", "2"])]]);
+  for (const confidence of [false, true]) {
+    const EACH = { id: "g", ask: "Pick each game", answer: "side", points: 1, asked: "each", each: "game", closes: "start", settle: { by: "final", take: "winner" }, ...(confidence ? { confidence: true } : {}) };
+    const t = make([EACH]);
+    const got = Bots.answers(t, [], { now: Date.now(), ctx: { facts: { slate }, faces: new Map([[`g|${ep}`, games]]), now: Date.now() } });
+    assert.deepEqual(Object.keys(got[0].answer), ["e1"], "only the game still to start");
+    const pick = confidence ? got[0].answer.e1.answer : got[0].answer.e1;
+    assert.ok(["20", "5"].includes(pick));
+    if (confidence) assert.ok(got[0].answer.e1.confidence >= 1 && got[0].answer.e1.confidence <= 2);
+    assert.equal(G.answerProblem(S.AnswerLogic.questions(t)[0], got[0].answer, games), null);
+  }
+  // A playoffs bracket: each round's winners from the draw as listed.
+  const spec = defaultsFor(nba.id, "nba").specs.bracket.spec;
+  const b = S.defaultState();
+  S.addCastaway(b, "Someone");
+  b.players = [{ id: "ann", name: "ann", color: "#000" }, { id: "bot0", name: "Bot", color: "#000", automated: true }];
+  S.updateSettings(b, "setupComplete", true);
+  assert.deepEqual(S.setGame(b, spec, { ctx: specContextOf(nba, "nba", { playoffs: true }) }), []);
+  for (let n = 1; n <= 3; n++) S.ensureEpisodeNumber(b, n, false);
+  const q = S.AnswerLogic.questions(b)[0];
+  const teams = ["a", "b", "c", "d", "e", "f", "g", "h"];
+  const field = { first: 3, entrants: Object.fromEntries(teams.map((t) => [t, 3])), matches: { 3: [["a", "b"], ["c", "d"], ["e", "f"], ["g", "h"]] }, winners: {}, over: false };
+  const bep = q.asked === "once" ? 0 : S.AnswerLogic.windowAt(b, q, S.AnswerLogic.episodeNow(b));
+  const br = Bots.answers(b, [], { now: 0, ctx: { facts: {}, faces: new Map([[`${q.id}|${bep}`, field]]) } });
+  assert.equal(br.length, 1, JSON.stringify(br));
+  const Bracket = require("../src/lib/game/sequence/bracket.js");
+  assert.equal(Bracket.bracketProblem(br[0].answer, field), null, JSON.stringify(br[0].answer));
+  assert.deepEqual([br[0].answer[3].length, br[0].answer[2].length, br[0].answer[1].length], [4, 2, 1], "four, two, a champion");
+});
+
 test("the gallery's Computer players square says the same: on for questions they answer, dashed with the reason for the rest", () => {
   assert.equal(C.botsFit(game([OUT, IDOL, WINS, HOW])), null);
-  assert.match(C.botsFit(game([OUT, TRIVIA])), /don't answer "Trivia about the episode before" yet/);
+  assert.match(C.botsFit(game([OUT, LINE])), /don't answer "Over or under the line\?" yet/);
+  assert.equal(C.botsFit(game([OUT, TRIVIA])), null, "trivia: played");
   assert.equal(C.botsFit(game([OUT, BET])), null, "a stake: played");
   assert.equal(C.botsFit(game([OUT, ORDER, CONF, CHIPS, PAIRS, SPLIT])), null, "an order, confidence, chips, pairs and a split: played");
   assert.equal(C.botsFit({ ...G.PRESETS.outlast }), null, "a draft");
@@ -293,7 +376,7 @@ test("at your own pace they play a game of questions too, and a draft with final
   assert.ok(botsPlay(s), "live: they answer");
   s.settings.ownPace = true;
   assert.ok(botsPlay(s), "at your own pace: they answer as they catch up");
-  assert.ok(!botsPlay(league([OUT, TRIVIA])), "trivia: not yet, at any pace");
+  assert.ok(botsPlay(league([OUT, TRIVIA])), "trivia too");
   const d = S.defaultState();
   S.ensureNextEpisode(d);
   S.updateSettings(d, "showId", "survivor");

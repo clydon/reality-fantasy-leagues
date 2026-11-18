@@ -47,12 +47,17 @@ export function answersQuestion(q: unknown): boolean;
 /** Whether computer players play every question this game asks. */
 export function answersAll(state: LeagueState): boolean;
 /** The questions a computer player answers into game_answers. */
-export function answeredQuestions(state: LeagueState): unknown[];
+export function answeredQuestions(state: LeagueState): import("./game-spec/index.js").Question[];
 /** The answers computer players would give now (the server writes them into game_answers: bots.ts). */
-export function answers(state: LeagueState, stored: { playerId: string; question: string; episode: number }[], o?: { now?: number; finale?: number | null; rooms?: Map<string, StakeRoom> }): { playerId: string; question: string; episode: number; answer: unknown }[];
+/** What the server's facts say, for a question about each game, trivia, a side or a bracket (bots.ts reads it): the facts, the faces
+ *  answers.ts checks each window's answer against ("question|episode"), and the time. */
+export type FactContext = { facts: unknown; faces: Map<string, unknown>; now?: number };
+export function answers(state: LeagueState, stored: { playerId: string; question: string; episode: number }[], o?: { now?: number; finale?: number | null; rooms?: Map<string, StakeRoom>; ctx?: FactContext }): { playerId: string; question: string; episode: number; answer: unknown }[];
 /** At your own pace: the answers each catching-up computer player gives as it reaches each week, through the week after `n` (null:
  *  its own mark), each on its own copy before that week (call before catchUpTo). */
-export function catchUpAnswers(state: LeagueState, stored: { playerId: string; question: string; episode: number }[], n: number | null, rooms?: Map<string, StakeRoom>, only?: { playerId: string; week: number }): { playerId: string; question: string; episode: number; answer: unknown }[];
+export function catchUpAnswers(state: LeagueState, stored: { playerId: string; question: string; episode: number }[], n: number | null, rooms?: Map<string, StakeRoom>, only?: { playerId: string; week: number }, ctx?: FactContext): { playerId: string; question: string; episode: number; answer: unknown }[];
+/** Whether any question computer players answer needs the server's facts (about each game, trivia, a side, a bracket). */
+export function needsFacts(state: LeagueState): boolean;
 /** Whether a seat has a question staked from its points or a bank still to answer (`week`: a catching-up seat's; null: live). */
 export function needsRoom(state: LeagueState, stored: { playerId: string; question: string; episode: number }[], playerId: string, week: number | null): boolean;
 /** A seat's room to stake (answer-points.ts seatStakeRoom), keyed "seat|live" or "seat|mark". */

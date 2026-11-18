@@ -4,9 +4,11 @@
 // check reads game_answers and the season's games read.
 //   - every computer player answers every question the game asks each week it plays (a card's lines and a ticket too), through
 //     the game's last episode and none after it;
-//   - staked answers are whole numbers of points, and in a game with a bank (C6) a computer player's stakes in any one week add up to
-//     no more than the bank's start (the room itself, its points as they stand, is the unit tests': tests/bots-answer.test.js);
+//   - staked answers are whole numbers of points, and those staked from points or a bank (C6) add up each week to no more than what
+//     the computer player had going into it (its room as the server reads a person's: answer-points.ts seatStakeRoom);
 //   - the games read lists them as computer players with a total, and the game is over once alex has revealed its last;
+//   - trivia: each round's batch filed as the bot's trivia run files it (three questions about the episode before, on the fixture's
+//     season), so a trivia base starts at Episode 2;
 //   - Beat the bot: our bot's call each week is written as the stand-in's (bot_calls made_by 'stand-in': the lane's AI keys are
 //     blank), someone still in going into it, so the game grades.
 // Needs: the dev server (npm run dev, or node scripts/lane.js dev) and its local database (AUTH_DATABASE_URL in .env.local). Every
@@ -21,6 +23,7 @@ const { Pool } = require("pg");
 const fixture = require("./new-fixture.js");
 const { api } = require("./browser.js");
 const C = require("../../src/lib/game/start-gallery/index.js");
+const jiti = require("jiti")(__filename, { alias: { "@": require("path").join(__dirname, "..", "..", "src"), "@db": require("path").join(__dirname, "..", "..", "db") } });
 
 const arg = (k, d) => (process.argv.find((a) => a.startsWith(`--${k}=`)) || "").split("=")[1] || d;
 const BASES = arg("bases", "sheet,props,beatbot,bank").split(",");
@@ -49,13 +52,30 @@ const check = (ok, what, more) => {
     const url = `/api/seasons/${fx.seasonId}/start?couch=${fx.couchId}`;
     const o = (await alex.call("GET", `${url}&wizard=1`)).body;
     const pg = C.pageFacts(o.wizard.page, { show: o.label });
-    const from = PACE === "own" ? FROM : o.from;
+    const from0 = PACE === "own" ? FROM : o.from;
     const to = PACE === "own" ? TO : null;
     for (const id of BASES) {
       const base = C.baseById(id);
       if (!base) {
         check(false, `${id}: a gallery base`);
         continue;
+      }
+      // A trivia round is about the episode before: a base asking one starts at Episode 2 at the earliest, and each round's batch is
+      // filed here as the bot's trivia run files it (trivia_questions on the fixture's season, which goes with it), dated well before
+      // its round's episode aired so it's that round's key (trivia-key.ts).
+      const asksTrivia = JSON.stringify(base.spec || {}).includes('"trivia"');
+      const from = asksTrivia && PACE === "own" && from0 < 2 ? 2 : from0;
+      if (asksTrivia) {
+        const last = to ?? from;
+        for (let n = Math.max(1, from - 1); n < last + (PACE === "own" ? 0 : 1); n++) {
+          for (let k = 1; k <= 3; k++) {
+            await pool.query(
+              `INSERT INTO trivia_questions (season_id, made_after, episode, kind, question, options, answer, why, source, status, created_at)
+               VALUES ($1, $2, $2, 'text', $3, $4::jsonb, 'A', null, 'https://example.invalid/recap', 'live', now() - interval '400 days')`,
+              [fx.seasonId, n, `zt question ${k} about Episode ${n}`, JSON.stringify(["A", "B", "C", "D"])]
+            );
+          }
+        }
       }
       const span = { from, to };
       const spec = { ...C.baseSpec(base, span, pg), span };
@@ -108,11 +128,28 @@ const check = (ok, what, more) => {
         const staked = rows.filter((r) => bots.includes(r.player_id) && r.answer && typeof r.answer === "object" && "stake" in r.answer);
         const stakes = staked.map((r) => r.answer.stake);
         if (stakes.length) check(stakes.every((n) => Number.isInteger(n) && n >= 0), `${id}: ${stakes.length} stakes, each a whole number of points`);
-        const bank = spec.score && spec.score.bank && spec.score.bank.start;
-        if (stakes.length && bank) {
-          const weekly = new Map();
-          for (const r of staked) weekly.set(`${r.player_id}|${r.episode}`, (weekly.get(`${r.player_id}|${r.episode}`) || 0) + r.answer.stake);
-          check([...weekly.values()].every((n) => n <= bank), `${id}: each computer player's stakes in a week within the bank's ${bank} (most ${Math.max(...weekly.values())})`);
+        // Staked from points or a bank: each week's stakes within what it had as it went into that week, read as the server reads a
+        // person's room (answer-points.ts seatStakeRoom at the week before, on the answers from before that week).
+        const S = require("../../src/lib/game/state-logic.js");
+        const G = require("../../src/lib/game/game-spec/index.js");
+        const drawn = S.AnswerLogic.questions(state).filter((q) => G.drawsOnBank(q, G.bankOf(S.gameOf(state)))).map((q) => q.id);
+        if (drawn.length) {
+          const { seatStakeRoom } = jiti("../../src/lib/server/answer-points.ts");
+          const { rows: now } = await pool.query("SELECT state FROM leagues WHERE id = $1", [leagueId]);
+          const all = rows.map((r) => ({ playerId: r.player_id, question: r.question, episode: r.episode, answer: r.answer }));
+          const over = [];
+          let most = 0;
+          for (const b of bots) {
+            for (let n = from; n <= to; n++) {
+              const week = staked.filter((r) => r.player_id === b && r.episode === n && drawn.includes(r.question)).reduce((x, r) => x + r.answer.stake, 0);
+              if (!week) continue;
+              const room = await seatStakeRoom(leagueId, now[0].state, b, n - 1, all.filter((r) => r.episode < n));
+              const left = room.points - [...room.held.values()].reduce((x, y) => x + y, 0);
+              most = Math.max(most, week);
+              if (week > left) over.push(`${b} Episode ${n}: ${week} of ${left}`);
+            }
+          }
+          check(!over.length, `${id}: each computer player's stakes in a week within what it had going into it (the most staked in a week ${most})`, over.join("; "));
         }
       }
       const read = (await alex.call("GET", `/api/seasons/${fx.seasonId}/games?couch=${fx.couchId}`)).body;

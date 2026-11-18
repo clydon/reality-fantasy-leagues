@@ -553,9 +553,9 @@ function hasWork(state) {
 // what usually happens (no, the low count). Deterministic like the rest: run twice, the second run has nothing to add.
 //
 // The kinds it answers (Spec.BOT_ANSWERS: E1b's second slice added an order, confidence, chips, pairs, a split and a ticket, stakes
-// and a card's lines, a host's too, writing its own card on its turn: hostLines); the rest (trivia, a side, a bracket, a question
-// about each person or game) wait, and the gallery says so (start-gallery/index.js botsFit reads the same rule). Weekly Calls are
-// calls.ts's (botCalls).
+// and a card's lines, a host's too, writing its own card on its turn: hostLines; then a question about each person or game, a side,
+// trivia and a bracket, the last three and each game from the server's facts: ctx); the gallery reads the same rule
+// (start-gallery/index.js botsFit). Weekly Calls are calls.ts's (botCalls).
 const ANSWERS = Spec.BOT_ANSWERS;
 /** Whether a computer player answers this question (the spec's one rule: game-spec answers.js botAnswers). */
 const answersQuestion = (q) => Spec.botAnswers(q);
@@ -575,11 +575,94 @@ function inState(state, q) {
 // A wager (E1b's second slice): its answer is the question's own; its stake is added where what it may stake is known (staked). A
 // ticket keeps its own (its stake is part of its answer).
 const bare = (q) => (q.wager !== undefined && q.answer !== "ticket" ? Spec.unwagered(q) : q);
-function answerFor(state, playerId, q0, faces, ep, answered) {
+function answerFor(state, playerId, q0, faces, ep, answered, ctx) {
   const q = bare(q0);
   const level = levelOf(state, playerId);
   const ids = faces.map((f) => f.id);
   const feel = (key) => hashOf(`${playerId}|${q.id}|${ep}|${key}`);
+  // E1b's leftovers: what the server's facts say (bots.ts reads them once per write for a game that asks such a question): `ctx`
+  // { facts, faces: Map "question|episode" -> the faces answers.ts checks against (factFaces), now }. None: no answer.
+  const fx = ctx && ctx.faces ? ctx.faces.get(`${q0.id}|${ep}`) : undefined;
+  const sure = level.read >= LEVELS.sharp.read ? 0.75 : level.read >= LEVELS.solid.read ? 0.6 : 0.45;
+  // A question about each game: a pick for each of the window's games still to start (a started one's pick can't be added), ranked
+  // by how sure it is where the question asks (1 to the games' count, each once).
+  if (q.each === "game") {
+    if (!(fx instanceof Map) || !fx.size) return null;
+    const slate = ctx.facts && ctx.facts.slate ? ctx.facts.slate.get(ep) : null;
+    const now = ctx.now || Date.now();
+    const started = (g) => !!g && (g.status === "off" || (g.listing && g.listing.startsAt ? Date.parse(g.listing.startsAt) <= now : g.status !== "pre"));
+    const open = [...fx.keys()].filter((id) => !started(slate && slate.get(id))).sort();
+    if (!open.length) return null;
+    const base = { ...q, each: undefined, confidence: undefined };
+    const pickOf = (id) => {
+      if (base.answer === "side") { const sides = [...fx.get(id)].sort(); return sides.length ? sides[feel(`side|${id}`) < 0.5 ? 0 : sides.length - 1] : null; }
+      return answerFor(state, playerId, { ...base, id: `${q.id}.${id}` }, faces, ep, null, null);
+    };
+    const order = open.slice().sort((a, b) => feel(`sure|${a}`) - feel(`sure|${b}`));
+    const out = {};
+    order.forEach((id, i) => {
+      const p = pickOf(id);
+      if (p === null || p === undefined) return;
+      out[id] = q.confidence === true ? { answer: p, confidence: fx.size - i } : p;
+    });
+    return Object.keys(out).length ? out : null;
+  }
+  // A question about each person still in: its own kind for each; who goes home as a yes or no, yes only for the one most in danger.
+  if (q.each) {
+    if (!ids.length) return null;
+    const base = { ...q, each: undefined, confidence: undefined };
+    const st0 = q.settle || {};
+    let top = null;
+    if (base.answer === "yesNo" && st0.take === "out") {
+      const r = ratings(state, level);
+      top = ids.slice().sort((a, b) => ((r[a] ? r[a].safety : 0) + taste(playerId, `${q.id}|${a}`, level) * 2) - ((r[b] ? r[b].safety : 0) + taste(playerId, `${q.id}|${b}`, level) * 2))[0];
+    }
+    const out = {};
+    for (const id of ids) {
+      const v = top !== null ? (id === top ? "yes" : "no") : answerFor(state, playerId, { ...base, id: `${q.id}.${id}` }, faces, ep, null, null);
+      if (v !== null && v !== undefined) out[id] = v;
+    }
+    return Object.keys(out).length ? out : null;
+  }
+  // A side (one game's two teams): its taste.
+  if (q.answer === "side") {
+    const sides = fx instanceof Set ? [...fx].sort() : [];
+    return sides.length ? sides[Math.min(sides.length - 1, Math.floor(feel("side") * sides.length))] : null;
+  }
+  // A trivia round about the episode before (A13): each of its questions, right as often as its level remembers (a sharp one most).
+  if (q.answer === "trivia") {
+    const key = ctx && ctx.facts && ctx.facts.trivia ? ctx.facts.trivia.get(ep) || [] : [];
+    if (!key.length) return null;
+    const out = {};
+    for (const t of key) {
+      const wrong = (t.options || []).filter((o) => o !== t.answer);
+      out[t.id] = feel(`tv|${t.id}`) < sure || !wrong.length ? t.answer : wrong[Math.floor(feel(`tw|${t.id}`) * wrong.length)];
+    }
+    return out;
+  }
+  // A bracket (L3 part 2e): each round's winners from the draw as listed, a winner of each listed match, the rest paired in order,
+  // each round's from the round before's and whoever enters there.
+  if (q.answer === "bracket") {
+    const f = fx;
+    if (!f || !Number.isInteger(f.first)) return null;
+    const out = {};
+    let pool = [];
+    for (let k = f.first; k >= 1; k--) {
+      const cand = [...pool, ...Object.keys(f.entrants || {}).filter((id) => f.entrants[id] === k).sort()];
+      const pick = (a, b) => (feel(`br|${k}|${a}|${b}`) < 0.5 ? a : b);
+      const won = [];
+      const used = new Set();
+      for (const [a, b] of (f.matches && f.matches[k]) || []) {
+        if (cand.includes(a) && cand.includes(b)) { won.push(pick(a, b)); used.add(a); used.add(b); }
+      }
+      const rest = cand.filter((id) => !used.has(id));
+      for (let i = 0; i + 1 < rest.length; i += 2) won.push(pick(rest[i], rest[i + 1]));
+      if (rest.length % 2) won.push(rest[rest.length - 1]);
+      out[k] = won.slice(0, 2 ** (k - 1));
+      pool = out[k];
+    }
+    return Object.keys(out).length ? out : null;
+  }
   // Who it names first: going home (who goes home, a boot order, ranked by who's likeliest to go), else doing well (who wins, scores,
   // a leaderboard). By the league's own ratings, with its taste.
   const st = q.settle || {};
@@ -672,6 +755,12 @@ function mostFor(state, q, key, room, staking) {
   if (!room) return null;
   return Math.min(cap, Spec.stakeMost(room.points, room.held, key, staking));
 }
+/** Whether a question's faces come from the server's facts (answers.ts factFaces): about each game, trivia, a side, a bracket. */
+const fromFacts = (q) => q.each === "game" || q.answer === "trivia" || q.answer === "side" || q.answer === "bracket";
+/** Whether any question it answers needs the server's facts: the server reads them for those (bots.ts). */
+function needsFacts(state) {
+  return answeredQuestions(state).some(fromFacts);
+}
 /** The questions a seat has answered in a window: stored, or in this run (a ticket's legs are its own answers). */
 const answeredIn = (stored, out, pid, ep) => new Set([...(stored || []), ...out].filter((r) => r.playerId === pid && r.episode === ep).map((r) => r.question));
 /** Tickets last: a ticket's legs are its own answers, made first. */
@@ -708,7 +797,7 @@ function stakesPoints(state) {
   return answeredQuestions(state).some((q) => Spec.drawsOnBank(q, bank));
 }
 /** One answer, checked as a person's is: its stake added, against who it can name, rank or pair, and what it may stake. */
-function oneAnswer(state, pid, q, ep, room, staking, answered) {
+function oneAnswer(state, pid, q, ep, room, staking, answered, ctx) {
   const AL = StateLogic.AnswerLogic;
   // A card's line: once its card is out (a card our bot chooses, or a host's once it's filed: its stamp), and only a line the card has
   // that week; never a host's own card it sits out (the card says the host doesn't answer). As answers.ts.
@@ -721,9 +810,12 @@ function oneAnswer(state, pid, q, ep, room, staking, answered) {
   const faces = AL.faces(state, q, { playerId: pid });
   const key = `${q.id}|${ep}`;
   const most = q.wager === undefined ? null : mostFor(state, q, key, room, staking);
-  const value = staked(q, answerFor(state, pid, q, faces, ep, answered), levelOf(state, pid), most);
+  // A question whose faces come from the server's facts (each game, trivia, a side, a bracket): only with them (`ctx`).
+  if (fromFacts(q) && !(ctx && ctx.faces && ctx.faces.get(key))) return null;
+  const value = staked(q, answerFor(state, pid, q, faces, ep, answered, ctx), levelOf(state, pid), most);
   if (value === null || value === undefined) return null;
-  if (Spec.answerProblem(q, value, faceSet(state, q, faces), most === null ? undefined : { most })) return null;
+  const checked = fromFacts(q) ? ctx.faces.get(key) : faceSet(state, q, faces);
+  if (Spec.answerProblem(q, value, checked, most === null ? undefined : { most })) return null;
   if (q.wager !== undefined && Spec.drawsOnBank(q, Spec.bankOf(StateLogic.gameOf(state)))) staking.set(key, value.stake);
   return value;
 }
@@ -731,6 +823,8 @@ function oneAnswer(state, pid, q, ep, room, staking, answered) {
  *  "pair:who"; nothing for the rest. */
 function faceSet(state, q0, faces) {
   const q = bare(q0);
+  // About each person: an answer only for who's still in.
+  if (q.each && q.each !== "game") return new Set(faces.map((f) => f.id));
   if (Spec.NAMES.includes(q.answer) || Spec.RANKS.includes(q.answer) || q.answer === "chips") return new Set(faces.map((f) => f.id));
   if (q.answer === "pairs") return new Set(Spec.pairsFrom(q, StateLogic.AnswerLogic.startIn(state)).flatMap((p) => p.map((id) => `${Spec.pairKey(p)}:${id}`)));
   return undefined;
@@ -755,7 +849,7 @@ function answers(state, stored, o) {
       const ep = q.asked === "once" ? 0 : AL.windowAt(state, q, now);
       if (ep === null || ep === undefined || have.has(`${pid}|${q.id}|${ep}`)) continue;
       if (AL.closed(state, q, ep, { now: opt.now, finale: opt.finale })) continue;
-      const value = oneAnswer(state, pid, q, ep, opt.rooms ? opt.rooms.get(`${pid}|live`) : null, staking, q.answer === "ticket" ? answeredIn(stored, out, pid, ep) : null);
+      const value = oneAnswer(state, pid, q, ep, opt.rooms ? opt.rooms.get(`${pid}|live`) : null, staking, q.answer === "ticket" ? answeredIn(stored, out, pid, ep) : null, opt.ctx);
       if (value === null) continue;
       out.push({ playerId: pid, question: q.id, episode: ep, answer: value });
     }
@@ -769,7 +863,7 @@ function answers(state, stored, o) {
  * before that week (GhostLogic.viewFor at the week before: that week's results unseen), so nothing it answers knows the outcome.
  * Call before catchUpTo moves them on (bots.ts catchUpBots), and after every write for their next week (answerForBots).
  */
-function catchUpAnswers(state, stored, n, rooms, only) {
+function catchUpAnswers(state, stored, n, rooms, only, ctx) {
   const G = StateLogic.GhostLogic;
   const AL = StateLogic.AnswerLogic;
   const qs = ticketsLast(answeredQuestions(state));
@@ -790,7 +884,7 @@ function catchUpAnswers(state, stored, n, rooms, only) {
       if (ep === null || ep === undefined || (q.asked !== "once" && ep !== week)) continue;
       const key = `${pid}|${q.id}|${ep}`;
       if (have.has(key) || AL.closed(view, q, ep, { mark: week - 1, player: pid })) continue;
-      const value = oneAnswer(view, pid, q, ep, rooms ? rooms.get(`${pid}|${week - 1}`) : null, staking, q.answer === "ticket" ? answeredIn(stored, out, pid, ep) : null);
+      const value = oneAnswer(view, pid, q, ep, rooms ? rooms.get(`${pid}|${week - 1}`) : null, staking, q.answer === "ticket" ? answeredIn(stored, out, pid, ep) : null, ctx);
       if (value === null) continue;
       have.add(key);
       out.push({ playerId: pid, question: q.id, episode: ep, answer: value });
@@ -815,4 +909,4 @@ function catchUpWeeks(state, n) {
   return out;
 }
 
-module.exports = { LEVELS, DEFAULT_LEVEL, isBot, botIds, ratings, run, hasWork, catchUpTo, paceTeams, blindSubmissions, auctionBids, waiverClaim, groupSlotPicks, ANSWERS, answersQuestion, answersAll, answeredQuestions, answers, catchUpAnswers, catchUpWeeks, stakesPoints, needsRoom, hostLines };
+module.exports = { LEVELS, DEFAULT_LEVEL, isBot, botIds, ratings, run, hasWork, catchUpTo, paceTeams, blindSubmissions, auctionBids, waiverClaim, groupSlotPicks, ANSWERS, answersQuestion, answersAll, answeredQuestions, answers, catchUpAnswers, catchUpWeeks, stakesPoints, needsRoom, hostLines, needsFacts };

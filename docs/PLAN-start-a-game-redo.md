@@ -479,7 +479,30 @@ then approval.
         Episode 6 lines are in host_cards; a Prediction sheet's six answers taken away, a read puts them back, and a read with nothing
         due leaves the league's updated_at alone. check-start-a-game.js's dashed example is now Redraft (a game in stages). 2,436
         unit tests pass.
-      **Left for E1b:** trivia (the round's key), a side, a bracket, a question about each person or game. Then E1d.
+      **E1b's leftovers, part 2, done (2026-11-18): each person, each game, a side, trivia and a bracket.** Every answer kind now but an
+      over/under on a game's own live line (`botAnswers`).
+      - **About each person:** an answer for each one still in, in the question's own kind; who goes home as a yes or no, yes only
+        for the one most in danger. Pure state. (A question about each person takes a yes or no, a number, an over/under or a choice,
+        so the "each pair" exclusion was dead and went.)
+      - **From the server's facts:** answers.ts `factFaces(state, q, ep, facts)` (and `fromFacts`) now builds the faces a person's
+        answer is checked against for each game, a trivia round, a side and a bracket; answerQuestions calls it, and so does bots.ts
+        `contextFor` (the facts as a seat at its mark sees them, `walked`, and each such question's faces at its window), once per
+        write live, once per seat-week catching up, and in `botsDue`'s read check. bot-logic.js: each game, a pick for each game
+        still to start (a started one's can't be added), ranked 1 to the games' count where it asks; a side, its taste; trivia, each
+        of the round's questions, right as often as its level remembers (sharp 75%, normal 60%, easy 45%: the round's about the
+        episode before, which it has seen); a bracket, a winner of each listed match and the rest paired in order, each round's from
+        the round before's and whoever enters there.
+      - **Proof.** tests/bots-answer.test.js (each person: yes for one; trivia: none without the key, every question with it, a sharp
+        one right more; NBA: a side, each game only for the one still to start and ranked, a playoffs bracket that `bracketProblem`
+        accepts, four then two then a champion); check-bots-play-through.js files each trivia round's batch (a trivia base starts at
+        Episode 2) and plays trivia to its end (two computer players on 5 and 4 of 9); check-sports-couch.js starts the Eagles'
+        Pick'em again from the gallery's route with a computer player, its pick of a side in at once ("9301"); 2,439 unit tests pass.
+      - **The play-through check's stake rule, corrected:** "a week's stakes within the bank's start" was wrong (a computer player
+        that won early holds more than it started with: a run staked 564 of a bank grown past it). It now checks each week's stakes
+        against what that player had going into the week, read as the server reads a person's room (`seatStakeRoom` at the week
+        before, on the answers from before it).
+      **E1b is done** but for an over/under on a game's own live line (a line read from ESPN as each game's pick opens; the server
+      keeps it per game, which a computer player would read the same way). Next: E1d.
     - **E1c. Cards, calls and bingo** (each its own small step, after a named question to the user: a bingo card or a call is
       honour-based, tapped by whoever sees it; should a computer player mark its card from what research settles after the
       episode, or sit those games out?). Until then they stay dashed in Who's playing with the reason.

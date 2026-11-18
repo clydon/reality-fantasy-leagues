@@ -8,7 +8,8 @@
 //   basketball/zt-scb ZT Sixers (9401) host the ZT Knicks (9402) three days running from tomorrow (a series), then play them away
 //   API (as alex): the search (a team, two teams as a matchup), a team's schedule (opponents' colours), Follow and the couch's
 //   teams, the guide's week, the rail (Pick'em first, every game fitting), Play the next game (Pick'em on one game, its spec, its
-//   span) and its Undo, Squares on the same game, a draft on the series, Pick'em on the rest of the season, a sport's season on the
+//   span) and its Undo, Squares on the same game, a draft on the series, Pick'em on the rest of the season (and again from the
+//   gallery's route with a computer player, its pick of a side in at once: E1b), a sport's season on the
 //   couch started by its id, refusals (a game the sport doesn't play, a start with no games left); Sports scores too (the guard:
 //   everything while it's off, the mark while it's on) and Show the score moving the mark; each started game's page answering.
 //   In a real browser at --width (390): Add a show finds the Eagles (Teams above Shows), their sheet (the plate, Follow, the game
@@ -182,6 +183,12 @@ async function apiChecks(pool, me, couch, started) {
   const ss = await me.call("POST", `/api/sports/start?couch=${couch}`, { league: FB, team: "9301", whole: "season", game: "pickem", tell: false });
   check(ss.status === 200 && ss.body.to > ss.body.from, "Pick'em on the rest of the Eagles' season", ss.body);
   started.season = ss.body;
+  // E1b: the same Pick'em started from the gallery's route with a computer player: its pick of a side for the season's first game is
+  // in at once (a side's faces from the season's games as the server reads them: answers.ts factFaces).
+  const ssGame = ss.body.leagueId ? require("../../src/lib/game/state-logic.js").gameOf((await pool.query("SELECT state FROM leagues WHERE id = $1", [ss.body.leagueId])).rows[0].state) : null;
+  const withBot = ssGame ? await me.call("POST", `/api/seasons/${ss.body.seasonId}/start?couch=${couch}`, { spec: ssGame, name: "Pick'em with a computer player", tell: false, bots: 1 }) : { status: 0, body: {} };
+  const { rows: botPicks } = withBot.status === 200 ? await pool.query("SELECT question, episode, answer FROM game_answers WHERE league_id = $1", [withBot.body.leagueId]) : { rows: [] };
+  check(withBot.status === 200 && botPicks.length >= 1 && botPicks.every((r) => ["9301", "9302", "9303", "9304"].includes(r.answer)), `Pick'em with a computer player: its pick of a side in at once (${botPicks.map((r) => `${r.question}@${r.episode}=${JSON.stringify(r.answer)}`).join(", ")})`, `${withBot.status} ${JSON.stringify(withBot.body).slice(0, 300)}`);
   // A sport's season on the couch, by its id: Pick a few on its next game only.
   const by = ss.body.seasonId ? await me.call("POST", `/api/sports/start?couch=${couch}`, { seasonId: ss.body.seasonId, game: "pickAFew", only: true, tell: false }) : { status: 0 };
   check(by.status === 200 && by.body.from === by.body.to, "a sport's season here starts by its id, its next game only", by.body);
