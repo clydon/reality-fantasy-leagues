@@ -270,10 +270,11 @@ function draftOpen(before, after, doc, childId) {
  * The case, live: materialized as zt-gb rows in this lane's database, each step synced (the runtime stays authoritative), with a
  * signed-in fetch for each person. `findings` collects every comparison of a real write with the runtime.
  */
-async function openCase() {
+async function openCase(o = {}) {
   const Live = require(path.join(root, "tools/gameplay-bench/live-db.cjs"));
   const { api } = require("./browser");
-  const s = R.open(definition()), doc = s.export().input;
+  // `o.doc`: another definition of the same game (preview-story-shots.js: another seed, the merge drafted smaller).
+  const s = R.open(o.doc || definition(o)), doc = s.export().input;
   const ids = await Live.up(s.snapshot(), doc);
   const shift = (snap) => Date.now() - Date.parse(snap.clock);
   const c = {
@@ -286,7 +287,9 @@ async function openCase() {
     down: async () => { await Live.down(ids.key).catch((e) => console.error("could not remove zt-gb-" + ids.key + ": " + e.message)); await Live.close(); s.dispose(); },
   };
   await c.sync();
-  await Live.seedSocial(ids, s.snapshot(), doc, shift(s.snapshot()));
+  // The couch's chat, GIFs and reactions, so Tonight looks lived in; `o.social: false` leaves them out (a preview's made-up season
+  // has no couch talk, and the seeded GIFs don't load locally).
+  if (o.social !== false) await Live.seedSocial(ids, s.snapshot(), doc, shift(s.snapshot()));
   return c;
 }
 
@@ -471,7 +474,7 @@ async function story() {
 }
 const who2name = (id) => (COUCH.find((p) => p.id === id) || { name: id }).name;
 
-module.exports = { definition, galleryFacts, gallerySpec, COUCH, openCase, advance, STOPS, _h: { lineups, night, resultsFor, teamsOf, stagesOf } };
+module.exports = { definition, galleryFacts, gallerySpec, COUCH, openCase, advance, STOPS, _h: { lineups, night, resultsFor, teamsOf, stagesOf, draftOpen, must, nameOf } };
 
 if (require.main === module) {
   const fail = (e) => { console.error(e); process.exitCode = 1; };

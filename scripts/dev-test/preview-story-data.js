@@ -7,8 +7,12 @@
 //   - many more seasons (--seasons, default 30, each its own seed), as set and with the fix: each view's table at the end, so a
 //     card flags something only when it happens in most seasons (the page counts it, with the game's own rules: bestOf).
 // Everyone's moves, yours too, are the engine's: each seat starts the next of its roster in turn, as preview-proof.js plays them.
+// --live: the sample seasons are played on the app's real screens instead (preview-story-shots.js: the same season, Alex's moves
+// made on the real draft room and Your moves), each moment's real screen shot for the story's phone frames, the views kept from
+// that same run. Needs this lane's dev server and database; takes a few minutes a season.
 //
-//   node scripts/dev-test/preview-story-data.js [--seasons=30] [--out=.ui-atlas/preview-proof/story-data.json]
+//   node scripts/dev-test/preview-story-data.js [--live] [--seeds=51,52,53] [--seasons=30] [--reuse] [--out=...story-data.json]
+//   (--reuse keeps the many seasons from the last file, when only the samples change)
 //
 // Needs `node --env-file=.env.local scripts/dev-test/preview-proof.js record` once (the season's page facts and results' shape) and
 // the dress (real-dress.js). The output names real castaways: it stays in the ignored .ui-atlas.
@@ -26,6 +30,8 @@ const R = require(path.join(root, "tools/gameplay-bench/explorer/runtime.cjs"));
 const { lineups, night } = P._h;
 const FROM = 9, LAST = 13;
 
+/** The fix the merge card offers: draft 3, start 2 at the merge. */
+const FIX = { each: 3, start: 2 };
 /** The definition, its merge stage's draft made smaller (`each`, `start`) when asked. */
 function defOf(seed, small) {
   const d = P.definition({ seed });
@@ -54,30 +60,39 @@ function play(seed, small) {
 /** A season for what's typical: its end's standings (each view's table rows, unchanged). */
 const tablesOf = (season) => { const end = season.at[LAST]; return Object.fromEntries(Object.entries(end).map(([g, v]) => [g, v.table])); };
 
-function main() {
+async function main() {
   const t0 = Date.now();
-  const SMALL = { each: 3, start: 2 };
-  // Three seasons in full (Shuffle moves between them), each played again with the merge's smaller draft (the fix), whole.
-  const samples = [51, 52, 53].map((seed) => ({ as: play(seed), fix: play(seed, SMALL) }));
-  const seasons = [];
-  for (let i = 1; i <= SEASONS; i++) {
-    const x = samples[i - 1];
-    seasons.push({ seed: 50 + i, as: tablesOf(x ? x.as : play(50 + i)), fix: tablesOf(x ? x.fix : play(50 + i, SMALL)) });
+  const seeds = opt("seeds", "51,52,53").split(",").map(Number);
+  const live = args.includes("--live");
+  // The seasons to show (Shuffle moves between them), each played again whole with the merge's smaller draft (the fix): live on the
+  // real screens (their shots, the views of the same run) or headless.
+  const samples = [];
+  for (const seed of seeds) {
+    if (!live) { samples.push({ as: play(seed), fix: play(seed, FIX) }); continue; }
+    const { capture } = require("./preview-story-shots.js");
+    const one = async (small) => {
+      const r = await capture({ doc: defOf(seed, small), seed, tag: `${seed}-${small ? "fix" : "as"}` });
+      console.log(`${seed} ${small ? "fix" : "as set"}: ${Object.keys(r.shots).length} screens; checks ${r.checks.filter((x) => x.agree).length} of ${r.checks.length} agree; ${r.problems.length} route problems`);
+      return { ...r.played, shots: r.shots, checks: r.checks, problems: r.problems };
+    };
+    samples.push({ as: await one(null), fix: await one(FIX) });
   }
+  const last = args.includes("--reuse") && fs.existsSync(OUT) ? JSON.parse(fs.readFileSync(OUT, "utf8")) : null;
+  const seasons = last?.seasons?.length === SEASONS ? last.seasons : Array.from({ length: SEASONS }, (_, i) => ({ seed: 51 + i, as: tablesOf(play(51 + i)), fix: tablesOf(play(51 + i, FIX)) }));
   const data = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     madeAt: new Date().toISOString(),
-    source: "scripts/dev-test/preview-story-data.js: the explorer's runtime, headless, read through the production game view; every result made up; real castaways (stays out of git)",
+    source: `scripts/dev-test/preview-story-data.js${live ? " --live (preview-story-shots.js: the samples on the app's real screens)" : ""}: the explorer's runtime, read through the production game view; every result made up; real castaways (stays out of git)`,
     show: { name: "Survivor", season: 51, last: LAST },
-    fix: SMALL,
+    fix: FIX,
     samples,
     seasons,
     ms: Date.now() - t0,
   };
   fs.mkdirSync(path.dirname(OUT), { recursive: true });
   fs.writeFileSync(OUT, JSON.stringify(data));
-  console.log(`${OUT}: ${SEASONS} seasons in ${(data.ms / 1000).toFixed(1)} s, ${Math.round(fs.statSync(OUT).size / 1024)} KB`);
+  console.log(`${OUT}: ${samples.length} samples${live ? " live" : ""}, ${SEASONS} seasons in ${(data.ms / 1000).toFixed(1)} s, ${Math.round(fs.statSync(OUT).size / 1024)} KB`);
 }
 
-if (require.main === module) main();
-module.exports = { play };
+if (require.main === module) main().catch((e) => { console.error(e); process.exitCode = 1; });
+module.exports = { play, defOf, FIX };

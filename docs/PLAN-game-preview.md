@@ -152,3 +152,10 @@ database goes.
    **Done the same day (the user: "Yes"):** the cards rebuilt on the game's own components and the production views, the fix
    played whole, the typical counts made with `bestOf` in the page (docs/design-round/preview-story-spec.md, "The rebuild"). Still
    for the bench: (c) to (e) above, and the views read live rather than from the script's file.
+6. **A 1:1 view from preview to game:** "I'm still struggling to see the 1 to 1 view from preview to game. Like I said previously
+   we want to see the tonight game section, games tab, draft stage, quick actions, game page, etc. to really indicate a 1:1 we can
+   use a 'iPhone/phone free screen' where we put the real game screen snapshot in that view." Each card is now a moment shown as
+   the real screens in a phone frame, from a season played on the real screens (scripts/dev-test/preview-story-shots.js, the live
+   tier); the lines and checks read the same run's views. This is P0's live tier inside the story: for the product, the A-or-B
+   decision again decides how a preview gets its screens.
+

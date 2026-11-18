@@ -1,9 +1,10 @@
 // Dev-only: frames of the game preview's story mock (src/new/preview/story.tsx at /start/preview-story, development only) for a
-// design round's screenshot story. Each card of the first made-up season, the merge card with its fix on, and a shuffled season's
-// first and merge cards, at a phone's size, with each frame's words and any words that sit on other words (overlaps.js).
+// design round's screenshot story. Each moment of the first made-up season on its real screens (in the story's phone frame), the
+// merge with its fix on, a real screen at full size and another season, at a phone's size, with each frame's words and any words
+// that sit on other words (overlaps.js).
 //
-// Needs: the lane's dev server (BASE, default http://localhost:3014) and the story's data
-// (node scripts/dev-test/preview-story-data.js). Signs in as nobody: the page reads no account.
+// Needs: the lane's dev server (BASE, default http://localhost:3014) and the story's data with its real screens
+// (node --env-file=.env.local scripts/dev-test/preview-story-data.js --live). Signs in as nobody: the page reads no account.
 //   node scripts/dev-test/story-preview.js [--out=.ui-atlas/stories/game-preview/story] [--width=390 --height=844]
 const fs = require("fs");
 const path = require("path");
@@ -16,11 +17,16 @@ const opt = (k, d) => args.find((a) => a.startsWith(`--${k}=`))?.slice(k.length 
 const OUT = path.resolve(opt("out", ".ui-atlas/stories/game-preview/story"));
 const W = Number(opt("width", 390)), H = Number(opt("height", 844));
 const FRAMES = [
+  // Each moment of the first season on its first real screen, then each moment's other screens.
   ...[1, 2, 3, 4, 5, 6].map((card) => ({ id: `s1-card${card}`, q: `card=${card}&season=1` })),
+  { id: "s1-card2-revealed", q: "card=2&season=1&screen=2" },
+  { id: "s1-card3-moves", q: "card=3&season=1&screen=2" },
+  { id: "s1-card4-tonight", q: "card=4&season=1&screen=2" },
+  { id: "s1-card6-page", q: "card=6&season=1&screen=2" },
+  // The fix taken; a real screen at full size; another season.
   { id: "s1-card5-fix", q: "card=5&season=1&fix=1" },
-  { id: "s2-card1", q: "card=1&season=2" },
+  { id: "s1-card3-full", q: "card=3&season=1&screen=2&full=1" },
   { id: "s2-card5", q: "card=5&season=2" },
-  { id: "s3-card4", q: "card=4&season=3" },
 ];
 
 (async () => {

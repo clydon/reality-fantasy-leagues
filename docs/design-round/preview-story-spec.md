@@ -115,3 +115,26 @@ quiets Next while the fix is on.
 **Found in the app by its own parts:** Your team's number is a castaway's points in the game, started or benched, so a team's numbers
 don't add up to its score; people's colours come from their id and collide (two of this couch's four are the same blue); the game's
 line says "Redraft at merged".
+
+## The real screens in a phone (2026-11-18, decision 6)
+
+The user, after the rebuild: "I'm still struggling to see the 1 to 1 view from preview to game ... we want to see the tonight game
+section, games tab, draft stage, quick actions, game page, etc. ... a 'iPhone/phone free screen' where we put the real game screen
+snapshot in that view." So each card is a moment of the made-up season, shown as the app's real screens at that moment, in a phone
+frame; the cards' own drawings go. The season is played on the real screens (scripts/dev-test/preview-story-shots.js: the zt-gb
+live tier, Alex's moves made in the real draft room and on Your moves, the reveal run as Alex), and the card's line and check read
+the production views of that same run, so screen and words are one season.
+
+| # | Moment | Its real screens (the first opens) | Its line | Its check (over 30 seasons) |
+| - | ------ | ---------------------------------- | -------- | --------------------------- |
+| 1 | Your games | Games tab · Tonight (the draft due) | the game's own line | |
+| 2 | The draft | Draft room, picked · revealed | Before Episode 9 · 5 each, in private | |
+| 3 | Each episode | Tonight (Set your lineup) · Your moves | Start 3 of your 5 before it airs | 2nd's best lineups would have won |
+| 4 | After Episode 10 | Game page (the season) · Tonight's game section | where you stand | |
+| 5 | The merge | Draft room, revealed · Tonight · picked | After Episode 11 · 7 still in · draft 5 again | Same castaway on every team (Check); Try 3 each swaps in that season's screens |
+| 6 | The finale | Reveal (where everyone finished) · Game page | who wins, by how much | A close finish |
+
+The phone: the shot as the phone shows it (390 x 844, at 2x), its foot under the card's check; the screen names above it switch
+the moment's screens; a tap opens the screen at full size, which on a phone is exactly the app. Shuffle and the fix swap in
+another live run's screens. The screens show the app as it is, bugs included: that's the point of looking (Tonight's game section
+says "0 of 0 still in"; the finale's reveal shows the first stage's standings while the overall says otherwise).
