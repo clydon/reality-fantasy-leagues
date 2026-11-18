@@ -168,14 +168,16 @@ function check(ok, what, detail = "") {
       await shot("games-practice");
       await wide("the Games tab");
 
-      // Start a game (docs/PLAN-start-a-game-redo.md B1) offers computer players in Who's playing with E1, on every base they can
-      // play; until then they join from Backstage › Members (below), and Who's playing says they're coming.
+      // Start a game (docs/PLAN-start-a-game-redo.md E1a) offers computer players in Who's playing on every base they play (a draft,
+      // a pick): how many and how sharp, under the square. check-start-a-game.js starts a game with them.
       await page.locator('[data-start-row="start"]').click();
       await page.locator("[data-gallery=gallery]").waitFor({ timeout: 60000 });
       await page.locator("[data-gallery-lead]").first().click();
       await page.locator("[data-gallery-row=who]").click();
       await page.locator('[data-gallery-choice="bot"]').waitFor({ timeout: 10000 }).catch(() => {});
-      check(/Coming/.test((await page.locator('[data-gallery-choice="bot"]').innerText().catch(() => "")) || ""), "Start a game: Who's playing says the bot is coming (E1)");
+      await page.locator('[data-gallery-choice="bot"]').click().catch(() => {});
+      await page.locator('[data-gallery-controls] [data-control="level"]').waitFor({ timeout: 5000 }).catch(() => {});
+      check((await page.locator('[data-gallery-choice="bot"][data-chosen]').count()) === 1 && (await page.locator('[data-gallery-controls] [data-control="level"] [data-option]').count()) === 3, "Start a game: Computer players in Who's playing, with how many and how sharp");
       await shot("start-bots");
       await wide("Start a game");
       await page.keyboard.press("Escape");

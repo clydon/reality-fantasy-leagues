@@ -16,7 +16,9 @@
 //   In a real browser at --width (390 by default), as jordan: the Games tab's Start a game opens the gallery (Choose a game, the
 //   ready game, the chips, nothing wider than the screen, no yellow before a game's screen); the ready game opens Ready to start and
 //   Start makes it (the toast's Undo, the game's own page), Undo takes it back; a base's screen (How long's cards, the two lock
-//   cards, Make it…, a rule's change screen and Done, the yellow Start alone) and Start on Together (its pace written live);
+//   cards, Make it…, a rule's change screen and Done, the yellow Start alone), Computer players in Who's playing (two, sharp: the
+//   Start bar says them, the game has their seats; dashed with the reason on a Prediction sheet: E1a), and Start on Together (its
+//   pace written live);
 //   saved games (the heart beside Start keeps it on the account, Community and saved games lists it and reopens it for the length
 //   it was saved with, the heart takes it off, a browser's older saves move up once); Include it on an episode on now (the fixture's Episode 6 moved to half an hour ago, then back); Describe (the wait, the result
 //   from the stand-in bot, Start it to Ready to start), leaving it (a See it toast reopens it), and its errors (our AI away with the
@@ -265,8 +267,16 @@ async function browserHalf(pool, fx, bot) {
   await tap("[data-gallery-row=who]");
   await page.locator("[data-gallery=change]").waitFor({ timeout: 10000 });
   check((await page.locator("[data-gallery-choice]").count()) >= 2, `a rule's change screen: ${await page.locator("[data-gallery-choice]").count()} choices`);
+  // E1a: Computer players in Who's playing: on, two of them, sharp; their controls under the square.
+  await tap('[data-gallery-choice="bot"]');
+  await page.locator('[data-gallery-controls] [data-control="n"]').waitFor({ timeout: 5000 }).catch(() => {});
+  await tap('[data-gallery-controls] [data-control="n"] button[aria-label^="More"]');
+  await tap('[data-gallery-controls] [data-control="level"] [data-option="sharp"]');
+  check((await page.locator('[data-gallery-choice="bot"][data-chosen]').count()) === 1 && /2 computer players/.test(await page.locator('[data-gallery-choice="bot"]').innerText()), `Computer players: on, two of them (${(await page.locator('[data-gallery-choice="bot"]').innerText()).replace(/\n/g, " ")})`);
+  await shot("04b-bots");
   await tap("[data-gallery-done]");
   await page.locator("[data-gallery=base]").waitFor({ timeout: 10000 });
+  check(/2 computer players/.test(await page.locator("[data-gallery-startbar]").innerText()), `the Start bar says them: ${(await page.locator("[data-gallery-startbar]").innerText()).replace(/\n/g, " · ")}`);
   const n0 = (await leaguesNow()).length;
   await page.locator("[data-gallery-start]").click();
   await toastDone();
@@ -274,6 +284,14 @@ async function browserHalf(pool, fx, bot) {
   const fantasy = (await leaguesNow()).at(-1);
   const pace = fantasy && fantasy.state && fantasy.state.settings && fantasy.state.settings.pace;
   check((await leaguesNow()).length === n0 + 1 && pace !== "own", `Start on Together: made, live (${pace ?? "live"})`);
+  const seats = ((fantasy && fantasy.state && fantasy.state.players) || []).filter((x) => x.automated);
+  check(seats.length === 2 && seats.every((x) => x.botLevel === "sharp"), `...with its two computer players, sharp (${seats.map((x) => `${x.name}: ${x.botLevel}`).join(", ")})`);
+  // On a game of questions they're dashed with the reason (E1b), and Start sends none.
+  await openSheet();
+  await tap('[data-gallery-lead="sheet"], [data-gallery-base="sheet"]');
+  await page.locator("[data-gallery=base]").waitFor({ timeout: 10000 });
+  await tap("[data-gallery-row=who]");
+  check((await page.locator('[data-gallery-choice="bot"][data-off]').count()) === 1 && /answer questions soon/.test(await page.locator('[data-gallery-choice="bot"]').innerText()), "on a Prediction sheet, Computer players dashed: they answer questions soon");
   await shot("05-fantasy-page");
 
   // Saved games on the account: the heart beside Start, the row in Community and saved games, reopened, taken off; and a browser's

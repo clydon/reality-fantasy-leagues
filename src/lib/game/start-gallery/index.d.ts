@@ -149,4 +149,6 @@ export function betOn(spec: Spec): boolean;
 export function offBets(spec: Spec): Spec;
 /** Bases matching what was typed, best first, by their own words and what fans call them; `aka` the fan's name that matched. */
 export function searchKnown<B extends { id: string; name: string; plain: string; about: string; aka?: string[] }>(q: string, bases: B[]): { base: B; score: number; aka: string | null }[];
+/** Why computer players can't play this game yet, or null (E1a). */
+export function botsFit(spec: Spec): string | null;
 export function homesOf(): { key: string; value: string; row: string; change: string | null; control: string | null }[];

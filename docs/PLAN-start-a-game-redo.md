@@ -324,6 +324,11 @@ then approval.
       "Just me" starts a game that tells nobody (already the server's: Start with no one else watching). Checks:
       check-start-a-game.js (a draft started with two, their seats and level), check-new-computer-players.js back to Start a game,
       wizard-coverage.js (the new controls are values too).
+      **Done (2026-11-18, the user's go: "E1a, then E1b"):** the catalog's `bot` change is "Computer players" with `botsFit`; the
+      sheet keeps how many and how sharp on its Game (controls under the square; a second tap takes them off), Who's playing's line,
+      the Start bar and Ready to start say them, and Start sends `bots`/`level` while the game is one they play.
+      check-start-a-game.js (a Fantasy league with two sharp ones; dashed on a Prediction sheet) and check-new-computer-players.js
+      pass (but the hidden practice couch, as before).
     - **E1b. Computer players answer questions** (the engine lane). `bot-logic.js answersFor(state, ask, level)` for each answer
       kind the corpus uses, from what the league knows (the ratings it already keeps): a person (who goes home: the most in danger;
       who wins: the best rated), yes or no (the moment's rate so far), a number and over/under (the median so far), a choice (its

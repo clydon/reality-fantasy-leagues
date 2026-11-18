@@ -321,7 +321,8 @@ const CHANGES = [
   },
   // Just me and Me and the bot are who the game is for, not the spec: Start tells nobody (Just me), or seats the bot (E1).
   { id: 'solo', row: 'who', name: 'Just me', line: 'Only you; see how you do', icon: 'person', start: 'solo', on: () => false },
-  { id: 'bot', row: 'who', name: 'Me and the bot', line: 'Our bot plays as a player', icon: 'bot', coming: 'E1', start: 'bot', on: () => false },
+  // E1a: computer players beside you (how many, how sharp: the sheet's own, outside the spec; Start sends them as `bots`, `level`).
+  { id: 'bot', row: 'who', name: 'Computer players', line: 'Seats our bot plays, beside you', icon: 'bot', start: 'bot', fits: (s) => botsFit(s), on: () => false },
   {
     id: 'handicap', row: 'who', name: 'Head start for newcomers', line: 'Points each episode for whoever is new', icon: 'plus',
     fits: (s, pg) => needCouch(2, pg, 'A head start'),
@@ -1099,6 +1100,15 @@ function changeStates(spec, row, pg) {
   });
 }
 const changeById = (id) => CHANGES.find((c) => c.id === id) || null;
+/** Why computer players can't play this game yet, or null (E1a; mirrors computer-players.ts botsPlay on the spec's kind: a draft or a
+ *  pick, with no questions, card, calls or bingo; questions come with E1b). */
+function botsFit(s) {
+  const k = kindOf(s);
+  if (k === 'stages') return 'Computer players play a game in stages later';
+  if (asks(s).length || isObj(s.card)) return 'Computer players answer questions soon';
+  if (k === 'draft' || k === 'pick') return null;
+  return 'Computer players play this kind of game later';
+}
 /** A change made (its apply, on its defaults), as a new spec. */
 function applyChange(spec, id, pg) {
   const c = changeById(id);
@@ -1218,5 +1228,5 @@ function searchKnown(q, bases) {
 module.exports = {
   CATS, BASES, SPORT, ROWS, CHANGES, QUESTION_KINDS, QUESTION_CONTROLS,
   kindOf, expand, pageFacts, check, baseById, baseSpec, galleryFor, playRow, changeStates, changeById, applyChange, dropChange, setControl, rowLine, homesOf, betOn, offBets,
-  searchKnown,
+  searchKnown, botsFit,
 };

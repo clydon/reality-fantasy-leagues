@@ -90,6 +90,16 @@ type Level =
   | { k: "own" }
   | { k: "done" };
 
+type BotLevel = "easy" | "normal" | "sharp";
+type Bots = { n: number; level: BotLevel };
+const BOT_LEVELS: [BotLevel, string][] = [
+  ["easy", "Easy"],
+  ["normal", "Normal"],
+  ["sharp", "Sharp"],
+];
+/** "2 computer players". */
+const botsWords = (b: Bots) => `${b.n} computer ${b.n === 1 ? "player" : "players"}`;
+
 interface Game {
   base: Base;
   spec: Spec;
@@ -103,6 +113,8 @@ interface Game {
   moment: string | null;
   /** Your own moments (the user, 2026-11-18): what the results won't catch, settled by the couch or our research. */
   own: OwnMoment[];
+  /** Computer players beside you (E1a): how many and how sharp, or none. Not part of the rules (bot-logic.js plays the seats). */
+  bots: Bots | null;
   /** How the base's draft was fitted to who's left (4 of you, 10 still in: 2 each, or shared), said on its screen. */
   fitted: { each: number; to: number | "shared"; pool: number; people: number } | null;
 }
@@ -129,6 +141,11 @@ const PLAIN_LOCK: Record<"live" | "own", { title: string; line: (input: Input, o
     line: (input, ownTeams) => `Your move for each ${input.ep} locks when you start watching it. Nobody's cut off; the standings sit at different ${input.eps} for different people.${ownTeams ? " The draft is together first; once it starts, no one new can join." : ""}`,
   },
 };
+/** The Start bar's who: who Start tells, and the computer players beside you. */
+function tellsLine(input: Input, bots: Bots | null): string {
+  const who = input.tells ? `Tells ${input.tells} who watch it` : bots ? "You" : "Just you for now";
+  return bots ? `${who} · ${botsWords(bots)}` : who;
+}
 /** Who Start tells, by name (the couch's others), or that it's just you. */
 function tellsOf(input: Input): string {
   const names = input.marks.filter((m) => !m.you).map((m) => m.name);
@@ -273,7 +290,7 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
   // The tour's practice: Start makes nothing; its finish says so.
   const [practiced, setPracticed] = useState<string | null>(null);
   /** Start: the spec to the server (checked again there), the couch told after the 10-second Undo, then the game's own page. */
-  const startGame = async (g: { base: Base; spec: Spec; span: Span; name: string; from: Game["from"]; pace: Pace | null; before?: Record<string, Spec>; own?: unknown[] }, extra: Record<string, unknown> = {}) => {
+  const startGame = async (g: { base: Base; spec: Spec; span: Span; name: string; from: Game["from"]; pace: Pace | null; before?: Record<string, Spec>; own?: unknown[]; bots?: Bots | null }, extra: Record<string, unknown> = {}) => {
     if (start.practice) return setPracticed(say(g.name, input.nouns, true));
     if (busy) return;
     const lock0 = lockOf(g.spec, g.span, input, g.pace);
@@ -289,6 +306,8 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
         tell: true,
         ...(start.late ? { late: true } : {}),
         ...(input.ownPace ? {} : { pace }),
+        // Computer players, while this game is one they play (a change since may have made it one they don't yet).
+        ...(g.bots && !gm.botsFit(g.spec) ? { bots: g.bots.n, level: g.bots.level } : {}),
         // `unchanged`: no rule changed on the setup screen, so the sentence describes this game (the server keeps it only then).
         made: { how: g.from, base: g.base.id, ...(about ? { about, unchanged: !Object.keys(g.before ?? {}).length } : {}), ...(start.again ? { again: start.again } : {}), ...extra },
       });
@@ -347,7 +366,7 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
     const s = spec ?? gm.baseSpec(b, sp, pg);
     if (!s) return;
     const fitted = (s as unknown as { __fitted?: Game["fitted"] }).__fitted ?? null;
-    setGame({ base: b, spec: withSpan(s, sp), span: sp, pace: null, before: {}, asked: false, from, name: name ?? b.name, moment: null, fitted, own: [] });
+    setGame({ base: b, spec: withSpan(s, sp), span: sp, pace: null, before: {}, asked: false, from, name: name ?? b.name, moment: null, fitted, own: [], bots: null });
     push({ k: "base" });
   };
   // Run it back: the old game reopened on its base's screen, on this season (where it started: a phase still to come, or the next
@@ -359,7 +378,7 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
     const b = baseOfGame(spec0, bases, gm);
     if (b) {
       const sp: Span = o.again.phase ? { from: { phase: o.again.phase }, to: null } : { from: input.from, to: o.again.to ?? null };
-      setGame({ base: b, spec: withSpan(spec0, sp), span: sp, pace: null, before: {}, asked: false, from: "again", name: o.again.name, moment: null, fitted: null, own: [] });
+      setGame({ base: b, spec: withSpan(spec0, sp), span: sp, pace: null, before: {}, asked: false, from: "again", name: o.again.name, moment: null, fitted: null, own: [], bots: null });
       setLevels([{ k: "gallery" }, { k: "base" }]);
     }
   }
@@ -372,7 +391,7 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
     const sp: Span = { from: input.from, to: input.from };
     const s0 = b ? gm.baseSpec(b, sp, pg) : null;
     if (b && s0) {
-      setGame({ base: b, spec: withSpan(s0, sp), span: sp, pace: null, before: {}, asked: false, from: "base", name: b.name, moment: null, fitted: null, own: [] });
+      setGame({ base: b, spec: withSpan(s0, sp), span: sp, pace: null, before: {}, asked: false, from: "base", name: b.name, moment: null, fitted: null, own: [], bots: null });
       setLevels([{ k: "gallery" }, { k: "base" }]);
     }
   }
@@ -537,7 +556,7 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
             : null
         }
         label={`Start ${Object.keys(game.before).length || game.own.length ? "your " : ""}${game.name}`}
-        tells={input.tells ? `Tells ${input.tells} who watch it` : "Just you for now"}
+        tells={tellsLine(input, game.bots && !gm.botsFit(game.spec) ? game.bots : null)}
         asked={game.asked ? `Asked the couch · 0 of ${Math.max(1, input.couch.members - 1)} in so far` : null}
         disabled={cantStart(game.spec)}
         busy={busy}
@@ -553,7 +572,7 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
     title = ROW_ASK[row] ?? (row === "play" ? playName : gm.ROWS.find((r) => r.id === row)?.name ?? row);
     subtitle = <StepLine step={2} text={`Set it up · ${game.name}`} />;
     backTo = { label: game.name, onClick: back };
-    body = <ChangeBody row={row} states={states} exclusive={EXCLUSIVE.has(row)} focus={level.focus} gm={gm} game={game} pg={pg} onSpec={(s) => change(row, s)} onFocus={(id) => setLevels((ls) => [...ls.slice(0, -1), { k: "change", row, focus: id }])} onSheet={(sheet) => sheet === "question" && push({ k: "questions" })} onSay={setSaid} />;
+    body = <ChangeBody row={row} states={states} exclusive={EXCLUSIVE.has(row)} focus={level.focus} gm={gm} game={game} pg={pg} onSpec={(s) => change(row, s)} onFocus={(id) => setLevels((ls) => [...ls.slice(0, -1), { k: "change", row, focus: id }])} onSheet={(sheet) => sheet === "question" && push({ k: "questions" })} onSay={setSaid} onBots={(b) => setGame({ ...game, bots: b })} />;
     foot = (
       <button type="button" data-gallery-done onClick={back} className="nd-press flex h-[52px] w-full items-center justify-center rounded-[3px] text-[16px] font-bold outline-1 -outline-offset-1 outline-input">
         Done
@@ -667,7 +686,7 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
           line={lockLineOf(input, clock.value, c.spec, cfirst ? ` · first move by ${lockWords(cfirst.airAt)}` : "")}
           warn={clock.costs && !clock.phased ? { text: `${clock.costs.name} is ${clock.costs.behind} behind ·`, fix: { label: PLAIN_LOCK.own.title, onClick: () => open("own", null) } } : null}
           label="Start your own copy"
-          tells={input.tells ? `Tells ${input.tells} who watch it` : "Just you for now"}
+          tells={tellsLine(input, null)}
           asked={null}
           disabled={cantStart(c.spec)}
           busy={busy}
@@ -716,7 +735,7 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
         line={lockLineOf(input, dlock.value, game.spec, dfirst ? ` · first move by ${lockWords(dfirst.airAt)}` : "")}
         warn={null}
         label={`Start ${say(game.name, input.nouns, true)}`}
-        tells={input.tells ? `Tells ${input.tells} who watch it` : "Just you for now"}
+        tells={tellsLine(input, game.bots && !gm.botsFit(game.spec) ? game.bots : null)}
         asked={null}
         disabled={cantStart(game.spec)}
         busy={busy}
@@ -1127,14 +1146,16 @@ function BaseBody(p: {
   // A rule's value in the engine's own words: Your team reads what it is ("Draft 5, start 3"), not the names of its changes;
   // Scoring reads the show's points until something changes them.
   const shortParts = (gm.check(game.spec, pg).short?.line ?? "").split(" · ").filter((x) => x && !/^(from |episode|episodes|just |the rest|till |through |rest of|all season|the season|game \d|games \d|week|this week|tonight|every game|the series)/i.test(x));
+  const withBots = game.bots && !gm.botsFit(game.spec) ? game.bots : null;
   const valueOf = (r: string) => {
+    if (r === "who" && withBots) return `${rowLine(r) || defaultLine(r)} · ${botsWords(withBots)}`;
     if (r === "play") return shortParts[0] ?? (rowLine(r) || defaultLine(r));
     if (r === "scoring") return rowLine(r).split(" · ").filter((x) => x && !/^(What scores|The show's points)$/.test(x)).join(" · ") || (input.sport ? "Standard points" : "The show's points");
     return rowLine(r) || defaultLine(r);
   };
   // Each row's value read once per game (rowLine checks every change of its row: not again on every render; the review, B1).
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const values = useMemo(() => Object.fromEntries(rows.map((r) => [r, valueOf(r)])), [game.spec, pg, input.sport]);
+  const values = useMemo(() => Object.fromEntries(rows.map((r) => [r, valueOf(r)])), [game.spec, pg, input.sport, withBots?.n, withBots?.level]);
   const rowName = (r: string) => (r === "play" ? play.name : gm.ROWS.find((x) => x.id === r)?.name ?? r);
   return (
     <div className="flex flex-col">
@@ -1376,13 +1397,21 @@ function questionsLine(spec: Spec): string {
 
 // ---------- a change ----------
 
-function ChangeBody(p: { row: string; states: ChangeState[]; exclusive: boolean; focus?: string; gm: GM; game: Game; pg: Input["pg"]; onSpec: (s: Spec) => void; onFocus: (id: string) => void; onSheet: (s: string) => void; onSay: (s: string) => void }) {
+function ChangeBody(p: { row: string; states: ChangeState[]; exclusive: boolean; focus?: string; gm: GM; game: Game; pg: Input["pg"]; onSpec: (s: Spec) => void; onFocus: (id: string) => void; onSheet: (s: string) => void; onSay: (s: string) => void; onBots?: (b: Bots | null) => void }) {
   const { states, gm, game, pg } = p;
   // The square whose controls show: the one tapped last, else the first that's on.
-  const focus = p.focus ?? states.find((s) => s.on)?.id ?? null;
+  const focus = p.focus ?? states.find((s) => s.on)?.id ?? (game.bots && states.some((s) => s.start === "bot") ? "bot" : null);
   const pick = (c: ChangeState) => {
     if (c.sheet) return p.onSheet(c.sheet);
-    if (c.start) return p.onSay(c.coming ? `${c.name} is coming: our bot as a seat that plays (E1).` : `${c.name}: Start tells nobody, and the game is yours alone.`);
+    // Computer players (E1a): on with one at Normal, off again on a second tap; dashed with why on a game they can't play yet.
+    if (c.start === "bot") {
+      if (c.why) return p.onSay(`${c.name}: ${c.why}`);
+      p.onFocus(c.id);
+      if (!game.bots) p.onBots?.({ n: 1, level: "normal" });
+      else if (focus === c.id) p.onBots?.(null);
+      return;
+    }
+    if (c.start) return p.onSay(`${c.name}: Start tells nobody, and the game is yours alone.`);
     if (c.why && !c.on) return p.onSay(`${c.name}: ${c.why}`);
     p.onFocus(c.id);
     if (c.on) {
@@ -1396,7 +1425,23 @@ function ChangeBody(p: { row: string; states: ChangeState[]; exclusive: boolean;
     p.onSpec(gm.applyChange(game.spec, c.id, pg));
   };
   const cells: ReactNode[] = [];
+  const bots = game.bots && !gm.botsFit(game.spec) ? game.bots : null;
   states.forEach((c) => {
+    if (c.start === "bot") {
+      cells.push(<ChoiceSquare key={c.id} c={bots ? { ...c, line: `${botsWords(bots)}, ${bots.level === "normal" ? "playing as a regular would" : bots.level === "easy" ? "playing it easy" : "playing sharp"}` } : c} chosen={!!bots} onPick={() => pick(c)} />);
+      if (bots && focus === c.id)
+        cells.push(
+          <Controls
+            key="bot-controls"
+            controls={[
+              { id: "n", label: "How many", kind: "stepper", range: [1, 5], def: 1, more: false, value: bots.n },
+              { id: "level", label: "How sharp", kind: "segment", options: BOT_LEVELS, def: "normal", more: false, value: bots.level },
+            ]}
+            onSet={(id, v) => p.onBots?.(id === "n" ? { ...bots, n: Math.max(1, Math.min(5, Number(v) || 1)) } : { ...bots, level: v as BotLevel })}
+          />
+        );
+      return;
+    }
     cells.push(<ChoiceSquare key={c.id} c={c} chosen={c.on} onPick={() => pick(c)} />);
     if (c.id === focus && c.on && c.controls.length) {
       // The controls go right after the row this square ends, across both columns.
