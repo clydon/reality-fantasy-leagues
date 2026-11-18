@@ -11,10 +11,11 @@ import { Avatar, useNow } from "../ui/bars";
 import { isRequired } from "./moves";
 import { useOpenReveal } from "./reveal";
 import { upNextEpisode, WatchedSheet } from "./up-next";
-import { AskConfirm, outWords, useCatchingUp } from "./behind-ask";
+import { useCatchingUp } from "./behind-ask";
 import { useOpenWatch } from "./watch-along";
 import { paceReveal, usePaceReveal } from "./pace-plate";
 import { stripState } from "./strip";
+import { StepGuard, StepLaterLine, StepLine } from "./step-through";
 
 // The progress control (the design round's step 3: docs/design-round/step3-tonight-spec.md, "Two parts every show tab shares";
 // Phase 0's decision 3): the show's one statement of where you are. Your mark and what's next in one line, the couch on one
@@ -100,7 +101,7 @@ export function ProgressControl({ show, compact }: { show: ShowData; compact?: b
   const onRuler = !show.solo && (others > 0 || quiet.length > 0);
   const ruler = known.length > 0 && show.latestAired + (up ? 1 : 0) > 0;
   const openWhereAll = () => (couchId && seasonId ? openCouchSheet({ kind: "where", couchId, seasonId }) : openWhere(show, openReveal));
-  // Behind on an airing show, the control's line asks whether you've seen what's out (behind-ask.tsx: the user's pick B).
+  // Behind on an airing show, the control's line asks about the next episode (step-through.tsx: one at a time, the user's pick A).
   const ep = show.words.ep;
   const latest = show.latestAired;
   // At your own pace being behind is the point: nothing to ask.
@@ -109,8 +110,8 @@ export function ProgressControl({ show, compact }: { show: ShowData; compact?: b
   const paced = usePaceReveal(show, pace);
   const [later, setLater] = useCatchingUp(seasonId, latest, show.notYet);
   const asking = behind && !later;
-  const [askOpen, setAskOpen] = useState(false);
-  const out = behind ? outWords(ep, seen!, latest) : "";
+  // The guard (Yes, or after Not yet the line's Seen Ep N): the next episode named, Up to… for more.
+  const [guard, setGuard] = useState(false);
   if (compact) {
     // One action, the same one the tall control has (the behind question's Yes is the reveal's own ask here).
     const act =
@@ -160,32 +161,12 @@ export function ProgressControl({ show, compact }: { show: ShowData; compact?: b
       </div>
     );
   }
-  if (behind && later) {
-    words.mark = `Catching up · through ${ep} ${seen}`;
-    words.next = `${ep} ${seen! + 1} next${latest > seen! + 1 ? ` · ${latest - seen! - 1} more out` : ""}`;
-  }
   return (
     <div data-progress className="relative mx-2 mt-auto px-2 pt-3">
       {asking ? (
-        <div className="flex items-center gap-3" data-ask-line>
-          <button type="button" data-progress-mark onClick={() => openWhere(show, openReveal)} className="nd-press -mx-1 min-h-11 min-w-0 flex-1 px-1 text-left">
-            <b className="block text-[17px] font-bold leading-tight">Seen {out}?</b>
-            <span className="mt-0.5 block text-[14px] leading-tight text-white/85">You&rsquo;re through {ep} {seen}</span>
-          </button>
-          <span className="flex flex-none gap-1.5">
-            <button
-              type="button"
-              data-ask-yes
-              onClick={() => setAskOpen(true)}
-              className={`nd-press h-11 rounded-[4px] px-4 text-[15px] font-bold ${action!.primary ? "bg-chyron text-chyron-foreground" : "bg-plate text-plate-foreground"}`}
-            >
-              Yes
-            </button>
-            <button type="button" data-ask-later onClick={setLater} className="nd-press h-11 rounded-[4px] px-3 text-[15px] font-bold text-white outline-[1.5px] -outline-offset-[1.5px] outline-white/60">
-              Not yet
-            </button>
-          </span>
-        </div>
+        <StepLine show={show} seen={seen!} latest={latest} primary={action!.primary} onYes={() => setGuard(true)} onLater={setLater} />
+      ) : behind && later ? (
+        <StepLaterLine show={show} seen={seen!} play={action!.kind === "reveal"} primary={action!.primary} onYes={() => setGuard(true)} onWatch={() => openWatch(seen! + 1)} />
       ) : (
       <div className="flex items-baseline justify-between gap-3">
         {/* Your mark is one door (to Where you are, where it's changed): the line itself, with its chevron. */}
@@ -221,14 +202,8 @@ export function ProgressControl({ show, compact }: { show: ShowData; compact?: b
           ep={show.words.ep}
           couch={onRuler}
           onOpen={openWhereAll}
+          mine={behind ? seen : null}
         />
-      )}
-      {behind && later && (
-        <div className="mt-3 flex">
-          <PlateButton data-ask-watch onClick={() => openWatch(seen! + 1)} className="flex-none px-4">
-            Watch {ep} {seen! + 1} along
-          </PlateButton>
-        </div>
       )}
       {action && !behind && (
         <div className="mt-3 flex gap-2">
@@ -259,7 +234,7 @@ export function ProgressControl({ show, compact }: { show: ShowData; compact?: b
         </div>
       )}
       {behind && seasonId && (
-        <AskConfirm open={askOpen} onOpenChange={setAskOpen} show={show} seasonId={seasonId} seen={seen!} latest={latest} play={action!.kind === "reveal"} first={action!.n} onReveal={openReveal} />
+        <StepGuard open={guard} onOpenChange={setGuard} show={show} seasonId={seasonId} seen={seen!} latest={latest} play={action!.kind === "reveal"} onReveal={openReveal} />
       )}
       {paced.node}
       {action && !behind && (action.kind === "reveal" || action.kind === "watched") && seasonId && (
@@ -314,6 +289,7 @@ function Ruler({
   ep,
   couch,
   onOpen,
+  mine = null,
 }: {
   known: Where[];
   quietCount: number;
@@ -324,6 +300,8 @@ function Ruler({
   ep: string;
   couch: boolean;
   onOpen: () => void;
+  /** Your mark while behind (step-through.tsx): the run from it to the latest aired is drawn dashed (out, unseen). */
+  mine?: number | null;
 }) {
   const [placed, setPlaced] = useState(false);
   useEffect(() => {
@@ -340,7 +318,8 @@ function Ruler({
   const every = total > 14 ? 5 : total > 8 ? 2 : 1;
   const gap = Math.max(1, Math.ceil(total / 9));
   const chosen: number[] = [];
-  for (const n of [live, next, 1, ...Array.from({ length: total }, (_, i) => i + 1).filter((k) => k % every === 0), total, aired]) {
+  // Behind: the first out episode carries its number, before the rest are spaced around it.
+  for (const n of [live, next, mine != null && mine < aired ? mine + 1 : null, 1, ...Array.from({ length: total }, (_, i) => i + 1).filter((k) => k % every === 0), total, aired]) {
     if (n == null || n < 1 || n > total || chosen.includes(n)) continue;
     if (chosen.some((c) => Math.abs(c - n) < gap)) continue;
     chosen.push(n);
@@ -357,6 +336,73 @@ function Ruler({
   const face = 28;
   // Faces at one mark overlap by 6 px, so each still reads as a person.
   const lift = (tall - 1) * 22;
+  const top = face + lift + 4;
+  const out = (n: number) => mine != null && n > mine && n <= aired;
+  const body = (
+    <span className="relative block" style={{ height: face + lift + 26 }} aria-hidden>
+      {/* The track: the aired run solid, the rest faint; the next airing dashed, or live red. Behind: solid only to your
+          mark, the run out past it dashed bright: what's out and unseen, seen at a glance (the first-view requirements' R2). */}
+      <span className="absolute inset-x-0 h-[3px] rounded-full bg-white/22" style={{ top }} />
+      <span className="absolute left-0 h-[3px] rounded-full bg-white/85" style={{ top, width: `${at(mine ?? aired, total) * 100}%` }} />
+      {mine != null && mine < aired && (
+        <span
+          data-ruler-out
+          className="absolute h-0 border-t-[3px] border-dashed border-white"
+          style={{ top, left: `${at(mine, total) * 100}%`, width: `${(at(aired, total) - at(mine, total)) * 100}%` }}
+        />
+      )}
+      {Array.from({ length: total }, (_, i) => i + 1).map((n) => {
+        const x = at(n, total) * 100;
+        const isNext = n === next;
+        const isLive = n === live;
+        return (
+          <span key={n} className="absolute -translate-x-1/2" style={{ left: `${x}%`, top: face + lift }}>
+            <i
+              className={`mx-auto block w-px ${isLive ? "h-[11px] w-[3px] bg-live" : isNext ? "h-[11px] border-l-2 border-dashed border-white" : n <= aired ? "h-[11px] bg-white/85" : "h-[7px] mt-[2px] bg-white/35"}`}
+            />
+            {labelled(n) && (
+              <small className={`type-num mt-0.5 block text-center text-[11px] leading-none ${isLive ? "font-bold text-live" : isNext ? "font-bold text-white" : out(n) ? "font-bold text-white" : n <= aired ? "text-white/80" : "text-white/55"}`}>
+                {n}
+              </small>
+            )}
+          </span>
+        );
+      })}
+      {stacks.map(({ seen, people }) => {
+        const shown = people.slice(0, 3);
+        const more = people.length - shown.length;
+        return (
+          <span
+            key={seen}
+            data-ruler-mark={seen}
+            className="absolute flex -translate-x-1/2 flex-col-reverse items-center transition-[left] duration-[320ms] ease-[cubic-bezier(.16,1,.3,1)] motion-reduce:transition-none"
+            // Yours stands in front: on a long season the next mark's faces sit over it otherwise (the critique).
+            style={{ left: `${(placed ? at(seen, total) : 0) * 100}%`, bottom: 26, zIndex: people.some((p) => p.you) ? 2 : 1 }}
+          >
+            {shown.map((w, i) => (
+              <span
+                key={w.userId}
+                data-ruler-face={w.you ? "you" : w.name}
+                className={`rounded-[4px] shadow-[0_2px_6px_rgba(0,0,0,.45)] ${w.you ? "outline-2 outline-offset-1 outline-white" : ""} ${i ? "-mb-1.5" : ""}`}
+                style={{ zIndex: 10 - i }}
+              >
+                <Avatar id={w.userId} name={w.name} size={face} />
+              </span>
+            ))}
+            {more > 0 && (
+              <span className="type-num -mb-1.5 grid size-7 place-items-center rounded-[4px] bg-[rgba(16,14,21,.85)] text-[11px] font-bold text-white">+{more}</span>
+            )}
+          </span>
+        );
+      })}
+    </span>
+  );
+  const everyone = couch && (
+    <>
+      {quietCount ? `${quietCount} not sharing · ` : ""}Where everyone is
+      <ChevronRight className="size-4" aria-hidden />
+    </>
+  );
   return (
     <button
       type="button"
@@ -365,60 +411,8 @@ function Ruler({
       aria-label={`Where everyone is: ${label}`}
       className="nd-press -mx-1 mt-2 block w-[calc(100%+8px)] rounded-[4px] px-[18px] pb-1 text-left"
     >
-      <span className="relative block" style={{ height: face + lift + 26 }} aria-hidden>
-        {/* The track: the aired run solid, the rest faint; the next airing dashed, or live red. */}
-        <span className="absolute inset-x-0 h-[3px] rounded-full bg-white/22" style={{ top: face + lift + 4 }} />
-        <span className="absolute left-0 h-[3px] rounded-full bg-white/85" style={{ top: face + lift + 4, width: `${at(aired, total) * 100}%` }} />
-        {Array.from({ length: total }, (_, i) => i + 1).map((n) => {
-          const x = at(n, total) * 100;
-          const isNext = n === next;
-          const isLive = n === live;
-          return (
-            <span key={n} className="absolute -translate-x-1/2" style={{ left: `${x}%`, top: face + lift }}>
-              <i
-                className={`mx-auto block w-px ${isLive ? "h-[11px] w-[3px] bg-live" : isNext ? "h-[11px] border-l-2 border-dashed border-white" : n <= aired ? "h-[11px] bg-white/85" : "h-[7px] mt-[2px] bg-white/35"}`}
-              />
-              {labelled(n) && (
-                <small className={`type-num mt-0.5 block text-center text-[11px] leading-none ${isLive ? "font-bold text-live" : isNext ? "font-bold text-white" : n <= aired ? "text-white/80" : "text-white/55"}`}>
-                  {n}
-                </small>
-              )}
-            </span>
-          );
-        })}
-        {stacks.map(({ seen, people }) => {
-          const shown = people.slice(0, 3);
-          const more = people.length - shown.length;
-          return (
-            <span
-              key={seen}
-              data-ruler-mark={seen}
-              className="absolute flex -translate-x-1/2 flex-col-reverse items-center transition-[left] duration-[320ms] ease-[cubic-bezier(.16,1,.3,1)] motion-reduce:transition-none"
-              style={{ left: `${(placed ? at(seen, total) : 0) * 100}%`, bottom: 26 }}
-            >
-              {shown.map((w, i) => (
-                <span
-                  key={w.userId}
-                  data-ruler-face={w.you ? "you" : w.name}
-                  className={`rounded-[4px] shadow-[0_2px_6px_rgba(0,0,0,.45)] ${w.you ? "outline-2 outline-offset-1 outline-white" : ""} ${i ? "-mb-1.5" : ""}`}
-                  style={{ zIndex: 10 - i }}
-                >
-                  <Avatar id={w.userId} name={w.name} size={face} />
-                </span>
-              ))}
-              {more > 0 && (
-                <span className="type-num -mb-1.5 grid size-7 place-items-center rounded-[4px] bg-[rgba(16,14,21,.85)] text-[11px] font-bold text-white">+{more}</span>
-              )}
-            </span>
-          );
-        })}
-      </span>
-      {couch && (
-        <span className="mt-1 flex items-center justify-end gap-1 text-[14px] font-semibold text-white/85">
-          {quietCount ? `${quietCount} not sharing · ` : ""}Where everyone is
-          <ChevronRight className="size-4" aria-hidden />
-        </span>
-      )}
+      {body}
+      {couch && <span className="mt-1 flex items-center justify-end gap-1 text-[14px] font-semibold text-white/85">{everyone}</span>}
     </button>
   );
 }

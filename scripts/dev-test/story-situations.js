@@ -234,7 +234,7 @@ async function measure(p) {
                 // A beat of a full-screen sheet: its stage (the reveal's), or whatever a confirm sheet asks first (Yes, show me).
                 const stage = q.locator('[role="dialog"]:not([aria-hidden="true"]) [data-stage]').last();
                 if (!(await stage.isVisible().catch(() => false))) {
-                  const yes = q.locator('[role="dialog"]:not([aria-hidden="true"]) :is([data-watched-yes], [data-ask-confirm-yes], button:has-text("Reveal"))').last();
+                  const yes = q.locator('[role="dialog"]:not([aria-hidden="true"]) :is([data-watched-yes], [data-step-guard-yes], button:has-text("Reveal"))').last();
                   if (!(await yes.isVisible().catch(() => false))) break;
                   await yes.click();
                   await q.waitForTimeout(1500);

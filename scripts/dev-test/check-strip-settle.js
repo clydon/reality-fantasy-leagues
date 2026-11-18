@@ -1,6 +1,6 @@
 // The strip settling (src/new/show/strip.tsx; the design round's step 3, the user's B3): a move made through the strip turns it
-// from due (yellow) to "All set for Ep N" with its one-off settle moment, and the behind question (behind-ask.tsx, the user's pick
-// B) asks on a show you're behind on, and its Not yet holds on a second phone (kept on the server). On the zt_nd couch: riley has one Survival Pool pick due (alex's and jordan's lead with a
+// from due (yellow) to "All set for Ep N" with its one-off settle moment, and the behind question (step-through.tsx: one episode at a
+// time, the user's pick A of 2026-11-17) asks on a show you're behind on, and its Not yet holds on a second phone (kept on the server). On the zt_nd couch: riley has one Survival Pool pick due (alex's and jordan's lead with a
 // replacement, which opens the waivers screen); sam is two behind with results in.
 // Needs: the app on :3000 (npm run dev). Brings the couch up and takes it down (new-fixture.js); zt_nd rows only, never a real
 // account. Run: node scripts/dev-test/check-strip-settle.js [--out=.ui-atlas/stories/step3-tonight/settle] [--keep]
@@ -70,7 +70,7 @@ const check = (ok, what, extra = "") => {
   try {
     await tonightOf(s.page);
     const p = s.page;
-    check((await p.locator("[data-ask-line]").count()) === 1, "sam's control asks: Seen Ep 4 and 5?", await p.locator("[data-progress]").innerText());
+    check((await p.locator("[data-ask-line]").count()) === 1, "sam's control asks about the next one: Seen Ep 4?", await p.locator("[data-progress]").innerText());
     const yes = p.locator("[data-ask-yes]");
     check((await yes.getAttribute("class"))?.includes("bg-chyron") === true, "Yes holds the yellow (the pick waits on the reveal)");
     await p.screenshot({ path: path.join(OUT, "sam-asks.jpg"), type: "jpeg", quality: 82 });

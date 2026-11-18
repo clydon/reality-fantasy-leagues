@@ -16,8 +16,9 @@ import { Sheet } from "../ui/sheet";
 import { ShowArt } from "../ui/show-bar";
 import { toast } from "../ui/toast";
 import { first } from "./moves";
-import { GifsAction, GifsBeat, openGif, showLabel, type GifTarget } from "./react";
+import { EpisodeGifStrip, GifsAction, GifsBeat, openGif, showLabel, type GifTarget } from "./react";
 import { Face } from "./parts";
+import { useStepEnd, useWatcherNext } from "./step-through";
 
 // The one reveal (the mock's episode.js revealPlay, stages.js, share.js; docs/PLAN-new-design.md step 2): one
 // broadcast per episode for every game you play on the show. Tapping Reveal asks the server to reveal it in all of
@@ -132,6 +133,16 @@ function Broadcast({ show, seasonId, n, replay, onClose }: { show: ShowData; sea
   const hasGifs = !!gifRead.data && (gifRead.data.people.length > 0 || !!gifRead.data.mine);
   // No games in it (a show you only watch): nothing to share or reveal next, the end goes back.
   const games = !!r && !!(r.lineup || r.games.length || r.predictions.length || r.table);
+  // One episode at a time (step-through.tsx): a show you only watch gets a next too: the next one out, played when you've said it,
+  // else asked.
+  const watcherNext = useWatcherNext(show, n);
+  const stepEnd = useStepEnd(seasonId);
+  const [seeing, setSeeing] = useState(false);
+  // Back when you passed on the next one: Not yet, so Tonight doesn't ask again under your thumb.
+  const backPassing = () => {
+    stepEnd.later(show.latestAired);
+    onClose();
+  };
 
   useEffect(() => {
     // Once per episode (a second ask would only say "again").
@@ -165,17 +176,14 @@ function Broadcast({ show, seasonId, n, replay, onClose }: { show: ShowData; sea
         end={
           r && (
             <>
-              {/* Quiet, side by side: your GIF (when the couch had none to show and yours isn't in) and Share your night. */}
-              {(games || !hasGifs) && (
-                <div className="flex gap-2">
-                  {!hasGifs && <GifsAction target={gifTarget} quiet />}
-                  {games && (
-                    <Btn className="flex-1" onClick={() => setSharing(true)}>
-                      <Send className="size-[18px]" aria-hidden />
-                      Share your night
-                    </Btn>
-                  )}
-                </div>
+              {/* Your slot in the couch's GIFs for this episode (the user, 2026-11-17: ask for a GIF per episode you watch, cleanly):
+                  Last time's strip, yours first, one tap to add it, nothing to skip. Each episode of a recap in turn ends on its own. */}
+              {!show.readOnly && <EpisodeGifStrip target={gifTarget} ep={show.words.ep} cols={4} />}
+              {games && (
+                <Btn wide onClick={() => setSharing(true)}>
+                  <Send className="size-[18px]" aria-hidden />
+                  Share your night
+                </Btn>
               )}
               {/* A replay goes back: the next one isn't a replay's to reveal. */}
               {r.next && !replay ? (
@@ -184,10 +192,46 @@ function Broadcast({ show, seasonId, n, replay, onClose }: { show: ShowData; sea
                   <Btn tone="ink" wide onClick={() => ask(r.next!)}>
                     Reveal Episode {r.next}
                   </Btn>
-                  <button type="button" onClick={onClose} className="h-11 text-[15px] font-semibold text-muted-foreground">
+                  <button type="button" onClick={backPassing} className="h-11 text-[15px] font-semibold text-muted-foreground">
                     Back to {name}
                   </button>
                 </>
+              ) : watcherNext && !replay && !games ? (
+                watcherNext.seen ? (
+                  <>
+                    <Btn tone="ink" wide data-step-next={watcherNext.n} onClick={() => ask(watcherNext.n)}>
+                      {show.words.ep} {watcherNext.n}&rsquo;s recap
+                    </Btn>
+                    <button type="button" onClick={onClose} className="h-11 text-[15px] font-semibold text-muted-foreground">
+                      Back to {name}
+                    </button>
+                  </>
+                ) : (
+                  // The next one first, Back last as the primary (the safe answer, under the thumb, as the player's end has it).
+                  <>
+                    <Btn
+                      wide
+                      data-step-next={watcherNext.n}
+                      disabled={seeing}
+                      onClick={async () => {
+                        setSeeing(true);
+                        try {
+                          await stepEnd.seen(watcherNext.n);
+                          ask(watcherNext.n);
+                        } catch (e) {
+                          toast.quiet((e as Error).message);
+                        } finally {
+                          setSeeing(false);
+                        }
+                      }}
+                    >
+                      I&rsquo;ve seen {show.words.ep} {watcherNext.n} too
+                    </Btn>
+                    <Btn tone="ink" wide onClick={backPassing}>
+                      Back to {name}
+                    </Btn>
+                  </>
+                )
               ) : (
                 <Btn tone="ink" wide onClick={onClose}>
                   Back to {name}

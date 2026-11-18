@@ -103,6 +103,7 @@ export function EpisodeLedger({
   episodes,
   fixed,
   onChange,
+  from = 1,
 }: {
   s: WhereSeason;
   seen: number;
@@ -110,10 +111,12 @@ export function EpisodeLedger({
   episodes?: StepEpisode[];
   fixed?: boolean;
   onChange?: (n: number) => void;
+  /** The first row: the behind question's picker (show/step-through.tsx) lists only what's out past your mark. */
+  from?: number;
 }) {
   const ep = s.epWord ?? "Ep";
   const aired = s.aired ?? 0;
-  const rows = Array.from({ length: aired }, (_, i) => i + 1);
+  const rows = Array.from({ length: Math.max(0, aired - from + 1) }, (_, i) => from + i);
   const toAir = s.total && s.total > aired ? s.total - aired : 0;
   const here = (
     <div data-ledger-here={seen} className="flex items-center gap-2 py-1.5" aria-hidden>
@@ -124,7 +127,7 @@ export function EpisodeLedger({
   );
   return (
     <div data-ledger className="max-h-[46dvh] overflow-y-auto overscroll-contain pr-0.5">
-      {seen === 0 && here}
+      {seen === from - 1 && here}
       {rows.map((n) => {
         const e = episodes?.find((x) => x.number === n);
         const isSeen = n <= seen;

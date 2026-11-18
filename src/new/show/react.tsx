@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Plus } from "lucide-react";
 import { episodeGifsApi, useAfterGif, useEpisodeGifs, type EpisodeGifLine, type GifHit } from "../data";
 import type { ShowData } from "../screens/show-space";
 import { Btn } from "../ui/parts";
@@ -188,6 +188,76 @@ export function GifTile({ gif, name, you, wide }: { gif: Gif; name?: string; you
 }
 
 // ---------- where it opens from ----------
+
+/**
+ * Your slot in the couch's GIFs for an episode: yours first (a dashed "Your GIF" tile until it's in), then theirs; with nobody's
+ * yet, one row to add yours. Tonight's Last time, and each recap's end (the user, 2026-11-17: ask for a GIF for each episode you
+ * watch, cleanly: your place among the couch's, one tap, nothing to skip). `cols`: 3 on Tonight (two of theirs), 4 at a recap's end
+ * (three, smaller, under the beat). Every tile opens React with a GIF for the episode.
+ */
+export function EpisodeGifStrip({ target, ep, cols = 3 }: { target: GifTarget; ep: string; cols?: 3 | 4 }) {
+  const gifs = useEpisodeGifs(target.seasonId, target.couchId, target.episode);
+  const d = gifs.data;
+  const others = d?.people ?? [];
+  const shown = others.slice(0, cols - 1);
+  const count = others.length + (d?.mine ? 1 : 0);
+  if (d && count === 0)
+    // Nobody's GIF yet, yours included: one row to add yours, not an empty tile in a row of three.
+    return (
+      <button
+        type="button"
+        data-gif-add
+        data-last-gifs={0}
+        data-gif-strip={target.episode}
+        onClick={() => openGif(target)}
+        className="nd-press flex min-h-[64px] w-full items-center gap-3 rounded-[4px] border-2 border-dashed border-edge px-3.5 py-2 text-left"
+      >
+        <Plus className="size-5 flex-none" aria-hidden />
+        <span className="min-w-0 flex-1">
+          <b className="block text-[16px]">
+            Add your GIF for {ep} {target.episode}
+          </b>
+          <small className="block text-[14px] text-muted-foreground">{target.solo ? "How was it? Any GIF you like" : "Nobody on the couch has yet"}</small>
+        </span>
+      </button>
+    );
+  return (
+    <div data-last-gifs={count} data-gif-strip={target.episode}>
+      <div className={`grid ${cols === 4 ? "grid-cols-4 gap-1.5" : "grid-cols-3 gap-2"}`}>
+        {d?.mine ? (
+          <button type="button" onClick={() => openGif(target)} className="nd-press block text-left" aria-label="Your GIF: change it">
+            <GifTile gif={d.mine} you />
+          </button>
+        ) : (
+          <button
+            type="button"
+            data-gif-add
+            onClick={() => openGif(target)}
+            className="nd-press flex aspect-[4/3] flex-col items-center justify-center gap-0.5 rounded-[4px] border-2 border-dashed border-edge text-center"
+          >
+            <Plus className="size-5" aria-hidden />
+            <b className="text-[14px] leading-tight">Your GIF</b>
+          </button>
+        )}
+        {shown.map((p) => (
+          <button key={p.userId} type="button" onClick={() => openGif(target)} className="nd-press block text-left" aria-label={`${p.name}'s GIF: see everyone's`}>
+            <GifTile gif={p.gif} name={p.name} />
+          </button>
+        ))}
+        {!d && <span aria-busy className={`${cols === 4 ? "col-span-3 aspect-[12/3]" : "col-span-2 aspect-[8/3]"} animate-pulse rounded-[4px] bg-card`} />}
+      </div>
+      <p className="mt-2 text-[13px] text-muted-foreground">
+        {target.solo
+          ? d?.mine
+            ? "Your reaction, just for you"
+            : "How was it? Any GIF you like"
+          : !d
+            ? " "
+            : `${count} of ${d.of} on the couch reacted${d.mine ? "" : " · no GIF from you yet"}${others.length > shown.length ? ` · ${others.length - shown.length} more` : ""}`}
+      </p>
+    </div>
+  );
+}
 
 /** A row that opens React with a GIF (Tonight, the episode page): React, or yours and how many on the couch too. */
 export function GifRow({ target, line }: { target: GifTarget; line: EpisodeGifLine | undefined }) {

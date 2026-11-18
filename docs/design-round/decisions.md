@@ -834,3 +834,21 @@
 - Rejected: the night for a game in the log (the page's wording is a show's, BACKLOG 100); a past season's row opening anything
   (nothing sits under it in the app).
 - Rests on: check-drill-doors.js's sports set (roster-person, roster-team, athlete-log, cast-team) on a stand-in ESPN.
+
+## 2026-11-17 · One episode at a time: three looks mocked, A recommended (awaiting the user)
+- Decided by: Claude (recommendation; the user, from Traitors 5 in the real app: "I can view just episode 9, the UI forces you to jump to the latest. We definitely need a natural and intuitive way to progress one by one")
+- What: the behind question names one episode ("Seen Ep 9?"); the range is one deliberate tap in. Three forms mocked behind ?step=a|b|c (TEMP-UI, src/new/show/step-through.tsx): A the next one, B pick how far (tiles), C move your face (the ruler's stops). Shared by all three: the guard names one episode with the range on its own row; Yes plays that episode's recap (not the latest's); the recap's end offers the next; Back from it is Not yet; after Not yet the line keeps its shape (Seen Ep 9 / Watch along); the question is no longer a door ("Through Ep 8 ›" is).
+- Why: the range question had no answer for "just 9" (both answers false for the commonest state), its Yes played Ep 10's recap and skipped 9's, and Not yet left no way to say Ep 9 was seen. A is the only look whose autopilot tap can't spoil and it adds nothing to the first view (PFD 81, critique 30/40; B 72 and 23, C 70 and 24).
+- Rejected: B and C as the default (each makes every out episode an equal target, the over-claim one tap from the first view); inferring what was seen (the 2026-11-15 rule).
+- Rests on: the story https://claude.ai/artifact/9xESHEqUcnNQHqauR6mnyD; docs/design-round/step-through-{spec,first-view,shape,pfd-eval,critique}.md; scripts/dev-test/story-step-through.js and step-fixture.js.
+
+## 2026-11-17 · One episode at a time: A, with Up to… and air dates (built behind ?step=a; awaiting the word to ship)
+- Decided by: the user ("I like A but we can do one more additional control": a button on the Yes row to set the episode manually, then "a recap of episodes X-Y or skip to latest which will just show Y"; and air dates, "because a real watcher isn't always counting episodes")
+- What: the guard's Yes row gains **Up to…**, opening a picker in the sheet (the episode ledger's rows from the first one out, each with its air date; EpisodeLedger takes `from`); a later pick asks **Recap Ep 9 to 12** (each recap in turn, via the recap's next) or **Skip to Ep 12** (its own only; on a show you play the reveal moves every game there). It replaces round 1's "I've seen Ep 10 too" row and "Somewhere in between?" link. Air dates: "Aired Nov 7 · 2 out" under the question, "aired Sat, Nov 7" on the guard, a date on every picker row, "Ep 9 aired Nov 7" after Not yet (the weekday inside the last week, the date before, as clock.ts's airedAt).
+- Rests on: the story https://claude.ai/artifact/9xESHEqUcnNQHqauR6mnyD (version 2); src/new/show/step-through.tsx.
+
+## 2026-11-17 · One episode at a time shipped: A, Up to…, air dates, your GIF slot on each recap's end, and Live's card
+- Decided by: the user ("Okay implement this commit and push to master"), on Claude's take for GIFs: "your own slot in the couch's GIF row" on each recap's end, never a pop-up, a list to work through or a push
+- What: the switch and looks B and C are gone; behind on an airing show, Tonight asks "Seen Ep 9?" with "Aired Nov 7 · 2 out" (step-through.tsx), the guard has Up to… (the picker, then Recap or Skip), after Not yet the line keeps its shape, Back from a recap is Not yet. Each recap's end has the couch's GIFs for that episode with your slot first (react.tsx EpisodeGifStrip, the same strip as Tonight's Last time, four across there), replacing the plain Add your GIF; Recap Ep 9 to 12 ends each episode on its own slot, Skip to 12 only 12's. Live keep-up's card ("Episodes 9 and 10 have aired") answers with Seen Ep 9, opening the same guard, its "Seen some of them?" link gone.
+- Rejected: a GIF pop-up after each episode, a "react to all four" list at a catch-up's end, a push or streak for GIFs (Joanna should never feel hustled).
+- Rests on: the story https://claude.ai/artifact/9xESHEqUcnNQHqauR6mnyD (version 3); scripts/dev-test/check-step-through.js (30 PASS).

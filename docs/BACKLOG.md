@@ -1314,6 +1314,12 @@ Last updated 2026-10-27.
     look): opened straight from its link (`/home?page=previously`), the page draws its empty state until Home's data comes back,
     then fills in (couch-pages.tsx PreviouslyOn: `shows` is empty while loading). It should wait (a skeleton) and only say
     there's nothing when Home has said so. Who takes it: the next session that touches the hub's couch pages; small.
+103. **One episode at a time's leftovers** (noticed 2026-11-17 shipping it; Claude, any session that touches the reveal or the
+   progress control): Undo for a mark lives only in the toast over the recap's first beat; the watcher's recap end doesn't say which
+   episode it was, and its "I've seen Ep 10 too" has no air date; the Watched sheet's toast says "You're up to Episode 9" where the
+   guard's says "You're through"; the ruler's dashed out run is light at 30 episodes (a bright band was suggested); the Tonight tab's
+   red count on a played show (the Red Is For Leaving rule); step-fixture.js seeds no couch GIFs (the app shows only KLIPY's, and the
+   GIF check's stand-in isn't wired to it), so the recap end's slot is only drawn in its empty state.
 
 ## Decided against (don't re-propose without new information)
 

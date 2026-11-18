@@ -11,6 +11,15 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
+## Shipped 2026-11-17: one episode at a time (the user's report from Traitors 5)
+Behind on an airing show, Tonight's progress control asks about the next episode only ("Seen Ep 9?", "Aired Nov 7 · 2 out"), its
+guard has **Up to…** (the episodes out with their air dates, then Recap Ep 9 to 12 or Skip to Ep 12), each recap's end offers the
+next and your GIF slot among the couch's, Back from it is Not yet, and Live keep-up's card asks the same way. Code:
+`src/new/show/step-through.tsx` (with progress.tsx, reveal.tsx, react.tsx's EpisodeGifStrip, seen-it.tsx, where.tsx's ledger
+`from`). Round papers: `docs/design-round/step-through-*.md`; the story https://claude.ai/artifact/9xESHEqUcnNQHqauR6mnyD; the check
+`scripts/dev-test/check-step-through.js` and frames `story-step-through.js` on `step-fixture.js` (zt-st- rows, runs beside zt_nd).
+Noticed and left: BACKLOG 103. A standing preference from it: an episode named for someone to recognise shows when it aired.
+
 ## Cast properties, chunks 1 to 3 (2026-11-16; lane `castprops`: `../rfl-castprops`, branch `cast-props` from `explorer-sports` at 4ec5985e, port 3012, database `rfl_castprops`; committed, not pushed or merged; migration 0439)
 docs/PLAN-cast-properties.md, its "When" now the user's new order (cast properties beside or after step 8, the round's steps 9–12
 after, the wizard taking in chunk 7). Commits: 10b6f369 (chunk 1), ad6b0f2b (chunk 2), e3c18650 (chunk 3), f183b123 (gender).

@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { ChevronDown, ChevronRight, EyeOff, MessageCircle, Plus, Tv, Users } from "lucide-react";
 import { airTime, calm, justAired, lockTime, ticks } from "../clock";
 import { AskAiSheet, checkFull } from "../backstage/ask-ai";
-import { backstage, useAfterResults, useEpisodeGifs, useSeasonPolls, type GameView, type LineupWeek, type PasteResult } from "../data";
+import { backstage, useAfterResults, useSeasonPolls, type GameView, type LineupWeek, type PasteResult } from "../data";
 import { gameInk, ordinal } from "../games";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
@@ -26,7 +26,7 @@ import { OwnPacePlates } from "./pace-plate";
 import { openPlan, PlanPlates } from "../couch/watch-plans";
 import { useOpenMorning } from "./reveal";
 import { StatsCard } from "./stats";
-import { GifTile, openGif, showLabel } from "./react";
+import { EpisodeGifStrip, showLabel } from "./react";
 import { CallResultRow, CallRow } from "./calls";
 import { SheetResultRow, SheetRow } from "./questions";
 import { PollRow } from "./polls";
@@ -300,15 +300,10 @@ function latestSeen(show: ShowData): number | null {
 function LastTime({ seasonId, show, open }: { seasonId: string; show: ShowData; open: (d: Door) => void }) {
   const n = latestSeen(show);
   const couchId = show.couch?.id ?? null;
-  const gifs = useEpisodeGifs(seasonId, couchId, n, !!n && !show.readOnly);
   if (!n || !show.header) return null;
   const e = show.episodes?.episodes.find((x) => x.number === n);
   const ep = show.words.ep;
-  const d = gifs.data;
   const target = { seasonId, couchId, episode: n, label: showLabel(show), solo: show.solo };
-  const others = d?.people ?? [];
-  const shown = others.slice(0, 2);
-  const count = others.length + (d?.mine ? 1 : 0);
   return (
     <Block title={`Last time · ${ep} ${n}`} aside={e?.stage === "early" ? "Early results" : undefined}>
       <div data-last-time={n} className="flex flex-col gap-3">
@@ -326,60 +321,8 @@ function LastTime({ seasonId, show, open }: { seasonId: string; show: ShowData; 
           </button>
         ))}
         {show.ready && show.header.show.kind !== "sport" && e && e.out?.length === 0 && <p className="text-[15px] text-muted-foreground">Nobody left in {ep} {n}.</p>}
-        {!show.readOnly && d && count === 0 && (
-          // Nobody's GIF yet, yours included: one row to add yours, not an empty tile in a row of three.
-          <button
-            type="button"
-            data-gif-add
-            data-last-gifs={0}
-            onClick={() => openGif(target)}
-            className="nd-press flex min-h-[64px] w-full items-center gap-3 rounded-[4px] border-2 border-dashed border-edge px-3.5 py-2 text-left"
-          >
-            <Plus className="size-5 flex-none" aria-hidden />
-            <span className="min-w-0 flex-1">
-              <b className="block text-[16px]">Add your GIF for {ep} {n}</b>
-              <small className="block text-[14px] text-muted-foreground">{show.solo ? "How was it? Any GIF you like" : "Nobody on the couch has yet"}</small>
-            </span>
-          </button>
-        )}
-        {!show.readOnly && !(d && count === 0) && (
-          <div data-last-gifs={count}>
-            <div className="grid grid-cols-3 gap-2">
-              {d?.mine ? (
-                <button type="button" onClick={() => openGif(target)} className="nd-press block text-left" aria-label="Your GIF: change it">
-                  <GifTile gif={d.mine} you />
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  data-gif-add
-                  onClick={() => openGif(target)}
-                  className="nd-press flex aspect-[4/3] flex-col items-center justify-center gap-0.5 rounded-[4px] border-2 border-dashed border-edge text-center"
-                >
-                  <Plus className="size-5" aria-hidden />
-                  <b className="text-[14px] leading-tight">Your GIF</b>
-                </button>
-              )}
-              {shown.map((p) => (
-                <button key={p.userId} type="button" onClick={() => openGif(target)} className="nd-press block text-left" aria-label={`${p.name}'s GIF: see everyone's`}>
-                  <GifTile gif={p.gif} name={p.name} />
-                </button>
-              ))}
-              {!d && <span aria-busy className="col-span-2 aspect-[8/3] animate-pulse rounded-[4px] bg-card" />}
-            </div>
-            <p className="mt-2 text-[13px] text-muted-foreground">
-              {show.solo
-                ? d?.mine
-                  ? "Your reaction, just for you"
-                  : "How was it? Any GIF you like"
-                : !d
-                  ? " "
-                  : count === 0
-                    ? "Nobody on the couch has reacted yet"
-                    : `${count} of ${d.of} on the couch reacted${d.mine ? "" : " · no GIF from you yet"}${others.length > shown.length ? ` · ${others.length - shown.length} more` : ""}`}
-            </p>
-          </div>
-        )}
+        {/* The couch's GIFs for it, your slot first (react.tsx: the same strip ends each recap). */}
+        {!show.readOnly && <EpisodeGifStrip target={target} ep={ep} />}
         <div className="grid grid-cols-2 gap-2">
           {!show.solo && couchId && !show.readOnly && (
             <NavLink href={paths.show(seasonId, "chat")} data-last-discuss className="nd-press flex h-12 items-center justify-center gap-2 rounded-[4px] font-bold outline-1 -outline-offset-1 outline-edge">
