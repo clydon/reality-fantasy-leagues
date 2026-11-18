@@ -1289,3 +1289,9 @@
 - Why: the setup screen's card (the game's own name in condensed caps over the show's art) opens the started game's page, so making and playing read as one; a kicker (the show and season), the name stepping 48, 40, 34 px by measured lines, and the engine's plain sentence while nothing has scored for you yet. It shows no state, so it can't spoil; the week block keeps the news and the move stays above the fold (measured: a due move ends by 423 px at 390 × 844).
 - Rejected: the 64 px title the page had before step 2 (a quarter of the first view); the type's name ("Weekly Lineup") over the game's own ("Fantasy league").
 - Rests on: src/new/show/game-title.tsx; scripts/dev-test/story-game-title.js.
+
+## 2026-11-18 · The title card's art is in colour on both screens; the sentence stays until something scores; the name shows once
+- Decided by: the user ("1. color. 2: your call. 3: your call."), on the story https://claude.ai/artifact/XR92umAKtd2gSFt1H7Grtd; 2 and 3 Claude's, keeping what was built
+- Why: colour was the user's call for the game page (2026-11-08), so the setup card now matches it and the greyscale switch is gone. The sentence until the game has scored for you: each person meets the game once (for the couch's others it is the introduction), then the card is lean and the week block is higher on every later visit. The name once: the card names the game in the first view, and the bar that stays takes the name only after the card scrolls away, so the name never shows twice (PFD's R1).
+- Rejected: greyscale on both (the setup card's first drawing); the sentence on every visit (a line above the week in every situation); the name in the bar always.
+- Rests on: src/new/ui/title-card.ts, show/game-title.tsx; DESIGN.md's Title card and Show Art.

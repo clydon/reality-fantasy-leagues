@@ -201,22 +201,6 @@ async function main() {
       const undo = p.locator('[data-toast="done"] button');
       if (await undo.count()) await undo.click().catch(() => {});
     }
-    // The art's other way, the user's choice (greyscale on both screens, as the setup card was drawn): development's switch.
-    if (games.fantasy) {
-      await frame("g0-setup-gray", "The art's other way: greyscale on the setup card", async () => {
-        await p.goto(`${BASE}/show/${games.fantasy.seasonId}/games?card-art=gray`, { waitUntil: "domcontentloaded" });
-        await p.locator("[data-start-row], [data-play-start]").first().click({ timeout: 60000 });
-        await p.locator("[data-gallery=gallery]").waitFor({ timeout: 60000 });
-        await p.locator('[data-gallery-lead="fantasy"]').click();
-        await p.locator("[data-gallery=base]").waitFor();
-      });
-      await frame("g1-started-gray", "The art's other way: greyscale on the game page", async () => {
-        await p.goto(`${BASE}/show/${games.fantasy.seasonId}/game/${games.fantasy.leagueId}?card-art=gray`, { waitUntil: "domcontentloaded" });
-        await p.locator("[data-game-page]").waitFor({ timeout: 60000 });
-        await p.waitForTimeout(1200);
-      });
-      await p.evaluate(() => sessionStorage.removeItem("gys_card_art")).catch(() => {});
-    }
     if (games.pool) await frame("t2-pool", "Just started: a Survival pool, the first pick due", () => page(games.pool));
     if (games.long) await frame("t3-long", "A very long name: The Tribal Council Prediction Spectacular, one episode", () => page(games.long));
     if (games.stages) await frame("t4-stages", "A game in stages: the redraft at the merge", () => page(games.stages));

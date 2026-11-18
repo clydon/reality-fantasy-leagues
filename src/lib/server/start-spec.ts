@@ -83,6 +83,17 @@ async function againSpecOf(leagueId: string, canAsk: string[] | null): Promise<R
   if (!state) return null;
   const spec = structuredClone(StateLogic.gameOf(state)) as unknown as Record<string, unknown>;
   delete spec.span;
+  // A draft held to today's limits, as Run it back always did (start-game.ts againParts): starters, bench, a team's size.
+  const get = spec.get as { by?: string; each?: number } | undefined;
+  const count = spec.count as { start?: number } | undefined;
+  if (get?.by === "draft" && typeof get.each === "number") {
+    if (count && typeof count.start === "number") {
+      const startN = Math.min(count.start, Spec.MAX_STARTERS);
+      const bench = Math.min(Math.max(0, get.each - count.start), Spec.MAX_BENCH);
+      spec.count = { ...count, start: startN };
+      spec.get = { ...get, each: startN + bench };
+    } else spec.get = { ...get, each: Math.min(get.each, Spec.MAX_TEAM) };
+  }
   // Only the questions this season can still ask (startOptions' again.questions: a season-long one on a span, an id it hasn't got).
   if (canAsk && Array.isArray(spec.ask)) {
     const kept = (spec.ask as Record<string, unknown>[]).filter((q) => typeof q.id === "string" && canAsk.includes(q.id));

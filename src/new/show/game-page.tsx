@@ -29,7 +29,7 @@ import { Face } from "./parts";
 import { answerWords, openSheet, QuestionsBody } from "./questions";
 import { DrillSheets, PersonBody, totalWords, useDrill, type DrillState } from "./game-sheets";
 import { GameTitleCard } from "./game-title";
-import { kickerOf, useCardArtGray } from "../ui/title-card";
+import { kickerOf } from "../ui/title-card";
 import { playsWaivers } from "./waivers";
 import { yourMove } from "./your-move";
 import { SideBetsRow, waiverLine, WeekBlock, WeekGames, YourTeam } from "./game-week";
@@ -342,7 +342,6 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
 /** The show's art in its own colours (the user, 2026-11-08), washed toward Night so the faces and numbers over it read. */
 function Backdrop({ art, colour }: { art: string | null; colour: string | null }) {
   const { src, frame } = splitFrame(art);
-  const gray = useCardArtGray();
   if (!src)
     return colour ? (
       <span aria-hidden className="absolute inset-0" style={{ background: `radial-gradient(120% 70% at 50% 18%, color-mix(in srgb, ${colour} 26%, transparent), transparent 70%)` }} />
@@ -350,7 +349,7 @@ function Backdrop({ art, colour }: { art: string | null; colour: string | null }
   return (
     <span aria-hidden className="absolute inset-0">
       {/* eslint-disable-next-line @next/next/no-img-element -- art_url can be an arbitrary external URL */}
-      <img src={src} alt="" className={`size-full object-cover ${gray ? "opacity-50 grayscale" : ""}`} style={frame ? frameStyle(frame) : { objectPosition: "center 25%" }} />
+      <img src={src} alt="" className="size-full object-cover" style={frame ? frameStyle(frame) : { objectPosition: "center 25%" }} />
       <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(22,20,29,.55),rgba(22,20,29,.78)_38%,rgba(22,20,29,.93)_72%,var(--background))]" />
     </span>
   );

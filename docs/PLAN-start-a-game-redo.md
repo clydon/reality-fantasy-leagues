@@ -420,7 +420,9 @@ then approval.
       (but its guide step, below). Ported, their B1 parts passing, failing on screens B1 doesn't touch (below): `check-spans.js`,
       `check-phase-starts.js`, `check-questions.js`, `check-new-start-game.js`. `story-start-gallery.js` draws the built gallery by
       default (`--before` prints SKIP: Round 1's wizard is gone).
-    - Chunk 7 built, **waiting on the user's review** (the story: https://claude.ai/artifact/XR92umAKtd2gSFt1H7Grtd): the game page
+    - Chunk 7 built and reviewed: **the user's calls (2026-11-18): the art in colour on both screens; the sentence and the bar left
+      to Claude**, kept as built (the sentence until the game has scored for you; the name once, the bar taking it after the card
+      scrolls away). The greyscale switch went; DESIGN.md's Title card and Show Art say so. Built as reviewed (the story: https://claude.ai/artifact/XR92umAKtd2gSFt1H7Grtd): the game page
       opens on its title card (`src/new/show/game-title.tsx`; one object with the setup card through `src/new/ui/title-card.ts`: the
       kicker, the measured size 48/40/34, the art; the setup's sentence carried onto the game at Start as `settings.about`, else the
       engine's, numbers left out); a bar stays at the top with the name once the card scrolls away. Papers:
@@ -437,8 +439,8 @@ then approval.
       undefined keys as JSON does; Run it back keeps only the questions this season can ask; the setup's sentence is kept only for
       a game started unchanged and only while its rules are still those (a fingerprint); a team's Next game checks a base's own
       one-game spec; a dead sort by made-up save counts went; the setup screen's row values are read once per game; the game view
-      reads its spec's words once. Left: a draft run back with more starters than today's limits isn't clamped (our check says why
-      on its screen, and Start waits until it's changed).
+      reads its spec's words once. Since then a draft run back is held to today's limits (starters, bench, a team's size), as the old
+      path did.
     - Not done in B1, for the next session: the gameplay bench's wizard surface (`tools/gameplay-bench/router.cjs`, `check-gameplay-
       bench-flows.js`) still drives the old wizard's rail (`data-start-game`, `data-sport-game`): the explorer lane's adapter work.
       DESIGN.md's Title card and Show Art lines wait on the user's art call.
