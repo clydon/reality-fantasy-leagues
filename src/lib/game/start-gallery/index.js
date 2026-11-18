@@ -1112,9 +1112,6 @@ const BOTS_PLAY = new Set(['draft', 'pick', 'questions', 'card']);
 function botsFit(s) {
   const k = kindOf(s);
   if (BOTS_NOT_YET[k]) return BOTS_NOT_YET[k];
-  // A card (E1b's second slice): its lines answered once it's out, or picks scored by it (Objectives); a host's card would need a
-  // computer player hosting to write one.
-  if (isObj(s.card) && s.card.from === 'host') return "Computer players don't host a card yet";
   const qs = asks(s).filter((q) => !(isObj(q) && q.answer === 'calls'));
   const not = qs.find((q) => !S.botAnswers(q));
   if (not) return `Computer players don't answer "${not.ask || 'that question'}" yet`;

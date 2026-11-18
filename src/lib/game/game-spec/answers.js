@@ -1416,12 +1416,11 @@ function factsThrough(facts, k) {
 
 /** The answer kinds a computer player gives (bot-logic.js answers); the rest (trivia, a side, a bracket) wait. */
 const BOT_ANSWERS = ['person', 'group', 'yesNo', 'number', 'overUnder', 'choice', 'order', 'confidence', 'chips', 'pairs', 'split', 'ticket'];
-/** Whether a computer player answers this question: one of BOT_ANSWERS (staked too, and a card's lines once the card's out: E1b's
- *  second slice), and not about each person or game, a line of a host's card (a computer player hosting would have to write one:
- *  the gallery says so on the spec, start-gallery botsFit) or an over/under on the game's own line (read from ESPN as it opens). The
- *  gallery and the server (computer-players.ts botsPlay, through bot-logic.js) both read this one rule. */
+/** Whether a computer player answers this question: one of BOT_ANSWERS (staked too, and a card's lines once the card's out, a host's
+ *  too: E1b), and not about each person or game, or an over/under on the game's own line (read from ESPN as it opens). The gallery
+ *  and the server (computer-players.ts botsPlay, through bot-logic.js) both read this one rule. */
 function botAnswers(q) {
-  return !!q && BOT_ANSWERS.includes(q.answer) && !q.each && !(isCardLine(q) && q.card.by === 'host') && !(q.answer === 'overUnder' && q.line === 'game');
+  return !!q && BOT_ANSWERS.includes(q.answer) && !q.each && !(q.answer === 'overUnder' && q.line === 'game');
 }
 
 /** What someone has staked on wagers of any of their points (A9) still to settle, by window ("question|episode"): points already on

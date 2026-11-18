@@ -461,8 +461,25 @@ then approval.
       Proof: tests/bots-answer.test.js adds the review's cases (13 tests); the unit suite 2,434 of 2,435 (ui-atlas.test.js's local
       proxy test failed once in the parallel run and passes alone, 9 of 9: a flake, not this change); check-bots-play-through.js
       (each week's stakes within the bank: Prop bets at most 440 of 500, Bank 379) and check-start-a-game.js --api all pass.
-      **Left for E1b:** a host's card (a computer player writing its card when its turn comes), trivia (the round's key), a side, a
-      bracket, a question about each person or game. Then E1d.
+      **E1b's leftovers, part 1, done (2026-11-18): a host's card, and a read that wakes them.**
+      - **A computer player's turn to host.** bots.ts `hostForBots` (in runBots): when the card being written now
+        (host-cards.ts `openEpisode`) is a computer player's turn (`HostLogic.hostAt`) and unwritten, it writes `bot-logic.js
+        hostLines` (the card's `each` moments from its list, by its taste for that episode) through `writeHostCard`, as a person's
+        lines go; filed as any when the host's time is up. It answers its own card's lines unless the card says the host sits out
+        (`HostLogic.sitsOut`, now read in `oneAnswer`). `botAnswers` and the gallery take a host's card.
+      - **A read wakes them.** Answers that come due with no write (a card that came out, a window the clock opened) and a turn to
+        host waited for the next write. league-read.ts `readyLeague` now takes the league's lock for them too, as for a bot's waiting
+        pick: bots.ts `botsDue(db, leagueId, state)` (one read of host_cards for a host game, one of game_answers' keys for a game of
+        questions, none otherwise or with no computer player playing live; a staked answer counted as if its room were wide open,
+        so it says whether one is due, not what it stakes). A read with nothing due writes nothing. Still: with no read and no write
+        between a card coming out and the episode airing, they don't answer it.
+      - **Proof.** tests/bots-answer.test.js (the first seat hosts first; its lines from the list, none twice, the same every time;
+        it answers its filed card, and sits out one whose host doesn't answer); probed through the routes on new-fixture's season:
+        Host's card live with two computer players, one moved to the front of the rotation, a read of the season's games and its
+        Episode 6 lines are in host_cards; a Prediction sheet's six answers taken away, a read puts them back, and a read with nothing
+        due leaves the league's updated_at alone. check-start-a-game.js's dashed example is now Redraft (a game in stages). 2,436
+        unit tests pass.
+      **Left for E1b:** trivia (the round's key), a side, a bracket, a question about each person or game. Then E1d.
     - **E1c. Cards, calls and bingo** (each its own small step, after a named question to the user: a bingo card or a call is
       honour-based, tapped by whoever sees it; should a computer player mark its card from what research settles after the
       episode, or sit those games out?). Until then they stay dashed in Who's playing with the reason.

@@ -61,3 +61,5 @@ export type StakeRoom = { points: number; held: Map<string, number> };
 export function catchUpWeeks(state: LeagueState, n: number | null): { playerId: string; week: number }[];
 /** Whether any question computer players answer is staked from points or a bank (the server reads their rooms for those). */
 export function stakesPoints(state: LeagueState): boolean;
+/** The lines a computer player writes on its turn to host a card: the card's `each` moments from its list, by its taste. */
+export function hostLines(state: LeagueState, playerId: string, n: number): string[];

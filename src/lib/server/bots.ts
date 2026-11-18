@@ -1,10 +1,11 @@
-import type { PoolClient } from "pg";
+import type { Pool, PoolClient } from "pg";
 import type { LeagueState } from "@/lib/game/types";
 import Bots, { type StakeRoom } from "@/lib/game/bot-logic.js";
 import StateLogic from "@/lib/game/state-logic.js";
 import type { AnswerRow } from "./answer-points";
 import { lockAuctionBids } from "./auction";
 import { lockBlindPicks } from "./blind-draft";
+import { openEpisode, readHostCards, writeHostCard } from "./host-cards";
 
 // Computer players' moves (src/lib/game/bot-logic.js), made inside the caller's league lock so they
 // land in the same write as whatever prompted them: a person's draft pick is followed straight away by
@@ -22,7 +23,45 @@ export async function runBots(client: PoolClient, leagueId: string, state: Leagu
     await lockAuctionBids(client, leagueId, state, s.playerId, s.bids);
   }
   Bots.run(state);
+  await hostForBots(client, leagueId, state);
   await answerForBots(client, leagueId, state);
+}
+
+/** The seat whose turn it is to host the card being written now, when that's a computer player that hasn't written it (E1b's
+ *  leftovers), with the episode; else null. `rows`: the league's host_cards. */
+function botHostTurn(state: LeagueState, rows: Awaited<ReturnType<typeof readHostCards>>, now = Date.now()): { host: string; n: number } | null {
+  const H = StateLogic.HostLogic;
+  if (!H.of(state) || StateLogic.RevealLogic.isCatchingUp(state)) return null;
+  const n = openEpisode(state, rows, now);
+  if (n === null || rows.get(n)) return null;
+  const host = H.hostAt(state, n);
+  return host && Bots.botIds(state).includes(host) ? { host, n } : null;
+}
+/** A computer player whose turn it is to host writes its card's lines as a person does (host-cards.ts writeHostCard), once its turn
+ *  is open: in the write that opens it, or the read that wakes it (botsDue). A game with no host costs no query. */
+async function hostForBots(client: PoolClient, leagueId: string, state: LeagueState): Promise<void> {
+  if (!StateLogic.HostLogic.of(state)) return;
+  const rows = await readHostCards(client, leagueId);
+  const turn = botHostTurn(state, rows);
+  if (turn) await writeHostCard(client, leagueId, state, turn.host, Bots.hostLines(state, turn.host, turn.n), rows);
+}
+
+/**
+ * Whether computer players have something waiting that no write has prompted (league-read.ts readyLeague takes the league's lock
+ * for it, as it does for a bot's waiting pick): a turn to host whose card is open and unwritten, or answers due now (a window the
+ * clock opened, a card that came out). Read with the caller's `db`; one read for a host game, one for a game of questions, none
+ * for any other or with no computer player playing live.
+ */
+export async function botsDue(db: Pool | PoolClient, leagueId: string, state: LeagueState, now = Date.now()): Promise<boolean> {
+  const bots = Bots.botIds(state);
+  if (!bots.length) return false;
+  if (StateLogic.HostLogic.of(state) && botHostTurn(state, await readHostCards(db, leagueId), now)) return true;
+  if (!Bots.answeredQuestions(state).length) return false;
+  const { rows } = await db.query("SELECT player_id, question, episode FROM game_answers WHERE league_id = $1", [leagueId]);
+  const stored = rows.map((r) => ({ playerId: r.player_id as string, question: r.question as string, episode: r.episode as number }));
+  // A staked one counted as if its room were wide open: whether it's due, not what it stakes (the write reads the real room).
+  const wide = new Map(bots.map((pid) => [`${pid}|live`, { points: Number.MAX_SAFE_INTEGER, held: new Map<string, number>() }]));
+  return Bots.answers(state, stored, { now, rooms: wide }).length > 0;
 }
 
 type Answered = { playerId: string; question: string; episode: number };

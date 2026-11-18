@@ -20,7 +20,7 @@
 //   Start makes it (the toast's Undo, the game's own page), Undo takes it back; a base's screen (How long's cards, the two lock
 //   cards, Make it…, a rule's change screen and Done, the yellow Start alone), Computer players in Who's playing (two, sharp: the
 //   Start bar says them, the game has their seats; offered on a Prediction sheet at either pace and on Prop bets, dashed with the
-//   reason on Host's card), and Start on Together (its
+//   reason on Redraft, a game in stages), and Start on Together (its
 //   pace written live);
 //   saved games (the heart beside Start keeps it on the account, Community and saved games lists it and reopens it for the length
 //   it was saved with, the heart takes it off, a browser's older saves move up once); Include it on an episode on now (the fixture's Episode 6 moved to half an hour ago, then back); Describe (the wait, the result
@@ -355,12 +355,12 @@ async function browserHalf(pool, fx, bot) {
   await page.locator("[data-gallery=base]").waitFor({ timeout: 10000 });
   await tap("[data-gallery-row=who]");
   check((await page.locator('[data-gallery-choice="bot"]:not([data-off])').count()) === 1, "on Prop bets, Computer players offered: they answer the card's lines once it's out, and stake (E1b)");
-  // A host's card: a computer player hosting would have to write one, so dashed with the reason.
+  // A game in stages: not yet, so dashed with the reason.
   await openSheet();
-  await tap('[data-gallery-lead="host"], [data-gallery-base="host"]');
+  await tap('[data-gallery-lead="redraft"], [data-gallery-base="redraft"]');
   await page.locator("[data-gallery=base]").waitFor({ timeout: 10000 });
   await tap("[data-gallery-row=who]");
-  check((await page.locator('[data-gallery-choice="bot"][data-off]').count()) === 1 && /host a card yet/.test(await page.locator('[data-gallery-choice="bot"]').innerText()), "on Host's card, Computer players dashed: they don't host a card yet");
+  check((await page.locator('[data-gallery-choice="bot"][data-off]').count()) === 1 && /stages later/.test(await page.locator('[data-gallery-choice="bot"]').innerText()), "on Redraft (a game in stages), Computer players dashed: they play a game in stages later");
   await shot("05-fantasy-page");
 
   // Saved games on the account: the heart beside Start, the row in Community and saved games, reopened, taken off; and a browser's

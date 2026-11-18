@@ -186,7 +186,40 @@ test("a card's lines (Prop bets): none while its card isn't out, then each line 
   assert.ok(after.every((a) => ["yes", "no"].includes(a.answer.answer) && Number.isInteger(a.answer.stake)), JSON.stringify(after));
   assert.equal(C.botsFit(C.baseById("props").spec), null, "Prop bets: played");
   assert.equal(C.botsFit(C.baseById("objectives").spec), null, "Objectives: its picks played");
-  assert.match(C.botsFit(C.baseById("host").spec), /don't host a card yet/);
+});
+
+test("a host's card (E1b's leftovers): on its turn a computer player writes the card's lines from its list; it sits out its own when the card says", () => {
+  const ctx = { ...CTX, moments: ["idolFound", "idolPlayed", "votesNegated", "wentOnJourney", "learnedOfAdvantage", "advantageTargeted", "rewardWin", "tribeImmunity", "individualImmunity"].map((id) => ({ id, label: id, defaultPoints: 1, answeredBy: "research" })) };
+  const make = (hostAnswers) => {
+    const s = S.defaultState();
+    S.ensureNextEpisode(s);
+    S.updateSettings(s, "showId", "survivor");
+    S.updateSettings(s, "leagueTypeId", "pickem");
+    S.updateSettings(s, "wikiSeason", 51);
+    for (let i = 0; i < 8; i++) S.addCastaway(s, `Castaway ${i}`);
+    s.players = [{ id: "bot0", name: "Bot", color: "#000", automated: true, botLevel: "solid" }, { id: "ann", name: "ann", color: "#000" }];
+    S.updateSettings(s, "setupComplete", true);
+    const spec = JSON.parse(JSON.stringify(C.baseById("host").spec));
+    if (hostAnswers === false) spec.card.hostAnswers = false;
+    assert.deepEqual(S.setGame(s, spec, { ctx }), []);
+    return s;
+  };
+  const s = make(true);
+  const n = S.AnswerLogic.episodeNow(s);
+  assert.equal(S.HostLogic.hostAt(s, n), "bot0", "the first seat hosts first");
+  const lines = Bots.hostLines(s, "bot0", n);
+  const cfg = S.HostLogic.of(s);
+  assert.equal(lines.length, cfg.each);
+  assert.ok(lines.every((m) => cfg.of.includes(m)) && new Set(lines).size === lines.length, "from the card's list, none twice");
+  assert.deepEqual(Bots.hostLines(s, "bot0", n), lines, "the same every time");
+  // Filed as the host's: its lines out, and it answers them (the card says the host answers).
+  s.episodes.find((e) => e.number === n).cardChoice = { moments: lines, host: "bot0", how: "host" };
+  assert.equal(Bots.answers(s, [], { now: 0 }).filter((a) => a.question.startsWith("host.")).length, cfg.each);
+  // A card whose host doesn't answer their own questions: it sits out.
+  const t = make(false);
+  t.episodes.find((e) => e.number === n).cardChoice = { moments: lines, host: "bot0", how: "host" };
+  assert.deepEqual(Bots.answers(t, [], { now: 0 }), [], "it sits its own card out");
+  assert.equal(C.botsFit(C.baseById("host").spec), null, "Host's card: played");
 });
 
 test("the review's (E1b): a small jury's split adds up; a live late joiner waits; a hand lock binds; one seat-week; a room only when due", () => {

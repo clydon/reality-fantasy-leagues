@@ -553,8 +553,9 @@ function hasWork(state) {
 // what usually happens (no, the low count). Deterministic like the rest: run twice, the second run has nothing to add.
 //
 // The kinds it answers (Spec.BOT_ANSWERS: E1b's second slice added an order, confidence, chips, pairs, a split and a ticket, stakes
-// and a card's lines); the rest (trivia, a side, a bracket, a question about each person or game, a host's card) wait, and the
-// gallery says so (start-gallery/index.js botsFit reads the same rule). Weekly Calls are calls.ts's (botCalls).
+// and a card's lines, a host's too, writing its own card on its turn: hostLines); the rest (trivia, a side, a bracket, a question
+// about each person or game) wait, and the gallery says so (start-gallery/index.js botsFit reads the same rule). Weekly Calls are
+// calls.ts's (botCalls).
 const ANSWERS = Spec.BOT_ANSWERS;
 /** Whether a computer player answers this question (the spec's one rule: game-spec answers.js botAnswers). */
 const answersQuestion = (q) => Spec.botAnswers(q);
@@ -693,6 +694,14 @@ function needsRoom(state, stored, pid, week) {
     return !AL.closed(at, q, ep, week === null ? {} : { mark: week - 1, player: pid });
   });
 }
+/** The lines a computer player writes when it's its turn to host a card (E1b's leftovers): the card's `each` moments from its list,
+ *  by its taste for that episode (the same every time), as a person writes them (host-cards.ts writeHostCard checks them alike). */
+function hostLines(state, playerId, n) {
+  const cfg = StateLogic.HostLogic.of(state);
+  if (!cfg || !Array.isArray(cfg.of)) return [];
+  const feel = (m) => hashOf(`${playerId}|host|${n}|${m}`);
+  return cfg.of.slice().sort((a, b) => feel(a) - feel(b)).slice(0, Math.min(cfg.each, cfg.of.length));
+}
 /** Whether any question it answers is staked from points or a bank: the server reads each seat's room for those (bots.ts). */
 function stakesPoints(state) {
   const bank = Spec.bankOf(StateLogic.gameOf(state));
@@ -701,11 +710,13 @@ function stakesPoints(state) {
 /** One answer, checked as a person's is: its stake added, against who it can name, rank or pair, and what it may stake. */
 function oneAnswer(state, pid, q, ep, room, staking, answered) {
   const AL = StateLogic.AnswerLogic;
-  // A card's line: once its card is out (a card our bot chooses: its stamp), and only a line the card has that week; as answers.ts.
+  // A card's line: once its card is out (a card our bot chooses, or a host's once it's filed: its stamp), and only a line the card has
+  // that week; never a host's own card it sits out (the card says the host doesn't answer). As answers.ts.
   if (Spec.isCardLine(q)) {
     const choices = AL.cardChoices(state);
     const choice = choices ? choices.get(ep) : undefined;
     if (Spec.cardWaiting(q, ep, choice) || Spec.cardMoment(q, ep, choice) === null) return null;
+    if (StateLogic.HostLogic.sitsOut(state, ep, pid)) return null;
   }
   const faces = AL.faces(state, q, { playerId: pid });
   const key = `${q.id}|${ep}`;
@@ -804,4 +815,4 @@ function catchUpWeeks(state, n) {
   return out;
 }
 
-module.exports = { LEVELS, DEFAULT_LEVEL, isBot, botIds, ratings, run, hasWork, catchUpTo, paceTeams, blindSubmissions, auctionBids, waiverClaim, groupSlotPicks, ANSWERS, answersQuestion, answersAll, answeredQuestions, answers, catchUpAnswers, catchUpWeeks, stakesPoints, needsRoom };
+module.exports = { LEVELS, DEFAULT_LEVEL, isBot, botIds, ratings, run, hasWork, catchUpTo, paceTeams, blindSubmissions, auctionBids, waiverClaim, groupSlotPicks, ANSWERS, answersQuestion, answersAll, answeredQuestions, answers, catchUpAnswers, catchUpWeeks, stakesPoints, needsRoom, hostLines };
