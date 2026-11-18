@@ -399,6 +399,15 @@ then approval.
       sports.json (in the file's own one-line style); the changes' names (A new card each episode, Parlay) and what people call
       them (`aka`) in index.js, with `searchKnown`. The coverage table regenerated (210 of 210 homed, 209 proven) now says the
       catalog's names; `sport-gallery-check.js` passes (181 rows).
+    - Chunk 5 committed: `sports/start-sport.tsx` is gone. A team's Start a game… and a league's Play the season, week by week go
+      through `sports/start-handoff.tsx`: the games added (`/api/sports/add`: the team's season, a rival's meetings, a run of games;
+      a league's slate), then Start a game on that season, a team's Next game opening every game it can be on just that game
+      (`length: "next"`). `check-sports-couch.js` ported (Squares on the next game, Every game left, its page) and passing but for
+      the guide's Sports order (below); its `/home` guide step points at the guide's own page now (`?page=guide`, a move from an
+      earlier step). The slate's handoff isn't driven by a browser check yet (no way in by URL to a league's sheet); its API is
+      `check-slate.js`'s.
+    - Noticed, not fixed: `check-sports-couch.js` fails "the guide's Sports leads with the couch's team's game" (the guide moved
+      to its own page in an earlier step; the guide, untouched here).
     - Noticed, not fixed: `check-episode-lock.js` fails "and a new pick doesn't go in" (a pick after Backstage › Settings locks the
       episode); the lock API, untouched here. `check-new-computer-players.js` still expects the practice couch the user hid on
       2026-11-18. Both for the main session at the merge.

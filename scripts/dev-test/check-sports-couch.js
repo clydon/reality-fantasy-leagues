@@ -13,7 +13,8 @@
 //   everything while it's off, the mark while it's on) and Show the score moving the mark; each started game's page answering.
 //   In a real browser at --width (390): Add a show finds the Eagles (Teams above Shows), their sheet (the plate, Follow, the game
 //   on now with only "Started" while scores are hidden, Show the score letting it out, Play the next game the one yellow, Coming
-//   up), Start a game… (When it runs, the rail, the white card, Start it), Squares started and its page; the guide's Sports (the
+//   up), Start a game… (the team's games added, the gallery on them, Squares on just the next game, Every game left), Squares
+//   started and its page; the guide's Sports (the
 //   couch's team first, other games by league); Settings' Sports scores too. Nothing wider than the screen, no page errors.
 //
 //   npm run dev -- -p 3004   (the sports lane; BASE=http://localhost:3004)
@@ -248,7 +249,8 @@ async function browserChecks(pool, headers, couch) {
     check(w[0] <= w[1], `${what}: nothing wider than the screen`, w);
   };
   try {
-    await page.goto(BASE + "/home", { waitUntil: "networkidle" });
+    // The guide is its own page over the hub now (?page=guide), its Add a show in its header.
+    await page.goto(BASE + "/home?page=guide", { waitUntil: "networkidle" });
     await page.evaluate(() => document.querySelector("[data-guide-add]")?.scrollIntoView());
     await page.click("[data-guide-add]");
     await page.fill("[data-add-input]", "zt eagles");
@@ -276,17 +278,23 @@ async function browserChecks(pool, headers, couch) {
     await page.click("[data-live-now] [data-show-score]");
     await page.waitForFunction(() => /14/.test(document.querySelector("[data-live-now]")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
     check(/14/.test(await page.textContent("[data-live-now]")), "Show the score lets that game's score out");
+    // Start a game… (docs/PLAN-start-a-game-redo.md B1): the team's games added, then the same gallery as a show's on that season,
+    // every game opening on just the next one (what Start a game… picked).
     await page.click('[data-more="start"]');
-    await page.waitForSelector("[data-sport-start] [data-sport-game]", { timeout: 15000 });
-    await page.click('[data-sport-game="squares"]');
-    const card = await page.textContent("[data-start-card]");
-    check(/Squares/.test(card), "the white card names the game picked", card.slice(0, 80));
+    await page.waitForSelector("[data-gallery=gallery]", { timeout: 30000 });
+    const sq = page.locator('[data-gallery-base="sp-squares"], [data-gallery-lead="sp-squares"]').first();
+    await sq.scrollIntoViewIfNeeded();
+    await sq.click();
+    await page.waitForSelector("[data-gallery=base]", { timeout: 15000 });
+    const card = await page.textContent("[data-gallery-title]");
+    check(/Squares/i.test(card), "the game's screen names the game picked", card.slice(0, 80));
+    check((await page.locator("[data-gallery-option=length-next][data-chosen]").count()) === 1, "Start a game…'s Next game: it opens on just the next game");
     await wide("Start a game on a team");
     await shot("3-start");
-    await page.click("[data-sport-mode=season]");
-    check(/games/.test(await page.textContent("[data-start-readout]")), "Rest of season reads as its games");
-    await page.click("[data-sport-mode=next]");
-    await page.click("[data-start-go]");
+    await page.locator("[data-gallery-option=length-rest]").click();
+    check(/Every game left/.test(await page.textContent("[data-gallery-length]")), "the rest reads as its games (Every game left)");
+    await page.locator("[data-gallery-option=length-next]").click();
+    await page.click("[data-gallery-start]");
     await page.waitForURL(/\/game\//, { timeout: 20000 });
     await page.waitForSelector("[data-game-title]", { timeout: 20000 });
     await shot("4-squares-page");
@@ -316,7 +324,8 @@ async function browserChecks(pool, headers, couch) {
       await shot("6-draft-page");
     } else check(false, "the draft on the series starts", dr.body);
 
-    await page.goto(BASE + "/home", { waitUntil: "networkidle" });
+    // The guide is its own page over the hub now (?page=guide), its Add a show in its header.
+    await page.goto(BASE + "/home?page=guide", { waitUntil: "networkidle" });
     await page.evaluate(() => document.querySelector("[data-guide]")?.scrollIntoView());
     const sports = await page.$('[data-guide-tv-choice="sports"]');
     if (sports) {

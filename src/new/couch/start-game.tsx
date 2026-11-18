@@ -33,6 +33,8 @@ export type StartTarget = {
   practice?: StartPractice;
   /** The sheet's view to open on (Describe's See it: "describe"). */
   screen?: "describe";
+  /** How long a game starts out: "next" for just the next episode or game (a team's Next game), else each game's own default. */
+  length?: "next" | null;
 };
 
 type Store = { target: StartTarget | null; n: number };
@@ -116,7 +118,7 @@ function StartRouter({ target: asked, onOpenChange }: { target: StartTarget | nu
       loading={wiz.isLoading || (wiz.isPlaceholderData && wiz.isFetching)}
       error={(wiz.error as Error | null) ?? null}
       couchId={couchId}
-      start={{ late, setLate, catchUp, setCatchUp, practice: target.practice, again: target.again ?? null, screen: target.screen ?? null }}
+      start={{ late, setLate, catchUp, setCatchUp, practice: target.practice, again: target.again ?? null, screen: target.screen ?? null, length: target.length ?? null }}
     />
   );
 }

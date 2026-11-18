@@ -161,6 +161,8 @@ export interface StartCtx {
   practice?: StartPractice;
   again: string | null;
   screen: "describe" | null;
+  /** "next": every game opens on just the next episode or game (a team's Next game). */
+  length: "next" | null;
 }
 
 export function BoldSheet({ open, onOpenChange, o, loading, error, couchId, start }: { open: boolean; onOpenChange: (o: boolean) => void; o: WizardOptions | undefined; loading: boolean; error: Error | null; couchId: string | null; start: StartCtx }) {
@@ -332,7 +334,10 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
 
   /** A base opened: its game on its default length (the season for a season game, the next episode for a one-night one). */
   const openBase = (b: Base, spec?: Spec, span?: Span, from: Game["from"] = "base", name?: string) => {
-    const sp: Span = span ?? (b.len === "1 episode" ? { from: input.from, to: input.from } : { from: input.from, to: null });
+    const one: Span = { from: input.from, to: input.from };
+    // A team's Next game: every game it can be opens on just that one (one that can't run a single game keeps its own length).
+    const next = start.length === "next" && from === "base" && (!spec || gm.check(withSpan(spec, one), pg).ok) ? one : null;
+    const sp: Span = next ?? span ?? (b.len === "1 episode" ? one : { from: input.from, to: null });
     const s = spec ?? gm.baseSpec(b, sp, pg);
     if (!s) return;
     const fitted = (s as unknown as { __fitted?: Game["fitted"] }).__fitted ?? null;
