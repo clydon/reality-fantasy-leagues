@@ -1252,6 +1252,8 @@ export interface RollLocks {
   twists?: string[];
   /** Part of a spec held over whatever's rolled (what someone typed). */
   keep?: SpecInput;
+  /** E1d: only a game computer players play (a roll with them). */
+  bots?: boolean;
 }
 export interface RollResult {
   ok: boolean;

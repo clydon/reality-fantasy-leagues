@@ -521,6 +521,8 @@ function manualFor(ctx, { kind = 'show', examples = [], limit = 16, show = null,
     'A game is a spec: { "spec": 1, "preset", "span", "pool", "get", "count", "score", "rank", "ask", "closes", "extras", "stages", "overall", "card" }. ' +
       'Leave out every part their words don\'t decide: a preset fills in the rest, and our defaults fill what no preset does.'
   );
+  // E1d (docs/PLAN-start-a-game-redo.md): computer players aren't part of a game; any game can have them as it starts.
+  lines.push('Who plays is never in the spec (computer players go in the answer\'s "bots").');
   lines.push('');
   if (kind === 'sport') {
     lines.push(...sportLines(Array.isArray(games) ? games : [], isObj(ctx) && Array.isArray(ctx.positions) ? ctx.positions : []));

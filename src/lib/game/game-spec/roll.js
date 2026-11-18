@@ -16,14 +16,23 @@
 // `page` is { ctx, pack } (G1's: the SpecContext our check reads and the context pack, for the episodes left, the cast and the
 // couch), or a SpecContext alone. `locks` (all optional): `length` ('one', 'few', 'half', 'rest', a number of episodes, 'phase' from
 // the next phase, 'until-phase' to it, or a span), `play` (draft, pick, questions or card), `base` (an id of ROLL.bases), `win` (an id
-// of ROLL.wins), `twists` (ids of ROLL.twists, up to two; [] for none) and `keep` (part of a spec, held over whatever's rolled: what
-// someone typed, the doors mixed).
+// of ROLL.wins), `twists` (ids of ROLL.twists, up to two; [] for none), `keep` (part of a spec, held over whatever's rolled: what
+// someone typed, the doors mixed) and `bots` (true: only a game computer players play, for a roll with them: no stages, and every
+// question one they answer, answers.js botAnswers; docs/PLAN-start-a-game-redo.md E1d).
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
 const schema = require('./schema.js');
 const { describeSpec, shortSpec, lowerFirst } = require('./describe.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
-const { PRESETS, fullSpec, specProblems, specWaitsFor, typeOf, covers, finaleQuestions } = schema;
+const { PRESETS, fullSpec, specProblems, specWaitsFor, typeOf, covers, finaleQuestions, isCalls } = schema;
+/* eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
+const { botAnswers } = require('./answers.js');
+
+/** E1d: whether computer players play a game: not one in stages, and every question one they answer (Weekly Calls' are theirs too). */
+function botsPlayable(spec) {
+  const full = fullSpec(spec);
+  return !!full && !full.stages && (full.ask || []).filter((q) => !isCalls(q)).every(botAnswers);
+}
 
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 const isInt = (v, min = -Infinity) => Number.isInteger(v) && v >= min;
@@ -658,13 +667,20 @@ function rollSpec(page, locks, seed, opts = {}) {
   const start = seed === undefined || seed === null ? 1 : seed;
   const tries = isInt(opts.tries, 1) ? opts.tries : MAX_TRIES;
   let nearest = null;
+  // A roll with computer players: whether a game that plays went again only because they don't play it (said as the why).
+  let botsOut = false;
   for (let i = 0; i < tries; i++) {
     const s = nextSeed(start, i);
     // A roll whose short form can't show every piece goes again with a twist fewer (the same dice), before the next try.
     for (let most = 2; most >= 0; most--) {
       const r = tryRoll(pg, l, s, opts.weights, most);
       if (!r) break;
-      const v = verdictOf(r.spec, pg.ctx);
+      let v = verdictOf(r.spec, pg.ctx);
+      // A roll with computer players (`bots`): one they don't play goes again, as one that doesn't play would.
+      if (l.bots && v.plays && !botsPlayable(r.spec)) {
+        botsOut = true;
+        v = { ...v, plays: false, busy: false, problems: [{ at: 'bots', problem: "Computer players don't play this game yet" }], misses: 1 };
+      }
       if (v.plays && !v.busy) return { ok: true, seed: s, tries: i + 1, ...r, describe: describeSpec(r.spec, pg.ctx), problems: [], waits: [], why: null };
       if (!nearest || v.misses < nearest.v.misses) nearest = { s, i, r, v };
       if (!v.busy || Array.isArray(l.twists) || r.twists.length < most) break;
@@ -674,6 +690,7 @@ function rollSpec(page, locks, seed, opts = {}) {
   // tries again give it), not its try's, whose own next tries would find another.
   if (nearest && nearest.v.plays) return { ok: true, seed: start, tries, ...nearest.r, describe: describeSpec(nearest.r.spec, pg.ctx), problems: [], waits: [], why: null };
   if (!nearest) return { ok: false, seed: start, tries, spec: null, base: null, win: null, twists: [], length: null, describe: null, problems: [], waits: [], why: 'Nothing fits those locks on this show: unlock one and roll again' };
+  if (botsOut) return { ok: false, seed: start, tries, spec: null, base: null, win: null, twists: [], length: null, describe: null, problems: [], waits: [], why: "Computer players don't play the games this show rolls yet (a game in stages): roll without them" };
   const { s, r, v } = nearest;
   const first = v.problems[0] || v.waits[0];
   return { ok: false, seed: s, tries, ...r, describe: null, problems: v.problems, waits: v.waits, why: first ? first.problem : 'No game plays this way yet' };

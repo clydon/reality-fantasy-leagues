@@ -16,6 +16,8 @@ import { BaseSquare, FOCUS, Label } from "./parts";
 // more. A moment the show doesn't track yet can be added for research from here, as today's wizard did.
 
 type Result = Extract<GameWordsResult["result"], { spec: unknown }>;
+/** E1d: the computer players their words asked for (our check's offer), for Who's playing. */
+type BotsHeard = NonNullable<Result["offers"]["bots"]>;
 
 const EXAMPLES = ["Each episode, pick who goes home; a bonus for calling the winner", "Draft 3 each, no negative points, most points wins", "Head to head every week, only the challenges count"];
 
@@ -32,9 +34,9 @@ export function DescribeBody({
   words: string;
   bases: Base[];
   /** The game our AI made, opened on its screen to change more. */
-  onOpen: (spec: Spec, name: string) => void;
+  onOpen: (spec: Spec, name: string, bots?: BotsHeard) => void;
   /** Start it as it is. */
-  onStart: (spec: Spec, name: string, askId: string) => void;
+  onStart: (spec: Spec, name: string, askId: string, bots?: BotsHeard) => void;
   /** A base by tapping instead (the closest to their words). */
   onBase: (b: Base) => void;
   /** A moment added to the season for research: the page read again. */
@@ -142,7 +144,7 @@ export function DescribeBody({
 }
 
 /** The result: what we heard, what's left to settle, and the game. */
-function Heard({ input, job, r, onOpen, onStart, onAdded, onWords }: { input: Input; job: Job; r: Result; onOpen: (spec: Spec, name: string) => void; onStart: (spec: Spec, name: string, askId: string) => void; onAdded: () => void; onWords: () => void }) {
+function Heard({ input, job, r, onOpen, onStart, onAdded, onWords }: { input: Input; job: Job; r: Result; onOpen: (spec: Spec, name: string, bots?: BotsHeard) => void; onStart: (spec: Spec, name: string, askId: string, bots?: BotsHeard) => void; onAdded: () => void; onWords: () => void }) {
   const [picks, setPicks] = useState<Record<number, number>>({});
   const askId = job.result!.id;
   const playable = !!(r.spec && r.describe && !r.problems.length);
@@ -228,10 +230,10 @@ function Heard({ input, job, r, onOpen, onStart, onAdded, onWords }: { input: In
       <div className="flex flex-col gap-2">
         {playable && (
           <>
-            <button type="button" data-gallery-describe-start onClick={() => onStart(r.spec as Spec, name, askId)} className={`nd-press type-caption flex h-[52px] w-full items-center justify-center rounded-[3px] bg-chyron text-[20px] text-chyron-foreground ${FOCUS}`}>
+            <button type="button" data-gallery-describe-start onClick={() => onStart(r.spec as Spec, name, askId, r.offers.bots)} className={`nd-press type-caption flex h-[52px] w-full items-center justify-center rounded-[3px] bg-chyron text-[20px] text-chyron-foreground ${FOCUS}`}>
               Start it
             </button>
-            <button type="button" data-gallery-describe-open onClick={() => onOpen(r.spec as Spec, name)} className="nd-press h-12 w-full rounded-[3px] text-[15px] font-bold outline-1 -outline-offset-1 outline-input">
+            <button type="button" data-gallery-describe-open onClick={() => onOpen(r.spec as Spec, name, r.offers.bots)} className="nd-press h-12 w-full rounded-[3px] text-[15px] font-bold outline-1 -outline-offset-1 outline-input">
               Open it to change more
             </button>
           </>

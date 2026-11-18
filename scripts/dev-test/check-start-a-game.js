@@ -24,7 +24,7 @@
 //   pace written live);
 //   saved games (the heart beside Start keeps it on the account, Community and saved games lists it and reopens it for the length
 //   it was saved with, the heart takes it off, a browser's older saves move up once); Include it on an episode on now (the fixture's Episode 6 moved to half an hour ago, then back); Describe (the wait, the result
-//   from the stand-in bot, Start it to Ready to start), leaving it (a See it toast reopens it), and its errors (our AI away with the
+//   from the stand-in bot, Start it to Ready to start; words asking for computer players start with them: E1d), leaving it (a See it toast reopens it), and its errors (our AI away with the
 //   words kept, no game in the words, today's asks used); Make it a game chained (a ready show's ?page=make&then=start opens the
 //   gallery); the first-time tour's practice (its strip, Start ends in the practice finish, nothing made). No page errors.
 //
@@ -77,9 +77,14 @@ function answers(prompt, kind) {
   const at = prompt.indexOf("THEIR WORDS");
   const m = at >= 0 ? prompt.slice(at).match(/"""\n([\s\S]*?)\n"""/) : null;
   const words = m ? m[1] : "";
-  const c = B.cases().find((x) => x.words === words);
+  // E1d: the same words asking for computer players: the recorded answer with them beside the game.
+  const plain = words.endsWith(BOTS_WORDS) ? words.slice(0, -BOTS_WORDS.length) : words;
+  const c = B.cases().find((x) => x.words === plain);
+  // (The recorded answer is the bot's words around its JSON: the field goes in the JSON as it's written.)
+  if (c && plain !== words) return B.answerOf(c).replace('{"draft":1,', '{"draft":1,"bots":{"n":2,"level":"sharp"},');
   return c ? B.answerOf(c) : '{"game":null,"said":[],"assumed":[],"ask":[],"cantYet":[],"summary":"nothing"}';
 }
+const BOTS_WORDS = " with two computer players";
 
 /** A catalog base's game on the page, from the next episode to the season's end (as the sheet opens it). */
 function baseGame(o, id, span) {
@@ -434,6 +439,16 @@ async function browserHalf(pool, fx, bot) {
   await tap("[data-gallery-describe-start]");
   await page.locator("[data-gallery=done]").waitFor({ timeout: 10000 }).catch(() => {});
   check((await page.locator("[data-gallery=done]").count()) === 1, "...Start it: Ready to start, with the game our AI made");
+  // E1d: words asking for computer players: our AI's answer has them beside the game, and Ready to start says them.
+  await openSheet();
+  await tap("[data-gallery-describe]");
+  await page.locator("[data-gallery-describe-words]").fill(g01().words + BOTS_WORDS);
+  await tap("[data-gallery-describe-build]");
+  await page.locator("[data-gallery-describe=result]").waitFor({ timeout: 30000 });
+  await tap("[data-gallery-describe-start]");
+  await page.locator("[data-gallery=done]").waitFor({ timeout: 10000 }).catch(() => {});
+  const doneText = (await page.locator("[data-gallery-startbar]").innerText().catch(() => "")).replace(/\n/g, " · ");
+  check(/2 computer players/.test(doneText), `...words asking for two computer players: Ready to start has them (${doneText.slice(0, 160)})`);
 
   // Leaving it: a See it toast.
   await openSheet();

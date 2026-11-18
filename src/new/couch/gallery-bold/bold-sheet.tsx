@@ -357,7 +357,7 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
   const readyTag = sport ? (nextGame(sport.pack)?.at ? new Date(nextGame(sport.pack)!.at!).toLocaleDateString("en-US", { weekday: "short" }) : "Next") : null;
 
   /** A base opened: its game on its default length (the season for a season game, the next episode for a one-night one). */
-  const openBase = (b: Base, spec?: Spec, span?: Span, from: Game["from"] = "base", name?: string) => {
+  const openBase = (b: Base, spec?: Spec, span?: Span, from: Game["from"] = "base", name?: string, bots: Bots | null = null) => {
     const one: Span = { from: input.from, to: input.from };
     // A team's Next game: every game it can be opens on just that one (one that can't run a single game keeps its own length).
     const oneSpec = start.length === "next" && from === "base" ? (spec ? withSpan(spec, one) : gm.baseSpec(b, one, pg)) : null;
@@ -366,7 +366,7 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
     const s = spec ?? gm.baseSpec(b, sp, pg);
     if (!s) return;
     const fitted = (s as unknown as { __fitted?: Game["fitted"] }).__fitted ?? null;
-    setGame({ base: b, spec: withSpan(s, sp), span: sp, pace: null, before: {}, asked: false, from, name: name ?? b.name, moment: null, fitted, own: [], bots: null });
+    setGame({ base: b, spec: withSpan(s, sp), span: sp, pace: null, before: {}, asked: false, from, name: name ?? b.name, moment: null, fitted, own: [], bots });
     push({ k: "base" });
   };
   // Run it back: the old game reopened on its base's screen, on this season (where it started: a phase still to come, or the next
@@ -627,17 +627,18 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
         words={q}
         bases={bases.filter((b) => verdicts.get(b.id)?.state === "plays")}
         onBase={(b) => openBase(b)}
-        onOpen={(spec, name) => {
+        onOpen={(spec, name, bots) => {
           const b = baseOfGame(spec, bases, gm);
           if (!b) return toast.quiet("That game isn't one the gallery can open: start it as it is");
           setJob(jobKey(input.seasonId), null);
-          openBase(b, spec, (spec.span as Span | undefined) ?? undefined, "describe", name);
+          openBase(b, spec, (spec.span as Span | undefined) ?? undefined, "describe", name, bots ?? null);
         }}
-        onStart={(spec, name) => {
+        onStart={(spec, name, _askId, bots) => {
           const b = baseOfGame(spec, bases, gm);
           if (!b) return toast.quiet("That game isn't one the gallery can open");
           setJob(jobKey(input.seasonId), null);
-          openBase(b, spec, (spec.span as Span | undefined) ?? undefined, "describe", name);
+          // E1d: the computer players their words asked for go in as Who's playing would have them.
+          openBase(b, spec, (spec.span as Span | undefined) ?? undefined, "describe", name, bots ?? null);
           push({ k: "done" });
         }}
         onAdded={() => qc.invalidateQueries({ queryKey: ["new-design", "start-wizard", input.seasonId] })}
