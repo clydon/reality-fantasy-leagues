@@ -4,7 +4,7 @@ import type { AnswerLines, AnswerWalk, CoopWalk, HandicapView, MatchupView, Team
 import { castawayEventStats } from "./active-roster-rows";
 import { castawayPoints, teamOrder } from "./classic-view";
 import { latestScoredEpisode } from "./episode-team-summary";
-import { gameRules, gameSentence, gameShort } from "./game-rules";
+import { gameRules, gameWords } from "./game-rules";
 import { compileGame, type GamePage } from "./game-page/compile";
 import { twistsOf, type GameTwists } from "./game-twists";
 import { playsOf, type GamePlays } from "./game-plays";
@@ -452,8 +452,7 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
     players: everyone.length,
     rules: gameRules(view),
     page: compileGame(StateLogic.gameOf(view) as unknown as Record<string, unknown>),
-    short: gameShort(view),
-    sentence: gameSentence(view),
+    ...gameWords(view),
     weeksWon: StateLogic.gameOf(view).rank.by === "weeks" ? Object.fromEntries(StateLogic.computeScores(view).map((r) => [r.playerId, r.weeks?.won ?? 0])) : null,
     cast: castOf(view),
     plays,

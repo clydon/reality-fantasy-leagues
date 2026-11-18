@@ -7,8 +7,10 @@ type Spec = Record<string, unknown>;
 /** JSON with every object's keys sorted: the same rules always write the same text. */
 export function stable(v: unknown): string {
   if (Array.isArray(v)) return `[${v.map(stable).join(",")}]`;
+  // Keys whose value is undefined are left out, as JSON leaves them out: the phone's key and the server's (after the JSON) agree.
   if (v && typeof v === "object")
     return `{${Object.keys(v as Record<string, unknown>)
+      .filter((k) => (v as Record<string, unknown>)[k] !== undefined)
       .sort()
       .map((k) => `${JSON.stringify(k)}:${stable((v as Record<string, unknown>)[k])}`)
       .join(",")}}`;

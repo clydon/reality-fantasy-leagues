@@ -7,6 +7,7 @@ import * as Spec from "@/lib/game/game-spec/index.js";
 import type { SpecContext } from "@/lib/game/game-spec/index.js";
 import type { Pack } from "@/lib/game/game-words/index.js";
 import { spanName } from "@/lib/game/spans";
+import { gameFingerprint } from "@/lib/game/game-rules";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { recordChange } from "./change-log";
 import { couchMembers } from "./couches";
@@ -72,16 +73,21 @@ export async function wizardOptions(user: SessionUser, seasonId: string, couchId
   const [{ pack, ctx }, asks, tells, made] = await Promise.all([packFor(user, seasonId, opts.couch.id, now), asksToday(user), audience(user, opts.couch.id, seasonId), madeGames(seasonId)]);
   const listed = Math.max(0, ...opts.starts.map((e) => e.number));
   const last = pack.episodes.total ?? (listed >= opts.from ? listed : null);
-  return { ...opts, wizard: { page: { ctx, pack }, last, asksLeft: asks.left, tells: tells.length, made }, againSpec: opts.again ? await againSpecOf(opts.again.leagueId) : null };
+  return { ...opts, wizard: { page: { ctx, pack }, last, asksLeft: asks.left, tells: tells.length, made }, againSpec: opts.again ? await againSpecOf(opts.again.leagueId, opts.again.questions) : null };
 }
 
 /** Run it back's game as its rules: the league's spec (StateLogic.gameOf), its span left for the sheet to set on this season. */
-async function againSpecOf(leagueId: string): Promise<Record<string, unknown> | null> {
+async function againSpecOf(leagueId: string, canAsk: string[] | null): Promise<Record<string, unknown> | null> {
   const { rows } = await pool.query("SELECT state FROM leagues WHERE id = $1 AND deleted_at IS NULL", [leagueId]);
   const state = rows[0]?.state as LeagueState | undefined;
   if (!state) return null;
   const spec = structuredClone(StateLogic.gameOf(state)) as unknown as Record<string, unknown>;
   delete spec.span;
+  // Only the questions this season can still ask (startOptions' again.questions: a season-long one on a span, an id it hasn't got).
+  if (canAsk && Array.isArray(spec.ask)) {
+    const kept = (spec.ask as Record<string, unknown>[]).filter((q) => typeof q.id === "string" && canAsk.includes(q.id));
+    if (kept.length) spec.ask = kept;
+  }
   return spec;
 }
 
@@ -138,8 +144,15 @@ export async function startFromSpec(
   // the season's end, a later episode, or a phase.
   // No span (a described game that runs all season): from the start the options give (the next to air, or where you are at your
   // own pace) to the season's end.
-  if (!isObj(spec.span)) spec.span = { from: opts.from, to: null };
-  const span = spec.span as Record<string, unknown>;
+  // A game in stages starts where its first stage does: that's the start checked below (the review, B1), and the one on now isn't
+  // offered to it yet (makeStages' stage leagues don't carry Include it's open window).
+  const stage0 = staged && isObj((spec.stages as unknown[])[0]) && isObj(((spec.stages as Record<string, unknown>[])[0]).game) ? (((spec.stages as Record<string, unknown>[])[0]).game as Record<string, unknown>) : null;
+  if (staged && !stage0) throw new HttpError(400, "A game in stages needs its first stage");
+  if (staged && late) throw new HttpError(409, "A game in stages can't include the one on now yet: it starts with the next one");
+  if (stage0 && !isObj(stage0.span)) stage0.span = { from: opts.from };
+  if (stage0 && isObj(stage0.span) && stage0.span.from === undefined) (stage0.span as Record<string, unknown>).from = opts.from;
+  if (!staged && !isObj(spec.span)) spec.span = { from: opts.from, to: null };
+  const span = (stage0 ? stage0.span : spec.span) as Record<string, unknown>;
   const fromPhase = phaseOf(span.from);
   if (fromPhase) {
     if (late) throw new HttpError(400, "Include the one on now, or start with a phase: not both");
@@ -201,7 +214,12 @@ export async function startFromSpec(
       ]);
       refused(StateLogic.setGame(s, spec as never, { ctx }), 409);
       // The setup card's sentence, kept for the game page's title card (B1): what its maker read at Start.
-      if (made && typeof made.about === "string" && made.about.trim()) (s.settings as unknown as { about?: string }).about = made.about.trim().slice(0, 200);
+      if (made && typeof made.about === "string" && made.about.trim() && made.unchanged === true) {
+        const st = s.settings as unknown as { about?: string; aboutOf?: string };
+        st.about = made.about.trim().slice(0, 200);
+        // The rules it describes: if they change later (Backstage, the maker's Scoring page), the engine's own sentence takes over.
+        st.aboutOf = gameFingerprint(StateLogic.gameOf(s));
+      }
       if (bots && !botsPlay(s)) throw new HttpError(409, "Computer players don't play this game");
       if (StateLogic.readsPhases(s) || StateLogic.startPhase(s) || StateLogic.endPhase(s)) {
         settleIn(s, await leaguePhases(client, id, seasonId), await scheduleOf(seasonId, now), now);

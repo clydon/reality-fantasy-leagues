@@ -1,6 +1,7 @@
 import type { LeagueState } from "./types";
 import StateLogic from "./state-logic.js";
 import { describeSpec } from "./game-spec/index.js";
+import { stable } from "./saved-recipe";
 
 // A season game's rules in plain words: the new design's Rules sheet on the Games tab (the mock's rulesSheet). Read from
 // the game's spec (docs/PLAN-start-a-game-gpt.md step A2): the How it works game-spec describeSpec gives every game, in
@@ -21,16 +22,27 @@ export function gameShort(state: LeagueState, castaway = StateLogic.formatOf(sta
   return describeSpec(StateLogic.gameOf(state), { castaway, groups, group: format.terms.tribe }).short?.line ?? "";
 }
 
-/** The game in one plain sentence ("A Survival Pool: everyone picks one castaway to stay in each episode, all season."): the title
- *  card's on the game's own page until you've made a move (docs/design-round/b1-title-card-spec.md, "The sentence"). */
-export function gameSentence(state: LeagueState, castaway = StateLogic.formatOf(state).terms.castaway.toLowerCase()): string {
-  // The setup card's own sentence when the game was made in Start a game (start-spec.ts keeps it), so the page says what its maker read.
-  const about = (state.settings as unknown as { about?: unknown }).about;
-  if (typeof about === "string" && about.trim()) return about.trim();
+/** A game's rules as one short fingerprint (its spec written stably, hashed): the setup's sentence stands only while it matches. */
+export function gameFingerprint(game: unknown): string {
+  const text = stable(game);
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
+  return (h >>> 0).toString(36);
+}
+
+/** The game's short line and its plain sentence, from one reading of its spec (game-view.ts). The sentence: the title card's on the
+ *  game's own page while nothing has scored for you (docs/design-round/b1-title-card-spec.md, "The sentence"): the setup card's own
+ *  words when it was made in Start a game and its rules are still those (start-spec.ts keeps both), else the engine's first sentence
+ *  with its kind's name and its numbers left off. */
+export function gameWords(state: LeagueState, castaway = StateLogic.formatOf(state).terms.castaway.toLowerCase()): { short: string; sentence: string } {
   const format = StateLogic.formatOf(state);
   const groups = format.eventCategories.map((c) => c.label).filter(Boolean) as string[];
-  const s = describeSpec(StateLogic.gameOf(state), { castaway, groups, group: format.terms.tribe }).sentence ?? "";
-  // Its kind's name left off the front ("A Weekly Lineup: everyone drafts 5…"): the card above already names the game, as its maker did.
+  const game = StateLogic.gameOf(state);
+  const d = describeSpec(game, { castaway, groups, group: format.terms.tribe });
+  const short = d.short?.line ?? "";
+  const kept = state.settings as unknown as { about?: unknown; aboutOf?: unknown };
+  if (typeof kept.about === "string" && kept.about.trim() && kept.aboutOf === gameFingerprint(game)) return { short, sentence: kept.about.trim() };
+  const s = d.sentence ?? "";
   // A kind's name, and a game in stages' first stage's too ("A game in stages: Draft, an Outlast: …"), left off the front.
   const KIND = /^(?:[^,:]{1,30}, )?(?:An?|The|an?|the) [^:]{1,40}:\s*/;
   let first = (s.split(/(?<=\.)\s+/)[0] ?? "").replace(KIND, "").replace(KIND, "");
@@ -39,7 +51,7 @@ export function gameSentence(state: LeagueState, castaway = StateLogic.formatOf(
     .replace(/,? (?:from |before |for |in |over )?(?:the )?(?:Episode|Game|Week|Race|Round|Episodes|Games|Weeks) \d+(?:(?: to |–)(?:the finale|(?:Episode|Game|Week|Race|Round) )?\d*)?(?: to the finale)?/g, "")
     .replace(/\s+([:,.])/g, "$1")
     .replace(/:\s*\./, ".");
-  // Two lines at a phone's width, cut where a clause ends, never mid-word (the check's P1).
+  // Two lines at a phone's width, cut where a clause ends, never mid-word.
   if (first.length > 110) first = `${first.slice(0, 110).replace(/[,:;]?\s+\S*$/, "").replace(/[,:;]$/, "")}.`;
-  return first.charAt(0).toUpperCase() + first.slice(1);
+  return { short, sentence: first.charAt(0).toUpperCase() + first.slice(1) };
 }

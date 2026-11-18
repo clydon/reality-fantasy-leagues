@@ -163,6 +163,12 @@ export function lengthsOf(spec: Spec | null, input: Input, gm: G): Length[] {
   out.splice(1, 0, { id: "rest", label: input.ownPace ? "The whole season" : "The rest of the season", span: { from, to: null } });
   return out.map((l) => {
     if (!spec) return { ...l, ok: true, why: null, full: null };
+    // A game in stages runs over its stages (withSpan moves only its first stage's start): any other length would look chosen and
+    // change nothing (the review, B1).
+    if (Array.isArray(spec.stages) && l.id !== "rest") {
+      const full = "A game in stages runs over its own stages";
+      return { ...l, ok: false, why: shortWhy(full), full };
+    }
     const s = withSpan(spec, l.span);
     const v = gm.check(s, input.pg);
     const full = v.ok ? null : v.problems[0] || v.waits[0] || "";

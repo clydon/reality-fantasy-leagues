@@ -11,6 +11,8 @@ CREATE TABLE saved_games (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
   key TEXT NOT NULL,
+  -- The key's sha256, the one indexed: a recipe written out can run past an index row's limit.
+  key_hash TEXT NOT NULL,
   base TEXT NOT NULL,
   name TEXT NOT NULL,
   spec JSONB NOT NULL,
@@ -19,6 +21,6 @@ CREATE TABLE saved_games (
   saved_on TEXT NOT NULL DEFAULT '',
   season_id UUID REFERENCES show_seasons(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (user_id, key)
+  UNIQUE (user_id, key_hash)
 );
 CREATE INDEX saved_games_user ON saved_games (user_id, created_at DESC);

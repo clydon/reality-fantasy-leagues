@@ -430,6 +430,15 @@ then approval.
       colour now); how long the sentence stays; the name in the bar. Open: Start's toast over the card's top for its 10 seconds; a
       sport's card without team marks (E10); the sentence until a first result rather than a first move; the week block's seven
       type sizes (step 2's).
+    - Code review (`/code-review high master...wizard`, 2026-11-18), its findings fixed and re-checked (`check-start-a-game.js` all
+      pass, 29 unit tests): a game in stages offers only the rest of the season as its length (its stages set its stretch); the
+      server checks a staged game's first stage's start and refuses Include it for one; saved games index a sha256 of the recipe
+      (0442 edited before any merge: re-applied on rfl_wizard), a batch skips an entry that doesn't read, and the recipe's key drops
+      undefined keys as JSON does; Run it back keeps only the questions this season can ask; the setup's sentence is kept only for
+      a game started unchanged and only while its rules are still those (a fingerprint); a team's Next game checks a base's own
+      one-game spec; a dead sort by made-up save counts went; the setup screen's row values are read once per game; the game view
+      reads its spec's words once. Left: a draft run back with more starters than today's limits isn't clamped (our check says why
+      on its screen, and Start waits until it's changed).
     - Not done in B1, for the next session: the gameplay bench's wizard surface (`tools/gameplay-bench/router.cjs`, `check-gameplay-
       bench-flows.js`) still drives the old wizard's rail (`data-start-game`, `data-sport-game`): the explorer lane's adapter work.
       DESIGN.md's Title card and Show Art lines wait on the user's art call.

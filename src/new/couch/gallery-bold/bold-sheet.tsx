@@ -273,7 +273,7 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
   // The tour's practice: Start makes nothing; its finish says so.
   const [practiced, setPracticed] = useState<string | null>(null);
   /** Start: the spec to the server (checked again there), the couch told after the 10-second Undo, then the game's own page. */
-  const startGame = async (g: { base: Base; spec: Spec; span: Span; name: string; from: Game["from"]; pace: Pace | null }, extra: Record<string, unknown> = {}) => {
+  const startGame = async (g: { base: Base; spec: Spec; span: Span; name: string; from: Game["from"]; pace: Pace | null; before?: Record<string, Spec>; own?: unknown[] }, extra: Record<string, unknown> = {}) => {
     if (start.practice) return setPracticed(say(g.name, input.nouns, true));
     if (busy) return;
     const lock0 = lockOf(g.spec, g.span, input, g.pace);
@@ -289,7 +289,8 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
         tell: true,
         ...(start.late ? { late: true } : {}),
         ...(input.ownPace ? {} : { pace }),
-        made: { how: g.from, base: g.base.id, ...(about ? { about } : {}), ...(start.again ? { again: start.again } : {}), ...extra },
+        // `unchanged`: no rule changed on the setup screen, so the sentence describes this game (the server keeps it only then).
+        made: { how: g.from, base: g.base.id, ...(about ? { about, unchanged: !Object.keys(g.before ?? {}).length } : {}), ...(start.again ? { again: start.again } : {}), ...extra },
       });
       await refresh();
       toast(`${r.name} started${r.told ? " · the couch hears in 10 seconds" : ""}`, {
@@ -340,7 +341,8 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
   const openBase = (b: Base, spec?: Spec, span?: Span, from: Game["from"] = "base", name?: string) => {
     const one: Span = { from: input.from, to: input.from };
     // A team's Next game: every game it can be opens on just that one (one that can't run a single game keeps its own length).
-    const next = start.length === "next" && from === "base" && (!spec || gm.check(withSpan(spec, one), pg).ok) ? one : null;
+    const oneSpec = start.length === "next" && from === "base" ? (spec ? withSpan(spec, one) : gm.baseSpec(b, one, pg)) : null;
+    const next = oneSpec && gm.check(oneSpec, pg).ok ? one : null;
     const sp: Span = next ?? span ?? (b.len === "1 episode" ? one : { from: input.from, to: null });
     const s = spec ?? gm.baseSpec(b, sp, pg);
     if (!s) return;
@@ -1130,6 +1132,9 @@ function BaseBody(p: {
     if (r === "scoring") return rowLine(r).split(" · ").filter((x) => x && !/^(What scores|The show's points)$/.test(x)).join(" · ") || (input.sport ? "Standard points" : "The show's points");
     return rowLine(r) || defaultLine(r);
   };
+  // Each row's value read once per game (rowLine checks every change of its row: not again on every render; the review, B1).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const values = useMemo(() => Object.fromEntries(rows.map((r) => [r, valueOf(r)])), [game.spec, pg, input.sport]);
   const rowName = (r: string) => (r === "play" ? play.name : gm.ROWS.find((x) => x.id === r)?.name ?? r);
   return (
     <div className="flex flex-col">
@@ -1265,7 +1270,7 @@ function BaseBody(p: {
         <Label>One at a time</Label>
         {play.headline && <RuleLine data="play" icon={kind === "questions" ? "sheet" : kind === "stages" ? "redraft" : ROW_ICON.play} label={play.name} value={kind === "stages" ? (game.spec.stages ?? []).map((st) => st.name).join(" · ") : questionsLine(game.spec)} changed={"play" in game.before} onClick={() => p.onRow(kind === "questions" ? "questions" : kind === "stages" ? "season" : "play")} onUndo={() => p.onUndo("play")} />}
         {rows.map((r) => (
-          <RuleLine key={r} data={r} icon={ROW_ICON[r]} label={rowName(r)} value={valueOf(r)} changed={r in game.before} onClick={() => p.onRow(r)} onUndo={() => p.onUndo(r)} />
+          <RuleLine key={r} data={r} icon={ROW_ICON[r]} label={rowName(r)} value={values[r]} changed={r in game.before} onClick={() => p.onRow(r)} onUndo={() => p.onUndo(r)} />
         ))}
         {OWN_MOMENTS && <RuleLine data="own" icon="onemoment" label="Your own moments" value={game.own.length ? `${game.own.map((m) => m.label).join(", ")} · the couch settles ${game.own.length === 1 ? "it" : "them"}` : "None yet · add what the results won't catch"} changed={game.own.length > 0} onClick={p.onOwn} />}
       </div>
@@ -1574,7 +1579,7 @@ function AskBody({ gm, input, game, line }: { gm: GM; input: Input; game: Game; 
 
 function CommunityList({ input, community, saved, savedKeys, onGame, onSaved }: { input: Input; community: Community[]; saved: SavedRow[]; savedKeys: Set<string>; onGame: (i: number) => void; onSaved: (r: SavedRow) => void }) {
   const [sort, setSort] = useState("made");
-  const order = (cs: Community[]) => (sort === "saved" ? [...cs].sort((a, b) => b.saves - a.saves) : sort === "short" ? [...cs].sort((a, b) => (a.badge.startsWith("1 ") ? 0 : a.badge === "Season" ? 2 : 1) - (b.badge.startsWith("1 ") ? 0 : b.badge === "Season" ? 2 : 1)) : cs);
+  const order = (cs: Community[]) => (sort === "short" ? [...cs].sort((a, b) => (a.badge.startsWith("1 ") ? 0 : a.badge === "Season" ? 2 : 1) - (b.badge.startsWith("1 ") ? 0 : b.badge === "Season" ? 2 : 1)) : cs);
   return (
     <div className="flex flex-col">
       <div data-gallery-saved>
