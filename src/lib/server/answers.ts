@@ -541,8 +541,10 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
   const stored = keepsAnswers(h.state) ? r.rows : [];
   const all = [...stored, ...StateLogic.AnswerLogic.finaleAnswers(h.state)].filter((a) => names.has(a.playerId));
   // A late joiner catching up answers nothing until they're on the live episode (answerQuestions refuses it): each open
-  // question waits for them, with no episode to see (catchUp null).
-  const catching = StateLogic.GhostLogic.isCatchingUp(h.state, me);
+  // question waits for them, with no episode to see (catchUp null). At your own pace they answer the episode after their mark
+  // (AnswerLogic.ownWeek: docs/PLAN-own-pace-games.md part 4).
+  const ownWeek = StateLogic.AnswerLogic.ownWeek(h.state, me);
+  const catching = StateLogic.GhostLogic.isCatchingUp(h.state, me) && !ownWeek;
   const mark = h.mark ?? Number.POSITIVE_INFINITY;
   const graded = StateLogic.AnswerLogic.grade(view, all, facts);
   const out: QuestionView[] = [];
@@ -621,7 +623,8 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
       episode: each ? ep : null,
       status: closed ? "closed" : behind ? "behind" : lineComing ? "waiting" : "open",
       catchUp: behind && !catching ? seen : null,
-      closesAt: (q.each === "game" ? lastStartOf(facts, ep) : null) ?? airAt,
+      // At your own pace no clock closes it: you do, by revealing the episode (the page says so: game-page/model.ts).
+      closesAt: ownWeek ? null : ((q.each === "game" ? lastStartOf(facts, ep) : null) ?? airAt),
       // A pairs question's faces are its pairs'; a side's (one game's: Pick'em on a matchup's game) its game's two teams.
       faces:
         q.answer === "side" && q.each !== "game" && !behind
@@ -696,7 +699,7 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
   const { h, view } = r;
   const isMap = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
   if (!isMap(body.answers)) throw new HttpError(400, "answers must be { question: answer }");
-  if (StateLogic.GhostLogic.isCatchingUp(h.state, h.playerId)) throw new HttpError(409, "Catch up first: questions open once you're on the live episode");
+  if (StateLogic.GhostLogic.isCatchingUp(h.state, h.playerId) && !StateLogic.AnswerLogic.ownWeek(h.state, h.playerId)) throw new HttpError(409, "Catch up first: questions open once you're on the live episode");
   // Step A11 part 2b: someone out answers nothing after their last episode in, and nobody answers past where the game ended early
   // (a race won, one left), nor about the whole game then, as the league stands (h.state carries its walk over every answer:
   // season-games.ts gamesHere). An episode up to it can still be answered while it's open for you (a late lock): your answer

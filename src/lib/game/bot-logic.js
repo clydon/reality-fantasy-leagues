@@ -631,4 +631,45 @@ function answers(state, stored, o) {
   return out;
 }
 
-module.exports = { LEVELS, DEFAULT_LEVEL, isBot, botIds, ratings, run, hasWork, catchUpTo, paceTeams, blindSubmissions, auctionBids, waiverClaim, groupSlotPicks, ANSWERS, answersQuestion, answersAll, answeredQuestions, answers };
+/**
+ * At your own pace (E1b's second slice): the answers each computer player catching up gives as it reaches each week, through the
+ * week after `n` (null: its own mark; so its next week's answers are in before anyone opens it), each on its own copy as it stood
+ * before that week (GhostLogic.viewFor at the week before: that week's results unseen), so nothing it answers knows the outcome.
+ * Call before catchUpTo moves them on (bots.ts catchUpBots), and after every write for their next week (answerForBots).
+ */
+function catchUpAnswers(state, stored, n) {
+  const G = StateLogic.GhostLogic;
+  const AL = StateLogic.AnswerLogic;
+  const qs = answeredQuestions(state);
+  if (!qs.length) return [];
+  const have = new Set((stored || []).map((r) => `${r.playerId}|${r.question}|${r.episode}`));
+  const aired = new Set(state.episodes.map((e) => e.number));
+  const out = [];
+  state.players.filter((p) => isBot(p) && G.isCatchingUp(state, p.id)).forEach((p) => {
+    const lj = p.lateJoin;
+    if (!lj || !Number.isInteger(lj.seenThrough)) return;
+    const to = Math.max(Number.isInteger(n) ? n : lj.seenThrough, lj.seenThrough) + 1;
+    for (let week = lj.seenThrough + 1; week <= to && aired.has(week); week++) {
+      let view = null;
+      for (const q of qs) {
+        // Already answered (the usual case after the first time): no copy to make.
+        if (have.has(`${p.id}|${q.id}|${q.asked === "once" ? 0 : week}`)) continue;
+        view = view || G.viewFor(state, p.id, week - 1);
+        const ep = q.asked === "once" ? 0 : AL.windowAt(view, q, week, week - 1);
+        if (ep === null || ep === undefined || (q.asked !== "once" && ep !== week)) continue;
+        const key = `${p.id}|${q.id}|${ep}`;
+        if (have.has(key) || AL.closed(view, q, ep, { mark: week - 1, player: p.id })) continue;
+        const faces = AL.faces(view, q, { playerId: p.id });
+        const value = answerFor(view, p.id, q, faces, ep);
+        if (value === null || value === undefined) continue;
+        const faceIds = Spec.NAMES.includes(q.answer) ? new Set(faces.map((f) => f.id)) : undefined;
+        if (Spec.answerProblem(q, value, faceIds)) continue;
+        have.add(key);
+        out.push({ playerId: p.id, question: q.id, episode: ep, answer: value });
+      }
+    }
+  });
+  return out;
+}
+
+module.exports = { LEVELS, DEFAULT_LEVEL, isBot, botIds, ratings, run, hasWork, catchUpTo, paceTeams, blindSubmissions, auctionBids, waiverClaim, groupSlotPicks, ANSWERS, answersQuestion, answersAll, answeredQuestions, answers, catchUpAnswers };

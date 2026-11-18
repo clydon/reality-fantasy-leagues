@@ -39,9 +39,9 @@ export function botsPlay(s: LeagueState): boolean {
   // E1c: Weekly Calls' calls are guesses, made up for them as they're graded (calls.ts botCalls).
   // And Weekly Bingo's cards, dealt by seat and ticked from what's settled (bingo.ts bingoLines).
   if ((t.hasCalls || t.hasBingo) && !t.hasQuestions) return true;
-  // At your own pace (a season that's aired, or a game set to it) a computer player catches up on its own copy, where it answers
-  // nothing yet (E1b's second slice): a game of questions waits there, whichever way they'd join (Start a game, Backstage).
-  if (t.hasQuestions) return Bots.answersAll(s) && !(StateLogic.GhostLogic.ownPace(s) && Bots.answeredQuestions(s).length > 0);
+  // At your own pace too (E1b's second slice): each catches up on its own copy, answering each week as it reaches it (bots.ts
+  // catchUpBots).
+  if (t.hasQuestions) return Bots.answersAll(s);
   return !!(t.hasRoster || t.hasWeeklyPicks);
 }
 

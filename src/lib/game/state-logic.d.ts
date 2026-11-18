@@ -1381,6 +1381,8 @@ declare const StateLogic: {
     episodeNow(state: LeagueState): number | null;
     /** A7: the episode someone answers for now with a late lock (the one after their mark while it's open for them). */
     lateEpisode(state: LeagueState, mark: number | null, o?: { now?: number; airAtOf?: (episode: number) => string | null; player?: string | null }): number | null;
+    /** Whether a seat answers by its own mark: catching up in a game at your own pace (docs/PLAN-own-pace-games.md part 4). */
+    ownWeek(state: LeagueState, playerId: string): boolean;
     /** earned: each window's ("question|episode") points by player, A9's ways of combining in; worth: a rollover's window's
      *  points with its jackpot. */
     grade(

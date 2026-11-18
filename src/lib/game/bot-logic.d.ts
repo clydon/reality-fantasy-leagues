@@ -50,3 +50,6 @@ export function answersAll(state: LeagueState): boolean;
 export function answeredQuestions(state: LeagueState): unknown[];
 /** The answers computer players would give now (the server writes them into game_answers: bots.ts). */
 export function answers(state: LeagueState, stored: { playerId: string; question: string; episode: number }[], o?: { now?: number; finale?: number | null }): { playerId: string; question: string; episode: number; answer: unknown }[];
+/** At your own pace: the answers each catching-up computer player gives as it reaches each week, through the week after `n` (null:
+ *  its own mark), each on its own copy before that week (call before catchUpTo). */
+export function catchUpAnswers(state: LeagueState, stored: { playerId: string; question: string; episode: number }[], n: number | null): { playerId: string; question: string; episode: number; answer: unknown }[];

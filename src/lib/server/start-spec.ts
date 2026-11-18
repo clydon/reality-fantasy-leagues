@@ -259,8 +259,6 @@ export async function startFromSpec(
       // From an episode still to air: at your own pace (made and drafted as a live game, waiting for people from its first results
       // on), or strict.
       applyPace(s, opts, pace);
-      // E1b: and once the pace is set, at your own pace a game of questions takes none yet (botsPlay reads it).
-      if (bots && !botsPlay(s)) throw new HttpError(409, "At your own pace, computer players answer questions later");
       await recordChange(client, id, s, {
         userId: user.id,
         kind: "game.start",

@@ -362,9 +362,38 @@ then approval.
       chosen, and the square says so.
       Noticed: with no results yet, a computer player's "who goes home" and "who wins immunity" can name the same person (its taste
       is the only signal before results); they part as results come in.
+      **E1b's second slice, part 1, done (2026-11-18): answers at your own pace, people's first.** Starting it found that nobody
+      could answer a game of questions at their own pace while catching up: answers.ts refused it ("Catch up first: questions open
+      once you're on the live episode") and the read listed no questions, though Start a game makes such a game (a Prediction
+      sheet on a season that's aired, or one behind). That's docs/PLAN-own-pace-games.md's part 4, never built ("answers lock per
+      person by their mark"). Built here, since computer players answering where people can't would be unfair:
+      - **People.** `AnswerLogic.ownWeek(state, seat)`: catching up in a game at your own pace (a live game's late joiner still
+        waits for the live episode). For such a seat, `lateEpisode` is the episode after your mark, and `closed` closes a question
+        once you've seen the episode that closes it (or the game's last); nothing else does (not its air time, not results you
+        haven't seen, not a finished season's `gameOver`). answers.ts lets them answer and lists their week; its `closesAt` is null
+        there, and the game page's plate says "Locks when you reveal it" / "Change until you reveal it" (game-page/model.ts), the
+        words a pick there already used. Who goes home lists who's still in as far as you've seen.
+      - **Computer players.** `bot-logic.js catchUpAnswers(state, stored, n)`: each one catching up answers each week up to the
+        week after `n` (null: its own mark), each on its own copy before that week (`GhostLogic.viewFor` at the week before), with
+        the same `closed` rule. `bots.ts catchUpBots` writes them and then runs `catchUpTo`, where a reveal moved them (reveal.ts,
+        late-join.ts, inside the lock); `answerForBots` adds each one's next week after every write, so a start has its first
+        week's answers in at once and each next week's are in before anyone opens it. The own-pace refusals are gone (`botsPlay`,
+        startFromSpec, the sheet's `botsWhy`, now just `gm.botsFit`).
+      - **Proof.** tests/bots-answer.test.js: each week's answers as it catches up, never twice, and the spoiler guarantee (a season
+        the same through Episode 2 with a different Episode 3 gives the same Episode 3 answers); a person's week and lock by their
+        mark (and a live game's late joiner unchanged). check-start-a-game.js: a Prediction sheet over Episodes 1-3 at your own pace
+        with a computer player has Episode 1's answers at the start, then 2's and 3's as alex reveals, nothing past the game; the
+        square offered at your own pace. Probed through the routes: alex answers Episode 1 before revealing it, Episode 2 after,
+        Episode 1 refused once seen ("Answers are open for Episode 2"), alex's right answer scores; two computer players answer all
+        three weeks and sit in the table with robot faces (the page at 390 showed Episode 2's questions, "2 on the couch have
+        answered", the season grid's SET for them). The unit suite (2,431) passes; check-own-pace-live.js's API steps pass.
+      - Noticed, not fixed (lane: whoever next touches the checks): check-own-pace-live.js's browser step waits for Tonight's
+        `[data-move='lineup-…']` card, an attribute nothing renders since Tonight's rebuild; a stale selector, not this change. A
+        shrinking call (`shrink`) made at your own pace on a season that's aired counts every episode as started (`startedNow`), so
+        it's worth its least; a question closing at the finale reads the schedule's finale, which a catching-up seat answers up to.
       **Left for E1b's second slice:** the held-back kinds above (an order and confidence from the ratings; chips spread by them;
-      pairs; a stake: a share of the bank by level); answers at your own pace (catchUpTo answering each episode as the bot reaches
-      it); a prop card with wagers and Beat the bot played to their ends with computer players.
+      pairs; a stake: a share of the bank by level); a prop card with wagers and Beat the bot played to their ends with computer
+      players.
     - **E1c. Cards, calls and bingo** (each its own small step, after a named question to the user: a bingo card or a call is
       honour-based, tapped by whoever sees it; should a computer player mark its card from what research settles after the
       episode, or sit those games out?). Until then they stay dashed in Who's playing with the reason.

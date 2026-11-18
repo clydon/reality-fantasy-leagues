@@ -9,7 +9,9 @@
 //     alex its Commissioner, linked into the couch's group, its spec as built, a line in Recent changes; the couch told only after
 //     the 10-second hold; Undo inside the hold takes it back (deleted, restorable) and nobody hears; Undo too late, or someone
 //     else's, is refused; a game in stages (the redraft) made with a league for each stage; refusals (a start the listing doesn't
-//     have, a spec our check refuses, computer players on a game of questions, someone not on the couch);
+//     have, a spec our check refuses, computer players on a question they don't answer yet, someone not on the couch); computer
+//     players answering a Prediction sheet (at once Together; at your own pace, each week as alex reveals the one before, never past
+//     the game: E1b), playing Bingo and Weekly Calls (E1c);
 //   - Run it back's page: `again` gives the old game's rules (`againSpec`, its dates left out);
 //   - a moment added for research from our AI's offer (added-moments: what Describe's "Add it for research" calls), read back
 //     on the page and scored by a game built with it.
@@ -17,7 +19,8 @@
 //   ready game, the chips, nothing wider than the screen, no yellow before a game's screen); the ready game opens Ready to start and
 //   Start makes it (the toast's Undo, the game's own page), Undo takes it back; a base's screen (How long's cards, the two lock
 //   cards, Make it…, a rule's change screen and Done, the yellow Start alone), Computer players in Who's playing (two, sharp: the
-//   Start bar says them, the game has their seats; dashed with the reason on a Prediction sheet: E1a), and Start on Together (its
+//   Start bar says them, the game has their seats; offered on a Prediction sheet at either pace, dashed with the reason on Prop
+//   bets), and Start on Together (its
 //   pace written live);
 //   saved games (the heart beside Start keeps it on the account, Community and saved games lists it and reopens it for the length
 //   it was saved with, the heart takes it off, a browser's older saves move up once); Include it on an episode on now (the fixture's Episode 6 moved to half an hour ago, then back); Describe (the wait, the result
@@ -171,8 +174,22 @@ async function apiHalf(pool, fx, bot) {
   check(botRows.length === 3 && botRows.every((r) => !r.userId), `...the games read lists their 3 computer players as such (${botRows.map((r) => r.name).join(", ")})`);
   const noBots = await alex.call("POST", url, { spec: { ...sheet, ask: [...(sheet.ask || []), { id: "ord", ask: "The order they go", answer: "order", points: 2, asked: "once", pick: 5, within: 2, settle: { by: "results", take: "order" } }] }, tell: false, bots: 1, pace: "live" });
   check(noBots.status === 409, `computer players on a question they don't answer yet (an order): refused (${noBots.status}: ${noBots.body && noBots.body.error})`);
-  const ownBots = await alex.call("POST", url, { spec: sheet, tell: false, bots: 1, pace: "own" });
-  check(ownBots.status === 409 && /own pace/.test((ownBots.body && ownBots.body.error) || ""), `computer players on a Prediction sheet at your own pace: not yet (${ownBots.status}: ${ownBots.body && ownBots.body.error})`);
+  // E1b's second slice: at your own pace too. Each catches up with whoever reveals first, answering each week (and the week after's,
+  // so it's in before anyone opens it) on its own copy before it: Episode 1's at the start, Episode 2's on revealing Episode 1, and
+  // nothing past the game's last.
+  const ownBots = await alex.call("POST", url, { spec: { ...sheet, span: { from: 1, to: 3 } }, name: "Own pace with a bot", tell: false, bots: 1, pace: "own" });
+  const ownRows = async () => (ownBots.status === 200 ? (await pool.query("SELECT question, episode FROM game_answers WHERE league_id = $1 ORDER BY episode, question", [ownBots.body.leagueId])).rows : []);
+  const weeks = (rows) => [...new Set(rows.map((r) => r.episode))].join(",");
+  const asked = (sheet.ask || []).length;
+  const own0 = await ownRows();
+  check(ownBots.status === 200 && own0.length === asked && weeks(own0) === "1", `computer players on a Prediction sheet at your own pace: started, Episode 1's ${asked} answers in (${ownBots.status}: ${ownBots.body && ownBots.body.error || `${own0.length} for ${weeks(own0)}`})`);
+  const reveals = [];
+  for (let i = 0; i < 3 && ownBots.status === 200; i++) {
+    const r = await alex.call("POST", `/api/seasons/${sid}/catchup`, { leagueId: ownBots.body.leagueId, couch });
+    reveals.push(r.status === 200 ? weeks(await ownRows()) : `${r.status} ${r.body && r.body.error}`);
+  }
+  const own3 = await ownRows();
+  check(reveals.join(" | ") === "1,2 | 1,2,3 | 1,2,3" && own3.length === 3 * asked, `...revealing Episodes 1-3: Episode 2's, then 3's, then nothing past the game (${reveals.join(" | ")}; ${own3.length} answers)`);
   const casey = await signIn({ user: "zt_nd_casey", pass: fixture.PASSWORD, headers });
   const off = await casey.call("POST", url, { spec: captained, tell: false });
   check(off.status === 403 || off.status === 404, `someone not on the couch (${off.status})`);
@@ -308,10 +325,10 @@ async function browserHalf(pool, fx, bot) {
   await openSheet();
   await tap('[data-gallery-lead="sheet"], [data-gallery-base="sheet"]');
   await page.locator("[data-gallery=base]").waitFor({ timeout: 10000 });
-  // At your own pace (where a show's game starts) they're dashed with the reason; Together, offered.
+  // At your own pace (where a show's game starts) offered too (E1b's second slice: they answer as they catch up); Together, offered.
   if ((await page.locator("[data-gallery-option=lock-own][data-chosen]").count()) === 1) {
     await tap("[data-gallery-row=who]");
-    check((await page.locator('[data-gallery-choice="bot"][data-off]').count()) === 1 && /own pace/.test(await page.locator('[data-gallery-choice="bot"]').innerText()), "on a Prediction sheet at your own pace, Computer players dashed: they answer questions later there");
+    check((await page.locator('[data-gallery-choice="bot"]:not([data-off])').count()) === 1, "on a Prediction sheet at your own pace, Computer players offered: they answer each week as they catch up");
     await tap("[data-gallery-done]");
     await page.locator("[data-gallery=base]").waitFor({ timeout: 10000 });
   }

@@ -8940,6 +8940,16 @@ class AnswerLogic {
   static closed(state, q, episode, o){
     const opt = o || {};
     if(q.asked !== 'once' && !AnswerLogic.opensAt(state, q, episode)) return true;
+    // Catching up at your own pace (docs/PLAN-own-pace-games.md, part 4: answers lock per person by their mark, not by air time; built
+    // 2026-11-18 with computer players answering there, PLAN-start-a-game-redo.md E1b): a question closes for you once you've seen
+    // the episode that closes it, and the game once you've seen its last. Nothing else closes it: not its air time, not results
+    // you haven't seen, not the season being over on the full state (gameOver, which a finished season is at once).
+    if(opt.player && Number.isInteger(opt.mark) && AnswerLogic.ownWeek(state, opt.player)){
+      const last = lastEpisode(state);
+      if(last !== null && opt.mark >= last) return true;
+      const at = AnswerLogic.closesAt(state, q, episode, opt.finale);
+      return at !== null && at <= opt.mark;
+    }
     if(gameOver(state)) return true;
     const at = AnswerLogic.closesAt(state, q, episode, opt.finale);
     if(at === null) return false;
@@ -8958,12 +8968,17 @@ class AnswerLogic {
   // them (GhostLogic.lateWindow), else this week's (episodeNow).
   //   o: { now, player (the one answering's seat) }
   static lateEpisode(state, mark, o){
+    // Catching up at your own pace (part 4, as closed): the one after your mark, while the game plays it.
+    if(o && o.player && Number.isInteger(mark) && AnswerLogic.ownWeek(state, o.player)) return inPlay(state, mark + 1) ? mark + 1 : null;
     const now = AnswerLogic.episodeNow(state);
     // Playing at your own pace (docs/PLAN-own-pace-games.md: `o.player`): the episode that aired while you haven't watched it.
     const own = o && o.player && Number.isInteger(mark) ? GhostLogic.lateWindow(state, o.player, mark, o.now) : null;
     if(own && own.episode === mark + 1 && now !== null && own.episode <= now) return own.episode;
     return now;
   }
+  // Whether a seat answers by its own mark (closed, lateEpisode): one catching up in a game at your own pace, a computer player too
+  // (bot-logic.js catchUpAnswers). A late joiner catching up in a live game still answers once they're on the live episode.
+  static ownWeek(state, playerId){ return GhostLogic.ownPace(state) && GhostLogic.isCatchingUp(state, playerId); }
   // The episode a question asked each episode is answered for now: this week's (currentEpisodeNumber: the one picks and
   // lineups are for), or null (waiting for its phase, past its end).
   static episodeNow(state){ return currentEpisodeNumber(state); }

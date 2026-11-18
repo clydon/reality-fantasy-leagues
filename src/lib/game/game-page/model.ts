@@ -360,14 +360,15 @@ function stripOf(g: GameView, page: GamePage, phase: Phase, ctx: PageContext): S
   if (pool?.out != null) return { kind: "out", tag: "Out", tone: "quiet", title: `Out since ${E} ${pool.out}`, line: pool.buyBack ? "You can buy back in: it's in Your moves" : "Your streak stands where it ended", due: false, inPlace: false, go: pool.buyBack ? { tab: "pool" } : null };
   if (sheet) {
     const left = sheet.of - sheet.answered;
-    const lock = sheet.closesAt ? `Locks ${ctx.when(sheet.closesAt)}` : airs ? `Locks ${airs}` : "Open now";
+    // Catching up at your own pace, nothing but your reveal locks it (docs/PLAN-own-pace-games.md part 4), as a pick there.
+    const lock = sheet.closesAt ? `Locks ${ctx.when(sheet.closesAt)}` : g.catchingUp ? "Locks when you reveal it" : airs ? `Locks ${airs}` : "Open now";
     // A single question says itself ("Who goes home?").
     const title = sheet.of === 1 && sheet.ask ? sheet.ask : sheet.finale ? `${plural(left, "finale pick")} to make` : `${plural(left, "question")}${sheet.episode ? ` for ${E} ${sheet.episode}` : ""}`;
     return { kind: "answers", tag: left === 1 ? "Your answer" : "Your answers", tone: "chy", title, line: lock, due: true, inPlace, go: { sheet: true } };
   }
   // Every answer in: still made in place (to see or change), the strip quiet.
   if (g.sheet && g.sheet.of > 0 && inPlace) {
-    const lock = g.sheet.closesAt ? ctx.when(g.sheet.closesAt) : airs;
+    const lock = g.sheet.closesAt ? ctx.when(g.sheet.closesAt) : g.catchingUp ? "you reveal it" : airs;
     return { kind: "answers", tag: "Set", tone: "quiet", title: g.sheet.of === 1 ? "Your answer is in" : `Your ${g.sheet.of} answers are in`, line: lock ? `Change until ${lock}` : "Change until it locks", due: false, inPlace, go: { sheet: true } };
   }
   if (g.bingo?.open) return { kind: "bingo", tag: "Bingo", tone: "chy", title: `Your card for ${E} ${g.bingo.episode}`, line: `Tick it as it airs · ${plural(g.bingo.ticked, "square")} so far`, due: true, inPlace: false, go: { bingo: g.bingo.episode } };
