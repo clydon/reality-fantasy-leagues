@@ -229,27 +229,25 @@ function check(ok, label, detail) {
       try {
         await a.page.goto(`${a.BASE}/show/${sid}/games`);
         await a.page.locator("[data-start-row]").first().click();
-        const paceBox = a.page.locator("[data-start-pace]");
+        // Start a game (docs/PLAN-start-a-game-redo.md B1; the user's call, 2026-11-18: how moves lock is two plain cards on every
+        // game, Together or At your own pace; the strict way isn't offered, nothing is marked Recommended).
+        await a.page.locator("[data-gallery=gallery]").waitFor({ timeout: 60000 });
+        await a.page.locator('[data-gallery-lead="pool"], [data-gallery-base="pool"]').first().click();
+        const paceBox = a.page.locator("[data-gallery-lock]");
         await paceBox.waitFor();
         await paceBox.scrollIntoViewIfNeeded();
         let said = ((await paceBox.textContent()) || "").replace(/\s+/g, " ");
-        check((await paceBox.getAttribute("data-start-pace")) === "own" && /When moves lock/i.test(said) && /When you.ve watched it\./.test(said) && /the game waits for each of you/.test(said), "the wizard: When moves lock, own pace already chosen, in one line", said);
+        check((await paceBox.getAttribute("data-gallery-lock")) === "own" && /Together, or at your own pace\?/i.test(said) && (await a.page.locator("[data-gallery-option=lock-own][data-chosen]").count()) === 1, "a game's screen: Together, or at your own pace?, at your own pace already chosen", said);
+        const choices = a.page.locator("[data-gallery-option^=lock-]");
+        check((await choices.count()) === 2 && !/Recommended|airtime/i.test(said), "  two plain cards, nothing marked Recommended, no At airtime", said);
         const wide = await a.page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-        const bb = await paceBox.boundingBox();
-        check(wide <= 0 && !!bb && bb.x >= 0 && bb.x + bb.width <= width, "  nothing wider than the screen", { wide, bb });
-        await shot(a.page, "wizard-when-moves-lock");
-        await a.page.locator("[data-start-pace-change]").click();
-        const choices = a.page.locator("[data-start-pace-choice]");
-        check((await choices.count()) === 3 && (await a.page.locator("[data-start-pace-choice=own][aria-checked=true]").count()) === 1 && /Recommended/.test((await a.page.locator("[data-start-pace-choice=own]").textContent()) || ""), "  Change: three choices, the first chosen and Recommended");
         const tall = await choices.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
-        check(tall.every((h) => h >= 44), "  each a full tap target", tall);
-        await paceBox.scrollIntoViewIfNeeded();
-        await shot(a.page, "wizard-when-moves-lock-open");
-        await a.page.locator("[data-start-pace-choice=strict]").click();
-        await a.page.locator("[data-start-pace-change]").click();
-        said = ((await paceBox.textContent()) || "").replace(/\s+/g, " ");
-        check((await paceBox.getAttribute("data-start-pace")) === "strict" && /At airtime\./.test(said), "  At airtime chosen: the line says so", said);
-        await shot(a.page, "wizard-at-airtime");
+        check(wide <= 0 && tall.every((h) => h >= 44), "  each a full tap target, nothing wider than the screen", { wide, tall });
+        await shot(a.page, "wizard-when-moves-lock");
+        await a.page.locator("[data-gallery-option=lock-live]").click();
+        said = ((await a.page.locator("[data-gallery-stretch]").textContent()) || "").replace(/\s+/g, " ");
+        check((await paceBox.getAttribute("data-gallery-lock")) === "live" && /^Together/.test(said), "  Together chosen: the Start bar says so", said);
+        await shot(a.page, "wizard-together");
         await a.page.keyboard.press("Escape");
         await a.page.goto(`${a.BASE}/show/${sid}/backstage/settings`);
         const row = a.page.locator(`[data-settings=pace][data-pace=own]`).first();
@@ -273,32 +271,26 @@ function check(ok, label, detail) {
         await pool.query("INSERT INTO season_game_ideas (season_id, ideas, made_at) VALUES ($1, $2::jsonb, now()) ON CONFLICT (season_id) DO UPDATE SET ideas = EXCLUDED.ideas", [sid, JSON.stringify([MADE])]);
         await a.page.goto(`${a.BASE}/show/${sid}/games`);
         await a.page.locator("[data-start-row]").first().click();
-        // A season's game: Rest of season, where the rail lists it.
-        await a.page.locator('[data-start-mode="season"]').click();
-        await a.page.locator('[data-start-game^="made-"]').first().click();
-        const pace2 = a.page.locator("[data-start-pace]");
+        // Start a game (B1): the made-for game is in Community and saved games; its own screen, then Change it first.
+        await a.page.locator("[data-gallery=gallery]").waitFor({ timeout: 60000 });
+        const toggle = a.page.locator("[data-gallery-community-toggle]");
+        if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+        await a.page.locator("[data-gallery-made] [data-gallery-community-row]").first().click();
+        await a.page.locator("[data-gallery-change-first]").click();
+        const pace2 = a.page.locator("[data-gallery-lock]");
         await pace2.waitFor();
         await pace2.scrollIntoViewIfNeeded();
         said = ((await pace2.textContent()) || "").replace(/\s+/g, " ");
-        check((await pace2.getAttribute("data-start-pace")) === "live" && (await pace2.getAttribute("data-start-pace-recommended")) === "live" && /When the next one airs\./.test(said), "the wizard on a game with teams of its own: it starts on When the next one airs", said);
+        check((await pace2.getAttribute("data-gallery-lock")) === "live" && (await a.page.locator("[data-gallery-option=lock-live][data-chosen]").count()) === 1, "a game with teams of its own starts on Together", said);
         await shot(a.page, "wizard-own-teams-starts-live");
-        await a.page.locator("[data-start-pace-change]").click();
-        const ownChoice = ((await a.page.locator("[data-start-pace-choice=own]").textContent()) || "").replace(/\s+/g, " ");
-        check(/Recommended/.test((await a.page.locator("[data-start-pace-choice=live]").textContent()) || "") && !/Recommended/.test(ownChoice), "  Change: Recommended is on When the next one airs");
-        check(/Nobody can join once the draft starts\./.test(ownChoice), "  own pace says what it closes, before it's chosen", ownChoice);
-        await pace2.scrollIntoViewIfNeeded();
-        await shot(a.page, "wizard-own-teams-choices");
-        await a.page.locator("[data-start-pace-choice=own]").click();
-        await a.page.locator("[data-start-pace-change]").click();
-        said = ((await pace2.textContent()) || "").replace(/\s+/g, " ");
-        check((await pace2.getAttribute("data-start-pace")) === "own" && /Nobody can join once the draft starts\./.test(said), "  own pace chosen: the one line says nobody can join once the draft starts", said);
+        const ownChoice = ((await a.page.locator("[data-gallery-option=lock-own]").textContent()) || "").replace(/\s+/g, " ");
+        check(!/Recommended/.test(said) && /no one new can join/i.test(ownChoice), "  At your own pace says what it closes, before it's chosen; nothing Recommended", ownChoice);
+        await a.page.locator("[data-gallery-option=lock-own]").click();
+        said = ((await a.page.locator("[data-gallery-stretch]").textContent()) || "").replace(/\s+/g, " ");
+        check((await pace2.getAttribute("data-gallery-lock")) === "own" && /the draft together first/.test(said), "  own pace chosen: the Start bar says the draft is together first", said);
         const wide2 = await a.page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
         check(wide2 <= 0, "  nothing wider than the screen", wide2);
         await shot(a.page, "wizard-own-teams-own-pace");
-        await a.page.locator('[data-start-game="lineup"]').first().click();
-        await pace2.scrollIntoViewIfNeeded();
-        said = ((await pace2.textContent()) || "").replace(/\s+/g, " ");
-        check((await pace2.getAttribute("data-start-pace")) === "own" && !/Nobody can join/.test(said), "  on Weekly Lineup (shared teams) their choice stays, without that line", said);
         await a.page.keyboard.press("Escape");
         // Game settings: Who can join for the Outlast is said, not offered.
         await a.page.goto(`${a.BASE}/show/${sid}/backstage/settings`);

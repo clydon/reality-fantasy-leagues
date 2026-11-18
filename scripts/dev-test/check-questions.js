@@ -205,33 +205,10 @@ function check(ok, what, detail = "") {
     }
     const CHOSEN = ["out", "m.idolPlayed", "wins"];
     const sheetsBefore = (await pool.query("SELECT id FROM leagues WHERE couch_id = $1 AND state->'settings'->>'leagueTypeId' = 'questions'", [couch])).rows.map((x) => x.id);
-    if (!apiOnly) {
-      const page = await browser();
-      await page.goto(`${BASE}/show/${sid}/tonight`, { waitUntil: "load" });
-      await page.locator("[data-tonight-start]").waitFor({ timeout: 30000 });
-      await page.locator("[data-tonight-start]").click();
-      await page.locator("[data-start-game=questions]").waitFor({ timeout: 20000 });
-      await page.locator("[data-start-game=questions]").click();
-      const list = page.locator("[data-start-questions]");
-      await list.waitFor();
-      const firstMoment = offered.find((id) => id.startsWith("m."));
-      if (firstMoment !== "m.idolPlayed") {
-        await list.locator(`[data-start-question="${firstMoment}"]`).click();
-        await list.locator(`[data-start-question="m.idolPlayed"]`).click();
-      }
-      const ticked = await list.locator("[data-start-question][aria-checked=true]").evaluateAll((els) => els.map((e) => e.getAttribute("data-start-question")));
-      check(G.sameValue([...ticked].sort(), [...CHOSEN].sort()), "the sheet: The questions, ticked by tap (Who goes home?, Played an idol?, Who wins?)", JSON.stringify(ticked));
-      await page.locator("[data-start-tell]").click();
-      await page.waitForTimeout(400);
-      await fits(page, "Start a game with The questions");
-      await shot(page, "start-prediction-sheet");
-      await page.locator("[data-start-go]").click();
-      const said = await toasted(page, /Prediction Sheet started/);
-      check(/Prediction Sheet started/.test(said), '  Start it: "Prediction Sheet started"', said);
-    } else {
-      r = await startSheet({ questions: CHOSEN });
-      check(r.status === 200, "jordan starts a Prediction Sheet with three questions (the API)", JSON.stringify(r.body));
-    }
+    // Start a game's questions screen is the gallery's since B1 (docs/PLAN-start-a-game-redo.md; wizard-coverage.js drives its
+    // question kinds and settings): the sheet with these three questions starts through the API in both modes.
+    r = await startSheet({ questions: CHOSEN });
+    check(r.status === 200, "jordan starts a Prediction Sheet with three questions (the API)", JSON.stringify(r.body));
     let QS = null;
     for (let i = 0; i < 20 && !QS; i++) {
       QS = (await pool.query("SELECT id FROM leagues WHERE couch_id = $1 AND state->'settings'->>'leagueTypeId' = 'questions' AND NOT (id = ANY($2::uuid[]))", [couch, sheetsBefore])).rows[0]?.id ?? null;

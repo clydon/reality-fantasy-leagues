@@ -11,7 +11,8 @@
 //   node scripts/dev-test/gallery-coverage.js --page=<file>       Survivor 51's page from a captured wizard read (the round's
 //                                                                 .impeccable/mocks/wizard-r1/pages/s51.json: Episode 9 next)
 //   node scripts/dev-test/gallery-coverage.js --check             exit 1 when a value the engine plays now has no home that plays
-//   node scripts/dev-test/gallery-coverage.js --json=<file>       also the rows as JSON (for the story and B1's driving check)
+//   node scripts/dev-test/gallery-coverage.js --json=<file>       also the rows as JSON (for the story and B1's driving check:
+//                                                                 each value's `drive`, the taps that proved it, wizard-coverage.js)
 //
 // Reusable: B1's check that drives the built wizard to each value reads the same homes (--json). Pure reads of the repo.
 const fs = require("fs");
@@ -445,6 +446,8 @@ function main() {
       const hs = (homes.get(k) || []).slice().sort((a, b) => (b.control ? 1 : 0) - (a.control ? 1 : 0));
       const h = hs.find((x) => x.change) || hs[0] || null;
       let where, proof;
+      // B1's driving check (wizard-coverage.js): the home that proved it, as taps (its base, row, change, control) on a page.
+      let drive = null;
       if (k in sportHomes && !hs.length) {
         where = sportHomes[k] || "Not offered: the user turned down TVmaze's ratings (2026-11-07)";
         proof = sportHomes[k] ? "a sport's (the tracker's sports rows)" : "—";
@@ -455,6 +458,7 @@ function main() {
         const b = C.baseById(h.base);
         where = `Gallery › ${(C.CATS.find((x) => x.id === b.cat) || {}).name} › ${b.name}`;
         proof = "the base itself (it plays on Survivor 51)";
+        drive = { key, value, base: h.base, row: null, change: null, control: null, page: "s51" };
       } else {
         where = hs.filter((x) => x.change).map(label).filter((v, i, a) => a.indexOf(v) === i).slice(0, 2).join("; ");
         let p = built === "later" ? { ok: false, coming: "later" } : null;
@@ -462,6 +466,7 @@ function main() {
           const r = prove(x);
           if (r.ok) {
             p = r;
+            if (!r.tracker) drive = { key, value, base: r.base, row: x.row, change: x.change, control: x.control, page: r.page, single: !!r.single };
             break;
           }
           p = p || r;
@@ -469,7 +474,7 @@ function main() {
         if (!p) p = { ok: false, why: "no change to try" };
         proof = p.ok ? (p.tracker ? `plays: ${/'s /.test(p.tracker) ? p.tracker : `the tracker's ${p.tracker}`} (${p.page && (p.page.show || p.page.sport || "")})` : p.single ? `plays: a game of that question on ${PAGES.find((x) => x.id === p.page).name}` : `plays: ${C.baseById(p.base).name} on ${PAGES.find((x) => x.id === p.page).name}`) : p.coming ? (p.coming === "later" ? "later: shown as Coming" : `coming: ${p.coming}`) : `needs: ${p.why || "?"}${p.base ? ` (tried ${C.baseById(p.base).name})` : ""}`;
       }
-      vocabRows.push({ key, value, built, where, proof });
+      vocabRows.push({ key, value, built, where, proof, drive });
     }
   }
 

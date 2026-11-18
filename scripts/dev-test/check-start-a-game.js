@@ -408,11 +408,11 @@ async function browserHalf(pool, fx, bot) {
   });
   if (ring) await page.mouse.click(ring.x, ring.y);
   await page.locator("[data-pick-practice]").click({ timeout: 15000 }).catch(() => {});
-  await page.locator("[data-gallery=gallery]").waitFor({ timeout: 60000 }).catch(() => {});
-  check((await page.locator("[role=dialog][data-open] [data-practice]").count()) === 1, "the practice: the gallery with its Practice strip");
+  // The tour's step says "Make a Prediction Sheet": the practice opens on its screen, the Practice strip over it.
+  await page.locator("[data-gallery=base]").waitFor({ timeout: 60000 }).catch(() => {});
+  check((await page.locator("[role=dialog][data-open] [data-practice]").count()) === 1 && /Prediction sheet/i.test(await page.locator("[data-gallery-title]").innerText().catch(() => "")), "the practice: the Prediction sheet's screen with its Practice strip");
   await shot("10-practice");
   const leaguesBefore = (await leaguesNow()).length;
-  await tap(ready ? "[data-gallery-ready-start]" : "[data-gallery-lead]");
   await page.locator("[data-gallery-start]").first().click({ timeout: 15000 }).catch(() => {});
   await page.locator("[data-practice-done]").waitFor({ timeout: 10000 }).catch(() => {});
   check(/isn't saved/.test(await page.locator("[data-practice-done]").innerText().catch(() => "")) && (await leaguesNow()).length === leaguesBefore, "Start ends in the practice's finish: nothing made");

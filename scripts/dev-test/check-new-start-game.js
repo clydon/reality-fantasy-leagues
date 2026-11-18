@@ -20,9 +20,9 @@
 //   - archive (only its Commissioner; it stands still while Episode 6 comes in for the rest; Undo brings Episode 6 in),
 //     delete (the hold's sentence; out of the couch's games and its group, its people's seats kept; restored from Recent
 //     changes by whoever ran it, not by anyone else; gone for good after 30 days).
-//   In a real browser at --width (390 by default): the Games tab's Start a game (U1's wizard: the season's Outlast, Tell the
-//   couch, Start it, its table), the hub's foot (Pick the show, then a sport's sheet), the nudge's Start a game, a talk show's sheet
-//   from the Games tab, Make it a game's Done view, Backstage › Game settings' Archive (Undo) and Delete (hold), Recent
+//   In a real browser at --width (390 by default): the Games tab's Start a game (B1's gallery: Outlast's square, who Start tells,
+//   Start, its page, its table), the hub's foot (Pick the show, then a sport's TV listing in the gallery), the nudge's Start a game,
+//   a talk show's gallery from the Games tab, Make it a game's Done view, Backstage › Game settings' Archive (Undo) and Delete (hold), Recent
 //   changes' restore, Commercial break's Start a game, the feed's line. Nothing wider than the screen; no page errors.
 //
 //   npm run dev                                                  (in another terminal)
@@ -342,29 +342,31 @@ function lateNight(shows) {
         const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
         check(over <= 1, `${what}: nothing wider than the screen`, `${over}px`);
       };
-      const sheet = page.locator("[data-start-sheet]");
 
-      // The Games tab's Start a game: a competition's three
+      // The Games tab's Start a game (docs/PLAN-start-a-game-redo.md B1: the gallery for every start; check-start-a-game.js checks
+      // it whole): an Outlast started from its square, the toast, its page, its table on the Games tab.
       await page.goto(`${BASE}/show/${sid}/games`, { waitUntil: "load" });
       await page.locator("[data-start-row]").waitFor();
       await page.locator("[data-start-row]").click();
-      await page.locator('[data-start-sheet="competition"]').waitFor();
-      // U1: the wizard (start-wizard.tsx; check-start-a-game.js checks it whole): When it runs, the rail, the game card.
-      check((await sheet.locator("[data-start-mode]").count()) === 3 && (await sheet.locator("[data-start-game]").count()) >= 4 && (await sheet.locator("[data-start-card]").count()) === 1, "the Games tab's Start a game: the wizard (When it runs, the rail, the game card)");
-      check(/zt_nd_alex started a game for ZT Survivor/.test(await sheet.locator("[data-start-tell]").innerText()) && (await sheet.locator('[data-start-tell="on"]').count()) === 1, "Tell the couch, on");
+      await page.locator("[data-gallery=gallery]").waitFor({ timeout: 60000 });
+      check((await page.locator("[data-gallery-chip]").count()) >= 3 && /Choose a game/.test(await page.locator("[role=dialog]").last().innerText()), "the Games tab's Start a game: the gallery (Choose a game, its categories)");
       await shot("start-competition");
       await wide("Start a game");
-      await sheet.locator('[data-start-mode="season"]').click();
-      await sheet.locator('[data-start-game="outlast"]').click();
-      await page.locator("[role=dialog]:has([data-start-sheet]) [data-start-go]").click();
-      await page.waitForURL(/\/games$/);
+      const outlast = page.locator('[data-gallery-lead="outlast"], [data-gallery-base="outlast"]').first();
+      await outlast.scrollIntoViewIfNeeded();
+      await outlast.click();
+      await page.locator("[data-gallery=base]").waitFor();
+      check(/Tells 3 who watch it/.test(await page.locator("[data-gallery-startbar]").innerText()), "Start tells the three who watch it");
+      await page.locator("[data-gallery-start]").click();
+      await page.waitForURL(/\/game\//, { timeout: 20000 });
       await page.locator("text=Outlast started").first().waitFor();
       const { rows: started } = await pool.query("SELECT id FROM leagues WHERE created_by = $1 AND name = 'Outlast' AND deleted_at IS NULL", [fx.users.alex]);
-      check(started.length === 1, "Start it: an Outlast, and the toast says so");
+      check(started.length === 1, "Start: an Outlast, the toast says so, and its page opens");
+      await page.goto(`${BASE}/show/${sid}/games`, { waitUntil: "load" });
       await page.locator(`[data-table="${started[0].id}"]`).waitFor();
       await shot("started-outlast");
 
-      // The hub's foot: Pick the show, then a sport's sheet
+      // The hub's foot: Pick the show, then a sport's TV listing
       await page.goto(`${BASE}/home`, { waitUntil: "load" });
       await page.locator("[data-foot-start]").waitFor();
       await page.locator("[data-foot-start]").click();
@@ -372,27 +374,27 @@ function lateNight(shows) {
       check((await page.locator(`[data-pick-show="${prix}"]`).count()) === 1 && (await page.locator(`[data-pick-show="${oldShow}"]`).count()) === 0, "Pick the show: yours still airing (not one that's ended)");
       await shot("pick-show");
       await page.locator(`[data-pick-show="${prix}"]`).click();
-      await page.locator('[data-start-sheet="sport"]').waitFor();
-      check(/from Game \d+/.test(await page.locator("[role=dialog]").last().innerText()) && (await sheet.locator("[data-no-fit]").count()) === 1, "a sport's sheet: from Game N, and why Outlast doesn't fit");
+      await page.locator("[data-gallery=gallery]").waitFor({ timeout: 60000 });
+      check(/ZT Grand Prix/.test(await page.locator("[role=dialog]").last().innerText()), "a sport's TV listing: the gallery on it");
       await shot("start-sport");
       await page.keyboard.press("Escape");
 
       // the nudge's Start a game
       await page.locator(`[data-nudge="${fx.traitorsSeasonId}"] [data-nudge-go]`).waitFor();
       await page.locator(`[data-nudge="${fx.traitorsSeasonId}"] [data-nudge-go]`).click();
-      await page.locator('[data-start-sheet="competition"]').waitFor();
+      await page.locator("[data-gallery=gallery]").waitFor({ timeout: 60000 });
       check(/ZT Traitors/.test(await page.locator("[role=dialog]").last().innerText()), "the nudge's Start a game opens Start a game for that show");
       await shot("nudge-start");
       await page.keyboard.press("Escape");
       // the feed's line
       const feedLine = page.locator('[data-feed="started"]').first();
-      check((await feedLine.count()) === 1 && /started an? (Outlast|Weekly Lineup|Survival Pool)/.test(await feedLine.innerText()), "On the couch: someone started a game");
+      check((await feedLine.count()) === 1 && /started an? /.test(await feedLine.innerText()), "On the couch: someone started a game");
 
       // a talk show from the Games tab (the ⋯ menu leaves Start a game to the tab and Tonight)
       await page.goto(`${BASE}/show/${late}/games`, { waitUntil: "load" });
       await page.locator("[data-start-row], [data-play-start]").first().click();
-      await page.locator('[data-start-sheet="talk"]').waitFor();
-      check((await sheet.locator("[data-start-game][disabled]").count()) === 0 && (await page.locator("[role=dialog]:has([data-start-sheet]) [data-start-go][disabled]").count()) === 0, "a talk show: Weekly Bingo and Weekly Calls can both start");
+      await page.locator("[data-gallery=gallery]").waitFor({ timeout: 60000 });
+      check((await page.locator("[data-gallery-lead]").count()) >= 1, `a talk show: the gallery, its categories led by games that play (${await page.locator("[data-gallery-lead]").count()} leads)`);
       await shot("start-talk");
       await page.keyboard.press("Escape");
 
@@ -400,9 +402,8 @@ function lateNight(shows) {
       await page.goto(`${BASE}/show/${yacht}/games?page=make`, { waitUntil: "load" });
       await page.locator("[data-make-start]").waitFor();
       await page.locator("[data-make-start]").click();
-      await page.locator('[data-start-sheet="series"]').waitFor();
-      await sheet.locator('[data-start-mode="season"]').click();
-      check((await sheet.locator('[data-start-game="lineup"]').count()) === 1, "Make it a game's Done: Start a game, a series' Weekly Lineup");
+      await page.locator("[data-gallery=gallery]").waitFor({ timeout: 60000 });
+      check((await page.locator("[data-gallery-lead]").count()) >= 1 && /ZT Yacht/.test(await page.locator("[role=dialog]").last().innerText()), "Make it a game's Done: Start a game opens on the series, its categories led by games that play");
       await shot("start-series");
       await page.keyboard.press("Escape");
 

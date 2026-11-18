@@ -28,6 +28,8 @@ import { openMoves } from "./moves";
 import { Face } from "./parts";
 import { answerWords, openSheet, QuestionsBody } from "./questions";
 import { DrillSheets, PersonBody, totalWords, useDrill, type DrillState } from "./game-sheets";
+import { GameTitleCard } from "./game-title";
+import { kickerOf, useCardArtGray } from "../ui/title-card";
 import { playsWaivers } from "./waivers";
 import { yourMove } from "./your-move";
 import { SideBetsRow, waiverLine, WeekBlock, WeekGames, YourTeam } from "./game-week";
@@ -80,7 +82,7 @@ function TopBar({ onBack, show, game, onMenu }: { onBack: () => void; show: stri
       </button>
       <span className="min-w-0 text-center" data-game-name>
         {game && <small className="block truncate text-[11px] font-semibold uppercase tracking-[0.06em] text-foreground/70">{show}</small>}
-        <b className="type-caption block truncate text-[20px] leading-[1.05]">{game ?? show}</b>
+        {(game ?? show) && <b className="type-caption block truncate text-[20px] leading-[1.05]">{game ?? show}</b>}
       </span>
       {onMenu ? (
         <button type="button" onClick={onMenu} aria-label="About this game" data-game-menu-open className="nd-press grid size-11 place-items-center rounded-[3px]">
@@ -149,6 +151,8 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
   // Every name, square, episode and face is a door (game-sheets.tsx): each a sheet over the last, the path back on top.
   const drill = useDrill();
   const [menu, setMenu] = useState(false);
+  // The card's name scrolled under the top: the bar that stays names the game.
+  const [away, setAway] = useState(false);
   const art = show.header?.show.backdropUrl ?? show.header?.show.artUrl ?? null;
   const [colour, setColour] = useState<string | null>(null);
   useEffect(() => {
@@ -179,6 +183,9 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
     }
   }, [lastEp, newsKey]);
   const ended = week?.tone === "out" || week?.tone === "over";
+  // The card's sentence, while the game hasn't scored anything for you yet (the spec's "until your first move", as near as the view
+  // can tell for every kind of game: a first result follows a first move). For the couch's others it's the game's introduction.
+  const firstVisit = !ended && !week?.last && !(g.you?.total);
   // The move, in the card: the one yellow plate while it's due; a game's other moves (a claim in, answers saved) as a quiet plate;
   // a lineup that's set, one plain line to change it.
   const lineupMove = wmove?.kind === "lineup" || wmove?.kind === "pick";
@@ -232,11 +239,19 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
     ) : null;
   return (
     <div data-game-page={g.leagueId} data-game-main={m.main} data-game-phase={m.phase} className="pb-16">
+      {/* The bar that stays: once the card's name has scrolled under the top, the game's name and the way back (the check's P2). */}
+      <div className="sticky top-0 z-20 h-0" data-game-namebar={away ? "on" : "off"}>
+        <div aria-hidden={!away} inert={!away} className={`bg-background/95 shadow-[0_1px_0_var(--border)] backdrop-blur transition-opacity duration-200 motion-reduce:transition-none ${away ? "opacity-100" : "pointer-events-none opacity-0"}`}>
+          <TopBar onBack={onBack} show={show.header?.show.name ?? ""} game={g.name} onMenu={() => setMenu(true)} />
+        </div>
+      </div>
       <header className="relative overflow-hidden pb-3" data-game-title>
         <Backdrop art={art} colour={colour} />
         <div className="relative">
-          <TopBar onBack={onBack} show={show.header?.show.name ?? ""} game={m.title.name} onMenu={() => setMenu(true)} />
+          {/* The bar's centre stays empty: the card under it names the game, once (b1-title-card-spec.md, "The header"). */}
+          <TopBar onBack={onBack} show="" onMenu={() => setMenu(true)} />
         </div>
+        <GameTitleCard kicker={show.header ? kickerOf(show.header.show.name, show.header.seasonNumber) : ""} name={g.name} sentence={firstVisit && g.sentence ? inShowWords(g.sentence, show.words) : null} onAway={setAway} />
         {m.hero.stages && <Stages stages={m.hero.stages} seasonId={seasonId} />}
         {g.plays.kind === "staged" && (
           <StagesDone games={(show.play ?? []).filter((x) => x.stageOf === g.leagueId && x.leagueId !== stage?.leagueId && x.over)} />
@@ -327,6 +342,7 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
 /** The show's art in its own colours (the user, 2026-11-08), washed toward Night so the faces and numbers over it read. */
 function Backdrop({ art, colour }: { art: string | null; colour: string | null }) {
   const { src, frame } = splitFrame(art);
+  const gray = useCardArtGray();
   if (!src)
     return colour ? (
       <span aria-hidden className="absolute inset-0" style={{ background: `radial-gradient(120% 70% at 50% 18%, color-mix(in srgb, ${colour} 26%, transparent), transparent 70%)` }} />
@@ -334,7 +350,7 @@ function Backdrop({ art, colour }: { art: string | null; colour: string | null }
   return (
     <span aria-hidden className="absolute inset-0">
       {/* eslint-disable-next-line @next/next/no-img-element -- art_url can be an arbitrary external URL */}
-      <img src={src} alt="" className="size-full object-cover" style={frame ? frameStyle(frame) : { objectPosition: "center 25%" }} />
+      <img src={src} alt="" className={`size-full object-cover ${gray ? "opacity-50 grayscale" : ""}`} style={frame ? frameStyle(frame) : { objectPosition: "center 25%" }} />
       <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(22,20,29,.55),rgba(22,20,29,.78)_38%,rgba(22,20,29,.93)_72%,var(--background))]" />
     </span>
   );

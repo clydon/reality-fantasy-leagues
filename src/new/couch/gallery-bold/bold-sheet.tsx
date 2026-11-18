@@ -7,9 +7,10 @@ import type * as GalleryModule from "@/lib/game/start-gallery/index.js";
 import type * as SportsModule from "@/lib/game/start-gallery/sports.js";
 import type { Base, ChangeState, Spec } from "@/lib/game/start-gallery/index.js";
 import { useAfterReveal, useHome, useSeasonStats, wizardApi, type WizardOptions } from "../../data";
+import { kickerOf } from "../../ui/title-card";
 import { useNav } from "../../nav";
 import { paths } from "../../routes";
-import { PracticeFinish, PracticeStrip } from "../../tour/practice";
+import { keepToPath, PracticeFinish, PracticeStrip, useNudge } from "../../tour/practice";
 import type { StartPractice } from "../start-game";
 import { openCouchSheet } from "../couch-sheets";
 import { Btn } from "../../ui/parts";
@@ -277,6 +278,9 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
     if (busy) return;
     const lock0 = lockOf(g.spec, g.span, input, g.pace);
     const pace: Pace = lock0.value === "strict" ? "live" : lock0.value;
+    // The setup card's sentence goes with the game, so its page's card says what its maker read (b1-title-card-critique.md P1); a
+    // game our AI or Run it back made says its own (the engine's), as its base's words may not fit it.
+    const about = g.from === "describe" || g.from === "again" ? null : fitWords(say(g.base.about, input.nouns), sizeFit(gm, g.base, g.spec)).split(/(?<=\.)\s+/)[0] || null;
     setBusy(true);
     try {
       const r = await wizardApi.start(input.seasonId, input.couch.id, {
@@ -285,7 +289,7 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
         tell: true,
         ...(start.late ? { late: true } : {}),
         ...(input.ownPace ? {} : { pace }),
-        made: { how: g.from, base: g.base.id, ...(start.again ? { again: start.again } : {}), ...extra },
+        made: { how: g.from, base: g.base.id, ...(about ? { about } : {}), ...(start.again ? { again: start.again } : {}), ...extra },
       });
       await refresh();
       toast(`${r.name} started${r.told ? " · the couch hears in 10 seconds" : ""}`, {
@@ -354,6 +358,19 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
     if (b) {
       const sp: Span = o.again.phase ? { from: { phase: o.again.phase }, to: null } : { from: input.from, to: o.again.to ?? null };
       setGame({ base: b, spec: withSpan(spec0, sp), span: sp, pace: null, before: {}, asked: false, from: "again", name: o.again.name, moment: null, fitted: null, own: [] });
+      setLevels([{ k: "gallery" }, { k: "base" }]);
+    }
+  }
+  // The tour's practice (its step: "Make a Prediction Sheet"): opens on the Prediction sheet's screen, where Start is the one thing
+  // to tap; Back still shows the whole gallery.
+  const [practiceOpened, setPracticeOpened] = useState(false);
+  if (!practiceOpened && start.practice) {
+    setPracticeOpened(true);
+    const b = bases.find((x) => x.id === "sheet" && verdicts.get(x.id)?.state === "plays");
+    const sp: Span = { from: input.from, to: input.from };
+    const s0 = b ? gm.baseSpec(b, sp, pg) : null;
+    if (b && s0) {
+      setGame({ base: b, spec: withSpan(s0, sp), span: sp, pace: null, before: {}, asked: false, from: "base", name: b.name, moment: null, fitted: null, own: [] });
       setLevels([{ k: "gallery" }, { k: "base" }]);
     }
   }
@@ -497,6 +514,7 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
         savedKeys={savedKeys}
         onCommunity={(i) => push({ k: "cgame", i })}
         art={art}
+        seasonNumber={home?.shows.find((x) => x.seasonId === input.seasonId)?.seasonNumber ?? null}
         onStep={makeIt}
         onOwn={() => push({ k: "own" })}
         sport={sport}
@@ -543,7 +561,12 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
     title = "What everyone answers";
     subtitle = <StepLine step={2} text={`Set it up · ${game.name}`} />;
     backTo = { label: game.name, onClick: back };
-    body = <QuestionsBody gm={gm} game={game} input={input} onSpec={(s) => change("play", s)} />;
+    body = (
+      <>
+        <QuestionsBody gm={gm} game={game} input={input} onSpec={(s) => change("play", s)} />
+        <QuestionsMore gm={gm} game={game} pg={pg} onSpec={(s) => change("play", s)} onSay={setSaid} />
+      </>
+    );
     foot = (
       <button type="button" data-gallery-done onClick={back} className="nd-press flex h-[52px] w-full items-center justify-center rounded-[3px] text-[16px] font-bold outline-1 -outline-offset-1 outline-input">
         Done
@@ -710,14 +733,21 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
     foot = null;
     body = <PracticeFinish line={`${practiced} for ${input.label} isn't saved: this was just to show you how.`} onDone={() => onOpenChange(false)} />;
   } else if (start.practice) {
+    // One path on the game's screen (the old practice's, the user's 2026-11-01 asks): another tap there shakes Start instead.
     body = (
-      <>
+      <div onClickCapture={level.k === "base" ? keepToPath({ on: "[data-gallery-start]", next: () => document.querySelector("[role=dialog][data-open] [data-gallery-start]"), word: "Practice: just tap Start" }) : undefined}>
         <PracticeStrip />
         {body}
-      </>
+      </div>
     );
   }
 
+  // The practice, left a moment: down to Start, then it shakes (the user, 2026-11-01: "scroll down then shake Start it").
+  useNudge(!!start.practice && !practiced && level.k === "base", "[data-gallery-start]", "[data-gallery]");
+  // Development only: the game on screen, for wizard-coverage.js (it drives the sheet to each value and reads what landed).
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "production") (window as unknown as { __START_GAME__?: unknown }).__START_GAME__ = game ? { base: game.base.id, spec: game.spec, level: level.k } : { level: level.k };
+  }, [game, level.k]);
   useEffect(() => {
     if (said) {
       toast.quiet(said);
@@ -1036,6 +1066,7 @@ function BaseBody(p: {
   savedKeys: Set<string>;
   onCommunity: (i: number) => void;
   art: string | null;
+  seasonNumber: number | null;
   onStep: (s: Step) => void;
   onOwn: () => void;
   sport: SportView | null;
@@ -1104,6 +1135,7 @@ function BaseBody(p: {
     <div className="flex flex-col">
       <TitleCard
         name={say(game.name, input.nouns, true)}
+        kicker={kickerOf(input.show, p.seasonNumber)}
         art={p.art}
         aka={isBase ? game.base.aka ?? [] : []}
         sentence={sentences[0]}
@@ -1389,14 +1421,26 @@ function QuestionsBody({ gm, game, input, onSpec }: { gm: GM; game: Game; input:
   const pg = input.pg;
   const asks = (Array.isArray(game.spec.ask) ? game.spec.ask : []) as Record<string, unknown>[];
   const [adding, setAdding] = useState(false);
+  // A question tapped opens its settings under it (asked when, open until, worth, from whom), as a change's controls open under it.
+  const [open, setOpen] = useState<number | null>(null);
+  type QControl = (typeof gm.QUESTION_CONTROLS)[number] & { read: (q: Record<string, unknown>) => unknown; write: (q: Record<string, unknown>, v: unknown) => Record<string, unknown> };
+  const qControls = gm.QUESTION_CONTROLS as QControl[];
   const has = (needs?: string) => !needs || (needs === "results" ? pg.results : needs === "winner" ? pg.winner : needs === "grouped" ? pg.grouped : needs === "votes" ? pg.votes : needs === "trivia" ? pg.trivia : needs === "later" ? pg.later.length > 0 : needs === "roles" ? !!(pg.ctx as { roles?: unknown[] }).roles?.length : needs === "facts" ? true : needs === "calls" ? pg.calls : true);
   const kinds = gm.QUESTION_KINDS.filter((k) => !!k.sport === pg.sport && has(k.needs));
   const add = (id: string) => {
     const k = gm.QUESTION_KINDS.find((x) => x.id === id);
     if (!k) return;
-    const m = pg.moments[0]?.id;
-    const q: Record<string, unknown> = { id: `q${asks.length + 1}-${k.id}`, ask: k.name.endsWith("?") ? k.name : `${k.name}?`, answer: k.answer, points: k.points, asked: k.asked, settle: { ...k.settle, ...(k.moment ? { moment: m } : {}) } };
+    // Everything its kind carries (the line, the options, the pairs, how many to name), and what settles it on this season: its first
+    // moment (a group's, for a group question), a phase still to come, the show's secret role.
+    const kk = k as typeof k & { pick?: number; within?: unknown; chips?: unknown; pairs?: unknown; line?: unknown; options?: unknown[] };
+    const m = (k.moment === "group" ? pg.moments.find((x) => /tribe|team/i.test(`${x.id} ${x.label ?? ""}`)) ?? pg.moments[0] : pg.moments[0])?.id;
+    const settle: Record<string, unknown> = { ...k.settle, ...(k.moment ? { moment: m } : {}) };
+    if (k.id === "role") settle.role = (pg.ctx as { roles?: { name?: string }[] }).roles?.[0]?.name ?? "Traitor";
+    if (k.id === "phase") settle.phase = pg.later[0]?.id;
+    const q: Record<string, unknown> = { id: `q${asks.length + 1}-${k.id}`, ask: k.name.endsWith("?") ? k.name : `${k.name}?`, answer: k.answer, points: k.points, asked: k.asked, settle };
     if (k.closes) q.closes = k.closes;
+    for (const f of ["pick", "within", "chips", "pairs", "line"] as const) if (kk[f] !== undefined) q[f] = kk[f];
+    if (kk.options) q.options = structuredClone(kk.options);
     onSpec({ ...game.spec, ask: [...asks, q] });
     setAdding(false);
   };
@@ -1404,20 +1448,36 @@ function QuestionsBody({ gm, game, input, onSpec }: { gm: GM; game: Game; input:
     <div className="flex flex-col">
       <p data-gallery-questions-lead className="mb-3 text-[16px] leading-snug">The questions everyone answers, each before it locks.</p>
       {asks.map((q, i) => {
-        const v = gm.check({ ...game.spec, ask: [q] } as Spec, pg);
+        // Checked with the questions it builds on (a ticket's legs), not alone: alone, a ticket's legs would read as missing.
+        const legs = (q.settle as { of?: unknown } | undefined)?.of;
+        const with_ = Array.isArray(legs) ? asks.filter((x) => x === q || legs.includes(x.id)) : [q];
+        const v = gm.check({ ...game.spec, ask: with_ } as Spec, pg);
         return (
-          <div key={String(q.id ?? i)} data-gallery-question={String(q.id ?? i)} className="flex min-h-[56px] items-center gap-3 border-t border-border py-2 first:border-t-0">
-            <span className="type-caption grid size-8 flex-none place-items-center rounded-[3px] bg-secondary text-[17px]">{i + 1}</span>
-            <span className="min-w-0 flex-1">
-              <b className="block text-[15px] font-semibold leading-snug">{String(q.ask ?? "")}</b>
-              <small className="block text-[13px] text-muted-foreground">
-                {String(q.asked ?? "once") === "each" ? `Each ${input.ep}` : "Once"} · {String(q.points ?? 0)} {Number(q.points) === 1 ? "point" : "points"}
-                {!v.ok && v.problems[0] ? ` · ${v.problems[0]}` : ""}
-              </small>
-            </span>
-            <button type="button" aria-label="Take it off" onClick={() => onSpec({ ...game.spec, ask: asks.filter((_, j) => j !== i) })} className="h-10 px-2 text-[13px] text-muted-foreground">
-              Remove
-            </button>
+          <div key={String(q.id ?? i)} className="border-t border-border first:border-t-0">
+            <div data-gallery-question={String(q.id ?? i)} className="flex min-h-[56px] items-center gap-3 py-2">
+              <span className="type-caption grid size-8 flex-none place-items-center rounded-[3px] bg-secondary text-[17px]">{i + 1}</span>
+              <button type="button" data-gallery-question-open={i} aria-expanded={open === i} onClick={() => setOpen(open === i ? null : i)} className="min-w-0 flex-1 text-left">
+                <b className="block text-[15px] font-semibold leading-snug">{String(q.ask ?? "")}</b>
+                <small className="block text-[13px] text-muted-foreground">
+                  {String(q.asked ?? "once") === "each" ? `Each ${input.ep}` : "Once"} · {String(q.points ?? 0)} {Number(q.points) === 1 ? "point" : "points"}
+                  {!v.ok && v.problems[0] ? ` · ${v.problems[0]}` : ""}
+                </small>
+              </button>
+              <button type="button" aria-label="Take it off" onClick={() => onSpec({ ...game.spec, ask: asks.filter((_, j) => j !== i) })} className="h-10 px-2 text-[13px] text-muted-foreground">
+                Remove
+              </button>
+            </div>
+            {open === i && (
+              <div className="mb-3 grid grid-cols-2">
+                <Controls
+                  controls={qControls.map((k) => ({ ...k, value: k.read(q) }))}
+                  onSet={(id, value) => {
+                    const k = qControls.find((x) => x.id === id);
+                    if (k) onSpec({ ...game.spec, ask: asks.map((x, j) => (j === i ? k.write(x, value) : x)) });
+                  }}
+                />
+              </div>
+            )}
           </div>
         );
       })}
@@ -1437,6 +1497,20 @@ function QuestionsBody({ gm, game, input, onSpec }: { gm: GM; game: Game; input:
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** A game of questions' other ways to ask (a new card each episode, from the moments or our bot), under its questions: the play
+ *  row's changes, which its headline row opens straight onto the questions. */
+function QuestionsMore({ gm, game, pg, onSpec, onSay }: { gm: GM; game: Game; pg: Input["pg"]; onSpec: (s: Spec) => void; onSay: (s: string) => void }) {
+  const [focus, setFocus] = useState<string | undefined>(undefined);
+  const states = gm.changeStates(game.spec, "play", pg).filter((c) => c.id !== "addq" && !c.sheet);
+  if (!states.length) return null;
+  return (
+    <div data-gallery-questions-more className="mt-8">
+      <Label>More ways to ask</Label>
+      <ChangeBody row="play" states={states} exclusive={false} focus={focus} gm={gm} game={game} pg={pg} onSpec={onSpec} onFocus={setFocus} onSheet={() => undefined} onSay={onSay} />
     </div>
   );
 }

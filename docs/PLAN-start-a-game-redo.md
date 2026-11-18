@@ -408,7 +408,35 @@ then approval.
       `check-slate.js`'s.
     - Noticed, not fixed: `check-sports-couch.js` fails "the guide's Sports leads with the couch's team's game" (the guide moved
       to its own page in an earlier step; the guide, untouched here).
-    - Noticed, not fixed: `check-episode-lock.js` fails "and a new pick doesn't go in" (a pick after Backstage › Settings locks the
+    - Chunk 6 committed: `wizard-coverage.js` drives the sheet to every value the coverage table proves (`gallery-coverage.js
+      --json` now gives each value's taps), reads what landed through the sheet's development-only `window.__START_GAME__`, and starts
+      every 12th: 193 of 193 reached, 12 refused by our check on today's Survivor 51 for season reasons (an auction too big for 10
+      left; keepers with no game last season) and printed HERE, 15 started and taken back. What it found, fixed: a question's
+      settings had no way to tap there (they open under the question now); a game of questions' other ways to ask (a new card each
+      episode) were unreachable (More ways to ask); added questions lacked their kind's line, options and pairs; a ticket's legs
+      read as missing; a base's questions about a moment the show doesn't have now leave it (fitMoments: Traitors 5 and Challenge 42
+      gain two playable bases each). Ported and passing: `check-own-pace-start.js`, `check-new-tour.js` (the practice now opens on
+      the Prediction sheet's screen, one path, Start shakes), `check-game-page.js` (the zt couch's games), `check-sports-couch.js`
+      (but its guide step, below). Ported, their B1 parts passing, failing on screens B1 doesn't touch (below): `check-spans.js`,
+      `check-phase-starts.js`, `check-questions.js`, `check-new-start-game.js`. `story-start-gallery.js` draws the built gallery by
+      default (`--before` prints SKIP: Round 1's wizard is gone).
+    - Chunk 7 built, **waiting on the user's review** (the story: https://claude.ai/artifact/XR92umAKtd2gSFt1H7Grtd): the game page
+      opens on its title card (`src/new/show/game-title.tsx`; one object with the setup card through `src/new/ui/title-card.ts`: the
+      kicker, the measured size 48/40/34, the art; the setup's sentence carried onto the game at Start as `settings.about`, else the
+      engine's, numbers left out); a bar stays at the top with the name once the card scrolls away. Papers:
+      docs/design-round/b1-title-card-spec.md (Intent), -first-view.md (PFD), -pfd-eval.md (69/100), -critique.md (Impeccable 29/40),
+      fixed in one batch. Frames: `scripts/dev-test/story-game-title.js` (`.ui-atlas/stories/b1-title-card/before|after`). Three
+      choices wait on the user: the art in colour or greyscale on both screens (`useCardArtGray`, development's `?card-art=gray`;
+      colour now); how long the sentence stays; the name in the bar. Open: Start's toast over the card's top for its 10 seconds; a
+      sport's card without team marks (E10); the sentence until a first result rather than a first move; the week block's seven
+      type sizes (step 2's).
+    - Not done in B1, for the next session: the gameplay bench's wizard surface (`tools/gameplay-bench/router.cjs`, `check-gameplay-
+      bench-flows.js`) still drives the old wizard's rail (`data-start-game`, `data-sport-game`): the explorer lane's adapter work.
+      DESIGN.md's Title card and Show Art lines wait on the user's art call.
+    - Noticed, not fixed (for the main session at the merge; none touched by B1): `check-spans.js` "a start that has aired: refused"
+      (an aired start is now an own-pace catch-up) and the Games tab's span lines (`[data-span]`) not appearing for these games
+      (also `check-phase-starts.js`); `check-questions.js` waits for `.nd-dock`, which doesn't appear; `check-new-start-game.js`
+      may still need its talk-show and series steps looked at after this run. `check-episode-lock.js` fails "and a new pick doesn't go in" (a pick after Backstage › Settings locks the
       episode); the lock API, untouched here. `check-new-computer-players.js` still expects the practice couch the user hid on
       2026-11-18. Both for the main session at the merge.
     - Dropped from the old list on purpose: the practice show's two-second "getting its rules" wait (the practice opens the gallery

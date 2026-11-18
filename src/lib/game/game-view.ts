@@ -4,7 +4,7 @@ import type { AnswerLines, AnswerWalk, CoopWalk, HandicapView, MatchupView, Team
 import { castawayEventStats } from "./active-roster-rows";
 import { castawayPoints, teamOrder } from "./classic-view";
 import { latestScoredEpisode } from "./episode-team-summary";
-import { gameRules, gameShort } from "./game-rules";
+import { gameRules, gameSentence, gameShort } from "./game-rules";
 import { compileGame, type GamePage } from "./game-page/compile";
 import { twistsOf, type GameTwists } from "./game-twists";
 import { playsOf, type GamePlays } from "./game-plays";
@@ -296,6 +296,8 @@ export interface GameView extends GameRefIn {
   /** U1: the game's own page, compiled from its spec (game-page/compile.ts: what goes where), and its short line (describe.js). */
   page: GamePage;
   short: string;
+  /** The game in one plain sentence, the engine's (B1: the game page's title card says it until you've made a move). */
+  sentence: string;
   /** Step C5, a game ranked by weeks won: each seat's weeks won (a split one's share), by player id; null for any other game. */
   weeksWon: Record<string, number> | null;
   /** U1 step 2: the game's twists as you may see them (game-twists.ts): your captain, a pool's lives, your group slots, the next
@@ -451,6 +453,7 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
     rules: gameRules(view),
     page: compileGame(StateLogic.gameOf(view) as unknown as Record<string, unknown>),
     short: gameShort(view),
+    sentence: gameSentence(view),
     weeksWon: StateLogic.gameOf(view).rank.by === "weeks" ? Object.fromEntries(StateLogic.computeScores(view).map((r) => [r.playerId, r.weeks?.won ?? 0])) : null,
     cast: castOf(view),
     plays,

@@ -34,11 +34,12 @@ const { open } = require("./browser");
 const { overlapsIn } = require("./overlaps");
 const galleryFixture = require("./gallery-fixture");
 
+// Since B1 (docs/PLAN-start-a-game-redo.md) the bold gallery is Start a game everywhere: today's wizard and Round 2's gallery are gone,
+// so --before (the old wizard) prints SKIP for its frames, and the bold frames are the default (--bold kept as a no-op).
 const BEFORE = has("before");
 // --bold: the bold pass (Round 2b, ?start=bold, src/new/couch/gallery-bold) on the same frames, for its story's after.
-const BOLD = has("bold");
-const START = BOLD ? "bold" : "gallery";
-const OUT = path.resolve(opt("out", BEFORE ? ".ui-atlas/stories/wizard-r2/before" : BOLD ? ".ui-atlas/stories/wizard-r2b/after" : ".ui-atlas/stories/wizard-r2/after"));
+const BOLD = true;
+const OUT = path.resolve(opt("out", BEFORE ? ".ui-atlas/stories/wizard-r2/before" : ".ui-atlas/stories/wizard-b1/after"));
 const W = Number(opt("width", 390)), H = Number(opt("height", 844));
 const ONLY = opt("only", null);
 const DB0 = process.env.AUTH_DATABASE_URL || "";
@@ -107,7 +108,7 @@ async function frame(id, note, fn) {
 let PAGE = null;
 /** Open Start a game on a season's Games tab with the gallery switched on, and wait for the gallery. */
 async function gallery(p, seasonId, { keep = false } = {}) {
-  await p.goto(`${BASE}/show/${seasonId}/games?start=${START}`, { waitUntil: "domcontentloaded" });
+  await p.goto(`${BASE}/show/${seasonId}/games`, { waitUntil: "domcontentloaded" });
   if (!keep)
     await p.evaluate(() => {
       localStorage.removeItem("gys_saved_games");
@@ -168,45 +169,8 @@ async function main() {
     p.on("pageerror", (e) => console.log(`PAGEERROR ${e.message.split("\n")[0].slice(0, 200)}`));
 
     if (BEFORE) {
-      // Today's wizard (start-wizard.tsx), the switch off, on the same seasons and couch.
-      const wizard = async (seasonId) => {
-        await p.goto(`${BASE}/show/${seasonId}/games?start=wizard`, { waitUntil: "domcontentloaded" });
-        const start = p.locator("[data-start-row], [data-play-start]").first();
-        await start.waitFor({ timeout: 90000 });
-        await start.click();
-        await p.locator("[data-start-screen=home], [data-start-sheet]").first().waitFor({ timeout: 90000 });
-        await wait(p, 1500);
-      };
-      await frame("w1-first", "Today: Start a game on Survivor 51", () => wizard(S.s51));
-      await frame("w2-season", "Today: The season tapped", async () => {
-        await wizard(S.s51);
-        await tap(p, "[data-start-mode=season]");
-      });
-      await frame("w3-step", "Today: a step's screen (Each episode)", async () => {
-        await wizard(S.s51);
-        await tap(p, "[data-start-step=each]");
-      });
-      await frame("w4-describe", "Today: Describe a new game", async () => {
-        await wizard(S.s51);
-        await tap(p, "[data-start-describe]");
-      });
-      if (S.bd13) await frame("w5-bd13", "Today: Below Deck 13", () => wizard(S.bd13));
-      if (S.c42) await frame("w6-c42", "Today: The Challenge 42, aired", () => wizard(S.c42));
-      // Today's sport sheet (sports/start-sport.tsx) on the stand-in seasons, the bold pass's sports "before".
-      for (const [id, key, note] of [
-        ["w7-nfl", "nfl", "Today: a sport's season (the Eagles)"],
-        ["w8-nba", "nba", "Today: a sport's series (Sixers–Knicks)"],
-      ])
-        if (S[key])
-          await frame(id, note, async () => {
-            await p.goto(`${BASE}/show/${S[key]}/games?start=wizard`, { waitUntil: "domcontentloaded" });
-            await p.addStyleTag({ content: "nextjs-portal{display:none!important}" }).catch(() => {});
-            const start = p.locator("[data-start-row], [data-play-start]").first();
-            await start.waitFor({ timeout: 90000 });
-            await start.click();
-            await p.locator('[role="dialog"]:visible').last().waitFor({ timeout: 90000 });
-            await wait(p, 2500);
-          });
+      // Round 1's wizard (start-wizard.tsx) is gone since B1: its frames are kept in .ui-atlas/stories/wizard-r2/before.
+      console.log("SKIP before: today's wizard was replaced by the gallery in B1; the old frames are in .ui-atlas/stories/wizard-r2/before");
       return;
     }
 

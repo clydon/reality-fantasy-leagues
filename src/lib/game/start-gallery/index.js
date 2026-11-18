@@ -119,6 +119,17 @@ function fitMoments(s, pg) {
   if (isObj(s.card) && Array.isArray(s.card.of)) s.card.of = s.card.of.filter((id) => have.has(id));
   if (isObj(s.score) && Array.isArray(s.score.only)) s.score.only = s.score.only.filter((id) => have.has(id));
   if (Array.isArray(s.stages)) s.stages.forEach((x) => isObj(x.game) && fitMoments(x.game, pg));
+  // A question about a moment this show doesn't have (Survivor's immunity on The Traitors) leaves, and a ticket's legs with it; a
+  // ticket left with fewer than two legs goes too (B1: a base written for Survivor carries to every show by its own moments).
+  if (Array.isArray(s.ask) && s.ask.length) {
+    const kept = s.ask.filter((q) => !(isObj(q) && isObj(q.settle) && typeof q.settle.moment === 'string' && !have.has(q.settle.moment)));
+    if (kept.length && kept.length < s.ask.length) {
+      const ids = new Set(kept.map((q) => q.id));
+      s.ask = kept
+        .map((q) => (isObj(q.settle) && Array.isArray(q.settle.of) ? { ...q, settle: { ...q.settle, of: q.settle.of.filter((id) => ids.has(id)) } } : q))
+        .filter((q) => !(isObj(q.settle) && Array.isArray(q.settle.of) && q.settle.of.length < 2));
+    }
+  }
   return s;
 }
 /** The moment a base that leaves it open starts on (the starter picks it first): the one asked for, else the season's first. */

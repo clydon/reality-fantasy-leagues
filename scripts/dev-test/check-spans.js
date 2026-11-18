@@ -33,6 +33,7 @@
 //
 //   npm run dev                                                  (in another terminal)
 //   node scripts/dev-test/check-spans.js <outDir> [--width=390] [--keep] [--api]
+// (Start a game's own lengths, since B1, are check-start-a-game.js's and wizard-coverage.js's: the browser here reads the Games tab.)
 //
 // --api: the API half only (the lineup game is then started through the API). Brings new-fixture.js up and takes it down
 // (--keep leaves it); touches zt rows only; refuses a non-local database. Shares new-fixture's zt_nd_ couch with other checks:
@@ -163,51 +164,15 @@ function check(ok, what, detail = "") {
       closers.push(b.close);
       const { page } = b;
 
-      // Starts: an Outlast from Episode 9.
+      // Start a game's lengths are the show's stages since B1 (docs/PLAN-start-a-game-redo.md: the gallery's How long?); a later
+      // listed episode as the start and a picked last episode aren't in its design, so both games start through the API here and
+      // the browser reads the Games tab's lines.
+      r = await start({ game: "outlast", tell: false, from: 9 });
+      check(r.status === 200 && r.body.from === 9 && r.body.to === null, "jordan starts Outlast from Episode 9", JSON.stringify(r.body));
+      r = await start({ game: "weeklyLineup", tell: false, to: 7 });
+      LINEUP = r.body.leagueId;
+      check(r.status === 200 && r.body.to === 7 && (await league(LINEUP)).state.settings.endEpisode === 7, "jordan starts a Weekly Lineup over Episodes 6–7", JSON.stringify(r.body));
       await page.goto(`${BASE}/show/${sid}/games`, { waitUntil: "load" });
-      await page.locator("[data-start-row]").waitFor();
-      await page.locator("[data-start-row]").click();
-      const first = page.locator('[data-start-sheet="competition"]');
-      await first.waitFor();
-      await first.locator('[data-start-game="outlast"]').click();
-      const starts = first.locator("[data-start-from]");
-      await starts.waitFor();
-      check(/With the next one · Episode 6/.test(await starts.locator('[aria-checked="true"]').innerText()), "the sheet: Starts, with the next one (Episode 6) on", await starts.innerText());
-      await starts.locator("[data-start-from-later]").selectOption("9");
-      await first.locator("[data-start-from-note]").waitFor({ timeout: 10000 }).catch(() => {});
-      await page.locator("text=ZT Survivor · from Episode 9").first().waitFor({ timeout: 10000 }).catch(() => {});
-      check((await page.locator("text=ZT Survivor · from Episode 9").count()) > 0 && /It waits for Episode 9/.test((await first.locator("[data-start-from-note]").textContent().catch(() => "")) ?? ""), "  Later › Episode 9: the title says from Episode 9, and that it waits");
-      check(/Episode 9 to the season's end/.test((await first.locator('[data-start-span-choice="rest"]').innerText().catch(() => "")) ?? ""), "  How long counts from Episode 9");
-      await starts.scrollIntoViewIfNeeded();
-      await shot("start-later");
-      await wide("Start a game, starting later");
-      await page.locator('[role=dialog]:has([data-start-sheet="competition"]) [data-start-go]').click();
-      await page.locator("text=Outlast started").first().waitFor({ timeout: 20000 });
-      await page.goto(`${BASE}/show/${sid}/games`, { waitUntil: "load" });
-      await page.locator("[data-start-row]").waitFor();
-      await page.locator("[data-start-row]").click();
-      const sheet = page.locator('[data-start-sheet="competition"]');
-      await sheet.waitFor();
-      const how = sheet.locator("[data-start-span]");
-      await how.waitFor();
-      const choices = await how.locator("[data-start-span-choice]").evaluateAll((els) => els.map((e) => e.getAttribute("data-start-span-choice")));
-      check(choices.join() === "rest,one,through" && (await how.locator('[aria-checked="true"]').getAttribute("data-start-span-choice")) === "rest", "the sheet: How long, the rest of the season on, Just Episode 6, Through a later one", choices.join());
-      await sheet.locator('[data-start-game="weeklyLineup"]').click();
-      await how.locator("[data-start-span-through]").selectOption("7");
-      await page.locator("text=ZT Survivor · Episodes 6–7").first().waitFor({ timeout: 5000 }).catch(() => {});
-      check((await page.locator("text=ZT Survivor · Episodes 6–7").count()) > 0, "  Through Episode 7: the sheet says Episodes 6–7");
-      await how.scrollIntoViewIfNeeded();
-      await shot("start-how-long");
-      await wide("Start a game");
-      await page.locator('[role=dialog]:has([data-start-sheet="competition"]) [data-start-go]').click();
-      // Already on the Games tab: the toast says it's done.
-      await page.locator("text=Weekly Lineup started").first().waitFor({ timeout: 20000 });
-      const { rows } = await pool.query(
-        "SELECT id FROM leagues WHERE created_by = $1 AND state->'settings'->>'leagueTypeId' = 'active-roster' AND state->'settings'->>'endEpisode' = '7' AND deleted_at IS NULL",
-        [fx.users.jordan]
-      );
-      LINEUP = rows[0]?.id ?? null;
-      check(!!LINEUP && (await league(LINEUP)).state.settings.endEpisode === 7, "Start it: a Weekly Lineup over Episodes 6–7");
       const span = page.locator(`[data-span="${LINEUP}"]`);
       await span.waitFor({ timeout: 15000 }).catch(() => {});
       check(/Episodes 6–7 ·/.test((await span.textContent().catch(() => "")) ?? ""), "  the Games tab's game reads Episodes 6–7", await span.textContent().catch(() => ""));
@@ -415,18 +380,17 @@ function check(ok, what, detail = "") {
       await backRow.scrollIntoViewIfNeeded();
       await shot("games-run-it-back");
       await backRow.click();
-      const sheet = page.locator('[data-start-sheet="competition"]');
-      await sheet.waitFor();
-      await page.locator("text=ZT Survivor 51 · Episodes 8–9 · the same Weekly Lineup as Episodes 6–7").first().waitFor({ timeout: 10000 }).catch(() => {});
-      check((await page.locator("text=ZT Survivor 51 · Episodes 8–9 · the same Weekly Lineup as Episodes 6–7").count()) > 0, "  the sheet: Run it back, Episodes 8–9, the same Weekly Lineup as Episodes 6–7");
-      check((await sheet.locator("[data-start-span-through]").inputValue()) === "9" && (await sheet.locator('[data-start-game="weeklyLineup"]').getAttribute("aria-pressed")) === "true", "  How long set to through Episode 9, Weekly Lineup picked");
-      await sheet.locator("[data-start-span]").scrollIntoViewIfNeeded();
+      // Start a game (B1): Run it back opens the old game on its own screen, on the next stretch (Episodes 8–9).
+      await page.locator("[data-gallery=base]").waitFor({ timeout: 60000 });
+      const length = await page.locator("[data-gallery-length]").innerText();
+      check(/Weekly Lineup/i.test(await page.locator("[data-gallery-title]").innerText()) && /Episode 8 to Episode 9/.test(length), "  Run it back: the same Weekly Lineup on its screen, Episode 8 to Episode 9", `${await page.locator("[data-gallery-title]").innerText()} · ${length.split("\n").slice(0, 3).join(" · ")}`);
       await shot("run-it-back-sheet");
       await wide("Run it back");
-      await page.locator('[role=dialog]:has([data-start-sheet="competition"]) [data-start-go]').click();
+      await page.locator("[data-gallery-start]").click();
       await page.locator("text=Weekly Lineup started").first().waitFor({ timeout: 20000 });
       const { rows: again } = await pool.query("SELECT id, state FROM leagues WHERE created_by = $1 AND state->'settings'->>'endEpisode' = '9' AND deleted_at IS NULL", [fx.users.jordan]);
-      check(again.length === 1 && again[0].state.settings.startEpisode === 8 && again[0].state.settings.leagueTypeId === "active-roster", "  Start it: a Weekly Lineup over Episodes 8–9");
+      check(again.length === 1 && again[0].state.settings.startEpisode === 8 && again[0].state.settings.leagueTypeId === "active-roster", "  Start: a Weekly Lineup over Episodes 8–9");
+      await page.goto(`${BASE}/show/${sid}/games`, { waitUntil: "load" });
       await page.locator('[data-start-row="again-span"]').filter({ hasText: "Episode 8" }).waitFor({ timeout: 20000 }).catch(() => {});
       check(/Run it back · Episode 8\b/.test((await page.locator('[data-start-row="again-span"]').innerText().catch(() => "")) ?? ""), "  run back: the row moves on to the pool's (Episode 8)", await page.locator("[data-start-row]").innerText().catch(() => ""));
 

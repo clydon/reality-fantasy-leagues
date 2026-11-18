@@ -200,6 +200,8 @@ export async function startFromSpec(
         opts.ownPace ? opts.from - 1 : null,
       ]);
       refused(StateLogic.setGame(s, spec as never, { ctx }), 409);
+      // The setup card's sentence, kept for the game page's title card (B1): what its maker read at Start.
+      if (made && typeof made.about === "string" && made.about.trim()) (s.settings as unknown as { about?: string }).about = made.about.trim().slice(0, 200);
       if (bots && !botsPlay(s)) throw new HttpError(409, "Computer players don't play this game");
       if (StateLogic.readsPhases(s) || StateLogic.startPhase(s) || StateLogic.endPhase(s)) {
         settleIn(s, await leaguePhases(client, id, seasonId), await scheduleOf(seasonId, now), now);

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Check, ChevronDown, ChevronRight, Heart, Minus, Plus, Search } from "lucide-react";
 import type { Base, ChangeState, Control } from "@/lib/game/start-gallery/index.js";
 import { Pictogram } from "./icons";
+import { useCardArtGray, useTitleStep } from "../../ui/title-card";
 import type { Cell } from "./model";
 
 // The gallery's parts (docs/design-round/wizard-r2-shape.md): one visual grammar across its screens (PFD R3). A square is a
@@ -298,18 +299,23 @@ export function RowLink({ icon, title, line, changed, onClick, onUndo, data }: {
 
 // ---------- the bold pass's base screen (docs/design-round/wizard-r2b-shape.md) ----------
 
-/** The title card: the game's name in title-card caps over the show's art (greyscale, washed into the sheet), as the started game's
- *  own page will look; what it's also called; its plain sentence. */
-export function TitleCard({ name, art, aka, sentence, mark }: { name: string; art: string | null; aka: string[]; sentence: string; mark?: ReactNode }) {
-  const long = name.length > 12;
+/** The title card: the game's name in title-card caps over the show's art, as the started game's own page opens (the same object:
+ *  ui/title-card.ts's kicker, measured size and art); what it's also called; its plain sentence. */
+export function TitleCard({ name, kicker, art, aka, sentence, mark }: { name: string; kicker?: string; art: string | null; aka: string[]; sentence: string; mark?: ReactNode }) {
+  const ref = useRef<HTMLHeadingElement>(null);
+  const size = useTitleStep(ref, name);
+  const gray = useCardArtGray();
   return (
     <div data-gallery-title className="relative -mx-4 -mt-2 overflow-hidden px-4 pb-3 pt-3">
       {/* eslint-disable-next-line @next/next/no-img-element -- a show's art from wherever it was found (as the show's own page) */}
-      {art && <img src={art} alt="" aria-hidden className="absolute inset-0 size-full object-cover object-center opacity-50 grayscale" />}
-      <div aria-hidden className="absolute inset-0 bg-gradient-to-b from-card/10 via-card/55 to-card" />
+      {art && <img src={art} alt="" aria-hidden className={`absolute inset-0 size-full object-cover ${gray ? "opacity-50 grayscale" : ""}`} style={{ objectPosition: "center 25%" }} />}
+      <div aria-hidden className={`absolute inset-0 bg-gradient-to-b ${gray ? "from-card/10 via-card/55" : "from-card/55 via-card/80"} to-card`} />
       <div className="relative">
-        <div className="flex items-end justify-between gap-3">
-          <h3 className={`type-caption min-w-0 leading-[0.86] ${long ? "text-[40px]" : "text-[48px]"}`}>{name}</h3>
+        {kicker && <p className="type-caption truncate text-[11px] tracking-[0.08em] text-foreground">{kicker}</p>}
+        <div className={`flex items-end justify-between gap-3 ${kicker ? "mt-1" : ""}`}>
+          <h3 ref={ref} className="type-caption min-w-0 break-words leading-[0.86]" style={{ fontSize: size }}>
+            {name}
+          </h3>
           {mark}
         </div>
         {aka.length > 0 && <p className="mt-1.5 text-[14px] text-foreground/80">Also called {aka.slice(0, 3).join(", ")}</p>}

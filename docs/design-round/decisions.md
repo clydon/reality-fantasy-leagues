@@ -1247,3 +1247,45 @@
 - Why: the 2026-11-08 direction stands: free with a short ad, or paid and fast; how the split looks when the answer takes a second is W6's to design.
 - Rejected: making typed games free once they're instant (the recommendation); deciding later.
 - Rests on: docs/PLAN-local-game-writer.md; docs/PLAN-ai-access.md.
+
+## 2026-11-18 · B1: what doesn't play yet is held back in Start a game, each behind a named flag
+- Decided by: Claude, from the plan's rule ("Whatever a piece lacks to be played is built before that piece reaches people")
+- Why: Try it (no preview yet: the preview lane's P0), Ask the couch first (no such post exists), your own moments (E8) and a season's suggested moments (E5) were drawn and approved in the bold pass but make nothing real; shown, they'd promise what Start can't deliver. `src/new/couch/gallery-bold/flags.ts` names each with the step that turns it on.
+- Rejected: shipping them as they were (a preview that previews nothing, a post nobody receives); deleting them (the design is approved).
+- Rests on: docs/PLAN-start-a-game-redo.md B1 chunk 2.
+
+## 2026-11-18 · B1: Start opens the game's own page; a ready game and our AI's open Ready to start first
+- Decided by: Claude, from the plan ("The game page opens on the game's title card, as its setup screen does")
+- Why: a game's screen already is the setup, so its Start starts (Undo on the toast, as before); a game chosen with one tap from the gallery (the ready game, Describe's Start it) hasn't been seen yet, so Ready to start shows it with its own Start bar.
+- Rejected: Start always landing on the Games tab (today's wizard); starting the ready game on its first tap.
+- Rests on: gallery-bold/bold-sheet.tsx startGame; check-start-a-game.js.
+
+## 2026-11-18 · B1: Run it back reopens the old game on its own screen; a team's Next game opens every game on that one game
+- Decided by: Claude
+- Why: Run it back is "the same game again", so its rules come back as a game you can still change (`againSpec`), on the next stretch; from a team, what was picked on its sheet (the next game, a rival, a run) becomes the season added and the length every game opens on.
+- Rejected: Run it back starting at once with no screen; a team's games opening on the whole season whatever was picked.
+- Rests on: start-spec.ts wizardOptions againSpec; sports/start-handoff.tsx.
+
+## 2026-11-18 · B1: the tour's practice opens on the Prediction sheet's screen, one path, Start shakes
+- Decided by: Claude, from the tour's own step ("Make a Prediction Sheet") and the user's earlier asks for the practice (2026-11-01: one path; "scroll down then shake Start it")
+- Why: the practice is about how a game starts, not choosing among fifty; Back still shows the whole gallery.
+- Rejected: the practice on the whole gallery; keeping the old list for the tour alone.
+- Rests on: check-new-tour.js (passing).
+
+## 2026-11-18 · B1: a question's settings open under it, and a game of questions shows its other ways to ask
+- Decided by: Claude, found by the coverage drive (wizard-coverage.js): eleven question settings and the new card each episode had no way to tap there in the bold pass
+- Why: the same grammar as a change (tap it, its controls open under it); "More ways to ask" holds the play row's changes a questions game's headline row skipped.
+- Rejected: leaving those values reachable only through Describe.
+- Rests on: gallery-bold/bold-sheet.tsx QuestionsBody, QuestionsMore.
+
+## 2026-11-18 · B1: a base carries to every show by the show's own moments
+- Decided by: Claude, the plan's noticed item ("a base checked on Survivor 51 doesn't carry to every show")
+- Why: a question about a moment the show doesn't have (Survivor's immunity on The Traitors) leaves the base, with a ticket's legs that pointed at it; The Traitors 5 and The Challenge 42 each gain playable bases (the Prediction sheet among them).
+- Rejected: writing each base per show by hand.
+- Rests on: src/lib/game/start-gallery/index.js fitMoments.
+
+## 2026-11-18 · B1: the game page's title card is the game's identity, never its news, and gives way before the move
+- Decided by: the user's call ("Bring it back on the game page"); the shape from Intent's spec and PFD's requirements (docs/design-round/b1-title-card-spec.md, -first-view.md); the defaults on their three open questions are Claude's, offered to the user in the story
+- Why: the setup screen's card (the game's own name in condensed caps over the show's art) opens the started game's page, so making and playing read as one; a kicker (the show and season), the name stepping 48, 40, 34 px by measured lines, and the engine's plain sentence while nothing has scored for you yet. It shows no state, so it can't spoil; the week block keeps the news and the move stays above the fold (measured: a due move ends by 423 px at 390 × 844).
+- Rejected: the 64 px title the page had before step 2 (a quarter of the first view); the type's name ("Weekly Lineup") over the game's own ("Fantasy league").
+- Rests on: src/new/show/game-title.tsx; scripts/dev-test/story-game-title.js.
