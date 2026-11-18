@@ -115,3 +115,8 @@ database goes.
 1. **Prove it first, then pick A or B.** P0 is a development-only screenshot story; the first release's approach waits on it. The
    recommendation after the proof stays A.
 2. **Who plays beside you:** the couch's real names, their moves made up by the engine.
+3. **What the preview is for (after P0):** someone setting up a game wants to know it plays correctly and as they expect. A tour
+   of the app's screens answers "what will it look like", which matters less ("step back and really judge what is most useful for
+   a user"). And the answer is **a visual story, not words and paragraphs: quick, intuitive and to the point** ("the solution to
+   this problem isnt words and paragraphs, its a visual story, it should be quick. intuitive. and to the point"). The real screens
+   become a drill-in from it. A or B waits until that story is designed, since it only decides the drill-in.
