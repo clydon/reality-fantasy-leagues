@@ -256,6 +256,25 @@ function applyFacts(world, state) {
     if (!S.episodeHasResults(ep)) throw Error('Released event has no result facts');
   }
 }
+// A draft for a game that starts after someone has gone home (a game started mid-season, Episode 9 of 13, say): made from who's
+// still in at its start, as the draft room offers them (PoolLogic.offered), never someone already gone. Shared teams each in the
+// seat's own seeded order, as a private draft's sheets differ (stages.cjs draftAtStart); exclusive ones the next each of those
+// still in. Null for a game that starts before anyone has gone, so every such case's teams, and hashes, stay as they were.
+// (preview-proof.js, 2026-11-18: dealt from the whole cast, every seat of a game starting at Episode 9 held one or two castaways who
+// had already gone home, and a shared team was dealt again to every other seat.)
+function lateDraft(document, game, world, spec, state) {
+  const from = Number.isInteger(spec.span?.from) ? spec.span.from : 1;
+  const gone = new Set(world.facts.filter(f => { const e = world.events.find(x => x.id === f.eventId); return e && released(e) && e.number < from; }).flatMap(f => (f.data.events || []).map(o => o.castawayId)));
+  if (!gone.size) return null;
+  const still = state.castaways.filter(c => !gone.has(c.id));
+  return { deal() {
+    const order = pid => still.map(c => c.id).sort((a, b) => number(document.seed, game.id, 'late-draft', pid, a) - number(document.seed, game.id, 'late-draft', pid, b) || (a < b ? -1 : 1));
+    for (const [index, player] of state.players.entries()) {
+      const ids = spec.get.own === 'shared' ? order(player.id).slice(0, spec.get.each) : Array.from({ length: spec.get.each }, (_, k) => still[(index * spec.get.each + k) % still.length]?.id).filter(Boolean);
+      for (const id of ids) state.castaways.find(c => c.id === id).ownerIds.push(player.id);
+    }
+  } };
+}
 function gameData(document, game, world, actors) {
   const spec = G.fullSpec(game.spec);
   const seats = game.seats.length ? game.seats : actors.slice(0, world.context.engine.couch || actors.length).map(p => p.id);
@@ -294,7 +313,8 @@ function gameData(document, game, world, actors) {
         if (id) { mine.push(id); taken.add(id); }
       }
       for (const [pid, mine] of teams) for (const id of mine) state.castaways.find(c => c.id === id).ownerIds.push(pid);
-    } else for (const [index, player] of state.players.entries()) for (let k = 0; k < spec.get.each; k++) state.castaways[(index * spec.get.each + k) % state.castaways.length].ownerIds.push(player.id);
+    } else if (lateDraft(document, game, world, spec, state)) lateDraft(document, game, world, spec, state).deal();
+    else for (const [index, player] of state.players.entries()) for (let k = 0; k < spec.get.each; k++) state.castaways[(index * spec.get.each + k) % state.castaways.length].ownerIds.push(player.id);
     state.draftOrder = state.players.map(p => p.id); state.draftPicksMade = state.players.length * spec.get.each;
     state.blindDraft = { lockedPlayerIds: state.draftOrder, revealedAt: document.situation.clock };
     // Names out of a hat (get.order 'draw'): recorded as a real draw records itself (DrawLogic.draw: its seed, when, the order it
