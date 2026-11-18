@@ -1,4 +1,5 @@
 import StateLogic from "./state-logic.js";
+import Bots from "./bot-logic.js";
 import type { LeagueState } from "./types";
 import { BOT_NAMES } from "./practice";
 
@@ -31,10 +32,13 @@ export const botsIn = (s: LeagueState): Seat[] => s.players.filter((p) => p.auto
 
 export const levelOf = (p: Seat): BotLevel => LEVEL_OF[p.botLevel ?? "solid"] ?? "normal";
 
-/** Whether bot-logic.js plays this kind of game: a draft or Survival Pool, not a calls, bingo or questions game. */
+/** Whether bot-logic.js plays this kind of game: a draft or Survival Pool, and (E1b) a game of questions every one of whose questions
+ *  it answers; not calls or bingo yet. */
 export function botsPlay(s: LeagueState): boolean {
   const t = StateLogic.piecesOf(s);
-  return !t.hasCalls && !t.hasBingo && !t.hasQuestions && !!(t.hasRoster || t.hasWeeklyPicks);
+  if (t.hasCalls || t.hasBingo) return false;
+  if (t.hasQuestions) return Bots.answersAll(s);
+  return !!(t.hasRoster || t.hasWeeklyPicks);
 }
 
 /** A draft that's open: started, and not yet done (every pick made, or the blind draft revealed). */

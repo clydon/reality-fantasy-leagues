@@ -34,6 +34,8 @@ const W = Object.fromEntries(R.PIECES.WINS.map((w) => [w.id, w]));
 // ---------- what a game is ----------
 
 /** The kind of game a spec is, for which rows its screen has: a draft, a pick, questions, a card, squares, or stages. */
+// The catalog's own kinds (kindOf's answers), named so they're never read as league types (tests/pieces.test.js).
+const KIND = { questions: 'questions', stages: 'stages' };
 function kindOf(s) {
   if (!isObj(s)) return 'questions';
   if (Array.isArray(s.stages)) return 'stages';
@@ -46,7 +48,7 @@ function kindOf(s) {
 }
 const isDraft = (s) => kindOf(s) === 'draft';
 const isPick = (s) => kindOf(s) === 'pick';
-const isQuestions = (s) => kindOf(s) === 'questions' && isObj(s.score) && s.score.by === 'answers';
+const isQuestions = (s) => kindOf(s) === KIND.questions && isObj(s.score) && s.score.by === 'answers';
 const isPool = (s) => isPick(s) && isObj(s.score) && s.score.by === 'survive';
 const byMoments = (s) => isObj(s.score) && s.score.by === 'moments';
 const byPlace = (s) => isObj(s.score) && s.score.by === 'place';
@@ -227,7 +229,7 @@ function playRow(spec) {
   if (k === 'pick') return { name: 'Your pick', headline: false };
   if (k === 'card') return { name: 'Your card', headline: true };
   if (k === 'squares') return { name: 'Your squares', headline: true };
-  if (k === 'stages') return { name: 'The stages', headline: true };
+  if (k === KIND.stages) return { name: 'The stages', headline: true };
   return { name: 'The questions', headline: true };
 }
 
@@ -1102,12 +1104,22 @@ function changeStates(spec, row, pg) {
 const changeById = (id) => CHANGES.find((c) => c.id === id) || null;
 /** Why computer players can't play this game yet, or null (E1a; mirrors computer-players.ts botsPlay on the spec's kind: a draft or a
  *  pick, with no questions, card, calls or bingo; questions come with E1b). */
+// E1b: the questions computer players answer: bot-logic.js ANSWERS and answersQuestion, kept the same here (tests/bots-answer.test.js
+// holds them together).
+const BOT_ANSWERS = ['person', 'group', 'yesNo', 'number', 'overUnder', 'choice'];
+const botAnswers = (q) => isObj(q) && BOT_ANSWERS.includes(q.answer) && !q.each && !q.wager && !q.stake && !q.card && q.answer !== 'calls' && q.answer !== 'ticket' && q.answer !== 'trivia' && !(q.answer === 'overUnder' && q.line === 'game');
+// The catalog's kinds (kindOf), not league types: what each says before any question is read.
+const BOTS_NOT_YET = { stages: 'Computer players play a game in stages later', card: "Computer players don't play a bingo card yet" };
+const BOTS_PLAY = new Set(['draft', 'pick', 'questions']);
 function botsFit(s) {
   const k = kindOf(s);
-  if (k === 'stages') return 'Computer players play a game in stages later';
-  if (asks(s).length || isObj(s.card)) return 'Computer players answer questions soon';
-  if (k === 'draft' || k === 'pick') return null;
-  return 'Computer players play this kind of game later';
+  if (BOTS_NOT_YET[k]) return BOTS_NOT_YET[k];
+  if (isObj(s.card)) return "Computer players don't play a card's lines yet";
+  const qs = asks(s).filter((q) => !(isObj(q) && q.answer === 'calls'));
+  if (asks(s).some((q) => isObj(q) && q.answer === 'calls')) return "Computer players don't make calls yet";
+  const not = qs.find((q) => !botAnswers(q));
+  if (not) return `Computer players don't answer "${not.ask || 'that question'}" yet`;
+  return BOTS_PLAY.has(k) ? null : 'Computer players play this kind of game later';
 }
 /** A change made (its apply, on its defaults), as a new spec. */
 function applyChange(spec, id, pg) {

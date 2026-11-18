@@ -336,6 +336,25 @@ then approval.
       writes them into `game_answers` before each question locks (bots.ts, beside the blind submissions), and at your own pace as
       each bot reaches the episode (catchUpTo). Proof: a unit test per answer kind; a Prediction sheet, a prop card with wagers
       and a Beat the bot game played to their ends with one person and two bots.
+      **Done, its first slice (2026-11-18):** `bot-logic.js answers(state, stored, o)` gives each computer player playing live an
+      answer to each open question it hasn't answered (this episode's window, or one asked once while open), one the engine accepts
+      (`Spec.answerProblem`): a person or a group (who goes home: the most in danger by the league's own ratings; who wins, scores,
+      does it first: the best rated), yes or no, a number, over or under, a choice (its taste for that question that episode, a
+      sharp one leaning to what usually happens). Deterministic. `server/bots.ts answerForBots` writes them into `game_answers`
+      (never over one there) inside every league write, and startFromSpec runs one write after a start with computer players, so
+      their first answers are in at once. `botsPlay` takes a game of questions every one of whose questions they answer
+      (`answersAll`); the gallery's `botsFit` keeps the same list, and says why for the rest ("Computer players don't answer "The
+      order they go" yet", a bingo card, a card's lines, calls, stages). Held back: an order, confidence, chips, pairs, a split,
+      trivia, a side, a bracket, a ticket, a stake from a bank, a question about each person or game; and a game of questions at
+      your own pace (a computer player catches up on its own copy, where it answers nothing yet: refused on both sides). Proof:
+      tests/bots-answer.test.js (five tests: one answer a question a window, accepted by the engine, none twice, none closed, the
+      gallery's list the same, played through four episodes); check-start-a-game.js (a Prediction sheet with two sharp computer
+      players has their six answers in at once; a Bingo card refused; the square offered on a Prediction sheet and dashed on Bingo);
+      the whole unit suite (2,427) passes. Also: tests/pieces.test.js's guard now reads the catalog's own kinds as kinds (`KIND`),
+      which it had flagged since Round 2.
+      **Left for E1b's second slice:** the held-back kinds above (an order and confidence from the ratings; chips spread by them;
+      pairs; a stake: a share of the bank by level); answers at your own pace (catchUpTo answering each episode as the bot reaches
+      it); a prop card with wagers and Beat the bot played to their ends with computer players.
     - **E1c. Cards, calls and bingo** (each its own small step, after a named question to the user: a bingo card or a call is
       honour-based, tapped by whoever sees it; should a computer player mark its card from what research settles after the
       episode, or sit those games out?). Until then they stay dashed in Who's playing with the reason.

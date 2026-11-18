@@ -21,6 +21,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see above */
 const StateLogic = require("./state-logic.js");
 const Formats = require("./formats/index.js");
+const Spec = require("./game-spec/index.js");
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const {
@@ -542,4 +543,94 @@ function hasWork(state) {
   return blindSubmissions(state).length > 0 || auctionBids(state).length > 0 || run(structuredClone(state)) > 0;
 }
 
-module.exports = { LEVELS, DEFAULT_LEVEL, isBot, botIds, ratings, run, hasWork, catchUpTo, paceTeams, blindSubmissions, auctionBids, waiverClaim, groupSlotPicks };
+// ---- answers to a game's own questions (docs/PLAN-start-a-game-redo.md E1b) ----
+//
+// A game of questions keeps its answers in game_answers, outside `state` (like blind-draft lock-ins), so this only says what each
+// computer player WOULD answer and the server writes it (bots.ts). For each bot playing live, each question open now (this
+// episode's window, or one asked once while it's still open) it hasn't answered: an answer the engine itself accepts
+// (Spec.answerProblem), from what the league knows. Who goes home: the one most in danger; who wins, scores most, does it first: the
+// best rated; yes or no, a number, over or under, a choice: its taste for that question that episode, a sharp player leaning to
+// what usually happens (no, the low count). Deterministic like the rest: run twice, the second run has nothing to add.
+//
+// The kinds it answers; the rest (an order, confidence, chips, pairs, a split, trivia, a side, a bracket, a ticket, a stake from a
+// bank, a card's lines, Weekly Calls) wait, and the gallery says so (start-gallery/index.js botsFit keeps the same list).
+const ANSWERS = ["person", "group", "yesNo", "number", "overUnder", "choice"];
+/** Whether a computer player answers this question (E1b's first slice). */
+function answersQuestion(q) {
+  if (!q || !ANSWERS.includes(q.answer)) return false;
+  if (q.each || q.wager || q.stake || q.card || Spec.isCalls(q) || Spec.isTicket(q) || Spec.isTrivia(q)) return false;
+  if (q.answer === "overUnder" && q.line === Spec.LINE_GAME) return false;
+  return true;
+}
+/** Whether computer players play every question this game asks (none: a game with no questions of its own). */
+function answersAll(state) {
+  return AnswerLogicOf().questions(state).filter((q) => !Spec.isCalls(q)).every(answersQuestion);
+}
+function AnswerLogicOf() {
+  return StateLogic.AnswerLogic;
+}
+// The finale picks a draft keeps in its state (top3, winner): finalePicks plays those.
+function inState(state, q) {
+  return !!StateLogic.finaleOfGame(state) && (q.id === "top3" || q.id === "winner");
+}
+function answerFor(state, playerId, q, faces, ep) {
+  const level = levelOf(state, playerId);
+  const ids = faces.map((f) => f.id);
+  const feel = (key) => hashOf(`${playerId}|${q.id}|${ep}|${key}`);
+  if (Spec.NAMES.includes(q.answer)) {
+    if (!ids.length) return null;
+    const rate = ratings(state, level);
+    const out = !!(q.settle && q.settle.take === "out");
+    const scoreOf = (id) => {
+      const r = rate[id];
+      const base = r ? (out ? -r.safety : r.points) : 0;
+      return base + taste(playerId, `${q.id}|${id}`, level) * 2;
+    };
+    const best = ids.slice().sort((a, b) => scoreOf(b) - scoreOf(a));
+    const n = Math.max(1, Math.min(q.pick || 1, best.length));
+    return n === 1 ? best[0] : best.slice(0, n);
+  }
+  // A sharp player leans to what usually happens (nothing; the low end); an easy one goes more on its gut.
+  const lean = level.read >= 1 ? 0.3 : level.read >= 0.6 ? 0.4 : 0.5;
+  if (q.answer === "yesNo") return feel("yn") < lean ? "yes" : "no";
+  if (q.answer === "overUnder") return feel("ou") < lean ? "over" : "under";
+  if (q.answer === "choice") {
+    const opts = (q.options || []).map((o) => (o && typeof o === "object" ? (o.id !== undefined ? o.id : o.label) : o));
+    if (!opts.length) return null;
+    const i = Math.min(opts.length - 1, Math.floor(feel("ch") * (feel("lo") < lean ? opts.length : Math.ceil(opts.length / 2))));
+    return opts[i];
+  }
+  if (q.answer === "number") return [1, 2, 0, 3, 4, 5][Math.floor(feel("n") * 3)];
+  return null;
+}
+/**
+ * The answers computer players would give now: [{ playerId, question, episode, answer }] for each bot seat playing live and each
+ * question open to answer it hasn't (`stored`: the game's answer rows, { playerId, question, episode }). `o.now` (ms), `o.finale`
+ * (the season's last episode, for a question open until it).
+ */
+function answers(state, stored, o) {
+  const opt = o || {};
+  const AL = StateLogic.AnswerLogic;
+  const qs = AL.questions(state).filter((q) => !Spec.isCalls(q) && answersQuestion(q) && !inState(state, q));
+  const bots = botIds(state);
+  if (!qs.length || !bots.length) return [];
+  const have = new Set((stored || []).map((r) => `${r.playerId}|${r.question}|${r.episode}`));
+  const now = AL.episodeNow(state);
+  const out = [];
+  for (const pid of bots) {
+    for (const q of qs) {
+      const ep = q.asked === "once" ? 0 : AL.windowAt(state, q, now);
+      if (ep === null || ep === undefined || have.has(`${pid}|${q.id}|${ep}`)) continue;
+      if (AL.closed(state, q, ep, { now: opt.now, finale: opt.finale })) continue;
+      const faces = AL.faces(state, q, { playerId: pid });
+      const value = answerFor(state, pid, q, faces, ep);
+      if (value === null || value === undefined) continue;
+      const faceIds = Spec.NAMES.includes(q.answer) ? new Set(faces.map((f) => f.id)) : undefined;
+      if (Spec.answerProblem(q, value, faceIds)) continue;
+      out.push({ playerId: pid, question: q.id, episode: ep, answer: value });
+    }
+  }
+  return out;
+}
+
+module.exports = { LEVELS, DEFAULT_LEVEL, isBot, botIds, ratings, run, hasWork, catchUpTo, paceTeams, blindSubmissions, auctionBids, waiverClaim, groupSlotPicks, ANSWERS, answersQuestion, answersAll, answers };

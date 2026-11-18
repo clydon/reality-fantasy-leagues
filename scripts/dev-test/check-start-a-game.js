@@ -153,8 +153,14 @@ async function apiHalf(pool, fx, bot) {
   check(aired.status === 409 || aired.status === 400, `a start the listing doesn't have (${aired.status}: ${aired.body && aired.body.error})`);
   const bad = await alex.call("POST", url, { spec: { ...captained, get: { by: "draft", each: 99, own: "exclusive" } }, tell: false });
   check(bad.status === 409, `a spec our check refuses (${bad.status}: ${bad.body && bad.body.error})`);
-  const bots = await alex.call("POST", url, { spec: sheet, tell: false, bots: 2 });
-  check(bots.status === 409, `computer players on a game of questions (${bots.status}: ${bots.body && bots.body.error})`);
+  // E1b: computer players answer a Prediction sheet's questions, written as soon as it starts; a Bingo card they don't play yet.
+  const bots = await alex.call("POST", url, { spec: sheet, tell: false, bots: 2, level: "sharp" });
+  const { rows: botAnswers } = bots.status === 200 ? await pool.query("SELECT player_id, question, episode, answer FROM game_answers WHERE league_id = $1", [bots.body.leagueId]) : { rows: [] };
+  const asks = (sheet.ask || []).length;
+  check(bots.status === 200 && botAnswers.length === 2 * asks, `computer players on a Prediction sheet: started, their ${2 * asks} answers in at once (${botAnswers.length}: ${botAnswers.map((a) => `${a.question}=${JSON.stringify(a.answer)}`).slice(0, 3).join(", ")})`, JSON.stringify(bots.body).slice(0, 200));
+  const { spec: bingo } = baseGame(o, "bingo", { from: o.from, to: o.from });
+  const noBots = await alex.call("POST", url, { spec: bingo, tell: false, bots: 1 });
+  check(noBots.status === 409, `computer players on a Bingo card: not yet (${noBots.status}: ${noBots.body && noBots.body.error})`);
   const casey = await signIn({ user: "zt_nd_casey", pass: fixture.PASSWORD, headers });
   const off = await casey.call("POST", url, { spec: captained, tell: false });
   check(off.status === 403 || off.status === 404, `someone not on the couch (${off.status})`);
@@ -286,12 +292,17 @@ async function browserHalf(pool, fx, bot) {
   check((await leaguesNow()).length === n0 + 1 && pace !== "own", `Start on Together: made, live (${pace ?? "live"})`);
   const seats = ((fantasy && fantasy.state && fantasy.state.players) || []).filter((x) => x.automated);
   check(seats.length === 2 && seats.every((x) => x.botLevel === "sharp"), `...with its two computer players, sharp (${seats.map((x) => `${x.name}: ${x.botLevel}`).join(", ")})`);
-  // On a game of questions they're dashed with the reason (E1b), and Start sends none.
+  // A Prediction sheet's questions they answer (E1b): offered; a Bingo card's lines they don't play yet: dashed with the reason.
   await openSheet();
   await tap('[data-gallery-lead="sheet"], [data-gallery-base="sheet"]');
   await page.locator("[data-gallery=base]").waitFor({ timeout: 10000 });
   await tap("[data-gallery-row=who]");
-  check((await page.locator('[data-gallery-choice="bot"][data-off]').count()) === 1 && /answer questions soon/.test(await page.locator('[data-gallery-choice="bot"]').innerText()), "on a Prediction sheet, Computer players dashed: they answer questions soon");
+  check((await page.locator('[data-gallery-choice="bot"]:not([data-off])').count()) === 1, "on a Prediction sheet, Computer players offered: they answer its questions");
+  await openSheet();
+  await tap('[data-gallery-lead="bingo"], [data-gallery-base="bingo"]');
+  await page.locator("[data-gallery=base]").waitFor({ timeout: 10000 });
+  await tap("[data-gallery-row=who]");
+  check((await page.locator('[data-gallery-choice="bot"][data-off]').count()) === 1 && /bingo card yet/.test(await page.locator('[data-gallery-choice="bot"]').innerText()), "on Bingo, Computer players dashed: they don't play a bingo card yet");
   await shot("05-fantasy-page");
 
   // Saved games on the account: the heart beside Start, the row in Community and saved games, reopened, taken off; and a browser's

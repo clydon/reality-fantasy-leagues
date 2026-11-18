@@ -11,7 +11,7 @@ import { gameFingerprint } from "@/lib/game/game-rules";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { recordChange } from "./change-log";
 import { couchMembers } from "./couches";
-import { HttpError, pool } from "./db";
+import { HttpError, pool, withLeagueLock } from "./db";
 import { deleteLeague } from "./end-game";
 import { makeStages } from "./engine-lab";
 import { followLeagueProgress } from "./follows";
@@ -232,6 +232,8 @@ export async function startFromSpec(
         st.aboutOf = gameFingerprint(StateLogic.gameOf(s));
       }
       if (bots && !botsPlay(s)) throw new HttpError(409, "Computer players don't play this game");
+      // E1b: at your own pace a computer player catches up on its own copy, where it answers no questions yet.
+      if (bots && opts.ownPace && StateLogic.AnswerLogic.questions(s).length) throw new HttpError(409, "At your own pace, computer players answer questions later");
       if (StateLogic.readsPhases(s) || StateLogic.startPhase(s) || StateLogic.endPhase(s)) {
         settleIn(s, await leaguePhases(client, id, seasonId), await scheduleOf(seasonId, now), now);
         settled = StateLogic.startEpisode(s);
@@ -279,6 +281,9 @@ export async function startFromSpec(
       throw e;
     });
   }
+  // Computer players answering questions (E1b): a write through the league's lock runs them, so their answers to the first open
+  // questions are in from the start (bots.ts answerForBots).
+  if (bots) await withLeagueLock(leagueId, () => undefined);
   const linked = await linkIn(leagueId, here, user.id).catch((e) => {
     console.error(`[start-spec] couldn't link ${leagueId}:`, e);
     return false;

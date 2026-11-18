@@ -39,3 +39,12 @@ export function auctionBids(state: LeagueState): { playerId: string; bids: { cas
 export function waiverClaim(state: LeagueState, playerId: string, period: WaiverPeriod | null): WaiverClaim;
 /** Fills each bot's empty group slots for the current episode (step A10 part 1, since A11 part 5c); returns how many it filled. */
 export function groupSlotPicks(state: LeagueState): number;
+
+/** E1b: the answer kinds computer players give (start-gallery/index.js botsFit keeps the same list). */
+export const ANSWERS: string[];
+/** Whether a computer player answers this question. */
+export function answersQuestion(q: unknown): boolean;
+/** Whether computer players play every question this game asks. */
+export function answersAll(state: LeagueState): boolean;
+/** The answers computer players would give now (the server writes them into game_answers: bots.ts). */
+export function answers(state: LeagueState, stored: { playerId: string; question: string; episode: number }[], o?: { now?: number; finale?: number | null }): { playerId: string; question: string; episode: number; answer: unknown }[];
