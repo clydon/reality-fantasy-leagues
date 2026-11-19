@@ -399,23 +399,6 @@ desk's button. Then a sport's season. Done when a newly set-up season has a libr
 
 ### Sports
 
-**220. A game started on a sports season has nobody to draft.** A game copies its people only from an approved cast, at its
-start (new-game.ts makeLeague: `approvedCastFor`), and nothing approves a slate's or a team's people: they come from the rosters
-(cast.ts), not the desk. So every draft game started through the sports route or the wizard on a sports season (season league,
-Best Ball, a draft, categories, roto) holds nobody, and its draft says "Add the cast first". Even approved by hand, a game keeps
-who was there at its start: the teams on a bye that week (their games linked later) and a later signing never reach it. Let a
-game on a sports season take the season's people as they are, and let the people the season gains reach its running games.
-Done when scripts/dev-test/check-sports-new-players.js passes. Found in Phase 0 of [PLAN-sports-ready.md](PLAN-sports-ready.md);
-its step 1.0, with 1.4. [M · sports]
-
-**221. Nobody fits a football lineup slot.** A sport's people keep their position as ESPN's roster names it ("Quarterback":
-espn.ts `readPerson` takes `displayName`), and cast-props.ts stamps it as is, but football's slots take ESPN's abbreviations
-("QB", "TE", "PK": defaults/football.json via `withLineupSlots`). So the engine refuses a lineup of real players ("Sam Darnold
-has no open slot") and Best Ball's slots count nobody. The explorer and the bench give positions as abbreviations, so neither saw
-it. Keep the abbreviation (or map the names), and have fake-espn.js serve `abbreviation` as ESPN does. Done when
-check-nfl-defenses.js's two BACKLOG 221 lines pass. Found in Phase 0; [PLAN-sports-ready.md](PLAN-sports-ready.md) step 1.0.
-[S–M · sports]
-
 **222. A game the daily job misses for three days is never read again.** The daily job reads a linked game only from three days
 back (matchup.ts `refreshSportsEvents`), so a game whose day the job skipped for three days (the bot VM down over a long
 weekend) stays "to play" for good, and its slate week never completes. Read every linked game that's started and isn't final,
@@ -745,3 +728,7 @@ longer depends on the wiki.)
 ## Closed since the cleanup
 
 One line each: the number, done or dropped, and the commit or the reason.
+- **220** done (bb35bea6, branch sports-phase0): a sport's people are approved as they're filled and go into every game on the
+  season; check-sports-new-players.js.
+- **221** done (bb35bea6): a roster's position is ESPN's abbreviation, so football's slots take real players;
+  check-nfl-defenses.js's BACKLOG 221 lines.

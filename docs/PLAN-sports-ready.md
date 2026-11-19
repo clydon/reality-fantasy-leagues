@@ -1,9 +1,9 @@
 # Plan: sports in good shape, technically and in design
 
-> **Status (2026-11-19): Active, Phase 0 done.** Written from two audits that day: the engine, data and operations, and every
-> screen a sports fan touches. Phase 0 ran the same day (branch sports-phase0): all four inferences confirmed, each with a check,
-> and two bigger gaps found that now open Phase 1 (step 1.0: BACKLOG 220 and 221). Nothing else is built yet. The decisions it
-> needs are BACKLOG 175 and 212–219 ("Waiting on you").
+> **Status (2026-11-19): Active, Phase 0 and step 1.0 done** (branch sports-phase0, not merged). Written from two audits that day:
+> the engine, data and operations, and every screen a sports fan touches. Phase 0 confirmed all four inferences, each with a check,
+> and found two bigger gaps; step 1.0 closed both the same day (BACKLOG 220 and 221). Next: 1.3 and 1.2; 1.1 waits on BACKLOG 215.
+> The decisions it needs are BACKLOG 175 and 212–219 ("Waiting on you").
 
 The user, 2026-11-19: "I want to make sure sports is in a good spot both technically and redesign needs. Make a plan for that."
 
@@ -43,7 +43,8 @@ NFL or NBA season game now:
 code): a game started on a sports season has nobody to draft, since a game copies only an approved cast and nothing approves a
 sport's people (BACKLOG 220); and nobody fits a football lineup slot, since positions are kept as ESPN's names ("Quarterback")
 while the slots take its abbreviations ("QB"), so the engine refuses every lineup of real players (BACKLOG 221). The explorer
-and the bench set both up by hand (an approved cast, positions as abbreviations), so neither could see them.
+and the bench set both up by hand (an approved cast, positions as abbreviations), so neither could see them. Step 1.0 fixed
+both the same day.
 
 **The design round did sports checks, not sports design.** Steps 2–9 proved that the parts hold at sports scale: the matchup
 pairs QB with QB, the draft room searches a 344-player pool, the guide has Sports, and Start a game uses the same screens. Step
@@ -136,13 +137,20 @@ server.
 
 ### Phase 1. Data you can trust (about 5–7 sessions)
 
-0. **Games get their people, and the people fit the slots (S–M each; BACKLOG 220, 221).** First, because no season-long game
-   can be played without them. A game started on a sports season (a slate, a team's games) takes the season's people as they
-   are (a sport's people are the teams', so they needn't wait for the approval a show's cast does), and the people the season
-   gains later reach its running games (1.4 adds trades and signings to the season). A person's position is kept as the slots
-   read it (ESPN's abbreviation, the name beside it for the screens), and fake-espn.js serves `abbreviation` as ESPN does. Done
-   when check-sports-new-players.js's first five lines (the route's and the wizard's games have the slate's people and their
-   drafts open) and check-nfl-defenses.js's two BACKLOG 221 lines pass; then the explorer's slot invariant on the real pool.
+0. **Games get their people, and the people fit the slots (BACKLOG 220, 221). Done 2026-11-19 (bb35bea6).**
+   - *Built:* a sport's season whose every person came from the provider has its cast approved as soon as they're in
+     (season-cast.ts `approveSportCast`: by the fill, and at a game's start for a season filled before), so every game started on
+     it takes them; each fill's new people (a team linked later, a signing, a team's series filled after the answer) go into
+     every game on the season (cast.ts `intoGames`, the desk's `applyApprovedCastToLeagues`). A roster's position is ESPN's
+     abbreviation, the sport's key (espn.ts `readRoster`: "QB", not "Quarterback"), and a fill brings an older season's names in
+     line. The faces and the draft room read "QB" as designed (seen at 390 on the real NFL pool: the position chips run QB, RB,
+     WR, TE, K first). fake-espn.js serves the abbreviation where a roster has one.
+   - *Verified:* check-sports-new-players.js passes whole; check-nfl-defenses.js's three BACKLOG 221 lines pass (its three
+     team-defense lines wait for 1.3); check-sports-couch.js --api on the dev server (a new line: the series draft's 16 people);
+     483 sports unit tests; check-slate.js. The explorer can't test 221: its worlds give positions as keys and read no roster.
+   - *Noticed:* every game on a slate now holds all of its ~2,500 people, a Pick'em or Squares game too (a start copies the
+     approved cast into any game): Phase 3 measures what that costs. The draft room's position chips list every roster position
+     (G, C, LS, P...), not only those a lineup takes (4.3).
 1. **Results within the hour (S–M).** A `db/sports-refresh.js` (`refreshSportsEvents` and `saveFinals`) in the existing hourly
    GitHub Actions job (no new Neon wake-up; Actions are free on the public repo), asked more often only when a linked game ended
    in the last few hours. The daily run stays as the fallback, and BACKLOG 184's Vercel daily cron backs up both. Done when a game
@@ -186,7 +194,8 @@ server.
 Record a whole NFL season (and a month of the NBA and of MLB) with record-espn-slate.js and the finals. Replay a 10–12 seat league
 of computer players through the real routes, week by week: the draft, lineups, waivers, trades of team, injuries, a postponed
 game, a correction, the playoffs. Compare every week with tools/gameplay-bench/campaign/sports-oracle.cjs, and run
-compare-totals.js and blind replays for sports. Measure Neon and Vercel during the run and write the cost line into HOSTING.md.
+compare-totals.js and blind replays for sports. Measure Neon and Vercel during the run and write the cost line into HOSTING.md,
+with each game's state size: since 1.0 every game on a slate holds all of its people (about 2,500 for the NFL), a Pick'em too.
 
 Done when there are zero disagreements. A disagreement is a bug, filed and fixed before the gate counts as passed. The replay
 becomes a reusable check (its own `zt-` rows), run before any push that changes sports scoring.
@@ -250,7 +259,8 @@ every week:
 6. **Waivers at 300 free agents** (DN 41): search, positions, recent lines and the bars from box scores.
 
 **4.3 Impeccable only, inside approved designs:** the draft room's leftovers (preseason's empty "so far"; byes and injuries once
-read), the team sheet's game sheet after kickoff, the guide's 34 px wrap, BACKLOG 143's missing sports frames in Start a game.
+read; its position chips listing every roster position, G, C, LS, P, not only those a lineup takes), the team sheet's game sheet
+after kickoff, the guide's 34 px wrap, BACKLOG 143's missing sports frames in Start a game.
 
 ### Phase 5. Live points on screen (about 2 sessions, after 4.2's page 2 is approved)
 
@@ -271,8 +281,8 @@ default selection.
 
 ## The order, and how it fits the rest
 
-1. **Now, beside the Survivor 51 work:** Phase 1 as a sports lane, starting with 1.0 (Phase 0 is done). Phase 4.0 (the words)
-   in any free session.
+1. **Now, beside the Survivor 51 work:** the rest of Phase 1 as a sports lane (Phase 0 and 1.0 are done): 1.3 and 1.2 first,
+   1.1 once BACKLOG 215 is answered. Phase 4.0 (the words) in any free session.
 2. **Then:** Phase 2 (once the user has made the calls), and Phase 4.1.
 3. **Then:** Phase 3, the gate, and the design round's pages 1 and 3 (they need correct data, not live data).
 4. **Then:** 4.1's live path, page 2, Phase 5, and pages 4 to 6.
