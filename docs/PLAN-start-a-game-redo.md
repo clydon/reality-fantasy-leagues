@@ -967,7 +967,24 @@ The wizard's gallery already offers "a captain scores double".
     game no longer offers them (today's wizard did, for drafts and pools).
 
 - **B2. The play screens for every piece the wizard makes that the page can't play yet,** each before the wizard offers that piece
-  to people.
+  to people. **Built 2026-11-19** (Round 5's design: the user approved the story and took the four recommendations, "ill take your
+  recs").
+  - **The user's answers:**
+    - nobody is named captain for you (the captain carries; benched, none);
+    - a second pick takes its own tap;
+    - a knocked-out person keeps the finish, who plays on and their people still on the show, with no other move;
+    - "Held by Bo" stays (an exclusive game's held group shows before the lock).
+  - **No switch:** `b2.ts` is deleted, and every piece is everyone's. The old branches it replaced are deleted too:
+    - the plain ✓ and ✗ pick square;
+    - the page's strip-shaped slot cards (now the shared `GroupRows`, with check-game-page.js reading `data-slot-group`);
+    - "Slot N" plates (now "Group slot");
+    - the bot rider's box.
+  - **Checks:**
+    - `check-play-pieces.js` passes in full without the switch, and its "off" step is gone;
+    - the unit suite passes 2,442;
+    - `check-game-page.js` (new-fixture's couch) fails only "Close didn't shut them all", as on the code before B2;
+    - `check-episode-lock.js` fails only its listed "a new pick doesn't go in".
+  - **Next:** the gallery can offer every piece; the draft room's bidding stays the U1 draft room's.
 - **B3. The show's games and the archive** (Round 3's design). **Built 2026-11-18** (the user approved Round 3's story: "I'm liking
   the mock ups you made", and took the recommendation to keep each season game's move in its own row).
   - **The switch is gone.** Round 3's tab is everyone's: `src/new/show/whats-on.tsx` (`WhatsOn`, `ArchivePage`, `TonightNights`,

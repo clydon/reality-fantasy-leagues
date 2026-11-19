@@ -316,7 +316,7 @@ function notesOf(g: GameView, ctx: PageContext): HeroM["notes"] {
   // Held slots each; the ones waiting on a pick are the strip's move (picked on the page), so only the held and the void show here.
   for (const s of g.twists?.slots ?? []) {
     if (s.status === "empty" || s.status === "dropped") continue;
-    out.push({ tag: `Slot ${s.slot + 1}`, tone: s.status === "held" ? "good" : "quiet", title: s.group ?? WORD[s.status], line: s.status === "held" ? `${plural(s.members.length, "still in")}` : s.status === "void" ? "It doesn't count this episode" : null });
+    out.push({ tag: (g.twists?.slots ?? []).length > 1 ? `Group slot ${s.slot + 1}` : "Group slot", tone: s.status === "held" ? "good" : "quiet", title: s.group ?? WORD[s.status], line: s.status === "held" ? `${plural(s.members.length, "still in")}` : s.status === "void" ? "It doesn't count this episode" : null });
   }
   const r = ctx.roles;
   if (r?.mine && !r.revealed) out.push({ tag: "Secret", tone: "quiet", title: `You're a ${r.mine.role}`, line: `Only you can see it${r.mine.mates?.length ? ` · with ${r.mine.mates.map((m) => m.name).join(", ")}` : ""}${r.mine.points != null ? ` · ${plural(r.mine.points, "point")} so far` : ""}` });

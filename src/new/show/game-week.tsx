@@ -15,7 +15,6 @@ import { signed } from "./lineup-sheet";
 import { castName, faceIn, first, openMoves } from "./moves";
 import { Face } from "./parts";
 import { oneGame, recordWords, scoreWords, type WeekCard, type WeekSide } from "./this-week";
-import { useB2 } from "./b2";
 
 // The parts a game's own page leads with (the design round's step 2: docs/design-round/step2-game-page-spec.md): This week (the
 // matchup: you and who you play, each with a record, the starters, the one state line and the move), the side bets row and its
@@ -499,10 +498,9 @@ function PostBet({ g, episode, words, onSaved }: { g: GameView; episode: number;
 /** Your castaways (or players): each a face, how they stand, their points so far in this game; a face opens them. */
 export function YourTeam({ g, words, exclusive, onFace, onSheet }: { g: GameView; words: ShowData["words"]; exclusive: boolean; onFace: (id: string) => void; onSheet: () => void }) {
   const r = g.you;
-  // Round 5 (B2, behind ?play=b2; Designs needed 30): an auction's prices beside each, and what you spent.
-  const b2 = useB2();
   if (!r || !r.team.length) return null;
-  const prices = b2 ? g.prices : null;
+  // Round 5 (B2; Designs needed 30): an auction's prices beside each, and what you spent.
+  const prices = g.prices ?? null;
   const spent = prices ? prices.spent[r.playerId] : undefined;
   const ids = [...r.team].sort((a, b) => Number(!!faceIn(g, a)?.knocked) - Number(!!faceIn(g, b)?.knocked));
   return (
@@ -521,7 +519,7 @@ export function YourTeam({ g, words, exclusive, onFace, onSheet }: { g: GameView
           const c = faceIn(g, id);
           if (!c) return null;
           const paid = prices?.paid[id];
-          const captain = b2 && !c.left && g.lineup?.captain?.id === id ? `Captain ×${g.lineup.captain.times}` : null;
+          const captain = !c.left && g.lineup?.captain?.id === id ? `Captain ×${g.lineup.captain.times}` : null;
           const line = c.left ? (c.out ? `Out · ${words.ep} ${c.out}` : "Out") : [captain, c.role, c.tribe?.name].filter(Boolean).join(" · ") || "Still in";
           return (
             <li key={id}>
@@ -933,7 +931,6 @@ function useOpenOnLatest(scrollerRef: RefObject<HTMLDivElement | null>) {
  *  points for this person pinned at the end), then what the bench cost each week. */
 export function PersonSeason({ g, r, words, sport, at = null, onMatchup, onWeek, onFace }: { g: GameView; r: TableRow; words: ShowData["words"]; sport?: boolean; at?: number | null; onMatchup: (episode: number) => void; onWeek?: (episode: number) => void; onFace: (id: string, episode?: number) => void }) {
   const weeks = r.weeks;
-  const b2 = useB2();
   const scroller = useRef<HTMLDivElement>(null);
   useOpenOnLatest(scroller);
   if (!weeks.length) return null;
@@ -1038,8 +1035,7 @@ export function PersonSeason({ g, r, words, sport, at = null, onMatchup, onWeek,
                 </tr>
               );
             })}
-            {b2 &&
-              [...new Set(weeks.flatMap((w) => (w.slots ?? []).map((x) => x.slot)))].map((k) => (
+            {[...new Set(weeks.flatMap((w) => (w.slots ?? []).map((x) => x.slot)))].map((k) => (
                 // Round 5 (B2, V-L2-004): a group slot's points each week, so the table adds up to the total.
                 <tr key={`slot-${k}`} data-person-slot={k}>
                   <th scope="row" className="sticky left-0 z-[1] bg-card pr-1 text-left text-[13px] font-semibold">

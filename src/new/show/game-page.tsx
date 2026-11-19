@@ -3,7 +3,7 @@
 import { inShowWords } from "@/lib/game/show-words";
 import { useWithRoles } from "../sports/faces";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Heart, Minus, MoreHorizontal, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Clock, Heart, Minus, MoreHorizontal } from "lucide-react";
 import { LATE_SET, LateMark } from "./lineup-sheet";
 import { lockTime } from "../clock";
 import { useQueryClient } from "@tanstack/react-query";
@@ -36,7 +36,6 @@ import { SideBetsRow, waiverLine, WeekBlock, WeekGames, YourTeam } from "./game-
 import { oneGame, thisWeek } from "./this-week";
 import { AgainRow, finalLine } from "./whats-on";
 import { GameSettingsPage, useGameSettingsPage } from "../backstage/game-settings";
-import { useB2 } from "./b2";
 
 // A game's own page (docs/PLAN-start-a-game-gpt.md U1; the direction contract .impeccable/surfaces/src-new-show-game-page-tsx.md,
 // "The broadcast segment"): any game, generated from its spec, runs like a segment of the show. A title card (the game's name in
@@ -202,7 +201,6 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
       {more}
     </div>
   );
-  const b2 = useB2();
   const movePart =
     week && lineupMove && !strip.due ? (
       ended || !wmove || !("tab" in wmove.go) || wg.lineup?.locked ? plain(null) : plain(
@@ -214,7 +212,7 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
         >
           {week?.tone === "behind" || week?.tone === "early" ? "Not watched it yet? Change your lineup" : "Change your lineup"}
         </button>,
-        b2 && wg.lineup?.captain ? (
+        wg.lineup?.captain ? (
           <p data-page-captain className="mt-0.5 text-[13px] text-muted-foreground">
             {wg.lineup.captain.id ? `Captain: ${(wg.cast.find((c) => c.id === wg.lineup!.captain!.id)?.name ?? "").split(" ")[0]} ×${wg.lineup.captain.times}` : "No captain yet: name one in your lineup"}
           </p>
@@ -397,7 +395,6 @@ function StagesDone({ games }: { games: GameView[] }) {
 
 /** What the game's twists leave on you (a captain, a role, a handicap), and a co-op's lives. */
 function Notes({ hero }: { hero: HeroM }) {
-  const b2 = useB2();
   return (
     <div className="mx-4 mt-6 flex flex-col gap-1.5" data-game-notes>
       {hero.lives && (
@@ -405,11 +402,11 @@ function Notes({ hero }: { hero: HeroM }) {
           {Array.from({ length: hero.lives.of }, (_, i) => (
             <Heart key={i} className={`size-5 ${i < hero.lives!.left ? "fill-foreground text-foreground" : "text-muted-foreground"}`} aria-hidden />
           ))}
-          {b2 && <span className="ml-1 text-[13px] text-muted-foreground">{hero.lives.left === 1 ? "1 life left" : hero.lives.left ? `${hero.lives.left} lives left` : "No lives left"}</span>}
+          <span className="ml-1 text-[13px] text-muted-foreground">{hero.lives.left === 1 ? "1 life left" : hero.lives.left ? `${hero.lives.left} lives left` : "No lives left"}</span>
         </div>
       )}
       {hero.notes.map((n) => (
-        <Plate key={n.tag + n.title} tag={b2 ? n.tag.replace(/^Slot (\d+)$/, "Group slot") : n.tag} tone={n.tone} title={b2 && /^Slot /.test(n.tag) ? (groupShort(n.title) ?? n.title) : n.title} line={n.line} size="xs" />
+        <Plate key={n.tag + n.title} tag={n.tag} tone={n.tone} title={/^Group slot/.test(n.tag) ? (groupShort(n.title) ?? n.title) : n.title} line={n.line} size="xs" />
       ))}
     </div>
   );
@@ -630,7 +627,6 @@ function TwistChooser({ leagueId, t }: { leagueId: string; t: LeagueTwist }) {
  *  tag says which) and saves it (the group-slots route), as a lineup's tap does in Your moves. */
 function SlotPicker({ g, seasonId }: { g: GameView; seasonId: string }) {
   const qc = useQueryClient();
-  const b2 = useB2();
   const [saving, setSaving] = useState<string | null>(null);
   const offered = g.twists.offered;
   const open = (g.twists.slots ?? []).filter((s) => s.status === "empty" || s.status === "dropped");
@@ -641,7 +637,7 @@ function SlotPicker({ g, seasonId }: { g: GameView; seasonId: string }) {
     try {
       await setGroupSlot(g.leagueId, offered.epId, g.playerId, slot, groupId);
       await qc.invalidateQueries({ queryKey: ["new-design", "games", seasonId] });
-      toast(`${name} is in slot ${slot + 1}`);
+      toast(`${name} is in your group slot${(g.twists.slots ?? []).length > 1 ? ` ${slot + 1}` : ""}`);
     } catch (e) {
       toast.quiet(`Not saved: ${(e as Error).message}`);
     } finally {
@@ -649,26 +645,11 @@ function SlotPicker({ g, seasonId }: { g: GameView; seasonId: string }) {
     }
   };
   const s = open[0];
-  if (b2)
-    return (
-      <section id="gp-move" className="mx-4 mt-6 scroll-mt-4" data-game-move="slots">
-        <p className="mb-1.5 text-[13px] text-muted-foreground">{`Group slot${(g.twists.slots ?? []).length > 1 ? ` ${s.slot + 1}` : ""}${s.status === "dropped" ? " · its group ended" : ""} · a tap puts a group in it`}</p>
-        <div className="rounded-[3px] bg-card p-1.5">
-          <GroupRows g={g} picked={null} taken={taken} busy={saving?.split(":")[1] ?? null} onPick={(id) => pick(s.slot, id, groupShort(offered.groups.find((x) => x.id === id)?.name) ?? "The group")} />
-        </div>
-      </section>
-    );
   return (
     <section id="gp-move" className="mx-4 mt-6 scroll-mt-4" data-game-move="slots">
-      <p className="mb-1.5 text-[13px] text-muted-foreground">
-        {`A tap puts a group in slot ${s.slot + 1}${s.status === "dropped" ? " (its group ended)" : ""}${open.length > 1 ? `, then slot ${open[1].slot + 1}` : ""}`}
-      </p>
-      <div className="flex flex-col gap-1.5">
-        {offered.groups.filter((x) => !taken.has(x.id)).map((x) => (
-          <button key={x.id} type="button" data-slot-pick={`${s.slot}:${x.id}`} disabled={!!saving} onClick={() => pick(s.slot, x.id, x.name)} className="nd-press block w-full text-left disabled:opacity-60">
-            <Plate tag={`Slot ${s.slot + 1}`} tone="quiet" title={saving === `${s.slot}:${x.id}` ? "Saving…" : x.name} line={x.size === 1 ? "1 still in" : `${x.size} still in`} size="xs" />
-          </button>
-        ))}
+      <p className="mb-1.5 text-[13px] text-muted-foreground">{`Group slot${(g.twists.slots ?? []).length > 1 ? ` ${s.slot + 1}` : ""}${s.status === "dropped" ? " · its group ended" : ""} · a tap puts a group in it`}</p>
+      <div className="rounded-[3px] bg-card p-1.5">
+        <GroupRows g={g} picked={null} taken={taken} busy={saving?.split(":")[1] ?? null} onPick={(id) => pick(s.slot, id, groupShort(offered.groups.find((x) => x.id === id)?.name) ?? "The group")} />
       </div>
     </section>
   );
@@ -732,7 +713,6 @@ function keyWords(g: GameView): string {
  *  kind, the next episode only Set, Due or –; your row lit; every name, square and episode a door. */
 function SeasonGrid({ g, m, words, due, drill }: { g: GameView; m: PageModel; words: ShowData["words"]; due: boolean; drill: DrillState }) {
   const p = g.plays;
-  const b2 = useB2();
   const all = [...m.couch.podium, ...m.couch.rows];
   const [open, setOpen] = useState(false);
   const big = all.length > BIG;
@@ -866,7 +846,7 @@ function SeasonGrid({ g, m, words, due, drill }: { g: GameView; m: PageModel; wo
             {g.waiting.map((w) => `${words.episode} ${w.episode}: waiting on ${w.name}'s ${p.blocks.some((b) => b === "pick" || b === "picks") ? "pick" : "lineup"}.`).join(" ")}
           </span>
         )}
-        {b2 && nightKey(g).length > 0 && (
+        {nightKey(g).length > 0 && (
           <span data-night-key className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
             {nightKey(g)}
           </span>
@@ -894,22 +874,7 @@ function CutRow({ label }: { label?: string }) {
 /** One square, by kind: a pick's face (right or wrong), W or L, the points (the week's best bright), a running total, who's left. */
 function Cell({ g, x }: { g: GameView; x: Square }) {
   const k = g.plays.kind;
-  const b2 = useB2();
-  if (k === "pick" && b2 && x.pick) return <NightCell g={g} pk={x.pick} />;
-  if (k === "pick") {
-    if (!x.pick) return <span className="text-[13px] text-muted-foreground">–</span>;
-    const c = x.pick.id ? g.cast.find((f) => f.id === x.pick!.id) : undefined;
-    return (
-      <span className="relative block size-6">
-        {c ? <Face src={c.photo} name={c.name} className={`size-6 rounded-[2px] text-[10px] ${x.pick.correct === false ? "opacity-50 grayscale" : ""}`} /> : <span aria-label="No pick" className="block size-6 rounded-[2px] border border-dashed border-edge" />}
-        {x.pick.correct !== null && (
-          <i className={`absolute -right-[3px] -top-[3px] grid size-3 place-items-center rounded-full shadow-[0_0_0_1.5px_var(--card)] ${x.pick.correct ? "bg-good text-good-foreground" : "bg-live text-live-foreground"}`}>
-            {x.pick.correct ? <Check className="size-2" strokeWidth={4} aria-label="stayed" /> : <X className="size-2" strokeWidth={4} aria-label="went home" />}
-          </i>
-        )}
-      </span>
-    );
-  }
+  if (k === "pick") return x.pick ? <NightCell g={g} pk={x.pick} /> : <span className="text-[13px] text-muted-foreground">–</span>;
   if (k === "result") {
     if (!x.result) return <span className="text-[13px] text-muted-foreground">–</span>;
     // Waiting on a late move (someone playing at their own pace): not won or lost yet.
@@ -931,7 +896,7 @@ function Cell({ g, x }: { g: GameView; x: Square }) {
 }
 
 /**
- * Round 5 (B2, behind ?play=b2): a pool's night on the grid. The face is the pick; its badge is the night's outcome, a wrong second
+ * Round 5 (B2): a pool's night on the grid. The face is the pick; its badge is the night's outcome, a wrong second
  * pick that counted included: stayed (a tick), went home (a cross), forgiven (a shield, quiet), bought back (an arrow, the chyron's
  * line); a skipped night is a dash, never a miss; a second pick that counted is a pip at the square's foot. One glyph a square, so
  * it reads at 30 columns.
@@ -967,9 +932,8 @@ function nightKey(g: GameView): ReactNode[] {
  * beat it on against those it beat them on, on one scale (Round 3's record bar), and the bot's own right calls in the heading.
  */
 function AgainstTheBot({ g }: { g: GameView }) {
-  const b2 = useB2();
   const bot = g.bot;
-  if (!b2 || !bot || !bot.called) return null;
+  if (!bot || !bot.called) return null;
   const rows = g.table.filter((r) => !r.bot).map((r) => ({ r, level: 0, ...(bot.vs[r.playerId] ?? { beat: 0, beaten: 0 }) }));
   const most = Math.max(1, ...rows.map((x) => x.beat + x.beaten + (x.level ?? 0)));
   const part = (k: number, n: number) => (k ? `max(72px, ${(k / Math.max(1, n)) * 100}%)` : "0px");

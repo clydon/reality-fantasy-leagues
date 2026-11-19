@@ -1,5 +1,5 @@
 // Dev-only browser check of Round 5's play pieces (docs/PLAN-start-a-game-redo.md, B2; the design:
-// docs/design-round/round5-play-pieces-spec.md) at a phone's width, on play-pieces-fixture.js's cases, behind ?play=b2:
+// docs/design-round/round5-play-pieces-spec.md) at a phone's width, on play-pieces-fixture.js's cases (everyone's since B2's build):
 //   captain   Ann's Your moves has the Captain row with her carried captain tagged; naming the other starter and saving sends it
 //             (the games route then says so); her week tags the captain ×2.
 //   second    Ann's pick sheet has the two places; a tap after the pick still changes it; the second place takes its own tap; a pick
@@ -9,7 +9,6 @@
 //   bot       Ann's sheet has the bot's call under both settled answers; the page has Against the bot.
 //   cut       Di, cut after Episode 1: the strip says so, no lineup is offered, and Your moves has nothing to set.
 //   pool      the buy-back night and the forgiven night are marked on the grid and named in its key; the pick sheet says what's left.
-//   off       without ?play=b2 (the switch forgotten), none of it shows.
 //   Nothing wider than the screen; no page errors.
 //
 //   node scripts/lane.js dev   (or npm run dev; BASE from .env.local)
@@ -65,7 +64,7 @@ async function main() {
   // The cases it writes to (a captain, a pick, a slot) are made fresh each run; the rest are used as they are, or brought up.
   const had = fs.existsSync(fixture.FILE);
   const made = had ? await fixture.up(["captain", "second", "slots"]) : await fixture.up();
-  const on = (c, game, more = "") => `${c.pages[game]}?play=b2${more}`;
+  const on = (c, game, more = "") => `${c.pages[game]}${more ? `?${more.slice(1)}` : ""}`;
   try {
     // ---- a captain ----
     {
@@ -174,14 +173,6 @@ async function main() {
       await as(c.user, on(c, "buyback", `&moves=pool&game=${c.games.buyback}`), "pool moves", async (p) => {
         await p.locator("[data-pool-parts]").first().waitFor({ timeout: 15000 });
         check(/life left/.test(await p.locator("[data-pool-parts]").first().innerText()), "pool · the pick sheet says what's left");
-      });
-    }
-    // ---- the switch off ----
-    {
-      const c = made.captain;
-      await as(c.user, `${c.pages.captain}?play=off&moves=lineup&game=${c.games.captain}`, "off", async (p) => {
-        await sleep(1500);
-        check((await p.locator("[data-captain-row]").count()) === 0, "off · without ?play=b2, no Captain row");
       });
     }
   } finally {

@@ -17,7 +17,6 @@ import { Face, IconBox } from "./parts";
 import { useOpenReveal } from "./reveal";
 import { askAfterSave } from "./remind";
 import { fitsWith, matchSlots } from "@/lib/lineup-slots";
-import { useB2 } from "./b2";
 
 // "Your moves": one sheet with a tab per game you play here (Weekly Lineup, Survival Pool, Outlast's team) and Predictions, which
 // saves through the league routes the classic app uses (lineups, picks, predictions). The games swipe by as a Weekly Lineup
@@ -108,8 +107,7 @@ function MovesBody({
   const [guesses, setGuesses] = useState<Record<string, string>>(() =>
     Object.fromEntries(play.flatMap((g) => g.predictions.map((q) => [guessKey(g, q.betId), q.guess?.text ?? ""])))
   );
-  // Round 5 (B2, behind ?play=b2): each lineup's captain, its group slots changed here, each pool's second pick.
-  const b2 = useB2();
+  // Round 5 (B2): each lineup's captain, its group slots changed here, each pool's second pick.
   const [captains, setCaptains] = useState<Record<string, string | null>>(() => Object.fromEntries(play.filter((g) => g.lineup?.captain).map((g) => [g.leagueId, g.lineup!.captain!.id])));
   const [slotPicks, setSlotPicks] = useState<Record<string, Record<number, string>>>({});
   const [seconds, setSeconds] = useState<Record<string, string | null>>(() => Object.fromEntries(play.filter((g) => g.pick?.second).map((g) => [g.leagueId, g.pick!.second!.id])));
@@ -135,14 +133,14 @@ function MovesBody({
     for (const g of play) {
       const l = g.lineup;
       // The captain, when this game has one and it changed (sent with the lineup, as the route takes it).
-      const cap = b2 && l?.captain ? (captains[g.leagueId] ?? null) : undefined;
+      const cap = l?.captain ? (captains[g.leagueId] ?? null) : undefined;
       const capChanged = cap !== undefined && cap !== l?.captain?.id;
       if (l && lineupOpen(g) && (!sameSet(lineups[g.leagueId] ?? [], l.starters) || capChanged)) {
         kinds.add("lineup");
         jobs.push(() => write.lineup(g.leagueId, l.epId, g.playerId, lineups[g.leagueId], capChanged ? cap : undefined));
       }
       const offered = g.twists?.offered;
-      for (const [slot, groupId] of Object.entries(b2 && l && lineupOpen(g) && offered ? (slotPicks[g.leagueId] ?? {}) : {})) {
+      for (const [slot, groupId] of Object.entries(l && lineupOpen(g) && offered ? (slotPicks[g.leagueId] ?? {}) : {})) {
         kinds.add("lineup");
         jobs.push(() => setGroupSlot(g.leagueId, offered!.epId, g.playerId, Number(slot), groupId).then(() => undefined));
       }
@@ -153,7 +151,7 @@ function MovesBody({
         jobs.push(() => write.pick(g.leagueId, p.epId, g.playerId, p.each > 1 ? chosen : chosen[0]));
       }
       // The second pick after the first (it stands beside one); changing the first to the second's person drops it server-side.
-      const second = b2 && p?.second ? (seconds[g.leagueId] ?? null) : undefined;
+      const second = p?.second ? (seconds[g.leagueId] ?? null) : undefined;
       if (p && pickOpen(g) && second !== undefined && second !== p.second?.id && (chosen?.length || p.pick)) {
         kinds.add("pick");
         jobs.push(() => write.second(g.leagueId, p.epId, g.playerId, second));
@@ -202,7 +200,7 @@ function MovesBody({
           }}
           pickup={pickup(g.leagueId)}
           seasonId={seasonId}
-          b2={b2 ? { captain: captains[g.leagueId] ?? null, onCaptain: (id) => setCaptains((x) => ({ ...x, [g.leagueId]: id })), slots: slotPicks[g.leagueId] ?? {}, onSlot: (slot, id) => setSlotPicks((x) => ({ ...x, [g.leagueId]: { ...(x[g.leagueId] ?? {}), [slot]: id } })) } : null}
+          pieces={{ captain: captains[g.leagueId] ?? null, onCaptain: (id) => setCaptains((x) => ({ ...x, [g.leagueId]: id })), slots: slotPicks[g.leagueId] ?? {}, onSlot: (slot, id) => setSlotPicks((x) => ({ ...x, [g.leagueId]: { ...(x[g.leagueId] ?? {}), [slot]: id } })) }}
         />
       );
     if (t.kind === "pool" && g)
@@ -210,7 +208,7 @@ function MovesBody({
         <PoolPanel
           g={g}
           chosen={picks[g.leagueId] ?? []}
-          b2={b2 ? { second: seconds[g.leagueId] ?? null, onSecond: (id) => setSeconds((x) => ({ ...x, [g.leagueId]: id })) } : null}
+          pieces={{ second: seconds[g.leagueId] ?? null, onSecond: (id) => setSeconds((x) => ({ ...x, [g.leagueId]: id })) }}
           onPick={(id) =>
             setPicks((x) => {
               const now = x[g.leagueId] ?? [], each = g.pick?.each ?? 1;
@@ -392,15 +390,15 @@ function LineupPanel({
   onStarters,
   pickup,
   seasonId,
-  b2,
+  pieces,
 }: {
   g: GameView;
   starters: string[];
   onStarters: (s: string[]) => void;
   pickup: Move | undefined;
   seasonId: string;
-  /** Round 5 (B2): the captain and the group slots, behind ?play=b2. */
-  b2?: { captain: string | null; onCaptain: (id: string | null) => void; slots: Record<number, string>; onSlot: (slot: number, groupId: string) => void } | null;
+  /** Round 5 (B2): the captain and the group slots. */
+  pieces?: { captain: string | null; onCaptain: (id: string | null) => void; slots: Record<number, string>; onSlot: (slot: number, groupId: string) => void } | null;
 }) {
   const l = g.lineup;
   if (g.revealFirst) return <RevealFirst episode={g.revealFirst} what="who you can start" />;
@@ -455,10 +453,10 @@ function LineupPanel({
               <span
                 data-starter-tag
                 className={`type-caption absolute left-1.5 top-1.5 rounded-[2px] px-1.5 py-0.5 text-[10px] tracking-[0.06em] ${
-                  c.left ? "bg-live text-live-foreground" : on && b2 && l.captain && b2.captain === c.id ? "bg-foreground text-background" : on ? "bg-chyron text-chyron-foreground" : "bg-[rgba(16,14,21,.8)] text-white/75"
+                  c.left ? "bg-live text-live-foreground" : on && pieces && l.captain && pieces.captain === c.id ? "bg-foreground text-background" : on ? "bg-chyron text-chyron-foreground" : "bg-[rgba(16,14,21,.8)] text-white/75"
                 }`}
               >
-                {c.left ? (pickup ? "Out · replace" : "Out") : on && b2 && l.captain && b2.captain === c.id ? `Captain ×${l.captain.times}` : on ? (slotOf(c.id) ?? "Starting") : "Bench"}
+                {c.left ? (pickup ? "Out · replace" : "Out") : on && pieces && l.captain && pieces.captain === c.id ? `Captain ×${l.captain.times}` : on ? (slotOf(c.id) ?? "Starting") : "Bench"}
               </span>
               <b className="type-caption text-[15px]">{first(c.name)}</b>
               <small className={`text-[11px] ${c.left ? "text-chyron-line" : "opacity-85"}`}>
@@ -486,13 +484,13 @@ function LineupPanel({
             className="flex aspect-[3/4] flex-col items-center justify-center gap-1 rounded-[3px] text-center text-muted-foreground outline-2 -outline-offset-2 outline-dashed outline-input"
           >
             <Plus className="size-[22px]" aria-hidden />
-            <b className="type-caption text-[15px] text-foreground">{open?.[i] ? `Open · ${open[i]}` : b2 && (g.twists?.slots ?? []).length ? "Empty" : "Open slot"}</b>
+            <b className="type-caption text-[15px] text-foreground">{open?.[i] ? `Open · ${open[i]}` : (g.twists?.slots ?? []).length ? "Empty" : "Open slot"}</b>
             <small className="block text-[11px]">{open?.[i] ? `Start a ${open[i]}` : "Start someone"}</small>
           </div>
         ))}
       </div>
-      {b2 && l.captain && <CaptainRow g={g} starters={starters} times={l.captain.times} captain={b2.captain} onCaptain={b2.onCaptain} />}
-      {b2 && (g.twists?.slots ?? []).map((x) => <SlotRow key={x.slot} g={g} slot={x} picked={b2.slots[x.slot] ?? null} onPick={(id) => b2.onSlot(x.slot, id)} />)}
+      {pieces && l.captain && <CaptainRow g={g} starters={starters} times={l.captain.times} captain={pieces.captain} onCaptain={pieces.onCaptain} />}
+      {pieces && (g.twists?.slots ?? []).map((x) => <SlotRow key={x.slot} g={g} slot={x} picked={pieces.slots[x.slot] ?? null} onPick={(id) => pieces.onSlot(x.slot, id)} />)}
       {pickup && <ReplaceRow pickup={pickup} seasonId={seasonId} />}
     </>
   );
@@ -659,7 +657,7 @@ function ReplaceRow({ pickup, seasonId }: { pickup: Move; seasonId: string }) {
   );
 }
 
-function PoolPanel({ g, chosen, onPick, b2 }: { g: GameView; chosen: string[]; onPick: (id: string) => void; b2?: { second: string | null; onSecond: (id: string | null) => void } | null }) {
+function PoolPanel({ g, chosen, onPick, pieces }: { g: GameView; chosen: string[]; onPick: (id: string) => void; pieces?: { second: string | null; onSecond: (id: string | null) => void } | null }) {
   const p = g.pick;
   // Round 5 (B2): which of the two places a face tap fills (a pool with a second pick).
   const [place, setPlace] = useState<"first" | "second">("first");
@@ -672,19 +670,19 @@ function PoolPanel({ g, chosen, onPick, b2 }: { g: GameView; chosen: string[]; o
   if (!p.available.length) return <Note>Nobody&rsquo;s left you can pick for Episode {p.episode}.</Note>;
   const blocked = new Map(p.blocked.map((b) => [b.id, b]));
   const choices = g.cast.filter((c) => p.available.includes(c.id) || blocked.has(c.id));
-  const two = !!b2 && !!p.second && p.each === 1;
+  const two = !!pieces && !!p.second && p.each === 1;
   const firstId = chosen[0] ?? null;
   const tap = (id: string) => {
     if (!two) return onPick(id);
     if (place === "first") {
-      if (id === b2!.second) return toast.quiet("That's your second pick: take it out there first");
+      if (id === pieces!.second) return toast.quiet("That's your second pick: take it out there first");
       onPick(id);
       return;
     }
     if (id === firstId) return toast.quiet("That's your pick: a second pick is someone else");
-    b2!.onSecond(b2!.second === id ? null : id);
+    pieces!.onSecond(pieces!.second === id ? null : id);
   };
-  const parts = b2 ? poolParts(g) : null;
+  const parts = poolParts(g);
   return (
     <>
       {parts && (
@@ -692,7 +690,7 @@ function PoolPanel({ g, chosen, onPick, b2 }: { g: GameView; chosen: string[]; o
           {parts}
         </p>
       )}
-      {two && <PickPlaces g={g} first={firstId} second={b2!.second} place={place} onPlace={setPlace} onClear={() => b2!.onSecond(null)} always={p.second!.always} />}
+      {two && <PickPlaces g={g} first={firstId} second={pieces!.second} place={place} onPlace={setPlace} onClear={() => pieces!.onSecond(null)} always={p.second!.always} />}
       <p className="mb-2.5 text-[13px] text-muted-foreground">
         {p.each > 1 ? (
           <>
@@ -707,7 +705,7 @@ function PoolPanel({ g, chosen, onPick, b2 }: { g: GameView; chosen: string[]; o
       <div className="grid grid-cols-4 gap-2 pb-1">
         {choices.map((c) => {
           const no = blocked.get(c.id);
-          const isSecond = two && b2!.second === c.id;
+          const isSecond = two && pieces!.second === c.id;
           const on = chosen.includes(c.id) || isSecond;
           return (
             <button

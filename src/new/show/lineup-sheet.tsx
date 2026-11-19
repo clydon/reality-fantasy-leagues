@@ -10,7 +10,6 @@ import { Btn } from "../ui/parts";
 import { SwipePager, type PagerHandle } from "../ui/swipe-pager";
 import { castName, faceIn, first, openMoves } from "./moves";
 import { Face } from "./parts";
-import { useB2 } from "./b2";
 import { groupShort } from "./dock";
 
 // A Weekly Lineup player's sheet (the 2026-10-30 mock): week by week as bars, the dashed line their average; then the week
@@ -176,8 +175,6 @@ export function LineupSheet({ g, r, week, onWeek, words, onClose, onFace, openEp
 function WeekPane({ g, r, it, next, words, onClose, onFace, openEpisode }: { g: GameView; r: TableRow; it: Item; next: ReturnType<typeof nextWeek>; words: Words; onClose: () => void; onFace?: (id: string) => void; openEpisode?: (episode: number) => void }) {
   const w = it.w;
   const title = `${words.episode} ${it.n}`;
-  // Round 5 (B2, behind ?play=b2): the captain first among the starters, tagged ×N; each group slot's row after them.
-  const b2 = useB2();
   if (!w) {
     const lateYou = r.you && g.late?.episode === it.n;
     // (A week that locks game by game, under way: its first game has begun, the rest to come. TEMP-UI, BACKLOG 80.)
@@ -250,7 +247,8 @@ function WeekPane({ g, r, it, next, words, onClose, onFace, openEpisode }: { g: 
       </div>
     );
   }
-  const cap = b2 ? (w.captain ?? null) : null;
+  // Round 5 (B2): the captain first among the starters, tagged ×N; each group slot's row after them.
+  const cap = w.captain ?? null;
   const started = cap ? [...w.started].sort((a, b) => Number(b.id === cap.id) - Number(a.id === cap.id)) : w.started;
   // Its square: set late by someone playing at their own pace, or (head to head) a matchup waiting on their lineup.
   const sq = g.plays.rows[r.playerId]?.find((s) => s.episode === it.n);
@@ -299,8 +297,7 @@ function WeekPane({ g, r, it, next, words, onClose, onFace, openEpisode }: { g: 
           );
         })}
       </div>
-      {b2 &&
-        (w.slots ?? []).map((x) => (
+      {(w.slots ?? []).map((x) => (
           <div key={x.slot} data-week-slot={x.slot} className="mt-3 flex min-h-[52px] items-center gap-3 border-t border-border pt-2">
             <span className={`type-caption flex-none rounded-[2px] px-1.5 py-0.5 text-[11px] tracking-[0.06em] ${x.status === "held" ? "bg-good text-good-foreground" : "bg-quiet-tag text-quiet-tag-foreground"}`}>Group slot{(w.slots ?? []).length > 1 ? ` ${x.slot + 1}` : ""}</span>
             <span className="min-w-0 flex-1">

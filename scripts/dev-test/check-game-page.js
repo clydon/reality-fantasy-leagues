@@ -126,10 +126,11 @@ async function main() {
           await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
           await page.screenshot({ path: path.join(OUT, `${tag}-saved.png`), fullPage: true });
         } else move = "no simple control first";
-      } else if (await page.locator("[data-game-move=slots] [data-slot-pick]").count()) {
+      } else if (await page.locator("[data-game-move=slots] [data-slot-group]:not([disabled])").count()) {
         // A group slot waiting on a pick: the first group on offer, saved by the tap.
-        await page.locator("[data-game-move=slots] [data-slot-pick]").first().click();
-        move = await page.waitForFunction(() => !document.querySelector("[data-slot-pick]") || /is in slot/.test(document.body.innerText), null, { timeout: 15000 }).then(() => "slot picked").catch(() => "not saved");
+        // (Round 5, B2: the page's picker is the shared group rows.)
+        await page.locator("[data-game-move=slots] [data-slot-group]:not([disabled])").first().click();
+        move = await page.waitForFunction(() => !document.querySelector("[data-game-move=slots]") || /is in your group slot/.test(document.body.innerText), null, { timeout: 15000 }).then(() => "slot picked").catch(() => "not saved");
         await page.waitForTimeout(5000);
         await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
         await page.screenshot({ path: path.join(OUT, `${tag}-saved.png`), fullPage: true });

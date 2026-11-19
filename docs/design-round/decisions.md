@@ -1378,3 +1378,9 @@
 - Decided by: Claude
 - Why: the server refuses the move, so offering it was a bug; the view's no-move and the strip's finish aren't behind Round 5's switch.
 - Rests on: src/lib/game/game-view.ts lineupOf, pickOf; src/lib/game/game-page/model.ts stripOf.
+
+## 2026-11-19 · Round 5 approved and built (B2): no captain named for you; a second pick its own tap; out keeps the finish; held groups show
+- Decided by: the user ("ill take your recs"), taking Claude's four recommendations on Round 5's story
+- Why: naming a captain for you would be a move nobody made; a tap that quietly becomes a second pick can end a streak; a knocked-out person's game is the finish and what they still watch; an exclusive game's held group refused after you've chosen is worse than shown before the lock.
+- Rejected: the top starter named captain automatically; the next face tap filling the second pick; a knocked-out person keeping side bets; held groups hidden until the lock.
+- Rests on: https://claude.ai/artifact/YFe6VFPpA4vDAU7tn95zdj; docs/PLAN-start-a-game-redo.md B2.

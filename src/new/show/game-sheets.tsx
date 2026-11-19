@@ -21,7 +21,6 @@ import { answerWords, verdictWords } from "./questions";
 import { statValue } from "./stats";
 import { BetsBody, CompareBody, EpisodeGames, GameTable, MatchupBody, MatchupTitle, PersonSeason, slotWord } from "./game-week";
 import { oneGame } from "./this-week";
-import { useB2 } from "./b2";
 
 // The sheet family on a game's page and every tab (docs/PLAN-start-a-game-gpt.md U1, "Step 2 brief": the sheet family, once;
 // U0's canvas v58, boards R4 and R6, `make_person_sheet.js` and `make_hybrid.js`). Every name, square, episode, face and number is a
@@ -587,8 +586,7 @@ function Strip({ g, r, sel, onPick, words }: { g: GameView; r: TableRow; sel: nu
 
 function StripCell({ g, s, on, max, colour }: { g: GameView; s: Square; on: boolean; max: number; colour: string }) {
   const k = g.plays.kind;
-  const b2 = useB2();
-  if (k === "pick" && b2 && s.pick) {
+  if (k === "pick" && s.pick) {
     // Round 5 (B2): the night's outcome, a counted second pick's pip at its foot; a skipped night a dash.
     const night = nightKind(s.pick);
     const deciding = s.pick.correct !== false && s.pick.second && !s.pick.second.void && s.pick.second.correct === false ? s.pick.second.id : s.pick.id;
@@ -602,15 +600,7 @@ function StripCell({ g, s, on, max, colour }: { g: GameView; s: Square; on: bool
       </span>
     );
   }
-  if (k === "pick") {
-    const c = s.pick?.id ? faceIn(g, s.pick.id) : undefined;
-    return (
-      <span className="relative mt-0.5 block size-10">
-        {s.pick && c ? <Face src={c.photo} name={c.name} className={`size-10 rounded-[3px] text-sm ${s.pick.correct === false ? "opacity-50 grayscale" : ""} ${on ? "ring-2 ring-foreground ring-offset-2 ring-offset-card" : ""}`} /> : <span aria-label={s.pick ? "No pick" : undefined} className="block size-10 rounded-[3px] border border-dashed border-edge" />}
-        {s.pick && s.pick.correct !== null && <Tick ok={s.pick.correct} className="absolute -right-1 -top-1 size-4" />}
-      </span>
-    );
-  }
+  if (k === "pick") return <span className="mt-0.5 block size-10 rounded-[3px] border border-dashed border-edge" />;
   if (k === "result") {
     const r = s.result;
     if (r && s.waiting) {
@@ -655,10 +645,9 @@ function Tick({ ok, quiet, className = "" }: { ok: boolean; quiet?: boolean; cla
 function EpisodeBlock({ g, show, seasonId, r, n, go }: { g: GameView; show: ShowData; seasonId: string; r: TableRow; n: number; go: Drill }) {
   const s = sqOf(g, r, n);
   const k = g.plays.kind;
-  // Round 5 (B2, behind ?play=b2): a pool's night in its own word (forgiven, bought back, skipped), the night's outcome counting a
-  // second pick that counted.
-  const b2 = useB2();
-  const night = b2 && k === "pick" && s?.pick ? nightWord(s.pick) : null;
+  // Round 5 (B2): a pool's night in its own word (forgiven, bought back, skipped), the night's outcome counting a second pick that
+  // counted.
+  const night = k === "pick" && s?.pick ? nightWord(s.pick) : null;
   const head = night ? night.word : k === "pick" ? (s?.pick ? (s.pick.correct === null ? "Waiting" : s.pick.correct ? "Stayed" : "Went home") : "No pick") : k === "result" ? (s?.waiting ? "…" : s?.result ? s.result.r : "–") : s?.points === null || !s ? "–" : signed(s.points);
   return (
     <section data-episode-block={n} className="mt-[22px] border-t border-border pt-[18px]">
@@ -668,7 +657,7 @@ function EpisodeBlock({ g, show, seasonId, r, n, go }: { g: GameView; show: Show
             {show.words.episode} {n}
           </button>
           <p className="mt-1 text-[13px] text-muted-foreground">
-            {blockLine(g, r, n, s, b2)}
+            {blockLine(g, r, n, s)}
             {s?.late && <span data-late-set> · {LATE_SET}</span>}
           </p>
         </div>
@@ -711,7 +700,7 @@ export function NightBadge({ kind, cost, className = "" }: { kind: NightKind; co
   );
 }
 
-function blockLine(g: GameView, r: TableRow, n: number, s: Square | null, b2 = false): string {
+function blockLine(g: GameView, r: TableRow, n: number, s: Square | null): string {
   const k = g.plays.kind;
   if (k === "result" && s?.result) {
     const wait = g.waiting?.find((w) => w.episode === n && (w.playerId === s.result!.against || w.playerId === r.playerId));
@@ -720,9 +709,9 @@ function blockLine(g: GameView, r: TableRow, n: number, s: Square | null, b2 = f
     const by = s.result.them === null ? "" : ` by ${fmt(Math.abs(s.result.us - s.result.them))}`;
     return `${s.result.round ? `Playoffs, round ${s.result.round} · ` : ""}${s.result.r === "W" ? `Beat ${who}${by}` : s.result.r === "L" ? `Lost to ${who}${by}` : `Tied with ${who}`}`;
   }
-  if (k === "pick" && b2 && s?.pick?.skipped) return "Nobody was left you hadn't picked: nothing counted";
-  if (k === "pick" && b2 && s?.pick?.id && s.pick.second && s.pick.correct !== false && s.pick.second.correct === false) return `Your second pick, ${first(faceIn(g, s.pick.second.id)?.name ?? "someone")}, went home`;
-  if (k === "pick" && b2 && s?.pick?.id && s.pick.second) return `Picked ${first(faceIn(g, s.pick.id)?.name ?? "someone")} and ${first(faceIn(g, s.pick.second.id)?.name ?? "someone")}`;
+  if (k === "pick" && s?.pick?.skipped) return "Nobody was left you hadn't picked: nothing counted";
+  if (k === "pick" && s?.pick?.id && s.pick.second && s.pick.correct !== false && s.pick.second.correct === false) return `Your second pick, ${first(faceIn(g, s.pick.second.id)?.name ?? "someone")}, went home`;
+  if (k === "pick" && s?.pick?.id && s.pick.second) return `Picked ${first(faceIn(g, s.pick.id)?.name ?? "someone")} and ${first(faceIn(g, s.pick.second.id)?.name ?? "someone")}`;
   if (k === "pick") return s?.pick?.id ? `Picked ${faceIn(g, s.pick.id)?.name ?? "someone"}` : s?.pick ? "No pick · missed" : "No pick counted";
   const of = g.table.map((x) => sqOf(g, x, n)?.points ?? 0);
   const mine = s?.points ?? 0;
@@ -774,12 +763,11 @@ function CastRow({ g, id, line, end, dim, go }: { g: GameView; id: string; line?
 }
 
 function PickBlock({ g, r, s, go }: BlockProps) {
-  const b2 = useB2();
-  if (b2 && s?.pick?.skipped) return null;
+  if (s?.pick?.skipped) return null;
   if (!s?.pick?.id) return <p className="mt-3 text-sm text-muted-foreground">{r.you ? "You made no pick that counted." : "No pick that counted."}</p>;
   const pk = s.pick;
-  const two = b2 && !!pk.second;
-  const fate = b2 ? fateLine(r, pk) : null;
+  const two = !!pk.second;
+  const fate = fateLine(r, pk);
   return (
     <>
       <Caption>{two ? "The picks" : "The pick"}</Caption>
@@ -838,15 +826,14 @@ function BootsBlock({ g, s, go, show }: BlockProps) {
 
 /** A game where the whole team (or the picks) count: the team as it stands, each opening its castaway. */
 function TeamBlock({ g, r, go }: BlockProps) {
-  const b2 = useB2();
   if (!r.team.length) return null;
-  const spent = b2 && g.prices ? g.prices.spent[r.playerId] : undefined;
+  const spent = g.prices ? g.prices.spent[r.playerId] : undefined;
   return (
     <>
       <Caption right={spent !== undefined ? `Spent ${spent} of ${g.prices!.budget} · points this season` : "Points this season"}>The team</Caption>
       {r.team.map((id) => {
         const c = faceIn(g, id);
-        const paid = b2 ? g.prices?.paid[id] : undefined;
+        const paid = g.prices?.paid[id];
         const price = paid ? ` · ${paid.filled ? "filled at" : "won at"} ${paid.price}` : "";
         return <CastRow key={id} g={g} id={id} go={go} line={`${c?.knocked ? `Out${c.out ? ` · Ep ${c.out}` : ""}` : c?.left ? `${c.place === 1 ? "Won" : "Finalist"}${c.out ? ` · Ep ${c.out}` : ""}` : "Still in"}${price}`} dim={!!c?.knocked} end={c?.points != null ? <b className="type-num flex-none text-[22px]">{fmt(c.points)}</b> : undefined} />;
       })}
@@ -857,7 +844,6 @@ function TeamBlock({ g, r, go }: BlockProps) {
 /** Their answers that episode, in their scored state: the question, their answer, what was right, what it earned. Each shows once
  *  it's locked (the questions route's rule): before that, only that it's in. */
 function AnswersBlock({ g, seasonId, r, n }: BlockProps) {
-  const b2 = useB2();
   const q = useGameQuestions(seasonId, g.leagueId, n);
   const d = q.data;
   if (q.isPending) return <div aria-busy className="mt-4 h-24 animate-pulse rounded-[3px] bg-background" />;
@@ -886,7 +872,7 @@ function AnswersBlock({ g, seasonId, r, n }: BlockProps) {
               {closed && me && me.right !== null && <Tick ok={me.right} quiet className="size-5 flex-none" />}
               <b className={`type-num flex-none text-[22px] ${closed && me && me.earned ? "" : "text-muted-foreground"}`}>{closed && me ? (me.right === null ? "–" : signed(me.earned)) : "–"}</b>
             </div>
-            {b2 && closed && x.bot?.called && x.bot.answer != null && (() => {
+            {closed && x.bot?.called && x.bot.answer != null && (() => {
               // Round 5 (B2, Designs needed 21): the bot's call beside the answer it was played against.
               const said = answerWords(x, x.bot.answer, cast);
               const same = !!me && said === answerWords(x, me.answer, cast);
@@ -964,7 +950,6 @@ function CardBlock({ show, seasonId, r, n }: BlockProps) {
 
 /** Then the season: a pool's every pick, a draft's team, or their totals. */
 function SeasonBlock({ g, r, go, words }: { g: GameView; r: TableRow; go: Drill; words: ShowData["words"] }) {
-  const b2 = useB2();
   const prices = g.prices;
   const sq = g.plays.rows[r.playerId] ?? [];
   if (g.plays.kind === "pick") {
@@ -978,10 +963,10 @@ function SeasonBlock({ g, r, go, words }: { g: GameView; r: TableRow; go: Drill;
     if (g.plays.blocks.includes("team") || !r.team.length) return null;
     return (
       <>
-        <Caption right={`${b2 && prices?.spent[r.playerId] !== undefined ? `Spent ${prices.spent[r.playerId]} of ${prices.budget} · ` : ""}${fmt(r.total)} pts`}>The team now</Caption>
+        <Caption right={`${prices?.spent[r.playerId] !== undefined ? `Spent ${prices.spent[r.playerId]} of ${prices.budget} · ` : ""}${fmt(r.total)} pts`}>The team now</Caption>
         {r.team.map((id) => {
           const c = faceIn(g, id);
-          const paid = b2 ? prices?.paid[id] : undefined;
+          const paid = prices?.paid[id];
           return <CastRow key={id} g={g} id={id} go={go} line={c?.knocked ? `Out${c.out ? ` · ${words.episode} ${c.out}` : ""}${c.place ? ` · finished ${ordinal(c.place)}` : ""}` : c?.left ? `${c.place === 1 ? "Won" : `Finalist${c.place ? ` · finished ${ordinal(c.place)}` : ""}`}${c.out ? ` · ${words.episode} ${c.out}` : ""}` : "Still in"} dim={!!c?.knocked} end={<PriceEnd points={c?.points ?? 0} paid={paid} />} />;
         })}
       </>
@@ -1002,7 +987,6 @@ function SeasonBlock({ g, r, go, words }: { g: GameView; r: TableRow; go: Drill;
 /** Everyone's plays that night, a row each: a name opens them on this episode, a face its castaway. */
 function EpisodeBody({ g, show, episode, go }: GameCtx & { episode: number; go: Drill }) {
   const k = g.plays.kind;
-  const b2 = useB2();
   return (
     <div data-episode-sheet={episode} className="pb-2">
       <EpisodeGames g={g} episode={episode} onOpen={(pid) => go.open({ kind: "matchup", playerId: pid, episode })} />
@@ -1021,14 +1005,14 @@ function EpisodeBody({ g, show, episode, go }: GameCtx & { episode: number; go: 
                   {r.you && <span className="type-caption rounded-[2px] bg-foreground px-1.5 py-0.5 text-[11px] tracking-[0.06em] text-background">You</span>}
                 </b>
                 <small className="block truncate text-[13px] text-muted-foreground">
-                  {k === "pick" && b2 && s?.pick ? `${nightWord(s.pick).word} · ${blockLine(g, r, episode, s, true)}` : k === "pick" ? (pickId ? `Picked ${face?.name ?? "someone"}${s?.pick?.correct === null ? "" : s?.pick?.correct ? ", who stayed" : ", who went home"}` : s?.pick ? "No pick · missed" : "No pick that counted") : blockLine(g, r, episode, s)}
+                  {k === "pick" && s?.pick ? `${nightWord(s.pick).word} · ${blockLine(g, r, episode, s)}` : k === "pick" ? (pickId ? `Picked ${face?.name ?? "someone"}${s?.pick?.correct === null ? "" : s?.pick?.correct ? ", who stayed" : ", who went home"}` : s?.pick ? "No pick · missed" : "No pick that counted") : blockLine(g, r, episode, s)}
                 </small>
               </span>
             </button>
             {k === "pick" && pickId ? (
               <button type="button" data-door-cast={pickId} onClick={() => go.open({ kind: "cast", id: pickId })} className="relative flex-none">
                 <Face src={face?.photo ?? null} name={face?.name} className={`size-10 rounded-[3px] ${s?.pick?.correct === false ? "opacity-50 grayscale" : ""}`} />
-                {b2 && s?.pick ? <PersonNight pk={s.pick} /> : s?.pick?.correct != null && <Tick ok={s.pick.correct} className="absolute -right-1 -top-1 size-4" />}
+                {s?.pick && <PersonNight pk={s.pick} />}
               </button>
             ) : k === "pick" ? (
               <span aria-hidden className="block size-10 flex-none rounded-[3px] border border-dashed border-edge" />

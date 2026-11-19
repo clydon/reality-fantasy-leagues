@@ -10,7 +10,8 @@
 //
 // Needs: the app (BASE from .env.local) and the fixture: node scripts/dev-test/play-pieces-fixture.js up
 // Run:   node scripts/dev-test/story-play-pieces.js --out=.ui-atlas/stories/b2-play-pieces/before [--only=<regex on the id>]
-//          [--width=390 --height=844] [--q=<query string, e.g. play=b2>]
+//          [--width=390 --height=844] [--q=<a query string to add>]
+// (Round 5's after frames were shot with --q=play=b2, its switch until B2's build made it everyone's.)
 require("dotenv").config({ path: ".env.local", quiet: true });
 const fs = require("fs");
 const path = require("path");
