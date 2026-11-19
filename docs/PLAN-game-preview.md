@@ -329,12 +329,15 @@ for it, for them, with the app's real screens live in the phones, never pictures
 
 | Game | Copies | Made | Story shown | First phone ready |
 | --- | --- | --- | --- | --- |
-| Survival pool | 5 | 5.4 s (copies 2.5 s, typical seasons 2.4 s) | 7.9 s | 12.9 s |
-| Fantasy league (a draft, stages) | 10 | 19.8 s (copies 12.4 s, typical seasons 6.4 s) | 19 s | 24.5 s |
+| Survival pool | 5 | 5.4 s (copies 2.5 s, typical seasons 2.4 s) | 7.9 s, then 3.8 s with moments shown as they land | 12.9 s, then 11.3 s |
+| Fantasy league (a draft, stages) | 10 | 19.8 s (copies 12.4 s, typical seasons 6.4 s) | 19 s, then 5.8 s as they land | 24.5 s, then 11.9 s |
+| Prediction sheet | 4 | | 9.8 s as they land | 20.3 s |
 
 A page in a phone takes 1 to 5 s in development, much of it the dev server compiling a page the first time.
 
 ### What production needs (not built)
+
+The release plan is its own document: docs/PLAN-preview-release.md (decisions, the target, the steps in order, cost, risks). In short:
 
 1. **A preview service with its own database.** The live tier refuses any database that isn't local, and copies of games, people and
    seasons have no place in the real one (a copied season would show in the catalogue). The same app deployed as a preview service
