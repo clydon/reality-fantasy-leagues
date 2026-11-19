@@ -37,7 +37,9 @@ import { useOpenWatch } from "./watch-along";
 import { yourMove } from "./your-move";
 import { totalWords } from "./game-sheets";
 import { ResultSquare } from "./game-week";
-import { thisWeek, type WeekCard } from "./this-week";
+import { oneGame, thisWeek, type WeekCard } from "./this-week";
+import { TonightNights } from "./games-r3";
+import { useR3 } from "./r3";
 import { GAME_NAMES } from "@/lib/server/league-season";
 
 // Tonight (the design round's step 3: docs/design-round/step3-tonight-spec.md, its first view step3-tonight-first-view.md, its
@@ -366,9 +368,11 @@ export const placeOf = (g: GameView) => (!g.you ? "—" : g.you.rank.startsWith(
 /** Each game you play here as a mini: an excerpt of its page's This week card, in the game's own measure (never a sum across
  *  games), the last result in a line, its lineup's points one tap open. A stage of a game in stages is its parent's. */
 function YourGames({ seasonId, show, open }: { seasonId: string; show: ShowData; open: (d: Door) => void }) {
+  const r3 = useR3();
   if (!show.play) return <div aria-busy className="mx-4 mt-[26px] h-[150px] animate-pulse rounded-[4px] bg-card" />;
-  const games = show.play.filter((g) => !g.stageOf);
-  if (!games.length) return null;
+  // Round 3 (TEMP-UI, ?games=r3): one-episode games aren't minis; finished ones are the archive's (TonightNights says the last).
+  const games = show.play.filter((g) => !g.stageOf && (!r3 || (!oneGame(g) && !(g.over && g.to !== null))));
+  if (!games.length && !r3) return null;
   const twin = (g: GameView) => games.filter((x) => x.gameType === g.gameType).length > 1;
   return (
     <Block title="Your games" aside={games.length > 1 ? `${games.length} on ${show.header ? showLabel(show) : "this show"}` : undefined}>
@@ -377,6 +381,7 @@ function YourGames({ seasonId, show, open }: { seasonId: string; show: ShowData;
           <GameMini key={g.leagueId} seasonId={seasonId} show={show} g={g} open={open} name={twin(g) && g.name !== g.gameName ? g.name : (GAME_NAMES[g.gameName] ?? g.gameName)} />
         ))}
       </div>
+      {r3 && <TonightNights show={show} />}
     </Block>
   );
 }

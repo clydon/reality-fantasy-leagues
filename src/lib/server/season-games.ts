@@ -15,6 +15,7 @@ import { leagueStates } from "./league-states";
 import { paceMarks, type MarkMemo } from "./own-pace-seats";
 import type { ReadOnly } from "./read-only";
 import { games, type Game } from "./show-space";
+import { kindOf } from "@/lib/game/spans";
 
 // Your games on a season, for the new design's show space (docs/PLAN-new-design.md step 1; GET
 // /api/seasons/[id]/games): each one's moves, table, rules and cast as you may see them (game-view.ts), from your
@@ -284,16 +285,51 @@ export interface ArchivedGame {
   leagueId: string;
   name: string;
   gameName: string;
+  /** What kind of game it is, by its name (spans.ts kindOf): the archive's chips and its row's label. */
+  kind: string;
   from: number | null;
   /** Its span's last episode, or null: to the season's end. */
   to: number | null;
   /** The episode it ended (where it was won, or its span's or the season's last): the archive's order, and its `before` cursor. */
   ended: number;
   players: number;
-  /** Who won it (ties share it): their names, and whether one is you. */
-  winners: { name: string; you: boolean }[];
+  /** Who won it (ties share it): their names, faces (a user's id, else the seat's) and whether one is you or a computer player. */
+  winners: { name: string; you: boolean; id: string; bot: boolean }[];
+  /** Everyone level at the end (nobody won outright), and whether nobody scored at all (Round 3: "Nobody scored", never a win). */
+  level: boolean;
+  nobody: boolean;
   /** Your place and total, or null when you didn't play it (read-only). */
   you: { rank: string; place: number; total: number } | null;
+}
+
+/** A finished game kept small (the archive's row, the reveal's night beat): from its view at your mark. */
+export function archivedOf(g: GameView, ended: number): ArchivedGame {
+  const top = g.table.filter((r) => r.place === 1);
+  const mine = g.table.find((r) => r.you);
+  return {
+    leagueId: g.leagueId,
+    name: g.name,
+    gameName: g.gameName,
+    kind: kindOf(g.name),
+    from: g.from,
+    to: g.to,
+    ended,
+    players: g.players,
+    winners: top.map((r) => ({ name: r.name, you: r.you, id: r.userId ?? r.playerId, bot: !!r.bot })),
+    level: g.table.length > 1 && top.length === g.table.length,
+    nobody: g.table.every((r) => r.total === 0 && !r.record?.wins),
+    you: mine ? { rank: mine.rank, place: mine.place, total: mine.total } : null,
+  };
+}
+
+/**
+ * Your record across a season's finished games (Round 3's archive: docs/design-round/round3-short-games-spec.md, "Your record"), as
+ * far as you've seen: each game's places by person (a user's id; a computer player by its name, so Ada is one opponent across games),
+ * kept small so the page can count it whole or by kind. Read in full: a finished game costs about 10 ms.
+ */
+export interface SeasonRecord {
+  people: { key: string; id: string; name: string; bot: boolean }[];
+  games: { leagueId: string; kind: string; ended: number; mine: number | null; level: boolean; nobody: boolean; places: Record<string, number> }[];
 }
 
 /**
@@ -303,10 +339,17 @@ export interface ArchivedGame {
  * isn't in it yet (it's on the Games tab, running for you). Each read in full and kept small here: a finished game costs about 10 ms
  * (no sheet, no marks), so nothing is stored for it (the plan's E2 notes why).
  */
-export async function seasonArchive(user: SessionUser, seasonId: string, couchId: string | null, o: { before?: number | null; limit?: number } = {}): Promise<{ seenThrough: number | null; games: ArchivedGame[]; more: boolean }> {
+export async function seasonArchive(
+  user: SessionUser,
+  seasonId: string,
+  couchId: string | null,
+  o: { before?: number | null; limit?: number; kind?: string | null; record?: boolean } = {}
+): Promise<{ seenThrough: number | null; games: ArchivedGame[]; more: boolean; kinds?: { kind: string; n: number }[]; record?: SeasonRecord }> {
   const limit = Math.max(1, Math.min(50, Number.isInteger(o.limit) ? (o.limit as number) : 20));
   const listed = await listHere(user, seasonId, couchId);
-  const { seen, list, states } = listed;
+  const { seen, states } = listed;
+  // Round 3: one kind of game (its name: "Prediction Sheet"), for the archive's chips.
+  const list = o.kind ? listed.list.filter((g) => kindOf(g.name) === o.kind) : listed.list;
   // Which games are over for you, and where each ended, from their states (overByMark); those the state can't settle read in full.
   const over: { id: string; name: string; ended: number; view?: GameView }[] = [];
   const unsure = new Set<string>();
@@ -335,21 +378,46 @@ export async function seasonArchive(user: SessionUser, seasonId: string, couchId
   for (const x of page) {
     const g = viewOf.get(x.id);
     if (!g || !g.over) continue;
-    const top = g.table.filter((r) => r.place === 1);
-    const mine = g.table.find((r) => r.you);
-    games.push({
-      leagueId: g.leagueId,
-      name: g.name,
-      gameName: g.gameName,
-      from: g.from,
-      to: g.to,
-      ended: x.ended,
-      players: g.players,
-      winners: top.map((r) => ({ name: r.name, you: r.you })),
-      you: mine ? { rank: mine.rank, place: mine.place, total: mine.total } : null,
-    });
+    games.push(archivedOf(g, x.ended));
   }
-  return { seenThrough: Number.isFinite(seen) ? seen : null, games, more: page0.length > n };
+  const out: { seenThrough: number | null; games: ArchivedGame[]; more: boolean; kinds?: { kind: string; n: number }[]; record?: SeasonRecord } = {
+    seenThrough: Number.isFinite(seen) ? seen : null,
+    games,
+    more: page0.length > n,
+  };
+  // Round 3's record (the archive's first page asks): every game over for you (of this kind), read in full, each game's places by
+  // person; and every kind over for you, for the chips.
+  if (o.record) {
+    const rest = new Set(over.filter((x) => !viewOf.has(x.id) && !x.view).map((x) => x.id));
+    const more = rest.size ? await viewsOf(user, seasonId, await readHere(user, listed, (_s, _m, id) => rest.has(id))) : [];
+    const all = new Map<string, GameView>([...viewOf, ...over.filter((x) => x.view).map((x) => [x.id, x.view as GameView] as const), ...more.map(({ h, view }) => [h.game.leagueId, view] as const)]);
+    const people = new Map<string, SeasonRecord["people"][number]>();
+    const rows: SeasonRecord["games"] = [];
+    for (const x of over) {
+      const g = all.get(x.id);
+      if (!g || !g.over || !g.you) continue;
+      const a = archivedOf(g, x.ended);
+      const places: Record<string, number> = {};
+      for (const r of g.table) {
+        if (r.you) continue;
+        const key = r.bot ? `bot:${r.name}` : (r.userId ?? r.playerId);
+        if (!people.has(key)) people.set(key, { key, id: r.userId ?? r.playerId, name: r.name, bot: !!r.bot });
+        places[key] = r.place;
+      }
+      rows.push({ leagueId: g.leagueId, kind: a.kind, ended: x.ended, mine: g.you.place, level: a.level, nobody: a.nobody, places });
+    }
+    out.record = { people: [...people.values()], games: rows };
+    const kinds = new Map<string, number>();
+    for (const g of listed.list) {
+      const seat = listed.seats.mine.get(g.leagueId);
+      const state = states.get(g.leagueId);
+      if (!seat || !state) continue;
+      const said = all.get(g.leagueId)?.over ?? overByMark(state, markFor(state, seat, seen));
+      if (said === true) kinds.set(kindOf(g.name), (kinds.get(kindOf(g.name)) ?? 0) + 1);
+    }
+    out.kinds = [...kinds].map(([kind, n]) => ({ kind, n })).sort((a, b) => b.n - a.n || a.kind.localeCompare(b.kind));
+  }
+  return out;
 }
 
 /**
@@ -425,6 +493,9 @@ export async function viewWithCalls(user: SessionUser, seasonId: string, h: Game
       console.error(`[season-games] sheet ${h.game.leagueId}:`, e);
       return null;
     });
+    // Round 3's night row: who has answered this episode's questions (a seat with any answer for it), never what they answered.
+    const ep = view.sheet?.episode ?? (view.from !== null && view.from === view.to ? view.from : null);
+    if (rows && ep != null) view.sheetIn = [...new Set(rows.filter((r) => r.episode === ep).map((r) => r.playerId))];
   }
   return view;
 }

@@ -1,11 +1,12 @@
 "use client";
 
-import { keepPreviousData, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useSyncExternalStore } from "react";
 import { api, phoneTimeZone } from "@/lib/api";
 import type { GameView, WeekProgress } from "@/lib/game/game-view";
 import type { HowItWorks } from "@/lib/game/formats/rulebook-describe";
 import type { SeasonEpisodes, SeasonReveal } from "@/lib/server/season-episodes";
+import type { ArchivedGame, SeasonRecord } from "@/lib/server/season-games";
 import type { SeasonStats } from "@/lib/server/season-stats";
 import type { ChatLine, CouchChat } from "@/lib/server/couch-chat";
 import type { Backstage, Chosen, PasteResult } from "@/lib/server/backstage";
@@ -333,6 +334,38 @@ export function useSeasonGames(seasonId: string, couchId: string | null, enabled
       }),
     staleTime: 60_000,
     enabled,
+  });
+}
+
+export type { ArchivedGame, SeasonRecord };
+export interface ArchivePage {
+  seenThrough: number | null;
+  games: ArchivedGame[];
+  more: boolean;
+  kinds?: { kind: string; n: number }[];
+  record?: SeasonRecord;
+}
+
+/**
+ * Round 3's archive (GET /api/seasons/[id]/archive): your finished games on a show as far as you've seen, newest first, a page at a
+ * time (`before` the last page's oldest episode); the first page carries your record and the kinds (`record=1`). `kind`: one kind.
+ * `enabled`: the Games tab's results block reads only the first page.
+ */
+export function useSeasonArchive(seasonId: string, couchId: string | null, kind: string | null = null, enabled = true) {
+  return useInfiniteQuery({
+    queryKey: ["new-design", "archive", seasonId, couchId, kind],
+    queryFn: ({ pageParam }) => {
+      const q = new URLSearchParams();
+      if (couchId) q.set("couch", couchId);
+      if (kind) q.set("kind", kind);
+      if (pageParam != null) q.set("before", String(pageParam));
+      else q.set("record", "1");
+      return get<ArchivePage>(`/api/seasons/${seasonId}/archive?${q}`);
+    },
+    initialPageParam: null as number | null,
+    getNextPageParam: (last) => (last.more && last.games.length ? Math.min(...last.games.map((g) => g.ended)) : undefined),
+    staleTime: 60_000,
+    enabled: enabled && !!seasonId,
   });
 }
 

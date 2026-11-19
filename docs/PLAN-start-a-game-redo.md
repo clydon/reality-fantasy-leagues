@@ -292,7 +292,44 @@ and "the sport create a game should at least feel and navigate just like the sho
 
 The story, then approval.
 
-### Round 4: changing a game later
+**As run (2026-11-18), waiting on the user's review.**
+- **What it is:** built in the app behind `?games=r3` (TEMP-UI, `src/new/show/r3.ts`: open the Games tab with it; remembered for the
+  browser tab), on short-games-fixture.js's busy season. It went through Intent ([round3-short-games-spec.md](design-round/round3-short-games-spec.md)),
+  PFD ([-first-view.md](design-round/round3-short-games-first-view.md)) and Impeccable ([-shape.md](design-round/round3-short-games-shape.md)).
+- **The check, once:** PFD 75 ([-pfd-eval.md](design-round/round3-short-games-pfd-eval.md)); Impeccable 25/40 from an isolated
+  reviewer with the detector ([-critique.md](design-round/round3-short-games-critique.md)). One batch of fixes, one confirming look.
+- **The story:** https://claude.ai/artifact/LMc46gkHTVcWgWCKCmPMT2 (frames in `.ui-atlas/stories/round3-short-games/`, made by
+  `scripts/dev-test/story-short-games.js`).
+- **Built:**
+  - **The Games tab by episode.** A night row per one-episode game: who's in as faces with you outlined, your move's state,
+    Answer. An aired episode that's only waiting on your reveal folds to a line, and the one-night extras fold to one line.
+    Running holds step 6's rows. Then the newest episode's results and the door to the archive, then Starting later.
+  - **One result row everywhere:** the winners' faces, "Jordan won", "Tied: you and Riley", "All 4 tied", "Nobody scored"; your
+    place, teal for a first.
+  - **The archive** (`ArchivePage`, pushed over the tab):
+    - the record (firsts alone and shared; a split bar per opponent on one scale);
+    - kind chips with each kind's firsts;
+    - each episode's results with its air date, paged by a named button.
+  - **Tonight:** a mini per season game, then two compact parts.
+  - **The reveal:** one beat for the night's one-episode games.
+  - **A finished one-episode game's page:** the result in words; no strip or grid of one column.
+  - **Server:**
+    - `/archive?record=1&kind=`: `SeasonRecord`, `archivedOf`, and the archive row's `kind`, `level`, `nobody` and winners' faces;
+    - the reveal's `nights`;
+    - the game view's `sheetIn` (who has answered, never what);
+    - `kindOf` (spans.ts): a game's kind by its own name, since the engine's type calls a pot, a majority and a sheet all
+      "Prediction Sheet".
+  - **Fixture:** `open` (the next episode's games still to answer for alex and sam) and `bots` (alex alone against computer
+    players).
+  - **Words fixed everywhere:** a tie is never "in front"; "1 pt".
+- **For B3, once approved:**
+  - make it the only Games tab and delete r3.ts;
+  - the space's games read becomes `running=1`, with Tonight's and the tab's results from the archive's first page;
+  - build Again for the next episode (on the reveal's end and a finished game's page);
+  - a sport's daily games (no fixture yet);
+  - time the record's read at 93 games (it reads every finished game).
+- **Open for the user (the story's last section):** whether the next episode's block also carries the season games' moves (the
+  critique's ask; built as Intent placed them), and the Round 3 questions below.
 
 Backstage › Game settings, plus anything Round 2 leaves for the deep end. Skipped if Round 2's design already covers it. The story,
 then approval.

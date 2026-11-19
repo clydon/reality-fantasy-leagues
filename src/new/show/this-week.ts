@@ -287,7 +287,7 @@ export function thisWeek(g: GameView, c: WeekContext): WeekCard | null {
     you,
     them: null,
     stand: null,
-    state: `${place} of ${g.players} · ${total}${gap && gap > 0 ? ` · ${gapWords(gap)} behind ${first(above!.name)}` : me.place === 1 ? " · in front" : ""}`,
+    state: `${place} of ${g.players} · ${total}${gap && gap > 0 ? ` · ${gapWords(gap)} behind ${first(above!.name)}` : me.place === 1 && !me.rank.startsWith("T") ? " · in front" : ""}`,
     tone: g.over ? "over" : due ? "due" : behind ? "behind" : "plain",
     score: null,
     mine: g.lineup?.starters ?? null,

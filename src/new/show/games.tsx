@@ -32,7 +32,9 @@ import { bingoEpisode, BingoRow } from "./bingo";
 import { TriviaRow } from "./trivia";
 import { nextWeek, signed } from "./lineup-sheet";
 import { opensSheet, totalWords, useGameDrill } from "./game-sheets";
-import { thisWeek } from "./this-week";
+import { oneGame, thisWeek } from "./this-week";
+import { GamesR3 } from "./games-r3";
+import { useR3 } from "./r3";
 
 // Games (the mock's show.js tabStandings, gamestab.js, rulebook.js rbHowRow): where you play. Since the design round's step 6
 // (docs/design-round/step6-games-spec.md) one row per game: your place, its move, a mini leaderboard and Last picks (GameRows
@@ -103,6 +105,7 @@ function YourGamesHere({ show }: { show: ShowData }) {
   const [joining, setJoining] = useState<JoinGame | null>(null);
   const people = useGameDrill(show);
   const [rules, setRules] = useState<GameView | null>(null);
+  const r3 = useR3();
   const name = (show.header?.show.name ?? "This show").replace(/^The /, "");
   // From a game's line on Tonight or an episode page (?game=<id>&ep=N): once the tab has slid in, glide to that game's table.
   const params = useSearchParams();
@@ -168,7 +171,31 @@ function YourGamesHere({ show }: { show: ShowData }) {
     <>
       {playing ? (
         show.play ? (
-          <GameRows show={show} moves={moves} drafts={drafts} onPlayer={people.openPerson} />
+          r3 ? (
+            // Round 3 (TEMP-UI, ?games=r3): what's on, by episode; the season's games as step 6's rows; the archive's door.
+            <GamesR3
+              show={show}
+              moves={moves}
+              oneNight={<ThisWeek show={show} bare />}
+              row={(g) => {
+                const play = show.play ?? [];
+                const twin = play.filter((x) => x.gameType === g.gameType && !oneGame(x)).length > 1;
+                return (
+                  <GameRow
+                    key={g.leagueId}
+                    show={show}
+                    g={g}
+                    name={g.solo === "public" ? "Everyone" : twin && g.name !== g.gameName ? g.name : g.gameName}
+                    move={moves.get(g.leagueId) ?? null}
+                    draft={drafts.find((d) => d.leagueId === g.leagueId && d.phase !== "done") ?? null}
+                    onPlayer={people.openPerson}
+                  />
+                );
+              }}
+            />
+          ) : (
+            <GameRows show={show} moves={moves} drafts={drafts} onPlayer={people.openPerson} />
+          )
         ) : (
           <div aria-busy className="mx-4 mt-4 h-72 animate-pulse rounded-[4px] bg-card" />
         )
@@ -189,7 +216,7 @@ function YourGamesHere({ show }: { show: ShowData }) {
         </Block>
       )}
       {show.ready && <HowRow show={show} name={name} />}
-      <ThisWeek show={show} />
+      {!(r3 && playing) && <ThisWeek show={show} />}
       {!show.solo && show.ready && <StartRow show={show} others={others} />}
       {people.sheets}
       <RulesSheet game={rules} play={show.play ?? []} onGame={setRules} waivers={wv.data?.games ?? []} />
@@ -982,7 +1009,7 @@ function HowRow({ show, name }: { show: ShowData; name: string }) {
   );
 }
 
-function ThisWeek({ show }: { show: ShowData }) {
+function ThisWeek({ show, bare }: { show: ShowData; bare?: boolean }) {
   const up = show.upNext;
   const couchId = show.couch?.id ?? null;
   const seasonId = show.header?.seasonId ?? null;
@@ -999,17 +1026,22 @@ function ThisWeek({ show }: { show: ShowData }) {
   const bingo = bingoEpisode(show);
   // Each Prediction Sheet you play here with something to answer (step A4 part 2): this week's to fill in. One that asks about the
   // next episode stands in for Call it.
-  const sheets = (show.play ?? []).filter((g) => g.gameType === "questions" && !g.archived && !!g.sheet);
+  // Round 3 (`bare`): the rows alone, inside the next episode's block, where a one-episode game's sheet is its night row.
+  const sheets = (show.play ?? []).filter((g) => g.gameType === "questions" && !g.archived && !!g.sheet && !(bare && oneGame(g)));
+  const rows = (
+    <div data-this-week>
+      {bingo && seasonId && <BingoRow icon target={{ seasonId, couchId, episode: bingo, label: showLabel(show), solo: show.solo }} />}
+      {call && seasonId && !sheetAsks(show, call) && <CallRow icon target={{ seasonId, couchId, episode: call, label: showLabel(show), solo: show.solo }} />}
+      {seasonId && sheets.map((g) => <SheetRow key={g.leagueId} icon move={g.sheet!} target={{ seasonId, leagueId: g.leagueId, episode: null, game: g.name }} />)}
+      {onCouch && (polls.data?.polls ?? []).map((p) => <PollRow key={p.id} icon p={p} couchId={couchId!} />)}
+      {seasonId && <TriviaRow icon target={{ seasonId, couchId: show.solo ? null : couchId }} />}
+      {onCouch && <StartPollRow seasonId={seasonId!} couchId={couchId!} label={showLabel(show)} />}
+    </div>
+  );
+  if (bare) return rows;
   return (
     <Block title={paced ? `Your Episode ${next}` : "This week"} aside={paced ? "Before you watch" : "One night each"}>
-      <div data-this-week>
-        {bingo && seasonId && <BingoRow icon target={{ seasonId, couchId, episode: bingo, label: showLabel(show), solo: show.solo }} />}
-        {call && seasonId && !sheetAsks(show, call) && <CallRow icon target={{ seasonId, couchId, episode: call, label: showLabel(show), solo: show.solo }} />}
-        {seasonId && sheets.map((g) => <SheetRow key={g.leagueId} icon move={g.sheet!} target={{ seasonId, leagueId: g.leagueId, episode: null, game: g.name }} />)}
-        {onCouch && (polls.data?.polls ?? []).map((p) => <PollRow key={p.id} icon p={p} couchId={couchId!} />)}
-        {seasonId && <TriviaRow icon target={{ seasonId, couchId: show.solo ? null : couchId }} />}
-        {onCouch && <StartPollRow seasonId={seasonId!} couchId={couchId!} label={showLabel(show)} />}
-      </div>
+      {rows}
     </Block>
   );
 }

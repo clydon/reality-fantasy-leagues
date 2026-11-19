@@ -319,6 +319,8 @@ export interface GameView extends GameRefIn {
   linePoints: number | null;
   /** A sheet of questions to answer now (step A4 part 2): filled in by the server (season-games.ts), which reads the answers. */
   sheet: SheetMove | null;
+  /** Round 3's night row: the seats that have answered the sheet's episode (season-games.ts), never what they answered. */
+  sheetIn?: string[] | null;
   predictions: PredictionMove[];
   progress: WeekProgress | null;
   /** Results you haven't revealed stand in the way of this week's lineup or pick: the first of them. */
