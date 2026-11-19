@@ -1,7 +1,9 @@
 # Plan: sports in good shape, technically and in design
 
-> **Status (2026-11-19): Active.** Written from two audits that day: the engine, data and operations, and every screen a sports
-> fan touches. Nothing here is built yet. The decisions it needs are BACKLOG 175 and 212–219 ("Waiting on you").
+> **Status (2026-11-19): Active, Phase 0 done.** Written from two audits that day: the engine, data and operations, and every
+> screen a sports fan touches. Phase 0 ran the same day (branch sports-phase0): all four inferences confirmed, each with a check,
+> and two bigger gaps found that now open Phase 1 (step 1.0: BACKLOG 220 and 221). Nothing else is built yet. The decisions it
+> needs are BACKLOG 175 and 212–219 ("Waiting on you").
 
 The user, 2026-11-19: "I want to make sure sports is in a good spot both technically and redesign needs. Make a plan for that."
 
@@ -23,8 +25,9 @@ NFL or NBA season game now:
    on Tuesday or Wednesday, and no screen shows anything moving in between.
 2. **A failed read becomes a silent zero.** Once a game is old, `saveFinals` stores empty lines for one it couldn't read and never
    asks again (finals.ts:78-90; the update only touches rows whose lines are null). Everyone in it scores 0, and nobody is told.
-3. **No team defenses.** The NFL default has a DEF slot and box scores score defenses (`def:<team>`, football.ts:182), but the
-   cast fill never adds them (nothing in src/lib/server/sports/ mentions one), so the slot likely has nobody to draft.
+3. **No team defenses** (confirmed in Phase 0). The NFL default has a DEF slot and box scores score defenses (`def:<team>`,
+   football.ts:182), but the cast fill never adds them (nothing in src/lib/server/sports/ mentions one), so the slot has nobody to
+   draft.
 4. **Same names collide** (BACKLOG 145). A sport's cast is unique by name, and lines match by name: of the NFL's two Josh Allens,
    whoever's team plays first keeps the name.
 5. **A dropped player can still count.** With locks at each player's game, `lineupAt` (state-logic.js:4498) skips the
@@ -35,6 +38,12 @@ NFL or NBA season game now:
    are built but aren't the default.
 8. **Smaller:** a slate's plain Pick'em is never graded (BACKLOG 108; the gallery's version is safe, the sports start route's
    isn't); lineup slots are enforced for football only (index.ts:149); stale checks (BACKLOG 101, 78, called-off part 4).
+
+**Phase 0 found two that bite before all of these** (2026-11-19, replaying the recorded 2026 NFL season through the app's own
+code): a game started on a sports season has nobody to draft, since a game copies only an approved cast and nothing approves a
+sport's people (BACKLOG 220); and nobody fits a football lineup slot, since positions are kept as ESPN's names ("Quarterback")
+while the slots take its abbreviations ("QB"), so the engine refuses every lineup of real players (BACKLOG 221). The explorer
+and the bench set both up by hand (an approved cast, positions as abbreviations), so neither could see them.
 
 **The design round did sports checks, not sports design.** Steps 2–9 proved that the parts hold at sports scale: the matchup
 pairs QB with QB, the draft room searches a 344-player pool, the guide has Sports, and Start a game uses the same screens. Step
@@ -92,19 +101,48 @@ Sizes: S is under an hour, M about a session, L several sessions. Phases 0–3 a
 game's E3 (a lane of its own, PARALLEL-SESSIONS.md). Phase 4.0 can ship any time. The design round (4.2) starts once Phase 1 and
 4.1 are in, so its designs are judged on data that's right.
 
-### Phase 0. Confirm four inferences (S, one session)
+### Phase 0. Confirm four inferences (done 2026-11-19)
 
-On the local database, with a recorded NFL slate:
-- (a) after adding the slate, whether any D/ST people exist (`season_cast` with position DEF);
-- (b) whether a player added to the roster after a slate game starts can reach a running league;
-- (c) whether `pickem` started from `/api/sports/start` on a slate grades a week (BACKLOG 108);
-- (d) the NFL slate's head-to-head playoff weeks.
+On the local database, with the recorded 2026 NFL season (espn-snapshot.js: 32 teams, about 2,550 people, Weeks 1–9 final with
+box scores) as a slate through the stand-in ESPN. The fixture is `scripts/dev-test/nfl-slate-fixture.js`: a process clock
+(sim-clock.js), the stand-in answering as ESPN would have at the clock's moment, so a played week can be started, answered and
+played again, the daily job run each morning as production runs it, `zt-nfl-` people on a couch, an up and a down. Each check
+asserts where its fixing step leaves it, so each fails today and passes once that step lands; each runs in 9–14 s with no app
+server.
+- **(a) Team defenses: confirmed.** None of the slate's 2,546 people is a team defense. Each final scores both sides' D/ST (30
+  lines in Week 9), and they belong to nobody. Nobody can play the default lineup's DEF slot. `check-nfl-defenses.js` (step
+  1.3).
+- **(b) New players: confirmed, and wider.** A game started through the sports route or the wizard on a sports season gets
+  nobody at all. A game copies its people only from an approved cast, at its start (new-game.ts makeLeague: `approvedCastFor`),
+  and nothing approves a sport's people, so every draft game says "Add the cast first" (BACKLOG 220). With the cast approved by
+  hand, the game keeps who was there at its start. A signing reaches the season's people (a later fill for a team with nobody,
+  or the Players tab's read) but never the game. Nor do the teams on a bye the week it started (the Steelers and the Titans, 154
+  people). `check-sports-new-players.js` (steps 1.0 and 1.4).
+- **(c) Pick'em on a slate: confirmed** (BACKLOG 108). The route's Pick'em asks one "Who wins?" a week with no sides to pick
+  from, takes an answer anyway, and never grades it. The gallery's per-game Pick'em, started on the same week as the control,
+  grades all 15 games. `check-slate-pickem.js` (step 1.6).
+- **(d) Playoff weeks: confirmed.** The default season game has no playoffs: the standings after Week 18 decide it. With a
+  final at the end, Top 2 plays it in Week 18, Top 4 in Weeks 17–18 and six teams in 16–18, started at Week 1 or Week 9 alike.
+  `check-nfl-playoff-weeks.js` (step 2.2; `--last=17` is BACKLOG 214's recommendation).
+- **Noticed: nobody fits a football slot** (BACKLOG 221). A person's position is kept as ESPN's roster names it ("Quarterback":
+  espn.ts `readPerson`), and football's slots take its abbreviations ("QB": defaults/football.json via `withLineupSlots`). So
+  the engine refuses a lineup of real players ("Sam Darnold has no open slot"), and Best Ball's slots would count nobody. Two
+  lines of check-nfl-defenses.js (step 1.0).
+- **Noticed: a game the daily job misses for three days is never read again** (BACKLOG 222). The job reads a linked game only
+  from three days back (matchup.ts `refreshSportsEvents`), so a weekend with the bot VM down leaves a game unplayed for good and
+  its week never completes (step 1.1).
+- The stand-in ESPN now names a football box score's tables as ESPN does (`name`), so the recording's finals read
+  (fake-espn.js). Its box scores carry no totals, so a D/ST line there is its game alone.
 
-Done when each is confirmed or struck, with a dev-test check left in scripts/dev-test/ (built for reuse: `zt-` rows, an up and a
-down).
+### Phase 1. Data you can trust (about 5–7 sessions)
 
-### Phase 1. Data you can trust (about 4–6 sessions)
-
+0. **Games get their people, and the people fit the slots (S–M each; BACKLOG 220, 221).** First, because no season-long game
+   can be played without them. A game started on a sports season (a slate, a team's games) takes the season's people as they
+   are (a sport's people are the teams', so they needn't wait for the approval a show's cast does), and the people the season
+   gains later reach its running games (1.4 adds trades and signings to the season). A person's position is kept as the slots
+   read it (ESPN's abbreviation, the name beside it for the screens), and fake-espn.js serves `abbreviation` as ESPN does. Done
+   when check-sports-new-players.js's first five lines (the route's and the wizard's games have the slate's people and their
+   drafts open) and check-nfl-defenses.js's two BACKLOG 221 lines pass; then the explorer's slot invariant on the real pool.
 1. **Results within the hour (S–M).** A `db/sports-refresh.js` (`refreshSportsEvents` and `saveFinals`) in the existing hourly
    GitHub Actions job (no new Neon wake-up; Actions are free on the public repo), asked more often only when a linked game ended
    in the last few hours. The daily run stays as the fallback, and BACKLOG 184's Vercel daily cron backs up both. Done when a game
@@ -118,23 +156,25 @@ down).
 3. **People by ESPN id, not name (M; BACKLOG 145).** A sport's cast is unique by (season, provider id). League castaways link by id
    in score.ts `peopleOf`, air-times.ts `stampGameLocks`, the player log and cast.ts `saveCast`. The UI's name-keyed reads go too
    (faces.ts, `usePlayerLog`, AthleteSheet, the rows), and a repeated name shows its team. Add team defenses as people
-   (`def:<team>`, position DEF) if Phase 0 confirms they're missing. Done when an NFL slate fixture keeps both Josh Allens and all
-   32 defenses, each drafted and scored.
+   (`def:<team>`, position DEF): Phase 0 confirmed they're missing. Done when an NFL slate fixture keeps both Josh Allens and all
+   32 defenses, each drafted and scored, and check-nfl-defenses.js passes.
 4. **Rosters stay current (S–M).** A daily roster refresh for slate seasons: a trade updates the player's team (and his lock
    follows the new team's game), a signing is added, and new people reach running leagues' pools. Done with a fixture trade and a
-   fixture signing.
+   fixture signing (nfl-slate-fixture.js's `edit`), and check-sports-new-players.js passing.
 5. **Injuries and byes (M; L9 part 2).** Read ESPN's roster injury status in the daily refresh (Q, D, O, IR) and mark byes (no
    game in the week). They're facts the lineup editor and the draft room show (Phase 4.2). Verify with recorded roster fixtures
    carrying injuries, and a bye-week slate.
 6. **The small fixes (S each).** BACKLOG 108 (give the rail's pickem `each: 'game'`, or refuse single-game questions and squares on
    a slate in `specProblems`); `lineupAt` applying `letGoBefore` for locks at each game (idea 209's residual); BACKLOG 101, 78 and
-   check-sports-explorer.js's called-off part 4. Verify with unit tests, check-slate.js and check-sports-explorer.js.
+   check-sports-explorer.js's called-off part 4. Verify with unit tests, check-slate-pickem.js (108), check-slate.js and
+   check-sports-explorer.js.
 
 ### Phase 2. The rules a season game needs (about 2–3 sessions; needs the user's calls)
 
 1. **Locks at each player's game for the NFL** (S; BACKLOG 213): football's season default becomes `closes: 'game'`. A lock
    change reruns every check that asserts a lock (HANDOFF's convention), check-lock-in.js and the explorer's lock invariants.
-2. **Fantasy playoffs end by Week 17** (S; BACKLOG 214), so nobody's title rides on Week 18's rested starters.
+2. **Fantasy playoffs end by Week 17** (S; BACKLOG 214), so nobody's title rides on Week 18's rested starters. Phase 0: the
+   default has none, and any final lands in Week 18. Done when check-nfl-playoff-weeks.js passes.
 3. **Lineup slots for the NBA, MLB and NHL** (M; L9 part 1): `withLineupSlots` for every sport's defaults, with ESPN's positions
    and MLB's two-way players, and computer players setting legal lineups. Verify with the explorer's slot invariant on real-size
    pools, and unit tests per sport.
@@ -231,7 +271,8 @@ default selection.
 
 ## The order, and how it fits the rest
 
-1. **Now, beside the Survivor 51 work:** Phase 0, then Phase 1, as a sports lane. Phase 4.0 (the words) in any free session.
+1. **Now, beside the Survivor 51 work:** Phase 1 as a sports lane, starting with 1.0 (Phase 0 is done). Phase 4.0 (the words)
+   in any free session.
 2. **Then:** Phase 2 (once the user has made the calls), and Phase 4.1.
 3. **Then:** Phase 3, the gate, and the design round's pages 1 and 3 (they need correct data, not live data).
 4. **Then:** 4.1's live path, page 2, Phase 5, and pages 4 to 6.
@@ -241,7 +282,7 @@ In [PLANS.md](PLANS.md), this plan takes the old "Sports in full" step's place a
 run all year and the user asked for it now. It doesn't block Start a game's E3; the two lanes touch different code, except for the
 lineup editor (dock.tsx), which E3 should leave alone while 4.2's page 1 is open.
 
-**About 20–25 sessions in all:** Phase 0, 1; Phase 1, 4–6; Phase 2, 2–3; Phase 3, 2–3; Phase 4, 9–10; Phase 5, 2.
+**About 20–25 sessions in all:** Phase 0, 1 (done); Phase 1, 5–7; Phase 2, 2–3; Phase 3, 2–3; Phase 4, 9–10; Phase 5, 2.
 
 ---
 
@@ -261,6 +302,7 @@ Each is in BACKLOG's "Waiting on you" with Claude's recommendation:
 
 ## Backlog items this plan carries
 
-43 (4.1), 75 (4.0), 78 and 101 (1.6), 100 (4.2 page 3), 108 (0 and 1.6), 145 (1.3), 175 (Phase 4), 184 (1.1's backstop), idea
+43 (4.1), 75 (4.0), 78 and 101 (1.6), 100 (4.2 page 3), 108 (0 and 1.6), 145 (1.3), 175 (Phase 4), 184 (1.1's backstop), 220 and
+221 (1.0), 222 (1.1), idea
 209's lineup-by-game residual (1.6) and its daily-waivers question (219), and DN 31 and 34–41 (4.2). FAAB, trades and projections
 (90) stay in Phase 6.

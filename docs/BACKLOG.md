@@ -6,7 +6,7 @@ and in flight is in [HANDOFF.md](HANDOFF.md).
 
 **How this file works**
 - **Numbers are permanent.** Code, tests and commits cite "BACKLOG 57", so a number never changes and is never reused. A new
-  item takes the next free number: **the next is 220.**
+  item takes the next free number: **the next is 223.**
 - **Closing an item:** delete it here and add one line under "Closed since the cleanup" at the end: the number, done or
   dropped, and the commit or the reason. Numbers closed in the cleanup itself are listed, with their full old text, in
   [archive/BACKLOG-2026-11-19.md](archive/BACKLOG-2026-11-19.md).
@@ -268,10 +268,13 @@ Design the moment a stage's draft opens along with it: a strip item on Tonight a
 First drive the draft room as explorer actions (the explorer plan's Next), then lift the refusal at start-game.ts:190. The same
 as DN-33's "next stage's draft". [L · engine]
 
-**108. A slate's Pick'em may never be graded.** On a slate (a week of several games) the server keeps no single game per week
-(`score.ts leagueGames`). So the default Pick'em, plain final or stat questions, squares and survival pools may accept any answer
-and grade none. Reproduce it with check-slate.js, then either ask each game (`each: 'game'`) or refuse single-game questions on a
-slate. This goes before the redo plan's E9. Part of [PLAN-sports-ready.md](PLAN-sports-ready.md), steps 0 and 1.6. [M · sports]
+**108. A slate's Pick'em is never graded** (confirmed in Phase 0, 2026-11-19). On a slate (a week of several games) the server
+keeps no single game per week (`score.ts leagueGames`). The sports route's Pick'em (`POST /api/sports/start` { league, slate,
+game: 'pickem' }) asks one "Who wins?" a week with no sides to pick from, takes an answer anyway and never grades it, while the
+gallery's per-game Pick'em grades the same week. Plain final or stat questions, squares and survival pools on a slate are likely
+the same. Either ask each game (`each: 'game'`) or refuse single-game questions on a slate. Done when
+scripts/dev-test/check-slate-pickem.js passes. This goes before the redo plan's E9. Part of
+[PLAN-sports-ready.md](PLAN-sports-ready.md), step 1.6. [M · sports]
 
 **125. An open episode's call can change after a rulebook edit.** Once an episode's first call is made, store its two moments
 with it (or on the episode), and have calls.ts read them back before working them out from the rulebook. Done when a
@@ -396,6 +399,29 @@ desk's button. Then a sport's season. Done when a newly set-up season has a libr
 
 ### Sports
 
+**220. A game started on a sports season has nobody to draft.** A game copies its people only from an approved cast, at its
+start (new-game.ts makeLeague: `approvedCastFor`), and nothing approves a slate's or a team's people: they come from the rosters
+(cast.ts), not the desk. So every draft game started through the sports route or the wizard on a sports season (season league,
+Best Ball, a draft, categories, roto) holds nobody, and its draft says "Add the cast first". Even approved by hand, a game keeps
+who was there at its start: the teams on a bye that week (their games linked later) and a later signing never reach it. Let a
+game on a sports season take the season's people as they are, and let the people the season gains reach its running games.
+Done when scripts/dev-test/check-sports-new-players.js passes. Found in Phase 0 of [PLAN-sports-ready.md](PLAN-sports-ready.md);
+its step 1.0, with 1.4. [M · sports]
+
+**221. Nobody fits a football lineup slot.** A sport's people keep their position as ESPN's roster names it ("Quarterback":
+espn.ts `readPerson` takes `displayName`), and cast-props.ts stamps it as is, but football's slots take ESPN's abbreviations
+("QB", "TE", "PK": defaults/football.json via `withLineupSlots`). So the engine refuses a lineup of real players ("Sam Darnold
+has no open slot") and Best Ball's slots count nobody. The explorer and the bench give positions as abbreviations, so neither saw
+it. Keep the abbreviation (or map the names), and have fake-espn.js serve `abbreviation` as ESPN does. Done when
+check-nfl-defenses.js's two BACKLOG 221 lines pass. Found in Phase 0; [PLAN-sports-ready.md](PLAN-sports-ready.md) step 1.0.
+[S–M · sports]
+
+**222. A game the daily job misses for three days is never read again.** The daily job reads a linked game only from three days
+back (matchup.ts `refreshSportsEvents`), so a game whose day the job skipped for three days (the bot VM down over a long
+weekend) stays "to play" for good, and its slate week never completes. Read every linked game that's started and isn't final,
+however old, within the run's caps. Found in Phase 0; with [PLAN-sports-ready.md](PLAN-sports-ready.md) step 1.1 and 184's
+backstop. [S · sports]
+
 **75. A sport's game speaks in a show's words.** How it plays ("contestant", "Before each episode"), the grid's caption, the
 lineup sheet ("Airtime does", "Airs Sun"), the server's refusals ("active castaways") and stats shown as keys ("2 a 2PT"). Across
 src/new and the push copy (db/push-core.js, db/reminders.js), any literal "Episode" should read `show.words`. The show bar says
@@ -412,7 +438,8 @@ teams and leagues (`useTeamSearch`, `SportsResults`). Give first run the same, s
 **145. Two players with the same name: the second is left out.** A season's cast is unique by lower(name) (migration 0011), so a
 league-wide sports season drops the second player who shares a name (the NFL has two Josh Allens), and stats and picks match by
 name. Key a sport's cast by the provider's athlete id (ESPN's, already read), let names repeat when the ids differ, and show the
-team beside a repeated name. Done when an NFL slate fixture keeps both. Part of [PLAN-sports-ready.md](PLAN-sports-ready.md), step 1.3. [M · sports]
+team beside a repeated name. Done when an NFL slate fixture keeps both (scripts/dev-test/nfl-slate-fixture.js: the 2026 recording
+has six repeated names). Part of [PLAN-sports-ready.md](PLAN-sports-ready.md), step 1.3. [M · sports]
 
 ### Research and the desk
 
@@ -562,7 +589,9 @@ and builds.
   recorded season replayed with zero disagreements) passes. A season-long NFL league waits for next September.*
 - **213. The NFL's default lock.** Today every lineup locks at Thursday's kickoff. *Recommended: lock each player at his own
   game's start, as every fantasy app does (built, `closes: 'game'`); a lock by the week stays an option.*
-- **214. Fantasy playoffs end by Week 17.** *Recommended: yes, so nobody's title rides on Week 18's rested starters.*
+- **214. Fantasy playoffs end by Week 17.** *Recommended: yes, so nobody's title rides on Week 18's rested starters.* Phase 0
+  found the default has no playoffs at all (the standings after Week 18 decide it), and a final at the end always lands in Week
+  18; check-nfl-playoff-weeks.js asserts the recommendation.
 - **215. Sports results every hour.** Sports scores reach the standings once a day, when the bot VM calls. *Recommended: a sports
   refresh in the existing hourly GitHub job (free on the public repo; no new Neon wake-up), more often only right after a game
   ends, with BACKLOG 184's Vercel cron as the backstop.*

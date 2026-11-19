@@ -7,17 +7,18 @@
 // On nfl-slate-fixture.js (the recorded NFL season through the stand-in ESPN, the clock an hour before the week's first game):
 //   as the sports route starts it  the default season game and Best Ball started through start.ts startSport (POST
 //                                  /api/sports/start's own function) on the slate as it's made: how many people each has, and
-//                                  whether the Commissioner's Start opens the draft (draft.ts startDraft)
+//                                  whether the Commissioner's Start opens the draft (draft.ts startDraft); and the same season
+//                                  game as the wizard starts it (start-spec.ts startFromSpec, POST /api/seasons/[id]/start's)
 //   the cast approved first        the same season game with the season's people approved (what the desk's Approve writes): then the
 //                                  week starts, a team signs "ZT Signing" (the stand-in's roster), and production's paths run over
 //                                  the rest of the week: the daily job each morning (its slate sync), then the Players tab's read
 //                                  (rosters.ts rosterOf: it fills the season's people again once a game has ended since the last fill)
 //   where he lands                 the season's people, and the running game's people (who a waiver claim or a draft can name)
 // What's asserted is where Phase 1.4 leaves it: a game started on a slate has the slate's people to draft, and a signing reaches the
-// running game. On 2026-11-19 it fails both (Phase 0 confirmed the inference, and found it wider): a game started through the
-// sports route gets nobody at all (its draft says "Add the cast first"), since nothing approves a slate's people; with them approved
-// by hand, the game gets them at its start and a later signing reaches the season's people but never the game. Its last line says
-// which.
+// running game. On 2026-11-19 it fails both (Phase 0 confirmed the inference, and found it wider: BACKLOG 220): a game started
+// through the sports route or the wizard gets nobody at all (its draft says "Add the cast first"), since nothing approves a slate's
+// people; with them approved by hand, the game gets them at its start, and a later signing (or a team on a bye that week) reaches
+// the season's people but never the game. Its last line says which.
 //
 //   node scripts/dev-test/check-sports-new-players.js [--week=9] [--keep]
 //
@@ -59,13 +60,20 @@ const fact = (s) => console.log(`      ${s}`);
     fact(`the slate: ${w.slate.name}, ${w.slate.episodes} weeks; ${people} people from the teams' rosters; the clock an hour before ${week.label}`);
 
     // As the sports route starts it: the slate as made, nobody's approved its people.
+    let seasonSpec = null;
     for (const game of ["season", "bestBall"]) {
       const s = await w.start("ann", { seasonId: w.seasonId, game, tell: false });
       const st = await w.league(s.leagueId);
+      if (game === "season") seasonSpec = fx.app("../../src/lib/game/state-logic.js").gameOf(st);
       check(st.castaways.length > 0, `the sports route's "${game}" game has the slate's people to draft (${st.castaways.length} of ${people})`);
       const draft = await open(s.leagueId);
       check(draft === "opened", `its draft opens (${draft})`);
     }
+    // And as the wizard starts the same rules (POST /api/seasons/[id]/start's own function).
+    const { startFromSpec } = fx.app("../../src/lib/server/start-spec.ts");
+    const wz = await startFromSpec(w.users.ann, w.seasonId, w.couchId, { spec: { ...seasonSpec, span: { from: WEEK, to: w.slate.episodes } }, name: "ZT wizard season", tell: false }, new Date());
+    const wzPeople = (await w.league(wz.leagueId)).castaways.length;
+    check(wzPeople > 0, `the wizard's season game has the slate's people to draft (${wzPeople} of ${people})`);
 
     // The season's people approved first, as the desk's Approve leaves them; the game started; the week under way.
     await w.approveCast();
@@ -98,11 +106,11 @@ const fact = (s) => console.log(`      ${s}`);
     fact(`the season's people now ${await seasonPeople()}, the game's ${st.castaways.length}; the season gained after its start: ${gained.map((g) => `${g.tribe_name} ${g.n}`).join(", ") || "nobody"}`);
     check(inGame, `the signing reaches the running season game's people, so a claim can name him (${st.castaways.length} there)`);
 
-    const routeGetsNobody = failures > 0;
+    const routeGetsNobody = wzPeople === 0;
     console.log(
       inGame
         ? "VERDICT (b): STRUCK: a player signed after the slate's games start reaches a running game"
-        : `VERDICT (b): CONFIRMED: a player signed after the slate's games start never reaches a running game${routeGetsNobody ? "; wider: a game started through the sports route gets nobody at all (nothing approves a slate's people)" : ""}`
+        : `VERDICT (b): CONFIRMED: a player signed after the slate's games start never reaches a running game${routeGetsNobody ? "; wider: a game started through the sports route or the wizard gets nobody at all (nothing approves a slate's people: BACKLOG 220)" : ""}`
     );
   } finally {
     await fx.finish(w, { keep });
