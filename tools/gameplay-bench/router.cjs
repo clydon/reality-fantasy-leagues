@@ -79,7 +79,9 @@ function router({out,activate,releaseBench,sourceFingerprint}){
   // A game's preview on the real screens (preview/preview.cjs, the CLI's `preview`): through a running app (`app`, from renderers) into
   // its own database, saved under the Atlas output as previews/<id>.
   if(method==='POST'&&route==='preview'){
-   const r=body.app?(await renderers()).find(x=>x.app===body.app):(await renderers())[0];
+   // A named app is found in the worktree list alone (its database from its .env.local), never by probing every lane's port.
+   const named=body.app?require('./worktrees.cjs').worktreeApps().find(w=>'http://localhost:'+w.port===body.app):null;
+   const r=named?{app:body.app,db:named.main?undefined:named.db}:body.app?null:(await renderers())[0];
    if(!r)return {status:400,body:{error:'No running app'+(body.app?' at '+body.app:'')+'; choose one from runtime/renderers'}};
    const id=typeof body.id==='string'&&/^[a-z0-9-]{1,64}$/.test(body.id)?body.id:'preview-'+Date.now().toString(36);
    const p=await require('./preview/preview.cjs').make({input:body.input,out:path.join(out,'previews',id),id,viewerId:body.viewerId,app:r.app,db:r.db,seasons:Number(body.seasons)||0});
