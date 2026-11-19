@@ -1397,3 +1397,9 @@
 - What: one league on the production copy (a Survivor 51 Outlast from Episode 2) shows each seat 3 fewer points, the order unchanged.
 - Rejected: new games only (a migration marking existing ones to keep counting the whole season).
 - Rests on: src/lib/game/state-logic.js EliminationOrderScoringStrategy.baseOf; tests/stages.test.js; scripts/dev-test/compare-totals.js --db.
+
+## 2026-11-19 · C8 (2-on-1 head to head): a tie for all three; wins then points; no playoffs; four or five play the round robin; who's alone first drawn at random; the pair averaged
+- Decided by: the user, answering C8's seven questions (six recommendations taken; "who's alone first" drawn at random instead of the join order)
+- Why: the same rules as head to head where they fit; a random first turn so no one is alone first just for joining first.
+- Rejected: the one alone or the pair taking a tie; points first; a final between the top two; two on two or one against the rest for four or five; the join order; the pair's lower or higher score.
+- Rests on: docs/PLAN-start-a-game-gpt.md C8; docs/PLAN-start-a-game-redo.md E3.

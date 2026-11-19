@@ -824,7 +824,16 @@ The wizard's gallery already offers "a captain scores double".
       reveal with many games in a night"; Round 3's open questions (a short game every episode one game or many, Power rankings,
       telling the couch).
 - **E3. The remaining engine ideas.** Each lands in the tracker, the GPT's manual and Randomize's pieces.
-  - C8: 2-on-1 head to head (p29).
+  - C8: 2-on-1 head to head (p29). **Its seven rule questions answered 2026-11-19** (the plan: PLAN-start-a-game-gpt.md, "C8";
+    built in its own session):
+    - 1, a tie: for all three, half a win each;
+    - 2, the standings: wins, then points;
+    - 3, playoffs with three: none;
+    - 4, a couch of four: the round robin;
+    - 5, a couch of five: the round robin (`rest` stays a game for three);
+    - 6, who's alone first: **drawn at random when it starts, then turning** (the user's choice over the recommended join
+      order; kept in the state once drawn, so every read agrees);
+    - 7, the pair's points: averaged.
   - BACKLOG 94's two answer kinds: a pair of people, and "pick as many as you think". Then BACKLOG 92's Guess who hooks up as a
     made-for idea.
   - s06: a guy and a girl each (cast properties' gender now records it; re-run the tracker). **Done 2026-11-19:** no engine change
