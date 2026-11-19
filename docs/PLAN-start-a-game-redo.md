@@ -441,9 +441,10 @@ The wizard's gallery already offers "a captain scores double".
 - **Noticed, not changed:**
   - `check-game-page.js` fails "door: Close didn't shut them all" on new-fixture's four games, the same on the code before B2
     (checked 2026-11-19).
-  - The cut line's dashes strike through its label ("Next cut · bottom 1 · after Ep 2"), as before.
-  - A knocked-out person's grid row isn't dimmed, and their own week strip still says Set over the next episode.
-  - An open slot's groups push Save below the fold.
+  - Fixed after B2 (2026-11-19, the user: "quickly fix the issues you noticed"): the cut line's label sits on a backing that
+    stops the dashes; a knocked-out person's squares dim with their name and total, and their week strip says Out over the next
+    episode, never Set; Your moves' Save holds at the sheet's foot, so an open slot's groups (or a long pick grid) never push it
+    out of view.
   - A pool's single heart sits under the grid with no words, outside the switch (now "1 life left" behind it).
 
 ### Engine (a lane, beside the rounds)

@@ -51,7 +51,9 @@ export function nextWeek(g: GameView): { episode: number; airsAt: string | null;
   const p = g.progress;
   if (!p || p.label !== "lineups set" || g.over) return null;
   if (p.episode <= (g.table[0]?.weeks.at(-1)?.episode ?? 0)) return null;
-  return { episode: p.episode, airsAt: g.lineup?.episode === p.episode ? g.lineup.airsAt : null, done: new Map(p.people.map((x) => [x.playerId, x.done])) };
+  // (Knocked out, BACKLOG 47: no lineup is theirs, so nobody's told it's set.)
+  const out = new Set(g.twists?.out ?? []);
+  return { episode: p.episode, airsAt: g.lineup?.episode === p.episode ? g.lineup.airsAt : null, done: new Map(p.people.filter((x) => !out.has(x.playerId)).map((x) => [x.playerId, x.done])) };
 }
 
 /** The week a sheet opens on when nothing asked for one: the latest with results, else the one being set. */
@@ -128,7 +130,7 @@ export function LineupSheet({ g, r, week, onWeek, words, onClose, onFace, openEp
                 className="relative flex flex-col items-center py-1.5"
               >
                 <span className={`type-num h-4 text-[15px] leading-4 transition-colors duration-200 ${!it.w ? (set ? "text-good" : "text-muted-foreground") : on ? "" : "text-muted-foreground"}`}>
-                  {it.w ? fmt(it.w.total) : set ? "Set" : "—"}
+                  {it.w ? fmt(it.w.total) : set ? "Set" : !it.w && next && (g.twists?.out ?? []).includes(r.playerId) ? "Out" : "—"}
                 </span>
                 <span className="mt-1 flex w-full items-end justify-center" style={{ height: BAR }}>
                   {it.w ? (

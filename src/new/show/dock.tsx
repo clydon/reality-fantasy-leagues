@@ -306,8 +306,9 @@ function MovesBody({
         attrs={{ "data-moves-games": true }}
       />
 
+      <div data-moves-save className="sticky bottom-0 z-[2] -mx-4 mt-1.5 bg-card px-4 pb-1 pt-2 shadow-[0_24px_0_0_var(--card)] before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-5 before:bg-gradient-to-t before:from-card before:to-transparent">
       {tabs.some((t) => t.kind !== "outlast" || (t.leagueId && pickup(t.leagueId))) && (
-        <Btn tone="must" wide className="mt-3.5" disabled={saving} onClick={save}>
+        <Btn tone="must" wide disabled={saving} onClick={save}>
           {saving ? "Saving…" : "Save"}
         </Btn>
       )}
@@ -325,6 +326,7 @@ function MovesBody({
           return !behind ? "Airtime does." : behind === eps.length ? "Revealing the episode does." : "Airtime does, or revealing an episode you’re catching up on.";
         })()}
       </p>
+      </div>
     </>
   );
 }

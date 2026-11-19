@@ -782,7 +782,7 @@ function SeasonGrid({ g, m, words, due, drill }: { g: GameView; m: PageModel; wo
               return (
                 <div key={s.playerId}>
                   {cutAt(i) && <CutRow />}
-                  <div data-restack={s.playerId} className={`grid ${ROW} border-t border-border ${s.you ? "bg-secondary" : ""}`} style={{ gridTemplateColumns: tmpl }}>
+                  <div data-restack={s.playerId} data-row-out={s.out && p.kind !== "result" ? "" : undefined} className={`grid ${ROW} border-t border-border ${s.you ? "bg-secondary" : ""} ${s.out && p.kind !== "result" ? "[&>*]:opacity-55" : ""}`} style={{ gridTemplateColumns: tmpl }}>
                     {sq.map((x) => (
                       <button key={x.episode} type="button" data-square={`${s.playerId}:${x.episode}`} data-late={x.late ? "" : undefined} aria-label={`${s.name}, ${words.episode} ${x.episode}${x.result ? `: ${x.result.r === "W" ? "won" : x.result.r === "L" ? "lost" : "tied"}` : x.points !== null && x.points !== undefined ? `: ${num(x.points)} points` : ""}${x.late ? `. ${LATE_SET}` : ""}`} onClick={() => square(s.playerId, x.episode)} className={`nd-press relative grid place-items-center ${x.episode === latest ? (s.you ? "bg-input/45" : "bg-secondary/60") : ""}`}>
                         <Cell g={g} x={x} />
@@ -866,7 +866,8 @@ function SeasonGrid({ g, m, words, due, drill }: { g: GameView; m: PageModel; wo
 function CutRow({ label }: { label?: string }) {
   return (
     <div aria-hidden={!label} data-game-cut={label ? "" : undefined} className="type-caption flex h-[18px] items-center gap-1.5 whitespace-nowrap text-[11px] tracking-[0.06em] text-muted-foreground after:flex-1 after:border-t after:border-dashed after:border-edge after:content-['']">
-      {label ?? null}
+      {/* (The label runs past the names into the squares' column: its backing stops that column's dashes at it.) */}
+      {label ? <span className="relative z-[1] bg-card pr-1.5">{label}</span> : null}
     </div>
   );
 }
