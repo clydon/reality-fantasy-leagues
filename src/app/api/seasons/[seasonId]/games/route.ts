@@ -10,7 +10,8 @@ import { couchOthers, seasonGames } from "@/lib/server/season-games";
 // all of yours. Each one's moves for the next episode, its table, its rules and its cast, as far as you've seen
 // (season-games.ts, game-view.ts). The sheet that changes them writes through the league routes. Open read-only from the
 // desk (read-only.ts): that couch game alone, as the couch sees it. With `&others=1`, instead the couch's games here that you
-// don't play and that are still on, each at your own mark (couchOthers: the castaway sheet's In the couch's games).
+// don't play and that are still on, each at your own mark (couchOthers: the castaway sheet's In the couch's games). With
+// `&running=1` (E2), only those not over as far as you've seen (the rest are the archive's: /archive).
 export const GET = apiRoute(async (req, { params }: { params: Promise<{ seasonId: string }> }) => {
   const { seasonId } = await params;
   const user = await requireAuth(req);
@@ -20,5 +21,6 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ seasonId
   const couchId = new URL(req.url).searchParams.get("couch");
   if (couchId) await requireCouch(user, couchId);
   if (couchId && new URL(req.url).searchParams.get("others") === "1") return NextResponse.json(await couchOthers(user, seasonId, couchId));
-  return NextResponse.json(await seasonGames(user, seasonId, couchId, await readOnlyFor(req, user, seasonId, couchId)));
+  const running = new URL(req.url).searchParams.get("running") === "1";
+  return NextResponse.json(await seasonGames(user, seasonId, couchId, await readOnlyFor(req, user, seasonId, couchId), { running }));
 });

@@ -623,6 +623,39 @@ then approval.
   - The show's page reads only running games in full.
   - The archive is read a page at a time, spoiler-safe by each person's mark.
   - Proof: Round 3's fixture reads within a set time.
+  - **Done, the engine's half (2026-11-18; the user: "then start E2").** Round 3's screens (the Games tab of what's on, the archive)
+    are B3's, after Round 3's design is approved; E2 gives them the reads, and changes no screen.
+    - **Round 3's fixture:** `scripts/dev-test/short-games-fixture.js` (up and down, zt-nd- keyed): new-fixture's couch on a longer
+      ZT Survivor 51 (`--episodes`, `--through`; new-fixture.js's `up` takes `episodes`, `through` and `seen` now, its defaults as
+      they were, and a longer season adds made-up castaways), three one-episode games before each episode (a Prediction sheet, the pot,
+      most of us), each person's answers stored as the app stores them; everyone has seen all but sam (two behind). About 60 games on
+      20 episodes, 90 on 30.
+    - **The check:** `scripts/dev-test/check-short-games.js` (`--runs`, `--budget`, `--each`, `--episodes`, `--through`): times
+      Tonight's space, the Games tab, its running games, an archive page and the episodes read for alex (seen everything) and sam
+      (behind), then pages the archive to its end.
+    - **What it found:** the Games tab's read took 9.4 s for alex and 10.1 s for sam on 63 games, 7 of every 8.4 s in `paceMarks`: in a
+      live game every person's seat plays at its own pace, so each game asked each seat's mark one query at a time, and the season's
+      four people's marks again for every game. Now one query a game, each account's mark remembered across one read (`MarkMemo`,
+      own-pace-seats.ts). A game over as far as you've seen is read without its sheet (nothing's open: sheetOf said null) or the
+      others' marks (nobody's waited on); all 126 views (63 games, alex and sam) are byte for byte what they were.
+    - **The reads B3 will use:** `overByMark(state, mark)`, whether a game is over for you from its state alone (its last episode in,
+      your mark at it), so a read leaves the rest out before reading them in full: `/api/seasons/[id]/games?running=1` (only what's on)
+      and `/api/seasons/[id]/archive` (`seasonArchive`: your games over as far as you've seen, newest first, a page at a time by
+      `before` an episode and `limit`, a page ending on a whole episode; each kept small, `ArchivedGame`: its episodes, who won it, your
+      place; only the page's games read in full).
+    - **Numbers** (the dev server, median of three): 20 episodes, 63 games: the Games tab 0.9 to 1.6 s (from 9.4 to 10.1), running
+      0.9 to 1.4 s, an archive page 0.9 to 1.4 s, Tonight's space 0.1 s, the episodes read 0.8 to 1.2 s. 30 episodes, 93 games: the
+      Games tab 1.5 to 1.6 s, running 0.44 to 0.61 s, an archive page 0.52 to 0.55 s (both independent of how many games are over),
+      the episodes read 1.3 s. Every check passes under a 2.5 s budget; running plus the archive is the Games tab's whole, every game
+      over for you on exactly one archive page, none past your mark. (The first try at paging split an episode's games across pages
+      and lost one at each boundary; a page ends on a whole episode now.)
+    - **Not built, on purpose:** a stored small result for each finished game. Measured, reading a finished game in full costs about
+      10 ms now (no sheet, no marks); a store would be a second copy to keep in step with results corrected later. Revisit if a season
+      grows past what the check's budget holds.
+    - **Left for B3 / Round 3:** the Games tab reading `running=1` and the archive (until then it reads every game: 1.5 s at 93); the
+      episodes read (Tonight's and the Episodes tab's, 0.4 MB at 93 games) still reads every game, for Round 3's "Tonight and the
+      reveal with many games in a night"; Round 3's open questions (a short game every episode one game or many, Power rankings,
+      telling the couch).
 - **E3. The remaining engine ideas.** Each lands in the tracker, the GPT's manual and Randomize's pieces.
   - C8: 2-on-1 head to head (p29).
   - BACKLOG 94's two answer kinds: a pair of people, and "pick as many as you think". Then BACKLOG 92's Guess who hooks up as a
