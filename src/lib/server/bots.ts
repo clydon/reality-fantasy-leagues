@@ -2,6 +2,7 @@ import type { Pool, PoolClient } from "pg";
 import type { LeagueState } from "@/lib/game/types";
 import Bots, { type FactContext, type StakeRoom } from "@/lib/game/bot-logic.js";
 import StateLogic from "@/lib/game/state-logic.js";
+import * as Spec from "@/lib/game/game-spec/index.js";
 import type { AnswerRow } from "./answer-points";
 import { lockAuctionBids } from "./auction";
 import { lockBlindPicks } from "./blind-draft";
@@ -91,13 +92,16 @@ async function writeAnswers(client: Client, leagueId: string, due: (Answered & {
  *  (`week`: a catching-up seat's; null: this week's), as answers.ts checks a person's (factFaces). None for a game without one. */
 async function contextFor(leagueId: string, state: LeagueState, rows: AnswerRow[] | undefined, playerId: string | null, mark: number | null, week: number | null, now = Date.now()): Promise<FactContext | undefined> {
   if (!Bots.needsFacts(state)) return undefined;
-  const { factFaces, fromFacts } = await import("./answers");
+  const { factFaces, fromFacts, openLinesFor } = await import("./answers");
   const w = await (await points()).walked({ leagueId, state, playerId, mark, rows });
   const AL = StateLogic.AnswerLogic;
   const faces = new Map<string, unknown>();
-  for (const q of Bots.answeredQuestions(state).filter(fromFacts)) {
+  for (const q of Bots.answeredQuestions(state)) {
     const ep = q.asked === "once" ? 0 : (week ?? AL.windowAt(state, q, AL.episodeNow(state)));
     if (ep === null || ep === undefined) continue;
+    // E1e: a game's line kept as it opens, as a person's read keeps it (answers.ts openLines).
+    if (q.line === Spec.LINE_GAME) await openLinesFor(leagueId, w.facts, q, ep, now);
+    if (!fromFacts(q)) continue;
     const f = await factFaces(state, q, ep, w.facts);
     if (f) faces.set(`${q.id}|${ep}`, f);
   }

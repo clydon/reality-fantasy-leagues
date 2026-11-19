@@ -11,7 +11,7 @@ import type { ChatLine, CouchChat } from "@/lib/server/couch-chat";
 import type { Backstage, Chosen, PasteResult } from "@/lib/server/backstage";
 import type { EpisodeResults } from "@/lib/server/episode-results";
 import type { CatalogSeason } from "@/lib/server/way-in";
-import type { BotLevel, PoolInfo, PracticeGame, PracticeInfo, SoloSeason } from "@/lib/server/solo";
+import type { BotLevel, PoolInfo, SoloSeason } from "@/lib/server/solo";
 import type { ChangeLine } from "@/lib/server/league-changes";
 import type { PreviewLine } from "@/lib/game/results-changes";
 import type { WaiverWeek } from "@/lib/game/waiver-view";
@@ -88,7 +88,7 @@ export type { EarlyNight } from "@/lib/server/season-episodes";
 export type { CouchInvite, CouchSeason, JoinGame, JoinOptions, LeaveCouch } from "@/lib/server/couch-joins";
 export type { CatchUpReveal } from "@/lib/server/season-episodes";
 export type { CallMove } from "@/lib/game/game-view";
-export type { BotLevel, PoolInfo, PracticeGame, PracticeInfo, SoloSeason } from "@/lib/server/solo";
+export type { BotLevel, PoolInfo, SoloSeason } from "@/lib/server/solo";
 export type { MakeReview, MakeState } from "@/lib/server/make-game";
 export type { StartChoice, Started, StartOptions, StartQuestion } from "@/lib/server/start-game";
 export type { SpecStarted, WizardOptions, WizardPage } from "@/lib/server/start-spec";
@@ -1351,25 +1351,13 @@ export function usePool(seasonId: string, enabled = true) {
   return useQuery({ queryKey: ["new-design", "pool", seasonId], queryFn: () => get<PoolInfo>(`/api/seasons/${seasonId}/pool`), staleTime: 30_000, enabled });
 }
 
-/** Your practice couch on a season, or whether you can start one. */
-export function usePractice(seasonId: string, enabled = true) {
-  return useQuery({ queryKey: ["new-design", "practice", seasonId], queryFn: () => get<PracticeInfo>(`/api/seasons/${seasonId}/practice`), staleTime: 30_000, enabled });
-}
 
-async function remove<T>(url: string): Promise<T> {
-  const res = await fetch(url, { method: "DELETE" });
-  const out = await res.json().catch(() => ({}));
-  if (!res.ok) throw Object.assign(new Error(out.error || `Couldn't save (${res.status})`), { status: res.status });
-  return out as T;
-}
 
 export const solo = {
   join: (seasonId: string) => post<{ leagueId: string; start: number }>(`/api/seasons/${seasonId}/pool`, { action: "join" }),
   leave: (seasonId: string) => post<{ left: true }>(`/api/seasons/${seasonId}/pool`, { action: "leave" }),
   /** Who goes home? for the open episode; null takes it back. */
   call: (seasonId: string, castawayId: string | null) => post<{ call: string | null }>(`/api/seasons/${seasonId}/pool`, { action: "call", castawayId }),
-  startPractice: (seasonId: string, game: PracticeGame, level: BotLevel) => post<{ leagueId: string }>(`/api/seasons/${seasonId}/practice`, { game, level }),
-  endPractice: (seasonId: string) => remove<{ ended: true }>(`/api/seasons/${seasonId}/practice`),
 };
 
 /** After joining or leaving a pool, a call, or starting or ending a practice couch: everything moves on (the moves, the games). */

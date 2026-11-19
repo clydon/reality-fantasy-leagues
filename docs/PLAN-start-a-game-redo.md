@@ -555,8 +555,43 @@ then approval.
         Randomize and the gallery share `botsWhy`; a number settled by a game's final is held back; blind.js records the card as
         filed. Not changed: the reviewer read "a roll turned away only for computer players" as hiding a lock's problem, but a roll
         that played passed every lock, so computer players are what stands in the way; the message no longer blames stages.
-      **Left:** the practice couch (retire it, or reborn as "Just me and the bot": the user's word); the four studied seasons above;
-      an over/under on a game's live line, and a number settled by a game's final; a game in stages and squares.
+      **Left after E1d** (all done in E1e below, but the four seasons): the practice couch; the four studied seasons; an over/under on a
+      game's live line, a number settled by a game's final; a game in stages; squares.
+    - **E1e. The last kinds, and the practice couch retired (2026-11-18).** The user, on E1d's report: "I don't see why they aren't
+      [played], I hope that's in the plans": they were only noted as left, not planned. Now built, so computer players play every game
+      the tracker says plays (239 of 239):
+      - **Squares:** dealt, every seat in the rotation is dealt one (nothing was missing but the rule); picked (take 'pick'), each
+        computer player takes its share of the free squares by its taste before the first lock (bot-logic.js `squarePicks`, through
+        `SquaresLogic.take`, a person's pick's checks).
+      - **A game in stages:** each stage's league already seats the game's seats, computer players too (stages.ts `seatStage`
+        mirrors `automated`), and runBots plays each; only the rule held it back. `botsWhy` takes a game in stages when every stage
+        is a game they play; `botsPlay` reads `botsWhy` for stages and squares.
+      - **An over/under on a game's live line:** answered once the line is out, never before (as a person's is refused); the
+        computer players' read keeps the line as it opens, as a person's read does (answers.ts `openLinesFor`, now shared).
+      - **A number a game's final settles** (closest to its total or margin): a guess on the sport's scale, the median of the
+        season's finals so far, else the game's line (a margin about its square root: the NBA's 220 is 15, the NFL's 45 is 7, MLB's 9
+        is 3); a sharp one says the median, the others drift by up to a tenth or a quarter; nothing to go on, no guess.
+        (bot-logic.js `finalGuess`; game-spec `readsFacts`: the questions whose answers read the server's facts.)
+      - **Proof.** tests/bots-answer.test.js (squares picked once, none twice, dealt needs nothing; a line answered only once out; a
+        margin of the median, an easy one near it, the line's root with no finals, none with nothing; every answer kind the engine
+        has is one they answer, so a new kind fails until they do); check-start-a-game.js (a Redraft started with a computer player is
+        seated in its stage; Redraft offered); the tracker says 239 of 239. The corpus (blind.js --bots, Survivor 49): 164 of 164
+        played through, a computer player in all 141 tracker games there (the 10 in stages too, seated and scoring in all 23 stage
+        leagues, drafting in the 15 with a draft), missing none of the 812 windows the person answered.
+      - **The practice couch retired** (the user: "probably retire it, if we ever do anything like 'just me and the bot' it'd be more
+        like an option to make games private or invite only"). Gone: its route (/api/seasons/[id]/practice), solo.ts's practiceFor,
+        startPractice and endPractice, the card and the sheet (solo.tsx, solo-hub.tsx, the Games tab's CouchPractice), its hooks,
+        src/lib/game/practice.ts (`BOT_NAMES` moved into computer-players.ts). Kept: `leagues.solo 'practice'` and its guards, so a
+        practice game made before today (production may have some: it was live from 2026-10-27) stays on its maker's Games tab, never
+        joined; deleting any is a production-data step for the user. The solo Games tab's line said "Two ways to play" over one card
+        once the practice card was hidden: it says "Play {show} against everyone on the app" now. Checks: check-new-solo.js (the
+        route answers 404, no card, the line) and check-new-computer-players.js pass; one stale assertion in check-new-solo
+        ("Everyone · 3 people", a table the game-card redesign replaced) now reads the pool's card.
+      - **The user's idea, recorded:** games that are private or invite only (a game you play alone, or only with who you ask), in
+        place of a "just me and the bot" mode. Not planned yet.
+      - **The four studied seasons** (The Challenge 41, 40, 39, The Traitors 4): only Survivor 49 is loaded here. They'd add about 8
+        tracker games Survivor can't play (the Traitors' secret roles and round table, the Challenge's elimination wins) and their
+        formats (pairs, teams); optional, on the user's word (loading needs the local bot's address set, though it asks no bot).
     - Sizes: E1a one session (UI and checks); E1b one to two (the engine's answer kinds, then the server and own pace); E1c one each
       after the user's answer; E1d one. No migration expected (bots are seats; answers use `game_answers`).
 - **E2. Short games at scale.**

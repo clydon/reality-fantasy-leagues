@@ -8,16 +8,15 @@
 //     doesn't run it, is refused; riley as the lineup game's Game admin adds one there (and takes it out);
 //   - the draft: once it's open no one joins or leaves; the bots draft as their turns come; once it's done jordan takes them
 //     all out: their teams are free again and the draft stays done;
-//   - the practice couch is open to someone on a couch (alex), not only someone solo.
-//   In a real browser at --width (390 by default), as jordan: the Games tab's Practice card, Start a game's Computer players
+//   - the practice couch is retired (its route answers 404).
+//   In a real browser at --width (390 by default), as jordan: the Games tab with no practice card, Start a game's Computer players
 //   (how many, then how sharp), Backstage › Members' Computer players with a bot's sheet. Nothing wider than the screen; no
 //   page errors. Screenshots in <outDir>.
 //
 //   npm run dev                                                  (in another terminal)
 //   node scripts/dev-test/check-new-computer-players.js <outDir> [--width=390] [--keep] [--api]
 //
-// Brings new-fixture.js up and takes it down (--keep leaves it; its down removes the games zt_nd people started, practice
-// couches too); touches zt rows only; refuses a non-local database. Shares the zt_nd_ fixture: never run it alongside another
+// Brings new-fixture.js up and takes it down (--keep leaves it; its down removes the games zt_nd people started); touches zt rows only; refuses a non-local database. Shares the zt_nd_ fixture: never run it alongside another
 // check that uses it. Prints PASS/FAIL.
 require("dotenv").config({ path: ".env.local", quiet: true });
 const fs = require("fs");
@@ -142,9 +141,8 @@ function check(ok, what, detail = "") {
     r = await bots("jordan", { leagueId: game, action: "remove", all: true });
     check(r.status === 404, "nothing left to take out", `${r.status}`);
 
-    // ---------- practice for someone on a couch ----------
-    const pr = (await as.alex.call("GET", `/api/seasons/${sid}/practice`)).body;
-    check(pr.blocked === null, "alex, on a couch, can start a practice couch", JSON.stringify(pr));
+    // The practice couch is retired (2026-11-18): computer players join any game now.
+    check((await as.alex.call("GET", `/api/seasons/${sid}/practice`)).status === 404, "the practice couch is retired: its route answers 404");
 
     // ---------- the browser ----------
     if (!apiOnly) {
@@ -162,10 +160,8 @@ function check(ok, what, detail = "") {
       };
 
       await page.goto(`${BASE}/show/${sid}/games`, { waitUntil: "load" });
-      await page.locator("[data-couch-practice]").waitFor({ timeout: 15000 }).catch(() => {});
-      check((await page.locator("[data-couch-practice] [data-practice]").count()) === 1, "the Games tab offers jordan a practice couch");
-      await page.locator("[data-couch-practice]").scrollIntoViewIfNeeded().catch(() => {});
-      await shot("games-practice");
+      await page.locator('[data-start-row="start"]').waitFor({ timeout: 30000 }).catch(() => {});
+      check((await page.locator("[data-couch-practice], [data-practice]").count()) === 0, "the Games tab: no practice couch (retired)");
       await wide("the Games tab");
 
       // Start a game (docs/PLAN-start-a-game-redo.md E1a) offers computer players in Who's playing on every base they play (a draft,

@@ -9,7 +9,7 @@
 //     alex its Commissioner, linked into the couch's group, its spec as built, a line in Recent changes; the couch told only after
 //     the 10-second hold; Undo inside the hold takes it back (deleted, restorable) and nobody hears; Undo too late, or someone
 //     else's, is refused; a game in stages (the redraft) made with a league for each stage; refusals (a start the listing doesn't
-//     have, a spec our check refuses, computer players on a game they don't play yet (one in stages), someone not on the couch); computer
+//     have, a spec our check refuses, someone not on the couch); a game in stages with a computer player seated in each stage (E1e); computer
 //     players answering a Prediction sheet (at once Together; at your own pace, each week as alex reveals the one before, never past
 //     the game: E1b), answering a boot order and staking the Bank game's (E1b), playing Bingo and Weekly Calls (E1c);
 //   - Run it back's page: `again` gives the old game's rules (`againSpec`, its dates left out);
@@ -19,8 +19,8 @@
 //   ready game, the chips, nothing wider than the screen, no yellow before a game's screen); the ready game opens Ready to start and
 //   Start makes it (the toast's Undo, the game's own page), Undo takes it back; a base's screen (How long's cards, the two lock
 //   cards, Make it…, a rule's change screen and Done, the yellow Start alone), Computer players in Who's playing (two, sharp: the
-//   Start bar says them, the game has their seats; offered on a Prediction sheet at either pace and on Prop bets, dashed with the
-//   reason on Redraft, a game in stages), and Start on Together (its
+//   Start bar says them, the game has their seats; offered on a Prediction sheet at either pace, on Prop bets and on Redraft, a
+//   game in stages), and Start on Together (its
 //   pace written live);
 //   saved games (the heart beside Start keeps it on the account, Community and saved games lists it and reopens it for the length
 //   it was saved with, the heart takes it off, a browser's older saves move up once); Include it on an episode on now (the fixture's Episode 6 moved to half an hour ago, then back); Describe (the wait, the result
@@ -192,9 +192,11 @@ async function apiHalf(pool, fx, bot) {
     `computer players on the Bank game: started, every answer staked within the bank (${stakes.join(" + ")} of 500), the ticket on its own answers (${ticket ? ticket.legs.join(", ") : "none"})`,
     bankBots.body && bankBots.body.error
   );
-  // A game in stages: computer players don't play one yet (Spec.botsWhy), so a start with them is refused.
-  const noBots = staged ? await alex.call("POST", url, { spec: staged, tell: false, bots: 1, pace: "live" }) : { status: 0, body: {} };
-  check(noBots.status === 409 && /Computer players/.test((noBots.body && noBots.body.error) || ""), `computer players on a game they don't play yet (one in stages): refused (${noBots.status}: ${noBots.body && noBots.body.error})`);
+  // E1e: a game in stages with a computer player: started, and each stage's league seats it as the game's (stages.ts seatStage).
+  const stagedBots = staged ? await alex.call("POST", url, { spec: staged, name: "Redraft with a computer player", tell: false, bots: 1, pace: "live" }) : { status: 0, body: {} };
+  const { rows: stageSeats } = stagedBots.status === 200 ? await pool.query("SELECT stage_key, state FROM leagues WHERE stage_of = $1 AND deleted_at IS NULL", [stagedBots.body.leagueId]) : { rows: [] };
+  const seatedIn = stageSeats.filter((r) => (r.state.players || []).some((p) => p.automated));
+  check(stagedBots.status === 200 && stageSeats.length >= 1 && seatedIn.length === stageSeats.length, `computer players on a game in stages: started, seated in each stage (${seatedIn.length} of ${stageSeats.length}: ${stageSeats.map((r) => r.stage_key).join(", ")})`, stagedBots.body && stagedBots.body.error);
   // E1b's second slice: at your own pace too. Each catches up with whoever reveals first, answering each week (and the week after's,
   // so it's in before anyone opens it) on its own copy before it: Episode 1's at the start, Episode 2's on revealing Episode 1, and
   // nothing past the game's last.
@@ -361,12 +363,12 @@ async function browserHalf(pool, fx, bot) {
   await page.locator("[data-gallery=base]").waitFor({ timeout: 10000 });
   await tap("[data-gallery-row=who]");
   check((await page.locator('[data-gallery-choice="bot"]:not([data-off])').count()) === 1, "on Prop bets, Computer players offered: they answer the card's lines once it's out, and stake (E1b)");
-  // A game in stages: not yet, so dashed with the reason.
+  // A game in stages (E1e): offered too.
   await openSheet();
   await tap('[data-gallery-lead="redraft"], [data-gallery-base="redraft"]');
   await page.locator("[data-gallery=base]").waitFor({ timeout: 10000 });
   await tap("[data-gallery-row=who]");
-  check((await page.locator('[data-gallery-choice="bot"][data-off]').count()) === 1 && /stages later/.test(await page.locator('[data-gallery-choice="bot"]').innerText()), "on Redraft (a game in stages), Computer players dashed: they play a game in stages later");
+  check((await page.locator('[data-gallery-choice="bot"]:not([data-off])').count()) === 1, "on Redraft (a game in stages), Computer players offered (E1e)");
   await shot("05-fantasy-page");
 
   // Saved games on the account: the heart beside Start, the row in Community and saved games, reopened, taken off; and a browser's

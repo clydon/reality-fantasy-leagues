@@ -1,8 +1,6 @@
-import crypto from "crypto";
 import StateLogic from "@/lib/game/state-logic.js";
 import type { GameView } from "@/lib/game/game-view";
-import { BOT_LEVEL as LEVEL, LEVEL_OF, type BotLevel } from "@/lib/game/computer-players";
-import { BOT_NAMES, practiceTeams, type PracticeGame } from "@/lib/game/practice";
+import type { BotLevel } from "@/lib/game/computer-players";
 import type { LeagueState } from "@/lib/game/types";
 import type { SessionUser } from "./auth-helpers";
 import { pool, withLeagueLock, HttpError } from "./db";
@@ -27,10 +25,9 @@ import { gamesHere, viewWithCalls, type GameHere } from "./season-games";
 //   guard.ts); its table is the top ten and you (game-view.ts poolTop), and who's picked is a count. It holds POOL_CAP
 //   players: the whole pool is one league's state, read in full whenever it changed (docs/HOSTING.md).
 //
-//   A practice couch: you against three computer players (bot-logic.js) at one level (Easy / Normal / Sharp: casual,
-//   solid, sharp) on one season's real results, Weekly Lineup or Outlast, a turn-based draft that starts at once. The bots
-//   take their turns inside whatever write or read moves the league on (db.ts withLeagueLock -> bots.ts, league-read.ts
-//   readyLeague), so nothing runs on a schedule. One per person and season; never counted toward a couch.
+//   A practice couch (you against three computer players) sat beside it until the user retired it (2026-11-18): computer players
+//   join any game now (docs/PLAN-start-a-game-redo.md E1). Practice games made before then are leagues.solo 'practice' still, on
+//   their maker's Games tab as any game of theirs (show-space.ts), never joined (join-league.ts); nothing makes a new one.
 //
 // Both are for a competition that's set up as a game (an admin's, or one a player made a game: step 10 part 2b) with its
 // cast in and an episode still to come. Joining or starting underway plays from the next episode (startEpisode); someone
@@ -39,8 +36,7 @@ import { gamesHere, viewWithCalls, type GameHere } from "./season-games";
 /** The most people one season's public pool holds (docs/HOSTING.md: its state is read in full after every change). */
 export const POOL_CAP = 100;
 
-export type { BotLevel, PracticeGame };
-const PRACTICE_NAME: Record<PracticeGame, string> = { "active-roster": "Weekly Lineup", "classic-draft": "Outlast" };
+export type { BotLevel };
 
 const nameOf = (user: SessionUser) => (user as { username?: string | null }).username || user.name;
 
@@ -252,106 +248,14 @@ export async function callPool(user: SessionUser, seasonId: string, castawayId: 
   return { call: c.id };
 }
 
-// ---------- the practice couch ----------
-
-export interface PracticeInfo {
-  seasonId: string;
-  label: string;
-  blocked: string | null;
-  leagueId: string | null;
-  gameName: string | null;
-  level: BotLevel | null;
-  /** Your game, as you may see it (null before you start one). */
-  game: GameView | null;
-  drafting: boolean;
-}
-
-export async function practiceFor(user: SessionUser, seasonId: string, now = new Date(), here?: GameHere[]): Promise<PracticeInfo> {
-  const { row, schedule } = await seasonFor(seasonId, now);
-  const leagueId = await existing("practice", seasonId, user.id);
-  const h = leagueId ? (here ?? (await yoursOn(user, seasonId))).find((x) => x.game.leagueId === leagueId) : undefined;
-  const game = h ? await viewWithCalls(user, seasonId, h) : null;
-  const bot = h?.state.players.find((p) => p.automated);
-  return {
-    seasonId,
-    label: label(row),
-    blocked: leagueId ? null : soloBlocked(row, schedule, now),
-    leagueId: h ? leagueId : null,
-    gameName: game?.gameName ?? null,
-    level: bot ? (LEVEL_OF[(bot as { botLevel?: string }).botLevel ?? "solid"] ?? "normal") : null,
-    game,
-    drafting: !!h && !(StateLogic.currentDraftTurn(structuredClone(h.state))?.isComplete ?? true),
-  };
-}
-
-/** Start your practice couch on a season: you and three computer players, the draft open at once in a random order. */
-export async function startPractice(user: SessionUser, seasonId: string, body: { game?: unknown; level?: unknown }, now = new Date()): Promise<{ leagueId: string }> {
-  if (body.game !== "active-roster" && body.game !== "classic-draft") throw new HttpError(400, "Choose Weekly Lineup or Outlast");
-  const game: PracticeGame = body.game;
-  const level: BotLevel = body.level === "easy" || body.level === "normal" || body.level === "sharp" ? body.level : "normal";
-  const { row, schedule } = await seasonFor(seasonId, now);
-  const blocked = soloBlocked(row, schedule, now);
-  if (blocked) throw new HttpError(409, blocked);
-  if (await existing("practice", seasonId, user.id)) throw new HttpError(409, "You have a practice couch on this season: end it to start another");
-  const start = startNow(schedule, now);
-  let human = "";
-  const leagueId = await makeLeague(row, {
-    name: `Practice · ${PRACTICE_NAME[game]}`,
-    solo: "practice",
-    createdBy: user.id,
-    type: game,
-    before: (s) => {
-      human = StateLogic.addPlayer(s, nameOf(user)).id;
-      for (const name of BOT_NAMES) {
-        const bot = StateLogic.addPlayer(s, name, { automated: true });
-        (bot as { botLevel?: string }).botLevel = LEVEL[level];
-      }
-    },
-    after: async (s, client, id) => {
-      // Your seat's membership in the same transaction as the setup: a game of yours never exists without you in it.
-      await client.query("INSERT INTO league_memberships (league_id, user_id, player_id, role) VALUES ($1, $2, $3, 'member')", [id, user.id, human]);
-      // A turn-based draft (castaways on one team each), its teams fitted to who's still in.
-      refused(StateLogic.updateSettings(s, "ownershipMode", "exclusive"), 409);
-      const teams = practiceTeams(game, s.castaways.filter((c) => c.status === "active").length);
-      if (!teams) throw new HttpError(409, `Too few are left in ${label(row)} to draft four teams`);
-      for (const [k, v] of Object.entries(teams)) refused(StateLogic.updateSettings(s, k, v), 409);
-      if (start > 1) refused(StateLogic.updateSettings(s, "startEpisode", start), 409);
-      refused(StateLogic.updateSettings(s, "waiverRecommendation", "balanced"), 409);
-      StateLogic.syncDraftOrder(s);
-      for (let i = s.draftOrder.length - 1; i > 0; i--) {
-        const j = crypto.randomInt(i + 1);
-        [s.draftOrder[i], s.draftOrder[j]] = [s.draftOrder[j], s.draftOrder[i]];
-      }
-      StateLogic.forceStartDraft(s);
-    },
-  }).catch(async (e) => {
-    // A refused setup leaves its half-made league behind: take it away.
-    await pool.query("DELETE FROM leagues WHERE solo = 'practice' AND solo_season_id = $1 AND created_by = $2", [seasonId, user.id]);
-    throw e;
-  });
-  if (!leagueId) throw new HttpError(409, "You have a practice couch on this season already");
-  // Whoever drafts before you has picked already: the bots took their turns in the write that opened the draft.
-  await followLeagueProgress(user.id, leagueId);
-  return { leagueId };
-}
-
-/** End your practice couch on a season: the game and its draft go. */
-export async function endPractice(user: SessionUser, seasonId: string): Promise<{ ended: true }> {
-  const leagueId = await existing("practice", seasonId, user.id);
-  if (!leagueId) throw new HttpError(404, "No practice couch here");
-  await pool.query("DELETE FROM leagues WHERE id = $1 AND solo = 'practice' AND created_by = $2", [leagueId, user.id]);
-  return { ended: true };
-}
-
 // ---------- the solo hub ----------
 
 export interface SoloSeason {
   seasonId: string;
   pool: PoolInfo;
-  practice: PracticeInfo;
 }
 
-/** Each of your shows' solo games (the solo hub's Play on your own): the season's pool and your practice couch there. */
+/** Each of your shows' solo games (the solo hub's Play on your own): the season's pool. */
 export async function soloFor(user: SessionUser, now = new Date()): Promise<{ seasons: SoloSeason[] }> {
   const { rows } = await pool.query(
     `SELECT season_id FROM show_follows WHERE user_id = $1 AND following
@@ -369,8 +273,7 @@ export async function soloFor(user: SessionUser, now = new Date()): Promise<{ se
     const mine = await pool.query("SELECT 1 FROM leagues l JOIN league_memberships m ON m.league_id = l.id WHERE m.user_id = $1 AND l.solo IS NOT NULL AND l.solo_season_id = $2", [user.id, id]);
     if (soloBlocked(row, schedule, now) && !mine.rows.length) continue;
     const here = mine.rows.length ? await yoursOn(user, id) : [];
-    const [p, pr] = await Promise.all([poolFor(user, id, now, here), practiceFor(user, id, now, here)]);
-    out.push({ seasonId: id, pool: p, practice: pr });
+    out.push({ seasonId: id, pool: await poolFor(user, id, now, here) });
   }
   // Soonest to air first, as the hub's shows are; then by name.
   const soon = (s: SoloSeason) => schedules.get(s.seasonId)?.episodes.find((e) => e.airAt && new Date(e.airAt) > now)?.airAt ?? "9";

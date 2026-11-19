@@ -22,7 +22,7 @@ import { yourMove, type YourMove } from "./your-move";
 import { placeOf, sheetAsks } from "./tonight";
 import { Block, Face } from "./parts";
 import { playsWaivers, WaiversHowBody } from "./waivers";
-import { CouchPractice, SoloGames } from "./solo";
+import { SoloGames } from "./solo";
 import { useOpenMake } from "./make-game";
 import { CallRow } from "./calls";
 import { SheetRow } from "./questions";
@@ -192,7 +192,6 @@ function YourGamesHere({ show }: { show: ShowData }) {
       <ThisWeek show={show} />
       {!show.solo && show.ready && <StartRow show={show} others={others} />}
       {/* Anyone on a couch can practise against computer players too (solo players have it under On your own). */}
-      {!show.solo && show.ready && <CouchPractice show={show} />}
       {people.sheets}
       <RulesSheet game={rules} play={show.play ?? []} onGame={setRules} waivers={wv.data?.games ?? []} />
     </>

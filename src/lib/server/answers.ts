@@ -217,11 +217,14 @@ const keptLine = (facts: AnswerFacts, q: Question, ep: number, event: string) =>
  * none kept yet takes the latest one (the listing's), kept for good (question-lines.ts), and the facts carry what's kept now.
  */
 async function openLines(r: Read, q: Question, ep: number): Promise<void> {
+  await openLinesFor(r.h.game.leagueId, r.facts, q, ep, r.now.getTime());
+}
+/** openLines on a game's facts (E1e: a computer player's read keeps a line as it opens, as a person's does), `facts.lines` updated. */
+export async function openLinesFor(leagueId: string, facts: AnswerFacts, q: Question, ep: number, now: number): Promise<void> {
   if (q.line !== Spec.LINE_GAME) return;
-  const now = r.now.getTime();
-  const due = lineGames(r.facts, q, ep).filter(([event, g]) => keptLine(r.facts, q, ep, event) === null && !gameStarted(g, now) && typeof g.listing?.line === "number");
+  const due = lineGames(facts, q, ep).filter(([event, g]) => keptLine(facts, q, ep, event) === null && !gameStarted(g, now) && typeof g.listing?.line === "number");
   if (!due.length) return;
-  r.facts.lines = await keepLines(r.h.game.leagueId, due.map(([event, g]) => ({ question: q.id, window: ep, event, line: g.listing!.line!, readAt: g.listing?.lineAt ?? null })));
+  facts.lines = await keepLines(leagueId, due.map(([event, g]) => ({ question: q.id, window: ep, event, line: g.listing!.line!, readAt: g.listing?.lineAt ?? null })));
 }
 
 /** L3 part 2f part 2: a question about each game closes as its episode's last game starts (each pick at its own game's start before

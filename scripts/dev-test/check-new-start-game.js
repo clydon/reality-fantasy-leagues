@@ -15,7 +15,7 @@
 //     coming), a made series and sport playing by their season's rulebook and stored format (made-<slug>), the sport's
 //     shared draft and its pool surviving by scoring, the couch's own rules (Make it ours) reaching a new game;
 //   - Run it back: the hub's finished games and the show's next season, the same game with its name and settings;
-//   - pools and practice couches for a competition a player made a game (Noticed: "Solo games are for curated competition
+//   - pools for a competition a player made a game (Noticed: "Solo games are for curated competition
 //     shows");
 //   - archive (only its Commissioner; it stands still while Episode 6 comes in for the rest; Undo brings Episode 6 in),
 //     delete (the hold's sentence; out of the couch's games and its group, its people's seats kept; restored from Recent
@@ -238,10 +238,9 @@ function lateNight(shows) {
     const sp = await league(SP);
     check(r.status === 200 && sp.rulebook_id === copyId && sp.state.settings.rulebook?.id === copyId, "a game started now plays by the couch's own rules", `${sp.rulebook_id} ${copyId}`);
 
-    // ---------- pools and practice couches for a competition a player made a game ----------
+    // ---------- pools for a competition a player made a game ----------
     const pool1 = (await as.alex.call("GET", `/api/seasons/${shack}/pool`)).body;
-    const prac = (await as.alex.call("GET", `/api/seasons/${shack}/practice`)).body;
-    check(pool1.blocked === null && prac.blocked === null, "ZT Love Shack (made a game by alex): its public pool and a practice couch are open", `${pool1.blocked} | ${prac.blocked}`);
+    check(pool1.blocked === null, "ZT Love Shack (made a game by alex): its public pool is open", `${pool1.blocked}`);
     check((await as.alex.call("GET", `/api/seasons/${yacht}/pool`)).body.blocked === "Solo games come to this kind of show later", "a series still has none");
 
     // ---------- Run it back ----------

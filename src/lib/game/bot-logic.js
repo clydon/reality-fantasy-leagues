@@ -508,11 +508,39 @@ function run(state) {
   if (!state.players.some(isBot)) return 0;
   let total = 0;
   for (let pass = 0; pass < 5; pass++) {
-    const made = snakeDraft(state) + lineups(state) + groupSlotPicks(state) + eliminatorPicks(state) + finalePicks(state);
+    const made = snakeDraft(state) + lineups(state) + groupSlotPicks(state) + eliminatorPicks(state) + finalePicks(state) + squarePicks(state);
     total += made;
     if (!made) break;
   }
   return total;
+}
+
+// E1e: squares a game's seats pick (take 'pick'): each computer player with none takes its share (`each`, else an even share of the
+// grid) of the squares still free, by its taste, before the game's first lock, through SquaresLogic.take (a person's pick's checks).
+// Dealt squares need nothing: every seat in the rotation is dealt. Returns how many picked.
+function squarePicks(state) {
+  const SQ = StateLogic.SquaresLogic;
+  if (!SQ.on(state)) return 0;
+  const p = SQ.parts(state);
+  if (!p || p.take !== "pick") return 0;
+  const now = Date.now();
+  if (SQ.locked(state, now)) return 0;
+  const cells = p.grid * p.grid;
+  const picks = SQ.data(state).picks || {};
+  const taken = new Set(Object.values(picks).flatMap((pk) => (pk && Array.isArray(pk.cells) ? pk.cells : [])));
+  const seats = SQ.seats(state);
+  let made = 0;
+  state.players.filter((pl) => isBot(pl) && !picks[pl.id]).forEach((pl) => {
+    const share = Number.isInteger(p.each) && p.each > 0 ? p.each : Math.max(1, Math.floor(cells / Math.max(1, seats.length)));
+    const free = [];
+    for (let c = 0; c < cells; c++) if (!taken.has(c)) free.push(c);
+    const mine = free.sort((a, b) => hashOf(`${pl.id}|sq|${a}`) - hashOf(`${pl.id}|sq|${b}`)).slice(0, share);
+    if (mine.length && !SQ.take(state, pl.id, mine, now)) {
+      mine.forEach((c) => taken.add(c));
+      made++;
+    }
+  });
+  return made;
 }
 
 // A game at your own pace with teams (docs/PLAN-own-pace-games.md part 3a): each computer player with none picks its own from who
@@ -590,11 +618,16 @@ function answerFor(state, playerId, q0, faces, ep, answered, ctx) {
     if (!(fx instanceof Map) || !fx.size) return null;
     const slate = ctx.facts && ctx.facts.slate ? ctx.facts.slate.get(ep) : null;
     const now = ctx.now || Date.now();
-    const open = [...fx.keys()].filter((id) => !Spec.gameStarted(slate && slate.get(id), now)).sort();
+    // E1e: an over/under on each game's own line only where its line is out (kept as its pick opened: a person's is refused before).
+    const lineOut = (id) => q.line !== Spec.LINE_GAME || !!(ctx.facts && ctx.facts.lines && ctx.facts.lines.get(Spec.lineKey(q, ep, id)) != null);
+    const open = [...fx.keys()].filter((id) => !Spec.gameStarted(slate && slate.get(id), now) && lineOut(id)).sort();
     if (!open.length) return null;
     const base = { ...q, each: undefined, confidence: undefined };
+    const lean0 = level.read >= LEVELS.sharp.read ? 0.25 : level.read >= LEVELS.solid.read ? 0.35 : 0.5;
     const pickOf = (id) => {
       if (base.answer === "side") { const sides = [...fx.get(id)].sort(); return sides.length ? sides[feel(`side|${id}`) < 0.5 ? 0 : sides.length - 1] : null; }
+      if (base.answer === "overUnder") return feel(`ou|${id}`) < lean0 ? "over" : "under";
+      if (base.answer === "number" && base.settle && base.settle.by === "final") return finalGuess(base, ctx.facts, slate && slate.get(id), level, (k) => feel(`${k}|${id}`));
       return answerFor(state, playerId, { ...base, id: `${q.id}.${id}` }, faces, ep, null, null);
     };
     const order = open.slice().sort((a, b) => feel(`sure|${a}`) - feel(`sure|${b}`));
@@ -721,6 +754,14 @@ function answerFor(state, playerId, q0, faces, ep, answered, ctx) {
     const shapes = [[jury - 2, 2], [jury - 1, 1], [jury], [jury - 3, 3], [jury - 3, 2, 1], [jury - 4, 3, 1]].filter((s) => s.every((n) => n > 0));
     return shapes[Math.floor(feel("split") * (level.read >= LEVELS.sharp.read ? 3 : shapes.length))];
   }
+  // E1e: an over/under on the game's own line, once its line is out (kept as its pick opened, as answers.ts holds a person's); a
+  // number a game's final settles (its total, its margin), on the sport's scale.
+  if (q.line === Spec.LINE_GAME && !(ctx && ctx.facts && ctx.facts.lines && ctx.facts.lines.get(Spec.lineKey(q, ep, "")) != null)) return null;
+  if (q.answer === "number" && q.settle && q.settle.by === "final") {
+    const facts = ctx && ctx.facts;
+    const at = q.asked === "once" ? (facts && facts.from) : ep;
+    return facts ? finalGuess(q, facts, facts.games && at !== null && at !== undefined ? facts.games.get(at) : null, level, feel) : null;
+  }
   // A sharp player leans hardest to what usually happens (nothing; the low end), a normal one less, an easy one goes on its gut.
   const lean = level.read >= LEVELS.sharp.read ? 0.25 : level.read >= LEVELS.solid.read ? 0.35 : 0.5;
   if (q.answer === "yesNo") return feel("yn") < lean ? "yes" : "no";
@@ -734,6 +775,26 @@ function answerFor(state, playerId, q0, faces, ep, answered, ctx) {
   // A count: the low end for a sharp one (things rarely happen twice), wider for an easy one.
   if (q.answer === "number") return [1, 0, 2, 3][Math.floor(feel("n") * (level.read >= LEVELS.solid.read ? 2 : 4))];
   return null;
+}
+/**
+ * E1e: a guess at a number a game's final settles (its total, or its margin), on the sport's scale: the median of the season's finals
+ * so far (every game the facts hold that's final), else the game's own line (a total's; a margin, about the line's square root, which
+ * lands near each sport's: the NBA's 220 is 15, the NFL's 45 is 7, MLB's 9 is 3). A sharp one says the median, the others drift from
+ * it (a normal one by up to a tenth, an easy one by up to a quarter). Null with nothing to go on.
+ */
+function finalGuess(q, facts, game, level, feel) {
+  const take = q.settle && q.settle.take;
+  if (take !== "total" && take !== "margin") return null;
+  const finals = [];
+  const add = (g) => { if (g && g.status === "final" && Array.isArray(g.sides) && g.sides.length === 2) finals.push(g); };
+  if (facts && facts.games) for (const g of facts.games.values()) add(g);
+  if (facts && facts.slate) for (const m of facts.slate.values()) for (const g of m.values()) add(g);
+  const values = finals.map((g) => (take === "total" ? g.sides[0].score + g.sides[1].score : Math.abs(g.sides[0].score - g.sides[1].score))).sort((a, b) => a - b);
+  const line = game && game.listing && typeof game.listing.line === "number" ? game.listing.line : null;
+  const mid = values.length ? values[Math.floor(values.length / 2)] : line === null ? null : take === "total" ? line : Math.sqrt(line);
+  if (mid === null) return null;
+  const drift = level.read >= LEVELS.sharp.read ? 0 : level.read >= LEVELS.solid.read ? 0.1 : 0.25;
+  return Math.max(0, Math.round(mid * (1 + drift * (feel("final") * 2 - 1))));
 }
 /** A stake's share of what it may stake: an easy one bets big, a sharp one small. */
 const stakeShare = (level) => (level.read >= LEVELS.sharp.read ? 0.2 : level.read >= LEVELS.solid.read ? 0.3 : 0.5);
@@ -756,16 +817,18 @@ function mostFor(state, q, key, room, staking) {
 }
 /** Whether a question's faces come from the server's facts (answers.ts factFaces): the engine's one rule. */
 const fromFacts = (q) => Spec.fromFacts(q);
+/** Whether a question reads the server's facts at all (its faces, a game's live line, a final's scale): the engine's rule. */
+const readsFacts = (q) => Spec.readsFacts(q);
 /** Whether any question it answers needs the server's facts: the server reads them for those (bots.ts). */
 function needsFacts(state) {
-  return answeredQuestions(state).some(fromFacts);
+  return answeredQuestions(state).some(readsFacts);
 }
 /** Whether a seat (`pid`; null: any computer player playing live) has a question whose faces come from the server's facts still to
  *  answer in its window, open (`week`: a catching-up seat's, on its copy before it; null: this week's, at `now`): the server reads
  *  the facts only then (the review, E1d: a full walk of the facts isn't free). */
 function factsDue(state, stored, pid, week, now) {
   const AL = StateLogic.AnswerLogic;
-  const qs = answeredQuestions(state).filter(fromFacts);
+  const qs = answeredQuestions(state).filter(readsFacts);
   if (!qs.length) return false;
   const have = new Set((stored || []).map((r) => `${r.playerId}|${r.question}|${r.episode}`));
   const seats = pid === null ? botIds(state) : [pid];
@@ -830,6 +893,7 @@ function oneAnswer(state, pid, q, ep, room, staking, answered, ctx) {
   const most = q.wager === undefined ? null : mostFor(state, q, key, room, staking);
   // A question whose faces come from the server's facts (each game, trivia, a side, a bracket): only with them (`ctx`).
   if (fromFacts(q) && !(ctx && ctx.faces && ctx.faces.get(key))) return null;
+  if (readsFacts(q) && !(ctx && ctx.facts)) return null;
   const value = staked(q, answerFor(state, pid, q, faces, ep, answered, ctx), levelOf(state, pid), most);
   if (value === null || value === undefined) return null;
   const checked = fromFacts(q) ? ctx.faces.get(key) : faceSet(state, q, faces);
@@ -913,7 +977,6 @@ function catchUpAnswers(state, stored, n, rooms, only, ctx) {
 /** The weeks each computer player catching up answers for, through the week after `n` (null: its own mark): [{ playerId, week }],
  *  each on its copy as of week - 1 (catchUpAnswers; and the server reads each one's room to stake there: bots.ts). */
 function catchUpWeeks(state, n) {
-  const G = StateLogic.GhostLogic;
   const aired = new Set(state.episodes.map((e) => e.number));
   const out = [];
   // Only a seat that answers by its own mark (catching up at your own pace: AnswerLogic.ownWeek), as answers.ts lets a person; a late

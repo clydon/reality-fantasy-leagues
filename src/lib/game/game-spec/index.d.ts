@@ -873,6 +873,8 @@ export function stakeMost(points: number, held: Map<string, number>, key: string
 export function botsWhy(spec: GameSpec | SpecInput | null | undefined): string | null;
 /** Whether a question's faces come from the server's facts: about each game, trivia, a side, a bracket. */
 export function fromFacts(q: Question): boolean;
+/** E1e: whether a computer player reads a question from the server's facts (its faces, a game's live line, a final's scale). */
+export function readsFacts(q: Question): boolean;
 /** Whether a sport's game has started at `now` (ms). */
 export function gameStarted(g: SportsGameFacts | null | undefined, now: number): boolean;
 /** C6 part 2: how a ticket stands in one window, from its legs there. */

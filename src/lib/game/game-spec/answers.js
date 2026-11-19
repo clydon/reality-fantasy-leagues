@@ -1420,8 +1420,8 @@ const BOT_ANSWERS = ['person', 'group', 'yesNo', 'number', 'overUnder', 'choice'
  *  and about each person or game: E1b), but not an over/under on the game's own line (read from ESPN as it opens). The gallery and
  *  the server (computer-players.ts botsPlay, through bot-logic.js) both read this one rule. */
 function botAnswers(q) {
-  // Nor a number settled by a game's final (closest to its total or margin): a guess needs the sport's scale.
-  return !!q && BOT_ANSWERS.includes(q.answer) && !(q.answer === 'overUnder' && q.line === 'game') && !(q.answer === 'number' && isObj(q.settle) && q.settle.by === 'final');
+  // E1e: an over/under on a game's live line once it's out, and a number a game's final settles on the sport's scale, too.
+  return !!q && BOT_ANSWERS.includes(q.answer);
 }
 /**
  * Why computer players don't play a game yet, or null: the one rule (the review, E1d). Start a game's Who's playing (start-gallery
@@ -1431,14 +1431,25 @@ function botAnswers(q) {
 function botsWhy(spec) {
   const full = isObj(spec) ? fullSpec(spec) : null;
   if (!full) return null;
-  if (Array.isArray(spec.stages) || Array.isArray(full.stages)) return 'Computer players play a game in stages later';
-  if (isObj(full.get) && full.get.by === 'squares') return 'Computer players play this kind of game later';
+  // E1e: a game in stages, each stage a game they play (each stage's league seats them as the game's: stages.ts seatStage); squares,
+  // dealt or picked (bot-logic.js squarePicks).
+  const stages = Array.isArray(spec.stages) ? spec.stages : Array.isArray(full.stages) ? full.stages : null;
+  if (stages) {
+    for (const st of stages) {
+      const why = isObj(st) && isObj(st.game) ? botsWhy(st.game) : null;
+      if (why) return why;
+    }
+    return null;
+  }
   const not = (full.ask || []).filter((q) => !isCalls(q)).find((q) => !botAnswers(q));
   return not ? `Computer players don't answer "${not.ask || 'that question'}" yet` : null;
 }
 /** Whether a question's faces come from the server's facts (answers.ts factFaces): about each game, a trivia round, a side, a
  *  bracket. A person's answer and a computer player's are checked against the same ones. */
 const fromFacts = (q) => isObj(q) && (q.each === 'game' || isTrivia(q) || q.answer === 'side' || q.answer === 'bracket');
+/** E1e: whether a computer player reads a question from the server's facts: its faces (fromFacts), a game's live line kept as it
+ *  opens, or a number a game's final settles (the sport's scale, from the season's finals and the line). */
+const readsFacts = (q) => fromFacts(q) || (isObj(q) && (q.line === LINE_GAME || (q.answer === 'number' && isObj(q.settle) && q.settle.by === 'final')));
 /** L3 part 2f part 2: whether a sport's game has started (`now` ms): over, or past its start, or not before it with no start known. */
 const gameStarted = (g, now) => !!g && (g.status === 'off' || (g.listing && g.listing.startsAt ? Date.parse(g.listing.startsAt) <= now : g.status !== 'pre'));
 
@@ -1468,4 +1479,4 @@ function stakeMost(points, held, key, staking) {
   return Math.max(0, Math.floor(most));
 }
 
-module.exports = { BOT_ANSWERS, botAnswers, botsWhy, fromFacts, gameStarted, heldStakes, stakeMost, WAITING, DRAW, lineKey, readsTimeline, verdictOf, rightAnswers, pointsFor, windowPoints, wagerParts, stakeLines, unwagered, ticketVerdict, allRight, shrunk, isRight, answerProblem, spanEpisodes, pairsFrom, pairKey, windowOf, factsThrough, botKey, botCall, botRight };
+module.exports = { BOT_ANSWERS, botAnswers, botsWhy, fromFacts, readsFacts, gameStarted, heldStakes, stakeMost, WAITING, DRAW, lineKey, readsTimeline, verdictOf, rightAnswers, pointsFor, windowPoints, wagerParts, stakeLines, unwagered, ticketVerdict, allRight, shrunk, isRight, answerProblem, spanEpisodes, pairsFrom, pairKey, windowOf, factsThrough, botKey, botCall, botRight };

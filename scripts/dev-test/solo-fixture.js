@@ -1,14 +1,14 @@
 // Dev-only test bank for playing solo (docs/PLAN-new-design.md step 9 part 3): a curated show nobody plays on a couch, so
-// its seasons can have public pools and practice couches (solo.ts: a show an admin set up, its cast in, an episode to come).
+// its seasons can have public pools (solo.ts: a show an admin set up, its cast in, an episode to come).
 //
 //   "ZT Solo" (slug zt-so-solo, created_by NULL so it's curated, like a real show an admin made):
 //     season 51 airing weekly at 8 PM Eastern, Episode 6 three days from today, its cast approved (Survivor 51's faces from
 //       public/mock/showcase, never app users) in three tribes, and who went home in Episodes 1-5 accepted by an admin
-//       (results_by 'admin', so the season sync brings them to every league on it, a pool's and a practice couch's too);
+//       (results_by 'admin', so the season sync brings them to every league on it, a pool's too);
 //     season 50 finished (nothing solo to play on it).
 //   People on no couch, password zt-pass-12345: zt_so_alex (on Episode 5, caught up, follows 50 too), zt_so_riley and
-//     zt_so_jordan (on 5), zt_so_sam (on 3: behind). Nobody is in a game yet: the check makes the pool and the practice
-//     couch through the app.
+//     zt_so_jordan (on 5), zt_so_sam (on 3: behind). Nobody is in a game yet: the check makes the pool
+//     through the app.
 //
 //   node scripts/dev-test/solo-fixture.js up      create (or refresh) it, print the logins
 //   node scripts/dev-test/solo-fixture.js down    remove every row it made, and every solo game on its seasons

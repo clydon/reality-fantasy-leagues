@@ -1,7 +1,10 @@
 import StateLogic from "./state-logic.js";
 import Bots from "./bot-logic.js";
+import * as Spec from "./game-spec/index.js";
 import type { LeagueState } from "./types";
-import { BOT_NAMES } from "./practice";
+/** The computer players' first names, in order (a seventh and on gets a number: freeBotName). Were the practice couch's (retired
+ *  2026-11-18). */
+const BOT_NAMES = ["Ada", "Max", "Ivy"];
 
 // Computer players in any game (not only the practice couch, solo.ts): seats with no account that bot-logic.js plays, added
 // with Start a game's Computer players or Backstage › Members by whoever runs the game (Commissioner or Game admin). Pure, for
@@ -35,6 +38,8 @@ export const levelOf = (p: Seat): BotLevel => LEVEL_OF[p.botLevel ?? "solid"] ??
 /** Whether bot-logic.js plays this kind of game: a draft or Survival Pool, and (E1b) a game of questions every one of whose questions
  *  it answers; not calls or bingo yet. */
 export function botsPlay(s: LeagueState): boolean {
+  // E1e: a game in stages (each stage a game they play: its league seats them as the game's) and squares, by the one rule.
+  if (StateLogic.StageLogic.on(s) || StateLogic.SquaresLogic.on(s)) return !Spec.botsWhy(StateLogic.gameOf(s));
   const t = StateLogic.piecesOf(s);
   // E1c: Weekly Calls' calls are guesses, made up for them as they're graded (calls.ts botCalls).
   // And Weekly Bingo's cards, dealt by seat and ticked from what's settled (bingo.ts bingoLines).

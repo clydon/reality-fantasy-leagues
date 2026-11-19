@@ -82,13 +82,14 @@ test("who goes home: someone still in, never someone out; who wins: the best rat
   assert.equal(out.find((a) => a.question === "wins"), undefined, "who wins closed when the game started");
 });
 
-test("a closed question gets none, and a kind it doesn't answer yet gets none", () => {
+test("a closed question gets none; every answer kind the engine has is one they answer (E1e: a new kind fails here until they do)", () => {
   const s = league([OUT, TRIVIA]);
   const now = S.AnswerLogic.episodeNow(s);
   const ep = s.episodes.find((e) => e.number === now);
   ep.airsAt = new Date(Date.now() - 3600 * 1000).toISOString();
   assert.deepEqual(Bots.answers(s, [], { now: Date.now() }).filter((a) => a.question === "out"), [], "the episode has started: closed");
-  assert.ok(!Bots.answersQuestion(LINE), "an over/under on the game's own line: not yet");
+  for (const kind of Object.keys(G.VOCAB["ask.answer"])) if (kind !== "calls") assert.ok(Bots.BOT_ANSWERS ? Bots.BOT_ANSWERS.includes(kind) : Bots.ANSWERS.includes(kind), `computer players answer a ${kind}`);
+  assert.ok(Bots.answersQuestion(LINE), "an over/under on the game's own line, once its line is out (E1e)");
   assert.ok(Bots.answersQuestion(TRIVIA) && Bots.answersAll(s), "trivia: played (from the round's key)");
   assert.ok(Bots.answersQuestion(OUT) && Bots.answersQuestion(IDOL) && Bots.answersQuestion(HOW));
 });
@@ -331,9 +332,56 @@ test("a sport: a side, each game (only those still to start, ranked where it ask
   assert.deepEqual([br[0].answer[3].length, br[0].answer[2].length, br[0].answer[1].length], [4, 2, 1], "four, two, a champion");
 });
 
-test("the gallery's Computer players square says the same: on for questions they answer, dashed with the reason for the rest", () => {
+test("E1e: squares picked before the lock (dealt: nothing to do); a game's live line once it's out; a final's number on the sport's scale", () => {
+  const path = require("path");
+  const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
+  const { sportOf, specContextOf, defaultsFor } = jiti("../src/lib/sports/index.ts");
+  const nba = sportOf("basketball/nba");
+  const make = (spec) => {
+    const s = S.defaultState();
+    for (let i = 0; i < 4; i++) S.addCastaway(s, `P${i}`);
+    s.players = [{ id: "ann", name: "ann", color: "#000" }, { id: "bot0", name: "Bot", color: "#000", automated: true, botLevel: "sharp" }, { id: "bot1", name: "Bot 1", color: "#000", automated: true, botLevel: "casual" }];
+    S.updateSettings(s, "setupComplete", true);
+    assert.deepEqual(S.setGame(s, spec, { ctx: specContextOf(nba) }), []);
+    for (let n = 1; n <= 2; n++) S.ensureEpisodeNumber(s, n, false);
+    s.episodes.forEach((e) => { e.airsAt = new Date(Date.now() + 86400000 * e.number).toISOString(); });
+    return s;
+  };
+  // Squares picked: each computer player's share of the free squares, none twice, before the first lock.
+  const sq = make(defaultsFor("basketball", "nba").specs.squares.spec);
+  assert.ok(Bots.run(sq) >= 2, "both pick");
+  const picks = S.SquaresLogic.data(sq).picks;
+  const all = [...picks.bot0.cells, ...picks.bot1.cells];
+  assert.equal(new Set(all).size, all.length, "none twice");
+  assert.ok(picks.bot0.cells.length >= 1 && all.every((c) => c >= 0 && c < 100));
+  assert.equal(Bots.run(sq), 0, "picked once");
+  const dealt = make({ ...defaultsFor("basketball", "nba").specs.squares.spec, get: { by: "squares", grid: 10, take: "deal" } });
+  assert.equal(Bots.run(dealt), 0, "dealt: nothing to do");
+  // A game's live line: none before it's out, an over or under once it is.
+  const LINEQ = { id: "ou", ask: "Total points: over or under?", answer: "overUnder", points: 1, asked: "each", line: "game", closes: "start", settle: { by: "final", take: "total" } };
+  const ln = make({ spec: 1, get: { by: "none" }, score: { by: "answers" }, ask: [LINEQ] });
+  const ep = S.AnswerLogic.episodeNow(ln);
+  assert.deepEqual(Bots.answers(ln, [], { now: 0, ctx: { facts: { lines: new Map() }, faces: new Map() } }), [], "the line's not out");
+  const out = Bots.answers(ln, [], { now: 0, ctx: { facts: { lines: new Map([[G.lineKey(LINEQ, ep, ""), 221.5]]) }, faces: new Map() } });
+  assert.ok(out.length === 2 && out.every((a) => ["over", "under"].includes(a.answer)), JSON.stringify(out));
+  // A final's margin: the median of the season's finals so far, a sharp one exactly; with only a line, about its square root.
+  const MARGIN = { id: "m", ask: "By how many?", answer: "number", points: 1, asked: "each", closes: "start", settle: { by: "final", take: "margin" } };
+  const mg = make({ spec: 1, get: { by: "none" }, score: { by: "answers" }, ask: [MARGIN] });
+  const fin = (a, b) => ({ status: "final", sides: [{ id: "x", score: a }, { id: "y", score: b }], lines: {}, teams: {} });
+  const games = new Map([[1, fin(110, 100)], [2, { status: "pre", sides: [{ id: "x", score: 0 }, { id: "y", score: 0 }], lines: {}, teams: {}, listing: { name: null, startsAt: null, sides: [], line: 225 } }], [9, fin(120, 104)], [8, fin(99, 95)]]);
+  const guesses = Object.fromEntries(Bots.answers(mg, [], { now: 0, ctx: { facts: { games }, faces: new Map() } }).map((a) => [a.playerId, a.answer]));
+  assert.equal(guesses.bot0, 10, "sharp: the median margin (4, 10, 16)");
+  assert.ok(guesses.bot1 >= 7 && guesses.bot1 <= 13, `easy: near it (${guesses.bot1})`);
+  const onlyLine = new Map([[ep, { status: "pre", sides: [{ id: "x", score: 0 }, { id: "y", score: 0 }], lines: {}, teams: {}, listing: { name: null, startsAt: null, sides: [], line: 225 } }]]);
+  assert.equal(Bots.answers(mg, [], { now: 0, ctx: { facts: { games: onlyLine }, faces: new Map() } }).find((a) => a.playerId === "bot0").answer, 15, "no finals yet: the line's square root");
+  assert.deepEqual(Bots.answers(mg, [], { now: 0, ctx: { facts: { games: new Map() }, faces: new Map() } }), [], "nothing to go on: no guess");
+});
+
+test("the gallery's Computer players square says the same: every kind of game, stages and squares too (E1e)", () => {
   assert.equal(C.botsFit(game([OUT, IDOL, WINS, HOW])), null);
-  assert.match(C.botsFit(game([OUT, LINE])), /don't answer "Over or under the line\?" yet/);
+  assert.equal(C.botsFit(game([OUT, LINE])), null, "a game's live line");
+  assert.equal(C.botsFit(C.baseById("redraft").spec), null, "a game in stages");
+  assert.equal(C.botsFit({ ...C.baseById("redraft").spec, stages: [{ id: "x", name: "X", game: game([{ id: "q", ask: "Q?", answer: "made-up" }]) }] }) !== null, true, "a stage they don't play: why");
   assert.equal(C.botsFit(game([OUT, TRIVIA])), null, "trivia: played");
   assert.equal(C.botsFit(game([OUT, BET])), null, "a stake: played");
   assert.equal(C.botsFit(game([OUT, ORDER, CONF, CHIPS, PAIRS, SPLIT])), null, "an order, confidence, chips, pairs and a split: played");
