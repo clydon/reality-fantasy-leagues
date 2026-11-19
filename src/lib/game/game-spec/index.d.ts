@@ -865,6 +865,18 @@ export function wagerParts(
   o?: { worth?: number; bot?: unknown }
 ): { points: Map<string, number>; stakes: Map<string, number> };
 export function unwagered(q: Question): Question;
+/** A9, C6: someone's stakes still on the line by window ("question|episode"), and the most they can stake in one (E1b moved both
+ *  here from answers.ts, so a computer player's stake is held to them too). */
+export function heldStakes(qs: Question[], answers: { playerId: string; question: string; episode: number; answer: unknown }[], verdicts: Map<string, Verdict>, me: string, bank: { start: number } | null): Map<string, number>;
+export function stakeMost(points: number, held: Map<string, number>, key: string, staking?: Map<string, number>): number;
+/** E1: why computer players don't play a game yet, or null (the one rule the gallery, the tracker, Randomize and botsPlay read). */
+export function botsWhy(spec: GameSpec | SpecInput | null | undefined): string | null;
+/** Whether a question's faces come from the server's facts: about each game, trivia, a side, a bracket. */
+export function fromFacts(q: Question): boolean;
+/** E1e: whether a computer player reads a question from the server's facts (its faces, a game's live line, a final's scale). */
+export function readsFacts(q: Question): boolean;
+/** Whether a sport's game has started at `now` (ms). */
+export function gameStarted(g: SportsGameFacts | null | undefined, now: number): boolean;
 /** C6 part 2: how a ticket stands in one window, from its legs there. */
 export function ticketVerdict(q: Question, legs: { q: Question; v: Verdict | undefined; answers: { playerId: string; answer: unknown }[] }[], answers: { playerId: string; answer: unknown }[], facts?: AnswerFacts): Verdict;
 /** C6 part 2: a ticket a player builds from the game's other questions; its parts; its limits and defaults. */
@@ -1248,6 +1260,8 @@ export interface RollLocks {
   twists?: string[];
   /** Part of a spec held over whatever's rolled (what someone typed). */
   keep?: SpecInput;
+  /** E1d: only a game computer players play (a roll with them). */
+  bots?: boolean;
 }
 export interface RollResult {
   ok: boolean;

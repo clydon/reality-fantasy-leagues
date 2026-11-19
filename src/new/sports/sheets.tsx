@@ -6,7 +6,7 @@ import { Sheet } from "../ui/sheet";
 import { MoreAction, PlayPlate, SportsLabel, WeekRow } from "./parts";
 import { begun, useNow } from "./scores";
 import { useStartSport } from "./start";
-import { SportStartSheet, type SportTarget } from "./start-sport";
+import { SportStartHandoff, type SportTarget } from "./start-handoff";
 import { GameView, TeamView, type StartWhen } from "./team";
 
 // The sports sheets (docs/PLAN-start-a-game-gpt.md U1's sports slice): a team's (a sheet, as the user decided 2026-11-08), one of
@@ -66,7 +66,7 @@ export function SportsSheets() {
         {browse?.kind === "game" && <GameFromSchedule league={browse.league} team={browse.team} game={browse.game} />}
         {browse?.kind === "league" && <LeagueView league={browse.league} leagueName={browse.leagueName} onStarted={() => openSports(null)} />}
       </Sheet>
-      <SportStartSheet
+      <SportStartHandoff
         key={`sports-start-${n}`}
         target={view?.kind === "start" ? view.target : null}
         onOpenChange={close}

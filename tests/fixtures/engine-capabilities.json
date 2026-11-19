@@ -3076,11 +3076,57 @@
         "rulebook": "survivor"
       },
       "words": "Who goes home is a 10-point pot split between everyone right, and if you also get immunity your share doubles.",
-      "decide": "A parlay on a split pot: does it multiply your share, or your call before the split? (Recommended: your share.)",
+      "spec": {
+        "get": {
+          "by": "none"
+        },
+        "score": {
+          "by": "answers",
+          "parlays": [
+            {
+              "of": [
+                "boot",
+                "imm"
+              ],
+              "times": 2
+            }
+          ]
+        },
+        "rank": {
+          "by": "total"
+        },
+        "ask": [
+          {
+            "id": "boot",
+            "ask": "Who goes home?",
+            "answer": "person",
+            "points": 10,
+            "asked": "each",
+            "settle": {
+              "by": "results",
+              "take": "out"
+            },
+            "share": "split"
+          },
+          {
+            "id": "imm",
+            "ask": "Who wins immunity?",
+            "answer": "person",
+            "points": 2,
+            "asked": "each",
+            "settle": {
+              "by": "moment",
+              "take": "who",
+              "moment": "individualImmunity"
+            }
+          }
+        ]
+      },
+      "step": "C2",
       "dials": [
         "score"
       ],
-      "note": "A parlay on a split pot (C2 part 3's Noticed, part 4: a rule for the user): today a parlay multiplies after a window's share; the scoring sequence's order for new combinations puts multipliers before the share. Recommended: the share, then the parlay (a parlay multiplies what each leg gave you; the other way round it would grow your share of a pot everyone else shares too), as a setting if the user wants both."
+      "note": "E3 (the user's call, 2026-11-19, taking the recommendation): the share, then the parlay. The pot is split between everyone right, and a parlay that hits multiplies what you got from it, never the others' shares (the scoring sequence's order, as for a leg that rolls over or pays only the only one right)."
     },
     {
       "id": "p26",
@@ -3317,11 +3363,31 @@
         "rulebook": "survivor"
       },
       "words": "Draft a guy and a girl each, and they score together.",
-      "step": null,
+      "spec": {
+        "get": {
+          "by": "draft",
+          "each": 2,
+          "own": "shared",
+          "order": "blind",
+          "across": {
+            "of": "gender"
+          }
+        },
+        "count": {
+          "best": 2
+        },
+        "score": {
+          "by": "moments"
+        },
+        "rank": {
+          "by": "total"
+        }
+      },
+      "step": "A10",
       "dials": [
         "who"
       ],
-      "decide": "who is a guy and who is a girl: no show's cast or research records it, so the data rule refuses it (A10 part 3 built the spread, across the show's groups); whether research should record it is the user's"
+      "note": "E3: a draft spread across the cast's gender (cast properties chunk 4: get.across.of 'gender', from the season's cast properties, which record it), two each, both scoring (best ball of the whole team)."
     },
     {
       "id": "s07",

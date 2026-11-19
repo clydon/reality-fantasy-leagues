@@ -11,6 +11,90 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
+## The user's calls, 2026-11-18: the bold pass and Round 2c are the direction; build next. Their answers to every open question
+- **Approved:** "i think i agree with the direct and ready to start": the bold pass (`?start=bold`, `src/new/couch/gallery-bold/`)
+  with Round 2c's steps is the design to build; Round 2's `gallery/` stays only until the build replaces both.
+- **Hidden:** the practice couch (`PRACTICE_COUCH = false` in `src/new/show/solo.tsx`; a show's Games tab and the hub's Play on your
+  own no longer offer it; checked on the 3012 server). What the user wants instead is computer players in any game, alone or beside
+  real people: the plan's E1 (today bots play drafts and survival pools only), and Who's playing offering them in the gallery.
+- **Answered (all in decisions.md and the plans):**
+  - **How moves lock: two plain cards on every game,** "Together" and "At your own pace", built in `gallery-bold/` (the strict way
+    isn't offered; no Recommended tag; the card that starts chosen is unchanged). The story's new first section shows it.
+  - **The game preview: prove it first, then pick A or B** (docs/PLAN-game-preview.md P0); the couch's real names play beside you.
+  - **Your own moments in a draft:** about a player, whoever has that player scores; about the game, a yes or no call everyone
+    answers (E8).
+  - **The title card comes back on the game page** (B1).
+  - **The local game writer must run on a remote server production can call,** sized like a free VM (CPU only); set up and measure
+    on the PC first (W4 okayed). Kind C's direction stays: typed games free with a short ad, or paid and fast.
+- **Next, a fresh session each:** B1 (the build: saves on the account, known names into the catalog, Start that starts, computer
+  players in Who's playing, the two lock cards, the game page's title card), then E1; P0 (the preview's proof); W4 (the writer's
+  models, measured on CPU threads like a free VM's).
+
+## Start a game, where you are (Round 2c, on the bold pass): waiting on the user's review (2026-11-18, uncommitted)
+**The story: https://claude.ai/artifact/RwNsSV5pJz8Q7FuDFvTDUt.** The user approved most of the bold pass and asked for the setup
+screen's How long to read as a decision and for every view to say which part of making a game it is. Built in `gallery-bold/`:
+three named steps (Choose a game, Set it up, Start) as a step line in every view's head; the setup screen's decisions as questions
+with their answers and option cards (How long's timeline and lengths, When do moves lock with where the couch is); each sub-view
+headed by its question or job; a ready-made game as the Start step with its own Start bar. Papers: docs/design-round/wizard-r2c-steps.md,
+-check.md (PFD 68/100, Impeccable 29/40, the batch and what's open); decisions.md. Since then the lock is two plain cards (the
+user's call above), in the story's first section.
+
+## Start a game, the bold pass (Round 2b): built beside Round 2, waiting on the user's keep-or-revert (2026-11-18, uncommitted)
+**The story: https://claude.ai/artifact/7xMs5C3w67EL9c9yXD9ZBF.** The user asked for a bold pass with character and soul for shows
+and every supported sport, better readability, entry and modification, and every game type findable; mid-pass, sports with custom
+moments and a sport's Start a game that feels and navigates like a show's. Built in `src/new/couch/gallery-bold/` behind `?start=bold`
+(Round 2 stays at `?start=gallery`); a sport's season takes it too (`start-game.tsx`, before today's sport sheet). **Keep:** it replaces
+Round 2's screens (move the known names into the catalog). **Revert:** delete the folder and its two switch lines (Round 2's files are
+snapshotted in `.ui-atlas/snapshots/gallery-r2-notes-2026-11-18/`, ignored by git).
+- **Papers:** docs/design-round/wizard-r2b-spec.md (Intent), -first-view.md (PFD), -shape.md (Impeccable), -pfd-eval.md (62/100),
+  -critique.md (26/40, with what the one batch fixed and what's open); decisions.md 2026-11-18; the plan's Round 2b (E8 to E10).
+- **Sports catalog:** `src/lib/game/start-gallery/sports.json`, `sports.js`, `sports.d.ts` (48 game types, nine families);
+  `node scripts/dev-test/sport-gallery-check.js` (181 rows: 138 play, 38 coming, 5 need a page fact).
+- **Frames:** `story-start-gallery.js --bold` (shows and sports; starts the stand-in ESPN from check-sports-couch.js for the teams'
+  marks); the stand-in sports seasons come from `check-sports-couch.js --api --keep` run on rfl_castprops through the 3012 server
+  (`AUTH_DATABASE_URL=<…/rfl_castprops> BASE=http://localhost:3012`); `gallery-fixture.js` follows them when they're there.
+- **Waits on the user:** keep or revert; the title card (the game page dropped its own in step 2); Round 2's default lock; whose
+  points a couch's own moment is in a player draft.
+- **Noticed:** BACKLOG 108 (a slate's Pick'em may never grade, read in code) and 109 (levels opened at the last level's scroll).
+- **Next, the user's ask after the story: a real preview** of every game before it's made (its stages on the real screens, the
+  season's real cast with made-up results). Plan: **docs/PLAN-game-preview.md** (the explorer runs the engine half; the live tier
+  already frames real screens on development; production needs a preview database (A) or in-memory builders (B)). Waits on the
+  user's A-or-B and who plays beside you; P0, the development proof, needs no product change.
+
+## Start a game redo, Round 2 built, and the user's first notes built: waiting on their review (2026-11-18, uncommitted on `explorer-sports`)
+**The notes (2026-11-18, later), built the same day: https://claude.ai/artifact/48NzZXE1SkYabuYcWhsVVL.** A heart beside Start saves
+any game to start again (`src/new/couch/gallery/saved.ts`, this browser's localStorage until the build); the collapsed section is
+"Community and saved games" with an icon; Trivia's category is Bingo & trivia and Live calls moved to Predictions; a game's words
+follow its own draft size. Frames: `story-start-gallery.js --only=^n --out=.ui-atlas/stories/wizard-r2-notes/after`. Their big
+idea, a game writer that runs on our own machines (no bot for most typed games and changes), is **docs/PLAN-local-game-writer.md**
+with a measured spike (`scripts/dev-test/writer-spike/`, `writer-eval.js`); its W4 waits on the user's okay to install a model
+runtime on the PC.
+
+The user's gallery of bases, built in the app behind `?start=gallery` (TEMP-UI; today's wizard stays the default; it saves nothing),
+on the real Survivor 51, Below Deck 13 and The Challenge 42. **The story: https://claude.ai/artifact/KcBwn263YnZ45Yh5Xib1D5.** The plan's Round 2 "As run" has the whole record;
+in short:
+- **Code:** `src/lib/game/start-gallery/` (the catalog: bases, rows, changes, controls, each control naming the engine values it sets;
+  `bases.json` from Round 1b's checked bases), `src/new/couch/gallery/` (the sheet, parts, model, vector pictograms), the switch in
+  `start-game.tsx` StartRouter. `roll.js` exports its pieces and `pageOf`; `start-wizard.tsx` exports `PACE_WORDS`.
+- **Proof:** `node scripts/dev-test/gallery-coverage.js --page=.impeccable/mocks/wizard-r1/pages/s51.json` writes
+  `docs/design-round/wizard-r2-coverage.md` (209 of 210 values proven; 228 of 239 playing requests within 6 taps).
+- **Real data, a second dev server:** `next.config.ts` now reads `NEXT_DIST_DIR` (a second `next dev` from this folder needs its own
+  build folder: Next locks it). Started as `NEXT_DIST_DIR=.next-real AUTH_DATABASE_URL=<…/rfl_castprops> BETTER_AUTH_URL=http://localhost:3012
+  ANTHROPIC_API_KEY= LLM_BROWSER_API_URL= LLM_BROWSER_API_KEY= npx next dev -p 3012` (AI keys blanked; Next adds `.next-real` to
+  `tsconfig.json` at start: revert that before a commit). `scripts/dev-test/gallery-fixture.js up|down --db=rfl_castprops` gives the zt
+  couch marks on the real seasons (sam 1 behind, riley 2); `story-start-gallery.js [--before]` shoots the frames. **Left running:** the
+  3012 server and the fixture, so the user can try it (zt_nd_alex / zt-pass-12345, Survivor 51's Games tab, Start a game).
+- **Icons:** nano-banana couldn't run. The MCP server received an unexpanded `${GEMINI_API_KEY}` (it needs a reconnect), and the key
+  itself answers "billing account has an outstanding balance" (gemini-2.5) and "free tier limit 0" (gemini-3.1-flash-image). The
+  user is making the sheets themselves from the brief in the conversation (seven 3×3 sheets, ids per cell); they replace the vector
+  stand-ins in `icons.tsx`, saved under `public/art/generated/gallery-icons/v1/` with a manifest (docs/VISUAL-ASSETS.md).
+- **Waits on the user:** the review of both stories; one named choice (start on When you've watched it whenever the recommended
+  lock would cost someone on this couch?); the icon sheets; the writer plan's three questions (a model runtime on the PC, AI
+  access's kind C, an Oracle Arm VM).
+- **Next after the review:** the engine lane (Designs needed 33, BACKLOG 42's second part, the practice copy from a spec, E1, E6, E7),
+  then the design round's step 10 (Sports in full, which also draws the sport's gallery), then step 11. No merges on Wednesday's
+  Survivor 51 night (tonight, 2026-11-18).
+
 ## Shipped 2026-11-17: one episode at a time (the user's report from Traitors 5)
 Behind on an airing show, Tonight's progress control asks about the next episode only ("Seen Ep 9?", "Aired Nov 7 · 2 out"), its
 guard has **Up to…** (the episodes out with their air dates, then Recap Ep 9 to 12 or Skip to Ep 12), each recap's end offers the
@@ -19,6 +103,38 @@ next and your GIF slot among the couch's, Back from it is Not yet, and Live keep
 `from`). Round papers: `docs/design-round/step-through-*.md`; the story https://claude.ai/artifact/9xESHEqUcnNQHqauR6mnyD; the check
 `scripts/dev-test/check-step-through.js` and frames `story-step-through.js` on `step-fixture.js` (zt-st- rows, runs beside zt_nd).
 Noticed and left: BACKLOG 103. A standing preference from it: an episode named for someone to recognise shows when it aired.
+
+## Next: Start a game, redone (the user's priority, 2026-11-17)
+The user: "I really want to prioritize the create a game wizard. But with that probably should be remaining engine ideas, and
+related fixes. Also update the UIUX to properly display one episode/one game games. As in have some kind of game archive on a show
+so we don't show all games that ever existed (because we want to hope daily games are frequent, whether is against other players
+or against a bot)"; then: "I really don't like our current wizard so I think there's a lot of room for redesigns and mockups
+to approve. We want every and any game to be possible to create from the wizard in an easy intuitive way." **The plan:
+docs/PLAN-start-a-game-redo.md** (written 2026-11-17 on `explorer-sports`, not committed). Design leads, with a pause for the
+user's approval after each round: Round 1 directions, low-fi, three or four tried on ten tasks (xhigh); Round 2 the pick in full,
+hi-fi in the app, with a coverage table of every dial; Round 3 a show's games when short games are frequent, and the archive;
+Round 4 changing a game later. Engine steps in a lane beside them (E1 solo and the simple bot, E2 short games at scale: the show's
+page reads every game in full today, E3 the remaining engine ideas, E4 what the approved design reads), then the build (B1 to
+B4). The measure: every game the engine makes, by taps, with Describe and Randomize as shortcuts. A15 (live calls) is the round
+after (the main session's call; the user may overturn it). Also unpushed: f9100703 (the drill pass's ship notes).
+
+**Round 1 done, waiting on the user's pick (2026-11-17, uncommitted on `explorer-sports`).** The story:
+https://claude.ai/artifact/S8Xxqv7UJJ2MyLAb2mToyR (today's Start a game in 12 situations, then four low-fi directions, A the menu,
+B the sentence, C the interview, D the slip, each walked through the ten tasks: taps A 60, B 59, C 54, D 47; today reaches 3 of 10).
+Recommended: C's front with D's slip as its game screen. The round's papers: `docs/design-round/wizard-r1-{prep,spec,first-view,
+shape,directions}.md` (prep: the coverage target, the before's findings, U0's canvas, Designs needed confirmed: 28 built, 10, 21, 24,
+26, 27, 30 open), five decisions in decisions.md. Tools: `scripts/dev-test/story-start-wizard.js` (the before, reusable for Round
+2's before/after); the low-fi generators are one-offs in `.impeccable/mocks/wizard-r1/` (read-pages.js reads real wizard pages
+through the castprops lane's server; build-data.js runs every task's game through the engine; make-frames.js, make-story.js). Found:
+today's wizard reads Survivor 51's last listed episode (10) as its last, so its season is "2 eps" and Outlast and the pool vanish
+(the plan's Noticed). **Then the user added** (same day): a game library with common built-in games (BACKLOG 93's place) and an end
+goal, a silly season game about a moment the show doesn't track (who cries the most, guessed or drafted), made easily: in the plan
+as task 11, "the silly-moment test", "one game library" and E5; story version 2 adds the library and task 11 in all four (6 taps
+each, 7 for C's draft; both forms play in the engine once crying is added). **Then the user set all four aside** ("I don't see a
+simple way to do head to head or teams or betting") for their own direction: a big gallery of every base a person would name, square
+icon tiles by human category, then drill-down changes. Drawn as Round 1b: https://claude.ai/artifact/LWAkJjLjdvZNLCpMXHxRDL
+(docs/design-round/wizard-r1b-gallery.md; 56 show bases and 13 sport bases, 50 of the 56 playing as checked on Survivor 51; tasks 49
+taps against 59 to 72). Version 2 adds each change's controls (betting in full, a ticket, head to head, teams, lives, your team, scoring, one question) and the inventory of every change's inputs against the engine's ranges. Version 3 adds the user's five asks: a four-card preview of how a game plays (its third card replays an episode the viewer has seen with the game's points) with Ask the couch first, Describe as the search field with an AI interview, community games (the made-for library standing in), plain words on every base, and the game's length in each square, first on each screen and on Start's line. Version 4 answers the user's notes on it: the preview's card 3 falls back to an earlier season's episode, then to an example from the show's own moments (Below Deck 13 has no results locally); length starts and ends at the show's own stages (Survivor 51 two, Below Deck 13 three); and How it runs (live or own pace) sits under length with today's reasons when only one works. Version 5 puts the preview on the real screens: the practice round (2026-10-11) offered before the game exists, built from its spec, Next always there; made-up results use the real cast under the red tag; the story has a working sample (pick three, play Survivor 51's Episode 8). Version 6 keeps today's When moves lock (version 4's invented "How it runs" is gone), opened to show where the couch is and what each choice means for someone a day late or a couple behind, plus where a game syncs at your own pace. Version 7 draws the user's pick: closed, it names someone only when the setting would cost them a move ("riley is 2 episodes behind and would miss moves"), with the fix as one tap ("Wait for riley"). Next (the user, 2026-11-17): **Round 2 in a fresh session**, the gallery in the app at 390 with the coverage table, icons from nano-banana; the story's open questions (its last section) go to the user one at a time as Round 2 reaches them. Then the design round's step 10, Sports in full, then step 11. The engine lane runs beside Round 2, starting with what the gallery leans on: Designs needed 33 (a game in stages starting from Start a game), BACKLOG 42's second part (a choice the engine can change locally skips the bot's wait: the interview's instant answers), the practice round built from a spec (the preview), then E1 (the simple bot); the rest of E3 adds squares whenever. No merges on Wednesday 18's Survivor 51 night (also the own-pace watch night, BACKLOG 65).
 
 ## Cast properties, chunks 1 to 3 (2026-11-16; lane `castprops`: `../rfl-castprops`, branch `cast-props` from `explorer-sports` at 4ec5985e, port 3012, database `rfl_castprops`; committed, not pushed or merged; migration 0439)
 docs/PLAN-cast-properties.md, its "When" now the user's new order (cast properties beside or after step 8, the round's steps 9–12

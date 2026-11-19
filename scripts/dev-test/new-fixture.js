@@ -37,9 +37,11 @@ const PEOPLE = ["alex", "riley", "jordan", "sam", "casey"];
 const username = (who) => `zt_nd_${who}`;
 const SHOW = "zt-nd-survivor";
 const TRAITORS = "zt-nd-traitors";
-const EPISODES = 13;
-const CURSOR = 5; // results in through episode 5
-const SEEN = { alex: 5, riley: 5, jordan: 5, sam: 3 };
+// The season's shape: 13 episodes, results in through episode 5, everyone revealed through 5 but sam (3). up()'s `episodes`,
+// `through` and `seen` change it for one bring-up (short-games-fixture.js: a busy 20-episode season), the defaults for the rest.
+let EPISODES = 13;
+let CURSOR = 5; // results in through episode 5
+let SEEN = { alex: 5, riley: 5, jordan: 5, sam: 3 };
 const id = () => Array.from(crypto.randomBytes(24), (b) => "abcdefghijklmnopqrstuvwxyz0123456789"[b % 36]).join("");
 
 // The cast: Survivor 51's real castaways and the mock's photos of them (public/mock/showcase), never app users.
@@ -52,14 +54,20 @@ const FACES = [
 const nameOf = (slug) => slug.split("-").map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
 // Three starting tribes, dealt in turn (the demo builder merges them at episode 6).
 const TRIBES = [["toka", "Toka", "#e0b23a"], ["savu", "Savu", "#9b6bd0"], ["dina", "Dina", "#f3214a"]];
-const data = {
-  id: "zt-nd", showId: SHOW, showName: "ZT Survivor", seasonName: "ZT Survivor 51", episodeCount: EPISODES,
-  players: ["alex", "riley", "jordan", "sam"].map((key) => ({ key, name: key, color: "#888" })),
-  groups: TRIBES.map(([key, name, color]) => ({ key, name, color })),
-  castaways: FACES.map((slug, i) => ({
-    key: `k${i}`, name: nameOf(slug), placement: i + 1, photoUrl: `/mock/showcase/img/survivor-51/${slug}.jpg`, groupKey: TRIBES[i % 3][0],
-    exitEpisode: Math.min(i + 1, EPISODES), exitMethod: i === 17 ? "Sole Survivor" : "Voted Out",
-  })),
+// A longer season (more than 17 episodes) adds made-up castaways after the real 18, no photos, so someone goes home each episode.
+const MORE = ["Quinn Ash", "Remy Bell", "Sage Cole", "Tess Dunn", "Uri Eke", "Vida Faye", "Wes Gale", "Xan Hart", "Yuki Iles", "Zane Joy", "Abe Kerr", "Bo Lane", "Cy Moss"];
+const castOf = () => [...FACES.map((slug) => ({ name: nameOf(slug), photo: `/mock/showcase/img/survivor-51/${slug}.jpg` })), ...MORE.slice(0, Math.max(0, EPISODES + 1 - FACES.length)).map((name) => ({ name, photo: null }))];
+const dataOf = () => {
+  const cast = castOf();
+  return {
+    id: "zt-nd", showId: SHOW, showName: "ZT Survivor", seasonName: "ZT Survivor 51", episodeCount: EPISODES,
+    players: ["alex", "riley", "jordan", "sam"].map((key) => ({ key, name: key, color: "#888" })),
+    groups: TRIBES.map(([key, name, color]) => ({ key, name, color })),
+    castaways: cast.map((c, i) => ({
+      key: `k${i}`, name: c.name, placement: i + 1, photoUrl: c.photo, groupKey: TRIBES[i % 3][0],
+      exitEpisode: Math.min(i + 1, EPISODES), exitMethod: i === cast.length - 1 ? "Sole Survivor" : "Voted Out",
+    })),
+  };
 };
 
 // The zt Traitors' cast (step 3's stats guard), made-up people: its wiki-style cast carries the faction as a tribe,
@@ -145,8 +153,12 @@ async function down(pool) {
   await pool.query(`DELETE FROM "user" WHERE username LIKE 'zt\\_nd\\_%'`); // sessions, accounts, follows cascade
 }
 
-async function up(pool, { art = false } = {}) {
+async function up(pool, { art = false, episodes = 13, through = 5, seen = null } = {}) {
   await down(pool);
+  EPISODES = episodes;
+  CURSOR = through;
+  SEEN = seen || (episodes === 13 && through === 5 ? { alex: 5, riley: 5, jordan: 5, sam: 3 } : { alex: through, riley: through, jordan: through, sam: Math.max(0, through - 2) });
+  const data = dataOf();
   const { hashPassword } = await import("better-auth/crypto");
   const hash = await hashPassword(PASSWORD);
   const one = async (sql, params) => (await pool.query(sql, params)).rows[0];
@@ -163,12 +175,12 @@ async function up(pool, { art = false } = {}) {
     ]);
   }
 
-  // Episode 6 airs three days from today at 8 PM Eastern: the premiere was five weeks before that.
+  // The episode after the results (Episode 6 by default) airs three days from today at 8 PM Eastern, weekly from the premiere.
   const show = (await one(`INSERT INTO shows (slug, name, created_by) VALUES ($1, 'ZT Survivor', $2) RETURNING id`, [SHOW, users.alex])).id;
   const season = (await one(
     `INSERT INTO show_seasons (show_id, season_number, name, status, premiere_date, air_time, air_tz, episode_minutes, episode_count)
-     VALUES ($1, 51, 'ZT Survivor 51', 'airing', current_date + 3 - 35, '20:00', 'America/New_York', 90, $2) RETURNING id`,
-    [show, EPISODES]
+     VALUES ($1, 51, 'ZT Survivor 51', 'airing', current_date + 3 - $3::int, '20:00', 'America/New_York', 90, $2) RETURNING id`,
+    [show, EPISODES, 7 * CURSOR]
   )).id;
   const traitorsShow = (await one(`INSERT INTO shows (slug, name, format, created_by) VALUES ($1, 'ZT Traitors', 'traitors', $2) RETURNING id`, [TRAITORS, users.alex])).id;
   const traitorsSeason = (await one(
@@ -209,9 +221,9 @@ async function up(pool, { art = false } = {}) {
   // The season's cast and its accepted results through episode 5 (the stats count these: season-stats.ts), from the
   // lineup league's own, so both agree. Results by leagues (the column's default), so no league is synced from them.
   const lineupState = (await one(`SELECT state FROM leagues WHERE id = $1`, [leagues.lineup])).state;
-  for (const [i, slug] of FACES.entries()) {
+  for (const [i, c] of castOf().entries()) {
     await pool.query(`INSERT INTO season_cast (season_id, name, tribe_name, photo_url, sort_order) VALUES ($1, $2, $3, $4, $5)`, [
-      season, nameOf(slug), TRIBES[i % 3][1], `/mock/showcase/img/survivor-51/${slug}.jpg`, i,
+      season, c.name, TRIBES[i % 3][1], c.photo, i,
     ]);
   }
   await pool.query(`UPDATE show_seasons SET cast_approved_at = now() WHERE id = $1`, [season]);
@@ -239,7 +251,7 @@ async function up(pool, { art = false } = {}) {
 
   await seedChat(pool, { couch, season, traitorsSeason, leagues, users });
 
-  console.log(`[zt] up: sign in as ${PEOPLE.map(username).join(" / ")} (password ${PASSWORD}); couch "ZT Survivor 51", 3 linked leagues, episode 6 in 3 days`);
+  console.log(`[zt] up: sign in as ${PEOPLE.map(username).join(" / ")} (password ${PASSWORD}); couch "ZT Survivor 51", 3 linked leagues, episode ${CURSOR + 1} in 3 days`);
   // Bingo's squares (docs/PLAN-bingo-bank.md): a season bank of eight, so every card has the same eight in its own places and two
   // people can back each other up on any square. A check that wants other banks files its own (bingo-fixture.js).
   await require("./bingo-fixture").up(pool, season, null, { likely: 3, maybe: 4, longshot: 1 });
@@ -313,7 +325,14 @@ async function sideGame(pool, on = true) {
   if (!lineup) throw new Error("new-fixture.js isn't up");
   const who = ["riley", "jordan", "sam"];
   const ids = Object.fromEntries((await pool.query(`SELECT id, username FROM "user" WHERE username = ANY($1::text[])`, [who.map(username)])).rows.map((r) => [r.username.slice(6), r.id]));
-  const state = JSON.parse(JSON.stringify(buildDemoState({ ...data, players: who.map((key) => ({ key, name: key, color: "#888" })) }, "active-roster", CURSOR)));
+  // The season's shape as it is in the database (another process's up() may have made it longer: short-games-fixture.js).
+  const season = await one(`SELECT ss.episode_count FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE s.slug = $1`, [SHOW]);
+  const lineupState = (await one(`SELECT state FROM leagues WHERE slug = 'zt-nd-lineup'`)).state;
+  EPISODES = season.episode_count;
+  CURSOR = S.SpoilerLogic.latestWithResults(lineupState);
+  const marks = (await pool.query(`SELECT u.username, m.results_seen_through FROM league_memberships m JOIN "user" u ON u.id = m.user_id JOIN leagues l ON l.id = m.league_id WHERE l.slug = 'zt-nd-lineup'`)).rows;
+  SEEN = Object.fromEntries(marks.map((r) => [r.username.slice(6), r.results_seen_through]));
+  const state = JSON.parse(JSON.stringify(buildDemoState({ ...dataOf(), players: who.map((key) => ({ key, name: key, color: "#888" })) }, "active-roster", CURSOR)));
   S.migrateLeagueState(state);
   state.settings.showId = SHOW;
   state.settings.wikiSeason = 51;
@@ -326,7 +345,10 @@ async function sideGame(pool, on = true) {
   return leagueId;
 }
 
-module.exports = { up, down, sideGame, PEOPLE, PASSWORD, username, CHAT, TRAITORS_CHAT };
+/** The season's shape as the last up() made it (short-games-fixture.js builds its games on it). */
+const shape = () => ({ episodes: EPISODES, through: CURSOR, seen: { ...SEEN }, data: dataOf(), SHOW });
+
+module.exports = { up, down, sideGame, shape, PEOPLE, PASSWORD, username, CHAT, TRAITORS_CHAT };
 
 if (require.main === module) {
   if (!/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(DB)) throw new Error("new-fixture runs against a local database only");

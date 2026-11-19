@@ -14,6 +14,7 @@ import { resolveFormat } from "@db/show-formats.js";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { requireCouch } from "./couches";
 import { HttpError, pool } from "./db";
+import { fnvUnit } from "@/lib/game/fnv.js";
 import { EVERYTHING, seenThrough } from "./guard";
 import { LEAGUE_SEASON_JOIN } from "./league-season";
 import { latestAired, seasonSchedules, type SeasonSchedule } from "./schedule";
@@ -476,21 +477,32 @@ export async function callEpisode(
 export async function callRights(
   seasonId: string,
   userIds: string[],
-  opts: { from: number; through: number; couchId: string | null; only?: (key: string) => boolean; book?: CallBook; byEpisode?: Map<number, Map<string, number>> }
+  opts: { from: number; through: number; couchId: string | null; only?: (key: string) => boolean; book?: CallBook; byEpisode?: Map<number, Map<string, number>>; bots?: { playerId: string; level: string | undefined }[] }
 ): Promise<Map<string, number>> {
   const out = new Map<string, number>();
   const upTo = Number.isFinite(opts.through) ? opts.through : 100000;
-  if (!userIds.length || upTo < Math.max(1, opts.from)) return out;
-  const { rows } = await pool.query(
-    "SELECT user_id, episode, question, answer FROM episode_calls WHERE season_id = $1 AND user_id = ANY($2::text[]) AND episode BETWEEN $3 AND $4",
-    [seasonId, userIds, Math.max(1, opts.from), upTo]
-  );
+  const bots = opts.bots ?? [];
+  if ((!userIds.length && !bots.length) || upTo < Math.max(1, opts.from)) return out;
+  const { rows } = userIds.length
+    ? await pool.query("SELECT user_id, episode, question, answer FROM episode_calls WHERE season_id = $1 AND user_id = ANY($2::text[]) AND episode BETWEEN $3 AND $4", [
+        seasonId,
+        userIds,
+        Math.max(1, opts.from),
+        upTo,
+      ])
+    : { rows: [] as { user_id: string; episode: number; question: string; answer: string }[] };
   const calls: MadeCall[] = rows.map((r) => ({ userId: r.user_id, episode: r.episode, key: r.question, answer: r.answer }));
-  if (!calls.length) return out;
   const book = opts.book ?? (await seasonBook(seasonId));
   const talk = kindOf(book.blocks) === "talk";
+  const factsAll = talk || !bots.length ? null : await episodeFacts(seasonId, book, upTo);
+  // E1c: computer players' calls, guessed (the user, 2026-11-18: "calls are guesses so that could be essentially randomized"), the
+  // same on every read: made up here as each episode is graded, by the seat (their tally's id), never stored.
+  // (Bounded by the season's latest aired episode too: with no mark and no end, upTo is open-ended, and a talk show or a season with
+  // no results yet has no facts to bound it, so it guessed up to episode 100,000 on every read. The branch review, 2026-11-19.)
+  if (bots.length) calls.push(...(await botCalls(seasonId, book, bots, Math.max(1, opts.from), Math.min(upTo, latestEpisodeIn(factsAll, upTo), await latestAiredEpisode(seasonId)), factsAll)));
+  if (!calls.length) return out;
   const episodes = [...new Set(calls.map((c) => c.episode))];
-  const facts = talk ? new Map<number, EpisodeFacts>() : await episodeFacts(seasonId, book, upTo);
+  const facts = talk ? new Map<number, EpisodeFacts>() : (factsAll ?? (await episodeFacts(seasonId, book, upTo)));
   // A talk show's calls are settled by what the couch says (its people who share the show); with no couch, by your own say.
   const said = new Map<string, "yes" | "no" | null>();
   if (talk) {
@@ -504,6 +516,49 @@ export async function callRights(
   // Each call against its own verdict (a talk show with no couch settles each person's by their own say).
   const right = calls.filter((c) => !(opts.only && !opts.only(c.key)) && isRight(verdictFor(c), c.answer));
   return Seq.tally(right.map((c) => ({ id: c.userId, episode: c.episode, n: 1 })), opts.byEpisode);
+}
+
+/** The season's latest episode that has aired (0 when none has): how far computer players' calls can go. */
+async function latestAiredEpisode(seasonId: string): Promise<number> {
+  const { rows } = await pool.query("SELECT max(number) AS n FROM season_episodes WHERE season_id = $1 AND air_at IS NOT NULL AND air_at <= now()", [seasonId]);
+  return Number(rows[0]?.n) || 0;
+}
+
+/** The last episode facts reach (what's been graded so far), else `upTo`. */
+function latestEpisodeIn(facts: Map<number, EpisodeFacts> | null, upTo: number): number {
+  if (!facts || !facts.size) return upTo;
+  return Math.min(upTo, Math.max(...facts.keys()));
+}
+
+/** A seat's guess, the same every time: FNV-1a over what it's a guess about, scaled to [0, 1) (fnv.js, the one copy). */
+const guessOf = (text: string): number => fnvUnit(text);
+
+/**
+ * Computer players' calls (E1c), episode by episode from `from` through `to`: who goes home, someone still in before that episode
+ * (the season's results so far), at random; each other call yes or no, a sharp player leaning to no (most things don't happen), a
+ * casual one even. Deterministic by seat, episode and question, so they never change once graded.
+ */
+async function botCalls(seasonId: string, book: CallBook, bots: { playerId: string; level: string | undefined }[], from: number, to: number, facts: Map<number, EpisodeFacts> | null): Promise<MadeCall[]> {
+  if (to < from) return [];
+  const cast = await castOf(seasonId);
+  const out: MadeCall[] = [];
+  const gone = new Set<string>();
+  for (let n = 1; n <= to; n++) {
+    if (n >= from) {
+      const keys = callKeys(book, n, cast.length > 0);
+      const still = cast.filter((c) => !gone.has(c.id));
+      for (const b of bots) {
+        const lean = b.level === "sharp" ? 0.3 : b.level === "casual" ? 0.5 : 0.4;
+        for (const key of keys) {
+          const g = guessOf(`${b.playerId}|${n}|${key}`);
+          const answer = key === "out" ? still[Math.floor(g * still.length)]?.id : g < lean ? "yes" : "no";
+          if (answer) out.push({ userId: b.playerId, episode: n, key, answer });
+        }
+      }
+    }
+    for (const id of facts?.get(n)?.out ?? []) gone.add(id);
+  }
+  return out;
 }
 
 /** Your calls on the open episode (how many of its questions you've called, of how many), for a Weekly Calls move. */
@@ -549,6 +604,9 @@ export async function leagueCalls(o: {
   const through = Math.min(o.mark ?? Number.POSITIVE_INFINITY, end ?? Number.POSITIVE_INFINITY);
   const book = o.book ?? (await seasonBook(o.seasonId));
   const userIds = o.state.players.map((p) => o.userOf(p.id)).filter((id): id is string => !!id);
+  // E1c: Weekly Calls' computer players call too (their tally is by seat); a pool's Who goes home? is a person's alone.
+  const bots = calls && !pooled ? (o.state.players as (LeagueState["players"][number] & { botLevel?: string })[]).filter((p) => p.automated && !p.disabled).map((p) => ({ playerId: p.id, level: p.botLevel })) : [];
+  const tallyOf = (p: string) => o.userOf(p) ?? (bots.some((b) => b.playerId === p) ? p : null);
   // A game waiting for its phase (step A3 of docs/PLAN-start-a-game-gpt.md) has no calls of its own yet: nothing counts, and
   // there's nothing to call for it.
   const start = StateLogic.startEpisode(o.state);
@@ -557,8 +615,8 @@ export async function leagueCalls(o: {
   const rights =
     start === null
       ? new Map<string, number>()
-      : await callRights(o.seasonId, userIds, { from: start, through, couchId: calls ? o.couchId : null, only: pooled ? (k) => k === "out" : undefined, book, byEpisode });
-  const right = (p: string) => rights.get(o.userOf(p) ?? "") ?? 0;
+      : await callRights(o.seasonId, userIds, { from: start, through, couchId: calls ? o.couchId : null, only: pooled ? (k) => k === "out" : undefined, book, byEpisode, bots });
+  const right = (p: string) => rights.get(tallyOf(p) ?? "") ?? 0;
   if (pooled) {
     if (!o.playerId) return { right, move: null };
     const view = StateLogic.GhostLogic.viewFor(o.state, o.playerId, o.mark);
@@ -584,7 +642,7 @@ export async function leagueCalls(o: {
   const aired = latestAired(schedule, now);
   return {
     right,
-    episodes: episodesByPlayer(o.state.players, o.userOf, byEpisode),
+    episodes: episodesByPlayer(o.state.players, tallyOf, byEpisode),
     through: Math.min(through, aired),
     ended: endedThrough(schedule, Math.min(through, aired), end),
     // Past a span's last show there's nothing left to call for this game.

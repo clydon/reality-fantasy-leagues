@@ -4,7 +4,9 @@ import type { LeagueState } from "@/lib/game/types";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { dropBlindPicksForPlayer } from "./blind-draft";
 import { plainChange } from "./change-log";
+import type { PoolClient } from "pg";
 import { withLeagueLock, HttpError } from "./db";
+import { stagesBegun } from "./stages";
 import { couchGames } from "./league-changes";
 
 // Computer players in a couch's games (src/lib/game/computer-players.ts has the rules): Backstage › Members lists each game's,
@@ -58,6 +60,13 @@ export type BotAction = { leagueId?: unknown; action?: unknown; level?: unknown;
  * add { level }: a computer player joins (named after nobody here). level { playerId, level }: how sharp it plays.
  * remove { playerId } or { all: true }: they go, never while the draft's open.
  */
+/** E1e: a game in stages has no draft of its own to go by; once any stage has begun (its draft, or results), computer players neither
+ *  join nor go (a stage's open draft would shift under whoever's waiting). Null otherwise. */
+async function stagesProblem(s: LeagueState, client: PoolClient, leagueId: string): Promise<string | null> {
+  if (!StateLogic.StageLogic.on(s)) return null;
+  return (await stagesBegun(client, leagueId)) ? "The game's stages have begun: computer players join or go before they do" : null;
+}
+
 export async function changeBots(user: SessionUser, seasonId: string, couchId: string | null, body: BotAction): Promise<{ names: string[] }> {
   const leagueId = await yours(user, seasonId, couchId, body.leagueId);
   const names: string[] = [];
@@ -65,9 +74,9 @@ export async function changeBots(user: SessionUser, seasonId: string, couchId: s
     const level = isLevel(body.level) ? body.level : "normal";
     await withLeagueLock(
       leagueId,
-      (s) => {
+      async (s, client) => {
         if (!botsPlay(s)) throw new HttpError(409, "Computer players don't play this game");
-        const problem = addProblem(s);
+        const problem = addProblem(s) ?? (await stagesProblem(s, client, leagueId));
         if (problem) throw new HttpError(409, problem);
         names.push(addBot(s, level).name);
       },
@@ -90,7 +99,7 @@ export async function changeBots(user: SessionUser, seasonId: string, couchId: s
     await withLeagueLock(
       leagueId,
       async (s, client) => {
-        const problem = removeProblem(s);
+        const problem = removeProblem(s) ?? (await stagesProblem(s, client, leagueId));
         if (problem) throw new HttpError(409, problem);
         const out = botsIn(s).filter((p) => body.all === true || p.id === body.playerId);
         if (!out.length) throw new HttpError(404, body.all === true ? "There are no computer players in this game" : "That computer player isn't in this game");

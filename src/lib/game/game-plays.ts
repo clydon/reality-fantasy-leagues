@@ -18,6 +18,36 @@ export type GridKind = "points" | "pick" | "result" | "won" | "lives" | "race" |
 /** What an episode's block shows, by how the game is played (the census's week; a game can have two: a pick and its answers). */
 export type BlockKind = "lineup" | "counted" | "boots" | "team" | "pick" | "picks" | "card" | "squares" | "slate" | "calls" | "answers";
 
+/**
+ * A pool's night beyond right or wrong (Round 5, B2: the explorer plan's Designs needed 26, 27 and 29), from the engine's history
+ * row (PickEmLogic.stepper): a second pick (`void`: it didn't count, one went home), a wrong pick a mulligan forgave, a night that
+ * emptied the lives and ended in a buy-back (`boughtBack`: what it cost), a life lost, and a night skipped (nobody left they hadn't
+ * picked). Each left out when it didn't happen.
+ */
+export interface PickNight {
+  second?: { id: string; correct: boolean | null; void: boolean };
+  forgiven?: boolean;
+  boughtBack?: number;
+  lifeLost?: boolean;
+  skipped?: boolean;
+}
+/** A pool's night in one kind (Round 5, B2): its outcome, a wrong second pick that counted included; null while it's undecided. */
+export type NightKind = "stayed" | "home" | "missed" | "forgiven" | "bought" | "skipped";
+export function nightKind(pk: { id?: string | null; correct: boolean | null } & PickNight): NightKind | null {
+  if (pk.skipped) return "skipped";
+  const second = pk.second && !pk.second.void ? pk.second.correct : null;
+  if (pk.correct === null && second === null) return null;
+  if (pk.correct !== false && second !== false) return "stayed";
+  if (typeof pk.boughtBack === "number") return "bought";
+  if (pk.forgiven) return "forgiven";
+  // No pick that night (a miss), never someone voted out.
+  if (!pk.id && pk.correct === false) return "missed";
+  return "home";
+}
+
+/** A pool's pick as a row carries it: who, whether they stayed, and the night beyond it. */
+export type RowPick = { episode: number; castawayId: string | null; correct: boolean | null } & PickNight;
+
 export interface Square {
   episode: number;
   /** What the episode added for them (points, a count of lines or right calls); null: they weren't in the game for it. */
@@ -29,7 +59,7 @@ export interface Square {
   /** Weeks won: their side won it. */
   won?: boolean;
   /** A pool's pick: who, and whether they stayed (null: not decided yet, your own only). */
-  pick?: { id: string | null; correct: boolean | null };
+  pick?: { id: string | null; correct: boolean | null } & PickNight;
   /** Head to head: won, lost or tied, both scores and who against (a seat's player id, or a team's name; null: a bye, the median). */
   result?: { r: "W" | "L" | "T"; us: number; them: number | null; against: string | null; median: boolean; round: number | null };
   /** Outlast: who they held going into it, and who of them left in it. */
@@ -83,7 +113,7 @@ export function kindsOf(spec: Obj): { kind: GridKind; blocks: BlockKind[] } {
 
 export interface PlaysIn {
   /** The table's rows (their ids, a pool's picks, a lineup's weeks), in its order. */
-  rows: { playerId: string; picks: { episode: number; castawayId: string | null; correct: boolean | null }[]; weeks: { episode: number; total: number }[] }[];
+  rows: { playerId: string; picks: RowPick[]; weeks: { episode: number; total: number }[] }[];
   /** The latest episode the game counts as far as you've seen (GameView.through). */
   through: number;
   /** What the server counted outside the state, each episode's by player (a game of questions, Weekly Calls, bingo). */
@@ -164,7 +194,10 @@ export function playsOf(view: LeagueState, i: PlaysIn): GamePlays {
       if (view.episodes.find((e) => e.number === n)?.lateSet?.[r.playerId]) sq.late = true;
       if (kind === "pick") {
         const pk = picks.get(n);
-        if (pk) sq.pick = { id: pk.castawayId, correct: pk.correct };
+        if (pk) {
+          const { castawayId, correct, second, forgiven, boughtBack, lifeLost, skipped } = pk;
+          sq.pick = { id: castawayId, correct, second, forgiven, boughtBack, lifeLost, skipped };
+        }
       }
       if (results) {
         const res = results.get(n)?.get(side(r.playerId) ?? "");

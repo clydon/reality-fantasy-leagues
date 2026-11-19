@@ -312,3 +312,18 @@ test("a part the game needs that the draft left out takes our default (a preset'
   assert.ok(r.fixed.some((f) => f.part === "get.each") && r.ask.some((a) => a.part === "get.each"), JSON.stringify(r.fixed));
   assert.ok(r.fixed.some((f) => f.part === "count") && r.ask.some((a) => a.part === "count"), JSON.stringify(r.fixed));
 });
+
+test("computer players they ask for ride beside the game (E1d): a count only from their words, up to five; normal unless they say", () => {
+  const ctx = B.ctxOf(survivor);
+  const heard = (words, bots) => W.checkDraft({ game: { preset: "outlast" }, bots }, { ctx, words });
+  assert.deepEqual(heard("an outlast against a bot", { n: 1 }).offers.bots, { n: 1, level: "normal" });
+  assert.deepEqual(heard("an outlast with two sharp bots", { n: 2, level: "sharp" }).offers.bots, { n: 2, level: "sharp" });
+  const made = heard("an outlast with some bots", { n: 3, level: "hard" });
+  assert.deepEqual(made.offers.bots, { n: 1, level: "normal" }, "a number they didn't say, a level that isn't one");
+  assert.ok(made.dropped.some((d) => d.part === "bots.n"));
+  const nine = heard("an outlast with nine bots", { n: 9 });
+  assert.deepEqual(nine.offers.bots, { n: 5, level: "normal" }, "up to five");
+  assert.ok(nine.dropped.some((d) => d.part === "bots.n" && /five/.test(d.why)));
+  assert.equal(heard("an outlast", null).offers.bots, undefined, "none asked, none offered");
+  assert.ok(!("bots" in heard("an outlast with two bots", { n: 2 }).spec), "never in the game");
+});

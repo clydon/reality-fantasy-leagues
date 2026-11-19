@@ -1,17 +1,18 @@
 "use client";
 
-import { keepPreviousData, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useSyncExternalStore } from "react";
 import { api, phoneTimeZone } from "@/lib/api";
 import type { GameView, WeekProgress } from "@/lib/game/game-view";
 import type { HowItWorks } from "@/lib/game/formats/rulebook-describe";
 import type { SeasonEpisodes, SeasonReveal } from "@/lib/server/season-episodes";
+import type { ArchivedGame, SeasonRecord } from "@/lib/server/season-games";
 import type { SeasonStats } from "@/lib/server/season-stats";
 import type { ChatLine, CouchChat } from "@/lib/server/couch-chat";
 import type { Backstage, Chosen, PasteResult } from "@/lib/server/backstage";
 import type { EpisodeResults } from "@/lib/server/episode-results";
 import type { CatalogSeason } from "@/lib/server/way-in";
-import type { BotLevel, PoolInfo, PracticeGame, PracticeInfo, SoloSeason } from "@/lib/server/solo";
+import type { BotLevel, PoolInfo, SoloSeason } from "@/lib/server/solo";
 import type { ChangeLine } from "@/lib/server/league-changes";
 import type { PreviewLine } from "@/lib/game/results-changes";
 import type { WaiverWeek } from "@/lib/game/waiver-view";
@@ -38,6 +39,7 @@ import type { ListingSeason } from "@/lib/server/listings";
 import type { MakeState } from "@/lib/server/make-game";
 import type { Started, StartOptions } from "@/lib/server/start-game";
 import type { SpecStarted, WizardOptions } from "@/lib/server/start-spec";
+import type { SavedGame } from "@/lib/server/saved-games";
 import type { GameWordsResult } from "@/lib/server/game-words";
 import type { DeletePreview, EndGame } from "@/lib/server/end-game";
 import type { HiddenShow, WeekEpisode } from "@/lib/server/guide";
@@ -87,7 +89,7 @@ export type { EarlyNight } from "@/lib/server/season-episodes";
 export type { CouchInvite, CouchSeason, JoinGame, JoinOptions, LeaveCouch } from "@/lib/server/couch-joins";
 export type { CatchUpReveal } from "@/lib/server/season-episodes";
 export type { CallMove } from "@/lib/game/game-view";
-export type { BotLevel, PoolInfo, PracticeGame, PracticeInfo, SoloSeason } from "@/lib/server/solo";
+export type { BotLevel, PoolInfo, SoloSeason } from "@/lib/server/solo";
 export type { MakeReview, MakeState } from "@/lib/server/make-game";
 export type { StartChoice, Started, StartOptions, StartQuestion } from "@/lib/server/start-game";
 export type { SpecStarted, WizardOptions, WizardPage } from "@/lib/server/start-spec";
@@ -319,12 +321,64 @@ export function useSpace(seasonId: string, couchId: string | null, enabled = tru
   });
 }
 
-/** Your games on a show (GET /api/seasons/[id]/games): moves, tables, rules and cast, as far as you've seen. */
+/** Your games on a show that are on (GET /api/seasons/[id]/games?running=1): moves, tables, rules and cast, as far as you've seen.
+ *  B3 (Round 3): a finished game with an end of its own is the archive's (useSeasonArchive), read only when its page opens
+ *  (useSeasonGame); season-long games and stages stay, over or not. */
 export function useSeasonGames(seasonId: string, couchId: string | null, enabled = true) {
-  const query = couchId ? `?couch=${encodeURIComponent(couchId)}` : "";
+  const query = `?running=1${couchId ? `&couch=${encodeURIComponent(couchId)}` : ""}`;
   return useQuery({
     queryKey: ["new-design", "games", seasonId, couchId],
-    queryFn: () => get<{ seenThrough: number | null; games: GameView[] }>(`/api/seasons/${seasonId}/games${query}`),
+    // Each game's computer players, kept for their faces (ui/bot-seats.ts: a robot wherever their seat's face is drawn).
+    queryFn: () =>
+      get<{ seenThrough: number | null; games: GameView[] }>(`/api/seasons/${seasonId}/games${query}`).then((r) => {
+        markBotSeats((r.games ?? []).flatMap((g) => (g.table ?? []).filter((x) => x.bot).map((x) => x.playerId)));
+        return r;
+      }),
+    staleTime: 60_000,
+    enabled,
+  });
+}
+
+export type { ArchivedGame, SeasonRecord };
+export interface ArchivePage {
+  seenThrough: number | null;
+  games: ArchivedGame[];
+  more: boolean;
+  /** The next page's `before` (null on the last page). */
+  next: number | null;
+  kinds?: { kind: string; n: number }[];
+  record?: SeasonRecord;
+}
+
+/**
+ * Round 3's archive (GET /api/seasons/[id]/archive): your finished games on a show as far as you've seen, newest first, a page at a
+ * time (`before` the last page's oldest episode); the first page carries your record and the kinds (`record=1`). `kind`: one kind.
+ * `enabled`: the Games tab's results block reads only the first page.
+ */
+export function useSeasonArchive(seasonId: string, couchId: string | null, kind: string | null = null, enabled = true) {
+  return useInfiniteQuery({
+    queryKey: ["new-design", "archive", seasonId, couchId, kind],
+    queryFn: ({ pageParam }) => {
+      const q = new URLSearchParams();
+      if (couchId) q.set("couch", couchId);
+      if (kind) q.set("kind", kind);
+      if (pageParam != null) q.set("before", String(pageParam));
+      else q.set("record", "1");
+      return get<ArchivePage>(`/api/seasons/${seasonId}/archive?${q}`);
+    },
+    initialPageParam: null as number | null,
+    getNextPageParam: (last) => (last.more && last.next != null ? last.next : undefined),
+    staleTime: 60_000,
+    enabled: enabled && !!seasonId,
+  });
+}
+
+/** One of your games by its id (GET .../games?only=), for a finished game's page opened from the archive (B3): the running read
+ *  doesn't carry it. */
+export function useSeasonGame(seasonId: string, couchId: string | null, leagueId: string, enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "game", seasonId, couchId, leagueId],
+    queryFn: () => get<{ seenThrough: number | null; games: GameView[] }>(`/api/seasons/${seasonId}/games?only=${encodeURIComponent(leagueId)}${couchId ? `&couch=${encodeURIComponent(couchId)}` : ""}`),
     staleTime: 60_000,
     enabled,
   });
@@ -543,8 +597,14 @@ async function send(path: string, method: "PUT" | "POST" | "PATCH" | "DELETE", b
 const episode = (leagueId: string, epId: string) => `/api/leagues/${leagueId}/episodes/${encodeURIComponent(epId)}`;
 
 export const moves = {
-  lineup: (leagueId: string, epId: string, playerId: string, castawayIds: string[]) =>
-    send(`${episode(leagueId, epId)}/lineups/${encodeURIComponent(playerId)}`, "PUT", { castawayIds }),
+  // Round 5 (B2): `captainId` names the captain with the lineup (null: none); left out, the captain stays as it is.
+  lineup: (leagueId: string, epId: string, playerId: string, castawayIds: string[], captainId?: string | null) =>
+    send(`${episode(leagueId, epId)}/lineups/${encodeURIComponent(playerId)}`, "PUT", captainId === undefined ? { castawayIds } : { castawayIds, captainId }),
+  // Round 5 (B2): a pool's second pick, beside a first already made (null takes it back).
+  second: (leagueId: string, epId: string, playerId: string, castawayId: string | null) =>
+    castawayId
+      ? send(`${episode(leagueId, epId)}/picks`, "PUT", { playerId, castawayId, second: true })
+      : send(`${episode(leagueId, epId)}/picks/${encodeURIComponent(playerId)}?second=1`, "DELETE"),
   // Several at once (a game picking get.each per episode) go as castawayIds, the whole pick in order.
   pick: (leagueId: string, epId: string, playerId: string, castawayId: string | string[]) =>
     send(`${episode(leagueId, epId)}/picks`, "PUT", Array.isArray(castawayId) ? { playerId, castawayIds: castawayId } : { playerId, castawayId }),
@@ -783,7 +843,7 @@ function useBs<T>(page: string, seasonId: string, couchId: string | null, enable
 }
 
 export const useWaiversAdmin = (seasonId: string, couchId: string | null) => useBs<{ games: WaiverAdminGame[] }>("waivers", seasonId, couchId);
-export const useGameSettings = (seasonId: string, couchId: string | null) => useBs<{ games: GameSettings[] }>("settings", seasonId, couchId);
+export const useGameSettings = (seasonId: string, couchId: string | null, enabled = true) => useBs<{ games: GameSettings[] }>("settings", seasonId, couchId, enabled);
 export const useScoringRules = (seasonId: string, couchId: string | null) => useBs<ScoringRules>("rules", seasonId, couchId);
 export const useMembers = (seasonId: string, couchId: string | null) => useBs<Members>("members", seasonId, couchId);
 /** Backstage home's Reminders card (backstage-remind.ts): who still has a move open in the games you run here, and who heard lately. */
@@ -1345,28 +1405,14 @@ export function usePool(seasonId: string, enabled = true) {
   return useQuery({ queryKey: ["new-design", "pool", seasonId], queryFn: () => get<PoolInfo>(`/api/seasons/${seasonId}/pool`), staleTime: 30_000, enabled });
 }
 
-/** Your practice couch on a season, or whether you can start one. */
-export function usePractice(seasonId: string, enabled = true) {
-  return useQuery({ queryKey: ["new-design", "practice", seasonId], queryFn: () => get<PracticeInfo>(`/api/seasons/${seasonId}/practice`), staleTime: 30_000, enabled });
-}
-
-async function remove<T>(url: string): Promise<T> {
-  const res = await fetch(url, { method: "DELETE" });
-  const out = await res.json().catch(() => ({}));
-  if (!res.ok) throw Object.assign(new Error(out.error || `Couldn't save (${res.status})`), { status: res.status });
-  return out as T;
-}
-
 export const solo = {
   join: (seasonId: string) => post<{ leagueId: string; start: number }>(`/api/seasons/${seasonId}/pool`, { action: "join" }),
   leave: (seasonId: string) => post<{ left: true }>(`/api/seasons/${seasonId}/pool`, { action: "leave" }),
   /** Who goes home? for the open episode; null takes it back. */
   call: (seasonId: string, castawayId: string | null) => post<{ call: string | null }>(`/api/seasons/${seasonId}/pool`, { action: "call", castawayId }),
-  startPractice: (seasonId: string, game: PracticeGame, level: BotLevel) => post<{ leagueId: string }>(`/api/seasons/${seasonId}/practice`, { game, level }),
-  endPractice: (seasonId: string) => remove<{ ended: true }>(`/api/seasons/${seasonId}/practice`),
 };
 
-/** After joining or leaving a pool, a call, or starting or ending a practice couch: everything moves on (the moves, the games). */
+/** After joining or leaving a pool, a call, or making a game: everything moves on (the moves, the games). */
 export const useAfterSolo = useAfterReveal;
 
 // ---- Make it a game (step 10 part 2a; make-game.ts): a show that isn't a game yet, set up from ChatGPT's answers. Read
@@ -1425,17 +1471,30 @@ export function useStartOptions(seasonId: string | null, couchId: string | null,
   });
 }
 
-/** Start a game's wizard (docs/PLAN-start-a-game-gpt.md U1; start-spec.ts): startOptions plus the page the sheet rolls and checks
- *  on. `wizard` is null where the list still serves (a season that's aired: at your own pace). `late`: from the episode on now. */
-export function useWizardOptions(seasonId: string | null, couchId: string | null, enabled = true, late = false, start: number | null = null) {
+/** Start a game (docs/PLAN-start-a-game-redo.md B1; start-spec.ts): startOptions plus the page the sheet checks and words games on.
+ *  `wizard` is null only when the season can't start a game (`blocked`). `late`: from the episode on now; `start`: an aired episode
+ *  to start from at your own pace; `again`: Run it back's game (its spec in `againSpec`). */
+export function useWizardOptions(seasonId: string | null, couchId: string | null, enabled = true, late = false, start: number | null = null, again: string | null = null) {
   return useQuery({
-    queryKey: ["new-design", "start-wizard", seasonId, couchId, late, start],
-    queryFn: () => get<WizardOptions>(seasonUrl(seasonId!, "/start", { couch: couchId!, wizard: "1", ...(late ? { late: "1" } : {}), ...(start ? { start: String(start) } : {}) })),
+    queryKey: ["new-design", "start-wizard", seasonId, couchId, late, start, again],
+    queryFn: () =>
+      get<WizardOptions>(seasonUrl(seasonId!, "/start", { couch: couchId!, wizard: "1", ...(late ? { late: "1" } : {}), ...(start ? { start: String(start) } : {}), ...(again ? { again } : {}) })),
     placeholderData: (prev) => prev,
     enabled: enabled && !!seasonId && !!couchId,
     staleTime: 0,
   });
 }
+
+/** Your saved games (docs/PLAN-start-a-game-redo.md B1; saved-games.ts): the heart beside Start in Start a game. */
+export const SAVED_KEY = ["new-design", "saved-games"] as const;
+export function useSavedGames(enabled = true) {
+  return useQuery({ queryKey: SAVED_KEY, queryFn: () => get<{ games: SavedGame[] }>("/api/me/saved-games"), enabled, staleTime: 60_000 });
+}
+export const savedApi = {
+  save: (game: { base: string; name: string; spec: unknown; length: SavedGame["length"]; from: SavedGame["from"]; on: string; seasonId?: string } | { games: unknown[] }) =>
+    post<{ games: SavedGame[] }>("/api/me/saved-games", game),
+  unsave: (key: string) => post<{ games: SavedGame[] }>("/api/me/saved-games", { unsave: key }),
+};
 
 export const wizardApi = {
   /** Start from a spec: the wizard's game, checked again on the server; the couch hears after the hold. */
@@ -1474,6 +1533,8 @@ export const gamesApi = {
     post<Started>(seasonUrl(seasonId, "/start", { couch: couchId }), body),
   archive: (seasonId: string, couchId: string, leagueId: string) => post<{ batch: string }>(seasonUrl(seasonId, "/backstage/end", { couch: couchId }), { action: "archive", leagueId }),
   unarchive: (seasonId: string, couchId: string, leagueId: string) => post<{ batch: string }>(seasonUrl(seasonId, "/backstage/end", { couch: couchId }), { action: "unarchive", leagueId }),
+  /** B4: several at once (Game settings' Finished fold), one batch for one Undo. */
+  archiveAll: (seasonId: string, couchId: string, leagueIds: string[]) => post<{ batch: string; archived: number }>(seasonUrl(seasonId, "/backstage/end", { couch: couchId }), { action: "archiveAll", leagueIds }),
   deletePreview: (seasonId: string, couchId: string, leagueId: string) =>
     post<DeletePreview>(seasonUrl(seasonId, "/backstage/end", { couch: couchId }), { action: "delete", leagueId, preview: true }),
   delete: (seasonId: string, couchId: string, leagueId: string) => post<{ batch: string }>(seasonUrl(seasonId, "/backstage/end", { couch: couchId }), { action: "delete", leagueId }),
@@ -1999,6 +2060,7 @@ export const sportsApi = {
 
 export type { LoggedGame } from "@/lib/server/sports/player-log";
 import type { LoggedGame } from "@/lib/server/sports/player-log";
+import { markBotSeats } from "./ui/bot-seats";
 
 /** A sport's player's games in a season, newest first, up to where you may be told. */
 /** A sport's athlete's past seasons (sports/history.ts): the last three before this one, asked when their sheet opens. */

@@ -287,7 +287,8 @@ export function thisWeek(g: GameView, c: WeekContext): WeekCard | null {
     you,
     them: null,
     stand: null,
-    state: `${place} of ${g.players} · ${total}${gap && gap > 0 ? ` · ${gapWords(gap)} behind ${first(above!.name)}` : me.place === 1 ? " · in front" : ""}`,
+    // Knocked out (Round 5, BACKLOG 47): the finish, never a chase; the strip says the cut and who plays on.
+    state: g.twists?.outAfter != null ? `${place} of ${g.players} · ${total} · out` : `${place} of ${g.players} · ${total}${gap && gap > 0 ? ` · ${gapWords(gap)} behind ${first(above!.name)}` : me.place === 1 && !me.rank.startsWith("T") ? " · in front" : ""}`,
     tone: g.over ? "over" : due ? "due" : behind ? "behind" : "plain",
     score: null,
     mine: g.lineup?.starters ?? null,

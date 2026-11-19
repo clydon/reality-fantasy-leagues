@@ -245,7 +245,7 @@ function teamOf(list: TeamList | null, games: SportsEvent[], league: string, id:
 }
 
 /** The games a team's season adds: its regular season's (all of them when the provider doesn't say stages), none called off. */
-function regularOf(team: string, games: SportsEvent[]): SportsEvent[] {
+export function regularOf(team: string, games: SportsEvent[]): SportsEvent[] {
   const mine = games.filter((g) => g.competitors.some((c) => c.team?.id === team) && !(g.state === "post" && !g.final));
   return mine.some((g) => g.stage) ? mine.filter((g) => g.stage === "regular") : mine;
 }
@@ -350,7 +350,7 @@ export async function underCap(userId: string): Promise<void> {
 export async function addGames(
   userId: string | null,
   ask: AddAsk,
-  opts: { providers?: SportsProvider[]; prefix?: string; now?: Date; cast?: boolean } = {}
+  opts: { providers?: SportsProvider[]; prefix?: string; now?: Date; cast?: boolean; games?: SportsEvent[] } = {}
 ): Promise<Added> {
   const s = (v: unknown) => typeof v === "string" && v.length > 0 && v.length <= 80;
   if (!ask || typeof ask !== "object") throw new HttpError(400, "Say which team: { league, team }");
@@ -364,7 +364,8 @@ export async function addGames(
   }
   const p = (opts.providers ?? sportsProviders())[0];
   if (!p) throw new HttpError(503, "Sports aren't available right now");
-  const games = await seasonGames(p, ask.league, ask.team);
+  // `opts.games`: the team's schedule already read (sports/start.ts asks it once to choose the season).
+  const games = opts.games ?? (await seasonGames(p, ask.league, ask.team));
   if (!games) throw new HttpError(404, "No such team");
   const year = yearOf(games);
   let picked: SportsEvent[];

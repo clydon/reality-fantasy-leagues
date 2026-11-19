@@ -73,7 +73,7 @@
 //   factsThrough(facts, k)        the facts as they stood once episode k was in (A11 part 2b's walk)
 //   answerProblem(q, value, faces) why an answer can't be given (null: it can), faces: who (or which groups) it can name
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { YES_NO, NAMES, NUMBERS, optionRange, isBeat, ODDS, ticketOf, isCardLine, cardMoment, cardWaiting, outsideKey, LINE_GAME } = require('./schema.js');
+const { YES_NO, NAMES, NUMBERS, optionRange, isBeat, ODDS, ticketOf, isCardLine, cardMoment, cardWaiting, outsideKey, LINE_GAME, drawsOnBank, fullSpec, isCalls, isTrivia } = require('./schema.js');
 // C2 part 3 (docs/PLAN-start-a-game-gpt.md track C): a window's points are the scoring sequence's lines and combines; the grading
 // (which answers are right, and how many right ones each has) is here.
 const Seq = require('../sequence/index.js');
@@ -1412,4 +1412,71 @@ function factsThrough(facts, k) {
   };
 }
 
-module.exports = { WAITING, DRAW, lineKey, readsTimeline, verdictOf, rightAnswers, pointsFor, windowPoints, wagerParts, stakeLines, unwagered, ticketVerdict, allRight, shrunk, isRight, answerProblem, spanEpisodes, pairsFrom, pairKey, windowOf, factsThrough, botKey, botCall, botRight };
+// ---- computer players (docs/PLAN-start-a-game-redo.md E1b) ----
+
+/** The answer kinds a computer player gives (bot-logic.js answers). */
+const BOT_ANSWERS = ['person', 'group', 'yesNo', 'number', 'overUnder', 'choice', 'order', 'confidence', 'chips', 'pairs', 'split', 'ticket', 'side', 'trivia', 'bracket'];
+/** Whether a computer player answers this question: one of BOT_ANSWERS (staked too, a card's lines once the card's out, a host's too,
+ *  and about each person or game: E1b), but not an over/under on the game's own line (read from ESPN as it opens). The gallery and
+ *  the server (computer-players.ts botsPlay, through bot-logic.js) both read this one rule. */
+function botAnswers(q) {
+  // E1e: an over/under on a game's live line once it's out, and a number a game's final settles on the sport's scale, too.
+  return !!q && BOT_ANSWERS.includes(q.answer);
+}
+/**
+ * Why computer players don't play a game yet, or null: the one rule (the review, E1d). Start a game's Who's playing (start-gallery
+ * botsFit), the capability tracker, Randomize's bots lock (roll.js) and, on a league, computer-players.ts botsPlay all read it: a
+ * game in stages, squares, or a question they don't answer (Weekly Calls' calls are theirs: calls.ts).
+ */
+function botsWhy(spec) {
+  const full = isObj(spec) ? fullSpec(spec) : null;
+  if (!full) return null;
+  // E1e: a game in stages, each stage a game they play (each stage's league seats them as the game's: stages.ts seatStage); squares,
+  // dealt or picked (bot-logic.js squarePicks).
+  const stages = Array.isArray(spec.stages) ? spec.stages : Array.isArray(full.stages) ? full.stages : null;
+  if (stages) {
+    for (const st of stages) {
+      const why = isObj(st) && isObj(st.game) ? botsWhy(st.game) : null;
+      if (why) return why;
+    }
+    return null;
+  }
+  const not = (full.ask || []).filter((q) => !isCalls(q)).find((q) => !botAnswers(q));
+  return not ? `Computer players don't answer "${not.ask || 'that question'}" yet` : null;
+}
+/** Whether a question's faces come from the server's facts (answers.ts factFaces): about each game, a trivia round, a side, a
+ *  bracket. A person's answer and a computer player's are checked against the same ones. */
+const fromFacts = (q) => isObj(q) && (q.each === 'game' || isTrivia(q) || q.answer === 'side' || q.answer === 'bracket');
+/** E1e: whether a computer player reads a question from the server's facts: its faces (fromFacts), a game's live line kept as it
+ *  opens, or a number a game's final settles (the sport's scale, from the season's finals and the line). */
+const readsFacts = (q) => fromFacts(q) || (isObj(q) && (q.line === LINE_GAME || (q.answer === 'number' && isObj(q.settle) && q.settle.by === 'final')));
+/** L3 part 2f part 2: whether a sport's game has started (`now` ms): over, or past its start, or not before it with no start known. */
+const gameStarted = (g, now) => !!g && (g.status === 'off' || (g.listing && g.listing.startsAt ? Date.parse(g.listing.startsAt) <= now : g.status !== 'pre'));
+
+/** What someone has staked on wagers of any of their points (A9) still to settle, by window ("question|episode"): points already on
+ *  the line, so a new stake of them can't count them again. Step C6: beside a bank (`bank`), every stake. `answers`: the game's
+ *  answer rows ({ playerId, question, episode, answer }), `verdicts` each window's as graded. (Was answers.ts's; a computer player's
+ *  stake is held to it too.) */
+function heldStakes(qs, answers, verdicts, me, bank) {
+  const held = new Map();
+  for (const a of answers) {
+    const q = qs.find((x) => x.id === a.question);
+    if (a.playerId !== me || !q || !drawsOnBank(q, bank)) continue;
+    const key = `${q.id}|${q.asked === 'once' ? 0 : a.episode}`;
+    const stake = a.answer && typeof a.answer === 'object' ? a.answer.stake : undefined;
+    const v = verdicts.get(key);
+    if (!v || v.state !== 'waiting' || !Number.isInteger(stake) || stake <= 0) continue;
+    held.set(key, stake);
+  }
+  return held;
+}
+/** The most someone can stake on a wager of any of their points (A9) in a window (`key`): their points as they stand, less what's on
+ *  the line in their other wagers of them still to settle (`held`, and `staking`: the ones this answer sends); at least 0. */
+function stakeMost(points, held, key, staking) {
+  let most = points;
+  for (const [k, n] of held) if (k !== key && !(staking && staking.has(k))) most -= n;
+  for (const [k, n] of staking || []) if (k !== key) most -= n;
+  return Math.max(0, Math.floor(most));
+}
+
+module.exports = { BOT_ANSWERS, botAnswers, botsWhy, fromFacts, readsFacts, gameStarted, heldStakes, stakeMost, WAITING, DRAW, lineKey, readsTimeline, verdictOf, rightAnswers, pointsFor, windowPoints, wagerParts, stakeLines, unwagered, ticketVerdict, allRight, shrunk, isRight, answerProblem, spanEpisodes, pairsFrom, pairKey, windowOf, factsThrough, botKey, botCall, botRight };

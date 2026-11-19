@@ -64,7 +64,7 @@ test("A9's ways of combining: their shape, and where each goes", () => {
   assert.deepEqual(parlay([{ of: ["out", "imm"], times: 11 }]), ["score.parlays[0].times"]);
   assert.deepEqual(parlay([PARLAY, PARLAY]), ["score.parlays[1].of", "score.parlays[1].of"], "a question in two parlays");
   assert.deepEqual(parlay([PARLAY], [OUT, { ...IMM, asked: "once" }]), ["score.parlays[0].of"], "asked the same way");
-  assert.deepEqual(parlay([PARLAY], [{ ...OUT, share: "split" }, IMM]), ["score.parlays[0].of"], "not a split pot (C2 part 4: a leg that rolls over, shrinks or pays only the only one right plays: tests/parlay-legs.test.js)");
+  assert.deepEqual(parlay([PARLAY], [{ ...OUT, share: "split" }, IMM]), [], "a split pot plays too (E3, p25: your share multiplied; tests/parlay-legs.test.js)");
   assert.deepEqual(parlay([PARLAY], [{ ...OUT, pick: 2 }, IMM]), ["score.parlays[0].of"], "one answer each");
   assert.deepEqual(parlay([{ ...PARLAY, also: 1 }]), ["score.parlays[0].also"]);
   assert.deepEqual(parlay([]), ["score.parlays"]);

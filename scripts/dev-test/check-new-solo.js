@@ -1,23 +1,21 @@
-// Dev-only check for playing solo (docs/PLAN-new-design.md step 9 part 3: a season's public pool and the practice couch),
+// Dev-only check for playing solo (docs/PLAN-new-design.md step 9 part 3: a season's public pool; the practice couch beside it was
+// retired 2026-11-18, docs/PLAN-start-a-game-redo.md E1, and its route answers 404),
 // against the dev server, on solo-fixture.js ("ZT Solo 51": a curated season airing, Episode 6 in three days, who went
 // home in 1-5 decided by an admin; zt_so_alex, riley and jordan on Episode 5, sam on 3; nobody on a couch).
 //   API:
-//   - the solo read: Play on your own lists ZT Solo 51 (its pool to join, a practice couch to start) and not the finished 50;
+//   - the solo read: Play on your own lists ZT Solo 51 (its pool to join) and not the finished 50;
 //   - the pool: the first Join makes it (one per season, on no couch, nobody running it, from Episode 6, calls on), a second
 //     is refused; riley and jordan join the same one; the pick and the call for Episode 6 (someone out refused, a call taken
 //     back); usernames only (others' undecided picks and calls never sent, who's picked a count); no chat (classic's routes
 //     answer nothing or refuse), not in classic's league list, its join code refused; healCouches leaves it on no couch;
 //   - sam, behind on Episode 3, joins: from Episode 6, told to reveal Episode 4 first, nobody out past his mark;
-//   - the practice couch: alex starts Weekly Lineup against three Sharp computer players (on no couch, his alone, a second
-//     refused); teams fitted to who's still in; the bots drafted before him and draft as he does; their lineups are set;
 //   - Episode 6 airs and Danny goes home (the season sync, as an admin's decision would): the pool scores (alex's streak 1,
-//     his call right; riley's wrong), the bots set Episode 7's lineups, sam still sees nothing past Episode 3;
-//   - jordan leaves the pool; a full pool refuses a join; a finished season has neither; riley's Outlast practice (teams of
-//     three now) ends; every real league's state unchanged.
+//     his call right; riley's wrong), sam still sees nothing past Episode 3;
+//   - jordan leaves the pool; a full pool refuses a join; a finished season has no pool; the practice couch's route is gone;
+//     every real league's state unchanged.
 //   In a real browser at --width (390 by default): alex's solo hub (Welcome, Watching solo opening Start a couch, Play on
 //   your own, Better with friends' sheet), the pool card to its page (a pick and a call saved), the Games tab (On your own,
-//   the pool as "Everyone", the computer players tagged), the practice sheet (end it; start Outlast against Easy players,
-//   into the draft room, a pick and the bots' turns), jordan joining the pool again from its page, sam's reveal-first.
+//   the pool as "Everyone"), jordan joining the pool again from its page, sam's reveal-first.
 //   Nothing wider than the screen; no page errors. Screenshots go to <outDir>.
 //
 //   npm run dev                                                  (in another terminal)
@@ -86,7 +84,6 @@ const until = async (fn, ms = 12000) => {
     let r = await as.alex.call("GET", "/api/me/solo");
     const s51 = r.body.seasons?.find((s) => s.seasonId === sid);
     check(r.status === 200 && !!s51 && !s51.pool.joined && s51.pool.blocked === null && s51.pool.leagueId === null, "Play on your own: ZT Solo 51's pool, not made yet, open to join", JSON.stringify(r.body).slice(0, 300));
-    check(!!s51 && s51.practice.leagueId === null && s51.practice.blocked === null, "and a practice couch to start");
     check(!r.body.seasons?.some((s) => s.seasonId === fx.finishedSeasonId), "the finished season 50 isn't offered");
 
     // ---------- the pool ----------
@@ -160,42 +157,6 @@ const until = async (fn, ms = 12000) => {
     check(g?.revealFirst === 4 && g.through === 3, "sam: reveal Episode 4 first; the board through 3", JSON.stringify({ revealFirst: g?.revealFirst, through: g?.through }));
     check(g?.cast.find((c) => c.name === name(3))?.left === false && g.cast.find((c) => c.name === name(2))?.left === true, "nobody out past his mark (Brady, out in 4, is still in for him)");
 
-    // ---------- the practice couch ----------
-    r = await as.alex.call("POST", `/api/seasons/${sid}/practice`, { game: "bingo", level: "sharp" });
-    check(r.status === 400, "a practice couch needs Weekly Lineup or Outlast", String(r.status));
-    r = await as.alex.call("POST", `/api/seasons/${sid}/practice`, { game: "active-roster", level: "sharp" });
-    check(r.status === 200 && !!r.body.leagueId, "alex starts a practice couch: Weekly Lineup against Sharp players", JSON.stringify(r.body));
-    const PR = r.body.leagueId;
-    row = await leagueOf(PR);
-    let ps = row.state;
-    check(row.solo === "practice" && row.couch_id === null && row.created_by === fx.users.alex, "a practice couch: on no couch, alex's");
-    const bots = ps.players.filter((p) => p.automated);
-    check(ps.players.length === 4 && bots.length === 3 && bots.every((b) => b.botLevel === "sharp") && bots.map((b) => b.name).join() === "Ada,Max,Ivy", "alex and three Sharp computer players: Ada, Max, Ivy");
-    check(ps.settings.ownershipMode === "exclusive" && ps.settings.activeSlots === 2 && ps.settings.benchSlots === 1 && S.startEpisode(ps) === 6, "a turn-based draft, teams of three (13 still in), from Episode 6");
-    const turn = S.currentDraftTurn(structuredClone(ps));
-    const alexPR = await seat(PR, "alex");
-    check(S.isDraftStarted(ps) && turn?.playerId === alexPR && ps.draftPicksMade === ps.draftOrder.indexOf(alexPR), "the draft is open and waiting on alex: the bots before him have picked", JSON.stringify({ made: ps.draftPicksMade, order: ps.draftOrder.indexOf(alexPR) }));
-    r = await as.alex.call("POST", `/api/seasons/${sid}/practice`, { game: "classic-draft", level: "easy" });
-    check(r.status === 409, "a second practice couch on the season is refused", String(r.status));
-    // alex drafts his three; the bots answer each pick.
-    for (let k = 0; k < 3; k++) {
-      ps = (await leagueOf(PR)).state;
-      const t = S.currentDraftTurn(structuredClone(ps));
-      if (!t || t.isComplete || t.playerId !== alexPR) break;
-      const free = ps.castaways.find((c) => c.status === "active" && !(c.ownerIds || []).length);
-      r = await as.alex.call("POST", `/api/seasons/${sid}/draft`, { leagueId: PR, action: "pick", castawayId: free.id, n: t.overallPickNumber });
-      if (r.status !== 200) check(false, "alex's draft pick", JSON.stringify(r.body));
-    }
-    ps = (await leagueOf(PR)).state;
-    check(S.currentDraftTurn(structuredClone(ps))?.isComplete && ps.players.every((p) => ps.castaways.filter((c) => (c.ownerIds || []).includes(p.id)).length === 3), "the draft's done: four teams of three, the bots' picks made as alex made his");
-    const six2 = ep(ps, 6).id;
-    check(bots.every((b) => S.activeRosterLineupFor(ps, six2, b.id).length === 2), "each bot has set Episode 6's lineup");
-    const mine = ps.castaways.filter((c) => (c.ownerIds || []).includes(alexPR)).map((c) => c.id);
-    r = await as.alex.call("PUT", `/api/leagues/${PR}/episodes/${six2}/lineups/${alexPR}?quiet`, { castawayIds: mine.slice(0, 2) });
-    check(r.status === 200, "alex sets his lineup", JSON.stringify(r.body));
-    r = await as.alex.call("GET", `/api/seasons/${sid}/practice`);
-    check(r.body.leagueId === PR && r.body.gameName === "Weekly Lineup" && r.body.level === "sharp" && r.body.drafting === false && r.body.game.table.filter((x) => x.bot).length === 3, "his practice couch: Weekly Lineup, Sharp, drafted, three computer players on the table");
-
     // ---------- Episode 6 airs; Danny goes home ----------
     await pool.query("UPDATE show_seasons SET premiere_date = premiere_date - 7 WHERE id = $1", [sid]);
     await fixture.addExit(pool, sid, 6, name(6));
@@ -205,13 +166,7 @@ const until = async (fn, ms = 12000) => {
       const s = (await leagueOf(id)).state;
       return !!ep(s, 6)?.events.some((e) => e.castawayId === cid(s, name(6)));
     };
-    check(synced.length === 2 && synced.every((x) => !x.error && x.applied >= 1) && (await outIn(P)) && (await outIn(PR)), "the season sync brings Episode 6 (Danny out) to the pool and the practice couch", JSON.stringify(synced));
-    ps = (await leagueOf(PR)).state;
-    const seven = ep(ps, 7);
-    check(!!seven && bots.every((b) => {
-      const l = S.activeRosterLineupFor(ps, seven.id, b.id);
-      return l.length >= 1 && l.every((id) => S.getCastaway(ps, id).status === "active");
-    }), "the bots set Episode 7's lineups from who's still in");
+    check(synced.length === 1 && synced.every((x) => !x.error && x.applied >= 1) && (await outIn(P)), "the season sync brings Episode 6 (Danny out) to the pool", JSON.stringify(synced));
     await as.alex.call("POST", `/api/seasons/${sid}/reveal`, { episode: 6 });
     await as.riley.call("POST", `/api/seasons/${sid}/reveal`, { episode: 6 });
     g = (await as.alex.call("GET", `/api/seasons/${sid}/pool`)).body.game;
@@ -240,18 +195,11 @@ const until = async (fn, ms = 12000) => {
     await pool.query(`DELETE FROM "user" WHERE id = ANY($1::text[])`, [fill]);
     r = await as.alex.call("POST", `/api/seasons/${fx.finishedSeasonId}/pool`, { action: "join" });
     check(r.status === 409 && /over/i.test(r.body.error), "a finished season has no pool to join", JSON.stringify(r.body));
-    r = await as.alex.call("POST", `/api/seasons/${fx.finishedSeasonId}/practice`, { game: "classic-draft", level: "easy" });
-    check(r.status === 409, "nor a practice couch");
-    r = await as.riley.call("POST", `/api/seasons/${sid}/practice`, { game: "classic-draft", level: "easy" });
-    const RP = r.body.leagueId;
-    ps = RP ? (await leagueOf(RP)).state : null;
-    check(!!ps && ps.settings.teamSize === 3 && S.startEpisode(ps) === 7 && ps.players.filter((p) => p.automated).every((b) => b.botLevel === "casual"), "riley's Outlast practice: teams of three (12 left), from Episode 7, Easy (casual) players", JSON.stringify(ps?.settings && { teamSize: ps.settings.teamSize, start: ps.settings.startEpisode }));
-    r = await as.riley.call("DELETE", `/api/seasons/${sid}/practice`);
-    check(r.status === 200 && !(await leagueOf(RP)) && (await as.riley.call("GET", `/api/seasons/${sid}/practice`)).body.leagueId === null, "riley ends it: the game goes");
-    r = await as.riley.call("DELETE", `/api/seasons/${sid}/practice`);
-    check(r.status === 404, "ending one that isn't there 404s");
+    // The practice couch is retired (2026-11-18): its route is gone, and nothing makes one.
+    r = await as.alex.call("POST", `/api/seasons/${sid}/practice`, { game: "active-roster", level: "sharp" });
+    check(r.status === 404 && !(await pool.query("SELECT 1 FROM leagues WHERE solo = 'practice' AND solo_season_id = $1", [sid])).rows.length, "the practice couch is retired: its route answers 404, nothing made", String(r.status));
 
-    if (!apiOnly) await browserHalf({ fx, sid, P, PR, name, leagueOf, cid, ep, outCalls, setClose: (c) => (close = c) });
+    if (!apiOnly) await browserHalf({ fx, sid, P, name, leagueOf, cid, ep, outCalls, setClose: (c) => (close = c) });
 
     const after = await realHash();
     check(after.h === before.h && after.n === before.n, `every real league's state unchanged (${after.n})`);
@@ -293,7 +241,7 @@ const until = async (fn, ms = 12000) => {
     await page.locator("[data-play-solo] [data-pool]").waitFor({ timeout: 15000 });
     const cardText = (await page.locator("[data-play-solo] [data-pool]").innerText()).toLowerCase();
     check(/zt solo 51 · everyone/.test(cardText) && /streak 1/.test(cardText) && /open/.test(cardText), "Play on your own: the pool card (streak 1, Open)", cardText);
-    check(/weekly lineup vs 3 computer players/i.test(await page.locator("[data-play-solo] [data-practice]").innerText()), "and the practice couch card");
+    check((await page.locator("[data-practice]").count()) === 0, "no practice couch card (retired)");
     await shot(page, "01-solo-hub", true);
     await fits(page, "the solo hub");
     await page.locator("[data-solo-invite]").click();
@@ -327,43 +275,14 @@ const until = async (fn, ms = 12000) => {
     await page.locator('[role=dialog][aria-hidden="false"] button', { hasText: "Back" }).click();
     await page.locator("[data-solo-lede]").waitFor({ timeout: 10000 });
     const tables = await page.locator("[data-table]").allInnerTexts();
-    check(tables.some((t) => /Everyone · 3 people/i.test(t)) && tables.some((t) => /computer/i.test(t) && /Practice couch/i.test(t)), "the Games tab: the pool as Everyone · 3 people, the practice table with its computer players");
+    // The pool's game card (since the game-card redesign: "Everyone", your place of the three; the table that said "Everyone · 3
+    // people" is gone).
+    const games = (await page.locator("main").innerText().catch(() => "")) || (await page.locator("body").innerText());
+    check(/everyone/i.test(games) && /of 3/.test(games), "the Games tab: the pool's card, Everyone, your place of 3", tables.join(" | ").slice(0, 200));
+    check(/against everyone on the app/i.test(await page.locator("[data-solo-lede]").innerText()), "On your own says what the pool is");
     await shot(page, "04-games-tab", true);
     await fits(page, "the Games tab");
 
-    // The practice sheet: end it, start Outlast against Easy players.
-    await page.locator("[data-solo-lede] ~ div [data-practice]").click();
-    await page.locator('[data-practice-sheet="mine"]').waitFor({ timeout: 8000 });
-    await shot(page, "05-practice-mine");
-    await page.locator("[data-practice-end]").click();
-    await page.locator("[data-practice-end-confirm]").click();
-    check(await toast(page, /Practice couch ended/), "End it: Practice couch ended");
-    check(await until(async () => !(await pool.query("SELECT 1 FROM leagues WHERE solo = 'practice' AND created_by = $1", [fx.users.alex])).rows.length), "his practice couch is gone");
-    await page.locator("[data-solo-lede] ~ div [data-practice]").filter({ hasText: "Start" }).waitFor({ timeout: 10000 });
-    await page.locator("[data-solo-lede] ~ div [data-practice]").click();
-    await page.locator('[data-practice-sheet="start"]').waitFor({ timeout: 8000 });
-    await page.locator('[data-practice-game="Outlast"]').click();
-    await page.locator('[data-practice-level="Easy"]').click();
-    await shot(page, "06-practice-start");
-    await page.locator("[data-practice-start]").click();
-    await page.waitForURL(/\/draft\?game=/, { timeout: 20000 });
-    const PR2 = new URL(page.url()).searchParams.get("game");
-    const ps = (await leagueOf(PR2)).state;
-    check(ps.settings.leagueTypeId === "classic-draft" && ps.players.filter((p) => p.automated && p.botLevel === "casual").length === 3, "Start the draft: an Outlast practice against Easy players, into its draft room");
-    const me2 = ps.players.find((p) => !p.automated).id;
-    const made = ps.draftPicksMade;
-    const up = await page.locator('[data-clock="you"]').waitFor({ timeout: 20000 }).then(() => true, () => false);
-    check(up, "the room: you're up");
-    const free = ps.castaways.find((c) => c.status === "active" && !(c.ownerIds || []).length);
-    await page.locator(`[data-tile="${free.id}"]`).click();
-    await page.locator("[data-draft-go]").click();
-    check(await until(async () => {
-      const s = (await leagueOf(PR2)).state;
-      const t = S.currentDraftTurn(structuredClone(s));
-      return (s.castaways.find((c) => c.id === free.id).ownerIds || []).includes(me2) && s.draftPicksMade > made && (t.isComplete || t.playerId === me2);
-    }), "alex drafts, and the computer players take their turns until he's up again");
-    await shot(page, "07-practice-draft");
-    await fits(page, "the practice draft room");
     await a.close();
 
     // jordan joins again from the pool's page.

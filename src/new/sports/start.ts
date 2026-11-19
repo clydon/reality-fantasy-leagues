@@ -25,7 +25,7 @@ export function useStartSport() {
       const r = await sportsApi.start(couch.id, { tell: true, ...ask });
       await refresh();
       after?.();
-      toast(`${r.name} on ${r.season} started${r.told ? " · the couch hears in 10 seconds" : ""}`, {
+      toast(`${r.name} on ${r.game ?? r.season} started${r.told ? " · the couch hears in 10 seconds" : ""}`, {
         ms: r.holdMs,
         undo: () => {
           wizardApi.undo(r.seasonId, couch.id, r.leagueId).then(

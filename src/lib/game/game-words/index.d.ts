@@ -107,6 +107,8 @@ export interface Draft {
   about: { show: string; season?: number } | null;
   also: string | null;
   summary: string;
+  /** E1d: the computer players their words asked for ({ n, level }, unread), beside the game. */
+  bots?: Record<string, unknown> | null;
 }
 
 export interface WizardAsk {
@@ -133,7 +135,7 @@ export interface CheckResult {
   /** `quiet`: a reading of their words (G3: a stat's key, ESPN's line, the sport's standard table), shown as assumed, never asked. */
   fixed: { part: string; problem: string; from: unknown; to: Record<string, unknown>; options: string[]; quiet?: true }[];
   dropped: { part: string | null; value: unknown; why: string; ours?: unknown }[];
-  offers: { otherShow?: { show: string; season?: number }; second?: { summary: string }; moments?: { label: string; question: string; reliable: Reliability; why: string }[] };
+  offers: { otherShow?: { show: string; season?: number }; second?: { summary: string }; moments?: { label: string; question: string; reliable: Reliability; why: string }[]; bots?: { n: number; level: "easy" | "normal" | "sharp" } };
   problems: { at: string; problem: string }[];
   waits: { at: string; step: string; problem: string }[];
 }

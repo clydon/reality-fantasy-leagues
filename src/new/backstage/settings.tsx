@@ -7,8 +7,6 @@ import { airTime } from "../clock";
 import { backstage, gameAdmin, gamesApi, useEndGames, useGameSettings, type DeletePreview, type EndGame, type GameSettings } from "../data";
 import { spanName } from "@/lib/game/spans";
 import { gameColour } from "../games";
-import { NavLink } from "../nav";
-import { paths } from "../routes";
 import type { ShowData } from "../screens/show-space";
 import { SwitchRow } from "../settings/controls";
 import { HoldSheet } from "../ui/guards";
@@ -16,6 +14,7 @@ import { EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { Stepper } from "./waivers";
+import { GameSettingsPage, SettingsList, useGameSettingsPage } from "./game-settings";
 
 // Backstage › Game settings (the mock's settings.js bsSettings, docs/PLAN-new-design.md step 6a): organised by the question
 // people have, in plain words, each choice saying what it does, Recommended marked, a dot on anything changed from it and
@@ -29,22 +28,19 @@ import { Stepper } from "./waivers";
 // this episode's are locked; Auto locks them at its start, Override (whoever runs the game: Commissioner or Game admin) does
 // the opposite: open past the start (the honour system, for a couch that sat down late) or locked early. Results lock it for good.
 
-function useAfter() {
+export function useAfter() {
   const client = useQueryClient();
   return () => client.invalidateQueries({ queryKey: ["new-design"] });
 }
 
-const Dot = ({ on }: { on: boolean }) => (on ? <i data-changed className="ml-1.5 inline-block size-2 rounded-full bg-chyron-line align-middle" title="Changed from recommended" /> : null);
+export const Dot = ({ on }: { on: boolean }) => (on ? <i data-changed className="ml-1.5 inline-block size-2 rounded-full bg-chyron-line align-middle" title="Changed from recommended" /> : null);
 
-export function SettingsPage({ seasonId, show }: { seasonId: string; show: ShowData }) {
-  const couchId = show.couch?.id ?? null;
-  const data = useGameSettings(seasonId, couchId);
+/** A setting saved at once, with Undo on the toast (tier 1) and a line in Recent changes: Backstage's Game settings and a game's own
+ *  (Round 4). Only a Commissioner changes these. */
+export function useSettingsWrite(seasonId: string, couchId: string | null) {
   const after = useAfter();
-  if (data.error) return <EmptyState icon={SlidersHorizontal} title="Settings aren't yours to see here" line={(data.error as Error).message} />;
-  if (!data.data || !couchId) return <div aria-busy className="mx-4 mt-6 h-64 animate-pulse rounded-[4px] bg-card" />;
-
-  const write = async (g: GameSettings, body: Parameters<typeof gameAdmin.settings>[3], said: string) => {
-    if (!g.commissioner) return toast.quiet("Only a Commissioner changes these");
+  return async (g: GameSettings, body: Parameters<typeof gameAdmin.settings>[3], said: string) => {
+    if (!g.commissioner || !couchId) return toast.quiet("Only a Commissioner changes these");
     try {
       const r = await gameAdmin.settings(seasonId, couchId, g.leagueId, body);
       await after();
@@ -65,12 +61,28 @@ export function SettingsPage({ seasonId, show }: { seasonId: string; show: ShowD
       toast.quiet((e as Error).message);
     }
   };
+}
+
+export function SettingsPage({ seasonId, show }: { seasonId: string; show: ShowData }) {
+  const couchId = show.couch?.id ?? null;
+  const data = useGameSettings(seasonId, couchId);
+  const one = useGameSettingsPage();
+  if (data.error)
+    return (
+      <>
+        <EmptyState icon={SlidersHorizontal} title="Settings aren't yours to see here" line={(data.error as Error).message} />
+        {/* Every game you run here archived (Archive all, B4): still the way to bring one back. */}
+        {couchId && <EndGames seasonId={seasonId} couchId={couchId} />}
+      </>
+    );
+  if (!data.data || !couchId) return <div aria-busy className="mx-4 mt-6 h-64 animate-pulse rounded-[4px] bg-card" />;
 
   return (
     <div className="pb-12">
-      {data.data.games.map((g) => (
-        <GameBlock key={g.leagueId} seasonId={seasonId} couchId={couchId} g={g} words={show.words} write={write} />
-      ))}
+      {/* Round 4 (docs/design-round/round4-game-settings-spec.md, built in B4): the games you run here, a row each; each game's
+          settings its own page (game-settings.tsx). */}
+      <SettingsList seasonId={seasonId} couchId={couchId} games={data.data.games} show={show} onOpen={(id) => one.showWith({ game: id })} />
+      <GameSettingsPage seasonId={seasonId} show={show} />
       <LockDown seasonId={seasonId} couchId={couchId} games={data.data.games} />
       <EndGames seasonId={seasonId} couchId={couchId} />
       {!data.data.games.some((g) => g.commissioner) && <p className="px-4 pt-6 text-[14px] text-muted-foreground">Only a Commissioner changes these.</p>}
@@ -84,7 +96,7 @@ export function SettingsPage({ seasonId, show }: { seasonId: string; show: ShowD
  * answers are in), never while it's locked down; at least one stays on. Saved at once, with Undo on the toast (the list as it was,
  * sent back: a set of questions is only written with the show's ctx, so Recent changes keeps the line without an Undo of its own).
  */
-function SheetQuestions({ seasonId, couchId, g, q }: { seasonId: string; couchId: string; g: GameSettings; q: NonNullable<GameSettings["questions"]> }) {
+export function SheetQuestions({ seasonId, couchId, g, q }: { seasonId: string; couchId: string; g: GameSettings; q: NonNullable<GameSettings["questions"]> }) {
   const after = useAfter();
   const [busy, setBusy] = useState(false);
   const on = q.list.filter((x) => x.on).map((x) => x.id);
@@ -140,209 +152,150 @@ function SheetQuestions({ seasonId, couchId, g, q }: { seasonId: string; couchId
   );
 }
 
-function GameBlock({
-  seasonId,
-  couchId,
-  g,
-  words,
-  write,
-}: {
-  seasonId: string;
-  couchId: string;
-  g: GameSettings;
-  words: ShowData["words"];
-  write: (g: GameSettings, body: Parameters<typeof gameAdmin.settings>[3], said: string) => Promise<void>;
-}) {
-  const L = g.lineup;
-  const lineupChanged = !!L && (L.starters !== L.rec.starters || (!g.draftStarted && L.bench !== L.rec.bench));
-  const joinChanged = !g.joining.fixed && g.joining.mode !== g.joining.rec;
-  // Locked down: frozen for the season, shown as it stands.
-  const can = g.commissioner && !g.lockedDown;
+/** How a Weekly Lineup works: who scores each week and the bench (its steppers), from the next episode on. Backstage's Game settings
+ *  and a game's own settings (Round 4: game-settings.tsx). */
+export function LineupControl({ g, can, write, compact }: { g: GameSettings; can: boolean; write: (g: GameSettings, body: Parameters<typeof gameAdmin.settings>[3], said: string) => Promise<void>; compact?: boolean }) {
+  const L = g.lineup!;
+  const lineupChanged = L.starters !== L.rec.starters || (!g.draftStarted && L.bench !== L.rec.bench);
   return (
-    <section data-settings-game={g.gameName} data-settings-league={g.leagueId} className="mt-7 px-4">
-      <div className="mb-3 flex items-center gap-3">
-        <i className="h-9 w-1.5 flex-none rounded-[2px]" style={{ background: gameColour(g.gameName) }} aria-hidden />
-        <div className="min-w-0 flex-1">
-          <h2 className="type-caption text-[24px] leading-none">{g.gameName}</h2>
-          <small className="text-[13px] text-muted-foreground">
-            {g.name} ·{" "}
-            {g.gameType === "pickem"
-              ? "everyone picks from the whole cast"
-              : g.questions
-                ? "no draft, no team: a few questions each episode"
-                : g.shared
-                  ? "castaways can be on several teams"
-                  : "each castaway on one team"}
-          </small>
-        </div>
-      </div>
-
-      {g.lock && <LockRow seasonId={seasonId} couchId={couchId} g={g} lock={g.lock} word={words.episode} />}
-
-      <Pace seasonId={seasonId} couchId={couchId} g={g} can={can} word={words.episode} />
-
-      {L && (
-        <div data-settings="lineup" className="mb-5">
-          <div className="mb-2 flex items-baseline justify-between">
-            <h3 className="type-caption text-[15px] tracking-[0.04em] text-muted-foreground">How Weekly Lineup works</h3>
-            {lineupChanged && can && (
-              <button type="button" data-reset="lineup" onClick={() => write(g, { reset: "lineup" }, `Back to recommended: ${L.rec.starters} score each week`)} className="text-[14px] font-bold">
-                Reset to recommended
-              </button>
-            )}
-          </div>
-          <p className="mb-2 rounded-[3px] bg-card p-3 text-[15px] leading-snug">
-            Each week, <b>{L.starters} of your {L.starters + L.bench}</b> score. You pick which before the episode.
-          </p>
-          <div className="flex flex-col gap-2">
-            <Stepper
-              title={
-                <>
-                  Who scores each week
-                  <Dot on={L.starters !== L.rec.starters} />
-                </>
-              }
-              line={g.lockedDown ? "Frozen for the season" : L.starters === L.rec.starters ? "Recommended" : `Recommended: ${L.rec.starters}`}
-              value={String(L.starters)}
-              disabled={!can}
-              atMin={L.starters <= 1}
-              atMax={L.starters >= L.max.starters}
-              onStep={(d) => write(g, { set: { activeSlots: L.starters + d }, text: `Changed who scores each week to ${L.starters + d}` }, `${L.starters + d} score each week from Episode ${g.from ?? "next"}`)}
-            />
-            {g.draftStarted ? (
-              <div className="flex items-center justify-between rounded-[3px] bg-background p-2.5">
-                <span>
-                  <b className="block text-[15px]">On the bench</b>
-                  <small className="text-[13px] text-muted-foreground">Set at the draft: more starters come off the bench</small>
-                </span>
-                <b className="type-num w-11 text-center text-[22px]">{L.bench}</b>
-              </div>
-            ) : (
-              <Stepper
-                title={
-                  <>
-                    On the bench
-                    <Dot on={L.bench !== L.rec.bench} />
-                  </>
-                }
-                line={g.lockedDown ? "Frozen for the season" : "Backups who don't score until you start them"}
-                value={String(L.bench)}
-                disabled={!can}
-                atMin={L.bench <= 0}
-                atMax={L.bench >= L.max.bench}
-                onStep={(d) => write(g, { set: { benchSlots: L.bench + d }, text: `Changed the bench to ${L.bench + d}` }, `${L.bench + d} on the bench`)}
-              />
-            )}
-          </div>
-          <p className="mt-2 flex items-center gap-1.5 text-[13px] text-muted-foreground">
-            <CalendarDays className="size-4" aria-hidden />
-            {g.from ? `Changes start with Episode ${g.from}.` : "Changes start with the next episode."} Nobody loses points already scored.
-          </p>
-        </div>
-      )}
-
-      {g.team && (
-        <div data-settings="team" className="mb-5 flex items-center justify-between rounded-[3px] bg-background p-2.5">
-          <span>
-            <b className="block text-[15px]">Team size</b>
-            <small className="text-[13px] text-muted-foreground">{g.draftStarted ? "Set at the draft" : `Castaways each player drafts · Recommended: ${g.team.rec}`}</small>
-          </span>
-          <b className="type-num w-11 text-center text-[22px]">{g.team.size}</b>
-        </div>
-      )}
-
-      {g.questions && <SheetQuestions seasonId={seasonId} couchId={couchId} g={g} q={g.questions} />}
-
-      <div data-settings="joining" className="mb-5">
-        <div className="mb-2 flex items-baseline justify-between">
-          <h3 className="type-caption text-[15px] tracking-[0.04em] text-muted-foreground">
-            Who can join
-            <Dot on={joinChanged} />
-          </h3>
-          {joinChanged && can && (
-            <button
-              type="button"
-              data-reset="joining"
-              onClick={() => write(g, { reset: "joining" }, `Back to recommended: ${g.joining.rec === "open" ? "anyone on the couch can join" : "ask me first"}`)}
-              className="text-[14px] font-bold"
-            >
-              Reset to recommended
-            </button>
-          )}
-        </div>
-        {g.joining.fixed && !g.lockedDown ? (
-          // Its own teams at its own pace (BACKLOG 68): the game decides who joins, so it's said, not offered as a choice that does
-          // nothing (StateLogic.GhostLogic.joinMode: anyone until its draft starts, nobody after).
-          <div data-join-fixed={g.joining.mode} className="rounded-[3px] bg-background p-2.5">
-            <b className="block text-[15px]">{g.joining.mode === "open" ? "Anyone on the couch, until the draft starts" : "Nobody new"}</b>
-            <small className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">
-              {g.joining.mode === "open"
-                ? "After that, nobody: players own their castaways and play at their own pace."
-                : g.draftStarted
-                  ? "Since the draft started. Players own their castaways and play at their own pace."
-                  : "Closed to new players."}
-            </small>
-          </div>
-        ) : (
-          <>
-        <small className="mb-2 block text-[13px] text-muted-foreground">
-          {g.lockedDown
-            ? "Locked down for the season: nobody new joins or catches up."
-            : g.gameType === "pickem" || g.questions
-              ? "There are no teams, so new players can jump in."
-              : g.joining.rec === "open"
-                ? "Castaways can be on several teams, so new players can jump in."
-                : "Each castaway is on one team, so new players need your OK."}
-        </small>
-        {(
-          [
-            ["open", "Anyone on the couch", "They can catch up on missed episodes", "Let anyone on the couch join"],
-            ["ask", "Ask me first", "You get a request to let them in", "Asks new players to ask first"],
-            ["locked", "Nobody new", "The game is full for the season", "Closed the game to new players"],
-          ] as const
-        )
-          .filter(([mode]) => mode !== "open" || g.joining.rec === "open")
-          .map(([mode, t, d, line]) => (
-          <button
-            key={t}
-            type="button"
-            data-join={mode}
-            aria-pressed={g.joining.mode === mode}
-            disabled={!can}
-            onClick={() => g.joining.mode !== mode && write(g, { set: { joinMode: mode }, text: line }, `Saved: ${g.gameName} · ${t}`)}
-            className="mb-1.5 flex w-full items-center gap-3 rounded-[3px] bg-background p-2.5 text-left"
-          >
-            <i className={`grid size-5 flex-none place-items-center rounded-full border-2 ${g.joining.mode === mode ? "border-foreground" : "border-input"}`} aria-hidden>
-              {g.joining.mode === mode && <i className="size-2.5 rounded-full bg-foreground" />}
-            </i>
-            <span>
-              <b className="block text-[15px]">
-                {t}
-                {mode === g.joining.rec && <em className="type-caption ml-2 rounded-[2px] bg-secondary px-1.5 text-[11px] not-italic">Recommended</em>}
-              </b>
-              <small className="text-[13px] text-muted-foreground">{d}</small>
-            </span>
+    <div data-settings="lineup" className={compact ? "mb-2" : "mb-5"}>
+      <div className={`mb-2 flex items-baseline justify-between ${compact && !(lineupChanged && can) ? "hidden" : ""}`}>
+        <h3 className={`type-caption text-[15px] tracking-[0.04em] text-muted-foreground ${compact ? "invisible" : ""}`}>How Weekly Lineup works</h3>
+        {lineupChanged && can && (
+          <button type="button" data-reset="lineup" onClick={() => write(g, { reset: "lineup" }, `Back to recommended: ${L.rec.starters} score each week`)} className="text-[14px] font-bold">
+            Reset to recommended
           </button>
-        ))}
-          </>
         )}
       </div>
-
-      <HowLong g={g} words={words} can={can} write={write} />
-
-      {g.waivers && (
-        <div className="mb-2">
-          <h3 className="type-caption mb-2 text-[15px] tracking-[0.04em] text-muted-foreground">Replacing people who leave</h3>
-          <NavLink href={paths.backstage(seasonId, "waivers")} className="nd-press flex min-h-[60px] items-center gap-3 rounded-[3px] bg-background px-2.5 py-2">
-            <span className="min-w-0 flex-1">
-              <b className="block text-[15px]">When someone&apos;s out, players replace them</b>
-              <small className="block text-[13px] text-muted-foreground">{g.waivers}</small>
+      <p className={`mb-2 rounded-[3px] bg-card p-3 text-[15px] leading-snug ${compact ? "hidden" : ""}`}>
+        Each week, <b>{L.starters} of your {L.starters + L.bench}</b> score. You pick which before the episode.
+      </p>
+      <div className="flex flex-col gap-2">
+        <Stepper
+          title={
+            <>
+              Who scores each week
+              <Dot on={L.starters !== L.rec.starters} />
+            </>
+          }
+          line={g.lockedDown ? "Frozen for the season" : L.starters === L.rec.starters ? "Recommended" : `Recommended: ${L.rec.starters}`}
+          value={String(L.starters)}
+          disabled={!can}
+          atMin={L.starters <= 1}
+          atMax={L.starters >= L.max.starters}
+          onStep={(d) => write(g, { set: { activeSlots: L.starters + d }, text: `Changed who scores each week to ${L.starters + d}` }, `${L.starters + d} score each week from Episode ${g.from ?? "next"}`)}
+        />
+        {g.draftStarted ? (
+          <div className="flex items-center justify-between rounded-[3px] bg-background p-2.5">
+            <span>
+              <b className="block text-[15px]">On the bench</b>
+              <small className="text-[13px] text-muted-foreground">Set at the draft: more starters come off the bench</small>
             </span>
-            <ChevronRight className="size-5 text-muted-foreground" aria-hidden />
-          </NavLink>
-        </div>
+            <b className="type-num w-11 text-center text-[22px]">{L.bench}</b>
+          </div>
+        ) : (
+          <Stepper
+            title={
+              <>
+                On the bench
+                <Dot on={L.bench !== L.rec.bench} />
+              </>
+            }
+            line={g.lockedDown ? "Frozen for the season" : "Backups who don't score until you start them"}
+            value={String(L.bench)}
+            disabled={!can}
+            atMin={L.bench <= 0}
+            atMax={L.bench >= L.max.bench}
+            onStep={(d) => write(g, { set: { benchSlots: L.bench + d }, text: `Changed the bench to ${L.bench + d}` }, `${L.bench + d} on the bench`)}
+          />
+        )}
+      </div>
+      <p className="mt-2 flex items-center gap-1.5 text-[13px] text-muted-foreground">
+        <CalendarDays className="size-4" aria-hidden />
+        {g.from ? `Changes start with Episode ${g.from}.` : "Changes start with the next episode."} Nobody loses points already scored.
+      </p>
+    </div>
+  );
+}
+
+/** Who can join: the choices, Recommended marked, or the game's own rule when it decides (Round 4 reuses it). */
+export function JoinControl({ g, can, write, compact }: { g: GameSettings; can: boolean; write: (g: GameSettings, body: Parameters<typeof gameAdmin.settings>[3], said: string) => Promise<void>; compact?: boolean }) {
+  const joinChanged = !g.joining.fixed && g.joining.mode !== g.joining.rec;
+  return (
+  <div data-settings="joining" className={compact ? "mb-1" : "mb-5"}>
+    <div className="mb-2 flex items-baseline justify-between">
+      <h3 className={`type-caption text-[15px] tracking-[0.04em] text-muted-foreground ${compact ? "invisible" : ""}`}>
+        Who can join
+        <Dot on={joinChanged} />
+      </h3>
+      {joinChanged && can && (
+        <button
+          type="button"
+          data-reset="joining"
+          onClick={() => write(g, { reset: "joining" }, `Back to recommended: ${g.joining.rec === "open" ? "anyone on the couch can join" : "ask me first"}`)}
+          className="text-[14px] font-bold"
+        >
+          Reset to recommended
+        </button>
       )}
-    </section>
+    </div>
+    {g.joining.fixed && !g.lockedDown ? (
+      // Its own teams at its own pace (BACKLOG 68): the game decides who joins, so it's said, not offered as a choice that does
+      // nothing (StateLogic.GhostLogic.joinMode: anyone until its draft starts, nobody after).
+      <div data-join-fixed={g.joining.mode} className="rounded-[3px] bg-background p-2.5">
+        <b className="block text-[15px]">{g.joining.mode === "open" ? "Anyone on the couch, until the draft starts" : "Nobody new"}</b>
+        <small className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">
+          {g.joining.mode === "open"
+            ? "After that, nobody: players own their castaways and play at their own pace."
+            : g.draftStarted
+              ? "Since the draft started. Players own their castaways and play at their own pace."
+              : "Closed to new players."}
+        </small>
+      </div>
+    ) : (
+      <>
+    <small className="mb-2 block text-[13px] text-muted-foreground">
+      {g.lockedDown
+        ? "Locked down for the season: nobody new joins or catches up."
+        : g.gameType === "pickem" || g.questions
+          ? "There are no teams, so new players can jump in."
+          : g.joining.rec === "open"
+            ? "Castaways can be on several teams, so new players can jump in."
+            : "Each castaway is on one team, so new players need your OK."}
+    </small>
+    {(
+      [
+        ["open", "Anyone on the couch", "They can catch up on missed episodes", "Let anyone on the couch join"],
+        ["ask", "Ask me first", "You get a request to let them in", "Asks new players to ask first"],
+        ["locked", "Nobody new", "The game is full for the season", "Closed the game to new players"],
+      ] as const
+    )
+      .filter(([mode]) => mode !== "open" || g.joining.rec === "open")
+      .map(([mode, t, d, line]) => (
+      <button
+        key={t}
+        type="button"
+        data-join={mode}
+        aria-pressed={g.joining.mode === mode}
+        disabled={!can}
+        onClick={() => g.joining.mode !== mode && write(g, { set: { joinMode: mode }, text: line }, `Saved: ${g.gameName} · ${t}`)}
+        className="mb-1.5 flex w-full items-center gap-3 rounded-[3px] bg-background p-2.5 text-left"
+      >
+        <i className={`grid size-5 flex-none place-items-center rounded-full border-2 ${g.joining.mode === mode ? "border-foreground" : "border-input"}`} aria-hidden>
+          {g.joining.mode === mode && <i className="size-2.5 rounded-full bg-foreground" />}
+        </i>
+        <span>
+          <b className="block text-[15px]">
+            {t}
+            {mode === g.joining.rec && <em className="type-caption ml-2 rounded-[2px] bg-secondary px-1.5 text-[11px] not-italic">Recommended</em>}
+          </b>
+          <small className="text-[13px] text-muted-foreground">{d}</small>
+        </span>
+      </button>
+    ))}
+      </>
+    )}
+  </div>
   );
 }
 
@@ -350,7 +303,7 @@ function GameBlock({
  * The current episode's lineups or picks: the icon and label say locked or open; the switch is Auto (they lock at its start)
  * or Override (the opposite: open past the start, or locked early). backstage-games.ts lockWrite.
  */
-function LockRow({ seasonId, couchId, g, lock, word }: { seasonId: string; couchId: string; g: GameSettings; lock: NonNullable<GameSettings["lock"]>; word: string }) {
+export function LockRow({ seasonId, couchId, g, lock, word }: { seasonId: string; couchId: string; g: GameSettings; lock: NonNullable<GameSettings["lock"]>; word: string }) {
   const after = useAfter();
   const [busy, setBusy] = useState(false);
   const ep = `${word} ${lock.episode}`;
@@ -393,104 +346,19 @@ function LockRow({ seasonId, couchId, g, lock, word }: { seasonId: string; couch
         </b>
         <small className="block text-[13px] leading-snug text-muted-foreground">{line}</small>
       </span>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={lock.overridden}
-        aria-label={`Override the lock on ${ep}'s ${lock.what}`}
-        data-settings-override={lock.overridden ? "on" : "off"}
-        disabled={final || busy}
-        onClick={flip}
-        className="flex flex-none flex-col items-center gap-1 disabled:opacity-60"
-      >
-        <span aria-hidden className={`relative h-[30px] w-[52px] rounded-full transition-colors ${lock.overridden ? "bg-chyron" : "bg-secondary"}`}>
-          <i className={`absolute top-[3px] size-6 rounded-full bg-foreground transition-[left] ${lock.overridden ? "left-[25px]" : "left-[3px]"}`} />
-        </span>
-        <small className="type-caption text-[11px] tracking-[0.06em] text-muted-foreground">{lock.overridden ? "Override" : "Auto"}</small>
-      </button>
-    </div>
-  );
-}
-
-/**
- * When moves lock, for everyone in the game (docs/PLAN-own-pace-games.md, "Pace is the game's setting": the user, 2026-11-13; it was
- * one person's switch on Backstage › Members). Two tiles, as Who can join: a move stays open after an episode airs until you've
- * watched it (or the next one airs), the default and the recommended one, or everything locks at airtime. A Commissioner's, saved
- * at once with Undo on the toast and a line in Recent changes; frozen while the game is locked down. A game at your own pace has
- * nothing to choose (it waits for each of you), and a stage of a game in stages follows its game: each says so in a line.
- */
-function Pace({ seasonId, couchId, g, can, word }: { seasonId: string; couchId: string; g: GameSettings; can: boolean; word: string }) {
-  const after = useAfter();
-  const [busy, setBusy] = useState(false);
-  const ep = word.toLowerCase();
-  const said = { live: "moves stay open until you've watched", strict: "moves lock at airtime" } as const;
-  const set = async (mode: "live" | "strict", undoing = false) => {
-    // (An Undo runs from the toast with this render's game: it never reads `g` for where things stand.)
-    if (busy || (!undoing && g.pace.mode === mode)) return;
-    const was = g.pace.mode === "strict" ? "strict" : "live";
-    setBusy(true);
-    try {
-      await gameAdmin.pace(seasonId, couchId, g.leagueId, mode);
-      await after();
-      toast(`${undoing ? "Back to" : "Saved"}: ${g.gameName} · ${said[mode]}`, undoing ? undefined : { undo: () => void set(was, true) });
-    } catch (e) {
-      toast.quiet((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-  const heading = <h3 className="type-caption mb-2 text-[15px] tracking-[0.04em] text-muted-foreground">When moves lock</h3>;
-  if (g.pace.mode === "own")
-    return (
-      <div data-settings="pace" data-pace="own" className="mb-5">
-        {heading}
-        <p className="text-[15px] leading-snug">
-          <b>When you&rsquo;ve watched it.</b>{" "}
-          <span className="text-muted-foreground">At your own pace: a move stays open until you&rsquo;ve watched that {ep}, however far behind you are. Chosen when the game started.</span>
-        </p>
-      </div>
-    );
-  const tiles = [
-    ["live", "When the next one airs", `Open after an ${ep} airs until you watch it, or the next one airs`],
-    ["strict", "At airtime", `Everything locks when the ${ep} starts`],
-  ] as const;
-  if (g.pace.of)
-    return (
-      <div data-settings="pace" data-pace={g.pace.mode} className="mb-5">
-        {heading}
-        <p className="text-[15px] leading-snug">
-          <b>{tiles.find(([mode]) => mode === g.pace.mode)?.[1]}.</b> <span className="text-muted-foreground">A stage follows its game: change it on {g.pace.of}.</span>
-        </p>
-      </div>
-    );
-  return (
-    <div data-settings="pace" data-pace={g.pace.mode} className="mb-5">
-      {heading}
-      <small className="mb-2 block text-[13px] text-muted-foreground">
-        {g.lockedDown ? "Locked down for the season: this stays as it is." : "The same for everyone in the game. Late is on the honour system: only if you haven't watched it yet."}
-      </small>
-      {tiles.map(([mode, t, d]) => (
+      {!final && (
         <button
-          key={mode}
           type="button"
-          data-pace-tile={mode}
-          aria-pressed={g.pace.mode === mode}
-          disabled={!can || busy}
-          onClick={() => void set(mode)}
-          className="mb-1.5 flex w-full items-center gap-3 rounded-[3px] bg-background p-2.5 text-left"
+          data-settings-override={lock.overridden ? "on" : "off"}
+          disabled={busy}
+          onClick={flip}
+          className="nd-press grid min-h-11 flex-none place-items-center"
         >
-          <i className={`grid size-5 flex-none place-items-center rounded-full border-2 ${g.pace.mode === mode ? "border-foreground" : "border-input"}`} aria-hidden>
-            {g.pace.mode === mode && <i className="size-2.5 rounded-full bg-foreground" />}
-          </i>
-          <span>
-            <b className="block text-[15px]">
-              {t}
-              {mode === "live" && <em className="type-caption ml-2 rounded-[2px] bg-secondary px-1.5 text-[11px] not-italic">Recommended</em>}
-            </b>
-            <small className="block text-[13px] leading-snug text-muted-foreground">{d}</small>
+          <span className="grid h-9 place-items-center whitespace-nowrap rounded-[3px] px-3 text-[14px] font-bold outline-[1.5px] -outline-offset-[1.5px] outline-input">
+            {lock.overridden ? "Back to Auto" : lock.closed ? "Open it again" : "Lock now"}
           </span>
         </button>
-      ))}
+      )}
     </div>
   );
 }
@@ -500,18 +368,20 @@ function Pace({ seasonId, couchId, g, can, word }: { seasonId: string; couchId: 
  * reached, to one still to come; frozen once it's over, or while it's locked down. Where it starts (step A3 of
  * docs/PLAN-start-a-game-gpt.md): any episode still to come, up to its end, or when a phase of the season still to come starts,
  * until its first one airs. A game waiting for its phase says so ("Starts when Merged starts") and has no end to choose until
- * its start is settled; once it is, "Starts with Merged, at Episode 9".
+ * its start is settled; once it is, "Starts with Merged, at Episode 9". `compact`: Round 4's line above it says what it is.
  */
-function HowLong({
+export function HowLong({
   g,
   words,
   can,
   write,
+  compact,
 }: {
   g: GameSettings;
   words: ShowData["words"];
   can: boolean;
   write: (g: GameSettings, body: Parameters<typeof gameAdmin.settings>[3], said: string) => Promise<void>;
+  compact?: boolean;
 }) {
   const part = { singular: words.episode.toLowerCase(), plural: words.episodes.toLowerCase() };
   const sp = g.span;
@@ -531,8 +401,8 @@ function HowLong({
   const moveStart = open && !sp.started && (sp.starts.some((e) => e.number !== sp.from || !!sp.phase) || phases.some((p) => p.id !== sp.phase?.id));
   const startValue = sp.phase ? `phase:${sp.phase.id}` : String(sp.from);
   return (
-    <div data-settings="span" className="mb-5">
-      <h3 className="type-caption mb-2 text-[15px] tracking-[0.04em] text-muted-foreground">How long</h3>
+    <div data-settings="span" className={compact ? "mb-2" : "mb-5"}>
+      {!compact && <h3 className="type-caption mb-2 text-[15px] tracking-[0.04em] text-muted-foreground">How long</h3>}
       <div className="rounded-[3px] bg-background p-2.5">
         <b data-span-now className="block text-[15px]">
           {sp.over ? `Final · ${now}` : now}
@@ -656,7 +526,7 @@ function LockDown({ seasonId, couchId, games }: { seasonId: string; couchId: str
 type EndAction = "archive" | "delete";
 
 /** The mock's "Archive or delete a game": two rows, each asking which game (when there's more than one of yours). */
-function EndGames({ seasonId, couchId }: { seasonId: string; couchId: string }) {
+export function EndGames({ seasonId, couchId, only }: { seasonId: string; couchId: string; only?: string }) {
   const data = useEndGames(seasonId, couchId);
   const after = useAfter();
   const [asking, setAsking] = useState<EndAction | null>(null);
@@ -665,7 +535,8 @@ function EndGames({ seasonId, couchId }: { seasonId: string; couchId: string }) 
   if (asking && asking !== lastAsk) setLastAsk(asking);
   const [hold, setHold] = useState<DeletePreview | null | false>(false);
   const [open, setOpen] = useState(false);
-  const mine = (data.data?.games ?? []).filter((g) => g.yours);
+  // `only` (Round 4: a game's own settings): that game, its Stop named for it.
+  const mine = (data.data?.games ?? []).filter((g) => g.yours && (!only || g.leagueId === only));
   if (!mine.length) return null;
   const live = mine.filter((g) => !g.archived);
 
@@ -725,8 +596,8 @@ function EndGames({ seasonId, couchId }: { seasonId: string; couchId: string }) 
           onClick={() => setOpen(!open)}
           className="flex min-h-[56px] w-full items-center gap-3 px-3 text-left text-[15px] font-semibold"
         >
-          <KeyRound className="size-5 flex-none" aria-hidden />
-          <span className="flex-1">Archive or delete a game</span>
+          {only ? <Archive className="size-5 flex-none" aria-hidden /> : <KeyRound className="size-5 flex-none" aria-hidden />}
+          <span className="flex-1">{only && mine[0] ? `Archive or delete ${mine[0].name}` : "Archive or delete a game"}</span>
           <ChevronRight className={`size-5 flex-none text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`} aria-hidden />
         </button>
         {open && (
@@ -734,7 +605,7 @@ function EndGames({ seasonId, couchId }: { seasonId: string; couchId: string }) 
             <button type="button" data-end="archive" onClick={() => choose("archive")} className="nd-press flex min-h-[60px] w-full items-center gap-3 border-t border-border text-left">
               <Archive className="size-5 flex-none text-muted-foreground" aria-hidden />
               <span className="min-w-0 flex-1">
-                <b className="block text-[15px] font-semibold">{live.length ? "Archive a game" : "Bring a game back"}</b>
+                <b className="block text-[15px] font-semibold">{only ? (live.length ? `Archive ${mine[0].name}` : `Bring ${mine[0].name} back`) : live.length ? "Archive a game" : "Bring a game back"}</b>
                 <small className="block text-[13px] text-muted-foreground">
                   {live.length ? "Keeps it on the trophy shelf, stops scoring" : "It scores again, with what came in meanwhile"}
                 </small>
@@ -743,7 +614,7 @@ function EndGames({ seasonId, couchId }: { seasonId: string; couchId: string }) 
             <button type="button" data-end="delete" onClick={() => choose("delete")} className="nd-press flex min-h-[60px] w-full items-center gap-3 border-t border-border text-left">
               <Trash2 className="size-5 flex-none text-live" aria-hidden />
               <span className="min-w-0 flex-1">
-                <b className="block text-[15px] font-semibold text-live">Delete a game</b>
+                <b className="block text-[15px] font-semibold text-live">{only ? `Delete ${mine[0].name}` : "Delete a game"}</b>
                 <small className="block text-[13px] text-muted-foreground">Removes it for everyone. Restorable for 30 days</small>
               </span>
             </button>

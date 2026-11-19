@@ -598,6 +598,14 @@ function checkDraft(draft, { ctx = null, pack = null, words = '', kind, carry = 
     result.ask.push({ part: 'about', question: `Make this for ${other} instead?`, options: [`Yes, ${other}`, `No, ${pack.page}`], by: 'check' });
   }
   if (d.also) result.offers.second = { summary: d.also };
+  // E1d: computer players they asked for, beside the game (Start a game's Who's playing takes them): how many (1 unless their words say
+  // a number, up to five) and how sharp (normal unless easy or sharp).
+  if (isObj(d.bots)) {
+    const asked = Number.isInteger(d.bots.n) ? d.bots.n : 1;
+    const n = asked > 1 && numbersIn(words, { kind: pageKind }).has(asked) ? Math.min(5, asked) : 1;
+    if (asked !== n) result.dropped.push({ part: 'bots.n', value: asked, why: asked > 5 ? 'up to five computer players' : "a number they didn't say" });
+    result.offers.bots = { n, level: ['easy', 'normal', 'sharp'].includes(d.bots.level) ? d.bots.level : 'normal' };
+  }
 
   if (!isObj(d.game)) {
     result.state = 'none';

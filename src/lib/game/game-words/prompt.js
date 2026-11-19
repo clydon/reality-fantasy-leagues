@@ -19,6 +19,7 @@ const ANSWER = `ANSWER with one JSON object and nothing else, in this shape:
   "cantYet": [{ "what": "which tribe wins immunity", "why": "...", "nearest": "ask[1]" }],
   "about": null,
   "also": null,
+  "bots": null,
   "invent": 0,
   "summary": "One or two plain sentences on the game." }
 
@@ -34,6 +35,7 @@ The rules:
 - Build the closest game that plays, as big as they asked (what they're playing, not their nouns); what can't match goes under cantYet.
 - Another show or season than the page's: draft it for the page's anyway, and set "about": { "show": "...", "season": n }.
 - Two games in one request: draft the first; describe the second in one line in "also".
+- Computer players ("me against a bot"): never in the game; "bots": { "n": 1 to 5, "level": "easy", "normal" or "sharp" }, else null.
 - Not a game at all (a question about the show, words you can't read): "game": null, and say why under cantYet.`;
 
 /** G3 part 2: on a team's page, the answer names its games too. */

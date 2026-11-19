@@ -37,8 +37,8 @@ export interface AnswerRow {
 }
 
 /** Every answer stored for a game (game_answers, migrations 0200 and 0201). */
-export async function storedAnswers(leagueId: string): Promise<AnswerRow[]> {
-  const { rows } = await pool.query("SELECT player_id, question, episode, answer, late, changes FROM game_answers WHERE league_id = $1", [leagueId]);
+export async function storedAnswers(leagueId: string, client: { query: typeof pool.query } = pool): Promise<AnswerRow[]> {
+  const { rows } = await client.query("SELECT player_id, question, episode, answer, late, changes FROM game_answers WHERE league_id = $1", [leagueId]);
   return rows.map((r) => ({ playerId: r.player_id as string, question: r.question as string, episode: r.episode as number, answer: r.answer, late: r.late as number, changes: r.changes as number }));
 }
 
@@ -47,6 +47,20 @@ export async function storedAnswers(leagueId: string): Promise<AnswerRow[]> {
 export function keepsAnswers(state: LeagueState): boolean {
   const p = StateLogic.piecesOf(state);
   return !!p.hasQuestions || !!p.hasDraftQuestions;
+}
+
+/**
+ * A seat's room to stake (E1b's second slice: a computer player's, read as answers.ts reads a person's, stakeRoom): its points as they
+ * stand at `mark` (null: as they come; a catching-up seat's own week before), less its stakes of them still on the line. `rows`: the
+ * game's answers, read on the caller's transaction.
+ */
+export async function seatStakeRoom(leagueId: string, state: LeagueState, playerId: string, mark: number | null, rows: AnswerRow[]): Promise<{ points: number; held: Map<string, number> }> {
+  const w = await walked({ leagueId, state, playerId, mark, rows });
+  const all = keepsAnswers(state) ? w.rows : [];
+  const graded = StateLogic.AnswerLogic.grade(w.view, all, w.facts);
+  const points = w.walk ? (w.walk.totals[playerId] ?? 0) : (graded.points.get(playerId) ?? 0);
+  const qs = StateLogic.AnswerLogic.questions(state).filter((q) => !Spec.isCalls(q));
+  return { points, held: Spec.heldStakes(qs, all, graded.verdicts, playerId, Spec.bankOf(StateLogic.gameOf(state))) };
 }
 
 /** The season's last episode, when the season says how many it has: what finale predictions wait for. */
@@ -403,7 +417,8 @@ function answersIn(w: Walked): { episode: number; set: Record<string, boolean | 
 /**
  * Step A14 part 2: how the couch did against the bot on a game's questions played against it, as far as the viewer has seen: the
  * windows its call is settled on (a void call isn't one), how many it got right, and each seat's record against it (`beat`: the
- * windows you scored on, right where it wasn't; `beaten`: those it was right on and you scored nothing, of the windows you answered).
+ * windows you scored on, right where it wasn't; `level`: both of you right, so nothing scored; `beaten`: it right and you not, of the
+ * windows you answered). Round 5 (B2): a level window was counted as beaten.
  * Null for a game with none. The bot is never a seat on the table, nor a place on it: this is a line beside it.
  */
 export function botLine(w: Walked, graded?: { verdicts: Map<string, Verdict>; earned: Map<string, Map<string, number>> } | null): BotLine | null {
@@ -427,18 +442,27 @@ export function botLine(w: Walked, graded?: { verdicts: Map<string, Verdict>; ea
     if (!q) continue;
     const ep = Number(key.slice(cut + 1));
     const list = byWindow.get(key) ?? [];
-    const right = Spec.botRight(q, verdicts.get(key) ?? Spec.verdictOf(q, ep, w.facts), call, list, w.facts);
+    const v = verdicts.get(key) ?? Spec.verdictOf(q, ep, w.facts);
+    const right = Spec.botRight(q, v, call, list, w.facts);
     if (right === null) continue;
     line.called++;
     if (right) line.right++;
     const got = earned.get(key);
     for (const a of list) {
-      const r = (line.vs[a.playerId] ??= { beat: 0, beaten: 0 });
+      const r = (line.vs[a.playerId] ??= { beat: 0, beaten: 0, level: 0 });
       if ((got?.get(a.playerId) ?? 0) > 0) r.beat++;
+      else if (right && levelWith(q, v, a, list, call, w.facts)) r.level = (r.level ?? 0) + 1;
       else if (right) r.beaten++;
     }
   }
   return line;
+}
+
+/** Round 5 (B2): whether an answer was right where the bot's call was right too (level, nobody scores): a number, among the closest
+ *  with the bot's call counted beside the couch's (it beat you if it was closer); any other, right by itself. */
+export function levelWith(q: Question, v: Verdict, a: { playerId: string; answer: unknown }, list: { playerId: string; answer: unknown }[], call: unknown, facts: AnswerFacts): boolean {
+  if (q.answer === "number") return Spec.pointsFor({ ...q, points: 1 } as Question, v, [...list, { playerId: "\u0000bot", answer: call }], facts).has(a.playerId);
+  return Spec.isRight(q, v, a, list, facts) === true;
 }
 
 /** Each one's points as the table shows them: a walk's (frozen once out), else graded on the view (`graded`, when it has been). */

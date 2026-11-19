@@ -34,6 +34,12 @@ const sameTeams = (a: SpanEpisode["teams"], b: SpanEpisode["teams"]) =>
   !!a && !!b && a.length >= 2 && a.map((t) => t.id).sort().join("|") === b.map((t) => t.id).sort().join("|");
 
 /** "Game 4", "Games 4–6"; with no end, "Game 4 on". */
+/** A game's kind as people name it (Round 3's archive and its chips): its own name without an episode it was named for ("Split the
+ *  Pot · Episode 19" is a Split the Pot). The engine's type name won't do: a pot, a majority and a sheet are all "questions". */
+export function kindOf(name: string): string {
+  return name.replace(/\s*·\s*[A-Za-z][A-Za-z' ]{0,24}?\s\d+(\s\d+)?\s*$/, "").replace(/\s*[:-]\s*(Episode|Ep|Week|Game|Night)\s*\d+\s*$/i, "").trim() || name;
+}
+
 export function spanName(from: number, to: number | null, part: PartWord): string {
   if (to === null) return `${cap(part.singular)} ${from} on`;
   return to === from ? `${cap(part.singular)} ${from}` : `${cap(part.plural)} ${from}–${to}`;

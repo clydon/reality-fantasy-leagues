@@ -7,7 +7,6 @@ const path = require("path");
 const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
 const { buildDemoState } = jiti("../src/lib/game/demo-season-builder.ts");
 const { gameView, poolCallOf, poolTop, POOL_TOP } = jiti("../src/lib/game/game-view.ts");
-const { practiceTeams } = jiti("../src/lib/game/practice.ts");
 const S = require("../src/lib/game/state-logic.js");
 
 const EPISODES = 12;
@@ -77,11 +76,3 @@ test("poolTop keeps the first ten, then you and either side of you", () => {
   assert.equal(poolTop(top).length, 10);
 });
 
-test("a practice couch's teams fit who's still in, four teams of at least two", () => {
-  assert.deepEqual(practiceTeams("active-roster", 13), { activeSlots: 2, benchSlots: 1 });
-  assert.deepEqual(practiceTeams("active-roster", 20), { activeSlots: 3, benchSlots: 2 });
-  assert.deepEqual(practiceTeams("active-roster", 16), { activeSlots: 3, benchSlots: 1 });
-  assert.deepEqual(practiceTeams("classic-draft", 18), { teamSize: 4 });
-  assert.deepEqual(practiceTeams("classic-draft", 12), { teamSize: 3 });
-  assert.equal(practiceTeams("classic-draft", 7), null);
-});

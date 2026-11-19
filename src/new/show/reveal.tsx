@@ -19,6 +19,7 @@ import { first } from "./moves";
 import { EpisodeGifStrip, GifsAction, GifsBeat, openGif, showLabel, type GifTarget } from "./react";
 import { Face } from "./parts";
 import { useStepEnd, useWatcherNext } from "./step-through";
+import { resultWords, WinnerFaces } from "./whats-on";
 
 // The one reveal (the mock's episode.js revealPlay, stages.js, share.js; docs/PLAN-new-design.md step 2): one
 // broadcast per episode for every game you play on the show. Tapping Reveal asks the server to reveal it in all of
@@ -280,6 +281,7 @@ function Beats({
   // The tap a swipe ends in is the swipe's, not a Next.
   const swipe = useRef<{ x: number; y: number } | null>(null);
   const swiped = useRef(false);
+  const nightIds = new Set((r?.nights ?? []).map((a) => a.leagueId));
   const beats: { key: string; node: ReactNode; action?: ReactNode }[] = r
     ? [
         { key: "open", node: <Opener r={r} name={name} season={season} replay={replay} /> },
@@ -289,8 +291,10 @@ function Beats({
         ...(r.out.length || r.lineup || r.games.length || r.predictions.length || r.table ? [{ key: "out", node: <VoteCards r={r} /> }] : []),
         ...(gifs ? [{ key: "gifs", node: gifs.node, action: gifs.action }] : []),
         ...(r.lineup ? [{ key: "lineup", node: <LineupBeat r={r} /> }] : []),
+        // Round 3: the night's one-episode games, ended tonight, one beat between them.
+        ...(r.nights?.length ? [{ key: "nights", node: <NightBeat r={r} /> }] : []),
         // Each other game a beat of its own, in its own measure (never one list of everything else).
-        ...[...r.games, ...r.predictions].map((g) => ({ key: `game-${g.leagueId}-${g.gameType}`, node: <GameBeat g={g} /> })),
+        ...[...r.games, ...r.predictions].filter((g) => !nightIds.has(g.leagueId)).map((g) => ({ key: `game-${g.leagueId}-${g.gameType}`, node: <GameBeat g={g} /> })),
         ...(r.table ? [{ key: "table", node: <TableBeat r={r} /> }] : []),
       ]
     : [];
@@ -699,6 +703,46 @@ function LineupBeat({ r }: { r: SeasonReveal }) {
       <div className="mt-5 flex items-baseline gap-3">
         <b className="type-num text-[64px] leading-none">{signed(l.total)}</b>
         <small className="text-sm text-muted-foreground">{l.soFar ? "so far · full scores to come" : `in Episode ${r.episode}`}</small>
+      </div>
+    </div>
+  );
+}
+
+/** Round 3: the night's games in one beat (docs/design-round/round3-short-games-spec.md): what the night came to first, then a row each,
+ *  its winners' faces and the result in words, your place at the right (teal when you came first), rising in one after another. */
+function NightBeat({ r }: { r: SeasonReveal }) {
+  const nights = r.nights ?? [];
+  const firsts = nights.filter((a) => !!a.you && a.you.place === 1 && !a.level && !a.nobody);
+  const outright = firsts.filter((a) => a.winners.length === 1).length;
+  const shared = firsts.length - outright;
+  const sum = outright
+    ? `You won ${outright} of ${nights.length}${shared ? `, and shared ${shared}` : ""}`
+    : shared
+      ? `You shared ${shared} of ${nights.length}`
+      : nights.some((a) => !a.nobody && !a.level)
+        ? `No wins for you in ${nights.length}`
+        : "Nobody won outright";
+  return (
+    <div data-reveal-nights>
+      <Kicker>{`Episode ${r.episode}'s games`}</Kicker>
+      <b className="type-caption block text-[30px] leading-[.95]">{sum}</b>
+      <div className="mt-4 flex flex-col">
+        {nights.slice(0, 5).map((a, i) => {
+          const won = !!a.you && a.you.place === 1 && !a.level && !a.nobody;
+          return (
+            <div key={a.leagueId} data-reveal-night={a.leagueId} className="nd-rise flex min-h-[72px] items-center gap-3 border-t border-border py-2.5" style={{ animationDelay: `${160 + i * 160}ms` }}>
+              <span className="flex w-[66px] flex-none">
+                <WinnerFaces a={a} size={40} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <small className="type-caption block truncate text-[13px] tracking-[0.05em] text-muted-foreground">{a.kind}</small>
+                <b className="type-caption block truncate text-[24px] leading-none">{resultWords(a)}</b>
+              </span>
+              {a.you && !a.nobody && <b className={`type-num flex-none text-[30px] leading-none ${won ? "text-good" : ""}`}>{a.you.rank.startsWith("T") ? a.you.rank : ordinal(a.you.place)}</b>}
+            </div>
+          );
+        })}
+        {nights.length > 5 && <p className="border-t border-border pt-2 text-[15px] text-muted-foreground">and {nights.length - 5} more on the Games tab</p>}
       </div>
     </div>
   );

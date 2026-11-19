@@ -471,13 +471,12 @@ class Core {
 class EliminationOrderScoringStrategy {
   /** Whether the game scores the boot order in reverse (A9 part 2). */
   static reversed(state){ const score = gameOf(state).score; return score.by === 'place' && score.reverse === true; }
-  // BACKLOG 62 (the user's decision, 2026-11-14): a stage's Outlast counts boots from the stage's own start, so a new stage starts
-  // everyone level. A stage's own league says it is one (settings.stageOf, written where it's made: engine-lab.ts makeStages,
-  // change-stages.ts makeCopy); the boots before its start, or every boot so far while it hasn't started, aren't counted (the
-  // sequence's mark.base). A game of its own that starts later counts the whole season, as it always has. Never in reverse (a place
-  // there is already the cast less the boots before it).
+  // BACKLOG 62 (the user's decisions, 2026-11-14 for a stage, 2026-11-19 for a game of its own): an Outlast counts boots from its
+  // own start, so one that starts mid-season (a stage from the merge, or a game of its own from Episode 4) starts everyone level:
+  // the boots before its start, or every boot so far while it hasn't started, aren't counted (the sequence's mark.base). One from
+  // the season's start counts nothing less. Never in reverse (a place there is already the cast less the boots before it).
   static baseOf(state){
-    if(!(state.settings && state.settings.stageOf) || EliminationOrderScoringStrategy.reversed(state)) return 0;
+    if(EliminationOrderScoringStrategy.reversed(state)) return 0;
     const start = startEpisode(state);
     const numberOf = new Map((state.episodes || []).map(e => [e.id, e.number]));
     return (state.castaways || []).filter(c => c.status === 'eliminated' && typeof c.placementOrder === 'number' && (start === null || (numberOf.has(c.exitEpisodeId) ? numberOf.get(c.exitEpisodeId) : 0) < start)).length;
@@ -4862,6 +4861,27 @@ class GroupSlotLogic {
     }
     return out;
   }
+  /**
+   * The other team holding group `groupId` for episode n, in an exclusive game while the groups cover every team's slots (one
+   * team's at a time, first come), or null. The teams that count are the ones in the game's rotation and still in, as offered
+   * counts them: a late joiner's picks are private, as their team is. validatePick refuses a group one holds; the game's page says
+   * so before you choose (Round 5, B2).
+   */
+  static heldBy(state, playerId, n, groupId, ix){
+    const cfg = GroupSlotLogic.config(state);
+    if(!cfg || cfg.own !== 'exclusive' || groupId === null || groupId === undefined) return null;
+    const at = ix || GroupSlotLogic.index(state);
+    const offer = GroupSlotLogic.offered(state, n, at);
+    if(offer.shared) return null;
+    const g = offer.groups.find(x => x.id === groupId);
+    if(!g) return null;
+    const holds = (pid, i) => {
+      const s = GroupSlotLogic.standing(state, pid, i, n, at);
+      return !!s.pick && s.status !== 'dropped' && s.status !== 'empty' && !!GroupSlotLogic.find([g], s.pick, at.exits, n);
+    };
+    const outs = KnockoutLogic.outs(state);
+    return state.players.filter(p => p.id !== playerId && inLeagueRotation(p) && !outs.has(p.id)).find(p => Array.from({ length: cfg.slots }, (_, i) => i).some(i => holds(p.id, i))) || null;
+  }
   /** Null when a player's slot can take `groupId` for the episode (null: empty it), else why not. */
   static validatePick(state, epId, playerId, slot, groupId){
     const cfg = GroupSlotLogic.config(state);
@@ -4896,13 +4916,8 @@ class GroupSlotLogic {
       return !!s.pick && s.status !== 'dropped' && s.status !== 'empty' && !!GroupSlotLogic.find([g], s.pick, ix.exits, n);
     };
     for(let i = 0; i < cfg.slots; i++) if(i !== slot && holds(playerId, i)) return 'That group is already in your other slot';
-    // Exclusive while the groups cover every team's slots: one team's at a time, first come. The teams that count are the ones
-    // in the game's rotation, as offered counts them: a late joiner's picks are private, as their team is.
-    if(cfg.own === 'exclusive' && !offer.shared){
-      const outs = KnockoutLogic.outs(state);
-      const other = state.players.filter(p => p.id !== playerId && inLeagueRotation(p) && !outs.has(p.id)).find(p => Array.from({ length: cfg.slots }, (_, i) => i).some(i => holds(p.id, i)));
-      if(other) return `${other.name} has that group`;
-    }
+    const other = GroupSlotLogic.heldBy(state, playerId, n, groupId, ix);
+    if(other) return `${other.name} has that group`;
     return null;
   }
   static setPick(state, epId, playerId, slot, groupId){
@@ -7233,11 +7248,7 @@ const { REPLACE_RULES, WAIVER_FEELS } = Spec;
 const MAX_CLAIM_PAIRS = 60;
 // FNV-1a scaled to [0, 1): the "random" free agent an unfilled pickup gets, fixed per week and player
 // so processing the same state twice can never give two answers.
-function hashUnit(text){
-  let h = 0x811c9dc5;
-  for(let i = 0; i < text.length; i++){ h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
-  return h / 0x100000000;
-}
+const hashUnit = require('./fnv.js').fnvUnit;
 const isId = v => typeof v === 'string' && !!v;
 const uniqIds = v => Array.isArray(v) ? [...new Set(v.filter(isId))] : [];
 const hasKey = (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k);
@@ -8940,6 +8951,20 @@ class AnswerLogic {
   static closed(state, q, episode, o){
     const opt = o || {};
     if(q.asked !== 'once' && !AnswerLogic.opensAt(state, q, episode)) return true;
+    // Catching up at your own pace (docs/PLAN-own-pace-games.md, part 4: answers lock per person by their mark, not by air time; built
+    // 2026-11-18 with computer players answering there, PLAN-start-a-game-redo.md E1b): a question closes for you once you've seen
+    // the episode that closes it, and the game once you've seen its last. Nothing else closes it: not its air time, not results
+    // you haven't seen, not the season being over on the full state (gameOver, which a finished season is at once).
+    if(opt.player && Number.isInteger(opt.mark) && AnswerLogic.ownWeek(state, opt.player)){
+      const last = lastEpisode(state);
+      if(last !== null && opt.mark >= last) return true;
+      const at = AnswerLogic.closesAt(state, q, episode, opt.finale);
+      if(at === null) return false;
+      // Whoever runs the game locked it by hand before it started (Backstage's lock, ep.lineupsLocked): the one exception to the
+      // game's pace, for everyone (as GhostLogic.lateWindow).
+      const lockEp = (state.episodes || []).find(e => e.number === at);
+      return at <= opt.mark || !!(lockEp && lockEp.lineupsLocked);
+    }
     if(gameOver(state)) return true;
     const at = AnswerLogic.closesAt(state, q, episode, opt.finale);
     if(at === null) return false;
@@ -8958,12 +8983,17 @@ class AnswerLogic {
   // them (GhostLogic.lateWindow), else this week's (episodeNow).
   //   o: { now, player (the one answering's seat) }
   static lateEpisode(state, mark, o){
+    // Catching up at your own pace (part 4, as closed): the one after your mark, while the game plays it.
+    if(o && o.player && Number.isInteger(mark) && AnswerLogic.ownWeek(state, o.player)) return inPlay(state, mark + 1) ? mark + 1 : null;
     const now = AnswerLogic.episodeNow(state);
     // Playing at your own pace (docs/PLAN-own-pace-games.md: `o.player`): the episode that aired while you haven't watched it.
     const own = o && o.player && Number.isInteger(mark) ? GhostLogic.lateWindow(state, o.player, mark, o.now) : null;
     if(own && own.episode === mark + 1 && now !== null && own.episode <= now) return own.episode;
     return now;
   }
+  // Whether a seat answers by its own mark (closed, lateEpisode): one catching up in a game at your own pace, a computer player too
+  // (bot-logic.js catchUpAnswers). A late joiner catching up in a live game still answers once they're on the live episode.
+  static ownWeek(state, playerId){ return GhostLogic.ownPace(state) && GhostLogic.isCatchingUp(state, playerId); }
   // The episode a question asked each episode is answered for now: this week's (currentEpisodeNumber: the one picks and
   // lineups are for), or null (waiting for its phase, past its end).
   static episodeNow(state){ return currentEpisodeNumber(state); }

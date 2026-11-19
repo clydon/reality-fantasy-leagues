@@ -10,14 +10,14 @@ import { paths } from "../routes";
 import { Avatar } from "../ui/bars";
 import { Btn, SectionHead } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
-import { PoolCard, PracticeCard, PracticeSheet, poolShown, practiceShown, type PracticeSeason } from "../show/solo";
+import { PoolCard, poolShown } from "../show/solo";
 import { openTrivia } from "../show/trivia";
 import { Foot, nextShow, StatusLine, UpNext, YourShows } from "./sections";
 import { OnTvRow } from "./guide";
 
 // The solo hub (docs/PLAN-new-design.md step 9 part 3; the mock's round2.js soloHub + solo.js): someone on no couch, first
 // run's "Just me for now". Welcome, Watching solo (start a couch), what's due and Up next when something is, the guide
-// (step 11), Streaming (your shows without an airtime, step 14), your shows, Play on your own (each show's public pool and your practice couch: real), On your own (Watch along on
+// (step 11), Streaming (your shows without an airtime, step 14), your shows, Play on your own (each show's public pool: real), On your own (Watch along on
 // one of your shows since step 13 part 1; this week's trivia on one of your shows since step 12 part 3; Who's scoring is the cast), Better with
 // friends (the season games, and Start a couch), the foot.
 
@@ -61,21 +61,14 @@ export function SoloHub({ home }: { home: Home }) {
   );
 }
 
-/** Each of your shows' public pool (two at most here, soonest first) and your practice couch. */
+/** Each of your shows' public pool (two at most here, soonest first). */
 function PlayOnYourOwn({ home }: { home: Home }) {
   const nav = useNav();
   const { data } = useSolo();
-  const [sheet, setSheet] = useState(false);
   if (!data) return <div aria-busy className="mx-4 mt-8 h-44 animate-pulse rounded-[4px] bg-card" />;
   const pools = data.seasons.filter((s) => poolShown(s.pool)).slice(0, 2);
-  const yours = data.seasons.find((s) => s.practice.leagueId);
-  const open = data.seasons.filter((s) => practiceShown(s.practice));
-  if (!pools.length && !open.length) return null;
+  if (!pools.length) return null;
   const art = (s: SoloSeason) => home.shows.find((h) => h.seasonId === s.seasonId)?.show.artUrl ?? null;
-  const sheetFor = (s: SoloSeason): PracticeSeason => {
-    const h = home.shows.find((x) => x.seasonId === s.seasonId);
-    return { info: s.practice, seenThrough: h ? h.seenThrough : 0, latestAired: h?.latestAired ?? 0 };
-  };
   return (
     <section className="mt-8" data-play-solo>
       <SectionHead title="Play on your own" aside="No couch needed" />
@@ -83,9 +76,7 @@ function PlayOnYourOwn({ home }: { home: Home }) {
         {pools.map((s) => (
           <PoolCard key={s.seasonId} info={s.pool} art={art(s)} onOpen={() => nav.push(`${paths.show(s.seasonId, "games")}?page=pool`)} />
         ))}
-        {(yours || open.length > 0) && <PracticeCard info={(yours ?? open[0]).practice} onOpen={() => setSheet(true)} />}
       </div>
-      <PracticeSheet open={sheet} onOpenChange={setSheet} seasons={yours ? [sheetFor(yours)] : open.map(sheetFor)} />
     </section>
   );
 }

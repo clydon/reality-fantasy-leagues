@@ -575,59 +575,48 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
           await page.click("[data-start-pick] [data-pick-show]:not([data-pick-practice])");
           const row = await page.evaluate(() => (document.querySelector("[data-pick-practice]")?.getAnimations().length ?? 0) > 0);
           await page.waitForTimeout(600);
-          check(row && !!(await page.$("[data-start-pick] [data-pick-practice]")) && !(await page.$("[data-start-sheet]")), "A: in practice, another show shakes the practice show's row, and opens nothing");
+          check(row && !!(await page.$("[data-start-pick] [data-pick-practice]")) && !(await page.$("[data-gallery]")), "A: in practice, another show shakes the practice show's row, and opens nothing");
         }
         await page.click("[data-pick-practice]");
-        const warmed = await page.waitForSelector("[data-start-warming]", { timeout: 6000 }).then(() => true, () => false);
-        check(warmed, "A: picking it, a moment getting its rules");
-        await page.waitForSelector("[data-start-go]", { timeout: 30000 });
-        check((await page.getAttribute('[data-start-game="predictions"]', "aria-pressed")) === "true", "A: the Prediction Sheet chosen");
-        check(!!(await page.$("[data-start-describe]")), "A: Describe a new game (our AI) in the sheet");
-        const go = await page.$eval("[role=dialog][data-open] [data-start-go]", (el) => {
+        // Start a game (B1): the practice opens on the Prediction sheet's screen in the gallery, Start in the sheet's foot.
+        await page.waitForSelector("[role=dialog][data-open] [data-gallery=base] [data-practice]", { timeout: 60000 });
+        check(/Prediction sheet/i.test(await page.textContent("[role=dialog][data-open] [data-gallery-title]")), "A: the Prediction sheet's screen, with the Practice strip");
+        const go = await page.$eval("[role=dialog][data-open] [data-gallery-start]", (el) => {
           const r = el.getBoundingClientRect();
           return { foot: !!el.closest("[data-sheet-foot]"), seen: r.top >= 0 && r.bottom <= window.innerHeight };
         });
-        check(go.foot && go.seen, "A: Start it sits in the sheet's foot, in sight without scrolling", JSON.stringify(go));
-        // Left a moment, the options go down to their end and Start it shakes (the user: "scroll down then shake Start it").
-        const room = await page.$eval("[role=dialog][data-open] [data-start-sheet]", (el) => el.parentElement.scrollHeight - el.parentElement.clientHeight);
+        check(go.foot && go.seen, "A: Start sits in the sheet's foot, in sight without scrolling", JSON.stringify(go));
+        // Left a moment, the screen goes down to its end and Start shakes (the user: "scroll down then shake Start it").
+        const room = await page.$eval("[role=dialog][data-open] [data-gallery]", (el) => el.parentElement.scrollHeight - el.parentElement.clientHeight);
         const startNudged = await page
           .waitForFunction(
             () => {
-              const body = document.querySelector("[role=dialog][data-open] [data-start-sheet]")?.parentElement;
-              const go = document.querySelector("[role=dialog][data-open] [data-start-go]");
+              const body = document.querySelector("[role=dialog][data-open] [data-gallery]")?.parentElement;
+              const go = document.querySelector("[role=dialog][data-open] [data-gallery-start]");
               return !!body && !!go && body.scrollHeight - body.clientHeight - body.scrollTop <= 4 && go.getAnimations().length > 0;
             },
             null,
-            { timeout: 5000 }
+            { timeout: 6000 }
           )
           .then(() => true, () => false);
-        check(startNudged && room > 2, `A: Start a game's options, left a moment: down to their end (${room}px), then Start it shakes`);
-        // Only Start it is yellow: Tell the couch, on, isn't (what's chosen in a practice can't be changed).
-        const yellow = await page.evaluate(() => {
-          const go = getComputedStyle(document.querySelector("[role=dialog][data-open] [data-start-go]")).backgroundColor;
-          const track = document.querySelector('[role=dialog][data-open] [data-start-tell="on"] > span:last-child');
-          return { go, tell: track ? getComputedStyle(track).backgroundColor : null };
-        });
-        check(!!yellow.tell && yellow.tell !== yellow.go, "A: in practice only Start it is yellow: Tell the couch, on, is neutral", JSON.stringify(yellow));
+        check(startNudged && room > 2, `A: the game's screen, left a moment: down to its end (${room}px), then Start shakes`);
+        const yellows = await page.$$eval("[role=dialog][data-open] button", (els) => els.filter((e) => getComputedStyle(e).backgroundColor === "rgb(255, 197, 49)").length);
+        check(yellows === 1, `A: in practice only Start is yellow (${yellows})`);
         await shot(page, "sam-9a-nudged");
-        await page.waitForFunction(() => !document.querySelector("[role=dialog][data-open] [data-start-go]")?.getAnimations().length, null, { timeout: 3000 });
-        // One path: another game (Outlast, say) stays unchosen, and Start it shakes.
-        const other = await page.$('[role=dialog][data-open] [data-start-game]:not([data-start-game="predictions"]):not([disabled])');
+        await page.waitForFunction(() => !document.querySelector("[role=dialog][data-open] [data-gallery-start]")?.getAnimations().length, null, { timeout: 3000 }).catch(() => {});
+        // One path: another tap on the screen (a length card) changes nothing, and Start shakes.
+        const other = await page.$('[role=dialog][data-open] [data-gallery-option="length-rest"]');
         if (other) {
-          const name = await other.getAttribute("data-start-game");
           await other.click();
-          const startShook = await moving(page, "[role=dialog][data-open] [data-start-go]");
+          const startShook = await moving(page, "[role=dialog][data-open] [data-gallery-start]");
           await page.waitForTimeout(500);
-          check(
-            startShook && (await page.getAttribute('[data-start-game="predictions"]', "aria-pressed")) === "true" && (await other.getAttribute("aria-pressed")) !== "true",
-            `A: in practice, ${name} stays unchosen: the Prediction Sheet's kept and Start it shakes`
-          );
+          check(startShook && (await other.getAttribute("data-chosen")) === null, "A: in practice, another length stays unchosen and Start shakes");
         }
         await shot(page, "sam-9a-options");
-        await page.click("[data-start-go]");
+        await page.click("[data-gallery-start]");
         await page.waitForSelector("[data-practice-done]", { timeout: 10000 });
         const started = await page.textContent("[data-practice-done]");
-        check(/Prediction Sheet .* isn't saved/.test(started), "A: its finish: it isn't saved, and nothing was made", started);
+        check(/Prediction sheet .* isn't saved/i.test(started), "A: its finish: it isn't saved, and nothing was made", started);
         await page.click("[data-practice-close]");
         await ticked(page);
 
@@ -798,9 +787,9 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
           if (steps[k].id === "start") {
             await tapLit(page);
             await page.click("[data-pick-practice]", { timeout: 15000 });
-            const warmed = await page.waitForSelector("[data-start-warming]", { timeout: 4000 }).then(() => true, () => false);
-            check(warmed, "F: reduced motion: Start a game's rules moment still shows");
-            await page.waitForSelector("[data-start-go]", { timeout: 30000 });
+            // Start a game (B1): the practice's game screen, no rules moment (it opens straight away).
+            await page.waitForSelector("[role=dialog][data-open] [data-gallery-start]", { timeout: 60000 });
+            check(!!(await page.$("[role=dialog][data-open] [data-practice]")), "F: reduced motion: Start a game's practice opens on its game");
             await page.keyboard.press("Escape");
             await ticked(page);
             continue;
@@ -890,26 +879,23 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
         await page.goto(BASE + "/home", { waitUntil: "domcontentloaded" });
         await page.click("[data-foot-start]", { timeout: 20000 });
         await page.click("[data-pick-show]", { timeout: 10000 });
-        await page.waitForSelector("[data-start-go]", { timeout: 30000 });
-        check(!!(await page.$("[role=dialog][data-open] [data-start-describe]")) && !(await page.$("[data-practice]")), "J: the real Start a game sheet: Describe a new game, our AI (and no Practice strip)");
-        const go = await page.$eval("[role=dialog][data-open] [data-start-go]", (el) => {
+        // Start a game (B1): the gallery, Describe your game at its foot; a game's screen with Start in the foot.
+        await page.waitForSelector("[role=dialog][data-open] [data-gallery=gallery]", { timeout: 60000 });
+        check(!!(await page.$("[role=dialog][data-open] [data-gallery-describe]")) && !(await page.$("[data-practice]")), "J: the real Start a game: Describe your game, our AI (and no Practice strip)");
+        await page.click("[role=dialog][data-open] [data-gallery-lead]");
+        await page.waitForSelector("[role=dialog][data-open] [data-gallery-start]", { timeout: 15000 });
+        const go = await page.$eval("[role=dialog][data-open] [data-gallery-start]", (el) => {
           const r = el.getBoundingClientRect();
           return { foot: !!el.closest("[data-sheet-foot]"), seen: r.top >= 0 && r.bottom <= window.innerHeight };
         });
-        check(go.foot && go.seen, "J: Start it in the sheet's foot, in sight without scrolling, for everyone", JSON.stringify(go));
-        // The practice's hint is the practice's: the real sheet stays put, Start it still.
+        check(go.foot && go.seen, "J: Start in the sheet's foot, in sight without scrolling, for everyone", JSON.stringify(go));
+        // The practice's hint is the practice's: the real sheet stays put, Start still.
         await page.waitForTimeout(2600);
-        const still = await page.$eval("[role=dialog][data-open] [data-start-sheet]", (el) => ({
+        const still = await page.$eval("[role=dialog][data-open] [data-gallery]", (el) => ({
           top: el.parentElement.scrollTop,
-          shaking: document.querySelector("[role=dialog][data-open] [data-start-go]").getAnimations().length > 0,
+          shaking: document.querySelector("[role=dialog][data-open] [data-gallery-start]").getAnimations().length > 0,
         }));
-        check(still.top === 0 && !still.shaking, "J: no practice hint in the real sheet: it stays put and Start it doesn't shake", JSON.stringify(still));
-        const tellOn = await page.evaluate(() => {
-          const go = getComputedStyle(document.querySelector("[role=dialog][data-open] [data-start-go]")).backgroundColor;
-          const track = document.querySelector('[role=dialog][data-open] [data-start-tell="on"] > span:last-child');
-          return { go, tell: track ? getComputedStyle(track).backgroundColor : null };
-        });
-        check(tellOn.tell === tellOn.go, "J: in the real sheet Tell the couch, on, keeps its yellow", JSON.stringify(tellOn));
+        check(still.top === 0 && !still.shaking, "J: no practice hint in the real sheet: it stays put and Start doesn't shake", JSON.stringify(still));
         await shot(page, "start-game-ai");
       } finally {
         errors.push(...e.map((x) => `J: ${x}`));

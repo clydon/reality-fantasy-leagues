@@ -36,13 +36,16 @@ export interface TeamEpisodeBreakdown {
   /** Step A10 part 1, a game with group slots: each slot's line (its group, how it stood, its points), in `lineup` too. */
   slots: TeamEpisodeSlot[];
   bets: PlayerBetRow[];
+  /** Round 5 (B2): the captain that episode (score.captain), whose line is already multiplied, and by how much; null without one. */
+  captain: string | null;
+  captainTimes: number;
   lineup: number;
   predictions: number;
   total: number;
 }
 export function teamEpisodeBreakdown(state: LeagueState, epId: string, playerId: string): TeamEpisodeBreakdown {
   const ep = state.episodes.find((e) => e.id === epId);
-  const empty: TeamEpisodeBreakdown = { started: [], benched: [], slots: [], bets: [], lineup: 0, predictions: 0, total: 0 };
+  const empty: TeamEpisodeBreakdown = { started: [], benched: [], slots: [], bets: [], captain: null, captainTimes: 1, lineup: 0, predictions: 0, total: 0 };
   if (!ep || !StateLogic.inPlay(state, ep.number)) return empty;
   const defs = StateLogic.formatOf(state).events;
   const evs = StateLogic.ActiveRosterLogic.episodeEvents(state, ep);
@@ -81,5 +84,6 @@ export function teamEpisodeBreakdown(state: LeagueState, epId: string, playerId:
     points: l.points,
     why: l.why,
   }));
-  return { started, benched, slots, bets, lineup, predictions, total: StateLogic.roundPoints(lineup + predictions) };
+  const captain = combined?.captain ?? null;
+  return { started, benched, slots, bets, captain, captainTimes: captain ? StateLogic.ActiveRosterLogic.captainTimes(state) : 1, lineup, predictions, total: StateLogic.roundPoints(lineup + predictions) };
 }

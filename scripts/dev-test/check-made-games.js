@@ -79,22 +79,23 @@ async function screens(outDir) {
       await wide("Setup");
 
       await page.goto(`${BASE}/show/${fx.seasonId}/games`);
+      // Start a game (docs/PLAN-start-a-game-redo.md B1): the made-for games are the gallery's ready game and its Community and saved
+      // games (Made for the season), each opening its own screen with its hook.
       await page.locator("[data-start-row]").first().click();
-      await page.locator("[data-start-screen=home]").waitFor({ timeout: 30000 });
-      for (const mode of ["tonight", "season"]) {
-        await page.locator(`[data-start-mode=${mode}]`).click();
-        const made = page.locator('[data-start-game^="made-"]');
-        const n = await made.count();
-        check(n > 0, `${mode}: the rail has ${n} made-for games`);
-        if (!n) continue;
-        await made.first().scrollIntoViewIfNeeded();
-        await page.screenshot({ path: `${outDir}/made-rail-${mode}-${WIDTH}.png` });
+      await page.locator("[data-gallery=gallery]").waitFor({ timeout: 60000 });
+      const toggle = page.locator("[data-gallery-community-toggle]");
+      if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+      const made = page.locator("[data-gallery-made] [data-gallery-community-row]");
+      const n = await made.count();
+      check(n > 0 || (await page.locator("[data-gallery-ready-start]").count()) === 1, `the gallery has the made-for games: ${n} in Made for the season, a ready game ${(await page.locator("[data-gallery-ready-start]").count()) ? "too" : "not"}`);
+      await page.screenshot({ path: `${outDir}/made-gallery-${WIDTH}.png` });
+      if (n) {
         await made.first().click();
-        await page.waitForTimeout(400);
-        const hook = await page.locator("[data-start-hook]").innerText().catch(() => "");
-        check(!!hook, `${mode}: a made game picked shows its hook: ${hook}`);
-        await page.screenshot({ path: `${outDir}/made-picked-${mode}-${WIDTH}.png` });
-        await wide(`the wizard, ${mode}`);
+        await page.locator("[data-gallery-cgame]").waitFor({ timeout: 10000 });
+        const hook = await page.locator("[data-gallery-cgame] blockquote").innerText().catch(() => "");
+        check(!!hook, `a made game opens its screen with its hook: ${hook}`);
+        await page.screenshot({ path: `${outDir}/made-picked-${WIDTH}.png` });
+        await wide("a made game's screen");
       }
     } finally {
       await close();

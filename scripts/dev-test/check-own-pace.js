@@ -220,19 +220,17 @@ async function main() {
         await a.page.locator("[data-this-week]").scrollIntoViewIfNeeded();
         await shot(a.page, "games-your-episode");
         await a.page.locator("[data-start-row='pace']").click();
-        await a.page.locator("[data-start-pace-line], [data-start-card]").first().waitFor();
+        // Start a game (docs/PLAN-start-a-game-redo.md B1): the gallery on a finished season, a game's screen with where it starts.
+        await a.page.locator("[data-gallery=gallery]").waitFor({ timeout: 60000 });
+        await a.page.locator("[data-gallery-lead], [data-gallery-base]").first().click();
+        await a.page.locator("[data-gallery=base]").waitFor();
+        await a.page.locator("[data-gallery-starts]").scrollIntoViewIfNeeded().catch(() => {});
         await shot(a.page, "start-sheet");
-        // The shared start wizard now handles completed seasons too. Keep the older list's
-        // assertions only while that list is the selected UI; both paths must actually render.
-        if (await a.page.locator("[data-start-card]").count()) {
-          check(await a.page.locator("[data-start-card]").isVisible(), "the shared start wizard opens on a finished season");
-        } else {
-          check((await a.page.locator("[data-start-from-choice='here']").count()) === 1 && (await a.page.locator("[data-start-from-choice='top']").count()) === 1, "Start from: where you are, and from the top");
-          const here = await a.page.locator("[data-start-from-choice='here']").textContent();
-          // alex has revealed 4 by now (above), so where alex is is 5.
-          check(/Episode 5 · where you are/.test(here || "") && /You've seen 1 to 4/.test(here || ""), "the tile reads number first and says what you've seen", here);
-          check((await a.page.locator("[data-start-span], [data-no-fit]").count()) === 0 && (await a.page.getByText("Create a game with AI").count()) === 0, "no AI card, no How long, no doesn't-fit line at your own pace");
-        }
+        check((await a.page.locator("[data-gallery-option='from-here']").count()) === 1 && (await a.page.locator("[data-gallery-option='from-top']").count()) === 1, "Where it starts: where you are, and from the top");
+        const here = await a.page.locator("[data-gallery-option='from-here']").textContent();
+        // alex has revealed 4 by now (above), so where alex is is 5.
+        check(/Episode 5 · where you are/.test(here || "") && /seen 1 to 4/.test(here || ""), "the card reads number first and says what you've seen", here);
+        check((await a.page.locator("[data-gallery-option='lock-live']").count()) === 0, "no Together card: every episode is out, so it's at your own pace");
         await a.page.keyboard.press("Escape");
 
         await a.page.goto(`${a.BASE}/show/${season}/tonight`);

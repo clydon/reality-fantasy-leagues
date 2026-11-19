@@ -2,6 +2,7 @@
 
 import { matchSlots } from "@/lib/lineup-slots";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { PriceEnd } from "./price-end";
 import { Check, ChevronRight, Lock, MessageCircleQuestion, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { bets as betWrites, moves as moveWrites, type GameView, type TableRow, type WaiverWeek } from "../data";
@@ -499,6 +500,9 @@ function PostBet({ g, episode, words, onSaved }: { g: GameView; episode: number;
 export function YourTeam({ g, words, exclusive, onFace, onSheet }: { g: GameView; words: ShowData["words"]; exclusive: boolean; onFace: (id: string) => void; onSheet: () => void }) {
   const r = g.you;
   if (!r || !r.team.length) return null;
+  // Round 5 (B2; Designs needed 30): an auction's prices beside each, and what you spent.
+  const prices = g.prices ?? null;
+  const spent = prices ? prices.spent[r.playerId] : undefined;
   const ids = [...r.team].sort((a, b) => Number(!!faceIn(g, a)?.knocked) - Number(!!faceIn(g, b)?.knocked));
   return (
     <section className="mt-8 px-4" data-your-team data-game-you>
@@ -509,12 +513,15 @@ export function YourTeam({ g, words, exclusive, onFace, onSheet }: { g: GameView
           <ChevronRight className="size-4" aria-hidden />
         </button>
       </div>
+      {spent !== undefined && <p data-team-spent className="-mt-1 mb-0.5 text-[13px] font-semibold">Spent {spent} of {prices!.budget}</p>}
       {exclusive && <p className="-mt-1 mb-1 text-[13px] text-muted-foreground">Only you have them: one owner each.</p>}
       <ul>
         {ids.map((id) => {
           const c = faceIn(g, id);
           if (!c) return null;
-          const line = c.left ? (c.out ? `Out · ${words.ep} ${c.out}` : "Out") : [c.role, c.tribe?.name].filter(Boolean).join(" · ") || "Still in";
+          const paid = prices?.paid[id];
+          const captain = !c.left && g.lineup && g.twists?.captain?.castawayId === id ? `Captain ×${g.twists.captain.times}` : null;
+          const line = c.left ? (c.out ? `Out · ${words.ep} ${c.out}` : "Out") : [captain, c.role, c.tribe?.name].filter(Boolean).join(" · ") || "Still in";
           return (
             <li key={id}>
               <button type="button" data-door-cast={id} onClick={() => onFace(id)} className="nd-press flex min-h-14 w-full items-center gap-3 border-t border-border py-1.5 text-left">
@@ -523,7 +530,7 @@ export function YourTeam({ g, words, exclusive, onFace, onSheet }: { g: GameView
                   <b className={`block truncate text-[16px] font-semibold ${c.knocked ? "text-muted-foreground" : ""}`}>{c.name}</b>
                   <small className="block text-[13px] text-muted-foreground">{line}</small>
                 </span>
-                <span className="type-num text-[22px]">{fmt(c.points ?? 0)}</span>
+                <PriceEnd points={c.points ?? 0} paid={paid} />
               </button>
             </li>
           );
@@ -1022,6 +1029,25 @@ export function PersonSeason({ g, r, words, sport, at = null, onMatchup, onWeek,
                 </tr>
               );
             })}
+            {[...new Set(weeks.flatMap((w) => (w.slots ?? []).map((x) => x.slot)))].map((k) => (
+                // Round 5 (B2, V-L2-004): a group slot's points each week, so the table adds up to the total.
+                <tr key={`slot-${k}`} data-person-slot={k}>
+                  <th scope="row" className="sticky left-0 z-[1] bg-card pr-1 text-left text-[13px] font-semibold">
+                    Group slot{weeks.some((w) => (w.slots ?? []).length > 1) ? ` ${k + 1}` : ""}
+                  </th>
+                  {weeks.map((w) => {
+                    const x = (w.slots ?? []).find((y) => y.slot === k);
+                    return (
+                      <td key={w.episode} className={`${COL} h-11 rounded-[2px] border-t border-border text-center ${x?.status === "held" ? "bg-secondary" : ""}`}>
+                        <span className={`type-num text-[14px] ${x?.status === "held" ? "" : "text-muted-foreground"}`}>{x?.status === "held" ? signed(x.points) : "–"}</span>
+                      </td>
+                    );
+                  })}
+                  <td className="sticky right-0 z-[1] border-t border-border bg-card pl-2 text-right">
+                    <b className="type-num text-[17px]">{signed(weeks.reduce((t, w) => t + ((w.slots ?? []).find((y) => y.slot === k && y.status === "held")?.points ?? 0), 0))}</b>
+                  </td>
+                </tr>
+              ))}
             {!sport && (
               <tr data-person-bench>
                 <th scope="row" className="sticky left-0 z-[1] bg-card pr-1 text-left text-[13px] font-semibold text-muted-foreground">

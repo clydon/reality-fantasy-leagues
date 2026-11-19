@@ -4,7 +4,7 @@
 // shape our check reads. Nothing here decides what's a game: a part that isn't the right shape is kept out and noted, and our
 // check (check.js) decides the rest. Pure.
 //
-//   readDraft(answer)  -> { draft: { game, said, assumed, ask, cantYet, about, also, summary, matchup }, notes } (throws: no JSON)
+//   readDraft(answer)  -> { draft: { game, said, assumed, ask, cantYet, about, also, summary, matchup, bots }, notes } (throws: no JSON)
 //   readMoment(answer) -> { reliable, why, question, label, nearest } (throws: no JSON)
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ../game-spec/schema.js */
 const { jsonObjectsIn } = require('../formats/rulebook-research.js');
@@ -125,7 +125,14 @@ function readDraft(answer) {
     if (inGame) notes.push('the matchup was inside the game: read it beside it');
   }
   const matchup = isObj(raw.matchup) ? raw.matchup : inGame;
-  return { draft: { game, said, assumed, ask, cantYet, about, also, summary: str(raw.summary) || '', matchup }, notes };
+  // E1d: the computer players their words asked for, beside the game (our check reads them); inside it, read beside it as a matchup is.
+  const botsIn = game && isObj(game.bots) ? game.bots : null;
+  if (game && 'bots' in game) {
+    delete game.bots;
+    if (botsIn) notes.push('the computer players were inside the game: read them beside it');
+  }
+  const bots = isObj(raw.bots) ? raw.bots : botsIn;
+  return { draft: { game, said, assumed, ask, cantYet, about, also, summary: str(raw.summary) || '', matchup, bots }, notes };
 }
 
 const RELIABLE = ['high', 'medium', 'low'];

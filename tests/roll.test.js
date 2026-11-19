@@ -236,3 +236,23 @@ test("every piece the short form shows is in the sentence on every game the trac
   // Only the majority's wording is turned round: "Who will have the final say?" stays as it is.
   assert.match(G.describeSpec({ ...most, ask: [{ ...most.ask[0], ask: "Who will have the final say at tribal?" }] }, ctx).sentence, /who will have the final say at tribal/);
 });
+
+test("a roll with computer players (E1d: locks.bots): every one is a game they play, on every rulebook", () => {
+  const Gallery = require("../src/lib/game/start-gallery/index.js");
+  for (const p of PAGES) {
+    const page = pageOf(p);
+    let ok = 0;
+    for (let seed = 1; seed <= 60; seed++) {
+      const r = R.rollSpec(page, { bots: true }, seed);
+      const at = `${p.page.rulebook} seed ${seed}`;
+      if (!r.ok) {
+        assert.match(r.why, /Computer players don't play the games this show rolls yet/, at);
+        continue;
+      }
+      ok++;
+      assert.equal(Gallery.botsFit(r.spec), null, `${at}: ${JSON.stringify(r.spec).slice(0, 200)}`);
+    }
+    // A show whose every roll plays in stages (a sketch show: bingo with trivia alongside) has none; the rest, every seed.
+    if (!["snl", "pluribus"].includes(p.page.rulebook)) assert.equal(ok, 60, `${p.page.rulebook}: every seed rolls one they play`);
+  }
+});

@@ -58,6 +58,9 @@ const OPENED = [
   // A parlay whose legs roll over, shrink or pay only the only one right (part 4a): multiplied as each stands.
   { why: "a parlay's leg that rolls over or pays only the only one right", test: (n) => /^[^|]+\|answers-parlay\|[^|]+\|(rollover-imm|only-imm)$/.test(n), to: only },
   { why: "a parlay's leg that shrinks", test: (n) => /^[^|]+\|answers-parlay-once\|[^|]+\|(shrink-second|shrink-only-second)$/.test(n), to: only },
+  // E3, p25 (the user's call, 2026-11-19): a parlay's leg that splits a pot (the split, then your share multiplied) loses only that
+  // refusal.
+  { why: "a parlay's leg that splits a pot", test: (n) => /\|answers-parlay[^|]*\|[^|]+\|split-[^|]+$/.test(n), to: only },
   // A pool ranked by its points, head to head, in teams or with a handicap (part 4b: its series of totals, from its picks): one
   // asking nothing beside its picks plays as a pool; one with questions beside them still waits for them (a stage alongside).
   { why: "a pool ranked by its points, head to head, in teams or with a handicap", test: (n) => /^pick(-never)?\|survive(-scores)?\|(total|total-teams|total-hc|matchups|matchups-po|matchups-teams|matchups-hc)\|/.test(n), to: (was, n) => (n.endsWith("|none") ? "p--" : only(was)) },
@@ -135,7 +138,8 @@ test("the placement corpus: every verdict as the seven shapes gave it, but the c
   // confidence) across the question holds, scores and ranks (recorded from 6b8b1269's engine, where `each: 'game'` was refused), each
   // as its twin asking who goes home: 22 playing now (15 games of questions, 7 drafts asking it), the rest held back as their twin is.
   // G3 part 3b's 7: a pool of some teams' players on each kind of game, every one playing as its twin picking from anyone.
-  assert.equal(moved.length, 169 + 770 + 819 + 215 + 354 + 15 + 66 + 500 + 14 + 198 + 69 + 68 + 7);
+  // E3 p25's 30 (the user's call, 2026-11-19): a parlay's leg on a split pot, each losing only that refusal.
+  assert.equal(moved.length, 169 + 770 + 819 + 215 + 354 + 15 + 66 + 500 + 14 + 198 + 69 + 68 + 7 + 30);
   // What plays: 933 before part 4, and every opening that plays now (none played before: each had a problem or a wait).
   assert.ok(moved.every((i) => !C.plays(was[i])));
   assert.equal(now.filter(C.plays).length, 933 + moved.filter((i) => C.plays(now[i])).length);

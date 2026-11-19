@@ -3,10 +3,8 @@
 import { useState } from "react";
 import { Bot, Check, CircleQuestionMark, Shield, Users, X } from "lucide-react";
 import { airTime } from "../clock";
-import { moves, solo, useAfterSolo, usePool, usePractice, type BotLevel, type GameView, type PoolInfo, type PracticeGame, type PracticeInfo } from "../data";
+import { moves, solo, useAfterSolo, usePool, type GameView, type PoolInfo } from "../data";
 import { ordinal } from "../games";
-import { useNav } from "../nav";
-import { paths } from "../routes";
 import type { ShowData } from "../screens/show-space";
 import { Avatar } from "../ui/bars";
 import { PushedPage, usePushedPage } from "../ui/page";
@@ -18,10 +16,9 @@ import { Block, Face } from "./parts";
 import { useOpenReveal } from "./reveal";
 
 // Playing solo (docs/PLAN-new-design.md step 9 part 3; the mock's solo.js): a season's public pool ("Survivor 51 ·
-// Everyone": Survival Pool and a weekly Who goes home? against everyone on the app, usernames only, no chat) and your
-// practice couch (you against three computer players, Weekly Lineup or Outlast, on the real results). Both on the solo
-// hub's Play on your own and a show's Games tab when you're solo (solo.ts on the server; nothing polls); the practice couch
-// on anyone's Games tab (2026-10-27: computer players for everyone, not only someone solo), under the couch's games.
+// Everyone": Survival Pool and a weekly Who goes home? against everyone on the app, usernames only, no chat), on the solo hub's
+// Play on your own and a show's Games tab when you're solo (solo.ts on the server; nothing polls). The practice couch that sat
+// beside it was retired (the user, 2026-11-18): computer players join any game now (docs/PLAN-start-a-game-redo.md E1).
 
 /** "top 20%" while you're in the top half of a big enough field, else "12th of 40". */
 export function standing(place: number, of: number): string {
@@ -88,84 +85,30 @@ export function PoolCard({ info, art, onOpen }: { info: PoolInfo; art: string | 
   );
 }
 
-const LEVELS: { id: BotLevel; word: string }[] = [
-  { id: "easy", word: "Easy" },
-  { id: "normal", word: "Normal" },
-  { id: "sharp", word: "Sharp" },
-];
-const levelWord = (l: BotLevel | null) => LEVELS.find((x) => x.id === l)?.word ?? "Normal";
-
-function practiceLine(p: PracticeInfo): string {
-  if (!p.game) return "Weekly Lineup or Outlast, drafted against computer players, on real results";
-  if (p.drafting) return `Drafting · ${levelWord(p.level)} · real results`;
-  const you = p.game.you;
-  return `${you && scored(p.game) ? `You're ${ordinal(you.place)}` : "No results yet"} · ${levelWord(p.level)} · real results`;
-}
-
-export function PracticeCard({ info, onOpen }: { info: PracticeInfo; onOpen: () => void }) {
-  return (
-    <SoloCard
-      kicker="Practice couch"
-      title={info.gameName ? `${info.gameName} vs 3 computer players` : "You vs computer players"}
-      line={practiceLine(info)}
-      go={info.leagueId ? "Open" : "Start"}
-      bots
-      onClick={onOpen}
-      data={{ "data-practice": info.seasonId }}
-    />
-  );
-}
-
-/** Whether a season's pool or practice couch is worth a card: it's open to you, or it's yours already. */
+/** Whether a season's pool is worth a card: it's open to you, or you're in it already. */
 export const poolShown = (p: PoolInfo) => p.joined || !p.blocked;
-export const practiceShown = (p: PracticeInfo) => !!p.leagueId || !p.blocked;
 
 // ---------- the Games tab, solo ----------
 
-/** A show's Games tab when you're solo: the season's pool and your practice couch, under a line saying what they are. */
+/** A show's Games tab when you're solo: the season's pool, under a line saying what it is. (The practice couch that sat beside it
+ *  was retired, 2026-11-18: computer players join any game now, docs/PLAN-start-a-game-redo.md E1.) */
 export function SoloGames({ show }: { show: ShowData }) {
   const seasonId = show.header?.seasonId ?? "";
   const pool = usePool(seasonId, !!show.header);
-  const practice = usePractice(seasonId, !!show.header);
   const page = usePushedPage("pool");
-  const [sheet, setSheet] = useState(false);
   const name = (show.header?.show.name ?? "this show").replace(/^The /, "");
   const p = pool.data;
-  const pr = practice.data;
-  if (!p || !pr) return <div aria-busy className="mx-4 mt-[26px] h-40 animate-pulse rounded-[4px] bg-card" />;
-  if (!poolShown(p) && !practiceShown(pr)) return null;
+  if (!p) return <div aria-busy className="mx-4 mt-[26px] h-40 animate-pulse rounded-[4px] bg-card" />;
+  if (!poolShown(p)) return null;
   return (
-    <>
-      <Block title="On your own" aside="No couch needed">
-        <p className="mb-3 text-[15px] leading-snug text-muted-foreground" data-solo-lede>
-          Two ways to play {name} on your own. Start a couch any time to play with friends instead.
-        </p>
-        <div>
-          {poolShown(p) && <PoolCard info={p} art={show.header?.show.artUrl ?? null} onOpen={page.show} />}
-          {practiceShown(pr) && <PracticeCard info={pr} onOpen={() => setSheet(true)} />}
-        </div>
-      </Block>
-      <PracticeSheet open={sheet} onOpenChange={setSheet} seasons={[{ info: pr, seenThrough: show.seenThrough, latestAired: show.latestAired }]} />
-    </>
-  );
-}
-
-/** A show's Games tab on a couch: your practice couch, against computer players and never counted toward the couch. */
-export function CouchPractice({ show }: { show: ShowData }) {
-  const seasonId = show.header?.seasonId ?? "";
-  const practice = usePractice(seasonId, !!show.header);
-  const [sheet, setSheet] = useState(false);
-  const pr = practice.data;
-  if (!pr || !practiceShown(pr)) return null;
-  return (
-    <>
-      <Block title="Practice" aside="Doesn't count on the couch">
-        <div data-couch-practice>
-          <PracticeCard info={pr} onOpen={() => setSheet(true)} />
-        </div>
-      </Block>
-      <PracticeSheet open={sheet} onOpenChange={setSheet} seasons={[{ info: pr, seenThrough: show.seenThrough, latestAired: show.latestAired }]} />
-    </>
+    <Block title="On your own" aside="No couch needed">
+      <p className="mb-3 text-[15px] leading-snug text-muted-foreground" data-solo-lede>
+        Play {name} against everyone on the app. Start a couch any time to play with friends instead.
+      </p>
+      <div>
+        <PoolCard info={p} art={show.header?.show.artUrl ?? null} onOpen={page.show} />
+      </div>
+    </Block>
   );
 }
 
@@ -427,170 +370,6 @@ function LeaveSheet({ open, onOpenChange, label, seasonId }: { open: boolean; on
         <X className="size-4" aria-hidden />
         Leave the pool
       </Btn>
-    </Sheet>
-  );
-}
-
-// ---------- the practice couch ----------
-
-const GAMES: { id: PracticeGame; name: string; line: string }[] = [
-  { id: "active-roster", name: "Weekly Lineup", line: "Draft a team, start your best each week." },
-  { id: "classic-draft", name: "Outlast", line: "Draft a team; the last one standing carries you." },
-];
-
-export interface PracticeSeason {
-  info: PracticeInfo;
-  /** Where you are (null: you see results straight away), and the latest episode aired. */
-  seenThrough: number | null;
-  latestAired: number;
-}
-
-/**
- * Start a practice couch (the game, how sharp the computer players are, Start the draft), or yours if you have one (Open the
- * draft or the table, End it). `seasons`: the ones it's for; with several (the hub), a choice of show first.
- */
-export function PracticeSheet({ open, onOpenChange, seasons }: { open: boolean; onOpenChange: (o: boolean) => void; seasons: PracticeSeason[] }) {
-  const nav = useNav();
-  const after = useAfterSolo();
-  const [pickedSeason, setSeason] = useState<string | null>(null);
-  const [game, setGame] = useState<PracticeGame>("active-roster");
-  const [level, setLevel] = useState<BotLevel>("normal");
-  const [busy, setBusy] = useState(false);
-  const [ending, setEnding] = useState(false);
-  const shown = seasons.find((s) => s.info.seasonId === pickedSeason) ?? seasons[0];
-  const p = shown?.info;
-  const behind = !!shown && shown.seenThrough != null && shown.seenThrough < shown.latestAired;
-  async function start() {
-    if (!p) return;
-    setBusy(true);
-    try {
-      const r = await solo.startPractice(p.seasonId, game, level);
-      await after();
-      onOpenChange(false);
-      nav.push(`${paths.showPage(p.seasonId, "draft")}?game=${r.leagueId}`);
-    } catch (e) {
-      toast.quiet(e instanceof Error ? e.message : "Couldn't start it");
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function end() {
-    if (!p) return;
-    setBusy(true);
-    try {
-      await solo.endPractice(p.seasonId);
-      setEnding(false);
-      onOpenChange(false);
-      await after();
-      toast("Practice couch ended");
-    } catch (e) {
-      toast.quiet(e instanceof Error ? e.message : "Couldn't end it");
-    } finally {
-      setBusy(false);
-    }
-  }
-  const mine = p?.leagueId && p.game;
-  return (
-    <Sheet open={open} onOpenChange={(o) => (setEnding(false), onOpenChange(o))} title="Practice couch" subtitle={mine ? `${p.label} · ${p.gameName}` : "You against computer players, on real results"}>
-      <div className="mt-2 pb-2" data-practice-sheet={mine ? "mine" : "start"}>
-        {seasons.length > 1 && !mine && (
-          <>
-            <p className="type-caption mb-2 text-[13px] text-muted-foreground">Show</p>
-            <div className="mb-4 flex flex-wrap gap-2">
-              {seasons.map((s) => (
-                <button
-                  key={s.info.seasonId}
-                  type="button"
-                  aria-pressed={s.info.seasonId === p?.seasonId}
-                  onClick={() => setSeason(s.info.seasonId)}
-                  className={`h-9 rounded-[2px] px-3 text-sm font-semibold ${s.info.seasonId === p?.seasonId ? "bg-foreground text-background" : "bg-secondary"}`}
-                >
-                  {s.info.label}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-        {mine ? (
-          <>
-            <div className="grid grid-cols-3 gap-2" data-practice-mine>
-              {[
-                [p.game!.you && scored(p.game!) ? ordinal(p.game!.you.place) : "—", "Your place"],
-                [levelWord(p.level), "Computer players"],
-                [p.drafting ? "Drafting" : scored(p.game!) ? `Ep ${p.game!.through}` : `Ep ${p.game!.from}`, p.drafting ? "Now" : scored(p.game!) ? "Through" : "Starts"],
-              ].map(([n, l]) => (
-                <div key={l} className="rounded-[3px] bg-background p-2.5 text-center">
-                  <b className="type-caption block text-[20px]">{n}</b>
-                  <small className="block text-xs text-muted-foreground">{l}</small>
-                </div>
-              ))}
-            </div>
-            <Btn tone="ink" wide className="mt-4" onClick={() => (onOpenChange(false), nav.push(p.drafting ? `${paths.showPage(p.seasonId, "draft")}?game=${p.leagueId}` : paths.show(p.seasonId, "games")))} data-practice-open>
-              {p.drafting ? "Open the draft" : "See the table"}
-            </Btn>
-            {ending ? (
-              <div className="mt-4 rounded-[3px] bg-background p-3">
-                <p className="text-[15px] leading-snug">End it? The game, its draft and your points go. You can start another.</p>
-                <Btn wide className="mt-3" disabled={busy} onClick={end} data-practice-end-confirm>
-                  End the practice couch
-                </Btn>
-              </div>
-            ) : (
-              <button type="button" onClick={() => setEnding(true)} className="mt-4 text-[15px] font-semibold text-muted-foreground" data-practice-end>
-                End it
-              </button>
-            )}
-          </>
-        ) : p?.blocked ? (
-          <p className="text-sm text-muted-foreground">{p.blocked}.</p>
-        ) : (
-          <>
-            <p className="type-caption mb-2 text-[13px] text-muted-foreground">Game</p>
-            {GAMES.map((x) => (
-              <button
-                key={x.id}
-                type="button"
-                aria-pressed={game === x.id}
-                onClick={() => setGame(x.id)}
-                data-practice-game={x.name}
-                className={`mb-2 flex min-h-[60px] w-full items-center rounded-[3px] px-3 text-left ${game === x.id ? "bg-foreground text-background" : "bg-background"}`}
-              >
-                <span>
-                  <b className="block text-[15px] font-semibold">{x.name}</b>
-                  <small className={`block text-[13px] ${game === x.id ? "opacity-75" : "text-muted-foreground"}`}>{x.line}</small>
-                </span>
-              </button>
-            ))}
-            <p className="type-caption mb-2 mt-3 text-[13px] text-muted-foreground">The computer players</p>
-            <div className="grid grid-cols-3 gap-1 rounded-[3px] bg-background p-1" role="radiogroup" aria-label="How sharp the computer players are">
-              {LEVELS.map((l) => (
-                <button
-                  key={l.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={level === l.id}
-                  onClick={() => setLevel(l.id)}
-                  data-practice-level={l.word}
-                  className={`h-11 rounded-[2px] text-[15px] font-semibold ${level === l.id ? "bg-foreground text-background" : ""}`}
-                >
-                  {l.word}
-                </button>
-              ))}
-            </div>
-            <p className="mt-3 text-[13px] leading-snug text-muted-foreground">
-              Three computer players draft against you, then the season plays out on the real results, spoiler-safe to where you are. Your practice never counts toward a couch.
-            </p>
-            {behind && (
-              <p className="mt-2 rounded-[3px] bg-background p-3 text-[13px] leading-snug text-muted-foreground" data-practice-behind>
-                You&apos;re on Episode {shown!.seenThrough}. The draft is from who&apos;s still in after Episode {shown!.latestAired}, so it shows who&apos;s left.
-              </p>
-            )}
-            <Btn tone="must" wide className="mt-4" disabled={busy || !p} onClick={start} data-practice-start>
-              Start the draft
-            </Btn>
-          </>
-        )}
-      </div>
     </Sheet>
   );
 }

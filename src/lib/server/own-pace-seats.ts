@@ -23,11 +23,43 @@ export async function watchMark(leagueId: string, playerId: string, db: Queryabl
   return Math.min(...marks);
 }
 
-/** Each seat at its own pace's mark, by player id (only theirs: the couch's "Waiting on" and the moves' window read it). */
-export async function paceMarks(leagueId: string, state: LeagueState, db: Queryable = pool): Promise<Map<string, number>> {
-  const seats = (state.players ?? []).filter((p) => StateLogic.GhostLogic.playsOwnPace(state, p.id));
+/** Each account's mark on a season, remembered for one read of many games (E2: a season's games share their people, so their marks
+ *  are read once, not once a game). Keyed "user|season". */
+export type MarkMemo = Map<string, Promise<number>>;
+
+/**
+ * Each seat at its own pace's mark, by player id (only theirs: the couch's "Waiting on" and the moves' window read it): the lowest of
+ * its accounts' marks (watchMark's, read for every seat in one query), EVERYTHING when it has none. In a live game every person's seat
+ * plays at its own pace, so a season of short games asked this of every seat of every game (E2: 7 of a busy season's 8.4 seconds);
+ * `memo` keeps each account's mark across the games of one read.
+ */
+export async function paceMarks(leagueId: string, state: LeagueState, db: Queryable = pool, memo?: MarkMemo): Promise<Map<string, number>> {
+  const seats = (state.players ?? []).filter((p) => StateLogic.GhostLogic.playsOwnPace(state, p.id)).map((p) => p.id);
   const out = new Map<string, number>();
-  for (const p of seats) out.set(p.id, await watchMark(leagueId, p.id, db));
+  if (!seats.length) return out;
+  const { rows } = await db.query(
+    `SELECT m.player_id, m.user_id, ss.id AS season_id FROM league_memberships m JOIN leagues l ON l.id = m.league_id ${LEAGUE_SEASON_JOIN}
+      WHERE m.league_id = $1 AND m.player_id = ANY($2::text[])`,
+    [leagueId, seats]
+  );
+  const seen = (userId: string, seasonId: string): Promise<number> => {
+    const key = `${userId}|${seasonId}`;
+    let mark = memo?.get(key);
+    if (!mark) {
+      // A failed read isn't kept: the next game asks again (the review, E2).
+      mark = seenThrough(userId, seasonId, db).catch((e) => {
+        memo?.delete(key);
+        throw e;
+      });
+      memo?.set(key, mark);
+    }
+    return mark;
+  };
+  const marks = await Promise.all(rows.map(async (r) => [r.player_id as string, await seen(r.user_id, r.season_id)] as const));
+  for (const id of seats) {
+    const mine = marks.filter(([p]) => p === id).map(([, m]) => m);
+    out.set(id, mine.length ? Math.min(...mine) : EVERYTHING);
+  }
   return out;
 }
 
