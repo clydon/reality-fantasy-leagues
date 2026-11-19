@@ -78,8 +78,10 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
 6. **The runtime shipped with the service's routes** (`outputFileTracingIncludes` for `tools/gameplay-bench/**` and the engine), and
    the bundle's size measured against Vercel's limits.
 7. **Cleanup**: a sweep on each new preview (as now), and an hourly sweep from the existing GitHub job (`reminders-waivers.yml`) calling
-   the service's protected sweep route, so a preview that's never closed still goes. Checked: a forgotten preview is gone within the
-   hour; nothing left after a hundred.
+   the service's protected sweep route, so a preview that's never closed still goes. The sweep also removes any copy older than the
+   longest a preview lives, registered or not: in development a maker that failed after writing its copies left 43 cases behind
+   before the registry learned to remove them. Checked: a forgotten preview is gone within the hour; nothing left after a hundred,
+   including ones made to fail partway.
 8. **Limits and errors**: the per-person and overall limits (decision 4); the story's states for a service that's down, a preview that
    failed partway (the moments made so far stay), and one that has ended. Checked in the end-to-end check.
 9. **The app's side**: `POST /api/previews` (signed in, the switch on) builds the definition, asks the service (signed with a shared

@@ -75,15 +75,22 @@ export async function makeLivePreview(userId: string, game: string) {
   const { Live, Proof } = bench();
   // The first moment's copy is written before this returns; the rest land after the response (after(): the request's own time,
   // its route's maxDuration), and the story asks for them as they do.
-  const { preview, rest } = await Live.make({ input: Proof.definition({ seed: 51, ...g }), app: process.env.BETTER_AUTH_URL || "http://localhost:3014", resultsFor: Proof._h.resultsFor, seasons: 5 });
-  const viewerPass = String(preview.viewerPass ?? "");
-  delete preview.viewerPass;
-  const id = crypto.randomUUID();
-  const expires = Date.now() + LIVE_MINUTES * 60_000;
-  registry.set(id, { id, owner: userId, expires, preview, viewerPass });
-  after(() => rest);
-  // The copies and the viewer's sign-in stay on the server: the maker gets the way into its story, on the preview host.
-  return { id, expires, pass: passFor(id, expires) };
+  const made = await Live.make({ input: Proof.definition({ seed: 51, ...g }), app: process.env.BETTER_AUTH_URL || "http://localhost:3014", resultsFor: Proof._h.resultsFor, seasons: 5 });
+  try {
+    const { preview, rest } = made;
+    const viewerPass = String(preview.viewerPass ?? "");
+    delete preview.viewerPass;
+    const id = crypto.randomUUID();
+    const expires = Date.now() + LIVE_MINUTES * 60_000;
+    registry.set(id, { id, owner: userId, expires, preview, viewerPass });
+    after(() => rest);
+    return { id, expires, pass: passFor(id, expires) };
+  } catch (e) {
+    // Never a copy nobody knows about: anything that fails once copies exist removes them (the ones still landing too).
+    const p = (made as { preview?: LivePreview["preview"]; rest?: Promise<void> } | undefined) ?? {};
+    if (p.preview) await Promise.resolve(p.rest).catch(() => {}).then(() => Live.down(p.preview!)).catch(() => {});
+    throw e;
+  }
 }
 
 function byPass(id: string, expires: number, pass: string): LivePreview {
