@@ -1,5 +1,7 @@
 # Plan: fill the gaps a research draft misses, on the review screen
 
+> **Status (2026-11-19): Superseded.** built 2026-10-08 (27915b86) on classic's format review screen. The desk's rulebook editor replaced that screen, and classic's copy goes when classic does. Kept for history.
+
 Builds on `docs/PLAN-stage-3-format-proposals.md` (the review screen itself,
 `src/components/admin/format-review-screen.tsx`) and `docs/PLAN-ai-generated-show-formats.md`. Doesn't
 change the proposal/review data shape (`Proposal`, `reviewProposal` in `src/lib/game/formats/proposal.js`)

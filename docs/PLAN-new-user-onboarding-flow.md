@@ -1,5 +1,7 @@
 # Plan: new-user onboarding — landing, signup, and create-a-league
 
+> **Status (2026-11-19): Superseded.** phases 1 to 4 were built for classic (2f28d95c, 21693d52; show art 2026-10-26). The new design's welcome page, Add a show and the Start a game gallery (merged 2026-11-19) replaced them. Phase 5 (money) is BACKLOG 113, tabled. Kept for history.
+
 Companion to `docs/PLAN-ai-generated-show-formats.md` — the "+ Don't see it? Add it" tile below is the
 one seam the two plans share. A clickable prototype is deferred to implementation; this plan fixes the
 structure and content, not the final visual design.

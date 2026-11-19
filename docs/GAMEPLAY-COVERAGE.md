@@ -1,5 +1,7 @@
 # Gameplay coverage matrix
 
+> **Status (2026-11-19): Reference.** Guide to the coverage matrix tool (/__atlas/gameplay). Its evidence ledger has never been used (reviews.json: 0 records), and its 1,312 specimens predate the Start a game gallery. Today it mainly feeds profile-blockers.js.
+
 The persistent capability-to-UI contract for generated games. Use it with the [core game catalog](CORE-GAME-CATALOG.md) and [UI Atlas](UI-ATLAS.md) to choose design work, build representative fixtures and track evidence without repeating a whole-repository investigation.
 
 Follow the [scenario explorer implementation plan](PLAN-GAMEPLAY-SCENARIO-EXPLORER.md) when connecting matrix requirements to executable scenarios. It separates foundation, runnable breadth and reviewed coverage milestones; adding gap labels or sampled recipes does not complete those milestones.

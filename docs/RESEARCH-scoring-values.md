@@ -1,5 +1,7 @@
 # Research: what Survivor scoring values should reward
 
+> **Status (2026-11-19): Reference.** The study behind Survivor's first point values. The live values are each season's rulebook (the desk, What scores); "not applied" below is out of date.
+
 **Status:** Research, 2026-10-02. Recommendations below have **not** been applied to any league or to
 the code defaults yet — see "Open decisions" at the end.
 

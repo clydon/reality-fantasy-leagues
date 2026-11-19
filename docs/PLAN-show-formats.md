@@ -1,5 +1,7 @@
 # Plan: show formats (Survivor, The Traitors, The Challenge, …)
 
+> **Status (2026-11-19): Done.** built 2026-09-25. The format files (survivor, traitors, challenge, generic) now only seed rulebooks (docs/PLAN-admin-shows-rulebooks.md), and their wiki reads went with the wiki. Kept for history.
+
 See `docs/ADDING-A-SHOW-FORMAT.md` for the reusable research playbook this plan's Traitors/Challenge
 sections were built from — use it for any show added after these three.
 

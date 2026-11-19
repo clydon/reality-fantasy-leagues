@@ -1,5 +1,7 @@
 # Plan: sports data from APIs (rosters, photos, stats), ChatGPT last
 
+> **Status (2026-11-19): Done.** Steps 1-4 and 6 built 2026-10-27 and live since the sports release (2026-11-07). Step 5, more providers, is BACKLOG 114. Left: BACKLOG 145 and the edges in idea 209.
+
 Status: **steps 1-4 and 6 built** (2026-10-27, not deployed yet): the provider interface, ESPN and its cache, a sport season's
 episodes linked to ESPN's games, its players from them, their stats from the games' box scores (the real 2026 World Series
 links, its Players tab is both teams' 52 players with ESPN's headshots, and each has so far through your mark and the 2026 regular

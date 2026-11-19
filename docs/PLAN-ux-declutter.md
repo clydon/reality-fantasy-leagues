@@ -1,5 +1,7 @@
 # Plan: declutter pass (direction A2)
 
+> **Status (2026-11-19): Superseded.** built 2026-10-10 on classic (direction A2, 7de38b87). The new design replaced those screens. Kept for history.
+
 **Status:** decided and built 2026-10-10 (see docs/HANDOFF.md, item 4, for what was built and the judgement calls).
 Branch `ux-direction-a` (local; don't push or merge until the user says). This comes before the merge.
 

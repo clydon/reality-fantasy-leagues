@@ -1,5 +1,7 @@
 # Bot research (experimental)
 
+> **Status (2026-11-19): Reference.** How the bot's research works (Ask ChatGPT for me, the schedule, trivia), live since 2026-10-24. The classic admin's paths are now the desk's Research. Paid Claude research is gone (desk step 8).
+
 The ask-AI bot (a ChatGPT session on our Oracle VM, `C:\Users\conor\llm-browser-api`, served at
 `https://bot.gameyourshow.com`) does the copy-paste-ChatGPT loop for us, free. Two halves.
 

@@ -1,5 +1,7 @@
 # Plan: episode research for commissioners, as a compiled-research cache
 
+> **Status (2026-11-19): Superseded.** built 2026-10-08 for classic's commissioner research. Research is now shared per show and episode, run by our bot on a schedule and settled on the desk. Classic's research is no longer a source (docs/PLAN-new-design.md). Kept for history.
+
 Builds on `docs/PLAN-cast-import-prompt.md` (the paste-first pattern, the "reuse the apply logic,
 don't rebuild it" discipline) and the existing episode-research pipeline (`db/episode-research.js`,
 `db/migrations/0014`/`0015`/`0019`). Grounded in a fresh read of that code on 2026-10-08, not just
@@ -41,7 +43,7 @@ same cast, the same episode, the same questions, answered twice.
 - **Deliberately left out, to keep this light:** no confidence decay from a commissioner's
   correction, no cross-league feedback loop, no consensus-flipping a stored answer, no required
   reason field on a correction. These were designed in conversation and explicitly cut — see
-  `docs/ROADMAP.md`'s "Parked" section for the player-dispute/inbox feature that's the better home
+  `docs/archive/ROADMAP-2026-10.md`'s "Parked" section for the player-dispute/inbox feature that's the better home
   for catching a genuinely wrong answer later (a real person with stakes flags it, rather than an
   algorithm inferring trust from disagreement counts).
 - **A commissioner's own league gets results without waiting on an admin.** This is the one place
@@ -66,14 +68,14 @@ same cast, the same episode, the same questions, answered twice.
   `league-info-section.tsx`). Episode research's staging (`stageResearchDecisions` →
   `decisions.seasonIdFor`) hard-requires a `show_seasons` row to exist, so the first commissioner to
   research such a season needs one created on the spot. This has a useful side effect: it's the
-  first concrete step toward "admin sees league-by-league research" (`docs/ROADMAP.md`'s Parked
+  first concrete step toward "admin sees league-by-league research" (`docs/archive/ROADMAP-2026-10.md`'s Parked
   section) — a self-serve season a commissioner researches becomes visible in the admin catalog from
   that point on, with no new UI needed for that part.
 - **Cast stays out of scope here.** `season_cast` still isn't populated by this plan — a
   commissioner on a self-serve show still needs the cast entered first, by hand or via
   `docs/PLAN-cast-import-prompt.md`'s "Import a cast", which itself doesn't write to `season_cast`
   either. Retrofitting cast import onto the same shared-cache idea is a noted follow-on in
-  `docs/ROADMAP.md`, not part of this plan.
+  `docs/archive/ROADMAP-2026-10.md`, not part of this plan.
 
 ## The pieces
 
@@ -154,7 +156,7 @@ same cast, the same episode, the same questions, answered twice.
   (by hand or via cast import) can't be researched meaningfully — `resolveResearchContext` falls back
   to the league's own castaways, so an empty roster means an empty checklist. Not a blocker for this
   plan (the commissioner just needs to add the cast first, same as today), but worth noting since it's
-  the same underlying gap `docs/ROADMAP.md` already flags for cast import.
+  the same underlying gap `docs/archive/ROADMAP-2026-10.md` already flags for cast import.
 
 ## Implementation notes (2026-10-08)
 
@@ -200,7 +202,7 @@ Built in the plan's order. Where it differs from the text above, and why:
   step reads "Approve the cast first", and a self-serve season never has a season cast (each league
   keeps its own). So an admin can't review or accept its staged decisions from the UI -- only through
   the API the review buttons call. Left as is: commissioners apply per league, and the admin view of
-  league-by-league research is the parked follow-on in `docs/ROADMAP.md`.
+  league-by-league research is the parked follow-on in `docs/archive/ROADMAP-2026-10.md`.
 
 ### Smoke test (2026-10-08), against the local dev server
 

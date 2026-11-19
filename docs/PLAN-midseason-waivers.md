@@ -1,5 +1,7 @@
 # Mid-season waivers: private claims, processed at once, then free agency
 
+> **Status (2026-11-19): Done.** phases 1 to 4 were built 2026-10-16 (beccc27b). Claims and windows as they work now are docs/PLAN-waivers-v2.md and the new design's waivers sheet, and v2 did phase 5's docs. Kept for history.
+
 **Status:** planned 2026-10-16; phase 1 (the engine: claims storage, processing, free agency, spoiler
 redaction, fixtures), phase 2 (the UI), phase 3 (pushes, the hourly job, Nudge, alerts) and phase 4
 (every league on waivers, live rounds deleted) built 2026-10-16, not committed. Phase 5 (docs) not started.

@@ -1,5 +1,7 @@
 # Plan: spoiler-free catch-up (a league that starts mid-season plays from episode 0)
 
+> **Status (2026-11-19): Superseded.** built 2026-09-25 for classic, where a commissioner opens and reveals each episode. The new design replaced it with each person's own mark and own-pace games, and a join that starts you from an episode. Kept for history.
+
 **Status:** Implemented. See README's "Catch-up mode" section for what shipped. Three differences
 from the design below, all found while building it:
 

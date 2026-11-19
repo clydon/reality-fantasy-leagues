@@ -1,5 +1,7 @@
 # Plan: a copy/paste research prompt for a season's cast
 
+> **Status (2026-11-19): Done.** built 2026-10-06 (89a03c0c). cast-prompt.js lives on in the desk's cast (our bot asks, or you paste) and in cast properties (docs/PLAN-cast-properties.md). Classic's League Settings entry goes when classic does. Kept for history.
+
 Same shape as `docs/PLAN-ai-generated-show-formats.md`'s "paste first" research loop and
 `docs/PLAN-stage-3-format-proposals.md`'s review screen, applied to a different problem: getting a
 season's cast INTO a league, not getting a show's rules.

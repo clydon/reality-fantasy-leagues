@@ -1,5 +1,7 @@
 # Plan: research on a rulebook, through our bot (Check for changes, What scores)
 
+> **Status (2026-11-19): Done.** Built and live 2026-11-04/05 (ae013ef7; the commissioners' What scores, 0e6dc726). The real bot has priced seasons since, through Getting it ready's What scores step. Nothing open.
+
 **Status:** built 2026-11-04 and 2026-11-05 on branch `ccr-dc484e47-2hp97o`, migrations 0432 to 0434. Checked: `tests/rulebook-scores.test.js`,
 `scripts/dev-test/check-desk-rulebook-research.js` (ALL PASS at 390), `check-new-desk.js` (101 PASS; its Check for changes
 step moved to the new sheet, and its rulebook versions read from the database: confirming a phase and undoing it each move

@@ -1,5 +1,7 @@
 # The game page's situations: what its redesign must show, and what the bench produces
 
+> **Status (2026-11-19): Reference.** The game page round's 26 situations, and what the bench can't produce. The page shipped 2026-11-15. Reuse the situations for game-page checks; the 'can't produce' list is open bench work (X-late-joiner, X-transport-faults, X-draft-room-actions, X-story-show-world).
+
 Part 4 of the design round's preparation ([the packet](DESIGN-ROUND-PACKET.md), 2026-11-14). The recommended first page is a
 generated game's own page with its sheets, piloted on **head to head**: a Survivor Weekly Lineup (draft 3, start 2, a two-seat
 playoff, four people) and its sports twin, the NFL's own season game (head to head, a weekly lock, three people). Each situation

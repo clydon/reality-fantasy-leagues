@@ -1,5 +1,7 @@
 # Generated visual asset library
 
+> **Status (2026-11-19): Reference.** Still how generated assets are kept. One path moved: the gallery's stand-in icons are in src/new/couch/gallery-bold/icons.tsx.
+
 Generated study images are saved as versioned project assets so implementation reuses the approved pixels. Do not regenerate an image simply to transfer a study into the app. A deliberate visual change should produce a new version while retaining the previous one.
 
 | Asset | Purpose | Stable application URL |

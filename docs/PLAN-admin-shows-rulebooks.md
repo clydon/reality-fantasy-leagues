@@ -1,5 +1,7 @@
 # Plan: rulebooks — Admin > Shows rebuilt around one idea
 
+> **Status (2026-11-19): Superseded.** Built: every season in production has played by its rulebook since early November (the desk's rulebook editor, Make it ours, the library). This is the design reference. The line 'Nothing here is built yet' is out of date.
+
 Designed 2026-10-15/16 with the user (impeccable `shape`). Clickable mockup:
 https://claude.ai/artifact/N9fyawYRUfgCJVuUtK9yuE (private; Admin/Commissioner, phone/full width,
 Night/Studio, and ten sample rulebooks across all four kinds of show). Nothing here is built yet.

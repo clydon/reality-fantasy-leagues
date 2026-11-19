@@ -1,5 +1,7 @@
 # Playtest report
 
+> **Status (2026-11-19): Reference.** Findings from 2026-10-28. Done since: 10 and most of 18. Moot: 11 (dead code) and 12 (pools got lives and mulligans). Still open: the finale through research (1, 8, 17, 20, 21), the rules for results only the bot answers (2, 3, 6, 22), and 7, 13, 15, 16, 19. In BACKLOG: the finale is 116, the bot-only rules 182, findings 3 and 4 are 127, 15 is in 71, and 13 is idea 198.
+
 For the user and the lanes that own what's found. Written by the playtest lane (docs/PLAN-playtests.md): the replays (P3) and
 their reviews (P4). The replays themselves are in `C:\Users\conor\rfl-tapes\replays\` (not in git: the tapes hold real shows'
 data). `node scripts/dev-test/playtest.js summary` prints a line per replay.

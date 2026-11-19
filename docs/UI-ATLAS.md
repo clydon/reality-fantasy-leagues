@@ -1,5 +1,7 @@
 # UI Atlas
 
+> **Status (2026-11-19): Reference.** Guide to the UI Atlas, the base the explorer runs on. Its sections on the Tonight V1–V4 mocks are historical: Tonight was redesigned and shipped.
+
 A reusable, generated HTML workbench for discovering the current UI, rendering named states with data, comparing mocks, and exporting focused context for design reviews.
 
 Open **http://127.0.0.1:4400** while the atlas is running. The generated file is `.ui-atlas/index.html`. It is self-contained for browsing the inventory; interactive application rendering requires the local app and atlas server.

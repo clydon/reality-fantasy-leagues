@@ -1,5 +1,7 @@
 # Plan: moving the app onto the new design
 
+> **Status (2026-11-19): Partly done.** Steps 0a–15 are built and live (merged 2026-10-26; everyone on the new design since 2026-10-31). Step C (remove classic, the contract migrations, rulebooks phase 9) hasn't started (BACKLOG 45). Open leftovers are in docs/BACKLOG.md. The rest of this file is history.
+
 Status: **plan, 2026-10-23; updated 2026-10-24** with every mock decision since (the critique refinements,
 the Games tab, how results get in, solo, sharing, privacy, and the kinds-of-show and rulebooks round). The
 full-site mock (`.impeccable/mocks/site/`, live at `/mock`, decisions in memory `site-mock-decisions`) is
@@ -134,9 +136,9 @@ their own step, against the screen that needs them, so nothing is designed specu
 ## Noticed, not fixed
 
 Behaviour a session saw and left alone because it wasn't that step's to change. Each says what happens, where, and
-the step that could take it (a guess: any later step that touches it may). Fixed ones come out, with a line in that
-step's As built.
-
+the step that could take it (a guess: any later step that touches it may). Fixed ones come out, with a line in that
+step's As built.
+
 - **Where everyone is, left for later (2026-11-01, F, C and B: hub CouchRow, couch/person-sheet.tsx, couch/where-sheet.tsx,
   Episodes faces, Tonight's WhereLine)**: (1) The first-time tour doesn't point at the couch's faces or the header line.
   (2) The person sheet (from the hub) doesn't say which games someone plays on a show; where-sheet.tsx does, from the space
@@ -151,7 +153,7 @@ step's As built.
   left alone when back was fixed to go where you came from (check-show-back.js); the episode page opened from Tonight does go
   back to Tonight. Any step that touches those pages could make their back return to the hub, labelled "Home".
 - **The "tune" mark stays up to 4 s after Home's reverse (2026-10-30, nav.tsx historyBack)**: harmless (it only stops a view
-  transition, and every navigation marks its own), but a tidy-up could clear it when the reverse bumper ends.
+  transition, and every navigation marks its own), but a tidy-up could clear it when the reverse bumper ends.
 - **check-new-studio.js: the welcome page's "Nothing on" fails its 3:1 contrast check (seen 2026-10-31, night 1.37:1, Studio
   1.89:1)**: the landing's demo guide on a day with nothing on; not from the Games tab work beside it. The landing's next step
   could look.

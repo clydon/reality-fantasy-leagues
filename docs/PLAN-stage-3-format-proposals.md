@@ -1,5 +1,7 @@
 # Plan: stage 3, research → propose → review a new show's format (admin-only)
 
+> **Status (2026-11-19): Superseded.** built 2026-10-05 in classic's admin. Adding a show now runs rulebook research through our bot, and our check decides (Add a show, docs/PLAN-getting-it-ready.md, docs/PLAN-rulebook-research.md). Kept for history.
+
 Stage 3 of `docs/PLAN-rollout-order.md` and phase 3 of `docs/PLAN-ai-generated-show-formats.md`. It builds
 on stage 2 (formats as data, `src/lib/game/formats/define.js`) and phase 1 of
 `docs/PLAN-scoring-rules-as-data.md` (scoring as rules, `formats/rules.js`). The goal is that an admin can
