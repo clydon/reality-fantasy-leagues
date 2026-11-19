@@ -228,17 +228,19 @@ function check(ok, label, detail) {
     const a = await open({ user: fixture.username("alex"), pass: fixture.PASSWORD, width, height: 844 });
     a.page.setDefaultTimeout(15000);
     try {
-      await a.page.goto(`${a.BASE}/show/${sid}/backstage/settings`);
+      // Round 4 (B4): the game's own settings, How moves lock opened (a link: ?page=game-settings&game=&line=pace). Together, its late
+      // moves none (strict) or on the honour system (live).
+      await a.page.goto(`${a.BASE}/show/${sid}/backstage/settings?page=game-settings&game=${L}&line=pace`);
       const block = a.page.locator(`[data-settings-league='${L}'] [data-settings='pace']`);
       await block.waitFor();
-      check((await block.getAttribute("data-pace")) === "strict" && (await block.locator("[data-pace-tile='strict']").getAttribute("aria-pressed")) === "true", "alex's Game settings: When moves lock, at airtime");
+      check((await block.getAttribute("data-pace")) === "strict" && (await block.locator("[data-settings-choice='late-none']").getAttribute("aria-pressed")) === "true", "alex's Game settings: How moves lock, Together, no late moves");
       await block.scrollIntoViewIfNeeded();
       await shot(a.page, "settings-pace-strict");
-      await block.locator("[data-pace-tile='live']").click();
+      await block.locator("[data-settings-choice='late-honour']").click();
       await a.page.locator(`[data-settings-league='${L}'] [data-settings='pace'][data-pace='live']`).waitFor();
       // (Waited for by its words: the status region is there before the toast is.)
-      const toast = await a.page.getByText(/Weekly Lineup · moves stay open until you've watched/).first().textContent({ timeout: 8000 }).catch(() => "");
-      check(/Weekly Lineup · moves stay open until you've watched/.test(toast || ""), "  the other tile tapped: live, the toast says so", toast);
+      const toast = await a.page.getByText(/Weekly Lineup · late moves on the honour system/).first().textContent({ timeout: 8000 }).catch(() => "");
+      check(/Weekly Lineup · late moves on the honour system/.test(toast || ""), "  late moves on the honour system tapped: live, the toast says so", toast);
       await shot(a.page, "settings-pace-live");
       const box = await block.boundingBox();
       check(!!box && box.x >= 0 && box.x + box.width <= width, "  it fits the width", box);

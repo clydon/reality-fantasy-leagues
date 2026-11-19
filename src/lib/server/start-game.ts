@@ -473,6 +473,19 @@ function againParts(kept: Readonly<GameSpec>, mine: GameSpec): Partial<GameSpec>
   return out;
 }
 
+/**
+ * A game's name (Round 3, the review in B4): a one-episode game always says its episode ("Prediction sheet · Episode 20",
+ * "Predictions · Game 3"), so the archive and record read one kind (spans.ts kindOf) and each row says which night it was; a name
+ * someone typed keeps their words, the episode added only when the couch already uses it. Held to 60 characters with the suffix whole.
+ * Then a name the couch doesn't use (freeName).
+ */
+export function gameName(want: string, here: Game[], one: { episode: number; word: string } | null, typed: boolean): string {
+  if (!one) return freeName(want, here);
+  const suffix = ` · ${one.word} ${one.episode}`;
+  const taken = here.some((g) => g.name.toLowerCase() === want.toLowerCase());
+  return typed && !taken ? freeName(want, here) : freeName(`${want.slice(0, Math.max(1, 60 - suffix.length)).trim()}${suffix}`, here);
+}
+
 /** A name the couch doesn't use for another of its games here ("Weekly Lineup 2"). */
 export function freeName(want: string, here: Game[]): string {
   const taken = new Set(here.map((g) => g.name.toLowerCase()));
@@ -568,7 +581,8 @@ export async function startGame(
   const level: BotLevel = body.level === "easy" || body.level === "sharp" ? body.level : "normal";
   const couch = opts.couch.id;
   const here = await couchGamesOn(user, couch, seasonId);
-  const name = freeName(opts.again && opts.again.key === choice.key ? opts.again.name : choice.name, here);
+  const part = opts.part.singular.replace(/^./, (c) => c.toUpperCase());
+  const name = gameName(opts.again && opts.again.key === choice.key ? opts.again.name : choice.name, here, to !== null && to === opts.from ? { episode: opts.from, word: part } : null, false);
   const starter = (user as { username?: string | null }).username || user.name;
   const { rows: seasonRow } = await pool.query("SELECT ss.season_number, s.slug FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1", [seasonId]);
   const row = { id: seasonId, number: seasonRow[0].season_number as number, slug: seasonRow[0].slug as string };

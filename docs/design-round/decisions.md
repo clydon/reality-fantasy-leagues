@@ -1334,3 +1334,16 @@
 - What: a row per game you run (its type, when this episode's lock falls, how moves lock, who joins), a night's and finished games folded; each game's settings a page pushed over the game (its ⋯ menu) or the list: the title card, this episode's lock with its action in words, the rules as value-first lines opened one at a time (a fixed one with its reason), How moves lock as Together or At your own pace with Together's late moves, Archive or delete named for the game. A Game admin reads it with one notice and the lock live.
 - Rejected: every game's settings stacked (today's); Start a game's yellow chosen ring (the chyron stays for what's due); a padlock for fixed rules (it's this episode's lock's mark); the AUTO switch (it named the mode, not the action).
 - Rests on: docs/design-round/round4-game-settings-spec.md, -first-view.md, -shape.md, -pfd-eval.md, -critique.md; scripts/dev-test/story-game-settings.js.
+
+## 2026-11-19 · Round 4 approved and built (B4): a Game admin keeps the page; Archive all on the Finished fold; who's playing stays on Members
+- Decided by: the user ("I'll take you recs, then continue here"), taking Claude's three recommendations on Round 4's story
+- Why: a Game admin's one job (the lock) lives on the game's own page, read only otherwise; a season of short games leaves dozens finished, one tap clears them with one Undo; Members already removes people, and a second place would drift.
+- Rejected: the lock alone on the game page for a Game admin; archiving finished games one at a time only; a players list in each game's settings.
+- Rests on: https://claude.ai/artifact/WMc3vd96GAJwaZTHLQKevh; docs/PLAN-start-a-game-redo.md B4.
+
+## 2026-11-19 · A one-episode game always says its episode in its name
+- Decided by: Claude (the code review of the team-season change)
+- Why: the first of a kind kept a bare name while the next said "· Game 5", so the archive mixed both and the first row never said which night it was.
+- What: "Prediction sheet · Episode 20", "Predictions · Game 3" from either start path; a typed name is kept, the episode added only when the couch already uses it; held to 60 characters with the suffix whole.
+- Rejected: the episode only on a clash (the first bare); a counter ("Predictions 2").
+- Rests on: src/lib/server/start-game.ts gameName; src/lib/game/spans.ts kindOf.

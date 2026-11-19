@@ -36,7 +36,6 @@ import { SideBetsRow, waiverLine, WeekBlock, WeekGames, YourTeam } from "./game-
 import { oneGame, thisWeek } from "./this-week";
 import { AgainRow, finalLine } from "./whats-on";
 import { GameSettingsPage, useGameSettingsPage } from "../backstage/game-settings";
-import { useR4 } from "../backstage/r4";
 
 // A game's own page (docs/PLAN-start-a-game-gpt.md U1; the direction contract .impeccable/surfaces/src-new-show-game-page-tsx.md,
 // "The broadcast segment"): any game, generated from its spec, runs like a segment of the show. A title card (the game's name in
@@ -105,7 +104,6 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
   const seasonId = show.header?.seasonId ?? g.leagueId;
   const couchId = show.couch?.id ?? null;
   const nav = useNav();
-  const r4 = useR4();
   const settingsPage = useGameSettingsPage();
   // Your move in this game, as the Games tab's card says it (the draft and the mid-season draft included).
   const drafting = (g.gameType === "classic-draft" || g.gameType === "active-roster") && !!g.you && (g.you.team.length === 0 || g.from === null || g.through < g.from);
@@ -342,13 +340,13 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
           {show.header && !g.solo && (
             <Row title="Where you are" detail={show.seenThrough ? `Through ${show.words.ep} ${show.seenThrough}: nothing past it shows here` : "Results show as they come"} onClick={() => (setMenu(false), openWhere(show))} />
           )}
-          {/* Round 4 (TEMP-UI, ?settings=r4): the game's own settings, for whoever runs it. */}
-          {r4 && show.couch && (g.yourRole === "commissioner" || g.yourRole === "admin") && (
+          {/* Round 4 (built in B4): the game's own settings, for whoever runs it. */}
+          {show.couch && (g.yourRole === "commissioner" || g.yourRole === "admin") && (
             <Row title="Game settings" detail={g.yourRole === "commissioner" ? "What you set, and what you can still change" : "This episode's lock, and how the game is set"} onClick={() => (setMenu(false), settingsPage.showWith({ game: g.leagueId, from: "game" }))} />
           )}
         </div>
       </Sheet>
-      {r4 && show.couch && <GameSettingsPage seasonId={seasonId} show={show} />}
+      {show.couch && <GameSettingsPage seasonId={seasonId} show={show} />}
     </div>
   );
 }

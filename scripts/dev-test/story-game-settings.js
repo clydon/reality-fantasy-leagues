@@ -12,7 +12,7 @@
 //   line-pace           the same, How moves lock opened (Round 4)
 //   line-lineup         Weekly Lineup's settings, Who scores each week opened (Round 4)
 //   riley-game          Weekly Lineup's settings as riley, a Game admin (Round 4)
-// --after: Round 4's design (?settings=r4).
+// Round 4 is the app's since B4 (2026-11-19); its before frames were shot when it was behind ?settings=r4.
 // For each it keeps <id>.jpg (the first view), <id>.full.jpg, <id>.txt, and prints OVERLAP lines (words over words: overlaps.js).
 //
 // Needs: the app (BASE). Brings the fixtures up and takes them down after unless --keep. zt-nd rows only; refuses a non-local
@@ -33,7 +33,7 @@ const has = (k) => args.includes(`--${k}`);
 const W = Number(opt("width", 390)), H = Number(opt("height", 844));
 const OUT = path.resolve(opt("out", ".ui-atlas/stories/round4-game-settings/before"));
 const ONLY = opt("only", null);
-const Q = has("after") ? "?settings=r4" : "";
+const Q = "";
 const DB = process.env.AUTH_DATABASE_URL || "";
 if (!/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(DB)) throw new Error("story-game-settings runs against a local database only");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -94,11 +94,11 @@ async function main() {
       { id: "settings-alex", who: "alex", go: `/show/${S}/backstage/settings${Q}`, ready: "[data-settings], [data-settings-game], [data-settings-list], h1, h2" },
       { id: "settings-riley", who: "riley", go: `/show/${S}/backstage/settings${Q}`, ready: "[data-settings], [data-settings-game], [data-settings-list], h1, h2" },
       { id: "game-menu", who: "alex", go: `/show/${S}/game/${fx.leagues.lineup}${Q}`, ready: "[data-game-page]", tap: "[data-game-title] [data-game-menu-open]", wait: '[role="dialog"]' },
-      { id: "settings-game", who: "alex", go: has("after") ? `/show/${S}/game/${fx.leagues.lineup}${Q}` : null, ready: "[data-game-page]", tap: ["[data-game-title] [data-game-menu-open]", "[data-game-menu] :text-is(\"Game settings\")"], wait: "[data-game-settings]" },
-      { id: "list-game", who: "alex", go: has("after") ? `/show/${S}/backstage/settings${Q}` : null, ready: "[data-settings-list]", tap: `[data-settings-row="${fx.leagues.outlast}"]`, wait: "[data-game-settings]" },
-      { id: "line-pace", who: "alex", go: has("after") ? `/show/${S}/backstage/settings${Q}` : null, ready: "[data-settings-list]", tap: [`[data-settings-row="${fx.leagues.lineup}"]`, '[data-setting-line="pace"] button'], wait: '[data-settings="pace"]' },
-      { id: "line-lineup", who: "alex", go: has("after") ? `/show/${S}/backstage/settings${Q}` : null, ready: "[data-settings-list]", tap: [`[data-settings-row="${fx.leagues.lineup}"]`, '[data-setting-line="lineup"] button'], wait: '[data-settings="lineup"]' },
-      { id: "riley-game", who: "riley", go: has("after") ? `/show/${S}/backstage/settings${Q}` : null, ready: "[data-settings-list]", tap: `[data-settings-row="${fx.leagues.lineup}"]`, wait: "[data-game-settings]" },
+      { id: "settings-game", who: "alex", go: `/show/${S}/game/${fx.leagues.lineup}${Q}`, ready: "[data-game-page]", tap: ["[data-game-title] [data-game-menu-open]", "[data-game-menu] :text-is(\"Game settings\")"], wait: "[data-game-settings]" },
+      { id: "list-game", who: "alex", go: `/show/${S}/backstage/settings${Q}`, ready: "[data-settings-list]", tap: `[data-settings-row="${fx.leagues.outlast}"]`, wait: "[data-game-settings]" },
+      { id: "line-pace", who: "alex", go: `/show/${S}/backstage/settings${Q}`, ready: "[data-settings-list]", tap: [`[data-settings-row="${fx.leagues.lineup}"]`, '[data-setting-line="pace"] button'], wait: '[data-settings="pace"]' },
+      { id: "line-lineup", who: "alex", go: `/show/${S}/backstage/settings${Q}`, ready: "[data-settings-list]", tap: [`[data-settings-row="${fx.leagues.lineup}"]`, '[data-setting-line="lineup"] button'], wait: '[data-settings="lineup"]' },
+      { id: "riley-game", who: "riley", go: `/show/${S}/backstage/settings${Q}`, ready: "[data-settings-list]", tap: `[data-settings-row="${fx.leagues.lineup}"]`, wait: "[data-game-settings]" },
     ]);
     await fixture.down(pool);
     if (!ONLY || new RegExp(ONLY).test("settings-busy")) {
@@ -106,8 +106,10 @@ async function main() {
       failed += await shoot([
         { id: "settings-busy", who: "alex", go: `/show/${busy.seasonId}/backstage/settings${Q}`, ready: "[data-settings], [data-settings-game], [data-settings-list], h1, h2" },
         // Round 4: a finished game's settings (only Archive or delete left), and one of the next episode's one-episode games.
-        { id: "busy-finished", who: "alex", go: has("after") ? `/show/${busy.seasonId}/backstage/settings${Q}` : null, ready: "[data-settings-list]", tap: ['[data-settings-fold="done"] button', '[data-settings-fold="done"] [data-settings-row]'], wait: "[data-game-settings]" },
-        { id: "busy-night", who: "alex", go: has("after") ? `/show/${busy.seasonId}/backstage/settings${Q}` : null, ready: "[data-settings-list]", tap: ['[data-settings-fold^="ep-"] button', '[data-settings-fold^="ep-"] [data-settings-row]'], wait: "[data-game-settings]" },
+        { id: "busy-finished", who: "alex", go: `/show/${busy.seasonId}/backstage/settings${Q}`, ready: "[data-settings-list]", tap: ['[data-settings-fold="done"] button', '[data-settings-fold="done"] [data-settings-row]'], wait: "[data-game-settings]" },
+        // B4: Archive all the finished games at once (one Undo).
+        { id: "busy-archive-all", who: "alex", go: `/show/${busy.seasonId}/backstage/settings${Q}`, ready: "[data-settings-list]", tap: '[data-settings-fold="done"] button', wait: "[data-archive-all]" },
+        { id: "busy-night", who: "alex", go: `/show/${busy.seasonId}/backstage/settings${Q}`, ready: "[data-settings-list]", tap: ['[data-settings-fold^="ep-"] button', '[data-settings-fold^="ep-"] [data-settings-row]'], wait: "[data-game-settings]" },
       ]);
     }
   } finally {

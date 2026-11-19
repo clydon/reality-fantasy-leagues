@@ -3,7 +3,10 @@ import type { SessionUser } from "../auth-helpers";
 import { HttpError, pool } from "../db";
 import { startFromSpec, type SpecStarted } from "../start-spec";
 import { startOptions } from "../start-game";
-import { addGames, addSlate, type AddAsk, type SlateAsk } from "./find";
+import { addGames, addSlate, regularOf, seasonGames, type AddAsk, type SlateAsk } from "./find";
+import { sportsProviders } from "./index";
+import { LEAGUE_SEASON_JOIN } from "../league-season";
+import type { SportsEvent } from "./types";
 import type { SportsProvider } from "./types";
 
 // Start a game on a team (docs/PLAN-start-a-game-gpt.md U1's sports slice; U0's board "Start a game on a team", the user's calls
@@ -23,8 +26,10 @@ import type { SportsProvider } from "./types";
 
 export interface SportStarted extends SpecStarted {
   seasonId: string;
-  /** The season's name ("Eagles at Cowboys, Nov 9"). */
+  /** The season's name ("Eagles at Cowboys, Nov 9", or a team's: "Eagles, 2026 season"). */
   season: string;
+  /** The one game started, by its own name, when it's one game on a longer season ("Eagles at Cowboys"): the toast says it. */
+  game?: string | null;
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
@@ -35,21 +40,46 @@ export function railFor(league: string, count: number, slate: boolean): RailGame
   return sportRail(league, { count, slate });
 }
 
-/** One of a team's games on the team's season (made or found, and followed), and its episode there; null when it isn't one game
- *  of a team's, or the team's season can't hold it (not a regular-season game, a schedule too long to make). */
-async function teamSeasonFor(user: SessionUser, ask: AddAsk, providers?: SportsProvider[]): Promise<{ seasonId: string; name: string; episode: number } | null> {
-  if (!ask || typeof ask !== "object" || ask.whole || typeof ask.team !== "string" || !Array.isArray(ask.games) || ask.games.length !== 1) return null;
+/**
+ * Where one of a team's games goes (Round 3, the user's call of 2026-11-18): a season the couch already plays this game on (a team's
+ * or a matchup's, whichever side it was started from: the review, B4), else the team's season (made or found, and followed) when it's a
+ * regular-season game, that game only. Null: its own matchup's season, as before, with the schedule read here passed on (`games`) so
+ * it isn't asked again. Nothing's made or followed for a game the team's season can't hold.
+ */
+async function teamSeasonFor(
+  user: SessionUser,
+  couchId: string | null,
+  ask: AddAsk,
+  providers?: SportsProvider[]
+): Promise<{ season: { seasonId: string; name: string; episode: number; game: string | null } | null; games?: SportsEvent[] }> {
+  if (!ask || typeof ask !== "object" || ask.whole || typeof ask.team !== "string" || typeof ask.league !== "string" || !Array.isArray(ask.games) || ask.games.length !== 1) return { season: null };
+  const id = ask.games[0];
+  if (couchId) {
+    const { rows } = await pool.query(
+      `SELECT se.season_id, se.episode, se.name, COALESCE(ss.name, sh.name) AS season FROM season_events se
+         JOIN show_seasons ss ON ss.id = se.season_id JOIN shows sh ON sh.id = ss.show_id
+        WHERE se.event_id = $1 AND EXISTS (
+          SELECT 1 FROM leagues l ${LEAGUE_SEASON_JOIN} WHERE l.couch_id = $2 AND l.deleted_at IS NULL AND ss.id = se.season_id)
+        ORDER BY se.season_id LIMIT 1`,
+      [id, couchId]
+    );
+    if (rows[0]) return { season: { seasonId: rows[0].season_id, name: rows[0].season, episode: rows[0].episode, game: rows[0].name ?? null } };
+  }
+  const p = (providers ?? sportsProviders())[0];
+  if (!p) return { season: null };
+  const games = await seasonGames(p, ask.league.toLowerCase(), ask.team);
+  if (!games || !regularOf(ask.team, games).some((g) => g.id === id)) return { season: null, games: games ?? undefined };
   let whole: Awaited<ReturnType<typeof addGames>>;
   try {
-    whole = await addGames(user.id, { league: ask.league, team: ask.team, whole: "season" }, { providers });
+    whole = await addGames(user.id, { league: ask.league, team: ask.team, whole: "season" }, { providers, games });
   } catch (e) {
     // The team's season can't be made (no season listed, too long, the day's cap): the game's own matchup, as before.
-    if (e instanceof HttpError && e.status < 500) return null;
+    if (e instanceof HttpError && e.status < 500) return { season: null, games };
     throw e;
   }
-  const { rows } = await pool.query("SELECT episode FROM season_events WHERE season_id = $1 AND event_id = $2 LIMIT 1", [whole.seasonId, ask.games[0]]);
+  const { rows } = await pool.query("SELECT episode, name FROM season_events WHERE season_id = $1 AND event_id = $2 LIMIT 1", [whole.seasonId, id]);
   const episode = rows[0]?.episode as number | undefined;
-  return Number.isInteger(episode) ? { seasonId: whole.seasonId, name: whole.name, episode: episode as number } : null;
+  return Number.isInteger(episode) ? { season: { seasonId: whole.seasonId, name: whole.name, episode: episode as number, game: (rows[0]?.name as string | null) ?? null } } : { season: null, games };
 }
 
 /** Start one of a sport's standard games on some of a team's games, or on a sport's season that's here. */
@@ -67,6 +97,7 @@ export async function startSport(
   let seasonName: string;
   // One of a team's games on the team's season: its episode there (it must be the one started, never the next one instead).
   let teamEpisode: number | null = null;
+  let gameName: string | null = null;
   if (typeof body.seasonId === "string") {
     seasonId = body.seasonId;
     const { rows } = await pool.query("SELECT COALESCE(ss.name, s.name) AS name FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1", [seasonId]);
@@ -79,11 +110,14 @@ export async function startSport(
     seasonName = added.name;
   } else {
     const ask = body as unknown as AddAsk;
-    const team = await teamSeasonFor(user, ask, opts.providers);
-    const added = team ?? (await addGames(user.id, ask, { providers: opts.providers }));
+    const team = await teamSeasonFor(user, couchId, ask, opts.providers);
+    const added = team.season ?? (await addGames(user.id, ask, { providers: opts.providers, games: team.games }));
     seasonId = added.seasonId;
     seasonName = added.name;
-    if (team) teamEpisode = team.episode;
+    if (team.season) {
+      teamEpisode = team.season.episode;
+      gameName = team.season.game;
+    }
   }
   const o = await startOptions(user, seasonId, couchId, null, now);
   if (!o.sport) throw new HttpError(409, "That isn't a sport's season");
@@ -106,5 +140,5 @@ export async function startSport(
     tell: body.tell,
     made: { sport: game },
   }, now);
-  return { ...started, seasonId, season: seasonName };
+  return { ...started, seasonId, season: seasonName, game: gameName };
 }

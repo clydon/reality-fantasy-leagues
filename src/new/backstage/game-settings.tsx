@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Check, ChevronDown, ChevronRight } from "lucide-react";
 import { lockTime } from "../clock";
 import { gameColour } from "../games";
-import { gameAdmin, useGameSettings, type GameSettings } from "../data";
+import { backstage, gameAdmin, gamesApi, useGameSettings, type GameSettings } from "../data";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
 import type { ShowData } from "../screens/show-space";
@@ -16,17 +16,18 @@ import { Pictogram } from "../couch/gallery-bold/icons";
 import { kindOf, spanName } from "@/lib/game/spans";
 import { EndGames, HowLong, JoinControl, LineupControl, LockRow, SheetQuestions, useAfter, useSettingsWrite } from "./settings";
 
-// Round 4: changing a game later (docs/design-round/round4-game-settings-spec.md, -first-view.md, -shape.md). TEMP-UI behind
-// ?settings=r4 (r4.ts) until the user approves it; B4 builds it for good. Backstage › Game settings becomes a list of the games you
-// run here, a row each; each game's settings are its own page, pushed over the game (its ⋯ menu) or over Backstage: the title card
-// Start a game made, this episode's lock, then the rules as lines, value first, one opened at a time, and Stop this game.
+// Round 4: changing a game later (docs/design-round/round4-game-settings-spec.md, -first-view.md, -shape.md; approved 2026-11-19
+// and built in B4). Backstage › Game settings is a list of the games you run here, a row each; each game's settings are its own
+// page, pushed over the game (its ⋯ menu) or over Backstage: the title card Start a game made, this episode's lock, then the rules as
+// lines, value first, one opened at a time, and Archive or delete. A link opens it: ?page=game-settings&game=<league id>, and
+// &line=<pace | lineup | questions | joining | length> with that rule open.
 
 type Write = ReturnType<typeof useSettingsWrite>;
 const FOCUS = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
 
 /** The page that holds one game's settings, pushed over wherever it's opened from (`?page=game-settings&game=<league id>`). */
 export function useGameSettingsPage() {
-  return usePushedPage("game-settings", ["game", "from"]);
+  return usePushedPage("game-settings", ["game", "from", "line"]);
 }
 
 const joinWords = { open: "Anyone on the couch", ask: "Ask me first", locked: "Nobody new" } as const;
@@ -36,7 +37,9 @@ const changedIn = (g: GameSettings) => (!g.joining.fixed && g.joining.mode !== g
 
 /** What's notable about a game in one line: this episode's lock, how moves lock, who joins. */
 function notable(g: GameSettings, word: string): string {
-  const type = kindOf(g.name) !== g.gameName ? g.gameName : null;
+  // A season game named by its couch says its type ("Couch Cup · Outlast"); a one-episode game's name is its kind already (the
+  // engine's type would say "Prediction Sheet" for a pot or a majority).
+  const type = !oneEpisode(g) && kindOf(g.name) !== g.gameName ? g.gameName : null;
   if (g.span.over) return [type, "It's over"].filter(Boolean).join(" · ");
   const at = g.lock?.airsAt ? lockTime(Date.parse(g.lock.airsAt)) : null;
   const lock = g.lock ? `${word} ${g.lock.episode}'s ${g.lock.what} ${g.lock.closed ? "locked" : at ? `lock ${at}` : "open"}` : null;
@@ -63,12 +66,41 @@ function ListRow({ g, word, onOpen }: { g: GameSettings; word: string; onOpen: (
 
 /** Backstage › Game settings (Round 4): the games you run here, a row each. Running first; a night's games by episode, folded;
  *  finished ones folded. */
-export function SettingsList({ games, show, onOpen }: { games: GameSettings[]; show: ShowData; onOpen: (id: string) => void }) {
+export function SettingsList({ seasonId, couchId, games, show, onOpen }: { seasonId: string; couchId: string; games: GameSettings[]; show: ShowData; onOpen: (id: string) => void }) {
   const E = show.words.episode;
   const [opened, setOpened] = useState<Set<string>>(new Set());
+  const after = useAfter();
+  const [busy, setBusy] = useState(false);
   const running = games.filter((g) => !g.span.over && !oneEpisode(g));
   const nights = games.filter((g) => !g.span.over && oneEpisode(g));
-  const done = games.filter((g) => g.span.over);
+  // Finished: newest first (by where each ended).
+  const done = games.filter((g) => g.span.over).sort((a, b) => (b.span.to ?? Infinity) - (a.span.to ?? Infinity) || a.name.localeCompare(b.name));
+  // B4 (the user's call on Round 4's story): the finished ones archived at once, one Undo for them all. (An archived game isn't in
+  // this read: it leaves the list, and Archive or delete a game below brings one back.)
+  const toArchive = done.filter((g) => g.commissioner);
+  const archiveAll = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const r = await gamesApi.archiveAll(seasonId, couchId, toArchive.map((g) => g.leagueId));
+      await after();
+      toast(`Archived ${r.archived} finished ${r.archived === 1 ? "game" : "games"} · still on the trophy shelf`, {
+        undo: async () => {
+          try {
+            await backstage.undo(seasonId, couchId, r.batch);
+            await after();
+            toast("Undone");
+          } catch (e) {
+            toast.quiet((e as Error).message);
+          }
+        },
+      });
+    } catch (e) {
+      toast.quiet((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
   const eps = [...new Set(nights.map((g) => g.span.from as number))].sort((a, b) => a - b);
   const fold = (key: string, title: string, aside: string, line: string, list: GameSettings[]) => (
     <section key={key} className="mt-6 px-2" data-settings-fold={key}>
@@ -83,6 +115,11 @@ export function SettingsList({ games, show, onOpen }: { games: GameSettings[]; s
         </button>
         {opened.has(key) && (
           <div className="border-t border-border">
+            {key === "done" && toArchive.length > 1 && (
+              <button type="button" data-archive-all disabled={busy} onClick={() => void archiveAll()} className={`nd-press my-2 grid min-h-11 w-full place-items-center rounded-[3px] text-[15px] font-bold outline-[1.5px] -outline-offset-[1.5px] outline-input ${FOCUS}`}>
+                {busy ? "Archiving…" : `Archive all ${toArchive.length}`}
+              </button>
+            )}
             {list.map((g) => (
               <ListRow key={g.leagueId} g={g} word={show.words.ep} onOpen={onOpen} />
             ))}
@@ -244,8 +281,8 @@ function PaceCards({ seasonId, couchId, g, can, why, word }: { seasonId: string;
 }
 
 /** One game's settings: the title card, this episode's lock, the rules as lines, Stop this game. */
-function GameSettingsBody({ seasonId, couchId, show, g, write }: { seasonId: string; couchId: string; show: ShowData; g: GameSettings; write: Write }) {
-  const [open, setOpen] = useState<string | null>(null);
+function GameSettingsBody({ seasonId, couchId, show, g, write, line }: { seasonId: string; couchId: string; show: ShowData; g: GameSettings; write: Write; line: string | null }) {
+  const [open, setOpen] = useState<string | null>(line);
   const toggle = (id: string) => setOpen(open === id ? null : id);
   const can = g.commissioner && !g.lockedDown && !g.span.over;
   const E = show.words.episode;
@@ -260,11 +297,11 @@ function GameSettingsBody({ seasonId, couchId, show, g, write }: { seasonId: str
   const kicker = show.header ? `${(show.header.show.name ?? "").replace(/^The /, "")}${show.header.seasonNumber ? ` · Season ${show.header.seasonNumber}` : ""}` : "";
   const role = g.commissioner ? (g.span.over ? "You ran this game. It's over: nothing left to change but archive or delete." : "You run this game. Each change saves at once, with Undo.") : "Game admin: you open or close this episode's lock. The Commissioner changes the rest.";
   return (
-    <div data-game-settings={g.leagueId} className="px-4 pb-16 pt-2">
+    <div data-game-settings={g.leagueId} data-settings-game={g.gameName} data-settings-league={g.leagueId} className="px-4 pb-16 pt-2">
       <TitleCard name={g.name} kicker={kicker} art={art} aka={[]} sentence={role} />
       {g.lock && !g.span.over && (
         <div className="mt-3">
-          <LockRow seasonId={seasonId} couchId={couchId} g={g} lock={g.lock} word={E} worded />
+          <LockRow seasonId={seasonId} couchId={couchId} g={g} lock={g.lock} word={show.words.ep} />
         </div>
       )}
       <p className="type-caption mt-5 pb-1 text-[13px] tracking-[0.05em] text-muted-foreground">The rules</p>
@@ -283,7 +320,7 @@ function GameSettingsBody({ seasonId, couchId, show, g, write }: { seasonId: str
             <SheetQuestions seasonId={seasonId} couchId={couchId} g={g} q={g.questions} />
           </SettingLine>
         )}
-        <SettingLine id="joining" icon="join" label="Who can join" value={joinWords[g.joining.mode]} changed={!g.joining.fixed && g.joining.mode !== g.joining.rec} fixed={g.joining.fixed ? (g.joining.mode === "open" ? "Until the draft starts, the game decides" : "The game decides: players own their castaways") : frozen} open={open === "joining"} onToggle={() => toggle("joining")}>
+        <SettingLine id="joining" icon="person" label="Who can join" value={joinWords[g.joining.mode]} changed={!g.joining.fixed && g.joining.mode !== g.joining.rec} fixed={g.joining.fixed ? (g.joining.mode === "open" ? "Until the draft starts, the game decides" : "The game decides: players own their castaways") : frozen} open={open === "joining"} onToggle={() => toggle("joining")}>
           <JoinControl g={g} can={can} write={write} compact />
         </SettingLine>
         <SettingLine id="length" icon="halves" label="How long" value={length} fixed={sp.over ? "It's over" : frozen} open={open === "length"} onToggle={() => toggle("length")}>
@@ -314,7 +351,7 @@ export function GameSettingsPage({ seasonId, show }: { seasonId: string; show: S
       {!data.data || !couchId ? (
         <div aria-busy className="mx-4 mt-4 h-64 animate-pulse rounded-[4px] bg-card" />
       ) : g ? (
-        <GameSettingsBody seasonId={seasonId} couchId={couchId} show={show} g={g} write={write} />
+        <GameSettingsBody key={`${g.leagueId}:${params.get("line") ?? ""}`} seasonId={seasonId} couchId={couchId} show={show} g={g} write={write} line={params.get("line")} />
       ) : (
         <p className="px-4 pt-6 text-[15px] text-muted-foreground">This game&apos;s settings aren&apos;t yours to see here.</p>
       )}

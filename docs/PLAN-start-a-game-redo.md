@@ -945,7 +945,36 @@ then approval.
     - **`check-new-episode-games.js` stops at its first browser step,** "Tonight's Extras: Call it for Episode 6". Tonight's Call it
       row has been off (`const more = false`) since ff74e563, so the check never reaches the Games tab's This week steps updated
       here. `check-new-researched-trivia.js` runs the same fold and passes.
-- **B4. Game settings** (Round 4's design).
+- **B4. Game settings** (Round 4's design). **Built 2026-11-19** (the user approved Round 4's story and took the three
+  recommendations: a Game admin keeps the page; Archive all on the Finished fold; who's playing stays on Members).
+  - **No switch:** `game-settings.tsx`'s list and per-game page are everyone's. The stacked `GameBlock`, the old lock choice
+    (`Pace`), the lock row's switch and `WaiversLink` are deleted.
+  - **A link opens a game's settings with a rule open:** `?page=game-settings&game=<id>&line=<pace|lineup|questions|joining|length>`.
+  - **Archive all on the Finished fold:** `end-game.ts` `archiveGames`, the end route's `archiveAll`, one batch for one Undo and
+    one line in Recent changes. Every id is checked first; a game archived meanwhile is skipped.
+  - **The two left from the confirming look:** Who can join's own glyph, and the lock row's title in the short word ("Ep 6's
+    lineups").
+  - **A finished one-episode game's row** says only "It's over" (not the engine's type), finished games newest first.
+  - **Checks:**
+    - `scripts/dev-test/check-game-settings.js` (new, 22 checks);
+    - `check-new-backstage-ii.js`, `check-episode-lock.js` and `check-own-pace-live.js` moved onto the game's page;
+    - their failures are the ones already listed (the episode lock's "a new pick doesn't go in", own pace live's stale moves
+      selector).
+  - **The code review's fixes:**
+    - Archive all checks every game before writing, skips one archived meanwhile, and waits on a double tap;
+    - the page keeps Archive or delete a game when every game you run is archived;
+    - the deep link's rule reopens;
+    - the dead code is gone.
+  - **The same session's review of the team-season change** (2026-11-18), fixed:
+    - one schedule read decides the season, and nothing is made or followed for a game the team's season can't hold;
+    - a game the couch already plays on any season reuses that season, whichever side it's started from (`check-sports-couch.js`
+      checks the Cowboys' side);
+    - one naming rule for both start paths (`start-game.ts` `gameName`): a one-episode game always says its episode, held to 60
+      characters;
+    - `kindOf` reads any "· Word N" ending and a counter after it (`tests/spans.test.js`);
+    - the toast names the game.
+  - **Noticed:** `check-sports-couch.js`'s "the guide's week has the game on now" fails just after midnight (the stand-in's game
+    started an hour before, so yesterday's).
 
 ### Fixes, any time
 

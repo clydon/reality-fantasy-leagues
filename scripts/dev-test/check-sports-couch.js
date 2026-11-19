@@ -174,6 +174,10 @@ async function apiChecks(pool, me, couch, started) {
   const sq = await me.call("POST", `/api/sports/start?couch=${couch}`, { league: FB, team: "9301", games: ["93104"], game: "squares", tell: false });
   check(sq.status === 200 && sq.body.seasonId === p.body.seasonId, "Squares on the same game shares its season", sq.body);
   started.squares = sq.body;
+  // The same game from the other side's sheet (the review, B4): the season the couch already plays it on, not the Cowboys' own.
+  const other = await me.call("POST", `/api/sports/start?couch=${couch}`, { league: FB, team: "9302", games: ["93104"], game: "pickem", tell: false });
+  check(other.status === 200 && other.body.seasonId === sq.body.seasonId && /at|vs/i.test(other.body.game ?? ""), "the same game from the Cowboys' sheet joins the season the couch plays it on, the toast naming the game", other.body);
+  if (other.body?.leagueId) await me.call("POST", `/api/seasons/${other.body.seasonId}/start?couch=${couch}`, { undo: other.body.leagueId });
 
   const bs = await me.call("GET", `/api/sports/schedule?league=${BB}&team=9401`);
   const series = bs.body.series?.find((x) => x.games.length === 3);

@@ -1527,6 +1527,8 @@ export const gamesApi = {
     post<Started>(seasonUrl(seasonId, "/start", { couch: couchId }), body),
   archive: (seasonId: string, couchId: string, leagueId: string) => post<{ batch: string }>(seasonUrl(seasonId, "/backstage/end", { couch: couchId }), { action: "archive", leagueId }),
   unarchive: (seasonId: string, couchId: string, leagueId: string) => post<{ batch: string }>(seasonUrl(seasonId, "/backstage/end", { couch: couchId }), { action: "unarchive", leagueId }),
+  /** B4: several at once (Game settings' Finished fold), one batch for one Undo. */
+  archiveAll: (seasonId: string, couchId: string, leagueIds: string[]) => post<{ batch: string; archived: number }>(seasonUrl(seasonId, "/backstage/end", { couch: couchId }), { action: "archiveAll", leagueIds }),
   deletePreview: (seasonId: string, couchId: string, leagueId: string) =>
     post<DeletePreview>(seasonUrl(seasonId, "/backstage/end", { couch: couchId }), { action: "delete", leagueId, preview: true }),
   delete: (seasonId: string, couchId: string, leagueId: string) => post<{ batch: string }>(seasonUrl(seasonId, "/backstage/end", { couch: couchId }), { action: "delete", leagueId }),

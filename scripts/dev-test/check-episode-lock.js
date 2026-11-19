@@ -140,7 +140,8 @@ function check(ok, what, detail = "") {
       await wide("Start a game");
       await page.keyboard.press("Escape");
 
-      await page.goto(`${BASE}/show/${sid}/backstage/settings`, { waitUntil: "load" });
+      // Round 4 (B4): each game's settings are its own page; a link opens the Override game's (its lock row first).
+      await page.goto(`${BASE}/show/${sid}/backstage/settings?page=game-settings&game=${game}`, { waitUntil: "load" });
       await page.locator("[data-settings-lock]").first().waitFor({ timeout: 15000 }).catch(() => {});
       const row = page.locator(`[data-settings-game] [data-settings-lock]`).first();
       check((await page.locator('[data-settings-lock="open"] [data-settings-override="on"]').count()) >= 1, "Settings: an open lock on Override");

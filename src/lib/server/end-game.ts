@@ -64,11 +64,37 @@ export async function archiveGame(scope: BackstageScope, leagueId: unknown): Pro
 }
 
 /**
+ * Archive several of your games here at once (B4: Game settings' Finished fold, "Archive all"): the ones not archived yet, under one
+ * batch, so one Undo brings them all back. -> the batch and how many.
+ */
+export async function archiveGames(scope: BackstageScope, leagueIds: unknown): Promise<{ batch: string; archived: number }> {
+  if (!Array.isArray(leagueIds) || !leagueIds.length || leagueIds.length > 500) throw new HttpError(400, "Say which games: { leagueIds }");
+  // Every one checked before anything's written (the review, B4): a game that isn't yours stops it whole; each once.
+  const games = [...new Set(leagueIds)].map((id) => gameIn(scope, id)).filter((g) => !g.archived);
+  if (!games.length) throw new HttpError(409, "They're archived already");
+  const batch = crypto.randomUUID();
+  // One line in Recent changes for the batch (it shows a batch by its first line): how many, not one game's name.
+  const text = `Archived ${games.length} finished ${games.length === 1 ? "game" : "games"}: they stay on the trophy shelf and stop scoring`;
+  let archived = 0;
+  for (const g of games) {
+    try {
+      await archiveLeague(scope.user, g.leagueId, g.gameName, undefined, batch, text);
+      archived++;
+    } catch (e) {
+      // Archived meanwhile (another tab, the desk): skipped, the rest go on.
+      if (!(e instanceof HttpError && e.status === 409)) throw e;
+    }
+  }
+  if (!archived) throw new HttpError(409, "They're archived already");
+  return { batch, archived };
+}
+
+/**
  * Archives a league whoever asks (Backstage's Commissioner, or the desk: docs/PLAN-desk-parity.md part 6a), its line in Recent
  * changes with Undo; `also` runs in the same transaction (the desk's own History line).
  */
-export async function archiveLeague(user: SessionUser, leagueId: string, gameName: string, also?: (client: PoolClient, batch: string) => Promise<void>): Promise<{ batch: string }> {
-  const batch = crypto.randomUUID();
+export async function archiveLeague(user: SessionUser, leagueId: string, gameName: string, also?: (client: PoolClient, batch: string) => Promise<void>, shared?: string, text?: string): Promise<{ batch: string }> {
+  const batch = shared ?? crypto.randomUUID();
   await withLeagueLock(
     leagueId,
     async (s, client) => {
@@ -77,7 +103,7 @@ export async function archiveLeague(user: SessionUser, leagueId: string, gameNam
       s.settings.archivedBy = user.id;
       if (also) await also(client, batch);
     },
-    settingsSetChange(user.id, `Archived ${gameName}: it stays on the trophy shelf and stops scoring`, { kind: "game.archive", batch })
+    settingsSetChange(user.id, text ?? `Archived ${gameName}: it stays on the trophy shelf and stops scoring`, { kind: "game.archive", batch })
   );
   return { batch };
 }
