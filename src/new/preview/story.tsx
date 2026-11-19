@@ -119,7 +119,7 @@ function cardOf(p: Preview, m: Moment, t: ReturnType<typeof typical>): Card {
       const tie = o.filter((r) => w && r.total === w.total);
       const title = !w ? "The finale" : margin === 0 ? `${names(tie.map((r) => (r.you ? "You" : r.name)))} tie at the top` : `${w.you ? "You win" : `${w.name} wins`} by ${fmt(margin)}`;
       // How it's won, in the game's own rules (the line that says who wins, or how the points add up).
-      const how = (top?.rules ?? []).find((r) => /\bwins\b|add up/i.test(r)) ?? null;
+      const how = (top?.rules ?? []).find((r) => !r.includes("?") && /\bwins\b|add up/i.test(r)) ?? null;
       return { title, line: how ? how.replace(/^Overall, /, "").replace(/^\w/, (c) => c.toUpperCase()) : null, check: t.close() };
     }
   }
