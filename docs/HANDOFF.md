@@ -11,6 +11,27 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
+## 2026-11-19: The reveal's face plates (branch `reveal-plates`, lane `rfl-reveal` on 3016; committed, not merged)
+The user, on S51 Ep 9's reveal: "Missing some name plates… a bold universal design… maybe some delightful animation… there is a
+merge color we could probably use", then "It's hard to see the gifs over our nametags". **The story:
+https://claude.ai/artifact/8k5NzsF8mgHKqUu7TjkeLw.** Impeccable only (the user's call). Approved: "process is fine", lineup rows
+coloured too, commit.
+- **Everyone the reveal names is a plate** (src/new/show/reveal.tsx `PlateTile`, `PlateHero`, `TribePlate`, `Wedge`, `FateTag`):
+  a face over a caption strip, the tribe they were in for the episode on its angled end (the merge's colour once merged). What
+  happened's winners (one alone a lower third, a tribe that won as one its own plate with its faces, past eight five across), who
+  went home, Weekly Lineup's rows (the colour on the face's corner), the pool's pick (`PoolBeat`: Survived or Went home, the streak
+  rolling and a pip a pick) and Outlast's team (`TeamBeat`: tonight's out first, greying as Out wipes on; earlier ones dim with
+  their episode). The data: episode-view.ts `faceIn` / `RevealFace` / `FaceTribe` (Happened winners' `face` and `members`, OutFace
+  and RevealStarter `tribe`, RevealGame `faces` and `others`), all optional, so an older payload still draws.
+- **Motion** (new.css, "The reveal's plates"): photo up, strip wipe, colour last; a fate wipes on once the plate is up; a reduced
+  path. Keyframe names clash easily in new.css (`nd-roll` and `nd-tally` were taken): check before adding one.
+- **GIF tiles** (react.tsx `GifTile`, every use): the picture whole, the name on a strip under it.
+- **Tools:** scripts/dev-test/story-reveal-plates.js (situations merged, lost, tribes, crowd, plain; `--gifs`, `--motion=`,
+  `--beats=`), tests/episode-view.test.js "the reveal's plates".
+- **Noticed, not fixed** (whoever next touches Tonight's checks): check-new-reveal.js fails 8 Tonight steps and
+  check-gif-reactions.js 1 (a timeout) on master's code too, stale against today's Tonight.
+- **Next:** merge to master when the user says (not on an episode night: Wednesdays).
+
 ## 2026-11-19: Start a game merged and deployed (the wizard lane, branch `wizard`)
 - **What shipped** (docs/PLAN-start-a-game-redo.md; its "Merge note" has the detail):
   - B1: the gallery is Start a game for every start;

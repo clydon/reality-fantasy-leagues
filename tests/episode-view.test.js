@@ -77,3 +77,53 @@ test("the pool's reveal: your pick and the streak it leaves you on", () => {
   assert.ok(r.game.streak && r.game.streak.to >= 0);
   assert.ok(/survived|went home|No pick/.test(r.game.title), r.game.title);
 });
+
+// The reveal's plates (the user, 2026-11-19: "Missing some name plates"): everyone it names comes with a face and the tribe they were
+// in for the episode, the merge's colour once merged; a tribe that won as one brings who won it; the pool's pick and Outlast's team
+// come as plates with their fate.
+test("the reveal's plates: faces and the tribe each was in for the episode, the merge's colour once merged", () => {
+  const tribal = { ...data, groups: [{ key: "a", name: "Toka", color: "#e0b23a" }, { key: "b", name: "Savu", color: "#9b6bd0" }], castaways: data.castaways.map((c, i) => ({ ...c, groupKey: i % 2 ? "b" : "a" })) };
+  const build = (type) => S.migrateLeagueState(JSON.parse(JSON.stringify(buildDemoState(tribal, type, CURSOR))));
+  const merged = (state) => state.tribes.find((t) => t.name === "Merged Tribe");
+  const still = (state, n) => state.castaways.filter((c) => c.status !== "eliminated" || ep(state, n).number < (state.episodes.find((e) => e.id === c.exitEpisodeId)?.number ?? 99));
+  const win = (state, n, type, cs) => cs.forEach((c) => ep(state, n).scoringEvents.push({ id: `t_${type}_${c.id}`, type, castawayId: c.id }));
+
+  // Episode 5 is the demo's merge: two on the Reward and one on Immunity, every plate the merge's colour.
+  const after = build("classic-draft");
+  const [a, b, c] = still(after, CURSOR);
+  win(after, CURSOR, "rewardWin", [a, b]);
+  win(after, CURSOR, "individualImmunity", [c]);
+  const r = revealIn(ref("classic-draft"), after, ann(after), CURSOR, userOf);
+  const reward = r.happened.find((h) => h.label === "Reward");
+  assert.deepEqual(reward.winners.map((w) => w.face?.id), [a.id, b.id].sort((x, y) => after.castaways.findIndex((q) => q.id === x) - after.castaways.findIndex((q) => q.id === y)));
+  assert.ok(r.happened.flatMap((h) => h.winners).every((w) => w.face && w.face.tribe?.colour === merged(after).color), "the merge's colour on every plate");
+  assert.equal(reward.winners[0].colour, null, "someone on their own keeps no colour of their own (the old plate's fill)");
+  assert.ok(r.out.every((o) => o.tribe), "who went home carries their tribe too");
+
+  // Outlast: everyone you've had, who went tonight first, then who's in, then who went before (dim, with the episode).
+  const team = r.game.faces;
+  assert.ok(team.length > 0 && team.every((f) => ["in", "out", "gone"].includes(f.fate)));
+  const order = team.map((f) => ["out", "in", "gone"].indexOf(f.fate));
+  assert.deepEqual(order, [...order].sort((x, y) => x - y), "tonight's first, then still in, then gone");
+  assert.ok(team.filter((f) => f.fate === "gone").every((f) => f.outEp < CURSOR && f.tribe), "someone gone before keeps the tribe they left from");
+
+  // Before the merge, a tribe that won as one comes as its tribe, with who won it.
+  const before = build("classic-draft");
+  const n = CURSOR - 1;
+  const toka = still(before, n).filter((x) => x.tribeId === before.tribes.find((t) => t.name === "Toka").id || x.startTribeId === before.tribes.find((t) => t.name === "Toka").id);
+  win(before, n, "tribeImmunity", toka);
+  const r4 = revealIn(ref("classic-draft"), before, ann(before), n, userOf);
+  const imm = r4.happened.find((h) => h.label === "Immunity").winners;
+  assert.equal(imm.length, 1);
+  assert.equal(imm[0].name, "Toka");
+  assert.equal(imm[0].colour, "#e0b23a");
+  assert.equal(imm[0].members.length, toka.length);
+
+  // The pool: the pick as a plate, its fate the night's.
+  const pool = build("pickem");
+  const p = revealIn(ref("pickem"), pool, ann(pool), CURSOR, userOf).game;
+  if (p.faces) {
+    assert.equal(p.faces.length, 1);
+    assert.equal(p.faces[0].fate, /survived/.test(p.title) ? "in" : "out");
+  } else assert.equal(p.title, "No pick");
+});

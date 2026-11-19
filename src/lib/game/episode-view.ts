@@ -2,7 +2,7 @@ import type { Castaway, Episode, LeagueState } from "./types";
 import StateLogic from "./state-logic.js";
 import type { GamePieces } from "./state-logic.js";
 import { castawayEpisodeStats } from "./active-roster-rows";
-import { episodeRecapWins } from "./episode-recap";
+import { episodeRecapWins, tribeAtEpisode } from "./episode-recap";
 import { gameView, type GameCalls, type GameRefIn, type TableRow, type UserOf } from "./game-view";
 import { signed } from "./lineup-view";
 import { isBetSettled, isKnockedOut, publicMediaSrc } from "./selectors";
@@ -15,10 +15,26 @@ import { teamEpisodeBreakdown } from "./team-episode-breakdown";
 // the reveal of episode n is the copy at n, against the copy at n - 1. Pure, for the tests; the server merges a
 // couch's games on a season (season-episodes.ts).
 
+/** The tribe or team someone was in for an episode, for the angled end of their plate (the merge's colour once merged). */
+export interface FaceTribe {
+  name: string;
+  colour: string;
+}
+
+/** Someone the reveal names, as a plate: their face and the tribe they were in for the episode. */
+export interface RevealFace {
+  id: string;
+  name: string;
+  photo: string | null;
+  tribe: FaceTribe | null;
+}
+
 export interface OutFace {
   id: string;
   name: string;
   photo: string | null;
+  /** The tribe they left from (absent on a reveal made before plates carried it). */
+  tribe?: FaceTribe | null;
   method: string | null;
   /** Where they finished: the winner 1st. */
   place: number | null;
@@ -41,7 +57,8 @@ export interface GameNight {
 
 export interface Happened {
   label: string;
-  winners: { name: string; colour: string | null }[];
+  /** A tribe that won as one (`colour` its own, `members` who won it), or someone on their own (`face`, `colour` null). */
+  winners: { name: string; colour: string | null; face?: RevealFace; members?: RevealFace[] }[];
 }
 
 export interface Scorer {
@@ -62,6 +79,18 @@ export interface EpisodeSeen {
 
 const first = (name: string) => name.split(" ")[0];
 
+/** The tribe `c` was in for episode `n`, by its colour. */
+function tribeIn(view: LeagueState, c: Castaway, n: number): FaceTribe | null {
+  const id = tribeAtEpisode(view, c, n);
+  const t = id ? view.tribes.find((x) => x.id === id) : null;
+  return t ? { name: t.name, colour: t.color } : null;
+}
+
+/** Someone as the reveal's plates draw them in episode `n`. */
+export function faceIn(view: LeagueState, c: Castaway, n: number): RevealFace {
+  return { id: c.id, name: c.name, photo: publicMediaSrc(c.photoUrl), tribe: tribeIn(view, c, n) };
+}
+
 /** "Brady", "Brady and Danny". */
 const names = (list: string[]) => (list.length <= 1 ? list.join("") : `${list.slice(0, -1).join(", ")} and ${list[list.length - 1]}`);
 
@@ -74,6 +103,7 @@ export function outsOf(view: LeagueState, ep: Episode): OutFace[] {
       id: c.id,
       name: c.name,
       photo: publicMediaSrc(c.photoUrl),
+      tribe: tribeIn(view, c, ep.number),
       method: c.exitMethod ?? null,
       place: c.placementOrder ? view.castaways.length - c.placementOrder + 1 : null,
       knocked: isKnockedOut(view, c),
@@ -83,7 +113,10 @@ export function outsOf(view: LeagueState, ep: Episode): OutFace[] {
 function happenedIn(view: LeagueState, ep: Episode): Happened[] {
   return episodeRecapWins(view, ep).map((w) => ({
     label: w.label,
-    winners: [...w.tribes.map((t) => ({ name: t.tribe.name, colour: t.tribe.color })), ...w.castaways.map((c) => ({ name: first(c.name), colour: null }))],
+    winners: [
+      ...w.tribes.map((t) => ({ name: t.tribe.name, colour: t.tribe.color, members: t.members.map((c) => faceIn(view, c, ep.number)) })),
+      ...w.castaways.map((c) => ({ name: first(c.name), colour: null, face: faceIn(view, c, ep.number) })),
+    ],
   }));
 }
 
@@ -204,6 +237,8 @@ export interface RevealStarter {
   points: number;
   /** What they did: "Individual immunity win · Found an idol". */
   why: string;
+  /** The tribe they were in for the episode (the reveal's plates; absent on a reveal made before they carried it). */
+  tribe?: FaceTribe | null;
 }
 
 export interface RevealGame {
@@ -214,6 +249,11 @@ export interface RevealGame {
   line: string;
   /** Survival Pool: the streak before and after. */
   streak?: { from: number; to: number };
+  /** Who it's about, as plates: the pool's pick (`in` survived, `out` went home); Outlast's team, still in, `out` in this episode
+   *  or `gone` before it (`outEp`). */
+  faces?: (RevealFace & { fate: "in" | "out" | "gone"; outEp?: number | null })[];
+  /** Outlast: everyone else who lost someone in this episode, and who. */
+  others?: { name: string; lost: RevealFace[] }[];
 }
 
 export interface RevealTable {
@@ -261,7 +301,7 @@ export function revealIn(game: GameRefIn, full: LeagueState, me: string, n: numb
     const b = teamEpisodeBreakdown(after, ep.id, me);
     lineup = {
       gameName: game.gameName,
-      starters: b.started.map((s) => ({ name: s.c.name, photo: publicMediaSrc(s.c.photoUrl), points: s.points, why: s.items.map((i) => i.label).join(" · ") })),
+      starters: b.started.map((s) => ({ name: s.c.name, photo: publicMediaSrc(s.c.photoUrl), points: s.points, why: s.items.map((i) => i.label).join(" · "), tribe: tribeIn(after, s.c, n) })),
       total: b.total,
       soFar: stage === "early",
     };
@@ -284,6 +324,7 @@ export function revealIn(game: GameRefIn, full: LeagueState, me: string, n: numb
         title: !c ? "No pick" : row.correct ? `${first(c.name)} survived` : `${first(c.name)} went home`,
         line: row.correct ? `${row.streak} in a row` : before ? `Your streak ended at ${before}` : "Your streak starts again",
         streak: { from: before, to: row.streak },
+        ...(c ? { faces: [{ ...faceIn(after, c, n), fate: row.correct ? ("in" as const) : ("out" as const) }] } : {}),
       };
     }
   } else if (pieces.hasRoster && !pieces.hasActiveRoster) {
@@ -298,6 +339,15 @@ export function revealIn(game: GameRefIn, full: LeagueState, me: string, n: numb
       ...base,
       title: lost.length ? `You lost ${names(lost.map((c) => first(c.name)))}` : still === team.length ? `All ${team.length} still in` : `${still} of ${team.length} still in`,
       line: others.length ? others.map((x) => `${x.p.name} lost ${names(x.gone.map((c) => first(c.name)))}`).join(" · ") : "Nobody else lost anyone",
+      // Who went tonight first (the news), then who's still in, then who went before, the latest first.
+      faces: team
+        .map((c) => {
+          const at = exitNumber(after, c);
+          const fate = c.status !== "eliminated" || at === null || at > n ? ("in" as const) : at === n ? ("out" as const) : ("gone" as const);
+          return { ...faceIn(after, c, n), fate, outEp: fate === "in" ? null : at };
+        })
+        .sort((a, b) => ["out", "in", "gone"].indexOf(a.fate) - ["out", "in", "gone"].indexOf(b.fate) || (b.outEp ?? 0) - (a.outEp ?? 0)),
+      others: others.map((x) => ({ name: x.p.name, lost: x.gone.map((c) => faceIn(after, c, n)) })),
     };
   }
 
