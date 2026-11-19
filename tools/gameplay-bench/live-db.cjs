@@ -66,15 +66,19 @@ function stateFor(state, season, shiftMs = 0) {
   return copy;
 }
 
-/** Create identity rows for a case. `snap` is runtime session.snapshot(); `document` its input. */
-async function up(snap, document, dbUrl, onLease) {
+/** Create identity rows for a case. `snap` is runtime session.snapshot(); `document` its input. `opts.users`: another case's people
+ *  (its ids.users), reused rather than made again, so several copies of a game (a live preview's moments, live.cjs) share one set of
+ *  people and one sign-in; that case removes them (down this one first). */
+async function up(snap, document, dbUrl, onLease, opts = {}) {
   const db = pool(dbUrl || undefined), key = keyOf(), one = async (sql, params) => (await db.query(sql, params)).rows[0];
   const { hashPassword } = await import('better-auth/crypto');
   const hash = await hashPassword(PASSWORD);
   const ids = { key, db: dbUrl || null, users: {}, seasons: {}, leagues: {}, couchId: null, groups: {} };
   if (onLease) onLease(key);
   try {
+    if (opts.users) Object.assign(ids.users, opts.users);
     for (const [i, p] of snap.people.entries()) {
+      if (ids.users[p.id]) continue;
       const id = crypto.randomUUID().replace(/-/g, ''), username = usernameOf(key, i + 1, p.name);
       // Sign-in needs the zt_ username; faces and names in the app read the display name, so it is the person's own.
       await db.query(`INSERT INTO "user" (id, name, email, "emailVerified", username, "displayUsername", "createdAt", "updatedAt") VALUES ($1, $2, $3, true, $4, $2, now(), now())`, [id, p.name, username + '@example.invalid', username]);
@@ -324,7 +328,8 @@ async function down(key, dbUrl) {
   const groups = (await db.query(`SELECT DISTINCT group_id FROM leagues WHERE slug LIKE $1 AND group_id IS NOT NULL`, [like])).rows.map(r => r.group_id);
   await db.query(`DELETE FROM leagues WHERE slug LIKE $1`, [like]);
   if (groups.length) await db.query(`DELETE FROM league_groups WHERE id = ANY($1::uuid[])`, [groups]);
-  await db.query(`DELETE FROM couches WHERE name = $1 AND created_by = ANY($2::text[])`, ['ZT Bench ' + key, users]);
+  // A copy that shares another case's people (up's opts.users) has none of its own: its couch is any bench person's.
+  await db.query(`DELETE FROM couches WHERE name = $1 AND (created_by = ANY($2::text[]) OR created_by IN (SELECT id FROM "user" WHERE username ~ '_ztgb[0-9a-f]{8}[0-9]{1,2}$'))`, ['ZT Bench ' + key, users]);
   await db.query(`DELETE FROM shows WHERE slug LIKE $1`, [like]);
   // A sports case's games (shared rows, no cascade: the header). (A worktree's database from before the sports tables has none.)
   if (await hasSports(db)) await db.query(`DELETE FROM sports_events WHERE provider = $1 AND event_id LIKE $2`, [PROVIDER, like]);

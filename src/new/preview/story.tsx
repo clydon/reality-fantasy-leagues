@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { createContext, Fragment, useCallback, useContext, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ChevronLeft, ChevronRight, Maximize2, X } from "lucide-react";
 import { inShowWords, showWords } from "@/lib/game/show-words";
 import { lockTime } from "../clock";
@@ -20,7 +20,9 @@ import { inPath, MOMENT_NAMES, ON_PAGE, type MomentKind } from "./moments";
 
 interface Box { x: number; y: number; w: number; h: number }
 interface Bug { kind: string; text: string; boxes: Box[] }
-interface Screen { id: string; name: string; file: string; what: string; url: string; proof: Box[]; bugs: Bug[]; strip?: { tone: string | null; title: string } }
+// A screen is a shot (the bench's screenshot preview: `file`) or the app itself, live (an on-demand preview: `path` in its moment's copy,
+// where to scroll to, and what the card's ring points at, found on the page: docs/PLAN-game-preview.md, "On demand").
+interface Screen { id: string; name: string; file?: string; what?: string; url?: string; path?: string; focus?: string | null; ring?: RingSpec | null; proof: Box[]; bugs: Bug[]; strip?: { tone: string | null; title: string } }
 interface Projection { game: GameView; questions?: { id: string; episode: number; closed: boolean; mine: unknown }[] }
 interface Moment { id: string; kind: MomentKind; episode: number | null; game: string; airAt: string | null; shift: number; screens: Screen[]; views: Record<string, Projection> }
 export interface Preview {
@@ -188,13 +190,151 @@ function Rings({ screen }: { screen: Screen }) {
   );
 }
 const src = (p: Preview, s: Screen) => `/start/preview-story/shot/${p.id}/${s.file}`;
+
+/** What the card points at on a live screen: elements by a CSS selector (each its own box unless `union`), or the first whose own
+ *  text matches a regular expression, inside `within`. */
+export interface RingSpec {
+  selector?: string;
+  text?: string;
+  within?: string;
+  union?: boolean;
+}
+/** An on-demand preview's pass (src/lib/server/preview-live.ts): its story runs on the preview host as the preview's own viewer, and
+ *  each screen is the app itself on that same host, live. */
+export interface LivePass { id: string; expires: number; pass: string }
+const Live = createContext<LivePass | null>(null);
+
+/** The boxes a ring goes round, in the screen's own CSS pixels (the phone's 390 x 844), on a live page. */
+function ringBoxes(doc: Document, spec: RingSpec, height: number): Box[] {
+  const box = (e: Element) => {
+    const r = e.getBoundingClientRect();
+    return { x: r.x, y: r.y, w: r.width, h: r.height };
+  };
+  const seen = (b: Box) => b.w > 0 && b.h > 0 && b.y < height && b.y + b.h > 0;
+  let list: Box[] = [];
+  if (spec.selector) list = [...doc.querySelectorAll(spec.selector)].map(box).filter(seen);
+  else if (spec.text) {
+    // The most specific element whose own text matches: the one with the fewest elements inside it.
+    const re = new RegExp(spec.text);
+    // Inside the last of `within` that's on screen (a sheet open over the page is the last dialog; hidden ones stay in the page).
+    const root = (spec.within ? [...doc.querySelectorAll(spec.within)].filter((e) => box(e).w > 0).at(-1) : null) ?? doc.body;
+    const hits = [...root.querySelectorAll("*")].filter((e) => re.test((e.textContent ?? "").trim()) && box(e).w > 0);
+    const hit = hits.sort((a, b) => a.querySelectorAll("*").length - b.querySelectorAll("*").length)[0];
+    list = hit ? [box(hit)].filter(seen) : [];
+  }
+  if (!spec.union || list.length < 2) return list.slice(0, 2);
+  const x0 = Math.min(...list.map((b) => b.x)), y0 = Math.min(...list.map((b) => b.y));
+  return [{ x: x0, y: y0, w: Math.max(...list.map((b) => b.x + b.w)) - x0, h: Math.max(...list.map((b) => b.y + b.h)) - y0 }];
+}
+
+/** The app's own screen, live, at a phone's size (390 x 844 CSS px) scaled to the room it has. Same host as the story, so the story
+ *  reads the page itself: it scrolls to the moment's focus and finds what the card's ring goes round as the page's data lands. It's
+ *  the real app: it can be tapped. */
+function LiveScreen({ screen, className = "" }: { screen: Screen; className?: string }) {
+  const frame = useRef<HTMLIFrameElement>(null);
+  const box = useRef<HTMLSpanElement>(null);
+  const [k, setK] = useState(0);
+  const [rings, setRings] = useState<Box[]>([]);
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const fit = () => setK(el.clientWidth / SW);
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  // Find the moment's focus (scroll to it) and the ring's target on the page, as the page's data and pictures land: the screen shows
+  // once they're there, and the ring follows the page as it settles. A step on the same page (Your team, under the game page) only
+  // scrolls: the page isn't loaded again.
+  const loaded = useRef<string | null>(null);
+  const run = useRef(0);
+  const look = useCallback(() => {
+    const doc = frame.current?.contentDocument;
+    if (!doc) return;
+    const mine = ++run.current;
+    let tries = 0, settled = 0, focused = !screen.focus;
+    const step = () => {
+      if (mine !== run.current) return;
+      tries++;
+      if (!focused && screen.focus) {
+        const el = doc.querySelector(screen.focus);
+        if (el) {
+          el.scrollIntoView({ block: "start" });
+          frame.current?.contentWindow?.scrollBy(0, -16);
+          focused = true;
+        }
+      }
+      const found = screen.ring ? ringBoxes(doc, screen.ring, SH) : [];
+      const ready = focused && (screen.ring ? found.length > 0 : !!doc.querySelector("main, [data-strip], [data-game-page]"));
+      if (ready || tries > 20) {
+        setRings(found);
+        setShown(true);
+        settled++;
+      }
+      if (settled < 6 && tries < 40) setTimeout(step, ready ? 500 : 350);
+    };
+    setTimeout(step, 250);
+  }, [screen]);
+  useEffect(() => {
+    if (loaded.current === screen.path) return look();
+    // A new page starts covered until it has painted what it's about.
+    setShown(false);
+    setRings([]);
+  }, [screen, look]);
+  const onLoad = () => {
+    const doc = frame.current?.contentDocument;
+    if (!doc) return;
+    loaded.current = screen.path ?? null;
+    // The dev server's own badge (development only) isn't part of the app's screen.
+    const st = doc.createElement("style");
+    st.textContent = "nextjs-portal{display:none!important}";
+    doc.head?.appendChild(st);
+    look();
+  };
+  return (
+    <span ref={box} className={`relative block overflow-hidden ${className}`} data-live-screen={screen.id}>
+      {k > 0 && (
+        <iframe
+          key={screen.path}
+          ref={frame}
+          src={screen.path}
+          onLoad={onLoad}
+          title={`${screen.name}, the real app`}
+          className="absolute left-0 top-0 border-0 bg-background"
+          style={{ width: SW, height: SH, transform: `scale(${k})`, transformOrigin: "0 0" }}
+        />
+      )}
+      {!shown && (
+        <span aria-hidden className="absolute inset-0 grid place-items-center bg-card" data-live-loading>
+          <span className="h-[3px] w-1/3 overflow-hidden rounded-full bg-secondary">
+            <span className="block h-full w-1/2 animate-[nd-live-sweep_1.1s_ease-in-out_infinite] rounded-full bg-foreground/70 motion-reduce:animate-none" />
+          </span>
+        </span>
+      )}
+      {shown && rings.map((b, i) => <span key={i} aria-hidden data-ring className="pointer-events-none absolute rounded-[5px] shadow-[0_0_0_2px_#f4f2f8,0_0_0_4px_rgba(11,10,16,.65)]" style={place(b)} />)}
+    </span>
+  );
+}
 /** The real screen in a phone, whole: a bezel with a status bar that says what this is, sized to the room the card leaves. */
 function Phone({ p, screen, onOpen }: { p: Preview; screen: Screen | undefined; onOpen: () => void }) {
+  const live = useContext(Live);
   const size = { "--sw": "min(calc((100cqh - 26px) * 390 / 844), calc(100cqw - 12px))", width: "calc(var(--sw) + 12px)", height: "calc(var(--sw) * 844 / 390 + 26px)" } as CSSProperties;
   if (!screen)
     return (
       <div style={size} className="grid place-items-center rounded-[30px] bg-card px-6 text-center text-[15px] text-muted-foreground outline-1 -outline-offset-1 outline-input">
         No screen for this moment
+      </div>
+    );
+  // Live: the real app in the bezel, tappable (so the phone isn't a button: Full size is beside the steps).
+  if (live && screen.path)
+    return (
+      <div data-phone={screen.id} data-live style={size} className="flex flex-none flex-col rounded-[30px] bg-[#0b0a10] px-[6px] pb-[6px] outline-1 -outline-offset-1 outline-[color-mix(in_oklab,var(--foreground)_32%,transparent)]">
+        <span className="type-caption flex h-5 flex-none items-center justify-center text-[11px] tracking-[0.14em] text-[#a9a4b8]">Made-up season · live</span>
+        <span className="relative block overflow-hidden rounded-[24px]" style={{ width: "var(--sw)", height: "calc(var(--sw) * 844 / 390)" }}>
+          <LiveScreen screen={screen} className="size-full" />
+        </span>
       </div>
     );
   return (
@@ -210,6 +350,7 @@ function Phone({ p, screen, onOpen }: { p: Preview; screen: Screen | undefined; 
 }
 /** A real screen at full size, whole, as the app shows it on a phone; what this is and the way back on a bar of their own. */
 function FullScreen({ p, screen, onClose }: { p: Preview; screen: Screen; onClose: () => void }) {
+  const live = useContext(Live);
   useEffect(() => {
     const key = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", key);
@@ -220,9 +361,15 @@ function FullScreen({ p, screen, onClose }: { p: Preview; screen: Screen; onClos
     <div role="dialog" aria-modal aria-label={`${screen.name}, at full size`} className="fixed inset-0 z-[60] flex flex-col bg-[#0b0a10] pt-[env(safe-area-inset-top,0px)]" data-full-screen>
       <div className="flex min-h-0 flex-1 items-start justify-center [container-type:size]">
         <div className="relative" style={fit}>
-          {/* eslint-disable-next-line @next/next/no-img-element -- a dev-only shot of the app's own screen */}
-          <img src={src(p, screen)} alt={screen.what} className="absolute inset-0 size-full" />
-          <Rings screen={screen} />
+          {live && screen.path ? (
+            <LiveScreen screen={screen} className="size-full" />
+          ) : (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element -- a dev-only shot of the app's own screen */}
+              <img src={src(p, screen)} alt={screen.what} className="absolute inset-0 size-full" />
+              <Rings screen={screen} />
+            </>
+          )}
         </div>
       </div>
       <div className="flex flex-none items-center gap-3 border-t border-[rgba(244,242,248,.14)] px-4 pt-2 pb-[max(10px,env(safe-area-inset-bottom,0px))] text-[#f4f2f8]">
@@ -238,7 +385,15 @@ function FullScreen({ p, screen, onClose }: { p: Preview; screen: Screen; onClos
 }
 
 // ---- The story ----
-export function PreviewStory({ preview: p }: { preview: Preview }) {
+export function PreviewStory({ preview: p, live = null }: { preview: Preview; live?: LivePass | null }) {
+  return (
+    <Live.Provider value={live}>
+      <Story p={p} />
+    </Live.Provider>
+  );
+}
+
+function Story({ p }: { p: Preview }) {
   const [k, setK] = useState(0);
   const [screen, setScreen] = useState<number | null>(null);
   const [tab, setTab] = useState<string | null>(null);
@@ -286,7 +441,7 @@ export function PreviewStory({ preview: p }: { preview: Preview }) {
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background text-foreground" data-preview-story data-card={k + 1} data-moment={m.kind}>
       {/* The one authored moment: as you move on, the next phone rises in (already mostly visible); none on first paint or under reduced motion. */}
-      <style>{`.nd-story-in{animation:nd-story-in .3s cubic-bezier(.16,1,.3,1) both}@keyframes nd-story-in{from{opacity:.45;transform:translateY(14px)}}@media (prefers-reduced-motion:reduce){.nd-story-in{animation:none}}`}</style>
+      <style>{`.nd-story-in{animation:nd-story-in .3s cubic-bezier(.16,1,.3,1) both}@keyframes nd-story-in{from{opacity:.45;transform:translateY(14px)}}@media (prefers-reduced-motion:reduce){.nd-story-in{animation:none}}@keyframes nd-live-sweep{from{transform:translateX(-100%)}to{transform:translateX(200%)}}`}</style>
       <div className="mx-auto flex w-full max-w-[430px] flex-1 flex-col overflow-hidden pt-[env(safe-area-inset-top,0px)]">
         {/* Where you are: each moment a segment, a tap away. */}
         <nav aria-label="The moments" className="flex gap-1 px-4 pt-1">

@@ -35,25 +35,8 @@ const NOUN = { draftStart: 'starting the draft (it waits for you)', blindDraft: 
 const fmt = (n) => String(Math.round(n * 10) / 10);
 const copy = (x) => JSON.parse(JSON.stringify(x));
 
-/** The first stage's (or the game's) blind draft open, as a new game's is before anyone picks: the runtime dealt it at the start;
- *  here nobody's on a team, nobody's locked in and nothing's revealed (BlindDraftLogic's public half), so the real room runs it. */
-function draftOpenAtStart(snap, gameId) {
-  const next = copy(snap), st = next.games[gameId].state;
-  for (const x of st.castaways) x.ownerIds = [];
-  st.draftPicksMade = 0;
-  st.blindDraft = { lockedPlayerIds: [], revealedAt: null };
-  return next;
-}
-/** A later stage's draft open as the results that open it come in (check-stages-explorer.js draftOpen): its state from before those
- *  results, with them applied and its span settled as the runtime settles any write, less the draft the runtime then makes. */
-function draftOpenLater(before, after, document, gameId) {
-  const st = copy(before.games[gameId].state), world = after.contexts[document.games.find((g) => g.id === gameId).contextId], game = document.games.find((g) => g.id === gameId);
-  Data.applyFacts(world, st); Data.syncMarks(world, game, st); Data.settleWrite(world, st, { phases: true, clock: after.clock });
-  if (S.DraftLogic.waits(st) || st.castaways.some((x) => x.ownerIds.length)) return null;
-  return { ...after, games: { ...after.games, [gameId]: { ...after.games[gameId], state: st } } };
-}
-const teamsOf = (st) => Object.fromEntries(st.players.map((p) => [p.id, st.castaways.filter((x) => x.ownerIds.includes(p.id)).map((x) => x.id).sort()]));
-const isBlind = (st) => !!st && S.BlindDraftLogic.on(st);
+// The season's walk and its draft helpers are shared with the live preview (season.cjs).
+const { walk, draftOpenAtStart, draftOpenLater, teamsOf, isBlind } = require('./season.cjs');
 
 async function make(o) {
   const t0 = Date.now(), steps = [], log = o.log || (() => {});
@@ -68,30 +51,7 @@ async function make(o) {
   fs.mkdirSync(shotsDir, { recursive: true });
 
   const s = R.open(o.input);
-  const doc = s.export().input;
-  const viewer = o.viewerId || doc.situation.viewerId;
-  const top = doc.games.find((g) => g.stageOf === undefined);
-  const stages = doc.games.filter((g) => g.stageOf === top.id);
-  const playable = Players.playable(s);
-  const ctxId = top.contextId;
-  const people = doc.world.people.map((p) => p.id);
-  const couch = people.filter((id) => id !== viewer);
-  const seed = o.seed ?? doc.seed;
-  const events = () => s.snapshot().contexts[ctxId].events;
-  const markOf = (pid) => s.snapshot().contexts[ctxId].marks?.find?.((m) => m.personId === pid)?.through ?? doc.situation.marks.find((m) => m.personId === pid)?.through ?? 0;
-  const first = markOf(viewer) + 1;
-  const last = Math.max(...events().map((e) => e.number));
-  const results = o.resultsFor || ((sess, n) => { const snap = sess.snapshot(), e = snap.contexts[ctxId].events.find((x) => x.number === n); return resultsData(snap, sess.export().input, ctxId, e.id, 'final'); });
-  const must = (action) => { const r = s.apply(action, 'preview'); if (r.status !== 'accepted') throw Error('Refused: ' + JSON.stringify(action).slice(0, 160) + ' (' + r.message + ')'); return r; };
-  /** Episode n airs, its results come in (made up: decision 7 keeps the real ones to the viewer's mark), and `who` reveal it. */
-  const night = (n, who = people) => {
-    const e = events().find((x) => x.number === n);
-    must({ type: 'clock', at: new Date(Math.max(Date.parse(s.snapshot().clock), Date.parse(e.airAt) + 2 * HOUR)).toISOString() });
-    must({ type: 'results', contextId: ctxId, eventId: e.id, source: 'provider-fixture', resultStatus: 'final', data: results(s, n) });
-    for (const p of who) s.apply({ type: 'reveal', contextId: ctxId, personId: p }, 'preview');
-  };
-  const views = () => Object.fromEntries(doc.games.map((g) => [g.id, s.project(g.id, viewer)]));
-  const over = () => s.project(top.id, viewer).game.over;
+  const { doc, viewer, top, stages, playable, ctxId, people, couch, seed, events, markOf, first, last, results, must, night, views, over } = walk(s, o);
 
   const ids = await Live.up(s.snapshot(), doc, o.db || undefined);
   lap('materialize');

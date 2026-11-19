@@ -301,6 +301,61 @@ sections, then the specifics?", "we should fix the unstarted draft", "we probabl
 - **Cost, measured again:** Fantasy league 90 s (15 screens) as its runner and 90 s as a player, Prediction sheet 68 s (8), Survival
   pool 46 s (8), each with 10 made-up seasons; the path's extra shots cost about a second each.
 
+## On demand (the user, 2026-11-19)
+
+"yes i want this to be on demand without a developer taking screenshots. lets start that now." A preview is made when someone asks
+for it, for them, with the app's real screens live in the phones, never pictures somebody took.
+
+### How it works (the first slice, development)
+
+- **The season is played on the server, in the runtime.** `tools/gameplay-bench/preview/live.cjs` plays the made-up season the way
+  the bench's screenshot preview does (one shared walk, `season.cjs`: each night's results, made up past the viewer's mark; who
+  reveals; a draft reopened where the real room runs it), every seat's moves the computer players' (E1). It takes under a second.
+- **Each state a screen shows is a temporary copy of the game** on the live tier (`live-db.cjs`: zt-gb- rows, the real routes): the
+  game at its start, the draft started with the couch locked in (made by those writes, on the real routes, as the people who make
+  them), the teams revealed, the week with the couch's moves in, after the first results, a stage's draft, the finale before and
+  after the viewer reveals it. The copies share one set of made-up people (`up(..., { users })`), so one sign-in sees them all.
+- **The story runs on the preview host**, `preview.<host>` (any `*.localhost` is this machine in development): the app's own host
+  makes the preview (`POST /api/preview-live`, as you), then hands over to the preview host's enter route
+  (`/api/preview-live/enter`, with the preview's signed pass), which signs in as the preview's viewer there and opens the story
+  (`/start/preview-story/live/<id>`). Each phone is the real app on that same host, in a frame: live, tappable (the reveal plays in
+  the phone), scrolled to the moment's focus, with the card's ring found on the page as it settles. The preview host's cookies are
+  its own: your session on the app's host is never touched (`scripts/dev-test/preview-live-check.js` checks both). The first try
+  put only the phones on the preview host, framed inside the app's page; the browser refused their sign-in as a third party's.
+- **The copies go** when the story closes (leaving it, or the tab closing), and after half an hour regardless
+  (`src/lib/server/preview-live.ts`).
+
+### Measured (development, this lane's machine and dev server)
+
+| Game | Copies | Made | Story shown | First phone ready |
+| --- | --- | --- | --- | --- |
+| Survival pool | 5 | 5.4 s (copies 2.5 s, typical seasons 2.4 s) | 7.9 s | 12.9 s |
+| Fantasy league (a draft, stages) | 10 | 19.8 s (copies 12.4 s, typical seasons 6.4 s) | 19 s | 24.5 s |
+
+A page in a phone takes 1 to 5 s in development, much of it the dev server compiling a page the first time.
+
+### What production needs (not built)
+
+1. **A preview service with its own database.** The live tier refuses any database that isn't local, and copies of games, people and
+   seasons have no place in the real one (a copied season would show in the catalogue). The same app deployed as a preview service
+   on `preview.gameyourshow.com` (the same site as the app, so the story's sign-in is first-party there) with a database of its own;
+   the app asks it for a preview and links to its story. Nothing a preview writes reaches the real database.
+2. **Your own mark and your own game.** The slice previews the first slice's three gallery games on Survivor 51 with its real
+   results through Episode 8 (`preview-proof.js` definition). The app must send the person's own mark on the season and the game
+   they're making (the gallery's spec, with its changes: the wizard lane's), and the preview service build the definition from them.
+3. **Sign-in without a shared password.** The bench's people share one password; the service mints the preview viewer's session
+   itself.
+4. **Speed.** What's typical played after the story opens (its line arrives a moment later); each moment shown as its copy lands, not
+   after the last; a preview kept for a few minutes for the same game and mark; more copies written side by side.
+5. **Where it starts and ends.** The gallery's Preview button opens it (the wizard lane's), and the last card's Create this game
+   goes back to the app's host to make the game for you.
+
+### Design
+
+The making screen and the live phone (the bezel's "Made-up season · live", the cover while a page loads) were built to Impeccable's
+craft floor in the story's own visual language. The full round (Intent, Perception-First Design and Impeccable, one check, the
+screenshot story) comes with the gallery's Preview button, which decides the flow: where you come from, and where Create goes.
+
 ## Noticed, not fixed
 
 Found by the preview's real screens (2026-11-18). Round 5 (2026-11-19, the user: "we should fix the unstarted draft... we probably
