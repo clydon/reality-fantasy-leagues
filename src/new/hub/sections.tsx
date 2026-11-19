@@ -1,7 +1,8 @@
 "use client";
 
+import { draftRoomPage, draftSoonWords } from "../show/draft-words";
 import { useState } from "react";
-import { ChartColumn, Check, ChevronDown, ChevronRight, Crown, Gamepad2, Link2, Plus, RotateCcw, Tv, Trophy } from "lucide-react";
+import { ChartColumn, Check, ChevronDown, ChevronRight, Crown, Gamepad2, Hourglass, Link2, Plus, RotateCcw, Tv, Trophy } from "lucide-react";
 import { airTime, calmWhen, ticks } from "../clock";
 import { START_EARLY_MS } from "@/lib/game/watch-along";
 import { UNFRAMED } from "@/lib/art-frame";
@@ -87,8 +88,11 @@ export function moveLine(m: Move, show?: HomeShow) {
 }
 
 /** Moves in the order they're due: soonest deadline first, the ones without one after. */
+/** Someone's waiting on these now (a draft to start, a draft turn), so they come before any deadline (action-items.js NOW_KINDS). */
+const NOW = new Set(["draftStart", "draftTurn", "blindDraft"]);
 export function movesByDue(moves: Move[]) {
-  return [...moves].sort((a, b) => (a.deadline ? Date.parse(a.deadline) : Infinity) - (b.deadline ? Date.parse(b.deadline) : Infinity));
+  const at = (m: Move) => (NOW.has(m.kind) ? -Infinity : m.deadline ? Date.parse(m.deadline) : Infinity);
+  return [...moves].sort((a, b) => (at(a) === at(b) ? 0 : at(a) < at(b) ? -1 : 1));
 }
 
 /** The shows whose results are in past where you are, the newest episode first. */
@@ -213,6 +217,8 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
   const ep = words.ep.length > 1 ? words.ep : words.episode;
   const live = !reveal && !!up?.live;
   const playing = show.games.length > 0;
+  // A game here whose draft hasn't started (the home's draft-soon.ts read), for the plate when nothing of yours is due.
+  const soonGame = show.games.find((g) => g.draftSoon && !g.draftSoon.waits && g.yourRole) ?? null;
   const kind = reveal ? "reveal" : move ? "move" : final ? "final" : live ? "live" : playing && up ? "set" : "none";
   // A night the couch planned on this show (the soonest you can watch: never past your next episode) takes Watch along's place.
   const next = show.seenThrough == null ? Number.POSITIVE_INFINITY : show.seenThrough + 1;
@@ -226,7 +232,7 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
   const lock = move && lockAt != null && lockAt !== t ? `${move.kind === "pickup" ? "Due" : "Locks"} ${calmWhen(lockAt, now)}` : null;
   // Who's in only from the move's own game (a waiver claim has none: another game's "lineups set" would be a wrong fact).
   const count = progress && kind === "move" && progress.leagueId === move?.leagueId ? `Couch: ${progress.done} of ${progress.of} ${progress.label}` : null;
-  type Plate = { tag: string; tone: "due" | "good" | "set"; title: string; line: string | null; to: string };
+  type Plate = { tag: string; tone: "due" | "good" | "set" | "soon"; title: string; line: string | null; to: string };
   let plate: Plate | null = null;
   if (reveal) {
     const waiting = due.filter(here).length;
@@ -242,16 +248,25 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
       to: `${paths.show(show.seasonId, "tonight")}?page=reveal&ep=${reveal.episode}`,
     };
   } else if (move && card) {
-    const draft = move.kind === "draftTurn" || move.kind === "blindDraft";
+    const draft = move.kind === "draftStart" || move.kind === "draftTurn" || move.kind === "blindDraft";
     plate = {
       tag: draft ? "Draft" : moveEp != null && !game ? `${ep} ${moveEp}` : (MOVE_TAG[move.kind] ?? "Your move"),
       tone: "due",
       title: card.title,
-      line: move.kind === "draftTurn" ? `Your pick now · ${move.leagueName}` : [count, lock].filter(Boolean).join(" · ") || move.leagueName,
+      line:
+        move.kind === "draftStart"
+          ? `Nobody can pick until you do · ${move.leagueName}`
+          : move.kind === "draftTurn"
+            ? `Your pick now · ${move.leagueName}`
+            : [count, lock].filter(Boolean).join(" · ") || move.leagueName,
       to: moveHref(move, show.seasonId),
     };
   } else if (final) {
     plate = { tag: `${ep} ${final.episode}`, tone: "good", title: "Final results are in", line: "Every point counted", to: href };
+  } else if (kind === "set" && soonGame?.draftSoon) {
+    // A draft that hasn't started (docs/design-round/draft-start-spec.md): who it waits for, or when it starts, never "All set".
+    const w = draftSoonWords(soonGame.draftSoon, soonGame.yourRole === "commissioner", (iso) => calmWhen(Date.parse(iso), now));
+    plate = { tag: "Draft", tone: w.due ? "due" : "soon", title: w.title, line: soonGame.name, to: `${paths.showPage(show.seasonId, draftRoomPage(soonGame.draftSoon.kind))}?game=${soonGame.leagueId}` };
   } else if (kind === "set" && up) {
     plate = { tag: `${ep} ${up.number}`, tone: "set", title: `All set for ${ep} ${up.number}`, line: "Change anything until it airs", to: href };
   }
@@ -345,7 +360,7 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
             // The first-time tour's "Your moves" step taps this (tour/tour.tsx visit: a[data-status]).
             data-status={kind === "move" ? "moves" : kind === "reveal" ? "reveal" : undefined}
             className={`nd-press relative z-[1] flex min-h-14 w-full items-stretch overflow-hidden rounded-[3px] text-left ${
-              plate.tone === "set" ? "bg-[rgba(16,14,21,.78)] text-white outline-1 -outline-offset-1 outline-white/20 backdrop-blur-sm" : "bg-plate text-plate-foreground shadow-plate"
+              plate.tone === "set" || plate.tone === "soon" ? "bg-[rgba(16,14,21,.78)] text-white outline-1 -outline-offset-1 outline-white/20 backdrop-blur-sm" : "bg-plate text-plate-foreground shadow-plate"
             }`}
           >
             <span
@@ -354,13 +369,14 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
               }`}
             >
               {plate.tone === "set" && <Check className="size-4" strokeWidth={3} aria-hidden />}
+              {plate.tone === "soon" && <Hourglass className="size-4" strokeWidth={2.5} aria-hidden />}
               {plate.tag}
             </span>
             <span className="flex min-w-0 flex-1 flex-col justify-center gap-[3px] py-[7px] pl-5 pr-1">
               <b data-upnext-title className="text-[16px] font-bold leading-tight">
                 {plate.title}
               </b>
-              {plate.line && <small className={`text-[14px] leading-tight ${plate.tone === "set" ? "text-white/70" : "text-plate-muted"}`}>{plate.line}</small>}
+              {plate.line && <small className={`text-[14px] leading-tight ${plate.tone === "set" || plate.tone === "soon" ? "text-white/70" : "text-plate-muted"}`}>{plate.line}</small>}
             </span>
             <span className="grid flex-none place-items-center px-2.5">
               <ChevronRight className="size-5" aria-hidden />

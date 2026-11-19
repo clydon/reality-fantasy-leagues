@@ -281,24 +281,50 @@ when it goes home), on Survivor 51 with its real results through Episode 8. Then
 plain-words marks and the side-by-side sheet: Intent, Perception-First Design and Impeccable once each, one check, one round of
 fixes, a screenshot story at 390, and a pause.
 
+### Round 5: the app's path, and a draft that waits (2026-11-19)
+
+The user, on the first slice: "are the moments and previews in a logical order? as in shown where they will exist, their overview
+sections, then the specifics?", "we should fix the unstarted draft", "we probably should address the other fixes too".
+- **The moments** stay in the season's order. **The screens inside each** now run as the app's path (src/new/preview/moments.ts
+  PATH): where you meet it (a show tab), what a tap opens, what it leads to; an app bug keeps its place on the path. The story's
+  tabs read as the path, joined by the app's chevron; the sheet sets every phone to the same moment and step and names each
+  column's screen (docs/design-round/preview-story-spec.md and preview-story-first-view.md, "Round 5").
+- **The maker** shoots the draft's Tonight before the draft starts (the runner's Start the draft, or everyone else's wait, against the
+  engine's runnerItems), starts the draft with the viewer's own Start when they run the game (else by the runner's route, so any
+  viewer works), Tonight before the finale's reveal, and Your team after the first results (the team check reads its numbers). A
+  check that the runner's draft room has its Start goes with the draft. `viewerId` makes the same game from anyone's seat: the first
+  slice's script adds "fantasy-player" (the second person).
+- **The app's fixes** for "Noticed, not fixed" 1 to 4 (below), each held by the bench's checks on the real screens.
+- **Cost, measured again:** Fantasy league 90 s (15 screens) as its runner and 90 s as a player, Prediction sheet 68 s (8), Survival
+  pool 46 s (8), each with 10 made-up seasons; the path's extra shots cost about a second each.
+
 ## Noticed, not fixed
 
-Found by the preview's real screens (2026-11-18), left for the lanes that own them:
-1. **Whoever runs a game isn't told its draft waits for them.** Before the draft starts, Tonight's strip and the Games tab say "All
-   set for Ep 9" (and "All set for Ep 12" at a stage's new draft). For the other players that's right: nobody can pick until the
-   draft starts, and the engine's actionItems lists nothing. But for whoever runs the game (the couch's owner) the next move is to
-   start the draft, and nothing says so (actionItems has no item for it). Once it's started, Tonight says "Lock in your draft
-   picks", as it should: the bench's due check agrees at both drafts. (Round 3 first called this a contradiction for everyone; it
-   isn't, 2026-11-18.)
-2. **The finale's reveal shows one stage.** Its standings beat (src/new/show/reveal.tsx TableBeat, `r.table`) shows the stage's
-   standings ("Weekly Lineup standings") where a game in stages is won on the overall: it can crown the wrong person ("You're 1st,
-   4.5 ahead of Jordan" while Jordan wins by 1.5), or rank you differently ("you're 3rd" there, 4th in the game). Found in every
-   run whose stage standings differ from the game's.
-3. **Tonight's game section says "0 of 0 still in"** for a game of points in stages (src/new/show/tonight.tsx, the game's mini:
-   "T1 of 4 · 0 of 0 still in · All safe"). Every run.
-4. **Your team's numbers don't add up to your score.** Your team (src/new/show/game-week.tsx YourTeam) shows each castaway's points
-   in the game, started or benched (16 against a score of 15 after Episode 10; 9.5 against 1 in another season).
+Found by the preview's real screens (2026-11-18). Round 5 (2026-11-19, the user: "we should fix the unstarted draft... we probably
+should address the other fixes too") fixed 1 to 4 on this branch; what's left is the wizard lane's or a later step's:
+1. ~~**Whoever runs a game isn't told its draft waits for them.**~~ **Fixed:** a draft with no time set is its Commissioner's to start
+   (src/lib/game/action-items.js draftStartDue, runnerItems; not in actionItems, so the classic bar and the reminders read what they
+   did), one of their moves on the home: the strip on every show tab says "Start the draft · Nobody can pick until you do" (the
+   view's one yellow, tag Draft) and opens the draft room; the hub's plate and the game page say the same. Everyone else sees the
+   strip quiet with an hourglass, "Waiting for Riley to start the draft" (src/lib/game/draft-soon.ts), never "All set"; a time set
+   reads "The draft starts Wed 8 PM". The bench's due check reads runnerItems for a viewer who runs the game, so its separate start
+   check went (docs/design-round/draft-start-spec.md, draft-start-first-view.md).
+2. ~~**The finale's reveal shows one stage.**~~ **Fixed:** the reveal's standings beat ranks a game in stages by the whole game
+   (src/lib/game/episode-view.ts mainRevealTable: a stage's table gives way to its game's, the overall).
+3. ~~**Tonight's game section says "0 of 0 still in"**~~ **Fixed:** a game with no team of its own says its points (a game in
+   stages: the overall), or "No team yet" before its draft (src/new/show/tonight.tsx yourLine).
+4. ~~**Your team's numbers don't add up to your score.**~~ **Fixed:** in a game with a lineup, each castaway's number is what they
+   scored for you as a starter, with what they scored on the bench beside it ("+3 benched"), anyone who scored for you and has left
+   still listed, and predictions as a row of their own, so the column adds up to your total (src/new/show/game-week.tsx YourTeam).
+   The bench's team check now reads the numbers on the screen.
 5. **The game's names:** Fantasy league, Stages, Weekly Lineup, "Before Merged" and "Merged", "Redraft at merged" (the gallery's;
    the wizard lane fixes them, decision 8).
-6. **A sheet's open answers aren't in actionItems,** so the app's action bar and the hourly reminders (both read it) don't know
-   about them; Tonight's strip does ("Fill in your sheet"). The bench's due check reads them from the projection instead.
+6. **A sheet's open answers get no reminder push.** Corrected (2026-11-19): the new design's strip, hub plate and game page already
+   say them (src/lib/server/answers.ts questionMoves, read by /api/me/home); what doesn't is the hourly reminder job (db/reminders.js,
+   whose REMINDABLE kinds are lineups, picks and predictions) and the classic action bar. A sheet's open questions live in its
+   answers, not its league state, and which are open is answers.ts's rule (gameQuestions), TypeScript the job can't load under bare
+   node. The fix is to move that rule into a plain module both read, then remind as a lineup does (24 and 2 hours before its lock):
+   a backend step of its own, not done here.
+7. **The pieces test fails on the gallery** (tests/pieces.test.js, "nothing in scoring reads a league type or compares one by
+   name"): src/lib/game/start-gallery/index.js reads a league type. The gallery is the wizard lane's; it fails without this round's
+   changes too.

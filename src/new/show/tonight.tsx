@@ -357,6 +357,8 @@ export function yourLine(g: GameView): string {
   if (g.gameType === "questions") return `${me.total} ${me.total === 1 ? "pt" : "pts"}`;
   if (g.gameType === "active-roster") return `${me.total} pts`;
   const team = me.team.map((id) => g.cast.find((c) => c.id === id)).filter((c) => !!c);
+  // No team of its own: before its draft, or a game in stages (its teams are its stages'; its total is the overall).
+  if (!team.length) return g.draftSoon ? "No team yet" : `${me.total} ${me.total === 1 ? "pt" : "pts"}`;
   return `${team.filter((c) => !c.knocked).length} of ${team.length} still in`;
 }
 

@@ -246,3 +246,40 @@ checked once each: Impeccable's critique 21/40, PFD's evaluation 64/100. One bat
 
 Not done: one airtime across previews (the screens show when each was made; it needs the app's clock faked), and the fix toggle
 for any game (a later step, with the gallery's changes matched to a check).
+
+## Round 5: each moment as the app's path (Intent)
+
+The user, 2026-11-19: "are the moments and previews in a logical order? as in shown where they will exist, their overview
+sections, then the specifics?" The moments are in the season's order (the game, the draft, each episode, after the first results,
+the next stage, out, the finale), which is the order someone meets them. The screens inside each were not: round 4 opened each
+moment on the game's own screen (its move, its draft room, how it plays) and put Tonight and the Games tab after it, and moved any
+screen with an app bug to the back. That shows the specific before the place you'd find it, and hides where a bug would meet you.
+
+### The path
+
+Each moment shows the screens in the order the app takes you through them: where you meet it (a show tab: Tonight or the Games
+tab), then what a tap opens (the game page, the draft room, the move), then what it leads to.
+
+| Moment | Where you meet it | Then | Then |
+| --- | --- | --- | --- |
+| The game | Games (the game's place in your games) | How it plays (its page, opened from it) | |
+| The draft | Tonight (the strip: Start the draft, for whoever runs it) | Draft room (picking) | The teams |
+| Each episode | Tonight (the strip: the move and when it locks) | Your move (what the strip opens) | |
+| After the first results | Tonight (the game's section: your place) | Game page (the standings) | |
+| The next stage | Tonight (the strip: the stage's draft) | Draft room | The teams |
+| Out | Game page | | |
+| The finale | Tonight (Reveal the results) | Reveal (the standings beat) | Game page (where everyone finished) |
+
+- **Where you meet it comes first, whatever it says.** A screen with an app bug stays in its place on the path, marked: a sweeper
+  sees the bug where a player would meet it.
+- **The soul is still first in words.** The card's headline is the game's own ("Draft 3 from who's still in", "Pick who survives
+  each episode"), and step one is the strip saying the game's move in its own words. The game's own screen is one tap on.
+- **Two shots change.** The draft's Tonight is taken before the draft starts (the runner's Start the draft, which the due check now
+  covers: draft-start-spec.md). The finale gets Tonight before the reveal.
+
+### How the story shows it
+
+- The screens' tabs read as the path: in its order, the app's own names, a chevron between them ("Tonight › Your move").
+- The phone opens on the first step. Moving through the tabs is walking the path.
+- The sheet: every phone shows the same step of the same moment. Its controls set the moment and the step (where you meet it, or
+  the screen it opens), so a sweeper can compare the games where a player first meets each one, then where they act on it.

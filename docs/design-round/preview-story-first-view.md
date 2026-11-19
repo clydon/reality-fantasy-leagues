@@ -141,3 +141,45 @@ chunks where R1 allows one).
 **The gap.** The lock as words on the Each-episode card, and one moment across every game on the sheet: neither exists yet.
 
 *Initial findings. Ralph Loop a requirement, cite further, switch to analyze / evaluate, or ask any follow-up to dig deeper.*
+
+## Round 5: a moment as the app's path, and the sheet's step (PFD Mode 2)
+
+On [the spec's "Round 5"](preview-story-spec.md). A moment's screens now run in the app's own order: where you meet it, what a tap
+opens, what it leads to. The viewer (someone about to make the game, or someone sweeping hundreds) must read the screens as a path,
+not as a set of equal views, and must always know which step they're looking at.
+
+**L0, load.** A card already holds a headline, a line, a check, the screens' names, the phone and any bug lines; chevrons add marks,
+and three names with chevrons can wrap at 390.
+- **R1.** The path reads as one chunk: one row that never wraps, at most three steps named, the step you're on the only filled one.
+  The sheet's controls stay within two rows (the moment, the step).
+  **Citations:** Cowan (2001) for the chunk ceiling; Hassin et al. (2009) for marks that cost memory unattended.
+
+**L1, first impression.** The first glance at a card gives the gist of what's on the phone. Opened on a deep screen it says "this
+screen"; opened on where you meet it, it can look like every other game's Tonight.
+- **R2.** The first glance gives both: the place on the phone (step one) and the game's soul in the headline above it, in the game's
+  own words. The row of steps shows at a glance that the path goes on (its direction, left to right).
+  **Citations:** Lindgaard et al. (2006) for the 50 ms gist; Leder et al. (2004) for gist and classification as separate stages.
+
+**L2, fluency.** A row of equal pills says "pick one"; a path says "this, then this". Chevrons on a segmented control mix the two.
+- **R3.** The path in the app's own grammar for going deeper: names in order, the app's chevron between them (its drill rows' own),
+  the current step filled. The sheet's step control uses the same words as the card's steps.
+  **Citations:** Reber & Schwarz (1999) for fluency as truth; Alter & Oppenheimer (2009) for fluency carried into trust.
+
+**L3, priors.** A sweeper takes the first screen as the important one. If step one is a show tab that looks alike in every game,
+they may judge the games alike (the first exemplar anchors).
+- **R4.** The sheet says which step every phone is on, in words, so a show tab at step one reads as where, not as the game; each
+  column names its screen at that step; the headline (the soul) stays at every step.
+  **Citations:** Kahneman (2011) for anchoring on the first exemplar; Clark (2013) for the expected and its violation.
+
+**L4, decision.** Walking the path is the demonstration: moving through the steps is how the viewer learns the app's way.
+- **R5.** The next step is the obvious tap beside the current one, and the card's Next keeps moving between moments, never steps:
+  the two stay apart. The sheet's step sets every phone at once, held at a game's last step where its path is shorter, with that
+  column saying which screen it shows.
+  **Citations:** Hertwig & Erev (2009) for experience over description; Trope & Liberman (2010) for concrete near-term words.
+
+**First:** the headline (the soul), then the phone at step one, then the row of steps. **Not there:** steps as equal pills, a
+second set of arrows for moving between steps, a step control that hides which step it's on. **How much at once:** the
+headline, one line, the steps in one row, the phone.
+
+**The gap:** round 4's "the game's own screen first" fails R2 (the place) and R5 (walking it); a segmented control with chevrons
+fails R3. Nothing in the story yet says which step a sheet's phones are on (R4).

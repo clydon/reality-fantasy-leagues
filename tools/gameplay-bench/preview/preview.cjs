@@ -23,7 +23,7 @@ const R = require('../explorer/runtime.cjs');
 const Data = require('../explorer/runtime-data.cjs');
 const { resultsData } = require('../explorer/publish.cjs');
 const S = require(path.join(root, 'src/lib/game/state-logic.js'));
-const { actionItems } = require(path.join(root, 'src/lib/game/action-items.js'));
+const { actionItems, runnerItems } = require(path.join(root, 'src/lib/game/action-items.js'));
 const Players = require('./players.cjs');
 const { atClock } = require('./clock.cjs');
 
@@ -31,7 +31,7 @@ const W = 390, H = 844, HOUR = 3600000;
 // Faces chosen in profile, from the palette (src/lib/people.ts PALETTE: Sage, Rose, Lake, Orchid), so a couch's colours never clash.
 const PALETTE = ['#8db85e', '#e86f9a', '#5089c9', '#a76bb0', '#f2804b', '#cfc8bb'];
 // What a due move is called on a mark (the preview's own words).
-const NOUN = { blindDraft: 'your draft', draftTurn: 'your draft pick', lineup: 'your lineup', pick: 'your pick', prediction: 'a prediction', questions: 'your answers', waiver: 'a waiver claim', lateJoin: 'where you start' };
+const NOUN = { draftStart: 'starting the draft (it waits for you)', blindDraft: 'your draft', draftTurn: 'your draft pick', lineup: 'your lineup', pick: 'your pick', prediction: 'a prediction', questions: 'your answers', waiver: 'a waiver claim', lateJoin: 'where you start' };
 const fmt = (n) => String(Math.round(n * 10) / 10);
 const copy = (x) => JSON.parse(JSON.stringify(x));
 
@@ -163,8 +163,9 @@ async function make(o) {
     // ---- What's due: the engine against the screen ----
     /** What's due for the viewer now, as the engine knows it: actionItems on each game's state as the server holds it (the screens'
      *  state: a draft reopened, the draft room's own writes), at the season's own clock (the runtime's: the state keeps the season's
-     *  own times, the screens show them moved to now); and a sheet's open questions from the projection (the kind actionItems leaves
-     *  out). */
+     *  own times, the screens show them moved to now); for a viewer who runs the game, its runnerItems too (a draft with no time set
+     *  waits for them to start it: docs/design-round/draft-start-spec.md); and a sheet's open questions from the projection (the
+     *  kind actionItems leaves out). */
     const engineDue = async () => {
       const real = await Live.read(ids), clock = s.snapshot().clock, items = [];
       for (const g of playable) {
@@ -172,6 +173,7 @@ async function make(o) {
         if (!st) continue;
         const me = real.members.find((m) => m.league_id === league(g.id) && m.player_id === viewer);
         for (const it of atClock(clock, () => actionItems(st, viewer, me?.results_seen_through ?? null))) if (!it.who || it.who === 'you') items.push({ game: g.id, kind: it.kind, text: it.text, deadline: it.deadline ?? null });
+        if (me?.role === 'commissioner') for (const it of atClock(clock, () => runnerItems(st))) items.push({ game: g.id, kind: it.kind, text: it.text, deadline: null });
         const open = (s.project(g.id, viewer).questions || []).filter((q) => !q.closed && (q.mine === null || q.mine === undefined));
         if (open.length) items.push({ game: g.id, kind: 'questions', text: `${open.length} question${open.length > 1 ? 's' : ''} open`, deadline: null });
       }
@@ -205,22 +207,16 @@ async function make(o) {
       const t = table.find((x) => x.playerId === wrong[0].id);
       return { kind: 'standings', text: `App bug: shows ${t.name} on ${wrong[0].total}, but the season has ${fmt(t.total)}`, boxes: await boxesOf(`[data-game-grid] [data-restack="${wrong[0].id}"]`, { union: true }) };
     };
-    /** Your team's numbers against your score (Your team shows each castaway's points, benched or not). */
+    /** Your team's numbers against your score: what the screen lists (each castaway's points for you, and any predictions) must add up
+     *  to your total in the season. */
     const teamCheck = (gameId) => async () => {
       const v = s.project(gameId, viewer).game;
       if (!v.you?.team?.length || !(await p.locator('[data-your-team]').count())) return null;
-      const sum = v.you.team.reduce((t, id) => t + (v.cast.find((c) => c.id === id)?.points ?? 0), 0);
-      checks.push({ moment: moment.id, check: 'team', agree: Math.abs(sum - v.you.total) < 1e-9 });
-      return Math.abs(sum - v.you.total) < 1e-9 ? null : { kind: 'team', text: `App bug: “Your team” doesn’t say who started: its points add to ${fmt(sum)}, you scored ${fmt(v.you.total)}`, boxes: await boxesOf('[data-your-team]', { max: 1 }) };
-    };
-    /** A draft that opens the game waits for whoever runs it (the couch's owner, the first person) to start it: the engine lists
-     *  nothing due until then, but a strip saying "All set" leaves them not knowing their next move. */
-    const startCheck = (waiting) => async () => {
-      if (!waiting || viewer !== people[0]) return null;
-      const strip = p.locator('[data-strip]').first();
-      if (!(await strip.count()) || (await strip.getAttribute('data-strip')) === 'due') return null;
-      const title = ((await strip.locator('[data-strip-title]').first().textContent({ timeout: 300 }).catch(() => null)) || '').trim();
-      return { kind: 'start', text: `App bug: says “${title}”, but the draft waits for you to start it`, boxes: await boxesOf('[data-strip]', { max: 1 }) };
+      const shown = await p.locator('[data-your-team] [data-team-points]').evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-team-points')))).catch(() => []);
+      const sum = shown.length ? shown.reduce((t, n) => t + (Number.isFinite(n) ? n : 0), 0) : v.you.team.reduce((t, id) => t + (v.cast.find((c) => c.id === id)?.points ?? 0), 0);
+      const agree = Math.abs(sum - v.you.total) < 0.051;
+      checks.push({ moment: moment.id, check: 'team', agree });
+      return agree ? null : { kind: 'team', text: `App bug: “Your team” adds up to ${fmt(sum)}, but you scored ${fmt(v.you.total)}`, boxes: await boxesOf('[data-your-team]', { max: 1 }) };
     };
     /** A "still in" count of nobody, in a game section. */
     const stillInCheck = async () => { const x = await textBoxes(/\b0 of 0 still in/); return x.length ? { kind: 'words', text: 'App bug: says “0 of 0 still in”, in a game nobody’s knocked out of', boxes: x.slice(0, 2) } : null; };
@@ -236,22 +232,31 @@ async function make(o) {
     };
     const finish = () => { moment.views = views(); };
 
-    // A draft the game opens with, run in the real room: the couch lock in first (their teams the runtime's), the viewer's room is
+    // A draft the game opens with, run in the real room, on the app's path: Tonight before it starts (whoever runs the game has it to
+    // start, everyone else sees it waiting: the due check against the engine's runnerItems), then the room, started by the viewer's own
+    // Start if they run it (else by whoever does, on the route); the couch lock in (their teams the runtime's), the viewer's room is
     // shot waiting on them, then they lock in too and the room is shot revealed; the server's teams are compared with the runtime's.
     const draftRoom = async (gameId, want, label) => {
+      const before = await engineDue();
+      await go(tonight, '[data-strip]');
+      await shoot('tonight', 'Tonight', `${label}: Tonight, before the draft starts`, { proof: () => boxesOf('[data-strip]', { max: 1 }), bugs: [dueCheck(before)] });
       await go(room(gameId), '[data-draft]');
       const start = p.locator('[data-draft-start]').first();
-      if (await start.count()) { await start.click(); await p.waitForTimeout(2000); }
+      const runs = before.some((d) => d.kind === 'draftStart' && d.game === gameId);
+      const hasStart = (await start.count()) > 0;
+      checks.push({ moment: moment.id, check: 'start', agree: runs === hasStart });
+      moment.startMissing = runs && !hasStart;
+      if (hasStart) { await start.click(); await p.waitForTimeout(2000); }
+      else {
+        const r = await call(people[0], 'POST', `/api/seasons/${season}/draft`, { leagueId: league(gameId), action: 'start' });
+        if (r.status !== 200) throw Error(`The draft couldn't start (${r.status}): ${JSON.stringify(r.body).slice(0, 200)}`);
+      }
       for (const pid of couch) {
         const r = await call(pid, 'POST', `/api/leagues/${league(gameId)}/draft/blind/lock`, { playerId: pid, castawayIds: want[pid] });
         if (r.status !== 200) throw Error(`${pid} couldn't lock in (${r.status}): ${JSON.stringify(r.body).slice(0, 200)}`);
       }
-      // The draft started and the couch in: the viewer's lock-in is due (the engine's actionItems), and Tonight must say so.
-      const dueNow = await engineDue();
-      await go(tonight, '[data-strip]');
-      await shoot('tonight', 'Tonight', `${label}: Tonight, the draft started, the couch locked in`, { proof: () => boxesOf('[data-strip]', { max: 1 }), bugs: [dueCheck(dueNow)] });
       await go(room(gameId), '[data-draft]');
-      await shoot('room', 'Draft room', `${label}: the draft room, the couch locked in, yours to make`, { proof: () => textBoxes(/Nobody sees until|Choose \d+/) });
+      await shoot('room', 'Draft room', `${label}: the draft room, the couch locked in, yours to make`, { proof: () => textBoxes(/Nobody sees until|Choose \d+/), bugs: [async () => (moment.startMissing ? { kind: 'start', text: 'App bug: Tonight says “Start the draft”, but the draft room has no Start', boxes: [] } : null)] });
       const r = await call(viewer, 'POST', `/api/leagues/${league(gameId)}/draft/blind/lock`, { playerId: viewer, castawayIds: want[viewer] });
       if (r.status !== 200) throw Error(`The viewer couldn't lock in (${r.status})`);
       const real = (await Live.read(ids)).states.get(league(gameId));
@@ -267,7 +272,7 @@ async function make(o) {
     if (blindFirst) await sync(draftOpenAtStart(s.snapshot(), blindFirst.id));
     let due = await engineDue();
     await go(games, '[id^="game-"]');
-    await shoot('games', 'Games', 'The Games tab: the new game', { proof: () => boxesOf('[id^="game-"]', { max: 1 }), bugs: [dueCheck(due), startCheck(!!blindFirst)] });
+    await shoot('games', 'Games', 'The Games tab: the new game', { proof: () => boxesOf('[id^="game-"]', { max: 1 }), bugs: [dueCheck(due)] });
     await go(page(top.id), '[data-game-page]');
     await shoot('rules', 'How it plays', 'The game page: how it plays', { focus: '[data-game-rules]', proof: () => boxesOf('[data-game-short]', { max: 1 }) });
     finish();
@@ -320,7 +325,9 @@ async function make(o) {
         const stage = stages.find((g) => { const v = s.project(g.id, viewer).game; return v.from !== null && v.from <= n && (v.to === null || v.to >= n); }) || top;
         begin('after', 'after', n, stage.id);
         await go(page(stage.id), '[data-game-page]');
-        await shoot('page', 'Game page', `The game page after ${n}`, { focus: '[data-game-grid]', proof: () => boxesOf(`[data-game-grid] [data-restack="${viewer}"]`, { union: true }), bugs: [standingsCheck(stage.id), teamCheck(stage.id)] });
+        await shoot('page', 'Game page', `The game page after ${n}`, { focus: '[data-game-grid]', proof: () => boxesOf(`[data-game-grid] [data-restack="${viewer}"]`, { union: true }), bugs: [standingsCheck(stage.id)] });
+        // Further down the same page, your own team: what each scored for you, which must add up to your total (the team check).
+        if (await p.locator('[data-your-team]').count()) await shoot('team', 'Your team', `Your team after ${n}: what each scored for you`, { focus: '[data-your-team]', proof: () => boxesOf('[data-your-team]', { max: 1 }), bugs: [teamCheck(stage.id)] });
         await go(tonight, '[data-strip]');
         await shoot('tonight', 'Tonight', `Tonight after ${n}: the game's section`, { focus: '[data-game-mini]', proof: () => boxesOf('[data-game-mini]', { max: 1 }), bugs: [stillInCheck] });
         finish();
@@ -355,6 +362,8 @@ async function make(o) {
     begin('finale', 'finale', last);
     const winner = () => { const t = s.project(top.id, people.find((x) => x !== viewer) || viewer).game.table.slice().sort((a, c) => c.total - a.total); return t[0]; };
     await go(tonight, '[data-ask-line], [data-progress-reveal], [data-strip]');
+    // Where you meet the finale: Tonight, its results waiting for you.
+    await shoot('tonight', 'Tonight', 'Tonight at the finale: its results waiting for you', { proof: () => boxesOf('[data-ask-line], [data-progress-reveal], [data-progress-watched]', { max: 1 }) });
     const ask = p.locator('[data-ask-yes], [data-progress-reveal], [data-progress-watched]').first();
     if (await ask.count()) {
       await ask.click();
@@ -451,4 +460,4 @@ function typical(input, n, seed, results, viewer) {
   return out;
 }
 
-module.exports = { make, typical };
+module.exports = { make, typical, _h: { draftOpenAtStart, draftOpenLater } };

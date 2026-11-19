@@ -15,6 +15,9 @@ import { plansFor } from "@/lib/server/watch-plans";
 import { progressOf } from "@/lib/server/season-games";
 import { leagueStates } from "@/lib/server/league-states";
 import { resultsDue } from "@/lib/game/results-due";
+import { runnerItems } from "@/lib/game/action-items.js";
+import { draftSoonOf } from "@/lib/game/draft-soon";
+import type { LeagueState } from "@/lib/game/types";
 import { keepTimeZone, unreadNotes } from "@/lib/server/notify-prefs";
 import { isImpersonating, requireAuthSession } from "@/lib/server/auth-helpers";
 import { withThemeCookie } from "@/lib/server/appearance";
@@ -118,6 +121,12 @@ export const GET = apiRoute(async (req) => {
     weeklyCallMoves(user.id, myGames, states),
     questionMoves(user, myGames, states),
   ]);
+  // Whoever runs a game's own move (docs/design-round/draft-start-spec.md): a draft with no time set that waits for them to start
+  // it (action-items.js runnerItems). The classic bar's control room says it its own way, so it's added here, not in dueMoves.
+  const runnerMoves = myGames.flatMap((g) => {
+    const st = g.yourRole === "commissioner" ? states.get(g.leagueId) : undefined;
+    return st ? runnerItems(st).map((it) => ({ ...it, leagueId: g.leagueId, leagueName: g.name })) : [];
+  });
   // Who's set this week in your games with a weekly move, read after the moves so each state costs a hash.
   const [progress, early, seats, keeping] = await Promise.all([
     progressOf(user, myGames),
@@ -163,7 +172,7 @@ export const GET = apiRoute(async (req) => {
       latestAired: latestAired(schedule, now),
       // The guide's episodes (step 11): when each airs around this week, no titles.
       week: weekOf(schedule, now),
-      games: myGames.filter((g) => g.seasonId === id).map(gameOut),
+      games: myGames.filter((g) => g.seasonId === id).map((g) => gameOut(g, states.get(g.leagueId))),
       // Who's set for the next episode, per game with a weekly move (Up next shows the current couch's).
       progress: myGames.filter((g) => g.seasonId === id && progress.has(g.leagueId)).map((g) => ({ leagueId: g.leagueId, ...progress.get(g.leagueId)! })),
       // Results in past where you are (the hub leads with them), or the final scores of one you revealed early.
@@ -203,7 +212,7 @@ export const GET = apiRoute(async (req) => {
         at: at(m.userId),
         away: away(m.userId),
       })),
-      games: couchGames.filter((g) => g.couchId === c.id).map(gameOut),
+      games: couchGames.filter((g) => g.couchId === c.id).map((g) => gameOut(g)),
       seasons: [...new Set(couchGames.filter((g) => g.couchId === c.id && g.seasonId).map((g) => g.seasonId as string))]
         .map((id) => headers.get(id))
         .filter((h) => !!h)
@@ -223,8 +232,8 @@ export const GET = apiRoute(async (req) => {
         week: weekOf(schedules.get(h.seasonId), now),
       })),
     // Leagues with no season in the catalog (a league still being set up), so they're not lost.
-    unscheduled: myGames.filter((g) => !g.seasonId).map(gameOut),
-    moves: [...moves.items, ...callMoves, ...sheetMoves],
+    unscheduled: myGames.filter((g) => !g.seasonId).map((g) => gameOut(g)),
+    moves: [...runnerMoves, ...moves.items, ...callMoves, ...sheetMoves],
     // The leagues you run's own to-dos: Backstage and the dot on a show's menu (step 5), never Tonight.
     backstage: moves.commish,
     // What you've hidden from the guide (step 11): shows here and TV listings; your own shows always show.
@@ -238,6 +247,10 @@ export const GET = apiRoute(async (req) => {
   return isImpersonating(session) ? res : withThemeCookie(res, theme, req);
 });
 
-function gameOut(g: Game) {
-  return { leagueId: g.leagueId, name: g.name, gameType: g.gameType, gameName: g.gameName, couchId: g.couchId, seasonId: g.seasonId, groupId: g.groupId, yourRole: g.yourRole, solo: g.solo, span: g.span, start: g.start };
+/** A game as the home lists it. `state` (your own games'): its draft before it starts (draft-soon.ts), for the hub's plate. */
+function gameOut(g: Game, state?: LeagueState) {
+  return {
+    leagueId: g.leagueId, name: g.name, gameType: g.gameType, gameName: g.gameName, couchId: g.couchId, seasonId: g.seasonId, groupId: g.groupId, yourRole: g.yourRole, solo: g.solo, span: g.span, start: g.start,
+    ...(state ? { draftSoon: draftSoonOf(state, g.runnerIds) } : {}),
+  };
 }

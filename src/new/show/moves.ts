@@ -15,7 +15,7 @@ export type MovesTab = "lineup" | "pool" | "predict" | "outlast";
 
 /** Moves that are cards on Tonight, in the order a tie goes ("calls": Weekly Calls' two calls on the next show, step 12 part 2;
  *  "questions": a Prediction Sheet's, step A4 part 2 of docs/PLAN-start-a-game-gpt.md). */
-const REQUIRED = ["lineup", "pickup", "pick", "calls", "questions", "draftTurn", "blindDraft"];
+const REQUIRED = ["draftStart", "lineup", "pickup", "pick", "calls", "questions", "draftTurn", "blindDraft"];
 export const isRequired = (m: Move) => REQUIRED.includes(m.kind);
 
 /** "Set your episode 5 lineup (2 empty slots)" → 2. */
@@ -61,6 +61,9 @@ export function moveCard(m: Move, seasonId: string, twin: boolean, paced = false
       return { key, title: "Pick who survives", line: `${paced && !when ? "Picks close when you reveal it" : "Picks close at airtime"}${when ? ` · ${when}` : ""}${which}`, action: "Make my pick", tab: "pool", leagueId: m.leagueId };
     case "pickup":
       return { key, title: m.text, line: `${when ? `Due ${when} · ` : ""}you pick who comes in${which}`, action: "Pick who comes in", href: `${paths.showPage(seasonId, "waivers")}?game=${m.leagueId}` };
+    case "draftStart":
+      // Whoever runs the game (action-items.js runnerItems): nobody picks until they start it (docs/design-round/draft-start-spec.md).
+      return { key, title: "Start the draft", line: `Nobody can pick until you do${which}`, action: "Draft room", href: `${paths.showPage(seasonId, m.draft === "blind" ? "blind" : "draft")}?game=${m.leagueId}` };
     case "draftTurn":
       return { key, title: "Your turn to draft", line: m.leagueName, action: "Draft", href: `${paths.showPage(seasonId, "draft")}?game=${m.leagueId}` };
     case "blindDraft":
@@ -209,6 +212,7 @@ export function dockWords(moves: Move[]): string {
     if (m.kind === "calls") return "your calls";
     if (m.kind === "questions") return "your sheet";
     if (m.kind === "pickup") return m.text.charAt(0).toLowerCase() + m.text.slice(1);
+    if (m.kind === "draftStart") return "the draft to start";
     if (m.kind === "draftTurn") return "your draft turn";
     if (m.kind === "blindDraft") return "draft picks";
     return m.text.charAt(0).toLowerCase() + m.text.slice(1);

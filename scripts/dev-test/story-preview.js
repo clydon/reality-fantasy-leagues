@@ -1,8 +1,8 @@
 // Dev-only: frames of the game previews' stories and their sheet (src/new/preview/story.tsx at /start/preview-story, sheet.tsx at
 // /start/preview-story/sheet, development only) for a design round's screenshot story. For each preview the bench made into
-// .ui-atlas/previews: each moment's card on the screen it opens on, and each card on a screen with an app bug; one real screen at
-// full size; then the sheet at a desk's width, as each story and with every phone at the same moment. Each frame's words, and any
-// words that sit on other words (overlaps.js), go beside it.
+// .ui-atlas/previews: each moment's card at each step of its path (where you meet it, what it opens, what it leads to: round 5's
+// order, src/new/preview/moments.ts PATH); one real screen at full size; then the sheet at a desk's width, as each story and with
+// every phone at the same moment and step. Each frame's words, and any words that sit on other words (overlaps.js), go beside it.
 //
 // Needs: the lane's dev server (BASE, default http://localhost:3014) and the previews (scripts/dev-test/preview-games.js, or the
 // bench's `preview`). Signs in as nobody: the pages read no account.
@@ -24,9 +24,8 @@ const FRAMES = [];
 for (const id of previews) {
   const p = JSON.parse(fs.readFileSync(path.join(DIR, id, "preview.json"), "utf8"));
   p.moments.forEach((m, i) => {
-    FRAMES.push({ id: `${id}-${i + 1}-${m.kind}`, q: `preview=${id}&card=${i + 1}` });
-    // Each screen with an app bug, by its id (the story orders a moment's screens itself).
-    m.screens.forEach((s) => { if (s.bugs.length) FRAMES.push({ id: `${id}-${i + 1}-${m.kind}-${s.id}`, q: `preview=${id}&card=${i + 1}&tab=${s.id}` }); });
+    // Each step of the moment's path (the story puts the screens in the app's order itself): step 1 is the card as it opens.
+    m.screens.forEach((_, n) => FRAMES.push({ id: `${id}-${i + 1}-${m.kind}${n ? `-s${n + 1}` : ""}`, q: `preview=${id}&card=${i + 1}${n ? `&screen=${n + 1}` : ""}` }));
   });
 }
 const week = previews.find((id) => id.startsWith("fantasy"));
@@ -61,7 +60,7 @@ const shot = async (page, f, sel) => {
     await b.close();
     b = await open({ width: SW, height: 1100, motion: "reduce" });
     await b.page.addInitScript(() => document.addEventListener("DOMContentLoaded", () => { const st = document.createElement("style"); st.textContent = "nextjs-portal{display:none!important}"; document.head.appendChild(st); }));
-    for (const [id, moment] of [["sheet-stories", null], ["sheet-week", "week"], ["sheet-finale", "finale"]]) {
+    for (const [id, moment, step] of [["sheet-stories", null], ["sheet-draft", "draft", 1], ["sheet-week", "week", 1], ["sheet-week-s2", "week", 2], ["sheet-finale-s2", "finale", 2]]) {
       await b.page.goto(`${process.env.BASE}/start/preview-story/sheet`, { waitUntil: "domcontentloaded" });
       await b.page.locator("[data-preview-sheet]").waitFor({ timeout: 60000 });
       await b.page.waitForLoadState("networkidle", { timeout: 20000 }).catch(() => {});
@@ -72,10 +71,11 @@ const shot = async (page, f, sel) => {
           if ((await b.page.locator(`[data-sheet-moment="${moment}"]`).getAttribute("aria-checked")) === "true") break;
           await b.page.waitForTimeout(500);
         }
+        if (step > 1) await b.page.locator(`[data-sheet-step="${step}"]`).click();
       }
       await b.page.waitForTimeout(4000);
       await shot(b.page, { id }, "[data-preview-sheet]");
-      index.push({ id, q: moment ? `sheet&moment=${moment}` : "sheet" });
+      index.push({ id, q: moment ? `sheet&moment=${moment}&step=${step}` : "sheet" });
       console.log("frame", id);
     }
   } finally {

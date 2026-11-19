@@ -69,11 +69,20 @@ test("A reveal in the way: the card says so, quietly (the dock asks for the reve
 test("Outlast's draft: coming up, your turn, someone else's, blind; the draft room or the blind page", () => {
   const soon = yourMove(game(), ctx({ draft: draft() }));
   assert.equal(soon.kind, "draft");
-  assert.equal(soon.title, "Draft · at Sat");
+  assert.equal(soon.title, "The draft starts at Sat");
   assert.equal(soon.line, "You pick 2nd · star who you want first");
   assert.equal(soon.due, false);
   assert.deepEqual(soon.go, { href: "/show/S/draft?game=L1" });
   assert.equal(soon.empty, 3);
+  // No time set (docs/design-round/draft-start-spec.md): whoever runs it has it to start; everyone else is told who it waits for.
+  const start = yourMove(game(), ctx({ draft: draft({ scheduledAt: null, commissioner: true, startDue: true }) }));
+  assert.equal(start.title, "Start the draft");
+  assert.equal(start.line, "Nobody can pick until you do");
+  assert.equal(start.due, true);
+  const wait = yourMove(game(), ctx({ draft: draft({ scheduledAt: null, runBy: "Riley" }) }));
+  assert.equal(wait.title, "Waiting for Riley to start the draft");
+  assert.equal(wait.line, "You pick 2nd · star who you want first");
+  assert.equal(wait.due, false);
   const turn = yourMove(game(), ctx({ draft: draft({ phase: "live", clock: { playerId: "me", n: 2, round: 1 }, picks: [{ n: 1, round: 1, inRound: 1, playerId: "riley", castawayId: "c5" }], teams: [{ playerId: "me", castawayIds: [] }] }) }));
   assert.equal(turn.title, "Your turn · round 1");
   assert.equal(turn.line, "riley just took Sharonda");

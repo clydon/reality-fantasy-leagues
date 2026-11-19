@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
-import { ChevronLeft, Maximize2, X } from "lucide-react";
+import { Fragment, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { ChevronLeft, ChevronRight, Maximize2, X } from "lucide-react";
 import { inShowWords, showWords } from "@/lib/game/show-words";
 import { lockTime } from "../clock";
 import type { GameView, TableRow } from "../data";
 import { ordinal } from "../games";
 import { bestOf } from "../show/game-week";
 import { Btn } from "../ui/parts";
-import { MOMENT_NAMES, type MomentKind } from "./moments";
+import { inPath, MOMENT_NAMES, type MomentKind } from "./moments";
 
 // TEMP, development only (docs/design-round/preview-story-spec.md, "Round 4"; docs/PLAN-game-preview.md, "The bench's previews"): a
 // game's preview, made by the bench for any game it runs (tools/gameplay-bench/preview/preview.cjs), as a short story of the moments
@@ -41,10 +41,8 @@ const fmt = (n: number) => String(Math.round(n * 10) / 10);
 const byTotal = (t: TableRow[]) => [...t].sort((a, b) => b.total - a.total);
 const names = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}` : xs[0] ?? "");
 const nameOf = (m: Moment) => (m.kind === "after" ? `After ${EP} ${m.episode}` : MOMENT_NAMES[m.kind]);
-// Each moment opens on the game's own screen (its move, its draft room, how it plays), the screens every game shares after it.
-const LEAD: Record<MomentKind, string[]> = { game: ["rules", "games"], draft: ["room", "teams", "tonight"], week: ["move", "tonight"], after: ["page", "tonight"], stage: ["room", "teams", "tonight"], out: ["page"], finale: ["page", "reveal"] };
-// A screen with an app bug never opens a card while one without does (then the game's own first).
-const ordered = (m: Moment) => [...m.screens].sort((a, b) => Number(a.bugs.length > 0) - Number(b.bugs.length > 0) || (LEAD[m.kind].indexOf(a.id) + 1 || 99) - (LEAD[m.kind].indexOf(b.id) + 1 || 99));
+// Each moment's screens as the app's path (moments.ts PATH: where you meet it, what a tap opens, what it leads to), an app bug in its place.
+const ordered = (m: Moment) => inPath(m.kind, m.screens);
 
 // ---- What's typical, over the made-up seasons, with the game's own rules: each a plain sentence, the count first ----
 interface Check { n: number; of: number; text: string; flag: boolean }
@@ -319,14 +317,18 @@ export function PreviewStory({ preview: p }: { preview: Preview }) {
             </div>
             {bug ? <BugLine bug={bug} /> : card.check ? <CheckLine c={card.check} /> : null}
           </div>
-          {/* The moment's real screens, by the app's own names, the game's own first; one with an app bug is tagged. */}
+          {/* The moment's real screens as the app's path, by its own names, its chevron between them: where you meet it first. One with
+              an app bug keeps its place, tagged. */}
           <div className="flex items-end gap-2 border-b border-border">
-            <div role="tablist" aria-label="The real screens at this moment" className="flex min-w-0 flex-1 gap-4">
+            <div role="tablist" aria-label="The real screens at this moment, in the order the app takes you" className="flex min-w-0 flex-1 items-center gap-1" data-path>
               {screens.map((s, i) => (
-                <button key={s.id} type="button" role="tab" aria-selected={s === at} data-screen={s.id} onClick={() => { setTab(null); setScreen(i); }} className={`nd-press type-caption -mb-px flex h-11 flex-none items-center gap-1.5 border-b-2 text-[15px] tracking-[0.04em] ${s === at ? "border-foreground text-foreground" : "border-transparent text-muted-foreground"}`}>
-                  {s.name}
-                  {s.bugs.length > 0 && <span className="rounded-[2px] border border-current px-1 text-[11px] leading-[15px]">Bug</span>}
-                </button>
+                <Fragment key={s.id}>
+                  {i > 0 && <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />}
+                  <button type="button" role="tab" aria-selected={s === at} data-screen={s.id} onClick={() => { setTab(null); setScreen(i); }} className={`nd-press type-caption -mb-px flex h-11 min-w-0 flex-none items-center gap-1.5 border-b-2 px-0.5 text-[15px] tracking-[0.04em] ${s === at ? "border-foreground text-foreground" : "border-transparent text-muted-foreground"}`}>
+                    {s.name}
+                    {s.bugs.length > 0 && <span className="rounded-[2px] border border-current px-1 text-[11px] leading-[15px]">Bug</span>}
+                  </button>
+                </Fragment>
               ))}
             </div>
             {at && (

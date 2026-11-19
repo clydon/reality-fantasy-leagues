@@ -1,3 +1,4 @@
+import { draftSoonOf, type DraftSoon } from "./draft-soon";
 import type { Castaway, LeagueState, ScoreRow } from "./types";
 import StateLogic from "./state-logic.js";
 import type { AnswerLines, AnswerWalk, CoopWalk, HandicapView, MatchupView, TeamView } from "./state-logic.js";
@@ -269,6 +270,8 @@ export interface GameRefIn {
   ownPace?: boolean;
   /** U1 step 2: a stage of a game in stages (step A12: leagues.stage_of, its parent's league id), else null. */
   stageOf?: string | null;
+  /** Who runs it: its Commissioners' seats (show-space.ts games), for "Waiting for Riley to start the draft". */
+  runnerIds?: string[];
 }
 
 /** A public pool's table: the top ten, you and whoever's either side of you (it can hold hundreds). */
@@ -286,6 +289,8 @@ export interface GameView extends GameRefIn {
   phase: string | null;
   /** A game over a span (docs/PLAN-sports-data.md step 6): its last episode; null to the season's end. */
   to: number | null;
+  /** Its draft before it starts (draft-soon.ts): when it starts by itself, why it can't yet, who starts it, whether that's due. */
+  draftSoon: DraftSoon | null;
   /** It's over as far as you've seen: its season, or its span's last episode (StateLogic.gameOver). */
   over: boolean;
   table: TableRow[];
@@ -415,7 +420,10 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
   const progress = catchingUp ? null : weekProgress(full, playerId, userOf, { counts: isPublic });
   const over = pieces.hasCalls || pieces.hasBingo ? !!calls?.ended : StateLogic.gameOver(view);
   // The grid's next column: whose lineup or pick is in (weekProgress), or whose answers are (the server's); never what.
-  const nextIn = over
+  // Before anyone has a team (a draft not started, or a blind draft not revealed) there's no lineup to set: no next column, never
+  // "Set" for a seat with nobody to start (round 5 of the game preview: the stage a game in stages leads with before its draft).
+  const teamsYet = !StateLogic.piecesOf(view).hasRoster || full.castaways.some((c) => (c.ownerIds ?? []).length > 0);
+  const nextIn = over || !teamsYet
     ? null
     : progress && progress.episode > through && !isPublic
       ? { episode: progress.episode, set: Object.fromEntries(progress.people.map((p) => [p.playerId, p.done])) }
@@ -445,6 +453,8 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
     phase: null,
     to: end,
     over,
+    // A draft that hasn't started (docs/design-round/draft-start-spec.md): the strip's "Waiting for Riley to start the draft".
+    draftSoon: draftSoonOf(full, game.runnerIds),
     table,
     you: table.find((r) => r.you) ?? null,
     players: everyone.length,

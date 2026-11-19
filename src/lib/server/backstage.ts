@@ -330,8 +330,9 @@ export async function backstageRead(scope: BackstageScope, opts: { episode?: num
     out.needs.push({
       id: "draft",
       episode: 0,
-      title: `Schedule the ${l.game.gameName} draft`,
-      detail: l.state.castaways.some((c) => c.status === "active") ? "Pick a time, or start it when everyone's in" : "Once the cast is in, pick a time",
+      // The strip's words for it (docs/design-round/draft-start-spec.md): it's the draft to start, or a time to pick.
+      title: `Start the ${l.game.gameName} draft`,
+      detail: l.state.castaways.some((c) => c.status === "active") ? "Start it when everyone's in, or pick a time" : "Once the cast is in, pick a time",
       leagueId: l.game.leagueId,
       draft: kind,
     });

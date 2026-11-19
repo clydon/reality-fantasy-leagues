@@ -1,4 +1,6 @@
 import StateLogic from "./state-logic.js";
+import { draftKindOf } from "./action-items.js";
+import { draftSoonOf } from "./draft-soon";
 import { sortByTribe } from "./sort-by-tribe";
 import { castOf, type CastFace, type GameRefIn, type UserOf } from "./game-view";
 import type { LeagueState } from "./types";
@@ -81,6 +83,10 @@ export interface DraftGame extends GameRefIn {
   commissioner: boolean;
   phase: DraftPhase;
   scheduledAt: string | null;
+  /** Before it starts (draftSoonOf): whether it's yours to start now, why it can't start yet, and who starts it. */
+  startDue: boolean;
+  waits: string | null;
+  runBy: string | null;
   /** The cast is in: nothing to draft until it is. */
   castReady: boolean;
   /** How many each team drafts. */
@@ -126,14 +132,11 @@ export function snakeOwner(order: string[], index: number): string | undefined {
   return round % 2 === 0 ? order[pos] : order[n - 1 - pos];
 }
 
-/** The draft's kind, or null for a game with no draft (Survival Pool). */
+/** The draft's kind, or null for a game with no draft (Survival Pool): the engine's (action-items.js draftKindOf). */
 export function draftKind(state: LeagueState): DraftKind | null {
-  const get = StateLogic.gameOf(state).get;
-  if (get.by !== "draft") return null;
-  if (get.order === "draw") return "draw";
-  if (get.order === "auction") return "auction";
-  return get.own === "shared" ? "blind" : "snake";
+  return draftKindOf(state);
 }
+
 
 /** The pick timer in seconds (0: off), and what happens when it runs out: the game spec's draft room. */
 export function draftTimer(state: LeagueState): { timer: number; away: "wait" | "queue" } {
@@ -236,6 +239,7 @@ export function draftView(
     commissioner: role === "commissioner",
     phase,
     scheduledAt: full.settings.draftScheduledAt ?? null,
+    ...((soon) => ({ startDue: !!soon?.startDue && role === "commissioner", waits: soon?.waits ?? null, runBy: soon?.runBy ?? null }))(phase === "waiting" ? draftSoonOf(full, game.runnerIds) : null),
     castReady: view.castaways.some((c) => c.status === "active"),
     size,
     cast,

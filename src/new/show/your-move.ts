@@ -1,3 +1,4 @@
+import { draftSoonWords } from "./draft-words";
 import type { DraftGame, GameView, WaiverWeek } from "../data";
 import { ordinal } from "../games";
 import { paths } from "../routes";
@@ -57,14 +58,16 @@ export function movesOf(g: GameView, o: MoveContext): YourMove[] {
     if (d.revealFirst) {
       found.push({ ...room, title: `Reveal ${E} ${d.revealFirst} first`, line: "Who's left to draft depends on it", action: "Draft room", due: false });
     } else if (d.phase === "waiting") {
-      const at = d.scheduledAt ? o.when(d.scheduledAt) : null;
+      // Before it starts (docs/design-round/draft-start-spec.md): whoever runs it has it to start (due: nobody can pick until they
+      // do); everyone else is told who it waits for, or when it starts, in the strip's own words (draft-words.ts).
       const place = d.turns.indexOf(d.you);
+      const soon = draftSoonWords({ kind: d.kind, at: d.scheduledAt, waits: d.waits, runBy: d.runBy, startDue: d.startDue }, d.commissioner, o.when);
       found.push({
         ...room,
-        title: at ? `Draft · ${at}` : "Draft · not started yet",
-        line: d.kind === "blind" ? "Pick in private, reveal together" : place >= 0 ? `You pick ${ordinal(place + 1)} · star who you want first` : "Star who you want first",
+        title: soon.title,
+        line: soon.due ? soon.line : d.kind === "blind" ? "Pick in private, reveal together" : place >= 0 ? `You pick ${ordinal(place + 1)} · star who you want first` : "Star who you want first",
         action: "Draft room",
-        due: false,
+        due: soon.due,
       });
     } else if (d.kind === "blind") {
       const locked = d.locked.includes(d.you);

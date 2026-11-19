@@ -372,7 +372,8 @@ function stripOf(g: GameView, page: GamePage, phase: Phase, ctx: PageContext): S
   }
   if (g.bingo?.open) return { kind: "bingo", tag: "Bingo", tone: "chy", title: `Your card for ${E} ${g.bingo.episode}`, line: `Tick it as it airs · ${plural(g.bingo.ticked, "square")} so far`, due: true, inPlace: false, go: { bingo: g.bingo.episode } };
   if (g.call?.open && g.call.made < g.call.of) return { kind: "calls", tag: "Your calls", tone: "chy", title: `${plural(g.call.of - g.call.made, "call")} for ${E} ${g.call.episode}`, line: g.call.airsAt ? `Locks ${ctx.when(g.call.airsAt)}` : "Before it airs", due: true, inPlace: false, go: { call: g.call.episode } };
-  if (m) return { kind: "move", tag: "Set", tone: "quiet", title: m.title, line: m.line, due: false, inPlace: false, go: m.go };
+  // A draft that hasn't started and isn't yours to start: tagged as the draft, not "Set" (nothing of yours is set yet).
+  if (m) return { kind: "move", tag: m.kind === "draft" ? "Draft" : "Set", tone: "quiet", title: m.title, line: m.line, due: false, inPlace: false, go: m.go };
   if (phase === "before") return { kind: "start", tag: "Starts", tone: "quiet", title: g.from === null ? `When ${g.phase ?? "its phase"} starts` : `${E} ${g.from}`, line: airs && g.from === ep ? `Airs ${airs}` : "Nothing to do yet", due: false, inPlace: false, go: null };
   return { kind: "set", tag: "All set", tone: "quiet", title: `Nothing to do before ${epShort(E)} ${ep}`, line: airs ? `${E} ${ep} airs ${airs}` : `Waiting for ${E} ${ep}`, due: false, inPlace: false, go: null };
 }

@@ -288,7 +288,7 @@ export async function viewWithCalls(user: SessionUser, seasonId: string, h: Game
 }
 
 function refOf(g: Game): GameRefIn {
-  return { leagueId: g.leagueId, name: g.name, gameType: g.gameType, gameName: g.gameName, yourRole: g.yourRole, solo: g.solo, archived: g.archived, ownPace: g.ownPace, stageOf: g.stageOf };
+  return { leagueId: g.leagueId, name: g.name, gameType: g.gameType, gameName: g.gameName, yourRole: g.yourRole, solo: g.solo, archived: g.archived, ownPace: g.ownPace, stageOf: g.stageOf, runnerIds: g.runnerIds };
 }
 
 /**

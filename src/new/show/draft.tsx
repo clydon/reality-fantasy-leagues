@@ -937,7 +937,15 @@ function WaitingCard({ seasonId, show, game, onSettings }: { seasonId: string; s
           </span>
         }
         kick={game.kind === "blind" ? "Blind draft" : "The draft"}
-        line={at != null ? `Starts ${airTime(at)} · ${calm(at, now)}` : game.commissioner ? "Start it when everyone's in" : "Not started yet · whoever runs the game starts it"}
+        line={
+          at != null
+            ? `Starts ${airTime(at)} · ${calm(at, now)}`
+            : game.waits
+              ? game.waits
+              : game.commissioner
+                ? "Everyone's waiting on you · start it when everyone's in"
+                : `Not started yet · ${game.runBy ?? "whoever runs the game"} starts it`
+        }
       />
       {game.commissioner && (
         <div className="mx-4 mt-3 flex gap-2">

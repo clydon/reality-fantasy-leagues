@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, ChevronRight, Lock } from "lucide-react";
+import { Check, ChevronRight, Hourglass, Lock } from "lucide-react";
 import { airTime } from "../clock";
 import { useNav } from "../nav";
+import { paths } from "../routes";
+import { draftRoomPage, draftSoonWords } from "./draft-words";
 import type { ShowData } from "../screens/show-space";
 import { openCall } from "./calls";
 import { doneCards, isRequired, moveCard, openMoves, tabOf, type MovesTab } from "./moves";
@@ -18,15 +20,20 @@ import { showLabel } from "./react";
 // A game at your own pace on an aired episode (pace-plate.tsx catchingUpIn) has its move for that episode here, from the game
 // itself (the plate's Set step, folded in: "Before you reveal it"), and its reveal in the control. A game with a plate of its own
 // (drafting together, picking your team, a waiver moment: hasPacePlate) says its move there, so it isn't counted here.
+// A draft that hasn't started (docs/design-round/draft-start-spec.md): whoever runs the game has it as their move ("Start the draft",
+// due, first); everyone else sees it waiting, quiet with an hourglass ("Waiting for Riley to start the draft"), never "All set".
 
 export interface StripState {
-  tone: "due" | "waits" | "set" | "locked";
+  /** "soon": something's coming in a game here that isn't yours to do (a draft that hasn't started): quiet, an hourglass. */
+  tone: "due" | "waits" | "set" | "locked" | "soon";
   /** The episode it's for: "Ep 6". */
   tag: string;
   title: string;
   line: string | null;
   /** Where a tap goes when it isn't the lead move's own place: a game at your own pace's move. */
   open?: { tab: MovesTab; leagueId: string };
+  /** Or a page: the draft room of a draft that hasn't started. */
+  href?: string;
 }
 
 /** What the strip says, or null for no strip. Pure: the show as Tonight reads it. */
@@ -55,6 +62,13 @@ export function stripState(show: ShowData): StripState | null {
   const n = open[0]?.episode ?? up?.number ?? null;
   const tag = n != null ? `${ep} ${n}` : "Your move";
   if (up?.live) return { tone: "locked", tag: `${ep} ${up.number}`, title: `Locked for ${ep} ${up.number}`, line: "Scores stay hidden until you reveal" };
+  // A draft that waits for you to start it: nobody else can pick until you do, so it leads, whatever else is due (the draft spec).
+  const start = open.find((m) => m.kind === "draftStart");
+  if (start) {
+    const more = new Set(open.filter((m) => m !== start).map((m) => m.kind + m.leagueId)).size;
+    const twin = open.filter((m) => m.kind === "draftStart").length > 1;
+    return { tone: "due", tag: "Draft", title: `Start the draft${more ? ` · ${more} more` : ""}`, line: `Nobody can pick until you do${twin ? ` · ${start.leagueName}` : ""}` };
+  }
   if (open.length) {
     // A draft turn is due now, not at a lock: it leads, and the line says so (step 6's check).
     const turn = open.some((m) => m.kind === "draftTurn");
@@ -70,6 +84,13 @@ export function stripState(show: ShowData): StripState | null {
     const atAir = first != null && up?.airAt != null && first === Date.parse(up.airAt) && lockWord !== "due";
     const line = first == null ? null : atAir ? (open.length > 1 ? "Lock when it airs" : "Locks when it airs") : `${lockWord[0].toUpperCase()}${lockWord.slice(1)} ${airTime(first)}`;
     return { tone: "due", tag, title, line: turn ? "Your pick now" : line };
+  }
+  // A draft that hasn't started in a game here, and nothing of yours due: who it waits for, or when it starts (never "All set": you
+  // have no team yet). Not one that can't open yet (a later stage's, waiting on the results before it: its game's page says when).
+  const soon = (show.play ?? []).find((g) => !paced.has(g.leagueId) && !g.over && g.draftSoon && !g.draftSoon.waits && g.yourRole);
+  if (soon?.draftSoon) {
+    const w = draftSoonWords(soon.draftSoon, soon.yourRole === "commissioner", (iso) => airTime(Date.parse(iso)));
+    return { tone: w.due ? "due" : "soon", tag: "Draft", title: w.title, line: w.line, href: `${paths.showPage(show.header?.seasonId ?? "", draftRoomPage(soon.draftSoon.kind))}?game=${soon.leagueId}` };
   }
   // Every own-pace move in for the episode you're on: all set until you reveal it.
   if (behind.length) {
@@ -105,6 +126,7 @@ export function MovesStrip({ show }: { show: ShowData }) {
     const lead = open[0];
     const href = lead ? (moveCard(lead, seasonId, false).href ?? null) : null;
     if (s.open) return openMoves(s.open.tab, s.open.leagueId);
+    if (s.href) return nav.push(s.href);
     if (s.tone === "due" && href) return nav.push(href);
     if (s.tone === "due" && lead?.kind === "calls" && show.header) return openCall({ seasonId, couchId: show.couch?.id ?? null, episode: lead.episode ?? show.upNext?.number ?? 1, label: showLabel(show), solo: show.solo });
     if (s.tone === "due" && lead?.kind === "questions" && show.header) return openSheet({ seasonId, leagueId: lead.leagueId, episode: null, game: lead.leagueName });
@@ -123,7 +145,13 @@ export function MovesStrip({ show }: { show: ShowData }) {
             due ? "bg-chyron text-chyron-foreground" : "bg-secondary text-foreground"
           }`}
         >
-          {s.tone === "set" ? <Check className="nd-settle-tick size-4" strokeWidth={3} aria-hidden /> : s.tone === "locked" ? <Lock className="size-4" aria-hidden /> : null}
+          {s.tone === "set" ? (
+            <Check className="nd-settle-tick size-4" strokeWidth={3} aria-hidden />
+          ) : s.tone === "locked" ? (
+            <Lock className="size-4" aria-hidden />
+          ) : s.tone === "soon" ? (
+            <Hourglass className="size-4" strokeWidth={2.5} aria-hidden />
+          ) : null}
           {s.tag}
         </span>
         <span className="flex min-w-0 flex-1 flex-col justify-center gap-[3px] py-2 pl-5 pr-1">

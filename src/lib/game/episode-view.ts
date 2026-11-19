@@ -141,6 +141,23 @@ export function nightIn(game: GameRefIn, view: LeagueState, me: string, ep: Epis
       ? { ...base, big: "Survived", line: `You picked ${first(c.name)} · streak ${row.streak}` }
       : { ...base, big: "Went home", line: `You picked ${first(c.name)} · streak reset` };
   }
+  // A game in stages has no team of its own (its stages hold them): its night is the stage it was played in, and the points that
+  // stage gave you that episode (the walk's tables, stages.ts), never "0 of 0 still in" (docs/PLAN-game-preview.md, Noticed 3).
+  if (StateLogic.StageLogic.on(view)) {
+    type Entry = { episode: number; rows: { playerId: string; points: number }[] };
+    const walk = StateLogic.StageLogic.walkOf(view) as { stages: { key: string; entries?: Entry[] }[] } | null;
+    const st = walk?.stages.find((x) => (x.entries ?? []).some((e) => e.episode === ep.number));
+    const at = st?.entries?.find((e) => e.episode === ep.number);
+    if (st && at) {
+      const before = (st.entries ?? []).filter((e) => e.episode < ep.number).pop();
+      const pts = (e?: Entry) => e?.rows.find((r) => r.playerId === me)?.points ?? 0;
+      const d = pts(at) - pts(before);
+      const id = StateLogic.StageLogic.copyOf(st.key) ?? st.key;
+      const name = (StateLogic.StageLogic.stages(view) as { id: string; name?: string | null }[]).find((x) => x.id === id)?.name ?? null;
+      return { ...base, big: `${signed(d)} ${Math.abs(d) === 1 ? "pt" : "pts"}`, line: name ? `In ${name}` : "From its stage" };
+    }
+    return { ...base, big: "—", line: "Its stages score it" };
+  }
   const team = teamOf(view, me);
   const lost = team.filter((c) => exitNumber(view, c) === ep.number && isKnockedOut(view, c));
   const still = team.filter((c) => c.status !== "eliminated" || (exitNumber(view, c) ?? 0) > ep.number).length;
@@ -224,6 +241,8 @@ export interface RevealTable {
 
 export interface RevealPart {
   leagueId: string;
+  /** A stage of a game in stages (its parent's league id), else null: the reveal's table is then the whole game's. */
+  stageOf?: string | null;
   gameType: string;
   /** Step R1: how the game scores (its spec's score.by), which picks the reveal's main table (mainRevealTable below). */
   scores: GamePieces["scores"];
@@ -309,21 +328,26 @@ export function revealIn(game: GameRefIn, full: LeagueState, me: string, n: numb
   const at = (rows: TableRow[], id: string) => rows.find((r) => r.playerId === id);
   const table: RevealTable = {
     leagueId: game.leagueId,
-    gameName: game.gameName,
+    // A game in stages goes by its own name ("Fantasy league standings"): its kind ("Stages") isn't what it's called.
+    gameName: StateLogic.StageLogic.on(full) ? game.name : game.gameName,
     rows: now.map((r) => {
       const b = at(was, r.playerId) ?? r;
       return { playerId: r.playerId, userId: r.userId, name: r.name, you: r.you, before: { place: b.place, rank: b.rank, total: b.total }, after: { place: r.place, rank: r.rank, total: r.total } };
     }),
   };
 
-  return { leagueId: game.leagueId, gameType: game.gameType, scores: pieces.scores, stage, out: outsOf(after, ep), happened: happenedIn(after, ep), lineup, game: part, predictions, table };
+  return { leagueId: game.leagueId, stageOf: game.stageOf ?? null, gameType: game.gameType, scores: pieces.scores, stage, out: outsOf(after, ep), happened: happenedIn(after, ep), lineup, game: part, predictions, table };
 }
 
-/** The reveal's main table across every game's part: a lineup's final table first, else a pool's, a placement game's, an early lineup's. */
+/** The reveal's main table across every game's part: a lineup's final table first, else a pool's, a placement game's, an early lineup's.
+ *  A stage of a game in stages gives way to its game's table, which is the overall that decides it (stages.ts: its stages' tables
+ *  added up), so the reveal never ranks you by one stage where the game ranks you by both. */
 export function mainRevealTable(parts: RevealPart[]): RevealTable | null {
   const by = (scores: RevealPart["scores"]) => parts.find((p) => p.scores === scores);
   const lineup = by("moments");
-  return (lineup?.stage === "final" ? lineup.table : null) ?? by("survive")?.table ?? by("place")?.table ?? lineup?.table ?? null;
+  const main = (lineup?.stage === "final" ? lineup : null) ?? by("survive") ?? by("place") ?? lineup ?? null;
+  const whole = main?.stageOf ? parts.find((p) => p.leagueId === main.stageOf) : undefined;
+  return (whole ?? main)?.table ?? null;
 }
 
 /** The one reveal's beats from every game's part of episode n (season-episodes.ts revealSeason; the gameplay bench composes it too). */

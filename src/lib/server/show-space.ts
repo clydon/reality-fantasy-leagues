@@ -126,6 +126,8 @@ export interface Game {
   /** A game at your own pace (docs/PLAN-own-pace-games.md, settings.ownPace): everyone in it plays one episode at a time, whenever
    *  they watch. A season with only such games on it is still watched at your own pace. */
   ownPace: boolean;
+  /** Who runs it: its Commissioners' seats (their player ids), for "Waiting for Riley to start the draft" (draft-soon.ts). */
+  runnerIds: string[];
 }
 
 /**
@@ -149,7 +151,8 @@ export async function games(viewerId: string, filter: { mine?: boolean; couchIds
             COALESCE(l.state->'settings'->>'archivedAt', '') <> '' AS archived,
             l.state->'settings'->'startEpisode' AS start_episode, l.state->'settings'->'endEpisode' AS end_episode,
             l.state->'settings'->>'startPhase' AS start_phase, l.stage_of,
-            COALESCE((l.state->'settings'->>'ownPace')::boolean, false) AS own_pace, s.kind AS show_kind
+            COALESCE((l.state->'settings'->>'ownPace')::boolean, false) AS own_pace, s.kind AS show_kind,
+            ARRAY(SELECT rm.player_id FROM league_memberships rm WHERE rm.league_id = l.id AND rm.role = 'commissioner' AND rm.player_id IS NOT NULL ORDER BY rm.player_id) AS runner_ids
        FROM leagues l
        LEFT JOIN shows s ON s.slug = l.state->'settings'->>'showId'
        LEFT JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number::text = l.state->'settings'->>'wikiSeason'
@@ -178,6 +181,7 @@ export async function games(viewerId: string, filter: { mine?: boolean; couchIds
     start: startOf(r),
     stageOf: r.stage_of ?? null,
     ownPace: !!r.own_pace,
+    runnerIds: (r.runner_ids as string[] | null) ?? [],
   }));
 }
 

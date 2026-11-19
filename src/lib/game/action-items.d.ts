@@ -1,7 +1,10 @@
 // Types for action-items.js (plain CommonJS so db/reminders.js can require it under bare node).
 import type { Episode, LeagueState } from "./types";
 
-export type ActionKind = "notifications" | "invite" | "lateJoin" | "draftTurn" | "blindDraft" | "lineup" | "pick" | "prediction" | "results" | "pickup";
+export type ActionKind = "notifications" | "invite" | "lateJoin" | "draftStart" | "draftTurn" | "blindDraft" | "lineup" | "pick" | "prediction" | "results" | "pickup";
+
+/** A game's draft as the draft room runs it; null for a game with nothing to draft. */
+export type DraftKindOf = "snake" | "blind" | "draw" | "auction";
 
 export interface ActionItem {
   kind: ActionKind;
@@ -23,7 +26,18 @@ export interface ActionItem {
   /** "invite" only (from /api/me/actions, not actionItems): which invite, and who sent it. */
   inviteId?: string;
   invitedBy?: string | null;
+  /** "draftStart" only (runnerItems): the draft's kind, for which room it opens. */
+  draft?: DraftKindOf | null;
 }
+
+/** Whoever runs the game's own moves (a Commissioner's): starting a draft that waits for them. Not in actionItems. */
+export function runnerItems(state: LeagueState): ActionItem[];
+
+/** The draft is its Commissioner's to start now: no time set, not started, not waiting on results, a cast and two seats. */
+export function draftStartDue(state: LeagueState): boolean;
+
+/** The game's draft as the draft room runs it (turn-based, blind, a draw, an auction), or null. */
+export function draftKindOf(state: LeagueState): DraftKindOf | null;
 
 /** `seenThrough`: the player's results-seen mark, which a late joiner catching up needs for their own week's alerts. */
 /** `opts.commissioner`: add the commissioner's own to-do, an aired episode's results to fill in. */

@@ -98,12 +98,15 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
   const couchId = show.couch?.id ?? null;
   const nav = useNav();
   // Your move in this game, as the Games tab's card says it (the draft and the mid-season draft included).
-  const drafting = (g.gameType === "classic-draft" || g.gameType === "active-roster") && !!g.you && (g.you.team.length === 0 || g.from === null || g.through < g.from);
-  const draft = useSeasonDraft(seasonId, couchId, { enabled: !!show.header && drafting }).data?.games.find((d) => d.leagueId === g.leagueId);
+  const draftsIn = (x: GameView) => (x.gameType === "classic-draft" || x.gameType === "active-roster") && !!x.you && (x.you.team.length === 0 || x.from === null || x.through < x.from);
+  // A game in stages drafts in its stages: the page leads with the stage being played now, so its draft is read too (a draft that
+  // waits for whoever runs the game says so here as on the strip: docs/design-round/draft-start-spec.md).
+  const drafting = draftsIn(g) || (show.play ?? []).some((x) => x.stageOf === g.leagueId && draftsIn(x));
+  const drafts = useSeasonDraft(seasonId, couchId, { enabled: !!show.header && drafting }).data?.games;
   const waivers = useSeasonWaivers(seasonId, couchId, !!show.header && playsWaivers(show)).data?.games;
   // A time as far off as it is: "Wed 8:00 PM" within the week, the date too past it (clock.ts lockTime).
   const when = (iso: string) => lockTime(Date.parse(iso));
-  const moveOf = (x: GameView) => yourMove(x, { seasonId, episode: show.words.episode, when, draft: x.leagueId === g.leagueId ? draft : undefined, waivers: waivers?.find((w) => w.leagueId === x.leagueId) });
+  const moveOf = (x: GameView) => yourMove(x, { seasonId, episode: show.words.episode, when, draft: x.leagueId === g.leagueId || x.stageOf === g.leagueId ? drafts?.find((d) => d.leagueId === x.leagueId) : undefined, waivers: waivers?.find((w) => w.leagueId === x.leagueId) });
   const move = moveOf(g);
   // Secret roles and the top scorer's twist live on the server (their own routes): read only on a game that has them.
   const roles = useLeagueRoles(g.leagueId, has(g.page, "badge", "role")).data ?? null;
@@ -124,7 +127,9 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
   });
   const m = pageModel(g, g.page, ctxOf(g, move));
   // A game in stages leads with the stage being played now: its week, its move (never "All set" while a stage has one: DN 33).
-  const nowStage = m.hero.stages?.find((st) => st.now)?.leagueId ?? null;
+  // Before the game starts its hero names no stage yet: the first one still to play is the one being set up now (its draft, say).
+  const firstOpen = (show.play ?? []).filter((x) => x.stageOf === g.leagueId && !x.over).sort((a, b) => (a.from ?? Infinity) - (b.from ?? Infinity))[0] ?? null;
+  const nowStage = m.hero.stages?.find((st) => st.now)?.leagueId ?? firstOpen?.leagueId ?? null;
   const stage = g.plays.kind === "staged" ? ((show.play ?? []).find((x) => x.leagueId === nowStage) ?? null) : null;
   const wg = stage ?? g;
   const wmove = stage ? moveOf(stage) : move;

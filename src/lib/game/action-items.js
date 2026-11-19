@@ -40,7 +40,40 @@ function actionItems(state, playerId, seenThrough, opts = {}) {
 
 // Someone is waiting on these right now (the draft, the league's results, your own start), so they
 // come before any deadline.
-const NOW_KINDS = new Set(["draftTurn", "blindDraft", "lateJoin", "results"]);
+const NOW_KINDS = new Set(["draftStart", "draftTurn", "blindDraft", "lateJoin", "results"]);
+
+// A game's draft as the draft room runs it (draft-view.ts draftKind is this): a turn-based draft ("snake", one owner each), a
+// blind draft (shared teams, everyone picks in private), a draw or an auction; null for a game with nothing to draft.
+function draftKindOf(state) {
+  const get = StateLogic.gameOf(state).get;
+  if (get.by !== "draft") return null;
+  if (get.order === "draw") return "draw";
+  if (get.order === "auction") return "auction";
+  return get.own === "shared" ? "blind" : "snake";
+}
+
+// A draft that waits for whoever runs the game (docs/design-round/draft-start-spec.md). One with a time set starts by itself then
+// (state-logic.js draftTimeCame); one without doesn't start until its Commissioner presses Start, and until then nobody can pick.
+// Theirs to start while it could: not started, no time set, not a later stage's draft still waiting on the results before it
+// (DraftLogic.waits), someone active to draft and two seats or more. A game at your own pace drafts together from a plate of its
+// own (pace-plate.tsx), which has its own Start.
+function draftStartDue(state) {
+  if (!draftKindOf(state) || (state.settings && state.settings.archivedAt)) return false;
+  if (StateLogic.isDraftStarted(state) || StateLogic.GhostLogic.ownPace(state)) return false;
+  const room = StateLogic.gameOf(state).extras.draft;
+  if ((room && room.at) || StateLogic.DraftLogic.waits(state)) return false;
+  if (!(state.castaways || []).some((c) => c.status === "active")) return false;
+  return (state.players || []).filter((p) => !p.disabled && !p.ghost && p.active !== false).length >= 2;
+}
+
+// What's waiting on whoever runs the game, as a move of their own: starting a draft that waits for them. The new design's home
+// lists it among their moves (the strip, the hub's plate), and the gameplay bench's due check reads it. Kept out of actionItems,
+// so the classic action bar (whose control room has "Draft not scheduled", commissioner-items.ts) and the reminder job read
+// exactly what they did.
+function runnerItems(state) {
+  if (!draftStartDue(state)) return [];
+  return [{ kind: "draftStart", text: "Start the draft", href: "/draft", draft: draftKindOf(state), who: "you", deadline: null }];
+}
 
 /** When an item is due, for sorting: -Infinity for "now", Infinity for no deadline. */
 function dueAt(item) {
@@ -220,4 +253,4 @@ function liveItems(state, playerId) {
   return items;
 }
 
-module.exports = { actionItems, resultsDueEpisode, resultsHref, waiversHref, dueAt, byDue };
+module.exports = { actionItems, runnerItems, draftStartDue, draftKindOf, resultsDueEpisode, resultsHref, waiversHref, dueAt, byDue };

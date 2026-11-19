@@ -499,7 +499,19 @@ function PostBet({ g, episode, words, onSaved }: { g: GameView; episode: number;
 export function YourTeam({ g, words, exclusive, onFace, onSheet }: { g: GameView; words: ShowData["words"]; exclusive: boolean; onFace: (id: string) => void; onSheet: () => void }) {
   const r = g.you;
   if (!r || !r.team.length) return null;
-  const ids = [...r.team].sort((a, b) => Number(!!faceIn(g, a)?.knocked) - Number(!!faceIn(g, b)?.knocked));
+  // A game with a lineup (Weekly Lineup, best ball: the table's weeks): only who started scores, so each number is what they scored
+  // for you as a starter, with what they scored on the bench beside it, and the numbers add up to your total (the bench's truth
+  // check: docs/PLAN-game-preview.md, "Noticed, not fixed" 4). Anyone who scored for you and has left your team stays listed.
+  const lineup = r.weeks.length > 0;
+  const counted = new Map<string, number>();
+  const benched = new Map<string, number>();
+  for (const w of r.weeks) {
+    for (const x of w.started) counted.set(x.id, (counted.get(x.id) ?? 0) + x.points);
+    for (const x of w.bench) benched.set(x.id, (benched.get(x.id) ?? 0) + x.points);
+  }
+  const predictions = r.weeks.reduce((t, w) => t + (w.predictions ?? 0), 0);
+  const gone = lineup ? [...counted.keys()].filter((id) => !r.team.includes(id) && (counted.get(id) ?? 0) !== 0) : [];
+  const ids = [...[...r.team].sort((a, b) => Number(!!faceIn(g, a)?.knocked) - Number(!!faceIn(g, b)?.knocked)), ...gone];
   return (
     <section className="mt-8 px-4" data-your-team data-game-you>
       <div className="mb-1 flex items-baseline justify-between gap-3">
@@ -509,25 +521,45 @@ export function YourTeam({ g, words, exclusive, onFace, onSheet }: { g: GameView
           <ChevronRight className="size-4" aria-hidden />
         </button>
       </div>
-      {exclusive && <p className="-mt-1 mb-1 text-[13px] text-muted-foreground">Only you have them: one owner each.</p>}
+      {(exclusive || lineup) && (
+        <p className="-mt-1 mb-1 text-[13px] text-muted-foreground">
+          {[exclusive ? "Only you have them: one owner each." : null, lineup ? "Points from when they started: they add up to your total." : null].filter(Boolean).join(" ")}
+        </p>
+      )}
       <ul>
         {ids.map((id) => {
           const c = faceIn(g, id);
           if (!c) return null;
-          const line = c.left ? (c.out ? `Out · ${words.ep} ${c.out}` : "Out") : [c.role, c.tribe?.name].filter(Boolean).join(" · ") || "Still in";
+          const yours = r.team.includes(id);
+          const line = !yours ? "No longer on your team" : c.left ? (c.out ? `Out · ${words.ep} ${c.out}` : "Out") : [c.role, c.tribe?.name].filter(Boolean).join(" · ") || "Still in";
+          const points = lineup ? (counted.get(id) ?? 0) : (c.points ?? 0);
+          const bench = lineup ? (benched.get(id) ?? 0) : 0;
           return (
             <li key={id}>
               <button type="button" data-door-cast={id} onClick={() => onFace(id)} className="nd-press flex min-h-14 w-full items-center gap-3 border-t border-border py-1.5 text-left">
-                <Face src={c.photo} name={c.name} out={c.knocked} className="size-10 flex-none rounded-[2px] text-[15px]" />
+                <Face src={c.photo} name={c.name} out={c.knocked || !yours} className="size-10 flex-none rounded-[2px] text-[15px]" />
                 <span className="min-w-0 flex-1">
-                  <b className={`block truncate text-[16px] font-semibold ${c.knocked ? "text-muted-foreground" : ""}`}>{c.name}</b>
+                  <b className={`block truncate text-[16px] font-semibold ${c.knocked || !yours ? "text-muted-foreground" : ""}`}>{c.name}</b>
                   <small className="block text-[13px] text-muted-foreground">{line}</small>
                 </span>
-                <span className="type-num text-[22px]">{fmt(c.points ?? 0)}</span>
+                <span className="flex flex-none flex-col items-end">
+                  <span className="type-num text-[22px] leading-none" data-team-points={points}>
+                    {fmt(points)}
+                  </span>
+                  {bench !== 0 && <small className="mt-1 text-[13px] leading-none text-muted-foreground">{`${bench > 0 ? "+" : "−"}${fmt(Math.abs(bench))} benched`}</small>}
+                </span>
               </button>
             </li>
           );
         })}
+        {lineup && predictions !== 0 && (
+          <li className="flex min-h-12 items-center gap-3 border-t border-border py-1.5" data-team-predictions>
+            <span className="min-w-0 flex-1 text-[16px] font-semibold">Predictions</span>
+            <span className="type-num text-[22px] leading-none" data-team-points={predictions}>
+              {fmt(predictions)}
+            </span>
+          </li>
+        )}
       </ul>
     </section>
   );

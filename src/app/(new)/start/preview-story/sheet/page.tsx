@@ -2,7 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { MOMENT_NAMES } from "@/new/preview/moments";
+import { inPath, MOMENT_NAMES } from "@/new/preview/moments";
 import type { Preview } from "@/new/preview/story";
 import { PreviewSheet, type SheetItem } from "@/new/preview/sheet";
 
@@ -28,7 +28,11 @@ export default async function PreviewSheetPage() {
       p.moments.some((m) => m.kind === "out") && "Knockouts",
     ].filter((x): x is string => typeof x === "string");
     const bugs = p.moments.flatMap((m) => m.screens.flatMap((s) => s.bugs.map((b) => ({ moment: m.kind === "after" ? `After Episode ${m.episode}` : MOMENT_NAMES[m.kind], screen: s.name, text: b.text }))));
-    items.push({ id, name: p.game.name, has, moments: p.moments.map((m) => m.kind), screens: p.moments.reduce((t, m) => t + m.screens.length, 0), bugs });
+    // Whose view: the couch's owner runs the game (the bench's first person).
+    const viewer = p.people.find((x) => x.id === p.viewer);
+    const who = p.viewer === p.people[0]?.id ? "As whoever runs it" : `As ${viewer?.name ?? "a player"}, a player`;
+    const paths = Object.fromEntries(p.moments.filter((m, i, all) => all.findIndex((x) => x.kind === m.kind) === i).map((m) => [m.kind, inPath(m.kind, m.screens).map((s) => s.name)]));
+    items.push({ id, name: p.game.name, who, paths, has, moments: p.moments.map((m) => m.kind), screens: p.moments.reduce((t, m) => t + m.screens.length, 0), bugs });
   }
   return <PreviewSheet items={items} />;
 }

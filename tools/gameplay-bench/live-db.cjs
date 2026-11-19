@@ -298,7 +298,7 @@ async function seedSocial(ids, snap, document, shiftMs) {
 async function read(ids) {
   const db = pool(ids.db || undefined), leagues = Object.values(ids.leagues), users = Object.values(ids.users).map(u => u.id);
   const states = (await db.query(`SELECT id, state FROM leagues WHERE id = ANY($1::uuid[])`, [leagues])).rows;
-  const members = (await db.query(`SELECT league_id, player_id, results_seen_through FROM league_memberships WHERE league_id = ANY($1::uuid[])`, [leagues])).rows;
+  const members = (await db.query(`SELECT league_id, player_id, role, results_seen_through FROM league_memberships WHERE league_id = ANY($1::uuid[])`, [leagues])).rows;
   const follows = (await db.query(`SELECT user_id, season_id, seen_through FROM show_follows WHERE user_id = ANY($1::text[])`, [users])).rows;
   const answers = (await db.query(`SELECT league_id, player_id, question, episode, answer FROM game_answers WHERE league_id = ANY($1::uuid[])`, [leagues])).rows;
   // Weekly Calls: each person's calls, a cast call named (its season_cast row), as the runtime compares them by name.

@@ -3,6 +3,7 @@
 import { keepPreviousData, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useSyncExternalStore } from "react";
 import { api, phoneTimeZone } from "@/lib/api";
+import type { DraftSoon } from "@/lib/game/draft-soon";
 import type { GameView, WeekProgress } from "@/lib/game/game-view";
 import type { HowItWorks } from "@/lib/game/formats/rulebook-describe";
 import type { SeasonEpisodes, SeasonReveal } from "@/lib/server/season-episodes";
@@ -141,6 +142,8 @@ export interface GameRef {
   /** The episode it starts with: a game started after a span ended is its run back. Null while a game that starts when a phase
    *  of the season does waits for it (step A3 of docs/PLAN-start-a-game-gpt.md): it'll start after anything that's over. */
   start?: number | null;
+  /** Your own games on the home: its draft before it starts (draft-soon.ts), for the hub's plate. */
+  draftSoon?: DraftSoon | null;
 }
 
 export interface SeasonHeader {
@@ -196,6 +199,8 @@ export interface Move {
   /** For an episode that's aired, open to you because you play at your own pace (docs/PLAN-own-pace-games.md) until you've
    *  watched it; `deadline` is then the next episode's air time. */
   late?: boolean;
+  /** "draftStart" (whoever runs the game's: action-items.js runnerItems): the draft's kind, for which room it opens. */
+  draft?: string | null;
 }
 
 export interface HomeShow extends SeasonHeader {
