@@ -607,7 +607,12 @@ then approval.
           practice couch's removal; a dead branch in a test.
         - **The user's to decide:** a practice game made before today can't be ended by its maker now (the sheet's End it was the only
           way, gone since it was hidden this morning; its maker is a member, not its runner). Leave them, give their makers a way to end
-          one, or delete them in production.
+          one, or delete them in production. **Decided (the user, 2026-11-18): "just delete them".** Migration
+          **0443_delete_practice_games.sql** (the next after this branch's 0442; master and every lane at 0441 when written) deletes
+          every `leagues.solo = 'practice'` league at the deploy, as End it did one (everything cascades). Applied on rfl_wizard (it had
+          none). Left as they are: `leagues.solo`'s check and index, the types' "practice" value, and the desk's counts of practice games
+          on a show or season being deleted (desk/setup.tsx, desk/shows.tsx: shown only above zero, so never now); tidy them when the
+          desk is next touched.
       - **The four studied seasons** (The Challenge 41, 40, 39, The Traitors 4): only Survivor 49 is loaded here. They'd add about 8
         tracker games Survivor can't play (the Traitors' secret roles and round table, the Challenge's elimination wins) and their
         formats (pairs, teams); optional, on the user's word (loading needs the local bot's address set, though it asks no bot).
