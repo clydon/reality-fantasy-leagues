@@ -325,6 +325,13 @@ async function sideGame(pool, on = true) {
   if (!lineup) throw new Error("new-fixture.js isn't up");
   const who = ["riley", "jordan", "sam"];
   const ids = Object.fromEntries((await pool.query(`SELECT id, username FROM "user" WHERE username = ANY($1::text[])`, [who.map(username)])).rows.map((r) => [r.username.slice(6), r.id]));
+  // The season's shape as it is in the database (another process's up() may have made it longer: short-games-fixture.js).
+  const season = await one(`SELECT ss.episode_count FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE s.slug = $1`, [SHOW]);
+  const lineupState = (await one(`SELECT state FROM leagues WHERE slug = 'zt-nd-lineup'`)).state;
+  EPISODES = season.episode_count;
+  CURSOR = S.SpoilerLogic.latestWithResults(lineupState);
+  const marks = (await pool.query(`SELECT u.username, m.results_seen_through FROM league_memberships m JOIN "user" u ON u.id = m.user_id JOIN leagues l ON l.id = m.league_id WHERE l.slug = 'zt-nd-lineup'`)).rows;
+  SEEN = Object.fromEntries(marks.map((r) => [r.username.slice(6), r.results_seen_through]));
   const state = JSON.parse(JSON.stringify(buildDemoState({ ...dataOf(), players: who.map((key) => ({ key, name: key, color: "#888" })) }, "active-roster", CURSOR)));
   S.migrateLeagueState(state);
   state.settings.showId = SHOW;

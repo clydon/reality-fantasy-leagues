@@ -8,7 +8,8 @@
 //
 //   npm run dev   (or node scripts/lane.js dev)
 //   node scripts/dev-test/check-short-games.js [--runs=3] [--budget=<ms>] [--each=3] [--episodes=20] [--through=19] [--keep]
-//   (Round 3's 30-episode season: --episodes=30 --through=29)
+//   (Round 3's 30-episode season: --episodes=30 --through=29; the finale aired, so new-fixture's season-long games are over too:
+//   --episodes=20 --through=20)
 //
 // Brings the fixture up and takes it down (--keep leaves it); zt rows only; refuses a non-local database. Shares new-fixture's zt_nd_
 // couch: never run beside another check on it.
@@ -76,12 +77,12 @@ const median = (xs) => xs.slice().sort((a, b) => a - b)[Math.floor(xs.length / 2
         const r = (await me.call("GET", `${reads.archive}&limit=20${before === null ? "" : `&before=${before}`}`)).body;
         paged.push(...r.games);
         if (!r.more || !r.games.length) break;
-        before = r.games[r.games.length - 1].to;
+        before = r.games[r.games.length - 1].ended;
       }
       const ids = paged.map((g) => g.leagueId);
       const mark = all.seenThrough ?? Infinity;
       check(ids.length === new Set(ids).size && JSON.stringify(ids.slice().sort()) === JSON.stringify(over), `${who} · the archive paged to its end (${pages + 1} pages): every game over for you once (${ids.length} of ${over.length})`);
-      check(paged.every((g, i) => i === 0 || g.to <= paged[i - 1].to) && paged.every((g) => g.to <= mark), `${who} · newest first, none past your mark (${Number.isFinite(mark) ? mark : "everything"})`);
+      check(paged.every((g, i) => i === 0 || g.ended <= paged[i - 1].ended) && paged.every((g) => g.ended <= mark), `${who} · newest first, none past your mark (${Number.isFinite(mark) ? mark : "everything"})`);
       check(paged.every((g) => g.winners.length >= 1 && g.you && g.you.place >= 1), `${who} · each kept small: who won it and your place`, JSON.stringify(paged.find((g) => !g.winners.length || !g.you)));
       check(running.length + over.length === all.games.length && running.every((g) => !g.over), `${who} · running (${running.length}) plus the archive (${over.length}): the Games tab's ${all.games.length}`);
     }

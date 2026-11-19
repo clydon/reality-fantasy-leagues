@@ -649,6 +649,23 @@ then approval.
       the episodes read 1.3 s. Every check passes under a 2.5 s budget; running plus the archive is the Games tab's whole, every game
       over for you on exactly one archive page, none past your mark. (The first try at paging split an episode's games across pages
       and lost one at each boundary; a page ends on a whole episode now.)
+    - **Reviewed** (`/code-review high` on 32687816..406268ed, 2026-11-18): eight fixed, two accepted.
+      - The cheap check read the stored state, which can't see every end: a season-long game after its finale (no span end), a game
+        of questions won early by knockouts (its answers' walk), Weekly Calls and bingo (their calls), a game in stages. Such a game
+        fell out of both the running read and the archive. `overByMark` now says true, false or null ("the state can't say"); a null
+        is read in full by both, so it lands where its view says. check-short-games.js with the finale aired (`--through=20`): all
+        63 over for alex, the three season-long games among them, every one in the archive.
+      - The archive paged by where a game ended but said its span's end: each `ArchivedGame` has `ended`, the cursor.
+      - A game over for you can still wait on someone else's late move at their own pace, so its marks are read again (and its view
+        built once); only its sheet, yours, is skipped.
+      - The archive listed the season twice (once to choose its page, once to read it): one listing now (`listHere`, `readHere`).
+      - A failed mark isn't remembered across a read; new-fixture.js's side game reads the season's shape from the database, not
+        from whatever the last up() in its process set.
+      - Accepted: the running read skips readying a game over for you (readyLeague's due work: a bot's, a waiver's); every other read
+        (Tonight, the moves, the full Games tab) still readies every game, and a one-episode game that's over has nothing due.
+      - Accepted: `overByMark` is a second reading of `over`, kept honest by its null for every kind whose end the state can't show,
+        and by check-short-games.js holding running plus the archive to the Games tab's whole.
+      Numbers after: 20 episodes, the Games tab 0.9 to 1.1 s, running 0.3 to 0.4 s, an archive page 0.45 to 0.5 s.
     - **Not built, on purpose:** a stored small result for each finished game. Measured, reading a finished game in full costs about
       10 ms now (no sheet, no marks); a store would be a second copy to keep in step with results corrected later. Revisit if a season
       grows past what the check's budget holds.

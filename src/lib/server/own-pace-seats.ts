@@ -46,7 +46,11 @@ export async function paceMarks(leagueId: string, state: LeagueState, db: Querya
     const key = `${userId}|${seasonId}`;
     let mark = memo?.get(key);
     if (!mark) {
-      mark = seenThrough(userId, seasonId, db);
+      // A failed read isn't kept: the next game asks again (the review, E2).
+      mark = seenThrough(userId, seasonId, db).catch((e) => {
+        memo?.delete(key);
+        throw e;
+      });
       memo?.set(key, mark);
     }
     return mark;
