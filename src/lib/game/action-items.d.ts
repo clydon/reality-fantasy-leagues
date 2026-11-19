@@ -28,6 +28,8 @@ export interface ActionItem {
   invitedBy?: string | null;
   /** "draftStart" only (runnerItems): the draft's kind, for which room it opens. */
   draft?: DraftKindOf | null;
+  /** "draftStart" only: its time is set at or after the game's first episode airs (that's `episode`): move it, or start it now. */
+  draftLate?: boolean;
 }
 
 /** Whoever runs the game's own moves (a Commissioner's): starting a draft that waits for them. Not in actionItems. */
@@ -35,6 +37,12 @@ export function runnerItems(state: LeagueState): ActionItem[];
 
 /** The draft is its Commissioner's to start now: no time set, not started, not waiting on results, a cast and two seats. */
 export function draftStartDue(state: LeagueState): boolean;
+
+/** What a draft needs before it can start ("cast", "players"), or why it isn't its runner's to start ("started", "waits"), or null. */
+export function draftNeeds(state: LeagueState): "cast" | "players" | "started" | "waits" | null;
+
+/** A draft time set at or after the game's first episode airs: that episode, else null. */
+export function draftLate(state: LeagueState): number | null;
 
 /** The game's draft as the draft room runs it (turn-based, blind, a draw, an auction), or null. */
 export function draftKindOf(state: LeagueState): DraftKindOf | null;

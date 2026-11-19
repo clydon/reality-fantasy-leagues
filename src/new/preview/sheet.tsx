@@ -10,7 +10,7 @@ import { MOMENT_NAMES, STEPS, type MomentKind } from "./moments";
 // the phones carry no story controls of their own (embed). Each column: the game's name, what it has, its app bugs said plainly (the
 // sweep's verdict material, above the phone), the preview. One grid, so each column's parts line up with its neighbours'.
 // Round 5: a moment's screens are the app's path, so a second control sets the step every phone shows (where you meet it, what it
-// opens, what it leads to), and each column names its path with the screen it's on (a shorter path stays on its last).
+// opens, what it leads to); each phone's own path (its story's steps) says which screen it's on (a shorter path stays on its last).
 export interface SheetItem {
   id: string;
   name: string;
@@ -53,11 +53,12 @@ export function PreviewSheet({ items }: { items: SheetItem[] }) {
           ))}
         </div>
         {deepest > 1 && (
+          // The step, drawn as the cards draw their path: words in order, the app's chevron between, the step every phone is on filled.
           <div role="radiogroup" aria-label="And at this step of it" className="flex flex-wrap items-center gap-1" data-sheet-steps>
             {STEPS.slice(0, deepest).map((label, i) => (
               <Fragment key={label}>
                 {i > 0 && <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />}
-                <button type="button" role="radio" aria-checked={step === i} data-sheet-step={i + 1} onClick={() => setStep(i)} className={`nd-press h-11 rounded-[3px] px-3 text-[15px] font-semibold ${step === i ? "bg-foreground text-background" : "bg-secondary text-muted-foreground"}`}>
+                <button type="button" role="radio" aria-checked={step === i} data-sheet-step={i + 1} onClick={() => setStep(i)} className={`nd-press type-caption h-11 rounded-[3px] px-2.5 text-[15px] tracking-[0.04em] ${step === i ? "bg-foreground text-background" : "text-muted-foreground"}`}>
                   {label}
                 </button>
               </Fragment>
@@ -71,17 +72,6 @@ export function PreviewSheet({ items }: { items: SheetItem[] }) {
             <div className="flex flex-col gap-1 self-end">
               <h2 className="type-caption text-[22px] leading-[0.95]">{it.name}</h2>
               <p className="text-[13px] text-muted-foreground">{[it.who, ...it.has].join(" · ")}</p>
-              {moment !== "story" && (
-                <p className="flex flex-wrap items-center gap-1 text-[13px]" data-sheet-path>
-                  {(it.paths[moment] ?? []).map((name, i, all) => (
-                    <Fragment key={name}>
-                      {i > 0 && <ChevronRight className="size-3.5 text-muted-foreground" aria-hidden />}
-                      <span className={i === Math.min(step, all.length - 1) ? "font-bold text-foreground underline decoration-2 underline-offset-4" : "text-muted-foreground"}>{name}</span>
-                    </Fragment>
-                  ))}
-                  {!it.paths[moment] && <span className="text-muted-foreground">No {MOMENT_NAMES[moment].replace(/^The /, "").toLowerCase()} in this game</span>}
-                </p>
-              )}
             </div>
             <div className="flex flex-col gap-2" data-sheet-bugs={it.bugs.length}>
               {it.bugs.length ? (

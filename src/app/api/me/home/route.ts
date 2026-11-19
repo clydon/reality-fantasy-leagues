@@ -16,6 +16,7 @@ import { progressOf } from "@/lib/server/season-games";
 import { leagueStates } from "@/lib/server/league-states";
 import { resultsDue } from "@/lib/game/results-due";
 import { runnerItems } from "@/lib/game/action-items.js";
+import { stampAirTimes } from "@/lib/server/air-times";
 import { draftSoonOf } from "@/lib/game/draft-soon";
 import type { LeagueState } from "@/lib/game/types";
 import { keepTimeZone, unreadNotes } from "@/lib/server/notify-prefs";
@@ -123,10 +124,14 @@ export const GET = apiRoute(async (req) => {
   ]);
   // Whoever runs a game's own move (docs/design-round/draft-start-spec.md): a draft with no time set that waits for them to start
   // it (action-items.js runnerItems). The classic bar's control room says it its own way, so it's added here, not in dueMoves.
-  const runnerMoves = myGames.flatMap((g) => {
+  const runnerMoves: (ReturnType<typeof runnerItems>[number] & { leagueId: string; leagueName: string })[] = [];
+  for (const g of myGames) {
     const st = g.yourRole === "commissioner" ? states.get(g.leagueId) : undefined;
-    return st ? runnerItems(st).map((it) => ({ ...it, leagueId: g.leagueId, leagueName: g.name })) : [];
-  });
+    if (!st || !draftSoonOf(st, g.runnerIds)) continue;
+    // A draft set after the game's first episode airs is late: the air times first (due-moves.ts does the same for its moves).
+    await stampAirTimes(pool, st, g.leagueId).catch(() => {});
+    runnerMoves.push(...runnerItems(st).map((it) => ({ ...it, leagueId: g.leagueId, leagueName: g.name })));
+  }
   // Who's set this week in your games with a weekly move, read after the moves so each state costs a hash.
   const [progress, early, seats, keeping] = await Promise.all([
     progressOf(user, myGames),

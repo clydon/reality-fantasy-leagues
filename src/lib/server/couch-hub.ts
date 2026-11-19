@@ -249,6 +249,8 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
         artUrl: header.show.artUrl,
         year: header.premiereDate ? Number(header.premiereDate.slice(0, 4)) : null,
         through: now.through,
+        // The episode it starts counting with (null: waiting for its phase): no place before it (round 5's check).
+        from: StateLogic.startEpisode(state),
         // An archived game (step 10 part 2b) is over where it stood: it keeps its place on the trophy shelf.
         ended: now.ended || g.archived,
         ownPace: StateLogic.GhostLogic.ownPace(state),
@@ -296,7 +298,8 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
         gameType: g.gameType,
         label: g.label,
         artUrl: g.artUrl,
-        rank: g.through > 0 && me ? me.rank : null,
+        // A place only once the game has counted an episode you've seen: before its start everyone's level (no "Best 1st").
+        rank: me && g.from != null && g.through >= g.from ? me.rank : null,
         // Teams, not rows: a team two people share is one (step A10 part 4b).
         of: fieldOf(g.rows),
         through: g.through,

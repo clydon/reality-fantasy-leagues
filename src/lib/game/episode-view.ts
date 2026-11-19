@@ -154,7 +154,7 @@ export function nightIn(game: GameRefIn, view: LeagueState, me: string, ep: Epis
       const d = pts(at) - pts(before);
       const id = StateLogic.StageLogic.copyOf(st.key) ?? st.key;
       const name = (StateLogic.StageLogic.stages(view) as { id: string; name?: string | null }[]).find((x) => x.id === id)?.name ?? null;
-      return { ...base, big: `${signed(d)} ${Math.abs(d) === 1 ? "pt" : "pts"}`, line: name ? `In ${name}` : "From its stage" };
+      return { ...base, big: `${signed(d)} ${Math.abs(d) === 1 ? "pt" : "pts"}`, line: name ?? "From its stage" };
     }
     return { ...base, big: "—", line: "Its stages score it" };
   }
@@ -328,8 +328,8 @@ export function revealIn(game: GameRefIn, full: LeagueState, me: string, n: numb
   const at = (rows: TableRow[], id: string) => rows.find((r) => r.playerId === id);
   const table: RevealTable = {
     leagueId: game.leagueId,
-    // A game in stages goes by its own name ("Fantasy league standings"): its kind ("Stages") isn't what it's called.
-    gameName: StateLogic.StageLogic.on(full) ? game.name : game.gameName,
+    // A game in stages: the overall ("Overall standings", as its page says it), never its kind ("Stages").
+    gameName: StateLogic.StageLogic.on(full) ? "Overall" : game.gameName,
     rows: now.map((r) => {
       const b = at(was, r.playerId) ?? r;
       return { playerId: r.playerId, userId: r.userId, name: r.name, you: r.you, before: { place: b.place, rank: b.rank, total: b.total }, after: { place: r.place, rank: r.rank, total: r.total } };

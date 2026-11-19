@@ -109,3 +109,26 @@ hourly reminders read exactly what they did.
 3. Everyone else: quiet and named ("Waiting for Riley"), never yellow (nothing's theirs) and never "All set" (they have no team).
 4. The rule lives in the engine beside actionItems and is read by the new design's home and the bench; the classic bar and the
    reminders stay as they were.
+
+## The round (2026-11-19)
+
+Built through Intent (this spec), Perception-First Design (draft-start-first-view.md) and Impeccable, then checked once each:
+Impeccable's critique 27/40 (round5-critique.md), PFD's evaluation 65/100 (round5-pfd-eval.md). One batch of fixes, from both:
+- **No place before anything counts.** Before a game's first episode counts, no screen claims a place or a set lineup: the game
+  page's This week says "4 playing · nothing counted yet", Tonight's game section shows no place and "No team yet", the hub's
+  poster no "Best 1st", the Overall line waits, and a lineup with nobody on the roster isn't a move.
+- **One rule for the ⋯ dot.** Backstage's draft need is the strip's rule (draftStartDue), so the dot goes out once a time is set or
+  the draft starts, and never lights for a later stage's draft that waits on results.
+- **The wait drawn and said once.** The game page shows it as the strip's quiet plate with the hourglass; the room says "Waiting for
+  Alex to start the draft" (and the runner "Nobody can pick until you start it"); every draft time is the calm clock's.
+- **The room:** seats say "Joined" before the start; the lead icon is no longer yellow; Start the draft now is outlined once a time
+  is set (it starts by itself).
+- **A runner alone or without a cast** is told what the draft needs ("The draft needs one more person · Invite someone in
+  Backstage"), quiet, opening Backstage (the critique's option a).
+- **A time set after the game's first episode airs** is the runner's move again: "Move the draft before Ep 9 · It's set for …, after
+  it airs", yellow (PFD's L3 finding; the critique's option b, the warning).
+- Your team's bench in words ("1 on the bench") and a total at its foot; "Overall standings" on a game in stages' reveal; an
+  episode's line names its stage without "In".
+
+Left for the user (the critique's questions): a pre-draft page of its own; the yellow for a lone runner, or asking when the draft is
+while making the game; Start the draft turning urgent in its last day. Not done: an undo for Start the draft.

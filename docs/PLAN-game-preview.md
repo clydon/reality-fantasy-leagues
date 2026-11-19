@@ -295,6 +295,9 @@ sections, then the specifics?", "we should fix the unstarted draft", "we probabl
   check that the runner's draft room has its Start goes with the draft. `viewerId` makes the same game from anyone's seat: the first
   slice's script adds "fantasy-player" (the second person).
 - **The app's fixes** for "Noticed, not fixed" 1 to 4 (below), each held by the bench's checks on the real screens.
+- **The check** (Impeccable 27/40, PFD 65/100) and its one batch: no place before anything counts, the ⋯ dot on the strip's rule, the
+  wait drawn and worded once, a lone runner told what the draft needs, a draft time after the first episode flagged
+  (docs/design-round/draft-start-spec.md, "The round").
 - **Cost, measured again:** Fantasy league 90 s (15 screens) as its runner and 90 s as a player, Prediction sheet 68 s (8), Survival
   pool 46 s (8), each with 10 made-up seasons; the path's extra shots cost about a second each.
 
@@ -328,3 +331,5 @@ should address the other fixes too") fixed 1 to 4 on this branch; what's left is
 7. **The pieces test fails on the gallery** (tests/pieces.test.js, "nothing in scoring reads a league type or compares one by
    name"): src/lib/game/start-gallery/index.js reads a league type. The gallery is the wizard lane's; it fails without this round's
    changes too.
+8. **A react-hooks purity lint error** in src/new/show/game-page.tsx (Date.now() in render, the This week block's "Under way"),
+   from before this round.

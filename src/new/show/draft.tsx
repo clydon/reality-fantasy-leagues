@@ -932,7 +932,7 @@ function WaitingCard({ seasonId, show, game, onSettings }: { seasonId: string; s
       <ClockCard
         tone="quiet"
         lead={
-          <span className="grid size-11 flex-none place-items-center rounded-[3px] bg-secondary text-chyron-line">
+          <span className="grid size-11 flex-none place-items-center rounded-[3px] bg-secondary text-foreground">
             {game.kind === "blind" ? <Eye className="size-5" aria-hidden /> : <Users className="size-5" aria-hidden />}
           </span>
         }
@@ -943,8 +943,8 @@ function WaitingCard({ seasonId, show, game, onSettings }: { seasonId: string; s
             : game.waits
               ? game.waits
               : game.commissioner
-                ? "Everyone's waiting on you · start it when everyone's in"
-                : `Not started yet · ${game.runBy ?? "whoever runs the game"} starts it`
+                ? "Nobody can pick until you start it"
+                : `Waiting for ${game.runBy ?? "whoever runs the game"} to start the draft`
         }
       />
       {game.commissioner && (
@@ -953,7 +953,8 @@ function WaitingCard({ seasonId, show, game, onSettings }: { seasonId: string; s
             {at != null ? "Change time" : "Pick a time"}
           </Btn>
           <Btn
-            tone="must"
+            // With a time set it starts by itself: starting it now is optional, so never the yellow (the One Chyron Rule).
+            tone={at != null && !game.late ? "optional" : "must"}
             className="flex-1"
             data-draft-start
             onClick={async () => {
@@ -1116,7 +1117,7 @@ function BlindRoom({ seasonId, show, game, onSettings, sport }: { seasonId: stri
             <span key={s.playerId} data-in={isIn || undefined} className={`flex flex-col items-center gap-1 text-[11px] ${isIn ? "" : "opacity-55"}`}>
               <Avatar id={s.userId ?? s.playerId} name={s.name} size={30} />
               <b className="max-w-[72px] truncate text-[12px] font-semibold">{s.you ? "You" : first(s.name)}</b>
-              <small className={isIn ? "font-bold text-good" : "text-muted-foreground"}>{isIn ? "In" : live ? "Picking" : "Waiting"}</small>
+              <small className={isIn ? "font-bold text-good" : "text-muted-foreground"}>{isIn ? "In" : live ? "Picking" : game.phase === "waiting" ? "Joined" : "Waiting"}</small>
             </span>
           );
         })}

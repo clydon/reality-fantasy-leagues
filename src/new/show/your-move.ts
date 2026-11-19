@@ -1,4 +1,4 @@
-import { draftSoonWords } from "./draft-words";
+import { draftSoonWords, draftWhen } from "./draft-words";
 import type { DraftGame, GameView, WaiverWeek } from "../data";
 import { ordinal } from "../games";
 import { paths } from "../routes";
@@ -61,7 +61,7 @@ export function movesOf(g: GameView, o: MoveContext): YourMove[] {
       // Before it starts (docs/design-round/draft-start-spec.md): whoever runs it has it to start (due: nobody can pick until they
       // do); everyone else is told who it waits for, or when it starts, in the strip's own words (draft-words.ts).
       const place = d.turns.indexOf(d.you);
-      const soon = draftSoonWords({ kind: d.kind, at: d.scheduledAt, waits: d.waits, runBy: d.runBy, startDue: d.startDue }, d.commissioner, o.when);
+      const soon = draftSoonWords({ kind: d.kind, at: d.scheduledAt, waits: d.waits, runBy: d.runBy, startDue: d.startDue, late: d.late, needs: d.startNeeds }, d.commissioner, (iso) => draftWhen(iso), E === "Episode" ? "Ep" : E);
       found.push({
         ...room,
         title: soon.title,
@@ -155,7 +155,8 @@ export function movesOf(g: GameView, o: MoveContext): YourMove[] {
 
   // The week's lineup.
   const L = g.lineup;
-  if (L && g.gameType === "active-roster") {
+  // No team yet (before its draft): no lineup to set or change (round 5's check: never "Set" for a seat with nobody to start).
+  if (L && g.gameType === "active-roster" && L.roster.length > 0) {
     const title = `Your ${E} ${L.episode} lineup`;
     const faces = L.starters.slice(0, L.slots);
     const lineup = { kind: "lineup" as const, faces, out: [], go: { tab: "lineup" as const } };

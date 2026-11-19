@@ -3,7 +3,7 @@
 import { inShowWords } from "@/lib/game/show-words";
 import { useWithRoles } from "../sports/faces";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Heart, MoreHorizontal, X } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Heart, Hourglass, MoreHorizontal, X } from "lucide-react";
 import { LATE_SET, LateMark } from "./lineup-sheet";
 import { lockTime } from "../clock";
 import { useQueryClient } from "@tanstack/react-query";
@@ -206,7 +206,7 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
       )
     ) : ended && !strip.due ? (
       plain(null)
-    ) : !strip.due && strip.go && !strip.inPlace ? (
+    ) : !strip.due && strip.go && !strip.inPlace && strip.tag !== "Draft" ? (
       <OptionalLine strip={strip} g={wg} show={show} />
     ) : (
       <Strip strip={strip} g={wg} show={show} className="mt-3" />
@@ -270,7 +270,7 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
       {m.inPlace === "questions" && <InPlaceQuestions seasonId={seasonId} g={g} />}
       {m.inPlace === "twist" && twist?.next && <TwistChooser leagueId={g.leagueId} t={twist} />}
       {m.inPlace === "slots" && <SlotPicker g={g} seasonId={seasonId} />}
-      {stage && g.you && (
+      {stage && g.you && g.from !== null && g.through >= g.from && (
         <p className="mx-4 mt-4 text-[15px]" data-game-overall>
           <b className="font-semibold">Overall:</b> {ordinal(g.you.place)} of {g.players} · {totalWords(g, g.you)} <span className="text-muted-foreground">(both stages&apos; points add up)</span>
         </p>
@@ -476,7 +476,16 @@ function OptionalLine({ strip, g, show }: { strip: StripM; g: GameView; show: Sh
 
 function Strip({ strip, g, show, className = "mx-4 mt-3" }: { strip: StripM; g: GameView; show: ShowData; className?: string }) {
   const go = useStripGo(strip, g, show);
-  const plate = <Plate tag={strip.tag} tone={strip.tone} title={strip.title} line={strip.line} size={strip.due ? "md" : "sm"} chevron={strip.go ? (strip.inPlace ? "down" : "right") : null} />;
+  // A draft that hasn't started and isn't yours to start: coming, and not yours, an hourglass on its tag (the show tabs' strip's own).
+  const tag = strip.tag === "Draft" && !strip.due ? (
+    <span className="inline-flex items-center gap-1.5">
+      <Hourglass className="size-4" strokeWidth={2.5} aria-hidden />
+      Draft
+    </span>
+  ) : (
+    strip.tag
+  );
+  const plate = <Plate tag={tag} tone={strip.tone} title={strip.title} line={strip.line} size={strip.due ? "md" : "sm"} chevron={strip.go ? (strip.inPlace ? "down" : "right") : null} />;
   return (
     <div className={className} data-game-strip={strip.kind} data-game-due={strip.due ? "yes" : "no"}>
       {strip.go ? (

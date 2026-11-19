@@ -201,6 +201,8 @@ export interface Move {
   late?: boolean;
   /** "draftStart" (whoever runs the game's: action-items.js runnerItems): the draft's kind, for which room it opens. */
   draft?: string | null;
+  /** "draftStart": its time is set after the game's first episode (`episode`) airs. */
+  draftLate?: boolean;
 }
 
 export interface HomeShow extends SeasonHeader {

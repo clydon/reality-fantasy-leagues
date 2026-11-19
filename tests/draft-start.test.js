@@ -50,7 +50,7 @@ test("nothing to start: a time set (it starts by itself), started, one seat, no 
 
 test("everyone else: who it waits for, by the Commissioner's seat name; when it starts; gone once it's started", () => {
   const s = league();
-  assert.deepEqual(draftSoonOf(s, ["bo"]), { kind: "snake", at: null, waits: null, runBy: "Bo", startDue: true });
+  assert.deepEqual(draftSoonOf(s, ["bo"]), { kind: "snake", at: null, waits: null, runBy: "Bo", startDue: true, late: null, needs: null });
   assert.equal(draftSoonOf(s, [])?.runBy, null, "nobody known: the words say whoever runs the game");
   const at = new Date(Date.now() + 86400000).toISOString();
   S.updateSettings(s, "draftScheduledAt", at);
@@ -70,4 +70,22 @@ test("the draft room: whose Start it is, and the name everyone else is told", ()
   const player = view("bo", "member");
   assert.equal(player.startDue, false, "only a Commissioner starts it");
   assert.equal(player.runBy, "Ann");
+});
+
+test("a time set after the game's first episode airs is late: the runner's to move; and what a draft can't start without", () => {
+  const { draftLate, draftNeeds } = require("../src/lib/game/action-items.js");
+  const s = league();
+  s.episodes[0].airsAt = new Date(Date.now() + 3600000).toISOString();
+  S.updateSettings(s, "draftScheduledAt", new Date(Date.now() + 86400000).toISOString());
+  assert.equal(draftLate(s), 1);
+  assert.equal(draftStartDue(s), true, "late: due again");
+  const [it] = runnerItems(s);
+  assert.equal(it.draftLate, true);
+  assert.equal(it.episode, 1);
+  S.updateSettings(s, "draftScheduledAt", new Date(Date.now() + 1800000).toISOString());
+  assert.equal(draftLate(s), null, "before it airs: it starts by itself");
+  assert.equal(draftStartDue(s), false);
+  assert.equal(draftNeeds(league({ people: ["ann"] })), "players");
+  assert.equal(draftNeeds(league({ cast: 0 })), "cast");
+  assert.equal(draftSoonOf(league({ people: ["ann"] }), ["ann"]).needs, "players");
 });

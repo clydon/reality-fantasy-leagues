@@ -31,6 +31,8 @@ export interface StandingRow {
 }
 
 export interface GameStanding {
+  /** The episode it starts counting with, or null while it waits for its phase (couch-hub.ts: no place before it). */
+  from?: number | null;
   leagueId: string;
   /** The game's own name ("Couch Cup") and its kind's ("Outlast"). */
   name: string;

@@ -87,6 +87,10 @@ export interface DraftGame extends GameRefIn {
   startDue: boolean;
   waits: string | null;
   runBy: string | null;
+  /** A time set at or after the game's first episode airs: that episode (draft-soon.ts). */
+  late: number | null;
+  /** What the draft can't start without (draft-soon.ts needs): Backstage's Add the cast or Invite people. */
+  startNeeds: "cast" | "players" | null;
   /** The cast is in: nothing to draft until it is. */
   castReady: boolean;
   /** How many each team drafts. */
@@ -239,7 +243,7 @@ export function draftView(
     commissioner: role === "commissioner",
     phase,
     scheduledAt: full.settings.draftScheduledAt ?? null,
-    ...((soon) => ({ startDue: !!soon?.startDue && role === "commissioner", waits: soon?.waits ?? null, runBy: soon?.runBy ?? null }))(phase === "waiting" ? draftSoonOf(full, game.runnerIds) : null),
+    ...((soon) => ({ startDue: !!soon?.startDue && role === "commissioner", waits: soon?.waits ?? null, runBy: soon?.runBy ?? null, late: soon?.late ?? null, startNeeds: soon?.needs ?? null }))(phase === "waiting" ? draftSoonOf(full, game.runnerIds) : null),
     castReady: view.castaways.some((c) => c.status === "active"),
     size,
     cast,

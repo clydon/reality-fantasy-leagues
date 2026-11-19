@@ -283,3 +283,11 @@ tab), then what a tap opens (the game page, the draft room, the move), then what
 - The phone opens on the first step. Moving through the tabs is walking the path.
 - The sheet: every phone shows the same step of the same moment. Its controls set the moment and the step (where you meet it, or
   the screen it opens), so a sweeper can compare the games where a player first meets each one, then where they act on it.
+
+### Round 5's check (2026-11-19)
+
+Checked with the draft's round (draft-start-spec.md, "The round"): Impeccable 27/40, PFD 65/100. For the preview: the path's current
+step is filled (not underlined like a tab), a step further down the same page follows a dot, not a chevron (only a tap gets the
+app's chevron); the sheet's step control is drawn the same way, and each column no longer repeats its path (its phone's own does);
+the draft card's line says who starts it ("You start it, then everyone picks, before Episode 9"), so the headline never sits over
+"Nobody can pick until you do" unexplained.

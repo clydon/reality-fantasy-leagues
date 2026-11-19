@@ -67,9 +67,9 @@ test("A reveal in the way: the card says so, quietly (the dock asks for the reve
 });
 
 test("Outlast's draft: coming up, your turn, someone else's, blind; the draft room or the blind page", () => {
-  const soon = yourMove(game(), ctx({ draft: draft() }));
+  const soon = yourMove(game(), ctx({ draft: draft({ scheduledAt: new Date(Date.now() + 2 * 86400000).toISOString() }) }));
   assert.equal(soon.kind, "draft");
-  assert.equal(soon.title, "The draft starts at Sat");
+  assert.match(soon.title, /^The draft starts .+ · in 2 days$/, "the calm clock, as the strip and the hub say it");
   assert.equal(soon.line, "You pick 2nd · star who you want first");
   assert.equal(soon.due, false);
   assert.deepEqual(soon.go, { href: "/show/S/draft?game=L1" });

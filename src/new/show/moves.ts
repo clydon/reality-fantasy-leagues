@@ -63,7 +63,13 @@ export function moveCard(m: Move, seasonId: string, twin: boolean, paced = false
       return { key, title: m.text, line: `${when ? `Due ${when} · ` : ""}you pick who comes in${which}`, action: "Pick who comes in", href: `${paths.showPage(seasonId, "waivers")}?game=${m.leagueId}` };
     case "draftStart":
       // Whoever runs the game (action-items.js runnerItems): nobody picks until they start it (docs/design-round/draft-start-spec.md).
-      return { key, title: "Start the draft", line: `Nobody can pick until you do${which}`, action: "Draft room", href: `${paths.showPage(seasonId, m.draft === "blind" ? "blind" : "draft")}?game=${m.leagueId}` };
+      return {
+        key,
+        title: m.draftLate && m.episode != null ? `Move the draft before ${episodeWord} ${m.episode}` : "Start the draft",
+        line: `${m.draftLate ? "It's set for after it airs" : "Nobody can pick until you do"}${which}`,
+        action: "Draft room",
+        href: `${paths.showPage(seasonId, m.draft === "blind" ? "blind" : "draft")}?game=${m.leagueId}`,
+      };
     case "draftTurn":
       return { key, title: "Your turn to draft", line: m.leagueName, action: "Draft", href: `${paths.showPage(seasonId, "draft")}?game=${m.leagueId}` };
     case "blindDraft":

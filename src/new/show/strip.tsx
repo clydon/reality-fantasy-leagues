@@ -5,7 +5,7 @@ import { Check, ChevronRight, Hourglass, Lock } from "lucide-react";
 import { airTime } from "../clock";
 import { useNav } from "../nav";
 import { paths } from "../routes";
-import { draftRoomPage, draftSoonWords } from "./draft-words";
+import { draftRoomPage, draftSoonWords, draftWhen } from "./draft-words";
 import type { ShowData } from "../screens/show-space";
 import { openCall } from "./calls";
 import { doneCards, isRequired, moveCard, openMoves, tabOf, type MovesTab } from "./moves";
@@ -67,7 +67,14 @@ export function stripState(show: ShowData): StripState | null {
   if (start) {
     const more = new Set(open.filter((m) => m !== start).map((m) => m.kind + m.leagueId)).size;
     const twin = open.filter((m) => m.kind === "draftStart").length > 1;
-    return { tone: "due", tag: "Draft", title: `Start the draft${more ? ` · ${more} more` : ""}`, line: `Nobody can pick until you do${twin ? ` · ${start.leagueName}` : ""}` };
+    // A time set after the game's first episode airs: move it (or start it now), the same yellow.
+    const late = start.draftLate && start.episode != null;
+    return {
+      tone: "due",
+      tag: "Draft",
+      title: `${late ? `Move the draft before ${ep} ${start.episode}` : "Start the draft"}${more ? ` · ${more} more` : ""}`,
+      line: `${late ? "It's set for after it airs" : "Nobody can pick until you do"}${twin ? ` · ${start.leagueName}` : ""}`,
+    };
   }
   if (open.length) {
     // A draft turn is due now, not at a lock: it leads, and the line says so (step 6's check).
@@ -89,8 +96,9 @@ export function stripState(show: ShowData): StripState | null {
   // have no team yet). Not one that can't open yet (a later stage's, waiting on the results before it: its game's page says when).
   const soon = (show.play ?? []).find((g) => !paced.has(g.leagueId) && !g.over && g.draftSoon && !g.draftSoon.waits && g.yourRole);
   if (soon?.draftSoon) {
-    const w = draftSoonWords(soon.draftSoon, soon.yourRole === "commissioner", (iso) => airTime(Date.parse(iso)));
-    return { tone: w.due ? "due" : "soon", tag: "Draft", title: w.title, line: w.line, href: `${paths.showPage(show.header?.seasonId ?? "", draftRoomPage(soon.draftSoon.kind))}?game=${soon.leagueId}` };
+    const seasonId = show.header?.seasonId ?? "";
+    const w = draftSoonWords(soon.draftSoon, soon.yourRole === "commissioner", (iso) => draftWhen(iso), ep);
+    return { tone: w.due ? "due" : "soon", tag: "Draft", title: w.title, line: w.line, href: w.backstage ? paths.backstage(seasonId) : `${paths.showPage(seasonId, draftRoomPage(soon.draftSoon.kind))}?game=${soon.leagueId}` };
   }
   // Every own-pace move in for the episode you're on: all set until you reveal it.
   if (behind.length) {

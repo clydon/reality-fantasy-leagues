@@ -7,7 +7,7 @@
 //
 // Needs this lane's dev server (BASE, default http://localhost:3014) and its database. Writes <out>/<who>-<screen>.png and .txt
 // (the screen's words), who being "runner" (the couch's owner, who runs the game) or "player" (the second person), and "-timed"
-// frames once a time is set.
+// frames once a time is set before the first episode, "-late" (the runner) once it's set after it.
 const fs = require("fs");
 const path = require("path");
 process.env.BASE = process.env.BASE || "http://localhost:3014";
@@ -54,11 +54,17 @@ const W = Number(opt("width", 390)), H = Number(opt("height", 844));
     };
     await shoot("runner", people[0], "");
     await shoot("player", people[1], "");
-    // A time set (Pick a time): it starts by itself then, so nothing's the runner's to do; both see when.
-    const r = await c.call(people[0], "POST", `/api/seasons/${c.season}/draft`, { leagueId: c.league(first), action: "settings", scheduledAt: new Date(Date.now() + 2 * 86400000).toISOString() });
-    if (r.status !== 200) throw Error(`Couldn't set a time (${r.status}): ${JSON.stringify(r.body).slice(0, 160)}`);
+    // A time set (Pick a time) before the game's first episode airs: it starts by itself then, so nothing's the runner's to do; both
+    // see when. Then one set after that episode airs: nobody would have a team for it, so it's the runner's to move.
+    const setAt = async (ms) => {
+      const r = await c.call(people[0], "POST", `/api/seasons/${c.season}/draft`, { leagueId: c.league(first), action: "settings", scheduledAt: new Date(ms).toISOString() });
+      if (r.status !== 200) throw Error(`Couldn't set a time (${r.status}): ${JSON.stringify(r.body).slice(0, 160)}`);
+    };
+    await setAt(Date.now() + 2 * 3600000);
     await shoot("runner", people[0], "-timed");
     await shoot("player", people[1], "-timed");
+    await setAt(Date.now() + 2 * 86400000);
+    await shoot("runner", people[0], "-late");
   } finally {
     await c.down();
   }

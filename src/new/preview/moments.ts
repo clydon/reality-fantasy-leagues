@@ -23,5 +23,7 @@ export function inPath<T extends { id: string }>(kind: MomentKind, screens: T[])
   };
   return [...screens].sort((a, b) => at(a) - at(b));
 }
+/** A step on the same page as the one before it, reached by scrolling, not a tap: no chevron before it (round 5's check). */
+export const ON_PAGE = new Set(["team"]);
 /** The sheet's steps, in words: which part of every moment's path its phones show. */
 export const STEPS = ["Where you meet it", "What it opens", "What it leads to"] as const;

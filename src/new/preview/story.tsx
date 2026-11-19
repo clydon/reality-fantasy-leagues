@@ -8,7 +8,7 @@ import type { GameView, TableRow } from "../data";
 import { ordinal } from "../games";
 import { bestOf } from "../show/game-week";
 import { Btn } from "../ui/parts";
-import { inPath, MOMENT_NAMES, type MomentKind } from "./moments";
+import { inPath, MOMENT_NAMES, ON_PAGE, type MomentKind } from "./moments";
 
 // TEMP, development only (docs/design-round/preview-story-spec.md, "Round 4"; docs/PLAN-game-preview.md, "The bench's previews"): a
 // game's preview, made by the bench for any game it runs (tools/gameplay-bench/preview/preview.cjs), as a short story of the moments
@@ -90,8 +90,13 @@ function cardOf(p: Preview, m: Moment, t: ReturnType<typeof typical>): Card {
   switch (m.kind) {
     case "game":
       return { title: p.game.name, line: inShowWords(top?.short ?? p.game.short, WORDS), check: null };
-    case "draft":
-      return { title: `Pick ${g?.you?.team.length ?? ""} in private`, line: `Before ${EP} ${m.episode}`, check: t.overlap(m.game) };
+    case "draft": {
+      // Who starts it, as Tonight's strip says where you meet it (whoever runs the game starts it; everyone else waits for them),
+      // so the headline never sits over "nobody can pick" unexplained (round 5's check).
+      const at = m.screens.find((s) => s.id === "tonight")?.strip?.title ?? "";
+      const by = /^Start the draft/.test(at) ? "You start it" : /^Waiting for (.+) to start the draft/.exec(at)?.[1] ? `${/^Waiting for (.+) to start the draft/.exec(at)![1]} starts it` : null;
+      return { title: `Pick ${g?.you?.team.length ?? ""} in private`, line: by ? `${by}, then everyone picks, before ${EP} ${m.episode}` : `Before ${EP} ${m.episode}`, check: t.overlap(m.game) };
+    }
     case "week": {
       const open = (m.views[m.game]?.questions ?? []).filter((q) => !q.closed && q.episode === m.episode).length;
       const title = g?.lineup
@@ -320,11 +325,19 @@ export function PreviewStory({ preview: p }: { preview: Preview }) {
           {/* The moment's real screens as the app's path, by its own names, its chevron between them: where you meet it first. One with
               an app bug keeps its place, tagged. */}
           <div className="flex items-end gap-2 border-b border-border">
-            <div role="tablist" aria-label="The real screens at this moment, in the order the app takes you" className="flex min-w-0 flex-1 items-center gap-1" data-path>
+            <div role="tablist" aria-label="The real screens at this moment, in the order the app takes you" className="flex min-w-0 flex-1 items-center gap-1 pb-2" data-path>
               {screens.map((s, i) => (
                 <Fragment key={s.id}>
-                  {i > 0 && <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />}
-                  <button type="button" role="tab" aria-selected={s === at} data-screen={s.id} onClick={() => { setTab(null); setScreen(i); }} className={`nd-press type-caption -mb-px flex h-11 min-w-0 flex-none items-center gap-1.5 border-b-2 px-0.5 text-[15px] tracking-[0.04em] ${s === at ? "border-foreground text-foreground" : "border-transparent text-muted-foreground"}`}>
+                  {/* A tap leads on (the app's chevron); a step further down the same page doesn't. */}
+                  {i > 0 && (ON_PAGE.has(s.id) ? <span aria-hidden className="px-0.5 text-muted-foreground">·</span> : <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />)}
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={s === at}
+                    data-screen={s.id}
+                    onClick={() => { setTab(null); setScreen(i); }}
+                    className={`nd-press type-caption flex h-9 min-w-0 flex-none items-center gap-1.5 rounded-[3px] px-2 text-[15px] tracking-[0.04em] ${s === at ? "bg-foreground text-background" : "text-muted-foreground"}`}
+                  >
                     {s.name}
                     {s.bugs.length > 0 && <span className="rounded-[2px] border border-current px-1 text-[11px] leading-[15px]">Bug</span>}
                   </button>

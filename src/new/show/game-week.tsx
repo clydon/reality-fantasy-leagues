@@ -523,7 +523,7 @@ export function YourTeam({ g, words, exclusive, onFace, onSheet }: { g: GameView
       </div>
       {(exclusive || lineup) && (
         <p className="-mt-1 mb-1 text-[13px] text-muted-foreground">
-          {[exclusive ? "Only you have them: one owner each." : null, lineup ? "Points from when they started: they add up to your total." : null].filter(Boolean).join(" ")}
+          {[exclusive ? "Only you have them: one owner each." : null, lineup ? "What each scored for you as a starter." : null].filter(Boolean).join(" ")}
         </p>
       )}
       <ul>
@@ -546,7 +546,7 @@ export function YourTeam({ g, words, exclusive, onFace, onSheet }: { g: GameView
                   <span className="type-num text-[22px] leading-none" data-team-points={points}>
                     {fmt(points)}
                   </span>
-                  {bench !== 0 && <small className="mt-1 text-[13px] leading-none text-muted-foreground">{`${bench > 0 ? "+" : "−"}${fmt(Math.abs(bench))} benched`}</small>}
+                  {bench !== 0 && <small className="mt-1 text-[13px] leading-none text-muted-foreground">{`${fmt(bench)} on the bench`}</small>}
                 </span>
               </button>
             </li>
@@ -558,6 +558,12 @@ export function YourTeam({ g, words, exclusive, onFace, onSheet }: { g: GameView
             <span className="type-num text-[22px] leading-none" data-team-points={predictions}>
               {fmt(predictions)}
             </span>
+          </li>
+        )}
+        {lineup && (
+          <li className="flex min-h-12 items-center gap-3 border-t-2 border-foreground/40 py-1.5" data-team-total>
+            <span className="min-w-0 flex-1 text-[16px] font-bold">Your total</span>
+            <span className="type-num text-[22px] leading-none">{fmt(r.total)}</span>
           </li>
         )}
       </ul>

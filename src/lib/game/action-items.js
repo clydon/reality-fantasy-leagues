@@ -58,12 +58,32 @@ function draftKindOf(state) {
 // (DraftLogic.waits), someone active to draft and two seats or more. A game at your own pace drafts together from a plate of its
 // own (pace-plate.tsx), which has its own Start.
 function draftStartDue(state) {
-  if (!draftKindOf(state) || (state.settings && state.settings.archivedAt)) return false;
-  if (StateLogic.isDraftStarted(state) || StateLogic.GhostLogic.ownPace(state)) return false;
+  return draftNeeds(state) === null && (!draftAt(state) || !!draftLate(state));
+}
+
+// Before a draft that waits for its runner can start: "cast" (nobody active to draft) or "players" (fewer than two seats), else
+// null; and "started" or "waits" when it isn't the runner's to start at all. Backstage's Invite people and Add the cast fix the first two.
+function draftNeeds(state) {
+  if (!draftKindOf(state) || (state.settings && state.settings.archivedAt)) return "started";
+  if (StateLogic.isDraftStarted(state) || StateLogic.GhostLogic.ownPace(state)) return "started";
+  if (StateLogic.DraftLogic.waits(state)) return "waits";
+  if (!(state.castaways || []).some((c) => c.status === "active")) return "cast";
+  return (state.players || []).filter((p) => !p.disabled && !p.ghost && p.active !== false).length >= 2 ? null : "players";
+}
+
+// The draft's time, if one is set (it starts by itself then).
+function draftAt(state) {
   const room = StateLogic.gameOf(state).extras.draft;
-  if ((room && room.at) || StateLogic.DraftLogic.waits(state)) return false;
-  if (!(state.castaways || []).some((c) => c.status === "active")) return false;
-  return (state.players || []).filter((p) => !p.disabled && !p.ghost && p.active !== false).length >= 2;
+  return (room && room.at) || null;
+}
+
+// A time set at or after the game's first episode airs: nobody would have a team for it (round 5's check). The episode it misses, or
+// null (no time, no first episode, or no air time to say).
+function draftLate(state) {
+  const at = draftAt(state);
+  const first = StateLogic.startEpisode(state);
+  const ep = at && first !== null ? (state.episodes || []).find((e) => e.number === first) : null;
+  return ep && ep.airsAt && Date.parse(at) >= Date.parse(ep.airsAt) ? first : null;
 }
 
 // What's waiting on whoever runs the game, as a move of their own: starting a draft that waits for them. The new design's home
@@ -72,7 +92,8 @@ function draftStartDue(state) {
 // exactly what they did.
 function runnerItems(state) {
   if (!draftStartDue(state)) return [];
-  return [{ kind: "draftStart", text: "Start the draft", href: "/draft", draft: draftKindOf(state), who: "you", deadline: null }];
+  const late = draftLate(state);
+  return [{ kind: "draftStart", text: late ? `Move the draft before episode ${late}` : "Start the draft", href: "/draft", draft: draftKindOf(state), who: "you", deadline: null, ...(late ? { episode: late, draftLate: true } : {}) }];
 }
 
 /** When an item is due, for sorting: -Infinity for "now", Infinity for no deadline. */
@@ -253,4 +274,4 @@ function liveItems(state, playerId) {
   return items;
 }
 
-module.exports = { actionItems, runnerItems, draftStartDue, draftKindOf, resultsDueEpisode, resultsHref, waiversHref, dueAt, byDue };
+module.exports = { actionItems, runnerItems, draftStartDue, draftNeeds, draftLate, draftKindOf, resultsDueEpisode, resultsHref, waiversHref, dueAt, byDue };

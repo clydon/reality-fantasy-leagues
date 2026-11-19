@@ -1,6 +1,6 @@
 "use client";
 
-import { draftRoomPage, draftSoonWords } from "../show/draft-words";
+import { draftRoomPage, draftSoonWords, draftWhen } from "../show/draft-words";
 import { useState } from "react";
 import { ChartColumn, Check, ChevronDown, ChevronRight, Crown, Gamepad2, Hourglass, Link2, Plus, RotateCcw, Tv, Trophy } from "lucide-react";
 import { airTime, calmWhen, ticks } from "../clock";
@@ -255,7 +255,7 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
       title: card.title,
       line:
         move.kind === "draftStart"
-          ? `Nobody can pick until you do · ${move.leagueName}`
+          ? `${move.draftLate ? "It's set for after it airs" : "Nobody can pick until you do"} · ${move.leagueName}`
           : move.kind === "draftTurn"
             ? `Your pick now · ${move.leagueName}`
             : [count, lock].filter(Boolean).join(" · ") || move.leagueName,
@@ -265,8 +265,8 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
     plate = { tag: `${ep} ${final.episode}`, tone: "good", title: "Final results are in", line: "Every point counted", to: href };
   } else if (kind === "set" && soonGame?.draftSoon) {
     // A draft that hasn't started (docs/design-round/draft-start-spec.md): who it waits for, or when it starts, never "All set".
-    const w = draftSoonWords(soonGame.draftSoon, soonGame.yourRole === "commissioner", (iso) => calmWhen(Date.parse(iso), now));
-    plate = { tag: "Draft", tone: w.due ? "due" : "soon", title: w.title, line: soonGame.name, to: `${paths.showPage(show.seasonId, draftRoomPage(soonGame.draftSoon.kind))}?game=${soonGame.leagueId}` };
+    const w = draftSoonWords(soonGame.draftSoon, soonGame.yourRole === "commissioner", (iso) => draftWhen(iso, now), ep);
+    plate = { tag: "Draft", tone: w.due ? "due" : "soon", title: w.title, line: soonGame.name, to: w.backstage ? paths.backstage(show.seasonId) : `${paths.showPage(show.seasonId, draftRoomPage(soonGame.draftSoon.kind))}?game=${soonGame.leagueId}` };
   } else if (kind === "set" && up) {
     plate = { tag: `${ep} ${up.number}`, tone: "set", title: `All set for ${ep} ${up.number}`, line: "Change anything until it airs", to: href };
   }

@@ -1,6 +1,7 @@
 import StateLogic from "@/lib/game/state-logic.js";
 import { applyDecision, orderPlacementsByEpisode, type CastRef, type DecisionFact } from "@/lib/game/decision-apply";
 import { draftKind, type DraftKind } from "@/lib/game/draft-view";
+import { draftStartDue } from "@/lib/game/action-items.js";
 import { exitMethodFor, previewLines, QUICK_DOUBTS, quickVerdict, type PreviewLine, type QuickDoubt } from "@/lib/game/results-changes";
 import { publicMediaSrc } from "@/lib/game/selectors";
 import type { LeagueState, StagedResearchDecision } from "@/lib/game/types";
@@ -326,7 +327,8 @@ export async function backstageRead(scope: BackstageScope, opts: { episode?: num
   // Setup (step 7): a draft that hasn't a time to start is the Commissioner's (classic's "Draft not scheduled").
   for (const l of loaded) {
     const kind = draftKind(l.state);
-    if (!kind || l.game.yourRole !== "commissioner" || StateLogic.isDraftStarted(l.state) || l.state.settings.draftScheduledAt) continue;
+    // The strip's own rule (action-items.js draftStartDue): not one that started, has a time, or waits on results (a later stage's).
+    if (!kind || l.game.yourRole !== "commissioner" || !draftStartDue(l.state)) continue;
     out.needs.push({
       id: "draft",
       episode: 0,

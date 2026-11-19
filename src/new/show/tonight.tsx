@@ -346,10 +346,14 @@ function LastTime({ seasonId, show, open }: { seasonId: string; show: ShowData; 
 
 // ---------- Your games ----------
 
+/** Something has counted in this game, as far as you've seen: before its first episode everyone's level, so no place (round 5). */
+export const countedYet = (g: GameView) => g.from !== null && g.through >= g.from;
+
 /** The line under your place: points, your streak now, or who's still in. */
 export function yourLine(g: GameView): string {
   const me = g.you;
   if (!me) return "Not on the table yet";
+  if (!countedYet(g)) return g.draftSoon ? "No team yet" : g.from === null ? "Starts with its phase" : `Starts with Episode ${g.from}`;
   if (g.gameType === "pickem") return `streak ${me.week ?? 0}`;
   if (g.gameType === "weekly-calls") return `${me.total} ${me.total === 1 ? "call" : "calls"} right`;
   // A line worth more than a point (step A9): its total is points.
@@ -363,7 +367,7 @@ export function yourLine(g: GameView): string {
 }
 
 /** Your place in a game: "1st", or "T2" for a tie. */
-export const placeOf = (g: GameView) => (!g.you ? "—" : g.you.rank.startsWith("T") ? g.you.rank : ordinal(g.you.place));
+export const placeOf = (g: GameView) => (!g.you || !countedYet(g) ? "—" : g.you.rank.startsWith("T") ? g.you.rank : ordinal(g.you.place));
 
 /** Each game you play here as a mini: an excerpt of its page's This week card, in the game's own measure (never a sum across
  *  games), the last result in a line, its lineup's points one tap open. A stage of a game in stages is its parent's. */

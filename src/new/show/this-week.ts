@@ -287,7 +287,11 @@ export function thisWeek(g: GameView, c: WeekContext): WeekCard | null {
     you,
     them: null,
     stand: null,
-    state: `${place} of ${g.players} · ${total}${gap && gap > 0 ? ` · ${gapWords(gap)} behind ${first(above!.name)}` : me.place === 1 ? " · in front" : ""}`,
+    // Before its first episode counts everyone's level: how many are playing, never a place (round 5's check).
+    state:
+      g.from === null || g.through < g.from
+        ? `${g.players} playing · nothing counted yet`
+        : `${place} of ${g.players} · ${total}${gap && gap > 0 ? ` · ${gapWords(gap)} behind ${first(above!.name)}` : me.place === 1 ? " · in front" : ""}`,
     tone: g.over ? "over" : due ? "due" : behind ? "behind" : "plain",
     score: null,
     mine: g.lineup?.starters ?? null,
