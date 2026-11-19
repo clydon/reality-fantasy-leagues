@@ -455,7 +455,7 @@ async function stageSeasonCast(pool, ctx, extraction, opts = {}) {
     const { rows: upserted } = await pool.query(
       `INSERT INTO season_cast (season_id, name, tribe_name, photo_url, sort_order)
        VALUES ($1,$2,$3,$4,$5)
-       ON CONFLICT (season_id, lower(name)) DO UPDATE
+       ON CONFLICT (season_id, lower(name)) WHERE provider_ids IS NULL DO UPDATE
           SET tribe_name = COALESCE(season_cast.tribe_name, EXCLUDED.tribe_name),
               photo_url  = COALESCE(season_cast.photo_url,  EXCLUDED.photo_url)
        RETURNING (xmax = 0) AS inserted`,

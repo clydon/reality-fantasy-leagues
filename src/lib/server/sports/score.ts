@@ -107,7 +107,7 @@ export async function leagueGames(state: LeagueState, o: { mark?: number | null;
         WHERE e.season_id = $1 ORDER BY e.episode`,
       [seasonId]
     ),
-    pool.query("SELECT name, role, provider_ids FROM season_cast WHERE season_id = $1 AND provider_ids IS NOT NULL", [seasonId]),
+    pool.query("SELECT id, name, role, provider_ids FROM season_cast WHERE season_id = $1 AND provider_ids IS NOT NULL", [seasonId]),
     pool.query("SELECT stage FROM sports_slates WHERE season_id = $1", [seasonId]),
   ]);
   if (!rows.length) return undefined;
@@ -230,13 +230,20 @@ export async function leagueGames(state: LeagueState, o: { mark?: number | null;
   return out;
 }
 
-/** The league's castaways by name, and each provider id's person (`provider:athlete`) with their roster's position. */
-function peopleOf(state: LeagueState, cast: { name: string; role: string | null; provider_ids: Record<string, string> | null }[]): Map<string, { id: string; role: string | null }> {
+/**
+ * Each provider id's person (`provider:athlete`) with their roster's position: the league castaway linked to their season_cast
+ * row (castaway.seasonCastId: two who share a name are two rows, step 1.3), else, for a castaway never linked, by name.
+ */
+function peopleOf(state: LeagueState, cast: { id: string; name: string; role: string | null; provider_ids: Record<string, string> | null }[]): Map<string, { id: string; role: string | null }> {
   const byName = new Map<string, string>();
-  for (const c of state.castaways ?? []) if (!byName.has(c.name.toLowerCase())) byName.set(c.name.toLowerCase(), c.id);
+  const byRow = new Map<string, string>();
+  for (const c of state.castaways ?? []) {
+    if (c.seasonCastId) byRow.set(c.seasonCastId, c.id);
+    else if (!byName.has(c.name.toLowerCase())) byName.set(c.name.toLowerCase(), c.id);
+  }
   const who = new Map<string, { id: string; role: string | null }>();
   for (const c of cast) {
-    const id = byName.get(String(c.name).toLowerCase());
+    const id = byRow.get(c.id) ?? byName.get(String(c.name).toLowerCase());
     if (!id) continue;
     for (const [provider, athlete] of Object.entries(c.provider_ids ?? {})) who.set(`${provider}:${athlete}`, { id, role: c.role ?? null });
   }
@@ -265,7 +272,7 @@ export async function drawNow(state: LeagueState, episode: number, cls: string, 
   if (!seasonId) return null;
   const [{ rows }, { rows: cast }] = await Promise.all([
     pool.query("SELECT provider, league, event_id FROM season_events WHERE season_id = $1 AND episode = $2 ORDER BY event_id LIMIT 1", [seasonId, episode]),
-    pool.query("SELECT name, role, provider_ids FROM season_cast WHERE season_id = $1 AND provider_ids IS NOT NULL", [seasonId]),
+    pool.query("SELECT id, name, role, provider_ids FROM season_cast WHERE season_id = $1 AND provider_ids IS NOT NULL", [seasonId]),
   ]);
   const r = rows[0];
   const sport = r ? sportOf(r.league) : null;

@@ -759,8 +759,8 @@ const num = (v: string) => Number(v.replace(/,/g, ""));
  * a bar per season on its key stat, then the table, every column the provider shows, a row per season (and per team, traded);
  * other kinds a tap open under it.
  */
-export function PastSeasons({ seasonId, name }: { seasonId: string; name: string }) {
-  const read = useAthleteHistory(seasonId, name);
+export function PastSeasons({ seasonId, name, team = null }: { seasonId: string; name: string; team?: string | null }) {
+  const read = useAthleteHistory(seasonId, name, true, team);
   const [more, setMore] = useState(false);
   if (read.isPending) return <div aria-busy className="mt-5 h-28 animate-pulse rounded-[3px] bg-card" />;
   const seasons = read.data?.seasons ?? [];

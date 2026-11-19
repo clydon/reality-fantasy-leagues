@@ -6475,7 +6475,9 @@ class RosterLogic {
     (proposal.castaways || []).forEach(c=>{
       if(!c || !c.name) return;
       if(c.id && state.castaways.some(x=>x.seasonCastId===c.id)){ added.skipped.push(c.name); return; }
-      if(state.castaways.some(x=>sameName(x.name, c.name))){ added.skipped.push(c.name); return; }
+      // A namesake already linked to another season_cast row is someone else (a sport's people are unique by the provider's id, not
+      // by name: docs/PLAN-sports-ready.md step 1.3), so only an unlinked one, or any one for a row with no id, is this person.
+      if(state.castaways.some(x=>sameName(x.name, c.name) && !(c.id && x.seasonCastId && x.seasonCastId !== c.id))){ added.skipped.push(c.name); return; }
       const created = RosterLogic.addCastaway(state, c.name);
       if(c.id) created.seasonCastId = c.id;
       if(c.photoUrl) created.photoUrl = c.photoUrl;

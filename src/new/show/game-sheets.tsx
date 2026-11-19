@@ -314,7 +314,9 @@ function CastLevel({ show, seasonId, g, d, sheet, go, onLens, onFlag }: { show: 
   const lensId = d.lens !== undefined ? d.lens : g && lenses.some((x) => x.leagueId === g.leagueId) ? g.leagueId : null;
   const lens = lenses.find((x) => x.leagueId === lensId) ?? null;
   if (sport) {
-    const found = (roster.data?.groups ?? []).flatMap((grp) => grp.people.map((p) => ({ p, team: grp.name }))).find((x) => same(x.p.name, name));
+    // By name and, for a face, its team: two players can share a name (step 1.3), each on their own team.
+    const people = (roster.data?.groups ?? []).flatMap((grp) => grp.people.map((p) => ({ p, team: grp.name })));
+    const found = people.find((x) => same(x.p.name, name) && (!face?.tribe?.name || x.team === face.tribe.name)) ?? people.find((x) => same(x.p.name, name));
     const soFar = found?.p.stats?.soFar ?? null;
     const p: Athlete = found
       ? { name, role: found.p.role, photoUrl: found.p.photoUrl, team: found.team, line: soFar?.length ? soFar.slice(0, 3).map((i) => `${i.value} ${i.label}`).join(" · ") : null }

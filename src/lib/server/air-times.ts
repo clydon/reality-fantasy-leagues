@@ -109,11 +109,13 @@ async function stampGameLocks(db: Pool | PoolClient, state: LeagueState, seasonI
     [seasonId, StateLogic.startEpisode(state) ?? 1, to]
   );
   if (!rows.length) return;
-  const { rows: cast } = await db.query("SELECT name, tribe_name FROM season_cast WHERE season_id = $1 AND tribe_name IS NOT NULL", [seasonId]);
+  const { rows: cast } = await db.query("SELECT id, name, tribe_name FROM season_cast WHERE season_id = $1 AND tribe_name IS NOT NULL", [seasonId]);
+  // A castaway's own row (castaway.seasonCastId: two who share a name are two rows, step 1.3), else by name.
+  const teamByRow = new Map(cast.map((c) => [String(c.id), String(c.tribe_name)]));
   const teamByName = new Map(cast.map((c) => [String(c.name).toLowerCase(), String(c.tribe_name)]));
   const teamOf = new Map<string, string>();
   for (const c of state.castaways ?? []) {
-    const team = teamByName.get(c.name.toLowerCase());
+    const team = (c.seasonCastId ? teamByRow.get(c.seasonCastId) : undefined) ?? teamByName.get(c.name.toLowerCase());
     if (team) teamOf.set(c.id, team);
   }
   const games = rows.map((r) => ({

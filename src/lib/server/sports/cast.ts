@@ -202,10 +202,11 @@ async function saveCast(seasonId: string, groups: CastGroup[]): Promise<{ added:
           if (role && had.role !== role) await c.query("UPDATE season_cast SET role = $2 WHERE id = $1", [had.id, role]);
           continue;
         }
-        if (names.has(p.name.toLowerCase())) continue;
+        // Someone the provider names is theirs by id alone (step 1.3, migration 0308): two who share a name are two people.
+        if (!Object.keys(p.ids).length && names.has(p.name.toLowerCase())) continue;
         const { rowCount } = await c.query(
           `INSERT INTO season_cast (season_id, name, tribe_name, role, photo_url, provider_ids, shown_from, sort_order) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8)
-           ON CONFLICT (season_id, lower(name)) DO NOTHING`,
+           ON CONFLICT DO NOTHING`,
           [seasonId, p.name.slice(0, 120), g.name.slice(0, 60), p.role?.slice(0, 60) ?? null, p.photoUrl, JSON.stringify(p.ids), p.from, order++]
         );
         if (!rowCount) continue;

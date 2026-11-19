@@ -2076,19 +2076,21 @@ export interface PastSeason {
   label: string;
   lines: { category: string; name: string; season: string; labels: string[]; values: string[]; team: string | null }[];
 }
-export function useAthleteHistory(seasonId: string | null, name: string | null, enabled = true) {
+/** `team`: theirs, so a name two players share finds the right one (step 1.3). */
+export function useAthleteHistory(seasonId: string | null, name: string | null, enabled = true, team: string | null = null) {
   return useQuery({
-    queryKey: ["new-design", "athlete-history", seasonId, name],
-    queryFn: () => get<{ seasons: PastSeason[]; source: string | null; unavailable: boolean }>(`/api/seasons/${seasonId}/athlete-history?name=${encodeURIComponent(name!)}`),
+    queryKey: ["new-design", "athlete-history", seasonId, name, team],
+    queryFn: () => get<{ seasons: PastSeason[]; source: string | null; unavailable: boolean }>(`/api/seasons/${seasonId}/athlete-history?name=${encodeURIComponent(name!)}${team ? `&team=${encodeURIComponent(team)}` : ""}`),
     enabled: enabled && !!seasonId && !!name,
     staleTime: 60 * 60_000,
   });
 }
 
-export function usePlayerLog(seasonId: string | null, name: string | null, enabled = true) {
+/** `team`: theirs, so a name two players share finds the right one (step 1.3). */
+export function usePlayerLog(seasonId: string | null, name: string | null, enabled = true, team: string | null = null) {
   return useQuery({
-    queryKey: ["new-design", "player-log", seasonId, name],
-    queryFn: () => get<{ games: LoggedGame[]; newer: boolean }>(`/api/seasons/${seasonId}/player-log?name=${encodeURIComponent(name!)}`),
+    queryKey: ["new-design", "player-log", seasonId, name, team],
+    queryFn: () => get<{ games: LoggedGame[]; newer: boolean }>(`/api/seasons/${seasonId}/player-log?name=${encodeURIComponent(name!)}${team ? `&team=${encodeURIComponent(team)}` : ""}`),
     enabled: enabled && !!seasonId && !!name,
     staleTime: 60_000,
   });

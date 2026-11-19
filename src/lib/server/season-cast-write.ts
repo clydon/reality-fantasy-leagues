@@ -210,7 +210,7 @@ async function createFromRoster(client: PoolClient, ctx: Context, leagueId: stri
     if (!c.name || !c.name.trim()) continue;
     const { rows } = await client.query(
       `INSERT INTO season_cast (season_id, name, tribe_name, photo_url, sort_order) VALUES ($1,$2,$3,$4,$5)
-       ON CONFLICT (season_id, lower(name)) DO NOTHING RETURNING id`,
+       ON CONFLICT (season_id, lower(name)) WHERE provider_ids IS NULL DO NOTHING RETURNING id`,
       [season.id, c.name.trim(), startTribeName(state, c), c.photoUrl || null, i++]
     );
     if (rows.length) c.seasonCastId = rows[0].id;
@@ -285,7 +285,7 @@ export async function castWrite(
       const { rows } = await client.query(
         `INSERT INTO season_cast (season_id, name, sort_order)
          VALUES ($1, $2, (SELECT COALESCE(max(sort_order), -1) + 1 FROM season_cast WHERE season_id=$1))
-         ON CONFLICT (season_id, lower(name)) DO NOTHING RETURNING id`,
+         ON CONFLICT (season_id, lower(name)) WHERE provider_ids IS NULL DO NOTHING RETURNING id`,
         [seasonId, name]
       );
       if (!rows.length) throw new HttpError(409, `${name} is already in this season's cast.`);
@@ -338,7 +338,7 @@ export async function castWrite(
         const { rows } = await client.query(
           `INSERT INTO season_cast (season_id, name, tribe_name, photo_url, sort_order)
            VALUES ($1, $2, $3, $4, (SELECT COALESCE(max(sort_order), -1) + 1 FROM season_cast WHERE season_id=$1))
-           ON CONFLICT (season_id, lower(name)) DO NOTHING RETURNING id`,
+           ON CONFLICT (season_id, lower(name)) WHERE provider_ids IS NULL DO NOTHING RETURNING id`,
           [seasonId, name, p.tribeName || null, p.photoUrl || null]
         );
         if (rows.length) await log(rows[0].id, "added", null, name);
