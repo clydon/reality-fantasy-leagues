@@ -67,10 +67,19 @@ export async function botsDue(db: Pool | PoolClient, leagueId: string, state: Le
   // A staked one counted as if its room were wide open: whether it's due, not what it stakes (the write reads the real room).
   const wide = new Map(bots.map((pid) => [`${pid}|live`, { points: Number.MAX_SAFE_INTEGER, held: new Map<string, number>() }]));
   if (Bots.answers(state, stored, { now, rooms: wide }).length > 0) return true;
-  // The server's facts read only while a question from them is still to answer, open (the review: never on every read).
+  // The server's facts read only while a question from them is still to answer, open (the review: never on every read), and on a
+  // read at most every ten minutes per league while nothing comes of it (a line not out yet, a final's number with nothing to go on).
   if (!Bots.factsDue(state, stored, null, null, now)) return false;
-  return Bots.answers(state, stored, { now, rooms: wide, ctx: await contextFor(leagueId, state, undefined, null, null, null, now) }).length > 0;
+  const last = factsLooked.get(leagueId);
+  if (last !== undefined && now - last < FACTS_EVERY) return false;
+  const due = Bots.answers(state, stored, { now, rooms: wide, ctx: await contextFor(leagueId, state, undefined, null, null, null, now) }).length > 0;
+  if (due) factsLooked.delete(leagueId);
+  else factsLooked.set(leagueId, now);
+  return due;
 }
+/** When a read last found the facts had nothing for computer players to answer, by league (this server's; a write always looks). */
+const factsLooked = new Map<string, number>();
+const FACTS_EVERY = 10 * 60 * 1000;
 
 type Answered = { playerId: string; question: string; episode: number };
 // The answers' reads (answer-points.ts), loaded only for a game where computer players answer questions: every league write runs
@@ -90,7 +99,7 @@ async function writeAnswers(client: Client, leagueId: string, due: (Answered & {
 /** What the server's facts say for computer players' questions about each game, trivia, a side or a bracket (E1b's leftovers): the
  *  facts as a seat at `mark` sees them (null: live; answer-points.ts walked), and each such question's faces at its window there
  *  (`week`: a catching-up seat's; null: this week's), as answers.ts checks a person's (factFaces). None for a game without one. */
-async function contextFor(leagueId: string, state: LeagueState, rows: AnswerRow[] | undefined, playerId: string | null, mark: number | null, week: number | null, now = Date.now()): Promise<FactContext | undefined> {
+async function contextFor(leagueId: string, state: LeagueState, rows: AnswerRow[] | undefined, playerId: string | null, mark: number | null, week: number | null, now = Date.now(), db?: Client): Promise<FactContext | undefined> {
   if (!Bots.needsFacts(state)) return undefined;
   const { factFaces, fromFacts, openLinesFor } = await import("./answers");
   const w = await (await points()).walked({ leagueId, state, playerId, mark, rows });
@@ -100,7 +109,7 @@ async function contextFor(leagueId: string, state: LeagueState, rows: AnswerRow[
     const ep = q.asked === "once" ? 0 : (week ?? AL.windowAt(state, q, AL.episodeNow(state)));
     if (ep === null || ep === undefined) continue;
     // E1e: a game's line kept as it opens, as a person's read keeps it (answers.ts openLines).
-    if (q.line === Spec.LINE_GAME) await openLinesFor(leagueId, w.facts, q, ep, now);
+    if (q.line === Spec.LINE_GAME) await openLinesFor(leagueId, w.facts, q, ep, now, db as never);
     if (!fromFacts(q)) continue;
     const f = await factFaces(state, q, ep, w.facts);
     if (f) faces.set(`${q.id}|${ep}`, f);
@@ -123,7 +132,7 @@ async function catchUpWrite(client: Client, leagueId: string, state: LeagueState
   let made = 0;
   for (const only of Bots.catchUpWeeks(state, n)) {
     const room = stakes && Bots.needsRoom(state, rows, only.playerId, only.week) ? await (await points()).seatStakeRoom(leagueId, state, only.playerId, only.week - 1, rows) : null;
-    const ctx = Bots.factsDue(state, rows, only.playerId, only.week) ? await contextFor(leagueId, state, rows, only.playerId, only.week - 1, only.week) : undefined;
+    const ctx = Bots.factsDue(state, rows, only.playerId, only.week) ? await contextFor(leagueId, state, rows, only.playerId, only.week - 1, only.week, Date.now(), client) : undefined;
     const due = Bots.catchUpAnswers(state, rows, n, room ? new Map([[`${only.playerId}|${only.week - 1}`, room]]) : undefined, only, ctx);
     await writeAnswers(client, leagueId, due);
     rows.push(...due.map((d) => ({ ...d, late: 0, changes: 0 })));
@@ -157,7 +166,7 @@ export async function answerForBots(client: Client, leagueId: string, state: Lea
   const behind = catchingUp(state);
   if (!live && !behind) return 0;
   const stored = await storedAnswers(leagueId, client);
-  const ctx = live && Bots.factsDue(state, stored, null, null, now) ? await contextFor(leagueId, state, stored, null, null, null, now) : undefined;
+  const ctx = live && Bots.factsDue(state, stored, null, null, now) ? await contextFor(leagueId, state, stored, null, null, null, now, client) : undefined;
   const due = live ? Bots.answers(state, stored, { now, rooms: await liveRooms(leagueId, state, stored), ctx }) : [];
   await writeAnswers(client, leagueId, due);
   stored.push(...due.map((d) => ({ ...d, late: 0, changes: 0 })));

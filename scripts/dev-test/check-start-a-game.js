@@ -193,10 +193,10 @@ async function apiHalf(pool, fx, bot) {
     bankBots.body && bankBots.body.error
   );
   // E1e: a game in stages with a computer player: started, and each stage's league seats it as the game's (stages.ts seatStage).
-  const stagedBots = staged ? await alex.call("POST", url, { spec: staged, name: "Redraft with a computer player", tell: false, bots: 1, pace: "live" }) : { status: 0, body: {} };
+  const stagedBots = staged ? await alex.call("POST", url, { spec: staged, name: "Redraft with a computer player", tell: false, bots: 1, level: "sharp", pace: "live" }) : { status: 0, body: {} };
   const { rows: stageSeats } = stagedBots.status === 200 ? await pool.query("SELECT stage_key, state FROM leagues WHERE stage_of = $1 AND deleted_at IS NULL", [stagedBots.body.leagueId]) : { rows: [] };
-  const seatedIn = stageSeats.filter((r) => (r.state.players || []).some((p) => p.automated));
-  check(stagedBots.status === 200 && stageSeats.length >= 1 && seatedIn.length === stageSeats.length, `computer players on a game in stages: started, seated in each stage (${seatedIn.length} of ${stageSeats.length}: ${stageSeats.map((r) => r.stage_key).join(", ")})`, stagedBots.body && stagedBots.body.error);
+  const seatedIn = stageSeats.filter((r) => (r.state.players || []).some((p) => p.automated && p.botLevel === "sharp"));
+  check(stagedBots.status === 200 && stageSeats.length >= 1 && seatedIn.length === stageSeats.length, `computer players on a game in stages: started, seated in each stage at the level chosen, sharp (${seatedIn.length} of ${stageSeats.length}: ${stageSeats.map((r) => r.stage_key).join(", ")})`, stagedBots.body && stagedBots.body.error);
   // E1b's second slice: at your own pace too. Each catches up with whoever reveals first, answering each week (and the week after's,
   // so it's in before anyone opens it) on its own copy before it: Episode 1's at the start, Episode 2's on revealing Episode 1, and
   // nothing past the game's last.

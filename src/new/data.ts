@@ -1351,8 +1351,6 @@ export function usePool(seasonId: string, enabled = true) {
   return useQuery({ queryKey: ["new-design", "pool", seasonId], queryFn: () => get<PoolInfo>(`/api/seasons/${seasonId}/pool`), staleTime: 30_000, enabled });
 }
 
-
-
 export const solo = {
   join: (seasonId: string) => post<{ leagueId: string; start: number }>(`/api/seasons/${seasonId}/pool`, { action: "join" }),
   leave: (seasonId: string) => post<{ left: true }>(`/api/seasons/${seasonId}/pool`, { action: "leave" }),
@@ -1360,7 +1358,7 @@ export const solo = {
   call: (seasonId: string, castawayId: string | null) => post<{ call: string | null }>(`/api/seasons/${seasonId}/pool`, { action: "call", castawayId }),
 };
 
-/** After joining or leaving a pool, a call, or starting or ending a practice couch: everything moves on (the moves, the games). */
+/** After joining or leaving a pool, a call, or making a game: everything moves on (the moves, the games). */
 export const useAfterSolo = useAfterReveal;
 
 // ---- Make it a game (step 10 part 2a; make-game.ts): a show that isn't a game yet, set up from ChatGPT's answers. Read

@@ -88,7 +88,7 @@ test("a closed question gets none; every answer kind the engine has is one they 
   const ep = s.episodes.find((e) => e.number === now);
   ep.airsAt = new Date(Date.now() - 3600 * 1000).toISOString();
   assert.deepEqual(Bots.answers(s, [], { now: Date.now() }).filter((a) => a.question === "out"), [], "the episode has started: closed");
-  for (const kind of Object.keys(G.VOCAB["ask.answer"])) if (kind !== "calls") assert.ok(Bots.BOT_ANSWERS ? Bots.BOT_ANSWERS.includes(kind) : Bots.ANSWERS.includes(kind), `computer players answer a ${kind}`);
+  for (const kind of Object.keys(G.VOCAB["ask.answer"])) if (kind !== "calls") assert.ok(Bots.ANSWERS.includes(kind), `computer players answer a ${kind}`);
   assert.ok(Bots.answersQuestion(LINE), "an over/under on the game's own line, once its line is out (E1e)");
   assert.ok(Bots.answersQuestion(TRIVIA) && Bots.answersAll(s), "trivia: played (from the round's key)");
   assert.ok(Bots.answersQuestion(OUT) && Bots.answersQuestion(IDOL) && Bots.answersQuestion(HOW));
@@ -347,13 +347,17 @@ test("E1e: squares picked before the lock (dealt: nothing to do); a game's live 
     s.episodes.forEach((e) => { e.airsAt = new Date(Date.now() + 86400000 * e.number).toISOString(); });
     return s;
   };
-  // Squares picked: each computer player's share of the free squares, none twice, before the first lock.
+  // Squares picked: nothing while kickoff is a day out (the people asked may not have joined); at the last call (within three hours),
+  // each computer player an even share of what's free among everyone who hasn't picked, none twice, the person's share left.
   const sq = make(defaultsFor("basketball", "nba").specs.squares.spec);
-  assert.ok(Bots.run(sq) >= 2, "both pick");
+  assert.equal(Bots.run(sq), 0, "a day out: they wait for the last call");
+  S.SquaresLogic.first(sq).airsAt = new Date(Date.now() + 2 * 3600 * 1000).toISOString();
+  assert.ok(Bots.run(sq) >= 2, "the last call: both pick");
   const picks = S.SquaresLogic.data(sq).picks;
   const all = [...picks.bot0.cells, ...picks.bot1.cells];
   assert.equal(new Set(all).size, all.length, "none twice");
-  assert.ok(picks.bot0.cells.length >= 1 && all.every((c) => c >= 0 && c < 100));
+  assert.ok(all.every((c) => c >= 0 && c < 100) && picks.bot0.cells.length === 33 && picks.bot1.cells.length === 33, `an even share among the three who hadn't picked (${picks.bot0.cells.length}, ${picks.bot1.cells.length})`);
+  assert.ok(100 - all.length >= 33, "ann's share is still free");
   assert.equal(Bots.run(sq), 0, "picked once");
   const dealt = make({ ...defaultsFor("basketball", "nba").specs.squares.spec, get: { by: "squares", grid: 10, take: "deal" } });
   assert.equal(Bots.run(dealt), 0, "dealt: nothing to do");

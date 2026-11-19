@@ -515,25 +515,32 @@ function run(state) {
   return total;
 }
 
-// E1e: squares a game's seats pick (take 'pick'): each computer player with none takes its share (`each`, else an even share of the
-// grid) of the squares still free, by its taste, before the game's first lock, through SquaresLogic.take (a person's pick's checks).
-// Dealt squares need nothing: every seat in the rotation is dealt. Returns how many picked.
+// E1e: squares a game's seats pick (take 'pick'): at the last call (the game's first lock within SQUARES_CALL), or after it while
+// they've none (from the next game that's open), each computer player with none takes an even share of the squares still free among
+// everyone who hasn't picked (`each` at most), by its taste, through SquaresLogic.take (a person's pick's checks). Never before: a
+// game started with computer players would otherwise give them the grid before the people asked to it join (the review). Dealt
+// squares need nothing: every seat in the rotation is dealt. Returns how many picked.
+const SQUARES_CALL = 3 * 60 * 60 * 1000;
 function squarePicks(state) {
   const SQ = StateLogic.SquaresLogic;
   if (!SQ.on(state)) return 0;
   const p = SQ.parts(state);
   if (!p || p.take !== "pick") return 0;
   const now = Date.now();
-  if (SQ.locked(state, now)) return 0;
+  const first = SQ.first(state);
+  const at = first && (first.locksAt || first.airsAt) ? Date.parse(first.locksAt || first.airsAt) : null;
+  if (!SQ.locked(state, now) && (at === null || at - now > SQUARES_CALL)) return 0;
   const cells = p.grid * p.grid;
   const picks = SQ.data(state).picks || {};
   const taken = new Set(Object.values(picks).flatMap((pk) => (pk && Array.isArray(pk.cells) ? pk.cells : [])));
   const seats = SQ.seats(state);
   let made = 0;
   state.players.filter((pl) => isBot(pl) && !picks[pl.id]).forEach((pl) => {
-    const share = Number.isInteger(p.each) && p.each > 0 ? p.each : Math.max(1, Math.floor(cells / Math.max(1, seats.length)));
     const free = [];
     for (let c = 0; c < cells; c++) if (!taken.has(c)) free.push(c);
+    const waiting = Math.max(1, seats.filter((id) => !(SQ.data(state).picks || {})[id]).length);
+    const even = Math.max(1, Math.floor(free.length / waiting));
+    const share = Number.isInteger(p.each) && p.each > 0 ? Math.min(p.each, even) : even;
     const mine = free.sort((a, b) => hashOf(`${pl.id}|sq|${a}`) - hashOf(`${pl.id}|sq|${b}`)).slice(0, share);
     if (mine.length && !SQ.take(state, pl.id, mine, now)) {
       mine.forEach((c) => taken.add(c));
@@ -619,14 +626,12 @@ function answerFor(state, playerId, q0, faces, ep, answered, ctx) {
     const slate = ctx.facts && ctx.facts.slate ? ctx.facts.slate.get(ep) : null;
     const now = ctx.now || Date.now();
     // E1e: an over/under on each game's own line only where its line is out (kept as its pick opened: a person's is refused before).
-    const lineOut = (id) => q.line !== Spec.LINE_GAME || !!(ctx.facts && ctx.facts.lines && ctx.facts.lines.get(Spec.lineKey(q, ep, id)) != null);
-    const open = [...fx.keys()].filter((id) => !Spec.gameStarted(slate && slate.get(id), now) && lineOut(id)).sort();
+    const open = [...fx.keys()].filter((id) => !Spec.gameStarted(slate && slate.get(id), now) && (q.line !== Spec.LINE_GAME || lineOut(ctx, q, ep, id))).sort();
     if (!open.length) return null;
     const base = { ...q, each: undefined, confidence: undefined };
-    const lean0 = level.read >= LEVELS.sharp.read ? 0.25 : level.read >= LEVELS.solid.read ? 0.35 : 0.5;
     const pickOf = (id) => {
       if (base.answer === "side") { const sides = [...fx.get(id)].sort(); return sides.length ? sides[feel(`side|${id}`) < 0.5 ? 0 : sides.length - 1] : null; }
-      if (base.answer === "overUnder") return feel(`ou|${id}`) < lean0 ? "over" : "under";
+      if (base.answer === "overUnder") return feel(`ou|${id}`) < leanOf(level) ? "over" : "under";
       if (base.answer === "number" && base.settle && base.settle.by === "final") return finalGuess(base, ctx.facts, slate && slate.get(id), level, (k) => feel(`${k}|${id}`));
       return answerFor(state, playerId, { ...base, id: `${q.id}.${id}` }, faces, ep, null, null);
     };
@@ -756,14 +761,13 @@ function answerFor(state, playerId, q0, faces, ep, answered, ctx) {
   }
   // E1e: an over/under on the game's own line, once its line is out (kept as its pick opened, as answers.ts holds a person's); a
   // number a game's final settles (its total, its margin), on the sport's scale.
-  if (q.line === Spec.LINE_GAME && !(ctx && ctx.facts && ctx.facts.lines && ctx.facts.lines.get(Spec.lineKey(q, ep, "")) != null)) return null;
+  if (q.line === Spec.LINE_GAME && !lineOut(ctx, q, ep, "")) return null;
   if (q.answer === "number" && q.settle && q.settle.by === "final") {
     const facts = ctx && ctx.facts;
     const at = q.asked === "once" ? (facts && facts.from) : ep;
     return facts ? finalGuess(q, facts, facts.games && at !== null && at !== undefined ? facts.games.get(at) : null, level, feel) : null;
   }
-  // A sharp player leans hardest to what usually happens (nothing; the low end), a normal one less, an easy one goes on its gut.
-  const lean = level.read >= LEVELS.sharp.read ? 0.25 : level.read >= LEVELS.solid.read ? 0.35 : 0.5;
+  const lean = leanOf(level);
   if (q.answer === "yesNo") return feel("yn") < lean ? "yes" : "no";
   if (q.answer === "overUnder") return feel("ou") < lean ? "over" : "under";
   if (q.answer === "choice") {
@@ -776,6 +780,12 @@ function answerFor(state, playerId, q0, faces, ep, answered, ctx) {
   if (q.answer === "number") return [1, 0, 2, 3][Math.floor(feel("n") * (level.read >= LEVELS.solid.read ? 2 : 4))];
   return null;
 }
+/** How far a computer player leans to what usually happens (nothing; the low end): a sharp one hardest, a normal one less, an easy one
+ *  on its gut. The chance it says the less usual thing. */
+const leanOf = (level) => (level.read >= LEVELS.sharp.read ? 0.25 : level.read >= LEVELS.solid.read ? 0.35 : 0.5);
+/** E1e: whether a game's own line is out for a question's window (`event`: a game of a question about each game, '' for one game):
+ *  kept as its pick opened (answers.ts openLines), as a person's answer is held to. */
+const lineOut = (ctx, q, ep, event) => !!(ctx && ctx.facts && ctx.facts.lines && ctx.facts.lines.get(Spec.lineKey(q, ep, event)) != null);
 /**
  * E1e: a guess at a number a game's final settles (its total, or its margin), on the sport's scale: the median of the season's finals
  * so far (every game the facts hold that's final), else the game's own line (a total's; a margin, about the line's square root, which

@@ -589,6 +589,25 @@ then approval.
         ("Everyone · 3 people", a table the game-card redesign replaced) now reads the pool's card.
       - **The user's idea, recorded:** games that are private or invite only (a game you play alone, or only with who you ask), in
         place of a "just me and the bot" mode. Not planned yet.
+      - **Reviewed** (`/code-review high` on 551b235b..86a24786, 2026-11-18): nine of ten fixed; the tenth is the user's to decide.
+        - A computer player keeping a game's line inside a league write inserted it on a second connection, which waited on the
+          league row the write holds: the write would hang. `keepLines`/`keptLines` take the write's own connection
+          (question-lines.ts), threaded through `openLinesFor` and bots.ts `contextFor`. check-sports-couch.js now starts an
+          over/under on the stand-in's 44.5 line with a computer player: the line kept, its answer in at once, no hang.
+        - A stage's seat dropped a computer player's level (it played Normal whatever was chosen): stages.ts mirrors `botLevel`
+          (SEAT_FIELDS, `seatIn`). check-start-a-game.js: a Redraft with sharp computer players is sharp in its stage.
+        - Squares: computer players took their share the moment a game was made, before the people asked to it joined (with 3,
+          75 of 100). They now wait for the last call (the first lock within three hours; or after it, while they've none) and take
+          an even share of what's still free among everyone who hasn't picked.
+        - A read checked the facts every time while a line wasn't out (a full walk each read): at most every ten minutes per league
+          while nothing comes of it (bots.ts `factsLooked`; a write always looks).
+        - A game in stages: computer players could be added or taken out mid a stage's draft (the game has no draft of its own to
+          go by). Now refused once any stage has begun (server computer-players.ts `stagesProblem`, stages.ts `stagesBegun`).
+        - One lean and one line-out rule in bot-logic.js (`leanOf`, `lineOut`); an orphaned comment, stale doc and blank lines from the
+          practice couch's removal; a dead branch in a test.
+        - **The user's to decide:** a practice game made before today can't be ended by its maker now (the sheet's End it was the only
+          way, gone since it was hidden this morning; its maker is a member, not its runner). Leave them, give their makers a way to end
+          one, or delete them in production.
       - **The four studied seasons** (The Challenge 41, 40, 39, The Traitors 4): only Survivor 49 is loaded here. They'd add about 8
         tracker games Survivor can't play (the Traitors' secret roles and round table, the Challenge's elimination wins) and their
         formats (pairs, teams); optional, on the user's word (loading needs the local bot's address set, though it asks no bot).

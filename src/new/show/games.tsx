@@ -191,7 +191,6 @@ function YourGamesHere({ show }: { show: ShowData }) {
       {show.ready && <HowRow show={show} name={name} />}
       <ThisWeek show={show} />
       {!show.solo && show.ready && <StartRow show={show} others={others} />}
-      {/* Anyone on a couch can practise against computer players too (solo players have it under On your own). */}
       {people.sheets}
       <RulesSheet game={rules} play={show.play ?? []} onGame={setRules} waivers={wv.data?.games ?? []} />
     </>
