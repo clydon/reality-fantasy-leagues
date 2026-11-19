@@ -33,6 +33,9 @@ jobs:
           cache: "npm"
 
       - run: npm ci
+        env:
+          # See .npmrc: the onnxruntime CUDA download 404s; the CPU binaries ship in the package.
+          ONNXRUNTIME_NODE_INSTALL_CUDA: skip
 
       - name: Run reminders.js
         env:
