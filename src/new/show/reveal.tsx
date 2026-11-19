@@ -19,8 +19,7 @@ import { first } from "./moves";
 import { EpisodeGifStrip, GifsAction, GifsBeat, openGif, showLabel, type GifTarget } from "./react";
 import { Face } from "./parts";
 import { useStepEnd, useWatcherNext } from "./step-through";
-import { resultWords, WinnerFaces } from "./games-r3";
-import { useR3 } from "./r3";
+import { resultWords, WinnerFaces } from "./whats-on";
 
 // The one reveal (the mock's episode.js revealPlay, stages.js, share.js; docs/PLAN-new-design.md step 2): one
 // broadcast per episode for every game you play on the show. Tapping Reveal asks the server to reveal it in all of
@@ -282,7 +281,6 @@ function Beats({
   // The tap a swipe ends in is the swipe's, not a Next.
   const swipe = useRef<{ x: number; y: number } | null>(null);
   const swiped = useRef(false);
-  const r3 = useR3();
   const nightIds = new Set((r?.nights ?? []).map((a) => a.leagueId));
   const beats: { key: string; node: ReactNode; action?: ReactNode }[] = r
     ? [
@@ -293,10 +291,10 @@ function Beats({
         ...(r.out.length || r.lineup || r.games.length || r.predictions.length || r.table ? [{ key: "out", node: <VoteCards r={r} /> }] : []),
         ...(gifs ? [{ key: "gifs", node: gifs.node, action: gifs.action }] : []),
         ...(r.lineup ? [{ key: "lineup", node: <LineupBeat r={r} /> }] : []),
-        // Round 3 (TEMP-UI, ?games=r3): the night's one-episode games, ended tonight, one beat between them.
-        ...(r3 && r.nights?.length ? [{ key: "nights", node: <NightBeat r={r} /> }] : []),
+        // Round 3: the night's one-episode games, ended tonight, one beat between them.
+        ...(r.nights?.length ? [{ key: "nights", node: <NightBeat r={r} /> }] : []),
         // Each other game a beat of its own, in its own measure (never one list of everything else).
-        ...[...r.games, ...r.predictions].filter((g) => !(r3 && nightIds.has(g.leagueId))).map((g) => ({ key: `game-${g.leagueId}-${g.gameType}`, node: <GameBeat g={g} /> })),
+        ...[...r.games, ...r.predictions].filter((g) => !nightIds.has(g.leagueId)).map((g) => ({ key: `game-${g.leagueId}-${g.gameType}`, node: <GameBeat g={g} /> })),
         ...(r.table ? [{ key: "table", node: <TableBeat r={r} /> }] : []),
       ]
     : [];

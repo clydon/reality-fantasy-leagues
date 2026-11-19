@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, RotateCcw } from "lucide-react";
+import { openStartGame } from "../couch/start-game";
 import { airTime, lockTime } from "../clock";
 import { useSeasonArchive, type ArchivedGame, type GameView, type SeasonRecord } from "../data";
 import { NavLink, useNav } from "../nav";
@@ -18,7 +19,7 @@ import { kindOf } from "@/lib/game/spans";
 import type { YourMove } from "./your-move";
 
 // Round 3: a show's games when short games are frequent (docs/design-round/round3-short-games-spec.md, -first-view.md, -shape.md;
-// the check's batch: -pfd-eval.md, -critique.md). TEMP-UI behind ?games=r3 (r3.ts) until the user approves it; B3 builds it for good.
+// the check's batch: -pfd-eval.md, -critique.md; approved 2026-11-18 and built for good in B3, docs/PLAN-start-a-game-redo.md).
 // The Games tab holds what's on: the night's games grouped under the episode they play on (a night row each: who's in, your move),
 // the season's games (step 6's rows), the newest episode's results and the door to the archive, games starting later. The archive is
 // a page pushed over the tab: your record across the season's finished games, by kind, then each episode's results, a page at a time.
@@ -113,6 +114,66 @@ export function ResultRow({ a, seasonId }: { a: ArchivedGame; seasonId: string }
         </span>
       )}
     </NavLink>
+  );
+}
+
+// ---------- Again ----------
+
+/** Whether a finished game's kind is already on again after it (a running game of the same kind starting later): then no Again. */
+const onAgain = (show: ShowData, kind: string, after: number) => (show.play ?? []).some((x) => !x.over && x.from !== null && x.from > after && kindOf(x.name) === kind);
+/** Where Again starts: the episode after a game's end, or the next still to air when that's later (the wizard starts there), when the
+ *  season has one. */
+const nextAfter = (show: ShowData, to: number) => {
+  const n = Math.max(to + 1, show.latestAired + 1);
+  return show.header?.episodeCount && n > show.header.episodeCount ? null : n;
+};
+
+/** Again on a finished game's page (Round 3): the same game, its people and rules, on what comes next; the wizard opens on its
+ *  screen ready to Start (Run it back's path), never made for you. */
+export function AgainRow({ show, g }: { show: ShowData; g: GameView }) {
+  const seasonId = show.header?.seasonId ?? "";
+  const kind = kindOf(g.name);
+  const n = g.to !== null ? nextAfter(show, g.to) : null;
+  if (n === null || g.to === null || onAgain(show, kind, g.to) || g.solo) return null;
+  return (
+    <div className="mx-4 mt-4" data-again={g.leagueId}>
+      <button
+        type="button"
+        onClick={() => openStartGame({ seasonId, couchId: show.couch?.id ?? null, again: g.leagueId })}
+        className="nd-press flex min-h-14 w-full items-center gap-3 rounded-[4px] px-4 py-2 text-left outline-[1.5px] -outline-offset-[1.5px] outline-dashed outline-input"
+      >
+        <RotateCcw className="size-5 flex-none" aria-hidden />
+        <span className="min-w-0 flex-1">
+          <b className="block text-[15px] font-bold">{`Again ${oneGame(g) ? "for" : "from"} ${show.words.episode} ${n}`}</b>
+          <small className="block text-[13px] text-muted-foreground">{kind}, the same people and rules</small>
+        </span>
+      </button>
+    </div>
+  );
+}
+
+/** Again in the Games tab's results (Round 3): each of the newest episode's finished games whose kind isn't on again yet, one tap
+ *  each to its screen on the next episode. */
+function AgainLine({ show, games }: { show: ShowData; games: ArchivedGame[] }) {
+  const seasonId = show.header?.seasonId ?? "";
+  const seen = new Set<string>();
+  const ready = games.filter((a) => a.to !== null && !seen.has(a.kind) && !!seen.add(a.kind) && nextAfter(show, a.to) !== null && !onAgain(show, a.kind, a.to));
+  if (!ready.length) return null;
+  const n = nextAfter(show, ready[0].to as number);
+  return (
+    <div data-again-line className="border-t border-border py-2.5">
+      <p className="flex items-center gap-1.5 text-[15px] font-semibold">
+        <RotateCcw className="size-4 flex-none" aria-hidden />
+        {`Again for ${show.words.episode} ${n}`}
+      </p>
+      <div className="mt-1.5 flex flex-wrap gap-x-2">
+        {ready.map((a) => (
+          <button key={a.leagueId} type="button" data-again={a.leagueId} onClick={() => openStartGame({ seasonId, couchId: show.couch?.id ?? null, again: a.leagueId })} className="nd-press grid min-h-11 place-items-center">
+            <span className="grid h-9 place-items-center whitespace-nowrap rounded-[3px] px-3 text-[14px] font-bold outline-[1.5px] -outline-offset-[1.5px] outline-input">{a.kind}</span>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -240,9 +301,9 @@ export function tally(rec: SeasonRecord) {
   return { played: rec.games.length, firsts, alone, shared: firsts - alone, people, kinds, line };
 }
 
-/** Round 3's Games tab body (above Join a game, Start a game and How it works, which stay as they are). `row` draws a season game
+/** The Games tab's body (Round 3) (above Join a game, Start a game and How it works, which stay as they are). `row` draws a season game
  *  (step 6's row); `oneNight` the next episode's one-night things that aren't games (bingo, Call it, polls, trivia), folded to a line. */
-export function GamesR3({ show, moves, row, oneNight }: { show: ShowData; moves: Map<string, YourMove>; row: (g: GameView) => ReactNode; oneNight: ReactNode }) {
+export function WhatsOn({ show, moves, row, oneNight }: { show: ShowData; moves: Map<string, YourMove>; row: (g: GameView) => ReactNode; oneNight: ReactNode }) {
   const seasonId = show.header?.seasonId ?? "";
   const couchId = show.couch?.id ?? null;
   const { airing, nights, later, season, eps } = sortGames(show);
@@ -255,19 +316,31 @@ export function GamesR3({ show, moves, row, oneNight }: { show: ShowData; moves:
   const [opened, setOpened] = useState<Set<number>>(new Set());
   const [extras, setExtras] = useState(false);
   const E = show.words.episode;
-  // The next to air holds the one-night things; it's a block even with no night's game of its own.
+  // The next to air holds the one-night things; it's a block even with no night's game of its own. With nothing airing next (a season
+  // at your own pace, or over) they're a fold of their own under the games.
   const blocks = [...eps];
   if (!blocks.includes(airing) && show.upNext?.number === airing) blocks.push(airing);
   blocks.sort((a, b) => a - b);
+  const home = blocks.includes(airing) ? airing : null;
+  const fold = (border: boolean) => (
+    <div data-night-extras={extras ? "open" : "closed"} className={border ? "border-t border-border" : ""}>
+      <button type="button" aria-expanded={extras} onClick={() => setExtras(!extras)} className="flex min-h-12 w-full items-center gap-1.5 text-left text-[15px] font-semibold text-muted-foreground">
+        Also: bingo, calls, trivia and polls
+        <ChevronDown className={`size-4 transition-transform duration-200 ${extras ? "rotate-180" : ""}`} aria-hidden />
+      </button>
+      {extras && oneNight}
+    </div>
+  );
   return (
-    <div data-games-r3>
+    <div data-whats-on>
       {blocks.map((n) => {
         const here = nights.filter((g) => g.from === n);
         const aired = n <= show.latestAired;
         // An episode that's aired and is only waiting on your reveal folds to a line (nothing to do there); one with a move open stays.
         const folded = aired && !here.some((g) => dueIn(g, moves)) && !opened.has(n);
         const when = n === airing && show.upNext?.airAt ? airTime(Date.parse(show.upNext.airAt)) : null;
-        const games = here.length ? `${here.length} ${here.length === 1 ? "game" : "games"}` : null;
+        // A count of games beside "Game 1" (a sport's word for its episode) would say game twice: there it's left out.
+        const games = here.length && !/^game$/i.test(E) ? `${here.length} ${here.length === 1 ? "game" : "games"}` : null;
         const done = here.filter(answeredIn).length;
         const state = done === here.length ? "answered" : `${done} of ${here.length} answered`;
         return (
@@ -290,15 +363,7 @@ export function GamesR3({ show, moves, row, oneNight }: { show: ShowData; moves:
                   {here.map((g) => (
                     <NightRow key={g.leagueId} show={show} g={g} move={moves.get(g.leagueId) ?? null} />
                   ))}
-                  {n === airing && (
-                    <div data-night-extras={extras ? "open" : "closed"} className={here.length ? "border-t border-border" : ""}>
-                      <button type="button" aria-expanded={extras} onClick={() => setExtras(!extras)} className="flex min-h-12 w-full items-center gap-1.5 text-left text-[15px] font-semibold text-muted-foreground">
-                        Also: bingo, calls, trivia and polls
-                        <ChevronDown className={`size-4 transition-transform duration-200 ${extras ? "rotate-180" : ""}`} aria-hidden />
-                      </button>
-                      {extras && oneNight}
-                    </div>
-                  )}
+                  {n === home && fold(here.length > 0)}
                 </div>
               </>
             )}
@@ -323,6 +388,7 @@ export function GamesR3({ show, moves, row, oneNight }: { show: ShowData; moves:
             {last.map((a) => (
               <ResultRow key={a.leagueId} a={a} seasonId={seasonId} />
             ))}
+            <AgainLine show={show} games={last} />
             <button type="button" data-archive-open onClick={door.show} className="nd-press -mx-1 flex min-h-14 w-[calc(100%+8px)] items-center gap-3 rounded-[3px] border-t border-border px-1 py-2 text-left">
               <span className="min-w-0 flex-1">
                 <b className="block text-[15px] font-bold">
@@ -349,6 +415,11 @@ export function GamesR3({ show, moves, row, oneNight }: { show: ShowData; moves:
               </NavLink>
             ))}
           </div>
+        </section>
+      )}
+      {home === null && (
+        <section className="mt-6 px-2">
+          <div className="rounded-[10px] bg-card px-3.5">{fold(false)}</div>
         </section>
       )}
       <ArchivePage show={show} open={door.open} onClose={door.close} />
@@ -403,8 +474,8 @@ export function ArchivePage({ show, open, onClose }: { show: ShowData; open: boo
   const games = pages.flatMap((p) => p.games);
   const byEp = new Map<number, ArchivedGame[]>();
   for (const g of games) byEp.set(g.ended, [...(byEp.get(g.ended) ?? []), g]);
-  const oldest = games.length ? Math.min(...games.map((g) => g.ended)) : null;
-  const range = q.hasNextPage && oldest !== null ? nextRange(rec, oldest) : null;
+  const cursor = pages.at(-1)?.next ?? null;
+  const range = q.hasNextPage && cursor !== null ? nextRange(rec, cursor) : null;
   const E = show.words.episode;
   const most = t ? Math.max(1, ...t.people.map((p) => p.above + p.level + p.below)) : 1;
   const label = show.header ? `${(show.header.show.name ?? "").replace(/^The /, "")}${show.header.seasonNumber ? ` · Season ${show.header.seasonNumber}` : ""}` : "";
@@ -504,7 +575,7 @@ export function ArchivePage({ show, open, onClose }: { show: ShowData; open: boo
 
 /** Tonight's Your games, Round 3: under the season games' minis, the newest episode's results (the same rows), episodes waiting on
  *  your reveal as one line, and the next episode's games as one line each (the strip holds their moves). */
-export function TonightNights({ show }: { show: ShowData }) {
+export function TonightNights({ show, under = true }: { show: ShowData; under?: boolean }) {
   const seasonId = show.header?.seasonId ?? "";
   const couchId = show.couch?.id ?? null;
   const { nights, eps } = sortGames(show);
@@ -519,7 +590,7 @@ export function TonightNights({ show }: { show: ShowData }) {
   const E = show.words.ep;
   if (!last.length && !here.length && !held) return null;
   return (
-    <div data-tonight-nights className="mt-2 flex flex-col gap-4 border-t border-border pt-3">
+    <div data-tonight-nights className={`flex flex-col gap-4 ${under ? "mt-2 border-t border-border pt-3" : ""}`}>
       {last.length > 0 && (
         <div>
           <p className="type-caption pb-1 text-[15px] tracking-[0.04em] text-muted-foreground">{`${E} ${newest}'s results`}</p>
@@ -535,7 +606,7 @@ export function TonightNights({ show }: { show: ShowData }) {
       )}
       {here.length > 0 && (
         <div>
-          <p className="type-caption pb-1 text-[15px] tracking-[0.04em] text-muted-foreground">{`${E} ${n}'s games`}</p>
+          <p className="type-caption pb-1 text-[15px] tracking-[0.04em] text-muted-foreground">{`For ${E} ${n}`}</p>
           {here.map((g) => {
             const s = g.sheet;
             const state = s && s.of > 0 ? (s.answered === s.of ? "Answered" : `${s.of - s.answered} to answer`) : s?.behind ? `After you reveal ${E} ${s.behind}` : answeredIn(g) ? "Answered" : "Not open yet";

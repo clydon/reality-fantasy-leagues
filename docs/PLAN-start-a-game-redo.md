@@ -856,7 +856,51 @@ then approval.
 
 - **B2. The play screens for every piece the wizard makes that the page can't play yet,** each before the wizard offers that piece
   to people.
-- **B3. The show's games and the archive** (Round 3's design).
+- **B3. The show's games and the archive** (Round 3's design). **Built 2026-11-18** (the user approved Round 3's story: "I'm liking
+  the mock ups you made", and took the recommendation to keep each season game's move in its own row).
+  - **The switch is gone.** Round 3's tab is everyone's: `src/new/show/whats-on.tsx` (`WhatsOn`, `ArchivePage`, `TonightNights`,
+    `ResultRow`, `AgainRow`). Step 6's every-game list (`GameRows`) and the span's Run it back row (`spanToRunBack`) are deleted.
+  - **The space reads running games** (`useSeasonGames` asks `running=1`).
+    - A finished game with an end of its own is the archive's. Season-long games and stages stay in the read once over, because
+      Tonight's own-pace plate ("See how you finished"), a game's stages and Run it back on the next season read them.
+    - A finished game's page reads that one game (`useSeasonGame`: `/games?only=`).
+  - **Again** is the same game on the next episode still to come, opening the wizard on its screen (Run it back's path).
+    - It's offered in the Games tab's results, one button a kind, for kinds not already on again.
+    - It's also on a finished game's page.
+    - The fixture's `--no-next` shows it.
+  - **The extras' home:** bingo, calls, trivia and polls are a fold in the next-to-air block, or a fold of their own when nothing
+    airs next.
+  - **Checks:**
+    - `scripts/dev-test/check-whats-on.js` (new, 26 checks: alex, sam, the archive, Tonight, Again);
+    - `check-short-games.js` (the record's read timed; the running read's season-long games allowed);
+    - `check-spans.js`, `check-new-episode-games.js` and `check-new-researched-trivia.js` updated for the new tab.
+  - **The sports check:** `scripts/dev-test/story-sport-daily.js`, on check-sports-couch.js's stand-in ESPN world: the Sixers'
+    three daily games as one-game Pick'em. Every one of them is still to come there. A sport's results come from the daily listings
+    job (sports/finals.ts), which that world doesn't run forward, so finished sports games weren't rendered.
+  - **The code review's findings, fixed:**
+    - a sport's stats or squares game never looked over from its stored state, and would have vanished from both lists;
+    - a span set past the season's real end ended past the finale;
+    - an archive page whose games all failed to read stopped the paging (now each page returns `next`);
+    - one marks memo per archive read.
+  - **The code review's findings, left:**
+    - `Spec.answerParts` sends every game of questions with matchups, teams or a handicap to a full read on every running read and
+      archive page;
+    - the archive reads its unsure games on every page;
+    - `overByMark` restates the view's `over` and must keep up with each new piece (storing a game's ended episode at write time
+      would end that).
+    - For a session on the archive's speed, once seasons outgrow the 2.5 s budget.
+  - **Noticed, not fixed:**
+    - **A sport's one-game games each live on their own matchup's season.** Pick'em on each of the Sixers' three daily games
+      made three seasons ("Knicks at Sixers, Nov 19", …), so a team's daily games never share a Games tab, an archive or a
+      record the way a show's short games do. A team's season (Every game left) would hold them together. This is a question for
+      the user: whether a team's one-game games should live on the team's season.
+    - **`check-spans.js`'s browser part can't reach a finished game.** It reaches the Games tab while Episode 6 is still to air and
+      jordan is through Ep 4 (its `mark` helper is never called). So its Games-tab assertions, the old "Final · Episodes 6–7" ones
+      and Round 3's results and Again, fail there for that reason. Its API part and the start checks before it run as before.
+      `check-whats-on.js` covers Again and the finished state.
+    - Its "a start that has aired: refused" stays failing, as listed under B1 (an aired start is an own-pace catch-up now).
+    - **The show bar's faint backdrop title sits behind Home** on a long sports matchup name ("Knicks at Sixers, Nov 19": the story's
+      overlap check flags it). It predates this work.
 - **B4. Game settings** (Round 4's design).
 
 ### Fixes, any time

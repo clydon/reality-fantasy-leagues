@@ -21,7 +21,7 @@
 //   on, Just Episode 6, Through a later one), picking Through Episode 7 says "Episodes 6–7" in the sheet's title, Start it, and
 //   the Games tab's game reads "Episodes 6–7 ·"; after the results, "Final · Episode 6" and "Final · Episodes 6–7"; Backstage ›
 //   Game settings' How long moves the end to Episode 8 (the toast's Undo puts it back) and reads Final once it's over; the Games
-//   tab's Run it back · Episodes 8–9 opens the sheet set to Episodes 8–9 and starts it; the trophy shelf's plaques say Episode 6
+//   tab's Again for Episode 8 (Round 3: finished spans are in its results) opens the sheet set to Episodes 8–9 and starts it; the trophy shelf's plaques say Episode 6
 //   and Episodes 6–7. Nothing wider than the screen; no page errors. Screenshots go to <outDir>.
 //   Starts (step A3 of docs/PLAN-start-a-game-gpt.md), API: the options list the next episode and every later listed one;
 //   ?start=9 reads them from Episode 9 (How long counts from there); a start that's aired, isn't listed, comes with Include it
@@ -172,218 +172,25 @@ function check(ok, what, detail = "") {
       r = await start({ game: "weeklyLineup", tell: false, to: 7 });
       LINEUP = r.body.leagueId;
       check(r.status === 200 && r.body.to === 7 && (await league(LINEUP)).state.settings.endEpisode === 7, "jordan starts a Weekly Lineup over Episodes 6–7", JSON.stringify(r.body));
+      // Round 3 (B3): a span that's over leaves the Games tab for its results and the archive; Again offers it on what comes next.
       await page.goto(`${BASE}/show/${sid}/games`, { waitUntil: "load" });
-      const span = page.locator(`[data-span="${LINEUP}"]`);
-      await span.waitFor({ timeout: 15000 }).catch(() => {});
-      check(/Episodes 6–7 ·/.test((await span.textContent().catch(() => "")) ?? ""), "  the Games tab's game reads Episodes 6–7", await span.textContent().catch(() => ""));
-      check(/Episode 6 ·/.test((await page.locator(`[data-span="${POOL}"]`).textContent().catch(() => "")) ?? ""), "  and the pool's, Episode 6");
-      await span.scrollIntoViewIfNeeded();
-      await shot("games-spans");
-      await wide("the Games tab");
-    } else {
-      r = await start({ game: "weeklyLineup", tell: false, to: 7 });
-      LINEUP = r.body.leagueId;
-      check(r.status === 200 && r.body.to === 7, "jordan starts Weekly Lineup over Episodes 6-7", JSON.stringify(r.body));
-    }
-    check((await joinIt(LINEUP)) === 200, "alex joins the lineup game too");
-
-    // ---------- the Outlast that starts with Episode 9 ----------
-    if (apiOnly) {
-      r = await start({ game: "outlast", tell: false, from: 9 });
-      check(r.status === 200 && r.body.from === 9 && r.body.to === null, "jordan starts Outlast from Episode 9", JSON.stringify(r.body));
-    }
-    const { rows: laters } = await pool.query(
-      "SELECT id FROM leagues WHERE created_by = $1 AND state->'settings'->>'leagueTypeId' = 'classic-draft' AND state->'settings'->>'startEpisode' = '9' AND deleted_at IS NULL",
-      [fx.users.jordan]
-    );
-    const LATER = laters[0]?.id ?? null;
-    st = LATER && (await league(LATER)).state;
-    check(laters.length === 1 && st.settings.startEpisode === 9 && st.settings.endEpisode == null && st.episodes.some((e) => e.number === 9), "an Outlast from Episode 9: stored so, its first episode made", JSON.stringify(st && { start: st.settings.startEpisode, end: st.settings.endEpisode }));
-    const said9 = ((await as.jordan.call("GET", `/api/seasons/${sid}/changes${q}`)).body.lines ?? []).map((l) => l.text);
-    check(said9.some((t) => /started Outlast from Episode 9/.test(t)), "  Recent changes: started Outlast from Episode 9", JSON.stringify(said9.slice(0, 3)));
-    g = (await gamesOf("jordan")).find((x) => x.leagueId === LATER);
-    check(g?.from === 9 && g.to === null && g.over === false && g.table.every((t) => t.total === 0), "  its game: from Episode 9, nothing scored before it", JSON.stringify(g && { from: g.from, to: g.to, totals: g.table.map((t) => t.total) }));
-    r = await as.jordan.call("POST", `/api/leagues/${LATER}/episodes/upcoming/bets`, { label: "Who goes home first?", points: 1 });
-    st = r.status === 200 ? r.body : null;
-    check(r.status === 200 && st.episodes.find((e) => e.number === 9)?.bets?.some((x) => x.label === "Who goes home first?"), "  a side bet proposed now goes on Episode 9, its first", `${r.status} ${JSON.stringify(r.body).slice(0, 200)}`);
-    if (b) {
-      const later = b.page.locator(`[data-span="${LATER}"]`);
-      await b.page.goto(`${BASE}/show/${sid}/games`, { waitUntil: "load" });
-      await later.waitFor({ timeout: 15000 }).catch(() => {});
-      check(/Starts with Episode 9 ·/.test((await later.textContent().catch(() => "")) ?? ""), "  the Games tab: Starts with Episode 9", await later.textContent().catch(() => ""));
-      await later.scrollIntoViewIfNeeded();
-      await shot("games-starts-later");
-    }
-
-    // ---------- Game settings: How long ----------
-    const settingsOf = async (id) => (await as.jordan.call("GET", `/api/seasons/${sid}/backstage/settings${q}`)).body.games.find((x) => x.leagueId === id);
-    const setEnd = (who, id, to) => as[who].call("PATCH", `/api/seasons/${sid}/backstage/settings${q}`, { leagueId: id, set: { endEpisode: to }, text: `Changed how long it runs: ${to}` });
-    const endOf = async (id) => (await league(id)).state.settings.endEpisode ?? null;
-    let gs = await settingsOf(LINEUP);
-    check(gs?.span.from === 6 && gs.span.to === 7 && gs.span.over === false && gs.span.ends.map((e) => e.number).join() === "6,7,8,9,10,11,12,13", "Game settings: How long, Episodes 6–7, its end can move to any episode still to come", JSON.stringify(gs?.span));
-    for (const [to, why] of [[5, "before it starts"], ["8", "not a number"], [99, "the listing hasn't got it"]]) {
-      r = await setEnd("jordan", LINEUP, to);
-      check(r.status === 400 && (await endOf(LINEUP)) === 7, `  an end ${why}: refused`, `${r.status} ${JSON.stringify(r.body)}`);
-    }
-    r = await setEnd("alex", LINEUP, 8);
-    check(r.status >= 400 && (await endOf(LINEUP)) === 7, "  alex plays it but doesn't run it: refused", `${r.status}`);
-    await as.jordan.call("PATCH", `/api/seasons/${sid}/backstage/settings${q}`, { lockDown: true });
-    r = await setEnd("jordan", LINEUP, 8);
-    check(r.status === 409 && /Locked down/.test(r.body.error ?? "") && (await endOf(LINEUP)) === 7, "  locked down: frozen", `${r.status} ${JSON.stringify(r.body)}`);
-    await as.jordan.call("PATCH", `/api/seasons/${sid}/backstage/settings${q}`, { lockDown: false });
-    if (b) {
-      const { page } = b;
-      await page.goto(`${BASE}/show/${sid}/backstage/settings`, { waitUntil: "load" });
-      const how = page.locator('[data-settings-game="Weekly Lineup"] [data-settings="span"]');
-      await how.waitFor({ timeout: 30000 });
-      check(/Episodes 6–7/.test((await how.locator("[data-span-now]").textContent()) ?? ""), "Backstage › Game settings: How long, Episodes 6–7", await how.innerText());
-      await how.locator("[data-span-end]").selectOption("8");
-      await page.locator("text=Weekly Lineup runs through Episode 8").first().waitFor({ timeout: 15000 });
-      check((await endOf(LINEUP)) === 8, "  Through Episode 8: saved, the toast says so");
-      await how.locator("[data-span-now]").filter({ hasText: "Episodes 6–8" }).waitFor({ timeout: 15000 }).catch(() => {});
-      await how.scrollIntoViewIfNeeded();
-      await shot("settings-how-long");
-      await wide("Game settings");
-      await page.getByRole("button", { name: "Undo" }).first().click();
-      await page.locator("text=Undone").first().waitFor({ timeout: 15000 }).catch(() => {});
-      check((await endOf(LINEUP)) === 7, "  Undo: back to Episode 7");
-    } else {
-      r = await setEnd("jordan", LINEUP, 8);
-      check(r.status === 200 && !!r.body.batch && (await endOf(LINEUP)) === 8, "  its end moves to Episode 8", JSON.stringify(r.body));
-      r = await as.jordan.call("POST", `/api/seasons/${sid}/changes/${r.body.batch}/undo${q}`);
-      check(r.status === 200 && (await endOf(LINEUP)) === 7, "  Undo: back to Episode 7", JSON.stringify(r.body));
-    }
-    const said = ((await as.jordan.call("GET", `/api/seasons/${sid}/changes${q}`)).body.lines ?? []).map((l) => l.text);
-    check(said.some((t) => /how long/i.test(t)), "  Recent changes says it", JSON.stringify(said.slice(0, 4)));
-
-    // ---------- Game settings: where it starts (step A3) ----------
-    const setStart = (who, id, from) => as[who].call("PATCH", `/api/seasons/${sid}/backstage/settings${q}`, { leagueId: id, set: { startEpisode: from }, text: `Changed where it starts: ${from}` });
-    const startOf = async (id) => (await league(id)).state.settings.startEpisode;
-    gs = await settingsOf(LATER);
-    check(gs?.span.from === 9 && gs.span.started === false && gs.span.starts.map((e) => e.number).join() === "6,7,8,9,10,11,12,13", "Game settings: the Outlast starts with Episode 9, and can start with any episode still to come", JSON.stringify(gs?.span));
-    check((await settingsOf(LINEUP))?.span.started === false && (await settingsOf(LINEUP)).span.starts.map((e) => e.number).join() === "6,7", "  the lineup game's start, up to its end (Episode 7)", JSON.stringify((await settingsOf(LINEUP))?.span.starts));
-    for (const [from, why] of [[5, "that's aired"], ["10", "that isn't a number"], [99, "the listing hasn't got"]]) {
-      r = await setStart("jordan", LATER, from);
-      check(r.status === 400 && (await startOf(LATER)) === 9, `  a start ${why}: refused`, `${r.status} ${JSON.stringify(r.body)}`);
-    }
-    r = await setStart("jordan", LINEUP, 8);
-    check(r.status === 400 && (await startOf(LINEUP)) === 6, "  a start after its end: refused", `${r.status} ${JSON.stringify(r.body)}`);
-    r = await setStart("alex", LATER, 11);
-    check(r.status >= 400 && (await startOf(LATER)) === 9, "  alex doesn't run it: refused", `${r.status}`);
-    await as.jordan.call("PATCH", `/api/seasons/${sid}/backstage/settings${q}`, { lockDown: true });
-    r = await setStart("jordan", LATER, 11);
-    check(r.status === 409 && /Locked down/.test(r.body.error ?? "") && (await startOf(LATER)) === 9, "  locked down: frozen", `${r.status} ${JSON.stringify(r.body)}`);
-    await as.jordan.call("PATCH", `/api/seasons/${sid}/backstage/settings${q}`, { lockDown: false });
-    if (b) {
-      const { page } = b;
-      await page.goto(`${BASE}/show/${sid}/backstage/settings`, { waitUntil: "load" });
-      const how = page.locator(`[data-settings-league="${LATER}"] [data-settings="span"]`);
-      await how.waitFor({ timeout: 30000 });
-      check(/Episode 9 to the season's end/.test((await how.locator("[data-span-now]").textContent()) ?? "") && /Move its start before Episode 9 airs/.test(await how.innerText()), "Backstage › Game settings: the Outlast from Episode 9, its start to move before it airs", await how.innerText());
-      await how.locator("[data-span-start]").selectOption("11");
-      await page.locator("text=Outlast starts with Episode 11").first().waitFor({ timeout: 15000 });
-      check((await startOf(LATER)) === 11 && (await league(LATER)).state.episodes.some((e) => e.number === 11), "  Starts › Episode 11: saved (its first episode made), the toast says so");
-      await how.locator("[data-span-now]").filter({ hasText: "Episode 11" }).waitFor({ timeout: 15000 }).catch(() => {});
-      await how.scrollIntoViewIfNeeded();
-      await shot("settings-starts");
-      await wide("Game settings, its start");
-      await page.getByRole("button", { name: "Undo" }).first().click();
-      await page.locator("text=Undone").first().waitFor({ timeout: 15000 }).catch(() => {});
-      check((await startOf(LATER)) === 9, "  Undo: back to Episode 9");
-    } else {
-      r = await setStart("jordan", LATER, 11);
-      check(r.status === 200 && !!r.body.batch && (await startOf(LATER)) === 11, "  its start moves to Episode 11", JSON.stringify(r.body));
-      r = await as.jordan.call("POST", `/api/seasons/${sid}/changes/${r.body.batch}/undo${q}`);
-      check(r.status === 200 && (await startOf(LATER)) === 9, "  Undo: back to Episode 9", JSON.stringify(r.body));
-    }
-    const saidStart = ((await as.jordan.call("GET", `/api/seasons/${sid}/changes${q}`)).body.lines ?? []).map((l) => l.text);
-    check(saidStart.some((t) => /where (it|Outlast) starts/i.test(t)), "  Recent changes says it", JSON.stringify(saidStart.slice(0, 4)));
-
-    // ---------- Episode 6 comes in ----------
-    const { syncSeasonLeagues } = jiti("../../src/lib/server/season-decisions.ts");
-    // Episodes 6 and 7 have aired.
-    await pool.query("UPDATE show_seasons SET premiere_date = premiere_date - 12 WHERE id = $1", [sid]);
-    const result = async (ep) => {
-      const name = (await league(fx.leagues.outlast)).state.castaways.find((c) => c.status === "active").name;
-      await pool.query(
-        `INSERT INTO season_decisions (season_id, episode_number, kind, castaway_name, method, event_type, status, from_research, decided_at)
-         VALUES ($1, $2, 'elimination', $3, 'Voted Out', '', 'accepted', true, now())`,
-        [sid, ep, name]
-      );
-      await syncSeasonLeagues(sid, null);
-    };
-    await result(6);
-    await mark("jordan", 6);
-    const games6 = await gamesOf("jordan");
-    g = games6.find((x) => x.leagueId === POOL);
-    const pool6 = JSON.stringify(g?.table.map((t) => [t.name, t.total, t.points]));
-    check(g?.over === true && g.through === 6, "Episode 6 in, jordan's seen it: the pool is over, through 6", JSON.stringify(g && { over: g.over, through: g.through }));
-    const lu = games6.find((x) => x.leagueId === LINEUP);
-    check(lu?.over === false && lu.lineup?.episode === 7, "  the lineup game runs on, asking for Episode 7's lineup", JSON.stringify(lu && { over: lu.over, lineup: lu.lineup?.episode }));
-    check((await joinable(POOL))?.ended === true, "  nobody new joins the pool");
-    r = await as.riley.call("POST", `/api/couches/${couch}/games/${POOL}`, { action: "join" });
-    check(r.status === 409 && /That game's over/.test(r.body.error ?? ""), "  riley's join: That game's over", `${r.status} ${JSON.stringify(r.body)}`);
-    const hub = (await as.jordan.call("GET", `/api/couches/${couch}/hub`)).body;
-    check(hub.games?.find((x) => x.leagueId === POOL)?.ended === true && hub.games.find((x) => x.leagueId === LINEUP)?.ended === false, "  the couch hub: the pool ended, the lineup game not", JSON.stringify(hub.games?.map((x) => [x.name, x.ended])));
-    r = await setEnd("jordan", POOL, 9);
-    check(r.status === 409 && /It's over/.test(r.body.error ?? "") && (await endOf(POOL)) === 6 && (await settingsOf(POOL))?.span.over === true, "  the pool's over: its end stays (Game settings says so)", `${r.status} ${JSON.stringify(r.body)}`);
-    check((await settingsOf(LINEUP))?.span.ends.map((e) => e.number).join() === "7,8,9,10,11,12,13", "  the lineup game's end can move to Episode 7 on (6 is in)", JSON.stringify((await settingsOf(LINEUP))?.span.ends.map((e) => e.number)));
-
-    // ---------- Episode 7 comes in ----------
-    await result(7);
-    await mark("jordan", 7);
-    const games7 = await gamesOf("jordan");
-    const lu7 = games7.find((x) => x.leagueId === LINEUP);
-    // Its last lineup stays on show, locked (as a season game's does after its finale); nothing's open.
-    check(lu7?.over === true && lu7.through === 7 && (lu7.lineup === null || (lu7.lineup.episode === 7 && lu7.lineup.locked)), "Episode 7 in: the lineup game is over through 7, nothing left open", JSON.stringify(lu7 && { over: lu7.over, through: lu7.through, lineup: lu7.lineup && [lu7.lineup.episode, lu7.lineup.locked] }));
-    g = games7.find((x) => x.leagueId === POOL);
-    check(g?.through === 6 && JSON.stringify(g.table.map((t) => [t.name, t.total, t.points])) === pool6, "  the pool's table doesn't move: it stands at Episode 6", JSON.stringify(g && { through: g.through }));
-    const home = (await as.jordan.call("GET", "/api/me/home")).body;
-    check(!(home.moves ?? []).some((m) => m.leagueId === LINEUP || m.leagueId === POOL), "  home asks nothing of either game", JSON.stringify((home.moves ?? []).map((m) => [m.kind, m.leagueName, m.episode])));
-    check((await setEnd("jordan", LINEUP, 9)).status === 409, "  and its end can't move now");
-    for (const [id, what] of [[POOL, "the pool (over at 6)"], [LINEUP, "the lineup game (over at 7)"]]) {
-      r = await as.jordan.call("POST", `/api/leagues/${id}/episodes/upcoming/bets`, { label: "Too late?", points: 1 });
-      const bets = (await league(id)).state.episodes.flatMap((e) => (e.bets || []).map((x) => x.label));
-      check(r.status === 409 && /This game is over/.test(r.body.error ?? "") && !bets.includes("Too late?"), `  a side bet on ${what}: refused, nothing written`, `${r.status} ${JSON.stringify(r.body).slice(0, 160)}`);
-    }
-    gs = await settingsOf(LATER);
-    check(gs?.span.started === false && gs.span.starts[0]?.number === 8, "  the Outlast from Episode 9 hasn't started: its start can still move, from Episode 8 on", JSON.stringify(gs?.span.starts.map((e) => e.number)));
-
-    // ---------- the trophy shelf and Run it back ----------
-    let hub7 = (await as.jordan.call("GET", `/api/couches/${couch}/hub`)).body;
-    const plaque = (id) => hub7.trophies?.plaques.find((p) => p.leagueId === id);
-    check(plaque(POOL)?.span === "Episode 6" && plaque(LINEUP)?.span === "Episodes 6–7" && plaque(LINEUP)?.label === "ZT Survivor 51", "the trophy shelf: each plaque names its span (Episode 6, Episodes 6–7) under the season", JSON.stringify(hub7.trophies?.plaques.map((p) => [p.label, p.span, p.gameName])));
-    const at = (id) => hub7.trophies.plaques.findIndex((p) => p.leagueId === id);
-    check(at(LINEUP) >= 0 && at(LINEUP) < at(POOL), "  the span that ended later first (Episodes 6–7, then Episode 6)");
-    const backOf = (id) => hub7.again?.find((a) => a.leagueId === id);
-    check(backOf(LINEUP)?.seasonId === sid && backOf(LINEUP)?.label === "ZT Survivor 51 · Episodes 8–9", "Run it back: the lineup game on the same season's next two, Episodes 8–9", JSON.stringify(hub7.again));
-    check(backOf(POOL)?.label === "ZT Survivor 51 · Episode 8", "  the pool on the next one, Episode 8", JSON.stringify(backOf(POOL)));
-    o = (await as.jordan.call("GET", `/api/seasons/${sid}/start${q}&again=${LINEUP}`)).body;
-    check(o.from === 8 && o.again?.to === 9 && o.again.label === "Episodes 6–7" && o.again.key === "weeklyLineup", "  the start sheet's again: Weekly Lineup, Episodes 8–9 preselected, after Episodes 6–7", JSON.stringify({ from: o.from, again: o.again }));
-
-    if (b) {
-      const { page, errors } = b;
-      await page.goto(`${BASE}/show/${sid}/games`, { waitUntil: "load" });
-      const span = page.locator(`[data-span="${LINEUP}"]`);
-      await span.waitFor({ timeout: 15000 }).catch(() => {});
-      check(/Final · Episodes 6–7 ·/.test((await span.textContent().catch(() => "")) ?? ""), "the Games tab: Final · Episodes 6–7", await span.textContent().catch(() => ""));
-      check(/Final · Episode 6 ·/.test((await page.locator(`[data-span="${POOL}"]`).textContent().catch(() => "")) ?? ""), "  and Final · Episode 6");
-      check(/^Through Episode 7\./.test(((await page.locator("text=/^Through Episode/").first().textContent().catch(() => "")) ?? "").trim()), "  the line under the tables is the running games' (Episode 7), not the finished pool's 6");
-      await page.locator(`[data-table="${POOL}"]`).scrollIntoViewIfNeeded();
+      await page.locator("[data-results] [data-result-row]").first().waitFor({ timeout: 30000 }).catch(() => {});
+      check((await page.locator(`[data-result-row="${LINEUP}"]`).count()) === 1, "the Games tab: the finished lineup game in Episode 7's results", await page.locator("[data-results]").innerText().catch(() => ""));
+      check((await page.locator(`[data-table="${LINEUP}"], [data-table="${POOL}"]`).count()) === 0, "  and neither finished game has a row of its own");
       await shot("games-final");
       await wide("the Games tab, final");
 
-      // Run it back from the Games tab: the latest finished span, the lineup game's, on Episodes 8–9.
-      const backRow = page.locator('[data-start-row="again-span"]');
+      // Again from the Games tab: the newest finished span, the lineup game's, on Episodes 8–9.
+      const backRow = page.locator(`[data-again-line] [data-again="${LINEUP}"]`);
       await backRow.waitFor({ timeout: 20000 });
-      check(/Run it back · Episodes 8–9/.test((await backRow.innerText()) ?? ""), "the Games tab: Run it back · Episodes 8–9", await backRow.innerText());
+      check(/Again for Episode 8/.test((await page.locator("[data-again-line]").innerText()) ?? ""), "the Games tab: Again for Episode 8", await page.locator("[data-again-line]").innerText());
       await backRow.scrollIntoViewIfNeeded();
       await shot("games-run-it-back");
       await backRow.click();
-      // Start a game (B1): Run it back opens the old game on its own screen, on the next stretch (Episodes 8–9).
+      // Start a game (B1): Again opens the old game on its own screen, on the next stretch (Episodes 8–9).
       await page.locator("[data-gallery=base]").waitFor({ timeout: 60000 });
       const length = await page.locator("[data-gallery-length]").innerText();
-      check(/Weekly Lineup/i.test(await page.locator("[data-gallery-title]").innerText()) && /Episode 8 to Episode 9/.test(length), "  Run it back: the same Weekly Lineup on its screen, Episode 8 to Episode 9", `${await page.locator("[data-gallery-title]").innerText()} · ${length.split("\n").slice(0, 3).join(" · ")}`);
+      check(/Weekly Lineup/i.test(await page.locator("[data-gallery-title]").innerText()) && /Episode 8 to Episode 9/.test(length), "  Again: the same Weekly Lineup on its screen, Episode 8 to Episode 9", `${await page.locator("[data-gallery-title]").innerText()} · ${length.split("\n").slice(0, 3).join(" · ")}`);
       await shot("run-it-back-sheet");
       await wide("Run it back");
       await page.locator("[data-gallery-start]").click();
@@ -391,8 +198,13 @@ function check(ok, what, detail = "") {
       const { rows: again } = await pool.query("SELECT id, state FROM leagues WHERE created_by = $1 AND state->'settings'->>'endEpisode' = '9' AND deleted_at IS NULL", [fx.users.jordan]);
       check(again.length === 1 && again[0].state.settings.startEpisode === 8 && again[0].state.settings.leagueTypeId === "active-roster", "  Start: a Weekly Lineup over Episodes 8–9");
       await page.goto(`${BASE}/show/${sid}/games`, { waitUntil: "load" });
-      await page.locator('[data-start-row="again-span"]').filter({ hasText: "Episode 8" }).waitFor({ timeout: 20000 }).catch(() => {});
-      check(/Run it back · Episode 8\b/.test((await page.locator('[data-start-row="again-span"]').innerText().catch(() => "")) ?? ""), "  run back: the row moves on to the pool's (Episode 8)", await page.locator("[data-start-row]").innerText().catch(() => ""));
+      await page.locator("[data-whats-on]").waitFor({ timeout: 30000 }).catch(() => {});
+      await page.waitForTimeout(1500);
+      check((await page.locator(`[data-again="${LINEUP}"]`).count()) === 0, "  then the lineup game's Again is gone (it's on again)");
+      // The pool's Again is on its own page (it ended an episode before the newest results).
+      await page.goto(`${BASE}/show/${sid}/game/${POOL}`, { waitUntil: "load" });
+      await page.locator(`[data-again="${POOL}"]`).waitFor({ timeout: 30000 }).catch(() => {});
+      check(/Again for Episode 8\b/.test((await page.locator(`[data-again="${POOL}"]`).innerText().catch(() => "")) ?? ""), "  the pool's page: Again for Episode 8", await page.locator("[data-game-page]").innerText().catch(() => ""));
 
       // Game settings once it's over: Final, nothing to change.
       await page.goto(`${BASE}/show/${sid}/backstage/settings`, { waitUntil: "load" });

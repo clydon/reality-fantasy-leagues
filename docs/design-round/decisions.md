@@ -1307,3 +1307,16 @@
 - Decided by: Claude (found by Round 3's frames and its critique)
 - Why: "Tied 1st of 4 · 1 pts · in front" said a tie led and misspelt the unit; both are words, not design.
 - Rests on: this-week.ts (the standing card), game-sheets.tsx totalWords.
+
+## 2026-11-18 · Round 3 approved; the season games keep their moves in their own rows
+- Decided by: the user ("I'll go with you recommendation. I'm liking the mock ups you made. Continue here"), on the story https://claude.ai/artifact/LMc46gkHTVcWgWCKCmPMT2
+- Why: a move is said once, in its game's row; the strip at the top gathers every move for the episode in one tap.
+- Rejected: the critique's one-line rows for the season games' moves inside the next episode's block (the move said twice).
+- Rests on: docs/design-round/round3-short-games-critique.md (finding 2); the story's Open section.
+
+## 2026-11-18 · B3: Round 3 is everyone's; the space reads the games that are on; Again is Run it back on the next episode
+- Decided by: Claude, building the approved design (the user: "Continue here")
+- Why: the switch only existed for review. A season of short games read whole on every visit is the slowness E2 measured; the archive holds the rest.
+- What: no ?games=r3; the space's games read asks running=1, which leaves out a finished game with an end of its own (season-long games and stages stay, over or not: Tonight's own-pace plate, a game's stages and Run it back on the next season read them); a finished game's page reads that game alone (?only=). Again, in the results (one button a kind not already on again) and on a finished game's page, opens Start a game on the game's screen at the next episode still to come. Bingo, calls, trivia and polls fold into the next-to-air block, or stand alone when nothing airs next.
+- Rejected: keeping step 6's every-game list for anyone; Run it back on a span read from the full games read (it reads finished games the running read no longer carries).
+- Rests on: docs/PLAN-start-a-game-redo.md B3; scripts/dev-test/check-whats-on.js; the story's version 2, https://claude.ai/artifact/LMc46gkHTVcWgWCKCmPMT2.

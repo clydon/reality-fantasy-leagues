@@ -60,6 +60,13 @@ function standIn(n, cast, sent) {
   };
 }
 
+// Round 3 (B3): a player's Games tab folds This week into the next episode's block, one line ("Also: bingo, calls, trivia and
+// polls"): open it when it's there.
+const openExtras = async (page) => {
+  const fold = page.locator('[data-night-extras="closed"] button').first();
+  if (await fold.waitFor({ timeout: 15_000 }).then(() => true, () => false)) await fold.click();
+};
+
 (async () => {
   const pool = new Pool({ connectionString: DB });
   fs.mkdirSync(out, { recursive: true });
@@ -160,6 +167,7 @@ function standIn(n, cast, sent) {
         check(over <= 1, `${what}: nothing wider than the screen`, `${over}px`);
       };
       await pg.goto(`${BASE}/show/${sid}/games`, { waitUntil: "load" });
+      await openExtras(pg);
       const row = pg.locator("[data-this-week] [data-trivia-row]");
       await row.waitFor({ timeout: 30_000 });
       await pg.waitForTimeout(800);

@@ -7,7 +7,7 @@ import { Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Heart, MoreHorizo
 import { LATE_SET, LateMark } from "./lineup-sheet";
 import { lockTime } from "../clock";
 import { useQueryClient } from "@tanstack/react-query";
-import { chooseTwist, couches, setGroupSlot, useAfterCouch, useGameQuestions, useLeagueRoles, useLeagueTwist, useSeasonDraft, useSeasonWaivers, type GameView, type LeagueTwist } from "../data";
+import { chooseTwist, couches, setGroupSlot, useAfterCouch, useGameQuestions, useLeagueRoles, useLeagueTwist, useSeasonDraft, useSeasonGame, useSeasonWaivers, type GameView, type LeagueTwist } from "../data";
 import { NavLink, useNav } from "../nav";
 import { paths } from "../routes";
 import { isTabOf, openWhere, useShow, type ShowData } from "../screens/show-space";
@@ -34,8 +34,7 @@ import { playsWaivers } from "./waivers";
 import { yourMove } from "./your-move";
 import { SideBetsRow, waiverLine, WeekBlock, WeekGames, YourTeam } from "./game-week";
 import { oneGame, thisWeek } from "./this-week";
-import { finalLine } from "./games-r3";
-import { useR3 } from "./r3";
+import { AgainRow, finalLine } from "./whats-on";
 
 // A game's own page (docs/PLAN-start-a-game-gpt.md U1; the direction contract .impeccable/surfaces/src-new-show-game-page-tsx.md,
 // "The broadcast segment"): any game, generated from its spec, runs like a segment of the show. A title card (the game's name in
@@ -51,8 +50,11 @@ export function GamePageScreen({ seasonId, leagueId }: { seasonId: string; leagu
   const show = useShow(seasonId);
   const nav = useNav();
   const back = () => nav.back(paths.show(seasonId, "games"), isTabOf(seasonId));
-  const g = useWithRoles(show.play?.find((x) => x.leagueId === leagueId) ?? null, seasonId, show.header?.show.kind === "sport");
-  if (!show.play) return <Loading onBack={back} />;
+  // B3: a finished game isn't in the running read; its page reads it by itself.
+  const inPlay = show.play?.find((x) => x.leagueId === leagueId) ?? null;
+  const one = useSeasonGame(seasonId, show.couch?.id ?? null, leagueId, !!show.play && !inPlay && !show.readOnly);
+  const g = useWithRoles(inPlay ?? one.data?.games[0] ?? null, seasonId, show.header?.show.kind === "sport");
+  if (!show.play || (!inPlay && !show.readOnly && one.isLoading)) return <Loading onBack={back} />;
   if (!g)
     return (
       <>
@@ -101,7 +103,6 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
   const seasonId = show.header?.seasonId ?? g.leagueId;
   const couchId = show.couch?.id ?? null;
   const nav = useNav();
-  const r3 = useR3();
   // Your move in this game, as the Games tab's card says it (the draft and the mid-season draft included).
   const drafting = (g.gameType === "classic-draft" || g.gameType === "active-roster") && !!g.you && (g.you.team.length === 0 || g.from === null || g.through < g.from);
   const draft = useSeasonDraft(seasonId, couchId, { enabled: !!show.header && drafting }).data?.games.find((d) => d.leagueId === g.leagueId);
@@ -263,7 +264,7 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
           {week ? (
             <WeekBlock
               g={wg}
-              w={strip.due && week.tone === "due" ? { ...week, state: "" } : r3 && wg.over && week.kind === "standing" ? { ...week, state: finalLine(wg) } : week}
+              w={strip.due && week.tone === "due" ? { ...week, state: "" } : wg.over && week.kind === "standing" ? { ...week, state: finalLine(wg) } : week}
               colour={colour}
               note={waiverLine(waivers?.find((w) => w.leagueId === wg.leagueId), wg, when, show.words, wmove?.kind === "waivers" && strip.due)}
               news={news}
@@ -288,9 +289,11 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
           <b className="font-semibold">Overall:</b> {ordinal(g.you.place)} of {g.players} · {totalWords(g, g.you)} <span className="text-muted-foreground">(both stages&apos; points add up)</span>
         </p>
       )}
+      {/* Round 3: Again, the same game on what comes next, once it's over (offered, never made for you). */}
+      {wg.over && wg.to !== null && <AgainRow show={show} g={wg} />}
       {/* One game between two: the card above is the whole of it, so no grid of one column. Round 3: nor a one-episode game once it's
           over (its card says how it ended). */}
-      {!(oneGame(wg) && wg.plays.kind === "result" && wg.players <= 2) && !(r3 && oneGame(wg) && wg.over) && <SeasonGrid g={wg} m={wm} words={show.words} due={!!wmove?.due} drill={drill} />}
+      {!(oneGame(wg) && wg.plays.kind === "result" && wg.players <= 2) && !(oneGame(wg) && wg.over) && <SeasonGrid g={wg} m={wm} words={show.words} due={!!wmove?.due} drill={drill} />}
       {(m.hero.lives || m.hero.notes.length > 0) && <Notes hero={m.hero} />}
       {wg.you && wg.you.team.length > 0 ? (
         <>

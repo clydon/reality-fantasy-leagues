@@ -321,9 +321,11 @@ export function useSpace(seasonId: string, couchId: string | null, enabled = tru
   });
 }
 
-/** Your games on a show (GET /api/seasons/[id]/games): moves, tables, rules and cast, as far as you've seen. */
+/** Your games on a show that are on (GET /api/seasons/[id]/games?running=1): moves, tables, rules and cast, as far as you've seen.
+ *  B3 (Round 3): a finished game with an end of its own is the archive's (useSeasonArchive), read only when its page opens
+ *  (useSeasonGame); season-long games and stages stay, over or not. */
 export function useSeasonGames(seasonId: string, couchId: string | null, enabled = true) {
-  const query = couchId ? `?couch=${encodeURIComponent(couchId)}` : "";
+  const query = `?running=1${couchId ? `&couch=${encodeURIComponent(couchId)}` : ""}`;
   return useQuery({
     queryKey: ["new-design", "games", seasonId, couchId],
     // Each game's computer players, kept for their faces (ui/bot-seats.ts: a robot wherever their seat's face is drawn).
@@ -342,6 +344,8 @@ export interface ArchivePage {
   seenThrough: number | null;
   games: ArchivedGame[];
   more: boolean;
+  /** The next page's `before` (null on the last page). */
+  next: number | null;
   kinds?: { kind: string; n: number }[];
   record?: SeasonRecord;
 }
@@ -363,9 +367,20 @@ export function useSeasonArchive(seasonId: string, couchId: string | null, kind:
       return get<ArchivePage>(`/api/seasons/${seasonId}/archive?${q}`);
     },
     initialPageParam: null as number | null,
-    getNextPageParam: (last) => (last.more && last.games.length ? Math.min(...last.games.map((g) => g.ended)) : undefined),
+    getNextPageParam: (last) => (last.more && last.next != null ? last.next : undefined),
     staleTime: 60_000,
     enabled: enabled && !!seasonId,
+  });
+}
+
+/** One of your games by its id (GET .../games?only=), for a finished game's page opened from the archive (B3): the running read
+ *  doesn't carry it. */
+export function useSeasonGame(seasonId: string, couchId: string | null, leagueId: string, enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "game", seasonId, couchId, leagueId],
+    queryFn: () => get<{ seenThrough: number | null; games: GameView[] }>(`/api/seasons/${seasonId}/games?only=${encodeURIComponent(leagueId)}${couchId ? `&couch=${encodeURIComponent(couchId)}` : ""}`),
+    staleTime: 60_000,
+    enabled,
   });
 }
 

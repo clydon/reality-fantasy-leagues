@@ -6,9 +6,10 @@
 // two behind (a person behind: spoiler-safe reads). new-fixture's three linked leagues stay on the couch beside them. With `open`
 // (Round 3's story), the next episode's games are still open for alex and sam: riley and jordan have answered, they haven't. With
 // `bots` (Round 3's couch of one against computer players), each short game is alex's alone against that many computer players
-// (Ada, Max, ...; normal), who answer as the rest do.
+// (Ada, Max, ...; normal), who answer as the rest do. With `next: false` (B3's Again), the next episode has no games yet: the
+// last episode's are the newest, with nothing on after them.
 //
-//   node scripts/dev-test/short-games-fixture.js up [--episodes=20] [--through=19] [--each=3] [--open] [--bots=2]
+//   node scripts/dev-test/short-games-fixture.js up [--episodes=20] [--through=19] [--each=3] [--open] [--bots=2] [--no-next]
 //   node scripts/dev-test/short-games-fixture.js down
 //
 // Also a module: `up(pool, { episodes, through, each, open })` resolves new-fixture's up() result with `games`: [{ leagueId, episode, kind }];
@@ -35,13 +36,13 @@ const CTX = B.ctxOf({ show: "Survivor", season: 51, rulebook: "survivor" });
 const feel = (s) => crypto.createHash("sha256").update(s).digest().readUInt32BE(0) / 2 ** 32;
 const code = () => Array.from(crypto.randomBytes(6), (b) => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[b % 32]).join("");
 
-async function up(pool, { episodes = 20, through = 19, each = 3, open = false, bots = 0 } = {}) {
+async function up(pool, { episodes = 20, through = 19, each = 3, open = false, bots = 0, next = true } = {}) {
   if (!/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(DB)) throw new Error("short-games-fixture runs against a local database only");
   const fx = await fixture.up(pool, { episodes, through });
   const { data, seen, SHOW } = fixture.shape();
   const users = fx.users;
   const games = [];
-  for (let n = 1; n <= Math.min(episodes, through + 1); n++) {
+  for (let n = 1; n <= Math.min(episodes, through + (next ? 1 : 0)); n++) {
     for (let k = 0; k < each; k++) {
       const kind = KINDS[(n + k) % KINDS.length];
       const seats = bots ? ["alex"] : SEATS;
@@ -97,7 +98,7 @@ if (require.main === module) {
   const pool = new Pool({ connectionString: DB });
   const arg = (k, d) => Number((process.argv.find((a) => a.startsWith(`--${k}=`)) || "").split("=")[1] || d);
   const cmd = process.argv[2];
-  (cmd === "down" ? fixture.down(pool).then(() => console.log("[zt] short games down")) : up(pool, { episodes: arg("episodes", 20), through: arg("through", 19), each: arg("each", 3), open: process.argv.includes("--open"), bots: arg("bots", 0) }).then((fx) => console.log(`[zt] short games up: ${fx.games.length} one-episode games on ZT Survivor 51 (${fx.seasonId}); sign in as zt_nd_alex / ${fixture.PASSWORD}`)))
+  (cmd === "down" ? fixture.down(pool).then(() => console.log("[zt] short games down")) : up(pool, { episodes: arg("episodes", 20), through: arg("through", 19), each: arg("each", 3), open: process.argv.includes("--open"), bots: arg("bots", 0), next: !process.argv.includes("--no-next") }).then((fx) => console.log(`[zt] short games up: ${fx.games.length} one-episode games on ZT Survivor 51 (${fx.seasonId}); sign in as zt_nd_alex / ${fixture.PASSWORD}`)))
     .catch((e) => {
       console.error(e);
       process.exitCode = 1;

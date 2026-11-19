@@ -19,8 +19,10 @@
 // a fixture already up (`short-games-fixture.js up`). zt-nd rows only; refuses a non-local database. Shares new-fixture's zt_nd_ couch:
 // never run beside another check on it.
 // Run:   node scripts/dev-test/story-short-games.js --out=.ui-atlas/stories/round3-short-games/before [--episodes=20 --through=19 --each=3]
-//          [--width=390 --height=844] [--only=<regex>] [--keep] [--reuse] [--after] (--after: the round's design, behind ?games=r3)
+//          [--width=390 --height=844] [--only=<regex>] [--keep] [--reuse]
 //          [--bots=2] (alex's short games against computer players: the couch of one)
+//          [--no-next] (the next episode has no games yet: Again, on the Games tab's results and a finished game's page)
+// Round 3's design is the app's since B3 (2026-11-18); its before frames were shot with ?games=r3 off, when it was a switch.
 require("dotenv").config({ path: ".env.local", quiet: true });
 const fs = require("fs");
 const path = require("path");
@@ -39,7 +41,6 @@ const ONLY = opt("only", null);
 const EPISODES = Number(opt("episodes", 20));
 const THROUGH = Number(opt("through", EPISODES - 1));
 const EACH = Number(opt("each", 3));
-const AFTER = has("after");
 const BOTS = Number(opt("bots", 0));
 const DB = process.env.AUTH_DATABASE_URL || "";
 if (!/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(DB)) throw new Error("story-short-games runs against a local database only");
@@ -66,12 +67,12 @@ async function main() {
     const season = await pool.query(`SELECT ss.id FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE s.slug = 'zt-nd-survivor' LIMIT 1`).catch(() => ({ rows: [] }));
     fx = { seasonId: season.rows[0]?.id, games: rows.map((r) => ({ leagueId: r.id, name: r.name, episode: Number(r.slug.split("-")[3]) })) };
     if (!fx.seasonId || !fx.games.length) throw new Error("--reuse: no short-games fixture up (short-games-fixture.js up)");
-  } else fx = await shortGames.up(pool, { episodes: EPISODES, through: THROUGH, each: EACH, open: true, bots: BOTS });
+  } else fx = await shortGames.up(pool, { episodes: EPISODES, through: THROUGH, each: EACH, open: true, bots: BOTS, next: !has("no-next") });
   const S1 = fx.seasonId;
-  const q = AFTER ? "?games=r3" : "";
-  const amp = AFTER ? "&games=r3" : "";
+  const q = "";
   // A game sam has seen end (his mark is two behind): the newest one over by his mark, for the finished game's page.
   const ended = fx.games.filter((g) => g.episode <= THROUGH - 2).sort((a, b) => b.episode - a.episode)[0];
+  const newest = fx.games.filter((g) => g.episode <= THROUGH).sort((a, b) => b.episode - a.episode)[0];
   console.log(`[short] ${fx.games.length} short games on ${S1}; a finished one: ${ended?.leagueId} (Episode ${ended?.episode})`);
 
   const list = [
@@ -83,6 +84,9 @@ async function main() {
     { id: "archive-alex", who: "alex", go: `/show/${S1}/games${q}`, ready: '[data-tab="games"]', tap: "[data-archive-open]", wait: "[data-archive]", more: "[data-archive-more]" },
     { id: "archive-sam", who: "sam", go: `/show/${S1}/games${q}`, ready: '[data-tab="games"]', tap: "[data-archive-open]", wait: "[data-archive]" },
     { id: "archived-game", who: "sam", go: ended ? `/show/${S1}/game/${ended.leagueId}${q}` : null, ready: "[data-game-page]" },
+    // --no-next: Again on the Games tab's results, and on the newest finished game's page.
+    { id: "again-tab", who: "alex", go: has("no-next") ? `/show/${S1}/games${q}` : null, ready: '[data-tab="games"]', scroll: "[data-again-line]" },
+    { id: "again-game", who: "alex", go: has("no-next") && newest ? `/show/${S1}/game/${newest.leagueId}${q}` : null, ready: "[data-game-page]", scroll: "[data-again]" },
     // The archive's kind chips: one kind's record and list.
     { id: "archive-kind", who: "alex", go: `/show/${S1}/games${q}`, ready: '[data-tab="games"]', tap: "[data-archive-open]", wait: "[data-archive-kinds]", then: "[data-archive-kinds] button:nth-child(2)" },
     // Behind on an airing show, Tonight asks "Seen Ep 18?": Yes, then the guard's "Yes, Ep 18" plays every game's results (it writes
@@ -94,9 +98,6 @@ async function main() {
   for (const x of list) {
     const b = await open({ user: fixture.username(x.who), pass: fixture.PASSWORD, width: W, height: H });
     try {
-      // --after: the switch is remembered for the browser tab (r3.ts), and a show's Tonight drops the query as it loads: set it on the
-      // Games tab first.
-      if (AFTER && !x.go.includes("/games")) await b.page.goto(`${b.BASE}/show/${S1}/games?games=r3`, { waitUntil: "networkidle", timeout: 90000 });
       await b.page.goto(b.BASE + x.go, { waitUntil: "networkidle", timeout: 90000 });
       await b.page.waitForSelector(x.ready, { timeout: 45000 });
       await sleep(1500);
@@ -114,6 +115,7 @@ async function main() {
         }
       }
       if (x.wait) await b.page.locator(x.wait).first().waitFor({ timeout: 30000 }).catch(() => console.log(`(no ${x.wait} in ${x.id})`));
+      if (x.scroll) await b.page.locator(x.scroll).first().scrollIntoViewIfNeeded({ timeout: 20000 }).catch(() => console.log(`(no ${x.scroll} in ${x.id})`));
       await sleep(900);
       await frame(b.page, x.id);
       if (x.more) {

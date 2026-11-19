@@ -49,6 +49,8 @@ const median = (xs) => xs.slice().sort((a, b) => a - b)[Math.floor(xs.length / 2
       games: `/api/seasons/${sid}/games?couch=${fx.couchId}`,
       running: `/api/seasons/${sid}/games?couch=${fx.couchId}&running=1`,
       archive: `/api/seasons/${sid}/archive?couch=${fx.couchId}`,
+      // Round 3's archive head: the first page with your record (every finished game read) and the kinds.
+      record: `/api/seasons/${sid}/archive?couch=${fx.couchId}&record=1`,
       episodes: `/api/seasons/${sid}/episodes?couch=${fx.couchId}`,
     };
     for (const who of ["alex", "sam"]) {
@@ -76,15 +78,24 @@ const median = (xs) => xs.slice().sort((a, b) => a - b)[Math.floor(xs.length / 2
       for (; pages < 20; pages++) {
         const r = (await me.call("GET", `${reads.archive}&limit=20${before === null ? "" : `&before=${before}`}`)).body;
         paged.push(...r.games);
-        if (!r.more || !r.games.length) break;
-        before = r.games[r.games.length - 1].ended;
+        if (!r.more || (r.next == null && !r.games.length)) break;
+        before = r.next ?? r.games[r.games.length - 1].ended;
       }
       const ids = paged.map((g) => g.leagueId);
       const mark = all.seenThrough ?? Infinity;
       check(ids.length === new Set(ids).size && JSON.stringify(ids.slice().sort()) === JSON.stringify(over), `${who} · the archive paged to its end (${pages + 1} pages): every game over for you once (${ids.length} of ${over.length})`);
       check(paged.every((g, i) => i === 0 || g.ended <= paged[i - 1].ended) && paged.every((g) => g.ended <= mark), `${who} · newest first, none past your mark (${Number.isFinite(mark) ? mark : "everything"})`);
       check(paged.every((g) => g.winners.length >= 1 && g.you && g.you.place >= 1), `${who} · each kept small: who won it and your place`, JSON.stringify(paged.find((g) => !g.winners.length || !g.you)));
-      check(running.length + over.length === all.games.length && running.every((g) => !g.over), `${who} · running (${running.length}) plus the archive (${over.length}): the Games tab's ${all.games.length}`);
+      // B3: the running read keeps a season-long game (or a stage) once it's over (Tonight's own-pace plate, a game's stages and Run it
+      // back read it); a game with an end of its own is the archive's alone.
+      const runIds = new Set(running.map((g) => g.leagueId));
+      const overSet = new Set(over);
+      const keptOver = running.filter((g) => g.over);
+      check(
+        all.games.every((g) => runIds.has(g.leagueId) || overSet.has(g.leagueId)) && keptOver.every((g) => g.to === null || g.stageOf) && running.filter((g) => !g.over).every((g) => !overSet.has(g.leagueId)),
+        `${who} · running (${running.length}, ${keptOver.length} season-long and over) and the archive (${over.length}) cover the Games tab's ${all.games.length}`,
+        JSON.stringify(keptOver.filter((g) => g.to !== null && !g.stageOf).map((g) => g.name))
+      );
     }
   } finally {
     if (!KEEP) await shortGames.down(pool);

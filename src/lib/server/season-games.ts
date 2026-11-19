@@ -119,12 +119,19 @@ function markFor(state: LeagueState, seat: Seat, seen: number): number | null {
  */
 export function overByMark(state: LeagueState, mark: number | null): boolean | null {
   const pieces = StateLogic.piecesOf(state);
-  if (pieces.hasCalls || pieces.hasBingo || pieces.hasDraftQuestions || StateLogic.StageLogic.on(state) || Spec.answerParts(StateLogic.gameOf(state))) return null;
+  // A sport's game that reads its games (stats, squares, a question a game's final settles): their results are stamped on at read
+  // time (StatsLogic.STAMPED) and never stored, so the stored state can't say (the review, B3).
+  if (pieces.hasCalls || pieces.hasBingo || pieces.hasDraftQuestions || StateLogic.StageLogic.on(state) || Spec.answerParts(StateLogic.gameOf(state)) || StateLogic.StatsLogic.readsGames(state)) return null;
   if (!StateLogic.gameOver(state)) return false;
   return mark === null || mark >= endedOf(state);
 }
-/** The episode a game that's over ended: its last (a span's, or where it was won), else the season's last with results. */
-const endedOf = (state: LeagueState): number => StateLogic.lastEpisode(state) ?? StateLogic.SpoilerLogic.latestWithResults(state);
+/** The episode a game that's over ended: its last (a span's, or where it was won), else the season's last with results; never past
+ *  the finale when the season ended first (a span set past the real end: the review, B3). */
+const endedOf = (state: LeagueState): number => {
+  const last = StateLogic.lastEpisode(state);
+  const latest = StateLogic.SpoilerLogic.latestWithResults(state);
+  return last === null ? latest : StateLogic.seasonEnded(state) ? Math.min(last, latest) : last;
+};
 
 /** One of your games on a season, ready to read: its state (league-read.ts), your seat, your mark there, faces. */
 export interface GameHere {
@@ -174,8 +181,12 @@ export async function gamesHere(
 ): Promise<{ seen: number; here: GameHere[] }> {
   if (ro) return readOnlyHere(user, seasonId, ro);
   const listed = await listHere(user, seasonId, couchId, only);
-  // E2: a game over as far as you've seen, left out before it's read in full (its state says so: overByMark).
-  const here = await readHere(user, listed, (state, mark) => !(o.over === "skip" && overByMark(state, mark) === true));
+  // E2: a game over as far as you've seen, left out before it's read in full (its state says so: overByMark). B3: only a game with an
+  // end of its own (a span: a night's game, Episodes 4 to 6), never a season-long game or a stage: those are few, and Tonight's own-pace
+  // plate (See how you finished), a game's stages and Run it back on the next season read them once they're over.
+  const stages = new Set(listed.list.filter((g) => g.stageOf).map((g) => g.leagueId));
+  const skip = (state: LeagueState, mark: number | null, id: string) => o.over === "skip" && !stages.has(id) && StateLogic.endEpisode(state) !== null && overByMark(state, mark) === true;
+  const here = await readHere(user, listed, (state, mark, id) => !skip(state, mark, id));
   return { seen: listed.seen, here };
 }
 
@@ -201,27 +212,25 @@ async function readHere(user: SessionUser, listed: Listed, keep: (state: LeagueS
   const { seen, list, states } = listed;
   const { mine, users, marks } = listed.seats;
   const here: GameHere[] = [];
-  {
-    for (const g of list) {
-      const seat = mine.get(g.leagueId);
-      const state = states.get(g.leagueId);
-      if (!seat || !state || !keep(state, markFor(state, seat, seen), g.leagueId)) continue;
-      try {
-        const ready = await readyLeague(g.leagueId, state);
-        const { state: walked, answers } = await standingHere(g.leagueId, ready, user.id);
-        here.push({
-          game: g,
-          ref: refOf(g),
-          state: walked,
-          playerId: seat.playerId,
-          mark: markFor(ready, seat, seen),
-          userOf: (p) => users.get(g.leagueId)?.get(p) ?? null,
-          marks: marks.get(g.leagueId),
-          ...(answers ? { answers } : {}),
-        });
-      } catch (e) {
-        console.error(`[season-games] league ${g.leagueId}:`, e);
-      }
+  for (const g of list) {
+    const seat = mine.get(g.leagueId);
+    const state = states.get(g.leagueId);
+    if (!seat || !state || !keep(state, markFor(state, seat, seen), g.leagueId)) continue;
+    try {
+      const ready = await readyLeague(g.leagueId, state);
+      const { state: walked, answers } = await standingHere(g.leagueId, ready, user.id);
+      here.push({
+        game: g,
+        ref: refOf(g),
+        state: walked,
+        playerId: seat.playerId,
+        mark: markFor(ready, seat, seen),
+        userOf: (p) => users.get(g.leagueId)?.get(p) ?? null,
+        marks: marks.get(g.leagueId),
+        ...(answers ? { answers } : {}),
+      });
+    } catch (e) {
+      console.error(`[season-games] league ${g.leagueId}:`, e);
     }
   }
   return here;
@@ -261,13 +270,13 @@ export async function seasonGames(
   o: { running?: boolean; only?: ReadonlySet<string> } = {}
 ): Promise<{ seenThrough: number | null; games: GameView[] }> {
   const { seen, here } = await gamesHere(user, seasonId, couchId, ro, o.only, o.running ? { over: "skip" } : {});
-  const out = (await viewsOf(user, seasonId, here)).filter(({ view }) => !o.running || !view.over).map(({ view }) => view);
+  // B3: the running read leaves out a finished game with an end of its own (the state can't always say: then its view does).
+  const out = (await viewsOf(user, seasonId, here)).filter(({ h, view }) => !o.running || !view.over || view.to === null || !!h.game.stageOf).map(({ view }) => view);
   return { seenThrough: Number.isFinite(seen) ? seen : null, games: out };
 }
 
 /** Each game's view, the people's marks read once for all of them (paceMarks, E2); one that can't be read costs only itself. */
-async function viewsOf(user: SessionUser, seasonId: string, here: GameHere[]): Promise<{ h: GameHere; view: GameView }[]> {
-  const memo: MarkMemo = new Map();
+async function viewsOf(user: SessionUser, seasonId: string, here: GameHere[], memo: MarkMemo = new Map()): Promise<{ h: GameHere; view: GameView }[]> {
   const out: { h: GameHere; view: GameView }[] = [];
   for (const h of here) {
     try {
@@ -344,12 +353,14 @@ export async function seasonArchive(
   seasonId: string,
   couchId: string | null,
   o: { before?: number | null; limit?: number; kind?: string | null; record?: boolean } = {}
-): Promise<{ seenThrough: number | null; games: ArchivedGame[]; more: boolean; kinds?: { kind: string; n: number }[]; record?: SeasonRecord }> {
+): Promise<{ seenThrough: number | null; games: ArchivedGame[]; more: boolean; next: number | null; kinds?: { kind: string; n: number }[]; record?: SeasonRecord }> {
   const limit = Math.max(1, Math.min(50, Number.isInteger(o.limit) ? (o.limit as number) : 20));
   const listed = await listHere(user, seasonId, couchId);
   const { seen, states } = listed;
   // Round 3: one kind of game (its name: "Prediction Sheet"), for the archive's chips.
   const list = o.kind ? listed.list.filter((g) => kindOf(g.name) === o.kind) : listed.list;
+  // One marks memo across the read's views (the review, B3: each account's mark read once).
+  const memo: MarkMemo = new Map();
   // Which games are over for you, and where each ended, from their states (overByMark); those the state can't settle read in full.
   const over: { id: string; name: string; ended: number; view?: GameView }[] = [];
   const unsure = new Set<string>();
@@ -362,7 +373,7 @@ export async function seasonArchive(
     else if (said === null) unsure.add(g.leagueId);
   }
   if (unsure.size) {
-    for (const { h, view } of await viewsOf(user, seasonId, await readHere(user, listed, (_s, _m, id) => unsure.has(id)))) {
+    for (const { h, view } of await viewsOf(user, seasonId, await readHere(user, listed, (_s, _m, id) => unsure.has(id)), memo)) {
       if (view.over) over.push({ id: h.game.leagueId, name: h.game.name, ended: endedOf(h.state), view });
     }
   }
@@ -372,7 +383,7 @@ export async function seasonArchive(
   while (n < page0.length && page0[n].ended === page0[n - 1].ended) n++;
   const page = page0.slice(0, n);
   const toRead = new Set(page.filter((x) => !x.view).map((x) => x.id));
-  const read = toRead.size ? await viewsOf(user, seasonId, await readHere(user, listed, (_s, _m, id) => toRead.has(id))) : [];
+  const read = toRead.size ? await viewsOf(user, seasonId, await readHere(user, listed, (_s, _m, id) => toRead.has(id)), memo) : [];
   const viewOf = new Map<string, GameView>([...page.filter((x) => x.view).map((x) => [x.id, x.view as GameView] as const), ...read.map(({ h, view }) => [h.game.leagueId, view] as const)]);
   const games: ArchivedGame[] = [];
   for (const x of page) {
@@ -380,16 +391,18 @@ export async function seasonArchive(
     if (!g || !g.over) continue;
     games.push(archivedOf(g, x.ended));
   }
-  const out: { seenThrough: number | null; games: ArchivedGame[]; more: boolean; kinds?: { kind: string; n: number }[]; record?: SeasonRecord } = {
+  const out: { seenThrough: number | null; games: ArchivedGame[]; more: boolean; next: number | null; kinds?: { kind: string; n: number }[]; record?: SeasonRecord } = {
     seenThrough: Number.isFinite(seen) ? seen : null,
     games,
     more: page0.length > n,
+    // The next page's `before`: the page's oldest episode, whether or not each of its games could be read (the review, B3).
+    next: page0.length > n && n > 0 ? page0[n - 1].ended : null,
   };
   // Round 3's record (the archive's first page asks): every game over for you (of this kind), read in full, each game's places by
   // person; and every kind over for you, for the chips.
   if (o.record) {
     const rest = new Set(over.filter((x) => !viewOf.has(x.id) && !x.view).map((x) => x.id));
-    const more = rest.size ? await viewsOf(user, seasonId, await readHere(user, listed, (_s, _m, id) => rest.has(id))) : [];
+    const more = rest.size ? await viewsOf(user, seasonId, await readHere(user, listed, (_s, _m, id) => rest.has(id)), memo) : [];
     const all = new Map<string, GameView>([...viewOf, ...over.filter((x) => x.view).map((x) => [x.id, x.view as GameView] as const), ...more.map(({ h, view }) => [h.game.leagueId, view] as const)]);
     const people = new Map<string, SeasonRecord["people"][number]>();
     const rows: SeasonRecord["games"] = [];

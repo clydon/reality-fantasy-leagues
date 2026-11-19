@@ -33,8 +33,7 @@ import { TriviaRow } from "./trivia";
 import { nextWeek, signed } from "./lineup-sheet";
 import { opensSheet, totalWords, useGameDrill } from "./game-sheets";
 import { oneGame, thisWeek } from "./this-week";
-import { GamesR3 } from "./games-r3";
-import { useR3 } from "./r3";
+import { WhatsOn } from "./whats-on";
 
 // Games (the mock's show.js tabStandings, gamestab.js, rulebook.js rbHowRow): where you play. Since the design round's step 6
 // (docs/design-round/step6-games-spec.md) one row per game: your place, its move, a mini leaderboard and Last picks (GameRows
@@ -105,7 +104,6 @@ function YourGamesHere({ show }: { show: ShowData }) {
   const [joining, setJoining] = useState<JoinGame | null>(null);
   const people = useGameDrill(show);
   const [rules, setRules] = useState<GameView | null>(null);
-  const r3 = useR3();
   const name = (show.header?.show.name ?? "This show").replace(/^The /, "");
   // From a game's line on Tonight or an episode page (?game=<id>&ep=N): once the tab has slid in, glide to that game's table.
   const params = useSearchParams();
@@ -171,9 +169,9 @@ function YourGamesHere({ show }: { show: ShowData }) {
     <>
       {playing ? (
         show.play ? (
-          r3 ? (
-            // Round 3 (TEMP-UI, ?games=r3): what's on, by episode; the season's games as step 6's rows; the archive's door.
-            <GamesR3
+          // Round 3 (docs/design-round/round3-short-games-spec.md): what's on, by episode; the season's games as step 6's rows; the
+          // newest results, Again, and the archive's door.
+          <WhatsOn
               show={show}
               moves={moves}
               oneNight={<ThisWeek show={show} bare />}
@@ -193,9 +191,6 @@ function YourGamesHere({ show }: { show: ShowData }) {
                 );
               }}
             />
-          ) : (
-            <GameRows show={show} moves={moves} drafts={drafts} onPlayer={people.openPerson} />
-          )
         ) : (
           <div aria-busy className="mx-4 mt-4 h-72 animate-pulse rounded-[4px] bg-card" />
         )
@@ -216,8 +211,8 @@ function YourGamesHere({ show }: { show: ShowData }) {
         </Block>
       )}
       {show.ready && <HowRow show={show} name={name} />}
-      {!(r3 && playing) && <ThisWeek show={show} />}
-      {!show.solo && show.ready && <StartRow show={show} others={others} />}
+      {!playing && <ThisWeek show={show} />}
+      {!show.solo && show.ready && <StartRow show={show} />}
       {people.sheets}
       <RulesSheet game={rules} play={show.play ?? []} onGame={setRules} waivers={wv.data?.games ?? []} />
     </>
@@ -239,46 +234,6 @@ function totalShort(g: GameView, r: TableRow): string {
 }
 /** Nothing has counted in this game yet (as far as you've seen): no ranking to show. */
 const nothingYet = (g: GameView) => g.through < 1 || (g.table.every((r) => r.total === 0 && r.weeks.length === 0 && !r.record?.wins && !r.record?.losses) && g.plays.kind !== "pick");
-
-function GameRows({ show, moves, drafts, onPlayer }: { show: ShowData; moves: Map<string, YourMove>; drafts: DraftGame[]; onPlayer: (row: TableRow, game: GameView, week: number | null) => void }) {
-  const play = (show.play ?? []).filter((g) => !g.stageOf);
-  const twin = (g: GameView) => play.filter((x) => x.gameType === g.gameType).length > 1;
-  // The ones that need you first, then as they started (a stable sort keeps the rest in order).
-  const order = [...play].sort((a, b) => Number(!!moves.get(b.leagueId)?.due) - Number(!!moves.get(a.leagueId)?.due));
-  const running = play.filter((g) => g.to === null || !g.over);
-  const through = play.length ? Math.min(...(running.length ? running : play).map((g) => g.through)) : 0;
-  const talk = play.every((g) => g.gameType === "weekly-calls" || g.gameType === "weekly-bingo");
-  const over = show.header?.status === "completed";
-  const ep = show.words.episode.toLowerCase();
-  return (
-    <div className="mt-4" data-game-rows>
-      <div className="flex flex-col gap-2.5 px-2">
-        {order.map((g) => (
-          <GameRow
-            key={g.leagueId}
-            show={show}
-            g={g}
-            name={g.solo === "public" ? "Everyone" : twin(g) && g.name !== g.gameName ? g.name : g.gameName}
-            move={moves.get(g.leagueId) ?? null}
-            draft={drafts.find((d) => d.leagueId === g.leagueId && d.phase !== "done") ?? null}
-            onPlayer={onPlayer}
-          />
-        ))}
-      </div>
-      <p className="px-4 pt-3 text-[13px] text-muted-foreground" data-games-foot>
-        {over
-          ? `Final standings, through ${show.words.ep} ${through}.`
-          : talk
-          ? through
-            ? `Through ${show.words.ep} ${through}. Standings move as you watch and the couch says what happened.`
-            : "Nothing counted yet. Standings start once a show's aired and you've watched it."
-          : through
-            ? `Standings as of ${show.words.ep} ${through}, where you are. They move when you reveal.`
-            : `No results yet. Standings start once ${/^[aeiou]/.test(ep) ? "an" : "a"} ${ep}'s in and you've revealed it.`}
-      </p>
-    </div>
-  );
-}
 
 function GameRow({ show, g, name, move, draft, onPlayer }: { show: ShowData; g: GameView; name: string; move: YourMove | null; draft: DraftGame | null; onPlayer: (row: TableRow, game: GameView, week: number | null) => void }) {
   const [open, setOpen] = useState(false);
@@ -865,25 +820,10 @@ export function PlayIt({ show }: { show: ShowData }) {
  * Start a game, under the Games tab's games (the mock's cp-start): any game that fits this show, for anyone on the couch.
  * Once every episode has aired it's Run it back: the same game on the show's next season, when there's one to play.
  */
-/**
- * A game of yours over a span that's over (step 6 of docs/PLAN-sports-data.md), the latest, to run back on the next span: none
- * once a game of its kind has started here since it ended (yours or the couch's).
- */
-function spanToRunBack(show: ShowData, others: JoinGame[]): GameView | null {
-  // A game waiting for its phase (start null) starts after anything that's over.
-  const started = [...show.games.map((x) => ({ id: x.leagueId, type: x.gameType, start: x.start === undefined ? 1 : x.start })), ...others.map((x) => ({ id: x.leagueId, type: x.gameType, start: x.start }))];
-  return (
-    (show.play ?? [])
-      .filter((g) => !g.solo && g.to !== null && g.over && !started.some((x) => x.id !== g.leagueId && x.type === g.gameType && (x.start === null || x.start > (g.to as number))))
-      .sort((a, b) => (b.to ?? 0) - (a.to ?? 0))[0] ?? null
-  );
-}
-
-function StartRow({ show, others }: { show: ShowData; others: JoinGame[] }) {
+function StartRow({ show }: { show: ShowData }) {
   const h = show.header;
   const over = !!h && (h.status === "completed" || (!!h.episodeCount && show.latestAired >= h.episodeCount && !show.upNext));
-  const done = over ? null : spanToRunBack(show, others);
-  const opts = useStartOptions(h?.seasonId ?? null, show.couch?.id ?? null, done?.leagueId ?? null, over || !!done);
+  const opts = useStartOptions(h?.seasonId ?? null, show.couch?.id ?? null, null, over);
   const finished = (show.play ?? []).find((g) => !g.solo);
   const next = opts.data?.nextSeason ?? null;
   // A season that's over is still a game at your own pace (docs/PLAN-own-pace-games.md), and its next season Run it back.
@@ -917,26 +857,6 @@ function StartRow({ show, others }: { show: ShowData; others: JoinGame[] }) {
           </button>
         )}
       </>
-    );
-  }
-  // Run it back on the next span, when there's one listed.
-  const back = done && opts.data?.again && opts.data.again.to !== null && !opts.data.blocked ? opts.data : null;
-  if (done && back) {
-    return (
-      <button
-        type="button"
-        data-start-row="again-span"
-        onClick={() => openStartGame({ seasonId: h?.seasonId, couchId: show.couch?.id ?? null, again: done.leagueId })}
-        className="nd-press mx-4 mt-[26px] flex w-[calc(100%-32px)] items-center gap-3 rounded-[4px] p-4 text-left outline-[1.5px] -outline-offset-[1.5px] outline-dashed outline-input"
-      >
-        <RotateCcw className="size-6 flex-none" aria-hidden />
-        <span>
-          <b className="block text-base">Run it back · {spanName(back.from, back.again!.to, back.part)}</b>
-          <small className="block text-[13px] leading-snug text-muted-foreground">
-            {done.gameName} again, after {back.again!.label}. The couch hears about it.
-          </small>
-        </span>
-      </button>
     );
   }
   return (

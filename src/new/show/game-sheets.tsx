@@ -21,7 +21,6 @@ import { answerWords, verdictWords } from "./questions";
 import { statValue } from "./stats";
 import { BetsBody, CompareBody, EpisodeGames, GameTable, MatchupBody, MatchupTitle, PersonSeason, slotWord } from "./game-week";
 import { oneGame } from "./this-week";
-import { useR3 } from "./r3";
 
 // The sheet family on a game's page and every tab (docs/PLAN-start-a-game-gpt.md U1, "Step 2 brief": the sheet family, once;
 // U0's canvas v58, boards R4 and R6, `make_person_sheet.js` and `make_hybrid.js`). Every name, square, episode, face and number is a
@@ -483,7 +482,6 @@ const userOfRow = (r: TableRow) => r.userId ?? r.playerId;
 
 /** A lineup's weeks are today's lineup sheet; any other game, the strip in its own terms, the chosen episode, then the season. */
 export function PersonBody({ g, show, seasonId, r, episode, onEpisode, go, onClose, compact }: GameCtx & { r: TableRow; episode: number | null; onEpisode: (n: number) => void; go: Drill; onClose: () => void; compact?: boolean }) {
-  const r3 = useR3();
   const lineup = r.weeks.length > 0 || (g.gameType === "active-roster" && g.plays.blocks.includes("lineup"));
   if (lineup)
     return (
@@ -508,8 +506,8 @@ export function PersonBody({ g, show, seasonId, r, episode, onEpisode, go, onClo
   const sel = episode !== null && eps.includes(episode) ? episode : (eps.at(-1) ?? null);
   return (
     <div data-person-sheet={r.playerId} className="pb-2">
-      {/* Round 3 (TEMP-UI): a one-episode game has no week by week: its one episode is the block under it. */}
-      {!(r3 && oneGame(g)) && <Strip g={g} r={r} sel={sel} onPick={onEpisode} words={show.words} />}
+      {/* Round 3: a one-episode game has no week by week: its one episode is the block under it. */}
+      {!oneGame(g) && <Strip g={g} r={r} sel={sel} onPick={onEpisode} words={show.words} />}
       {sel !== null && <EpisodeBlock g={g} show={show} seasonId={seasonId} r={r} n={sel} go={go} />}
       {sel === null && <p className="mt-3 text-sm text-muted-foreground">Nothing counted yet. It fills in from the first {show.words.episode.toLowerCase()} with results.</p>}
       {!compact && <SeasonBlock g={g} r={r} go={go} words={show.words} />}
