@@ -1320,3 +1320,10 @@
 - What: no ?games=r3; the space's games read asks running=1, which leaves out a finished game with an end of its own (season-long games and stages stay, over or not: Tonight's own-pace plate, a game's stages and Run it back on the next season read them); a finished game's page reads that game alone (?only=). Again, in the results (one button a kind not already on again) and on a finished game's page, opens Start a game on the game's screen at the next episode still to come. Bingo, calls, trivia and polls fold into the next-to-air block, or stand alone when nothing airs next.
 - Rejected: keeping step 6's every-game list for anyone; Run it back on a span read from the full games read (it reads finished games the running read no longer carries).
 - Rests on: docs/PLAN-start-a-game-redo.md B3; scripts/dev-test/check-whats-on.js; the story's version 2, https://claude.ai/artifact/LMc46gkHTVcWgWCKCmPMT2.
+
+## 2026-11-18 · A team's one-game games live on the team's season; a one-episode game's clashing name says its episode
+- Decided by: the user ("I want your recs to the question you ask. Then continue"), taking Claude's recommendation
+- Why: a show's short games add up because they share a season; one season per sports game meant a team's daily games never shared a Games tab, an archive or a record. A counter ("Predictions 2") would split one kind in the archive's chips.
+- What: Play the next game (one game, from a team) starts on the team's season, that game only; a run, a rival's meetings and the whole season are unchanged; a game the team's season can't hold keeps its matchup. A one-episode game whose name is taken is named by its episode ("Predictions · Game 2").
+- Rejected: a whole league's season for one team's games (too broad for a couch following one team); one season per game (today's: no archive or record for a sport).
+- Rests on: src/lib/server/sports/start.ts teamSeasonFor; src/lib/server/start-spec.ts; check-sports-couch.js; story-sport-daily.js.

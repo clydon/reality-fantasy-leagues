@@ -158,14 +158,16 @@ async function apiChecks(pool, me, couch, started) {
   check(rail.body.games?.[0]?.id === "pickem" && rail.body.games.every((g) => !g.why), "the rail: Pick'em first, every game fitting one game", rail.body.games?.map((g) => [g.id, g.why]));
   check(rail.body.games?.some((g) => g.id === "squares"), "squares on a football game");
 
-  // Play the next game: Pick'em on it, one tap.
+  // Play the next game: Pick'em on it, one tap, on the team's season (Round 3, 2026-11-18: a team's one-game games share a Games tab,
+  // an archive and a record), that game only.
   const p = await me.call("POST", `/api/sports/start?couch=${couch}`, { league: FB, team: "9301", games: ["93104"], game: "pickem", tell: false });
-  check(p.status === 200 && p.body.leagueId && p.body.from === 1 && p.body.to === 1, "Play the next game starts Pick'em on that one game", p.body);
+  const nextEp = p.body.seasonId ? (await pool.query("SELECT episode FROM season_events WHERE season_id = $1 AND event_id = '93104'", [p.body.seasonId])).rows[0]?.episode : null;
+  check(p.status === 200 && p.body.leagueId && Number.isInteger(nextEp) && p.body.from === nextEp && p.body.to === nextEp && /season/i.test(p.body.season ?? ""), `Play the next game starts Pick'em on that one game, on the Eagles' season (its Game ${nextEp})`, p.body);
   // Its game as the engine reads it (gameOf: the spec, from the league's settings).
   const StateLogic = require("../../src/lib/game/state-logic.js");
   const st = p.body.leagueId ? (await pool.query("SELECT state FROM leagues WHERE id = $1", [p.body.leagueId])).rows[0]?.state : null;
   const game = st ? StateLogic.gameOf(st) : null;
-  check(game?.ask?.[0]?.settle?.by === "final" && game?.span?.from === 1 && game?.span?.to === 1, "its game is the sport's Pick'em on that game (settled by the final)", game && { ask: game.ask, span: game.span });
+  check(game?.ask?.[0]?.settle?.by === "final" && game?.span?.from === nextEp && game?.span?.to === nextEp, "its game is the sport's Pick'em on that game (settled by the final)", game && { ask: game.ask, span: game.span });
   const u = await me.call("POST", `/api/seasons/${p.body.seasonId}/start?couch=${couch}`, { undo: p.body.leagueId });
   check(u.status === 200, "Undo takes it back", u.body);
 
@@ -212,7 +214,7 @@ async function apiChecks(pool, me, couch, started) {
   check(on.status === 200 && on.body.hideSportsScores === true, "Sports scores too saves", on.body.hideSportsScores);
   check((await seenThrough(uid, sq.body.seasonId)) === 0, "with it on, a sport's season goes by the mark (none yet)");
   const shown = await me.call("POST", "/api/sports/shown", { league: FB, event: "93104" });
-  check(shown.status === 200 && shown.body.moved >= 1 && (await seenThrough(uid, sq.body.seasonId)) === 1, "Show the score moves the mark to that game", shown.body);
+  check(shown.status === 200 && shown.body.moved >= 1 && (await seenThrough(uid, sq.body.seasonId)) === nextEp, "Show the score moves the mark to that game", shown.body);
   await me.call("PUT", "/api/me/profile", { hideSportsScores: false });
 
   // It plays: alex picks the Eagles in the season's first game, the game goes final in the stand-in, the daily refresh keeps the

@@ -889,16 +889,26 @@ then approval.
     - `overByMark` restates the view's `over` and must keep up with each new piece (storing a game's ended episode at write time
       would end that).
     - For a session on the archive's speed, once seasons outgrow the 2.5 s budget.
+  - **A team's one-game games live on the team's season** (the user asked for the recommendation and took it, 2026-11-18).
+    - **The change:** one of a team's games started from the team (Play the next game) goes on the team's season (made or found,
+      and followed), that game only (`sports/start.ts` `teamSeasonFor`). Before, each game made its own matchup's season, so a
+      team's daily games never shared a Games tab, an archive or a record.
+    - **Unchanged:** a run of games, a rival's meetings and the whole season. A game outside the regular season, or a season the
+      schedule can't make, keeps its matchup.
+    - **Names:** a one-episode game whose name the couch already uses here is named by its episode ("Predictions · Game 2",
+      "Prediction sheet · Episode 20"), never counted ("Predictions 2"). `kindOf` then reads them as one kind
+      (`start-spec.ts`).
+    - **Checks:** `check-sports-couch.js` was updated (Play the next game on the Eagles' season) and passes;
+      `story-sport-daily.js` shows the Sixers' three daily Pick'ems on "Sixers, 2026 season".
   - **Noticed, not fixed:**
-    - **A sport's one-game games each live on their own matchup's season.** Pick'em on each of the Sixers' three daily games
-      made three seasons ("Knicks at Sixers, Nov 19", …), so a team's daily games never share a Games tab, an archive or a
-      record the way a show's short games do. A team's season (Every game left) would hold them together. This is a question for
-      the user: whether a team's one-game games should live on the team's season.
+    - (Resolved the same day, below: a team's one-game games now live on the team's season.)
     - **`check-spans.js`'s browser part can't reach a finished game.** It reaches the Games tab while Episode 6 is still to air and
       jordan is through Ep 4 (its `mark` helper is never called). So its Games-tab assertions, the old "Final · Episodes 6–7" ones
       and Round 3's results and Again, fail there for that reason. Its API part and the start checks before it run as before.
       `check-whats-on.js` covers Again and the finished state.
     - Its "a start that has aired: refused" stays failing, as listed under B1 (an aired start is an own-pace catch-up now).
+    - Its API-only run (`--api`) also fails "run the lineup game back on Episodes 8-9": the start answers from Episode 6. It fails
+      the same way on the code before B3 (checked 2026-11-18), so it predates this work.
     - **The show bar's faint backdrop title sits behind Home** on a long sports matchup name ("Knicks at Sixers, Nov 19": the story's
       overlap check flags it). It predates this work.
     - **`check-new-episode-games.js` stops at its first browser step,** "Tonight's Extras: Call it for Episode 6". Tonight's Call it

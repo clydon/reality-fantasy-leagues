@@ -23,6 +23,7 @@ import { leaguePhases, scheduleOf, settleIn } from "./phase-starts";
 import { queueSeasonBingo } from "./desk-research";
 import { madeGames, type MadeGame } from "./made-games";
 import { notifyGameStarted } from "./push-events";
+import { showWords } from "@/lib/game/show-words";
 import { applyPace, couchGamesOn, freeName, linkIn, paceAsked, startOptions, watchersOf, type StartOptions } from "./start-game";
 
 // Start a game, the wizard (docs/PLAN-start-a-game-gpt.md U1; U0's settled board "B, settled"). The sheet rolls, checks and words
@@ -188,9 +189,14 @@ export async function startFromSpec(
   const describe = Spec.describeSpec(spec as never, ctx);
   const here = await couchGamesOn(user, couch, seasonId);
   const want = typeof body.name === "string" && body.name.trim() ? body.name.trim().slice(0, 60) : describe.short.title || "A game";
-  const name = freeName(want, here);
+  const { rows: seasonRow } = await pool.query("SELECT ss.season_number, s.slug, s.episode_term FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1", [seasonId]);
+  // A one-episode game whose name another of the couch's games here has is named by its episode ("Prediction sheet · Episode 20",
+  // "Predictions · Game 3"), not counted ("Prediction sheet 2"): Round 3's archive and record read a game's kind from its name
+  // (spans.ts kindOf), and a short game played every episode is the same kind each time.
+  const one = Spec.spanStart(spec.span as never);
+  const only = typeof one === "number" && Spec.spanEnd(spec.span as never) === one;
+  const name = only && here.some((g) => g.name.toLowerCase() === want.toLowerCase()) ? freeName(`${want} · ${showWords({ episode: seasonRow[0]?.episode_term }).episode} ${one}`, here) : freeName(want, here);
   const starter = (user as { username?: string | null }).username || user.name;
-  const { rows: seasonRow } = await pool.query("SELECT ss.season_number, s.slug FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1", [seasonId]);
   const row = { id: seasonId, number: seasonRow[0].season_number as number, slug: seasonRow[0].slug as string };
   const copy = await copyOf(here.map((g) => g.leagueId));
   const to = typeof span.to === "number" ? span.to : null;
