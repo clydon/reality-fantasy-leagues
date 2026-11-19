@@ -11,6 +11,33 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
+## 2026-11-19: Start a game merged and deployed (the wizard lane, branch `wizard`)
+- **What shipped** (docs/PLAN-start-a-game-redo.md; its "Merge note" has the detail):
+  - B1: the gallery is Start a game for every start;
+  - E1: computer players in every game;
+  - E2: short games at scale;
+  - B3: a show's Games tab of what's on, and the archive;
+  - B4: Game settings as a list, with a page per game;
+  - B2: the play pieces (a captain, a pool's second pick, group slots, an auction's prices, beat the bot, the knocked-out
+    state, a pool's lives);
+  - E3's first slice: a parlay on a split pot doubles your share; every Outlast counts from its own start; a guy and a girl each.
+- **Migrations:**
+  - 0442 `saved_games`.
+  - 0443 deletes the practice leagues (the user, 2026-11-18).
+  - Rehearsed on Neon branch `rehearse-wizard-2026-11-19`: both applied, `[check] all good`, rulebooks backfilled,
+    `[game-specs] check: PASS`. The rulebooks-flag check fails as its baseline.
+  - The snapshot to roll back to: `pre-wizard-2026-11-19`, kept 7 days.
+- **One league rescored:** Survivor 51's Outlast from Episode 2 (BACKLOG 62; the user approved applying it). Every seat shows 3
+  fewer points and the places are unchanged (`compare-totals.js` on backups/prod-2026-11-19: 39→36, 36→33, 33→30).
+- **Checks on the merge:**
+  - the unit suite, 2,444; the production build;
+  - golden against master: only mid-season Outlasts' scores move;
+  - couches, Start a game, What's on, Game settings and the play pieces pass;
+  - hub, way in, shell and show fail exactly as on master.
+- **Next** (the memory "Resume after the wizard merge"): E3 on a fresh branch from master. C8 first, the 2-on-1 head to head (its
+  seven answers are in the plan's E3), then the rest of E3. The two review findings left are in the plan's merge note: computer
+  players' bingo cards and calls aren't stored; finished games leave the castaway sheet's views.
+
 ## The user's calls, 2026-11-18: the bold pass and Round 2c are the direction; build next. Their answers to every open question
 - **Approved:** "i think i agree with the direct and ready to start": the bold pass (`?start=bold`, `src/new/couch/gallery-bold/`)
   with Round 2c's steps is the design to build; Round 2's `gallery/` stays only until the build replaces both.
