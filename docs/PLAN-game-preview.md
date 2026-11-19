@@ -252,6 +252,27 @@ Expected: about 40 s a game on one worker, so 300 games in under an hour on four
 episodes and results) is the same for every game on it, so it's materialized once and each game added to it; a screen two games
 draw the same (the same state) is shot once. **Cut:** the fix's run unless a check flags something.
 
+### The first slice, built (2026-11-18)
+
+- **The maker:** `tools/gameplay-bench/preview/` (preview.cjs, players.cjs, clock.cjs), called the same way from the CLI
+  (`node --env-file=.env.local scripts/gameplay-bench.js preview --file=<definition> --out=<folder>`), HTTP (`POST
+  /__atlas/bench/preview {input, app, id, seasons}`; a named app's database from the worktree list, no port probed) and the
+  browser transport (`window.__GAMEPLAY_EXPLORER__.preview(input, options)`). Each made the same Survival pool in 42 s.
+- **The three games** (scripts/dev-test/preview-games.js, Survivor 51 with its real results through Episode 8, results after made
+  up at the real season's rates): the Fantasy league in 6 moments and 14 screens (88 s), the Prediction sheet in 4 and 7 (71 s),
+  the Survival pool in 4 and 8 (54 s), each with 10 made-up seasons for what's typical. Every route check agrees but the spoiler
+  oracle's control, which a season without couch chat can't run ("oracle-blind").
+- **The truth check:** the due check agrees at every moment of every game; the words checks found four app bugs, all in the
+  Fantasy league (Noticed, not fixed: 1 to 4).
+- **Learned:** the engine's actionItems and the computer players read the computer's clock (`Date.now()`), so asked on a season
+  dated by its real calendar they go stale once the real day passes an airing (at 01:00 UTC the real Episode 9 aired, and the due
+  check and every lineup failed). The maker asks them at the season's own clock (clock.cjs). Rounding the live tier's time shift
+  (one airtime across previews) was tried and dropped: the app's now has to be the runtime's.
+- **Cost, measured:** 54 to 88 s a game, one season, about 8 to 14 screens, 10 headless seasons for what's typical. A page loads
+  in 1 to 3 s; the rest is the draft rooms (12 to 14 s each), the season's nights (20 to 35 s) and the route checks (3 to 6 s).
+  300 games is about 6 hours on one worker, under 2 on four, before the plan's cuts (sharing a season's world, shooting a screen
+  two games draw the same once, a typical-free first pass).
+
 ### The first slice
 
 Three games that look nothing alike, each with the truth check: the gallery's **Fantasy league** with a new draft at the merge (a
@@ -263,17 +284,21 @@ fixes, a screenshot story at 390, and a pause.
 ## Noticed, not fixed
 
 Found by the preview's real screens (2026-11-18), left for the lanes that own them:
-1. **Before a draft starts, the game says "All set" (corrected: not a contradiction).** Round 3 marked Tonight's and the Games tab's
-   "All set for Ep 9" as wrong while the first draft was open. It isn't: until whoever runs the game starts the draft nobody can
-   pick, and the engine's actionItems lists nothing; once it's started, Tonight says "Lock in your draft picks" as it should (the
-   bench's due check agrees at both drafts, 2026-11-18). What remains is a question for design, not a bug: nothing tells whoever
-   runs the game that the draft is theirs to start (actionItems has no item for it).
-2. **The finale's reveal ranks one stage.** Its standings beat (src/new/show/reveal.tsx TableBeat, `r.table`) shows the stage's
-   standings ("Weekly Lineup standings", "You're 1st, 4.5 ahead of Jordan") where the game in stages is won on the overall (Jordan
-   by 1.5). The wrong winner in 3 of 6 runs, whenever the two differ.
+1. **Whoever runs a game isn't told its draft waits for them.** Before the draft starts, Tonight's strip and the Games tab say "All
+   set for Ep 9" (and "All set for Ep 12" at a stage's new draft). For the other players that's right: nobody can pick until the
+   draft starts, and the engine's actionItems lists nothing. But for whoever runs the game (the couch's owner) the next move is to
+   start the draft, and nothing says so (actionItems has no item for it). Once it's started, Tonight says "Lock in your draft
+   picks", as it should: the bench's due check agrees at both drafts. (Round 3 first called this a contradiction for everyone; it
+   isn't, 2026-11-18.)
+2. **The finale's reveal shows one stage.** Its standings beat (src/new/show/reveal.tsx TableBeat, `r.table`) shows the stage's
+   standings ("Weekly Lineup standings") where a game in stages is won on the overall: it can crown the wrong person ("You're 1st,
+   4.5 ahead of Jordan" while Jordan wins by 1.5), or rank you differently ("you're 3rd" there, 4th in the game). Found in every
+   run whose stage standings differ from the game's.
 3. **Tonight's game section says "0 of 0 still in"** for a game of points in stages (src/new/show/tonight.tsx, the game's mini:
    "T1 of 4 · 0 of 0 still in · All safe"). Every run.
 4. **Your team's numbers don't add up to your score.** Your team (src/new/show/game-week.tsx YourTeam) shows each castaway's points
    in the game, started or benched (16 against a score of 15 after Episode 10; 9.5 against 1 in another season).
 5. **The game's names:** Fantasy league, Stages, Weekly Lineup, "Before Merged" and "Merged", "Redraft at merged" (the gallery's;
    the wizard lane fixes them, decision 8).
+6. **A sheet's open answers aren't in actionItems,** so the app's action bar and the hourly reminders (both read it) don't know
+   about them; Tonight's strip does ("Fill in your sheet"). The bench's due check reads them from the projection instead.

@@ -227,3 +227,22 @@ game, each episode, after Episode 9, the finale): three stories that differ in l
   marks (by then the bugs are fixed, or the bench is how they're found).
 - **One season per game** (Shuffle when there are more), and ten made-up seasons for what's typical, per the plan's cost table.
 - **A moment the game doesn't have isn't shown,** and no card is padded to keep stories the same length.
+
+### The round (2026-11-18)
+
+Built through Intent (this section), Perception-First Design (first-view requirements, "Round 4", R1 to R5) and Impeccable, then
+checked once each: Impeccable's critique 21/40, PFD's evaluation 64/100. One batch of fixes:
+- Each moment opens on the game's own screen (how it plays, its draft room, its move), the screens every game shares after it, and
+  never on a screen that contradicts it while one that agrees is there; each screen rings what proves the claim (the move's own
+  question in Your move, the top two rows at the finale).
+- Headlines in the strips' own words ("Pick who survives each episode", "Fill in your sheet: 3 questions"); the finale quotes the
+  game's own rule for how it's won ("Longest streak wins; ties go to the most right picks").
+- Checks as plain sentences, the count first ("5 of 10 made-up seasons ended level at the top"); a tie counted where totals are
+  small; no tag that looks like a tab.
+- App bugs tagged "App bug" on the tab, the ring and the line (the app's own dashes mean "not yet"); the reveal checked against the
+  whole game's standings; a draft waiting for whoever runs the game named; "Your team" said plainly.
+- A fixed height for the claim, so the phone stays put; the progress tappable, Close wired; type on the scale.
+- The sheet: phones without the story's controls, each column's bugs above its phone, every column lined up.
+
+Not done: one airtime across previews (the screens show when each was made; it needs the app's clock faked), and the fix toggle
+for any game (a later step, with the gallery's changes matched to a check).
