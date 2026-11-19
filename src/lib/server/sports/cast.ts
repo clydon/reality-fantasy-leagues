@@ -1,4 +1,5 @@
 import { easternDay } from "@/lib/game/tv-listings";
+import { TeamSport, sportOf } from "@/lib/sports";
 import { pool } from "../db";
 import { applyApprovedCastToLeagues, approveSportCast, seasonCastRows } from "../season-cast";
 import { fillCastPhotos } from "../show-art";
@@ -37,6 +38,8 @@ export interface CastPerson {
   ids: Record<string, string>;
   /** The episode whose box score brought them in (a team with no roster); null from a roster or a field. */
   from: number | null;
+  /** A team's own person (its defense: TeamSport.teamPeople), its picture the team's logo: no headshot to look for. */
+  side?: true;
 }
 export interface CastGroup {
   name: string;
@@ -75,7 +78,7 @@ export async function rosterFromEvents(links: LinkedEvent[], providers: SportsPr
   const groups: CastGroup[] = [];
   const waiting: string[] = [];
   const seen = new Set<string>();
-  const add = (group: string, provider: string, people: (Person | null)[], from: number | null = null) => {
+  const add = (group: string, provider: string, people: (Person | null)[], from: number | null = null, side = false) => {
     let g = groups.find((x) => x.name === group);
     if (!g) groups.push((g = { name: group, people: [] }));
     let n = 0;
@@ -83,19 +86,33 @@ export async function rosterFromEvents(links: LinkedEvent[], providers: SportsPr
       const key = `${provider}:${p?.id}`;
       if (!p?.id || !p.name || seen.has(key)) continue;
       seen.add(key);
-      g.people.push({ name: p.name, role: p.position, photoUrl: p.headshot, ids: { [provider]: p.id }, from });
+      g.people.push({ name: p.name, role: p.position, photoUrl: p.headshot, ids: { [provider]: p.id }, from, ...(side ? { side: true as const } : {}) });
       n++;
     }
     return n;
   };
   const teams: { provider: string; league: string; id: string; name: string }[] = [];
   for (const l of links) for (const t of l.teams ?? []) if (!teams.some((x) => x.provider === l.provider && x.id === t.id)) teams.push({ provider: l.provider, league: l.league, id: t.id, name: t.name });
+  // A team's own people (its defense: step 1.3), after its roster's, its picture its logo (the league's teams, cached a week).
+  const logos = new Map<string, Promise<Map<string, string | null>>>();
+  const logoOf = (p: SportsProvider, league: string, team: string) => {
+    if (!logos.has(league)) logos.set(league, p.teams(league).then((l) => new Map((l?.teams ?? []).map((x) => [x.id, x.logo] as const)), () => new Map()));
+    return logos.get(league)!.then((m) => m.get(team) ?? null);
+  };
+  const sides = async (p: SportsProvider, t: { league: string; id: string; name: string }) => {
+    const sport = sportOf(t.league);
+    const own = sport instanceof TeamSport ? sport.teamPeople(t) : [];
+    if (!own.length) return;
+    const logo = await logoOf(p, t.league, t.id);
+    add(t.name, p.id, own.map((x) => ({ id: x.id, name: x.name, position: x.position, headshot: logo })), null, true);
+  };
   for (const t of teams) {
     const p = providers.find((x) => x.id === t.provider);
     if (!p) continue;
     const roster = await p.roster(t.league, t.id);
     if (roster?.length) {
       add(t.name, p.id, roster);
+      await sides(p, t);
       continue;
     }
     // No roster: whoever has played for it in the season's games so far.
@@ -106,6 +123,7 @@ export async function rosterFromEvents(links: LinkedEvent[], providers: SportsPr
       for (const table of side?.tables ?? []) found += add(t.name, p.id, table.rows.map((r) => r.person), l.episode);
     }
     if (!found && !groups.find((g) => g.name === t.name)?.people.length) waiting.push(t.name);
+    else await sides(p, t);
   }
   // A field's events: everyone in the part the episode shows, else the event's field, else every part's.
   for (const l of links) {
@@ -236,7 +254,7 @@ export async function castFromEvents(seasonId: string, opts: { providers?: Sport
       out = { filled: added.length, waiting, message: null };
       // Everyone new, into every game on the season (one failing is that game's alone: applyApprovedCastToLeagues).
       if (added.length || approved) await intoGames(seasonId).catch((e) => console.error("[sports] cast into games", seasonId, e));
-      const bare = added.filter((p) => !p.photoUrl).map((p) => p.name);
+      const bare = added.filter((p) => !p.photoUrl && !p.side).map((p) => p.name);
       if (bare.length) await fillCastPhotos(seasonId, undefined, { roster: true, only: bare }).catch((e) => console.error("[sports] photos", seasonId, e));
     }
   } catch (e) {

@@ -79,6 +79,11 @@ const fact = (s) => console.log(`      ${s}`);
     check(!!defSlot, "the default season game's lineup has a DEF slot", slots);
     const fitting = (slot) => state.castaways.filter((c) => StateLogic.SlotLogic.fits(state, c.id, slot)).length;
     const def = defSlot ? fitting(defSlot) : 0;
+    // Scored: each D/ST line in the week's finals is its defense's, as the game reads its lines (score.ts leagueGames: by castaway).
+    const lines = (await fx.app("../../src/lib/server/sports/score.ts").leagueGames(state))?.lines.get(WEEK);
+    const dstIds = new Set(state.castaways.filter((c) => / D\/ST$/.test(c.name)).map((c) => c.id));
+    const scored = Object.keys(lines ?? {}).filter((id) => dstIds.has(id)).length;
+    check(scored === dst.length, `the game reads ${week.label}'s D/ST lines as its defenses' (${scored} of ${dst.length})`);
     check(def >= TEAMS, `the season game has ${TEAMS} people who can play its DEF slot (${def})`);
     // Noticed in Phase 0 (BACKLOG 221): the control, the QB slot, against the slate's quarterbacks. A person's position is stamped
     // from their roster's role (cast-props.ts), which ESPN's roster gives as a name ("Quarterback": espn.ts readPerson), while
@@ -96,13 +101,13 @@ const fact = (s) => console.log(`      ${s}`);
     const seat = copy.players[0].id;
     // By position as ESPN abbreviates it, or names it (a season filled before BACKLOG 221 kept the names).
     const of = (roles, n) => copy.castaways.filter((c) => roles.includes(copy.castProps?.[c.id]?.position)).slice(0, n).map((c) => c.id);
-    const picks = [...of(["QB", "Quarterback"], 1), ...of(["WR", "Wide Receiver"], 3), ...of(["RB", "Running Back"], 2), ...of(["TE", "Tight End"], 1), ...of(["PK", "Place Kicker"], 1)];
+    const picks = [...of(["QB", "Quarterback"], 1), ...of(["WR", "Wide Receiver"], 3), ...of(["RB", "Running Back"], 2), ...of(["TE", "Tight End"], 1), ...of(["PK", "Place Kicker"], 1), ...of(["DEF"], 1)];
     for (const c of copy.castaways) if (picks.includes(c.id)) c.ownerIds = [seat];
     StateLogic.ensureEpisodeNumber(copy, started.from, false);
     const ep = copy.episodes.find((e) => e.number === started.from);
     const problem = ep ? StateLogic.ActiveRosterLogic.validateLineup(copy, ep.id, seat, picks, Date.now()) : "no episode";
-    fact(`a lineup of ${picks.length} (QB, 3 WR, 2 RB, TE, K) for ${ep ? `episode ${ep.number}` : "?"}: ${problem ?? "accepted"}`);
-    check(picks.length === 8 && problem === null, "(BACKLOG 221) the engine accepts a lineup of real players in their slots", picks.length === 8 ? problem : `only ${picks.length} picked`);
+    fact(`a lineup of ${picks.length} (QB, 3 WR, 2 RB, TE, K, a D/ST) for ${ep ? `episode ${ep.number}` : "?"}: ${problem ?? "accepted"}`);
+    check(picks.length === 9 && problem === null, "(BACKLOG 221, step 1.3) the engine accepts a full lineup of real players in their slots, a D/ST in DEF", picks.length === 9 ? problem : `only ${picks.length} picked`);
 
     // A season filled before the fix: its positions put back as ESPN names them, then its next fill (cast.ts castFromEvents, what the
     // slate's sync and the Players tab run).

@@ -278,6 +278,10 @@ type GainKind = "rush" | "catch" | "lateral-rush" | "lateral-catch" | "sack" | "
 
 export class Football extends TeamSport {
   readonly id = "football";
+  /** A team's defense and special teams, as its finals score it (`def:<team>`, "<Team> D/ST", position DEF): Yahoo's DEF. */
+  teamPeople(team: { id: string; name: string }): { id: string; name: string; position: string }[] {
+    return [{ id: defenseId(team.id), name: `${team.name} D/ST`, position: "DEF" }];
+  }
   readonly name: string = "Football";
   readonly groups = GROUPS;
   readonly positions = POSITIONS;
