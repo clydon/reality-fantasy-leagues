@@ -159,3 +159,119 @@ database goes.
    tier); the lines and checks read the same run's views. This is P0's live tier inside the story: for the product, the A-or-B
    decision again decides how a preview gets its screens.
 
+7. **What a preview may show of the real season:** "Show the real results up to where I've watched, and make up only what comes
+   after." Up to the viewer's mark, the world carries the season's real results (who went home, the moments); from the next
+   episode on, the bench makes them up. Nothing real is shown past what the viewer has seen.
+8. **The game's names:** "fix the names where the gallery makes them. But the gallery is the wizard lane's code, so don't change
+   it here; the wizard lane will do it, and your screens follow once it's merged." Nothing changes here.
+
+## The bench's previews (the user, 2026-11-18, for the design sweep)
+
+"At some point we'll test every screen of every game through the bench and these previews. What I care about most: the player
+always knows what to do. I never want someone to feel lost in the app, or bored because every game seems plain. Each game, within
+the app's tone, needs bold soul and character." The sweep is §6B of docs/PLAN-GAMEPLAY-SCENARIO-EXPLORER.md (main worktree): it
+judges, in order, that the player knows what to do, that each game has soul, and that the preview tells the truth and gives the
+lay of the land. This section builds the preview so the sweep can use it.
+
+### One preview maker, three ways in
+
+- **The core:** `tools/gameplay-bench/preview/` makes a preview of any v2 definition the bench runs (its own cases and seeded
+  worlds, or a gallery game on a real season's dress), with no one driving it. It opens the definition in the explorer's runtime,
+  materializes it on the live tier (zt-gb- rows, the real routes), plays the season moment by moment, shoots each moment's real
+  screens as the viewer at 390, runs the truth checks, and writes `preview.json` (the moments, their screens, the checks, the
+  production views the cards read) beside the shots.
+- **Callable as the runtime is:** the CLI (`node scripts/gameplay-bench.js preview --file=<definition> --out=<dir>`), HTTP
+  (`POST /__atlas/bench/runtime/preview`, the Atlas bench's own router) and the browser transport
+  (`window.__GAMEPLAY_EXPLORER__.preview(input, options)`), all calling the same core.
+- **Seen:** the story page reads any preview (`/start/preview-story?preview=<id>`), and a sheet shows many side by side at 390
+  (`/start/preview-story/sheet`), each its own phone.
+
+### Who moves
+
+- **Everyone's moves, the viewer's too, are the computer players'** (E1, `src/lib/game/bot-logic.js`). On a copy of the game's
+  state the seat is made a computer player, E1 decides (a blind draft's lock-in, a lineup, a pool's pick; a sheet's answers once
+  E1b lands from `wizard`), and the move is applied as that person's own action through the runtime, then synced. One rule for
+  every game, nothing written per game; when E1 grows, every preview's couch plays better. On the screens the couch stay people
+  with their real names (decision 2).
+- **Until E1b is merged,** a sheet's answers use the bench's own valid move for the kind (a seeded choice among the question's
+  options from the projection): one chooser per kind of move, not per game, gone when E1b arrives.
+- **Results:** real up to the viewer's mark (decision 7), the bench's seeded publish after it.
+
+### Moments from what each game has
+
+A game's preview leads with what makes it that game. The moments come from the game itself, read from its production views (the
+moves they offer: a draft, a lineup, a pick, questions; stages; lives and outs; the finale), never one template filled in:
+
+| The game has | Its moment | The real screens | Tells you |
+| --- | --- | --- | --- |
+| (every game) | The game | the Games tab, the game page's How it plays | what the game is, how to win |
+| a draft | The draft | the draft room as it opens, the teams revealed | what you start with |
+| a weekly move (lineup, pick, questions) | Each episode | Tonight's strip (the move, its lock), the quick action it opens | what you do each week, by when |
+| results | After an episode | the game page's season, Tonight's game section | where you stand, how points come |
+| stages | The stage changes | the new draft or the next stage's page | when the game changes shape |
+| lives, a pool | Someone's out | the game page with the out marked | how you lose |
+| (every game) | The finale | the game page at the end, the reveal | who wins and why |
+
+The screens are the app's own routes, the same for every game (Tonight, Games, the game page, the draft room, the reveal); the
+quick action is whatever Tonight's strip opens. A moment the game doesn't have isn't shown.
+
+### The truth check, widened to what's due
+
+At every moment, by machine:
+1. **What's due.** The engine knows what's due for the viewer: `actionItems` (src/lib/game/action-items.js: a draft to lock in, a
+   lineup, a pick, a prediction, a waiver) with each one's deadline, plus a sheet's open questions from the projection (the one
+   kind actionItems leaves out). Tonight's strip, the Games tab and the game page must say the same: a move due when one is, and
+   "all set" only when nothing is.
+2. **The words against the season.** Standings shown against the engine's (the game page's season, the reveal's table), and the
+   known checks (a "still in" line in a game nobody's knocked out of, your team's numbers against your score).
+3. **In plain words on the frame:** "App bug: says 'All set', but your draft is due" (the user: "App differs" wasn't clear).
+
+### Judged by the lay of the land
+
+After a game's preview someone knows **what the game is, what they'll do each week, when moves lock and how to win**. Each has
+its moment above; the design round judges the story by whether a first-time viewer can answer all four, and a preview that leaves
+one out fails it.
+
+### Cost, and what to share or cut
+
+Measured: one season on the real screens took 113 to 125 s for 13 screens (Alex's moves made by clicking, two draft rooms worked
+by hand, a fixed 2.5 s wait on every page, a fresh login five times). The three samples, each as set and with the fix (6 runs),
+took 11 to 13 minutes; the 30 headless seasons for what's typical, about 50 s.
+
+| | Now | For the sweep |
+| --- | --- | --- |
+| Seasons per game | 3, each also with the fix | 1 (Shuffle and fixes on request) |
+| Screens | 13, every moment | the game's moments only, about 8 |
+| Waiting | 2.5 s after every page | until the page's own ready mark |
+| Moves | clicked on the screens | E1's, through the runtime (the routes' writes are api-checks' job) |
+| Logins | one per phase | one per case |
+| What's typical | 30 seasons in the page's data | 10 seasons, headless, in the campaign runner |
+| Workers | one | 4, each case its own zt key on the lane's database |
+
+Expected: about 40 s a game on one worker, so 300 games in under an hour on four. **Share:** a season's world (its cast,
+episodes and results) is the same for every game on it, so it's materialized once and each game added to it; a screen two games
+draw the same (the same state) is shot once. **Cut:** the fix's run unless a check flags something.
+
+### The first slice
+
+Three games that look nothing alike, each with the truth check: the gallery's **Fantasy league** with a new draft at the merge (a
+draft, a weekly lineup, stages), its **Prediction sheet** (questions each episode) and its **Survival pool** (a pick a week, out
+when it goes home), on Survivor 51 with its real results through Episode 8. Then the design round for the per-game cards, the
+plain-words marks and the side-by-side sheet: Intent, Perception-First Design and Impeccable once each, one check, one round of
+fixes, a screenshot story at 390, and a pause.
+
+## Noticed, not fixed
+
+Found by the preview's real screens (2026-11-18), left for the lanes that own them:
+1. **"All set" while a draft is due.** Tonight's strip and the Games tab say "All set for Ep 9" while the first stage's blind draft
+   is open, and Tonight says "All set for Ep 12" while the merge's is. The engine's actionItems names it ("Lock in your draft
+   picks"); the strip's own move list (src/new/show/strip.tsx, from your-move.ts) leaves an open blind draft out. Every run.
+2. **The finale's reveal ranks one stage.** Its standings beat (src/new/show/reveal.tsx TableBeat, `r.table`) shows the stage's
+   standings ("Weekly Lineup standings", "You're 1st, 4.5 ahead of Jordan") where the game in stages is won on the overall (Jordan
+   by 1.5). The wrong winner in 3 of 6 runs, whenever the two differ.
+3. **Tonight's game section says "0 of 0 still in"** for a game of points in stages (src/new/show/tonight.tsx, the game's mini:
+   "T1 of 4 · 0 of 0 still in · All safe"). Every run.
+4. **Your team's numbers don't add up to your score.** Your team (src/new/show/game-week.tsx YourTeam) shows each castaway's points
+   in the game, started or benched (16 against a score of 15 after Episode 10; 9.5 against 1 in another season).
+5. **The game's names:** Fantasy league, Stages, Weekly Lineup, "Before Merged" and "Merged", "Redraft at merged" (the gallery's;
+   the wizard lane fixes them, decision 8).
