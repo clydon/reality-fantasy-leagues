@@ -313,18 +313,16 @@ async function seedChat(pool, { couch, season, traitorsSeason, leagues, users })
 }
 
 /**
- * A game on the fixture's couch that alex doesn't play: "Side Lineup", a Weekly Lineup for riley, jordan and sam (the castaway sheet
- * lists the couch's active games, yours or not: story-person-sheet.js --side-game). Its slug is zt-nd-side, so down() takes it with
- * the rest; sideGame(pool, false) takes it alone. Needs up() first.
+ * More games on the fixture's couch, each { slug, name, type, players, commissioner }: a demo season of the type ("classic-draft",
+ * "active-roster" or "pickem") through the fixture's last results for the players named (new-fixture's people), revealed as each
+ * has on the Weekly Lineup, not linked to the group. Slugs must start zt-nd- (down() takes them with the rest); one that's there
+ * already is made again. Needs up() first. Resolves their league ids, in order. (sideGame; night-fixture.js --extra: a couch with
+ * more games than three.)
  */
-async function sideGame(pool, on = true) {
-  await pool.query(`DELETE FROM leagues WHERE slug = 'zt-nd-side'`);
-  if (!on) return null;
+async function moreGames(pool, games) {
   const one = async (sql, params) => (await pool.query(sql, params)).rows[0];
   const lineup = await one(`SELECT couch_id FROM leagues WHERE slug = 'zt-nd-lineup'`);
   if (!lineup) throw new Error("new-fixture.js isn't up");
-  const who = ["riley", "jordan", "sam"];
-  const ids = Object.fromEntries((await pool.query(`SELECT id, username FROM "user" WHERE username = ANY($1::text[])`, [who.map(username)])).rows.map((r) => [r.username.slice(6), r.id]));
   // The season's shape as it is in the database (another process's up() may have made it longer: short-games-fixture.js).
   const season = await one(`SELECT ss.episode_count FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE s.slug = $1`, [SHOW]);
   const lineupState = (await one(`SELECT state FROM leagues WHERE slug = 'zt-nd-lineup'`)).state;
@@ -332,23 +330,43 @@ async function sideGame(pool, on = true) {
   CURSOR = S.SpoilerLogic.latestWithResults(lineupState);
   const marks = (await pool.query(`SELECT u.username, m.results_seen_through FROM league_memberships m JOIN "user" u ON u.id = m.user_id JOIN leagues l ON l.id = m.league_id WHERE l.slug = 'zt-nd-lineup'`)).rows;
   SEEN = Object.fromEntries(marks.map((r) => [r.username.slice(6), r.results_seen_through]));
-  const state = JSON.parse(JSON.stringify(buildDemoState({ ...dataOf(), players: who.map((key) => ({ key, name: key, color: "#888" })) }, "active-roster", CURSOR)));
-  S.migrateLeagueState(state);
-  state.settings.showId = SHOW;
-  state.settings.wikiSeason = 51;
-  const leagueId = (await one(`INSERT INTO leagues (name, slug, join_code, state, created_by, couch_id) VALUES ('Side Lineup', 'zt-nd-side', 'SIDEOO', $1, $2, $3) RETURNING id`, [JSON.stringify(state), ids.riley, lineup.couch_id])).id;
-  for (const [j, w] of who.entries()) {
-    await pool.query(`INSERT INTO league_memberships (league_id, user_id, player_id, role, results_seen_through) VALUES ($1, $2, $3, $4, $5)`, [
-      leagueId, ids[w], state.players[j].id, w === "riley" ? "commissioner" : "member", SEEN[w],
-    ]);
+  const data = dataOf();
+  const out = [];
+  for (const { slug, name, type, players, commissioner, joinCode } of games) {
+    if (!/^zt-nd-[a-z0-9-]+$/.test(slug)) throw new Error(`a game's slug starts zt-nd-: ${slug}`);
+    await pool.query(`DELETE FROM leagues WHERE slug = $1`, [slug]);
+    const ids = Object.fromEntries((await pool.query(`SELECT id, username FROM "user" WHERE username = ANY($1::text[])`, [players.map(username)])).rows.map((r) => [r.username.slice(6), r.id]));
+    const state = JSON.parse(JSON.stringify(buildDemoState({ ...data, players: players.map((key) => ({ key, name: key, color: "#888" })) }, type, CURSOR)));
+    S.migrateLeagueState(state);
+    state.settings.showId = SHOW;
+    state.settings.wikiSeason = 51;
+    const code = joinCode ?? slug.replace(/[^a-z]/g, "").slice(4, 10).toUpperCase().padEnd(6, "O");
+    const leagueId = (await one(`INSERT INTO leagues (name, slug, join_code, state, created_by, couch_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`, [name, slug, code, JSON.stringify(state), ids[commissioner], lineup.couch_id])).id;
+    for (const [j, w] of players.entries()) {
+      await pool.query(`INSERT INTO league_memberships (league_id, user_id, player_id, role, results_seen_through) VALUES ($1, $2, $3, $4, $5)`, [
+        leagueId, ids[w], state.players[j].id, w === commissioner ? "commissioner" : "member", SEEN[w],
+      ]);
+    }
+    out.push(leagueId);
   }
-  return leagueId;
+  return out;
+}
+
+/**
+ * A game on the fixture's couch that alex doesn't play: "Side Lineup", a Weekly Lineup for riley, jordan and sam (the castaway sheet
+ * lists the couch's active games, yours or not: story-person-sheet.js --side-game). Its slug is zt-nd-side, so down() takes it with
+ * the rest; sideGame(pool, false) takes it alone. Needs up() first.
+ */
+async function sideGame(pool, on = true) {
+  await pool.query(`DELETE FROM leagues WHERE slug = 'zt-nd-side'`);
+  if (!on) return null;
+  return (await moreGames(pool, [{ slug: "zt-nd-side", name: "Side Lineup", type: "active-roster", players: ["riley", "jordan", "sam"], commissioner: "riley", joinCode: "SIDEOO" }]))[0];
 }
 
 /** The season's shape as the last up() made it (short-games-fixture.js builds its games on it). */
 const shape = () => ({ episodes: EPISODES, through: CURSOR, seen: { ...SEEN }, data: dataOf(), SHOW });
 
-module.exports = { up, down, sideGame, shape, PEOPLE, PASSWORD, username, CHAT, TRAITORS_CHAT };
+module.exports = { up, down, sideGame, moreGames, shape, PEOPLE, PASSWORD, username, CHAT, TRAITORS_CHAT };
 
 if (require.main === module) {
   if (!/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(DB)) throw new Error("new-fixture runs against a local database only");

@@ -17,6 +17,7 @@ import { Chat } from "../show/chat";
 import { MovesSheet } from "../show/dock";
 import { ProgressControl } from "../show/progress";
 import { MovesStrip } from "../show/strip";
+import { carriedFull, useCarriedSet } from "../show/strip-night";
 import { RemindSheet, useReach } from "../show/remind";
 import { useMe } from "../session";
 import type { PhoneState } from "../settings/notify";
@@ -88,7 +89,11 @@ export function useShow(seasonId: string) {
   const runs = games.filter((g) => (g.yourRole === "commissioner" || g.yourRole === "admin") && !g.archived);
   const people = space.data?.people ?? null;
   // Your moves due in this couch's games here, soonest first (the home's list: actionItems).
-  const moves = movesByDue(home.data?.moves.filter((m) => yours.some((g) => g.leagueId === m.leagueId)) ?? []);
+  // TEMP-UI (strip-night.ts, the story's `?carried=set`): the open question's other answer, a lineup carried in complete isn't due
+  // in the window. The server's rule is unchanged.
+  const carried = useCarriedSet();
+  const carriedIn = (m: { late?: boolean; kind: string; leagueId: string }) => carried && !!m.late && m.kind === "lineup" && carriedFull((play.data?.games as GameView[] | undefined)?.find((g) => g.leagueId === m.leagueId));
+  const moves = movesByDue(home.data?.moves.filter((m) => yours.some((g) => g.leagueId === m.leagueId) && !carriedIn(m)) ?? []);
   return {
     home: home.data,
     couch,
@@ -302,7 +307,7 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
       )}
       <main style={{ paddingBottom: `calc(${foot}px + env(safe-area-inset-bottom, 0px))` }}>
         {!ro && tab !== "tonight" && show.header && <ProgressControl show={show} compact />}
-        {!ro && tab !== "chat" && show.header && <MovesStrip show={show} />}
+        {!ro && tab !== "chat" && show.header && <MovesStrip show={show} tab={tab} />}
         {children}
       </main>
       <TabBar

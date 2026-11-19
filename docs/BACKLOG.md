@@ -1343,6 +1343,19 @@ Last updated 2026-10-27.
     its scroll between levels, so a game opened from far down the shelf opens partway down its screen. The bold pass keeps each
     level's scroll by depth (`gallery-bold/bold-sheet.tsx`); Round 2's gallery needs the same if the bold pass is reverted.
 
+110. **On episode night the strip says "Locked" while your moves are still open** (the user's report, 2026-11-18, Survivor 51's
+    Ep 9 night, 8:03 PM, through Ep 8, every game on the live pace). `stripState` returned the locked state whenever the episode is
+    on air, before reading the moves or the late window (src/new/show/strip.tsx, written in step 3 on 2026-11-15, a day after the
+    pace shipped), so Tonight's badge said 3 due under "Locked for Ep 9". Also wrong in the window: the sheet's "change anything
+    until 8:00 PM" (past), "Episode 9 has aired" while on, "I've watched it" opening an empty reveal before results, "Lock when it
+    airs" after the airing, "All set for Ep 10" once results are in. And the user's rule from the same night: someone watching live
+    must never be able to change a move by mistake. **A design round answers it** (docs/design-round/strip-night-*.md; story linked
+    in HANDOFF.md): three looks behind `?strip=a|b|c` (TEMP-UI, on branch strip-night; the wizard lane merges first); the user picked C with a Lock in button in its
+    first row (the checks had said B); a question in Your moves ("Have you started watching?"); Lock in and Watch along lock your
+    moves (simulated: an engine step to build). **Waits on the user:** the refined C's review; whether a full lineup carried in counts as all set in the window (every check: yes; today's
+    server calls it due, so the yellow and the after-airtime push go to everyone behind each night: due-moves.ts, your-move.ts,
+    db/reminders.js; BACKLOG 65's watch item); building the self-lock. Not on an episode night: no push.
+
 ## Decided against (don't re-propose without new information)
 
 - **An AI draft/lineup/pick advisor for players** ("Coach"): rejected. Feels like pay-to-win inside

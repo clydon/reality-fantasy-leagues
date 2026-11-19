@@ -39,6 +39,7 @@ import { totalWords } from "./game-sheets";
 import { ResultSquare } from "./game-week";
 import { oneGame, thisWeek, type WeekCard } from "./this-week";
 import { TonightNights } from "./whats-on";
+import { useNightLook } from "./strip-night";
 import { GAME_NAMES } from "@/lib/server/league-season";
 
 // Tonight (the design round's step 3: docs/design-round/step3-tonight-spec.md, its first view step3-tonight-first-view.md, its
@@ -387,7 +388,8 @@ function YourGames({ seasonId, show, open }: { seasonId: string; show: ShowData;
 function GameMini({ seasonId, show, g, name, open: openDoor }: { seasonId: string; show: ShowData; g: GameView; name: string; open: (d: Door) => void }) {
   const [open, setOpen] = useState(false);
   const when = (iso: string) => lockTime(Date.parse(iso));
-  const move = yourMove(g, { seasonId, episode: show.words.episode, when });
+  const looked = !!useNightLook();
+  const move = yourMove(g, { seasonId, episode: show.words.episode, when, night: looked });
   const w = thisWeek(g, {
     words: show.words,
     total: (r) => totalWords(g, r),

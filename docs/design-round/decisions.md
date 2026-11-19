@@ -1403,3 +1403,66 @@
 - Why: the same rules as head to head where they fit; a random first turn so no one is alone first just for joining first.
 - Rejected: the one alone or the pair taking a tie; points first; a final between the top two; two on two or one against the rest for four or five; the join order; the pair's lower or higher score.
 - Rests on: docs/PLAN-start-a-game-gpt.md C8; docs/PLAN-start-a-game-redo.md E3.
+
+## 2026-11-18 · In the late window the strip says the moves are open: "Before you watch it" when something's missing, "All set for Ep 9 · Change it before you watch" when it's all in
+- Decided by: Claude (default, until the user reviews the story)
+- Why: the live and own paces keep a move open until you watch; the strip said "Locked for Ep 9" through the airing (strip.tsx returned the locked state before reading the moves), and "Lock when it airs" after it. "Before you watch" is the user's own words for the window ("edit my lineup before watching") and carries the honour rule in the sentence.
+- Rejected: "Open until you watch" (a state without the rule); "Still open" (says nothing about until when); keeping "Locked" with an unlocked sheet behind it.
+- Rests on: docs/design-round/strip-night-spec.md; docs/PLAN-own-pace-games.md "Pace is the game's setting".
+
+## 2026-11-18 · "Scores stay hidden until you reveal" leaves the strip; a strict or hand-locked episode's strip shows who you've got instead
+- Decided by: Claude (default)
+- Why: during the airing no scores exist, and once they do the progress control's Seen Ep 9? / Reveal Ep 9 says what's waiting (each fact once); who you started is the question people bring to a locked episode.
+- Rejected: keeping the reassurance line.
+- Rests on: docs/design-round/strip-night-spec.md, "Left out".
+
+## 2026-11-18 · The honour note's "I've watched it" shows only once the episode's results are in
+- Decided by: Claude (default)
+- Why: before results the reveal it opens has nothing to show (a dead end); the words ("Watching now, or seen it already? Leave it as it is") carry the rule until then, and once results are in the progress control's Seen Ep 9? is the same way out.
+- Rejected: a self-lock behind it (a new rule).
+- Rests on: docs/design-round/strip-night-spec.md, "Your moves, opened in the window"; src/new/show/reveal.tsx Broadcast.
+
+## 2026-11-18 · Nobody watching live may read the late window as theirs
+- Decided by: the user ("We also don't want someone who's watching live to be mistaken that they can make moves because that would be cheating")
+- Why: during the airing most people opening the app are watching it; a strip saying "Change it before you watch" over an open lineup reads to someone mid-episode as permission.
+- Rejected: words alone as the guard (the round's first draft).
+- Rests on: docs/design-round/strip-night-spec.md, "Watching live isn't 'before you watch'".
+
+## 2026-11-18 · In the window Your moves asks "Have you started watching Ep 9?" before it opens the moves; I'm watching locks them
+- Decided by: Claude (default, until the user reviews the story)
+- Why: the user's rule above needs the honour system at the moment of change, as a deliberate answer, not a line to miss; Not yet keeps the window for whoever hasn't started; I'm watching (and starting Watch along) settles it for whoever has. The words move from the episode to the moment: "Locks when you start watching", "Before you start watching".
+- Rejected: closing the window for everyone at airtime (takes the late window from people who watch later, the reason it exists); inferring watching from bingo ticks or chat during the airing (a surprise lock from a signal the person didn't mean); a confirm only on Save (the moves would already look open).
+- Rests on: docs/design-round/strip-night-spec.md; the engine step (a seat's own lock for an episode) is planned there, simulated in the story.
+
+## 2026-11-18 · Look C for the episode-night strip, with a Lock in button in its first row
+- Decided by: the user ("I honestly disagree, C i think is best because it give you not only a way in to set each missing or desired-edit per game but it also helps the 'at a glance' who do i have set question. Maybe in that first row on the right side of the banner theres a Lock In button to essentially say, 'I made my picks, Im about to watch'")
+- Why: a row a game is both the way in to each move and the answer to "who do I have"; Lock in turns the honour system into one deliberate action where the moves are.
+- Rejected: B, the checks' pick (faces on the strip, one tap to the sheet); its first-view saving is kept by collapsing C to B's strip once you've locked in.
+- Rests on: docs/design-round/strip-night-check.md (C's costs: the first view, a second shape on other tabs, truncation; the refinement answers each).
+
+## 2026-11-18 · The Games tab shows who you've got at a glance, as face plates
+- Decided by: the user ("I feel like our discussion exposes that we have no at a glance view. Which could certainly be added in the games tab. For instance we mention Thien but never show her face plate. We don't see our lineup here either.")
+- Why: each game's card named the move ("Your Episode 9 pick: Thien", "Your Episode 9 lineup") without the people in it; the card is where a game is read at a glance, all week.
+- Rejected: words only (today); the 28 x 36 tiles of the older move card (too small to know a face).
+
+## 2026-11-18 · The Games tab's plates are the pool sheet's face plates, four to a row, the bench and a pick's stake in the last cells
+- Decided by: Claude (default, until the user reviews the story)
+- Why: the pool sheet's plate (a white caption plate, the face, the first name in condensed caps) is the app's own "face plate", so a pick looks the same where it's made and where it's read; a lineup's starters carry their points, its bench sits beside them in words; a pick's empty cells say what it puts on the line ("Streak 4 → 5 if Cristian survives"), the sweat's number beside the decision; an empty place is dashed, as in the sheets. The whole move opens Your moves, as its line did.
+- Rejected: a plate opening the castaway's sheet (Product Principle 12 would have it; a second target inside the move, left for the build); the lineup sheet's dark photo tiles (a sheet for choosing, not reading).
+- Rests on: docs/design-round/strip-night-spec.md, "At a glance on the Games tab".
+
+## 2026-11-18 · Each game type has its own glance, and nothing grows past a row until asked
+- Decided by: the user ("different game types should have different at a glance views (for situations where an in-table at a glance isn't possible, we could consider a collapsible/expandable section or a quick pop up)"; "the UI should consider a large starting lineup")
+- Why: a lineup, a pick, a claim and a team are different objects; a sport's nine starters can't sit in a card the way a show's three do.
+
+## 2026-11-18 · One row of four, gaps first, "+N" opens the rest in place; an empty big lineup is one dashed line naming its slots
+- Decided by: Claude (default, until the user reviews the story)
+- Why: a card stays a glance at any lineup size; what's missing never hides behind "+N"; opening in place keeps you on the Games tab (a pop-up is kept for a glance that isn't faces: a prediction sheet's answers, a bingo card, which open their own sheets); nine empty boxes say less than "9 open · QB, WR, WR, RB, RB, TE, W/R/T, K, DEF". Plates are tagged by slot where the game has slots and open the castaway's or athlete's sheet (Product Principle 12); the move's words open Your moves.
+- Rejected: wrapping every starter into rows (a nine-man lineup is three rows on every visit); a pop-up for the faces (a second layer to see who you've got); hiding gaps behind "+N".
+- Rests on: docs/design-round/strip-night-spec.md, "At a glance on the Games tab".
+
+## 2026-11-18 · However many games are going: Tonight's plate holds three rows, a game card's glance is one row
+- Decided by: the user ("We want to keep the vertical real estate in check. Because who's to know how many games could be going on in a given moment"); the shapes below by Claude (default, until the user reviews the story's version 5)
+- Why: version 4 drew every game in full, so the views grew with the couch: with seven games Tonight's plate ran under the tab bar and the Games tab grew by about 1,000 px (3,257 to 4,263). Now the plate shows its head and at most three rows (past three games, the two that need you first and one fold row: a face a game, "All set" or "N to set", opened in place); each card's glance is the move's own row (three small tiles, who they are once set, the verb as text, as Tonight's rows say it), 3,285 px for seven games; its tiles open the plates in place. Three games look as they did. The one-line strip elsewhere keeps its faces only up to three games and drops them on the Games tab, whose cards show who.
+- Rejected: version 4's plates in every card (about 130 px a game); a pop-up for the glance (an extra layer for the common question, "who did I start?"); folding the games that need you (they lead, and the head counts them all); the outlined button in the glance's row (it took the names' room: four lines a row at 390).
+- Rests on: docs/design-round/strip-night-spec.md, "However many games are going"; night-fixture.js --extra=4; the story's version 5.

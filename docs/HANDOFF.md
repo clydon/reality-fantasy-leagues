@@ -59,6 +59,44 @@ coloured too, commit.
   seven answers are in the plan's E3), then the rest of E3. The two review findings left are in the plan's merge note: computer
   players' bingo cards and calls aren't stored; finished games leave the castaway sheet's views.
 
+## Episode night: the strip said "Locked" while moves were open (2026-11-18, waiting on the user; branch strip-night, rebased onto master after the wizard merge, not merged; TEMP-UI)
+The user's report from Survivor 51's Ep 9 night (on air, through Ep 8, live pace): "Locked for Ep 9" over a badge of 3 due moves;
+two scenarios must both work (change it before watching; see who I started); and, mid-round, "We also don't want someone who's
+watching live to be mistaken that they can make moves because that would be cheating." **The story: https://claude.ai/artifact/1uTLFgHjay9WgxYB7Q61SC.** Papers:
+docs/design-round/strip-night-{spec,first-view,shape,check}.md; decisions.md 2026-11-18; BACKLOG 110.
+- **Built behind `?strip=a|b|c`** (src/new/show/strip-night.ts; strip.tsx `nightState`, NightFaces, NightPlate, WatchLockSheet;
+  dock.tsx StartedGate; progress.tsx Watch along's lock; your-move.ts `night`; show-space.tsx `?carried=set` for the story only).
+  Without the switch the app is unchanged (diffed; check-strip-settle.js passes, your-move and own-pace tests pass).
+- **The user's pick: C, with Lock in in its first row** ("I made my picks, I'm about to watch"; the checks had recommended B). A
+  row a game (its people, the Games tab's verb); Lock in locks every game's moves (Undo for a moment; something unset asks first)
+  and the plate collapses to the one-line strip. Words name the moment ("Before you watch", "Locks when you start watching"). Your
+  moves asks "Have you started watching Episode N?" (Not yet / Yes, lock in); Lock in, that Yes and Watch along all lock your moves,
+  simulated in localStorage (`gys_watching:<season>:<n>`): the engine step (a seat's own lock for an episode, closing its window as
+  a reveal does) isn't built.
+- **The Games tab at a glance** (the user's note: "we mention Thien but never show her face plate"): each game's card shows
+  who you've got (games.tsx, same switch; version 4 drew the pool sheet's face plates in every card): a lineup's starters with points and its
+  bench, a pick ticked with its stake ("Streak 4 → 5 if …"), gaps dashed. Then the user's two notes: each game type in its own
+  shape (games.tsx `Glance`: lineup, a sport's slots, pick, claim, team; head to head, sheets, bingo, calls, best ball, drafts
+  specified in the spec, not built) and big lineups (story frames on draft-fixture.js `--sport --slots` via story-strip-night.js's
+  `nfl` situation).
+- **Version 5, heights that hold** (the user: "keep the vertical real estate in check. Because who's to know how many games could
+  be going on"): Tonight's plate shows its head and at most three rows (past three games, two rows, the ones that need you first,
+  and a fold row opened in place: strip.tsx `NightRow`, `PLATE_ROWS`); each card's glance is the move's own row (three 26 x 34
+  tiles, who they are once set, the verb as text; the tiles open the plates in place: games.tsx `Glance`, `GlanceDetail`); B's
+  faces under the one-line strip only up to three games, never on the Games tab in C. Seven games' Games tab: today 3,257 px,
+  version 4 4,263, now 3,285. Fixture: night-fixture.js `--extra=N` (up to six more games, new-fixture.js `moreGames`) and
+  `--extra-moves=set|gap`; story situations `busy` and `busy-set` (full-page shots with `full`).
+- **Waits on the user:** version 5's review (the heights; the refined C; the glance rows); a full carried lineup counts as all set in the window (every check: yes; the server's
+  due-moves.ts, your-move.ts and db/reminders.js call it due, so the yellow and the after-airtime push reach everyone behind
+  nightly); building the self-lock. No push on an episode night.
+- **Tools:** scripts/dev-test/night-fixture.js (zt_nd couch; `--phase=onair|aired|results|watched --moves=set|carried|kept|gap
+  --pace=live|strict|mixed --owed --art`), scripts/dev-test/story-strip-night.js (frames, flows, overlaps), the story's generator
+  `.ui-atlas/stories/strip-night/make-spec.py` (ignored).
+- **Rebased onto master after the wizard merge (2026-11-19, b3f3dae7).** Round 3's `WhatsOn` (whats-on.tsx) replaced
+  `GameRows`: the glance rides WhatsOn's `row` callback into `GameRow` (`onCast`); new-fixture.js's `moreGames` reads the
+  season's shape from the database, as wizard's `sideGame` did; dock.tsx keeps B2's captains, group slots and second picks
+  beside the started gate. The pre-rebase commits are on `strip-night-pre-rebase`.
+
 ## The user's calls, 2026-11-18: the bold pass and Round 2c are the direction; build next. Their answers to every open question
 - **Approved:** "i think i agree with the direct and ready to start": the bold pass (`?start=bold`, `src/new/couch/gallery-bold/`)
   with Round 2c's steps is the design to build; Round 2's `gallery/` stays only until the build replaces both.
