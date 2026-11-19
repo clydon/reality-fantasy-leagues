@@ -32,14 +32,16 @@ export interface PickNight {
   skipped?: boolean;
 }
 /** A pool's night in one kind (Round 5, B2): its outcome, a wrong second pick that counted included; null while it's undecided. */
-export type NightKind = "stayed" | "home" | "forgiven" | "bought" | "skipped";
-export function nightKind(pk: { correct: boolean | null } & PickNight): NightKind | null {
+export type NightKind = "stayed" | "home" | "missed" | "forgiven" | "bought" | "skipped";
+export function nightKind(pk: { id?: string | null; correct: boolean | null } & PickNight): NightKind | null {
   if (pk.skipped) return "skipped";
   const second = pk.second && !pk.second.void ? pk.second.correct : null;
   if (pk.correct === null && second === null) return null;
   if (pk.correct !== false && second !== false) return "stayed";
   if (typeof pk.boughtBack === "number") return "bought";
   if (pk.forgiven) return "forgiven";
+  // No pick that night (a miss), never someone voted out.
+  if (!pk.id && pk.correct === false) return "missed";
   return "home";
 }
 

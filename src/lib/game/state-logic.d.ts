@@ -714,6 +714,8 @@ declare const StateLogic: {
     episodeLines(state: LeagueState, ep: Episode, playerId: string, events?: ScoringEvent[], times?: number, ix?: GroupSlotIndex): GroupSlotLine[];
     /** episodeLines on the episode's moments already at the game's points (ActiveRosterLogic.scoredEvents): C2 part 1. */
     scoredLines(state: LeagueState, ep: Episode, playerId: string, scored: { castawayId: string; points: number }[], times?: number, ix?: GroupSlotIndex): GroupSlotLine[];
+    /** The other team holding a group for episode n in an exclusive game (validatePick refuses it), or null. */
+    heldBy(state: LeagueState, playerId: string, n: number, groupId: string, ix?: GroupSlotIndex): Player | null;
     validatePick(state: LeagueState, epId: string, playerId: string, slot: number, groupId: string | null): string | null;
     setPick(state: LeagueState, epId: string, playerId: string, slot: number, groupId: string | null): boolean;
     settle(state: LeagueState, records: Map<number, EpisodeFormatGroups> | Record<number, EpisodeFormatGroups>): boolean;

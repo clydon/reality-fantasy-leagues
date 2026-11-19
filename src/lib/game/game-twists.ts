@@ -71,13 +71,15 @@ export function twistsOf(view: LeagueState, me: string, next: number, teams: Map
   const cfg = S.GroupSlotLogic.config(view);
   let slots: GameTwists["slots"] = null;
   let offeredOut: GameTwists["offered"] = null;
-  if (seat && cfg && nextEp) {
+  // (Knocked out, Round 5's review: no slot is theirs to fill, as no lineup is.)
+  if (seat && cfg && nextEp && !(S.KnockoutLogic.on(view) && S.KnockoutLogic.isOut(view, me))) {
     const on = S.GroupSlotLogic.offered(view, next);
     const offered = on.groups;
-    // In an exclusive game (and while the groups cover everyone), who already holds each group for the episode: the route refuses it.
-    const own = cfg.own === "exclusive" && !on.shared;
-    const holders = (id: string) =>
-      own ? (view.players ?? []).map((p) => p.id).filter((pid) => pid !== me && Array.from({ length: cfg.slots }, (_, k) => S.GroupSlotLogic.latestPick(view, pid, k, next)?.pick?.id).includes(id)) : [];
+    // In an exclusive game (while the groups cover everyone), who already holds each group for the episode, by the route's own rule.
+    const holders = (id: string) => {
+      const o = S.GroupSlotLogic.heldBy(view, me, next, id);
+      return o ? [o.id] : [];
+    };
     offeredOut = { epId: nextEp.id, groups: offered.map((g) => ({ id: g.id, name: g.name, size: g.members.length, members: g.members.slice(), heldBy: holders(g.id) })) };
     slots = Array.from({ length: cfg.slots }, (_, slot) => {
       const st = S.GroupSlotLogic.standing(view, me, slot, next);

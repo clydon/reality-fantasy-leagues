@@ -299,6 +299,18 @@ test("the engine's faces: who's still in, your own team, the groups someone stil
   assert.deepEqual(S.AnswerLogic.faces(g, q0(g), { groups: { ...fg, lockSure: true } }), [{ id: "p1", name: "C0 & C1", photoUrl: null }]);
 });
 
+test("the bot's line on a number: level only when your answer is as close as the bot's call; closer than you, it won (Round 5's review)", () => {
+  const { botLine } = jiti("../src/lib/server/answer-points.ts");
+  const s = league(game([HOW_MANY]));
+  results(s, 1, [5], [["idolPlayed", 0], ["idolPlayed", 1]]);
+  // Two idols played; the bot called 2. Ann said 2 (as close: level); Bo 1, the closest of the rest, and Cy 0 (the bot won).
+  const line = botLine({ view: s, facts: withBot(s, { "many|1": 2 }), rows: said(1, { ann: 2, bo: 1, cy: 0 }, "many"), walk: null });
+  assert.deepEqual(line.vs, { ann: { beat: 0, beaten: 0, level: 1 }, bo: { beat: 0, beaten: 1, level: 0 }, cy: { beat: 0, beaten: 1, level: 0 } });
+  // Without Ann, Bo is the closest of the couch, and still the bot won.
+  const alone = botLine({ view: s, facts: withBot(s, { "many|1": 2 }), rows: said(1, { bo: 1, cy: 0 }, "many"), walk: null });
+  assert.deepEqual(alone.vs.bo, { beat: 0, beaten: 1, level: 0 });
+});
+
 test("the bot's line on the table: the windows it called, how many it got right, and each of you against it", () => {
   const { botLine } = jiti("../src/lib/server/answer-points.ts");
   const s = league(game([BOOT]));

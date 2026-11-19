@@ -4862,6 +4862,27 @@ class GroupSlotLogic {
     }
     return out;
   }
+  /**
+   * The other team holding group `groupId` for episode n, in an exclusive game while the groups cover every team's slots (one
+   * team's at a time, first come), or null. The teams that count are the ones in the game's rotation and still in, as offered
+   * counts them: a late joiner's picks are private, as their team is. validatePick refuses a group one holds; the game's page says
+   * so before you choose (Round 5, B2).
+   */
+  static heldBy(state, playerId, n, groupId, ix){
+    const cfg = GroupSlotLogic.config(state);
+    if(!cfg || cfg.own !== 'exclusive' || groupId === null || groupId === undefined) return null;
+    const at = ix || GroupSlotLogic.index(state);
+    const offer = GroupSlotLogic.offered(state, n, at);
+    if(offer.shared) return null;
+    const g = offer.groups.find(x => x.id === groupId);
+    if(!g) return null;
+    const holds = (pid, i) => {
+      const s = GroupSlotLogic.standing(state, pid, i, n, at);
+      return !!s.pick && s.status !== 'dropped' && s.status !== 'empty' && !!GroupSlotLogic.find([g], s.pick, at.exits, n);
+    };
+    const outs = KnockoutLogic.outs(state);
+    return state.players.filter(p => p.id !== playerId && inLeagueRotation(p) && !outs.has(p.id)).find(p => Array.from({ length: cfg.slots }, (_, i) => i).some(i => holds(p.id, i))) || null;
+  }
   /** Null when a player's slot can take `groupId` for the episode (null: empty it), else why not. */
   static validatePick(state, epId, playerId, slot, groupId){
     const cfg = GroupSlotLogic.config(state);
@@ -4896,13 +4917,8 @@ class GroupSlotLogic {
       return !!s.pick && s.status !== 'dropped' && s.status !== 'empty' && !!GroupSlotLogic.find([g], s.pick, ix.exits, n);
     };
     for(let i = 0; i < cfg.slots; i++) if(i !== slot && holds(playerId, i)) return 'That group is already in your other slot';
-    // Exclusive while the groups cover every team's slots: one team's at a time, first come. The teams that count are the ones
-    // in the game's rotation, as offered counts them: a late joiner's picks are private, as their team is.
-    if(cfg.own === 'exclusive' && !offer.shared){
-      const outs = KnockoutLogic.outs(state);
-      const other = state.players.filter(p => p.id !== playerId && inLeagueRotation(p) && !outs.has(p.id)).find(p => Array.from({ length: cfg.slots }, (_, i) => i).some(i => holds(p.id, i)));
-      if(other) return `${other.name} has that group`;
-    }
+    const other = GroupSlotLogic.heldBy(state, playerId, n, groupId, ix);
+    if(other) return `${other.name} has that group`;
     return null;
   }
   static setPick(state, epId, playerId, slot, groupId){

@@ -451,11 +451,18 @@ export function botLine(w: Walked, graded?: { verdicts: Map<string, Verdict>; ea
     for (const a of list) {
       const r = (line.vs[a.playerId] ??= { beat: 0, beaten: 0, level: 0 });
       if ((got?.get(a.playerId) ?? 0) > 0) r.beat++;
-      else if (right && Spec.isRight(q, v, a, list, w.facts) === true) r.level = (r.level ?? 0) + 1;
+      else if (right && levelWith(q, v, a, list, call, w.facts)) r.level = (r.level ?? 0) + 1;
       else if (right) r.beaten++;
     }
   }
   return line;
+}
+
+/** Round 5 (B2): whether an answer was right where the bot's call was right too (level, nobody scores): a number, among the closest
+ *  with the bot's call counted beside the couch's (it beat you if it was closer); any other, right by itself. */
+export function levelWith(q: Question, v: Verdict, a: { playerId: string; answer: unknown }, list: { playerId: string; answer: unknown }[], call: unknown, facts: AnswerFacts): boolean {
+  if (q.answer === "number") return Spec.pointsFor({ ...q, points: 1 } as Question, v, [...list, { playerId: "\u0000bot", answer: call }], facts).has(a.playerId);
+  return Spec.isRight(q, v, a, list, facts) === true;
 }
 
 /** Each one's points as the table shows them: a walk's (frozen once out), else graded on the view (`graded`, when it has been). */

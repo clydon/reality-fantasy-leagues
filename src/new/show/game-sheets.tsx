@@ -21,6 +21,7 @@ import { answerWords, verdictWords } from "./questions";
 import { statValue } from "./stats";
 import { BetsBody, CompareBody, EpisodeGames, GameTable, MatchupBody, MatchupTitle, PersonSeason, slotWord } from "./game-week";
 import { oneGame } from "./this-week";
+import { PriceEnd } from "./price-end";
 
 // The sheet family on a game's page and every tab (docs/PLAN-start-a-game-gpt.md U1, "Step 2 brief": the sheet family, once;
 // U0's canvas v58, boards R4 and R6, `make_person_sheet.js` and `make_hybrid.js`). Every name, square, episode, face and number is a
@@ -675,7 +676,7 @@ function nightWord(pk: NonNullable<Square["pick"]>): { word: string; tone: "good
   const k = nightKind(pk);
   if (k === null) return { word: pk.id ? "Waiting" : "No pick", tone: "quiet" };
   if (k === "home" && pk.correct !== false) return { word: "Wrong", tone: "plain" };
-  return { stayed: { word: "Stayed", tone: "good" as const }, home: { word: "Went home", tone: "plain" as const }, forgiven: { word: "Forgiven", tone: "quiet" as const }, bought: { word: "Bought back", tone: "plain" as const }, skipped: { word: "Skipped", tone: "quiet" as const } }[k];
+  return { stayed: { word: "Stayed", tone: "good" as const }, home: { word: "Went home", tone: "plain" as const }, missed: { word: "Missed", tone: "plain" as const }, forgiven: { word: "Forgiven", tone: "quiet" as const }, bought: { word: "Bought back", tone: "plain" as const }, skipped: { word: "Skipped", tone: "quiet" as const } }[k];
 }
 
 /** Round 5 (B2): the episode sheet's badge for a person's night (none for a skipped one or one still to be decided). */
@@ -690,6 +691,7 @@ export function NightBadge({ kind, cost, className = "" }: { kind: NightKind; co
   const b = {
     stayed: { cls: "bg-good text-good-foreground", icon: <Check className="size-[62%]" strokeWidth={4} />, label: "stayed" },
     home: { cls: "bg-live text-live-foreground", icon: <X className="size-[62%]" strokeWidth={4} />, label: "went home" },
+    missed: { cls: "bg-input text-foreground", icon: <X className="size-[62%]" strokeWidth={4} />, label: "no pick, missed" },
     forgiven: { cls: "bg-good text-good-foreground", icon: <ShieldCheck className="size-[72%]" strokeWidth={3} />, label: "wrong, forgiven" },
     bought: { cls: "bg-foreground text-background", icon: <RotateCcw className="size-[62%]" strokeWidth={4} />, label: `bought back in${cost ? ` for ${cost}` : ""}` },
   }[kind];
@@ -792,16 +794,6 @@ function PickBlock({ g, r, s, go }: BlockProps) {
   );
 }
 
-/** Round 5 (B2): a team row's end, an auction's: the points, and what they cost under them. */
-export function PriceEnd({ points, paid }: { points: number; paid?: { price: number; filled: boolean } }) {
-  return (
-    <span className="flex flex-none flex-col items-end leading-none">
-      <b className="type-num text-[22px]">{fmt(points)}</b>
-      {paid && <small className="mt-1 text-[11.5px] text-muted-foreground">{paid.filled ? "filled at" : "paid"} {paid.price}</small>}
-    </span>
-  );
-}
-
 /** Round 5 (B2): what a wrong night did, in words: forgiven by a mulligan, bought back in (its cost), a life lost. */
 function fateLine(r: TableRow, pk: NonNullable<Square["pick"]>): { icon: ReactNode; text: string } | null {
   if (typeof pk.boughtBack === "number") return { icon: <RotateCcw className="mt-0.5 size-3.5 flex-none" aria-hidden />, text: `Out of lives: ${r.you ? "you" : first(r.name)} bought back in for ${pk.boughtBack} ${pk.boughtBack === 1 ? "point" : "points"}, with one life from the next one.` };
@@ -834,8 +826,7 @@ function TeamBlock({ g, r, go }: BlockProps) {
       {r.team.map((id) => {
         const c = faceIn(g, id);
         const paid = g.prices?.paid[id];
-        const price = paid ? ` · ${paid.filled ? "filled at" : "won at"} ${paid.price}` : "";
-        return <CastRow key={id} g={g} id={id} go={go} line={`${c?.knocked ? `Out${c.out ? ` · Ep ${c.out}` : ""}` : c?.left ? `${c.place === 1 ? "Won" : "Finalist"}${c.out ? ` · Ep ${c.out}` : ""}` : "Still in"}${price}`} dim={!!c?.knocked} end={c?.points != null ? <b className="type-num flex-none text-[22px]">{fmt(c.points)}</b> : undefined} />;
+        return <CastRow key={id} g={g} id={id} go={go} line={c?.knocked ? `Out${c.out ? ` · Ep ${c.out}` : ""}` : c?.left ? `${c.place === 1 ? "Won" : "Finalist"}${c.out ? ` · Ep ${c.out}` : ""}` : "Still in"} dim={!!c?.knocked} end={c?.points != null ? <PriceEnd points={c.points} paid={paid} /> : undefined} />;
       })}
     </>
   );

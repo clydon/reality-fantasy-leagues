@@ -149,6 +149,12 @@ export function verdictWords(q: QuestionView, d: GameQuestions, cast: Map<string
 
 /** The line under a question: what a right answer earns. */
 function worth(q: QuestionView): string {
+  // Beat the bot (Round 5, Designs needed 21): the rule's own words, once, for every kind (game-spec describe.js beatWords).
+  if (q.bot) {
+    if (q.answer === "number") return `Closest gets ${pts(q.points)}, if closer than the bot`;
+    if ((q.answer === "person" || q.answer === "group") && ((q.pick ?? 1) > 1 || q.each)) return `${(q.pick ?? 1) > 1 ? `Name ${q.pick} · ` : ""}${pts(q.points)} for each one right that the bot didn't name`;
+    return `${pts(q.points)} if you're right and the bot ${q.answer === "person" || q.answer === "group" ? "named someone else" : "said otherwise"}`;
+  }
   if (q.answer === "chips") return `${pts(q.points)} for each chip on someone right`;
   if (q.answer === "order") return `${pts(q.points)} for each one in the right place`;
   if (q.answer === "confidence") return "Your surest scores the most";
@@ -157,8 +163,6 @@ function worth(q: QuestionView): string {
   if (q.each) return q.answer === "number" ? `Closest on each gets ${pts(q.points)}` : `${pts(q.points)} for each one right`;
   if ((q.answer === "person" || q.answer === "group") && (q.pick ?? 1) > 1) return `Name ${q.pick} · ${pts(q.points)} for each one right`;
   if (q.answer === "number") return `Closest gets ${pts(q.points)}`;
-  // Beat the bot (Round 5, Designs needed 21): the rule's own words, once.
-  if (q.bot) return `${pts(q.points)} if you're right and the bot ${q.answer === "person" || q.answer === "group" ? "named someone else" : "said otherwise"}`;
   return `${pts(q.points)} if you're right`;
 }
 

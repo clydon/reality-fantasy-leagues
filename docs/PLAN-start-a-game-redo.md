@@ -981,9 +981,24 @@ The wizard's gallery already offers "a captain scores double".
     - the bot rider's box.
   - **Checks:**
     - `check-play-pieces.js` passes in full without the switch, and its "off" step is gone;
-    - the unit suite passes 2,442;
+    - the unit suite passes 2,443;
     - `check-game-page.js` (new-fixture's couch) fails only "Close didn't shut them all", as on the code before B2;
     - `check-episode-lock.js` fails only its listed "a new pick doesn't go in".
+  - **The code review's fixes** (`/code-review high 117bd57f...wizard`, ten findings, all fixed):
+    - someone knocked out of a game with group slots got the slot picker's yellow strip before the out strip: the out strip
+      comes first, and no slot is theirs (`game-twists.ts`);
+    - "level" against the bot counted a number answer the bot was closer to: it now counts the bot's call among the closest
+      (`answer-points.ts levelWith`, the runtime's copy; `tests/beat-bot.test.js` pins it);
+    - a second pick could be chosen with no first and was dropped on Save: the second place waits for a first;
+    - "Held by" counted holders the route doesn't (out, not in rotation, a dropped slot): one rule, `GroupSlotLogic.heldBy`,
+      which `validatePick` now uses too;
+    - one group could be chosen for two open slots before saving: an unsaved pick counts as taken;
+    - number, multi-pick and per-person questions against the bot lost the rule's words: every kind says it;
+    - a game whose move the engine refuses for any reason (out, a race won, head to head's final played) leaves Your moves
+      (`GameView.blocked`), saying why where it's reached;
+    - a missed night read "Went home": it's "Missed", with its own quiet mark;
+    - the captain had two sources: the twists' only (the lineup's copy is gone);
+    - prices: one part (`price-end.tsx`) and one word ("paid").
   - **Next:** the gallery can offer every piece; the draft room's bidding stays the U1 draft room's.
 - **B3. The show's games and the archive** (Round 3's design). **Built 2026-11-18** (the user approved Round 3's story: "I'm liking
   the mock ups you made", and took the recommendation to keep each season game's move in its own row).

@@ -108,7 +108,7 @@ function MovesBody({
     Object.fromEntries(play.flatMap((g) => g.predictions.map((q) => [guessKey(g, q.betId), q.guess?.text ?? ""])))
   );
   // Round 5 (B2): each lineup's captain, its group slots changed here, each pool's second pick.
-  const [captains, setCaptains] = useState<Record<string, string | null>>(() => Object.fromEntries(play.filter((g) => g.lineup?.captain).map((g) => [g.leagueId, g.lineup!.captain!.id])));
+  const [captains, setCaptains] = useState<Record<string, string | null>>(() => Object.fromEntries(play.filter((g) => g.lineup && g.twists?.captain).map((g) => [g.leagueId, g.twists!.captain!.castawayId])));
   const [slotPicks, setSlotPicks] = useState<Record<string, Record<number, string>>>({});
   const [seconds, setSeconds] = useState<Record<string, string | null>>(() => Object.fromEntries(play.filter((g) => g.pick?.second).map((g) => [g.leagueId, g.pick!.second!.id])));
   const [saving, setSaving] = useState(false);
@@ -133,8 +133,8 @@ function MovesBody({
     for (const g of play) {
       const l = g.lineup;
       // The captain, when this game has one and it changed (sent with the lineup, as the route takes it).
-      const cap = l?.captain ? (captains[g.leagueId] ?? null) : undefined;
-      const capChanged = cap !== undefined && cap !== l?.captain?.id;
+      const cap = l && g.twists?.captain ? (captains[g.leagueId] ?? null) : undefined;
+      const capChanged = cap !== undefined && cap !== g.twists?.captain?.castawayId;
       if (l && lineupOpen(g) && (!sameSet(lineups[g.leagueId] ?? [], l.starters) || capChanged)) {
         kinds.add("lineup");
         jobs.push(() => write.lineup(g.leagueId, l.epId, g.playerId, lineups[g.leagueId], capChanged ? cap : undefined));
@@ -402,8 +402,10 @@ function LineupPanel({
 }) {
   const l = g.lineup;
   if (g.revealFirst) return <RevealFirst episode={g.revealFirst} what="who you can start" />;
-  if (!l) return <Note>{g.twists?.outAfter != null ? `You're out of this game since Episode ${g.twists.outAfter}: nothing to set.` : "No episode to set a lineup for yet."}</Note>;
+  if (!l) return <Note>{g.blocked ? `${g.blocked}: nothing to set.` : "No episode to set a lineup for yet."}</Note>;
   const roster = l.roster.map((id) => faceIn(g, id)).filter((c) => !!c);
+  // The captain (score.captain): the twists' for this episode, one source.
+  const cap = g.twists?.captain ?? null;
   if (l.locked) {
     return (
       <Note>
@@ -453,10 +455,10 @@ function LineupPanel({
               <span
                 data-starter-tag
                 className={`type-caption absolute left-1.5 top-1.5 rounded-[2px] px-1.5 py-0.5 text-[10px] tracking-[0.06em] ${
-                  c.left ? "bg-live text-live-foreground" : on && pieces && l.captain && pieces.captain === c.id ? "bg-foreground text-background" : on ? "bg-chyron text-chyron-foreground" : "bg-[rgba(16,14,21,.8)] text-white/75"
+                  c.left ? "bg-live text-live-foreground" : on && pieces && cap && pieces.captain === c.id ? "bg-foreground text-background" : on ? "bg-chyron text-chyron-foreground" : "bg-[rgba(16,14,21,.8)] text-white/75"
                 }`}
               >
-                {c.left ? (pickup ? "Out · replace" : "Out") : on && pieces && l.captain && pieces.captain === c.id ? `Captain ×${l.captain.times}` : on ? (slotOf(c.id) ?? "Starting") : "Bench"}
+                {c.left ? (pickup ? "Out · replace" : "Out") : on && pieces && cap && pieces.captain === c.id ? `Captain ×${cap.times}` : on ? (slotOf(c.id) ?? "Starting") : "Bench"}
               </span>
               <b className="type-caption text-[15px]">{first(c.name)}</b>
               <small className={`text-[11px] ${c.left ? "text-chyron-line" : "opacity-85"}`}>
@@ -489,8 +491,8 @@ function LineupPanel({
           </div>
         ))}
       </div>
-      {pieces && l.captain && <CaptainRow g={g} starters={starters} times={l.captain.times} captain={pieces.captain} onCaptain={pieces.onCaptain} />}
-      {pieces && (g.twists?.slots ?? []).map((x) => <SlotRow key={x.slot} g={g} slot={x} picked={pieces.slots[x.slot] ?? null} onPick={(id) => pieces.onSlot(x.slot, id)} />)}
+      {pieces && cap && <CaptainRow g={g} starters={starters} times={cap.times} captain={pieces.captain} onCaptain={pieces.onCaptain} />}
+      {pieces && (g.twists?.slots ?? []).map((x) => <SlotRow key={x.slot} g={g} slot={x} picked={pieces.slots[x.slot] ?? null} pending={pieces.slots} onPick={(id) => pieces.onSlot(x.slot, id)} />)}
       {pickup && <ReplaceRow pickup={pickup} seasonId={seasonId} />}
     </>
   );
@@ -544,7 +546,7 @@ function CaptainRow({ g, starters, times, captain, onCaptain }: { g: GameView; s
 }
 
 /** Round 5 (B2): a group slot in the lineup: what it holds now, or (open) the groups on offer going into the episode, opened in place. */
-function SlotRow({ g, slot, picked, onPick }: { g: GameView; slot: NonNullable<GameView["twists"]["slots"]>[number]; picked: string | null; onPick: (groupId: string) => void }) {
+function SlotRow({ g, slot, picked, pending, onPick }: { g: GameView; slot: NonNullable<GameView["twists"]["slots"]>[number]; picked: string | null; pending: Record<number, string>; onPick: (groupId: string) => void }) {
   const [open, setOpen] = useState(false);
   const offered = g.twists?.offered?.groups ?? [];
   const canPick = (slot.status === "empty" || slot.status === "dropped") && offered.length > 0;
@@ -552,7 +554,8 @@ function SlotRow({ g, slot, picked, onPick }: { g: GameView; slot: NonNullable<G
   const name = groupShort(chosen?.name ?? slot.group);
   const many = (g.twists?.slots ?? []).length > 1;
   const people = chosen?.members ?? slot.members;
-  const taken = new Set((g.twists?.slots ?? []).filter((x) => x.slot !== slot.slot).map((x) => x.groupId).filter(Boolean));
+  // In your other slots: saved, or picked here and not saved yet (the route refuses one group in two slots).
+  const taken = new Set<string | null>([...(g.twists?.slots ?? []).filter((x) => x.slot !== slot.slot).map((x) => pending[x.slot] ?? x.groupId), ...Object.entries(pending).filter(([k]) => Number(k) !== slot.slot).map(([, v]) => v)].filter(Boolean));
   const state = chosen
     ? "Goes in when you save"
     : slot.status === "held"
@@ -662,7 +665,7 @@ function PoolPanel({ g, chosen, onPick, pieces }: { g: GameView; chosen: string[
   // Round 5 (B2): which of the two places a face tap fills (a pool with a second pick).
   const [place, setPlace] = useState<"first" | "second">("first");
   if (g.revealFirst) return <RevealFirst episode={g.revealFirst} what="who you can pick" />;
-  if (!p) return <Note>No episode to pick for yet.</Note>;
+  if (!p) return <Note>{g.blocked ? `${g.blocked}: nothing to pick.` : "No episode to pick for yet."}</Note>;
   if (!p.open) {
     const names = (p.picks.length ? p.picks : p.pick ? [p.pick] : []).map((id) => faceIn(g, id)?.name).filter((n): n is string => !!n).map(first);
     return <Note>Picks are closed for Episode {p.episode}{names.length ? `: you picked ${names.join(", ")}` : ""}.</Note>;
@@ -690,7 +693,17 @@ function PoolPanel({ g, chosen, onPick, pieces }: { g: GameView; chosen: string[
           {parts}
         </p>
       )}
-      {two && <PickPlaces g={g} first={firstId} second={pieces!.second} place={place} onPlace={setPlace} onClear={() => pieces!.onSecond(null)} always={p.second!.always} />}
+      {two && (
+        <PickPlaces
+          g={g}
+          first={firstId}
+          second={pieces!.second}
+          place={place}
+          onPlace={(x) => (x === "second" && !firstId ? toast.quiet("Make your pick first: a second pick stands beside it") : setPlace(x))}
+          onClear={() => pieces!.onSecond(null)}
+          always={p.second!.always}
+        />
+      )}
       <p className="mb-2.5 text-[13px] text-muted-foreground">
         {p.each > 1 ? (
           <>

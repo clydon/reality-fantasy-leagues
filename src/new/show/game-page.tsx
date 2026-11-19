@@ -212,9 +212,9 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
         >
           {week?.tone === "behind" || week?.tone === "early" ? "Not watched it yet? Change your lineup" : "Change your lineup"}
         </button>,
-        wg.lineup?.captain ? (
+        wg.lineup && wg.twists?.captain ? (
           <p data-page-captain className="mt-0.5 text-[13px] text-muted-foreground">
-            {wg.lineup.captain.id ? `Captain: ${(wg.cast.find((c) => c.id === wg.lineup!.captain!.id)?.name ?? "").split(" ")[0]} ×${wg.lineup.captain.times}` : "No captain yet: name one in your lineup"}
+            {wg.twists.captain.castawayId ? `Captain: ${(wg.cast.find((c) => c.id === wg.twists.captain!.castawayId)?.name ?? "").split(" ")[0]} ×${wg.twists.captain.times}` : "No captain yet: name one in your lineup"}
           </p>
         ) : null
       )
@@ -921,6 +921,7 @@ function nightKey(g: GameView): ReactNode[] {
   const all = Object.values(g.plays.rows).flat().map((s) => s.pick).filter((p): p is NonNullable<Square["pick"]> => !!p);
   const out: ReactNode[] = [];
   if (all.some((p) => nightKind(p) === "forgiven")) out.push(<span key="f" className="inline-flex items-center gap-1"><NightBadge kind="forgiven" className="size-3.5" />wrong, forgiven</span>);
+  if (all.some((p) => nightKind(p) === "missed")) out.push(<span key="m" className="inline-flex items-center gap-1"><NightBadge kind="missed" className="size-3.5" />no pick, missed</span>);
   if (all.some((p) => nightKind(p) === "bought")) out.push(<span key="b" className="inline-flex items-center gap-1"><NightBadge kind="bought" className="size-3.5" />out of lives, bought back in</span>);
   if (all.some((p) => p.skipped)) out.push(<span key="s" className="inline-flex items-center gap-1"><Minus className="size-3" aria-hidden />skipped: nobody left to pick</span>);
   if (all.some((p) => p.second && !p.second.void)) out.push(<span key="2" className="inline-flex items-center gap-1"><i aria-hidden className="h-[3px] w-3 rounded-full bg-foreground" />a second pick counted</span>);

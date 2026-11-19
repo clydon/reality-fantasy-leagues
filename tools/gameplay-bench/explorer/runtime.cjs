@@ -21,7 +21,7 @@ function botLineOf(view, rows, facts, graded) {
     if (right === null) continue; line.called++; if (right) line.right++;
     const got = graded.earned.get(key);
     // (Round 5, B2: level, both right so nothing scored, apart from beaten, as the server's answer-points.ts botLine.)
-    for (const a of list) { const r = (line.vs[a.playerId] ??= { beat: 0, beaten: 0, level: 0 }); if ((got?.get(a.playerId) ?? 0) > 0) r.beat++; else if (right && G.isRight(q, v, a, list, facts) === true) r.level++; else if (right) r.beaten++; }
+    for (const a of list) { const r = (line.vs[a.playerId] ??= { beat: 0, beaten: 0, level: 0 }); if ((got?.get(a.playerId) ?? 0) > 0) r.beat++; else if (right && (q.answer === 'number' ? G.pointsFor({ ...q, points: 1 }, v, [...list, { playerId: '\u0000bot', answer: call }], facts).has(a.playerId) : G.isRight(q, v, a, list, facts) === true)) r.level++; else if (right) r.beaten++; }
   }
   return line;
 }

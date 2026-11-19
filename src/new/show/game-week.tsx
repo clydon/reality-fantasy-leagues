@@ -2,6 +2,7 @@
 
 import { matchSlots } from "@/lib/lineup-slots";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { PriceEnd } from "./price-end";
 import { Check, ChevronRight, Lock, MessageCircleQuestion, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { bets as betWrites, moves as moveWrites, type GameView, type TableRow, type WaiverWeek } from "../data";
@@ -519,7 +520,7 @@ export function YourTeam({ g, words, exclusive, onFace, onSheet }: { g: GameView
           const c = faceIn(g, id);
           if (!c) return null;
           const paid = prices?.paid[id];
-          const captain = !c.left && g.lineup?.captain?.id === id ? `Captain ×${g.lineup.captain.times}` : null;
+          const captain = !c.left && g.lineup && g.twists?.captain?.castawayId === id ? `Captain ×${g.twists.captain.times}` : null;
           const line = c.left ? (c.out ? `Out · ${words.ep} ${c.out}` : "Out") : [captain, c.role, c.tribe?.name].filter(Boolean).join(" · ") || "Still in";
           return (
             <li key={id}>
@@ -529,14 +530,7 @@ export function YourTeam({ g, words, exclusive, onFace, onSheet }: { g: GameView
                   <b className={`block truncate text-[16px] font-semibold ${c.knocked ? "text-muted-foreground" : ""}`}>{c.name}</b>
                   <small className="block text-[13px] text-muted-foreground">{line}</small>
                 </span>
-                {paid ? (
-                  <span className="flex flex-none flex-col items-end leading-none">
-                    <span className="type-num text-[22px]">{fmt(c.points ?? 0)}</span>
-                    <small className="mt-1 text-[11.5px] text-muted-foreground">{paid.filled ? "filled at" : "paid"} {paid.price}</small>
-                  </span>
-                ) : (
-                  <span className="type-num text-[22px]">{fmt(c.points ?? 0)}</span>
-                )}
+                <PriceEnd points={c.points ?? 0} paid={paid} />
               </button>
             </li>
           );

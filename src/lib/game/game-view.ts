@@ -129,11 +129,6 @@ export interface LineupMove {
    * (src/lib/lineup-slots.ts). Null for a lineup without slots, or without the cast's properties to read.
    */
   lineupSlots: { labels: string[]; widths: number[]; fits: Record<string, number[]>; summary: string } | null;
-  /**
-   * Round 5 (B2, Designs needed 24): a game whose captain scores more (score.captain): who captains this episode (named, or carried
-   * from the last one named while they're starting: ActiveRosterLogic.captainFor) and by how much. Null without a captain.
-   */
-  captain: { id: string | null; times: number } | null;
 }
 
 export interface PickMove {
@@ -341,6 +336,9 @@ export interface GameView extends GameRefIn {
   progress: WeekProgress | null;
   /** Results you haven't revealed stand in the way of this week's lineup or pick: the first of them. */
   revealFirst: number | null;
+  /** Round 5 (B2, BACKLOG 47): why no lineup or pick is yours to make (knocked out, a race won, head to head's final played:
+   *  KnockoutLogic.moveProblem), or null. Your moves leaves such a game out. */
+  blocked?: string | null;
   /** A late joiner playing their own season (GhostLogic): their week is the episode after their mark. */
   catchingUp: boolean;
   /** Catching up (step 9): the episode they're on (their week), and the latest the game has results for ("Episode 2 of 4"). */
@@ -493,6 +491,7 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
     progress,
     // Playing at your own pace with the aired episode still open to you: its results don't stand in the way of its own move.
     revealFirst: hidden.length && !catchingUp && seat && !late ? hidden[0].number : null,
+    blocked: seat ? (() => { const ep = StateLogic.currentEpisode(view); return ep ? StateLogic.KnockoutLogic.moveProblem(view, me, ep.number) : null; })() : null,
     catchingUp,
     catchUp,
     late,
@@ -763,7 +762,6 @@ function lineupOf(view: LeagueState, me: string, now?: number): LineupMove | nul
     // Only when something stands in: a first week (or a lineup whose every starter has gone) carries nothing in.
     carried: AR.lineupIsCarried(view, ep.id, me) && starters.length > 0,
     lineupSlots: slotsOf(view, mine.map((c) => c.id)),
-    captain: AR.captainTimes(view) > 0 ? { id: AR.captainFor(view, ep.id, me) ?? null, times: AR.captainTimes(view) } : null,
   };
 }
 

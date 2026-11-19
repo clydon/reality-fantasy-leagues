@@ -72,7 +72,7 @@ async function main() {
       await as(c.user, on(c, "captain", `&moves=lineup&game=${c.games.captain}`), "captain", async (p) => {
         await p.locator("[data-captain-row]").waitFor({ timeout: 15000 });
         const before = await gameOf(p, c, "captain");
-        const carried = before?.lineup?.captain?.id;
+        const carried = before?.twists?.captain?.castawayId;
         check(!!carried, "captain · the lineup carries a captain into Episode 3");
         check((await p.locator(`[data-captain="${carried}"][aria-checked="true"]`).count()) === 1, "captain · the carried captain is chosen on the Captain row");
         check(/Captain ×2/i.test(await p.locator(`[data-moves-games] [data-starter="${carried}"]`).first().innerText()), "captain · their tile is tagged Captain ×2");
@@ -81,7 +81,7 @@ async function main() {
         await other.click();
         await save(p);
         const after = await gameOf(p, c, "captain");
-        check(after?.lineup?.captain?.id === next && next !== carried, "captain · naming the other starter and saving sends it", JSON.stringify(after?.lineup?.captain));
+        check(after?.twists?.captain?.castawayId === next && next !== carried, "captain · naming the other starter and saving sends it", JSON.stringify(after?.twists?.captain));
       });
       await as(c.user, on(c, "captain"), "captain week", async (p) => {
         await p.locator("[data-door-you]").first().click();
