@@ -876,6 +876,51 @@ The wizard's gallery already offers "a captain scores double".
 - **E7. A stage's short start name** (the user, Round 2): research writes one with each phase ("the merge"), the desk edits it, a
   catch-up fills seasons already in; How long's chips and the engine's sentences read it (the gallery's TEMP map until then).
 
+### Merge note (the wizard lane, frozen 2026-11-19)
+
+The user, 2026-11-19: freeze the lane and merge it, because other sessions are waiting on Start a game; then pick up E3 (C8 first)
+on a fresh branch from master.
+
+- **What's on `wizard`:**
+  - B1: the gallery is Start a game for every start;
+  - E1 (computer players in every game) and E2 (short games at scale);
+  - Rounds 3 to 5 with B3 (the show's games and the archive), B4 (Game settings) and B2 (the play pieces);
+  - E3's first slice: p25, BACKLOG 62, s06; C8's seven answers recorded.
+- **Master since the branch point:** two commits, `.npmrc` and a workflow's CI settings, so nothing overlaps.
+- **Migrations** (master's last is 0441; renumber if another branch took these first):
+  - `0442_saved_games`: additive.
+  - `0443_delete_practice_games`: deletes every practice league (the user, 2026-11-18: "just delete them"). It changes production
+    data, so it goes through the deploy rehearsal routine.
+- **Scoring:**
+  - BACKLOG 62 rescores an Outlast that starts mid-season. `compare-totals.js --db` on the local production copy moves one league:
+    a Survivor 51 Outlast from Episode 2, every seat 3 points lower, the order unchanged. The user approved applying it there.
+  - Re-run `compare-totals.js` on a fresh production backup before the push, and expect only that league.
+  - `golden.js --before=master` on Survivor 49's replays: only Outlast scores (locked, total, banked) differ, in 11 games that
+    start mid-season (1,386 reads). No other read moves.
+- **The branch review** (`/code-review high master...wizard`), fixed:
+  - computer players' calls guessed up to episode 100,000 on a talk show or a season with no results (now bounded by the latest
+    aired episode);
+  - Run it back doubled a one-episode game's episode in its name, and the sheet's base name counted as typed (now `typed: true`
+    only, the old ending stripped);
+  - a game in stages was told and logged as ending where its first stage did;
+  - browser saves past 50 were lost when moving to the account;
+  - the reveal's night games re-read every mark;
+  - four copies of one hash are now `src/lib/game/fnv.js`, with identical output proven, so nothing stored moves.
+- **Left from the review, for after the merge:**
+  - Computer players' bingo cards and past "Who goes home" calls are worked out on each read from the current bank and cast, so a
+    square flagged or a castaway added later can move a bot's past nights. Storing them needs a migration.
+  - Finished games with an end of their own drop out of the castaway sheet's and the Cast tab's per-game views (`show.play` reads
+    running games, by Round 3's design). A design question.
+- **Checks at the freeze:**
+  - the unit suite, 2,444;
+  - `check-start-a-game.js`, `check-whats-on.js` and `check-play-pieces.js`: every check passes;
+  - `check-game-page.js` fails only "Close didn't shut them all", the same on master;
+  - `check-episode-lock.js` fails only "a new pick doesn't go in", listed since B1.
+- **Other lanes:** the episode-night strip session (`strip-night`) rebases onto this after the merge (`games.tsx`, `new-fixture.js`,
+  `tonight.tsx`, `game-page.tsx`, `decisions.md`).
+- **After the merge:** E3 on a fresh branch from master: C8 (its plan in PLAN-start-a-game-gpt.md, its answers in E3 below), then
+  the rest of E3.
+
 ### Build (after the approvals)
 
 - **B1. The wizard, everywhere** (the bold pass's code, `src/new/couch/gallery-bold/`, becomes the wizard; Round 2's

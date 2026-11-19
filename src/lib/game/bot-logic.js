@@ -62,14 +62,8 @@ function levelOf(state, playerId) {
 
 // FNV-1a over playerId|castawayId, scaled to [0, 1). Each bot's fixed preference among otherwise
 // equal castaways, scaled by its level's gut.
-function hashOf(text) {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < text.length; i++) {
-    h ^= text.charCodeAt(i);
-    h = Math.imul(h, 0x01000193) >>> 0;
-  }
-  return h / 4294967296;
-}
+// FNV-1a scaled to [0, 1) (fnv.js, the one copy the engine, the calls and the fingerprint share).
+const hashOf = require('./fnv.js').fnvUnit;
 function taste(playerId, castawayId, level) {
   return hashOf(playerId + "|" + castawayId) * level.gut;
 }

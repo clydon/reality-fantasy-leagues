@@ -37,9 +37,11 @@ export function useSaved(): Saved[] {
     }
     if (!old.length) return;
     movingUp = true;
-    savedApi.save({ games: old.slice(0, 50) }).then(
+    // In batches of 50 (the route's most at once), every one of them, before the browser's copy goes (the branch review, 2026-11-19).
+    const batches = Array.from({ length: Math.ceil(old.length / 50) }, (_, i) => old.slice(i * 50, i * 50 + 50));
+    batches.reduce<Promise<Awaited<ReturnType<typeof savedApi.save>> | null>>((at, games) => at.then(() => savedApi.save({ games })), Promise.resolve(null)).then(
       (r) => {
-        qc.setQueryData(SAVED_KEY, r);
+        if (r) qc.setQueryData(SAVED_KEY, r);
         try {
           localStorage.removeItem(OLD_KEY);
         } catch {

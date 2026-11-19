@@ -14,6 +14,7 @@ import { resolveFormat } from "@db/show-formats.js";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { requireCouch } from "./couches";
 import { HttpError, pool } from "./db";
+import { fnvUnit } from "@/lib/game/fnv.js";
 import { EVERYTHING, seenThrough } from "./guard";
 import { LEAGUE_SEASON_JOIN } from "./league-season";
 import { latestAired, seasonSchedules, type SeasonSchedule } from "./schedule";
@@ -496,7 +497,9 @@ export async function callRights(
   const factsAll = talk || !bots.length ? null : await episodeFacts(seasonId, book, upTo);
   // E1c: computer players' calls, guessed (the user, 2026-11-18: "calls are guesses so that could be essentially randomized"), the
   // same on every read: made up here as each episode is graded, by the seat (their tally's id), never stored.
-  if (bots.length) calls.push(...(await botCalls(seasonId, book, bots, Math.max(1, opts.from), Math.min(upTo, latestEpisodeIn(factsAll, upTo)), factsAll)));
+  // (Bounded by the season's latest aired episode too: with no mark and no end, upTo is open-ended, and a talk show or a season with
+  // no results yet has no facts to bound it, so it guessed up to episode 100,000 on every read. The branch review, 2026-11-19.)
+  if (bots.length) calls.push(...(await botCalls(seasonId, book, bots, Math.max(1, opts.from), Math.min(upTo, latestEpisodeIn(factsAll, upTo), await latestAiredEpisode(seasonId)), factsAll)));
   if (!calls.length) return out;
   const episodes = [...new Set(calls.map((c) => c.episode))];
   const facts = talk ? new Map<number, EpisodeFacts>() : (factsAll ?? (await episodeFacts(seasonId, book, upTo)));
@@ -515,18 +518,20 @@ export async function callRights(
   return Seq.tally(right.map((c) => ({ id: c.userId, episode: c.episode, n: 1 })), opts.byEpisode);
 }
 
+/** The season's latest episode that has aired (0 when none has): how far computer players' calls can go. */
+async function latestAiredEpisode(seasonId: string): Promise<number> {
+  const { rows } = await pool.query("SELECT max(number) AS n FROM season_episodes WHERE season_id = $1 AND air_at IS NOT NULL AND air_at <= now()", [seasonId]);
+  return Number(rows[0]?.n) || 0;
+}
+
 /** The last episode facts reach (what's been graded so far), else `upTo`. */
 function latestEpisodeIn(facts: Map<number, EpisodeFacts> | null, upTo: number): number {
   if (!facts || !facts.size) return upTo;
   return Math.min(upTo, Math.max(...facts.keys()));
 }
 
-/** A seat's guess, the same every time: FNV-1a over what it's a guess about, scaled to [0, 1). */
-function guessOf(text: string): number {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193) >>> 0;
-  return h / 4294967296;
-}
+/** A seat's guess, the same every time: FNV-1a over what it's a guess about, scaled to [0, 1) (fnv.js, the one copy). */
+const guessOf = (text: string): number => fnvUnit(text);
 
 /**
  * Computer players' calls (E1c), episode by episode from `from` through `to`: who goes home, someone still in before that episode

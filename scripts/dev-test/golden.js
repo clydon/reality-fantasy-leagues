@@ -200,6 +200,18 @@ if (MAIN) (async () => {
       }
       if (diffs.length) failures++;
       console.log(`${diffs.length ? "FAIL" : "PASS"}  ${key}: ${rows.length} games, ${n} reads${diffs.length ? `, ${diffs.length} differ` : ", every one the same"} (${Math.round((Date.now() - t0) / 1000)}s)`);
+      // Every game that differs, with how many of its reads and which fields (indexes folded), so an intended change can be told
+      // from an unintended one past the first 30 lines.
+      const byGame = new Map();
+      for (const d of diffs) {
+        const m = /^(.+?) seat \S+ mark \S+: (.*)$/.exec(d);
+        if (!m) continue;
+        const g = byGame.get(m[1]) ?? { n: 0, fields: new Set() };
+        g.n++;
+        for (const part of m[2].split("; ")) g.fields.add(part.split(":")[0].replace(/\.\d+(?=\.|$)/g, "[]"));
+        byGame.set(m[1], g);
+      }
+      for (const [game, g] of byGame) console.log(`  GAME ${game}: ${g.n} reads differ · ${[...g.fields].slice(0, 8).join(", ")}${g.fields.size > 8 ? ", …" : ""}`);
       for (const d of diffs.slice(0, 30)) console.log(`      ${d}`);
       spawnSync("node", ["scripts/dev-test/playtest.js", "down"], { cwd: afterTree, env, encoding: "utf8" });
     }

@@ -11,6 +11,7 @@ import { seasonGifs, type EpisodeGifLine } from "./episode-gifs";
 import { DEFAULT_RUNTIME_MIN, finalAtOf, seasonSchedules } from "./schedule";
 import type { ReadOnly } from "./read-only";
 import { archivedOf, gamesHere, viewWithCalls, type ArchivedGame, type GameHere } from "./season-games";
+import type { MarkMemo } from "./own-pace-seats";
 import { seasonFactsFor } from "./season-stats";
 import { keepsAnswers, leagueAnswers, sheetNights, storedAnswers } from "./answer-points";
 
@@ -316,9 +317,11 @@ export async function revealSeason(user: SessionUser, seasonId: string, couchId:
   // Round 3: the night's games, the one-episode games that ended on n, as the archive keeps them.
   const once = here.filter((h) => (h.mark === null || h.mark >= n) && StateLogic.startEpisode(h.state) === n && StateLogic.lastEpisode(h.state) === n);
   const nights: ArchivedGame[] = [];
+  // One marks memo across the night's games (each account's mark read once, as the archive's read does: the branch review).
+  const memo: MarkMemo = new Map();
   for (const h of once) {
     try {
-      const view = await viewWithCalls(user, seasonId, h);
+      const view = await viewWithCalls(user, seasonId, h, memo);
       if (view.over) nights.push(archivedOf(view, n));
     } catch (e) {
       console.error(`[reveal] night ${h.game.leagueId}:`, e);

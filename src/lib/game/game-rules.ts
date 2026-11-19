@@ -2,6 +2,7 @@ import type { LeagueState } from "./types";
 import StateLogic from "./state-logic.js";
 import { describeSpec } from "./game-spec/index.js";
 import { stable } from "./saved-recipe";
+import { fnv1a } from "./fnv.js";
 
 // A season game's rules in plain words: the new design's Rules sheet on the Games tab (the mock's rulesSheet). Read from
 // the game's spec (docs/PLAN-start-a-game-gpt.md step A2): the How it works game-spec describeSpec gives every game, in
@@ -24,10 +25,8 @@ export function gameShort(state: LeagueState, castaway = StateLogic.formatOf(sta
 
 /** A game's rules as one short fingerprint (its spec written stably, hashed): the setup's sentence stands only while it matches. */
 export function gameFingerprint(game: unknown): string {
-  const text = stable(game);
-  let h = 2166136261;
-  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
-  return (h >>> 0).toString(36);
+  // FNV-1a (fnv.js, the one copy: the same number this computed, so fingerprints already kept still match).
+  return fnv1a(stable(game)).toString(36);
 }
 
 /** The game's short line and its plain sentence, from one reading of its spec (game-view.ts). The sentence: the title card's on the

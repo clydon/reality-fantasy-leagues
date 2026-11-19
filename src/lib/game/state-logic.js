@@ -7248,11 +7248,7 @@ const { REPLACE_RULES, WAIVER_FEELS } = Spec;
 const MAX_CLAIM_PAIRS = 60;
 // FNV-1a scaled to [0, 1): the "random" free agent an unfilled pickup gets, fixed per week and player
 // so processing the same state twice can never give two answers.
-function hashUnit(text){
-  let h = 0x811c9dc5;
-  for(let i = 0; i < text.length; i++){ h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
-  return h / 0x100000000;
-}
+const hashUnit = require('./fnv.js').fnvUnit;
 const isId = v => typeof v === 'string' && !!v;
 const uniqIds = v => Array.isArray(v) ? [...new Set(v.filter(isId))] : [];
 const hasKey = (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k);

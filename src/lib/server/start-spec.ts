@@ -133,7 +133,7 @@ export async function startFromSpec(
   user: SessionUser,
   seasonId: string,
   couchId: string | null,
-  body: { spec?: unknown; name?: unknown; tell?: unknown; bots?: unknown; level?: unknown; late?: unknown; made?: unknown; pace?: unknown },
+  body: { spec?: unknown; name?: unknown; typed?: unknown; tell?: unknown; bots?: unknown; level?: unknown; late?: unknown; made?: unknown; pace?: unknown },
   now = new Date(),
   o: { origin?: string; bot?: string } = {}
 ): Promise<SpecStarted> {
@@ -192,11 +192,17 @@ export async function startFromSpec(
   // A one-episode game says its episode (start-game.ts gameName: Round 3's archive reads a game's kind from its name).
   const one = Spec.spanStart(spec.span as never);
   const only = typeof one === "number" && Spec.spanEnd(spec.span as never) === one;
-  const name = gameName(want, here, only ? { episode: one as number, word: opts.part.singular.replace(/^./, (c) => c.toUpperCase()) } : null, typeof body.name === "string" && !!body.name.trim());
+  // (`typed`: the person typed the name, sent as typed: true. The sheet sends its base's name on every start and has no field to type
+  // one yet, so a sent name alone isn't typed: the branch review, 2026-11-19.)
+  const name = gameName(want, here, only ? { episode: one as number, word: opts.part.singular.replace(/^./, (c) => c.toUpperCase()) } : null, body.typed === true && typeof body.name === "string" && !!body.name.trim());
   const starter = (user as { username?: string | null }).username || user.name;
   const row = { id: seasonId, number: seasonRow[0].season_number as number, slug: seasonRow[0].slug as string };
   const copy = await copyOf(here.map((g) => g.leagueId));
-  const to = typeof span.to === "number" ? span.to : null;
+  // A game in stages ends where its last stage does (span is its first stage's: where it starts). The branch review, 2026-11-19.
+  const stagesList = staged ? (spec.stages as Record<string, unknown>[]) : [];
+  const lastSpan = staged && isObj(stagesList[stagesList.length - 1]?.game) ? ((stagesList[stagesList.length - 1].game as Record<string, unknown>).span as Record<string, unknown> | undefined) : null;
+  const toOf = staged ? lastSpan?.to : span.to;
+  const to = typeof toOf === "number" ? toOf : null;
   const spanWords = typeof span.from === "number" && to !== null ? spanName(span.from, to, opts.part) : null;
   const P = opts.part.singular.replace(/^./, (c) => c.toUpperCase());
   const when = fromPhase ? ` from when ${opts.phases.find((p) => p.id === fromPhase)?.name ?? fromPhase} starts` : spanWords ? ` for ${spanWords}` : ` from ${P} ${span.from}`;

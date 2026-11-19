@@ -6,7 +6,7 @@ import { gameLine, gamesFor, noFitLine } from "@/lib/game/formats/rulebook-fits.
 import type { GameFit, SeasonGameKey } from "@/lib/game/formats/rulebook-fits";
 import type { RulebookBlocks, RulebookKind } from "@/lib/game/formats/rulebook-schema";
 import { showWords } from "@/lib/game/show-words";
-import { nextSpan, spanChoices, spanEnds, spanName, type SpanChoice, type SpanEpisode } from "@/lib/game/spans";
+import { kindOf, nextSpan, spanChoices, spanEnds, spanName, type SpanChoice, type SpanEpisode } from "@/lib/game/spans";
 import type { LeagueState } from "@/lib/game/types";
 import { MAX_BENCH, MAX_STARTERS, MAX_TEAM, NO_WAIVERS, waiversFit } from "@/lib/game/game-spec/index.js";
 import type { GameSpec, Question, SpecContext } from "@/lib/game/game-spec/index.js";
@@ -481,6 +481,9 @@ function againParts(kept: Readonly<GameSpec>, mine: GameSpec): Partial<GameSpec>
  */
 export function gameName(want: string, here: Game[], one: { episode: number; word: string } | null, typed: boolean): string {
   if (!one) return freeName(want, here);
+  // Run it back brings the old game's name, its episode with it ("Prediction sheet · Episode 20"): that ending goes before the new one
+  // (the branch review, 2026-11-19), as the archive reads a kind (spans.ts kindOf).
+  if (!typed) want = kindOf(want);
   const suffix = ` · ${one.word} ${one.episode}`;
   const taken = here.some((g) => g.name.toLowerCase() === want.toLowerCase());
   return typed && !taken ? freeName(want, here) : freeName(`${want.slice(0, Math.max(1, 60 - suffix.length)).trim()}${suffix}`, here);
