@@ -829,9 +829,24 @@ The wizard's gallery already offers "a captain scores double".
     made-for idea.
   - s06: a guy and a girl each (cast properties' gender now records it; re-run the tracker).
   - s45: stages that take turns all season.
-  - p25: a parlay on a split pot (the recommended rule, with the user's OK).
+  - p25: a parlay on a split pot (the recommended rule, with the user's OK). **Done 2026-11-19** (the user took the recommendation:
+    your share). The schema's refusal is lifted. The grade already split the pot before the parlay multiplied, so a parlay that
+    hits doubles your share, never the others'.
+    - **Words:** the rule says it ("On a split pot, it's your share that is."), and so does the manual.
+    - **Randomize and the explorer:** both make split-pot parlays now (roll.js; generator proof-family-65).
+    - **Tracker:** row p25 plays (240 ✅).
+    - **Checks:** `tests/parlay-legs.test.js` pins the worked example (a 10-point pot split two ways, one of the two right on
+      immunity too: 10 and 5); the placement corpus lists the 30 specs it opens; a 120-case engine campaign passes.
   - BACKLOG 84: a head-to-head game in stages ranks its overall by places.
-  - BACKLOG 62: an Outlast stage that starts mid-season.
+  - BACKLOG 62: an Outlast stage that starts mid-season. **Done 2026-11-19** (the user: "Count from its own start", and "Apply to
+    every game").
+    - A stage's Outlast already counted from its own start (2026-11-14). Now a game of its own that starts later does too
+      (`EliminationOrderScoringStrategy.baseOf` no longer asks whether it's a stage).
+    - **One existing league moves:** on the production copy, a Survivor 51 Outlast created 2026-09-27 that starts at Episode 2.
+      Every seat shows 3 fewer points, the order unchanged (`compare-totals.js --db`: 34→31, 31→28, 29→26, 20→17). The user chose
+      to apply it there too.
+    - **For the merge:** re-run `compare-totals.js` on a fresh production backup before the push, and expect that league's four
+      totals to drop by 3.
   - BACKLOG 42's two parts:
     - the drafter's invented moments get an ask of their own;
     - a choice the engine can change locally skips the bot's wait.

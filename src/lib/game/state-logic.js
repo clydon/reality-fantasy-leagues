@@ -471,13 +471,12 @@ class Core {
 class EliminationOrderScoringStrategy {
   /** Whether the game scores the boot order in reverse (A9 part 2). */
   static reversed(state){ const score = gameOf(state).score; return score.by === 'place' && score.reverse === true; }
-  // BACKLOG 62 (the user's decision, 2026-11-14): a stage's Outlast counts boots from the stage's own start, so a new stage starts
-  // everyone level. A stage's own league says it is one (settings.stageOf, written where it's made: engine-lab.ts makeStages,
-  // change-stages.ts makeCopy); the boots before its start, or every boot so far while it hasn't started, aren't counted (the
-  // sequence's mark.base). A game of its own that starts later counts the whole season, as it always has. Never in reverse (a place
-  // there is already the cast less the boots before it).
+  // BACKLOG 62 (the user's decisions, 2026-11-14 for a stage, 2026-11-19 for a game of its own): an Outlast counts boots from its
+  // own start, so one that starts mid-season (a stage from the merge, or a game of its own from Episode 4) starts everyone level:
+  // the boots before its start, or every boot so far while it hasn't started, aren't counted (the sequence's mark.base). One from
+  // the season's start counts nothing less. Never in reverse (a place there is already the cast less the boots before it).
   static baseOf(state){
-    if(!(state.settings && state.settings.stageOf) || EliminationOrderScoringStrategy.reversed(state)) return 0;
+    if(EliminationOrderScoringStrategy.reversed(state)) return 0;
     const start = startEpisode(state);
     const numberOf = new Map((state.episodes || []).map(e => [e.id, e.number]));
     return (state.castaways || []).filter(c => c.status === 'eliminated' && typeof c.placementOrder === 'number' && (start === null || (numberOf.has(c.exitEpisodeId) ? numberOf.get(c.exitEpisodeId) : 0) < start)).length;

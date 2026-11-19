@@ -1559,7 +1559,7 @@ function rulesOf(s, w) {
     for (const p of parlaysOf(s.score)) {
       const legs = p.of.map((id) => s.ask.find((q) => q.id === id)).filter(Boolean);
       const times = { 2: 'double', 3: 'triple', 4: 'quadruple' }[p.times] || `${p.times} times`;
-      rules.push(`A parlay: right on ${listOf(legs.map((q) => `"${q.ask}"`))} together, and your points on them are ${times}.${legs.some((q) => q.wager !== undefined) ? ' A stake you win on them is too.' : ''}`);
+      rules.push(`A parlay: right on ${listOf(legs.map((q) => `"${q.ask}"`))} together, and your points on them are ${times}.${legs.some((q) => q.share === 'split') ? " On a split pot, it's your share that is." : ''}${legs.some((q) => q.wager !== undefined) ? ' A stake you win on them is too.' : ''}`);
     }
     // C6: a bank, every stake drawn from it.
     if (bank) rules.push(`Everyone starts with a bank of ${pointsWord(bank.start)}, and every stake comes out of it: you can't stake more than you have left, less what's still riding on answers to be settled.${bank.out ? " Run out and you're out." : ' Run out and you can still answer, with nothing to stake.'}`);

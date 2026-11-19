@@ -297,7 +297,6 @@ const WINS = [
   },
 ];
 
-const inParlay = (s, q) => isObj(s.score) && Array.isArray(s.score.parlays) && s.score.parlays.some((p) => Array.isArray(p.of) && p.of.includes(q.id));
 const cutsOrRace = (s) => isObj(s.rank) && (Array.isArray(s.rank.cut) || isObj(s.rank.race));
 const winIs = (s, ...by) => isObj(s.rank) && by.includes(s.rank.by);
 const hasStages = (s) => Array.isArray(s.stages);
@@ -403,10 +402,11 @@ const TWISTS = [
   },
   // ---- a game of questions' ----
   {
+    // (E3, p25: a split pot can be a parlay's leg, your share multiplied.)
     id: 'split-pot', cost: 1, weight: 1.5, family: 'share',
-    fits: (s) => s.score && s.score.by === 'answers' && eachAsks(s).some((q) => !q.share && !q.wager && q.answer !== 'calls' && !inParlay(s, q)),
+    fits: (s) => s.score && s.score.by === 'answers' && eachAsks(s).some((q) => !q.share && !q.wager && q.answer !== 'calls'),
     apply: (s) => {
-      const i = askList(s).findIndex((q) => q.asked === 'each' && !q.share && !q.wager && !inParlay(s, q));
+      const i = askList(s).findIndex((q) => q.asked === 'each' && !q.share && !q.wager);
       return { ...s, ask: askList(s).map((q, j) => (j === i ? { ...q, points: 10, share: 'split' } : q)) };
     },
     seen: (s) => askList(s).some((q) => q.share === 'split'),
@@ -445,9 +445,10 @@ const TWISTS = [
     seen: (s) => isObj(s.score) && isObj(s.score.bank),
   },
   {
+    // (Its legs can be shared: a split pot's or only-one-right's share is what it multiplies. E3, p25.)
     id: 'parlay', cost: 2, weight: 1,
-    fits: (s) => s.score && s.score.by === 'answers' && eachAsks(s).filter((q) => !q.share && q.answer !== 'calls').length >= 2,
-    apply: (s, d) => ({ ...s, score: { ...s.score, parlays: [{ of: eachAsks(s).filter((q) => !q.share).slice(0, 2).map((q) => q.id), times: d.one([2, 3]) }] } }),
+    fits: (s) => s.score && s.score.by === 'answers' && eachAsks(s).filter((q) => q.answer !== 'calls').length >= 2,
+    apply: (s, d) => ({ ...s, score: { ...s.score, parlays: [{ of: eachAsks(s).filter((q) => q.answer !== 'calls').slice(0, 2).map((q) => q.id), times: d.one([2, 3]) }] } }),
     seen: (s) => isObj(s.score) && Array.isArray(s.score.parlays),
   },
   {

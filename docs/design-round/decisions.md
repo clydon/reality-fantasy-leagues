@@ -1384,3 +1384,16 @@
 - Why: naming a captain for you would be a move nobody made; a tap that quietly becomes a second pick can end a streak; a knocked-out person's game is the finish and what they still watch; an exclusive game's held group refused after you've chosen is worse than shown before the lock.
 - Rejected: the top starter named captain automatically; the next face tap filling the second pick; a knocked-out person keeping side bets; held groups hidden until the lock.
 - Rests on: https://claude.ai/artifact/YFe6VFPpA4vDAU7tn95zdj; docs/PLAN-start-a-game-redo.md B2.
+
+## 2026-11-19 · A parlay on a split pot multiplies your share (E3, tracker row p25)
+- Decided by: the user, taking Claude's recommendation
+- Why: the pot is everyone's; a parlay rewards what you got from it, so the others' shares stay as they were.
+- Rejected: your call counted twice before the split (it grows your slice of a pot everyone else shares too).
+- Rests on: src/lib/game/game-spec/schema.js parlayProblems; tests/parlay-legs.test.js.
+
+## 2026-11-19 · Every Outlast counts boots from its own start, a game of its own's too, applied to existing games (E3, BACKLOG 62)
+- Decided by: the user ("Count from its own start", then "Apply to every game" when shown the one existing league it moves)
+- Why: a mid-season Outlast is a separate game; everyone starts level instead of with the boots before it as a head start.
+- What: one league on the production copy (a Survivor 51 Outlast from Episode 2) shows each seat 3 fewer points, the order unchanged.
+- Rejected: new games only (a migration marking existing ones to keep counting the whole season).
+- Rests on: src/lib/game/state-logic.js EliminationOrderScoringStrategy.baseOf; tests/stages.test.js; scripts/dev-test/compare-totals.js --db.
