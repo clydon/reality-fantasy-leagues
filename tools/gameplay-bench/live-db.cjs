@@ -68,11 +68,12 @@ function stateFor(state, season, shiftMs = 0) {
 
 /** Create identity rows for a case. `snap` is runtime session.snapshot(); `document` its input. `opts.users`: another case's people
  *  (its ids.users), reused rather than made again, so several copies of a game (a live preview's moments, live.cjs) share one set of
- *  people and one sign-in; that case removes them (down this one first). */
+ *  people and one sign-in; that case removes them (down this one first). `opts.password`: theirs, instead of the bench's PASSWORD. */
 async function up(snap, document, dbUrl, onLease, opts = {}) {
   const db = pool(dbUrl || undefined), key = keyOf(), one = async (sql, params) => (await db.query(sql, params)).rows[0];
   const { hashPassword } = await import('better-auth/crypto');
-  const hash = await hashPassword(PASSWORD);
+  // `opts.password`: the case's people sign in with one of its own (a live preview's: live.cjs), not the bench's shared one.
+  const hash = opts.users ? null : await hashPassword(opts.password || PASSWORD);
   const ids = { key, db: dbUrl || null, users: {}, seasons: {}, leagues: {}, couchId: null, groups: {} };
   if (onLease) onLease(key);
   try {

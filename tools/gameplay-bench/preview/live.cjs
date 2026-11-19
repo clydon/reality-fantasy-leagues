@@ -7,9 +7,15 @@
 // draws each screen live (src/new/preview/story.tsx), signed in as the preview's viewer on the preview host. `down(made)` removes
 // every copy.
 //
+// It returns once the first copy is written (the game at its start: the first moment's screens), with `rest`, a promise that writes
+// the others side by side, each screen's address filled in as its copy lands (`o.onState`), then plays what's typical; the story
+// shows each moment as it's ready. The preview's people sign in with a password of its own, made here, kept by whoever holds the
+// preview (`signInAs`), never the bench's shared one.
+//
 // Needs a running app (`app`, default this lane's) on a local database the live tier can write (AUTH_DATABASE_URL). Development only,
 // as the live tier is (it refuses a database that isn't local): the plan's "On demand" says what production needs.
 const path = require('path');
+const crypto = require('crypto');
 const R = require('../explorer/runtime.cjs');
 const Live = require('../live-db.cjs');
 const Players = require('./players.cjs');
@@ -20,9 +26,9 @@ const { typical } = require('./preview.cjs');
 const PALETTE = ['#8db85e', '#e86f9a', '#5089c9', '#a76bb0', '#f2804b', '#cfc8bb'];
 const copy = (x) => JSON.parse(JSON.stringify(x));
 
-/** Signed in as `user` on the app (the bench's own sign-in: its people share one password), for writes on the real routes. */
-async function signIn(app, user) {
-  const r = await fetch(app + '/api/auth/sign-in/username', { method: 'POST', headers: { 'content-type': 'application/json', origin: app }, body: JSON.stringify({ username: user, password: Live.PASSWORD }) });
+/** Signed in as `user` on the app with the preview's own password, for writes on the real routes. */
+async function signIn(app, user, password) {
+  const r = await fetch(app + '/api/auth/sign-in/username', { method: 'POST', headers: { 'content-type': 'application/json', origin: app }, body: JSON.stringify({ username: user, password }) });
   if (!r.ok) throw Error(`sign-in as ${user} failed: ${r.status} ${await r.text()}`);
   const cookie = r.headers.getSetCookie().map((c) => c.split(';')[0]).join('; ');
   return async (method, url, body) => {
@@ -58,7 +64,8 @@ async function make(o) {
   };
   // A screen: which copy (state) it shows, its address in that copy (filled once the copy is written), where to scroll, what to ring.
   // (`ring`: what the card points at on it, found live on the page; `proof` and `bugs` stay empty, the screenshot preview's.)
-  const screen = (id, name, state, where, focus = null, ring = null) => moment.screens.push({ id, name, state, where, focus, ring, proof: [], bugs: [] });
+  // (`tap`: what the screen taps once its page is up, as a player would: the strip, opening the move it says.)
+  const screen = (id, name, state, where, focus = null, ring = null, tap = null) => moment.screens.push({ id, name, state, where, path: null, focus, ring, tap, proof: [], bugs: [] });
   const league = (made, g) => made.leagues[g];
   const where = {
     tonight: (made, q = '') => `/show/${made.season}/tonight${q}`,
@@ -107,7 +114,7 @@ async function make(o) {
     begin('week', first, due.game);
     const weekState = stateOf(s.snapshot());
     screen('tonight', 'Tonight', weekState, (made) => where.tonight(made), null, { selector: '[data-strip]' });
-    screen('move', 'Your move', weekState, (made) => where.tonight(made, `?moves=${due.tab}&game=${league(made, due.game)}`), null, { text: '^(Who |Start \\d|Pick |Answer |Choose |Does |Will )', within: '[role="dialog"]' });
+    screen('move', 'Your move', weekState, (made) => where.tonight(made), null, { text: '^(Who |Start \\d|Pick |Answer |Choose |Does |Will )', within: '[role="dialog"]' }, '[data-strip] button');
   }
   Players.play(s, [viewer], seed);
   lap('the weekly move');
@@ -156,45 +163,14 @@ async function make(o) {
   moment.views = views();
   lap('the finale');
 
-  // Each state written as its own copy, the first one's people shared by the rest; then the writes a real room makes.
-  const made = [];
-  const signIns = new Map();
-  const as = async (pid) => { if (!signIns.has(pid)) signIns.set(pid, await signIn(app, made[0].ids.users[pid].username)); return signIns.get(pid); };
-  const write = async (k, users) => {
-    const st = states[k];
-    const ids = await Live.up(st.snap, doc, o.db || undefined, null, users ? { users } : {});
-    const shift = Date.now() - Date.parse(st.snap.clock);
-    await Live.sync(ids, st.snap, doc, shift);
-    made[k] = { ids, season: ids.seasons[ctxId].id, leagues: ids.leagues, shift };
-  };
-  try {
-    // The first copy makes the people (and their colours, as the bench's preview sets them: the profile's own route); the rest share
-    // them, written side by side; then the writes a real room makes, in each copy that has them.
-    await write(0, null);
-    for (const [i, pid] of people.entries()) await (await as(pid))('PUT', '/api/me/profile', { colour: PALETTE[i % PALETTE.length] });
-    await Promise.all(states.slice(1).map((_, i) => write(i + 1, made[0].ids.users)));
-    for (const [k, st] of states.entries()) if (st.writes) await st.writes(made[k], as);
-    lap('the copies');
-  } catch (e) {
-    await down({ copies: made.filter(Boolean).map((m) => m.ids.key), db: o.db }).catch(() => {});
-    throw e;
-  }
-
-  const v0 = s.project(top.id, viewer).game;
-  for (const m of moments) {
-    for (const sc of m.screens) {
-      sc.path = sc.where(made[sc.state]);
-      delete sc.where;
-    }
-    // The card's times are the copy's: its own season moved to now (each copy is written at its own moment's clock).
-    m.shift = made[m.screens[0].state].shift;
-  }
+  s.dispose();
+  const v0 = (() => { const t = R.open(o.input); try { return t.project(top.id, viewer).game; } finally { t.dispose(); } })();
   const preview = {
     schemaVersion: 1,
     live: true,
     madeAt: new Date().toISOString(),
     source: 'tools/gameplay-bench/preview/live.cjs: the explorer runtime on the live tier, each moment a copy of the game, its screens the real app live; every result after the viewer’s mark made up',
-    game: { id: top.id, name: top.name || v0.name, short: v0.short, rules: v0.rules, stages: stages.map((g) => ({ id: g.id, name: s.project(g.id, viewer).game.name })) },
+    game: { id: top.id, name: top.name || v0.name, short: v0.short, rules: v0.rules, stages: stages.map((g) => ({ id: g.id, name: g.name || g.id })) },
     viewer,
     people: doc.world.people.map((x, i) => ({ id: x.id, name: x.name, colour: PALETTE[i % PALETTE.length] })),
     first,
@@ -203,35 +179,82 @@ async function make(o) {
     moments,
     checks: [],
     problems: [],
-    // The viewer's sign-in on the preview host (the copies share it), and each copy's key, to remove them.
-    viewerUser: made[0].ids.users[viewer].username,
-    copies: made.map((m) => m.ids.key),
+    // The viewer's sign-in on the preview host (the copies share it), and each copy's key as it lands, to remove them.
+    viewerUser: null,
+    copies: [],
+    complete: false,
+    failed: null,
   };
-  const nSeasons = o.seasons ?? 5;
-  if (nSeasons) preview.seasons = typical(o.input, nSeasons, seed, w.results, viewer);
-  lap('what’s typical');
-  preview.ms = Date.now() - t0;
-  preview.steps = steps;
-  s.dispose();
-  log(`live preview: ${moments.length} moments, ${states.length} copies in ${Math.round(preview.ms / 100) / 10} s`);
-  return preview;
+  const password = crypto.randomBytes(18).toString('base64url');
+  const made = [];
+  const signIns = new Map();
+  const as = async (pid) => { if (!signIns.has(pid)) signIns.set(pid, await signIn(app, made[0].ids.users[pid].username, password)); return signIns.get(pid); };
+  // A state's copy: written, then any writes a real room makes in it; then its screens' addresses, and the moments' times.
+  const write = async (k, users) => {
+    const st = states[k];
+    const ids = await Live.up(st.snap, doc, o.db || undefined, null, users ? { users } : { password });
+    preview.copies.push(ids.key);
+    const shift = Date.now() - Date.parse(st.snap.clock);
+    await Live.sync(ids, st.snap, doc, shift);
+    made[k] = { ids, season: ids.seasons[ctxId].id, leagues: ids.leagues, shift };
+    if (st.writes) await st.writes(made[k], as);
+    for (const m of moments) {
+      for (const sc of m.screens) if (sc.state === k) { sc.path = sc.where(made[k]); }
+      // The card's times are the copy's: its own season moved to now (each copy is written at its own moment's clock).
+      if (m.screens[0]?.state === k) m.shift = made[k].shift;
+    }
+    if (o.onState) o.onState(k);
+  };
+  const strip = () => { for (const m of moments) for (const sc of m.screens) delete sc.where; };
+  try {
+    // The first copy makes the people (with the preview's own password) and their colours, as the bench's preview sets them (the
+    // profile's own route).
+    await write(0, null);
+    preview.viewerUser = made[0].ids.users[viewer].username;
+    for (const [i, pid] of people.entries()) await (await as(pid))('PUT', '/api/me/profile', { colour: PALETTE[i % PALETTE.length] });
+    lap('the first copy');
+  } catch (e) {
+    await down(preview, o.db).catch(() => {});
+    throw e;
+  }
+  preview.viewerPass = password;
+  // The rest, side by side, then what's typical: the story polls for them.
+  const rest = (async () => {
+    try {
+      await Promise.all(states.slice(1).map((_, i) => write(i + 1, made[0].ids.users)));
+      lap('the copies');
+      strip();
+      const nSeasons = o.seasons ?? 5;
+      if (nSeasons) preview.seasons = typical(o.input, nSeasons, seed, w.results, viewer);
+      lap('what’s typical');
+    } catch (e) {
+      preview.failed = String(e.message || e).slice(0, 200);
+    } finally {
+      preview.complete = true;
+      preview.ms = Date.now() - t0;
+      preview.steps = steps;
+      log(`live preview: ${moments.length} moments, ${states.length} copies in ${Math.round(preview.ms / 100) / 10} s${preview.failed ? ' (failed: ' + preview.failed + ')' : ''}`);
+    }
+  })();
+  return { preview, rest };
 }
 
-/** The viewer's move each episode, if the game has one: its game and the moves sheet's tab (a lineup's, a pick's). */
+/** The viewer's move each episode, if the game has one, and its game: a lineup, a pick, a sheet's open questions. */
 function moveOf(s, top, stages, viewer) {
   for (const g of [top, ...stages]) {
-    const v = s.project(g.id, viewer).game;
-    if (v.lineup && !v.lineup.locked && v.from !== null) return { game: g.id, tab: 'lineup' };
-    if (v.pick && v.pick.open) return { game: g.id, tab: 'pool' };
+    const p = s.project(g.id, viewer), v = p.game;
+    if (v.lineup && !v.lineup.locked && v.from !== null) return { game: g.id };
+    if (v.pick && v.pick.open) return { game: g.id };
+    if ((p.questions || []).some((q) => !q.closed && (q.mine === null || q.mine === undefined))) return { game: g.id };
   }
   return null;
 }
 
 /** Remove a live preview's copies: the ones that share the first's people first, then the first (which removes the people). */
-async function down(preview) {
+async function down(preview, db) {
   const keys = [...(preview.copies || [])];
-  for (const key of keys.slice(1).reverse()) await Live.down(key, preview.db || undefined);
-  if (keys[0]) await Live.down(keys[0], preview.db || undefined);
+  for (const key of keys.slice(1).reverse()) await Live.down(key, db || undefined);
+  if (keys[0]) await Live.down(keys[0], db || undefined);
 }
 
 module.exports = { make, down };

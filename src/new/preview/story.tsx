@@ -22,7 +22,7 @@ interface Box { x: number; y: number; w: number; h: number }
 interface Bug { kind: string; text: string; boxes: Box[] }
 // A screen is a shot (the bench's screenshot preview: `file`) or the app itself, live (an on-demand preview: `path` in its moment's copy,
 // where to scroll to, and what the card's ring points at, found on the page: docs/PLAN-game-preview.md, "On demand").
-interface Screen { id: string; name: string; file?: string; what?: string; url?: string; path?: string; focus?: string | null; ring?: RingSpec | null; proof: Box[]; bugs: Bug[]; strip?: { tone: string | null; title: string } }
+interface Screen { id: string; name: string; file?: string; what?: string; url?: string; path?: string | null; focus?: string | null; ring?: RingSpec | null; tap?: string | null; proof: Box[]; bugs: Bug[]; strip?: { tone: string | null; title: string } }
 interface Projection { game: GameView; questions?: { id: string; episode: number; closed: boolean; mine: unknown }[] }
 interface Moment { id: string; kind: MomentKind; episode: number | null; game: string; airAt: string | null; shift: number; screens: Screen[]; views: Record<string, Projection> }
 export interface Preview {
@@ -254,10 +254,18 @@ function LiveScreen({ screen, className = "" }: { screen: Screen; className?: st
     const doc = frame.current?.contentDocument;
     if (!doc) return;
     const mine = ++run.current;
-    let tries = 0, settled = 0, focused = !screen.focus;
+    let tries = 0, settled = 0, focused = !screen.focus, tapped = !screen.tap;
     const step = () => {
       if (mine !== run.current) return;
       tries++;
+      // A screen that taps (Your move: the strip, as a player would): once the page is up, then what opens is the screen.
+      if (!tapped && screen.tap) {
+        const el = doc.querySelector<HTMLElement>(screen.tap);
+        if (el) {
+          el.click();
+          tapped = true;
+        }
+      }
       if (!focused && screen.focus) {
         const el = doc.querySelector(screen.focus);
         if (el) {
@@ -267,7 +275,7 @@ function LiveScreen({ screen, className = "" }: { screen: Screen; className?: st
         }
       }
       const found = screen.ring ? ringBoxes(doc, screen.ring, SH) : [];
-      const ready = focused && (screen.ring ? found.length > 0 : !!doc.querySelector("main, [data-strip], [data-game-page]"));
+      const ready = focused && tapped && (screen.ring ? found.length > 0 : !!doc.querySelector("main, [data-strip], [data-game-page]"));
       if (ready || tries > 20) {
         setRings(found);
         setShown(true);
@@ -277,16 +285,17 @@ function LiveScreen({ screen, className = "" }: { screen: Screen; className?: st
     };
     setTimeout(step, 250);
   }, [screen]);
+  const which = `${screen.path}#${screen.tap ?? ""}`;
   useEffect(() => {
-    if (loaded.current === screen.path) return look();
+    if (loaded.current === which) return look();
     // A new page starts covered until it has painted what it's about.
     setShown(false);
     setRings([]);
-  }, [screen, look]);
+  }, [which, look]);
   const onLoad = () => {
     const doc = frame.current?.contentDocument;
     if (!doc) return;
-    loaded.current = screen.path ?? null;
+    loaded.current = which;
     // The dev server's own badge (development only) isn't part of the app's screen.
     const st = doc.createElement("style");
     st.textContent = "nextjs-portal{display:none!important}";
@@ -297,9 +306,9 @@ function LiveScreen({ screen, className = "" }: { screen: Screen; className?: st
     <span ref={box} className={`relative block overflow-hidden ${className}`} data-live-screen={screen.id}>
       {k > 0 && (
         <iframe
-          key={screen.path}
+          key={which}
           ref={frame}
-          src={screen.path}
+          src={screen.path ?? undefined}
           onLoad={onLoad}
           title={`${screen.name}, the real app`}
           className="absolute left-0 top-0 border-0 bg-background"
@@ -317,6 +326,18 @@ function LiveScreen({ screen, className = "" }: { screen: Screen; className?: st
     </span>
   );
 }
+/** A live moment whose copy of the game is still being written (the maker writes the first at once, the rest while you look). */
+function Pending() {
+  return (
+    <span className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-card px-8 text-center" data-live-pending>
+      <span className="h-[3px] w-1/3 overflow-hidden rounded-full bg-secondary" aria-hidden>
+        <span className="block h-full w-1/2 animate-[nd-live-sweep_1.1s_ease-in-out_infinite] rounded-full bg-foreground/70 motion-reduce:animate-none" />
+      </span>
+      <span className="text-[13px] leading-snug text-muted-foreground">Getting this moment ready</span>
+    </span>
+  );
+}
+
 /** The real screen in a phone, whole: a bezel with a status bar that says what this is, sized to the room the card leaves. */
 function Phone({ p, screen, onOpen }: { p: Preview; screen: Screen | undefined; onOpen: () => void }) {
   const live = useContext(Live);
@@ -327,13 +348,14 @@ function Phone({ p, screen, onOpen }: { p: Preview; screen: Screen | undefined; 
         No screen for this moment
       </div>
     );
-  // Live: the real app in the bezel, tappable (so the phone isn't a button: Full size is beside the steps).
-  if (live && screen.path)
+  // Live: the real app in the bezel, tappable (so the phone isn't a button: Full size is beside the steps); a moment whose copy is
+  // still being written says so, and fills in when it lands.
+  if (live)
     return (
       <div data-phone={screen.id} data-live style={size} className="flex flex-none flex-col rounded-[30px] bg-[#0b0a10] px-[6px] pb-[6px] outline-1 -outline-offset-1 outline-[color-mix(in_oklab,var(--foreground)_32%,transparent)]">
         <span className="type-caption flex h-5 flex-none items-center justify-center text-[11px] tracking-[0.14em] text-[#a9a4b8]">Made-up season · live</span>
         <span className="relative block overflow-hidden rounded-[24px]" style={{ width: "var(--sw)", height: "calc(var(--sw) * 844 / 390)" }}>
-          <LiveScreen screen={screen} className="size-full" />
+          {screen.path ? <LiveScreen screen={screen} className="size-full" /> : <Pending />}
         </span>
       </div>
     );
@@ -361,8 +383,8 @@ function FullScreen({ p, screen, onClose }: { p: Preview; screen: Screen; onClos
     <div role="dialog" aria-modal aria-label={`${screen.name}, at full size`} className="fixed inset-0 z-[60] flex flex-col bg-[#0b0a10] pt-[env(safe-area-inset-top,0px)]" data-full-screen>
       <div className="flex min-h-0 flex-1 items-start justify-center [container-type:size]">
         <div className="relative" style={fit}>
-          {live && screen.path ? (
-            <LiveScreen screen={screen} className="size-full" />
+          {live ? (
+            screen.path ? <LiveScreen screen={screen} className="size-full" /> : <Pending />
           ) : (
             <>
               {/* eslint-disable-next-line @next/next/no-img-element -- a dev-only shot of the app's own screen */}

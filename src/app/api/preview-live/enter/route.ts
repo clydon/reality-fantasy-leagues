@@ -16,11 +16,10 @@ export const GET = apiRoute(async (req) => {
   const expires = Number(url.searchParams.get("e"));
   const to = url.searchParams.get("to") ?? "";
   if (!SCREEN.test(to)) throw new HttpError(400, "Not a screen");
-  const { viewerUser } = livePreviewSeat(id, expires, url.searchParams.get("t") ?? "");
-  // The preview's people share the bench's one password (tools/gameplay-bench/live-db.cjs): signed in as the auth server sees it.
+  const { viewerUser, viewerPass } = livePreviewSeat(id, expires, url.searchParams.get("t") ?? "");
+  // The preview's people have a password of their own (live.cjs), kept on the server: signed in as the auth server sees it.
   const app = process.env.BETTER_AUTH_URL || "http://localhost:3014";
-  const { PASSWORD } = (await import("node:module")).createRequire(`${process.cwd()}/package.json`)("./tools/gameplay-bench/live-db.cjs") as { PASSWORD: string };
-  const r = await fetch(`${app}/api/auth/sign-in/username`, { method: "POST", headers: { "content-type": "application/json", origin: app }, body: JSON.stringify({ username: viewerUser, password: PASSWORD }) });
+  const r = await fetch(`${app}/api/auth/sign-in/username`, { method: "POST", headers: { "content-type": "application/json", origin: app }, body: JSON.stringify({ username: viewerUser, password: viewerPass }) });
   if (!r.ok) throw new HttpError(502, "The preview couldn't sign in");
   const target = new URL(to, `${url.protocol}//${host}`);
   // The story reads its moments with the pass (its page is on this host now, as the preview's viewer).

@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { createRequire } from "node:module";
 import path from "node:path";
+import { after } from "next/server";
 import { HttpError } from "./http-error";
 
 // A game's preview made on demand (docs/PLAN-game-preview.md, "On demand"), with no screenshots and nobody making it by hand: the
@@ -20,7 +21,10 @@ interface LivePreview {
   id: string;
   owner: string;
   expires: number;
-  preview: { viewerUser: string; copies: string[] } & Record<string, unknown>;
+  /** The maker's preview, filled in as its copies land (live.cjs): its moments, `complete`, `failed`, what's typical. */
+  preview: { viewerUser: string; copies: string[]; complete?: boolean } & Record<string, unknown>;
+  /** The preview's people's own password (the viewer's sign-in on the preview host), kept here, never sent. */
+  viewerPass: string;
 }
 
 // Kept on globalThis so a dev server's reload doesn't forget the copies it made.
@@ -30,7 +34,7 @@ const registry: Map<string, LivePreview> = ((globalThis as { __gysLivePreviews?:
 function bench() {
   const req = createRequire(path.join(process.cwd(), "package.json"));
   return {
-    Live: req("./tools/gameplay-bench/preview/live.cjs") as { make: (o: object) => Promise<LivePreview["preview"]>; down: (p: object) => Promise<void> },
+    Live: req("./tools/gameplay-bench/preview/live.cjs") as { make: (o: object) => Promise<{ preview: LivePreview["preview"] & { viewerPass?: string }; rest: Promise<void> }>; down: (p: object) => Promise<void> },
     Proof: req("./scripts/dev-test/preview-proof.js") as { definition: (o: object) => object; _h: { resultsFor: unknown } },
   };
 }
@@ -69,10 +73,15 @@ export async function makeLivePreview(userId: string, game: string) {
   if (!g) throw new HttpError(400, "No such game to preview");
   await sweep();
   const { Live, Proof } = bench();
-  const preview = await Live.make({ input: Proof.definition({ seed: 51, ...g }), app: process.env.BETTER_AUTH_URL || "http://localhost:3014", resultsFor: Proof._h.resultsFor, seasons: 5 });
+  // The first moment's copy is written before this returns; the rest land after the response (after(): the request's own time,
+  // its route's maxDuration), and the story asks for them as they do.
+  const { preview, rest } = await Live.make({ input: Proof.definition({ seed: 51, ...g }), app: process.env.BETTER_AUTH_URL || "http://localhost:3014", resultsFor: Proof._h.resultsFor, seasons: 5 });
+  const viewerPass = String(preview.viewerPass ?? "");
+  delete preview.viewerPass;
   const id = crypto.randomUUID();
   const expires = Date.now() + LIVE_MINUTES * 60_000;
-  registry.set(id, { id, owner: userId, expires, preview });
+  registry.set(id, { id, owner: userId, expires, preview, viewerPass });
+  after(() => rest);
   // The copies and the viewer's sign-in stay on the server: the maker gets the way into its story, on the preview host.
   return { id, expires, pass: passFor(id, expires) };
 }
@@ -85,11 +94,13 @@ function byPass(id: string, expires: number, pass: string): LivePreview {
 }
 
 /** The preview's own viewer, for its story's sign-in on the preview host: the pass must be this preview's, unexpired. */
-export function livePreviewSeat(id: string, expires: number, pass: string): { viewerUser: string } {
-  return { viewerUser: byPass(id, expires, pass).preview.viewerUser };
+export function livePreviewSeat(id: string, expires: number, pass: string): { viewerUser: string; viewerPass: string } {
+  const p = byPass(id, expires, pass);
+  return { viewerUser: p.preview.viewerUser, viewerPass: p.viewerPass };
 }
 
-/** The story's moments, read by its page on the preview host with the pass. */
+/** The story's moments as they stand (each screen's address once its copy has landed; `complete` once they all have, and what's
+ *  typical), read by its page on the preview host with the pass. */
 export function livePreviewStory(id: string, expires: number, pass: string) {
   // The copies and the viewer's sign-in stay on the server.
   const story = Object.fromEntries(Object.entries(byPass(id, expires, pass).preview).filter(([k]) => k !== "viewerUser" && k !== "copies"));

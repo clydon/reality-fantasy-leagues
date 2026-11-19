@@ -77,22 +77,31 @@ export function LiveStory({ game }: { game: string }) {
 
 /** On the preview host, as the preview's viewer: its story, read with the pass, its screens live. */
 export function LiveStoryShow({ id }: { id: string }) {
-  const [story, setStory] = useState<{ preview: Preview; pass: LivePass } | null>(null);
+  const [story, setStory] = useState<{ preview: Preview & { complete?: boolean; failed?: string | null }; pass: LivePass } | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     const pass: LivePass = { id, expires: Number(q.get("e")), pass: q.get("t") ?? "" };
-    fetch(`/api/preview-live/${id}?e=${pass.expires}&t=${encodeURIComponent(pass.pass)}`)
-      .then(async (r) => {
-        const body = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(body.error || `It didn't work (${r.status})`);
-        setStory({ preview: body as Preview, pass });
-      })
-      .catch((e: Error) => setError(e.message));
+    const url = `/api/preview-live/${id}?e=${pass.expires}&t=${encodeURIComponent(pass.pass)}`;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    // The first moment is there at once; the rest land while you look: ask again until they all have (and what's typical).
+    const read = () =>
+      fetch(url)
+        .then(async (r) => {
+          const body = await r.json().catch(() => ({}));
+          if (!r.ok) throw new Error(r.status === 403 ? "This preview has ended. Make another from the game." : body.error || `It didn't work (${r.status})`);
+          setStory({ preview: body as Preview & { complete?: boolean }, pass });
+          if (!body.complete) timer = setTimeout(read, 1000);
+        })
+        .catch((e: Error) => setError(e.message));
+    read();
     // Its copies go when the story closes: leaving the page, or this tab closing.
-    const close = () => fetch(`/api/preview-live/${id}?e=${pass.expires}&t=${encodeURIComponent(pass.pass)}`, { method: "DELETE", keepalive: true });
+    const close = () => fetch(url, { method: "DELETE", keepalive: true });
     window.addEventListener("pagehide", close);
-    return () => window.removeEventListener("pagehide", close);
+    return () => {
+      if (timer) clearTimeout(timer);
+      window.removeEventListener("pagehide", close);
+    };
   }, [id]);
   if (!story) return <Making game="" error={error} secs={0} />;
   return <PreviewStory preview={story.preview} live={story.pass} />;
