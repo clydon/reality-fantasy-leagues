@@ -1,0 +1,115 @@
+// Dev-only check of who reaches a running sports game (docs/PLAN-sports-ready.md, Phase 0 (b), then Phase 1.4's fix): a slate's
+// people come from the teams' rosters (cast.ts castFromEvents), but a game's people are its own copy, taken from the season's
+// approved cast when it starts (new-game.ts makeLeague: approvedCastFor) and pushed again only by the desk's cast edits
+// (season-cast.ts applyApprovedCastToLeagues). Can a player a team signs after the slate's games have started reach a game that's
+// running, so someone can claim him?
+//
+// On nfl-slate-fixture.js (the recorded NFL season through the stand-in ESPN, the clock an hour before the week's first game):
+//   as the sports route starts it  the default season game and Best Ball started through start.ts startSport (POST
+//                                  /api/sports/start's own function) on the slate as it's made: how many people each has, and
+//                                  whether the Commissioner's Start opens the draft (draft.ts startDraft)
+//   the cast approved first        the same season game with the season's people approved (what the desk's Approve writes): then the
+//                                  week starts, a team signs "ZT Signing" (the stand-in's roster), and production's paths run over
+//                                  the rest of the week: the daily job each morning (its slate sync), then the Players tab's read
+//                                  (rosters.ts rosterOf: it fills the season's people again once a game has ended since the last fill)
+//   where he lands                 the season's people, and the running game's people (who a waiver claim or a draft can name)
+// What's asserted is where Phase 1.4 leaves it: a game started on a slate has the slate's people to draft, and a signing reaches the
+// running game. On 2026-11-19 it fails both (Phase 0 confirmed the inference, and found it wider): a game started through the
+// sports route gets nobody at all (its draft says "Add the cast first"), since nothing approves a slate's people; with them approved
+// by hand, the game gets them at its start and a later signing reaches the season's people but never the game. Its last line says
+// which.
+//
+//   node scripts/dev-test/check-sports-new-players.js [--week=9] [--keep]
+//
+// --week: a week the recording has played (the 2026-11-15 recording's are 1 to 9). Needs the local database and the NFL recording
+// (see nfl-slate-fixture.js); no app server, never the real ESPN. Its rows are the fixture's (--keep leaves them; the next run
+// removes them first). Don't run it beside another check on nfl-slate-fixture.js.
+const fx = require("./nfl-slate-fixture");
+
+const arg = (k, d) => process.argv.find((a) => a.startsWith(`--${k}=`))?.slice(k.length + 3) ?? d;
+const keep = process.argv.includes("--keep");
+const WEEK = Number(arg("week", "9"));
+const HOUR = 3600_000;
+let failures = 0;
+function check(ok, what, detail = "") {
+  console.log(`${ok ? "PASS" : "FAIL"}  ${what}${!ok && detail ? `  (${typeof detail === "string" ? detail : JSON.stringify(detail).slice(0, 400)})` : ""}`);
+  if (!ok) failures++;
+  return ok;
+}
+const fact = (s) => console.log(`      ${s}`);
+
+(async () => {
+  const week = fx.weeksOf(fx.recording().input).find((w) => w.n === WEEK);
+  if (!week || !week.games.length || week.games.some((g) => g.state !== "post")) throw new Error(`--week=${WEEK} isn't a week the recording has played`);
+  const w = await fx.up({ at: new Date(Date.parse(week.first) - HOUR).toISOString() });
+  try {
+    const { startDraft } = fx.app("../../src/lib/server/draft.ts");
+    const { rosterOf } = fx.app("../../src/lib/server/rosters.ts");
+    const seasonPeople = async () => (await w.pool.query("SELECT count(*)::int AS n FROM season_cast WHERE season_id = $1", [w.seasonId])).rows[0].n;
+    const open = async (leagueId) => {
+      const st = await w.league(leagueId);
+      try {
+        await startDraft({ user: w.users.ann, membership: { role: "commissioner", playerId: st.players[0].id } }, leagueId);
+        return "opened";
+      } catch (e) {
+        return `refused: ${e.message}`;
+      }
+    };
+    const people = await seasonPeople();
+    fact(`the slate: ${w.slate.name}, ${w.slate.episodes} weeks; ${people} people from the teams' rosters; the clock an hour before ${week.label}`);
+
+    // As the sports route starts it: the slate as made, nobody's approved its people.
+    for (const game of ["season", "bestBall"]) {
+      const s = await w.start("ann", { seasonId: w.seasonId, game, tell: false });
+      const st = await w.league(s.leagueId);
+      check(st.castaways.length > 0, `the sports route's "${game}" game has the slate's people to draft (${st.castaways.length} of ${people})`);
+      const draft = await open(s.leagueId);
+      check(draft === "opened", `its draft opens (${draft})`);
+    }
+
+    // The season's people approved first, as the desk's Approve leaves them; the game started; the week under way.
+    await w.approveCast();
+    const s = await w.start("ann", { seasonId: w.seasonId, game: "season", tell: false });
+    const atStart = (await w.league(s.leagueId)).castaways.length;
+    check(atStart === (await seasonPeople()), `with the people approved, the season game starts with all of them (${atStart})`);
+    w.advance(new Date(Date.parse(week.first) + HOUR).toISOString());
+    const later = week.games[week.games.length - 1];
+    const team = w.input.teams.find((t) => t.id === later.home);
+    team.roster.push({ id: "zt-nfl-signing-1", name: "ZT Signing", position: "Wide Receiver", abbr: "WR", headshot: "https://a.espncdn.com/i/headshots/nophoto.png" });
+    fact(`${week.label} has started (${week.games[0].name}); the ${team.name} sign ZT Signing (their game: ${later.name})`);
+
+    // Production's paths over the rest of the week: the daily job each morning, then the Players tab's read.
+    const errors = await w.days(new Date(Date.parse(week.last) + 8 * HOUR).toISOString());
+    const inSeason = async () => (await w.pool.query("SELECT 1 FROM season_cast WHERE season_id = $1 AND provider_ids->>'espn' = 'zt-nfl-signing-1'", [w.seasonId])).rows.length > 0;
+    const afterDaily = await inSeason();
+    fact(`after the week's daily runs (${errors.length} errors): in the season's people? ${afterDaily}`);
+    const roster = await rosterOf(w.users.ann, w.seasonId, undefined, w.espn.url);
+    await w.settle();
+    const afterRead = await inSeason();
+    fact(`after the Players tab's read (${roster.people?.length ?? roster.groups?.reduce?.((n, g) => n + g.people.length, 0) ?? "?"} shown): in the season's people? ${afterRead}`);
+    check(afterDaily || afterRead, "the signing reaches the season's people");
+    const st = await w.league(s.leagueId);
+    const inGame = st.castaways.some((c) => c.name === "ZT Signing");
+    // Anyone else the season gained after the game started: a team on a bye that week, linked (and filled) only later.
+    const { rows: gained } = await w.pool.query("SELECT tribe_name, count(*)::int AS n FROM season_cast WHERE season_id = $1 AND NOT (lower(name) = ANY($2::text[])) GROUP BY 1 ORDER BY 2 DESC", [
+      w.seasonId,
+      st.castaways.map((c) => c.name.toLowerCase()),
+    ]);
+    fact(`the season's people now ${await seasonPeople()}, the game's ${st.castaways.length}; the season gained after its start: ${gained.map((g) => `${g.tribe_name} ${g.n}`).join(", ") || "nobody"}`);
+    check(inGame, `the signing reaches the running season game's people, so a claim can name him (${st.castaways.length} there)`);
+
+    const routeGetsNobody = failures > 0;
+    console.log(
+      inGame
+        ? "VERDICT (b): STRUCK: a player signed after the slate's games start reaches a running game"
+        : `VERDICT (b): CONFIRMED: a player signed after the slate's games start never reaches a running game${routeGetsNobody ? "; wider: a game started through the sports route gets nobody at all (nothing approves a slate's people)" : ""}`
+    );
+  } finally {
+    await fx.finish(w, { keep });
+  }
+  console.log(failures ? `${failures} FAILED` : "ALL PASS");
+  process.exitCode = failures ? 1 : 0;
+})().catch((e) => {
+  console.error(e);
+  process.exitCode = 1;
+});

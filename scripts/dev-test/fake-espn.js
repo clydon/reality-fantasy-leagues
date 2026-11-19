@@ -206,9 +206,12 @@ async function start(opts = {}) {
       if (!e || !e.box) return send(404, { code: 404 });
       const status = { type: { state: e.state, completed: e.state === "post" && !e.off } };
       const side = (id, homeAway, score) => ({ homeAway, team: rawTeam(teamOf(id)), score: score == null ? "0" : String(score) });
+      // A table's name where ESPN puts it: football's as `name` ("passing", "rushing": what football.ts's final reads; the recorded
+      // NFL season's box scores, espn-snapshot.js), baseball's as `type` ("batting", "pitching").
+      const named = m[1] === "football" ? "name" : "type";
       const players = Object.entries(e.box).map(([id, t]) => ({
         team: rawTeam(teamOf(id)),
-        statistics: (t.tables || [t]).map((x) => ({ type: x.name, labels: x.labels, athletes: x.rows.map((r) => ({ starter: true, athlete: { id: r.id, displayName: r.name, position: { displayName: r.position } }, stats: r.stats })) })),
+        statistics: (t.tables || [t]).map((x) => ({ [named]: x.name, labels: x.labels, athletes: x.rows.map((r) => ({ starter: true, athlete: { id: r.id, displayName: r.name, position: { displayName: r.position } }, stats: r.stats })) })),
       }));
       return send(200, { header: { id: e.id, season: seasonOf(e), competitions: [{ status, competitors: [side(e.home, "home", e.score?.[0]), side(e.away, "away", e.score?.[1])] }] }, boxscore: { players }, ...(e.odds ? { pickcenter: [line(e.odds)] } : {}) });
     }
