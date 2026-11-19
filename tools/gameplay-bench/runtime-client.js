@@ -12,4 +12,13 @@ window.__GAMEPLAY_EXPLORER__ = Object.freeze({
     if (!response.ok) throw Error(result.error || 'Runtime transport failed: ' + response.status);
     return result; // A blocked/rejected case is a structured result, not a transport failure.
   },
+  // A game's preview on the real screens: the same core as the CLI's `preview` (tools/gameplay-bench/preview/preview.cjs). Takes a
+  // minute or two; options: { app, viewerId, id, seasons, signal }.
+  async preview(input, options = {}) {
+    const { signal, ...rest } = options;
+    const response = await fetch('/__atlas/bench/preview', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ input, ...rest }), signal });
+    const result = await response.json();
+    if (!response.ok) throw Error(result.error || 'Preview transport failed: ' + response.status);
+    return result;
+  },
 });

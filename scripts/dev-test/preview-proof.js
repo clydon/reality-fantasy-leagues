@@ -72,6 +72,9 @@ async function record() {
     if (!season) throw Error("No Survivor 51 in this database");
     const exits = await one(`SELECT episode_number AS n, method FROM season_decisions WHERE season_id = $1 AND kind = 'elimination' AND status = 'accepted' ORDER BY episode_number, decided_at`, [season.id]);
     const moments = await one(`SELECT episode_number AS n, event_type AS type, count(*)::int AS k FROM season_decisions WHERE season_id = $1 AND kind = 'event' AND status = 'accepted' GROUP BY 1, 2`, [season.id]);
+    // The real results themselves, episode by episode (decision 7: a preview shows them up to the viewer's mark): who went home and
+    // how, and each moment and whose, by the cast member's name (the dress gives the same names).
+    const real = await one(`SELECT episode_number AS n, kind, castaway_name AS name, method, event_type AS type FROM season_decisions WHERE season_id = $1 AND status = 'accepted' AND kind IN ('elimination', 'event') ORDER BY episode_number, decided_at, castaway_name`, [season.id]);
     const [{ cast }] = await one(`SELECT count(*)::int AS cast FROM season_cast WHERE season_id = $1`, [season.id]);
     // A throwaway case for its couch (Alex and the rest, zt-gb users), removed straight after.
     const doc = D.create({ seed: 1, world: { contexts: [{ id: "show", kind: "show", format: { id: "survivor" }, engine: { ...require(path.join(root, "tests/fixtures/gameplay-explorer/questions-input.json")).context, couch: COUCH.length } }], people: COUCH },
@@ -87,7 +90,7 @@ async function record() {
       wizard = r.body;
     } finally { await Live.down(ids.key); await Live.close(); s.dispose(); }
     const aired = Math.max(0, ...exits.map((x) => x.n), ...moments.map((x) => x.n));
-    const out = { schemaVersion: 1, recordedAt: new Date().toISOString(), source: "this lane's database and start route (scripts/dev-test/preview-proof.js record); stays out of git", seasonId: season.id, cast, aired, exits: exits.map((x) => ({ n: x.n, method: x.method })), moments, page: wizard.wizard.page, from: wizard.from };
+    const out = { schemaVersion: 2, recordedAt: new Date().toISOString(), source: "this lane's database and start route (scripts/dev-test/preview-proof.js record); stays out of git", seasonId: season.id, cast, aired, exits: exits.map((x) => ({ n: x.n, method: x.method })), moments, real, page: wizard.wizard.page, from: wizard.from };
     fs.mkdirSync(path.dirname(RECORD), { recursive: true });
     fs.writeFileSync(RECORD, JSON.stringify(out, null, 1));
     console.log(`${RECORD}: from Episode ${out.from}, ${aired} aired, ${exits.length} gone, ${moments.reduce((t, x) => t + x.k, 0)} moments`);
@@ -129,17 +132,23 @@ function shapedMoments(seed, n, still, outs, known, merged) {
   if (merged && known.has("individualImmunity") && still.length) { const id = still[roll(seed, n, "immunity") % still.length]; if (!out.has(id)) list.push({ id: "moment-" + J.digest([n, "individualImmunity", id]).slice(0, 16), type: "individualImmunity", castawayId: id }); }
   return list;
 }
-/** The made-up results for Episodes 1 to 8, as supplied facts: as many go home each episode as really did, and how, but who is the
- *  seed's; the moments shaped as above. */
-function earlyFacts(seed, participants, known, merge) {
-  const r = recorded(), facts = [], gone = new Set();
-  for (let n = 1; n < FROM; n++) {
-    const still = participants.map((p) => p.id).filter((id) => !gone.has(id));
-    const outs = r.exits.filter((x) => x.n === n).map((x, i) => ({ method: x.method === "Voted Out" || x.method === "Quit" || x.method === "Medically Evacuated" ? x.method : "Voted Out", i }));
-    const order = still.slice().sort((a, b) => roll(seed, n, "out", a) - roll(seed, n, "out", b));
-    const events = outs.map((o, i) => ({ castawayId: order[i], method: o.method }));
-    events.forEach((e) => gone.add(e.castawayId));
-    facts.push({ id: "fact-show-event-" + n, eventId: "show-event-" + n, contextId: "show", source: "preview-proof-shaped", data: { events, scoringEvents: shapedMoments(seed, n, still, events, known, n >= merge), ...(events.length ? {} : { noExit: true }) } });
+/** The results up to the viewer's mark, as supplied facts: the season's own (decision 7, the user: "Show the real results up to where
+ *  I've watched, and make up only what comes after"), recorded from this lane's database: who went home each episode and how, and
+ *  each moment and whose, mapped to the dress's participants by name. Moments the format doesn't know are left out, as the world's
+ *  rulebook is the format's. From the next episode on, the results are made up (resultsFor). */
+function realFacts(participants, known, through) {
+  const r = recorded();
+  if (!r.real) throw Error("The record has no real results: run `node --env-file=.env.local scripts/dev-test/preview-proof.js record` again");
+  const idOf = new Map(participants.map((p) => [p.name, p.id]));
+  const id = (name) => { const x = idOf.get(name); if (!x) throw Error("No participant named " + name + " in the dress"); return x; };
+  const facts = [];
+  for (let n = 1; n <= through; n++) {
+    const rows = r.real.filter((x) => x.n === n);
+    const events = rows.filter((x) => x.kind === "elimination").map((x) => ({ castawayId: id(x.name), method: x.method || "Voted Out" }));
+    const seen = new Set();
+    const scoringEvents = rows.filter((x) => x.kind === "event" && known.has(x.type)).filter((x) => { const k = x.type + "|" + x.name; if (seen.has(k)) return false; seen.add(k); return true; })
+      .map((x) => ({ id: "moment-" + J.digest([n, x.type, x.name]).slice(0, 16), type: x.type, castawayId: id(x.name) }));
+    facts.push({ id: "fact-show-event-" + n, eventId: "show-event-" + n, contextId: "show", source: "real-season", data: { events, scoringEvents, ...(events.length ? {} : { noExit: true }) } });
   }
   return facts;
 }
@@ -154,6 +163,16 @@ function resultsFor(s, n) {
   return { ...data, scoringEvents: shapedMoments(doc.seed, n, still, data.events, known, n >= world.context.phaseStarts.merged) };
 }
 
+/** Any of the gallery's games on this season: a base from the next episode, with the gallery's changes on it, checked. */
+function baseGame(pg, id, changes) {
+  const base = G.baseById(id);
+  if (!base) throw Error("No gallery base " + id);
+  let spec = G.baseSpec(base, { from: pg.from, to: null }, pg);
+  for (const c of changes) spec = G.applyChange(spec, c, pg);
+  const verdict = G.check(spec, pg);
+  if (!verdict.ok) throw Error("The gallery's " + id + " doesn't check: " + verdict.problems.join("; "));
+  return { base, spec, verdict };
+}
 /** The game the gallery makes: its Fantasy league from the next episode, with "A new draft at a stage". */
 function gallerySpec(pg) {
   const base = G.baseById("fantasy");
@@ -167,7 +186,10 @@ function gallerySpec(pg) {
 /** The definition: the real season's people and calendar, the couch, the gallery's game; made-up results through Episode 8. */
 function definition(o = {}) {
   const { page, pg } = galleryFacts();
-  const { spec } = gallerySpec(pg);
+  // `o.base` (a gallery base's id) and `o.changes` (the gallery's changes on it) make another of the gallery's games on the same
+  // season; by default, the Fantasy league with a new draft at the merge (the proof's).
+  const spec = o.base ? baseGame(pg, o.base, o.changes || []).spec : gallerySpec(pg).spec;
+  const gameName = o.base ? G.baseById(o.base).name : "Fantasy league";
   const seed = o.seed ?? SEED, merge = o.merge ?? MERGE;
   // The season's own rulebook has moments the format's doesn't (Survivor 51: 37, 11 beyond the format's 27: a Shot in the Dark, a
   // rock draw, made the merge...). The runtime's game state and a zt season without its own rulebook know the format's only, so the
@@ -197,9 +219,9 @@ function definition(o = {}) {
       people: COUCH,
       participants,
       events,
-      facts: earlyFacts(seed, participants, new Set(moments.map((m) => m.id)), merge),
+      facts: realFacts(participants, new Set(moments.map((m) => m.id)), FROM - 1),
     },
-    games: [{ id: "fantasy", name: "Fantasy league", contextId: "show", spec, timing: "live-only" }],
+    games: [{ id: o.gameId || "fantasy", name: gameName, contextId: "show", spec, timing: "live-only" }],
     situation: { clock: new Date(EP9 - 5 * HOUR).toISOString(), viewerId: "alex", marks: COUCH.map((p) => ({ personId: p.id, contextId: "show", through: FROM - 1 })) },
     content: { labels: "normal" },
   });
@@ -474,7 +496,7 @@ async function story() {
 }
 const who2name = (id) => (COUCH.find((p) => p.id === id) || { name: id }).name;
 
-module.exports = { definition, galleryFacts, gallerySpec, COUCH, openCase, advance, STOPS, _h: { lineups, night, resultsFor, teamsOf, stagesOf, draftOpen, must, nameOf } };
+module.exports = { definition, galleryFacts, gallerySpec, baseGame, COUCH, openCase, advance, STOPS, _h: { lineups, night, resultsFor, teamsOf, stagesOf, draftOpen, must, nameOf } };
 
 if (require.main === module) {
   const fail = (e) => { console.error(e); process.exitCode = 1; };

@@ -76,3 +76,68 @@ pass R1 and fail R4. The marks (30 small ticks, filled for the seasons where it 
 mark serves every card that has a "typical".
 
 *Initial findings. Ralph Loop a requirement, cite further, switch to analyze / evaluate, or ask any follow-up to dig deeper.*
+
+## Round 4: a card from any game, and the sheet (PFD Mode 2, 2026-11-18)
+
+**The problem.** (1) Someone deciding whether to make a game has to come away from a few cards knowing what the game is, what
+they'll do each week, when moves lock and how to win, from real screens they've never seen. Those screens are dense (ten to twenty
+items each) and shown at about 60% scale, so the eye goes wherever the app is loudest, not to the moment's answer. Where the app
+contradicts the season, the screen and the card disagree, and nothing says which to believe. (2) Someone sweeping hundreds of games
+has to compare like with like across games. If each phone sits at a different point in its story, every comparison means reading
+two stories, and a game's bugs and its soul can't be judged at a glance.
+
+**L0 Cognitive load.** Constraint: about four chunks held at once, and visual noise spends that bandwidth even unattended. Violation:
+the screen alone exceeds it; the preview's own layer adds a progress bar, a tag, a name, a headline, a check, tabs, a bug line and
+controls. **R1: above the phone, the preview's layer holds at most three chunks: the claim, its one second line, and one more slot
+(the check, or the bug line of the screen on show, never both at full weight). Inside the phone there is one ringed proof (one
+element, or one aligned set such as the ×4 badges). On the sheet, each column carries at most three chunks of its own (the game's
+name, what it has in one line, its bug count) and every column shows the same moment, so the comparison has one variable.**
+Citations: Cowan (2001) for about four chunks; Hassin et al. (2009) for unattended noise spending working memory.
+
+**L1 First impression.** Constraint: the first glance (about 50 ms) decides where attention goes. Violation: the phone (large, full
+of faces and high contrast) and the app's own yellow strip inside it outshine the headline. **R2: the first fixation is the
+headline, the largest type on the card outside the phone; the second is the ring, the highest-contrast mark on the phone. The
+preview's layer uses no yellow except Create this game on the last card, so the app's own yellow inside the phone keeps its
+meaning (your move). On the sheet, the first glance lands on the row of phones at one moment, each named above; bug counts come
+second.**
+Citations: Lindgaard et al. (2006) for the 50 ms judgment; Leder et al. (2004) for the staged read (perceive, then classify).
+
+**L2 Processing fluency.** Constraint: what is easy to match feels true; one inconsistency costs trust everywhere. Violation: a
+card that names the move in its own words beside a screen that names it differently, or a bug mark that paraphrases the screen,
+makes the viewer translate. **R3: the claim uses the screen's own term for the move ("Set your lineup" on the screen: the card says
+"Start 3 of your 5"); a bug mark quotes the screen's exact words in quotes ("App bug: says 'All set for Ep 9', but your draft is
+due"); the preview's frame is identical on every card and every game (same places, sizes and words for the same roles), so the
+only differences between games are the games' own screens. On the sheet every column's chrome is identical.**
+Citations: Reber & Schwarz (1999) for ease read as truth; Spence (2011) for the elements telling one story.
+
+**L3 Perception bias.** Constraint: people trust what they see over what they're told, and visual coherence carries trust more than
+argument does. Violation: an unexplained mismatch between claim and screen reads as the preview being wrong, and the viewer stops
+trusting both. **R4: every claim has its proof visible on the screen it opens on (ringed); a card never opens on a screen that
+contradicts it; every contradiction is attributed to the app, on the screen that has it ("App bug:"), never left for the viewer to
+notice. On the sheet a column with bugs is told apart without reading (its count, its marked tabs).**
+Citations: Seckler et al. (2015) for trust as a perceptual output; Clark (2013) for a mismatch firing attention.
+
+**L4 Decision architecture.** Constraint: decisions from experience weigh outcomes as they are; near decisions want concrete terms.
+Violation: the lock lives only inside a screen ("Locks when it airs"), the win only in the rules, so the lay of the land has to be
+inferred. **R5: each of the four answers is words on its own card, in season order (the game's name and line; the move in the
+game's terms; the lock as a concrete day and time; who won, by how much, and how it's won), and the story ends on the decision (Go
+back, Create this game) straight after how to win. On the sheet the moment control is the one primary control, and each column's
+bugs are listed as plain lines under its phone: the sweep's verdict material, with nothing else to act on.**
+Citations: Hertwig & Erev (2009) for decisions from experience; Trope & Liberman (2010) for concrete terms on near actions.
+
+**What satisfies R1 to R5.**
+- **The card:** the top bar as now (progress, "Made-up season", the moment's name); the headline (the claim); one second line (the
+  lock as "Locks Wed 8:00 PM, when Episode 9 airs", the game's line, the rule of the win); one slot for the check or the open
+  screen's bug line; the tabs by the app's names (a bug marked on its tab); the whole phone with one ring; Next naming the next
+  moment.
+- **The sheet:** a header with the run (games, screens, bugs found), the moment control (The game, The draft, Each episode, After
+  the first results, The next stage, The finale), then the row of phones at 390, each headed by the game's name, what it has and
+  its bug count, its bugs listed beneath.
+
+**Against what's built (round 3).** The card's headline carries the claim (passes R2), but no card says when moves lock in words
+(fails R5); "App differs" doesn't say what's wrong (fails R3). The check sits above the tabs with the bug line below them (two
+chunks where R1 allows one).
+
+**The gap.** The lock as words on the Each-episode card, and one moment across every game on the sheet: neither exists yet.
+
+*Initial findings. Ralph Loop a requirement, cite further, switch to analyze / evaluate, or ask any follow-up to dig deeper.*

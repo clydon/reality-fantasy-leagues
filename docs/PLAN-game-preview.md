@@ -263,9 +263,11 @@ fixes, a screenshot story at 390, and a pause.
 ## Noticed, not fixed
 
 Found by the preview's real screens (2026-11-18), left for the lanes that own them:
-1. **"All set" while a draft is due.** Tonight's strip and the Games tab say "All set for Ep 9" while the first stage's blind draft
-   is open, and Tonight says "All set for Ep 12" while the merge's is. The engine's actionItems names it ("Lock in your draft
-   picks"); the strip's own move list (src/new/show/strip.tsx, from your-move.ts) leaves an open blind draft out. Every run.
+1. **Before a draft starts, the game says "All set" (corrected: not a contradiction).** Round 3 marked Tonight's and the Games tab's
+   "All set for Ep 9" as wrong while the first draft was open. It isn't: until whoever runs the game starts the draft nobody can
+   pick, and the engine's actionItems lists nothing; once it's started, Tonight says "Lock in your draft picks" as it should (the
+   bench's due check agrees at both drafts, 2026-11-18). What remains is a question for design, not a bug: nothing tells whoever
+   runs the game that the draft is theirs to start (actionItems has no item for it).
 2. **The finale's reveal ranks one stage.** Its standings beat (src/new/show/reveal.tsx TableBeat, `r.table`) shows the stage's
    standings ("Weekly Lineup standings", "You're 1st, 4.5 ahead of Jordan") where the game in stages is won on the overall (Jordan
    by 1.5). The wrong winner in 3 of 6 runs, whenever the two differ.

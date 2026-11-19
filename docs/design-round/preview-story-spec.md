@@ -157,3 +157,73 @@ batch of fixes:
   left out (a made-up season has none; its GIFs didn't load).
 - Not changed: the made-up Episodes 1 to 8 copy how many went home each aired episode (P0's choice). Inventing the counts left 13
   still in at Episode 9 where 10 really are; which results a preview may show is a question for the user.
+
+## Round 4: any game, made by the bench (Intent, 2026-11-18)
+
+The user, after the real screens: the bench makes a preview of any game it runs, with no one driving it; the cards come from what
+each game has; the truth check widens to what's due; the marks say what's wrong in plain words; a sheet shows many previews side by
+side; and the story is judged by the lay of the land (docs/PLAN-game-preview.md, "The bench's previews"; §6B of the explorer plan).
+
+### Who it's for, and what they're doing
+
+- **Someone making a game** (the product, later): mid-setup, on a phone, deciding. They want the game's shape and whether it plays
+  as they expect. They leave knowing the lay of the land, or change something and look again.
+- **Someone sweeping the games** (the bench, now): the user and the design skills, at a desk, scanning tens to hundreds of games.
+  They judge, in order: does the player know what to do on every screen; does each game have its own soul; does the preview tell
+  the truth. They need to compare games and moments side by side, and to see at a glance where the app said something wrong.
+
+### The lay of the land, moment by moment
+
+A preview passes when, after it, someone can say **what the game is, what they'll do each week, when moves lock and how to win**.
+Each question has the moment that answers it, and each such moment must carry the answer in its words, not only on its screens:
+
+| Question | Answered by | Carried on the card as |
+| --- | --- | --- |
+| What is the game? | The game | the game's name as the headline, its own line beneath (the app's: "From Episode 9 · 3 questions") |
+| What do I do each week? | Each episode | the move in the game's own terms ("Start 3 of your 5", "Answer 3 questions", "Pick 1 to stay in") |
+| When do moves lock? | Each episode | the lock, from the engine: "Locks when Episode 9 airs, Wed 8:00 PM" |
+| How do I win? | The finale | who won and by how much, and how it's won ("Most points from Episode 9 to 13") |
+
+### The moments, in season order (each shown only if the game has it)
+
+| # | Moment | When | Its real screens (the first opens) | Its headline | Its second line | Its check |
+| - | ------ | ---- | ---------------------------------- | ------------ | --------------- | --------- |
+| 1 | The game | the start | Games tab · How it plays | the game's name | the game's own line | none |
+| 2 | The draft | the start, a draft to make | Tonight · Draft room · The teams | Pick 5 in private | before Episode 9 | the same castaway on every team |
+| 3 | Each episode | the first episode | Tonight · the quick action it opens | the move, in the game's terms | when it locks | the weekly move matters (lineups) |
+| 4 | After Episode N | the first results | Game page · Tonight's game section | where you stand | how points came (the week's best) | none |
+| 5 | The next stage | a stage's new draft opens | Tonight · Draft room · The teams | 7 left: draft 5 again | after Episode 11 | the same castaway on every team |
+| 6 | Out | the viewer's first time out | Game page | You're out after Episode N | how ("your pick went home") | none |
+| 7 | The finale | the last episode | Game page · Reveal | Jordan wins by 1.5 | how it's won | a close finish |
+
+For the first slice that gives the Fantasy league six moments (no Out), the Prediction sheet and the Survival pool four each (the
+game, each episode, after Episode 9, the finale): three stories that differ in length and in screens, as the games do.
+
+### What every card carries, and nothing else
+
+1. Where you are: the progress, "Made-up season", the moment's name.
+2. The claim: one headline in the game's terms, and at most one second line (the lock, the rule, the stage).
+3. At most one check, counted over the made-up seasons ("n of 10 made-up seasons"), only where the game has the thing it counts.
+4. The real screens, by the app's own names, in the phone; a ring on what proves the claim.
+5. **App bugs, said plainly:** a screen whose words the season contradicts is marked on its tab, ringed with a dashed line, and named
+   in one line under the tabs: "App bug: says 'All set for Ep 9', but your draft is due". The card opens on a screen that agrees.
+6. The way on: Next names the next moment; the last card is Go back and Create this game.
+
+### The sheet (the sweep's view)
+
+- **Job:** compare many games' previews at once, at the size a phone shows them, and see where the app was wrong.
+- **Shape:** a row of phones, one per game, each the game's own story at 390, side by side and scrolling sideways; above each, the
+  game's name, what it has (a draft, a weekly lineup, questions, a pool, stages) and its bug count; below, its bugs as plain lines.
+- **One moment across games:** a control sets every phone to the same moment (The game, Each episode, The finale…), so the same
+  question can be asked of every game at once: does the player know what to do here, and does this game look like its own. A game
+  without that moment says so in its column ("No draft in this game").
+- **Never edits, never saves:** each column is a preview the bench made; the sheet only shows them.
+
+### Decisions (this round)
+
+- **The fix toggle goes for now** (Try 3 each): it was this one game's; a fix for any game needs the gallery's changes matched to a
+  check, later. The check stays.
+- **Bug marks are the bench's.** They show in the story and the sheet here; a product preview shows the app as it is, with no
+  marks (by then the bugs are fixed, or the bench is how they're found).
+- **One season per game** (Shuffle when there are more), and ten made-up seasons for what's typical, per the plan's cost table.
+- **A moment the game doesn't have isn't shown,** and no card is padded to keep stories the same length.

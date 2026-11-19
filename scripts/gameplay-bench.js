@@ -33,6 +33,19 @@ try {
     const file = write(options.out, result);
     console.log(JSON.stringify({ ok: result.ok, status: result.status, category: result.category || null, message: result.message || null, stateHash: result.execution?.stateHash || null, actions: result.execution?.trace.length || 0, outcomes: result.outcomes || [], gaps: result.gaps?.slice(0, 8) || [], file }));
     if (!result.ok) process.exitCode = result.status === 'blocked' ? 2 : 1;
+  } else if (command === 'preview') {
+    // A game's preview on the real screens (tools/gameplay-bench/preview/preview.cjs): the same core the bench's HTTP route and the
+    // browser transport call. Needs the app (--app, default this lane's) and its local database (AUTH_DATABASE_URL: run with
+    // node --env-file=.env.local).
+    allow(options, ['file', 'out', 'viewer', 'app', 'seasons', 'keep']);
+    if (!options.file || !options.out) throw Error('Use preview --file=<definition.json> --out=<new folder> [--viewer=<person>] [--app=http://localhost:3014] [--seasons=10] [--keep=1]');
+    const input = read(path.resolve(options.file));
+    const dir = path.resolve(root, options.out), rel = path.relative(root, dir);
+    if (rel.startsWith('..') || path.isAbsolute(rel)) throw Error('Output must be inside the workspace');
+    if (fs.existsSync(path.join(dir, 'preview.json'))) throw Error('A preview is already there; choose another --out folder to preserve evidence');
+    require('../tools/gameplay-bench/preview/preview.cjs').make({ input: input.execution?.input || input, out: dir, viewerId: options.viewer, app: options.app, seasons: options.seasons ? Number(options.seasons) : 0, keep: options.keep === '1', log: console.log })
+      .then((p) => console.log(JSON.stringify({ id: p.id, moments: p.moments.map((m) => m.id), screens: p.moments.reduce((t, m) => t + m.screens.length, 0), bugs: p.moments.flatMap((m) => m.screens.flatMap((x) => x.bugs.map((y) => y.text))), problems: p.problems, ms: p.ms, preview: rel.split(path.sep).join('/') + '/preview.json' })))
+      .catch((e) => { console.error(e); process.exitCode = 1; });
   } else if (['inspect', 'normalize', 'baseline'].includes(command)) {
     allow(options, ['file', 'contextFile', 'out']);
     let result;
