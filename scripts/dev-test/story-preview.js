@@ -25,11 +25,12 @@ for (const id of previews) {
   const p = JSON.parse(fs.readFileSync(path.join(DIR, id, "preview.json"), "utf8"));
   p.moments.forEach((m, i) => {
     FRAMES.push({ id: `${id}-${i + 1}-${m.kind}`, q: `preview=${id}&card=${i + 1}` });
-    m.screens.forEach((s, j) => { if (s.bugs.length && (j > 0 || m.screens.every((x) => x.bugs.length))) FRAMES.push({ id: `${id}-${i + 1}-${m.kind}-${s.id}`, q: `preview=${id}&card=${i + 1}&screen=${j + 1}` }); });
+    // Each screen with an app bug, by its id (the story orders a moment's screens itself).
+    m.screens.forEach((s) => { if (s.bugs.length) FRAMES.push({ id: `${id}-${i + 1}-${m.kind}-${s.id}`, q: `preview=${id}&card=${i + 1}&tab=${s.id}` }); });
   });
 }
 const week = previews.find((id) => id.startsWith("fantasy"));
-if (week) FRAMES.push({ id: `${week}-full`, q: `preview=${week}&moment=week&screen=2&full=1` });
+if (week) FRAMES.push({ id: `${week}-full`, q: `preview=${week}&moment=week&tab=move&full=1` });
 
 const shot = async (page, f, sel) => {
   await page.waitForFunction(() => document.fonts.status === "loaded", null, { timeout: 15000 }).catch(() => {});

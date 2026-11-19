@@ -12,6 +12,7 @@ const root = path.resolve(__dirname, '..', '..', '..');
 const S = require(path.join(root, 'src/lib/game/state-logic.js'));
 const Bots = require(path.join(root, 'src/lib/game/bot-logic.js'));
 const J = require('../explorer/json.cjs');
+const { atClock } = require('./clock.cjs');
 
 const copy = (x) => JSON.parse(JSON.stringify(x));
 const LEVEL_MIX = ['solid', 'casual', 'sharp', 'casual', 'solid', 'sharp'];
@@ -33,7 +34,9 @@ function e1Moves(session, gameId, personId) {
   // A couch plays at different levels (E1's casual, solid, sharp), as a real one does: by seat, the first solid.
   const seat = st.players.findIndex((p) => p.id === personId);
   st.players[seat].botLevel = LEVEL_MIX[seat % LEVEL_MIX.length];
-  if (!Bots.run(st)) return [];
+  // E1 decides at the season's own clock (the runtime's), not the computer's: a lineup or a pick is open until its episode airs then.
+  const clock = session.snapshot().clock;
+  if (!atClock(clock, () => Bots.run(st))) return [];
   const out = [];
   for (const ep of st.episodes) {
     const lineup = S.ActiveRosterLogic.lineupFor(st, ep.id, personId), before = S.ActiveRosterLogic.lineupFor(st0, ep.id, personId);
@@ -56,7 +59,7 @@ function answerMoves(session, gameId, personId, seed) {
     const st = copy(session.snapshot().games[gameId].state);
     for (const p of st.players) p.automated = p.id === personId;
     const now = Date.parse(session.snapshot().clock);
-    const mine = Bots.answers(st, [], { now }).filter((a) => a.playerId === personId);
+    const mine = atClock(now, () => Bots.answers(st, [], { now })).filter((a) => a.playerId === personId);
     if (mine.length) return mine.map((a) => ({ type: 'answer', gameId, personId, question: a.question, episode: a.episode, answer: a.answer }));
   }
   return open.map((q) => {

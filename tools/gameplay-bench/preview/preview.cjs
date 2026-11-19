@@ -25,6 +25,7 @@ const { resultsData } = require('../explorer/publish.cjs');
 const S = require(path.join(root, 'src/lib/game/state-logic.js'));
 const { actionItems } = require(path.join(root, 'src/lib/game/action-items.js'));
 const Players = require('./players.cjs');
+const { atClock } = require('./clock.cjs');
 
 const W = 390, H = 844, HOUR = 3600000;
 // Faces chosen in profile, from the palette (src/lib/people.ts PALETTE: Sage, Rose, Lake, Orchid), so a couch's colours never clash.
@@ -94,6 +95,8 @@ async function make(o) {
 
   const ids = await Live.up(s.snapshot(), doc, o.db || undefined);
   lap('materialize');
+  // The season's times moved to now, exactly (the app's now is the runtime's clock: rounding it, even to the hour, moved what the
+  // engine counts as due and was tried and dropped, 2026-11-18; the screens' times are when the preview was made).
   const shift = (snap) => Date.now() - Date.parse(snap.clock);
   const sync = async (snap = s.snapshot()) => { s.calendar?.(shift(snap)); await Live.sync(ids, snap, doc, shift(snap)); };
   const as = {};
@@ -114,11 +117,18 @@ async function make(o) {
     lap('sign in');
 
     // ---- On a screen ----
+    const timing = process.env.PREVIEW_TIMING === '1';
     const go = async (url, ready) => {
+      const g0 = Date.now(), tick = (what) => timing && log(`    ${what} ${Date.now() - g0} ms · ${url.replace(/[0-9a-f-]{36}/g, ':id')}`);
       await p.goto(BASE + url, { waitUntil: 'domcontentloaded' }).catch(async (e) => { if (!/ERR_ABORTED|frame was detached/.test(e.message)) throw e; await p.waitForTimeout(2000); await p.goto(BASE + url, { waitUntil: 'domcontentloaded' }); });
+      tick('loaded');
       if (ready) await p.locator(ready).first().waitFor({ timeout: 60000 });
-      await p.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      tick('ready');
+      // A page with a move due keeps polling, so the network never goes quiet: a short wait, the page's own ready mark is the real one.
+      await p.waitForLoadState('networkidle', { timeout: 2500 }).catch(() => {});
+      tick('quiet');
       await p.waitForFunction(() => document.fonts.status === 'loaded', null, { timeout: 8000 }).catch(() => {});
+      tick('fonts');
       await p.waitForTimeout(500);
     };
     const dialog = () => p.locator('[role="dialog"]:not([aria-hidden="true"])').last();
@@ -142,22 +152,26 @@ async function make(o) {
       await p.screenshot({ path: path.join(shotsDir, file), type: 'jpeg', quality: 80 });
       const found = [];
       for (const check of bugs || []) { const x = await check(); if (x) found.push(x); }
-      const screen = { id, name, file, what, url: p.url().replace(BASE, '').replace(/[0-9a-f-]{36}/g, ':id'), proof: proof ? await proof() : [], bugs: found };
+      const stripEl = p.locator('[data-strip]').first();
+      const strip = (await stripEl.count()) ? { tone: await stripEl.getAttribute('data-strip'), title: ((await stripEl.locator('[data-strip-title]').first().textContent({ timeout: 300 }).catch(() => null)) || '').trim() } : null;
+      const screen = { id, name, file, what, url: p.url().replace(BASE, '').replace(/[0-9a-f-]{36}/g, ':id'), proof: proof ? await proof() : [], bugs: found, ...(strip ? { strip } : {}) };
       moment.screens.push(screen);
       log(`  ${moment.id} · ${name}${found.length ? ' · ' + found.map((x) => x.text).join(' · ') : ''}`);
       return screen;
     };
 
     // ---- What's due: the engine against the screen ----
-    /** What's due for the viewer now, as the engine knows it: actionItems on each game's state as the server holds it (its times
-     *  as the routes serve them), and a sheet's open questions from the projection (the kind actionItems leaves out). */
+    /** What's due for the viewer now, as the engine knows it: actionItems on each game's state as the server holds it (the screens'
+     *  state: a draft reopened, the draft room's own writes), at the season's own clock (the runtime's: the state keeps the season's
+     *  own times, the screens show them moved to now); and a sheet's open questions from the projection (the kind actionItems leaves
+     *  out). */
     const engineDue = async () => {
-      const real = await Live.read(ids), items = [];
+      const real = await Live.read(ids), clock = s.snapshot().clock, items = [];
       for (const g of playable) {
         const st = real.states.get(league(g.id));
         if (!st) continue;
         const me = real.members.find((m) => m.league_id === league(g.id) && m.player_id === viewer);
-        for (const it of actionItems(st, viewer, me?.results_seen_through ?? null)) if (!it.who || it.who === 'you') items.push({ game: g.id, kind: it.kind, text: it.text, deadline: it.deadline ?? null });
+        for (const it of atClock(clock, () => actionItems(st, viewer, me?.results_seen_through ?? null))) if (!it.who || it.who === 'you') items.push({ game: g.id, kind: it.kind, text: it.text, deadline: it.deadline ?? null });
         const open = (s.project(g.id, viewer).questions || []).filter((q) => !q.closed && (q.mine === null || q.mine === undefined));
         if (open.length) items.push({ game: g.id, kind: 'questions', text: `${open.length} question${open.length > 1 ? 's' : ''} open`, deadline: null });
       }
@@ -168,7 +182,7 @@ async function make(o) {
       const strip = p.locator('[data-strip]').first();
       if (!(await strip.count())) return null;
       const tone = await strip.getAttribute('data-strip');
-      const title = ((await strip.locator('[data-strip-title]').first().textContent().catch(() => null)) || (await strip.innerText()).split('\n')[0] || '').trim();
+      const title = ((await strip.locator('[data-strip-title]').first().textContent({ timeout: 300 }).catch(() => null)) || (await strip.innerText()).split('\n')[0] || '').trim();
       const says = tone === 'due' || tone === 'waits';
       const boxes = await boxesOf('[data-strip]', { max: 1 });
       checks.push({ moment: moment.id, check: 'due', engine: due.map((d) => d.kind), screen: { tone, title }, agree: says === due.length > 0 });
@@ -197,7 +211,16 @@ async function make(o) {
       if (!v.you?.team?.length || !(await p.locator('[data-your-team]').count())) return null;
       const sum = v.you.team.reduce((t, id) => t + (v.cast.find((c) => c.id === id)?.points ?? 0), 0);
       checks.push({ moment: moment.id, check: 'team', agree: Math.abs(sum - v.you.total) < 1e-9 });
-      return Math.abs(sum - v.you.total) < 1e-9 ? null : { kind: 'team', text: `App bug: your team’s points add to ${fmt(sum)}, but you scored ${fmt(v.you.total)}`, boxes: await boxesOf('[data-your-team]', { max: 1 }) };
+      return Math.abs(sum - v.you.total) < 1e-9 ? null : { kind: 'team', text: `App bug: “Your team” doesn’t say who started: its points add to ${fmt(sum)}, you scored ${fmt(v.you.total)}`, boxes: await boxesOf('[data-your-team]', { max: 1 }) };
+    };
+    /** A draft that opens the game waits for whoever runs it (the couch's owner, the first person) to start it: the engine lists
+     *  nothing due until then, but a strip saying "All set" leaves them not knowing their next move. */
+    const startCheck = (waiting) => async () => {
+      if (!waiting || viewer !== people[0]) return null;
+      const strip = p.locator('[data-strip]').first();
+      if (!(await strip.count()) || (await strip.getAttribute('data-strip')) === 'due') return null;
+      const title = ((await strip.locator('[data-strip-title]').first().textContent({ timeout: 300 }).catch(() => null)) || '').trim();
+      return { kind: 'start', text: `App bug: says “${title}”, but the draft waits for you to start it`, boxes: await boxesOf('[data-strip]', { max: 1 }) };
     };
     /** A "still in" count of nobody, in a game section. */
     const stillInCheck = async () => { const x = await textBoxes(/\b0 of 0 still in/); return x.length ? { kind: 'words', text: 'App bug: says “0 of 0 still in”, in a game nobody’s knocked out of', boxes: x.slice(0, 2) } : null; };
@@ -207,7 +230,7 @@ async function make(o) {
     // moved to now: the card adds the shift, so its words and the screen's agree).
     const begin = (id, kind, episode = null, gameId = top.id) => {
       const e = episode ? events().find((x) => x.number === episode) : null;
-      moment = { id, kind, episode, game: gameId, airAt: e?.airAt ?? null, shift: Date.now() - Date.parse(s.snapshot().clock), screens: [] };
+      moment = { id, kind, episode, game: gameId, airAt: e?.airAt ?? null, shift: shift(s.snapshot()), screens: [] };
       moments.push(moment);
       return moment;
     };
@@ -244,7 +267,7 @@ async function make(o) {
     if (blindFirst) await sync(draftOpenAtStart(s.snapshot(), blindFirst.id));
     let due = await engineDue();
     await go(games, '[id^="game-"]');
-    await shoot('games', 'Games', 'The Games tab: the new game', { proof: () => boxesOf('[id^="game-"]', { max: 1 }), bugs: [dueCheck(due)] });
+    await shoot('games', 'Games', 'The Games tab: the new game', { proof: () => boxesOf('[id^="game-"]', { max: 1 }), bugs: [dueCheck(due), startCheck(!!blindFirst)] });
     await go(page(top.id), '[data-game-page]');
     await shoot('rules', 'How it plays', 'The game page: how it plays', { focus: '[data-game-rules]', proof: () => boxesOf('[data-game-short]', { max: 1 }) });
     finish();
@@ -273,7 +296,7 @@ async function make(o) {
         await button.click();
         await dialog().waitFor({ timeout: 20000 }).catch(() => {});
         await p.waitForTimeout(1200);
-        await shoot('move', 'Your move', 'The quick action Tonight opens');
+        await shoot('move', 'Your move', 'The quick action Tonight opens', { proof: async () => (await dialog().getByText(/^(Who |Start \d|Pick |Answer |Choose |Does |Will )/).evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; })).catch(() => [])).filter(onScreen).slice(0, 1) });
       }
       finish();
       lap('the weekly move');
@@ -342,9 +365,14 @@ async function make(o) {
         if (await beat.isVisible().catch(() => false)) {
           if ((await beat.getAttribute('data-beat')) === 'table') {
             await p.waitForTimeout(2000);
-            const rows = await p.locator('[data-table-move] > div').evaluateAll((els) => els.map((e) => ({ name: e.querySelector('b')?.textContent || '', y: e.getBoundingClientRect().y })).sort((a, c) => a.y - c.y)).catch(() => []);
+            const rows = await p.locator('[data-table-move] > div').evaluateAll((els) => els.map((e) => ({ name: e.querySelector('b')?.textContent || '', total: Number(([...e.querySelectorAll('span')].pop()?.textContent || '').replace('−', '-')), y: e.getBoundingClientRect().y })).sort((a, c) => a.y - c.y)).catch(() => []);
             const w = winner();
-            await shoot('reveal', 'Reveal', 'The finale’s reveal: where everyone finished', { bugs: [async () => (rows[0] && w && rows[0].name !== w.name ? { kind: 'reveal', text: `App bug: the reveal puts ${rows[0].name} 1st, but ${w.name} wins the game`, boxes: await boxesOf('[data-table-move]', { max: 1 }) } : null)] });
+            const game = s.project(top.id, people.find((x) => x !== viewer) || viewer).game.table.slice().sort((a, c) => c.total - a.total);
+            const me = doc.world.people.find((x) => x.id === viewer)?.name;
+            const here = rows.findIndex((r) => r.name === me) + 1, there = game.findIndex((r) => r.playerId === viewer) + 1;
+            const differs = rows.length && (rows.some((r, i) => r.name !== game[i]?.name) || rows.some((r) => { const t = game.find((x) => x.name === r.name); return t && Number.isFinite(r.total) && Math.abs(t.total - r.total) > 1e-9; }));
+            const ord = (n) => n + (n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th');
+            await shoot('reveal', 'Reveal', 'The finale’s reveal: where everyone finished', { bugs: [async () => (!differs || !w ? null : { kind: 'reveal', text: rows[0]?.name !== w.name ? `App bug: the reveal puts ${rows[0].name} 1st, but ${w.name} wins the game` : here && there && here !== there ? `App bug: the reveal shows one stage, where you’re ${ord(here)}; in the game you finished ${ord(there)}` : 'App bug: the reveal shows one stage’s points, not the game’s', boxes: await boxesOf('[data-table-move]', { max: 1 }) })] });
             break;
           }
           await beat.click(); await p.waitForTimeout(1400);
@@ -358,7 +386,8 @@ async function make(o) {
     s.apply({ type: 'reveal', contextId: ctxId, personId: viewer }, 'preview');
     await sync();
     await go(page(top.id), '[data-game-page]');
-    await shoot('page', 'Game page', 'The game page, the season over', { proof: () => textBoxes(/\d (behind|ahead of) |won it|You won/) });
+    const topTwo = s.project(top.id, viewer).game.table.slice().sort((a, c) => c.total - a.total).slice(0, 2).map((r) => r.playerId);
+    await shoot('page', 'Game page', 'The game page, the season over', { proof: async () => (await Promise.all(topTwo.map((id) => boxesOf(`[data-game-grid] [data-restack="${id}"]`, { union: true })))).flat() });
     finish();
     lap('the finale');
 
