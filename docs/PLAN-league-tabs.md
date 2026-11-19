@@ -1,5 +1,7 @@
 # League tabs: one tab bar for every game, Up next, and Team with Waivers
 
+> **Status (2026-11-19): Superseded.** built and merged 2026-10-17 (b2756938, d4bf8730), despite 'not started' below. The new design's show tabs and moves dock (the 2026-10-22 site mock) replaced it. Kept for history.
+
 **Status:** designed with the user 2026-10-16/17, not started. Decisions below are the user's unless
 marked *proposed*. Mockups (private artifacts, open with the Artifact tool's `read`):
 

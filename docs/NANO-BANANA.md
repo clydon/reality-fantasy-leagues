@@ -1,5 +1,7 @@
 # Nano Banana in Codex and Claude Code
 
+> **Status (2026-11-19): Reference.** How the image server is connected. It was verified 2026-11-10 but failed on 2026-11-18: the key reaches it as the literal ${GEMINI_API_KEY} (BACKLOG 107).
+
 Verified 2026-11-10. The UI study uses Nano Banana at the user's request; it complements Impeccable, Intent and Perception-First Design.
 
 ## Working configuration

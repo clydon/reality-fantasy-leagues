@@ -1,5 +1,7 @@
 # Plan: rollout order and model guide
 
+> **Status (2026-11-19): Superseded.** stages 0 to 4 were built by 2026-10-06. Stage 5's polish was overtaken by the new design. Stage 6 (money) is BACKLOG 113 (tabled) and docs/PLAN-ai-access.md. Today's order is in docs/PLANS.md. Kept for history.
+
 Ties together `docs/PLAN-ai-generated-show-formats.md` (the features plan), `docs/PLAN-new-user-onboarding-flow.md`
 (the UI/UX plan), and `reports/Mobile React animation library picks.md` (the animation/UI-library research,
 which proposed the first version of this ordering). This doc exists to answer one question for whoever —

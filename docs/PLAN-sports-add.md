@@ -1,5 +1,7 @@
 # Plan: adding sports by team (Add a show)
 
+> **Status (2026-11-19): Done.** Built as U1's sports on the couch (d7a6d216, merged e8b51c8a, live 2026-11-09): search by team, a team's schedule, Follow, Start a game on a team. Step 5 (the tour's demo by team) was dropped: the tour adds no sport.
+
 ## The ask (the user, 2026-11-01)
 
 While trying the first-time tour, whose demo adds "Sunday Night Football": "Sunday night football is not how someone would add a

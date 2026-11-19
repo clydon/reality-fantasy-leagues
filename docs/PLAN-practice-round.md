@@ -1,5 +1,7 @@
 # Plan: the practice round (the guided tour, on this league)
 
+> **Status (2026-11-19): Superseded.** built 2026-10-11 (206a9c27) for classic. The first-time tour's hands-on practice replaced it, the practice couch is hidden, and computer players come to any game instead (E1). Kept for history.
+
 **Status:** Decided 2026-10-11 (with `/impeccable shape`). **Built 2026-10-11** (all three scripts), not
 yet committed. See "As built" at the end.
 

@@ -1,5 +1,7 @@
 # Plan: AI-researched show formats (self-serve, beyond the hardcoded three)
 
+> **Status (2026-11-19): Superseded.** phases 1 to 5 were built by 2026-10-06. Rulebooks and Add a show (our bot, our check) replaced the format-proposal flow. The catalog-trust question was answered by auto-applying a draft that passes our check. Kept for history.
+
 Builds on `docs/PLAN-show-formats.md` (which shipped `survivor`/`traitors`/`challenge` as hand-written
 code) and turns `docs/ADDING-A-SHOW-FORMAT.md`'s manual research playbook into a product feature,
 reusing the "ask for primitives, derive the stats" discipline `docs/RESEARCH-extractable-stats.md` and

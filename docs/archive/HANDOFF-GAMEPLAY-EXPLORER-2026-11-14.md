@@ -1,5 +1,7 @@
 # Gameplay explorer: resume prompt
 
+> **Archived 2026-11-19 (superseded).** A resume prompt from 2026-11-12 to 11-14, overtaken by the design round and by the explorer plan's status table and Next list (PLAN-GAMEPLAY-SCENARIO-EXPLORER.md), where its "Deferred until after the design round" list now lives. History only.
+
 Prepared 2026-11-12. Copy the prompt below into a new session in this repository.
 
 ---

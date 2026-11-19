@@ -1,5 +1,7 @@
 # Start a game, Round 2c (where you are, and each view's job): the check
 
+> **Status (2026-11-19): Done.** Its one batch was fixed and built into B1; three small polish items left (BACKLOG 122 and 143).
+
 Run once each, on the built frames at 390 × 844 (`.ui-atlas/stories/wizard-r2c/after/`; the before is
 `.ui-atlas/stories/wizard-r2b/after/`), against [the paper](wizard-r2c-steps.md)'s R1 to R5, DESIGN.md (Lower Third) and the
 round's busy test (docs/DESIGN-ROUND-PACKET.md, "The round's frame"). Stand-ins (the ZT couch and team names, 9:31 AM kickoffs)

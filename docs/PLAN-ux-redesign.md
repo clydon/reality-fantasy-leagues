@@ -1,5 +1,7 @@
 # PLAN: UX redesign for commissioner and admin workflows (mobile-first)
 
+> **Status (2026-11-19): Superseded.** a proposal (2026-10-09), never built as written. Direction A (docs/PLAN-ux-declutter.md) overtook it, then the new design (docs/PLAN-new-design.md) and the desk. Kept for history.
+
 Status: **proposal, nothing built.** Revised 2026-10-09. No code was changed for this document.
 
 This is a **mobile-first** app for players and commissioners, so every design here starts at

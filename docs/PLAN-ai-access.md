@@ -1,5 +1,7 @@
 # AI access: free, do-it-yourself, and paid (the structure, before the mocks)
 
+> **Status (2026-11-19): Parked.** TABLED by the user, 2026-11-16. Nothing built. Revisit when charging or ads are on the table, when the bot is blocked or slow, or when the couch count passes a few dozen (BACKLOG 113).
+
 The user, 2026-11-16: "we want the cost to run this website low. That means using the chatgpt bot whenever we can. eventually
 if and when app traffic raises we will need the codex option as the default and paid methods for app users ... we need an
 accurate structure, table, and mock out where and how users are prompted with either the DIY chatgpt link (reads a shorthand

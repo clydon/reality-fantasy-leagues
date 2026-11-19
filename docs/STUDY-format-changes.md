@@ -1,5 +1,7 @@
 # Study: format changes nobody announced (F1)
 
+> **Status (2026-11-19): Reference.** The record of F1–F4 and the A10–A12 blind replays, merged 2026-10-30 (fcc86890). The defaults it recommends wait on the user's acceptance (BACKLOG 180).
+
 For the user to read. Step F1 of [PLAN-start-a-game-gpt.md](PLAN-start-a-game-gpt.md), "Formats nobody announced": take
 seasons whose stages are known, lay out how their format changed episode by episode, and check what each episode's
 research (today's prompt, recorded on the season tapes) said about each change, and whether the engine could act on it.

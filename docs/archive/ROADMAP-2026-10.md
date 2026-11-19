@@ -1,5 +1,12 @@
 # Roadmap: what's left
 
+> **Archived 2026-11-19.** The roadmap as of 2026-10-24. Every open item in it was reviewed in the 2026-11-19 cleanup:
+> six were done (the compiled research cache, one cast per season, format gap filling, season rule changes, scoring rules
+> phases 3 and 4); the classic-era items were dropped; the dead `episode-team-summary` code is BACKLOG 120, and the dispute
+> inbox is idea 206. The order of the big work now lives in [../PLANS.md](../PLANS.md). Commit 29beb6bd cut this file's
+> Parked section mid-word and dropped its "Model guidance" heading; the full text is in a312b9b4.
+
+
 Read this first for "what's next," instead of piecing it together from `PLAN-rollout-order.md` plus
 the plans it sequences. This doc only tracks remaining work; it doesn't re-explain what's already
 shipped (that's `HANDOFF.md`) or restate full design detail for finished phases (that's each

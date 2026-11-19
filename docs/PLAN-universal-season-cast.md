@@ -1,5 +1,7 @@
 # Plan: one cast per season, shared by every league on it
 
+> **Status (2026-11-19): Done.** built 2026-10-09 (89108de4). One season cast shared by every game is how the app works today (the desk's cast page, cast properties). Open question 2 (starting roles) is moot: research files them each episode. Kept for history.
+
 Follows `docs/PLAN-episode-research-compiled-cache.md` (and fixes the gap its smoke test found: an
 admin couldn't review a self-serve season's results) and `docs/PLAN-cast-import-prompt.md` (whose
 "cast import duplicates research across leagues" follow-on this absorbs). Decided in conversation

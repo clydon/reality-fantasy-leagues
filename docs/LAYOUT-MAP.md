@@ -1,5 +1,7 @@
 # Global Components
 
+> **Status (2026-11-19): Superseded.** A map of the classic app's components (AuthGate, LoginScreen, MobileNav, Sidebar). The new design's inventory is the UI Atlas (UI-ATLAS.md). Kept for history.
+
 - **AuthGate** wraps every page and decides between the login screen and the full app shell.
 - **LoginScreen** replaces the whole app when signed out, with the banner, a Log in card, a Take a Tour button and a Create account link.
 - **Inline: Impersonation Banner** is a sticky blue bar across the top while an admin is viewing as another user.

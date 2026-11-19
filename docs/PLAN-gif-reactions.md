@@ -1,5 +1,7 @@
 # React with a GIF (in place of Rate it), and I watched Episode X
 
+> **Status (2026-11-19): Done.** React with a GIF live since 2026-11-01 (c5ae1c06, migration 0162). Its 'I watched Episode X' section was picked and built as PLAN-up-next.md. Left: dropping share_ratings someday.
+
 The user, 2026-11-01: "There's nothing fun about rating just by stars. Instead let's rate an episode with a gif. The Reveal
 Episode X will have a slide that follows data results and precedes game updates that show the gif reactions." Then, in the same
 conversation, each call replacing the one before: an emoji (ten picks, 🏆🔥😂🍿🫣🤯😭😤🥱🤦‍♂️) plus a GIF was proposed and

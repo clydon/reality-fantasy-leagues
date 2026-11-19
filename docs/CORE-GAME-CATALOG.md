@@ -1,5 +1,7 @@
 # Core game catalog
 
+> **Status (2026-11-19): Reference.** Generated 2026-11-14 from the retired start-wizard library: regenerate (BACKLOG 151). It still says gender spreads are 'later' (live since cast properties chunk 4) and counts 8 show bases (the gallery has 56).
+
 Generated from the current engine by `node scripts/core-game-catalog.js`. Machine-readable companion: [core-game-catalog.json](core-game-catalog.json). Regenerate after changing the schema, wizard, page grammar or sports defaults. `--check` checks both files without writing.
 
 The app has **8 engine families**, **8 show-wizard starting bases**, **15 generated-page patterns**, and **16 answer controls**. These are different classifications, not counts to add together. The five named presets do not describe the entire engine.

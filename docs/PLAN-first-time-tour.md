@@ -1,5 +1,7 @@
 # Plan: the first-time tour (the new design)
 
+> **Status (2026-11-19): Done.** Version 3 live since 2026-11-01 (268076aa), kept up through the design round's step 7 and B1. Left: BACKLOG 38 (the tour's key art).
+
 ## Version 3: down Home, then hands on (built 2026-11-01 on branch `tour3`, lane `rfl-tour3`)
 
 **Why** (the user, trying version 2 on their phone, 2026-11-01):

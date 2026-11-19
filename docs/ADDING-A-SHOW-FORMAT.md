@@ -1,5 +1,7 @@
 # Playbook: researching a new show for a format definition
 
+> **Status (2026-11-19): Superseded.** A manual playbook for hand-writing a format file from wiki pulls. Adding a show now gets its rulebook, cast and episodes by itself (PLAN-getting-it-ready.md). Kept for history.
+
 Use this when adding a show that doesn't fit an existing format (`survivor` | `traitors` | `challenge`
 | `generic`) — to decide whether it needs its own `src/lib/game/formats/<show>.js`, or fits an existing
 one, and to work out what to extract before writing the format's catalog, wiki prompt, and research

@@ -1,5 +1,7 @@
 # Late joiners ("ghosts"): joining a league that's already underway
 
+> **Status (2026-11-19): Done.** built 2026-10-11 (5104bab8). The ghost model (GhostLogic) still runs late joins in the new design (join-game.tsx: catch up from an episode). Classic fairness is still open (BACKLOG 1). Kept for history.
+
 **Status:** Built 2026-10-11, not yet committed. Resolves BACKLOG's "Members joining a started league".
 UX pattern chosen with `/impeccable shape` (the user pre-accepted its choice): **"Replay feed"**, below.
 

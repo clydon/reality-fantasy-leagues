@@ -1,5 +1,7 @@
 # Plan: League Settings and Create a league, in the order the arithmetic runs (2026-10-17)
 
+> **Status (2026-11-19): Superseded.** built 2026-10-17 (45b050d4) for classic's League Settings and create flow. The new design's Backstage, Game settings and Start a game replaced them. Kept for history.
+
 Built, uncommitted. Check: `node scripts/dev-test/results-fixture.js up` then
 `node scripts/dev-test/check-settings.js <outDir> [width] [--dark] [--type=active-roster|classic-draft|pickem]`
 (throwaway `zt-settings` leagues, deleted afterwards; `--keep` to look, `down` to clean up).

@@ -1,5 +1,7 @@
 # Plan: Classic scoring that counts as it happens
 
+> **Status (2026-11-19): Done.** built 2026-10-11. It's still how Outlast scores (EliminationOrderScoringStrategy in state-logic.js; since BACKLOG 62, a mid-season start counts from its own start). The classic screens it names were replaced. Kept for history.
+
 **Status:** Decided 2026-10-11 (with `/impeccable shape`). **Built 2026-10-11** (see "As built" below). Build this first: the Classic
 practice round (`PLAN-practice-round.md`) teaches this scoring.
 

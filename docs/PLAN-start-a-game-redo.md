@@ -1,5 +1,7 @@
 # Start a game, redone: the wizard, the engine it reaches, and short games with an archive
 
+> **Status (2026-11-19): Active.** Rounds 1-5, B1-B4, E1, E2 and E3's first slice merged and live 2026-11-19 (4ddae7a7). Next: C8, then the rest of E3 (BACKLOG 94, s45, BACKLOG 84, BACKLOG 42's two parts, cast properties chunk 7), then E5-E10. The Rounds' 'waiting on the user's review' lines are history.
+
 The user, 2026-11-17:
 - "I really want to prioritize the create a game wizard. But with that probably should be remaining engine ideas, and related
   fixes. Also update the UIUX to properly display one episode/one game games. As in have some kind of game archive on a show so we
@@ -14,7 +16,7 @@ The user, 2026-11-17:
 
 Earlier words this plan carries:
 - **2026-11-14:** "we desperately need to redo the wizard for creating a game. The user flow, intuitive-ness, everything needs a
-  lot of help." What's wrong, as seen first-hand, and the ideas since: [UX-IDEAS.md](UX-IDEAS.md), "Start a game, redone".
+  lot of help." What's wrong, as seen first-hand, and the ideas since: [UX-IDEAS.md](archive/UX-IDEAS-2026-11-19.md), "Start a game, redone".
 - **2026-11-09:** "i want to use the wizard for everything so i have the same limitless options for game types"
   ([PLAN-own-pace-games.md](PLAN-own-pace-games.md), "Every game at your own pace, through the wizard").
 - **2026-11-09:** "maybe rather than computer players we allow users to play solo. for now at least, then introduce bots (or we
@@ -834,7 +836,7 @@ The wizard's gallery already offers "a captain scores double".
     - 6, who's alone first: **drawn at random when it starts, then turning** (the user's choice over the recommended join
       order; kept in the state once drawn, so every read agrees);
     - 7, the pair's points: averaged.
-  - BACKLOG 94's two answer kinds: a pair of people, and "pick as many as you think". Then BACKLOG 92's Guess who hooks up as a
+  - BACKLOG 94's two answer kinds: a pair of people, and "pick as many as you think". Then BACKLOG 112's Guess who hooks up (formerly the second 92) as a
     made-for idea.
   - s06: a guy and a girl each (cast properties' gender now records it; re-run the tracker). **Done 2026-11-19:** no engine change
     was needed (cast properties' chunk 4 had built `get.across.of: 'gender'`). The tracker's row has its spec: two each, spread
@@ -859,7 +861,8 @@ The wizard's gallery already offers "a captain scores double".
     - **For the merge:** re-run `compare-totals.js` on a fresh production backup before the push, and expect that league's four
       totals to drop by 3.
   - BACKLOG 42's two parts:
-    - the drafter's invented moments get an ask of their own;
+    - the drafter's invented moments get an ask of their own (the creative ask exists since 1c1bb28d, for the old wizard;
+      what's left is wiring it into the new gallery's Describe, which doesn't call it);
     - a choice the engine can change locally skips the bot's wait.
   - Cast properties' chunk 7.
 - **E4. What the approved design reads** (after Round 2): whichever of `paceOf`, effort, lengths with reasons, `soloFit`, the

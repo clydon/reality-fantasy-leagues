@@ -1,5 +1,7 @@
 # A game writer on our own machines (the user, 2026-11-18)
 
+> **Status (2026-11-19): Active.** W0 is on master. W3 and W4 were measured on branch `writer`, which is unmerged and merges cleanly. A tuned 0.8B model is fast enough for a free VM's 4 cores but right only about half the time when sure. The user picks one of the three ways on (BACKLOG 156).
+
 > "I've always had this big idea to be able to ask gpt to create your game. Right now that process takes forever and costs a bunch.
 > Im thinking there must be a local solution; create a semantic llm that knows the recipes of how a game works and can take a
 > sentence(s) and create it into a game. Or take an existing game and a modifying sentence to change/add values or parts, etc. I'd

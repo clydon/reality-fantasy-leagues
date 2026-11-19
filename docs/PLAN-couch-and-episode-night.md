@@ -1,5 +1,7 @@
 # Plan (overview): the couch, the hub and episode night
 
+> **Status (2026-11-19): Superseded.** Superseded: the site mock and PLAN-new-design built every piece (couch, hub, show space, watch along, episode games) by 2026-10-26. This file is kept for the reasoning and the mock notes.
+
 Status: **overview, 2026-10-18.** Written straight after the overdrive mock sessions, to fix the
 shape of the next big piece of work. It is deliberately high level: it names the pieces, the model
 that ties them together, the data underneath, what changes in today's app, and the order to build

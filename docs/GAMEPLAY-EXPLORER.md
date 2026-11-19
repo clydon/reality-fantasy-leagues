@@ -1,5 +1,7 @@
 # Gameplay explorer: documents, analysis and execution
 
+> **Status (2026-11-19): Active.** The explorer's working guide: how to run it, each capability's record, and lessons. The status lines at its top and under 'Next implementation handoff' date from 2026-11-12; the status table at the top of PLAN-GAMEPLAY-SCENARIO-EXPLORER.md is current.
+
 Implemented: plan chunks **0–2**, plus the **headless portion of Chunk 3**. Full-spec definitions in an explicitly supported profile now share a seeded world, production projections/actions, answer stores, clock, atomic traces and replay/checkpoints through Node, CLI and HTTP. A stateless browser transport calls that same endpoint, and the visible bench now opens v2 definitions in the same runtime, with the actual application frames reading and writing through it (see [Bench bridge](#bench-bridge)). Snapshot reconciliation and caching remain before declaring Chunk 3 complete. No new visual design or UI coverage is approved.
 
 See the [implementation plan](PLAN-GAMEPLAY-SCENARIO-EXPLORER.md) for the remaining chunks and the [bench guide](GAMEPLAY-BENCH.md) for current playable fixtures.

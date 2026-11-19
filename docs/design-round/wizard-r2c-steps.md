@@ -1,5 +1,7 @@
 # Start a game, where you are: the steps and each view's job (Round 2c, on the bold pass)
 
+> **Status (2026-11-19): Done.** Built as B1 (live 2026-11-19); the lock became two plain cards after this paper (decisions.md 2026-11-18).
+
 The user, 2026-11-18, on the bold pass's game screen: "it seems a bit dated compared to the rest of the bold design choices. it is no
 apparent we are setting 'How Long' since that text is so small compared to everything else. we need to make sure each step thru the
 Create a Game process is clear to the user so they know what part of the game create they are at. ... redesign that section then go

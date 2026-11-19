@@ -1,5 +1,7 @@
 # Cast properties: what a show sorts its people by, researched for every show, usable in a game's rules
 
+> **Status (2026-11-19): Partly done.** Chunks 1-6c built and live 2026-11-16 (4ab2e026), with the catch-up done in production. Chunk 7 is half done: Start a game offers one from each by a property and picking from one kind, but not a team's needs, and the GPT's manual doesn't know get.needs. The rest of chunk 7 is the redo plan's E3; BACKLOG 132 and 138 are the other leftovers.
+
 The user, 2026-11-15 (the design round's step 5, Players / Cast): "Remember we need positions: NFL WR, QB etc. Survivor tribes.
 Below Deck: interior / chief stew, second stew etc." Then: "games around Below Deck depend on this: draft one deck team member, one
 interior", and "games could be draft two men two women, or draft one person from each tribe, draft one veteran and one newbie. So
