@@ -1351,10 +1351,10 @@ Last updated 2026-10-27.
     airs" after the airing, "All set for Ep 10" once results are in. And the user's rule from the same night: someone watching live
     must never be able to change a move by mistake. **A design round answers it** (docs/design-round/strip-night-*.md; story linked
     in HANDOFF.md): three looks, the user picked C with a Lock in button in its first row (the checks had said B); a question in Your moves ("Have
-    you started watching?"). **Built 2026-11-19 on branch strip-night (not merged)**, on the user's three calls (Claude's
+    you started watching?"). **Built and live 2026-11-19 (master 50651ca4)**, on the user's three calls (Claude's
     recommendations): C is the app, no switch; the heights stay; a full lineup carried in is set in the window (due-moves.ts,
     db/reminders.js, your-move.ts; BACKLOG 65's watch item); Lock in is a real lock (GhostLogic.lockIn, the lock-in
-    route). **Waits on the user:** the built story's review, then the push. Not on an episode night.
+    route). Next: Survivor 51's Ep 10 night (2026-11-25), the first with it.
     **Noticed in the rebase (2026-11-19), for the design pass after the review (main session):** a one-episode lineup or pick on
     the Games tab is Round 3's night row (whats-on.tsx `NightRow`), which says whether you're in, not who you started: the glance
     is `GameRow`'s, the season games'.

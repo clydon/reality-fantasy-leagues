@@ -59,7 +59,7 @@ coloured too, commit.
   seven answers are in the plan's E3), then the rest of E3. The two review findings left are in the plan's merge note: computer
   players' bingo cards and calls aren't stored; finished games leave the castaway sheet's views.
 
-## Episode night: the strip said "Locked" while moves were open (2026-11-18; built 2026-11-19 on branch strip-night, not merged: waits on the user's review and the push)
+## Episode night: the strip said "Locked" while moves were open (2026-11-18; built and live 2026-11-19, master 50651ca4)
 The user's report from Survivor 51's Ep 9 night (on air, through Ep 8, live pace): "Locked for Ep 9" over a badge of 3 due moves;
 two scenarios must both work (change it before watching; see who I started); and, mid-round, "We also don't want someone who's
 watching live to be mistaken that they can make moves because that would be cheating." **The story: https://claude.ai/artifact/1uTLFgHjay9WgxYB7Q61SC.** Papers:
@@ -88,8 +88,10 @@ docs/design-round/strip-night-{spec,first-view,shape,check}.md; decisions.md 202
   faces under the one-line strip only up to three games, never on the Games tab in C. Seven games' Games tab: today 3,257 px,
   version 4 4,263, now 3,285. Fixture: night-fixture.js `--extra=N` (up to six more games, new-fixture.js `moreGames`) and
   `--extra-moves=set|gap`; story situations `busy` and `busy-set` (full-page shots with `full`).
-- **Waits on the user:** the built story's review, then the push (no migration: the lock lives in each game's state; no push on an
-  episode night, Wednesday 8 PM ET).
+- **Live 2026-11-19** (the user: "commit and ship to prod"; rebased onto the reveal's face plates, 9b2d1e00; no migration, the lock
+  lives in each game's state). Checked before the push: the unit suite 2,448, the production build, check-lock-in.js, check-whats-on.js,
+  compare-totals.js on backups/prod-2026-11-19 (no league moves). The story's version 7 is the built app. Next: Survivor 51's Ep 10
+  night (Wed 2026-11-25) is the first with it: the plate for whoever hasn't watched, Lock in, carried lineups calm.
 - **Tools:** scripts/dev-test/night-fixture.js (zt_nd couch; `--phase=onair|aired|results|watched --moves=set|carried|kept|gap
   --pace=live|strict|mixed --owed --art`), scripts/dev-test/story-strip-night.js (frames, flows, overlaps), the story's generator
   `.ui-atlas/stories/strip-night/make-spec.py` (ignored).
@@ -98,8 +100,7 @@ docs/design-round/strip-night-{spec,first-view,shape,check}.md; decisions.md 202
   season's shape from the database, as wizard's `sideGame` did; dock.tsx keeps B2's captains, group slots and second picks
   beside the started gate. The plate's rows are `data-plate-row` now (Round 3's one-episode rows on the Games tab are
   `data-night-row`). The story's version 6 (frames9, same link): on Round 3's Games tab seven games run 3,125 px without the
-  switch and 3,136 px with the glance (all set: 3,108 and 3,136); Tonight's plate as in version 5. The pre-rebase commits are on
-  `strip-night-pre-rebase`.
+  switch and 3,136 px with the glance (all set: 3,108 and 3,136); Tonight's plate as in version 5.
 
 ## The user's calls, 2026-11-18: the bold pass and Round 2c are the direction; build next. Their answers to every open question
 - **Approved:** "i think i agree with the direct and ready to start": the bold pass (`?start=bold`, `src/new/couch/gallery-bold/`)

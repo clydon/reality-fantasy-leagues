@@ -228,7 +228,7 @@ switch, 3,136 px with the glance; all set, 3,108 and 3,136.
 - **Locking your own moves** ("Lock it in", or Watch along locking them): a new rule; the honour words carry the night without it.
 - **The push:** its words already say "before you watch it"; who gets it follows the open question below.
 
-## Built (2026-11-19, the user's three calls on Claude's recommendations)
+## Built (2026-11-19, the user's three calls on Claude's recommendations; live the same day, master 50651ca4)
 
 - **Look C is the app** (strip-night.ts, strip.tsx, dock.tsx, progress.tsx): no `?strip=` switch, no looks A or B, no `?carried=`
   simulation; the honour note gave way to the started gate. Words for a move open in the window are the night's everywhere
