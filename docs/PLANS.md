@@ -14,13 +14,15 @@ The small and medium work is in [BACKLOG.md](BACKLOG.md); what's live and in fli
    and the production check-ups. Any session can take one.
 3. **The two branches in flight:** game preview (BACKLOG 155) and the local game writer (156). Each waits on the user, then
    merges.
-4. **Start a game, E3**, in [PLAN-start-a-game-redo.md](PLAN-start-a-game-redo.md): C8 (the 2-on-1 head to head) first; then
+4. **Sports in good shape** ([PLAN-sports-ready.md](PLAN-sports-ready.md)), a lane of its own beside Start a game: first the
+   data you can trust and the rules a season game needs (its Phases 0–2), then a whole recorded NFL season replayed as the gate
+   (Phase 3), then the design round's step 10, Sports in full (Phase 4), then live points (Phase 5). Its words pass (4.0) can
+   ship any time. The user's calls are BACKLOG 212–219 and 175.
+5. **Start a game, E3**, in [PLAN-start-a-game-redo.md](PLAN-start-a-game-redo.md): C8 (the 2-on-1 head to head) first; then
    the pair and pick-many answers (BACKLOG 94), stages that take turns (160), the overall by places (84), the creative ask and
    instant answer choices in Describe, and cast properties' chunk 7. Then E5–E10.
-5. **Design rounds from the explorer's Designs needed:** answers that settle (BACKLOG 139), waivers (140), then a game in
+6. **Design rounds from the explorer's Designs needed:** answers that settle (BACKLOG 139), waivers (140), then a game in
    stages (141, after `preview` merges).
-6. **Sports in full** (the design round's step 10, BACKLOG 175): DN-34 to 39 and 42, BACKLOG 75 and 100, a live game on screen
-   from the existing poller, and L9's lineup slots for other sports.
 7. **After the finale:** remove the classic app (step C, BACKLOG 45), then S3 (177) and R3 (178).
 8. **A15, live calls on the episode's clock** (BACKLOG 179), then the watch-along round.
 9. **The design round's steps 11 and 12:** the story-show flavor (once a story show can be added and played), then the tour,
@@ -39,8 +41,9 @@ The gameplay explorer's own steps run alongside, when a step above needs them (t
 | [PLAN-start-a-game-redo.md](PLAN-start-a-game-redo.md) | Active | Rounds 1–5, B1–B4, E1, E2 and E3's first slice live 2026-11-19. Next: C8, the rest of E3, then E5–E10. |
 | [PLAN-game-preview.md](PLAN-game-preview.md) | Active, on branch `preview` | Round 5's review (BACKLOG 155), the rebase and merge, then P1 ("See it play" in Start a game), then A or B for the drill-ins. |
 | [PLAN-local-game-writer.md](PLAN-local-game-writer.md) | Active, on branch `writer` | Merge, and the user picks the way on (BACKLOG 156). |
+| [PLAN-sports-ready.md](PLAN-sports-ready.md) | Active (written 2026-11-19) | Phase 0 (confirm four inferences), then Phase 1 (data you can trust). The user's calls: BACKLOG 212–219. |
 | [PLAN-GAMEPLAY-SCENARIO-EXPLORER.md](PLAN-GAMEPLAY-SCENARIO-EXPLORER.md) | Partly done | Its status table and "Next" list at the top; Designs needed (§6A); the design sweep (§6B). The working guide is [GAMEPLAY-EXPLORER.md](GAMEPLAY-EXPLORER.md). |
-| The design round ([DESIGN-PROCESS.md](DESIGN-PROCESS.md), [DESIGN-ROUND-PACKET.md](DESIGN-ROUND-PACKET.md), [design-round/](design-round/)) | Steps 2–9 live | Steps 10 (Sports in full), 11 (story shows) and 12 (tour, couches, settings) not started. decisions.md is the record; an index of the folder is BACKLOG 153. |
+| The design round ([DESIGN-PROCESS.md](DESIGN-PROCESS.md), [DESIGN-ROUND-PACKET.md](DESIGN-ROUND-PACKET.md), [design-round/](design-round/)) | Steps 2–9 live | Steps 10 (Sports in full, now PLAN-sports-ready.md's Phase 4), 11 (story shows) and 12 (tour, couches, settings) not started. decisions.md is the record; an index of the folder is BACKLOG 153. |
 
 ## Partly done
 

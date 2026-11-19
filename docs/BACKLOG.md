@@ -6,7 +6,7 @@ and in flight is in [HANDOFF.md](HANDOFF.md).
 
 **How this file works**
 - **Numbers are permanent.** Code, tests and commits cite "BACKLOG 57", so a number never changes and is never reused. A new
-  item takes the next free number: **the next is 212.**
+  item takes the next free number: **the next is 220.**
 - **Closing an item:** delete it here and add one line under "Closed since the cleanup" at the end: the number, done or
   dropped, and the commit or the reason. Numbers closed in the cleanup itself are listed, with their full old text, in
   [archive/BACKLOG-2026-11-19.md](archive/BACKLOG-2026-11-19.md).
@@ -95,7 +95,7 @@ now opens the castaway's sheet. Point it at the turn line and pick through the s
 the blind draft included. [S · checks]
 
 **101. check-sports-links.js's mark cases are stale.** Since U1, a sport shows results straight away unless "Sports scores too"
-is on. Turn that on for the viewer in those 13 cases, and add one case for the default. [S · checks]
+is on. Turn that on for the viewer in those 13 cases, and add one case for the default. Part of [PLAN-sports-ready.md](PLAN-sports-ready.md), step 1.6. [S · checks]
 
 **91. check-new-backstage-ii.js waits a fixed 1.5 s after a feel's Undo.** Poll the league's state for
 `waiverFeel === "balanced"` for up to about 8 s instead. If it still fails, look at `backstage.undo` for a feel. Done when five
@@ -115,7 +115,7 @@ server accepts it. Load the season's sport context (as capabilities.js does) and
 **49. Hits counted once: the season grid doesn't add up to the standings.** In `ActiveRosterLogic.combines`, return true when
 `score.hits` is `'pick'` or `'objective'`, so `teamEpisodeBreakdown` takes the engine's path. Done when
 `.ui-atlas/campaigns/parlays-probe/repro-6.json` agrees, `known:hits-grid-plain` is zero, and compare-totals.js on a fresh
-backup moves no league. [S · engine]
+backup moves no league. Part of [PLAN-sports-ready.md](PLAN-sports-ready.md), step 1.6. [S · engine]
 
 **71. Waivers keep going after a game is over.** `WaiverLogic.openWindow` refuses after the season ends, but not after the
 game does (a first stage that ends at the merge, a span that has ended). `replacementsOwed` still owes replacements then, and
@@ -271,7 +271,7 @@ as DN-33's "next stage's draft". [L · engine]
 **108. A slate's Pick'em may never be graded.** On a slate (a week of several games) the server keeps no single game per week
 (`score.ts leagueGames`). So the default Pick'em, plain final or stat questions, squares and survival pools may accept any answer
 and grade none. Reproduce it with check-slate.js, then either ask each game (`each: 'game'`) or refuse single-game questions on a
-slate. This goes before the redo plan's E9. [M · sports]
+slate. This goes before the redo plan's E9. Part of [PLAN-sports-ready.md](PLAN-sports-ready.md), steps 0 and 1.6. [M · sports]
 
 **125. An open episode's call can change after a rulebook edit.** Once an episode's first call is made, store its two moments
 with it (or on the episode), and have calls.ts read them back before working them out from the rulebook. Done when a
@@ -400,19 +400,19 @@ desk's button. Then a sport's season. Done when a newly set-up season has a libr
 lineup sheet ("Airtime does", "Airs Sun"), the server's refusals ("active castaways") and stats shown as keys ("2 a 2PT"). Across
 src/new and the push copy (db/push-core.js, db/reminders.js), any literal "Episode" should read `show.words`. The show bar says
 "2026", not "S2026", for a season numbered by year. Done when generated NFL, golf and tennis games read with no show words. Most
-of this needs no design, so it can go before Sports in full. [M · sports]
+of this needs no design, so it can go before Sports in full. Part of [PLAN-sports-ready.md](PLAN-sports-ready.md), step 4.0. [M · sports]
 
 **100. A sport's episode page reads as a show's.** EpisodeBody shows an empty Out and "Nobody went home". For a sport, it should
 lead with the game: the score (behind Hide scores), the box score's best, and "game" rather than "episode". Designed in Sports in
-full (PLANS.md). [M · sports]
+full (PLANS.md). Part of [PLAN-sports-ready.md](PLAN-sports-ready.md), step 4.2, page 3. [M · sports]
 
 **43. First run finds teams and leagues, not only shows.** first-run.tsx searches shows only, while Add a show already offers
-teams and leagues (`useTeamSearch`, `SportsResults`). Give first run the same, so "Giants" offers the team. [S · sports]
+teams and leagues (`useTeamSearch`, `SportsResults`). Give first run the same, so "Giants" offers the team. Part of [PLAN-sports-ready.md](PLAN-sports-ready.md), step 4.1. [S · sports]
 
 **145. Two players with the same name: the second is left out.** A season's cast is unique by lower(name) (migration 0011), so a
 league-wide sports season drops the second player who shares a name (the NFL has two Josh Allens), and stats and picks match by
 name. Key a sport's cast by the provider's athlete id (ESPN's, already read), let names repeat when the ids differ, and show the
-team beside a repeated name. Done when an NFL slate fixture keeps both. [M · sports]
+team beside a repeated name. Done when an NFL slate fixture keeps both. Part of [PLAN-sports-ready.md](PLAN-sports-ready.md), step 1.3. [M · sports]
 
 ### Research and the desk
 
@@ -550,10 +550,30 @@ and builds.
 - **174. The explorer's coverage ledger.** It has never held a record. *Recommended: retire the ledger workflow (the design
   rounds' stories and decisions.md are the review record), keep the matrix for finding specimens, and rebuild its specimens from
   the Start a game gallery.*
-- **175. Sports in full: its own round, or inside the design sweep?** *Recommended: its own short round, after E3 and the
-  stages round (141).*
+- **175. Sports in full: its own round, or inside the design sweep?** *Recommended: its own round, as
+  [PLAN-sports-ready.md](PLAN-sports-ready.md)'s Phase 4, ahead of the stages round (141), once that plan's Phase 1 is in.*
 - **176. Try Start a game on three people who've never seen it.** Two tasks each (a named game and a vague one), on a phone,
   before the next wizard change. *The user picks the people.*
+
+### Sports: the calls [PLAN-sports-ready.md](PLAN-sports-ready.md) needs
+
+- **212. The target, and the couch's first real sports game.** *Recommended: the NFL first, the NBA and NHL next, MLB by its
+  Opening Day (late March 2027). The pilot is one of January's NFL playoffs, played by the couch once the plan's Phase 3 (a whole
+  recorded season replayed with zero disagreements) passes. A season-long NFL league waits for next September.*
+- **213. The NFL's default lock.** Today every lineup locks at Thursday's kickoff. *Recommended: lock each player at his own
+  game's start, as every fantasy app does (built, `closes: 'game'`); a lock by the week stays an option.*
+- **214. Fantasy playoffs end by Week 17.** *Recommended: yes, so nobody's title rides on Week 18's rested starters.*
+- **215. Sports results every hour.** Sports scores reach the standings once a day, when the bot VM calls. *Recommended: a sports
+  refresh in the existing hourly GitHub job (free on the public repo; no new Neon wake-up), more often only right after a game
+  ends, with BACKLOG 184's Vercel cron as the backstop.*
+- **216. Does a sport get a reveal by default?** Today a sport shows results straight away and has no reveal. *Recommended: keep
+  that, and give anyone who turns on "Sports scores too" the reveal; the design round's page 3 designs it.*
+- **217. What's pushed when a sports game or matchup ends?** Nothing is today. *Recommended: one push when your matchup is
+  decided ("You beat Andrew 112–98"), worded without the score for anyone hiding sports scores, and nothing for each game.*
+- **218. Can a sports season game run at your own pace?** *Recommended: not now. Sports season games are live; a past game is
+  watched with "Watch it as if live", and own pace for sports waits until someone asks.*
+- **219. A daily sport's waivers: daily or weekly?** *Recommended: daily for the NBA, NHL and MLB (claims clear each morning, as
+  Yahoo's do), weekly for the NFL.*
 
 ### When we get there: plan-level calls
 
@@ -662,9 +682,9 @@ Kept so they aren't lost. Each waits for a reason to pick it up.
 - **208.** Own-pace edges: head to head's order counts a waiting matchup its W–L leaves out; a pool with lives closes joining at
   the first person out; the finish plate's "Start another".
 - **209.** Sports edges: a lineup that locks game by game reads its own timed log (`lineupAt`, state-logic.js:4498) and
-  still counts someone let go mid-week (69's residual); a traded player stays on his old team; "coming in" is one ESPN call a player; two-way players'
+  still counts someone let go mid-week (69's residual; PLAN-sports-ready.md step 1.6); a traded player stays on his old team (step 1.4); "coming in" is one ESPN call a player; two-way players'
   other lines; AFL's hold-back; college scoreboards; bot-filled people never merged with ESPN's; a daily sport's waivers daily
-  or weekly (a step 10 question); golf, races and fight cards found from Add a show.
+  or weekly (now BACKLOG 219); golf, races and fight cards found from Add a show.
 - **210.** Research edges: results for a show nobody plays are bot-only; a repeatable What scores check against the real bot; a
   commissioner's What scores saving a later moment into the copy's base; another couch's "Looks right to us" after a maker's
   edit; the quick check using the rulebook's research checks.

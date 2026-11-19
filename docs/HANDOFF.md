@@ -64,7 +64,9 @@ Newest first. The plan or archive section named holds the detail.
    Designs-needed words batch, and the production check-ups.
 4. **C8, the 2-on-1 head to head**, on a fresh branch from master (its seven answers are in decisions.md, 2026-11-19; who plays
    alone first is drawn at random), then the rest of the redo plan's E3.
-5. The order after that is in [PLANS.md](PLANS.md).
+5. **Sports, a lane of its own:** [PLAN-sports-ready.md](PLAN-sports-ready.md)'s Phase 0 (confirm four inferences), then Phase 1
+   (data you can trust). Its words pass (4.0) can go in any free session.
+6. The order after that is in [PLANS.md](PLANS.md).
 
 **Waiting on the user:** BACKLOG's "Waiting on you" section, with a recommendation on each. The ones that unblock ready work
 are 155 (preview), 156 (writer), 52, 157–159 and 94.
