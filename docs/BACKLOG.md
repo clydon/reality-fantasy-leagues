@@ -6,7 +6,7 @@ and in flight is in [HANDOFF.md](HANDOFF.md).
 
 **How this file works**
 - **Numbers are permanent.** Code, tests and commits cite "BACKLOG 57", so a number never changes and is never reused. A new
-  item takes the next free number: **the next is 223.**
+  item takes the next free number: **the next is 224.**
 - **Closing an item:** delete it here and add one line under "Closed since the cleanup" at the end: the number, done or
   dropped, and the commit or the reason. Numbers closed in the cleanup itself are listed, with their full old text, in
   [archive/BACKLOG-2026-11-19.md](archive/BACKLOG-2026-11-19.md).
@@ -60,6 +60,11 @@ Survivor 51's finale path once on the desk. (PLAYTEST-REPORT findings 1, 8, 17, 
 Grouped so each group is about one session. Take them in any order.
 
 ### Fix the stale and flaky checks
+
+**223. check-new-make-it.js --api fails at its first ask.** On the sports-phase0 branch (2026-11-19) its stand-in bot gives no
+cast answer for ZT Yacht Life ("ChatGPT didn't answer ... no answer for cast"), so Make it a game stops at "needs cast" and every
+line after it fails. Not from step 1.3 (it fails before the cast insert that step changed). Find whether fake-bot.js's cast kind or
+the listing's crew path moved, and bring the check up to date. [S · checks]
 
 **70. Bring the stale checks up to date.** These checks fail on the live code, so they've stopped protecting anything. One
 commit each:
@@ -418,12 +423,6 @@ full (PLANS.md). Part of [PLAN-sports-ready.md](PLAN-sports-ready.md), step 4.2,
 **43. First run finds teams and leagues, not only shows.** first-run.tsx searches shows only, while Add a show already offers
 teams and leagues (`useTeamSearch`, `SportsResults`). Give first run the same, so "Giants" offers the team. Part of [PLAN-sports-ready.md](PLAN-sports-ready.md), step 4.1. [S · sports]
 
-**145. Two players with the same name: the second is left out.** A season's cast is unique by lower(name) (migration 0011), so a
-league-wide sports season drops the second player who shares a name (the NFL has two Josh Allens), and stats and picks match by
-name. Key a sport's cast by the provider's athlete id (ESPN's, already read), let names repeat when the ids differ, and show the
-team beside a repeated name. Done when an NFL slate fixture keeps both (scripts/dev-test/nfl-slate-fixture.js: the 2026 recording
-has six repeated names). Part of [PLAN-sports-ready.md](PLAN-sports-ready.md), step 1.3. [M · sports]
-
 ### Research and the desk
 
 **92. Backstage says "All clear" above "Results · Episode 8 · 5 waiting".** Needs you lists waiting results only for episodes
@@ -728,6 +727,8 @@ longer depends on the wiki.)
 ## Closed since the cleanup
 
 One line each: the number, done or dropped, and the commit or the reason.
+- **145** done (bc1bf8a3, branch sports-phase0, migration 0308): two players who share a name are two people, kept, drafted,
+  scored and locked apart; check-sports-same-names.js. Showing the team beside a repeated name moved to the plan's Phase 4.0.
 - **220** done (bb35bea6, branch sports-phase0): a sport's people are approved as they're filled and go into every game on the
   season; check-sports-new-players.js.
 - **221** done (bb35bea6): a roster's position is ESPN's abbreviation, so football's slots take real players;

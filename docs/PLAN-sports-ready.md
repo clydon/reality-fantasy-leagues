@@ -1,8 +1,9 @@
 # Plan: sports in good shape, technically and in design
 
-> **Status (2026-11-19): Active, Phase 0 and step 1.0 done** (branch sports-phase0, not merged). Written from two audits that day:
-> the engine, data and operations, and every screen a sports fan touches. Phase 0 confirmed all four inferences, each with a check,
-> and found two bigger gaps; step 1.0 closed both the same day (BACKLOG 220 and 221). Next: 1.3 and 1.2; 1.1 waits on BACKLOG 215.
+> **Status (2026-11-19): Active, Phase 0 and steps 1.0 and 1.3 done** (branch sports-phase0, not merged; migration 0308 to
+> rehearse). Written from two audits that day: the engine, data and operations, and every screen a sports fan touches. Phase 0
+> confirmed all four inferences, each with a check, and found two bigger gaps; step 1.0 closed both (BACKLOG 220 and 221), and
+> 1.3 made team defenses people and kept same-named players apart (BACKLOG 145). Next: 1.2, 1.4, 1.5, 1.6; 1.1 waits on BACKLOG 215.
 > The decisions it needs are BACKLOG 175 and 212–219 ("Waiting on you").
 
 The user, 2026-11-19: "I want to make sure sports is in a good spot both technically and redesign needs. Make a plan for that."
@@ -161,11 +162,21 @@ server.
    lock (NFL corrections land midweek), and rewritten with a new `lines_at` when it differs. The stamp fingerprint includes
    `lines_at`, so the tables follow. Done when a recorded final plus an edited copy of it updates the table. Verify with
    sports-final.test.js extended.
-3. **People by ESPN id, not name (M; BACKLOG 145).** A sport's cast is unique by (season, provider id). League castaways link by id
-   in score.ts `peopleOf`, air-times.ts `stampGameLocks`, the player log and cast.ts `saveCast`. The UI's name-keyed reads go too
-   (faces.ts, `usePlayerLog`, AthleteSheet, the rows), and a repeated name shows its team. Add team defenses as people
-   (`def:<team>`, position DEF): Phase 0 confirmed they're missing. Done when an NFL slate fixture keeps both Josh Allens and all
-   32 defenses, each drafted and scored, and check-nfl-defenses.js passes.
+3. **People by ESPN id, not name; team defenses (BACKLOG 145). Done 2026-11-19 (7676a520, bc1bf8a3).**
+   - *Built:* a team sport names its teams' own people (TeamSport `teamPeople`: football's "<Team> D/ST", `def:<team>`, position
+     DEF), and a fill adds them beside each roster with the team's logo. Migration 0308: season_cast unique by name only for
+     people with no provider ids, by provider ids for a sport's; every insert names the new target. The engine's import adds a
+     row whose namesake is linked to another row; scoring (`peopleOf`) and per-game locks (`stampGameLocks`) find a person by their
+     own row; the player log and athlete history take the team, the athlete sheet sends it and finds its person by team, and a
+     face's position is the game's own for that person.
+   - *Verified:* check-nfl-defenses.js whole (32 defenses, every D/ST line theirs and read as theirs, a full lineup of nine);
+     check-sports-same-names.js (the recording's six repeated names, Justin Jefferson's among them: kept, drafted, scored and
+     locked apart, a game log by team); every insert form against the new indexes; check-sports-couch.js --api; unit tests (two
+     new engine ones). Golden replays not run: the import's new case can't arise for a show's cast.
+   - *Left for the design round:* "a repeated name shows its team" on the faces (castName still reads "J. Jefferson" for both;
+     the rows already say each one's team): Phase 4.0.
+   - *Noticed:* check-new-make-it.js --api fails at its first ask (the stand-in bot gets no cast answer), before the insert this
+     step changed (BACKLOG 223).
 4. **Rosters stay current (S–M).** A daily roster refresh for slate seasons: a trade updates the player's team (and his lock
    follows the new team's game), a signing is added, and new people reach running leagues' pools. Done with a fixture trade and a
    fixture signing (nfl-slate-fixture.js's `edit`), and check-sports-new-players.js passing.
@@ -220,6 +231,7 @@ Each reads `show.words`, the sport's own label, or a neutral phrase:
 - The server's refusals ("This episode has started", "active castaways"; state-logic.js:4526, 4892).
 - The show bar's "S2026" and "Season 2026" for a season numbered by year.
 - The lineup editor's names by `castName`, not `first()` (BACKLOG 88's rule never reached it).
+- A name two players share shows its team on a face (step 1.3 kept them apart; castName reads "J. Jefferson" for both).
 - GuardChip's "Spoiler protection is off" on a sport's pages: say how sports scores really work and where to change it.
 - The late-window words ("Before you start watching") guarded off for a live-only sports game.
 
@@ -281,8 +293,8 @@ default selection.
 
 ## The order, and how it fits the rest
 
-1. **Now, beside the Survivor 51 work:** the rest of Phase 1 as a sports lane (Phase 0 and 1.0 are done): 1.3 and 1.2 first,
-   1.1 once BACKLOG 215 is answered. Phase 4.0 (the words) in any free session.
+1. **Now, beside the Survivor 51 work:** the rest of Phase 1 as a sports lane (Phase 0, 1.0 and 1.3 are done): 1.2, 1.4, 1.5 and
+   1.6, then 1.1 once BACKLOG 215 is answered. Phase 4.0 (the words) in any free session.
 2. **Then:** Phase 2 (once the user has made the calls), and Phase 4.1.
 3. **Then:** Phase 3, the gate, and the design round's pages 1 and 3 (they need correct data, not live data).
 4. **Then:** 4.1's live path, page 2, Phase 5, and pages 4 to 6.

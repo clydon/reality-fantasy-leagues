@@ -64,10 +64,14 @@ Newest first. The plan or archive section named holds the detail.
    Designs-needed words batch, and the production check-ups.
 4. **C8, the 2-on-1 head to head**, on a fresh branch from master (its seven answers are in decisions.md, 2026-11-19; who plays
    alone first is drawn at random), then the rest of the redo plan's E3.
-5. **Sports, a lane of its own:** [PLAN-sports-ready.md](PLAN-sports-ready.md)'s Phase 1: 1.3 (people by ESPN id, team
-   defenses: check-nfl-defenses.js's last three lines) and 1.2 next, 1.1 once BACKLOG 215 is answered. Phase 0 and step 1.0
-   (sports games get their people; positions fit football's slots) are done on branch sports-phase0, not merged yet. Its words
-   pass (4.0) can go in any free session.
+5. **Sports, a lane of its own:** [PLAN-sports-ready.md](PLAN-sports-ready.md)'s Phase 1: 1.2 (never zero a game silently;
+   corrections), 1.4, 1.5 and 1.6, then 1.1 once BACKLOG 215 is answered. Phase 0 and steps 1.0 and 1.3 are done on branch
+   sports-phase0, not merged yet. **Its migration 0308 is applied to the main folder's local database**: master's code names
+   the old season_cast conflict target, so on master locally a cast insert (Make it a game, the desk's cast edits) fails until
+   the branch merges. To undo it locally: `DROP INDEX season_cast_provider_idx; DROP INDEX season_cast_name_idx; CREATE UNIQUE
+   INDEX season_cast_name_idx ON season_cast (season_id, lower(name)); DELETE FROM schema_migrations WHERE version =
+   '0308_season_cast_provider_ids.sql';`. At the merge, rehearse 0308 on a Neon branch; while a deploy builds, the old
+   deployment's cast inserts fail for those minutes. Its words pass (4.0) can go in any free session.
 6. The order after that is in [PLANS.md](PLANS.md).
 
 **Waiting on the user:** BACKLOG's "Waiting on you" section, with a recommendation on each. The ones that unblock ready work
