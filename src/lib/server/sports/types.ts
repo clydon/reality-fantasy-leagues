@@ -137,6 +137,7 @@ export interface SportsEvent {
 }
 
 /** A player on a team's roster (players only: a provider's coaches and staff are left out). */
+/** One of a team's roster: its `position` the sport's key, ESPN's abbreviation ("QB"), where the roster gives one (espn.ts readRoster). */
 export interface RosterPlayer extends Person {
   /** The roster's own grouping, when it has one ("Pitchers", "Infielders"). */
   group: string | null;

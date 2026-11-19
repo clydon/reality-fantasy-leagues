@@ -145,6 +145,25 @@ export function removeUnlinkedRows(state: LeagueState, removedSeasonCastIds: str
 }
 
 /**
+ * A sport's people are its teams' (the provider's rosters: sports/cast.ts), not a call the desk makes, so they're in use as soon
+ * as they're in: a sport's season whose every person came from the provider has its cast approved, and every game started on it
+ * takes them (approvedCastFor). BACKLOG 220: until 2026-11-19 nothing approved them, so a draft on a sports season had nobody to
+ * pick. A season whose people came another way (our bot, a paste, the desk) is left to the desk, as a show's is. True when it
+ * approved them just now.
+ */
+export async function approveSportCast(db: Pool | PoolClient, seasonId: string): Promise<boolean> {
+  const { rowCount } = await db.query(
+    `UPDATE show_seasons ss SET cast_approved_at = now(), updated_at = now()
+       FROM shows s
+      WHERE ss.id = $1 AND s.id = ss.show_id AND s.kind = 'sport' AND ss.cast_approved_at IS NULL
+        AND EXISTS (SELECT 1 FROM season_cast c WHERE c.season_id = ss.id)
+        AND NOT EXISTS (SELECT 1 FROM season_cast c WHERE c.season_id = ss.id AND c.provider_ids IS NULL)`,
+    [seasonId]
+  );
+  return (rowCount ?? 0) > 0;
+}
+
+/**
  * The approved cast for (show slug, season number), or null when that season has none yet. Used by
  * the league settings route: picking a season is the other moment a league should receive it.
  */

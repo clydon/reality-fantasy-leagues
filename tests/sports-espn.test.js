@@ -130,6 +130,14 @@ test("a roster: grouped by position or one list, each player once, with headshot
   assert.deepEqual(readRoster({ athletes: [] }), []);
 });
 
+test("a roster's position is ESPN's abbreviation where it gives one, the sport's key a slot takes (BACKLOG 221); its name where not", () => {
+  const p = (id, name, position) => ({ id, displayName: name, position });
+  const nfl = readRoster({ athletes: [{ position: "offense", items: [p("3139477", "Patrick Mahomes", { name: "Quarterback", displayName: "Quarterback", abbreviation: "QB" }), p("4", "A Kicker", { displayName: "Place Kicker", abbreviation: "pk" })] }] });
+  assert.deepEqual(nfl.map((x) => [x.name, x.position, x.group]), [["Patrick Mahomes", "QB", "offense"], ["A Kicker", "PK", "offense"]]);
+  assert.equal(readRoster({ athletes: [p("5", "No Abbreviation", { displayName: "Guard" })] })[0].position, "Guard");
+  assert.equal(readRoster({ athletes: [p("6", "No Position", undefined)] })[0].position, null);
+});
+
 test("a headshot at a face's size, through ESPN's own resizer (its full ones are ~210 KB); any other address as it is", () => {
   assert.equal(sizedHeadshot("https://a.espncdn.com/i/headshots/mlb/players/full/33481.png"), "https://a.espncdn.com/combiner/i?img=/i/headshots/mlb/players/full/33481.png&w=160&h=160&scale=crop");
   const [p] = readRoster({ athletes: [{ id: "33481", displayName: "Yandy Diaz", headshot: { href: "https://a.espncdn.com/i/headshots/mlb/players/full/33481.png" } }] });

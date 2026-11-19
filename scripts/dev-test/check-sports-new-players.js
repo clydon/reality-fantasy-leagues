@@ -5,20 +5,23 @@
 // running, so someone can claim him?
 //
 // On nfl-slate-fixture.js (the recorded NFL season through the stand-in ESPN, the clock an hour before the week's first game):
+//   a season filled before 220     the season's approval taken away, as every sports season filled before 2026-11-19 is: a game
+//                                  started on it takes its people all the same (new-game.ts approves a sport's at the start)
 //   as the sports route starts it  the default season game and Best Ball started through start.ts startSport (POST
 //                                  /api/sports/start's own function) on the slate as it's made: how many people each has, and
 //                                  whether the Commissioner's Start opens the draft (draft.ts startDraft); and the same season
 //                                  game as the wizard starts it (start-spec.ts startFromSpec, POST /api/seasons/[id]/start's)
-//   the cast approved first        the same season game with the season's people approved (what the desk's Approve writes): then the
+//   a game running                 the same season game (its people approved as they were filled: BACKLOG 220): then the
 //                                  week starts, a team signs "ZT Signing" (the stand-in's roster), and production's paths run over
 //                                  the rest of the week: the daily job each morning (its slate sync), then the Players tab's read
 //                                  (rosters.ts rosterOf: it fills the season's people again once a game has ended since the last fill)
 //   where he lands                 the season's people, and the running game's people (who a waiver claim or a draft can name)
-// What's asserted is where Phase 1.4 leaves it: a game started on a slate has the slate's people to draft, and a signing reaches the
-// running game. On 2026-11-19 it fails both (Phase 0 confirmed the inference, and found it wider: BACKLOG 220): a game started
-// through the sports route or the wizard gets nobody at all (its draft says "Add the cast first"), since nothing approves a slate's
-// people; with them approved by hand, the game gets them at its start, and a later signing (or a team on a bye that week) reaches
-// the season's people but never the game. Its last line says which.
+// What's asserted: a game started on a slate has the slate's people to draft, and a signing reaches the running game. Phase 0
+// (2026-11-19) found both failing (BACKLOG 220): a game started through the sports route or the wizard got nobody at all (its draft
+// said "Add the cast first"), since nothing approved a slate's people, and with them approved by hand a later signing (or a team on
+// a bye that week) reached the season's people but never the game. Phase 1's step 1.0 made it pass the same day: a sport's people
+// are approved as they're filled (and at a game's start, for a season filled before), and each fill's new people go into every game
+// on the season. Its last line says which.
 //
 //   node scripts/dev-test/check-sports-new-players.js [--week=9] [--keep]
 //
@@ -59,7 +62,13 @@ const fact = (s) => console.log(`      ${s}`);
     const people = await seasonPeople();
     fact(`the slate: ${w.slate.name}, ${w.slate.episodes} weeks; ${people} people from the teams' rosters; the clock an hour before ${week.label}`);
 
-    // As the sports route starts it: the slate as made, nobody's approved its people.
+    // A season filled before BACKLOG 220 (never approved), as every sports season in production was: a game started on it.
+    await w.unapprove();
+    const before = await w.start("ann", { seasonId: w.seasonId, game: "short", tell: false });
+    const beforePeople = (await w.league(before.leagueId)).castaways.length;
+    check(beforePeople === people, `a season filled before BACKLOG 220 (never approved): a game started on it takes its people (${beforePeople} of ${people})`);
+
+    // As the sports route starts it.
     let seasonSpec = null;
     for (const game of ["season", "bestBall"]) {
       const s = await w.start("ann", { seasonId: w.seasonId, game, tell: false });
@@ -75,11 +84,10 @@ const fact = (s) => console.log(`      ${s}`);
     const wzPeople = (await w.league(wz.leagueId)).castaways.length;
     check(wzPeople > 0, `the wizard's season game has the slate's people to draft (${wzPeople} of ${people})`);
 
-    // The season's people approved first, as the desk's Approve leaves them; the game started; the week under way.
-    await w.approveCast();
+    // The season game started; the week under way.
     const s = await w.start("ann", { seasonId: w.seasonId, game: "season", tell: false });
     const atStart = (await w.league(s.leagueId)).castaways.length;
-    check(atStart === (await seasonPeople()), `with the people approved, the season game starts with all of them (${atStart})`);
+    check(atStart === (await seasonPeople()), `the season game starts with all the season's people (${atStart})`);
     w.advance(new Date(Date.parse(week.first) + HOUR).toISOString());
     const later = week.games[week.games.length - 1];
     const team = w.input.teams.find((t) => t.id === later.home);

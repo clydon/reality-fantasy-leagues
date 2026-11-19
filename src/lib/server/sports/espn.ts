@@ -40,7 +40,7 @@ interface RawAthlete {
   id?: string | number;
   displayName?: string;
   fullName?: string;
-  position?: { displayName?: string; name?: string };
+  position?: { displayName?: string; name?: string; abbreviation?: string };
   headshot?: { href?: string } | string;
   jersey?: string;
 }
@@ -309,7 +309,12 @@ export function readTeams(league: string, raw: { sports?: { leagues?: (RawLeague
   return { league, name: name ? { name, short: str(l.abbreviation) ?? str(l.shortName) } : null, teams };
 }
 
-/** A team's roster (site.api …/teams/{id}/roster): grouped by position (baseball) or one list; players only (its coaches are separate). */
+/**
+ * A team's roster (site.api …/teams/{id}/roster): grouped by position (baseball) or one list; players only (its coaches are separate).
+ * Each one's position is ESPN's abbreviation for it ("QB", "RP", "G"), the sports' own key (sport.ts positionKey): what a lineup's
+ * slots, a face's qualifier and a table's position groups read (BACKLOG 221: the name, "Quarterback", fit no slot). Its name only
+ * where it gives no abbreviation.
+ */
 export function readRoster(raw: { athletes?: (RawAthlete & { position?: unknown; items?: RawAthlete[] })[] } | null): RosterPlayer[] {
   const out: RosterPlayer[] = [];
   const seen = new Set<string>();
@@ -317,7 +322,7 @@ export function readRoster(raw: { athletes?: (RawAthlete & { position?: unknown;
     const p = readPerson(a);
     if (!p.id || !p.name || seen.has(p.id)) return;
     seen.add(p.id);
-    out.push({ ...p, group, jersey: str(a.jersey) });
+    out.push({ ...p, position: str(a.position?.abbreviation)?.toUpperCase() ?? p.position, group, jersey: str(a.jersey) });
   };
   for (const g of raw?.athletes ?? []) {
     if (Array.isArray(g.items)) for (const a of g.items) add(a, str(g.position));

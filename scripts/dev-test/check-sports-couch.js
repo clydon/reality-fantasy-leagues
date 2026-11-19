@@ -8,7 +8,8 @@
 //   basketball/zt-scb ZT Sixers (9401) host the ZT Knicks (9402) three days running from tomorrow (a series), then play them away
 //   API (as alex): the search (a team, two teams as a matchup), a team's schedule (opponents' colours), Follow and the couch's
 //   teams, the guide's week, the rail (Pick'em first, every game fitting), Play the next game (Pick'em on one game, its spec, its
-//   span) and its Undo, Squares on the same game, a draft on the series, Pick'em on the rest of the season (and again from the
+//   span) and its Undo, Squares on the same game, a draft on the series (both rosters reach it: BACKLOG 220), Pick'em on the rest
+//   of the season (and again from the
 //   gallery's route with a computer player, its pick of a side in at once: E1b), a sport's season on the
 //   couch started by its id, refusals (a game the sport doesn't play, a start with no games left); Sports scores too (the guard:
 //   everything while it's off, the mark while it's on) and Show the score moving the mark; each started game's page answering.
@@ -185,6 +186,15 @@ async function apiChecks(pool, me, couch, started) {
   const dr = series ? await me.call("POST", `/api/sports/start?couch=${couch}`, { league: BB, team: "9401", games: series.games, game: "short", tell: false }) : { status: 0 };
   check(dr.status === 200 && dr.body.to - dr.body.from === 2, "a draft on the series runs its three games", dr.body);
   started.draft = dr.body;
+  // BACKLOG 220: the series' people (both rosters, filled after the answer) reach the draft, however soon after its start they come.
+  if (dr.body?.leagueId) {
+    let people = 0;
+    for (let i = 0; i < 40 && people < 16; i++) {
+      people = ((await pool.query("SELECT state FROM leagues WHERE id = $1", [dr.body.leagueId])).rows[0]?.state?.castaways ?? []).length;
+      if (people < 16) await new Promise((r) => setTimeout(r, 500));
+    }
+    check(people === 16, `the draft on the series has both rosters to pick from (${people} of 16)`);
+  }
 
   const ss = await me.call("POST", `/api/sports/start?couch=${couch}`, { league: FB, team: "9301", whole: "season", game: "pickem", tell: false });
   check(ss.status === 200 && ss.body.to > ss.body.from, "Pick'em on the rest of the Eagles' season", ss.body);

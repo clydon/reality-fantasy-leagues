@@ -9,7 +9,8 @@
 // now() stays real.
 //
 // What `up` makes (every row keyed so `down` finds it again):
-//   people   zt-nfl-ann, -bo, -cy, -di (usernames zt_nfl_*; up to 8 with `people`), on a couch "ZT NFL couch" that ann owns
+//   people   zt-nfl-ann, -bo, -cy, -di (usernames zt_nfl_*, password zt-pass-12345; up to 8 with `people`), on a couch "ZT NFL
+//            couch" that ann owns
 //   a slate  the league's regular season by week (find.ts addSlate, as POST /api/sports/start's { league, slate } adds it), followed
 //            by ann; its show is the league's (sports_league "espn:football/zt-nfl-slate"), its people filled from the teams'
 //            rosters (cast.ts castFromEvents, the function the slate's own fill runs) unless `cast: false`
@@ -52,6 +53,8 @@ const LEAGUE = "football/zt-nfl-slate";
 const CACHE = "zt-nfl-slate-standin:";
 /** Everyone the fixture can make; `up({ people })` makes the first so many (4 unless said). */
 const PEOPLE = ["ann", "bo", "cy", "di", "ed", "flo", "gus", "hal"];
+/** Their password (the fixtures' own), so a browser can sign in as one (browser.js open({ user: "zt_nfl_ann", pass })). */
+const PASSWORD = "zt-pass-12345";
 const idOf = (who) => `zt-nfl-${who}`;
 const DB = process.env.AUTH_DATABASE_URL || "";
 
@@ -169,6 +172,8 @@ async function up(opts = {}) {
   serveAsOf(espn, rec.input, at);
   const providers = sportsProviders({ base: espn.url, prefix: CACHE });
 
+  const { hashPassword } = await import("better-auth/crypto");
+  const hash = await hashPassword(PASSWORD);
   const users = {};
   const people = PEOPLE.slice(0, Math.min(PEOPLE.length, Math.max(1, opts.people ?? 4)));
   for (const who of people) {
@@ -177,6 +182,7 @@ async function up(opts = {}) {
       `INSERT INTO "user" (id, name, email, "emailVerified", username, "displayUsername", role, "createdAt", "updatedAt") VALUES ($1, $2, $3, true, $2, $2, 'user', now(), now())`,
       [id, `zt_nfl_${who}`, `${id}@example.invalid`]
     );
+    await pool.query(`INSERT INTO account (id, "accountId", "providerId", "userId", password, "createdAt", "updatedAt") VALUES ($1, $2, 'credential', $2, $3, now(), now())`, [`${id}-cred`, id, hash]);
     users[who] = { id, name: `zt_nfl_${who}`, username: `zt_nfl_${who}`, email: `${id}@example.invalid`, emailVerified: true, role: "user", image: null, createdAt: new Date(), updatedAt: new Date() };
   }
   const { rows: couch } = await pool.query("INSERT INTO couches (name, created_by) VALUES ('ZT NFL couch', $1) RETURNING id", [users.ann.id]);
@@ -234,8 +240,10 @@ async function up(opts = {}) {
       throw new Error("a fill of the slate's people is still going after two minutes");
     },
     /** What the desk's Approve writes for the season's people (desk-cast-page.ts): the cast approved, so a game started on the season
-     *  from then on gets them (new-game.ts makeLeague: approvedCastFor). Nothing approves a slate's people by itself. */
+     *  from then on gets them (new-game.ts makeLeague: approvedCastFor). Since BACKLOG 220 a sport's fill approves its people itself;
+     *  `unapprove()` puts a season back as one filled before that was. */
     approveCast: () => pool.query("UPDATE show_seasons SET cast_approved_at = now(), updated_at = now() WHERE id = $1", [added.seasonId]),
+    unapprove: () => pool.query("UPDATE show_seasons SET cast_approved_at = NULL, updated_at = now() WHERE id = $1", [added.seasonId]),
     /** What Make it a game writes on the season's show (make-game.ts: shows.set_up_at), the part a sport's reads look at. */
     makeGame: () => pool.query("UPDATE shows SET set_up_at = now() WHERE id = (SELECT show_id FROM show_seasons WHERE id = $1)", [added.seasonId]),
     seasonId: added.seasonId,
@@ -268,7 +276,7 @@ async function finish(world, { keep = false } = {}) {
   await close(world);
 }
 
-module.exports = { up, down, close, finish, app, clock, recording, weeksOf, gamesAsOf, LEAGUE, CACHE, PEOPLE, idOf };
+module.exports = { up, down, close, finish, app, clock, recording, weeksOf, gamesAsOf, LEAGUE, CACHE, PEOPLE, PASSWORD, idOf };
 
 if (require.main === module) {
   const cmd = process.argv[2];
