@@ -317,7 +317,7 @@ function NightRow({ g, plate, onGo }: { g: NightGroup; plate: boolean; onGo: (g:
         ? [`${g.faces.length} starting`, g.open ? `${g.open} open` : null].filter(Boolean).join(" · ")
         : [who.length ? names(who) : g.kind === "pick" ? "No pick yet" : "Nobody yet", g.kind === "lineup" && g.open ? `${g.open} open` : null].filter(Boolean).join(" · ");
   return (
-    <button type="button" data-night-row={g.kind} onClick={() => onGo(g)} className={`nd-press block min-h-[60px] w-full border-t px-3 py-2 text-left ${plate ? "border-plate-foreground/10" : "border-border"}`}>
+    <button type="button" data-plate-row={g.kind} onClick={() => onGo(g)} className={`nd-press block min-h-[60px] w-full border-t px-3 py-2 text-left ${plate ? "border-plate-foreground/10" : "border-border"}`}>
       <span className={`type-caption block truncate text-[13px] tracking-[0.05em] ${muted}`}>{g.name}</span>
       <span className="mt-1 flex items-center gap-2.5">
         <NightGroupTiles g={g} plate={plate} max={4} />

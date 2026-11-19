@@ -52,7 +52,7 @@ const ONLY = opt("only", null);
 const KEEP = args.includes("--keep");
 
 const sheet = '[role="dialog"]:not([aria-hidden="true"])';
-const strip = "[data-strip] button, [data-night-row]";
+const strip = "[data-strip] button, [data-plate-row]";
 // Flows: `tap` (the first match), `wait`, `pause`, `shot`. `writes`: the fixture comes up again after. `looks`: which looks run it.
 const SHEET = { id: "sheet", looks: ["today", "b"], steps: [{ tap: strip }, { wait: sheet }, { pause: 700 }, { shot: "sheet" }] };
 // The question in the window (the user, 2026-11-18: nobody watching live may read it as theirs): Not yet opens the moves.
@@ -65,7 +65,7 @@ const LOCK_IN = { id: "lockin", looks: ["b"], steps: [{ tap: strip }, { wait: "[
 // the sheet's question.
 const C_LOCK = { id: "lockin", looks: ["c"], steps: [{ tap: "[data-lock-in]" }, { pause: 900 }, { shot: "lockin" }, { js: CLEAR }] };
 const C_ASK = { id: "ask", looks: ["c"], steps: [{ tap: "[data-lock-in]" }, { wait: "[data-lock-in-ask]" }, { pause: 700 }, { shot: "ask" }] };
-const C_ROW = { id: "row", looks: ["c"], steps: [{ tap: "[data-night-row]" }, { wait: "[data-started-gate]" }, { pause: 700 }, { shot: "row" }, { tap: "[data-gate-not-yet]" }, { pause: 600 }, { shot: "rownotyet" }] };
+const C_ROW = { id: "row", looks: ["c"], steps: [{ tap: "[data-plate-row]" }, { wait: "[data-started-gate]" }, { pause: 700 }, { shot: "row" }, { tap: "[data-gate-not-yet]" }, { pause: 600 }, { shot: "rownotyet" }] };
 const C_GAMES = { id: "games", looks: ["c"], steps: [{ go: "games" }, { pause: 1500 }, { shot: "games" }] };
 // The Games tab's face plates (the user, 2026-11-18: an at-a-glance view of who you've got): each card's, scrolled to.
 const PLATES = {
@@ -226,7 +226,7 @@ async function main() {
                 await q.goto(`${BASE}/show/${ids.seasonId}/${step.go}?strip=${look === "today" ? "off" : look}`, { waitUntil: "domcontentloaded" });
                 await q.locator("[data-progress]").first().waitFor({ timeout: 60000 });
                 // The cards, not their skeletons.
-                if (step.go === "games") await q.locator("[data-game-rows], [data-table]").first().waitFor({ timeout: 30000 }).catch(() => {});
+                if (step.go === "games") await q.locator("[data-whats-on], [data-table]").first().waitFor({ timeout: 30000 }).catch(() => {});
                 await fontsReady(q);
               }
               if (step.scroll) {

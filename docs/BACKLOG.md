@@ -1350,11 +1350,14 @@ Last updated 2026-10-27.
     until 8:00 PM" (past), "Episode 9 has aired" while on, "I've watched it" opening an empty reveal before results, "Lock when it
     airs" after the airing, "All set for Ep 10" once results are in. And the user's rule from the same night: someone watching live
     must never be able to change a move by mistake. **A design round answers it** (docs/design-round/strip-night-*.md; story linked
-    in HANDOFF.md): three looks behind `?strip=a|b|c` (TEMP-UI, on branch strip-night; the wizard lane merges first); the user picked C with a Lock in button in its
+    in HANDOFF.md): three looks behind `?strip=a|b|c` (TEMP-UI, on branch strip-night, rebased onto master after the wizard merge); the user picked C with a Lock in button in its
     first row (the checks had said B); a question in Your moves ("Have you started watching?"); Lock in and Watch along lock your
     moves (simulated: an engine step to build). **Waits on the user:** the refined C's review; whether a full lineup carried in counts as all set in the window (every check: yes; today's
     server calls it due, so the yellow and the after-airtime push go to everyone behind each night: due-moves.ts, your-move.ts,
     db/reminders.js; BACKLOG 65's watch item); building the self-lock. Not on an episode night: no push.
+    **Noticed in the rebase (2026-11-19), for the design pass after the review (main session):** a one-episode lineup or pick on
+    the Games tab is Round 3's night row (whats-on.tsx `NightRow`), which says whether you're in, not who you started: the glance
+    is `GameRow`'s, the season games'.
 
 ## Decided against (don't re-propose without new information)
 

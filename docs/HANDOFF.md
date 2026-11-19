@@ -95,7 +95,10 @@ docs/design-round/strip-night-{spec,first-view,shape,check}.md; decisions.md 202
 - **Rebased onto master after the wizard merge (2026-11-19, b3f3dae7).** Round 3's `WhatsOn` (whats-on.tsx) replaced
   `GameRows`: the glance rides WhatsOn's `row` callback into `GameRow` (`onCast`); new-fixture.js's `moreGames` reads the
   season's shape from the database, as wizard's `sideGame` did; dock.tsx keeps B2's captains, group slots and second picks
-  beside the started gate. The pre-rebase commits are on `strip-night-pre-rebase`.
+  beside the started gate. The plate's rows are `data-plate-row` now (Round 3's one-episode rows on the Games tab are
+  `data-night-row`). The story's version 6 (frames9, same link): on Round 3's Games tab seven games run 3,125 px without the
+  switch and 3,136 px with the glance (all set: 3,108 and 3,136); Tonight's plate as in version 5. The pre-rebase commits are on
+  `strip-night-pre-rebase`.
 
 ## The user's calls, 2026-11-18: the bold pass and Round 2c are the direction; build next. Their answers to every open question
 - **Approved:** "i think i agree with the direct and ready to start": the bold pass (`?start=bold`, `src/new/couch/gallery-bold/`)

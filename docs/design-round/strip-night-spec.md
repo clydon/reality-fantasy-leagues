@@ -201,7 +201,9 @@ Heights that hold whatever the couch is playing:
 
 Measured on night-fixture.js `--extra=4` (seven games, all set), the Games tab's whole length: today 3,257 px, version 4's plates
 4,263 px, the row 3,285 px (about 4 px a card). Tonight's plate with seven games ends where three games' did. Most of a card is its
-leaderboard, glance or not: a shorter card for a busy couch is a separate question (Open questions).
+leaderboard, glance or not: a shorter card for a busy couch is a separate question (Open questions). On Round 3's Games tab
+(after the wizard merge, 2026-11-19; whats-on.tsx's season games carry the glance through `GameRow`): 3,125 px without the
+switch, 3,136 px with the glance; all set, 3,108 and 3,136.
 
 ## Flows
 
@@ -233,5 +235,6 @@ leaderboard, glance or not: a shorter card for a busy couch is a separate questi
 2. ~~Which direction for who you've got: A, B or C?~~ C, with Lock in (the user, 2026-11-18).
 3. Two games on a couch at different paces (one strict, one live) on the night: does the strip speak for the open one, with the
    locked one said in its tab only?
-4. A busy couch's Games tab: seven games run about 3,260 px with or without the glance, four standings rows a card. A shorter card
+4. A busy couch's Games tab: seven games run about 3,130 px on Round 3's tab (3,260 on the one before it) with or without the
+   glance, four standings rows a card. A shorter card
    (your place and the move, the table a tap away) once a couch has more than a few games?
