@@ -9658,7 +9658,7 @@ class SpoilerLogic {
     (s.episodes || []).forEach(ep => {
       if(ep.number < ahead.from) return;
       ep.lineups = {};
-      delete ep.lineupsAt; delete ep.captains; delete ep.groupSlots; delete ep.lateSet;
+      delete ep.lineupsAt; delete ep.captains; delete ep.groupSlots; delete ep.lateSet; delete ep.lockedIn;
     });
     if(s.midSeason){
       s.midSeason.log = [];
@@ -10056,11 +10056,38 @@ class GhostLogic {
     if(!aired || mark >= aired.number) return null;
     // Whoever runs the game locked this episode by hand (Backstage's lock): the one exception to the game's pace, for everyone.
     if(aired.lineupsLocked) return null;
+    // This seat said it has started watching it (lockIn: the episode-night strip's Lock in): its window closed, as watching closes it.
+    if(aired.lockedIn && aired.lockedIn[playerId]) return null;
     if((GhostLogic.startFor(state, playerId) || 1) > aired.number) return null;
     const next = (state.episodes || []).find(e => e.number === aired.number + 1);
     const own = GhostLogic.ownPace(state);
     if(!own && next && hasAired(next, t)) return null;
     return { episode: aired.number, epId: aired.id, until: !own && next && next.airsAt ? next.airsAt : null };
+  }
+  // The episode-night strip's Lock in (docs/design-round/strip-night-spec.md; the user, 2026-11-18: "I made my picks, I'm about to
+  // watch"; built as a real lock 2026-11-19): the seat says it has started watching episode `n`, so its moves for it close for it as
+  // its watching would (lateWindow). Per game; the server locks every game of theirs on the season. Honour-based, as the window is.
+  // `at`: when (ISO). False when there's no such episode or seat, or it's locked in already.
+  static lockIn(state, playerId, n, at){
+    const ep = (state.episodes || []).find(e => e.number === n);
+    if(!ep || !Core.getPlayer(state, playerId) || (ep.lockedIn && ep.lockedIn[playerId])) return false;
+    ep.lockedIn = { ...(ep.lockedIn || {}), [playerId]: at };
+    return true;
+  }
+  // Undo, for a moment only (the toast's): a mis-tap, never a change of heart mid-episode. `now` (ms); `graceMs` since it was made.
+  static unlockIn(state, playerId, n, now, graceMs){
+    const ep = (state.episodes || []).find(e => e.number === n);
+    const at = ep && ep.lockedIn ? ep.lockedIn[playerId] : null;
+    if(!at || !(Number(now) - Date.parse(at) <= graceMs)) return false;
+    delete ep.lockedIn[playerId];
+    if(!Object.keys(ep.lockedIn).length) delete ep.lockedIn;
+    return true;
+  }
+  // The episode this seat locked in for while it's one behind it (its mark + 1), else null: the strip's "Locked in".
+  static lockedInFor(state, playerId, mark){
+    if(typeof mark !== 'number' || !Number.isFinite(mark)) return null;
+    const ep = (state.episodes || []).find(e => e.number === mark + 1);
+    return ep && ep.lockedIn && ep.lockedIn[playerId] ? ep.number : null;
   }
   // The league as it stood going into episode `n`, with `n` still open: what a late move is checked against (its results hidden,
   // as they would be at airtime; who's on whose team as it is, since waivers and trades keep their times).

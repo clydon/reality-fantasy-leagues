@@ -17,7 +17,6 @@ import { Chat } from "../show/chat";
 import { MovesSheet } from "../show/dock";
 import { ProgressControl } from "../show/progress";
 import { MovesStrip } from "../show/strip";
-import { carriedFull, useCarriedSet } from "../show/strip-night";
 import { RemindSheet, useReach } from "../show/remind";
 import { useMe } from "../session";
 import type { PhoneState } from "../settings/notify";
@@ -88,12 +87,9 @@ export function useShow(seasonId: string) {
   // An archived game (step 10 part 2b) stands still: Backstage runs the rest.
   const runs = games.filter((g) => (g.yourRole === "commissioner" || g.yourRole === "admin") && !g.archived);
   const people = space.data?.people ?? null;
-  // Your moves due in this couch's games here, soonest first (the home's list: actionItems).
-  // TEMP-UI (strip-night.ts, the story's `?carried=set`): the open question's other answer, a lineup carried in complete isn't due
-  // in the window. The server's rule is unchanged.
-  const carried = useCarriedSet();
-  const carriedIn = (m: { late?: boolean; kind: string; leagueId: string }) => carried && !!m.late && m.kind === "lineup" && carriedFull((play.data?.games as GameView[] | undefined)?.find((g) => g.leagueId === m.leagueId));
-  const moves = movesByDue(home.data?.moves.filter((m) => yours.some((g) => g.leagueId === m.leagueId) && !carriedIn(m)) ?? []);
+  // Your moves due in this couch's games here, soonest first (the home's list: actionItems; a full lineup carried in isn't due in
+  // the window, the server's rule since 2026-11-19).
+  const moves = movesByDue(home.data?.moves.filter((m) => yours.some((g) => g.leagueId === m.leagueId)) ?? []);
   return {
     home: home.data,
     couch,

@@ -277,7 +277,8 @@ async function lateOn(userId: string, seasonId: string, n: number, mark: number,
       WHERE m.user_id = $1 AND ss.id = $2 AND l.deleted_at IS NULL AND m.player_id IS NOT NULL`,
     [userId, seasonId]
   );
-  return rows.some((r) => StateLogic.GhostLogic.playsOwnPace(r.state, r.player_id) && StateLogic.inPlay(r.state, n));
+  // A game they've locked in for (the episode-night strip's Lock in: GhostLogic.lockIn) is closed to them, as watching closes it.
+  return rows.some((r) => StateLogic.GhostLogic.playsOwnPace(r.state, r.player_id) && StateLogic.inPlay(r.state, n) && StateLogic.GhostLogic.lockedInFor(r.state, r.player_id, mark) !== n);
 }
 
 /** A season watched at your own pace: finished, every listed episode aired, or dropped all at once. */

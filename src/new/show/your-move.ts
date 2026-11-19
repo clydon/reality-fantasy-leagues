@@ -34,9 +34,6 @@ export interface MoveContext {
   when: (iso: string) => string;
   draft?: DraftGame;
   waivers?: WaiverWeek;
-  /** TEMP-UI, the episode night round (strip-night.ts): a look is on, so a move still open after its episode aired says the
-   *  strip's words, named by the moment you start watching ("Before you start watching"). */
-  night?: boolean;
 }
 
 const first = (name: string) => name.split(" ")[0];
@@ -148,11 +145,12 @@ export function movesOf(g: GameView, o: MoveContext): YourMove[] {
     }
   }
 
-  // Playing at your own pace (docs/PLAN-own-pace-games.md): the episode aired and you haven't watched it, so its move is still
-  // yours to make first, and still the yellow, saying why; a lineup carried in from last week isn't one you've set for it.
+  // Playing at your own pace (docs/PLAN-own-pace-games.md): the episode aired and you haven't watched it, so its move is still yours
+  // until you start watching it, in the episode-night strip's words, named by that moment (docs/design-round/strip-night-spec.md).
+  // Something missing is the yellow; a full lineup carried in from last week is set, as before airtime (the user, 2026-11-19).
   const late = g.late;
-  const lateWhy = (what: string) => (o.night ? "Before you start watching" : `${E} ${late!.episode} aired · you haven't watched it · ${what} first`);
-  const lateOpen = o.night ? "Locks when you start watching" : "Change until you watch it";
+  const lateWhy = "Before you start watching";
+  const lateOpen = "Locks when you start watching";
 
   // The week's lineup.
   const L = g.lineup;
@@ -162,9 +160,9 @@ export function movesOf(g: GameView, o: MoveContext): YourMove[] {
     const lineup = { kind: "lineup" as const, faces, out: [], go: { tab: "lineup" as const } };
     if (late && late.episode === L.episode && !L.locked) {
       found.push(
-        !L.set || L.carried
-          ? { ...lineup, empty: Math.max(0, L.need - faces.length), title: `Set your ${E} ${L.episode} lineup`, line: lateWhy("set your lineup"), action: "Set", due: true }
-          : { ...lineup, empty: 0, title, line: lateOpen, action: "Edit", due: false }
+        !L.set
+          ? { ...lineup, empty: Math.max(0, L.need - faces.length), title: `Set your ${E} ${L.episode} lineup`, line: lateWhy, action: "Set", due: true }
+          : { ...lineup, empty: 0, title, line: L.carried ? "Last week's lineup · locks when you start watching" : lateOpen, action: "Edit", due: false }
       );
     } else if (g.revealFirst) {
       found.push({ ...lineup, faces: [], empty: 0, title: `Reveal ${E} ${g.revealFirst} first`, line: "Who went home decides who you can start", action: "Open", due: false });
@@ -199,7 +197,7 @@ export function movesOf(g: GameView, o: MoveContext): YourMove[] {
       found.push(
         P.pick
           ? { ...pick, faces: [P.pick], empty: 0, title: `Your ${E} ${P.episode} pick: ${castName(P.pick)}`, line: lateOpen, action: "Edit", due: false }
-          : { ...pick, faces: [], empty: 1, title: `Pick a survivor for ${E} ${P.episode}`, line: lateWhy("pick"), action: "Pick", due: true }
+          : { ...pick, faces: [], empty: 1, title: `Pick a survivor for ${E} ${P.episode}`, line: lateWhy, action: "Pick", due: true }
       );
     } else if (g.revealFirst) {
       found.push({ ...pick, faces: [], empty: 0, title: `Reveal ${E} ${g.revealFirst} first`, line: "Who went home decides who you can pick", action: "Open", due: false });

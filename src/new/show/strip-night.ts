@@ -1,97 +1,53 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
-import type { GameView } from "../data";
+import { useCallback } from "react";
+import { lockIn as locks, useAfterSave, type GameView } from "../data";
 import { gameColour } from "../games";
 import type { ShowData } from "../screens/show-space";
+import { toast } from "../ui/toast";
 import type { MovesTab } from "./moves";
 import { GAME_NAMES } from "@/lib/server/league-season";
 
-// TEMP-UI, the episode night round (docs/design-round/strip-night-spec.md, -first-view.md, -shape.md; the user's report from
-// Survivor 51's Ep 9 night, 2026-11-18): while your moves stay open after airtime (a live or own-pace game, an episode you haven't
-// watched), the strip says so in one of three looks for the user's review. `?strip=a|b|c` turns one on in this browser (kept as
-// gys_strip; `?strip=off` clears it): A says it straight, B shows who you've got as faces, C is a plate on Tonight. Without the
-// switch the app is as it was. `?carried=set` (gys_carried) is for the story only: the spec's open question's other answer, a
-// lineup carried in complete reading as all set in the window, simulated in the client (the server's rule and the push unchanged).
+// Episode night (docs/design-round/strip-night-spec.md, -first-view.md, -shape.md; the user's report from Survivor 51's Ep 9 night,
+// 2026-11-18, their pick, look C with Lock in in its first row, built 2026-11-19): while your moves stay open after airtime (a live or
+// own-pace game, an episode you haven't watched), Tonight's strip is a plate, a row a game, and every other tab keeps the one-line
+// strip with who you've got. Saying you've started watching (Lock in, Your moves' "Yes, I'm watching", Watch along) closes your moves
+// for that episode in every game you play on the season, on the server (StateLogic.GhostLogic.lockIn; GameView.watching), undoable
+// for a moment only.
 
-export type NightLook = "a" | "b" | "c";
-
-/** A switch from the address, kept in this browser. */
-function flag(param: string, key: string, values: string[]): string | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const q = new URLSearchParams(window.location.search).get(param);
-    if (q === "off") localStorage.removeItem(key);
-    else if (q && values.includes(q)) localStorage.setItem(key, q);
-    const v = localStorage.getItem(key);
-    return v && values.includes(v) ? v : null;
-  } catch {
-    return null;
-  }
+/** The episode you've said you're watching (GameView.watching: the server's lock), your moves for it closed in every game. Null:
+ *  none. */
+export function lockedInEpisode(show: ShowData): number | null {
+  const eps = (show.play ?? []).filter((g) => g.watching != null && !g.archived && !g.stageOf).map((g) => g.watching!);
+  return eps.length ? Math.min(...eps) : null;
 }
 
-const still = () => () => {};
-
-/** The night's look, or null: the strip as it was. Null on the server, so its render and the first client one agree. */
-export function useNightLook(): NightLook | null {
-  return useSyncExternalStore(still, () => flag("strip", "gys_strip", ["a", "b", "c"]) as NightLook | null, () => null);
-}
-
-/** The story's simulated rule: a lineup carried in complete is all set in the window. */
-export function useCarriedSet(): boolean {
-  return useSyncExternalStore(still, () => flag("carried", "gys_carried", ["set"]) === "set", () => false);
-}
-
-// "I'm watching" (the user, 2026-11-18: nobody watching live may read the window as theirs): saying you've started an episode locks
-// your moves for it in every game. The engine step (a seat's own lock for an episode, closing its window as a reveal does) isn't
-// built: for the story it's simulated in this browser, gys_watching:<season>:<episode>, and nothing on the server changes.
-const watchKey = (seasonId: string, n: number) => `gys_watching:${seasonId}:${n}`;
-const watchListeners = new Set<() => void>();
-const onWatch = (l: () => void) => {
-  watchListeners.add(l);
-  return () => {
-    watchListeners.delete(l);
-  };
-};
-
-/** Lock your moves for episode `n` as you start watching it (simulated: see above). */
-export function startWatching(seasonId: string, n: number) {
-  try {
-    localStorage.setItem(watchKey(seasonId, n), new Date().toISOString());
-  } catch {
-    /* a private window: the simulation just doesn't hold */
-  }
-  watchListeners.forEach((l) => l());
-}
-
-/** Undo a lock in (the toast's, for a moment: a mis-tap, never a change of heart mid-episode). */
-export function stopWatching(seasonId: string, n: number) {
-  try {
-    localStorage.removeItem(watchKey(seasonId, n));
-  } catch {
-    /* nothing held */
-  }
-  watchListeners.forEach((l) => l());
-}
-
-/** Whether you've said you're watching episode `n` (simulated). */
-export function useWatching(seasonId: string | null, n: number | null): boolean {
-  return useSyncExternalStore(
-    onWatch,
-    () => {
-      if (!seasonId || n == null) return false;
+/**
+ * Lock in for episode `n`: your moves for it close in every game you play on the season, then the games read again, and the toast
+ * says `said` with Undo (the server takes it back within a minute only: a mis-tap, never a change of heart mid-episode). Resolves
+ * whether it locked; a refusal is said quietly.
+ */
+export function useLockIn(seasonId: string) {
+  const after = useAfterSave();
+  return useCallback(
+    async (n: number, said: string): Promise<boolean> => {
       try {
-        return !!localStorage.getItem(watchKey(seasonId, n));
-      } catch {
+        await locks.start(seasonId, n);
+      } catch (e) {
+        toast.quiet(e instanceof Error ? e.message : "Couldn't lock in");
         return false;
       }
+      await after();
+      toast(said, {
+        undo: () => {
+          void locks.undo(seasonId, n).then(after, (e) => toast.quiet(e instanceof Error ? e.message : "Couldn't undo"));
+        },
+      });
+      return true;
     },
-    () => false
+    [seasonId, after]
   );
 }
-
-/** A lineup carried in from last week with every slot filled: today's server still lists it as due in the window. */
-export const carriedFull = (g: GameView | undefined) => !!g?.lineup && g.lineup.set && g.lineup.carried;
 
 /** The episode your window is open on (the earliest, if games differ): an episode that's aired or is on, that you haven't watched,
  *  whose moves a live or own-pace game still takes from you. Null: no window. */

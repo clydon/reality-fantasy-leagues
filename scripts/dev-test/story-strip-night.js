@@ -1,8 +1,8 @@
 // Dev-only test bank: the screenshot story's frames for episode night while your moves stay open (docs/design-round/strip-night-
-// spec.md; TEMP-UI looks in src/new/show/strip-night.ts), real renders at a phone's size on night-fixture.js (new-fixture.js's zt
+// spec.md; built 2026-11-19, look C the app: src/new/show/strip-night.ts), real renders at a phone's size on night-fixture.js (new-fixture.js's zt
 // couch: ZT Survivor 51's Couch Cup, Lineup League and Pool Party, in the real Survivor art; jordan the viewer, through Ep 5, Ep 6
 // on air or just aired). For each situation and look, under --out:
-//   <situation>.<look>.jpg            Tonight's first phone view (look: today, a, b, c; "-set" after a look: ?carried=set)
+//   <situation>.<look>.jpg            Tonight's first phone view (look: c, the app since it was built; the switch's today, a, b are gone)
 //   <situation>.<look>.<flow>.jpg     each flow's shot (sheet: the strip tapped, Your moves open; notyet: its question answered Not yet;
 //                                     lockin: answered I'm watching, the strip locked in; watchlock: Watch along's lock; save: a move saved;
 //                                     games: the Games tab's card)
@@ -14,7 +14,7 @@
 // Situations (night-fixture.js's options; each brings the fixture up, and a flow that writes brings it up again after):
 //   onair-set        on air, jordan's lineup saved and pick made (all set): "who did I start?"
 //   onair-reported   on air, the lineup carried in, no pick, a replacement owed: the user's night (Tonight's badge 3)
-//   onair-kept       on air, the lineup carried in complete, the pick made: today's rule calls the lineup due (also ?carried=set)
+//   onair-kept       on air, the lineup carried in complete, the pick made: set by the server's rule since 2026-11-19, no yellow
 //   onair-gap        on air, a starter short and no pick: something really missing
 //   onair-strict     on air, every game At airtime: locked
 //   onair-mixed      on air, Lineup League At airtime, the pool live
@@ -28,7 +28,7 @@
 //                    Week 1 due), as alex: the Games tab's glance with nothing set, then nine set through the route, collapsed and opened
 //
 //   npm run dev   (the app on :3000; BASE= for another)
-//   node scripts/dev-test/story-strip-night.js [--out=.ui-atlas/stories/strip-night/frames] [--looks=today,a,b,c]
+//   node scripts/dev-test/story-strip-night.js [--out=.ui-atlas/stories/strip-night/frames] [--looks=c]
 //        [--only=<regex on the situation>] [--width=390 --height=844] [--keep]
 // Takes the fixture down at the end unless --keep. zt_nd_ people only; refuses a non-local database (the fixture does). Shares
 // new-fixture's couch: never beside another check that uses it.
@@ -46,24 +46,24 @@ const args = process.argv.slice(2);
 const opt = (k, d) => args.find((a) => a.startsWith(`--${k}=`))?.slice(k.length + 3) ?? d;
 const OUT = path.resolve(opt("out", ".ui-atlas/stories/strip-night/frames"));
 const W = Number(opt("width", 390)), H = Number(opt("height", 844));
-// B last: its flows write (a save), and the fixture comes up again after, which would change the couch under a later look.
-const LOOKS = opt("looks", "today,a,c,b").split(",");
+// Look C is the app (built 2026-11-19): the only look. (Frames named by it, as the design round's were.)
+const LOOKS = opt("looks", "c").split(",");
 const ONLY = opt("only", null);
 const KEEP = args.includes("--keep");
 
 const sheet = '[role="dialog"]:not([aria-hidden="true"])';
-const strip = "[data-strip] button, [data-plate-row]";
+// The one-line strip's own button (a direct child: never the plate's Lock in), or the plate's first row on Tonight.
+const strip = "[data-strip] > button, [data-plate-row]";
 // Flows: `tap` (the first match), `wait`, `pause`, `shot`. `writes`: the fixture comes up again after. `looks`: which looks run it.
-const SHEET = { id: "sheet", looks: ["today", "b"], steps: [{ tap: strip }, { wait: sheet }, { pause: 700 }, { shot: "sheet" }] };
+const SHEET = { id: "sheet", looks: ["c"], steps: [{ tap: strip }, { wait: sheet }, { pause: 700 }, { shot: "sheet" }] };
 // The question in the window (the user, 2026-11-18: nobody watching live may read it as theirs): Not yet opens the moves.
-const NOT_YET = { id: "notyet", looks: ["b"], steps: [{ tap: strip }, { wait: "[data-started-gate]" }, { tap: "[data-gate-not-yet]" }, { pause: 600 }, { shot: "notyet" }] };
-// I'm watching locks them in (simulated in the browser: gys_watching), then the strip; the simulation is cleared after.
-const CLEAR = "Object.keys(localStorage).filter((k) => k.startsWith('gys_watching')).forEach((k) => localStorage.removeItem(k))";
-const LOCK_IN = { id: "lockin", looks: ["b"], steps: [{ tap: strip }, { wait: "[data-started-gate]" }, { tap: "[data-gate-watching]" }, { pause: 1200 }, { shot: "lockin" }, { js: CLEAR }] };
+const NOT_YET = { id: "notyet", looks: ["c"], steps: [{ tap: strip }, { wait: "[data-started-gate]" }, { tap: "[data-gate-not-yet]" }, { pause: 600 }, { shot: "notyet" }] };
+// Yes locks them in (the server's lock: /api/seasons/<id>/lock-in), then the strip; the fixture comes up again after.
+const LOCK_IN = { id: "gatelock", looks: ["c"], writes: true, steps: [{ tap: strip }, { wait: "[data-started-gate]" }, { tap: "[data-gate-watching]" }, { pause: 1800 }, { shot: "gatelock" }] };
 // C, the user's pick (2026-11-18): Lock in in the plate's first row ("I made my picks, I'm about to watch"). All set: it locks at
-// once and the plate gives way to the one-line strip (cleared after); something unset: it asks first. A row opens its game, through
-// the sheet's question.
-const C_LOCK = { id: "lockin", looks: ["c"], steps: [{ tap: "[data-lock-in]" }, { pause: 900 }, { shot: "lockin" }, { js: CLEAR }] };
+// once (the server's lock) and the plate gives way to the one-line strip, the fixture up again after; something unset: it asks
+// first. A row opens its game, through the sheet's question. Locked in, the sheet says so and reads.
+const C_LOCK = { id: "lockin", looks: ["c"], writes: true, steps: [{ tap: "[data-lock-in]" }, { pause: 1800 }, { shot: "lockin" }, { tap: strip }, { wait: sheet }, { pause: 700 }, { shot: "lockedsheet" }] };
 const C_ASK = { id: "ask", looks: ["c"], steps: [{ tap: "[data-lock-in]" }, { wait: "[data-lock-in-ask]" }, { pause: 700 }, { shot: "ask" }] };
 const C_ROW = { id: "row", looks: ["c"], steps: [{ tap: "[data-plate-row]" }, { wait: "[data-started-gate]" }, { pause: 700 }, { shot: "row" }, { tap: "[data-gate-not-yet]" }, { pause: 600 }, { shot: "rownotyet" }] };
 const C_GAMES = { id: "games", looks: ["c"], steps: [{ go: "games" }, { pause: 1500 }, { shot: "games" }] };
@@ -77,16 +77,16 @@ const PLATES = {
 const TEAM = { id: "team", looks: ["c"], steps: [{ go: "games" }, { pause: 1500 }, { scroll: '[data-move-plates][data-glance="claim"], [data-move-plates][data-glance="team"]' }, { shot: "plates-team" }] };
 // A couch with seven games (the user, 2026-11-18: "keep the vertical real estate in check... who's to know how many games could be
 // going on"): the Games tab's first view and all of it, and the plate's fold opened.
-const BUSY_GAMES = { id: "busy", looks: ["c", "today"], steps: [{ go: "games" }, { pause: 1500 }, { shot: "games" }, { full: "games-all" }] };
+const BUSY_GAMES = { id: "busy", looks: ["c"], steps: [{ go: "games" }, { pause: 1500 }, { shot: "games" }, { full: "games-all" }] };
 const C_FOLD = { id: "fold", looks: ["c"], steps: [{ tap: "[data-night-fold]" }, { pause: 600 }, { shot: "fold" }] };
 // A glance's tiles opened in place: the face plates, the bench, Show less.
 const GLANCE_OPEN = { id: "open", looks: ["c"], steps: [{ go: "games" }, { pause: 1500 }, { scroll: '[data-glance="lineup"]' }, { tap: '[data-glance="lineup"] [data-glance-tiles]' }, { pause: 500 }, { shot: "glance-open" }] };
 // Watch along says first that starting locks your moves.
-const WATCH_LOCK = { id: "watchlock", looks: ["b"], steps: [{ tap: "[data-progress-watch]" }, { wait: "[data-watch-lock]" }, { pause: 700 }, { shot: "watchlock" }] };
+const WATCH_LOCK = { id: "watchlock", looks: ["c"], steps: [{ tap: "[data-progress-watch]" }, { wait: "[data-watch-lock]" }, { pause: 700 }, { shot: "watchlock" }] };
 const SITUATIONS = [
   { id: "onair-set", fixture: { phase: "onair", moves: "set", pace: "live" }, flows: [SHEET, NOT_YET, WATCH_LOCK, LOCK_IN, C_LOCK, C_GAMES, PLATES, TEAM] },
-  { id: "onair-reported", fixture: { phase: "onair", moves: "carried", pace: "live", owed: true }, flows: [SHEET, { id: "games", looks: ["today", "b"], steps: [{ go: "games" }, { pause: 1500 }, { shot: "games" }] }, C_GAMES, C_ASK] },
-  { id: "onair-kept", fixture: { phase: "onair", moves: "kept", pace: "live" }, carriedSet: true, flows: [] },
+  { id: "onair-reported", fixture: { phase: "onair", moves: "carried", pace: "live", owed: true }, flows: [SHEET, C_GAMES, C_ASK] },
+  { id: "onair-kept", fixture: { phase: "onair", moves: "kept", pace: "live" }, flows: [C_GAMES, PLATES] },
   {
     id: "onair-gap",
     fixture: { phase: "onair", moves: "gap", pace: "live" },
@@ -99,7 +99,7 @@ const SITUATIONS = [
       // Fill the open slot and make the pick, save: the toast, then the strip all set.
       {
         id: "save",
-        looks: ["b"],
+        looks: ["c"],
         writes: true,
         steps: [{ tap: strip }, { wait: sheet }, { tap: "[data-gate-not-yet]" }, { tap: `${sheet} [data-starter][aria-pressed="false"]` }, { tap: `${sheet} button:has-text("Save")` }, { pause: 900 }, { shot: "toast" }, { pause: 2600 }, { shot: "after" }],
       },
@@ -109,7 +109,7 @@ const SITUATIONS = [
   { id: "busy-set", fixture: { phase: "onair", moves: "set", pace: "live", extra: 4, extraMoves: "set" }, flows: [BUSY_GAMES, C_FOLD, GLANCE_OPEN] },
   { id: "onair-strict", fixture: { phase: "onair", moves: "set", pace: "strict" }, flows: [SHEET] },
   { id: "onair-mixed", fixture: { phase: "onair", moves: "set", pace: "mixed" }, flows: [SHEET] },
-  { id: "aired-gap", fixture: { phase: "aired", moves: "gap", pace: "live" }, flows: [{ ...SHEET, looks: ["b"] }] },
+  { id: "aired-gap", fixture: { phase: "aired", moves: "gap", pace: "live" }, flows: [SHEET] },
   { id: "results-set", fixture: { phase: "results", moves: "set", pace: "live" }, flows: [SHEET] },
   // An ordinary week (Ep 6 revealed, Ep 7 next week): the Games tab's face plates outside the night (the lineup carried in, the
   // pick for Ep 7 still to make).
@@ -203,7 +203,7 @@ async function main() {
         const name = `${sit.id}.${look}${carried ? "-set" : ""}`;
         const page = async (tab = "tonight") => {
           const p = await session.page.context().newPage();
-          await p.goto(`${BASE}/show/${ids.seasonId}/${tab}?strip=${look === "today" ? "off" : look}&carried=${carried ? "set" : "off"}`, { waitUntil: "domcontentloaded" });
+          await p.goto(`${BASE}/show/${ids.seasonId}/${tab}`, { waitUntil: "domcontentloaded" });
           await p.locator("[data-progress]").first().waitFor({ timeout: 60000 });
           // The sheet's once-a-device peek (swipe-pager.tsx) is a moment, not the sheet: frames show it settled (the check).
           await p.evaluate(() => { try { localStorage.setItem("gys.moves-games.peeked", "1"); } catch {} });
@@ -223,7 +223,7 @@ async function main() {
           try {
             for (const step of flow.steps) {
               if (step.go) {
-                await q.goto(`${BASE}/show/${ids.seasonId}/${step.go}?strip=${look === "today" ? "off" : look}`, { waitUntil: "domcontentloaded" });
+                await q.goto(`${BASE}/show/${ids.seasonId}/${step.go}`, { waitUntil: "domcontentloaded" });
                 await q.locator("[data-progress]").first().waitFor({ timeout: 60000 });
                 // The cards, not their skeletons.
                 if (step.go === "games") await q.locator("[data-whats-on], [data-table]").first().waitFor({ timeout: 30000 }).catch(() => {});

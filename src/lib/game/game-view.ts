@@ -347,6 +347,9 @@ export interface GameView extends GameRefIn {
    *  that you haven't watched: its moves are still open to you (the lineup's and pick's episode is it) until you watch it or the
    *  next one airs (`until`, its air time; null: not known). Only while you're one behind (further back, you reveal first). */
   late: { episode: number; until: string | null } | null;
+  /** The episode you've said you're watching (the episode-night strip's Lock in: StateLogic.GhostLogic.lockIn) while you're one
+   *  behind it: its moves closed for you, as watching closes them (no `late` for it). Null otherwise; optional: older readers omit it. */
+  watching?: number | null;
   /** Whoever the couch is waiting on, playing at their own pace with nothing set yet for the episode that aired (head to head's
    *  "Waiting on Joanna's lineup"). The server reads their marks; empty without them. */
   waiting: { playerId: string; name: string; episode: number }[];
@@ -495,6 +498,7 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
     catchingUp,
     catchUp,
     late,
+    watching: seat && seen !== null ? StateLogic.GhostLogic.lockedInFor(full, me, seen) : null,
     waiting,
     pace: null,
     coop: calls?.walk?.coop ?? null,

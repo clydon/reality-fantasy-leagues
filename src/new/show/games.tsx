@@ -35,7 +35,6 @@ import { nextWeek, signed } from "./lineup-sheet";
 import { opensSheet, totalWords, useGameDrill } from "./game-sheets";
 import { oneGame, thisWeek } from "./this-week";
 import { WhatsOn } from "./whats-on";
-import { useNightLook } from "./strip-night";
 
 // Games (the mock's show.js tabStandings, gamestab.js, rulebook.js rbHowRow): where you play. Since the design round's step 6
 // (docs/design-round/step6-games-spec.md) one row per game: your place, its move, a mini leaderboard and Last picks (GameRows
@@ -156,7 +155,6 @@ function YourGamesHere({ show }: { show: ShowData }) {
     !!show.play?.some((g) => (g.gameType === "classic-draft" || g.gameType === "active-roster") && !!g.you && (g.you.team.length === 0 || g.from === null || g.through < g.from)) ||
     show.moves.some((m) => m.kind === "draftTurn" || m.kind === "blindDraft");
   const drafts = useSeasonDraft(show.header?.seasonId ?? "", show.couch?.id ?? null, { enabled: !!show.header && drafting }).data?.games ?? [];
-  const night = !!useNightLook();
   const moves = new Map<string, YourMove>();
   for (const g of show.play ?? []) {
     const m = yourMove(g, {
@@ -165,7 +163,6 @@ function YourGamesHere({ show }: { show: ShowData }) {
       when: (iso) => airTime(Date.parse(iso)),
       draft: drafts.find((d) => d.leagueId === g.leagueId),
       waivers: wv.data?.games.find((w) => w.leagueId === g.leagueId),
-      night,
     });
     if (m) moves.set(g.leagueId, m);
   }
@@ -242,9 +239,6 @@ const nothingYet = (g: GameView) => g.through < 1 || (g.table.every((r) => r.tot
 
 function GameRow({ show, g, name, move, draft, onPlayer, onCast }: { show: ShowData; g: GameView; name: string; move: YourMove | null; draft: DraftGame | null; onPlayer: (row: TableRow, game: GameView, week: number | null) => void; onCast: (g: GameView, id: string) => void }) {
   const [open, setOpen] = useState(false);
-  // TEMP-UI, the episode night round (strip-night.ts; the user, 2026-11-18: "we have no at a glance view... we mention Thien but never
-  // show her face plate. We don't see our lineup here either"): a lineup's or a pick's move shows who you've got as face plates.
-  const plates = !!useNightLook();
   const seasonId = show.header?.seasonId ?? "";
   const href = seasonId ? paths.gamePage(seasonId, g.leagueId) : null;
   const ink = gameInk(g.gameName);
@@ -271,7 +265,8 @@ function GameRow({ show, g, name, move, draft, onPlayer, onCast }: { show: ShowD
         <>
           <Place show={show} g={g} fresh={fresh} />
           {g.archived && <Archived g={g} scope={show.header && show.couch ? { seasonId: show.header.seasonId, couchId: show.couch.id } : null} />}
-          {plates ? <Glance g={g} m={move} onCast={onCast} /> : move && <MoveLine g={g} m={move} />}
+          {/* Who you've got, at a glance (the user, 2026-11-18: "we mention Thien but never show her face plate"): Glance. */}
+          <Glance g={g} m={move} onCast={onCast} />
           {g.table.length > 0 && (
             <div className="mt-1" data-leaderboard>
               {rows.map((r) => (
@@ -363,7 +358,7 @@ function MoveLine({ g, m }: { g: GameView; m: YourMove }) {
 }
 
 /**
- * TEMP-UI, the episode night round: who you've got, at a glance, in each game's own shape (the user, 2026-11-18: "different game
+ * Episode night's at-a-glance (strip-night.ts): who you've got, in each game's own shape (the user, 2026-11-18: "different game
  * types should have different at a glance views"; "the UI should consider a large starting lineup"), one row a game however many the
  * couch has going ("keep the vertical real estate in check... who's to know how many games could be going on"). The move's own row,
  * its people leading as small cast tiles (Tonight's plate's rows, the same anatomy), at most three places (past them a "+N"):

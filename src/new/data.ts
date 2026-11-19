@@ -623,6 +623,13 @@ export const bets = {
   remove: (leagueId: string, epId: string, betId: string) => send(`${episode(leagueId, epId)}/bets/${encodeURIComponent(betId)}`, "DELETE"),
 };
 
+/** The episode-night strip's Lock in: you've started watching episode `n`, so your moves for it close in every game you play on the
+ *  season (/api/seasons/[seasonId]/lock-in; strip-night.ts useLockIn). `undo` takes it back for a moment only (the toast's). */
+export const lockIn = {
+  start: (seasonId: string, n: number) => send(`/api/seasons/${encodeURIComponent(seasonId)}/lock-in`, "POST", { episode: n }),
+  undo: (seasonId: string, n: number) => send(`/api/seasons/${encodeURIComponent(seasonId)}/lock-in`, "DELETE", { episode: n }),
+};
+
 /** After a save: the home (your moves due) and every show's games read again. */
 export function useAfterSave() {
   const client = useQueryClient();

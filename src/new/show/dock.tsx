@@ -16,7 +16,7 @@ import { closeMoves, faceIn, first, openMoves, sheetTabs, useMovesSheet, type Mo
 import { Face, IconBox } from "./parts";
 import { useOpenReveal } from "./reveal";
 import { askAfterSave } from "./remind";
-import { startWatching, stopWatching, useNightLook, useWatching, windowEpisode } from "./strip-night";
+import { lockedInEpisode, useLockIn, windowEpisode } from "./strip-night";
 import { gameColour } from "../games";
 import { fitsWith, matchSlots } from "@/lib/lineup-slots";
 
@@ -56,17 +56,20 @@ export function MovesSheet({ show, seasonId }: { show: ShowData; seasonId: strin
   const behind = !byGame && !!up && yours.length > 0 && yours[yours.length - 1] < up.number;
   // Nothing to set (knocked out, a team that only shows): no deadline to speak of.
   const settable = sheetTabs(show.play ?? []).length > 0;
-  // TEMP-UI, the episode night round (strip-night.ts): in the window your moves for the episode on or aired are open until you
-  // watch it, not until its air time (which has passed).
-  const look = useNightLook();
-  const night = look ? windowEpisode(show) : null;
+  // Episode night (strip-night.ts): in the window your moves for the episode on or aired are open until you watch it, not until its
+  // air time (which has passed); locked in (you said you're watching it), they're closed.
+  const night = windowEpisode(show);
   const inWindow = night != null && yours.includes(night);
+  const watching = lockedInEpisode(show);
+  const lockedIn = !inWindow && watching != null && yours.includes(watching);
   // On air with nothing open (a game At airtime, or locked by hand): never a time already past (the check).
-  const lockedNow = !!look && !inWindow && !!up?.live && yours.includes(up.number);
+  const lockedNow = !inWindow && !lockedIn && !!up?.live && yours.includes(up.number);
   const subtitle = !settable
     ? undefined
     : inWindow
     ? `Episode ${night} · ${up?.live && up.number === night ? "on now" : "aired"}`
+    : lockedIn
+      ? `Episode ${watching} · locked in`
     : lockedNow
       ? `Episode ${up!.number} · locked at airtime`
       : yours.length > 1
@@ -80,7 +83,7 @@ export function MovesSheet({ show, seasonId }: { show: ShowData; seasonId: strin
     <Sheet open={open} onOpenChange={(o) => !o && closeMoves()} title="Your moves" subtitle={subtitle}>
       {show.play ? (
         // A fresh body each time it opens, at the tab it was opened for, from what's saved.
-        <MovesBody key={`${open}-${tab}-${leagueId}`} show={show} play={show.play} initial={tab} initialLeague={leagueId} seasonId={seasonId} until={until} night={!!look} inWindow={inWindow} />
+        <MovesBody key={`${open}-${tab}-${leagueId}`} show={show} play={show.play} initial={tab} initialLeague={leagueId} seasonId={seasonId} until={until} inWindow={inWindow} />
       ) : (
         <div aria-busy className="mt-3 h-72 animate-pulse rounded-[4px] bg-background" />
       )}
@@ -102,7 +105,6 @@ function MovesBody({
   initialLeague,
   seasonId,
   until,
-  night = false,
   inWindow = false,
 }: {
   show: ShowData;
@@ -111,8 +113,7 @@ function MovesBody({
   initialLeague: string | null;
   seasonId: string;
   until: string | null;
-  /** TEMP-UI (strip-night.ts): a look is on, and the sheet is open in the window (moves open until you watch). */
-  night?: boolean;
+  /** Episode night (strip-night.ts): the sheet is open in the window (moves open until you start watching). */
   inWindow?: boolean;
 }) {
   const tabs = sheetTabs(play);
@@ -130,11 +131,13 @@ function MovesBody({
   const [slotPicks, setSlotPicks] = useState<Record<string, Record<number, string>>>({});
   const [seconds, setSeconds] = useState<Record<string, string | null>>(() => Object.fromEntries(play.filter((g) => g.pick?.second).map((g) => [g.leagueId, g.pick!.second!.id])));
   const [saving, setSaving] = useState(false);
-  // TEMP-UI, the episode night round: in the window the sheet first asks whether you've started watching (the user, 2026-11-18:
-  // nobody watching live may read the window as theirs). Not yet opens the moves; I'm watching locks them (simulated: strip-night.ts).
+  // Episode night: in the window the sheet first asks whether you've started watching (the user, 2026-11-18: nobody watching live
+  // may read the window as theirs). Not yet opens the moves; Yes locks them in every game (the server's lock: strip-night.ts).
   const [notYet, setNotYet] = useState(false);
-  const lateEp = night ? (play.find((g) => g.late && (g.lineup?.episode === g.late.episode || g.pick?.episode === g.late.episode))?.late?.episode ?? null) : null;
-  const watching = useWatching(seasonId, lateEp);
+  const lateEp = play.find((g) => g.late && (g.lineup?.episode === g.late.episode || g.pick?.episode === g.late.episode))?.late?.episode ?? null;
+  // Locked in already (GameView.watching): the moves read, closed.
+  const inEp = lateEp == null ? (play.find((g) => g.watching != null && (g.lineup?.episode === g.watching || g.pick?.episode === g.watching))?.watching ?? null) : null;
+  const lock = useLockIn(seasonId);
   const after = useAfterSave();
   const game = (id: string | null) => play.find((g) => g.leagueId === id);
   // Someone of yours to replace in a game: a waiver move (the home's), whose page is pushed over the show.
@@ -292,47 +295,36 @@ function MovesBody({
   }, [index]);
 
   if (!tabs.length) return <p className="mt-3 text-sm text-muted-foreground">Nothing to set here.</p>;
-  // Moves still open after their episode aired (a live game's, while you haven't watched it): said once for the sheet, since
-  // watching an episode is across all your games.
+  // Moves still open after their episode aired (a live game's, while you haven't started watching it): asked about once for the
+  // sheet, since watching an episode is across all your games.
   const lateMoves = play.filter((g) => g.late && (g.lineup?.episode === g.late.episode || g.pick?.episode === g.late.episode));
-  const gated = lateEp != null && !watching && !notYet;
+  const gated = lateEp != null && !notYet;
   // Nothing here can change (every game locked at airtime): the sheet reads, it doesn't offer a Save (the check).
   const editable = play.some((g) => lineupOpen(g) || pickOpen(g) || g.predictions.length > 0);
-  const lockedIn = lateEp != null && watching;
-  const asked = lateEp != null;
+  const lockedIn = inEp != null;
   const onAir = !!show.upNext?.live && show.upNext.number === lateEp;
   const resultsIn = lateEp != null && show.episodes?.reveal?.episode === lateEp;
   return (
     <>
-      {asked &&
-        (lockedIn ? (
-          <Note>Locked in for Episode {lateEp}. You said you&rsquo;re watching it.</Note>
-        ) : gated ? (
-          <StartedGate
-            seasonId={seasonId}
-            episode={lateEp}
-            resultsIn={resultsIn}
-            onNotYet={() => setNotYet(true)}
-            onWatching={() => {
-              startWatching(seasonId, lateEp);
-              closeMoves();
-              toast(`Locked in for Episode ${lateEp}. ${onAir ? "Enjoy the episode." : "Results when they're in."}`, { undo: () => stopWatching(seasonId, lateEp) });
-            }}
-          />
-        ) : (
+      {lockedIn ? (
+        <Note>Locked in for Episode {inEp}. You said you&rsquo;re watching it.</Note>
+      ) : gated ? (
+        <StartedGate
+          seasonId={seasonId}
+          episode={lateEp}
+          resultsIn={resultsIn}
+          onNotYet={() => setNotYet(true)}
+          onWatching={() => {
+            closeMoves();
+            void lock(lateEp, `Locked in for Episode ${lateEp}. ${onAir ? "Enjoy the episode." : "Results when they're in."}`);
+          }}
+        />
+      ) : (
+        lateEp != null && (
           <p data-not-started className="mb-3 text-[13px] leading-snug text-muted-foreground">
             Not started Episode {lateEp} · change anything until you do.
           </p>
-        ))}
-      {!asked && lateMoves.length > 0 && (
-        <OnYourHonour
-          seasonId={seasonId}
-          episode={lateMoves[0].late!.episode}
-          many={lateMoves.length > 1}
-          night={night}
-          onAir={!!show.upNext?.live && show.upNext.number === lateMoves[0].late!.episode}
-          resultsIn={show.episodes?.reveal?.episode === lateMoves[0].late!.episode}
-        />
+        )
       )}
       <div inert={gated || lockedIn} data-moves-gated={gated || lockedIn || undefined} className={gated || lockedIn ? "opacity-50 saturate-[.7]" : undefined}>
       {tabs.length > 1 && (
@@ -348,7 +340,7 @@ function MovesBody({
               onClick={() => pager.current?.go(i)}
               className="relative z-[1] h-9 flex-[1_0_auto] whitespace-nowrap rounded-[2px] px-2.5 text-[13px] font-bold text-muted-foreground transition-colors duration-200 data-[lit=true]:text-background"
             >
-              {night && game(t.leagueId) && <i aria-hidden className="mr-1.5 inline-block size-1.5 rounded-full align-middle" style={{ background: gameColour(game(t.leagueId)!.gameName) }} />}
+              {game(t.leagueId) && <i aria-hidden className="mr-1.5 inline-block size-1.5 rounded-full align-middle" style={{ background: gameColour(game(t.leagueId)!.gameName) }} />}
               {t.label}
               {open(t) && <i className="absolute right-1 top-1.5 size-1.5 rounded-full bg-chyron-line" aria-label="To do" />}
             </button>
@@ -371,8 +363,8 @@ function MovesBody({
       />
       </div>
 
-      {/* The started gate up, the moves locked in, or nothing open in the window (TEMP-UI, the episode night round): no Save. */}
-      {!(gated || lockedIn || (night && !editable)) && (
+      {/* The started gate up, the moves locked in, or nothing here that can change: no Save. */}
+      {!(gated || lockedIn || !editable) && (
       <div data-moves-save className="sticky bottom-0 z-[2] -mx-4 mt-1.5 bg-card px-4 pb-1 pt-2 shadow-[0_24px_0_0_var(--card)] before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-5 before:bg-gradient-to-t before:from-card before:to-transparent">
       {tabs.some((t) => t.kind !== "outlast" || (t.leagueId && pickup(t.leagueId))) && (
         <Btn tone="must" wide disabled={saving} onClick={save}>
@@ -388,8 +380,8 @@ function MovesBody({
           if (play.some((g) => g.lineup?.eachGame)) return "Each player locks when their game starts.";
           const eps = play.map((g) => g.lineup?.episode ?? g.pick?.episode).filter((n): n is number => Number.isInteger(n));
           const behind = eps.filter((n) => n < up).length;
-          // A live game's episode that aired and you haven't watched (OnYourHonour): watching it is what locks it.
-          if (lateMoves.length) return night ? "Starting to watch does." : "Watching it does.";
+          // A live game's episode that aired and you haven't started watching: starting to is what locks it.
+          if (lateMoves.length) return "Starting to watch does.";
           return !behind ? "Airtime does." : behind === eps.length ? "Revealing the episode does." : "Airtime does, or revealing an episode you’re catching up on.";
         })()}
       </p>
@@ -400,9 +392,9 @@ function MovesBody({
 }
 
 /**
- * TEMP-UI, the episode night round (docs/design-round/strip-night-spec.md, "Watching live isn't 'before you watch'"): in the window
- * the sheet asks before it opens the moves, two answers of equal weight. Not yet: the moves open. I'm watching: they lock in, in
- * every game (simulated until the engine step exists). Once results are in, I've watched it opens the reveal, which locks them.
+ * Episode night (docs/design-round/strip-night-spec.md, "Watching live isn't 'before you watch'"): in the window the sheet asks before
+ * it opens the moves, two answers of equal weight. Not yet: the moves open. Yes: they lock in, in every game (the server's lock).
+ * Once results are in, Yes opens the reveal, which locks them.
  */
 function StartedGate({ seasonId, episode, resultsIn, onNotYet, onWatching }: { seasonId: string; episode: number; resultsIn: boolean; onNotYet: () => void; onWatching: () => void }) {
   return (
@@ -447,74 +439,6 @@ function RevealFirst({ episode, what }: { episode: number; what: string }) {
       >
         Reveal Episode {episode}
       </Btn>
-    </div>
-  );
-}
-
-/**
- * A move still open after its episode aired (docs/PLAN-own-pace-games.md, "Pace is the game's setting": a live game's moves stay
- * open until you've watched). It runs on the honour system, so the sheet says it once, above its games (watching an episode is
- * across all of them), and gives whoever has watched the
- * honest way out: leave the move as it stood and reveal (the user, 2026-11-13). Nothing is saved by that: anything changed here and
- * not saved is dropped, and the reveal closes the move with what was there (a lineup carried in, a pick, or none).
- */
-function OnYourHonour({
-  seasonId,
-  episode,
-  many,
-  night = false,
-  onAir = false,
-  resultsIn = true,
-}: {
-  seasonId: string;
-  episode: number;
-  many: boolean;
-  /** TEMP-UI, the episode night round (strip-night.ts): its words, and the way out only once there's a reveal to open. */
-  night?: boolean;
-  onAir?: boolean;
-  resultsIn?: boolean;
-}) {
-  if (night) {
-    return (
-      <div data-honour={episode} data-honour-night className="mb-3 rounded-[4px] bg-background p-3 outline-1 -outline-offset-1 outline-border">
-        <b className="block text-[15px]">
-          Episode {episode} {onAir ? "is on now" : "has aired"}
-        </b>
-        <small className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">
-          Open until you watch it. Watching now, or seen it already? Leave {many ? "them as they are" : "it as it is"}.
-        </small>
-        {/* Before results there's nothing for the reveal to show (a dead end): the words carry it until then. */}
-        {resultsIn && (
-          <NavLink
-            href={paths.reveal(seasonId, episode)}
-            data-honour-watched
-            onClick={() => closeMoves()}
-            className="nd-press mt-1 inline-flex min-h-11 items-center text-[15px] font-bold underline decoration-border underline-offset-4"
-          >
-            I&rsquo;ve watched it
-          </NavLink>
-        )}
-      </div>
-    );
-  }
-  return (
-    <div data-honour={episode} className="mb-3 rounded-[4px] bg-background p-3 outline-1 -outline-offset-1 outline-border">
-      <b className="block text-[15px]">
-        Episode {episode} has aired
-      </b>
-      <small className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">
-        {many ? "These are" : "It’s"} still open because you haven&rsquo;t watched it. Seen it already? Leave {many ? "them as they are" : "this as it is"}.
-      </small>
-      {/* A link, not the reveal opened in place: the reveal doesn't open over a game's own page (BACKLOG 66), and Tonight is where
-          someone who has watched goes next anyway. */}
-      <NavLink
-        href={paths.reveal(seasonId, episode)}
-        data-honour-watched
-        onClick={() => closeMoves()}
-        className="nd-press mt-1 inline-flex min-h-11 items-center text-[15px] font-bold underline decoration-border underline-offset-4"
-      >
-        I&rsquo;ve watched it
-      </NavLink>
     </div>
   );
 }

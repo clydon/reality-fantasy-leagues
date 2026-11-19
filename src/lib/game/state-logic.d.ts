@@ -507,6 +507,13 @@ declare const StateLogic: {
     setPace(state: LeagueState, mode: string): string | null;
     /** The aired episode their moves are open late for at `now`, given their mark (Infinity: sees results as they come). */
     lateWindow(state: LeagueState, playerId: string, mark: number | null | undefined, now?: number): { episode: number; epId: string; until: string | null } | null;
+    /** The episode-night strip's Lock in: the seat says it has started watching episode `n`, closing its window for it (lateWindow)
+     *  as watching would. `at` ISO. False when there's no such episode or seat, or it's locked in already. */
+    lockIn(state: LeagueState, playerId: string, n: number, at: string): boolean;
+    /** Undoes a lock in for a moment only (within `graceMs` of it, at `now` ms): false once that's passed or nothing's there. */
+    unlockIn(state: LeagueState, playerId: string, n: number, now: number, graceMs: number): boolean;
+    /** The episode this seat locked in for while it's one behind it (its mark + 1), else null. */
+    lockedInFor(state: LeagueState, playerId: string, mark: number | null | undefined): number | null;
     /** The league going into episode `n`, with `n` still open (its results hidden, the teams as they are). */
     lateCopy(state: LeagueState, n: number): LeagueState;
     /** A lineup set for the episode (not carried in) or a pick. */

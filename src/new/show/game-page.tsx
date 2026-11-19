@@ -36,7 +36,6 @@ import { SideBetsRow, waiverLine, WeekBlock, WeekGames, YourTeam } from "./game-
 import { oneGame, thisWeek } from "./this-week";
 import { AgainRow, finalLine } from "./whats-on";
 import { GameSettingsPage, useGameSettingsPage } from "../backstage/game-settings";
-import { useNightLook } from "./strip-night";
 
 // A game's own page (docs/PLAN-start-a-game-gpt.md U1; the direction contract .impeccable/surfaces/src-new-show-game-page-tsx.md,
 // "The broadcast segment"): any game, generated from its spec, runs like a segment of the show. A title card (the game's name in
@@ -112,8 +111,7 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
   const waivers = useSeasonWaivers(seasonId, couchId, !!show.header && playsWaivers(show)).data?.games;
   // A time as far off as it is: "Wed 8:00 PM" within the week, the date too past it (clock.ts lockTime).
   const when = (iso: string) => lockTime(Date.parse(iso));
-  const night = !!useNightLook();
-  const moveOf = (x: GameView) => yourMove(x, { seasonId, episode: show.words.episode, when, draft: x.leagueId === g.leagueId ? draft : undefined, waivers: waivers?.find((w) => w.leagueId === x.leagueId), night });
+  const moveOf = (x: GameView) => yourMove(x, { seasonId, episode: show.words.episode, when, draft: x.leagueId === g.leagueId ? draft : undefined, waivers: waivers?.find((w) => w.leagueId === x.leagueId) });
   const move = moveOf(g);
   // Secret roles and the top scorer's twist live on the server (their own routes): read only on a game that has them.
   const roles = useLeagueRoles(g.leagueId, has(g.page, "badge", "role")).data ?? null;

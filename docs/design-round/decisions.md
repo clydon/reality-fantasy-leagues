@@ -1466,3 +1466,27 @@
 - Why: version 4 drew every game in full, so the views grew with the couch: with seven games Tonight's plate ran under the tab bar and the Games tab grew by about 1,000 px (3,257 to 4,263). Now the plate shows its head and at most three rows (past three games, the two that need you first and one fold row: a face a game, "All set" or "N to set", opened in place); each card's glance is the move's own row (three small tiles, who they are once set, the verb as text, as Tonight's rows say it), 3,285 px for seven games; its tiles open the plates in place. Three games look as they did. The one-line strip elsewhere keeps its faces only up to three games and drops them on the Games tab, whose cards show who.
 - Rejected: version 4's plates in every card (about 130 px a game); a pop-up for the glance (an extra layer for the common question, "who did I start?"); folding the games that need you (they lead, and the head counts them all); the outlined button in the glance's row (it took the names' room: four lines a row at 390).
 - Rests on: docs/design-round/strip-night-spec.md, "However many games are going"; night-fixture.js --extra=4; the story's version 5.
+
+## 2026-11-19 · The episode night's heights stay as built: Tonight's plate a head and three rows (past three games, two and a fold), a game card's glance one row
+- Decided by: the user, taking Claude's recommendation ("i want your recs for all three, then continue")
+- Why: three rows fit the real night (a lineup, a pick, a claim) with no fold; the fold only comes past three games; the glance costs about 4 px a card (seven games on Round 3's tab: 3,108 px without it, 3,136 with it). The tab's length is its leaderboards, a separate question.
+- Rejected: two rows (it folds an ordinary Wednesday).
+- Rests on: docs/design-round/strip-night-spec.md, "However many games are going"; the story's version 6.
+
+## 2026-11-19 · A full lineup carried in from last week is set while the window is open: no yellow, no reminder; only something missing is due
+- Decided by: the user, taking Claude's recommendation (every check had said the same)
+- Why: a carried full lineup is a real lineup that scores; calling it due from airtime made the yellow and the after-airtime reminder a weekly false alarm for everyone who watches later, which teaches Joanna to ignore the yellow the week something is missing. A starter gone, an empty slot or no pick stays due.
+- Rejected: due from airtime (the own-pace rule of 2026-11-14, written for the one seat a Commissioner switched to its own pace).
+- Rests on: src/lib/server/due-moves.ts, db/reminders.js, src/new/show/your-move.ts; tests/own-pace.test.js, tests/your-move.test.js; check-lock-in.js --moves=kept.
+
+## 2026-11-19 · Lock in is a real lock: a seat's mark on the episode in each game (ep.lockedIn), closing its window as watching would, set in every game of the person's on the season; Undo within a minute only
+- Decided by: the user (build it), its shape by Claude (default)
+- Why: Lock in carries the honour system and the user's rule that nobody watching live changes a move by mistake. A browser-only lock didn't follow you to another device and the server still took a change. In the league state the mark closes the window wherever the engine reads it (GhostLogic.lateWindow: the move routes' lateMark, a question's answers, Weekly Calls' own copy in calls.ts), with no migration. The toast's Undo is a mis-tap's, never a change of heart mid-episode, so the server allows it for a minute.
+- Rejected: a column beside the watch mark (show_follows or league_memberships: every caller of the window would have to read it, and a migration); unlocking any time (a lock you can lift isn't one); locking at airtime for everyone (takes the window from people who watch later).
+- Rests on: StateLogic.GhostLogic.lockIn, unlockIn, lockedInFor; GameView.watching; /api/seasons/[seasonId]/lock-in; scripts/dev-test/check-lock-in.js.
+
+## 2026-11-19 · Look C is the app: the ?strip switch, looks A and B, the ?carried simulation and Your moves' honour note are gone
+- Decided by: the user's pick (2026-11-18), built
+- Why: C with Lock in was the pick; the started gate ("Have you started watching?") replaced the honour note in C, so it could no longer show.
+- Rejected: keeping the switch (two apps to keep right).
+- Rests on: src/new/show/strip-night.ts, strip.tsx, dock.tsx.

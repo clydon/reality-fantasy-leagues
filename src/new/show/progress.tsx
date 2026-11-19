@@ -16,7 +16,7 @@ import { useOpenWatch } from "./watch-along";
 import { paceReveal, usePaceReveal } from "./pace-plate";
 import { stripState, WatchLockSheet } from "./strip";
 import { openMoves } from "./moves";
-import { startWatching, useNightLook, useWatching, windowEpisode } from "./strip-night";
+import { useLockIn, windowEpisode } from "./strip-night";
 import { StepGuard, StepLaterLine, StepLine } from "./step-through";
 
 // The progress control (the design round's step 3: docs/design-round/step3-tonight-spec.md, "Two parts every show tab shares";
@@ -91,13 +91,12 @@ export function ProgressControl({ show, compact }: { show: ShowData; compact?: b
   const action = watchAction(show);
   const openReveal = useOpenReveal();
   const openWatch = useOpenWatch();
-  // TEMP-UI, the episode night round (strip-night.ts): Watch along is watching, so while your moves for the episode on air are open
-  // it says first that starting locks them.
-  const look = useNightLook();
-  const nightEp = look ? windowEpisode(show) : null;
-  const watchingNow = useWatching(show.header?.seasonId ?? null, nightEp);
+  // Episode night (strip-night.ts): Watch along is watching, so while your moves for the episode on air are open it says first that
+  // starting locks them (the server's lock; once locked in there's no window, so it just opens).
+  const nightEp = windowEpisode(show);
+  const lock = useLockIn(show.header?.seasonId ?? "");
   const [watchAsk, setWatchAsk] = useState<number | null>(null);
-  const startWatch = (n: number) => (look && nightEp === n && show.upNext?.live && !watchingNow ? setWatchAsk(n) : openWatch(n));
+  const startWatch = (n: number) => (nightEp === n && show.upNext?.live ? setWatchAsk(n) : openWatch(n));
   const watchLock = watchAsk != null && (
     <WatchLockSheet
       show={show}
@@ -105,12 +104,12 @@ export function ProgressControl({ show, compact }: { show: ShowData; compact?: b
       open
       onOpenChange={(o) => !o && setWatchAsk(null)}
       onStart={() => {
-        startWatching(show.header?.seasonId ?? "", watchAsk);
+        const n = watchAsk;
         setWatchAsk(null);
-        openWatch(watchAsk);
+        void lock(n, `Locked in for Episode ${n}. Enjoy the episode.`).then(() => openWatch(n));
       }}
       onChange={() => {
-        const lead = stripState(show, look)?.open;
+        const lead = stripState(show)?.open;
         setWatchAsk(null);
         openMoves(lead?.tab ?? "lineup", lead?.leagueId ?? null);
       }}

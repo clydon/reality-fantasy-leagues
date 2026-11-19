@@ -228,10 +228,29 @@ switch, 3,136 px with the glance; all set, 3,108 and 3,136.
 - **Locking your own moves** ("Lock it in", or Watch along locking them): a new rule; the honour words carry the night without it.
 - **The push:** its words already say "before you watch it"; who gets it follows the open question below.
 
+## Built (2026-11-19, the user's three calls on Claude's recommendations)
+
+- **Look C is the app** (strip-night.ts, strip.tsx, dock.tsx, progress.tsx): no `?strip=` switch, no looks A or B, no `?carried=`
+  simulation; the honour note gave way to the started gate. Words for a move open in the window are the night's everywhere
+  (your-move.ts: "Before you start watching", "Locks when you start watching").
+- **The heights stay** as version 5 drew them (decisions.md).
+- **A full lineup carried in is set in the window** (due-moves.ts and db/reminders.js lost the case that called it due; the Games
+  tab's card says "Last week's lineup · locks when you start watching"). A starter gone, an empty slot or no pick stays due.
+- **Lock in is a real lock.** The engine: `GhostLogic.lockIn(state, seat, n, at)` marks `ep.lockedIn[seat]`; `lateWindow` closes the
+  seat's window on it (so the move routes, a question's answers and Weekly Calls refuse a change, as after watching); `unlockIn`
+  undoes it within its grace; `lockedInFor` is what GameView says as `watching`. The route: `POST /api/seasons/[seasonId]/lock-in
+  { episode }` locks every game of the person's on the season whose window is open on it; `DELETE` undoes within a minute.
+  The client: `useLockIn` (the plate's Lock in, the gate's Yes, Watch along) and `lockedInEpisode` (the strip's Locked in, the
+  sheet's "Episode 6 · locked in").
+- **Checks:** tests/own-pace.test.js (the lock, a save keeps it, the game view; only what's missing is due), tests/your-move.test.js
+  (the window's words and the carried rule); scripts/dev-test/check-lock-in.js on the real routes (--moves=kept|gap|set,
+  --phase=onair|aired: a lineup change after Lock in is refused).
+- **Not built, as specified:** the at-a-glance shapes for head to head, sheets, bingo, calls, best ball and drafts; the couch's
+  marker for when a move was set; a one-episode lineup's own at-a-glance on Round 3's night row (BACKLOG 110).
+
 ## Open questions
 
-1. A lineup carried in complete from last week, while the window is open: all set (as before airtime, calm, no push) or due (as
-   today: the yellow and a push, every night, for everyone behind)?
+1. ~~A lineup carried in complete from last week, while the window is open: all set or due?~~ All set (the user, 2026-11-19).
 2. ~~Which direction for who you've got: A, B or C?~~ C, with Lock in (the user, 2026-11-18).
 3. Two games on a couch at different paces (one strict, one live) on the night: does the strip speak for the open one, with the
    locked one said in its tab only?

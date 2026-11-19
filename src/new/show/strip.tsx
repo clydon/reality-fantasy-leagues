@@ -15,8 +15,7 @@ import { Sheet } from "../ui/sheet";
 import { openSheet } from "./questions";
 import { catchingUpIn, hasPacePlate, movedIn } from "./pace-plate";
 import { showLabel } from "./react";
-import { dotColour, nightGroups, nightLabel, startWatching, stopWatching, useNightLook, useWatching, whoWords, windowEpisode, type NightGroup, type NightLook } from "./strip-night";
-import { toast } from "../ui/toast";
+import { dotColour, lockedInEpisode, nightGroups, nightLabel, useLockIn, windowEpisode, type NightGroup } from "./strip-night";
 
 // The strip (the design round's step 3: docs/design-round/step3-tonight-spec.md, "Two parts every show tab shares"; Phase 0's
 // decision 2): the show's one statement of what's yours to set, under the show bar in the same place on every tab but Chat. It
@@ -34,18 +33,19 @@ export interface StripState {
   line: string | null;
   /** Where a tap goes when it isn't the lead move's own place: a game at your own pace's move. */
   open?: { tab: MovesTab; leagueId: string };
-  /** TEMP-UI (strip-night.ts): the episode night's look, while your moves for an episode on now or aired stay open (or one locked
-   *  at airtime is on): who you've got, game by game. */
-  night?: { look: NightLook; groups: NightGroup[]; episode: number; onAir: boolean };
+  /** Episode night (strip-night.ts): while your moves for an episode on now or aired stay open, you've locked in, or one locked at
+   *  airtime is on: who you've got, game by game. */
+  night?: { groups: NightGroup[]; episode: number; onAir: boolean };
 }
 
 /**
- * TEMP-UI, the episode night round (docs/design-round/strip-night-spec.md): the strip while your moves stay open after airtime, in
- * the look asked for; null outside it (the strip as it was). The window: a live or own-pace game still takes your moves for an
- * episode that's on, or aired, and you haven't watched (GameView.late). In it the moves are open until you start watching; something
- * missing is the yellow. On air with no window (a game locked at airtime, or by hand), it's locked, with who you've got.
+ * Episode night (docs/design-round/strip-night-spec.md; look C, the user's pick): the strip while your moves stay open after
+ * airtime; null outside it. The window: a live or own-pace game still takes your moves for an episode that's on, or aired, and you
+ * haven't watched (GameView.late). In it the moves are open until you start watching; something missing is the yellow. Locked in
+ * (GameView.watching: you said you're watching it), it's locked, with who you've got; so is an episode on air with no window (a
+ * game locked at airtime, or by hand).
  */
-function nightState(show: ShowData, look: NightLook, open: Move[], watching: number | null): StripState | null {
+function nightState(show: ShowData, open: Move[]): StripState | null {
   const up = show.upNext;
   const ep = show.words.ep;
   const n = windowEpisode(show);
@@ -53,11 +53,12 @@ function nightState(show: ShowData, look: NightLook, open: Move[], watching: num
   // A move's own words, never split inside ("Pick who survives"); moves joined so a line breaks between them, the dot leading.
   const words = (ms: Move[]) => [...new Set(ms.map((m) => moveCard(m, sid, false, false, show.words.episode).title))].map((t) => t.replace(/ /g, "\u00a0"));
   const join = (xs: string[]) => xs.join(" ·\u00a0");
-  // You said you're watching it (Your moves' question, or Watch along): locked in for you, in every game (simulated: strip-night.ts).
-  if (n != null && watching === n) {
-    const groups = nightGroups(show, n, new Set()).map((g) => ({ ...g, locked: true, open: 0 }));
+  // You said you're watching it (Lock in, Your moves' question, or Watch along): locked in, in every game, by the server's lock.
+  const watching = lockedInEpisode(show);
+  if (n == null && watching != null) {
+    const groups = nightGroups(show, watching, new Set()).map((g) => ({ ...g, locked: true, open: 0 }));
     if (!groups.length) return null;
-    return { tone: "locked", tag: `${ep} ${n}`, title: "Locked in", line: look === "a" ? (whoWords(groups) ?? "You're watching it") : "You're watching it", open: { tab: groups[0].tab, leagueId: groups[0].leagueId }, night: { look, groups, episode: n, onAir: !!up?.live } };
+    return { tone: "locked", tag: `${ep} ${watching}`, title: "Locked in", line: "You're watching it", open: { tab: groups[0].tab, leagueId: groups[0].leagueId }, night: { groups, episode: watching, onAir: !!up?.live && up.number === watching } };
   }
   if (n != null && (!up || (up.live ? up.number === n : up.number > n))) {
     // The episode's own moves lead (they're the ones before you start watching); anything else due (a replacement owed) after them.
@@ -67,20 +68,20 @@ function nightState(show: ShowData, look: NightLook, open: Move[], watching: num
     if (!groups.length && !due.length) return null;
     // The tag names the episode, so the title doesn't again (the critique: "Ep 6" five times in a view).
     const tag = `${ep} ${n}`;
-    const night = { look, groups, episode: n, onAir: !!up?.live };
+    const night = { groups, episode: n, onAir: !!up?.live };
     const lead = groups.find((g) => g.due && !g.locked && g.kind !== "replace") ?? groups.find((g) => !g.locked && g.kind !== "replace") ?? groups[0];
     const opens = lead && lead.kind !== "replace" ? { tab: lead.tab, leagueId: lead.leagueId } : undefined;
     if (due.length) {
       const late = due.filter((m) => m.late);
       // Only a move that isn't the episode's (a replacement owed): its own words and time, as the lead move always had.
-      if (!late.length) return { tone: "due", tag, title: join(words(due)), line: due[0].deadline ? `Due ${airTime(Date.parse(due[0].deadline))}` : null, night: look === "a" ? undefined : night };
+      if (!late.length) return { tone: "due", tag, title: join(words(due)), line: due[0].deadline ? `Due ${airTime(Date.parse(due[0].deadline))}` : null, night };
       // A live game's window closes when the next one airs: said once that's within a day (on the night it's a week off).
       const cap = late.map((m) => (m.deadline ? Date.parse(m.deadline) : null)).find((d): d is number => d != null && d - Date.now() < 864e5);
       // The condition leads, the moves under it (the user, 2026-11-18: someone twenty minutes in reads that it isn't theirs). A
       // replacement keeps its own time: it isn't a before-you-watch move.
       const rest = due.filter((m) => !m.late).map((m) => `${words([m])[0]}${m.deadline ? ` by\u00a0${airTime(Date.parse(m.deadline)).replace(/ /g, "\u00a0")}` : ""}`);
-      // A names the moves; B's faces show them (the dashed places), so its line counts what the badge counts, one line (the check).
-      const line = look === "a" ? join([...words(late), ...rest]) : join([`${late.length}\u00a0to\u00a0set`, ...rest]);
+      // The faces show the moves (the dashed places), so the line counts what the badge counts, one line (the check).
+      const line = join([`${late.length}\u00a0to\u00a0set`, ...rest]);
       return { tone: "due", tag, title: `Before you start watching${cap ? ` · locks ${airTime(cap)}` : ""}`, line, open: opens, night };
     }
     // Two games at different paces: the open one is named, the locked one has its padlock.
@@ -93,13 +94,13 @@ function nightState(show: ShowData, look: NightLook, open: Move[], watching: num
   if (n == null && up?.live) {
     const groups = nightGroups(show, up.number, new Set()).filter((g) => g.locked);
     if (!groups.length) return null;
-    return { tone: "locked", tag: `${ep} ${up.number}`, title: "Locked at airtime", line: look === "a" ? whoWords(groups) : null, open: { tab: groups[0].tab, leagueId: groups[0].leagueId }, night: { look, groups, episode: up.number, onAir: true } };
+    return { tone: "locked", tag: `${ep} ${up.number}`, title: "Locked at airtime", line: null, open: { tab: groups[0].tab, leagueId: groups[0].leagueId }, night: { groups, episode: up.number, onAir: true } };
   }
   return null;
 }
 
-/** What the strip says, or null for no strip. Pure: the show as Tonight reads it. `look`: the episode night round's (TEMP-UI). */
-export function stripState(show: ShowData, look: NightLook | null = null, watching: number | null = null): StripState | null {
+/** What the strip says, or null for no strip. Pure: the show as Tonight reads it. */
+export function stripState(show: ShowData): StripState | null {
   if (show.readOnly || !show.games.some((g) => g.yourRole)) return null;
   const up = show.upNext;
   const ep = show.words.ep;
@@ -107,10 +108,8 @@ export function stripState(show: ShowData, look: NightLook | null = null, watchi
   const behind = (show.play ?? []).filter((g) => catchingUpIn(g) && !paced.has(g.leagueId));
   for (const g of behind) paced.add(g.leagueId);
   const open = show.moves.filter((m) => isRequired(m) && !paced.has(m.leagueId));
-  if (look) {
-    const night = nightState(show, look, open, watching);
-    if (night) return night;
-  }
+  const night = nightState(show, open);
+  if (night) return night;
   // Your own-pace games' moves for the episode you're on: before anything due live (it's what you play next), soonest episode first.
   const mine = behind.filter((g) => !movedIn(g)).sort((a, b) => a.catchUp!.week - b.catchUp!.week);
   if (mine.length && !up?.live) {
@@ -127,7 +126,9 @@ export function stripState(show: ShowData, look: NightLook | null = null, watchi
   }
   const n = open[0]?.episode ?? up?.number ?? null;
   const tag = n != null ? `${ep} ${n}` : "Your move";
-  if (up?.live) return { tone: "locked", tag: `${ep} ${up.number}`, title: `Locked for ${ep} ${up.number}`, line: "Scores stay hidden until you reveal" };
+  // On air with nothing of yours drawn for it (no window, no lineup or pick). "Scores stay hidden until you reveal" left the strip
+  // (decisions.md, 2026-11-18): no scores exist while it's on, and the progress control says what's waiting once they do.
+  if (up?.live) return { tone: "locked", tag: `${ep} ${up.number}`, title: `Locked for ${ep} ${up.number}`, line: null };
   if (open.length) {
     // A draft turn is due now, not at a lock: it leads, and the line says so (step 6's check).
     const turn = open.some((m) => m.kind === "draftTurn");
@@ -158,10 +159,7 @@ export function stripState(show: ShowData, look: NightLook | null = null, watchi
 
 export function MovesStrip({ show, tab }: { show: ShowData; tab?: string }) {
   const nav = useNav();
-  const look = useNightLook();
-  const night = look ? windowEpisode(show) : null;
-  const watching = useWatching(show.header?.seasonId ?? null, night);
-  const s = stripState(show, look, watching ? night : null);
+  const s = stripState(show);
   // The moment it's all set (the user's B3, 2026-11-15: "you're all set" as a moment, not a bar that vanishes): when the last due
   // move is saved, the tag's yellow drains once and the tick settles in (new.css .nd-settle; none under reduced motion).
   const was = useRef(s?.tone);
@@ -187,13 +185,13 @@ export function MovesStrip({ show, tab }: { show: ShowData; tab?: string }) {
     openMoves(tabOf(lead), lead?.leagueId ?? null);
   };
   const due = s.tone === "due";
-  // C, on Tonight in the window: the plate, a row a game (every other tab keeps B's strip).
-  if (s.night?.look === "c" && tab === "tonight" && s.tone !== "locked") return <NightPlate s={s} settled={settled} seasonId={seasonId} />;
-  // B's faces row while it fits (three games: past that the line's count says it), and not on the Games tab in C, whose cards show
-  // who you've got (the user, 2026-11-18: keep the vertical real estate in check).
-  const faces = s.night && s.night.look !== "a" && s.night.groups.length <= 3 && !(s.night.look === "c" && tab === "games") ? s.night.groups : null;
+  // On Tonight in the window: the plate, a row a game (every other tab keeps the one-line strip).
+  if (s.night && tab === "tonight" && s.tone !== "locked") return <NightPlate s={s} settled={settled} seasonId={seasonId} />;
+  // The faces row while it fits (three games: past that the line's count says it), and not on the Games tab, whose cards show who
+  // you've got (the user, 2026-11-18: keep the vertical real estate in check).
+  const faces = s.night && s.night.groups.length <= 3 && tab !== "games" ? s.night.groups : null;
   return (
-    <section className={`px-3 pt-3 ${settled ? "nd-settle" : ""}`} data-strip={s.tone} data-strip-settled={settled || undefined} data-strip-look={s.night?.look}>
+    <section className={`px-3 pt-3 ${settled ? "nd-settle" : ""}`} data-strip={s.tone} data-strip-settled={settled || undefined}>
       <button
         type="button"
         onClick={go}
@@ -231,7 +229,7 @@ function StripTag({ s }: { s: StripState }) {
   );
 }
 
-// ---------- TEMP-UI: the episode night round's faces (B) and plate (C) ----------
+// ---------- Episode night: the faces row and Tonight's plate (strip-night.ts) ----------
 
 const TILE = "h-[34px] w-[26px] flex-none rounded-[2px]";
 
@@ -263,7 +261,7 @@ function NightGroupTiles({ g, plate, max = Infinity, locks = true }: { g: NightG
   );
 }
 
-/** B's row: every game's people for the night, in order, never wrapping. Room for about six tiles beside the dots: past it, each
+/** The faces row: every game's people for the night, in order, never wrapping. Room for about six tiles beside the dots: past it, each
  *  group keeps its empty places and gives up faces from its end, and "+N" counts the faces not drawn (never a gap: the check). */
 function NightFaces({ groups, plate, locks = true }: { groups: NightGroup[]; plate: boolean; locks?: boolean }) {
   const room = Math.max(3, 7 - groups.length);
@@ -334,15 +332,16 @@ function NightRow({ g, plate, onGo }: { g: NightGroup; plate: boolean; onGo: (g:
 }
 
 /**
- * C's plate, on Tonight in the window (the user's pick, 2026-11-18): the strip's tag, "Before you watch" and what's left, and Lock
+ * Tonight's plate in the window (look C, the user's pick, 2026-11-18): the strip's tag, "Before you watch" and what's left, and Lock
  * in on the right ("I made my picks, I'm about to watch"); then a row a game, its people and its verb, each the way into that game's
  * move: the ones that need you first, and never more than three rows (PLATE_ROWS). Past three, the rest fold into one row, a face a
- * game and what they need ("All set", "2 to set"), opened in place. Locking in locks every game's moves for the episode (simulated:
- * strip-night.ts) and the plate gives way to the one-line locked strip, so it's tall only while you've something to decide. Every
- * other tab shows the one-line strip.
+ * game and what they need ("All set", "2 to set"), opened in place. Locking in locks every game's moves for the episode (the
+ * server's lock: strip-night.ts useLockIn) and the plate gives way to the one-line locked strip, so it's tall only while you've
+ * something to decide. Every other tab shows the one-line strip.
  */
 function NightPlate({ s, settled, seasonId }: { s: StripState; settled: boolean; seasonId: string }) {
   const nav = useNav();
+  const lock = useLockIn(seasonId);
   const [ask, setAsk] = useState(false);
   const [more, setMore] = useState(false);
   const due = s.tone === "due";
@@ -361,12 +360,11 @@ function NightPlate({ s, settled, seasonId }: { s: StripState; settled: boolean;
   const restTiles = rest.length > 4 ? rest.slice(0, 3) : rest;
   const go = (g: NightGroup) => (g.kind === "replace" ? nav.push(`${paths.showPage(seasonId, "waivers")}?game=${g.leagueId}`) : openMoves(g.tab, g.leagueId));
   const lockIn = () => {
-    startWatching(seasonId, n);
     setAsk(false);
-    toast(`Locked in for Episode ${n}. Enjoy the episode.`, { undo: () => stopWatching(seasonId, n) });
+    void lock(n, `Locked in for Episode ${n}. ${s.night!.onAir ? "Enjoy the episode." : "Results when they're in."}`);
   };
   return (
-    <section className={`px-3 pt-3 ${settled ? "nd-settle" : ""}`} data-strip={s.tone} data-strip-look="c" data-night-plate data-night-games={groups.length}>
+    <section className={`px-3 pt-3 ${settled ? "nd-settle" : ""}`} data-strip={s.tone} data-night-plate data-night-games={groups.length}>
       <div className={`overflow-hidden rounded-[3px] ${due ? "bg-plate text-plate-foreground shadow-plate" : "bg-card text-foreground outline-1 -outline-offset-1 outline-border"}`}>
         <div className="flex min-h-[60px] items-stretch">
           <StripTag s={s} />
@@ -447,12 +445,12 @@ function NightPlate({ s, settled, seasonId }: { s: StripState; settled: boolean;
 }
 
 /**
- * TEMP-UI, the episode night round (strip-night.ts): Watch along is watching. Started while your moves for the episode on air are
- * still open, it says first that it locks them, with who you've got: Start watching (locks them, then watch along) or Change my
- * moves first (Your moves). The lock is simulated until the engine step exists.
+ * Episode night (strip-night.ts): Watch along is watching. Started while your moves for the episode on air are still open, it says
+ * first that it locks them, with who you've got: Start watching (locks them, the server's lock, then watch along) or Change my moves
+ * first (Your moves).
  */
 export function WatchLockSheet({ show, n, open, onOpenChange, onStart, onChange }: { show: ShowData; n: number; open: boolean; onOpenChange: (o: boolean) => void; onStart: () => void; onChange: () => void }) {
-  const groups = stripState(show, "b")?.night?.groups ?? [];
+  const groups = stripState(show)?.night?.groups ?? [];
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title={`Start watching ${show.words.ep} ${n}?`} subtitle="Watching along locks your moves for it">
       <div data-watch-lock={n} className="flex flex-col gap-3 pb-1">

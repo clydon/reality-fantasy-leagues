@@ -1350,14 +1350,19 @@ Last updated 2026-10-27.
     until 8:00 PM" (past), "Episode 9 has aired" while on, "I've watched it" opening an empty reveal before results, "Lock when it
     airs" after the airing, "All set for Ep 10" once results are in. And the user's rule from the same night: someone watching live
     must never be able to change a move by mistake. **A design round answers it** (docs/design-round/strip-night-*.md; story linked
-    in HANDOFF.md): three looks behind `?strip=a|b|c` (TEMP-UI, on branch strip-night, rebased onto master after the wizard merge); the user picked C with a Lock in button in its
-    first row (the checks had said B); a question in Your moves ("Have you started watching?"); Lock in and Watch along lock your
-    moves (simulated: an engine step to build). **Waits on the user:** the refined C's review; whether a full lineup carried in counts as all set in the window (every check: yes; today's
-    server calls it due, so the yellow and the after-airtime push go to everyone behind each night: due-moves.ts, your-move.ts,
-    db/reminders.js; BACKLOG 65's watch item); building the self-lock. Not on an episode night: no push.
+    in HANDOFF.md): three looks, the user picked C with a Lock in button in its first row (the checks had said B); a question in Your moves ("Have
+    you started watching?"). **Built 2026-11-19 on branch strip-night (not merged)**, on the user's three calls (Claude's
+    recommendations): C is the app, no switch; the heights stay; a full lineup carried in is set in the window (due-moves.ts,
+    db/reminders.js, your-move.ts; BACKLOG 65's watch item); Lock in is a real lock (GhostLogic.lockIn, the lock-in
+    route). **Waits on the user:** the built story's review, then the push. Not on an episode night.
     **Noticed in the rebase (2026-11-19), for the design pass after the review (main session):** a one-episode lineup or pick on
     the Games tab is Round 3's night row (whats-on.tsx `NightRow`), which says whether you're in, not who you started: the glance
     is `GameRow`'s, the season games'.
+
+111. **Tonight's "Seen Ep N?" forgets a Not yet** (noticed 2026-11-19 by scripts/dev-test/check-strip-settle.js, failing the same on
+    master b3f3dae7 as on branch strip-night, so not the episode-night build's): after sam, catching up, answers Not yet, a reload asks
+    again, and so does a second phone; the check expects the Not yet kept on the server until a new episode airs. Its other checks
+    pass (the strip's settle moment, Yes holding the yellow). For the main session after the episode-night push.
 
 ## Decided against (don't re-propose without new information)
 

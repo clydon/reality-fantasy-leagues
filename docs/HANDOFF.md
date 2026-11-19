@@ -59,14 +59,16 @@ coloured too, commit.
   seven answers are in the plan's E3), then the rest of E3. The two review findings left are in the plan's merge note: computer
   players' bingo cards and calls aren't stored; finished games leave the castaway sheet's views.
 
-## Episode night: the strip said "Locked" while moves were open (2026-11-18, waiting on the user; branch strip-night, rebased onto master after the wizard merge, not merged; TEMP-UI)
+## Episode night: the strip said "Locked" while moves were open (2026-11-18; built 2026-11-19 on branch strip-night, not merged: waits on the user's review and the push)
 The user's report from Survivor 51's Ep 9 night (on air, through Ep 8, live pace): "Locked for Ep 9" over a badge of 3 due moves;
 two scenarios must both work (change it before watching; see who I started); and, mid-round, "We also don't want someone who's
 watching live to be mistaken that they can make moves because that would be cheating." **The story: https://claude.ai/artifact/1uTLFgHjay9WgxYB7Q61SC.** Papers:
 docs/design-round/strip-night-{spec,first-view,shape,check}.md; decisions.md 2026-11-18; BACKLOG 110.
-- **Built behind `?strip=a|b|c`** (src/new/show/strip-night.ts; strip.tsx `nightState`, NightFaces, NightPlate, WatchLockSheet;
-  dock.tsx StartedGate; progress.tsx Watch along's lock; your-move.ts `night`; show-space.tsx `?carried=set` for the story only).
-  Without the switch the app is unchanged (diffed; check-strip-settle.js passes, your-move and own-pace tests pass).
+- **Built (2026-11-19; the user's three calls on Claude's recommendations):** look C is the app, no switch (strip-night.ts; strip.tsx
+  `nightState`, NightFaces, NightPlate, WatchLockSheet; dock.tsx StartedGate; progress.tsx Watch along's lock); a full lineup carried
+  in is set in the window (due-moves.ts, db/reminders.js, your-move.ts); Lock in is a real lock (`GhostLogic.lockIn`, `ep.lockedIn`,
+  `lateWindow`; GameView.watching; `/api/seasons/[seasonId]/lock-in`, Undo within a minute). The spec's "Built" section has it all;
+  checks: tests/own-pace.test.js, tests/your-move.test.js, scripts/dev-test/check-lock-in.js (real routes).
 - **The user's pick: C, with Lock in in its first row** ("I made my picks, I'm about to watch"; the checks had recommended B). A
   row a game (its people, the Games tab's verb); Lock in locks every game's moves (Undo for a moment; something unset asks first)
   and the plate collapses to the one-line strip. Words name the moment ("Before you watch", "Locks when you start watching"). Your
@@ -86,9 +88,8 @@ docs/design-round/strip-night-{spec,first-view,shape,check}.md; decisions.md 202
   faces under the one-line strip only up to three games, never on the Games tab in C. Seven games' Games tab: today 3,257 px,
   version 4 4,263, now 3,285. Fixture: night-fixture.js `--extra=N` (up to six more games, new-fixture.js `moreGames`) and
   `--extra-moves=set|gap`; story situations `busy` and `busy-set` (full-page shots with `full`).
-- **Waits on the user:** version 5's review (the heights; the refined C; the glance rows); a full carried lineup counts as all set in the window (every check: yes; the server's
-  due-moves.ts, your-move.ts and db/reminders.js call it due, so the yellow and the after-airtime push reach everyone behind
-  nightly); building the self-lock. No push on an episode night.
+- **Waits on the user:** the built story's review, then the push (no migration: the lock lives in each game's state; no push on an
+  episode night, Wednesday 8 PM ET).
 - **Tools:** scripts/dev-test/night-fixture.js (zt_nd couch; `--phase=onair|aired|results|watched --moves=set|carried|kept|gap
   --pace=live|strict|mixed --owed --art`), scripts/dev-test/story-strip-night.js (frames, flows, overlaps), the story's generator
   `.ui-atlas/stories/strip-night/make-spec.py` (ignored).

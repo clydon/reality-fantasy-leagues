@@ -340,6 +340,62 @@ test("the game's pace: live by default, the aired episode stays open for everyon
   assert.match(GhostLogic.setPace(paced, "strict"), /at their own pace/);
 });
 
+test("lock in (the episode-night strip): saying you've started watching closes your own window, through a save; undo for a moment only", () => {
+  const s = liveLineup({ results3: true });
+  GhostLogic.setPace(s, "live");
+  const e3 = ep(s, 3);
+  const at = new Date(NOW).toISOString();
+  assert.equal(GhostLogic.lateWindow(s, "ann", 2, NOW)?.episode, 3, "open before");
+  assert.equal(GhostLogic.lockIn(s, "ann", 3, at), true);
+  assert.equal(GhostLogic.lockIn(s, "ann", 3, at), false, "once");
+  assert.equal(GhostLogic.lockIn(s, "nobody", 3, at), false, "no such seat");
+  assert.equal(GhostLogic.lockIn(s, "ann", 99, at), false, "no such episode");
+  assert.equal(GhostLogic.lateWindow(s, "ann", 2, NOW), null, "her window closed, as watching closes it");
+  assert.equal(GhostLogic.lateWindow(s, "bo", 2, NOW)?.episode, 3, "bo's stays open: hers alone");
+  assert.equal(GhostLogic.lockedInFor(s, "ann", 2), 3, "the strip's Locked in");
+  assert.equal(GhostLogic.lockedInFor(s, "bo", 2), null);
+  assert.equal(GhostLogic.lockedInFor(s, "ann", 3), null, "watched it since: past");
+  // With no window the move goes the ordinary way, which is closed after airtime (the move routes: own-pace-seats.ts lateMark).
+  assert.ok(S.ActiveRosterLogic.validateLineup(s, e3.id, "ann", ids(s, [2, 3, 4])), "a lineup change is refused");
+  // A save keeps it.
+  const saved = JSON.parse(JSON.stringify(s));
+  S.migrateLeagueState(saved);
+  assert.equal(GhostLogic.lateWindow(saved, "ann", 2, NOW), null, "kept through a save");
+  // Undo: in the moment, open again; after it, no.
+  assert.equal(GhostLogic.unlockIn(s, "ann", 3, NOW + 120000, 60000), false, "too late to undo");
+  assert.equal(GhostLogic.unlockIn(s, "ann", 3, NOW + 5000, 60000), true);
+  assert.equal(GhostLogic.lateWindow(s, "ann", 2, NOW)?.episode, 3, "open again");
+  assert.equal(e3.lockedIn, undefined, "nothing left behind");
+  assert.equal(GhostLogic.unlockIn(s, "ann", 3, NOW, 60000), false, "nothing to undo");
+  // As the game view says it (the strip's Locked in reads it): no window, the episode you're watching, its lineup shown locked.
+  const { gameView } = jiti("../src/lib/game/game-view.ts");
+  const ref = { leagueId: "L", name: "Lineup", gameType: "active-roster", gameName: "Weekly Lineup", yourRole: "member" };
+  const own = { marks: new Map([["ann", 2]]), now: NOW };
+  assert.equal(gameView(ref, s, "ann", 2, () => null, undefined, own).watching, null, "not locked in");
+  GhostLogic.lockIn(s, "ann", 3, at);
+  const g = gameView(ref, s, "ann", 2, () => null, undefined, own);
+  assert.equal(g.late, null);
+  assert.equal(g.watching, 3);
+  assert.equal(g.lineup.episode, 3, "the episode you're watching, not the next");
+  assert.equal(g.lineup.locked, true);
+  assert.equal(gameView(ref, s, "bo", 2, () => null, undefined, own).watching, null, "hers alone");
+});
+
+test("in the window only what's missing is due (the user, 2026-11-19): a full lineup carried in is set; a starter gone from it is due", () => {
+  const { actionItems } = require("../src/lib/game/action-items.js");
+  const s = liveLineup();
+  GhostLogic.setPace(s, "live");
+  // Her Episode 2 lineup, saved before it aired (setting it now would be refused: it's locked).
+  ep(s, 2).lineups.ann = ids(s, [2, 3, 4]);
+  // As the server's due moves and the after-airtime reminder read it (due-moves.ts, db/reminders.js): the copy at airtime.
+  const due = (st) => actionItems(GhostLogic.lateCopy(st, 3), "ann", 2).filter((it) => it.kind === "lineup" && it.episode === 3);
+  assert.deepEqual(due(s), [], "her Episode 2 lineup carries in full: nothing due");
+  assert.equal(GhostLogic.movedFor(s, "ann", ep(s, 3).id), false, "carried, not set for 3 (the couch's Waiting on still says so)");
+  // C2, one of her three, went home in Episode 2 too: the lineup carried in is a starter short.
+  S.addElimination(s, ep(s, 2).id, s.castaways[2].id, "Voted Out");
+  assert.equal(due(s).length, 1, "a starter short: due");
+});
+
 test("live at your own pace: a late lineup runs on the copy where the episode's open, is marked, and scores as if on time", () => {
   const s = liveLineup({ results3: true });
   GhostLogic.setPace(s, "live");
@@ -395,9 +451,9 @@ test("live at your own pace: the game view opens the aired episode in your copy,
   assert.equal(g.lineup.episode, 3);
   assert.equal(g.lineup.locked, false, "open in her copy");
   const move = yourMove(g, { seasonId: "S", episode: "Episode", when: (iso) => iso });
-  assert.equal(move.due, true, "carried in from Episode 2, so still the yellow");
+  assert.equal(move.due, true, "nothing set for it (Episode 2's, set after it aired, was refused), so still the yellow");
   assert.equal(move.title, "Set your Episode 3 lineup");
-  assert.equal(move.line, "Episode 3 aired · you haven't watched it · set your lineup first");
+  assert.equal(move.line, "Before you start watching", "named by the moment you start watching (the episode-night strip)");
   // Bo, live, sees Episode 3 with its results (he's watched it), and the couch waiting on ann.
   const bo = gameView(ref, s, "bo", 3, () => null, undefined, own);
   assert.equal(bo.late, null);
@@ -411,7 +467,7 @@ test("live at your own pace: the game view opens the aired episode in your copy,
   GhostLogic.setPace(s, "live");
   GhostLogic.applyAs(s, "ann", 2, ep(s, 3).id, (v) => S.setActiveRosterLineup(v, ep(s, 3).id, "ann", ids(s, [2, 3, 5])), { late: true });
   const after = gameView(ref, s, "ann", 2, () => null, undefined, own);
-  assert.equal(yourMove(after, { seasonId: "S", episode: "Episode", when: (iso) => iso }).line, "Change until you watch it");
+  assert.equal(yourMove(after, { seasonId: "S", episode: "Episode", when: (iso) => iso }).line, "Locks when you start watching");
   const seen = gameView(ref, s, "bo", 3, () => null, undefined, own);
   assert.deepEqual(seen.waiting, []);
   assert.equal(seen.plays.rows.ann.find((q) => q.episode === 3)?.late, true, "the quiet marker on her square");
