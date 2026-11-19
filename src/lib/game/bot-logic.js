@@ -590,8 +590,7 @@ function answerFor(state, playerId, q0, faces, ep, answered, ctx) {
     if (!(fx instanceof Map) || !fx.size) return null;
     const slate = ctx.facts && ctx.facts.slate ? ctx.facts.slate.get(ep) : null;
     const now = ctx.now || Date.now();
-    const started = (g) => !!g && (g.status === "off" || (g.listing && g.listing.startsAt ? Date.parse(g.listing.startsAt) <= now : g.status !== "pre"));
-    const open = [...fx.keys()].filter((id) => !started(slate && slate.get(id))).sort();
+    const open = [...fx.keys()].filter((id) => !Spec.gameStarted(slate && slate.get(id), now)).sort();
     if (!open.length) return null;
     const base = { ...q, each: undefined, confidence: undefined };
     const pickOf = (id) => {
@@ -755,11 +754,30 @@ function mostFor(state, q, key, room, staking) {
   if (!room) return null;
   return Math.min(cap, Spec.stakeMost(room.points, room.held, key, staking));
 }
-/** Whether a question's faces come from the server's facts (answers.ts factFaces): about each game, trivia, a side, a bracket. */
-const fromFacts = (q) => q.each === "game" || q.answer === "trivia" || q.answer === "side" || q.answer === "bracket";
+/** Whether a question's faces come from the server's facts (answers.ts factFaces): the engine's one rule. */
+const fromFacts = (q) => Spec.fromFacts(q);
 /** Whether any question it answers needs the server's facts: the server reads them for those (bots.ts). */
 function needsFacts(state) {
   return answeredQuestions(state).some(fromFacts);
+}
+/** Whether a seat (`pid`; null: any computer player playing live) has a question whose faces come from the server's facts still to
+ *  answer in its window, open (`week`: a catching-up seat's, on its copy before it; null: this week's, at `now`): the server reads
+ *  the facts only then (the review, E1d: a full walk of the facts isn't free). */
+function factsDue(state, stored, pid, week, now) {
+  const AL = StateLogic.AnswerLogic;
+  const qs = answeredQuestions(state).filter(fromFacts);
+  if (!qs.length) return false;
+  const have = new Set((stored || []).map((r) => `${r.playerId}|${r.question}|${r.episode}`));
+  const seats = pid === null ? botIds(state) : [pid];
+  const at = week === null ? state : StateLogic.GhostLogic.viewFor(state, pid, week - 1);
+  const thisWeek = week === null ? AL.episodeNow(state) : week;
+  return seats.some((seat) =>
+    qs.some((q) => {
+      const ep = q.asked === "once" ? 0 : AL.windowAt(at, q, thisWeek, week === null ? undefined : week - 1);
+      if (ep === null || ep === undefined || (week !== null && q.asked !== "once" && ep !== week) || have.has(`${seat}|${q.id}|${ep}`)) return false;
+      return !AL.closed(at, q, ep, week === null ? { now } : { mark: week - 1, player: seat });
+    })
+  );
 }
 /** The questions a seat has answered in a window: stored, or in this run (a ticket's legs are its own answers). */
 const answeredIn = (stored, out, pid, ep) => new Set([...(stored || []), ...out].filter((r) => r.playerId === pid && r.episode === ep).map((r) => r.question));
@@ -909,4 +927,4 @@ function catchUpWeeks(state, n) {
   return out;
 }
 
-module.exports = { LEVELS, DEFAULT_LEVEL, isBot, botIds, ratings, run, hasWork, catchUpTo, paceTeams, blindSubmissions, auctionBids, waiverClaim, groupSlotPicks, ANSWERS, answersQuestion, answersAll, answeredQuestions, answers, catchUpAnswers, catchUpWeeks, stakesPoints, needsRoom, hostLines, needsFacts };
+module.exports = { LEVELS, DEFAULT_LEVEL, isBot, botIds, ratings, run, hasWork, catchUpTo, paceTeams, blindSubmissions, auctionBids, waiverClaim, groupSlotPicks, ANSWERS, answersQuestion, answersAll, answeredQuestions, answers, catchUpAnswers, catchUpWeeks, stakesPoints, needsRoom, hostLines, needsFacts, factsDue };

@@ -51,7 +51,11 @@ export async function readyLeague(leagueId: string, state: LeagueState): Promise
   // A squares game whose first episode has locked (its deal) or an episode whose digits are drawn (L3 part 2e): withLeagueLock keeps them.
   const squaresDue = StateLogic.SquaresLogic.due(state);
   // Computer players' answers or a turn to host that came due with no write (E1b: a card that came out, a window the clock opened).
-  const botsWaiting = () => botsDue(pool, leagueId, state);
+  const botsWaiting = () =>
+    botsDue(pool, leagueId, state).catch((e) => {
+      console.error(`[league-read] couldn't tell whether computer players have something due in ${leagueId}:`, e);
+      return false;
+    });
   if (!StateLogic.ensureNextEpisode(structuredClone(state)) && !Bots.hasWork(state) && !waiverStepDue && !drawDue && !auctionDue && !keepersDue && !squaresDue && !(await botsWaiting())) return stampCastProps(await stampStats(state));
   const before = draftTurn(state);
   const next = await withLeagueLock(leagueId, () => {});

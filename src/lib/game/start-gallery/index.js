@@ -1102,20 +1102,10 @@ function changeStates(spec, row, pg) {
   });
 }
 const changeById = (id) => CHANGES.find((c) => c.id === id) || null;
-/** Why computer players can't play this game yet, or null (E1a; mirrors computer-players.ts botsPlay on the spec's kind: a draft or a
- *  pick, with no questions, card, calls or bingo; questions come with E1b). */
-// E1b: the questions computer players answer: the spec's one rule (game-spec answers.js botAnswers), as bot-logic.js reads it.
-// The catalog's kinds (kindOf), not league types: what each says before any question is read.
-const BOTS_NOT_YET = { stages: 'Computer players play a game in stages later' };
-// A bingo card (a `card` game) too: its squares are settled by research and the couch, and a computer player ticks what's settled.
-const BOTS_PLAY = new Set(['draft', 'pick', 'questions', 'card']);
+/** Why computer players can't play this game yet, or null (E1a): the engine's one rule (game-spec answers.js botsWhy: a game in stages,
+ *  squares, or a question they don't answer), as the tracker, Randomize's bots lock and computer-players.ts botsPlay read it. */
 function botsFit(s) {
-  const k = kindOf(s);
-  if (BOTS_NOT_YET[k]) return BOTS_NOT_YET[k];
-  const qs = asks(s).filter((q) => !(isObj(q) && q.answer === 'calls'));
-  const not = qs.find((q) => !S.botAnswers(q));
-  if (not) return `Computer players don't answer "${not.ask || 'that question'}" yet`;
-  return BOTS_PLAY.has(k) ? null : 'Computer players play this kind of game later';
+  return S.botsWhy(s);
 }
 /** A change made (its apply, on its defaults), as a new spec. */
 function applyChange(spec, id, pg) {

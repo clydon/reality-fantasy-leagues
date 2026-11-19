@@ -523,6 +523,40 @@ then approval.
     - **E1d. Proof across the corpus:** blind.js plays every spec in the corpus to its end with one person and a computer player;
       the tracker records which kinds bots play; the GPT's manual and Randomize's pieces learn `bots`; the practice couch (hidden
       since 2026-11-18) is retired or reborn as "Just me and the bot" on the user's word.
+      **Done (2026-11-18), but the practice couch (the user's word) and four of the five studied seasons (see below):**
+      - **One rule.** game-spec answers.js `botsWhy(spec)`: why computer players don't play a game yet (a game in stages, squares,
+        or a question they don't answer: an over/under on a game's live line, or a number settled by a game's final, a guess that
+        needs the sport's scale), else null. The gallery's `botsFit`, the tracker, Randomize's lock and `botsPlay` read it.
+      - **The tracker.** scripts/engine-capabilities.js: each row that plays says why computer players don't, and the doc's summary
+        counts them: they play 224 of the 239 that play now (not yet: 12 in stages, 2 over/unders on a game's line, 1 margin).
+      - **The corpus.** blind.js `--bots`: one person (the runner, who answers every week) and a computer player in each game, added
+        as Backstage › Members adds one (`botsPlay`, `addBot` under the lock) before any draft, so the server plays it in every write
+        as it would live; at the end, beside blind.js's checks, every window the person answered the computer player answered too,
+        and its score is a number every episode. Records go beside the others as <show>-<season>-bots.json and .md. Run on Survivor
+        49 (2026-11-18): every tracker game that plays there, 164 of 164 played through; a computer player in 131 (the other 10 are
+        games in stages); in the 62 that ask questions the person answered 811 windows and the computer player missed none; every
+        computer player's final a number. It found one gap, the replay's own: a stand-in host's card never filed one a computer
+        player had written (fixed: standInHost files the host's own lines and records what was filed).
+        Only Survivor 49 of the five studied seasons is loaded in this lane's database: `tapes.js load` asks no bot, but its guard
+        wants LLM_BROWSER_API_URL set to the local bot, which the lane's brief says to ask before doing. The other four (The
+        Challenge 41, 40, 39, The Traitors 4) run with `node scripts/dev-test/blind.js run --bots` once loaded.
+      - **The GPT's answer.** prompt.js asks for "bots" beside the game (never inside it, as a team page's matchup); the manual says
+        who plays is never in the spec; `readDraft` reads it (out of the game if put in it); our check passes it on as
+        `offers.bots` (a count only from their words, up to five; normal unless easy or sharp); Describe's Open it and Start it put
+        them in Who's playing. check-start-a-game.js: words asking for two computer players start with them ("Tells 3 who watch it ·
+        2 computer players"); tests/game-words.test.js holds the check.
+      - **Randomize.** rollSpec's `bots` lock rolls only games computer players play (`botsWhy`), and says so when a show rolls none
+        (a sketch show's rolls are all bingo with trivia alongside: stages). Bold's gallery has no Randomize door (B1 replaced the old
+        wizard's); the lock is the engine's, for when one comes. tests/roll.test.js: every seed on every rulebook.
+      - **Reviewed** (`/code-review high` on 23ca3530..f144c4da, 2026-11-18): nine of ten fixed. The server reads the facts only while
+        a question from them is still to answer in an open window (`Bots.factsDue`; reads, writes and catch-ups alike), on the
+        caller's clock; readyLeague's wake-up check can't fail the read; a computer player's card write is checked (logged when it
+        doesn't land, and no turn waits on a card with nothing to write); `fromFacts` and `gameStarted` live once, in the engine;
+        Randomize and the gallery share `botsWhy`; a number settled by a game's final is held back; blind.js records the card as
+        filed. Not changed: the reviewer read "a roll turned away only for computer players" as hiding a lock's problem, but a roll
+        that played passed every lock, so computer players are what stands in the way; the message no longer blames stages.
+      **Left:** the practice couch (retire it, or reborn as "Just me and the bot": the user's word); the four studied seasons above;
+      an over/under on a game's live line, and a number settled by a game's final; a game in stages and squares.
     - Sizes: E1a one session (UI and checks); E1b one to two (the engine's answer kinds, then the server and own pace); E1c one each
       after the user's answer; E1d one. No migration expected (bots are seats; answers use `game_answers`).
 - **E2. Short games at scale.**

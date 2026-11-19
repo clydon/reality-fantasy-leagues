@@ -11,7 +11,7 @@ rules for is checked against a show of its kind, and says so.
 
 **Now:** 239 ✅ · 27 ⏳ · 3 🆕 · 4 ❓ · 23 💬, of 296.
 **Waiting, by step:** C8 1 · A14 2 · A15 18 · L3 1 · L4 2 · G1 3.
-**Computer players** play 225 of the 239 that play now; not yet: play a game in stages later (12), don't answer "Total points: over or under?" yet (1), don't answer "Total runs: over or under?" yet (1). Each row says so where they don't.
+**Computer players** play 224 of the 239 that play now; not yet: play a game in stages later (12), don't answer "Total points: over or under?" yet (1), don't answer "Total runs: over or under?" yet (1), don't answer "By how many points?" yet (1). Each row says so where they don't.
 
 ## The dials
 
@@ -324,7 +324,7 @@ Start a game's eval set (the playtest lane's P2, 2026-10-28), each request now t
 | ⏳ | w048 | Below Deck 13 | Below Deck: draft 3 crew, 2 points every time they're on charter, 5 if they get fired, 3 for a hookup, minus 1 for crying | G1: on charter and a hookup aren't moments research answers: the new-moment path |
 | ✅ | w049 | The Challenge 42 | blind draft for the challenge 42 finale only, 2 each, whoever has the winner gets 10 | A Weekly Lineup for The Challenge 42: everyone drafts 2 and starts 2 each episode, just Episode 13. Scored by The Challenge 42's rules. |
 | ✅ | w050 | Survivor 51 | weekly lineup with a bench of 2, waivers every tuesday, survivor 51, no trades | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. |
-| ✅ | w051 | football: Eagles vs Cowboys | Eagles vs Cowboys Sunday, everyone pick the winner and the margin | A game for football: Eagles vs Cowboys: everyone answers two questions before Game 1: who wins and by how many points. A point for each right answer. |
+| ✅ | w051 | football: Eagles vs Cowboys | Eagles vs Cowboys Sunday, everyone pick the winner and the margin | A game for football: Eagles vs Cowboys: everyone answers two questions before Game 1: who wins and by how many points. A point for each right answer. Computer players don't answer "By how many points?" yet. |
 | ✅ | w052 | basketball: Lakers | Lakers next 5 games, draft 2 players each, points rebounds assists all count 1 | A game for basketball: Lakers: everyone drafts 2, all season. Scored 1 a point, 1 a rebound and 1 an assist. |
 | ✅ | w053 | racing: the season finale | F1 season finale pick the podium | A game for racing: the season finale: everyone answers one question before Race 1: who finishes on the podium (pick 3). A point for each of them you get. |
 | 🆕 | w054 | baseball: World Series | world series mvp pool | ESPN's data names no MVP: the GPT offers the nearest that plays (who has the most hits or home runs in the series) |

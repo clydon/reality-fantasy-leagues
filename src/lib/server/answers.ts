@@ -196,7 +196,8 @@ const namesSomeone = (q: Question) => Spec.NAMES.includes(q.answer) || Spec.RANK
 
 /** L3 part 2f part 2: whether a game of an episode has started (its listing's start passed; a game with none, once it's on). L3 part
  *  3b: or it's called off (postponed, cancelled): nothing to pick for it from then. */
-const gameStarted = (g: SportsGameFacts, now: number) => g.status === "off" || (g.listing?.startsAt ? Date.parse(g.listing.startsAt) <= now : g.status !== "pre");
+/** Whether a sport's game has started: the engine's (game-spec answers.js gameStarted), shared with computer players. */
+const gameStarted = (g: SportsGameFacts, now: number) => Spec.gameStarted(g, now);
 
 /** L3 part 3b: an over/under on a game's own line, the games it's on at a window (each its kept line's event: an episode's one
  *  game '', each game its own id): a question about each game, the episode's; any other, its window's game (asked once: the game's
@@ -258,7 +259,7 @@ function gamesView(facts: AnswerFacts, q: Question, ep: number, now: number): No
 }
 
 /** Whether a question's faces come from the server's facts (factFaces): about each game, a trivia round, a side, a bracket. */
-export const fromFacts = (q: Question) => q.each === "game" || Spec.isTrivia(q) || q.answer === "side" || q.answer === "bracket";
+export const fromFacts = (q: Question) => Spec.fromFacts(q);
 /**
  * The faces an answer is checked against that come from the server's facts, as answerQuestions checks a person's and bots.ts a
  * computer player's (E1b): a question about each game, each of the window's games by event id with its sides; a trivia round (A13),

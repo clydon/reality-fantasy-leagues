@@ -73,7 +73,7 @@
 //   factsThrough(facts, k)        the facts as they stood once episode k was in (A11 part 2b's walk)
 //   answerProblem(q, value, faces) why an answer can't be given (null: it can), faces: who (or which groups) it can name
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { YES_NO, NAMES, NUMBERS, optionRange, isBeat, ODDS, ticketOf, isCardLine, cardMoment, cardWaiting, outsideKey, LINE_GAME, drawsOnBank } = require('./schema.js');
+const { YES_NO, NAMES, NUMBERS, optionRange, isBeat, ODDS, ticketOf, isCardLine, cardMoment, cardWaiting, outsideKey, LINE_GAME, drawsOnBank, fullSpec, isCalls, isTrivia } = require('./schema.js');
 // C2 part 3 (docs/PLAN-start-a-game-gpt.md track C): a window's points are the scoring sequence's lines and combines; the grading
 // (which answers are right, and how many right ones each has) is here.
 const Seq = require('../sequence/index.js');
@@ -1420,8 +1420,27 @@ const BOT_ANSWERS = ['person', 'group', 'yesNo', 'number', 'overUnder', 'choice'
  *  and about each person or game: E1b), but not an over/under on the game's own line (read from ESPN as it opens). The gallery and
  *  the server (computer-players.ts botsPlay, through bot-logic.js) both read this one rule. */
 function botAnswers(q) {
-  return !!q && BOT_ANSWERS.includes(q.answer) && !(q.answer === 'overUnder' && q.line === 'game');
+  // Nor a number settled by a game's final (closest to its total or margin): a guess needs the sport's scale.
+  return !!q && BOT_ANSWERS.includes(q.answer) && !(q.answer === 'overUnder' && q.line === 'game') && !(q.answer === 'number' && isObj(q.settle) && q.settle.by === 'final');
 }
+/**
+ * Why computer players don't play a game yet, or null: the one rule (the review, E1d). Start a game's Who's playing (start-gallery
+ * botsFit), the capability tracker, Randomize's bots lock (roll.js) and, on a league, computer-players.ts botsPlay all read it: a
+ * game in stages, squares, or a question they don't answer (Weekly Calls' calls are theirs: calls.ts).
+ */
+function botsWhy(spec) {
+  const full = isObj(spec) ? fullSpec(spec) : null;
+  if (!full) return null;
+  if (Array.isArray(spec.stages) || Array.isArray(full.stages)) return 'Computer players play a game in stages later';
+  if (isObj(full.get) && full.get.by === 'squares') return 'Computer players play this kind of game later';
+  const not = (full.ask || []).filter((q) => !isCalls(q)).find((q) => !botAnswers(q));
+  return not ? `Computer players don't answer "${not.ask || 'that question'}" yet` : null;
+}
+/** Whether a question's faces come from the server's facts (answers.ts factFaces): about each game, a trivia round, a side, a
+ *  bracket. A person's answer and a computer player's are checked against the same ones. */
+const fromFacts = (q) => isObj(q) && (q.each === 'game' || isTrivia(q) || q.answer === 'side' || q.answer === 'bracket');
+/** L3 part 2f part 2: whether a sport's game has started (`now` ms): over, or past its start, or not before it with no start known. */
+const gameStarted = (g, now) => !!g && (g.status === 'off' || (g.listing && g.listing.startsAt ? Date.parse(g.listing.startsAt) <= now : g.status !== 'pre'));
 
 /** What someone has staked on wagers of any of their points (A9) still to settle, by window ("question|episode"): points already on
  *  the line, so a new stake of them can't count them again. Step C6: beside a bank (`bank`), every stake. `answers`: the game's
@@ -1449,4 +1468,4 @@ function stakeMost(points, held, key, staking) {
   return Math.max(0, Math.floor(most));
 }
 
-module.exports = { BOT_ANSWERS, botAnswers, heldStakes, stakeMost, WAITING, DRAW, lineKey, readsTimeline, verdictOf, rightAnswers, pointsFor, windowPoints, wagerParts, stakeLines, unwagered, ticketVerdict, allRight, shrunk, isRight, answerProblem, spanEpisodes, pairsFrom, pairKey, windowOf, factsThrough, botKey, botCall, botRight };
+module.exports = { BOT_ANSWERS, botAnswers, botsWhy, fromFacts, gameStarted, heldStakes, stakeMost, WAITING, DRAW, lineKey, readsTimeline, verdictOf, rightAnswers, pointsFor, windowPoints, wagerParts, stakeLines, unwagered, ticketVerdict, allRight, shrunk, isRight, answerProblem, spanEpisodes, pairsFrom, pairKey, windowOf, factsThrough, botKey, botCall, botRight };

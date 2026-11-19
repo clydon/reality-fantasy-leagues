@@ -24,15 +24,9 @@ const schema = require('./schema.js');
 const { describeSpec, shortSpec, lowerFirst } = require('./describe.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
-const { PRESETS, fullSpec, specProblems, specWaitsFor, typeOf, covers, finaleQuestions, isCalls } = schema;
+const { PRESETS, fullSpec, specProblems, specWaitsFor, typeOf, covers, finaleQuestions } = schema;
 /* eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { botAnswers } = require('./answers.js');
-
-/** E1d: whether computer players play a game: not one in stages, and every question one they answer (Weekly Calls' are theirs too). */
-function botsPlayable(spec) {
-  const full = fullSpec(spec);
-  return !!full && !full.stages && (full.ask || []).filter((q) => !isCalls(q)).every(botAnswers);
-}
+const { botsWhy } = require('./answers.js');
 
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 const isInt = (v, min = -Infinity) => Number.isInteger(v) && v >= min;
@@ -675,11 +669,12 @@ function rollSpec(page, locks, seed, opts = {}) {
     for (let most = 2; most >= 0; most--) {
       const r = tryRoll(pg, l, s, opts.weights, most);
       if (!r) break;
-      let v = verdictOf(r.spec, pg.ctx);
+      const v = verdictOf(r.spec, pg.ctx);
       // A roll with computer players (`bots`): one they don't play goes again, as one that doesn't play would.
-      if (l.bots && v.plays && !botsPlayable(r.spec)) {
+      // A roll with computer players (`bots`): one they don't play goes again (the engine's one rule, botsWhy), never the nearest.
+      if (l.bots && v.plays && botsWhy(r.spec)) {
         botsOut = true;
-        v = { ...v, plays: false, busy: false, problems: [{ at: 'bots', problem: "Computer players don't play this game yet" }], misses: 1 };
+        break;
       }
       if (v.plays && !v.busy) return { ok: true, seed: s, tries: i + 1, ...r, describe: describeSpec(r.spec, pg.ctx), problems: [], waits: [], why: null };
       if (!nearest || v.misses < nearest.v.misses) nearest = { s, i, r, v };
@@ -689,8 +684,10 @@ function rollSpec(page, locks, seed, opts = {}) {
   // Every try played but said too much at a glance: the nearest of them plays, so it's a game. Its seed is the one rolled (the same
   // tries again give it), not its try's, whose own next tries would find another.
   if (nearest && nearest.v.plays) return { ok: true, seed: start, tries, ...nearest.r, describe: describeSpec(nearest.r.spec, pg.ctx), problems: [], waits: [], why: null };
+  // A game that played (every lock held) went again only because computer players don't play it: that's what stands in the way,
+  // whatever the tries that didn't play said.
+  if (botsOut) return { ok: false, seed: start, tries, spec: null, base: null, win: null, twists: [], length: null, describe: null, problems: [], waits: [], why: "Computer players don't play the games this show rolls yet: roll without them" };
   if (!nearest) return { ok: false, seed: start, tries, spec: null, base: null, win: null, twists: [], length: null, describe: null, problems: [], waits: [], why: 'Nothing fits those locks on this show: unlock one and roll again' };
-  if (botsOut) return { ok: false, seed: start, tries, spec: null, base: null, win: null, twists: [], length: null, describe: null, problems: [], waits: [], why: "Computer players don't play the games this show rolls yet (a game in stages): roll without them" };
   const { s, r, v } = nearest;
   const first = v.problems[0] || v.waits[0];
   return { ok: false, seed: s, tries, ...r, describe: null, problems: v.problems, waits: v.waits, why: first ? first.problem : 'No game plays this way yet' };

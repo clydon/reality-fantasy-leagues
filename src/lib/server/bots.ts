@@ -35,7 +35,8 @@ function botHostTurn(state: LeagueState, rows: Awaited<ReturnType<typeof readHos
   const n = openEpisode(state, rows, now);
   if (n === null || rows.get(n)) return null;
   const host = H.hostAt(state, n);
-  return host && Bots.botIds(state).includes(host) ? { host, n } : null;
+  // Only one with lines to write (a card's list empty: nothing it could write, so nothing waits on it).
+  return host && Bots.botIds(state).includes(host) && Bots.hostLines(state, host, n).length ? { host, n } : null;
 }
 /** A computer player whose turn it is to host writes its card's lines as a person does (host-cards.ts writeHostCard), once its turn
  *  is open: in the write that opens it, or the read that wakes it (botsDue). A game with no host costs no query. */
@@ -43,7 +44,10 @@ async function hostForBots(client: PoolClient, leagueId: string, state: LeagueSt
   if (!StateLogic.HostLogic.of(state)) return;
   const rows = await readHostCards(client, leagueId);
   const turn = botHostTurn(state, rows);
-  if (turn) await writeHostCard(client, leagueId, state, turn.host, Bots.hostLines(state, turn.host, turn.n), rows);
+  if (!turn) return;
+  const w = await writeHostCard(client, leagueId, state, turn.host, Bots.hostLines(state, turn.host, turn.n), rows);
+  // Didn't land (its time closed by the database's clock, or refused): said, and the turn files as a host's that wrote nothing does.
+  if (!("episode" in w)) console.error(`[bots] a computer player couldn't write Episode ${turn.n}'s card in ${leagueId}: ${w.error}`);
 }
 
 /**
@@ -61,7 +65,10 @@ export async function botsDue(db: Pool | PoolClient, leagueId: string, state: Le
   const stored = rows.map((r) => ({ playerId: r.player_id as string, question: r.question as string, episode: r.episode as number }));
   // A staked one counted as if its room were wide open: whether it's due, not what it stakes (the write reads the real room).
   const wide = new Map(bots.map((pid) => [`${pid}|live`, { points: Number.MAX_SAFE_INTEGER, held: new Map<string, number>() }]));
-  return Bots.answers(state, stored, { now, rooms: wide, ctx: await contextFor(leagueId, state, undefined, null, null, null) }).length > 0;
+  if (Bots.answers(state, stored, { now, rooms: wide }).length > 0) return true;
+  // The server's facts read only while a question from them is still to answer, open (the review: never on every read).
+  if (!Bots.factsDue(state, stored, null, null, now)) return false;
+  return Bots.answers(state, stored, { now, rooms: wide, ctx: await contextFor(leagueId, state, undefined, null, null, null, now) }).length > 0;
 }
 
 type Answered = { playerId: string; question: string; episode: number };
@@ -82,7 +89,7 @@ async function writeAnswers(client: Client, leagueId: string, due: (Answered & {
 /** What the server's facts say for computer players' questions about each game, trivia, a side or a bracket (E1b's leftovers): the
  *  facts as a seat at `mark` sees them (null: live; answer-points.ts walked), and each such question's faces at its window there
  *  (`week`: a catching-up seat's; null: this week's), as answers.ts checks a person's (factFaces). None for a game without one. */
-async function contextFor(leagueId: string, state: LeagueState, rows: AnswerRow[] | undefined, playerId: string | null, mark: number | null, week: number | null): Promise<FactContext | undefined> {
+async function contextFor(leagueId: string, state: LeagueState, rows: AnswerRow[] | undefined, playerId: string | null, mark: number | null, week: number | null, now = Date.now()): Promise<FactContext | undefined> {
   if (!Bots.needsFacts(state)) return undefined;
   const { factFaces, fromFacts } = await import("./answers");
   const w = await (await points()).walked({ leagueId, state, playerId, mark, rows });
@@ -94,7 +101,7 @@ async function contextFor(leagueId: string, state: LeagueState, rows: AnswerRow[
     const f = await factFaces(state, q, ep, w.facts);
     if (f) faces.set(`${q.id}|${ep}`, f);
   }
-  return { facts: w.facts, faces, now: Date.now() };
+  return { facts: w.facts, faces, now };
 }
 /** Each live computer player's room to stake (E1b's second slice), read as a person's is (answer-points.ts seatStakeRoom), for one
  *  with a question staked from its points or a bank still to answer this week ("seat|live"); none otherwise. */
@@ -112,7 +119,7 @@ async function catchUpWrite(client: Client, leagueId: string, state: LeagueState
   let made = 0;
   for (const only of Bots.catchUpWeeks(state, n)) {
     const room = stakes && Bots.needsRoom(state, rows, only.playerId, only.week) ? await (await points()).seatStakeRoom(leagueId, state, only.playerId, only.week - 1, rows) : null;
-    const ctx = await contextFor(leagueId, state, rows, only.playerId, only.week - 1, only.week);
+    const ctx = Bots.factsDue(state, rows, only.playerId, only.week) ? await contextFor(leagueId, state, rows, only.playerId, only.week - 1, only.week) : undefined;
     const due = Bots.catchUpAnswers(state, rows, n, room ? new Map([[`${only.playerId}|${only.week - 1}`, room]]) : undefined, only, ctx);
     await writeAnswers(client, leagueId, due);
     rows.push(...due.map((d) => ({ ...d, late: 0, changes: 0 })));
@@ -146,7 +153,8 @@ export async function answerForBots(client: Client, leagueId: string, state: Lea
   const behind = catchingUp(state);
   if (!live && !behind) return 0;
   const stored = await storedAnswers(leagueId, client);
-  const due = live ? Bots.answers(state, stored, { now, rooms: await liveRooms(leagueId, state, stored), ctx: await contextFor(leagueId, state, stored, null, null, null) }) : [];
+  const ctx = live && Bots.factsDue(state, stored, null, null, now) ? await contextFor(leagueId, state, stored, null, null, null, now) : undefined;
+  const due = live ? Bots.answers(state, stored, { now, rooms: await liveRooms(leagueId, state, stored), ctx }) : [];
   await writeAnswers(client, leagueId, due);
   stored.push(...due.map((d) => ({ ...d, late: 0, changes: 0 })));
   return due.length + (behind ? await catchUpWrite(client, leagueId, state, stored, null) : 0);

@@ -58,6 +58,8 @@ export function answers(state: LeagueState, stored: { playerId: string; question
 export function catchUpAnswers(state: LeagueState, stored: { playerId: string; question: string; episode: number }[], n: number | null, rooms?: Map<string, StakeRoom>, only?: { playerId: string; week: number }, ctx?: FactContext): { playerId: string; question: string; episode: number; answer: unknown }[];
 /** Whether any question computer players answer needs the server's facts (about each game, trivia, a side, a bracket). */
 export function needsFacts(state: LeagueState): boolean;
+/** Whether a seat (null: any computer player playing live) has a question from the server's facts still to answer in an open window. */
+export function factsDue(state: LeagueState, stored: { playerId: string; question: string; episode: number }[], playerId: string | null, week: number | null, now?: number): boolean;
 /** Whether a seat has a question staked from its points or a bank still to answer (`week`: a catching-up seat's; null: live). */
 export function needsRoom(state: LeagueState, stored: { playerId: string; question: string; episode: number }[], playerId: string, week: number | null): boolean;
 /** A seat's room to stake (answer-points.ts seatStakeRoom), keyed "seat|live" or "seat|mark". */

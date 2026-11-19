@@ -41,11 +41,17 @@
 //     isn't the fallback's order), filed as the card run files its own (db/card-research.js storeChoice, made_by 'stand-in', made
 //     an hour before the card was out by the season's clock), recorded per episode in `card`.
 // Nothing asks a bot. The local bot's answers are F2's, kept beside the tapes; the stand-ins are marked as such in the record.
+// E1d (docs/PLAN-start-a-game-redo.md), --bots: one person (the runner, who answers every week) and a computer player in each game,
+// added as Backstage › Members adds one (botsPlay, then addBot under the league's lock) before any draft, so the server plays it in
+// every write from there as it would live (bots.ts runBots: its draft picks, lineups, picks, answers, stakes). At the end, beside the
+// checks above: every window the person answered, the computer player answered too (a kind it answers: Spec.botAnswers), and its
+// score is a finite number every episode; a game computer players don't play says why (botsPlay) and plays with the person alone.
 //
-//   node scripts/dev-test/blind.js run [<show> <season>] [--only=3,7] [--through=N] [--keep]
+//   node scripts/dev-test/blind.js run [<show> <season>] [--only=3,7] [--through=N] [--keep] [--bots]
 //                                         every season studied (The Challenge 41, 40, 39, Survivor 49, The Traitors 4), or
 //                                         one; --only the tracker games by number (as `games` lists them); --through stops
-//                                         after episode N; --keep leaves the games standing (down when done)
+//                                         after episode N; --keep leaves the games standing (down when done);
+//                                         --bots one person and a computer player (E1d), records as <show>-<season>-bots.json
 //   node scripts/dev-test/blind.js run [<show> <season>] --rolls=N [--seed=S]
 //                                         G4: N rolled games (roll.js rollSpec, seeds S on, each distinct game once) in place
 //                                         of the tracker's, made from the season's page at its premiere; records as
@@ -325,8 +331,30 @@ function problemsOf(g) {
     for (const [who, v] of Object.entries(e.cash || {})) if (!Number.isFinite(v) || v < 0) out.push(`episode ${e.episode}: ${who}'s cash is ${v}`);
   }
   if ((g.unsettled || []).length) out.push(`never settled: ${g.unsettled.join(", ")}`);
+  // E1d: the computer player answered every window the person did (a kind it answers), and scored a number every episode.
+  if (g.bot) {
+    if (g.bot.missed.length) out.push(`the computer player didn't answer ${g.bot.missed.length} the person did: ${g.bot.missed.slice(0, 4).join(", ")}`);
+    for (const e of g.episodes || []) if (e.played && e.table && !Number.isFinite(e.table[g.bot.id])) out.push(`episode ${e.episode}: the computer player's score is ${e.table[g.bot.id]}`);
+  }
   for (const p of g.problems || []) out.push(p);
   return out;
+}
+
+/** E1d: the computer player beside the person: the windows each answered ("question|episode", of the game_answers rows), the ones the
+ *  person answered that it didn't (a kind it answers: Spec.botAnswers), and its last table's score. */
+async function botLook(r, s) {
+  const { pool, S } = app();
+  const Spec = require("../../src/lib/game/game-spec/index.js");
+  const person = H.pidOf(r, r.seats[0]);
+  const { rows } = await pool.query("SELECT player_id, question, episode FROM game_answers WHERE league_id = $1", [r.leagueId]);
+  const qs = new Map(S.AnswerLogic.questions(s).map((q) => [q.id, q]));
+  const keys = (pid) => new Set(rows.filter((x) => x.player_id === pid).map((x) => `${x.question}|${x.episode}`));
+  const mine = keys(person);
+  const its = keys(r.bot.id);
+  const missed = [...mine].filter((k) => !its.has(k) && Spec.botAnswers(qs.get(k.slice(0, k.lastIndexOf("|")))));
+  const played = r.episodes.filter((e) => e.played);
+  const last = played.length ? played[played.length - 1].table : null;
+  return { id: r.bot.id, name: r.bot.name, answered: its.size, personAnswered: mine.size, missed, final: last ? last[r.bot.id] ?? null : null };
 }
 
 // ---------- the run ----------
@@ -566,8 +594,8 @@ async function stageRecords(r, g, known = new Set()) {
 /** One game: made before the premiere on a couch of its own (the engine lab's start, the tinkerer its Commissioner), the
  *  other seats joining through Join, its draft if it has one. A record playtest.js's moves and waivers can play. A game in stages
  *  (A12 part 1) has its stages' records too (r.stages). */
-async function startGame(g, copy, users, seats, show, season) {
-  const { lab, pool, S } = app();
+async function startGame(g, copy, users, seats, show, season, bots = false) {
+  const { lab, pool, S, withLeagueLock } = app();
   const r = recordOf(900 + g.n, g.label, seats.map((x) => ({ ...x })), users, copy.seasonId, g);
   r.couchId = await H.couchFor(r.n, r.seats, users, copy.seasonId);
   const lead = users[r.seats[0].username];
@@ -585,6 +613,18 @@ async function startGame(g, copy, users, seats, show, season) {
     if (spec.rank && spec.rank.handicap) r.history = await earlierGame(r, season);
     for (const seat of r.seats.slice(1)) await H.join(r, seat);
     await H.seatIds(r);
+    // E1d: a computer player, as Backstage › Members adds one (before any draft: addProblem), so the server plays it from here.
+    if (bots) {
+      const cp = H.tsApp("lib/game/computer-players");
+      await withLeagueLock(r.leagueId, (s) => {
+        if (!cp.botsPlay(s)) {
+          r.botWhy = "Computer players don't play this game";
+          return;
+        }
+        const b = cp.addBot(s, "normal");
+        r.bot = { id: b.id, name: b.name };
+      });
+    }
     if (S.getLeagueType(await H.stateOf(r.leagueId)).hasRoster) await H.draft(r);
     if (g.playsAs === "stages") r.stages = await stageRecords(r, g);
     // What each seat kept, once the draft locked them.
@@ -707,11 +747,16 @@ async function standInHost(s, r, n) {
   const host = cfg ? S.HostLogic.hostAt(s, n) : null;
   if (!host) return null;
   const moments = cfg.of.slice().reverse().slice(0, cfg.each);
+  // E1d: a computer player hosting has written its own lines already (bots.ts hostForBots): filed as they are, as host-cards.ts files
+  // a host's lines once the deadline passes; anyone else's, the stand-in's.
   await pool.query(
-    "INSERT INTO host_cards (league_id, episode, player_id, moments, filed, how) VALUES ($1, $2, $3, $4, true, 'host') ON CONFLICT (league_id, episode) DO NOTHING",
+    `INSERT INTO host_cards (league_id, episode, player_id, moments, filed, how) VALUES ($1, $2, $3, $4, true, 'host')
+     ON CONFLICT (league_id, episode) DO UPDATE SET filed = true, how = 'host' WHERE host_cards.filed = false AND host_cards.player_id = $3`,
     [r.leagueId, n, host, moments]
   );
-  return moments;
+  // The card as filed (the host's own, a computer player's, or filed already by a read): what's recorded is what's graded.
+  const { rows } = await pool.query("SELECT moments FROM host_cards WHERE league_id = $1 AND episode = $2", [r.leagueId, n]);
+  return rows[0] ? rows[0].moments : moments;
 }
 
 /**
@@ -1048,12 +1093,13 @@ async function run(show, season, opts = {}) {
   const only = opts.only ? String(opts.only).split(",").map(Number) : null;
   const games = all.filter((g) => g.plays && (!only || only.includes(g.n)));
   console.log(`${show} ${season}: ${E} episodes; ${all.filter((g) => g.plays).length} of ${all.length} ${opts.rolls ? "rolled" : "tracker"} games play here${only ? `, ${games.length} picked` : ""}`);
-  const seats = PT.seatsFor(GROUP_SIZE);
+  // E1d, --bots: the runner alone (it answers every week), a computer player beside it in each game.
+  const seats = PT.seatsFor(opts.bots ? 1 : GROUP_SIZE);
   const users = {};
   for (const seat of seats) users[seat.username] ||= await H.userFor(seat);
   const replays = [];
   for (const g of games) {
-    const r = await startGame(g, copy, users, seats, show, season);
+    const r = await startGame(g, copy, users, seats, show, season, !!opts.bots);
     replays.push(r);
     // A12 part 1: a game in stages' stages, each played as a game of its own.
     for (const sr of r.stages || []) replays.push(sr);
@@ -1203,11 +1249,15 @@ async function run(show, season, opts = {}) {
     g.unsettled = (r.unsettled && r.unsettled.never) || [];
     g.waitsOnEarly = (r.unsettled && r.unsettled.early) || [];
     g.earlyEpisodes = (r.unsettled && r.unsettled.earlyEpisodes) || [];
+    if (opts.bots) {
+      g.botWhy = r.botWhy || null;
+      g.bot = r.bot && r.leagueId ? await botLook(r, s) : null;
+    }
     g.check = through < E ? [] : problemsOf(g);
     record.replays.push(g);
   }
   fs.mkdirSync(outDir(), { recursive: true });
-  const base = path.join(outDir(), `${show}-${season}${opts.rolls ? "-rolls" : ""}${through < E ? `-through${through}` : ""}`);
+  const base = path.join(outDir(), `${show}-${season}${opts.rolls ? "-rolls" : ""}${opts.bots ? "-bots" : ""}${through < E ? `-through${through}` : ""}`);
   fs.writeFileSync(`${base}.json`, JSON.stringify(record, null, 2) + "\n", "utf8");
   fs.writeFileSync(`${base}.md`, markdown(record), "utf8");
   const failed = record.replays.filter((g) => g.check.length);
