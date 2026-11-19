@@ -191,7 +191,8 @@ export function sheetTabs(play: GameView[]): SheetTab[] {
     label: play.filter((x) => x.gameType === g.gameType).length > 1 ? g.name : g.gameName,
   });
   return [
-    ...play.filter((g) => g.gameType === "active-roster").map((g) => tab(g, "lineup")),
+    // (Knocked out of a draft, BACKLOG 47: nothing to set there, so no tab.)
+    ...play.filter((g) => g.gameType === "active-roster" && g.twists?.outAfter == null).map((g) => tab(g, "lineup")),
     ...play.filter((g) => g.gameType === "pickem").map((g) => tab(g, "pool")),
     ...(play.some((g) => g.predictions.length) ? [{ key: "predict", kind: "predict" as const, label: "Predictions", leagueId: null }] : []),
     // Weekly Calls' calls are Call it's sheet (calls.tsx), Weekly Bingo's cards the bingo sheet (bingo.tsx): neither is a tab here.

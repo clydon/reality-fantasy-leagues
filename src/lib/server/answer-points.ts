@@ -417,7 +417,8 @@ function answersIn(w: Walked): { episode: number; set: Record<string, boolean | 
 /**
  * Step A14 part 2: how the couch did against the bot on a game's questions played against it, as far as the viewer has seen: the
  * windows its call is settled on (a void call isn't one), how many it got right, and each seat's record against it (`beat`: the
- * windows you scored on, right where it wasn't; `beaten`: those it was right on and you scored nothing, of the windows you answered).
+ * windows you scored on, right where it wasn't; `level`: both of you right, so nothing scored; `beaten`: it right and you not, of the
+ * windows you answered). Round 5 (B2): a level window was counted as beaten.
  * Null for a game with none. The bot is never a seat on the table, nor a place on it: this is a line beside it.
  */
 export function botLine(w: Walked, graded?: { verdicts: Map<string, Verdict>; earned: Map<string, Map<string, number>> } | null): BotLine | null {
@@ -441,14 +442,16 @@ export function botLine(w: Walked, graded?: { verdicts: Map<string, Verdict>; ea
     if (!q) continue;
     const ep = Number(key.slice(cut + 1));
     const list = byWindow.get(key) ?? [];
-    const right = Spec.botRight(q, verdicts.get(key) ?? Spec.verdictOf(q, ep, w.facts), call, list, w.facts);
+    const v = verdicts.get(key) ?? Spec.verdictOf(q, ep, w.facts);
+    const right = Spec.botRight(q, v, call, list, w.facts);
     if (right === null) continue;
     line.called++;
     if (right) line.right++;
     const got = earned.get(key);
     for (const a of list) {
-      const r = (line.vs[a.playerId] ??= { beat: 0, beaten: 0 });
+      const r = (line.vs[a.playerId] ??= { beat: 0, beaten: 0, level: 0 });
       if ((got?.get(a.playerId) ?? 0) > 0) r.beat++;
+      else if (right && Spec.isRight(q, v, a, list, w.facts) === true) r.level = (r.level ?? 0) + 1;
       else if (right) r.beaten++;
     }
   }

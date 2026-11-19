@@ -108,13 +108,13 @@ test("its shape: one call the bot can make, settled by data, a game of questions
 test("its words: when you're right and the bot isn't, each kind's, and what a window the bot didn't call does", () => {
   const words = describeSpec(game([BOOT]), { ...CTX, show: "Survivor" });
   assert.match(words.sentence, /2 points when you're right and the bot isn't\./);
-  assert.match(words.rules.join(" "), /Who goes home\? The bot makes its call too, before it locks\. 2 points if you're right and it isn't\. If the bot makes no call, it plays as usual\./);
+  assert.match(words.rules.join(" "), /Who goes home\? The bot makes its call too, before it locks\. 2 points if you're right and the bot named someone else\. If the bot makes no call, it plays as usual\./);
   assert.match(describeSpec(game([{ ...BOOT, beat: { by: "bot", none: "void" } }]), CTX).rules.join(" "), /If the bot makes no call, it doesn't count either way\./);
   assert.match(describeSpec(game([{ ...BOOT, pick: 2 }]), CTX).rules.join(" "), /Name two: 2 points for each one right that the bot didn't name\./);
   assert.match(describeSpec(game([HOW_MANY]), CTX).rules.join(" "), /The closest wins 3 points, if closer than the bot\./);
   // An episode fact against the bot keeps its own fallback's words.
   const quote = { id: "quote", ask: "Who says the title quote?", answer: "person", points: 1, asked: "each", settle: { by: "fact", fact: "titleQuote", take: "who" }, beat: { by: "bot" } };
-  assert.match(describeSpec(game([quote]), CTX).rules.join(" "), /if you're right and it isn't\. If the bot makes no call, it plays as usual\. If research can't say for sure/);
+  assert.match(describeSpec(game([quote]), CTX).rules.join(" "), /if you're right and the bot named someone else\. If the bot makes no call, it plays as usual\. If research can't say for sure/);
   // Some of a game's questions against the bot: the sentence says which.
   const plain = { ...IDOL, id: "plain", beat: undefined };
   assert.match(describeSpec(game([BOOT, plain]), CTX).sentence, /On who goes home, only when the bot's call isn't right\./);
@@ -312,11 +312,11 @@ test("the bot's line on the table: the windows it called, how many it got right,
   ];
   const facts = withBot(s, { "boot|1": cid(s, 5), "boot|2": cid(s, 0), "boot|4": cid(s, 2) });
   const line = botLine({ view: s, facts, rows, walk: null });
-  // Week 1 the bot was right (nobody scores: ann and bo right, cy wrong); week 2 wrong (ann beat it); week 3 no call (plays as
-  // usual, not one of its calls); week 4 not settled.
+  // Week 1 the bot was right (nobody scores: ann and bo right, level with it; cy wrong, beaten); week 2 wrong (ann beat it); week 3
+  // no call (plays as usual, not one of its calls); week 4 not settled. (Round 5, B2: level was counted as beaten.)
   assert.equal(line.called, 2);
   assert.equal(line.right, 1);
-  assert.deepEqual(line.vs, { ann: { beat: 1, beaten: 1 }, bo: { beat: 0, beaten: 1 }, cy: { beat: 0, beaten: 1 } });
+  assert.deepEqual(line.vs, { ann: { beat: 1, beaten: 0, level: 1 }, bo: { beat: 0, beaten: 0, level: 1 }, cy: { beat: 0, beaten: 1, level: 0 } });
   // A game with nothing against the bot has no line.
   const plain = league(game([{ ...BOOT, beat: undefined }]));
   assert.equal(botLine({ view: plain, facts: A.facts(plain), rows: [], walk: null }), null);

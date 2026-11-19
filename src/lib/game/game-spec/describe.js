@@ -808,7 +808,9 @@ function playersWords(q, pts, ask) {
 /** A14 part 2: what a question played against the bot earns, as How it works says it: when you're right and the bot isn't, and what a
  *  window the bot made no call for does. */
 function beatWords(q, pts) {
-  let earn = ` ${cap(pointsWord(pts))} if you're right and it isn't.`;
+  // Round 5 (B2, Designs needed 21): the rule's own words. A right pick the bot didn't name scores, even when the bot was right about
+  // someone else, so "and it isn't" was looser than the rule.
+  let earn = NAMES.includes(q.answer) ? ` ${cap(pointsWord(pts))} if you're right and the bot named someone else.` : ` ${cap(pointsWord(pts))} if you're right and the bot said otherwise.`;
   if (NAMES.includes(q.answer) && q.pick > 1) earn = ` Name ${say(q.pick)}: ${pointsWord(pts)} for each one right that the bot didn't name.`;
   if (q.answer === 'number') earn = ` The closest wins ${pointsWord(pts)}, if closer than the bot.`;
   const none = q.beat.none === 'void' ? " If the bot makes no call, it doesn't count either way." : ' If the bot makes no call, it plays as usual.';
@@ -1204,11 +1206,11 @@ function poolPhrases(s, w) {
 function poolRules(s, w) {
   const { lives, buyback, mulligans } = poolOf(s);
   const out = [];
-  if (lives) out.push(`You have ${say(lives)} ${lives === 1 ? 'life' : 'lives'}: a wrong pick, or no pick, costs one. At none you're out, with no more picks.`);
-  if (buyback) {
-    const cost = buyback.cost > 0 ? `for ${pointsWord(buyback.cost)} off your total` : 'at no cost';
-    out.push(`Out${beforeWords(buyback, w)}? You're back in from the next ${w.part} with one life, ${cost}${buyback.times === 1 ? ', once' : `, up to ${say(buyback.times)} times`}.`);
-  }
+  // (Round 5, B2: with a buy-back, the lives step says it, so How it plays' first steps don't end you where you'd buy back in.)
+  const back = buyback ? `${buyback.cost > 0 ? `for ${pointsWord(buyback.cost)} off your total` : 'at no cost'}${buyback.times === 1 ? ', once' : `, up to ${say(buyback.times)} times`}` : null;
+  if (lives && buyback) out.push(`You have ${say(lives)} ${lives === 1 ? 'life' : 'lives'}: a wrong pick, or no pick, costs one. At none you buy back in${beforeWords(buyback, w)}: back from the next ${w.part} with one life, ${back}. After that, at none you're out.`);
+  else if (lives) out.push(`You have ${say(lives)} ${lives === 1 ? 'life' : 'lives'}: a wrong pick, or no pick, costs one. At none you're out, with no more picks.`);
+  else if (buyback) out.push(`Out${beforeWords(buyback, w)}? You're back in from the next ${w.part} with one life, ${back}.`);
   if (mulligans) {
     const which = mulligans === 1 ? 'wrong pick (or missed one) is' : `${say(mulligans)} wrong picks (or missed ones) are`;
     out.push(`Your first ${which} forgiven: your streak carries on${lives ? ' and you keep your lives' : ''}.`);
@@ -1405,6 +1407,10 @@ function rulesOf(s, w) {
     rules.push(...drawRules(s, w));
     rules.push(...keepRules(s, w));
     if (count === 'start') rules.push(`Before each ${w.part}, start ${say(s.count.start)}. Only starters score.`);
+    // (Round 5, B2: the captain's step beside starting, so How it plays' first steps say it.)
+    if (count === 'start' && isObj(s.score.captain) && isNum(s.score.captain.times)) {
+      rules.push(`Name one of your starters captain each ${w.part}: their points count ${timesWord(s.score.captain.times)}. Name nobody and your last captain keeps it, while they're starting.`);
+    }
     // Cast properties (chunk 5): the lineup's slots.
     if (slotsOf(s)) rules.push(`The lineup is ${slotsPhrase(s)}: each starter fills a slot that takes them${slotsOf(s).some((x) => x.values.length > 1) ? ', a flex any of its positions' : ''}.${count === 'best' ? ' Your best that fit the slots count.' : ''}`);
     // A9 part 2: best ball, a lineup's captain, when the points multiply, Outlast in reverse.
@@ -1412,9 +1418,6 @@ function rulesOf(s, w) {
     if (count === 'all' && s.score.by !== 'place') rules.push('Everyone you draft scores.');
     if (s.score.by === 'moments') rules.push(w.groups.length ? `Points come from what happens: ${listOf(w.groups)}.` : `Points come from what happens in each ${w.part}.`);
     if (s.score.by === 'stats' && statScoreWords(s.score, w)) rules.push(`Points come from their stats: ${statScoreWords(s.score, w)}.`);
-    if (count === 'start' && isObj(s.score.captain) && isNum(s.score.captain.times)) {
-      rules.push(`Name one of your starters captain each ${w.part}: their points count ${timesWord(s.score.captain.times)}. Name nobody and your last captain keeps it, while they're starting.`);
-    }
     if (s.score.by === 'moments') {
       const times = timesRules(s.score, w);
       rules.push(...times);

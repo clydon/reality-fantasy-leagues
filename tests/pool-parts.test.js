@@ -100,13 +100,13 @@ test("a pool's pieces: their shape, defaults, words and settings; what they wait
   assert.equal(d.name, "Survival Pool");
   assert.match(d.sentence, /, and a second that counts when two go home,/);
   assert.match(d.sentence, /Two lives: a wrong pick costs one\. One buyback before Merged starts\. One wrong pick forgiven\. Last one standing wins\.$/);
-  assert.ok(d.rules.includes("You have two lives: a wrong pick, or no pick, costs one. At none you're out, with no more picks."));
-  assert.ok(d.rules.includes("Out before Merged starts? You're back in from the next episode with one life, for 2 points off your total, once."));
+  // (Round 5, B2: with a buy-back, the lives step says it.)
+  assert.ok(d.rules.includes("You have two lives: a wrong pick, or no pick, costs one. At none you buy back in before Merged starts: back from the next episode with one life, for 2 points off your total, once. After that, at none you're out."), d.rules.join(" | "));
   assert.ok(d.rules.includes("Your first wrong pick (or missed one) is forgiven: your streak carries on and you keep your lives."));
   assert.ok(d.rules.some((r) => /second castaway beside the first\. It counts on an episode two or more go home; on one where only one goes, it doesn't count/.test(r)));
   assert.ok(d.rules.includes("Last one standing wins: whoever's still in, then whoever went out last. Ties go to the most points."));
   assert.match(G.describeSpec(pool({}, { second: { fallback: "counts" } }), words).sentence, /, and a second, all season/);
-  assert.match(G.describeSpec(pool({ lives: 1, buyback: { times: 2, cost: 0 } }), words).rules.find((r) => r.startsWith("Out")), /^Out\? You're back in from the next episode with one life, at no cost, up to two times\.$/);
+  assert.match(G.describeSpec(pool({ lives: 1, buyback: { times: 2, cost: 0 } }), words).rules.find((r) => r.startsWith("You have")), /^You have one life: a wrong pick, or no pick, costs one\. At none you buy back in: back from the next episode with one life, at no cost, up to two times\. After that, at none you're out\.$/);
   // A plain pool's words are as they were.
   assert.equal(G.describeSpec(POOL, words).sentence, "A Survival Pool for Survivor 51: everyone picks one castaway to stay in each episode, all season. Longest streak wins.");
 });

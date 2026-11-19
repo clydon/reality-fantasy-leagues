@@ -365,6 +365,87 @@ then approval.
   - `check-new-backstage-ii.js` fails "the toast's Undo puts the settings back" on Backstage › Waivers' presets (not touched
     here; not re-run on older code).
 
+### Round 5: the pieces a game's page can't play yet (B2's design)
+
+B2's design round (the user: "continue here with B2", 2026-11-19). The seven pieces were confirmed still open first:
+- a captain (Designs needed 24);
+- a pool's second pick (27);
+- group slots (28: the page had an in-place picker since U1 step 2, but nothing in Your moves and nothing on the week);
+- an auction's prices (30);
+- beat the bot (21);
+- knocked out of a draft (10, BACKLOG 47, with DN 7's out state);
+- a pool's mulligans and buy-back (26, with the skipped night of DN 29).
+
+The wizard's gallery already offers "a captain scores double".
+
+**As run (2026-11-19), waiting on the user's review.**
+- **What it is:**
+  - Built in the app behind `?play=b2` (TEMP-UI, `src/new/show/b2.ts`, remembered for the browser tab), on
+    `scripts/dev-test/play-pieces-fixture.js`: seven cases on the explorer's own definitions, played a night further, as zt-gb-
+    rows in rfl_wizard.
+  - It went through Intent ([round5-play-pieces-spec.md](design-round/round5-play-pieces-spec.md)), PFD
+    ([-first-view.md](design-round/round5-play-pieces-first-view.md)) and Impeccable ([-shape.md](design-round/round5-play-pieces-shape.md)).
+  - **Everyone's at once** (not behind the switch):
+    - the view's new fields;
+    - BACKLOG 47's fix: no lineup or pick for someone knocked out, and no Your moves tab for them;
+    - the out strip;
+    - the bot line's `level`;
+    - the words fixes (the bot's rule on its questions and in How it plays; the captain's step beside starting; the buy-back
+      in the lives step).
+- **The check, once:**
+  - PFD 68 (about 54 before; [-pfd-eval.md](design-round/round5-play-pieces-pfd-eval.md));
+  - Impeccable 23/40 from an isolated reviewer with the detector ([-critique.md](design-round/round5-play-pieces-critique.md)).
+  - One batch of fixes, one confirming look.
+- **The story:** https://claude.ai/artifact/YFe6VFPpA4vDAU7tn95zdj (frames in `.ui-atlas/stories/b2-play-pieces/`, made by `scripts/dev-test/story-play-pieces.js`).
+- **Built:**
+  - **The view** (`game-view.ts`, `game-twists.ts`, `game-plays.ts`, `team-episode-breakdown.ts`):
+    - a lineup's `captain`;
+    - a week's `captain` and `slots`;
+    - a pick's `second`;
+    - a pool row's night (`second`, `forgiven`, `boughtBack`, `lifeLost`, `skipped`: `PickNight`, read by `nightKind`);
+    - an auction's `prices`;
+    - the twists' `outAfter`, buy-backs left, a slot's `endedAt` and `why`, and the offered groups' people and holders.
+  - **Your moves** (`dock.tsx`):
+    - the Captain row (the starters by name, the captain's tile tagged Captain ×2, carried with the lineup), saved with the
+      lineup (`moves.lineup`'s `captainId`);
+    - a lineup's group-slot rows, the groups on offer opened in place (`GroupRows`, shared with the page's picker);
+    - a pick sheet's two places, the second its own tap, with its stake said (`moves.second`);
+    - the pool's parts line (lives, mulligans, buy-backs left).
+  - **The page:**
+    - the night marks on a pool's grid with a key (`NightCell`, `NightBadge`): forgiven good-filled, bought back bone, a
+      skipped dash, a counted second's pip, the face that decided the night;
+    - Against the bot (beat it, level, it won);
+    - Your team's prices and Spent, and its captain;
+    - "Captain: Avery ×2" under Change your lineup;
+    - a knocked-out person's strip: the cut, who plays on, their people still on the show.
+  - **A person's sheet:**
+    - the week's captain ×2 and slot rows, and a slot row in the season table;
+    - a pool night in its own word ("Wrong", "Forgiven", "Bought back", "Skipped"), the second pick's row, and what the night did;
+    - the bot's call under each settled answer;
+    - prices on the team.
+  - **Checks:**
+    - `scripts/dev-test/check-play-pieces.js` (new, every check passes: each move made through the real routes and read back);
+    - the unit suite, 2,442 (`beat-bot`, `pool-parts` and `gameplay-bench-runtime` updated for `level`, the lives step and the
+      pool's night).
+- **Not rendered, so not judged:** a second pick that didn't count, a void slot, an exclusive game's holders on groups, a
+  30-episode grid with the marks.
+- **For B2's build, once approved:**
+  - make it everyone's and delete b2.ts;
+  - then the gallery can offer every piece. The draft room's bidding stays the U1 draft room's.
+- **Open for the user (the story's last section):**
+  - whether nobody is named captain for you (built: none, the captain carries);
+  - how deliberate a second pick is (built: its own tap);
+  - what a knocked-out person keeps (built: the finish, who plays on, their people still on the show; no other move);
+  - "Held by Bo": in an exclusive game, a group someone holds for the coming episode shows before the lock (the route refuses
+    it).
+- **Noticed, not changed:**
+  - `check-game-page.js` fails "door: Close didn't shut them all" on new-fixture's four games, the same on the code before B2
+    (checked 2026-11-19).
+  - The cut line's dashes strike through its label ("Next cut · bottom 1 · after Ep 2"), as before.
+  - A knocked-out person's grid row isn't dimmed, and their own week strip still says Set over the next episode.
+  - An open slot's groups push Save below the fold.
+  - A pool's single heart sits under the grid with no words, outside the switch (now "1 life left" behind it).
+
 ### Engine (a lane, beside the rounds)
 
 - **E1. Solo play and the simple bot.**

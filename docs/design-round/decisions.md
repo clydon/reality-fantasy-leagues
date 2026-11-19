@@ -1347,3 +1347,34 @@
 - What: "Prediction sheet · Episode 20", "Predictions · Game 3" from either start path; a typed name is kept, the episode added only when the couch already uses it; held to 60 characters with the suffix whole.
 - Rejected: the episode only on a clash (the first bare); a counter ("Predictions 2").
 - Rests on: src/lib/server/start-game.ts gameName; src/lib/game/spans.ts kindOf.
+
+## 2026-11-19 · Round 5 (B2): each play piece made in Your moves, counted on a person's sheet, what's left said where it's made
+- Decided by: Claude, through the three skills in order (Intent's spec, PFD's first view, Impeccable's shape and build) and one check (PFD evaluate and an isolated Impeccable critique), for the user's review
+- Why: seven pieces the wizard can make (a captain, a pool's second pick, group slots, an auction, beat the bot, a cut, a pool's lives) were named on a game's page and couldn't be made there or never showed what they did (the explorer plan's Designs needed 10, 21, 24, 26, 27, 28, 30).
+- What: a Captain row under a lineup's starters; a pick sheet's two places; a lineup's slot rows with the groups on offer opened in place; prices on a team; the bot's call under each settled answer and Against the bot under the grid; a knocked-out person's finish in the strip with no move; the pool's night marks on the grid with a key, and what's left above the pick.
+- Rejected: a captain named by a second tap on a tile (a tile tap already starts or benches); a second pick as a second tap on the faces; a section of its own per piece on a person's sheet (each piece's row joins the week's list).
+- Rests on: docs/design-round/round5-play-pieces-spec.md, -first-view.md, -shape.md, -pfd-eval.md, -critique.md; scripts/dev-test/play-pieces-fixture.js, story-play-pieces.js, check-play-pieces.js.
+
+## 2026-11-19 · Nobody is named captain for you: the captain carries with the lineup, and a benched captain leaves none
+- Decided by: Claude (default), while the user hasn't answered Round 5's open question
+- Why: the rule says "name nobody and your last captain keeps it, while they're starting"; naming one for you would be a move nobody made.
+- Rejected: the top-scoring starter named automatically when there's none.
+- Rests on: src/lib/game/game-spec/describe.js (the captain's rule); docs/design-round/round5-play-pieces-spec.md, Open questions.
+
+## 2026-11-19 · Against the bot counts three outcomes: beat it, level (both right, nobody scores), it won
+- Decided by: Claude, on both of Round 5's checks (PFD V-L4-001, the critique's finding 2), overturning its own default (beaten as the engine counted it, matching included)
+- Why: a window you and the bot both got right was counted as the bot beating you, so the line disagreed with your sheet ("The bot said Cameron too, so it doesn't score").
+- What: the server's bot line (answer-points.ts botLine) and the explorer runtime's copy count `level` apart from `beaten`; the block says each in words.
+- Rejected: keeping beaten as it was and explaining the tie in words.
+- Rests on: docs/design-round/round5-play-pieces-pfd-eval.md, -critique.md; tests/beat-bot.test.js.
+
+## 2026-11-19 · A pool's second pick takes its own tap; a tap after the pick still changes the pick
+- Decided by: Claude, on the critique's finding 4 (PFD's R4: the same gesture never does two things)
+- Why: the sheet moved the next tap to the second place by itself, so changing your mind made a second pick, which can end a streak and use a castaway up.
+- Rejected: the next tap filling the second on its own.
+- Rests on: docs/design-round/round5-play-pieces-critique.md.
+
+## 2026-11-19 · Someone knocked out of a draft has no lineup or pick offered (BACKLOG 47), for everyone at once
+- Decided by: Claude
+- Why: the server refuses the move, so offering it was a bug; the view's no-move and the strip's finish aren't behind Round 5's switch.
+- Rests on: src/lib/game/game-view.ts lineupOf, pickOf; src/lib/game/game-page/model.ts stripOf.

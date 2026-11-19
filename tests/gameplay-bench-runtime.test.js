@@ -798,7 +798,8 @@ test("beat the bot: a right answer scores only where the bot's call isn't right;
     const paid = () => Object.fromEntries(s.project('q', 'p1').decided.filter(d => d.episode >= 1).map(d => [d.playerId + ' ' + d.question + ' ' + d.episode, d.points]));
     // The bot named the boot: Ann and Cy, right, score nothing for it. It said no to a reward win and was wrong: Ann and Bo score.
     assert.deepEqual(paid(), { 'p1 boot 1': 0, 'p1 happens 1': 1, 'p2 boot 1': 0, 'p2 happens 1': 1, 'p3 boot 1': 0, 'p3 happens 1': 0 });
-    assert.deepEqual(s.project('q', 'p1').game.bot, { called: 2, right: 1, vs: { p1: { beat: 1, beaten: 1 }, p2: { beat: 1, beaten: 1 }, p3: { beat: 0, beaten: 1 } } });
+    // (Round 5, B2: a window both got right is level, not beaten, as the server's line counts it.)
+    assert.deepEqual(s.project('q', 'p1').game.bot, { called: 2, right: 1, vs: { p1: { beat: 1, beaten: 0, level: 1 }, p2: { beat: 1, beaten: 1, level: 0 }, p3: { beat: 0, beaten: 0, level: 1 } } });
     // Episode 2 with no bot call: it plays, every right answer scores.
     const ids2 = s.project('q', 'p1').questions.find(q => q.id === 'boot').options.map(o => o.id);
     ok({ type: 'answer', gameId: 'q', personId: 'p1', question: 'boot', episode: 2, answer: ids2[0] });
@@ -961,13 +962,16 @@ test("a survival pool's mulligans and buyback: the first wrong pick forgiven, th
   const a = R.open(def(true)), b = R.open(def(false));
   try {
     assert.deepEqual(a.export().preparation.notes || [], [], 'buyback and mulligans are connected: no note');
-    assert.deepEqual(a.project('g', 'p1').game.twists.pool, { lives: 1, livesOf: 1, mulligans: 1, mulligansOf: 1, out: null, buyBack: false }, 'one mulligan left before any is used');
+    assert.deepEqual(a.project('g', 'p1').game.twists.pool, { lives: 1, livesOf: 1, mulligans: 1, mulligansOf: 1, out: null, buyBack: false, buybacks: { left: 1, of: 1, cost: 3 } }, 'one mulligan left before any is used, and the buy-back (Round 5: its line on the pick sheet)');
     let v = night(a, 1);
     assert.deepEqual([v.twists.pool.lives, v.twists.pool.mulligans, v.twists.pool.out], [1, 0, null], 'night 1: forgiven, no life lost, none left');
     v = night(a, 2);
     assert.deepEqual([v.twists.pool.lives, v.twists.pool.out], [1, null], 'night 2: the life lost, bought back with one');
     assert.equal(v.table.find(r => r.playerId === 'p1').points, -3, 'the buyback cost 3 points');
     assert.equal(v.plays.rows.p1.find(w => w.episode === 2).points, -3, 'its night shows the cost');
+    // (Round 5, B2: the grid's square says which nights were forgiven and bought back, and what it cost.)
+    assert.equal(v.plays.rows.p1.find(w => w.episode === 1).pick.forgiven, true, 'night 1 forgiven, on its square');
+    assert.equal(v.plays.rows.p1.find(w => w.episode === 2).pick.boughtBack, 3, 'night 2 bought back for 3, on its square');
     v = night(a, 3);
     assert.deepEqual([v.twists.pool.lives, v.twists.pool.out, v.twists.pool.buyBack], [0, 3, false], 'night 3: out, the buyback spent');
     assert.deepEqual(v.table.map(r => r.playerId), ['p2', 'p1']);
@@ -1074,8 +1078,9 @@ test("a pool that never repeats: a night you've used everyone still in is skippe
     night(4, null, c(2));
     const row = g => s.project(g, 'p1').game.table.find(r => r.playerId === 'p1'), pool = g => s.project(g, 'p1').game.twists.pool;
     const night4 = g => s.project(g, 'p1').game.table.find(r => r.playerId === 'p1').picks.find(p => p.episode === 4);
-    assert.deepEqual(night4('skip'), { episode: 4, castawayId: null, correct: null }, 'skipped: nothing counts');
-    assert.deepEqual(night4('miss'), { episode: 4, castawayId: null, correct: false }, 'a miss');
+    // (Round 5, B2: a row carries its night beyond right or wrong, game-plays.ts PickNight.)
+    assert.deepEqual(night4('skip'), { episode: 4, castawayId: null, correct: null, skipped: true }, 'skipped: nothing counts');
+    assert.deepEqual(night4('miss'), { episode: 4, castawayId: null, correct: false, lifeLost: true }, 'a miss, a life lost');
     assert.deepEqual([pool('skip').lives, row('skip').week], [2, 3], 'skip: both lives, the streak of 3 holds');
     assert.deepEqual([pool('miss').lives, row('miss').week], [1, 0], 'miss: a life lost, the streak reset');
     const exported = s.export(), replay = R.resume(exported); try { assert.equal(replay.hash(), exported.stateHash); } finally { replay.dispose(); }

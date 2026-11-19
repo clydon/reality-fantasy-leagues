@@ -515,7 +515,8 @@ function Riders({ q }: { q: QuestionView }) {
   if (q.rollover && q.jackpot) lines.push(`Nobody got the last one: +${q.jackpot} rolled into this`);
   else if (q.rollover) lines.push("Nobody right: its points roll into the next");
   if (q.shrink && q.worth !== null) lines.push(`Worth ${q.worth} if you answer now · it shrinks each ${q.shrink.per === "change" ? "change" : "episode"}`);
-  if (q.bot) lines.push(q.bot.called ? "Beat the bot: it's made its call, you'll see it at the lock" : "Beat the bot: score only where it's wrong");
+  // (The rule is the worth line's: only whether the bot has called is said here.)
+  if (q.bot?.called) lines.push("The bot has made its call: you'll see it when this locks");
   if (q.settle && "by" in q.settle && q.settle.by === "players") lines.push("Settled by what most of you say happened");
   if (!lines.length) return null;
   return (

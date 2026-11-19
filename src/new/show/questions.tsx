@@ -157,6 +157,8 @@ function worth(q: QuestionView): string {
   if (q.each) return q.answer === "number" ? `Closest on each gets ${pts(q.points)}` : `${pts(q.points)} for each one right`;
   if ((q.answer === "person" || q.answer === "group") && (q.pick ?? 1) > 1) return `Name ${q.pick} · ${pts(q.points)} for each one right`;
   if (q.answer === "number") return `Closest gets ${pts(q.points)}`;
+  // Beat the bot (Round 5, Designs needed 21): the rule's own words, once.
+  if (q.bot) return `${pts(q.points)} if you're right and the bot ${q.answer === "person" || q.answer === "group" ? "named someone else" : "said otherwise"}`;
   return `${pts(q.points)} if you're right`;
 }
 

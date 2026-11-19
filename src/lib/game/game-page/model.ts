@@ -358,6 +358,19 @@ function stripOf(g: GameView, page: GamePage, phase: Phase, ctx: PageContext): S
   }
   const pool = g.twists?.pool;
   if (pool?.out != null) return { kind: "out", tag: "Out", tone: "quiet", title: `Out since ${E} ${pool.out}`, line: pool.buyBack ? "You can buy back in: it's in Your moves" : "Your streak stands where it ended", due: false, inPlace: false, go: pool.buyBack ? { tab: "pool" } : null };
+  // Round 5 (B2, Designs needed 10; BACKLOG 47): knocked out of a draft (a cut, a race won): your finish, and who plays on. No move:
+  // the server refuses one.
+  const outAfter = g.twists?.outAfter;
+  if (outAfter != null && g.you) {
+    const on = g.table.filter((r) => !r.you && !(g.twists?.out ?? []).includes(r.playerId)).map((r) => first(r.name));
+    const names = on.length > 3 ? `${on.slice(0, 2).join(", ")} and ${plural(on.length - 2, "other")}` : on.length > 1 ? `${on.slice(0, -1).join(", ")} and ${on.at(-1)}` : on[0] ?? null;
+    const cut = !!g.twists?.cut || has(page, "event", "cut");
+    const pts = `${g.you.total} ${g.you.total === 1 ? "pt" : "pts"}`;
+    // What's still hers to watch: her people still on the show.
+    const still = g.you.team.map((id) => g.cast.find((c) => c.id === id)).filter((c) => !!c && !c.left).map((c) => first(c!.name));
+    const watch = still.length ? ` · ${still.length > 2 ? `${still.slice(0, -1).join(", ")} and ${still.at(-1)}` : still.join(" and ")} still on the show` : "";
+    return { kind: "out", tag: "Out", tone: "quiet", title: `${cut ? "Cut" : "Out"} after ${epShort(E)} ${outAfter}`, line: `Your ${pts} stand${names ? ` · ${names} play${on.length === 1 ? "s" : ""} on` : ""}${watch}`, due: false, inPlace: false, go: null };
+  }
   if (sheet) {
     const left = sheet.of - sheet.answered;
     // Catching up at your own pace, nothing but your reveal locks it (docs/PLAN-own-pace-games.md part 4), as a pick there.
@@ -410,7 +423,7 @@ function couchOf(g: GameView, page: GamePage, ctx: PageContext): CouchM {
   const cutAfter = next && going > 0 && going < still ? still - going : null;
   const phaseName = next?.phase ? next.phase.charAt(0).toUpperCase() + next.phase.slice(1) : null;
   // How many go says itself on the line (a short line can say it loosely: "Lowest score is cut").
-  const cutLabel = next && cutAfter !== null ? `The cut · bottom ${going} · ${next.after ? `after ${epShort(E)} ${next.after}` : phaseName ? `when ${phaseName} starts` : "next"}` : null;
+  const cutLabel = next && cutAfter !== null ? `${(g.twists?.out ?? []).length ? "Next cut" : "The cut"} · bottom ${going} · ${next.after ? `after ${epShort(E)} ${next.after}` : phaseName ? `when ${phaseName} starts` : "next"}` : null;
   if (has(page, "table", "reverse")) notes.push("Fewest points wins");
   if (has(page, "table", "bank") && page.facts.bank) notes.push(`Everyone starts with a bank of ${page.facts.bank}`);
   const teams = g.teams?.teams.length

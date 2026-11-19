@@ -597,8 +597,14 @@ async function send(path: string, method: "PUT" | "POST" | "PATCH" | "DELETE", b
 const episode = (leagueId: string, epId: string) => `/api/leagues/${leagueId}/episodes/${encodeURIComponent(epId)}`;
 
 export const moves = {
-  lineup: (leagueId: string, epId: string, playerId: string, castawayIds: string[]) =>
-    send(`${episode(leagueId, epId)}/lineups/${encodeURIComponent(playerId)}`, "PUT", { castawayIds }),
+  // Round 5 (B2): `captainId` names the captain with the lineup (null: none); left out, the captain stays as it is.
+  lineup: (leagueId: string, epId: string, playerId: string, castawayIds: string[], captainId?: string | null) =>
+    send(`${episode(leagueId, epId)}/lineups/${encodeURIComponent(playerId)}`, "PUT", captainId === undefined ? { castawayIds } : { castawayIds, captainId }),
+  // Round 5 (B2): a pool's second pick, beside a first already made (null takes it back).
+  second: (leagueId: string, epId: string, playerId: string, castawayId: string | null) =>
+    castawayId
+      ? send(`${episode(leagueId, epId)}/picks`, "PUT", { playerId, castawayId, second: true })
+      : send(`${episode(leagueId, epId)}/picks/${encodeURIComponent(playerId)}?second=1`, "DELETE"),
   // Several at once (a game picking get.each per episode) go as castawayIds, the whole pick in order.
   pick: (leagueId: string, epId: string, playerId: string, castawayId: string | string[]) =>
     send(`${episode(leagueId, epId)}/picks`, "PUT", Array.isArray(castawayId) ? { playerId, castawayIds: castawayId } : { playerId, castawayId }),

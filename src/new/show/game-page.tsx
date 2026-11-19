@@ -3,7 +3,7 @@
 import { inShowWords } from "@/lib/game/show-words";
 import { useWithRoles } from "../sports/faces";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Heart, MoreHorizontal, X } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Heart, Minus, MoreHorizontal, X } from "lucide-react";
 import { LATE_SET, LateMark } from "./lineup-sheet";
 import { lockTime } from "../clock";
 import { useQueryClient } from "@tanstack/react-query";
@@ -20,14 +20,14 @@ import { toast } from "../ui/toast";
 import { has } from "@/lib/game/game-page/compile";
 import { splitFrame, frameStyle } from "@/lib/art-frame";
 import { pageModel, type HeroM, type PageModel, type StripM, type Tone } from "@/lib/game/game-page/model";
-import type { Square } from "@/lib/game/game-plays";
+import { nightKind, type Square } from "@/lib/game/game-plays";
 import { openBingo } from "./bingo";
 import { openCall } from "./calls";
-import { MovesSheet } from "./dock";
+import { GroupRows, groupShort, MovesSheet } from "./dock";
 import { openMoves } from "./moves";
 import { Face } from "./parts";
 import { answerWords, openSheet, QuestionsBody } from "./questions";
-import { DrillSheets, PersonBody, totalWords, useDrill, type DrillState } from "./game-sheets";
+import { DrillSheets, NightBadge, PersonBody, totalWords, useDrill, type DrillState } from "./game-sheets";
 import { GameTitleCard } from "./game-title";
 import { kickerOf } from "../ui/title-card";
 import { playsWaivers } from "./waivers";
@@ -36,6 +36,7 @@ import { SideBetsRow, waiverLine, WeekBlock, WeekGames, YourTeam } from "./game-
 import { oneGame, thisWeek } from "./this-week";
 import { AgainRow, finalLine } from "./whats-on";
 import { GameSettingsPage, useGameSettingsPage } from "../backstage/game-settings";
+import { useB2 } from "./b2";
 
 // A game's own page (docs/PLAN-start-a-game-gpt.md U1; the direction contract .impeccable/surfaces/src-new-show-game-page-tsx.md,
 // "The broadcast segment"): any game, generated from its spec, runs like a segment of the show. A title card (the game's name in
@@ -195,11 +196,13 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
   // The move, in the card: the one yellow plate while it's due; a game's other moves (a claim in, answers saved) as a quiet plate;
   // a lineup that's set, one plain line to change it.
   const lineupMove = wmove?.kind === "lineup" || wmove?.kind === "pick";
-  const plain = (child: ReactNode) => (
+  const plain = (child: ReactNode, more: ReactNode = null) => (
     <div data-game-strip={strip.kind} data-game-due="no">
       {child}
+      {more}
     </div>
   );
+  const b2 = useB2();
   const movePart =
     week && lineupMove && !strip.due ? (
       ended || !wmove || !("tab" in wmove.go) || wg.lineup?.locked ? plain(null) : plain(
@@ -210,7 +213,12 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
           className="mt-0.5 inline-flex min-h-11 items-center text-[15px] font-semibold underline decoration-border underline-offset-[4px]"
         >
           {week?.tone === "behind" || week?.tone === "early" ? "Not watched it yet? Change your lineup" : "Change your lineup"}
-        </button>
+        </button>,
+        b2 && wg.lineup?.captain ? (
+          <p data-page-captain className="mt-0.5 text-[13px] text-muted-foreground">
+            {wg.lineup.captain.id ? `Captain: ${(wg.cast.find((c) => c.id === wg.lineup!.captain!.id)?.name ?? "").split(" ")[0]} ×${wg.lineup.captain.times}` : "No captain yet: name one in your lineup"}
+          </p>
+        ) : null
       )
     ) : ended && !strip.due ? (
       plain(null)
@@ -296,6 +304,7 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
       {/* One game between two: the card above is the whole of it, so no grid of one column. Round 3: nor a one-episode game once it's
           over (its card says how it ended). */}
       {!(oneGame(wg) && wg.plays.kind === "result" && wg.players <= 2) && !(oneGame(wg) && wg.over) && <SeasonGrid g={wg} m={wm} words={show.words} due={!!wmove?.due} drill={drill} />}
+      {wg.bot && <AgainstTheBot g={wg} />}
       {(m.hero.lives || m.hero.notes.length > 0) && <Notes hero={m.hero} />}
       {wg.you && wg.you.team.length > 0 ? (
         <>
@@ -388,6 +397,7 @@ function StagesDone({ games }: { games: GameView[] }) {
 
 /** What the game's twists leave on you (a captain, a role, a handicap), and a co-op's lives. */
 function Notes({ hero }: { hero: HeroM }) {
+  const b2 = useB2();
   return (
     <div className="mx-4 mt-6 flex flex-col gap-1.5" data-game-notes>
       {hero.lives && (
@@ -395,10 +405,11 @@ function Notes({ hero }: { hero: HeroM }) {
           {Array.from({ length: hero.lives.of }, (_, i) => (
             <Heart key={i} className={`size-5 ${i < hero.lives!.left ? "fill-foreground text-foreground" : "text-muted-foreground"}`} aria-hidden />
           ))}
+          {b2 && <span className="ml-1 text-[13px] text-muted-foreground">{hero.lives.left === 1 ? "1 life left" : hero.lives.left ? `${hero.lives.left} lives left` : "No lives left"}</span>}
         </div>
       )}
       {hero.notes.map((n) => (
-        <Plate key={n.tag + n.title} tag={n.tag} tone={n.tone} title={n.title} line={n.line} size="xs" />
+        <Plate key={n.tag + n.title} tag={b2 ? n.tag.replace(/^Slot (\d+)$/, "Group slot") : n.tag} tone={n.tone} title={b2 && /^Slot /.test(n.tag) ? (groupShort(n.title) ?? n.title) : n.title} line={n.line} size="xs" />
       ))}
     </div>
   );
@@ -619,6 +630,7 @@ function TwistChooser({ leagueId, t }: { leagueId: string; t: LeagueTwist }) {
  *  tag says which) and saves it (the group-slots route), as a lineup's tap does in Your moves. */
 function SlotPicker({ g, seasonId }: { g: GameView; seasonId: string }) {
   const qc = useQueryClient();
+  const b2 = useB2();
   const [saving, setSaving] = useState<string | null>(null);
   const offered = g.twists.offered;
   const open = (g.twists.slots ?? []).filter((s) => s.status === "empty" || s.status === "dropped");
@@ -637,6 +649,15 @@ function SlotPicker({ g, seasonId }: { g: GameView; seasonId: string }) {
     }
   };
   const s = open[0];
+  if (b2)
+    return (
+      <section id="gp-move" className="mx-4 mt-6 scroll-mt-4" data-game-move="slots">
+        <p className="mb-1.5 text-[13px] text-muted-foreground">{`Group slot${(g.twists.slots ?? []).length > 1 ? ` ${s.slot + 1}` : ""}${s.status === "dropped" ? " · its group ended" : ""} · a tap puts a group in it`}</p>
+        <div className="rounded-[3px] bg-card p-1.5">
+          <GroupRows g={g} picked={null} taken={taken} busy={saving?.split(":")[1] ?? null} onPick={(id) => pick(s.slot, id, groupShort(offered.groups.find((x) => x.id === id)?.name) ?? "The group")} />
+        </div>
+      </section>
+    );
   return (
     <section id="gp-move" className="mx-4 mt-6 scroll-mt-4" data-game-move="slots">
       <p className="mb-1.5 text-[13px] text-muted-foreground">
@@ -711,6 +732,7 @@ function keyWords(g: GameView): string {
  *  kind, the next episode only Set, Due or –; your row lit; every name, square and episode a door. */
 function SeasonGrid({ g, m, words, due, drill }: { g: GameView; m: PageModel; words: ShowData["words"]; due: boolean; drill: DrillState }) {
   const p = g.plays;
+  const b2 = useB2();
   const all = [...m.couch.podium, ...m.couch.rows];
   const [open, setOpen] = useState(false);
   const big = all.length > BIG;
@@ -844,6 +866,11 @@ function SeasonGrid({ g, m, words, due, drill }: { g: GameView; m: PageModel; wo
             {g.waiting.map((w) => `${words.episode} ${w.episode}: waiting on ${w.name}'s ${p.blocks.some((b) => b === "pick" || b === "picks") ? "pick" : "lineup"}.`).join(" ")}
           </span>
         )}
+        {b2 && nightKey(g).length > 0 && (
+          <span data-night-key className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+            {nightKey(g)}
+          </span>
+        )}
         {rows.some((s) => p.rows[s.playerId]?.some((x) => x.late)) && (
           <span data-late-key className="mt-1 flex items-center gap-1.5">
             <Clock className="size-3 flex-none" aria-hidden />
@@ -867,6 +894,8 @@ function CutRow({ label }: { label?: string }) {
 /** One square, by kind: a pick's face (right or wrong), W or L, the points (the week's best bright), a running total, who's left. */
 function Cell({ g, x }: { g: GameView; x: Square }) {
   const k = g.plays.kind;
+  const b2 = useB2();
+  if (k === "pick" && b2 && x.pick) return <NightCell g={g} pk={x.pick} />;
   if (k === "pick") {
     if (!x.pick) return <span className="text-[13px] text-muted-foreground">–</span>;
     const c = x.pick.id ? g.cast.find((f) => f.id === x.pick!.id) : undefined;
@@ -899,6 +928,81 @@ function Cell({ g, x }: { g: GameView; x: Square }) {
   if (x.points === null) return <span className="text-[13px] text-muted-foreground">–</span>;
   const v = k === "race" ? (x.total ?? 0) : x.points;
   return <b className={`type-num text-[16px] ${x.won ? "rounded-[2px] bg-good px-1 text-good-foreground" : x.best ? "text-foreground" : "text-muted-foreground"}`}>{num(v)}</b>;
+}
+
+/**
+ * Round 5 (B2, behind ?play=b2): a pool's night on the grid. The face is the pick; its badge is the night's outcome, a wrong second
+ * pick that counted included: stayed (a tick), went home (a cross), forgiven (a shield, quiet), bought back (an arrow, the chyron's
+ * line); a skipped night is a dash, never a miss; a second pick that counted is a pip at the square's foot. One glyph a square, so
+ * it reads at 30 columns.
+ */
+function NightCell({ g, pk }: { g: GameView; pk: NonNullable<Square["pick"]> }) {
+  const kind = nightKind(pk);
+  if (kind === "skipped") return <Minus data-night="skipped" className="size-4 text-muted-foreground" aria-label="skipped: nobody left to pick" />;
+  const deciding = pk.correct !== false && pk.second && !pk.second.void && pk.second.correct === false ? pk.second.id : pk.id;
+  const c = deciding ? g.cast.find((f) => f.id === deciding) : undefined;
+  return (
+    <span className="relative block size-6" data-night-cell={kind ?? "waiting"}>
+      {c ? <Face src={c.photo} name={c.name} className={`size-6 rounded-[2px] text-[10px] ${kind && kind !== "stayed" ? "opacity-50 grayscale" : ""}`} /> : <span aria-label="No pick" className="block size-6 rounded-[2px] border border-dashed border-edge" />}
+      {kind && <NightBadge kind={kind} cost={pk.boughtBack} className="absolute -right-[5px] -top-[5px] size-3.5" />}
+      {pk.second && !pk.second.void && <i role="img" data-night-second aria-label="a second pick counted" className="absolute -bottom-[5px] left-1/2 h-[3px] w-3 -translate-x-1/2 rounded-full bg-foreground" />}
+    </span>
+  );
+}
+
+/** Round 5 (B2): the marks a pool's grid uses, named once under it. */
+function nightKey(g: GameView): ReactNode[] {
+  if (g.plays.kind !== "pick") return [];
+  const all = Object.values(g.plays.rows).flat().map((s) => s.pick).filter((p): p is NonNullable<Square["pick"]> => !!p);
+  const out: ReactNode[] = [];
+  if (all.some((p) => nightKind(p) === "forgiven")) out.push(<span key="f" className="inline-flex items-center gap-1"><NightBadge kind="forgiven" className="size-3.5" />wrong, forgiven</span>);
+  if (all.some((p) => nightKind(p) === "bought")) out.push(<span key="b" className="inline-flex items-center gap-1"><NightBadge kind="bought" className="size-3.5" />out of lives, bought back in</span>);
+  if (all.some((p) => p.skipped)) out.push(<span key="s" className="inline-flex items-center gap-1"><Minus className="size-3" aria-hidden />skipped: nobody left to pick</span>);
+  if (all.some((p) => p.second && !p.second.void)) out.push(<span key="2" className="inline-flex items-center gap-1"><i aria-hidden className="h-[3px] w-3 rounded-full bg-foreground" />a second pick counted</span>);
+  return out;
+}
+
+/**
+ * Round 5 (B2, Designs needed 21): how the couch does against the bot, as far as you've seen: a row a person, the questions they
+ * beat it on against those it beat them on, on one scale (Round 3's record bar), and the bot's own right calls in the heading.
+ */
+function AgainstTheBot({ g }: { g: GameView }) {
+  const b2 = useB2();
+  const bot = g.bot;
+  if (!b2 || !bot || !bot.called) return null;
+  const rows = g.table.filter((r) => !r.bot).map((r) => ({ r, level: 0, ...(bot.vs[r.playerId] ?? { beat: 0, beaten: 0 }) }));
+  const most = Math.max(1, ...rows.map((x) => x.beat + x.beaten + (x.level ?? 0)));
+  const part = (k: number, n: number) => (k ? `max(72px, ${(k / Math.max(1, n)) * 100}%)` : "0px");
+  return (
+    <section className="mx-4 mt-6" data-against-bot>
+      <div className="mb-1 flex items-baseline justify-between gap-3">
+        <h2 className="type-caption text-[24px]">Against the bot</h2>
+        <small className="text-[13px] text-muted-foreground">
+          The bot: {bot.right} of {bot.called} right
+        </small>
+      </div>
+      {rows.map(({ r, beat, beaten, level = 0 }) => {
+        const n = beat + beaten + level;
+        const who = r.you ? "You" : r.name.split(" ")[0];
+        return (
+          <div key={r.playerId} data-bot-person={r.name} className="grid min-h-11 grid-cols-[26px_52px_minmax(0,1fr)] items-center gap-2.5 border-t border-border py-1.5">
+            <Avatar id={r.userId ?? r.playerId} name={r.name} size={26} />
+            <span className="truncate text-[15px] font-semibold">{r.you ? "You" : r.name.split(" ")[0]}</span>
+            {n ? (
+              <span role="img" className="flex h-6 min-w-0 gap-px" style={{ width: `max(${[beat, level, beaten].filter(Boolean).length * 76}px, ${(n / most) * 100}%)` }} aria-label={`${who}: beat the bot on ${beat}, level on ${level}, the bot won on ${beaten}`}>
+                {beat > 0 && <i className="type-num grid h-full place-items-center whitespace-nowrap bg-foreground px-1.5 text-[13px] not-italic leading-6 text-background" style={{ flex: `1 1 ${part(beat, n)}` }}>{`beat it ${beat}`}</i>}
+                {level > 0 && <i className="type-num grid h-full place-items-center whitespace-nowrap bg-secondary px-1.5 text-[13px] not-italic leading-6 text-foreground" style={{ flex: `1 1 ${part(level, n)}` }}>{`level ${level}`}</i>}
+                {beaten > 0 && <i className="type-num grid h-full place-items-center whitespace-nowrap bg-input px-1.5 text-[13px] not-italic leading-6 text-foreground" style={{ flex: `1 1 ${part(beaten, n)}` }}>{`it won ${beaten}`}</i>}
+              </span>
+            ) : (
+              <span className="text-[13px] text-muted-foreground">Even so far</span>
+            )}
+          </div>
+        );
+      })}
+      <p className="mt-2 text-[13px] leading-snug text-muted-foreground">Beat it: you were right and the bot wasn&apos;t. Level: you both were, so nobody scored. It won: the bot was right and you weren&apos;t.</p>
+    </section>
+  );
 }
 
 /** The next episode: yours Due (white, never yellow: the strip above is the one yellow), Set, or –; anyone else's Set or –. */
