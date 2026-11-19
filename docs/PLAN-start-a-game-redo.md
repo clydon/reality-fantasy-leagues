@@ -334,6 +334,37 @@ The story, then approval.
 Backstage › Game settings, plus anything Round 2 leaves for the deep end. Skipped if Round 2's design already covers it. The story,
 then approval.
 
+**As run (2026-11-19), waiting on the user's review.**
+- **What it is:** built in the app behind `?settings=r4` (TEMP-UI, `src/new/backstage/r4.ts`). It went through Intent
+  ([round4-game-settings-spec.md](design-round/round4-game-settings-spec.md)), PFD ([-first-view.md](design-round/round4-game-settings-first-view.md))
+  and Impeccable ([-shape.md](design-round/round4-game-settings-shape.md)). Round 2 left "changing a game later" to this round, so it
+  wasn't skipped.
+- **The check, once:** PFD 79 ([-pfd-eval.md](design-round/round4-game-settings-pfd-eval.md)); Impeccable 27/40 from an isolated
+  reviewer with the detector ([-critique.md](design-round/round4-game-settings-critique.md)). One batch of fixes, one confirming look.
+- **The story:** https://claude.ai/artifact/WMc3vd96GAJwaZTHLQKevh (frames in `.ui-atlas/stories/round4-game-settings/`, made by
+  `scripts/dev-test/story-game-settings.js`, `--after` for the design).
+- **Built:**
+  - **Backstage › Game settings as a list** (`game-settings.tsx` `SettingsList`): a row per game, with its colour, its type, and
+    when this episode's lock falls. A night's games and finished games fold.
+  - **Each game's own settings** (`GameSettingsPage`), pushed over the game (its ⋯ menu's new "Game settings") or over the list,
+    Back named for where it goes:
+    - Start a game's title card;
+    - this episode's lock, its action in words (Lock now, Open it again, Back to Auto: `LockRow` `worded`);
+    - the rules as value-first lines, one opened at a time, a fixed one giving its reason;
+    - How moves lock as Start a game's two ways, with Together's late moves (on the honour system, recommended, or none);
+    - Archive or delete, named for the game.
+  - **Today's sections, lifted out:** `LineupControl`, `JoinControl` and `WaiversLink` (with HowLong, a `compact` form) are now
+    shared by both pages, and the save-with-Undo is a hook (`useSettingsWrite`).
+- **For B4, once approved:**
+  - make it the only Game settings and delete r4.ts and the stacked `GameBlock`;
+  - a different glyph for Who can join (it matches Replacing people's);
+  - the lock row's title wrapping beside its button.
+- **Noticed, not changed:**
+  - Backstage's header says "You run this" to a Game admin, and Competitive mode shows her a dimmed switch.
+  - The game's ⋯ sheet is titled by its type ("Weekly Lineup") while the page shows its name.
+  - `check-new-backstage-ii.js` fails "the toast's Undo puts the settings back" on Backstage › Waivers' presets (not touched
+    here; not re-run on older code).
+
 ### Engine (a lane, beside the rounds)
 
 - **E1. Solo play and the simple bot.**

@@ -837,7 +837,7 @@ function useBs<T>(page: string, seasonId: string, couchId: string | null, enable
 }
 
 export const useWaiversAdmin = (seasonId: string, couchId: string | null) => useBs<{ games: WaiverAdminGame[] }>("waivers", seasonId, couchId);
-export const useGameSettings = (seasonId: string, couchId: string | null) => useBs<{ games: GameSettings[] }>("settings", seasonId, couchId);
+export const useGameSettings = (seasonId: string, couchId: string | null, enabled = true) => useBs<{ games: GameSettings[] }>("settings", seasonId, couchId, enabled);
 export const useScoringRules = (seasonId: string, couchId: string | null) => useBs<ScoringRules>("rules", seasonId, couchId);
 export const useMembers = (seasonId: string, couchId: string | null) => useBs<Members>("members", seasonId, couchId);
 /** Backstage home's Reminders card (backstage-remind.ts): who still has a move open in the games you run here, and who heard lately. */
