@@ -901,6 +901,9 @@ then approval.
     - Its "a start that has aired: refused" stays failing, as listed under B1 (an aired start is an own-pace catch-up now).
     - **The show bar's faint backdrop title sits behind Home** on a long sports matchup name ("Knicks at Sixers, Nov 19": the story's
       overlap check flags it). It predates this work.
+    - **`check-new-episode-games.js` stops at its first browser step,** "Tonight's Extras: Call it for Episode 6". Tonight's Call it
+      row has been off (`const more = false`) since ff74e563, so the check never reaches the Games tab's This week steps updated
+      here. `check-new-researched-trivia.js` runs the same fold and passes.
 - **B4. Game settings** (Round 4's design).
 
 ### Fixes, any time
