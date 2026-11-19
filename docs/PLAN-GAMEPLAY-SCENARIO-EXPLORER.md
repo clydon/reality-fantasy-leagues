@@ -469,6 +469,46 @@ B. The real-route API tier with the spoiler/privacy oracle, run as a campaign ti
 C. The breadth program (7–10) under the per-capability definition of done, prioritized by the matrix (9).
 D. Browser-tier UI oracles over campaign cases on both renderers; the campaign view.
 E. Retire the pilot path; scaling and soak policy.
+F. The design sweep (§6B), once its prerequisites are in.
+
+## 6B. The design sweep (the user, 2026-11-18; not started)
+
+"One thing that will need to be done at some point is brute forcing all games and checking each screen to see if it's
+intuitive, the player knows what to do, and we have bold designs. Stressing heavily on the user knows what to do. We'd want to
+use all the discipline we've been feeding sessions to create good design decisions. I never want someone to feel lost in the app,
+nor do I want them to be bored and think every game is plain. Each game, while adhering to the tone of the app, needs bold soul
+and character." The bench and the game previews ([PLAN-game-preview.md](PLAN-game-preview.md)) carry it: the previews tied in
+or callable from the bench, an accurate picture of the game, and the lay of the land learned from them.
+
+**What it judges, in order:**
+1. **The player knows what to do.** On every screen, in every situation: what this is, whether a move is due, which move, by
+   when, and where to make it. This weighs most: a screen that leaves someone lost fails, however good it looks.
+2. **Each game has bold soul and character,** within the app's tone ([DESIGN-ROUND-PACKET.md](DESIGN-ROUND-PACKET.md), "Soul,
+   not sterile"; PRODUCT.md principle 8). No game feels plain, or like every other game.
+3. **The preview tells the truth.** It matches the game as played, and someone who has seen it knows the lay of the land: what
+   the game is, what they'll do each week, and how to win.
+
+**How, in three tiers,** so the design skills run once per family and surface, not once per screen:
+1. **Every case, by machine.** At each checkpoint at 390 px, the engine knows what is due for the viewer (a move and its lock,
+   or nothing), and the screen must say the same. The preview's capture already marks a screen whose words contradict the
+   season ("App differs", on the `preview` lane: "All set" while a draft is due). §6A item 7's oracles run beside it. Then a
+   blind first look at each distinct screen (cases that draw the same screen share one look): a reviewer shown only the
+   screenshot says what this is and what they'd do, by when, and that answer is held against the engine's. A wrong or unsure
+   answer fails the screen.
+2. **Each game family, through the design skills.** Representative cases per family and surface go through Intent,
+   Perception-First Design and Impeccable once each ([DESIGN-PROCESS.md](DESIGN-PROCESS.md)), with the lay-of-the-land and busy
+   tests, judged by Joanna (forgets), Andrew (drives by) and Conor (tinkers). A sameness check flags a family whose game part
+   looks like every other family's.
+3. **The user, by family.** A screenshot story per family, then a pause. §4's Design review and User approval dimensions record
+   each family's outcome.
+
+Findings attach to the shared part that draws them (Chunk 11): game pages are generated from specs, so one fix reaches every
+game that uses the part.
+
+**Waits on:** previews the bench can make for any case it runs (the preview plan's bench item); computer players in every game
+([PLAN-start-a-game-redo.md](PLAN-start-a-game-redo.md), E1d), which give each screen real states with several seats; the
+Designs needed round above, so the sweep doesn't rediscover known gaps; and Chunk 11's review packets. It runs as a bounded
+campaign (Chunk 12) inside the weekly usage cap.
 
 ## 7. Implementation chunks
 

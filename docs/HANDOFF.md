@@ -77,6 +77,9 @@ coloured too, commit.
 - **Next, a fresh session each:** B1 (the build: saves on the account, known names into the catalog, Start that starts, computer
   players in Who's playing, the two lock cards, the game page's title card), then E1; P0 (the preview's proof); W4 (the writer's
   models, measured on CPU threads like a free VM's).
+- **Later: the design sweep** (the user, 2026-11-18): every game's every screen, brute-forced through the bench and the previews,
+  judged first on whether the player knows what to do, then on each game's bold soul, then on whether the preview tells the
+  truth. Not started; how it works and what it waits on: docs/PLAN-GAMEPLAY-SCENARIO-EXPLORER.md §6B.
 
 ## Start a game, where you are (Round 2c, on the bold pass): waiting on the user's review (2026-11-18, uncommitted)
 **The story: https://claude.ai/artifact/RwNsSV5pJz8Q7FuDFvTDUt.** The user approved most of the bold pass and asked for the setup
