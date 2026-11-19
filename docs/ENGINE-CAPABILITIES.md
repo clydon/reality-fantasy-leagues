@@ -9,9 +9,9 @@ A row plays now when its spec passes the validator (`specProblems`, with what it
 needs waits (`specWaitsFor`); it then says the game in the engine's own words (`describeSpec`). A show the tracker has no
 rules for is checked against a show of its kind, and says so.
 
-**Now:** 240 ✅ · 27 ⏳ · 3 🆕 · 3 ❓ · 23 💬, of 296.
+**Now:** 241 ✅ · 27 ⏳ · 3 🆕 · 2 ❓ · 23 💬, of 296.
 **Waiting, by step:** C8 1 · A14 2 · A15 18 · L3 1 · L4 2 · G1 3.
-**Computer players** play 240 of the 240 that play now. Each row says so where they don't.
+**Computer players** play 241 of the 241 that play now. Each row says so where they don't.
 
 ## The dials
 
@@ -209,7 +209,7 @@ Requests that push the dials, from fantasy leagues, beyond them, and live with t
 | ✅ | s03 | Survivor 51 | Auction draft: everyone gets $100 to bid on castaways. | answer | A Weekly Lineup for Survivor 51: everyone has 100 to bid on a team of 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. |
 | ✅ | s04 | Dancing with the Stars 35 | Salary cap: couples cost more the better they're doing. | answer | A Weekly Lineup for Dancing with the Stars 35: everyone drafts 4 under a salary cap of 100 and starts 2 each episode, all season. Scored by Dancing with the Stars 35's rules. (Checked against The Amazing Race's rules, a show of its kind.) |
 | ✅ | s05 | Survivor 51 | Everyone drafts one castaway from each tribe. | who | An Outlast for Survivor 51: everyone drafts 3 from across the tribes, all season. Each scores by how long they last: the last one standing carries you. |
-| ❓ | s06 | Survivor 51 | Draft a guy and a girl each, and they score together. | who | who is a guy and who is a girl: no show's cast or research records it, so the data rule refuses it (A10 part 3 built the spread, across the show's groups); whether research should record it is the user's |
+| ✅ | s06 | Survivor 51 | Draft a guy and a girl each, and they score together. | who | A game for Survivor 51: everyone drafts 2 from across the genders, and all 2 count each episode, all season. Scored by Survivor 51's rules. |
 | ✅ | s07 | Survivor 51 | Reverse draft: the earlier your castaways go home, the more you score. | score | A game for Survivor 51: everyone drafts 3, all season. Each scores more the earlier they go home: the first one out carries you. |
 | ✅ | s08 | Survivor 51 | Captain each week: one of your castaways scores double. | score | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, one of them a captain who scores double, all season. Scored by Survivor 51's rules. |
 | ✅ | s09 | Survivor 51 | Best ball: draft 5, your best 3 count, no lineups. | score | A game for Survivor 51: everyone drafts 5, and their best 3 count each episode, all season. Scored by Survivor 51's rules. |

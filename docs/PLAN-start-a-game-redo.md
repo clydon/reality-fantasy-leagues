@@ -827,7 +827,9 @@ The wizard's gallery already offers "a captain scores double".
   - C8: 2-on-1 head to head (p29).
   - BACKLOG 94's two answer kinds: a pair of people, and "pick as many as you think". Then BACKLOG 92's Guess who hooks up as a
     made-for idea.
-  - s06: a guy and a girl each (cast properties' gender now records it; re-run the tracker).
+  - s06: a guy and a girl each (cast properties' gender now records it; re-run the tracker). **Done 2026-11-19:** no engine change
+    was needed (cast properties' chunk 4 had built `get.across.of: 'gender'`). The tracker's row has its spec: two each, spread
+    across the genders, both counting (best ball of the whole team). It plays (241 ✅).
   - s45: stages that take turns all season.
   - p25: a parlay on a split pot (the recommended rule, with the user's OK). **Done 2026-11-19** (the user took the recommendation:
     your share). The schema's refusal is lifted. The grade already split the pot before the parlay multiplied, so a parlay that

@@ -3363,11 +3363,31 @@
         "rulebook": "survivor"
       },
       "words": "Draft a guy and a girl each, and they score together.",
-      "step": null,
+      "spec": {
+        "get": {
+          "by": "draft",
+          "each": 2,
+          "own": "shared",
+          "order": "blind",
+          "across": {
+            "of": "gender"
+          }
+        },
+        "count": {
+          "best": 2
+        },
+        "score": {
+          "by": "moments"
+        },
+        "rank": {
+          "by": "total"
+        }
+      },
+      "step": "A10",
       "dials": [
         "who"
       ],
-      "decide": "who is a guy and who is a girl: no show's cast or research records it, so the data rule refuses it (A10 part 3 built the spread, across the show's groups); whether research should record it is the user's"
+      "note": "E3: a draft spread across the cast's gender (cast properties chunk 4: get.across.of 'gender', from the season's cast properties, which record it), two each, both scoring (best ball of the whole team)."
     },
     {
       "id": "s07",
