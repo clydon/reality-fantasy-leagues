@@ -32,6 +32,7 @@
   },
   "closes": "daily",
   "waivers": { "source": "Yahoo's public defaults: a continual rolling list, roster changes Daily - Today, at most 6 acquisitions a week (help.yahoo.com/kb/SLN6785.html, 2026-11-20). Claims clear each game day's morning, 12 hours before its first game, then free agents until its last game starts (BACKLOG 219; docs/PLAN-sports-ready.md step 2.5)", "swaps": 6, "daily": true, "hours": 12 },
+  "pace": { "source": "The user's rule (2026-11-19, BACKLOG 218), by the day for baseball (2026-11-20: doubleheaders): a seat at its own pace has watched the games before once a game on a later day starts, so a doubleheader's first isn't marked watched at the second's first pitch (docs/PLAN-sports-ready.md step 2.6)", "by": "day" },
   "specs": {
     "season": {
       "about": "A season-long league: draft a full roster, set a daily lineup, play someone head to head each week.",

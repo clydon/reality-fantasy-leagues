@@ -397,6 +397,10 @@ declare const StateLogic: {
     /** Step 2.5: waivers every game day (the spec's waivers.daily on a lineup locking at each game, its days stamped). */
     daily(state: LeagueState): boolean;
     gameDays(state: LeagueState): { until: string; first: number; last: number; episode: number }[];
+    /** Step 2.6: the league at the episode everyone has reached (own pace, exclusive teams), no game day after the week following it. */
+    pacedView(state: LeagueState, n: number): LeagueState;
+    /** Step 2.6: a window every episode (a sports season game's): each episode everyone has reached is a waiver moment at own pace. */
+    windowEvery(state: LeagueState): boolean;
     nextGameDay(state: LeagueState, now: number): { until: string; first: number; last: number; episode: number } | null;
     open(state: LeagueState, now: number, opts?: { window?: boolean; swaps?: number; replace?: boolean; by?: "commissioner" }): WaiverPeriod;
     cancel(state: LeagueState): WaiverPeriod | null;
@@ -503,6 +507,12 @@ declare const StateLogic: {
     /** A game at your own pace keeps waiting: seats that new results have left behind are catching up again (after every write);
      *  a game made before it aired (paceTogether) has its seats made late joiners here, at its first results. */
     settlePace(state: LeagueState): boolean;
+    /** Step 2.6: a team sport at its own pace, never more than one game behind: the floor its seats move to (state.paceFloor,
+     *  stamped; never past the game's end), the seats short of it, whether any is, and moving them ([{ playerId, from, to }]). */
+    paceTarget(state: LeagueState): number | null;
+    paceBehind(state: LeagueState): LeagueState["players"];
+    paceDue(state: LeagueState): boolean;
+    keepPace(state: LeagueState): { playerId: string; from: number; to: number }[];
     /** Sets a game at its own pace before its first episode airs: made and drafted as a live one (settings.startedTogether). */
     paceTogether(state: LeagueState): void;
     /** Shared teams at your own pace where each seat picks its own (a game made on an aired episode): no draft room. */

@@ -143,6 +143,11 @@ export async function startSport(
     spec: railSpec(pick.spec, from, to),
     name: isObj(body) && typeof body.name === "string" ? body.name : undefined,
     tell: body.tell,
+    // Step 2.6 (docs/PLAN-sports-ready.md): how it runs (at your own pace, live or strict: checked as the sheet's is) and computer
+    // players (a game alone with them), as the wizard's start takes them.
+    pace: body.pace,
+    bots: body.bots,
+    level: body.level,
     made: { sport: game },
   }, now);
   return { ...started, seasonId, season: seasonName, game: gameName };

@@ -20,13 +20,15 @@ function pacedMark(state) {
   if (!people.length) return null;
   return Math.min(...people.map(p => (Number.isInteger(p.lateJoin.seenThrough) ? p.lateJoin.seenThrough : (p.lateJoin.startEpisode || 1) - 1)));
 }
-function pacedCopy(state) { const n = pacedMark(state); return n === null ? null : S.SpoilerLogic.viewThrough(state, n); }
+function pacedCopy(state) { const n = pacedMark(state); return n === null ? null : W.pacedView(state, n); }
 const OWNED_KEYS = ['ownerIds', 'acquiredVia', 'replenishClaimed', 'formerOwnerId', 'departedVia'];
 function foldBack(state, copy) {
   state.midSeason = copy.midSeason;
   copy.castaways.forEach(c => { const f = state.castaways.find(x => x.id === c.id); if (!f) return; OWNED_KEYS.forEach(k => { if (c[k] === undefined) delete f[k]; else f[k] = c[k]; }); });
 }
 function lossAt(copy) {
+  // A window every episode (a sports season game's): every episode everyone has reached (docs/PLAN-sports-ready.md step 2.6).
+  if (W.windowEvery(copy)) return true;
   const n = S.SpoilerLogic.latestWithResults(copy), ep = copy.episodes.find(e => e.number === n);
   return !!ep && copy.castaways.some(c => c.exitEpisodeId === ep.id && W.lossOpen(copy, c));
 }

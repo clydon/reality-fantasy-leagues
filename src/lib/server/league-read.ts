@@ -53,13 +53,21 @@ export async function readyLeague(leagueId: string, state: LeagueState, o: { liv
   const keepersDue = StateLogic.KeeperLogic.due(state);
   // A squares game whose first episode has locked (its deal) or an episode whose digits are drawn (L3 part 2e): withLeagueLock keeps them.
   const squaresDue = StateLogic.SquaresLogic.due(state);
+  // A team sport's game at its own pace with a seat the next game's start has passed (step 2.6: stampAirTimes stamped its floor):
+  // withLeagueLock moves it on.
+  // A game at its own pace whose results arrive with no write (a sport's finals, stamped: stampStats), with a seat they leave behind:
+  // withLeagueLock's settlePace makes it catch up (step 2.6 found a sport's own-pace seat shown a week it hadn't watched, as live).
+  // Worked out on the finals alone, and only for a game at its own pace that's scored by stats.
+  const paceDue =
+    StateLogic.GhostLogic.paceDue(state) ||
+    (StateLogic.GhostLogic.ownPace(state) && StateLogic.StatsLogic.on(state) && StateLogic.GhostLogic.settlePace(await stampStats(structuredClone(state))));
   // Computer players' answers or a turn to host that came due with no write (E1b: a card that came out, a window the clock opened).
   const botsWaiting = () =>
     botsDue(pool, leagueId, state).catch((e) => {
       console.error(`[league-read] couldn't tell whether computer players have something due in ${leagueId}:`, e);
       return false;
     });
-  if (!StateLogic.ensureNextEpisode(structuredClone(state)) && !Bots.hasWork(state) && !waiverStepDue && !drawDue && !auctionDue && !keepersDue && !squaresDue && !(await botsWaiting())) return stampCastProps(await stampStats(state, o));
+  if (!StateLogic.ensureNextEpisode(structuredClone(state)) && !Bots.hasWork(state) && !waiverStepDue && !drawDue && !auctionDue && !keepersDue && !squaresDue && !paceDue && !(await botsWaiting())) return stampCastProps(await stampStats(state, o));
   const before = draftTurn(state);
   const next = await withLeagueLock(leagueId, () => {});
   if (draftTurn(next) !== before) notifyDraftTurn(leagueId, next, null);

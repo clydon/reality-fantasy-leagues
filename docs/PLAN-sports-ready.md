@@ -10,7 +10,8 @@
 > game being played, its points so far, for anyone shown everything (never an own-pace seat or anyone hiding sports scores).
 > Phase 2 under way on branch sports-phase2: 2.1 done (the NFL's season locks at each player's game), 2.2 done (any fantasy
 > playoffs end by Week 17, and the default plays a final between the top two then: BACKLOG 226), 2.3 done (lineup slots for every
-> team sport, MLB's eligibility from ESPN's positions, computer players drafting and starting legal lineups). 2.7 added: a game's timing on
+> team sport, MLB's eligibility from ESPN's positions, computer players drafting and starting legal lineups), 2.4 and 2.5 done (IR,
+> waivers that run), 2.6 done (own pace for a sport: a team sport's seat never more than one game behind, by itself). 2.7 added: a game's timing on
 > through the playoffs, the maker's choice (the user, 2026-11-20).
 > Next: the rest of Phase 2 (its calls answered 2026-11-19, own pace for sports added) and 4.1; 1.1's
 > part 4 (the screens, on a small live read) is the design round's page 2.
@@ -529,6 +530,62 @@ server.
    computer players, live for a league of people, own one tap away; (d) the reveal an own-pace seat moves its mark with, the same
    one BACKLOG 216 gives anyone hiding sports scores (4.2's page 3 designs it); (e) live points (1.1 part 3) and the matchup push
    (217) never past an own-pace seat's mark (live points: done in 1.1 part 3, never sent to an own-pace game at all).
+   **Done 2026-11-20 (branch sports-phase2).**
+   - *Found first:* own pace for a sport didn't work past the start, five ways. (1) A sport's results arrive with no write (finals
+     are stamped on a read), so the settle that makes a seat catch up (GhostLogic.settlePace, run only on writes) never ran: an own-pace
+     seat was shown each week as if live. (2) The guard takes the lower of the show's mark and the game's, and a sports fan's show mark
+     is 0 (sports were shown live, so nothing moved it): once a seat did catch up it was told nothing at all and couldn't reveal. (3) A
+     catching-up seat's copy dropped its week's air time but kept each game's start, so a week played long ago stayed locked game by
+     game. (4) The waivers of a game with exclusive teams at its own pace open only at a "waiver moment" (someone on a team went home:
+     Outlast's), so a sports game's weekly windows never opened. (5) The sheet recommended own pace for the recorded NFL season, whose
+     rulebook's kind isn't "sport" (start-game.ts read only that).
+   - *Built:* the rule as data, each team sport's defaults' `pace` (`by: "game"`: football, basketball, hockey, soccer and their
+     college leagues; `"day"`: baseball, college baseball); an individual sport has none and stays plain own pace. `sports/pace.ts`
+     paceFloor: from each episode's first game played, the episode before the latest one started, or by the day the one before the
+     first begun on the latest one's Eastern day (a doubleheader's two are one day's). air-times.ts stamps it on an own-pace team
+     sport's game (`state.paceFloor`, never saved). GhostLogic.paceTarget/paceBehind/paceDue/keepPace move every seat behind it
+     (never past the game's end, never a seat still choosing its start), caught up once at the latest results. `sport-pace.ts`
+     keepSportPace runs in withLeagueLock before the mutation (so a move for a week passed is refused) and after it: computer players
+     play the weeks first (catchUpBots), then the seats move, then the people's membership and show marks go forward to the floor or
+     the game's start-1, whichever is later (what came before a sports game's start counts as watched). readyLeague writes when a seat
+     is behind the floor, or when a stats game at its own pace has a seat its finals left behind (fix 1). The season's games read
+     readies its own-pace sports games before reading anyone's mark, so the first read after a kickoff isn't a week behind.
+     `sport-pace-clock.ts` keepAllSportPace, run by the hourly sports job (db/sports-refresh.js), readies every one, so a mark moves
+     within the hour with nobody reading. The rewound copy drops a sport's stamped locks (rewindTo: fix 3), and a lineup set on a copy
+     replaces the week's timed sets for that seat (applyAs), so it scores as the week's one lineup. catchingUpMark is never behind the
+     floor the seat was moved to in the same transaction. Paced waivers open at every episode everyone has reached when the game has
+     a window every week (WaiverLogic.windowEvery, read by waivers.js lossAt and the explorer's runtime-waivers.cjs: fix 4), on a copy
+     with no game day after the week following everyone's mark (WaiverLogic.pacedView, both again): the full explorer run found the
+     first cut opening a daily game's waiver day (the NBA's, NHL's, MLB's, college's) past the furthest-behind seat. The start: a team sport at its own pace starts with the game to come or the one
+     just played (`pace.here`/`top` the latest begun; any other aired start isn't taken), and never on a finished season (blocked);
+     `runs.alone` ("own" for a sport) is what the sheet starts on for a game with nobody else told (model.ts lockOf: part c, Claude's
+     call, reversible). The sports route's start passes `pace`, `bots` and `level` through (part b).
+   - *Verified:* tests/sports-pace.test.js (the floor by the game and by the day, a doubleheader, a late game's Eastern day, a game
+     called off; each sport's rule; keepPace's moves, limits and its game's end; the stamp never saved); the suite; check-sports-own-pace.js
+     (new, on the recorded NFL season: the sheet's paces, a start from Week 2 not taken and one from the week just played taken; Ann
+     alone with three computer players at her own pace from Week 7, drafted together; Week 7 played, Ann told nothing past her mark on
+     the season's games read, her Week 7 lineup still hers, no waiver week while she's behind; her reveal moving her, the computer
+     players with her, her table and record taking the week in, Week 8's waivers opening then; Week 8 played and unrevealed, still
+     hers; at Week 9's first kickoff, with no read, the hourly pass moving her to Week 8 in the game, her membership and her show, the
+     computer players too, Week 8 closed to her, Week 9 hers, her table taking Week 8 and not Week 9's game under way; at Week 10's
+     kickoff a read of her games moving her; a waiver week at each week everyone reached); check-sports-week-in-progress.js,
+     check-sports-live-points.js, check-sports-waivers.js, check-lock-in.js, check-trivia-game.js (the lock change), check-own-pace-start.js,
+     check-own-pace.js, sport-gallery-check.js --all-leagues (495 rows, 371 play, none off); check-sports-explorer.js every case on the
+     real routes (202: 181 on the first cut, its 21 failures the daily waiver days above; the tables case again on the fix, 95 of 95); check-own-pace-live.js fails three steps,
+     the same three on the code before this step (noted below); tsc; eslint has only its standing errors.
+   - *Left:* (d) the reveal is the season's reveal route as it is (revealSeason): its screen for a sport is 4.2's page 3 (BACKLOG
+     216's). The playoffs at own pace and daily waivers at own pace (the NBA's, NHL's, MLB's) aren't checked: the recording has Weeks
+     1-9 of the NFL only (2.7's postseason recording, Phase 3's NBA and MLB months). No MLB doubleheader on a real route either (the unit
+     tests hold the day rule). The explorer's headless runtime doesn't move marks by the floor (it has no server stamp): its own-pace
+     sports games are plain own pace there, and its real-route frames get the rule from the server. The matchup push (217) isn't built;
+     when it is, an own-pace seat's goes at its mark (BACKLOG 217's note). The sheet's words for a sport's "where you are" start ("You've
+     seen 1 to 8; catch up one at a time") are a show's: 4.0's.
+   - *Noticed, not fixed:* the classic state route (GET /api/leagues/[id]/state) sends a late joiner the whole state and the client
+     trims it, as it always has for every late joiner, so "told nothing past the mark" holds on the new design's reads only.
+     check-own-pace-live.js fails "the home's moves list the Episode 6 lineup as late", "the reminders job would tell jordan once" and
+     its browser step (a stale selector, recorded in PLAN-start-a-game-redo.md), the same on the code before this step: the first two
+     most likely since a full lineup carried in counts as set (7cfb1bb5); BACKLOG's stale checks. Under the full suite's load
+     tests/gameplay-campaign.test.js timed out a case once (it passes alone).
 7. **A game through the playoffs** (M–L; the user, 2026-11-20). "When a normal 'season long' game ends (because playoffs start and
    some teams are out) that doesn't mean all games end. Someone doing a game just for a team could extend all the way to the Super
    Bowl, if they wanted it. The game maker has the ability to set the timing to be regular season and the playoffs, and the Super

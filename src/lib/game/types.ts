@@ -1270,6 +1270,9 @@ export interface LeagueState {
   /** Step 2.2 (BACKLOG 214): the last episode a league's fantasy playoffs may use, where its league's defaults say they end before
    *  its regular season does (the NFL's Week 17 of 18), stamped with seasonEpisodes for a game on a league's regular-season slate. */
   playoffsBy?: number;
+  /** Step 2.6 (docs/PLAN-sports-ready.md): a team sport's game at its own pace, the last episode its seats have watched by now at the
+   *  latest (sports/pace.ts paceFloor), stamped with the air times, never saved: GhostLogic.keepPace moves them to it. */
+  paceFloor?: number;
   playoffsFrom?: number;
   /** A14 part 4: a game's secret roles once revealed (the reveal's episode has results), stamped by the server on every read and
    *  write from secret_role_deals (secret-roles.ts); absent before then, so nobody's copy says who holds one. The spoiler view takes

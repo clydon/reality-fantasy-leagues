@@ -33,6 +33,7 @@
   },
   "closes": "weekly",
   "waivers": { "source": "Yahoo's football defaults: a continual rolling list, weekly waivers, no maximum acquisitions (help.yahoo.com/kb/SLN6489.html, 2026-11-20). Here a week's claims open when the week before has its results and run the day before its first game; free agents after that until the week's last game starts (docs/PLAN-sports-ready.md step 2.5)", "swaps": null, "daily": false, "hours": 24 },
+  "pace": { "source": "The user's rule (2026-11-19, BACKLOG 218): a seat at its own pace is never more than one game behind; when the next game starts, the one before counts as watched (docs/PLAN-sports-ready.md step 2.6)", "by": "game" },
   "specs": {
     "season": {
       "about": "A season-long league: draft a full roster, set a lineup each week, play someone head to head each week.",

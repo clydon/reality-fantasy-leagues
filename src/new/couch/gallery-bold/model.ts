@@ -297,7 +297,10 @@ export interface LockState {
  *  who on the couch would miss moves (the user's pick, 2026-11-17: named closed only when it costs them). */
 export function lockOf(spec: Spec | null, span: Span, input: Input, chosen: Pace | null): LockState {
   const ownTeams = !!spec && spec.get?.by === "draft" && spec.get.own !== "shared";
-  const recommended: Pace = input.ownPace ? "own" : ownTeams ? input.runs.exclusive : input.runs.recommended;
+  // A game played alone or only with computer players (nobody else told: tellsLine's "Just you for now"): a sport's waits for you
+  // (runs.alone, docs/PLAN-sports-ready.md step 2.6), whatever its teams; live for a league of people.
+  const alone = input.tells === 0 && input.runs.alone ? input.runs.alone : null;
+  const recommended: Pace = input.ownPace ? "own" : (alone ?? (ownTeams ? input.runs.exclusive : input.runs.recommended));
   const phased = typeof span.from === "object" || Array.isArray(spec?.stages);
   let value = chosen ?? recommended;
   if (phased && value === "own") value = "live";

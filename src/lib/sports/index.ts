@@ -43,6 +43,8 @@ export * from "./spec";
 export * from "./final";
 export * from "./points";
 export * from "./locks";
+export * from "./pace";
+import type { PaceBy } from "./pace";
 export { Baseball } from "./baseball";
 export { CollegeBaseball } from "./college-baseball";
 export { Basketball, CollegeBasketball } from "./basketball";
@@ -116,6 +118,9 @@ export interface SportDefaults {
   /** Step 2.5: its season games' waivers (sportWaivers): `swaps` a week (null, no limit), `daily` a period every game day, `hours`
    *  before the period's first game its claims clear. */
   waivers?: { source: string; swaps: number | null; daily: boolean; hours: 12 | 24 | 48 };
+  /** Step 2.6 (BACKLOG 218): how a seat at its own pace keeps up (pace.ts paceFloor): by each game, or by the day (baseball's). A
+   *  sport without one (an individual sport's) stays plain own pace. */
+  pace?: { source: string; by: PaceBy };
   /** `on`: the season a spec plays on, where it isn't any (L8 part 1's engine items, part 2: a bracket of the playoffs is a
    *  league's playoffs slate's: specContextOf's `playoffs`). */
   specs: Record<string, { about: string; on?: "playoffs"; spec: Record<string, unknown> }>;
@@ -164,6 +169,16 @@ export function playoffsEndBefore(league: string): number {
   const d = sport ? defaultsFor(sport.id, String(league).split("/")[1]) : null;
   const n = d?.playoffs?.endsBefore;
   return Number.isInteger(n) && n! > 0 ? n! : 0;
+}
+
+/**
+ * Step 2.6 (BACKLOG 218): how a league's seats at their own pace keep up ("game", "day": pace.ts), or null for plain own pace (an
+ * individual sport's, or one not built). `league` as "football/nfl"; a check's stand-in league reads as its sport's own.
+ */
+export function paceBy(league: string): PaceBy | null {
+  const sport = sportOf(league);
+  const by = sport ? defaultsFor(sport.id, String(league).split("/")[1])?.pace?.by : undefined;
+  return by === "game" || by === "day" ? by : null;
 }
 
 /**

@@ -27,6 +27,7 @@
     "squad": { "GK": 2, "DEF": 5, "MID": 5, "FWD": 3 }
   },
   "closes": "weekly",
+  "pace": { "source": "The user's rule (2026-11-19, BACKLOG 218): a seat at its own pace is never more than one game behind; when the next game starts, the one before counts as watched (docs/PLAN-sports-ready.md step 2.6)", "by": "game" },
   "specs": {
     "season": {
       "about": "A season-long league, as FPL Draft plays: draft a squad of 15, start 11 each gameweek, play someone head to head.",

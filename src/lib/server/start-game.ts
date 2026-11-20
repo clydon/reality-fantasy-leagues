@@ -1,6 +1,7 @@
 import { after } from "next/server";
 import Bots from "@/lib/game/bot-logic.js";
 import StateLogic from "@/lib/game/state-logic.js";
+import { paceBy } from "@/lib/sports";
 import { addBot, MAX_BOTS, type BotLevel } from "@/lib/game/computer-players";
 import { gameLine, gamesFor, noFitLine } from "@/lib/game/formats/rulebook-fits.js";
 import type { GameFit, SeasonGameKey } from "@/lib/game/formats/rulebook-fits";
@@ -150,8 +151,11 @@ export interface StartOptions {
    *  with a phase runs live or strict (startGame and startFromSpec refuse own pace there, for now). `exclusive`: the one a sheet
    *  starts on for a game whose castaways are one team's each (a draft that isn't shared): live, where the rest are at your own
    *  pace (the user, 2026-11-14, BACKLOG 68). At its own pace such a game takes nobody new once its draft starts and its waivers
-   *  wait for everyone to reach the same episode (sync points 1 and 2), so it's a choice there, not what a sheet starts on. */
-  runs: { choices: PaceMode[]; recommended: PaceMode; exclusive: PaceMode };
+   *  wait for everyone to reach the same episode (sync points 1 and 2), so it's a choice there, not what a sheet starts on.
+   *  `alone`: the one a sheet starts on for a game played alone or only with computer players, over both (null: as the others): a
+   *  sport's is at your own pace (docs/PLAN-sports-ready.md step 2.6, part c: Claude's call, reversible; live for a league of
+   *  people, own one tap away). */
+  runs: { choices: PaceMode[]; recommended: PaceMode; exclusive: PaceMode; alone: PaceMode | null };
   couch: { id: string; name: string; members: number };
   /** Run it back: the game it plays again (the same game, name and settings), and, when that was a span, the next one's last
    *  episode (to start with; null: to the season's end). `label` says which it was ("ZT Survivor 51 · Episodes 6–7"). `phase`:
@@ -321,6 +325,9 @@ export async function startOptions(
   // (its settles are the sports branch's) nor a talk show's (whose moments are the couch's word).
   const copy = await copyOf(here.map((g) => g.leagueId));
   const kind = (blocks.kind ?? h.show.kind) as RulebookKind;
+  // A sport's season: its rulebook's kind, or its show's sports league (a league's slate's rulebook can carry a show's kind: step 2.6
+  // found the sheet recommending own pace for the NFL's season).
+  const sporting = kind === "sport" || !!sportLeague;
   const asks = kind === "sport" || kind === "talk" ? [] : await sheetChoices(seasonId, copy, part.singular);
   choices.push({
     key: "questions",
@@ -351,8 +358,13 @@ export async function startOptions(
   const aired = Math.max(latestAired(schedule, now), over ? eps.length : 0);
   const seen = await seenThrough(user.id, seasonId);
   const mark = Math.min(seen === EVERYTHING ? aired : seen, aired);
-  const pace = aired >= 1 ? { here: mark + 1 <= aired ? mark + 1 : null, top: 1, aired } : null;
-  const paced = !late && start !== null && pace && start >= 1 && start <= aired ? start : null;
+  // A team sport at its own pace (docs/PLAN-sports-ready.md step 2.6): a seat is never more than one game behind, so its game starts
+  // with the game to come or the one just played (the latest begun: where you are, when you're behind it), never as a catch-up
+  // from early in a season under way, nor on a finished season (both would be marked watched at once). An individual sport's is
+  // plain own pace. Replaying a past season alone is another thing (raised with the user, not planned).
+  const keeps = sportLeague ? paceBy(sportLeague) !== null : false;
+  const pace = aired >= 1 && !(keeps && over) ? { here: mark + 1 <= aired ? (keeps ? aired : mark + 1) : null, top: keeps ? aired : 1, aired } : null;
+  const paced = !late && start !== null && pace && (keeps ? start === aired : start >= 1 && start <= aired) ? start : null;
   const from = late && onAir ? onAir.number : (later ?? paced ?? (over && pace ? (pace.here ?? pace.top) : next));
   const ownPace = !(late && onAir) && from <= aired;
   // The phases still to come (step A3), by the rules its games here play by (the couch's own copy, else the season's): not the
@@ -360,7 +372,14 @@ export async function startOptions(
   const phases = phasesFrom(season, copy)
     .filter((p) => !p.first && (p.from === null || p.from >= next))
     .map((p) => ({ id: p.id, name: p.name, summary: p.summary, at: p.from }));
-  const blocked = h.ready === false && !sportLeague ? `Make ${show} a game first` : over && !pace ? "The season's over: every episode has aired" : null;
+  const blocked =
+    h.ready === false && !sportLeague
+      ? `Make ${show} a game first`
+      : over && keeps
+        ? `The season's over: a game here starts with the next ${part.singular}`
+        : over && !pace
+          ? "The season's over: every episode has aired"
+          : null;
   if (ownPace) {
     // At your own pace: Survival Pool, and Outlast and Weekly Lineup with shared teams (part 3a: each seat picks its own from who
     // was in before its start). The Prediction Sheet and the one-night games' season versions come with the plan's later parts.
@@ -442,8 +461,8 @@ export async function startOptions(
     pace,
     ownPace,
     runs: ownPace
-      ? { choices: ["own"], recommended: "own", exclusive: "own" }
-      : { choices: ["own", "live", "strict"], recommended: (blocks.kind ?? h.show.kind) === "sport" ? "live" : "own", exclusive: "live" },
+      ? { choices: ["own"], recommended: "own", exclusive: "own", alone: "own" }
+      : { choices: ["own", "live", "strict"], recommended: sporting ? "live" : "own", exclusive: "live", alone: sporting ? "own" : null },
     couch: { id: couchId, name: couchRows[0]?.name ?? "Your couch", members: people.length },
     again,
   };

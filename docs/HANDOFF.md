@@ -55,8 +55,9 @@ Newest first. The plan or archive section named holds the detail.
   (MLB's players fill each position they've played; computer players draft and start legal lineups; migration 0311), and every
   team sport's season game has IR places (Yahoo's defaults; the engine, its route and the computer players; no screen yet: Designs
   needed 43), and waivers that run: the NFL's weekly with free agency to Monday night, the NBA's, NHL's and MLB's every game day,
-  their lineups now locking at each player's game ("Daily - Today"; they locked the whole week at its first game). Not merged: next
-  is 2.6 (own pace for a sports game) and 2.7. BACKLOG 227 (MLB's two-way player) waits on the user, by March.
+  their lineups now locking at each player's game ("Daily - Today"; they locked the whole week at its first game). 2.6 done: own
+  pace for a sports game works (it didn't past the start), a team sport's seat never more than one game behind, moving on by itself
+  at the next game's start (baseball by the day), solo games recommended at their own pace. Not merged: next is 2.7. BACKLOG 227 (MLB's two-way player) waits on the user, by March.
   [PLAN-sports-ready.md](PLAN-sports-ready.md) has each step's record.
 - **Game preview, branch `preview`** (lane rfl-preview): 17 commits not on master, 55 commits behind it, about 11 conflict
   hunks (strip.tsx, game-week.tsx, your-move.ts, tonight.tsx). It has P0, the visual story, the bench's preview maker and

@@ -98,6 +98,10 @@ commit each:
   check-new-reveal, check-gif-reactions, check-game-page ("Close didn't shut them all"), check-group-slots (five old FAILs from
   Episode 6 on), check-desk-shows ("Show 5 more"), check-new-desk's rulebook section, check-new-listings' art race and
   check-new-studio's reels.
+- check-own-pace-live.js (found by step 2.6 of PLAN-sports-ready.md, failing the same before it): "the home's moves list the
+  Episode 6 lineup as late" and "the reminders job would tell jordan once" (most likely since a full lineup carried in counts as
+  set, 7cfb1bb5: give jordan a lineup a starter short), and its browser step's `[data-move='lineup-…']` selector (nothing renders
+  it since Tonight's rebuild).
 - check-new-tour (phase J), and run it once as a solo account: if the reveal step lights Up next with nothing to tap, light the
   made-up reveal's button or skip the step.
 - check-new-episode-games: talk-fixture.js dates its show by the database's UTC day, so part 2 fails in the evening, Eastern.
@@ -606,6 +610,7 @@ lands.
   that, and give anyone who turns on "Sports scores too" the reveal; the design round's page 3 designs it.*
 - **217. What's pushed when a sports game or matchup ends?** Nothing is today. *Recommended: one push when your matchup is
   decided ("You beat Andrew 112–98"), worded without the score for anyone hiding sports scores, and nothing for each game.*
+  When it's built: a seat at its own pace hears of a matchup only once its mark has reached that week (PLAN-sports-ready.md 2.6 (e)).
 - **218. Can a sports season game run at your own pace?** *Recommended: not now. Sports season games are live; a past game is
   watched with "Watch it as if live", and own pace for sports waits until someone asks.*
 - **219. A daily sport's waivers: daily or weekly?** *Recommended: daily for the NBA, NHL and MLB (claims clear each morning, as

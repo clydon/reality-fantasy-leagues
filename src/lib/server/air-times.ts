@@ -4,7 +4,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import * as Air from "@/lib/game/air-schedule.js";
 import * as Spec from "@/lib/game/game-spec";
 import { byesOf, gameLocksOf, locksOf, type Closes } from "@/lib/sports/locks";
-import { playoffsEndBefore } from "@/lib/sports";
+import { paceBy, paceFloor, playoffsEndBefore } from "@/lib/sports";
 import { stampCardChoices } from "./card-choices";
 import { stampVoteRecords } from "./vote-records";
 import { stampSecretRoles } from "./secret-roles";
@@ -47,6 +47,7 @@ async function stampAirs(db: Pool | PoolClient, state: LeagueState): Promise<voi
     delete ep.gameStarts;
     delete ep.holdingGames;
   });
+  delete state.paceFloor;
   const { showId, wikiSeason } = state.settings;
   if (!showId || wikiSeason == null || StateLogic.RevealLogic.isCatchingUp(state)) return clear();
   const { rows } = await db.query(
@@ -86,6 +87,8 @@ async function stampSportLocks(db: Pool | PoolClient, state: LeagueState, season
   });
   // Step 1.5: a game scored by a sport's stats on a league's slate, each week's teams on a bye (sports/locks.ts byesOf).
   if (StateLogic.StatsLogic.on(state)) await stampByes(db, state, seasonId);
+  // Step 2.6: a team sport's game at its own pace, the last episode its seats have watched by now at the latest.
+  await stampPaceFloor(db, state, seasonId);
   const closes = Spec.gameOf(state.settings).closes;
   if (closes === "game") return stampGameLocks(db, state, seasonId);
   if (closes !== "daily" && closes !== "weekly") return;
@@ -94,6 +97,28 @@ async function stampSportLocks(db: Pool | PoolClient, state: LeagueState, season
     const at = locks.get(ep.number);
     if (at) ep.locksAt = at;
   }
+}
+
+/**
+ * Step 2.6 (docs/PLAN-sports-ready.md; BACKLOG 218): a team sport's game at its own pace carries the last episode its seats have
+ * watched by now at the latest (state.paceFloor, never saved: sports/pace.ts paceFloor, from its episodes' first games played and its
+ * sport's `pace.by`), for GhostLogic.keepPace. Any other game, and an individual sport's, none. One query, only for such a game.
+ */
+async function stampPaceFloor(db: Pool | PoolClient, state: LeagueState, seasonId: string): Promise<void> {
+  delete state.paceFloor;
+  if (!StateLogic.GhostLogic.ownPace(state)) return;
+  const { rows } = await db.query(
+    `SELECT s.sports_league,
+            (SELECT json_agg(json_build_object('episode', e.episode, 'at', e.starts_at)) FROM season_events e
+              WHERE e.season_id = ss.id AND e.starts_at IS NOT NULL AND ${PLAYED}) AS starts
+       FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1 AND s.kind = 'sport'`,
+    [seasonId]
+  );
+  const league = typeof rows[0]?.sports_league === "string" ? (rows[0].sports_league as string).replace(/^[a-z]+:/, "") : null;
+  const by = league ? paceBy(league) : null;
+  if (!by) return;
+  const floor = paceFloor((rows[0].starts ?? []) as { episode: number; at: string | null }[], Date.now(), by);
+  if (floor !== null) state.paceFloor = floor;
 }
 
 /** Step 1.5: each episode's teams on a bye (ep.byeTeams: their names, as the linked games name them), for a league's slate's episodes

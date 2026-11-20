@@ -4188,7 +4188,7 @@ class StatsLogic {
   // season's properties, read from the season's cast on every read, never saved.
   // Step 1.5 (docs/PLAN-sports-ready.md): a sport's player's injury (state.castInjuries, cast-props.ts) and each week's teams on a
   // bye (ep.byeTeams, air-times.ts), stamped per read too.
-  static stampedKeys(){ return [...STAMPED.episode, ...STAMPED.state, 'gameStarts', 'holdingGames', 'castProps', 'castPropDefs', 'castInjuries', 'castEligible', 'byeTeams']; }
+  static stampedKeys(){ return [...STAMPED.episode, ...STAMPED.state, 'gameStarts', 'holdingGames', 'castProps', 'castPropDefs', 'castInjuries', 'castEligible', 'byeTeams', 'paceFloor']; }
   // L3 part 2d: a game ranked by a sport's categories (Spec.categoryParts: head to head by each, by most, or roto), or null.
   static categories(state){
     const g = playedGame(state);
@@ -8049,6 +8049,22 @@ class WaiverLogic {
   }
   // The game's days in play, in order: { until (the day's end, ISO: its key), first, last (its first and last games' starts, ms),
   // episode }.
+  // A game at your own pace with exclusive teams runs its waivers on the league as it stood at the episode everyone has reached
+  // (server waivers.js pacedCopy, and the explorer's runtime-waivers.cjs, both through here): the spoiler view at `n`, with no game day
+  // after the week following it (docs/PLAN-sports-ready.md step 2.6), so a daily game's periods are for the days of a week everyone
+  // can still play, never one past it. Never the league itself (a copy, so the stamped days are only taken off it).
+  static pacedView(state, n){
+    const v = SpoilerLogic.viewThrough(state, n);
+    const copy = v === state ? JSON.parse(JSON.stringify(state)) : v;
+    (copy.episodes || []).forEach(ep => { if(ep.number > n + 1){ delete ep.gameStarts; delete ep.holdingGames; } });
+    return copy;
+  }
+  // Whether a game's waivers have a window every episode (a sports season game's: step 2.5): at its own pace with exclusive teams,
+  // each episode everyone has reached is a waiver moment (step 2.6), as a loss is in Outlast.
+  static windowEvery(state){
+    const w = WaiverLogic.windows(state);
+    return w.schedule === 'everyEpisode' && w.swaps > 0;
+  }
   static gameDays(state){
     const days = new Map();
     for(const ep of state.episodes || []){
@@ -10363,6 +10379,43 @@ class GhostLogic {
     });
     return changed;
   }
+  // ---- A team sport at your own pace: never more than one game behind (docs/PLAN-sports-ready.md step 2.6; BACKLOG 218) ----
+  // The user, 2026-11-19: "someone watching the Patriots game won't still want to watch last week's game after this week's game is
+  // starting." When a game's next one starts, the one before counts as watched: each seat's mark moves on by itself to the floor
+  // the server stamps (state.paceFloor, never saved: sports/pace.ts paceFloor, by the game or, baseball's, by the day; none on an
+  // individual sport's game), never past the game's own last episode. Its moves for the weeks it passes close with them (applyAs
+  // takes only the week after the mark); a lineup it never set is the one carried in. The server runs computer players' weeks up to
+  // it first (catchUpBots), then this, then writes the people's marks (sports/pace.ts on the server: keepSportPace).
+  static paceTarget(state){
+    if(!GhostLogic.ownPace(state) || !Number.isInteger(state.paceFloor)) return null;
+    const end = lastEpisode(state);
+    return end === null ? state.paceFloor : Math.min(state.paceFloor, end);
+  }
+  // The seats behind the floor: a seat with a mark of its own (settlePace gives one at the game's first results) that's short of it.
+  static paceBehind(state){
+    const t = GhostLogic.paceTarget(state);
+    if(t === null) return [];
+    return (state.players || []).filter(p => {
+      if(p.disabled || isGhost(p) || p.active === false) return false;
+      const lj = p.lateJoin;
+      if(!lj || !Number.isInteger(lj.startEpisode)) return false;
+      const seen = Number.isInteger(lj.seenThrough) ? lj.seenThrough : lj.startEpisode - 1;
+      return seen < t;
+    });
+  }
+  // Whether a read has a mark to move (league-read.ts readyLeague: withLeagueLock moves it).
+  static paceDue(state){ return GhostLogic.paceBehind(state).length > 0; }
+  // Moves every seat behind the floor to it. [{ playerId, from, to }] for each one moved.
+  static keepPace(state){
+    const t = GhostLogic.paceTarget(state);
+    return GhostLogic.paceBehind(state).map(p => {
+      const lj = p.lateJoin;
+      const from = Number.isInteger(lj.seenThrough) ? lj.seenThrough : lj.startEpisode - 1;
+      lj.seenThrough = t;
+      GhostLogic.markCaughtUp(state, p.id, t);
+      return { playerId: p.id, from, to: t };
+    });
+  }
   // A seat at your own pace in a game with teams that has none yet (the starter and its computer players: paceAll set their
   // start; a joiner picks theirs as they join, begin). Never while a private draft is still to be revealed (a game made before it
   // aired: its teams come from that).
@@ -10598,6 +10651,11 @@ class GhostLogic {
     s.episodes.forEach(ep => {
       if(ep.number < now) return;
       delete ep.airsAt;
+      // A sport's stamped locks too (its week's or day's lock, each game's start: air-times.ts), or a week played long ago would lock
+      // game by game in their copy (docs/PLAN-sports-ready.md step 2.6): they lock when their results are revealed, as one lineup.
+      delete ep.locksAt;
+      delete ep.gameStarts;
+      delete ep.holdingGames;
       ep.lineupsLocked = false;
       // A title can give the episode away ("The Blindside"); the number is enough.
       ep.title = null; ep.airDate = null;
@@ -10628,10 +10686,14 @@ class GhostLogic {
       e.lineups && e.lineups[playerId], e.captains && e.captains[playerId], e.groupSlots && e.groupSlots[playerId], (e.picks || []).filter(pk => pk.playerId === playerId),
     ]);
     const before = late ? theirs(ep) : null;
+    const lineupBefore = JSON.stringify(ep.lineups && ep.lineups[playerId]);
     const result = fn(view);
     if(vEp.lineups && Object.prototype.hasOwnProperty.call(vEp.lineups, playerId)){
       ep.lineups = ep.lineups || {};
       ep.lineups[playerId] = vEp.lineups[playerId];
+      // Their copy plays the week as one lineup (no game-by-game locks in it: rewindTo, lateCopy), so one set there is the week's: a
+      // set the week's games had timed before it (ep.lineupsAt, read first by lineupAt) would otherwise outrank it (step 2.6).
+      if(JSON.stringify(ep.lineups[playerId]) !== lineupBefore && ep.lineupsAt && ep.lineupsAt[playerId]) delete ep.lineupsAt[playerId];
     }
     // A lineup's captain (A9 part 2), as their lineup.
     if(vEp.captains && Object.prototype.hasOwnProperty.call(vEp.captains, playerId)){
