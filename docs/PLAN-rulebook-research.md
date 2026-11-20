@@ -71,6 +71,11 @@ fantasy team."
   at every rarity (tested). **Never fluid:** a value is set once, from the show's history, when the moment is scored; what
   actually happened this season never moves a value in play. Real counts are for a note at the season's end, when saving the
   rulebook as next season's starting point, for a person to act on.
+- **A one-off twist scores 0** (the user, 2026-11-20, of Survivor 51's mutiny: "it's literally a one time moment, not a
+  reoccurring. That'd be like scoring Lewis's coin flip"): rarity `oneOff` (a twist the show offers once a season: a mutiny, a
+  coin flip, a one-time offer) is worth 0 whatever its rung, in both halves: shown, never scored. Rarity's bonus stays for rare
+  things that recur (an idol, the final, which is `onceOrTwice`). Survivor 51's "Mutinied to another tribe" went to 0 the same
+  day, as a desk fix (from the premiere).
 - **Spoilers: held, not scoped** (the user, 2026-11-05, after "up to an episode": a row saying "sealed until Episode 9" is
   itself a tell). What scores reads the whole season, so nothing is missed, and what it adds carries `known`
   (pastSeasons: the show's own repertoire, which anyone who's watched before expects, never a spoiler; thisSeason) and

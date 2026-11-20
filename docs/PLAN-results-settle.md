@@ -144,6 +144,14 @@ run there as settle-again does (no bot asked), then each result in or out, each 
   try (4:42): 6 results in (Aaliyah's and Jenna's shot in the dark and lost vote, Danny voted with the majority, Lewis sat
   out), the 10 reward wins and two duplicate shot-in-the-dark lines out; nothing left waiting; one notice each ("6 results
   changed... Your points didn't change"). No game's points moved. The Inbox: no results rows.
+- **Carter's mutiny scored 0 (the user, 2026-11-20: a one-time twist, not a recurring moment).** Rehearsed first on
+  backups/prod-2026-11-20-1730 (a desk fix re-reads every answer from the premiere). The first rehearsal lost 17 results, an
+  artefact: a backup holds no app_settings, so the copy's rulebooks switch was off and the re-read used the show's old format
+  without the rulebook's own moments; with production's switch on, only the expected points moved. Then on the desk, 5:34 PM:
+  "Mutinied to another tribe" 0 (a fix, from the premiere); Weekly Start/Bench 92.5, 87, 75, no results moved, no notices.
+  What scores now scores any one-off twist 0 (docs/PLAN-rulebook-research.md, rarity `oneOff`). what-would-move.js gives its
+  copy production's rulebooks switch. Noticed: backups leave out app_settings, so any rehearsal on one must set the switches
+  production has (rulebooks on; tiebreak on).
 - The user asked to reinstate Rob's quit (Ep 3): it never left. It's an admin's result (locked), scored -5 in Weekly
   Start/Bench (a vote-out -3), and counted against the seat that started him, this morning and since.
 

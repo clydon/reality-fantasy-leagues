@@ -84,6 +84,9 @@ async function snapshot(pool) {
   const { settleEverything } = jiti("../../src/lib/server/community-results.ts");
   let moved = 0;
   try {
+    // A backup holds no app_settings: the copy gets production's rulebooks switch (every season plays by its rulebook, on since
+    // 2026-11-04). Without it a re-read loses a rulebook's own moments (2026-11-20: 17 results gone on a copy, none in production).
+    await pool.query("INSERT INTO app_settings (key, value, updated_at) VALUES ('rulebooks', 'true'::jsonb, now()) ON CONFLICT (key) DO UPDATE SET value = 'true'::jsonb");
     const { rows: [{ now: t0 }] } = await pool.query("SELECT now()");
     const before = await snapshot(pool);
     console.log(`[moves] ${before.games.size} games, ${before.results.size} results before; settling every episode again …`);

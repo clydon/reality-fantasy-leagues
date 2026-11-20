@@ -17,6 +17,10 @@
 // and a negative one gains nothing (a rare disaster is no worse than a common one, so the worst week stays under the best). It's fixed when the moment is scored, from the show's history:
 // what actually happened this season never moves a value in play.
 //
+// One-off twists (the user, 2026-11-20): a twist the show offers once a season (a mutiny, a coin flip) isn't a kind of play
+// that comes round again, so its rarity is oneOff and it's worth 0 whatever its rung: shown, never scored. Rarity's bonus
+// is for rare things that recur (an idol, the final); a one-off rewards whoever happened to have that person that week.
+//
 // Outcomes, not moments (the user, 2026-11-05/06): where one moment always brings another with it for the same person in
 // the same episode (the winner reaches the final; immunity means no votes against you), the engine pays both, so the
 // bigger one is priced as its rung MINUS what comes along: the two together are worth the rung, never stacked. The
@@ -75,7 +79,10 @@ const LADDER = [
 const RARITY = [
   { id: 'mostEpisodes', bump: 0, test: 'It comes up in most episodes.' },
   { id: 'someEpisodes', bump: 0.5, test: 'A few times a season.' },
-  { id: 'onceOrTwice', bump: 1, test: 'Once or twice a season, or only at a set point like the final.' },
+  { id: 'onceOrTwice', bump: 1, test: 'Once or twice a season, or only at a set point like the final: a kind of play that comes round again.' },
+  // One-off twists (the user, 2026-11-20, of Survivor 51's mutiny: "it's literally a one time moment, not a reoccurring. That'd
+  // be like scoring Lewis's coin flip"): worth 0 whatever the rung, so they're shown and never scored.
+  { id: 'oneOff', bump: 0, zero: true, test: "A twist the show offers once a season, not a kind of play that comes round again: a mutiny, a coin flip, a one-time offer or choice. It scores 0 whatever its rung: it rewards whoever happened to have that person that week, not how anyone plays. The final, every season's set point, isn't one: that's onceOrTwice." },
 ];
 /** A moment counted per amount (each point, each $1,000) isn't on the ladder: it's scored per unit, a small number. */
 /** The least a rung is worth for rarity to count: earned and up, what one or two people get. */
@@ -126,7 +133,7 @@ function buildScoresPrompt({ show, season, airing = false, aired = 0, episodeCou
     '',
     'Four rules:',
     "1. No names and no results, anywhere. People read this before they've watched: never name anyone in the cast, and never say what happened in a particular episode. Describe what can happen, not what happened.",
-    "2. Score by the ladder, nothing else. Every moment stands on one rung, chosen by the rung's test; its points are the rung's, plus its rarity step on earned or above. Judge what the moment is and how often the show produces it, never how a season or a person is going: the same moment stands on the same rung with the same rarity today, tomorrow and next season. A moment that isn't something one person did or had done to them (the tip is revealed, a guest complains, the weather turns) stands on nothing, and its why says so: it says nothing about anyone. When a moment always brings another with it for the same person in the same episode (winning the season means reaching the final; winning immunity means no votes against you at that vote), list the other's id in \"implies\": we price the bigger one so the two together are worth its rung, so never lower a rung for that yourself.",
+    "2. Score by the ladder, nothing else. Every moment stands on one rung, chosen by the rung's test; its points are the rung's, plus its rarity step on earned or above. Judge what the moment is and how often the show produces it, never how a season or a person is going: the same moment stands on the same rung with the same rarity today, tomorrow and next season. A twist the show offers once a season (a mutiny, a coin flip, a one-time offer) takes rarity oneOff and scores 0: it's shown, never scored. A moment that isn't something one person did or had done to them (the tip is revealed, a guest complains, the weather turns) stands on nothing, and its why says so: it says nothing about anyone. When a moment always brings another with it for the same person in the same episode (winning the season means reaching the final; winning immunity means no votes against you at that vote), list the other's id in \"implies\": we price the bigger one so the two together are worth its rung, so never lower a rung for that yourself.",
     "3. A missing moment is something a recap reliably reports about one person as yes or no, a count or an amount, in the show's own words (\"Got in a fight\", \"Called out an opponent\", \"Eliminated in a purge\"). Never a judgement call (\"funniest moment\"), never something these moments already cover, never something that can't happen on this show. Up to 12, the most telling first. For each, say whether this kind of moment has happened in earlier seasons of the show (anyone who's watched before would expect it) or is new to this season, and the first episode of this season it could happen in under the show's rules.",
     '4. Anything that doesn\'t fit goes in "leftOut", one sentence each, with no names or results either, each with the first episode it concerns.',
     '',
@@ -135,7 +142,7 @@ function buildScoresPrompt({ show, season, airing = false, aired = 0, episodeCou
     `  ${PER_UNIT.id}: for a moment counted per amount (each point, each $1,000, each day) only: give "points" per unit (the moment says per how much: "per 1,000" is per $1,000), between ${PER_UNIT.min} and ${PER_UNIT.max}, so a typical ${part}'s total for whoever does best lands on earned (2) or wonAlone (4), and say the typical amount in "why". No rarity step.`,
     '',
     'Rarity, for every moment, from how the show has played across its seasons: a moment on earned or above gains this on top of its rung, so a rare thing earned beats a common one; a small edge gains nothing (it is still a small edge), and a moment worth 0 or less gains nothing, so a rare disaster is no worse than a common one.',
-    ...RARITY.map((r) => `  ${r.id}: +${r.bump}. ${r.test}`),
+    ...RARITY.map((r) => (r.zero ? `  ${r.id}: 0 in all, whatever its rung. ${r.test}` : `  ${r.id}: +${r.bump}. ${r.test}`)),
     ''
   );
   parts.push(`How ${show || 'the show'} is played, from its rulebook:`);
@@ -224,6 +231,8 @@ function pointsOf(entry) {
   if (rung) {
     const rarity = rarityOf(entry.rarity);
     const note = rarity ? null : entry.rarity === undefined ? 'no rarity given: counted as most episodes' : `"${entry.rarity}" isn't a rarity: counted as most episodes`;
+    // A one-off twist is shown, never scored (RARITY oneOff), whatever its rung.
+    if (rarity && rarity.zero) return { points: 0, shared: 0, rung: rung.id, rarity: rarity.id, why, note };
     const bump = rung.points >= RARITY_FROM && rarity ? rarity.bump : 0;
     // The shared league's half: the rarity step counts SHARED_RARITY times over, nothing else moves.
     return { points: rung.points + bump, shared: rung.points + bump * SHARED_RARITY, rung: rung.id, rarity: rarity ? rarity.id : RARITY[0].id, why, note };

@@ -9,7 +9,7 @@ export interface Rung {
 /** The ladder, top rung first. */
 export const LADDER: Rung[];
 /** How often a moment comes up across a season: what a moment on earned or above gains on top of its rung. */
-export const RARITY: { id: string; bump: number; test: string }[];
+export const RARITY: { id: string; bump: number; test: string; zero?: boolean }[];
 /** The least a rung is worth for rarity to count. */
 export const RARITY_FROM: number;
 /** In a shared league the rarity step counts this many times over. */
