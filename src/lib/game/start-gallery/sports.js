@@ -90,7 +90,11 @@ function pageKindOf(page) {
 function sportStandard(family, league) {
   const d = DEFAULTS[family];
   if (!d) return {};
-  const own = league && isObj(d.leagues) ? d.leagues[String(league).split('/').pop()] : null;
+  // (A check's stand-in league, "football/zt-nfl-slate", reads as its family's core league, as defaultsFor reads it.)
+  const name = league ? String(league).split('/').pop() : null;
+  const core = SPORT_FAMILIES.find((f) => f.id === family)?.core;
+  const key = name && name.startsWith('zt-') && typeof core === 'string' ? core.split('/').pop() : name;
+  const own = key && isObj(d.leagues) ? d.leagues[key] : null;
   const specs = { ...d.specs, ...(own && isObj(own.specs) ? own.specs : {}) };
   const slots = own && isObj(own.slots) ? own.slots : d.slots;
   const lineup = family === 'football' && isObj(slots) && Array.isArray(slots.lineup) ? slots.lineup : [];

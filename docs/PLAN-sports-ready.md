@@ -360,10 +360,15 @@ server.
      game scored by players' stats started to the season's end on the NFL's regular season ends at Week 17 (air-times.ts
      `fantasySeasonEnd`: start-spec.ts for the wizard's "The rest of the season", the sports route's default `to`); a maker who
      picks Week 18 keeps it. Pick'em and other games scored by answers still run to Week 18.
-     *Verified:* unit tests (the NFL's and college's season ranks, the gallery's three; the frozen v1 NFL state reproduces with
-     its lock and playoffs put back); sport-gallery-check.js --all-leagues (495 rows, 371 play, none off); tsc.
-     *Not yet run:* check-nfl-playoff-weeks.js's three new lines (the default's final and span at Week 17; Season points to the
-     season's end ending at 17, through Week 18 keeping 18): the local database was down (see the commit).
+     A check's stand-in league ("football/zt-nfl-slate") now reads as its sport's own first league in `defaultsFor` and the
+     gallery's `sportStandard`, as `sportOf` reads it, so the recorded NFL season plays the NFL's own games (it had football's
+     generic season, with no final); the NBA's, MLB's, NHL's and WNBA's stand-ins get their leagues' own the same way.
+     *Verified:* check-nfl-playoff-weeks.js whole (the default's final between the top two in Week 17, its span ending there;
+     Season points to the season's end ending at 17, through Week 18 keeping 18; every Top N final by 17); unit tests (2,461: the
+     NFL's and college's season ranks, the gallery's three; the frozen v1 NFL state reproduces with its lock and playoffs put
+     back); sport-gallery-check.js --all-leagues (495 rows, 371 play, none off); every NFL fixture check on the new default
+     (defenses, new players, same names, week in progress, live points, hourly, finals, injuries and byes, slate Pick'em);
+     check-slate, check-finals, check-stats-game, check-sports-couch.js --api whole; tsc.
      *Noticed, not fixed:* the sheet's "The rest of the season" line still says "to the season's end" for a stats game on the NFL's
      slate, which now ends at Week 17 (4.0's words). College football's season locks at each player's game too since 2.1 (the
      two share football's season spec; the user decided the NFL's).

@@ -136,7 +136,11 @@ const DEFAULTS: Record<string, SportDefaults> = {
 export function defaultsFor(sportId: string, league?: string): SportDefaults | null {
   const d = DEFAULTS[sportId];
   if (!d) return null;
-  const own = league ? d.leagues?.[String(league).split("/").pop()!] : undefined;
+  // A check's stand-in league ("zt-nfl-slate": fake-espn.js) reads as its sport's own first, as sportOf reads it, so the recorded
+  // NFL season plays the NFL's own games (BACKLOG 226's final).
+  const name = league ? String(league).split("/").pop()! : undefined;
+  const key = name?.startsWith("zt-") ? (sportById(sportId)?.leagues?.[0] ?? name) : name;
+  const own = key ? d.leagues?.[key] : undefined;
   // A league's specs over the sport's, one by one (L4 part 1a: F1's own season and short beside racing's pick'em).
   const out = own ? { ...d, ...own, ...(own.specs ? { specs: { ...d.specs, ...own.specs } } : {}) } : d;
   return withLineupSlots(sportId, out);
@@ -149,8 +153,7 @@ export function defaultsFor(sportId: string, league?: string): SportDefaults | n
  */
 export function playoffsEndBefore(league: string): number {
   const sport = sportOf(league);
-  const name = String(league).split("/")[1];
-  const d = sport ? defaultsFor(sport.id, name?.startsWith("zt-") ? (sport.leagues?.[0] ?? name) : name) : null;
+  const d = sport ? defaultsFor(sport.id, String(league).split("/")[1]) : null;
   const n = d?.playoffs?.endsBefore;
   return Number.isInteger(n) && n! > 0 ? n! : 0;
 }
