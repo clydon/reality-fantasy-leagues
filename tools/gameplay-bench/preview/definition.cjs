@@ -57,18 +57,19 @@ function checked(season) {
 }
 
 /**
- * How often moments happen per cast member still in, when a season gives nothing to go by (no episode seen, no other season of the
- * show): typical made-up rates, so a preview of a premiere still has nights where things happen. Only the format's own moments are
- * ever used (knownOf).
+ * How often a moment happens per cast member still in, when a season gives nothing to go by (no episode seen, no other season of the
+ * show): one of a few made-up rates, the same for a moment whatever the show (by its id alone), so a preview of a premiere still has
+ * nights where things happen. Nothing in it is any show's: every format's own moments get one (the user, 2026-11-20: the bank is
+ * generic, placeholders are fine).
  */
-const TYPICAL_RATES = { tribeImmunity: 0.18, rewardWin: 0.16, chosenForReward: 0.05, idolFound: 0.03, idolPlayed: 0.02, votesNegated: 0.01, wentOnJourney: 0.03, advantageTargeted: 0.02, votedWithMajority: 0.42, zeroVotesSafe: 0.35, survivedVotes: 0.08, cried: 0.06, confessional: 0.3 };
+const TYPICAL = [0.01, 0.02, 0.04, 0.08, 0.16];
+const typicalRate = (type) => TYPICAL[roll('typical', type) % TYPICAL.length];
 
-/** How often each moment happened per cast member still in, over the episodes through the mark (season.rates if given; typical rates
- *  when there's nothing to go by). */
+/** How often each moment happened per cast member still in, over the episodes through the mark (season.rates if given). Empty when
+ *  there's nothing to go by: the made-up moments then use typicalRate for each of the format's own. */
 function ratesOf(season) {
   if (season.rates && Object.keys(season.rates).length) return season.rates;
-  const seen = learnedRates(season);
-  return Object.keys(seen).length ? seen : { ...TYPICAL_RATES };
+  return season.cast ? learnedRates(season) : {};
 }
 function learnedRates(season) {
   const real = season.real || [], cast = season.cast.length;
@@ -82,22 +83,27 @@ function learnedRates(season) {
 }
 
 /** The format's moments a preview can score (the season's own beyond them are left out: the world's rulebook is the format's). */
-const knownOf = (season) => new Set(Formats.formatFor(season.format || 'survivor').events.map((e) => e.id));
+const formatOf = (id) => Formats.formatFor(id || 'survivor');
+const knownOf = (season) => new Set(formatOf(season.format).events.map((e) => e.id));
 
-/** An episode's moments: each kind at the season's rate among those still in, given at random (by the seed); after the merge, one
- *  individual immunity a night instead of tribe immunity. */
-function shapedMoments(rates, seed, n, still, outs, known, merged) {
-  const out = new Set(outs.map((o) => o.castawayId)), list = [];
-  const safe = new Set(['zeroVotesSafe', 'survivedVotes', 'votedWithMajority']);
-  const kinds = Object.keys(rates).filter((t) => known.has(t) && !(merged && (t === 'tribeImmunity' || t === 'individualImmunity'))).sort();
+/** How someone leaves in a made-up episode: the format's own first way out that isn't its winner's or an endgame's (its own word). */
+function exitOf(id) {
+  const f = formatOf(id), end = new Set([f.winnerExitMethod, ...(f.endgameExitMethods || []), 'Other']);
+  return f.exitMethods.find((m) => !end.has(m)) || f.exitMethods[0];
+}
+
+/** The moments the format tags as being safe (never given to someone who left that night). */
+const safeOf = (id) => new Set(formatOf(id).events.filter((e) => (e.tags || []).includes('safe')).map((e) => e.id));
+
+/** An episode's moments: each of the format's own at the season's rate (typicalRate with nothing to go by) among those still in,
+ *  given at random (by the seed). Nothing about any one show: only the format's own moments and tags. */
+function shapedMoments(rates, seed, n, still, outs, known, safe) {
+  const out = new Set(outs.map((o) => o.castawayId)), list = [], typical = !Object.keys(rates).length;
+  const kinds = (typical ? [...known] : Object.keys(rates).filter((t) => known.has(t))).sort();
   for (const type of kinds) {
-    const want = rates[type] * still.length, k = Math.floor(want) + ((roll(seed, n, type, 'frac') % 1000) / 1000 < want - Math.floor(want) ? 1 : 0);
+    const want = (typical ? typicalRate(type) : rates[type]) * still.length, k = Math.floor(want) + ((roll(seed, n, type, 'frac') % 1000) / 1000 < want - Math.floor(want) ? 1 : 0);
     const pool = still.filter((id) => !(safe.has(type) && out.has(id))).sort((a, b) => roll(seed, n, type, a) - roll(seed, n, type, b));
     for (const id of pool.slice(0, k)) list.push({ id: momentId(n, type, id), type, castawayId: id });
-  }
-  if (merged && known.has('individualImmunity') && still.length) {
-    const id = still[roll(seed, n, 'immunity') % still.length];
-    if (!out.has(id)) list.push({ id: momentId(n, 'individualImmunity', id), type: 'individualImmunity', castawayId: id });
   }
   return list;
 }
@@ -109,7 +115,7 @@ function realFacts(season, participants, known) {
   const facts = [];
   for (let n = 1; n <= season.mark; n++) {
     const rows = (season.real || []).filter((x) => x.n === n);
-    const events = rows.filter((x) => x.kind === 'elimination').map((x) => ({ castawayId: id(x.name), method: x.method || 'Voted Out' }));
+    const events = rows.filter((x) => x.kind === 'elimination').map((x) => ({ castawayId: id(x.name), method: x.method || exitOf(season.format) }));
     const seen = new Set();
     const scoringEvents = rows.filter((x) => x.kind === 'event' && known.has(x.type))
       .filter((x) => { const k = x.type + '|' + x.name; if (seen.has(k)) return false; seen.add(k); return true; })
@@ -120,15 +126,15 @@ function realFacts(season, participants, known) {
 }
 
 /** Episodes after the mark and before the game starts, made up (someone goes home each, the moments at the season's rates). */
-function madeUpBefore(season, participants, facts, known, seed, merge) {
-  const rates = ratesOf(season), out = [];
+function madeUpBefore(season, participants, facts, known, seed) {
+  const rates = ratesOf(season), out = [], way = exitOf(season.format), safe = safeOf(season.format);
   const gone = new Set(facts.flatMap((f) => (f.data.events || []).map((o) => o.castawayId)));
   for (let n = season.mark + 1; n < season.from; n++) {
     const still = participants.map((p) => p.id).filter((x) => !gone.has(x));
     const who = still.slice().sort((a, b) => roll(seed, n, 'out', a) - roll(seed, n, 'out', b))[0];
-    const events = who ? [{ castawayId: who, method: 'Voted Out' }] : [];
+    const events = who ? [{ castawayId: who, method: way }] : [];
     if (who) gone.add(who);
-    out.push({ id: 'fact-show-event-' + n, eventId: 'show-event-' + n, contextId: 'show', source: 'made-up', data: { events, scoringEvents: shapedMoments(rates, seed, n, still, events, known, n >= merge), ...(events.length ? {} : { noExit: true }) } });
+    out.push({ id: 'fact-show-event-' + n, eventId: 'show-event-' + n, contextId: 'show', source: 'made-up', data: { events, scoringEvents: shapedMoments(rates, seed, n, still, events, known, safe), ...(events.length ? {} : { noExit: true }) } });
   }
   return out;
 }
@@ -197,7 +203,9 @@ function build(input, o = {}) {
   };
   const events = season.episodes.slice().sort((a, b) => a.number - b.number).map((e) => ({ id: 'show-event-' + e.number, contextId: 'show', number: e.number, airAt: e.airAt, resultStatus: e.number < season.from ? 'final' : 'unavailable' }));
   const real = realFacts(season, participants, new Set(moments.map((m) => m.id)));
-  const facts = withBank([...real, ...madeUpBefore(season, participants, real, new Set(moments.map((m) => m.id)), seed, merge)], participants, seed);
+  // (Made up: only the moments someone is given, never the format's automatic ones, which follow from the rest; as resultsFor.)
+  const given = new Set(moments.filter((m) => !m.auto && !m.off).map((m) => m.id));
+  const facts = withBank([...real, ...madeUpBefore(season, participants, real, given, seed)], participants, seed);
   const start = events.find((e) => e.number === season.from);
   return D.create({
     seed,
@@ -210,9 +218,9 @@ function build(input, o = {}) {
 
 /**
  * Episode n's results as the story plays it: who goes out (the bench's own Publish: the finale crowns a winner and its finalists),
- * the moments shaped like the season's, and the bank, what research gives the server for each episode, made up from these same
- * results so each has a right answer: the finale's jury votes (a split question), a round of trivia about the episode (asked before
- * the next: who went home, who won immunity, how many are left), and who says the title quote (an episode fact).
+ * the moments shaped like the season's, and the bank: what research gives the server for each episode, as placeholders that fit any
+ * show (the user, 2026-11-20: nothing in it is one show's; it needn't make sense, only have a right answer): the finale's votes (a
+ * split question's), a round of trivia (asked before the next episode), and who says the title quote (an episode fact).
  */
 function resultsFor(season) {
   const rates = ratesOf(season);
@@ -222,38 +230,37 @@ function resultsFor(season) {
     const gone = new Set(world.facts.filter((f) => f.eventId !== e.id).flatMap((f) => (f.data.events || []).map((o) => o.castawayId)));
     const still = world.participants.map((p) => p.id).filter((id) => !gone.has(id));
     const known = new Set(world.context.engine.moments.filter((m) => !m.auto && !m.off).map((m) => m.id));
-    const merge = world.context.phaseStarts.merged, last = Math.max(...world.events.map((x) => x.number));
-    const scoringEvents = shapedMoments(rates, doc.seed, n, still, data.events, known, n >= merge);
-    const events = n === last ? withJury(data.events, world, merge, doc.seed) : data.events;
+    const last = Math.max(...world.events.map((x) => x.number));
+    const scoringEvents = shapedMoments(rates, doc.seed, n, still, data.events, known, safeOf(world.context.format?.id));
+    const events = n === last ? withVotes(data.events, doc.seed) : data.events;
     const name = new Map(world.participants.map((p) => [p.id, p.name]));
-    return { ...data, events, scoringEvents, trivia: triviaRound(n, still, events, scoringEvents, name, doc.seed), episodeFacts: { titleQuote: titleQuote(n, still, name, doc.seed) } };
+    return { ...data, events, scoringEvents, trivia: triviaRound(n, still, name, doc.seed), episodeFacts: { titleQuote: titleQuote(n, still, name, doc.seed) } };
   };
 }
 
-/** The finale's jury votes: a jury of who went home since the merge (3 to 10; 7 when there's no telling), the winner's a majority. */
-function withJury(events, world, merge, seed) {
-  const num = new Map(world.events.map((x) => [x.id, x.number]));
-  const juried = world.facts.filter((f) => num.get(f.eventId) >= merge).flatMap((f) => f.data.events || []).length;
-  const jury = Math.max(5, Math.min(10, juried || 7));
+/** The finale's votes (the engine's juryVotes, which a split question settles by), made up: 5 to 9 of them, the winner's a majority,
+ *  the rest between the other finalists. */
+function withVotes(events, seed) {
+  const votes = 5 + (roll(seed, 'votes') % 5);
   const winner = events[events.length - 1], others = events.filter((o, i) => i < events.length - 1 && o.method === events[events.length - 2]?.method && o !== winner);
   if (!winner) return events;
   // The winner's a majority (more than half, now and then all of it); the rest split between the others, the first more often.
-  const most = Math.floor(jury / 2) + 1 + (roll(seed, 'jury', 'lead') % Math.max(1, jury - Math.floor(jury / 2) - 1));
-  let rest = jury - most;
-  const theirs = others.map((o, i) => { const v = i === others.length - 1 ? rest : Math.min(rest, Math.ceil(rest / 2) + (roll(seed, 'jury', o.castawayId) % 2)); rest -= v; return v; });
-  const votes = new Map([[winner.castawayId, most], ...others.map((o, i) => [o.castawayId, theirs[i]])]);
-  return events.map((o) => (votes.has(o.castawayId) ? { ...o, juryVotes: votes.get(o.castawayId) } : o));
+  const most = Math.floor(votes / 2) + 1 + (roll(seed, 'votes', 'lead') % Math.max(1, votes - Math.floor(votes / 2) - 1));
+  let rest = votes - most;
+  const theirs = others.map((o, i) => { const v = i === others.length - 1 ? rest : Math.min(rest, Math.ceil(rest / 2) + (roll(seed, 'votes', o.castawayId) % 2)); rest -= v; return v; });
+  const got = new Map([[winner.castawayId, most], ...others.map((o, i) => [o.castawayId, theirs[i]])]);
+  return events.map((o) => (got.has(o.castawayId) ? { ...o, juryVotes: got.get(o.castawayId) } : o));
 }
 
 /** The bank for the episodes before the game (real through the mark, made up after): each its trivia round and its title quote, as
- *  the story's own nights have them (resultsFor), so the game's first round, about the episode before it, has questions too. A real
- *  episode's round asks only what its results say, which the person has seen. */
+ *  the story's own nights have them (resultsFor), so the game's first round, about the episode before it, has questions too. Each is
+ *  a placeholder about nothing in the results, so a real episode's tells nothing past what the person has seen. */
 function withBank(facts, participants, seed) {
   const name = new Map(participants.map((p) => [p.id, p.name])), gone = new Set();
   return facts.map((f) => {
     const n = Number(f.eventId.replace('show-event-', '')), still = participants.map((p) => p.id).filter((id) => !gone.has(id));
     for (const o of f.data.events || []) gone.add(o.castawayId);
-    return { ...f, data: { ...f.data, trivia: triviaRound(n, still, f.data.events || [], f.data.scoringEvents || [], name, seed), episodeFacts: { titleQuote: titleQuote(n, still, name, seed) } } };
+    return { ...f, data: { ...f.data, trivia: triviaRound(n, still, name, seed), episodeFacts: { titleQuote: titleQuote(n, still, name, seed) } } };
   });
 }
 
@@ -267,19 +274,21 @@ function fourOf(right, pool, seed, key) {
  *  files each with this one, so an answer the runtime took is the server's too). */
 const uuidOf = (...parts) => { const h = J.digest(['trivia', ...parts]); return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20, 32)}`; };
 
-/** A round of trivia about episode n (asked before n + 1), as the bot's trivia research writes it: { id, kind, question, options, answer }. */
-function triviaRound(n, still, events, scoringEvents, name, seed) {
-  const round = [], names = still.map((id) => name.get(id));
-  const out = events.find((o) => o.method && !/win|sole|survivor/i.test(o.method));
-  if (out && names.length >= 4) round.push({ id: uuidOf(seed, n, 'out'), kind: 'person', question: `Who went home in Episode ${n}?`, options: fourOf(name.get(out.castawayId), names, seed, `out${n}`), answer: name.get(out.castawayId) });
-  const imm = scoringEvents.find((m) => m.type === 'individualImmunity') || scoringEvents.find((m) => m.type === 'tribeImmunity');
-  if (imm && names.length >= 4) round.push({ id: uuidOf(seed, n, 'imm'), kind: 'person', question: imm.type === 'individualImmunity' ? `Who won immunity in Episode ${n}?` : `Whose tribe won immunity in Episode ${n}? (one of them)`, options: fourOf(name.get(imm.castawayId), names, seed, `imm${n}`), answer: name.get(imm.castawayId) });
-  const left = still.length - events.filter((o) => o.method).length;
-  if (left > 1) round.push({ id: uuidOf(seed, n, 'left'), kind: 'number', question: `How many were still in after Episode ${n}?`, options: [left - 1, left, left + 1, left + 2].map(String), answer: String(left) });
+/** A round of trivia after episode n (asked before n + 1), as the bot's trivia research writes it ({ id, kind, question, options,
+ *  answer }): three placeholders that fit any show, a person, a number and a yes or no, each answer picked by the seed. */
+function triviaRound(n, still, name, seed) {
+  const round = [], names = still.map((id) => name.get(id)), r = (k) => roll(seed, 'trivia', n, k);
+  if (names.length >= 2) {
+    const who = names[r('who') % names.length];
+    round.push({ id: uuidOf(seed, n, 'who'), kind: 'person', question: 'Who is it?', options: fourOf(who, names, seed, `who${n}`), answer: who });
+  }
+  const many = 1 + (r('many') % 8), from = Math.max(0, many - (r('from') % 4));
+  round.push({ id: uuidOf(seed, n, 'many'), kind: 'number', question: 'How many?', options: [0, 1, 2, 3].map((i) => String(from + i)), answer: String(many) });
+  round.push({ id: uuidOf(seed, n, 'did'), kind: 'text', question: 'Did it happen?', options: ['Yes', 'No'], answer: r('did') % 2 ? 'Yes' : 'No' });
   return round;
 }
 
-/** Who says the episode's title quote (an episode fact, research's 'who'): someone still in at its start. */
+/** Who says the episode's title quote (an episode fact, research's 'who'): someone still in at its start, picked by the seed. */
 function titleQuote(n, still, name, seed) {
   if (!still.length) return { state: 'none' };
   const who = still[roll(seed, 'quote', n) % still.length];
@@ -303,4 +312,4 @@ function verdict(definition) {
   return a.runtimeSupport.status === 'supported-profile' && !a.diagnostics.length ? { ok: true, why: null, gaps: [] } : { ok: false, why: gaps[0] || a.diagnostics[0]?.message || "the runtime can't play it yet", gaps };
 }
 
-module.exports = { build, verdict, resultsFor, mixTribes, ratesOf, COUCH, CAST_FIELDS, TYPICAL_RATES };
+module.exports = { build, verdict, resultsFor, mixTribes, ratesOf, typicalRate, COUCH, CAST_FIELDS };

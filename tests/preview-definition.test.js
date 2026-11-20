@@ -58,8 +58,23 @@ test("the made-up moments' rates come from the episodes through the mark", () =>
   // 18 + 17 + 16 cast-episodes; three tribe immunities and one reward.
   assert.equal(r.tribeImmunity, 3 / 51);
   assert.equal(r.rewardWin, 1 / 51);
-  assert.deepEqual(Def.ratesOf(season({ mark: 0, real: [] })), Def.TYPICAL_RATES, "nothing to go by: typical rates");
+  assert.deepEqual(Def.ratesOf(season({ mark: 0, real: [] })), {}, "nothing to go by: none (each moment at a typical rate as it's made up)");
+  assert.deepEqual(Def.ratesOf({ rates: {} }), {}, "the service's ask with nothing learned");
   assert.deepEqual(Def.ratesOf({ ...season({ mark: 0, real: [] }), rates: { rewardWin: 0.1 } }), { rewardWin: 0.1 });
+  assert.ok([...new Set(["rewardWin", "confessional", "anything"].map(Def.typicalRate))].every((x) => x > 0 && x < 0.2), "a typical rate for any moment");
+  const d = Def.build(season({ mark: 0, real: [], from: 3 }), { base: "fantasy" });
+  assert.ok(d.world.facts.some((f) => f.data.scoringEvents.length), "a premiere's made-up nights still have moments");
+});
+
+test("the bank is placeholders that fit any show, each with a right answer", () => {
+  const d = Def.build(season({ from: 5 }), { base: "fantasy" });
+  const round = d.world.facts.flatMap((f) => f.data.trivia);
+  assert.ok(round.length);
+  for (const t of round) {
+    assert.ok(["Who is it?", "How many?", "Did it happen?"].includes(t.question), t.question);
+    assert.ok(t.options.includes(t.answer), `${t.question}: its answer is an option`);
+  }
+  for (const f of d.world.facts) assert.ok(["who", "none"].includes(f.data.episodeFacts.titleQuote.state));
 });
 
 test("a season that can't be previewed says why", () => {

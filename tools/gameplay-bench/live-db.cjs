@@ -251,7 +251,7 @@ async function sync(ids, snap, document, shiftMs) {
         let payload = e && released(e) && !sport ? require('./explorer/runtime-data.cjs').researchOf(world, f.data, e.number) : null;
         // Research's facts on the episode (a world's bank: who says the title quote), as episode-facts.ts reads them.
         const tq = e && released(e) && f.data.episodeFacts?.titleQuote;
-        if (tq) payload = { ...(payload || {}), episodeFacts: { titleQuote: tq.state === 'who' ? { isQuote: 'yes', line: 'You have to play the game', by: tq.name || name.get(tq.who), sure: 'high' } : { isQuote: 'no', line: null, by: null, sure: 'high' } } };
+        if (tq) payload = { ...(payload || {}), episodeFacts: { titleQuote: tq.state === 'who' ? { isQuote: 'yes', line: 'Quote', by: tq.name || name.get(tq.who), sure: 'high' } : { isQuote: 'no', line: null, by: null, sure: 'high' } } };
         if (payload) await client.query(`INSERT INTO episode_research (show_id, season_number, episode_number, payload, provenance, source) VALUES ($1, $2, $3, $4, $5, 'combined')`, [showId, season.number, e.number, JSON.stringify(payload), JSON.stringify({ source: 'zt-gameplay-bench' })]);
       }
       // The trivia round written after each episode (a world's bank), as the bot's trivia research files it (trivia_questions, 0140:

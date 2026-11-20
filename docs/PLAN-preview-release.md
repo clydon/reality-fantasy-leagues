@@ -156,10 +156,14 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
    split, quote, seal, bank, props, trivia, host), bingo, bingo with trivia, two halves, and a redraft at a format change.
    **All 50 (2026-11-20, the user: "lets get the remaining ... working. even if we have a bank of fake questions and answer or
    scenarios").** Each of the 19 connected in the explorer's runtime (core-runtime-45), and on the real screens:
-   - **A bank** of what research gives the server, made up from each episode's own made-up results so every answer exists: a
-     round of trivia about each episode (who went home, who won immunity, how many are left), who says the title quote, the
-     finale's jury votes; filed where the server reads them (trivia_questions, episode_research). Typical moment rates when a season
-     gives nothing to go by.
+   - **A bank** of what research gives the server, each with a right answer: a round of trivia after each episode, who says the
+     title quote, the finale's votes; filed where the server reads them (trivia_questions, episode_research). A typical rate for each
+     of the format's own moments when a season gives nothing to go by.
+   - **The bank's rule (the user, 2026-11-20): nothing made up is any one show's or sport's.** If a question, answer, quote, rate or
+     scenario would fit only Survivor (or only Below Deck, SNL, the NFL, MLB, tennis…), it's too specific. Placeholders are fine and
+     needn't make sense: the trivia is "Who is it?", "How many?" and "Did it happen?", the quote's line is "Quote", the votes are 5 to
+     9 with the winner's a majority, a made-up exit is the format's own first way out, and the typical rates are a few made-up
+     numbers keyed by any moment's id. Only the format's own data (its moments, tags, exits) and the cast's names go in.
    - **More question kinds** (the boot order, who outlasts whom, a vote split, over/under, a ticket, a trivia round, a choice), each
      with its options as the sheet has them; a card the bot chooses or a host writes, made up from its own list each episode
      (card_choices, host_cards); the computer players answer each kind and stake within their room.
