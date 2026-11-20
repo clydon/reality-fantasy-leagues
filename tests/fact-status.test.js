@@ -14,16 +14,16 @@ const idol = (sources, extra = {}) => ({
   id: "f1", kind: "event", castawayName: "Brady", method: "", live: false, factStatus: "reported", locked: false, flags: [], sources, ...extra,
 });
 const yes = (researchId, confidence = "high", method = "") => ({ researchId, method, confidence });
-const one = (fact, subs) => settleEpisode([fact], subs)[0];
+const one = (fact, subs, opts) => settleEpisode([fact], subs, opts)[0];
 
-test("one source is reported, and reaches every league only when it's confident", () => {
+test("one source is reported, and reaches every league whatever its confidence (docs/PLAN-results-settle.md)", () => {
   const r = one(idol([yes("a")]), [full("a", "alex", 1)]);
   assert.equal(r.factStatus, "reported");
   assert.equal(r.live, true);
   assert.equal(sourcesLine(r), "1 source");
-  const unsure = one(idol([yes("a", "medium")]), [full("a", "alex", 1)]);
-  assert.equal(unsure.factStatus, "reported");
-  assert.equal(unsure.live, false);
+  // Survivor 51 Ep 9 (2026-11-19): the bot's 9:30 AM answer "wasn't sure" of a reward win that was right. One look is enough.
+  const unsure = one(idol([yes("a", "medium")]), [full("a", "bot:autopilot", 1)]);
+  assert.deepEqual([unsure.factStatus, unsure.live], ["reported", true]);
 });
 
 test("two people agreeing confirm it; the same person twice is one source", () => {
@@ -88,11 +88,60 @@ test("who went home answers only for eliminations; a ticked result only for itse
   assert.deepEqual([ticked.factStatus, ticked.live], ["reported", true]);
 });
 
-test("a confident source isn't trusted while any answer for the episode says otherwise", () => {
-  // alex's quick check named one person; their full answer names a second: it waits.
+test("a sender's newer answer is its whole word: what it adds counts as much as what it drops", () => {
+  // The quick check named one person; the full answer an hour later names a second: it goes in.
   const second = { id: "e2", kind: "elimination", castawayName: "Devin", method: "Voted Out", live: false, factStatus: "reported", locked: false, flags: [], sources: [yes("f", "high", "Voted Out")] };
-  const r = one(second, [quick("q", "alex", 1), full("f", "alex", 2)]);
-  assert.deepEqual([r.factStatus, r.live], ["reported", false]);
+  const r = one(second, [quick("q", "bot:autopilot", 1), full("f", "bot:autopilot", 2)]);
+  assert.deepEqual([r.factStatus, r.live], ["reported", true]);
+  // Survivor 51 Ep 7 (2026-11-05): the 10:30 PM run missed a reward win the 9:30 AM run reported. The morning run's word stands.
+  const reward = one(idol([yes("m")]), [full("e", "bot:autopilot", 1), full("m", "bot:autopilot", 2)]);
+  assert.deepEqual([reward.factStatus, reward.live], ["reported", true]);
+  // Someone else's newest answer against it is a split, as ever: it stays as it was until settled.
+  const split = one(idol([yes("m")]), [full("m", "bot:autopilot", 2), full("p", "riley", 3)]);
+  assert.deepEqual([split.factStatus, split.live], ["disputed", false]);
+});
+
+test("after final results, a bot's answer is a voice of its own and needs a second look to change anything", () => {
+  const FINAL = 100;
+  const after = { finalAt: FINAL, hadResults: true };
+  // In the games from the bot's answer before final; the catch-up (after) doesn't mention it: a split, so it stays in.
+  const kept = one(idol([yes("a")], { live: true }), [full("a", "bot:autopilot", 50), full("c", "bot:catchup", 200)], after);
+  assert.deepEqual([kept.factStatus, kept.live], ["disputed", true]);
+  // The same bot asked again after final can't overwrite its own answer from before: a split too.
+  const rerun = one(idol([yes("a")], { live: true }), [full("a", "bot:autopilot", 50), full("r", "bot:autopilot", 300)], after);
+  assert.deepEqual([rerun.factStatus, rerun.live], ["disputed", true]);
+  // The tie-break's third look settles it either way.
+  const out = one(idol([yes("a")], { live: true }), [full("a", "bot:autopilot", 50), full("c", "bot:catchup", 200), full("t", "bot:tiebreak", 300)], after);
+  assert.deepEqual([out.factStatus, out.live], ["removed", false]);
+  const stays = one(idol([yes("a"), yes("t")], { live: true }), [full("a", "bot:autopilot", 50), full("c", "bot:catchup", 200), full("t", "bot:tiebreak", 300)], after);
+  assert.deepEqual([stays.factStatus, stays.live], ["confirmed", true]);
+  // Something only the catch-up reports, the bot's answer from before final not: a split, and the third look decides.
+  const claim = one(idol([yes("c")]), [full("a", "bot:autopilot", 50), full("c", "bot:catchup", 200)], after);
+  assert.deepEqual([claim.factStatus, claim.live], ["disputed", false]);
+  const agreed = one(idol([yes("c"), yes("t")]), [full("a", "bot:autopilot", 50), full("c", "bot:catchup", 200), full("t", "bot:tiebreak", 300)], after);
+  assert.deepEqual([agreed.factStatus, agreed.live], ["confirmed", true]);
+});
+
+test("after final, a result only a late look reports waits for a second one; an episode with nothing yet takes the first", () => {
+  const FINAL = 100;
+  // Survivor 51 Ep 1: its results are an admin's (classic's), and no answer from before final speaks to it. The catch-up alone
+  // waits, out of the games, for its second look.
+  const alone = one(idol([yes("c", "medium")]), [full("c", "bot:catchup", 200)], { finalAt: FINAL, hadResults: true });
+  assert.deepEqual([alone.factStatus, alone.live], ["reported", false]);
+  const second = one(idol([yes("c"), yes("t")]), [full("c", "bot:catchup", 200), full("t", "bot:tiebreak", 300)], { finalAt: FINAL, hadResults: true });
+  assert.deepEqual([second.factStatus, second.live], ["confirmed", true]);
+  // The second look doesn't report it: settled out, not a question for anyone.
+  const no = one(idol([yes("c")]), [full("c", "bot:catchup", 200), full("t", "bot:tiebreak", 300)], { finalAt: FINAL, hadResults: true });
+  assert.deepEqual([no.factStatus, no.live], ["removed", false]);
+  // An episode with no results by its final time (research came late): its first answer is one look, and counts.
+  const first = one(idol([yes("a")]), [full("a", "bot:autopilot", 200)], { finalAt: FINAL, hadResults: false });
+  assert.deepEqual([first.factStatus, first.live], ["reported", true]);
+  // A person's answers stay one voice whenever they come: their newer one is theirs.
+  const person = one(idol([yes("b")]), [full("a", "riley", 50), full("b", "riley", 200)], { finalAt: FINAL, hadResults: true });
+  assert.deepEqual([person.factStatus, person.live], ["reported", true]);
+  // With no final time known, nothing is after it.
+  const unknown = one(idol([yes("c")]), [full("a", "bot:autopilot", 50), full("c", "bot:autopilot", 200)], { finalAt: null, hadResults: true });
+  assert.deepEqual([unknown.factStatus, unknown.live], ["reported", true]);
 });
 
 test("an admin's decision stays as it is", () => {

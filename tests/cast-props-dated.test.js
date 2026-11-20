@@ -86,6 +86,7 @@ test("the AI decides and settles a property's change or a holding at once; the d
   const fact = (kind, confidence) => ({ id: "f1", kind, castawayName: "Bo", method: "Lead deckhand", factStatus: null, live: false, locked: false, flags: [], sources: [{ researchId: "r1", method: "Lead deckhand", confidence }] });
   const [prop] = F.settleEpisode([fact("prop", "low")], [sub("r1", "bot")]);
   assert.equal(prop.live, true, "one low-confidence answer: in the games");
+  // Since 2026-11-20 an ordinary moment does too (docs/PLAN-results-settle.md: one look is enough, whatever its confidence).
   const [event] = F.settleEpisode([{ ...fact("event", "low"), method: "" }], [sub("r1", "bot")]);
-  assert.equal(event.live, false, "an ordinary moment still waits on a low-confidence answer");
+  assert.equal(event.live, true, "an ordinary moment goes in on one low-confidence answer too");
 });

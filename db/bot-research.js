@@ -134,8 +134,9 @@ const QUICK = { fastMs: 5 * MIN, fastForMs: 30 * MIN, slowMs: 15 * MIN, windowMs
 // episode's facts, for a day: a game's question waits for them only until the episode's final results.
 // A card run, until its card is out (cardNext cuts a try off there); a call run, until its lock (CallResearch.callNext's).
 const STALE_MS = { quick: 12 * 60 * MIN, full: 3 * 24 * 60 * MIN, schedule: 3 * 24 * 60 * MIN, tiebreak: 3 * 24 * 60 * MIN, trivia: 2 * 24 * 60 * MIN, bingo: MAX_AFTER * MIN, facts: 24 * 60 * MIN, card: MAX_AFTER * MIN, call: MAX_AFTER * MIN };
-// A result disputed this long gets its tie-break run.
-const TIEBREAK_AFTER_MS = 24 * 60 * MIN;
+// A result disputed this long gets its tie-break run: an hour (it was a day, for a couch to answer first; the user, 2026-11-20:
+// let the AI settle, and a split before final results settles before noon).
+const TIEBREAK_AFTER_MS = 60 * MIN;
 // A card run's rows (kind 'card', 0208) carry this slot.
 const CARD_SLOT = "card";
 // An asked episode's run rows (kind 'full') carry this slot: two tries, the second two minutes after the first failed.
@@ -257,19 +258,25 @@ function slots({ schedule, episodes = {}, since, airTimes, episodeMinutes = 0, h
 /**
  * When an episode's tie-break comes due, or null when it has none to come. Pure.
  *   flags      -- when each open flag on the episode was raised (a result's, or "something's missing")
- *   disputed   -- a result in it is disputed (sources split), not decided by an admin
- *   newest     -- when the newest answer for the episode came in (any answer; null: none)
+ *   disputed   -- a result in it is disputed (sources split), or waits for its second look after final results
+ *                 (fact-status.ts), not decided by an admin
+ *   newest     -- when the newest answer for the episode came in, the tie-break's own left out (null: none)
  *   tries      -- the episode's tie-break runs: { started_at, ok }
- * The question opened with the oldest flag no answer has come in since; or, for a split, with the answer that split it,
- * unless a tie-break already answered it (what one doesn't settle is the admin's). Due a day after it opened, then the
- * full run's retry pace, counting only tries since it opened, so a flag raised after an earlier tie-break gets its own.
+ *   from       -- asked again from (the desk's Settle again, docs/PLAN-results-settle.md A4): a question open at that time
+ *                 counts as opened then, so each gets one more look however old it is
+ * The question opened with the oldest flag no answer has come in since; or, for a split, with the answer that split it, unless
+ * a tie-break has answered since (what one doesn't settle is the admin's; an answer after it opens a new question). Due an hour
+ * after it opened (the user, 2026-11-20: let the AI settle, before final results where it can), then the full run's retry pace,
+ * counting only tries since it opened, so a flag raised after an earlier tie-break gets its own.
  */
-function tiebreakNext({ flags = [], disputed = false, newest = null, tries = [] }) {
-  const after = newest ? new Date(newest).getTime() : null;
-  const waiting = flags.map((f) => new Date(f).getTime()).filter((t) => after === null || t > after);
+function tiebreakNext({ flags = [], disputed = false, newest = null, tries = [], from = null }) {
+  const answered = newest ? new Date(newest).getTime() : null;
+  const again = from ? new Date(from).getTime() : null;
+  const after = answered !== null && again !== null ? Math.max(answered, again) : answered;
+  const waiting = flags.map((f) => new Date(f).getTime()).filter((t) => answered === null || t > answered);
   let since = null;
-  if (waiting.length) since = Math.min(...waiting);
-  else if (disputed && after !== null && !tries.some((t) => t.ok === true)) since = after;
+  if (waiting.length) since = again !== null ? Math.max(Math.min(...waiting), again) : Math.min(...waiting);
+  else if (disputed && after !== null && !tries.some((t) => t.ok === true && new Date(t.started_at).getTime() >= after)) since = after;
   if (since === null) return null;
   const due = new Date(since + TIEBREAK_AFTER_MS);
   const next = nextTryAt("tiebreak", due, tries.filter((t) => new Date(t.started_at).getTime() >= since));
@@ -284,14 +291,18 @@ async function tiebreakOn(pool) {
 
 /**
  * Every episode with a question open on a shared result (any season, whatever its schedule; or one season's), with what
- * tiebreakNext reads: [{ seasonId, episode, flags, disputed, newest, tries }]. One query for the questions, one for their
- * history.
+ * tiebreakNext reads: [{ seasonId, episode, flags, disputed, newest, tries, from }]. A question: a split, a result waiting for
+ * its second look after final results (reported and not in the games: fact-status.ts), or a flag. Its newest answer leaves the
+ * tie-break's own out, so an answer after a tie-break opens a new question and the tie-break's doesn't. One query for the
+ * questions, one for their history, one for the desk's Settle again.
  */
 async function tiebreakQuestions(pool, seasonId = null) {
   const { rows } = await pool.query(
     `WITH q AS (
        SELECT d.season_id, d.episode_number, NULL::timestamptz AS flag_at, true AS disputed
-         FROM season_decisions d WHERE d.fact_status = 'disputed' AND d.locked_at IS NULL AND ($1::uuid IS NULL OR d.season_id = $1)
+         FROM season_decisions d
+        WHERE (d.fact_status = 'disputed' OR (d.fact_status = 'reported' AND d.status = 'pending')) AND d.locked_at IS NULL
+          AND ($1::uuid IS NULL OR d.season_id = $1)
        UNION ALL
        SELECT x.season_id, x.episode_number, x.created_at, false
          FROM fact_disputes x
@@ -301,7 +312,7 @@ async function tiebreakQuestions(pool, seasonId = null) {
      SELECT q.season_id, q.episode_number,
             array_agg(q.flag_at) FILTER (WHERE q.flag_at IS NOT NULL) AS flags, bool_or(q.disputed) AS disputed,
             (SELECT max(er.researched_at) FROM episode_research er JOIN show_seasons ss ON ss.show_id = er.show_id AND ss.season_number = er.season_number
-              WHERE ss.id = q.season_id AND er.episode_number = q.episode_number AND er.source <> 'combined' AND er.withdrawn_at IS NULL) AS newest
+              WHERE ss.id = q.season_id AND er.episode_number = q.episode_number AND er.source NOT IN ('combined', 'tiebreak') AND er.withdrawn_at IS NULL) AS newest
        FROM q GROUP BY q.season_id, q.episode_number`,
     [seasonId]
   );
@@ -310,6 +321,7 @@ async function tiebreakQuestions(pool, seasonId = null) {
     "SELECT season_id, episode_number, started_at, ok FROM bot_research_runs WHERE kind = 'tiebreak' AND season_id = ANY($1::uuid[])",
     [[...new Set(rows.map((r) => r.season_id))]]
   );
+  const from = await tiebreakFrom(pool);
   return rows.map((r) => ({
     seasonId: r.season_id,
     episode: r.episode_number,
@@ -317,7 +329,15 @@ async function tiebreakQuestions(pool, seasonId = null) {
     disputed: !!r.disputed,
     newest: r.newest,
     tries: history.filter((h) => h.season_id === r.season_id && h.episode_number === r.episode_number),
+    from,
   }));
+}
+
+/** When the desk last asked every open question again (app_settings 'tiebreak_from', docs/PLAN-results-settle.md A4), or null. */
+async function tiebreakFrom(pool) {
+  const { rows } = await pool.query("SELECT value FROM app_settings WHERE key = 'tiebreak_from'");
+  const at = rows[0] ? Date.parse(rows[0].value) : NaN;
+  return Number.isFinite(at) ? new Date(at) : null;
 }
 
 /** The tie-breaks due now and when the next comes due, while the desk's switch is on: { due: [job], next }. */

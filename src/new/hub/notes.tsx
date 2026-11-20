@@ -43,6 +43,7 @@ const ICONS: Record<string, typeof Bell> = {
   episodeResults: Eye,
   finalScores: Trophy,
   researchDone: Eye,
+  resultsChanged: Trophy,
   flagSettled: Eye,
   newBet: Target,
   betResult: Target,

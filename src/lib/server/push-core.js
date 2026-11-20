@@ -65,6 +65,9 @@ const NOTIFICATION_TYPES = [
     sample: { title: "riley called BINGO", body: "Survivor 50 · Episode 5 · Look at their card" } },
   { id: "flagSettled", label: "Flags settled", description: "How a result you flagged was settled.",
     sample: { title: "Ep 5: you were right", body: "Survivor 50 · Kyle · voted out: every game has it put right." } },
+  // docs/PLAN-results-settle.md A3. WORDS: provisional until the design pass.
+  { id: "resultsChanged", label: "Results changed after final", description: "When an episode's results change after its final results: what changed, and how your points moved.",
+    sample: { title: "Ep 5 results changed", body: "Survivor 50 · Kyle: Found an idol added. Your points: +2 in Sample League." } },
   { id: "researchDone", label: "Results you asked for", description: "As each episode's results come in, when you asked our bot to look them up.",
     sample: { title: "Episode 5's results are in", body: "Traitors 5 · 12 results. The Players tab counts them now." } },
 ];

@@ -149,6 +149,29 @@ const putSetting = (key: string, value: unknown) =>
     JSON.stringify(value),
   ]);
 
+/**
+ * Settle again (docs/PLAN-results-settle.md A4): every episode the community still has a say in, settled again under today's
+ * rules (settleEverything); what moves reaches every game, and after an episode's final results its players are told (as the
+ * system's change, so the admin who asked hears about their own games too). Then every question still open (a split, a result
+ * waiting for its second look) is asked of the bot once more however old (app_settings 'tiebreak_from', bot-research.js), and
+ * its clock is told. Run once after the rules changed (2026-11-20); no screen of its own.
+ */
+export async function settleAgain(user: SessionUser): Promise<{ seasons: number; episodes: number; from: string }> {
+  const settled = await settleEverything(null);
+  const from = new Date().toISOString();
+  await putSetting("tiebreak_from", from);
+  await logDesk(pool, {
+    entity: "settings",
+    entityId: "tiebreak_from",
+    action: "set",
+    text: `Every episode settled again (${settled.episodes}), and our bot looks once more at what's still open`,
+    after: from,
+    userId: user.id,
+  });
+  nudgeBotClock();
+  return { ...settled, from };
+}
+
 /** Changes one setting (with its undo in History); the Confirmed threshold settles every community fact again. */
 export async function setDeskSetting(
   user: SessionUser,

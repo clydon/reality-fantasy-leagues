@@ -9,8 +9,8 @@ import { recordChange, type ChangeUndo } from "./change-log";
 import { pool, withLeagueLock } from "./db";
 import { applyHeldTribesIfDue } from "./season-cast";
 import { settleBetsByResearch } from "./bet-settle";
-import { notifyBingoLines, notifyEpisodeResults, notifyFlagsSettled } from "./push-events";
-import type { SeasonSchedule } from "./schedule";
+import { notifyBingoLines, notifyEpisodeResults, notifyFlagsSettled, notifyResultsChanged, type ChangedGame } from "./push-events";
+import { finalAtOf, seasonSchedules, type SeasonSchedule } from "./schedule";
 
 // Applying a season's ACCEPTED episode decisions (db/migrations/0019) to its leagues.
 //
@@ -90,7 +90,16 @@ export interface SyncOptions {
   match?: number[];
 }
 
-type SyncResult = { applied: number; undone: number; skipped: { name: string; why: string }[]; eliminatedEpisodeIds: string[]; episodes: number[] };
+type SyncResult = {
+  applied: number;
+  undone: number;
+  skipped: { name: string; why: string }[];
+  eliminatedEpisodeIds: string[];
+  episodes: number[];
+  /** The corrections it made, by episode, and how each player's total moved (their "Episode N corrected" lines). */
+  corrections: { episode: number; facts: CorrectedFact[] }[];
+  deltas: Record<string, number>;
+};
 
 /**
  * A fact as it was, for a correction's line and a house ruling to keep. `absent`: the league keeps it out (a result the
@@ -141,7 +150,7 @@ function labelOf(state: LeagueState, d: Pick<DecisionRow, "kind" | "method" | "e
  * (for the results push), and the episodes it changed.
  */
 export async function syncLeagueDecisions(client: PoolClient, leagueId: string, state: LeagueState, opts: SyncOptions = {}): Promise<SyncResult> {
-  const result: SyncResult = { applied: 0, undone: 0, skipped: [], eliminatedEpisodeIds: [], episodes: [] };
+  const result: SyncResult = { applied: 0, undone: 0, skipped: [], eliminatedEpisodeIds: [], episodes: [], corrections: [], deltas: {} };
   // An archived game (docs/PLAN-new-design.md step 10 part 2b) stands as it was: nothing more reaches it until it's back.
   if (state.settings.archivedAt) return result;
   const season = await seasonForLeague(client, state);
@@ -353,7 +362,7 @@ export async function syncLeagueDecisions(client: PoolClient, leagueId: string, 
   // The AI settles the side bets of each episode at its final results (BACKLOG 87), from the research that answered them.
   if (season) await settleBetsByResearch(client, state, { showId: season.showId, season: season.season });
   result.episodes = [...touched].sort((a, b) => a - b);
-  await logSync(client, leagueId, before, state, result.episodes, corrected, opts);
+  Object.assign(result, await logSync(client, leagueId, before, state, result.episodes, corrected, opts));
   return result;
 }
 
@@ -465,9 +474,21 @@ async function fullAnswers(client: PoolClient, showId: string, season: number): 
   return new Set(rows.map((r) => r.n));
 }
 
-/** The lines this sync leaves: the answer's own couch gets its line (with Undo); a correction, every league it reached. */
-async function logSync(client: PoolClient, leagueId: string, before: LeagueState, after: LeagueState, episodes: number[], corrected: Map<number, CorrectedFact[]>, opts: SyncOptions) {
-  if (!episodes.length) return;
+/**
+ * The lines this sync leaves: the answer's own couch gets its line (with Undo); a correction, every league it reached. Returns
+ * the corrections it logged and how each player's total moved, for the notice after final results (syncSeasonLeagues).
+ */
+async function logSync(
+  client: PoolClient,
+  leagueId: string,
+  before: LeagueState,
+  after: LeagueState,
+  episodes: number[],
+  corrected: Map<number, CorrectedFact[]>,
+  opts: SyncOptions
+): Promise<Pick<SyncResult, "corrections" | "deltas">> {
+  const logged: Pick<SyncResult, "corrections" | "deltas"> = { corrections: [], deltas: {} };
+  if (!episodes.length) return logged;
   const { rows } = await client.query<{ couch_id: string | null }>("SELECT couch_id FROM leagues WHERE id=$1", [leagueId]);
   const couch = rows[0]?.couch_id ?? null;
   const log = opts.log;
@@ -492,7 +513,10 @@ async function logSync(client: PoolClient, leagueId: string, before: LeagueState
       detail: { facts, deltas },
       undo: null,
     });
+    logged.corrections.push({ episode: n, facts });
+    logged.deltas = deltas;
   }
+  return logged;
 }
 
 /**
@@ -516,6 +540,9 @@ export async function syncSeasonLeagues(seasonId: string, actorUserId: string | 
   const sync = { ...opts, correctionBatch: opts.correctionBatch ?? crypto.randomUUID() };
   const results: (LeagueDecisionSync & { couchId: string | null; episodes: number[] })[] = [];
   const bingoAfter = new Set<number>();
+  // Corrections to episodes past their final results (docs/PLAN-results-settle.md decision 5): told, one notice a person.
+  const changed: ChangedGame[] = [];
+  let finals: ((n: number) => string | null) | null = null;
   // Read once, for the first game that starts when a phase does.
   let schedule: SeasonSchedule | undefined | null = null;
   for (const league of leagues) {
@@ -541,6 +568,17 @@ export async function syncSeasonLeagues(seasonId: string, actorUserId: string | 
         }
       });
       const r = out as unknown as SyncResult;
+      // A correction before an episode's final results is quiet (its early results say they can still change); after them it's
+      // news. Never for an episode after a game's last (a game over a span: another game on the season tells them).
+      if (r.corrections.length) {
+        finals ??= finalAtOf((await seasonSchedules([seasonId])).get(seasonId));
+        const end = StateLogic.endEpisode(state);
+        const late = r.corrections.filter((c) => (end === null || c.episode <= end) && (() => {
+          const at = finals!(c.episode);
+          return at !== null && Date.parse(at) <= Date.now();
+        })());
+        if (late.length) changed.push({ leagueId: league.id, name: league.name, state, changes: late, deltas: r.deltas });
+      }
       // Only the game's newest episode with results is news: an older one coming in or back (results put back, research
       // catching up on past episodes) pushes nothing, and has no bingo line to tell.
       const newest = Math.max(0, ...state.episodes.filter((e) => StateLogic.resultsStage(e)).map((e) => e.number));
@@ -573,6 +611,7 @@ export async function syncSeasonLeagues(seasonId: string, actorUserId: string | 
   try {
     // Bingo is loaded only when a sync has an episode to look at (it reads the season's rulebook: a heavier module graph).
     for (const n of bingoAfter) notifyBingoLines({ seasonId, episode: n, lines: async () => (await import("./bingo")).bingoLinesOn(seasonId, n) });
+    if (changed.length) notifyResultsChanged({ seasonId, batch: sync.correctionBatch, games: changed, actorUserId });
     await tellSettledFlags(seasonId);
   } catch (e) {
     console.error(`[sync] notices for ${seasonId} failed:`, e);

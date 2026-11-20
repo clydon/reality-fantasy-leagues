@@ -23,7 +23,8 @@ export type NotificationType =
   | "poll"
   | "bingoLine"
   | "flagSettled"
-  | "researchDone";
+  | "researchDone"
+  | "resultsChanged";
 
 export interface NotificationTypeDef {
   id: NotificationType;

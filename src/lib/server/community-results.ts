@@ -13,6 +13,7 @@ import { logChange } from "./change-log";
 import { requireCouch } from "./couches";
 import { pool, HttpError } from "./db";
 import { seenThrough } from "./guard";
+import { finalAtOf, seasonSchedules } from "./schedule";
 import { syncSeasonLeagues } from "./season-decisions";
 import { refuseTestPlayer } from "./test-players";
 
@@ -329,6 +330,14 @@ async function inputsFor(db: PoolClient | typeof pool, seasonId: string, key: { 
     [seasonId, episode]
   );
   const submissions: Submission[] = subs.map((s) => ({ id: s.id, key: s.key, at: s.at.getTime(), covers: s.covers ?? { only: true } }));
+  // The two looks after final (fact-status.ts, docs/PLAN-results-settle.md): the episode's final time (noon the day after it
+  // airs), and whether it had results by then: an answer from before it, or a result an admin decided (classic's, whenever).
+  const finalIso = finalAtOf((await seasonSchedules([seasonId])).get(seasonId))(episode);
+  const finalAt = finalIso ? Date.parse(finalIso) : null;
+  const hadResults =
+    finalAt !== null &&
+    (submissions.some((s) => s.at <= finalAt) ||
+      (await db.query("SELECT 1 FROM season_decisions WHERE season_id = $1 AND episode_number = $2 AND locked_at IS NOT NULL LIMIT 1", [seasonId, episode])).rows.length > 0);
   const inputs: FactInput[] = facts.map((f) => ({
     id: f.id,
     kind: f.kind,
@@ -340,13 +349,13 @@ async function inputsFor(db: PoolClient | typeof pool, seasonId: string, key: { 
     sources: sources.filter((s) => s.decision_id === f.id).map((s) => ({ researchId: s.research_id, method: s.method, confidence: s.confidence })),
     flags: flags.filter((x) => x.decision_id === f.id).map((x) => ({ id: x.id, status: x.status, at: x.created_at.getTime() })),
   }));
-  return { facts, subs, submissions, inputs, flags };
+  return { facts, subs, submissions, inputs, flags, when: { finalAt, hadResults } };
 }
 
 /** Settles one episode's facts again from their sources and flags, and writes what moved. Inside the caller's transaction. */
 async function settle(client: PoolClient, seasonId: string, key: { showId: string; season: number }, episode: number): Promise<Settled> {
-  const { facts, submissions, inputs, flags } = await inputsFor(client, seasonId, key, episode);
-  const outcomes = settleEpisode(inputs, submissions, { confirmAt: await confirmAt(client) });
+  const { facts, submissions, inputs, flags, when } = await inputsFor(client, seasonId, key, episode);
+  const outcomes = settleEpisode(inputs, submissions, { confirmAt: await confirmAt(client), ...when });
   const out: Settled = { live: [], out: [], changed: [] };
   for (const o of outcomes) {
     const f = facts.find((x) => x.id === o.id)!;
@@ -524,8 +533,8 @@ export async function episodeFacts(seasonId: string, episode: number, viewerId: 
   const client = await pool.connect();
   try {
     const key = await seasonKey(client, seasonId);
-    const { facts, submissions, inputs, flags } = await inputsFor(client, seasonId, key, episode, { locked: true });
-    const outcomes = new Map<string, FactOutcome>(settleEpisode(inputs, submissions, { confirmAt: await confirmAt(client) }).map((o) => [o.id, o]));
+    const { facts, submissions, inputs, flags, when } = await inputsFor(client, seasonId, key, episode, { locked: true });
+    const outcomes = new Map<string, FactOutcome>(settleEpisode(inputs, submissions, { confirmAt: await confirmAt(client), ...when }).map((o) => [o.id, o]));
     // Results an admin decided before 0112 (or a fixture's) carry no fact_status: canonical when accepted.
     const { rows: legacy } = await client.query<FactRow>(
       `SELECT id, kind, castaway_name, method, event_type, status, 'canonical'::text AS fact_status, true AS locked
@@ -582,10 +591,10 @@ export async function settleWhatIf(
   const client = await pool.connect();
   try {
     const key = await seasonKey(client, seasonId);
-    const { facts, submissions, inputs } = await inputsFor(client, seasonId, key, episode, { locked: true });
+    const { facts, submissions, inputs, when } = await inputsFor(client, seasonId, key, episode, { locked: true });
     const need = await confirmAt(client);
     const view = (o: FactOutcome): WhatIf => ({ live: o.live, status: o.factStatus, yes: o.yes });
-    const now = new Map(settleEpisode(inputs, submissions, { confirmAt: need }).map((o) => [o.id, view(o)]));
+    const now = new Map(settleEpisode(inputs, submissions, { confirmAt: need, ...when }).map((o) => [o.id, view(o)]));
     let subs = submissions.filter((s) => s.id !== change.without);
     let ins = inputs;
     const added: { fact: SubmittedFact; existing: string | null; id: string }[] = [];
@@ -609,7 +618,7 @@ export async function settleWhatIf(
         added.push({ fact: { ...one, castawayName: name }, existing, id: existing ?? `new:${added.length}` });
       }
     }
-    const then = new Map(settleEpisode(ins, subs, { confirmAt: need }).map((o) => [o.id, view(o)]));
+    const then = new Map(settleEpisode(ins, subs, { confirmAt: need, ...when }).map((o) => [o.id, view(o)]));
     return { now, then, added: added.map((a) => ({ fact: a.fact, existing: a.existing, then: then.get(a.id)! })) };
   } finally {
     client.release();

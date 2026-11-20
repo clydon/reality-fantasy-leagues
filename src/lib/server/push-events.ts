@@ -2,7 +2,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueState } from "@/lib/game/types";
 import { foldFor, isFolded, byAuthorMark } from "@/lib/game/chat-fold";
 import { pool } from "./db";
-import { notifyAfter, userIdsForPlayers, leagueMemberUserIds, leagueName } from "./push-targets";
+import { notifyAfter, userIdsForPlayers, leagueMemberUserIds, leagueName, leftOutOfBroadcasts } from "./push-targets";
 import { sendPush, type PushMessage, type PushReader } from "./push-core";
 import { groupLeagueIds } from "./league-groups";
 import { hiddenFromGroup, outOfGroupChat } from "./late-join";
@@ -907,6 +907,72 @@ export function notifyReady(o: { userId: string; seasonId: string; episodes: num
         seasonId: o.seasonId,
       },
     };
+  });
+}
+
+/** A game a season sync corrected after an episode's final results (season-decisions.ts syncSeasonLeagues). */
+export interface ChangedGame {
+  leagueId: string;
+  name: string;
+  state: LeagueState;
+  changes: { episode: number; facts: { name: string; label: string; change: "removed" | "changed" | "added"; to: string | null }[] }[];
+  /** How each player's total moved (player id to points). */
+  deltas: Record<string, number>;
+}
+
+/** "+2", "−0.5". */
+const signed = (d: number) => `${d > 0 ? "+" : "−"}${Math.abs(Math.round(d * 100) / 100)}`;
+
+/**
+ * Results that changed after an episode's final results (docs/PLAN-results-settle.md decision 5): the bot's second look, or an
+ * admin's or a game maker's change. One notice a person for the whole sync, worded for what they've seen: only episodes they
+ * have (a change to one they haven't waits for them in it), what changed, and how their points moved in each of their games,
+ * the points only when every change is one they've seen (a total moved by an unseen one would give it away). Before an
+ * episode's final results a correction stays quiet: its early results say they can still change.
+ * WORDS: provisional until the design pass (the plan's step B).
+ */
+export function notifyResultsChanged(o: { seasonId: string; batch: string; games: ChangedGame[]; actorUserId: string | null }) {
+  notifyAfter("resultsChanged", async () => {
+    const info = await seasonInfo(o.seasonId);
+    if (!info) return null;
+    const { rows } = await pool.query<{ league_id: string; user_id: string; player_id: string | null }>(
+      "SELECT league_id, user_id, player_id FROM league_memberships WHERE league_id = ANY($1::uuid[])",
+      [o.games.map((g) => g.leagueId)]
+    );
+    const seats = new Map<string, { game: ChangedGame; playerId: string | null }[]>();
+    for (const r of rows) {
+      const game = o.games.find((g) => g.leagueId === r.league_id);
+      if (!game || r.user_id === o.actorUserId || leftOutOfBroadcasts(game.state, r.player_id, true)) continue;
+      seats.set(r.user_id, [...(seats.get(r.user_id) ?? []), { game, playerId: r.player_id }]);
+    }
+    if (!seats.size) return null;
+    const message = async (reader: PushReader): Promise<PushMessage | null> => {
+      const mine = seats.get(reader.userId) ?? [];
+      const mark = await markOf(reader.userId, o.seasonId, null);
+      const all = [...new Set(mine.flatMap((m) => m.game.changes.map((c) => c.episode)))].sort((a, b) => a - b);
+      const seen = all.filter((n) => n <= mark);
+      if (!seen.length) return null;
+      const facts = new Map(
+        mine.flatMap((m) => m.game.changes.filter((c) => c.episode <= mark).flatMap((c) => c.facts)).map((f) => [`${f.name}|${f.label}|${f.change}`, f])
+      );
+      const first = [...facts.values()][0];
+      const what =
+        facts.size === 1 && first
+          ? `${first.name}: ${first.label} ${first.change === "added" ? "added" : first.change === "removed" ? "taken out" : first.to ? `now ${first.to}` : "changed"}`
+          : `${facts.size} results changed`;
+      const points = seen.length === all.length ? mine.map((m) => ({ game: m.game.name, d: m.playerId ? (m.game.deltas[m.playerId] ?? 0) : 0 })).filter((x) => x.d !== 0) : null;
+      const pointsLine = points === null ? "" : points.length ? ` Your points: ${points.map((p) => `${signed(p.d)} in ${p.game}`).join(", ")}.` : " Your points didn't change.";
+      return {
+        title: seen.length === 1 ? `Ep ${seen[0]} results changed` : `Results changed in Eps ${andList(seen.map(String))}`,
+        body: `${info.label} · ${what}.${pointsLine}`,
+        url: link("/episodes", mine[0].game.leagueId),
+        next: `/show/${o.seasonId}/episodes`,
+        tag: `changed-${o.seasonId}-${o.batch}`,
+        key: `changed:${o.seasonId}:${o.batch}`,
+        seasonId: o.seasonId,
+      } satisfies PushMessage;
+    };
+    return { userIds: [...seats.keys()], seasonId: o.seasonId, message, type: "resultsChanged" };
   });
 }
 
