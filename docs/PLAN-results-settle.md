@@ -139,6 +139,11 @@ run there as settle-again does (no bot asked), then each result in or out, each 
 - **Pushed 4:32 PM (e627836a, the user's yes), live 4:34.** The Inbox then had Ep 1's row ("16 results waiting for a second
   look · Our bot couldn't look again, so they're out of every game"). Settle-again once more at 4:36 PM on the user's yes:
   `{ seasons: 0, episodes: 39 }` (nothing moved), and the row went: the bot's turn again, its first try due ~5:36 PM.
+- **Ep 1 sooner (the user: "run it sooner"):** the tie-break waits an hour from settle-again, so the desk's Run now (full,
+  Episode 1) at 4:40 PM gave the second look at once: filed as Autopilot, a voice apart from the catch-up. It answered first
+  try (4:42): 6 results in (Aaliyah's and Jenna's shot in the dark and lost vote, Danny voted with the majority, Lewis sat
+  out), the 10 reward wins and two duplicate shot-in-the-dark lines out; nothing left waiting; one notice each ("6 results
+  changed... Your points didn't change"). No game's points moved. The Inbox: no results rows.
 - The user asked to reinstate Rob's quit (Ep 3): it never left. It's an admin's result (locked), scored -5 in Weekly
   Start/Bench (a vote-out -3), and counted against the seat that started him, this morning and since.
 
