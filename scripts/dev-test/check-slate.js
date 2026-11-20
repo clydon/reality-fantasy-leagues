@@ -144,7 +144,7 @@ const forget = () => pool.query("DELETE FROM sports_cache WHERE key LIKE $1", [`
     const nba = await leagueSlates(NBA, opts);
     const reg = nba?.stages.find((x) => x.stage === "regular");
     const po = nba?.stages.find((x) => x.stage === "post");
-    check(nba?.slate === true && nba.leagueName === "NBA" && nba.season?.year === 2027 && nba.season.words === "2026-27" && nba.usual?.stage === "regular" && nba.usual.cadence === "week", "a league's slates: its season now and what an add makes unless it says", JSON.stringify(nba && { ...nba, stages: undefined }));
+    check(nba?.slate === true && nba.leagueName === "NBA" && nba.season?.year === 2027 && nba.season.words === "2026-27" && nba.usual?.stage === "full" && nba.usual.cadence === "week", "a league's slates: its season now and what an add makes unless it says (step 2.7: both stages, one season)", JSON.stringify(nba && { ...nba, stages: undefined }));
     check(reg?.state === "now" && reg.from === day(-10) && reg.to === day(30) && po?.state === "coming" && po.from === day(31), "its stages, their days, past, now or coming", JSON.stringify([reg && { ...reg, slates: undefined }, po && { ...po, slates: undefined }]));
     check(
       JSON.stringify(reg?.slates) === JSON.stringify([{ stage: "regular", cadence: "week", usual: true, name: "NBA 2026-27", episodes: mondays, seasonId: null }, { stage: "regular", cadence: "day", usual: false, name: "NBA 2026-27, day by day", episodes: regularDays.length, seasonId: null }]),
@@ -170,8 +170,12 @@ const forget = () => pool.query("DELETE FROM sports_cache WHERE key LIKE $1", [`
     const card = await searchTeams("zt slate fight", { ...opts, leagues: [NBA] });
     check(card.leagues.length === 1 && card.leagues[0].league === CARD && card.leagues[0].slate === false && card.leagues[0].leagueName === "ZT Slate Fight Night", "a promotion's league: found, no slate", JSON.stringify(card.leagues));
 
-    // Made by day.
-    const s = await makeSlate({ ...opts, league: NBA, cadence: "day" });
+    // Step 2.7: both stages listed, so a full slate is one of the choices (the regular season's episodes, then the playoffs').
+    const full = nba?.stages.find((x) => x.stage === "full");
+    check(full?.from === day(-10) && full.slates.map((x) => x.cadence).join() === "week,day", "both stages, one season: the full slate's choices", JSON.stringify(full));
+
+    // Made by day (the regular season alone, asked for).
+    const s = await makeSlate({ ...opts, league: NBA, stage: "regular", cadence: "day" });
     const stageDays = regularDays.length;
     check(s?.made === true && s.cadence === "day" && s.stage === "regular" && s.episodes === stageDays, "made by day: an episode each of ESPN's days in the stage", JSON.stringify(s));
     check(s?.name === "NBA 2026-27, day by day", "named", s?.name);
@@ -193,11 +197,12 @@ const forget = () => pool.query("DELETE FROM sports_cache WHERE key LIKE $1", [`
     check(listing.added === 0 && (await links(s.seasonId)).length === 7, "the listings' linking leaves it alone", JSON.stringify(listing));
     const cast = (await pool.query("SELECT count(*)::int AS n FROM season_cast WHERE season_id = $1", [s.seasonId])).rows[0].n;
     check(cast === 8, "its people: the linked teams' rosters", String(cast));
-    const again = await makeSlate({ ...opts, league: NBA, cadence: "day" });
+    const again = await makeSlate({ ...opts, league: NBA, stage: "regular", cadence: "day" });
     check(again?.made === false && again.seasonId === s.seasonId && again.games === 7, "asked again: found", JSON.stringify(again));
 
-    // By week, by round, the playoffs.
+    // By week, by round, the playoffs. Its usual (step 2.7): both stages, by week; its playoffs' weeks still to be listed.
     const w = await makeSlate({ ...opts, league: NBA });
+    check(w?.stage === "full" && w.regularThrough >= 1 && w.episodes > w.regularThrough, "made unless it says: the full slate, its regular season's weeks first, then the playoffs' the calendar lists days for", JSON.stringify(w));
     const wk = (await pool.query("SELECT windows FROM sports_slates WHERE season_id = $1", [w?.seasonId])).rows[0]?.windows ?? [];
     check(w?.made && w.cadence === "week" && w.name === "NBA 2026-27" && wk[0]?.[0] === monday(-10) && wk.every(([f, t]) => new Date(`${f}T12:00:00Z`).getUTCDay() === 1 && new Date(`${t}T12:00:00Z`).getUTCDay() === 0), "by week (its usual): its own season, Monday to Sunday", JSON.stringify({ w, first: wk[0] }));
     check((await epOf(w.seasonId, "zt-sl-g1")) === (await epOf(w.seasonId, "zt-sl-g3a")) || monday(-1) !== monday(-2), "a week's games in one episode");
@@ -316,12 +321,12 @@ const forget = () => pool.query("DELETE FROM sports_cache WHERE key LIKE $1", [`
     // What it can be once made: the seasons made for it, the playoffs' grown.
     const madeNow = await leagueSlates(NBA, opts);
     const opt = (stage, cadence) => madeNow?.stages.find((x) => x.stage === stage)?.slates.find((x) => x.cadence === cadence);
-    check(opt("regular", "day")?.seasonId === s.seasonId && opt("regular", "week")?.seasonId === w.seasonId && opt("post", "day")?.seasonId === post.seasonId && opt("post", "day").episodes === 6 && opt("post", "week")?.seasonId === null, "the seasons made for them, the playoffs' grown", JSON.stringify(madeNow?.stages));
+    check(opt("regular", "day")?.seasonId === s.seasonId && opt("full", "week")?.seasonId === w.seasonId && opt("post", "day")?.seasonId === post.seasonId && opt("post", "day").episodes === 6 && opt("post", "week")?.seasonId === null, "the seasons made for them, the playoffs' grown", JSON.stringify(madeNow?.stages));
 
     // Added (POST /api/sports/add's slate).
     const followed = async (id) => (await pool.query("SELECT following FROM show_follows WHERE season_id = $1 AND user_id = $2", [id, USER])).rows[0]?.following === true;
     const add = (slate, league = NBA) => addSlate(USER, { league, slate }, { providers, prefix: PREFIX, now, cast: false });
-    const found = await add({ cadence: "day" });
+    const found = await add({ stage: "regular", cadence: "day" });
     check(found.made === false && found.seasonId === s.seasonId && found.episodes === stageDays && (await followed(s.seasonId)), "one made: found, and followed", JSON.stringify(found));
     const pw = await add({ stage: "post", cadence: "week" }, "BASKETBALL/NBA");
     const by = (await pool.query("SELECT made_by, league FROM sports_slates WHERE season_id = $1", [pw.seasonId])).rows[0];

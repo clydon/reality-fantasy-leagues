@@ -616,8 +616,43 @@ server.
      - **A season's end once it's known** (`state.seasonLast`, stamped, never saved): a sport's game with no end of its own ends
        with its season, once that's over: the league's playoffs' final decided, a team out (a series or a game lost, the final won,
        or, with no playoff game, a later round listed without them), or every game of a season of one stage played.
-     - **No playoff week without a round.** A postseason week or game whose name names no round of the bracket (the Pro Bowl:
-       playoffs.ts `roundOf`) isn't the slate's.
+     - **No exhibition on a slate.** A week or a game named as an exhibition (the Pro Bowl, an all-star game: slate.ts
+       `isExhibition`) is never a slate's, in any stage. (Not "a week that names no round": college football's postseason week is
+       "Bowls".)
+   - *Built (parts a to e; a9aa0159, 519db77f):* (b) `full` slates (lib/sports/slate.ts: the regular season's episodes, then the
+     playoffs', a calendar's weeks at once and a day's or a round's as they're listed, numbered on; `hasFull`, `regularThrough`;
+     server slate.ts: the usual stage, made with `regular_through`, synced past the regular season taking only playoff games, the NBA's
+     play-in left out; score.ts reads its playoffs as a bracket too); migration 0312. (c) team-season.ts `growTeamSeasons` in the daily
+     listings job: a team's season (find.ts addGames, its playoff games so far when made then) takes each playoff game of its team
+     listed in the job's window as a new episode, and is stamped `ended_at` once playoffs.ts `teamInPlayoffs` says the team's out or
+     champion (a series lost; the final won; in no series while a round is listed in full without it, so a bye is never out); until then
+     the matchups' status never completes it. (d) air-times.ts: `regularEnd` (the regular season's last episode and the fantasy
+     season's), `stampSeasonLast` (a game with no end of its own: its season's last episode once the playoffs' final is decided, the
+     team out, or the season completed), the regular season's playoffs cap (`playoffsBy`) only for a game ending in it, the fantasy
+     end from a full slate's regular season; state-logic.js `lastEpisode` reads `seasonLast` (never saved); startFromSpec and the
+     sports route turn no end into the regular season's unless `timing: "final"` (started in the playoffs, no end either way). (a) the
+     sheet's How long (model.ts `regularTo`, `lengthsOf`, `lengthId`): "Regular season" (its line "Through Week 17" for a stats game) and
+     "Through the Super Bowl" ("Playoffs included"), a season base opening on the regular season, Start sending `timing: "final"` for no
+     end; start-game.ts's options carry `sport.playoffs`; Game settings (backstage-games.ts `span.playoffs`, settings.tsx HowLong,
+     game-settings.tsx): no end is "Through the Super Bowl", the regular season's and the fantasy season's weeks say so, and moving the
+     end there carries a game across the line. (e) each sport's final in its defaults (`final`: the Super Bowl, the Finals, the World
+     Series, the Stanley Cup Final, MLS Cup, the national championship; `finalSource`), sports/index.ts `finalName`.
+     Found and fixed on the way: league-read.ts `readyLeague` decided whether to write (which makes the next episode) from the stored
+     state, where a sport's results never are (stamped on the read), so a game nobody wrote to (every seat a computer player, a
+     Pick'em nobody touched that week) never got its next week. It now asks again on a stamped copy once the latest episode has aired
+     with no results of its own.
+   - *Verified:* tests/sports-through-playoffs.test.js (the NFL's full slate of 22 and the NBA's growing one, the Premier League's
+     none, the Pro Bowl left out, where teams stand in ESPN's recorded 2026 NFL and NBA playoffs, the engine's end, head to head's
+     final at the game's end, the sheet's lengths); the unit suite (2,520); check-sports-through-playoffs.js (new, all pass) on
+     nfl-slate-fixture.js with nfl-postseason.js's stand-in postseason (the recording's Weeks 10 to 18 played as stand-ins, the 2025
+     bracket 53 weeks on, each round listed once the one before is over), from Week 15 through the Super Bowl with every seat a computer
+     player: the slate's 22 weeks named as ESPN's calendar names them; the season game's default ending with its final in Week 17 and
+     Pick'em's in Week 18; both through the final running on, linking each round as it's listed (6, 4, 2, 1), head to head's own final in
+     the Super Bowl's week, both over with it, every playoff week scored; 36 held players whose teams were out scoring nothing in the
+     Divisional Round, all still held, the 24 of teams still in scoring; the Bills' team season taking its Wild Card game and ending
+     after its loss at Denver (its last episode 19), the Seahawks' taking nothing in its bye week and its three games after, ended as
+     champion, the Dolphins' ending once the Divisional Round was listed in full; the Pro Bowl never linked. The NFL fixture's other
+     checks on the new default: (filled in below as they run). tsc; eslint clean on the changed files.
 
 ### Phase 3. The gate: a real season, replayed (L, about 2–3 sessions)
 
