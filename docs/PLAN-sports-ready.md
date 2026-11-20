@@ -1,9 +1,10 @@
 # Plan: sports in good shape, technically and in design
 
-> **Status (2026-11-19): Active, Phase 0 and steps 1.0 and 1.3 done** (branch sports-phase0, not merged; migration 0308 to
-> rehearse). Written from two audits that day: the engine, data and operations, and every screen a sports fan touches. Phase 0
-> confirmed all four inferences, each with a check, and found two bigger gaps; step 1.0 closed both (BACKLOG 220 and 221), and
-> 1.3 made team defenses people and kept same-named players apart (BACKLOG 145). Next: 1.2, 1.4, 1.5, 1.6; 1.1 waits on BACKLOG 215.
+> **Status (2026-11-19): Active, Phase 0 and steps 1.0, 1.2 and 1.3 done** (branch sports-phase0, not merged; migrations 0308 and
+> 0309 to rehearse). Written from two audits that day: the engine, data and operations, and every screen a sports fan touches.
+> Phase 0 confirmed all four inferences, each with a check, and found two bigger gaps; step 1.0 closed both (BACKLOG 220 and 221),
+> 1.3 made team defenses people and kept same-named players apart (BACKLOG 145), and 1.2 stopped silent zeros and takes
+> corrections. Next: 1.4, 1.5, 1.6, and 1.1 (BACKLOG 215 answered: toward live scores).
 > The decisions it needs are BACKLOG 175 and 212–219 ("Waiting on you").
 
 The user, 2026-11-19: "I want to make sure sports is in a good spot both technically and redesign needs. Make a plan for that."
@@ -160,11 +161,19 @@ server.
    live scores during games: "minus the moments that the live api cant get, we'll deal with that later". So when 1.1 is taken
    up, plan it toward live: the hourly job for finals and corrections, and 4.1's provisional and live points brought forward
    (Phase 5's server-polled feed), what only a final's box score carries left for later.
-2. **Never zero a game silently; take corrections (S–M).** A read error or an empty answer is retried, not stored as `{}`. A game
-   still empty after its retries is flagged on the desk. Each final is read again at +24 hours and before the next week's first
-   lock (NFL corrections land midweek), and rewritten with a new `lines_at` when it differs. The stamp fingerprint includes
-   `lines_at`, so the tables follow. Done when a recorded final plus an edited copy of it updates the table. Verify with
-   sports-final.test.js extended.
+2. **Never zero a game silently; take corrections. Done 2026-11-19 (2621a3e1).**
+   - *Built:* migration 0309 (sports_events.read_tries, read_error, checked_at). A final that can't be read is said on its row and
+     asked again; two days on it's kept as none so its week can finish (Claude's call: a held week stalls every matchup, a
+     flagged zero heals), but flagged: the desk's Inbox lists it ("Scores") and every run after six hours asks again until it
+     reads. A kept final is read again 25 hours after it was kept and once more when the next game of a season linking it starts
+     within 30 hours (the daily job's reach; 1.1's hourly run can shorten both), past the cache; a changed answer is kept with a
+     new `lines_at`, so the tables follow.
+   - *Verified:* check-sports-finals.js (a game with no box score retried and its week held, then kept as none, flagged and on the
+     desk; a quarterback's yards corrected 335 to 357 and the season game reading 357; the game healed when its box score came
+     back); check-finals.js and check-stats-game.js unchanged; unit tests. A DB check rather than sports-final.test.js: saveFinals
+     is the database's.
+   - *Not seen:* the desk's Inbox row itself (it reuses the Inbox's row and its "Scores" tag); the Players tab's own lines
+     (game_lines, stats.ts) aren't re-read for corrections, only the finals the tables score.
 3. **People by ESPN id, not name; team defenses (BACKLOG 145). Done 2026-11-19 (7676a520, bc1bf8a3).**
    - *Built:* a team sport names its teams' own people (TeamSport `teamPeople`: football's "<Team> D/ST", `def:<team>`, position
      DEF), and a fill adds them beside each roster with the team's logo. Migration 0308: season_cast unique by name only for
@@ -296,8 +305,8 @@ default selection.
 
 ## The order, and how it fits the rest
 
-1. **Now, beside the Survivor 51 work:** the rest of Phase 1 as a sports lane (Phase 0, 1.0 and 1.3 are done): 1.2, 1.4, 1.5 and
-   1.6, then 1.1 once BACKLOG 215 is answered. Phase 4.0 (the words) in any free session.
+1. **Now, beside the Survivor 51 work:** the rest of Phase 1 as a sports lane (Phase 0, 1.0, 1.2 and 1.3 are done): 1.4, 1.5 and
+   1.6, and 1.1 toward live scores (BACKLOG 215 answered). Phase 4.0 (the words) in any free session.
 2. **Then:** Phase 2 (once the user has made the calls), and Phase 4.1.
 3. **Then:** Phase 3, the gate, and the design round's pages 1 and 3 (they need correct data, not live data).
 4. **Then:** 4.1's live path, page 2, Phase 5, and pages 4 to 6.
