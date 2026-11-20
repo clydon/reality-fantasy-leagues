@@ -57,7 +57,8 @@ function storyOf(p: Made) {
   return out;
 }
 async function save(id: string, p: Made): Promise<boolean> {
-  const r = await pool.query(`UPDATE live_previews SET story = $2, copies = $3, complete = $4, failed = $5 WHERE id = $1`, [id, JSON.stringify(storyOf(p)), JSON.stringify(p.copies), !!p.complete, p.failed ?? null]);
+  // The story keeps where its last card goes (set when it started being made).
+  const r = await pool.query(`UPDATE live_previews SET story = $2 || jsonb_build_object('exits', story->'exits'), copies = $3, complete = $4, failed = $5 WHERE id = $1`, [id, JSON.stringify(storyOf(p)), JSON.stringify(p.copies), !!p.complete, p.failed ?? null]);
   return (r.rowCount ?? 0) > 0;
 }
 
@@ -117,12 +118,28 @@ async function devSeason(): Promise<string> {
   return rows[0].id;
 }
 
+/** Where the story's last card goes (the gallery's, step 15: back to the game's setup, or on to make it), on the app's host. */
+export interface Exits {
+  back: string;
+  create: string;
+}
+
+/** Which game at which mark a preview is of (decision 6): the same key reopens it rather than making another. */
+export const gameKeyOf = (seasonId: string, mark: number, game: PreviewGame) => crypto.createHash("sha256").update(JSON.stringify([seasonId, mark, game.base, game.changes ?? []])).digest("base64url");
+
 /**
- * Make a live preview of a gallery game for `user`: the season read for them at their own mark (preview-definition.ts, step 1),
- * its moments, each screen's copy and address on the preview host. `where`: the season (default Survivor 51) and the couch the game
- * would be made on (default their first). Answers the preview's id and a way into its story.
+ * A live preview of a gallery game for `user`: the season read for them at their own mark (preview-definition.ts, step 1), its
+ * moments, each screen's copy and address on the preview host. `where`: the season (default Survivor 51) and the couch the game would
+ * be made on (default their first). Their preview of the same game at the same mark, while it lasts, is reopened instead, free
+ * (decision 6); otherwise `take` takes one of their day's previews (given back if it isn't made) and any other preview of theirs
+ * goes (one at a time). Answers the preview's id and a way into its story.
  */
-export async function makeLivePreview(user: SessionUser, game: string, where: { seasonId?: string; couchId?: string | null } = {}) {
+export async function makeLivePreview(
+  user: SessionUser,
+  game: string,
+  where: { seasonId?: string; couchId?: string | null; exits?: Exits } = {},
+  take: () => Promise<{ left: number; giveBack: () => Promise<void> }> = async () => ({ left: 0, giveBack: async () => {} })
+) {
   serviceOnly();
   const g = GAMES[game];
   if (!g) throw new HttpError(400, "No such game to preview");
@@ -130,8 +147,19 @@ export async function makeLivePreview(user: SessionUser, game: string, where: { 
   const { make, down } = bench();
   // Loaded when used: the season reader brings the start-a-game modules with it.
   const { previewDefinition } = await import("./preview-definition");
-  const { definition, resultsFor } = await previewDefinition(user, where.seasonId ?? (await devSeason()), where.couchId ?? null, g);
-  const id = await startMaking(user.id);
+  const seasonId = where.seasonId ?? (await devSeason());
+  const { definition, resultsFor, season } = await previewDefinition(user, seasonId, where.couchId ?? null, g);
+  const key = gameKeyOf(seasonId, season.mark, g);
+  const again = await reopen(user.id, key);
+  if (again) return { ...again, reopened: true };
+  const use = await take();
+  let id: string;
+  try {
+    id = await startMaking(user.id, key, where.exits ?? null);
+  } catch (e) {
+    await use.giveBack();
+    throw e;
+  }
   const cpu0 = process.cpuUsage();
   let made: Made | null = null;
   // Each copy as it lands, saved for whichever instance the story asks (its row exists once the first is written).
@@ -143,6 +171,7 @@ export async function makeLivePreview(user: SessionUser, game: string, where: { 
     out = await make({ input: definition, app: process.env.BETTER_AUTH_URL || "http://localhost:3014", resultsFor, seasons: 5, onState });
   } catch (e) {
     await pool.query(`DELETE FROM live_previews WHERE id = $1`, [id]).catch(() => {});
+    await use.giveBack();
     throw e;
   }
   made = out.preview;
@@ -151,7 +180,7 @@ export async function makeLivePreview(user: SessionUser, game: string, where: { 
     delete made.viewerPass;
     const { rows } = await pool.query(`SELECT id FROM "user" WHERE username = $1`, [made.viewerUser]);
     if (!rows[0]) throw new Error("The preview's viewer wasn't made");
-    await pool.query(`UPDATE live_previews SET viewer_user_id = $2, story = $3, copies = $4 WHERE id = $1`, [id, rows[0].id, JSON.stringify(storyOf(made)), JSON.stringify(made.copies)]);
+    await pool.query(`UPDATE live_previews SET viewer_user_id = $2, story = $3 || jsonb_build_object('exits', story->'exits'), copies = $4 WHERE id = $1`, [id, rows[0].id, JSON.stringify(storyOf(made)), JSON.stringify(made.copies)]);
     const entry = await entryFor(id);
     const finished = made;
     // Closed before its last copy landed: those go too.
@@ -161,22 +190,48 @@ export async function makeLivePreview(user: SessionUser, game: string, where: { 
         await spent(cpu0);
       })
     );
-    return { id, entry, expires: Date.now() + LIVE_MINUTES * 60_000 };
+    return { id, entry, expires: Date.now() + LIVE_MINUTES * 60_000, left: use.left, reopened: false };
   } catch (e) {
     // Never a copy nobody knows about: anything that fails once copies exist removes them (the ones still landing too).
     const failed = made;
     await Promise.resolve(out.rest).catch(() => {}).then(() => down(failed)).catch(() => {});
     await pool.query(`DELETE FROM live_previews WHERE id = $1`, [id]).catch(() => {});
+    await use.giveBack();
     throw e;
   }
+}
+
+/** Their preview of this game at this mark, while it lasts (its first copy written): a new way into it. */
+async function reopen(userId: string, key: string): Promise<{ id: string; entry: string; expires: number } | null> {
+  const { rows } = await pool.query(
+    `SELECT id, COALESCE(kept_until, expires_at) AS until FROM live_previews WHERE owner_key = $1 AND game_key = $2 AND viewer_user_id IS NOT NULL AND COALESCE(kept_until, expires_at) > now() ORDER BY created_at DESC LIMIT 1`,
+    [ownerKey(userId), key]
+  );
+  if (!rows[0]) return null;
+  return { id: rows[0].id, entry: await entryFor(rows[0].id), expires: new Date(rows[0].until).getTime() };
+}
+
+/**
+ * Kept while they make the game (decision 6): the story left for its last card's Go back or Create this game. Kept to a day from when
+ * it was made; gone sooner when the game is made, another preview is, or their mark moves (its key then makes a new one).
+ */
+export async function keepLivePreview(id: string, user: SessionUser): Promise<{ until: number }> {
+  serviceOnly();
+  const { rows } = await pool.query(
+    `UPDATE live_previews SET kept_until = created_at + interval '24 hours' WHERE ${whose} AND COALESCE(kept_until, expires_at) > now() RETURNING kept_until`,
+    [id, user.id, ownerKey(user.id)]
+  );
+  if (!rows[0]) throw new HttpError(403, "This preview has ended");
+  return { until: new Date(rows[0].kept_until).getTime() };
 }
 
 /**
  * A preview's row, from the moment it starts being made (its viewer and copies once the first is written), so the previews being
  * made at once can be counted: refused past AT_ONCE ("Busy"), or once the month's budget is spent ("full this month").
  */
-async function startMaking(userId: string): Promise<string> {
+async function startMaking(userId: string, key: string, exits: Exits | null): Promise<string> {
   const db = await pool.connect();
+  let old: { id: string; copies: string[] }[] = [];
   try {
     await db.query("BEGIN");
     await db.query("SELECT pg_advisory_xact_lock(hashtext('live-preview-making'))");
@@ -184,9 +239,12 @@ async function startMaking(userId: string): Promise<string> {
     if (Number(month?.cpu_ms ?? 0) >= MONTH_CPU_MS) throw new HttpError(503, "Previews are full this month: back on the 1st.");
     const { rows: [busy] } = await db.query(`SELECT count(*)::int AS k FROM live_previews WHERE NOT complete AND created_at > now() - interval '5 minutes'`);
     if (busy.k >= AT_ONCE) throw new HttpError(503, "Busy: try again in a minute.");
+    // One at a time (decision 6): their other previews go.
+    old = (await db.query(`DELETE FROM live_previews WHERE owner_key = $1 RETURNING id, copies`, [ownerKey(userId)])).rows;
     const id = crypto.randomUUID();
-    await db.query(`INSERT INTO live_previews (id, owner_key, story, expires_at) VALUES ($1, $2, '{}'::jsonb, now() + make_interval(mins => $3))`, [id, ownerKey(userId), LIVE_MINUTES]);
+    await db.query(`INSERT INTO live_previews (id, owner_key, game_key, story, expires_at) VALUES ($1, $2, $3, $4, now() + make_interval(mins => $5))`, [id, ownerKey(userId), key, JSON.stringify({ exits }), LIVE_MINUTES]);
     await db.query("COMMIT");
+    if (old.length) void drop(old);
     return id;
   } catch (e) {
     await db.query("ROLLBACK").catch(() => {});
@@ -250,9 +308,15 @@ export async function livePreviewStory(id: string, user: SessionUser) {
   return { ...rows[0].story, complete: rows[0].complete, failed: rows[0].failed, id, expires: new Date(rows[0].until).getTime() };
 }
 
-/** The story closed: its copies go now rather than at the half hour. */
+/**
+ * The story closed: its copies go now rather than at the half hour. Its viewer's close (the story's page leaving) leaves a preview
+ * kept while its game is made; its owner's (the game made, step 9) removes it either way.
+ */
 export async function closeLivePreview(id: string, user: SessionUser) {
   serviceOnly();
-  const { rows } = await pool.query(`DELETE FROM live_previews WHERE ${whose} RETURNING id, copies`, [id, user.id, ownerKey(user.id)]);
+  const { rows } = await pool.query(
+    `DELETE FROM live_previews WHERE id = $1 AND (owner_key = $3 OR (viewer_user_id = $2 AND kept_until IS NULL)) RETURNING id, copies`,
+    [id, user.id, ownerKey(user.id)]
+  );
   await drop(rows);
 }

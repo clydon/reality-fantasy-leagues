@@ -4,7 +4,7 @@
 // is signed in as the preview's own viewer while the account's own session is untouched, then closes the story (its copies go) and
 // removes the account.
 //
-//   node --env-file=.env.local scripts/dev-test/preview-live-check.js [--game=pool|fantasy|sheet] [--out=.ui-atlas/stories/game-preview/live]
+//   node --env-file=.env.local scripts/dev-test/preview-live-check.js [--game=pool|fantasy|sheet] [--create] [--out=.ui-atlas/stories/game-preview/live]
 //
 // Needs this lane's dev server (BASE, default http://localhost:3014) and its database; the browser reaches preview.localhost (any
 // *.localhost is this machine).
@@ -18,6 +18,9 @@ const { Pool } = require("pg");
 const args = process.argv.slice(2);
 const opt = (k, d) => args.find((a) => a.startsWith(`--${k}=`))?.slice(k.length + 3) ?? d;
 const GAME = opt("game", "pool");
+// --create: at the last card, Create this game, as someone would: the preview kept while they make it (decision 6), the story's
+// page closing leaves it, and asking for the same game again reopens it.
+const CREATE = args.includes("--create");
 const OUT = path.resolve(opt("out", ".ui-atlas/stories/game-preview/live"));
 
 async function account(db) {
@@ -91,6 +94,16 @@ async function account(db) {
         await page.locator("[data-next]").click();
         await ready();
       }
+    }
+    if (CREATE) {
+      await Promise.all([page.waitForURL((u) => !u.host.startsWith("preview."), { timeout: 30000 }), page.locator("[data-create]").click()]);
+      await page.waitForTimeout(2000);
+      const [row] = (await db.query(`SELECT kept_until IS NOT NULL AS kept FROM live_previews WHERE id = $1`, [storyId])).rows;
+      const again = await page.context().request.post(BASE + "/api/preview-live", { data: { game: GAME }, headers: { origin: BASE } });
+      const body = await again.json().catch(() => ({}));
+      console.log(`Create this game: on to ${new URL(page.url()).pathname} on the app's host; the preview ${row ? (row.kept ? "kept" : "there but not kept: WRONG") : "gone: WRONG"} after its page closed; asked again, ${body.reopened && body.id === storyId ? "reopened" : "WRONG " + JSON.stringify(body).slice(0, 120)}`);
+      // The game made: its owner's close removes it either way.
+      await page.context().request.delete(BASE + "/api/preview-live/" + storyId, { headers: { origin: BASE } });
     }
     if (errors.length) console.log("page errors:", errors.slice(0, 5));
   } finally {

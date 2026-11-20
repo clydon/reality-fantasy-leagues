@@ -15,12 +15,13 @@ export const POST = apiRoute(async (req) => {
   const body = (await req.json().catch(() => ({}))) as { game?: unknown; season?: unknown; couch?: unknown };
   if (typeof body.game !== "string") throw new HttpError(400, "Which game?");
   const str = (v: unknown) => (typeof v === "string" && v ? v : undefined);
-  // One of today's previews (the app's allowance: decision 4), given back if this one isn't made.
-  const use = await takePreview(user.id);
-  try {
-    return NextResponse.json({ ...(await makeLivePreview(user, body.game, { seasonId: str(body.season), couchId: str(body.couch) ?? null })), left: use.left });
-  } catch (e) {
-    await giveBack(use.useId);
-    throw e;
-  }
+  // Their preview of this game at this mark reopens, free; otherwise one of today's previews (the app's allowance: decision 4), given
+  // back if this one isn't made. Its last card goes back to the app's own host (the gallery's places come with step 15).
+  const app = new URL(req.url).origin;
+  const exits = { back: `${app}/home`, create: `${app}/home` };
+  const take = async () => {
+    const use = await takePreview(user.id);
+    return { left: use.left, giveBack: () => giveBack(use.useId) };
+  };
+  return NextResponse.json(await makeLivePreview(user, body.game, { seasonId: str(body.season), couchId: str(body.couch) ?? null, exits }, take));
 });

@@ -220,6 +220,15 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
    hours. A preview after a change plays the same made-up season (its seed from the person, the season and the mark, not the game).
    Checked: reopening within the day makes nothing; a change makes a new one and the old is gone; a copied link opens nothing for
    anyone else; nothing outlives a day.
+   **Done (2026-11-19), the service's half.** `preview-live.ts`: a preview's key is its season, mark, base and changes
+   (`gameKeyOf`); asking for the same key while it lasts reopens it with a new way in and takes no use; making one removes the
+   person's others in the same statement that starts it; `POST /api/preview-live/[id]/keep` holds it to a day from when it was made;
+   the story's own close (its page leaving) leaves a kept preview, its owner's removes it either way (the app's, when the game is
+   made: step 9). The story's last card, live: Go back and Create this game keep it, then go to the app's host (`exits`, given when
+   it's made; the gallery's places come with step 15). The seed was already the person's, season's and mark's (step 1), so a change
+   previewed again plays the same made-up season. Checked: `scripts/dev-test/preview-keep-check.js` (reopened free, kept a day,
+   another game removes the last, kept past its day swept) and `preview-live-check.js --create` (Create this game from the story:
+   kept after its page closed, and reopened when asked again).
 9. **The app's side** (also: the show's art sent with the definition, since the service's database has no real show to borrow it
    from, as the live tier does locally: `fixture-art.js` borrow): `POST /api/previews` (signed in, the switch on) builds the definition, asks the service (signed with a shared
    secret), and returns the story's way in; Create this game comes back to the app with the game's spec and the preview it came from

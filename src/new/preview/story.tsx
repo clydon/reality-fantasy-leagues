@@ -36,6 +36,8 @@ export interface Preview {
   seasons?: { seed: number; tables?: Record<string, TableRow[]>; error?: string }[];
   /** A live preview: every copy written, or stopped partway (its moments made so far stay). */
   complete?: boolean;
+  /** A live preview's last card, on the app's host: back to the game's setup, or on to make it (the preview kept while they do). */
+  exits?: { back: string; create: string } | null;
 }
 
 const WORDS = showWords(null);
@@ -421,6 +423,16 @@ export function PreviewStory({ preview: p, live = null }: { preview: Preview; li
 }
 
 function Story({ p }: { p: Preview }) {
+  const live = useContext(Live);
+  // A live preview's last card: kept while they make the game (decision 6), then to the app's host. Not live (the screenshot
+  // stories, the sheet), the buttons stay as the mock has them.
+  const leave = (where: "back" | "create") => {
+    const to = p.exits?.[where];
+    if (!live || !to) return;
+    void fetch(`/api/preview-live/${live.id}/keep`, { method: "POST" })
+      .catch(() => {})
+      .finally(() => window.location.assign(to));
+  };
   const [k, setK] = useState(0);
   const [screen, setScreen] = useState<number | null>(null);
   const [tab, setTab] = useState<string | null>(null);
@@ -541,11 +553,12 @@ function Story({ p }: { p: Preview }) {
           <div className="flex items-center gap-2 px-4 pb-[max(16px,env(safe-area-inset-bottom,0px))] pt-3">
             {last ? (
               <>
-                {/* Go back: to the game's setup (the gallery's sheet; not wired in the mock). */}
-                <Btn tone="optional" className="flex-1" data-go-back>
+                {/* Go back: to the game's setup; Create this game: on to make it. Live, either keeps the preview while they do
+                    (decision 6) and goes to the app's host; the gallery's places come with step 15 (the mock's aren't wired). */}
+                <Btn tone="optional" className="flex-1" data-go-back onClick={() => leave("back")}>
                   Go back
                 </Btn>
-                <Btn tone="must" className="flex-[1.4]" data-create>
+                <Btn tone="must" className="flex-[1.4]" data-create onClick={() => leave("create")}>
                   Create this game
                 </Btn>
               </>
