@@ -1,11 +1,11 @@
 # Plan: sports in good shape, technically and in design
 
-> **Status (2026-11-19): Active, Phase 0 and steps 1.0, 1.2, 1.3, 1.4 and 1.5 done** (branch sports-phase0, not merged; migrations
+> **Status (2026-11-19): Active, Phase 0 and every Phase 1 step but 1.1 done** (branch sports-phase0, not merged; migrations
 > 0308 to 0310 to rehearse). Written from two audits that day: the engine, data and operations, and every screen a sports fan touches.
 > Phase 0 confirmed all four inferences, each with a check, and found two bigger gaps; step 1.0 closed both (BACKLOG 220 and 221),
 > 1.3 made team defenses people and kept same-named players apart (BACKLOG 145), 1.2 stopped silent zeros and takes corrections,
-> 1.4 keeps rosters current (signings, trades), and 1.5 reads injuries and byes. Next: 1.6, and 1.1 (BACKLOG 215 answered: toward
-> live scores).
+> 1.4 keeps rosters current (signings, trades), 1.5 reads injuries and byes, and 1.6 made the small fixes (BACKLOG 108, 78). Next:
+> 1.1 toward live scores (BACKLOG 215 answered), then Phase 2 (the user's calls 213, 214, 219) and 4.1.
 > The decisions it needs are BACKLOG 175 and 212–219 ("Waiting on you").
 
 The user, 2026-11-19: "I want to make sure sports is in a good spot both technically and redesign needs. Make a plan for that."
@@ -211,10 +211,17 @@ server.
      (ESPN, 2026-11-19: injuries [{ status, date }]), names made up.
    - *Left:* ESPN's practice squad (a roster status, not an injury: 436 of the NFL's 2,552) isn't marked; the draft room may want
      it (4.3). Computer players don't yet bench an injured or idle player (Phase 2.3's legal lineups).
-6. **The small fixes (S each).** BACKLOG 108 (give the rail's pickem `each: 'game'`, or refuse single-game questions and squares on
-   a slate in `specProblems`); `lineupAt` applying `letGoBefore` for locks at each game (idea 209's residual); BACKLOG 101, 78 and
-   check-sports-explorer.js's called-off part 4. Verify with unit tests, check-slate-pickem.js (108), check-slate.js and
-   check-sports-explorer.js.
+6. **The small fixes. Done 2026-11-19 (1ae9b833).**
+   - *108:* both: the sports route's Pick'em on a slate asks each game (start-games.ts `perGame`), and our check refuses a game's
+     final asked of a slate's episode and squares on a slate (`ctx.slate`). check-slate-pickem.js passes; every gallery base
+     still plays (sport-gallery-check.js).
+   - *Idea 209's residual:* `lineupAt` leaves out anyone let go before each game's start (`letGoAt`, by the move log's times).
+   - *78:* the unit suite checks a sports league against its sport (proved: it failed one without, passes with).
+   - *The called-off part 4:* part 3's Eastern day-edge guard.
+   - *101:* 12 of its 13 stale cases pass with Sports scores too on, and the default has a case; the last (the Players tab's read
+     not filling a deleted game's lines back in) stays open in BACKLOG 101.
+   - *Verified:* 580 unit tests; check-sports-explorer.js lineup, slates, locks, calledoff; check-sports-couch.js --api; the NFL
+     checks. Golden replays not run (a sport's game-by-game lineup, a slate's refusal).
 
 ### Phase 2. The rules a season game needs (about 2–3 sessions; needs the user's calls)
 
@@ -321,8 +328,8 @@ default selection.
 
 ## The order, and how it fits the rest
 
-1. **Now, beside the Survivor 51 work:** the rest of Phase 1 as a sports lane (Phase 0 and 1.0 to 1.5 are done but 1.1): 1.6,
-   and 1.1 toward live scores (BACKLOG 215 answered). Phase 4.0 (the words) in any free session.
+1. **Now, beside the Survivor 51 work:** the rest of Phase 1 as a sports lane (all of it done but 1.1): 1.1 toward live scores
+   (BACKLOG 215 answered), then Phase 2 once the user's calls are in. Phase 4.0 (the words) in any free session.
 2. **Then:** Phase 2 (once the user has made the calls), and Phase 4.1.
 3. **Then:** Phase 3, the gate, and the design round's pages 1 and 3 (they need correct data, not live data).
 4. **Then:** 4.1's live path, page 2, Phase 5, and pages 4 to 6.

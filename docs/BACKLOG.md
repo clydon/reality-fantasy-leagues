@@ -80,7 +80,6 @@ commit each:
   made-up reveal's button or skip the step.
 - check-new-episode-games: talk-fixture.js dates its show by the database's UTC day, so part 2 fails in the evening, Eastern.
   Date it by the Eastern day, and run it before and after 8 PM Eastern.
-- check-sports-explorer.js `--case=calledoff` part 4 needs the Eastern day-edge guard part 3 has.
 - check-episode-lock.js's "a new pick doesn't go in": look at it as a possible lock bug before changing the check.
 - the checks the wizard's B1–B4 left stale (the redo plan's merge note lists them), and the Atlas hub cases re-recorded on a zt
   account that exists.
@@ -99,8 +98,12 @@ on `[data-guide-sheet]`. Open it the current way (src/new/hub/guide.tsx). Done w
 now opens the castaway's sheet. Point it at the turn line and pick through the sheet's foot. Done when the whole check passes,
 the blind draft included. [S · checks]
 
-**101. check-sports-links.js's mark cases are stale.** Since U1, a sport shows results straight away unless "Sports scores too"
-is on. Turn that on for the viewer in those 13 cases, and add one case for the default. Part of [PLAN-sports-ready.md](PLAN-sports-ready.md), step 1.6. [S · checks]
+**101. check-sports-links.js: the Players tab's read doesn't fill a game's lines back in.** Step 1.6 (1ae9b833) turned "Sports scores
+too" on for the check's viewer (since U1 a sport shows results straight away unless it's on) and added a case for the default: 12
+of the 13 stale cases pass. The last, "the Players tab's read filled Game 3 back in", fails with it on or off: with Game 3's lines
+deleted and its season_events row marked not final, the read's stats refill (rosters.ts rosterOf, stats.ts statsFromEvents)
+leaves Game 3 empty (stat_fills' through 2). Find whether the refill skips it (a cached box score, the order it reads in) or the
+case expects what the read never did. [S · sports]
 
 **91. check-new-backstage-ii.js waits a fixed 1.5 s after a feel's Undo.** Poll the league's state for
 `waiverFeel === "balanced"` for up to about 8 s instead. If it still fails, look at `backstage.undo` for a feel. Done when five
@@ -109,11 +112,6 @@ runs pass. [S · checks]
 **117. Run the two checks that were never run.** check-new-watching.js (the season picker, add by number) and
 check-backstage-remind.js (the Reminders card, the four-hour limit) came from cloud sessions and have no record of a run,
 though their features are live. Run each once on the dev server, fix what fails, and record it. [S · checks]
-
-**78. The unit suite checks a sport's league without its sport.** tests/game-spec.test.js's local-database pass checks each
-league's spec without its season's context, so a league scored by a sport's stats (the NBA's lineup of ten) fails, though the
-server accepts it. Load the season's sport context (as capabilities.js does) and pass it to `specProblems` in `roundTrip`.
-[S · checks]
 
 ### Small engine and server fixes
 
@@ -272,14 +270,6 @@ that such a night counts for nobody: say so in the step, and the user can overru
 Design the moment a stage's draft opens along with it: a strip item on Tonight and one push, spoiler-safe, with the deadline.
 First drive the draft room as explorer actions (the explorer plan's Next), then lift the refusal at start-game.ts:190. The same
 as DN-33's "next stage's draft". [L · engine]
-
-**108. A slate's Pick'em is never graded** (confirmed in Phase 0, 2026-11-19). On a slate (a week of several games) the server
-keeps no single game per week (`score.ts leagueGames`). The sports route's Pick'em (`POST /api/sports/start` { league, slate,
-game: 'pickem' }) asks one "Who wins?" a week with no sides to pick from, takes an answer anyway and never grades it, while the
-gallery's per-game Pick'em grades the same week. Plain final or stat questions, squares and survival pools on a slate are likely
-the same. Either ask each game (`each: 'game'`) or refuse single-game questions on a slate. Done when
-scripts/dev-test/check-slate-pickem.js passes. This goes before the redo plan's E9. Part of
-[PLAN-sports-ready.md](PLAN-sports-ready.md), step 1.6. [M · sports]
 
 **125. An open episode's call can change after a rulebook edit.** Once an episode's first call is made, store its two moments
 with it (or on the episode), and have calls.ts read them back before working them out from the rulebook. Done when a
@@ -689,8 +679,8 @@ Kept so they aren't lost. Each waits for a reason to pick it up.
 - **207.** Talk-show and live-event kinds, and the watch-party wants (reactions at a timestamp, keep the screen awake).
 - **208.** Own-pace edges: head to head's order counts a waiting matchup its W–L leaves out; a pool with lives closes joining at
   the first person out; the finish plate's "Start another".
-- **209.** Sports edges: a lineup that locks game by game reads its own timed log (`lineupAt`, state-logic.js:4498) and
-  still counts someone let go mid-week (69's residual; PLAN-sports-ready.md step 1.6); a traded player stays on his old team (step 1.4); "coming in" is one ESPN call a player; two-way players'
+- **209.** Sports edges (the lineup by game's residual and a trade's team done in PLAN-sports-ready.md steps 1.6 and 1.4):
+  "coming in" is one ESPN call a player; two-way players'
   other lines; AFL's hold-back; college scoreboards; bot-filled people never merged with ESPN's; a daily sport's waivers daily
   or weekly (now BACKLOG 219); golf, races and fight cards found from Add a show.
 - **210.** Research edges: results for a show nobody plays are bot-only; a repeatable What scores check against the real bot; a
@@ -724,6 +714,9 @@ longer depends on the wiki.)
 ## Closed since the cleanup
 
 One line each: the number, done or dropped, and the commit or the reason.
+- **108** done (1ae9b833): the sports route's Pick'em asks each game on a slate, and our check refuses a game's final asked of a
+  slate's episode and squares there; check-slate-pickem.js.
+- **78** done (1ae9b833): the unit suite's local-database pass checks a sports league against its sport's page context.
 - **215** answered (the user, 2026-11-19): yes to the hourly refresh, and the goal is further: live scores during games ("minus the
   moments that the live api cant get, we'll deal with that later"). In [PLAN-sports-ready.md](PLAN-sports-ready.md) step 1.1.
 - **145** done (bc1bf8a3, branch sports-phase0, migration 0308): two players who share a name are two people, kept, drafted,
