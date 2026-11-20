@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { HttpError } from "./http-error";
 import { READ_ONLY_HEADER, READ_ONLY_SAYS, writableWhileReadOnly } from "@/lib/read-only";
+import { sportsFor } from "./sports";
+import { requestSports } from "./sports/request-sports";
 
 const READS = new Set(["GET", "HEAD", "OPTIONS"]);
 
@@ -19,7 +21,10 @@ export function apiRoute<Args extends unknown[]>(
       return NextResponse.json({ error: READ_ONLY_SAYS }, { status: 403 });
     }
     try {
-      return await handler(req, ...args);
+      // Under `next dev`, a check's request (its stand-in ESPN, or a stand-in world's that asks nobody) says so to what runs under
+      // it without the request (a league read's live points: sports/live-lines.ts), so a check never reaches the real ESPN.
+      const standIn = process.env.NODE_ENV === "development" ? sportsFor(req) : undefined;
+      return await (standIn === undefined ? handler(req, ...args) : requestSports.run(standIn, () => handler(req, ...args)));
     } catch (e) {
       if (e instanceof HttpError) {
         return NextResponse.json({ error: e.message }, { status: e.status });

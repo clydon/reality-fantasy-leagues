@@ -1006,6 +1006,29 @@ test("at its own pace, a caught-up seat's copy leaves a week in progress out, ev
   } finally { s.dispose(); }
 });
 
+test("at its own pace, before the game's first results, a seat with no pace of its own yet is caught up: no week in progress in its copy (step 1.1, part 3)", () => {
+  const s = R.open(slateDoc({ completed: 0, events: 3, ann: 0, bo: 0, cy: 0, timing: "own-pace" }));
+  try {
+    const world = s.snapshot().contexts.sport, week = world.events[0], [g1] = Sports.gamesOf(world.context, week), full = seeded(s, week);
+    at(s, Date.parse(g1.airAt) + 3600000);
+    assert.equal(send(s, week, "partial", { ...full, games: { [g1.id]: full.games[g1.id] } }).status, "accepted");
+    const st = s.snapshot().games.g.state, seat = st.players.find((p) => !p.disabled);
+    assert.deepEqual(seat.lateJoin, { startEpisode: 1, seenThrough: 0, catchingUp: false }, "a seat caught up before its first week");
+    assert.equal(S.EpisodeLogic.inProgress(st.episodes[0]), true, "the full state has the week in progress");
+    // The same game as the app holds one made at its own pace before it aired, before its first results (paceTogether): no seat
+    // has a pace of its own yet (settlePace gives it one once results are in).
+    const together = structuredClone(st);
+    for (const p of together.players) delete p.lateJoin;
+    for (const [what, copy] of [["with its pace", st], ["with none yet", together]]) {
+      for (const mark of [null, 0, 5]) {
+        const ep = S.GhostLogic.viewFor(copy, seat.id, mark).episodes[0];
+        assert.ok(!("statLines" in ep) && !("statEarly" in ep), `a seat ${what}: its copy, told through ${mark}, leaves it out`);
+      }
+      assert.ok("statLines" in S.GhostLogic.viewFor(copy, null, null).episodes[0], "someone told everything without a seat here still sees it");
+    }
+  } finally { s.dispose(); }
+});
+
 test("a slate game postponed before the week: its results are the other games', each game played's box score; a line for the postponed one is refused", () => {
   const s = R.open(slateDoc({ completed: 1, events: 3, ann: 1, bo: 1, cy: 1 }));
   try {

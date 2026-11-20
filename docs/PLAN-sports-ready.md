@@ -5,8 +5,10 @@
 > Phase 0 confirmed all four inferences, each with a check, and found two bigger gaps; step 1.0 closed both (BACKLOG 220 and 221),
 > 1.3 made team defenses people and kept same-named players apart (BACKLOG 145), 1.2 stopped silent zeros and takes corrections,
 > 1.4 keeps rosters current (signings, trades), 1.5 reads injuries and byes, 1.6 made the small fixes (BACKLOG 108, 78), and
-> 1.1's part 1 puts finals in the standings within the hour; its part 2 counts a week's games as they end. Next: 1.1's part 3,
-> live points during games, then Phase 2 (its calls answered 2026-11-19, own pace for sports added) and 4.1.
+> 1.1's part 1 puts finals in the standings within the hour; its part 2 counts a week's games as they end; its part 3 counts a
+> game being played, its points so far, for anyone shown everything (never an own-pace seat or anyone hiding sports scores).
+> Next: one Neon rehearsal and the merge, then Phase 2 (its calls answered 2026-11-19, own pace for sports added) and 4.1; 1.1's
+> part 4 (the screens, on a small live read) is the design round's page 2.
 > The user's calls 212–219 are answered ("Decisions", below); BACKLOG 175 still waits.
 
 The user, 2026-11-19: "I want to make sure sports is in a good spot both technically and redesign needs. Make a plan for that."
@@ -194,13 +196,54 @@ server.
      - *For part 4:* the game view's "through" (game-view.ts: `latestWithResults`) stays at the last week in while its totals
        take in the week in progress, so a page that says "through Week 8" beside totals with Sunday's games in needs the week's
        stage said (`resultsStage` 'early' on the episode; the season's games route answers nothing of it yet).
-   - **Part 3, live points during games.** The server's live poller (src/lib/server/sports/live-proxy.ts, already polling ESPN
-     for phones at most once a game every 15 s) gives each game's lines so far; run them through the game's table under the
-     spoiler rule (Hide scores, Watch it as if live), so a matchup moves play by play (4.1.2's second half, Phase 5's feed
-     brought forward). Measure Vercel's transfer (Phase 5's estimate: about 20 MB and 780 edge requests a phone an NFL game).
-     A seat at its own pace (BACKLOG 218: the user wants own pace for sports) is never sent a live point past its mark, nor is
-     anyone hiding sports scores.
-   - **Part 4, the screens:** the design round's page 2 (the live game and a week in progress), through the design process.
+   - **Part 3, live points during games. Done 2026-11-19.** A game being played counts its lines so far as part 2's week in
+     progress does a game final so far, so a matchup moves play by play (4.1.2's second half, Phase 5's feed brought forward).
+     - *Built:* `src/lib/server/sports/live-lines.ts` takes each of a season's games being played (begun within 8 hours, not yet
+       kept, not called off; team sports, ESPN's) and reads its lines so far from the live poller (live-proxy.ts, the one thing
+       that asks ESPN live: at most once a game every 10 s an instance, however many read), the plays added up as a phone's poller
+       adds them (TeamSport.timeline; once ESPN says final, its box score's correction), at most 30 games a read, waiting 2.5 s
+       for a new answer before taking the last one kept. score.ts's `leagueGames` split into its database read and a pure
+       working-out (`gamesFrom`); `stampStats(state, { live })` keeps the season's rows by its fingerprint (now with each linked
+       game's start time in it) and works a live stamp out again only when an answer moves. A live game's lines join its episode as
+       a final's do (the week's sum, each game's own for a table scored game by game), the episode early (StatsLogic.stamp's
+       `early`: a slate's week, or an episode's one game), the game itself still being played for the grader, so no question
+       settles on it and no matchup, race or cut is decided by it. A game whose row still says it's to start (the hourly refresh
+       not yet run) counts once the live feed has it on. Never stored: only `readyLeague(id, state, { live: true })` asks, and
+       withLeagueLock's writes stay at the finals.
+     - *Who gets them (the spoiler rule):* only season-games.ts's reads (the season's games, the read-only copy, the couch's other
+       games), and only for a viewer the season shows everything to (no mark: sports live, not hiding sports scores), in a game
+       not played at its own pace, from a seat that isn't a late joiner's. Everyone else's copy is built from the finals alone,
+       and cut at their mark besides (SpoilerLogic.hiddenEpisodes; GhostLogic.viewFor). Every other read (the classic state route,
+       a solo pool's, the desk's) stays at the finals.
+     - *Found and fixed on the way:* GhostLogic.viewFor's own-pace cut (part 2's call) held only for a seat with a pace of its
+       own; a game made at its own pace before it aired has none until its first results (paceTogether), so its first week in
+       progress showed. It's now cut for such a seat too (a unit test beside part 2's). And a check could have reached the real
+       ESPN through a read: under `next dev`, apiRoute now passes a check's stand-in (sportsFor's headers) down to live lines
+       (sports/request-sports.ts), and a league named "zt-..." is never asked of ESPN.
+     - *Verified:* check-sports-live-points.js on the recorded NFL season, with 49ers at Falcons (Week 7, recorded play by play)
+       replayed live by the stand-in at the fixture's clock: before kickoff nothing; in the second quarter the week early, each
+       replayed player's line the recording's plays as of then (the sport's own reader as the oracle), each total its players'
+       points, every record 0-0, one ESPN ask for three reads, a read without live none of it; the fourth quarter's totals moved
+       on; the final counted before the hourly job keeps it, still early; the kept final's lines the same as live's at its final.
+       Shown none of it: someone hiding sports scores a week behind, and at the week itself (marked seen while it's played), and
+       both seats of an own-pace game made before the week aired (whose copy GhostLogic cuts besides). Parts 1 and 2's checks
+       (check-sports-hourly.js, check-sports-week-in-progress.js) still pass; the unit suite (2,457); tsc; eslint has only its
+       standing errors (BACKLOG 26).
+     - *Measured (for HOSTING.md):* on the server, nothing new in Neon (the season's rows are kept by their fingerprint) and one
+       ESPN ask a game every 10 s an instance, as the phones' live route already asks. On a phone it depends on how part 4 polls:
+       the whole season's games read is 1.35 MB (136 KB gzipped) on the NFL fixture, nearly all of it the season's ~2,500 people,
+       and live points add 0.5 KB; asked every 15 s for an NFL game that's ~100 MB a phone. A game's table and matchups alone are
+       1.6 KB (0.5 KB gzipped), ~0.3 MB a phone a game. **So part 4 needs a small live read** (the table, the matchups and the
+       plays that moved them), never the whole read polled.
+     - *A call made on the way (the user may reverse it):* someone hiding sports scores never gets live points, even with their
+       mark at the week being played: a mark says what you've watched, and a game still being played isn't watched yet. A game
+       over and kept still counts for them at their mark, as part 2 has it.
+     - *Noticed, not fixed:* a field's and a card's live calls (golf, racing, MMA, tennis: live-event.ts) aren't read by live
+       lines yet (team sports only). The explorer has no game being played, so its runtime and campaigns don't cover live points
+       (the check above does). The in-process games read took 0.4-0.5 s with a new answer on the fixture, most of it the read
+       itself, not live.
+   - **Part 4, the screens:** the design round's page 2 (the live game and a week in progress), through the design process, on a
+     small live read (part 3's measure: the whole games read polled every 15 s would be ~100 MB a phone an NFL game).
    - **Later (the user's words):** what the live feed can't give (a defense's points allowed until the final, a stat only the
      box score has) stays on the final's read.
 2. **Never zero a game silently; take corrections. Done 2026-11-19 (2621a3e1).**
@@ -300,7 +343,7 @@ server.
    ones too, item 5); (b) a solo game at its own pace, alone or with computer players, from the game to come; (c) the pace a sheet recommends for a sport: Claude's call, reversible, own for a game played alone or only with
    computer players, live for a league of people, own one tap away; (d) the reveal an own-pace seat moves its mark with, the same
    one BACKLOG 216 gives anyone hiding sports scores (4.2's page 3 designs it); (e) live points (1.1 part 3) and the matchup push
-   (217) never past an own-pace seat's mark.
+   (217) never past an own-pace seat's mark (live points: done in 1.1 part 3, never sent to an own-pace game at all).
 
 ### Phase 3. The gate: a real season, replayed (L, about 2–3 sessions)
 
@@ -347,7 +390,9 @@ mustn't shrink around missing data.
    athlete's opponent, kickoff, bye and injury (after Phase 1.5).
 2. **Provisional points** for a week in progress: a slate week's games that are final so far count provisionally (the week stays
    unfinished), so Sunday's matchups move as each game ends. Then a live path: the existing poller's lines (src/lib/sports/live.ts,
-   through the server's proxy) run through the game's table, under the spoiler rule (Hide scores, Watch it as if live).
+   through the server's proxy) run through the game's table, under the spoiler rule (Hide scores, Watch it as if live). (Both
+   done on the server: 1.1 parts 2 and 3. Left for the round: a small live read for the screens to poll, and Watch it as if live's
+   sync, a later watch's clock.)
 3. **Event sports reachable from the UI:** golf, racing, MMA and tennis in Add a show's search, and first run finds teams and
    leagues (BACKLOG 43).
 4. **Fixtures to judge on, real where they exist:** an NBA recording, a real golf field (about 150) and a tennis draw, a 162-game
@@ -396,9 +441,8 @@ default selection.
 
 ## The order, and how it fits the rest
 
-1. **Now, beside the Survivor 51 work:** 1.1's part 3 toward live scores (parts 1 and 2 done), then one Neon rehearsal of
-   migrations 0308 to 0310 and the merge (the user's OK to push; not on an episode night). Phase 4.0 (the words) in any free
-   session.
+1. **Now, beside the Survivor 51 work:** one Neon rehearsal of migrations 0308 to 0310 and the merge (the user's OK to push; not
+   on an episode night; 1.1's parts 1 to 3 done). Phase 4.0 (the words) in any free session.
 2. **Then:** Phase 2 (its calls answered 2026-11-19, own pace for sports as 2.6), and Phase 4.1.
 3. **Then:** Phase 3, the gate, and the design round's pages 1 and 3 (they need correct data, not live data).
 4. **Then:** 4.1's live path, page 2, Phase 5, and pages 4 to 6.

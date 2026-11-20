@@ -6,9 +6,10 @@ import type { BracketField } from "@/lib/game/sequence/bracket";
 import type { SportsGameFacts } from "@/lib/game/game-spec";
 import type { LeagueState } from "@/lib/game/types";
 import type { CategoryDefs } from "@/lib/game/sequence/categories";
-import { BoutSport, PLAYOFFS, TeamSport, boutsOf, groupOf, playoffsFacts, playoffsStart, renamed, sportOf, storedFacts, type PlayoffGame, type StatBout, type StoredFinal, type StoredPeople, type StoredShape, type Stats } from "@/lib/sports";
+import { BoutSport, PLAYOFFS, TeamSport, boutsOf, groupOf, playoffsFacts, playoffsStart, renamed, sportOf, storedFacts, type PlayoffGame, type StatBout, type StoredFinal, type StoredGame, type StoredPeople, type StoredShape, type Stats } from "@/lib/sports";
 import { pool } from "../db";
 import { sportsProviders } from "./index";
+import { keyOf, liveLines, type LiveRow } from "./live-lines";
 import type { SportsProvider } from "./types";
 
 // A league's sports games as the server reads them (docs/PLAN-start-a-game-gpt.md track L, L3 parts 1 and 3): each episode's game
@@ -69,6 +70,8 @@ export interface LeagueGames {
   /** L8 part 1's engine items, part 2: a playoffs slate's series as one card's bouts (the draw "playoffs"), as far as the mark:
    *  final once the final's series is won. Null for any other season. */
   playoffs: SportsGameFacts | null;
+  /** Step 1.1, part 3: the episodes with a game being played whose lines so far are counted in `lines` (live-lines.ts): early. */
+  live: Set<number>;
 }
 
 /** The season a league plays (its show's slug and season number), or null. */
@@ -92,13 +95,15 @@ function statusOf(r: { state: string | null; final: boolean | null; lines: unkno
   return r.starts_at && r.starts_at.getTime() <= now ? "in" : "pre";
 }
 
-/**
- * A league's sports games, as of `mark` (the viewer's: a game past it is still to play for them; null, as it stands): undefined
- * for a league whose season links no games. `now` is for checks.
- */
-export async function leagueGames(state: LeagueState, o: { mark?: number | null; now?: Date } = {}): Promise<LeagueGames | undefined> {
-  const seasonId = await seasonIdOf(state);
-  if (!seasonId) return undefined;
+/** A season's games, cast and slate as leagueGames reads them (stampStats keeps them while its fingerprint holds). */
+interface SeasonRows {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  rows: (LiveRow & { note: string | null; best_of: number | null } & Record<string, any>)[];
+  cast: { id: string; name: string; role: string | null; provider_ids: Record<string, string> | null }[];
+  slated: { stage: string }[];
+}
+
+async function seasonRows(seasonId: string): Promise<SeasonRows> {
   const [{ rows }, { rows: cast }, { rows: slated }] = await Promise.all([
     pool.query(
       `SELECT e.episode, e.provider, e.league, e.event_id, e.name AS title, e.starts_at, e.teams AS linked, e.note, e.best_of, f.state, f.final, f.teams, f.lines, f.people, f.shape, f.called,
@@ -110,11 +115,31 @@ export async function leagueGames(state: LeagueState, o: { mark?: number | null;
     pool.query("SELECT id, name, role, provider_ids FROM season_cast WHERE season_id = $1 AND provider_ids IS NOT NULL", [seasonId]),
     pool.query("SELECT stage FROM sports_slates WHERE season_id = $1", [seasonId]),
   ]);
+  return { rows, cast, slated };
+}
+
+/**
+ * A league's sports games, as of `mark` (the viewer's: a game past it is still to play for them; null, as it stands): undefined
+ * for a league whose season links no games. `now` is for checks.
+ */
+export async function leagueGames(state: LeagueState, o: { mark?: number | null; now?: Date } = {}): Promise<LeagueGames | undefined> {
+  const seasonId = await seasonIdOf(state);
+  if (!seasonId) return undefined;
+  return gamesFrom(state, await seasonRows(seasonId), o);
+}
+
+/**
+ * leagueGames' working out, from a season's rows. Step 1.1, part 3 (docs/PLAN-sports-ready.md): `live`, the lines so far of games
+ * being played (live-lines.ts, by `provider|league|event`), each counted with its episode as a final's lines are, the episode early
+ * (`out.live`), and the game itself still being played for the grader (no question settles on it, no matchup is decided by it).
+ */
+function gamesFrom(state: LeagueState, data: SeasonRows, o: { mark?: number | null; now?: Date; live?: Map<string, StoredGame> } = {}): LeagueGames | undefined {
+  const { rows, cast, slated } = data;
   if (!rows.length) return undefined;
   const now = (o.now ?? new Date()).getTime();
   const mark = o.mark ?? null;
   const who = peopleOf(state, cast);
-  const out: LeagueGames = { lines: new Map(), byGame: new Map(), slate: new Map(), groups: {}, teamIds: {}, bouts: new Map(), games: new Map(), sides: new Map(), defs: {}, periods: null, done: new Set(), eachGame: new Map(), playoffs: null };
+  const out: LeagueGames = { lines: new Map(), byGame: new Map(), slate: new Map(), groups: {}, teamIds: {}, bouts: new Map(), games: new Map(), sides: new Map(), defs: {}, periods: null, done: new Set(), eachGame: new Map(), playoffs: null, live: new Set() };
   // L3 part 2f: a slate's episodes with a game not over yet (still to play, being played, or final without its counts kept).
   const open = new Set<number>();
   const slateEps = new Set<number>();
@@ -180,24 +205,29 @@ export async function leagueGames(state: LeagueState, o: { mark?: number | null;
       continue;
     }
     const early = Number(r.episode) < (lastOf.get(`${r.provider}|${r.league}|${r.event_id}`) ?? 0);
-    const status = early && statusOf(r, now) === "final" ? "in" : statusOf(r, now);
+    const was = early && statusOf(r, now) === "final" ? "in" : statusOf(r, now);
+    // Step 1.1, part 3: a game being played, its lines so far (never a race weekend's earlier session: it's scored on its last). The
+    // live feed has it on even when its row, refreshed hourly, still says it's to start.
+    const live = (was === "in" || was === "pre") && !early ? o.live?.get(keyOf(r)) : undefined;
+    const status = live ? "in" : was;
     if (status !== "final" && status !== "off") open.add(n);
     if (status !== "final") {
       // L3 part 3b: a game called off says why (postponed: its makeup, when there is one, a game of its own; cancelled).
       const called = status === "off" && (r.called === "postponed" || r.called === "canceled") ? { called: r.called as "postponed" | "canceled" } : {};
       setGame(n, event, { status, sides: status === "pre" ? teams.map((id) => ({ id, score: 0 })) : known, lines: {}, teams: {}, ...called });
-      continue;
+      if (!live) continue;
+      out.live.add(n);
     }
-    // The saved final in the league's people (a team's own ids, its sides, stay as they are).
-    const people = (r.people ?? {}) as StoredPeople;
+    // The saved final (or a game's lines so far) in the league's people (a team's own ids, its sides, stay as they are).
+    const people = (live ? live.people : (r.people ?? {})) as StoredPeople;
     const idOf = (athlete: string) => who.get(`${r.provider}:${athlete}`)?.id ?? `${r.provider}:${athlete}`;
     for (const [athlete, p] of Object.entries(people)) {
       const c = who.get(`${r.provider}:${athlete}`);
       const group = c ? groupOf(sport, c.role, p.position) : null;
       if (c && group && !out.groups[c.id]) out.groups[c.id] = group;
     }
-    const g = renamed(storedOf(sport, r.lines as Record<string, Stats>, people, known, r.shape as StoredShape | null), idOf);
-    setGame(n, event, storedFacts(sport, g, "final"));
+    const g = live ? renamed(live, idOf) : renamed(storedOf(sport, r.lines as Record<string, Stats>, people, known, r.shape as StoredShape | null), idOf);
+    if (!live) setGame(n, event, storedFacts(sport, g, "final"));
     // A team game's derived stats worked out (total bases); a field's and a card's lines as the phone scores them (statePoints).
     const full = (lines: Record<string, Stats>) => (sport instanceof TeamSport ? Object.fromEntries(Object.entries(lines).map(([id, l]) => [id, sport.full(l)])) : lines);
     if (slate) {
@@ -321,6 +351,32 @@ type Stamp = { lines: Record<number, Record<string, Stats>>; early: number[]; bo
 const stamps = new Map<string, { key: string; stamp: Stamp }>();
 const MAX_STAMPS = 200;
 const seasons = new Map<string, string>();
+// Each season's rows as last read, under the same fingerprint: a live read (step 1.1, part 3) works its stamp out again each time a
+// game's answer moves (every 10 s or so while one's on), from these, never the database's again.
+const seasonData = new Map<string, { key: string; data: SeasonRows }>();
+const MAX_SEASONS = 20;
+// The last live stamp each league's cast worked out, with the live answers it read (their version): every read of a 10 s window
+// shares one.
+const liveStamps = new Map<string, { key: string; stamp: Stamp }>();
+
+/** A league's games as a stamp writes them (StatsLogic.stamp's `o`). */
+function stampOf(g: LeagueGames): Stamp {
+  // An episode's one game final (a league's slate's episodes are 2f's: their lines are their final games' already). L3 part 3b:
+  // or called off (postponed, cancelled): its results are in, nothing happened (nothing scores, its questions don't count), so
+  // the game moves on past it.
+  const finals = [...g.games].filter(([, f]) => f.status === "final" || f.status === "off").map(([n]) => n);
+  // L3 part 2e: each final game's score, for squares (its sides and each period's end); a called-off one's its status alone (its
+  // squares pay nobody: payScore's 'off').
+  const games = Object.fromEntries(finals.map((n) => { const f = g.games.get(n)!; return [n, { status: f.status, sides: f.sides, ...(f.periods ? { periods: f.periods } : {}) }]; }));
+  // L3 part 2f: a slate's episode's lines, the week's and each game's (a table scored game by game: byGame). Step 1.1, part 2
+  // (docs/PLAN-sports-ready.md): a week in progress too, its games final so far, its results early (StatsLogic.stamp's `early`),
+  // so a table moves as each game ends; it's final, and head to head, a race or a cut is decided, once every game in it is over.
+  // Part 3: an episode with a game being played counted live (`g.live`), early the same way: a slate's week, or an episode's one game.
+  const lines = Object.fromEntries([...g.lines]);
+  const early = [...g.lines.keys()].filter((n) => (g.slate.has(n) ? !g.done.has(n) : g.live.has(n)));
+  const byGame = Object.fromEntries([...g.byGame].map(([n, m]) => [n, Object.fromEntries(m)]));
+  return { lines, early, bouts: Object.fromEntries(g.bouts), groups: g.groups, teamIds: g.teamIds, finals: [...finals, ...g.done], defs: g.defs, games, periods: g.periods, byGame };
+}
 
 /**
  * L3 part 2, the engine's hook: a game scored by a sport's stats, its games' lines stamped on `state` in place (StateLogic.StatsLogic
@@ -330,8 +386,12 @@ const seasons = new Map<string, string>();
  * answer-points.ts serverFacts), a game scored by stats those too. As it stands (every final game: the viewer's copy is cut at their
  * mark by the spoiler view, as any result is). Never stored: withLeagueLock leaves the stamped keys out of what it saves. Any other
  * game, or one whose season links no games, is left as it is. Returns the state.
+ *
+ * Step 1.1, part 3 (docs/PLAN-sports-ready.md): `live`, the games being played counted too, their lines so far (live-lines.ts), as
+ * a week in progress. Only for a read whose viewer the season shows everything to (season-games.ts decides): never a write
+ * (withLeagueLock), a seat at its own pace or behind, or anyone hiding sports scores.
  */
-export async function stampStats(state: LeagueState): Promise<LeagueState> {
+export async function stampStats(state: LeagueState, o: { live?: boolean } = {}): Promise<LeagueState> {
   if (!StateLogic.StatsLogic.reads(state)) return state;
   const s = (state.settings ?? {}) as { showId?: string; wikiSeason?: unknown };
   const which = `${s.showId}/${s.wikiSeason}`;
@@ -343,7 +403,7 @@ export async function stampStats(state: LeagueState): Promise<LeagueState> {
        (SELECT string_agg(f.event_id || ':' || f.lines_at::text, ',' ORDER BY f.event_id)
           FROM season_events e JOIN sports_events f ON f.provider = e.provider AND f.league = e.league AND f.event_id = e.event_id
          WHERE e.season_id = $1 AND f.lines_at IS NOT NULL),
-       (SELECT string_agg(e.episode || ':' || e.event_id, ',' ORDER BY e.episode, e.event_id) FROM season_events e WHERE e.season_id = $1),
+       (SELECT string_agg(e.episode || ':' || e.event_id || ':' || coalesce(e.starts_at::text, ''), ',' ORDER BY e.episode, e.event_id) FROM season_events e WHERE e.season_id = $1),
        (SELECT string_agg(f.event_id, ',' ORDER BY f.event_id)
           FROM season_events e JOIN sports_events f ON f.provider = e.provider AND f.league = e.league AND f.event_id = e.event_id
          WHERE e.season_id = $1 AND f.state = 'post' AND NOT f.final),
@@ -354,27 +414,48 @@ export async function stampStats(state: LeagueState): Promise<LeagueState> {
   const cast = (state.castaways ?? []).map((c) => `${c.id}:${c.name}`).join(",");
   const key = `${seasonId}|${rows[0]?.key}|${cast}`;
   const id = `${seasonId}|${cast}`;
+  // The season's rows, read again only when its fingerprint moves (the cast's part of the key is the league's, not the rows').
+  const rowsKey = String(rows[0]?.key);
+  const dataOf = async () => {
+    let d = seasonData.get(seasonId);
+    if (!d || d.key !== rowsKey) {
+      d = { key: rowsKey, data: await seasonRows(seasonId) };
+      seasonData.delete(seasonId);
+      seasonData.set(seasonId, d);
+      if (seasonData.size > MAX_SEASONS) seasonData.delete(seasonData.keys().next().value!);
+    }
+    return d.data;
+  };
   let hit = stamps.get(id);
   if (!hit || hit.key !== key) {
-    const g = await leagueGames(state);
+    const g = gamesFrom(state, await dataOf());
     if (!g) return state;
-    // An episode's one game final (a league's slate's episodes are 2f's: their lines are their final games' already). L3 part 3b:
-    // or called off (postponed, cancelled): its results are in, nothing happened (nothing scores, its questions don't count), so
-    // the game moves on past it.
-    const finals = [...g.games].filter(([, f]) => f.status === "final" || f.status === "off").map(([n]) => n);
-    // L3 part 2e: each final game's score, for squares (its sides and each period's end); a called-off one's its status alone (its
-    // squares pay nobody: payScore's 'off').
-    const games = Object.fromEntries(finals.map((n) => { const f = g.games.get(n)!; return [n, { status: f.status, sides: f.sides, ...(f.periods ? { periods: f.periods } : {}) }]; }));
-    // L3 part 2f: a slate's episode's lines, the week's and each game's (a table scored game by game: byGame). Step 1.1, part 2
-    // (docs/PLAN-sports-ready.md): a week in progress too, its games final so far, its results early (StatsLogic.stamp's `early`),
-    // so a table moves as each game ends; it's final, and head to head, a race or a cut is decided, once every game in it is over.
-    const lines = Object.fromEntries([...g.lines]);
-    const early = [...g.lines.keys()].filter((n) => g.slate.has(n) && !g.done.has(n));
-    const byGame = Object.fromEntries([...g.byGame].map(([n, m]) => [n, Object.fromEntries(m)]));
-    hit = { key, stamp: { lines, early, bouts: Object.fromEntries(g.bouts), groups: g.groups, teamIds: g.teamIds, finals: [...finals, ...g.done], defs: g.defs, games, periods: g.periods, byGame } };
+    hit = { key, stamp: stampOf(g) };
     stamps.delete(id);
     stamps.set(id, hit);
     if (stamps.size > MAX_STAMPS) stamps.delete(stamps.keys().next().value!);
+  }
+  // Step 1.1, part 3: the games being played, their lines so far, when this read may have them.
+  if (o.live) {
+    const data = await dataOf();
+    const live = await liveLines(data.rows).catch((e) => {
+      console.error("[sports] live lines:", e);
+      return null;
+    });
+    if (live) {
+      const liveKey = `${key}|${live.version}`;
+      let lhit = liveStamps.get(id);
+      if (!lhit || lhit.key !== liveKey) {
+        const g = gamesFrom(state, data, { live: live.games });
+        if (g) {
+          lhit = { key: liveKey, stamp: stampOf(g) };
+          liveStamps.delete(id);
+          liveStamps.set(id, lhit);
+          if (liveStamps.size > MAX_STAMPS) liveStamps.delete(liveStamps.keys().next().value!);
+        }
+      }
+      if (lhit && lhit.key === liveKey) hit = lhit;
+    }
   }
   // Each league its own copy of the lines (stamp keeps only its castaways' and the copy is the league's to change); a game of
   // questions, its finals alone (the grader reads the games); the sport's stats' defs only for a game ranked by categories; squares

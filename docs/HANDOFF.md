@@ -64,11 +64,12 @@ Newest first. The plan or archive section named holds the detail.
    Designs-needed words batch, and the production check-ups.
 4. **C8, the 2-on-1 head to head**, on a fresh branch from master (its seven answers are in decisions.md, 2026-11-19; who plays
    alone first is drawn at random), then the rest of the redo plan's E3.
-5. **Sports, a lane of its own:** [PLAN-sports-ready.md](PLAN-sports-ready.md)'s step 1.1, part 3 toward live scores (BACKLOG
-   215 answered; part 1, finals within the hour by the hourly job, and part 2, a week counted as its games end, are done), then
-   one Neon rehearsal and the merge, then Phase 2 (the user answered 212–219 on 2026-11-19: every recommendation but 218, where
-   they want own pace for sports, now Phase 2.6), then Phase 2. Phase 0 and every other Phase 1 step are done on branch sports-phase0, not merged yet (0309 and
-   0310 are additive). **Its migration 0308 is applied to the main folder's local database**: master's code names
+5. **Sports, a lane of its own:** [PLAN-sports-ready.md](PLAN-sports-ready.md): one Neon rehearsal and the merge (step 1.1's
+   parts 1 to 3 are done: finals within the hour, a week counted as its games end, and live points during games for anyone shown
+   everything, never an own-pace seat or anyone hiding sports scores), then Phase 2 (the user answered 212–219 on 2026-11-19:
+   every recommendation but 218, where they want own pace for sports, now Phase 2.6). 1.1's part 4, the live screens, is the
+   design round's page 2 and needs a small live read (polling the whole games read would be ~100 MB a phone an NFL game). Phase 0
+   and all of Phase 1 but part 4 are done on branch sports-phase0, not merged yet (0309 and 0310 are additive). **Its migration 0308 is applied to the main folder's local database**: master's code names
    the old season_cast conflict target, so on master locally a cast insert (Make it a game, the desk's cast edits) fails until
    the branch merges. To undo it locally: `DROP INDEX season_cast_provider_idx; DROP INDEX season_cast_name_idx; CREATE UNIQUE
    INDEX season_cast_name_idx ON season_cast (season_id, lower(name)); DELETE FROM schema_migrations WHERE version =

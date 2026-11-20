@@ -38,8 +38,11 @@ function draftTurn(state: LeagueState) {
  *
  * L3 part 2: a game scored by a sport's stats gets its final games' lines stamped (sports/score.ts stampStats), never stored. Part
  * 2e: a squares game's deal at its first lock, and each locked episode's digits, kept the same way as a draw's teams.
+ *
+ * `live` (docs/PLAN-sports-ready.md step 1.1, part 3): the games being played counted too, their lines so far, for a viewer the
+ * season shows everything to (the caller knows: season-games.ts). Off unless asked, so every other read stays at the finals.
  */
-export async function readyLeague(leagueId: string, state: LeagueState): Promise<LeagueState> {
+export async function readyLeague(leagueId: string, state: LeagueState, o: { live?: boolean } = {}): Promise<LeagueState> {
   await stampAirTimes(pool, state, leagueId);
   const waiverStepDue = !!StateLogic.WaiverLogic.due(state, Date.now());
   // A draw whose scheduled time has come (step A10 part 3): withLeagueLock draws it.
@@ -56,10 +59,10 @@ export async function readyLeague(leagueId: string, state: LeagueState): Promise
       console.error(`[league-read] couldn't tell whether computer players have something due in ${leagueId}:`, e);
       return false;
     });
-  if (!StateLogic.ensureNextEpisode(structuredClone(state)) && !Bots.hasWork(state) && !waiverStepDue && !drawDue && !auctionDue && !keepersDue && !squaresDue && !(await botsWaiting())) return stampCastProps(await stampStats(state));
+  if (!StateLogic.ensureNextEpisode(structuredClone(state)) && !Bots.hasWork(state) && !waiverStepDue && !drawDue && !auctionDue && !keepersDue && !squaresDue && !(await botsWaiting())) return stampCastProps(await stampStats(state, o));
   const before = draftTurn(state);
   const next = await withLeagueLock(leagueId, () => {});
   if (draftTurn(next) !== before) notifyDraftTurn(leagueId, next, null);
   await stampAirTimes(pool, next, leagueId);
-  return stampCastProps(await stampStats(next));
+  return stampCastProps(await stampStats(next, o));
 }

@@ -246,6 +246,16 @@ runs every hour too (step 1.1: `db/sports-refresh.js`, a step of the hourly GitH
 hour; no new secret, and no new Neon wake-up, since the job already connects every hour). A run with nothing due reads cached
 answers (measured on the NFL fixture: an hour after a week's last final, ESPN asked nothing); during a game, its day's scoreboard
 is asked again at most every 3 minutes of runs (one an hour here). The same work as below, by the hour; the daily job stays.
+**Live points during games (step 1.1 part 3, 2026-11-19, branch sports-phase0, not merged)** poll nothing and run nothing on a
+schedule. When someone shown everything (sports live, not hiding scores, not at their own pace) reads a show's games
+(`/api/seasons/[id]/games`) while one of its games is being played, the server takes that game's lines so far from the live route's
+own poller (`src/lib/server/sports/live-lines.ts` through `live-proxy.ts`): the same one ESPN ask a game every 10 s an instance the
+phones' live route already makes, whoever reads; nothing new in Neon (the season's rows are kept in memory by their fingerprint,
+read again only when a final is kept or the cast changes) and nothing stored. A read waits at most 2.5 s for a new answer. **On a
+phone it depends on the screens (part 4, not built):** the whole games read is ~1.35 MB (~136 KB gzipped) on the NFL fixture, nearly
+all of it the season's ~2,500 people, so polled every 15 s for a game it would be ~100 MB a phone; a game's table and matchups alone
+are ~0.5 KB gzipped (~0.3 MB a phone a game). Part 4 polls a small live read, never the whole read (measured by
+`scripts/dev-test/check-sports-live-points.js`).
 wakes nothing new: it runs inside the same daily listings job. It refills each sports season with a game near now once a day (at
 most 10 seasons a run: a roster call per linked team, cached a day and shared by a league's seasons, so about 32 calls a day for
 the NFL however many seasons follow it), so signings, trades and each player's injury arrive (the same roster calls; `season_cast.injury`,

@@ -6,7 +6,7 @@ and in flight is in [HANDOFF.md](HANDOFF.md).
 
 **How this file works**
 - **Numbers are permanent.** Code, tests and commits cite "BACKLOG 57", so a number never changes and is never reused. A new
-  item takes the next free number: **the next is 224.**
+  item takes the next free number: **the next is 225.**
 - **Closing an item:** delete it here and add one line under "Closed since the cleanup" at the end: the number, done or
   dropped, and the commit or the reason. Numbers closed in the cleanup itself are listed, with their full old text, in
   [archive/BACKLOG-2026-11-19.md](archive/BACKLOG-2026-11-19.md).
@@ -161,10 +161,12 @@ end-game.ts, join-league.ts, db/link-season-cast.js, db/game-specs.js, db/rulebo
 row `FOR UPDATE` in the same transaction, or go through the lock. Done when each is confirmed or fixed, and check-new-desk's
 "every league renames him" passes ten runs in a row. [S–M · engine]
 
-**26. Two lint errors.** `npx eslint src` fails `react-hooks/immutability` at src/components/ui/use-sheet-swipe.ts:40 (`reset`
+**26. Four lint errors.** `npx eslint src` fails `react-hooks/immutability` at src/components/ui/use-sheet-swipe.ts:40 (`reset`
 writes the scrim ref's style, in a hook every new-design sheet uses), and the purity rule at game-page.tsx:147 (`Date.now()` in
-render). Write the style through the element, and take `now` from the page's clock. Done when eslint is clean and the sheet
-swipe still works. [S · cleanup]
+render). Write the style through the element, and take `now` from the page's clock. Since then (seen 2026-11-19 on sports-phase0,
+the same on a clean tree): the purity rule at lineup-sheet.tsx:183 (`Date.now()` in render, the locks-by-game TEMP-UI) and
+`no-require-imports` at src/lib/game/formats/format-timeline.js:22. Done when eslint is clean and the sheet swipe still works.
+[S · cleanup]
 
 **37. Couch points: a backup gap and two ties.** scripts/backup-common.js leaves out `user_days`, so a restore loses everyone's
 days opened: add it to the people tables. Tonight's Stat of the week (`statBoard(...)[0]`) and the hub's Most-watched show take

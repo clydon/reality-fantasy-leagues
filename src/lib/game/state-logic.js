@@ -10177,11 +10177,15 @@ class GhostLogic {
     // A sport's week in progress (docs/PLAN-sports-ready.md step 1.1, part 2) past the mark of a seat playing at its own pace that's
     // caught up stays out of its copy, as the week will once it's final and they're catching up to it: the game waits for them (the
     // season's guard tells a caught-up seat everything, and before part 2 nothing past its mark had a line). Only a week in
-    // progress: nothing else past a caught-up seat's mark has results.
+    // progress: nothing else past a caught-up seat's mark has results. Step 1.1, part 3: a seat with no pace of its own yet (a game
+    // made at its own pace before it aired, before its first results: paceTogether; settlePace gives it one then) is caught up
+    // too, so no week in progress at all, live points or a game final so far.
     if(opts && opts.full) return out;
-    const lj = GhostLogic.ownPace(state) ? GhostLogic.lateJoinOf(state, viewerId) : null;
-    if(!lj || lj.catchingUp || !Number.isInteger(lj.seenThrough)) return out;
-    const past = new Set((out.episodes || []).filter(e => e.number > lj.seenThrough && EpisodeLogic.inProgress(e)).map(e => e.number));
+    if(!GhostLogic.ownPace(state)) return out;
+    const lj = GhostLogic.lateJoinOf(state, viewerId);
+    if(lj ? (lj.catchingUp || !Number.isInteger(lj.seenThrough)) : !Core.getPlayer(state, viewerId)) return out;
+    const mark = lj ? lj.seenThrough : -Infinity;
+    const past = new Set((out.episodes || []).filter(e => e.number > mark && EpisodeLogic.inProgress(e)).map(e => e.number));
     if(!past.size) return out;
     const s = out === state ? JSON.parse(JSON.stringify(state)) : out;
     delete s.answerWalk;

@@ -110,6 +110,16 @@ function markFor(state: LeagueState, seat: Seat, seen: number): number | null {
 }
 
 /**
+ * Whether a read of this game may count its games being played, their lines so far (docs/PLAN-sports-ready.md step 1.1, part 3):
+ * only when the season shows this viewer everything (no mark: sports live, nobody hiding sports scores), the game isn't played at
+ * its own pace (a seat there waits for its reveal, caught up or not: its mark never takes in a week still being played) and their
+ * seat isn't a late joiner's. Anyone else's copy is built from the finals alone, and cut at their mark besides.
+ */
+function liveFor(state: LeagueState, seat: Seat, seen: number): boolean {
+  return markFor(state, seat, seen) === null && !StateLogic.GhostLogic.ownPace(state) && !StateLogic.GhostLogic.lateJoinOf(state, seat.playerId);
+}
+
+/**
  * Whether a game is over as far as `mark` has seen (null: everything), from its stored state alone, before it's read in full (E2: a
  * season of short games is mostly over, and the running games and the archive's page are all a read needs in full): true, false, or
  * null when the state alone can't say. What ends a game the state doesn't hold reads as null: Weekly Calls and bingo (their calls),
@@ -217,7 +227,7 @@ async function readHere(user: SessionUser, listed: Listed, keep: (state: LeagueS
     const state = states.get(g.leagueId);
     if (!seat || !state || !keep(state, markFor(state, seat, seen), g.leagueId)) continue;
     try {
-      const ready = await readyLeague(g.leagueId, state);
+      const ready = await readyLeague(g.leagueId, state, { live: liveFor(state, seat, seen) });
       const { state: walked, answers } = await standingHere(g.leagueId, ready, user.id);
       here.push({
         game: g,
@@ -244,7 +254,7 @@ async function readOnlyHere(user: SessionUser, seasonId: string, ro: ReadOnly): 
   const state = states.get(g.leagueId);
   if (!state) return { seen, here: [] };
   try {
-    const ready = await readyLeague(g.leagueId, state);
+    const ready = await readyLeague(g.leagueId, state, { live: seen === EVERYTHING });
     const { state: walked, answers } = await standingHere(g.leagueId, ready, user.id);
     return {
       seen,
@@ -451,7 +461,7 @@ export async function couchOthers(user: SessionUser, seasonId: string, couchId: 
     const state = states.get(g.leagueId);
     if (!state) continue;
     try {
-      const ready = await readyLeague(g.leagueId, state);
+      const ready = await readyLeague(g.leagueId, state, { live: seen === EVERYTHING });
       const { state: walked, answers } = await standingHere(g.leagueId, ready, user.id);
       const h: GameHere = { game: g, ref: refOf(g), state: walked, playerId: "", mark: seen === EVERYTHING ? null : seen, userOf: (p) => users.get(g.leagueId)?.get(p) ?? null, readOnly: true, ...(answers ? { answers } : {}) };
       const view = await viewWithCalls(user, seasonId, h, memo);
