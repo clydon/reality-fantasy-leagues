@@ -113,8 +113,8 @@ function DeskTabs({ tab }: { tab: Tab }) {
 
 // Each kind's tag (the mock's desk-inbox.js): yellow only where the couches couldn't settle a result.
 const TAGS: Record<InboxItem["kind"], [string, "must" | "quiet"]> = {
-  split: ["Disputed", "must"],
-  stale: ["Disputed", "must"],
+  split: ["Still split", "must"],
+  stale: ["Still split", "must"],
   phase: ["Confirm", "must"],
   change: ["New?", "must"],
   stranded: ["Couch", "quiet"],
@@ -295,9 +295,9 @@ function InboxTab({ data, loading }: { data: Inbox | undefined; loading: boolean
         <div className="grid grid-cols-2 gap-2.5" data-week>
           {(
             [
-              [data.week.researched, "episodes researched by couches"],
+              [data.week.researched, "episodes researched"],
               [data.week.confirmed, "confirmed by 2+ sources"],
-              [data.week.settled, "disputes settled without you"],
+              [data.week.settled, "questions settled without you"],
               [data.week.rulings, "house rulings kept"],
             ] as const
           ).map(([n, l]) => (
@@ -307,7 +307,7 @@ function InboxTab({ data, loading }: { data: Inbox | undefined; loading: boolean
             </div>
           ))}
         </div>
-        <p className="mt-3 text-[14px] leading-relaxed text-muted-foreground">Facts settle when sources agree. A dispute reaches you when another answer couldn&apos;t settle it, or nobody checked a flag within a day (with the tie-break run on, once it has had its try).</p>
+        <p className="mt-3 text-[14px] leading-relaxed text-muted-foreground">Results settle on their own: when answers disagree, our bot looks again and what most answers say stands. Only what it can&apos;t settle comes here.</p>
       </Section>
     </>
   );
@@ -682,7 +682,7 @@ function SettingsTab() {
   };
   const mode = SIGNUPS.find(([m]) => m === s.signups.mode);
   const pv = s.previews, pvShare = pv.month && pv.month.budgetMs ? pv.month.cpuMs / pv.month.budgetMs : 0;
-  const disputed = (on: boolean) => (on ? "The bot asks again after a day" : "It waits for a couch to check again");
+  const disputed = (on: boolean) => (on ? "Our bot looks again an hour later" : "It waits for you");
   const fill = (anyone: boolean) => (anyone ? "Anyone on the couch" : "Only people who run games");
   const rb = s.rulebooks;
   return (
@@ -718,7 +718,7 @@ function SettingsTab() {
       </SetSection>
       <SetSection title="Results" line="How a result becomes everyone's. Who went home is always checked for free.">
         <DeskRow data="confirm" onClick={() => setSheet("confirm")} lead={<IconLead icon={CheckCheck} />} title="Sources to confirm a result" dot={s.confirmAt !== 2} line={`${s.confirmAt} that agree${s.confirmAt === 2 ? " · recommended" : ""}`} />
-        <DeskRow data="tiebreak" onClick={() => setSheet("tiebreak")} lead={<IconLead icon={RotateCcw} />} title="When a result is disputed" line={disputed(s.tiebreak.on)} />
+        <DeskRow data="tiebreak" onClick={() => setSheet("tiebreak")} lead={<IconLead icon={RotateCcw} />} title="When answers disagree" line={disputed(s.tiebreak.on)} />
         <DeskRow data="couches" onClick={() => setSheet("couches")} lead={<IconLead icon={Users} />} title="Who fills in results on new couches" dot={!s.newCouchesAnyone} line={`${fill(s.newCouchesAnyone)}${s.newCouchesAnyone ? " · recommended" : ""}`} />
       </SetSection>
       <SetSection title="Our bot" line="What it looks up on its own, and with which AI.">
@@ -791,13 +791,13 @@ function SettingsTab() {
         {s.confirmAt !== 2 && <ResetLink onClick={() => put({ confirmAt: 2 }, "Sources to confirm a result: 2 that agree")} />}
         <p className="mt-3 text-[13px] text-muted-foreground">Every shared result is settled again with the new number.</p>
       </Sheet>
-      <Sheet open={sheet === "tiebreak"} onOpenChange={(o) => !o && close()} title="When a result is disputed" subtitle={`A result two sources disagree on, for ${s.tiebreak.hours} hours`}>
+      <Sheet open={sheet === "tiebreak"} onOpenChange={(o) => !o && close()} title="When answers disagree" subtitle="A split, a flag, or a late answer that needs a second look">
         <div className="flex flex-col gap-2">
           {([
-            [true, "Our bot asks that episode's full results once more, as a source of its own. Most disputes settle; what doesn't comes to your Inbox. Free: about 2 minutes of the bot each."],
-            [false, "Someone on a couch checks it again. A flag nobody checks within a day comes to your Inbox."],
+            [true, "It asks for the episode's full results once more, as an answer of its own, and what most answers say stands. What still won't settle comes to your Inbox. Free: about 2 minutes of the bot each."],
+            [false, "Splits stay as they are and come to your Inbox. Another answer from a couch can still settle them."],
           ] as const).map(([v, d]) => (
-            <ChoiceCard key={String(v)} attrs={{ "data-tiebreak": String(v) }} on={s.tiebreak.on === v} title={disputed(v)} line={d} onClick={() => v !== s.tiebreak.on && put({ tiebreak: v }, `When a result is disputed: ${disputed(v).toLowerCase()}`)} />
+            <ChoiceCard key={String(v)} attrs={{ "data-tiebreak": String(v) }} on={s.tiebreak.on === v} title={disputed(v)} line={d} onClick={() => v !== s.tiebreak.on && put({ tiebreak: v }, `When answers disagree: ${disputed(v).toLowerCase()}`)} />
           ))}
         </div>
         <p data-tiebreak-reach className="mt-3 text-[13px] leading-snug text-muted-foreground">

@@ -26,7 +26,8 @@ import { gamesApart, matchSeasonGames, syncSeasonLeagues, type GameApart } from 
 // not classic's staged rows), its Answers (every submission a source: a couch's paste or quick check, One tap, our bot's
 // runs, the desk's own paste), its trivia and bingo, History, and Clear its results last.
 //
-//   Not in the games yet   a reported fact that isn't in every game (one source, and it wasn't sure), or a name nobody in
+//   Not in the games yet   a reported fact that isn't in every game (after final results, one late look reports it and it
+//                          waits for a second: docs/PLAN-results-settle.md), or a name nobody in
 //                          the cast has: Accept (canonical, locked: desk-facts.ts decideFact), Reject, Correct (Who?), or
 //                          Accept all (tier 2: what moves said first).
 //   Disputed               to its fact page (the sources split, or a player's flag no answer has checked).
@@ -262,7 +263,7 @@ export async function waitingEpisodes(seasonId: string): Promise<{ n: number; co
     .map(([n, c]) => ({
       n,
       count: c.waiting,
-      line: [c.waiting - c.unknown && `${c.waiting - c.unknown} one source wasn't sure of`, c.unknown && `${c.unknown} not in the cast`].filter(Boolean).join(" · "),
+      line: [c.waiting - c.unknown && `${c.waiting - c.unknown} waiting for a second look`, c.unknown && `${c.unknown} not in the cast`].filter(Boolean).join(" · "),
     }));
 }
 
@@ -275,7 +276,7 @@ export async function episodeRows(seasonId: string, now = new Date()): Promise<{
   const next = eps.find((e) => Date.parse(e.airAt!) > now.getTime());
   const line = (n: number, at: Date) => {
     const c = counts.get(n);
-    return `Aired ${mdIn(at, tz, now)} · ${!c || (!c.answers && !c.live) ? "no results yet" : c.waiting ? `${c.waiting} not in the games yet` : c.disputed ? `${c.disputed} disputed` : "in every game"}`;
+    return `Aired ${mdIn(at, tz, now)} · ${!c || (!c.answers && !c.live) ? "no results yet" : c.waiting ? `${c.waiting} not in the games yet` : c.disputed ? `${c.disputed} being settled` : "in every game"}`;
   };
   // An episode with results but no date (a season with no schedule): still listed, by its results.
   const dated = new Set(eps.map((e) => e.number));
@@ -285,7 +286,7 @@ export async function episodeRows(seasonId: string, now = new Date()): Promise<{
     ...aired.map((e) => ({ n: e.number, line: line(e.number, new Date(e.airAt!)) })),
     ...undated.map((n) => {
       const c = counts.get(n)!;
-      return { n, line: c.waiting ? `${c.waiting} not in the games yet` : c.disputed ? `${c.disputed} disputed` : c.live ? "in every game" : "no results yet" };
+      return { n, line: c.waiting ? `${c.waiting} not in the games yet` : c.disputed ? `${c.disputed} being settled` : c.live ? "in every game" : "no results yet" };
     }),
   ];
 }
@@ -328,7 +329,10 @@ function answerOf(s: SubRow, me: string, tz: string, now: Date, facts: number): 
   const took = s.seconds ? ` It took ${secs(s.seconds)}.` : "";
   if (s.source === "bot")
     return { id: s.id, kind: "bot", title: `Our bot, for ${s.couch ?? "a couch"}`, line: `One tap, by ${who} · ${results} · ${at}`, detail: `One tap for ${s.couch ?? "a couch"}, asked by ${who}. ChatGPT answered.${took}` };
-  if (s.source === "tiebreak") return { id: s.id, kind: "bot", title: "Our bot, a tie-break", line: `A tie-break run · ${results} · ${at}`, detail: `The tie-break run: the results asked again when a split stood for a day.${took}` };
+  if (s.source === "tiebreak") return { id: s.id, kind: "bot", title: "Our bot, a second look", line: `A tie-break run · ${results} · ${at}`, detail: `The tie-break run: the episode asked again when answers disagreed, as an answer of its own.${took}` };
+  // The catch-up (catch-up.ts): every aired episode asked again once, when the show gained something to research. It read as
+  // "On its schedule" until 2026-11-20, which hid where the season's 2026-11-16 splits came from.
+  if (s.source === "catchup") return { id: s.id, kind: "bot", title: "Our bot, the catch-up", line: `The catch-up · ${results} · ${at}`, detail: `The catch-up: every aired episode asked again once, for what the show gained to research.${took}` };
   const now_ = s.slot === "now";
   const by = s.asked_by ? (s.asked_by === me ? "you" : s.asked_name) : null;
   return {
@@ -445,7 +449,6 @@ export async function deskEpisode(user: SessionUser, id: string, nIn: unknown, n
               ? "gone"
               : "wait";
     const names = [...new Set(said.map((x) => subById.get(x.research_id)!).map((x) => (x.submitted_by === user.id ? "yours" : x.who ? `${x.who}'s` : x.source === "quick" ? "a quick check" : "our bot's")))];
-    const sure = said.some((x) => x.confidence === "high");
     const decidedBy = locked ? (f.locked_by === user.id ? "you" : (f.locked_name ?? "an admin")) : null;
     const flag = flags.find((x) => x.decision_id === f.id);
     const guess = unknown ? guessName(name, castNames) : null;
@@ -453,11 +456,11 @@ export async function deskEpisode(user: SessionUser, id: string, nIn: unknown, n
       state === "wait"
         ? unknown
           ? `Nobody called ${name} is in the cast.${guess ? ` ${guess}, maybe?` : ""}`
-          : `${yes <= 1 ? "One source" : `${yes} sources`}${names.length ? ` (${names.join(", ")})` : ""}, ${sure ? `waiting for ${need} to agree` : yes <= 1 ? "and it wasn't sure" : "and none was sure"}`
+          : `${yes <= 1 ? "One look" : `${yes} looks`}${names.length ? ` (${names.join(", ")})` : ""} after final results. It goes in once another agrees`
         : state === "disputed"
           ? flag
             ? `Flagged: ${FLAG[flag.reason] ?? flag.reason}. It stays as it was until an answer checks it`
-            : "The sources split. It stays as it was until it's settled"
+            : "Answers disagree. It stays as it was until it's settled: our bot looks again, or you decide"
           : state === "canon"
             ? `${decidedBy === "you" ? "You" : cap(decidedBy ?? "an admin")} decided${f.applied ? `: corrected from ${f.castaway_name}${f.kind === "event" && f.applied.eventType && f.applied.eventType !== f.event_type ? ` · ${events.find((e) => e.id === f.event_type)?.label ?? readable(f.event_type)}` : ""}` : ""}. Locked: answers can't change it`
             : state === "gone"
@@ -466,7 +469,7 @@ export async function deskEpisode(user: SessionUser, id: string, nIn: unknown, n
                 : "Out of every game: more answers said it didn't happen than did"
               : yes >= 2
                 ? `${yes} sources agree`
-                : "1 source, sure of it";
+                : "1 source";
     return {
       id: f.id,
       kind: f.kind,
@@ -512,7 +515,7 @@ export async function deskEpisode(user: SessionUser, id: string, nIn: unknown, n
     date: airAt ? (aired ? mdIn(airAt, tz, now) : cap(whenAt(airAt, tz, now))) : "No date yet",
     wentHome,
     meta: subs.length
-      ? [`${plural(live.length, "result")} in every game`, waiting.length && `${waiting.length} not yet`, disputed.length && `${disputed.length} disputed`, `from ${plural(subs.length, "answer")}`].filter(Boolean).join(" · ")
+      ? [`${plural(live.length, "result")} in every game`, waiting.length && `${waiting.length} not yet`, disputed.length && `${disputed.length} being settled`, `from ${plural(subs.length, "answer")}`].filter(Boolean).join(" · ")
       : "No answers yet",
     endsAt,
     finalAt: ((f) => (f ? { when: whenAt(f, tz, now), passed: f.getTime() <= now.getTime() } : null))(airAt ? finalResultsAt(airAt, tz) : null),

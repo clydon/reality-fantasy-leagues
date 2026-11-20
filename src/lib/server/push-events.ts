@@ -915,7 +915,8 @@ export interface ChangedGame {
   leagueId: string;
   name: string;
   state: LeagueState;
-  changes: { episode: number; facts: { name: string; label: string; change: "removed" | "changed" | "added"; to: string | null }[] }[];
+  /** Each episode's changes: its facts, or `line`, a whole sentence in their place (a house ruling's). */
+  changes: { episode: number; facts: { name: string; label: string; change: "removed" | "changed" | "added"; to: string | null }[]; line?: string }[];
   /** How each player's total moved (player id to points). */
   deltas: Record<string, number>;
 }
@@ -928,8 +929,8 @@ const signed = (d: number) => `${d > 0 ? "+" : "−"}${Math.abs(Math.round(d * 1
  * admin's or a game maker's change. One notice a person for the whole sync, worded for what they've seen: only episodes they
  * have (a change to one they haven't waits for them in it), what changed, and how their points moved in each of their games,
  * the points only when every change is one they've seen (a total moved by an unseen one would give it away). Before an
- * episode's final results a correction stays quiet: its early results say they can still change.
- * WORDS: provisional until the design pass (the plan's step B).
+ * episode's final results a correction stays quiet: its early results say they can still change. Worded the same whoever made
+ * the change (a sync can't tell a couch's answer from the desk's), "Ep 6" first: a phone cuts a title after a dozen letters.
  */
 export function notifyResultsChanged(o: { seasonId: string; batch: string; games: ChangedGame[]; actorUserId: string | null }) {
   notifyAfter("resultsChanged", async () => {
@@ -952,19 +953,22 @@ export function notifyResultsChanged(o: { seasonId: string; batch: string; games
       const all = [...new Set(mine.flatMap((m) => m.game.changes.map((c) => c.episode)))].sort((a, b) => a - b);
       const seen = all.filter((n) => n <= mark);
       if (!seen.length) return null;
-      const facts = new Map(
-        mine.flatMap((m) => m.game.changes.filter((c) => c.episode <= mark).flatMap((c) => c.facts)).map((f) => [`${f.name}|${f.label}|${f.change}`, f])
-      );
+      const changes = mine.flatMap((m) => m.game.changes.filter((c) => c.episode <= mark));
+      const facts = new Map(changes.flatMap((c) => c.facts).map((f) => [`${f.name}|${f.label}|${f.change}`, f]));
+      const lines = [...new Set(changes.map((c) => c.line).filter((l): l is string => !!l))];
       const first = [...facts.values()][0];
+      const verb = (f: NonNullable<typeof first>) => (f.change === "added" ? "added" : f.change === "removed" ? "taken out" : f.to ? `changed to ${f.to}` : "changed");
       const what =
-        facts.size === 1 && first
-          ? `${first.name}: ${first.label} ${first.change === "added" ? "added" : first.change === "removed" ? "taken out" : first.to ? `now ${first.to}` : "changed"}`
-          : `${facts.size} results changed`;
+        lines.length === 1 && !facts.size
+          ? `${lines[0]}.`
+          : facts.size === 1 && first && !lines.length
+            ? `${first.name}: ${first.label} ${verb(first)} after final results.`
+            : `${facts.size + lines.length} results changed after final results.`;
       const points = seen.length === all.length ? mine.map((m) => ({ game: m.game.name, d: m.playerId ? (m.game.deltas[m.playerId] ?? 0) : 0 })).filter((x) => x.d !== 0) : null;
       const pointsLine = points === null ? "" : points.length ? ` Your points: ${points.map((p) => `${signed(p.d)} in ${p.game}`).join(", ")}.` : " Your points didn't change.";
       return {
-        title: seen.length === 1 ? `Ep ${seen[0]} results changed` : `Results changed in Eps ${andList(seen.map(String))}`,
-        body: `${info.label} · ${what}.${pointsLine}`,
+        title: seen.length === 1 ? `Ep ${seen[0]} results changed` : `Eps ${andList(seen.map(String))} results changed`,
+        body: `${info.label} · ${what}${pointsLine}`,
         url: link("/episodes", mine[0].game.leagueId),
         next: `/show/${o.seasonId}/episodes`,
         tag: `changed-${o.seasonId}-${o.batch}`,

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { CalendarClock, Check, CircleQuestionMark, KeyRound, Users } from "lucide-react";
-import { airTime } from "../clock";
 import { backstage, useAfterResults, type Backstage, type Correction, type PreviewLine } from "../data";
 import { Block } from "../show/parts";
 import { GuardSheet } from "../ui/guards";
@@ -95,27 +94,27 @@ export function FillState({ seasonId, couchId, data }: { seasonId: string; couch
   );
 }
 
-/** A disputed episode: one more answer about everyone settles it. */
-export function QuestionCard({ episode, count, tiebreakAt, onAsk }: { episode: number; count: number; tiebreakAt?: string | null; onAsk: () => void }) {
+/**
+ * An episode with results being settled (docs/PLAN-results-settle.md): answers disagree, or someone flagged one. Nothing for the
+ * couch to do: our bot looks again while its tie-break is still to come (`tiebreakAt`), else the desk decides. Scores stay as
+ * they are until then. No time on it: a time already passed would read wrong, and it's the bot's to keep.
+ */
+export function QuestionCard({ episode, count, tiebreakAt }: { episode: number; count: number; tiebreakAt?: string | null }) {
+  const bot = !!tiebreakAt;
+  const some = count === 1 ? "a result" : `${count} results`;
   return (
-    <div data-question={episode} className="rounded-[4px] bg-card p-3.5">
+    <div data-question={episode} data-settling={bot ? "bot" : "desk"} className="rounded-[4px] bg-card p-3.5">
       <div className="flex items-start gap-3">
         <span className="grid size-9 flex-none place-items-center rounded-[3px] bg-secondary">
           <CircleQuestionMark className="size-5" aria-hidden />
         </span>
         <span className="flex-1">
-          <b className="block text-[16px]">
-            {count === 1 ? "A result" : `${count} results`} {count === 1 ? "is" : "are"} disputed
-          </b>
+          <b className="block text-[16px]">{bot ? `Our bot is checking ${some} again` : `${some.charAt(0).toUpperCase()}${some.slice(1)} ${count === 1 ? "is" : "are"} being settled`}</b>
           <small className="text-[13px] leading-snug text-muted-foreground">
-            Someone flagged it, or the sources don&apos;t agree. Nothing changes until it&apos;s settled: one more answer about everyone settles most.
-            {tiebreakAt ? ` If nobody checks it, our bot does ${airTime(Date.parse(tiebreakAt))}.` : ""}
+            {bot ? "The answers disagree, so it's taking another look." : "The answers disagree, and the site's admin decides."} Scores stay as they are until it&apos;s settled.
           </small>
         </span>
       </div>
-      <Btn data-ask="check" wide className="mt-3.5" onClick={onAsk}>
-        Check it again
-      </Btn>
     </div>
   );
 }

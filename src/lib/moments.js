@@ -17,7 +17,7 @@ const MOMENTS = [
     perShow: true,
   },
   { id: "early", title: "Early results are in", line: "Who went home, minutes after the episode", types: ["episodeResults"], perShow: true },
-  { id: "final", title: "Final results are in", line: "At 12:00 noon the day after (the show's own time). And how your predictions and flags went, and results you asked for", types: ["finalScores", "betResult", "flagSettled", "researchDone", "resultsChanged"], perShow: true },
+  { id: "final", title: "Final results are in", line: "At 12:00 noon the day after (the show's own time), and if they change after that. And how your predictions and flags went, and results you asked for", types: ["finalScores", "betResult", "flagSettled", "researchDone", "resultsChanged"], perShow: true },
   {
     id: "invites",
     title: "Invites and join requests",

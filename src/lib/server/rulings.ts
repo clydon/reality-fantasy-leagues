@@ -7,6 +7,8 @@ import type { LeagueState } from "@/lib/game/types";
 import type { BackstageScope } from "./backstage";
 import { pool, withLeagueLock, HttpError } from "./db";
 import { leagueStates } from "./league-states";
+import { notifyResultsChanged, type ChangedGame } from "./push-events";
+import { finalAtOf, seasonSchedules } from "./schedule";
 import { seasonCastRefs, syncLeagueDecisions, type CorrectedFact } from "./season-decisions";
 
 // Corrections and house rulings (docs/PLAN-new-design.md step 6b). When the shared check takes a result out of a game
@@ -179,10 +181,12 @@ export async function keepOldResult(scope: BackstageScope, decisionId: string, o
     }
   }
   const batch = crypto.randomUUID();
+  const moved: Moved[] = [];
   for (const r of rows) {
     await withLeagueLock(
       r.league_id,
       async (s, client) => {
+        const before = totals(s);
         await client.query("INSERT INTO league_rulings (league_id, decision_id, keeps, ruled_by) VALUES ($1, $2, $3::jsonb, $4) ON CONFLICT DO NOTHING", [
           r.league_id,
           decisionId,
@@ -190,6 +194,7 @@ export async function keepOldResult(scope: BackstageScope, decisionId: string, o
           scope.user.id,
         ]);
         await syncLeagueDecisions(client, r.league_id, s, { noCorrections: true });
+        moved.push({ leagueId: r.league_id, name: scope.games.find((g) => g.leagueId === r.league_id)?.name ?? r.league_name, state: s, deltas: deltasOf(before, s) });
       },
       {
         userId: scope.user.id,
@@ -203,6 +208,7 @@ export async function keepOldResult(scope: BackstageScope, decisionId: string, o
       }
     );
   }
+  await tellRuling(scope, batch, episode, moved, `Whoever runs your game kept the old result for ${fact.name}: ${fact.label}`);
   return { games: rows.length, batch };
 }
 
@@ -215,12 +221,15 @@ export async function dropRuling(scope: BackstageScope, decisionId: string): Pro
   );
   if (!rows.length) throw new HttpError(404, "There's no ruling on that here");
   const batch = crypto.randomUUID();
+  const moved: Moved[] = [];
   for (const r of rows) {
     await withLeagueLock(
       r.league_id,
       async (s, client) => {
+        const before = totals(s);
         await client.query("DELETE FROM league_rulings WHERE league_id = $1 AND decision_id = $2", [r.league_id, decisionId]);
         await syncLeagueDecisions(client, r.league_id, s, { noCorrections: true });
+        moved.push({ leagueId: r.league_id, name: scope.games.find((g) => g.leagueId === r.league_id)?.name ?? "Your game", state: s, deltas: deltasOf(before, s) });
         // The ruling's own line can't be undone any more: there's nothing left to drop.
         await client.query(
           "UPDATE league_changes SET undone_at = now(), undone_by = $3 WHERE league_id = $1 AND kind = 'results.ruling' AND undone_at IS NULL AND undo->>'decisionId' = $2",
@@ -230,7 +239,29 @@ export async function dropRuling(scope: BackstageScope, decisionId: string): Pro
       { userId: scope.user.id, kind: "results.ruling", tier: 2, episode: r.episode, text: `Dropped the house ruling on Episode ${r.episode}`, batch, detail: { decisionId }, undo: null }
     );
   }
+  if (rows.length) await tellRuling(scope, batch, rows[0].episode, moved, "Whoever runs your game let a correction count again");
   return { games: rows.length };
+}
+
+type Moved = Omit<ChangedGame, "changes">;
+
+/** Each player's total in a game. */
+const totals = (s: LeagueState) => new Map(StateLogic.computeScores(s).map((r) => [r.playerId, r.total]));
+
+/** How each player's total moved since `before`. */
+const deltasOf = (before: Map<string, number>, s: LeagueState): Record<string, number> =>
+  Object.fromEntries([...totals(s)].map(([p, t]) => [p, t - (before.get(p) ?? 0)]).filter(([, d]) => d !== 0));
+
+/**
+ * A house ruling after the episode's final results is news for its games' players (docs/PLAN-results-settle.md, the user's
+ * 2026-11-20: "if the gamemaker/admin make any overriding changes afterward you will be notified"), one notice a person, never
+ * to whoever made it. Before final results it's quiet, as a correction is.
+ */
+async function tellRuling(scope: BackstageScope, batch: string, episode: number, moved: Moved[], line: string): Promise<void> {
+  if (!moved.length) return;
+  const at = finalAtOf((await seasonSchedules([scope.seasonId])).get(scope.seasonId))(episode);
+  if (!at || Date.parse(at) > Date.now()) return;
+  notifyResultsChanged({ seasonId: scope.seasonId, batch, games: moved.map((m) => ({ ...m, changes: [{ episode, facts: [], line }] })), actorUserId: scope.user.id });
 }
 
 /** A league's rulings for an episode, for its page: "House ruling (alex): Brady's idol still counts here". */

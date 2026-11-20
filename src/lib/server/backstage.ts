@@ -410,20 +410,18 @@ export async function backstageRead(scope: BackstageScope, opts: { episode?: num
   };
 
   for (const o of out.open) {
+    // Results waiting on their sources settle on their own (docs/PLAN-results-settle.md: our bot looks again), so they're
+    // nobody's job here, and an episode that has some isn't asked of the couch either.
     const w = o.number === n ? waiting.length : (await waitingRows(scope, first.state, o.number)).rows.length;
     const when = day(schedule?.episodes.find((e) => e.number === o.number)?.airAt ?? null, tz);
-    if (w) out.needs.push({ id: "waiting", episode: o.number, title: `${w} ${w === 1 ? "result waits" : "results wait"} for you`, detail: `Episode ${o.number} · the sources don't agree` });
-    else if (o.stage === "none" && (o.number === n ? wait : await waitOf(o.number)))
+    if (w) continue;
+    if (o.stage === "none" && (o.number === n ? wait : await waitOf(o.number)))
       out.needs.push({ id: "quick", episode: o.number, title: `Who went home in Episode ${o.number}? An answer waits`, detail: "It couldn't be sure · check it before it applies" });
     else if (o.stage === "none") out.needs.push({ id: "quick", episode: o.number, title: `Who went home in Episode ${o.number}?`, detail: `${when ? `Aired ${when} · ` : ""}ask an AI, or enter it yourself` });
     else if (o.stage === "early") out.needs.push({ id: "full", episode: o.number, title: `Fill in Episode ${o.number}'s full scores`, detail: "Who went home is in · one paste scores every game" });
   }
-  // A question open on an episode: a disputed result, or a flag nobody's answer has checked yet (no names: it's asked of
-  // you whether or not you've watched it). One more answer from anyone settles most of them.
-  for (const [e, count] of questions) {
-    if (e > aired) continue;
-    out.needs.push({ id: "question", episode: e, title: `${count === 1 ? "A result" : `${count} results`} in Episode ${e} ${count === 1 ? "is" : "are"} disputed`, detail: "Someone flagged it · one more answer settles it" });
-  }
+  // A question open on an episode (a split, or a flag nobody's answer has checked) isn't a job either: our bot looks again
+  // (the tie-break run), and Results says so while it does (the episode's `questions` and `tiebreakAt`).
 
   if (opts.show) {
     out.shown = {

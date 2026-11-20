@@ -3,7 +3,7 @@ import { catchUpHeld, holdsWaiting } from "./catch-up";
 import { BINGO_BANK_LACK, KINDS, when, type RunKind } from "@/lib/desk-bot-words";
 import { phaseCues } from "@db/rulebooks.js";
 import { pool } from "./db";
-import { factTitle, SEASON_NAME as seasonName, STRANDED } from "./desk";
+import { SEASON_NAME as seasonName, STRANDED } from "./desk";
 import { lackingUsual, scheduleOf } from "./desk-bot";
 import { castInboxItems } from "./desk-cast-page";
 import { openReports } from "./desk-reports";
@@ -57,10 +57,6 @@ export interface Inbox {
   unscheduled: string[];
 }
 
-const DAY = "interval '1 day'";
-// An answer for the fact's episode since a flag was raised.
-const ANSWER_SINCE = `EXISTS (SELECT 1 FROM episode_research er WHERE er.show_id = ss.show_id AND er.season_number = ss.season_number
-  AND er.episode_number = d.episode_number AND er.source <> 'combined' AND er.withdrawn_at IS NULL AND er.researched_at > x.created_at)`;
 const WEEK_MS = 7 * 24 * 3600 * 1000;
 
 /** "Wednesday Watchers'", "riley's". */
@@ -68,50 +64,44 @@ const poss = (n: string) => (/s$/i.test(n) ? `${n}'` : `${n}'s`);
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /**
- * The episodes whose tie-break run hasn't had its say yet, while the desk's switch is on ("season:episode"): their
- * disputes wait for it before they're the admin's. And the ones a tie-break has answered, for the line.
+ * What our bot couldn't settle (docs/PLAN-results-settle.md, the user's 2026-11-20: let the AI settle), one item an episode,
+ * the newest question first: a split, or a flag nobody's answer has checked, on an episode whose tie-break run has had its say
+ * (it looked and the answers still split), couldn't have it (its tries failed, or the question went stale), or is switched off.
+ * While its look is still to come, the episode is the bot's, not the admin's. (It was one item a fact, 30 at most, highest
+ * episode number first: a finished season's 202 filled every slot on 2026-11-20 and hid every other show's.)
  */
-async function tiebreaks(): Promise<{ pending: Set<string>; answered: Set<string> }> {
-  const pending = new Set<string>();
-  const answered = new Set<string>();
-  if (!(await tiebreakOn(pool))) return { pending, answered };
-  for (const q of await tiebreakQuestions(pool)) {
-    const key = `${q.seasonId}:${q.episode}`;
-    if (q.tries.some((t) => t.ok === true)) answered.add(key);
-    const at = tiebreakNext(q);
-    // Still to come, and not gone stale (three days past due: the bot was down, say).
-    if (at && at.next.getTime() - at.due.getTime() <= 3 * 24 * 3600 * 1000) pending.add(key);
-  }
-  return { pending, answered };
-}
-
-/** A disputed fact with no flag waiting for an answer, or one flagged a day ago with nothing since. */
 async function disputes(): Promise<InboxItem[]> {
-  // With the tie-break run on (6c part 2), each waits for its episode's tie-break first, and reaches the desk only if that
-  // didn't settle it.
-  const tie = await tiebreaks();
-  const { rows: facts } = await pool.query(
-    `SELECT d.id, d.season_id, d.castaway_name, d.kind, d.method, d.event_type, d.episode_number, ${seasonName} AS season,
-            EXISTS (SELECT 1 FROM fact_disputes x WHERE x.decision_id = d.id AND x.status = 'open' AND NOT ${ANSWER_SINCE}) AS stale
+  const on = await tiebreakOn(pool);
+  const questions = await tiebreakQuestions(pool);
+  const { rows } = await pool.query<{ season_id: string; episode_number: number; season: string; n: number }>(
+    `SELECT d.season_id, d.episode_number, ${seasonName} AS season, count(*)::int AS n
        FROM season_decisions d JOIN show_seasons ss ON ss.id = d.season_id JOIN shows s ON s.id = ss.show_id
       WHERE d.locked_at IS NULL AND d.fact_status IS NOT NULL
         AND (d.fact_status = 'disputed' OR EXISTS (SELECT 1 FROM fact_disputes x WHERE x.decision_id = d.id AND x.status = 'open'))
-        AND NOT EXISTS (SELECT 1 FROM fact_disputes x WHERE x.decision_id = d.id AND x.status = 'open' AND x.created_at > now() - ${DAY} AND NOT ${ANSWER_SINCE})
-      ORDER BY d.episode_number DESC LIMIT 30`
+      GROUP BY d.season_id, d.episode_number, season`
   );
-  const out: InboxItem[] = [];
-  for (const f of facts) {
-    const key = `${f.season_id}:${f.episode_number}`;
-    if (tie.pending.has(key)) continue;
-    const tried = tie.answered.has(key);
+  const out: { item: InboxItem; newest: number }[] = [];
+  for (const r of rows) {
+    const q = questions.find((x) => x.seasonId === r.season_id && x.episode === r.episode_number);
+    const next = q ? tiebreakNext(q) : null;
+    // The bot's turn: its look is still to come, and not gone stale (three days past due: the bot was down, say).
+    if (on && next && next.next.getTime() - next.due.getTime() <= 3 * 24 * 3600 * 1000) continue;
+    const looked = !!q?.tries.some((t) => t.ok === true);
+    const why = !on ? "our bot's second look is switched off" : looked ? "our bot looked again and the answers still disagree" : "our bot couldn't look again";
     out.push({
-      kind: f.stale ? "stale" : "split",
-      title: factTitle(f),
-      line: `${f.season} · Episode ${f.episode_number} · ${f.stale ? (tried ? "flagged, and the tie-break run didn't settle it" : "flagged a day ago, nothing's checked it") : tried ? "the sources split, the tie-break run too" : "the sources split"}`,
-      href: `/desk/fact/${f.id}`,
+      newest: q?.newest ? Date.parse(String(q.newest)) : 0,
+      item: {
+      kind: looked ? "split" : "stale",
+      title: `${r.season}, Episode ${r.episode_number}: ${r.n === 1 ? "a result" : `${r.n} results`} still split`,
+      line: `${why.charAt(0).toUpperCase()}${why.slice(1)} · decide on the episode's page`,
+      href: `/desk/season/${r.season_id}/e/${r.episode_number}`,
+      },
     });
   }
-  return out;
+  return out
+    .sort((a, b) => b.newest - a.newest)
+    .slice(0, 20)
+    .map((o) => o.item);
 }
 
 /** A phase that starts when the show says so (or when N are left), on an airing season, once something says it's begun. */
@@ -325,7 +315,9 @@ export async function inbox(now = new Date()): Promise<Inbox> {
   const [researched, confirmed, settled, rulings] = await Promise.all([
     count(`SELECT count(DISTINCT (show_id, season_number, episode_number))::int AS n FROM episode_research WHERE source <> 'combined' AND withdrawn_at IS NULL AND researched_at > now() - interval '7 days'`),
     count(`SELECT count(*)::int AS n FROM season_decisions WHERE fact_status = 'confirmed' AND decided_at > now() - interval '7 days'`),
-    count(`SELECT count(*)::int AS n FROM fact_disputes WHERE status IN ('kept', 'upheld', 'checked') AND settled_at > now() - interval '7 days'`),
+    // Questions settled without the admin: flags an answer settled, and episodes our bot's second look settled.
+    count(`SELECT (SELECT count(*) FROM fact_disputes WHERE status IN ('kept', 'upheld', 'checked') AND settled_at > now() - interval '7 days')
+               + (SELECT count(*) FROM bot_research_runs WHERE kind = 'tiebreak' AND ok AND started_at > now() - interval '7 days') AS n`),
     count(`SELECT count(DISTINCT decision_id)::int AS n FROM league_rulings WHERE created_at > now() - interval '7 days'`),
   ]);
   return { items, week: { researched, confirmed, settled, rulings }, coming: week.coming, unscheduled: week.unscheduled.map((s) => s.name) };

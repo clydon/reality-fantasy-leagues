@@ -128,7 +128,7 @@ export function ResultsPage({ seasonId, show }: { seasonId: string; show: ShowDa
           {ways.data && <ResultsWays seasonId={seasonId} couchId={couchId} ways={ways.data} anyone={data.fill.anyone} seasonName={seasonName} />}
           <Block title="Full scores" aside={settles(data, "full")}>
             <FillState seasonId={seasonId} couchId={couchId} data={data} />
-            {ep.questions > 0 && <QuestionCard episode={ep.number} count={ep.questions} tiebreakAt={ep.tiebreakAt} onAsk={() => setAsk({ kind: "full", episode: ep.number })} />}
+            {ep.questions > 0 && <QuestionCard episode={ep.number} count={ep.questions} tiebreakAt={ep.tiebreakAt} />}
             <FullCard
               ep={ep}
               look={look}

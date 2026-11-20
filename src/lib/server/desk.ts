@@ -217,7 +217,7 @@ export async function setDeskSetting(
         entity: "settings",
         entityId: "tiebreak",
         action: "set",
-        text: body.tiebreak ? "When a result is disputed: the bot asks again after a day" : "When a result is disputed: it waits for a couch to check again",
+        text: body.tiebreak ? "When answers disagree: our bot looks again an hour later" : "When answers disagree: it waits for you",
         before: was.tiebreak.on,
         after: body.tiebreak,
         undo: { type: "setting", key: "tiebreak", value: was.tiebreak.on },
