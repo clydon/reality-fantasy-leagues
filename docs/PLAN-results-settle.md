@@ -1,7 +1,8 @@
 # Plan: the bot settles results, final at noon, changes after final are told
 
-> **Status (2026-11-20): in build on branch `results-settle` (lane `rfl-results`, port 3017).** Engine first (A1-A4), then the
-> words through the design process (B), then the screens (C), then checks and the push (D). Nothing pushed.
+> **Status (2026-11-20, 1:30 PM): A and B built on branch `results-settle` (lane `rfl-results`, port 3017), not pushed; the
+> screenshot story waits on the user's review.** Then D: a what-would-move run over a fresh production backup, and the push on
+> the user's OK (no migration, so no Neon rehearsal). After the deploy, POST /api/desk/settle-again once.
 
 ## Why
 
@@ -75,7 +76,39 @@ settle, one row per episode), the season and episode pages' counts and reasons, 
 check-tonight-results); a what-would-move run of A4 over a fresh production backup (which leagues' totals change, by how much),
 for the user before the push; the deploy rehearsal if a migration lands; then the push on the user's OK.
 
+## As built (2026-11-20, a2a95b4b..bb2bb3af)
+- **A1** `fact-status.ts` (`settleEpisode(…, { confirmAt, finalAt, hadResults })`, `voiceOf`), `community-results.ts inputsFor`
+  (the episode's final time from `schedule.ts finalAtOf`; had results = an answer from before it, or a locked result). A late
+  result waits whether or not it's in the games now, so an agreeing answer taken back leaves it waiting again (bb2bb3af).
+- **A2** `db/bot-research.js`: `TIEBREAK_AFTER_MS` an hour; `tiebreakQuestions` asks of reported-and-pending results too, its
+  `newest` leaves the tie-break's own answer out, and `from` (app_settings 'tiebreak_from') re-asks every open question.
+- **A3** `season-decisions.ts` returns each game's corrections and deltas (`SyncResult.corrections`, `deltas`) and
+  `syncSeasonLeagues` tells corrections to episodes past their final time (`push-events.ts notifyResultsChanged`, type
+  `resultsChanged` in the Final results moment); `rulings.ts` tells a house ruling after final results the same way.
+- **A4** `POST /api/desk/settle-again` (`desk.ts settleAgain`): settleEverything as the system, then 'tiebreak_from', then the
+  bot's clock told. No screen.
+- **B** (Impeccable alone: words and small fixes, docs/DESIGN-PROCESS.md "When not to use them"): Backstage's disputed and
+  waiting jobs gone, its Results card passive (our bot is checking / the site's admin decides), the tick-to-apply card gone,
+  the Results row "our bot is checking N results again" (each once: `BackstageEpisode.settling`); the Inbox one row an episode
+  ("Survivor 51, Episode 8: 3 results still split"), newest first, only what the bot couldn't settle; the switch "When answers
+  disagree: our bot looks again an hour later"; the desk's "being settled", "waiting for a second look", "1 source", the
+  catch-up's and the tie-break's answers named; the Final results moment's line.
+- **Checks** on the new rules: check-new-settling (103 pass), check-new-community (91), check-new-backstage (64),
+  check-desk-episode (92), all at 390; `npm test` 2482. The story's frames: `scripts/dev-test/capture-results-settle.js`
+  (any version of the code), under `.ui-atlas/stories/results-settle/`.
+
 ## Noticed, not fixed
+- **check-new-settling and check-new-community fail one line on origin/master too** (61a13da6, run 2026-11-20): "jordan's
+  Episode 6: the corrections sit right above 'Something wrong in this episode?', not at the top" ({"above":false}). Not this
+  branch's; the episode page's corrections moved since the check was written. For the next UI polish session.
+- **ESLint on origin/master: 3 errors, 7 warnings** in files this branch doesn't touch (src/new/show/game-page.tsx and
+  lineup-sheet.tsx `react-hooks/purity`, src/new/preview/*, src/lib/episode-results.ts, format-timeline.js,
+  start-gallery/index.js, src/new/desk/pages.tsx). For whoever pushes next to look at.
+- **The settle-again's one-time churn, to measure before the push (step D):** Survivor 51's Episode 3 has four results only the
+  2026-11-16 catch-up reported (they went in that night on the user's word); under the two looks after final they wait for a
+  second look, so settle-again takes them out and the tie-break run looks again within the hour (likely back in: two notices
+  for the couch, once). Episodes 4-6 had bot answers after their final times too (the 2026-10-29 re-runs), mostly backed by a
+  second look since; the what-would-move run over a fresh production backup lists exactly what moves, for the user, first.
 - Local master holds one docs commit (cd1427a8) that origin/master doesn't; this branch is from origin/master (61a13da6). The
   sports session (main folder, `sports-phase2`, from cd1427a8) carries it.
 - The catch-up holds an answer that would change scores for the admin's Send (catch-up.ts). With two looks after final its lone
