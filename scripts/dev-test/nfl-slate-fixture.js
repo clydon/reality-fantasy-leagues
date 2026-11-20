@@ -207,7 +207,12 @@ async function up(opts = {}) {
     },
     /** The daily listings job's sports part, as it runs at the clock's moment (matchup.ts refreshSportsEvents: the slate's sync,
      *  each linked game's facts, then the finals' lines). */
-    daily: () => app("../../src/lib/server/sports/matchup.ts").refreshSportsEvents({ providers, now: new Date(), only: [added.seasonId] }),
+    daily: async () => {
+      const out = await app("../../src/lib/server/sports/matchup.ts").refreshSportsEvents({ providers, now: new Date(), only: [added.seasonId] });
+      // A final's time is the database's now() (matchup.ts storeEvents): the process clock's here, as production's are the same.
+      await pool.query("UPDATE sports_events SET final_at = $2 WHERE league = $1 AND final_at > $2::timestamptz + interval '1 minute'", [LEAGUE, new Date()]);
+      return out;
+    },
     /**
      * The clock moved on to `to` a day at a time, the daily job run each day at `hour` UTC (the bot VM's morning call: tv-listings.ts)
      * and once more at `to`, as production would have run it over those days. Returns each run's errors.

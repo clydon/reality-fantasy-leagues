@@ -213,7 +213,7 @@ export interface SportsProvider {
    * (StoredField, StoredCard: the standings, or the bouts and results, besides), from the calls the phone's poller makes for it.
    * Null when it has none, or its league isn't a sport the app reads.
    */
-  game(league: string, event: string): Promise<StoredFinal | null>;
+  game(league: string, event: string, o?: { fresh?: boolean }): Promise<StoredFinal | null>;
   /**
    * A player's lines for a season's regular season (its year), or null when the provider has none. Never its postseason: that
    * holds the very games a show of the playoffs is showing.
