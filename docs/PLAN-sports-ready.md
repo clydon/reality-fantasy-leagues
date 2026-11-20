@@ -1,14 +1,14 @@
 # Plan: sports in good shape, technically and in design
 
-> **Status (2026-11-20): Active, Phase 0 and Phase 1 done but 1.1's screens** (branch sports-phase0, not merged; migrations 0308 to
-> 0310 rehearsed on a copy of production 2026-11-20, the merge waiting on the user's OK). Written from two audits on 2026-11-19: the
+> **Status (2026-11-20): Active, Phase 0 and Phase 1 done but 1.1's screens, merged and live** (f1488cf1..ba8f3a8e, deployed
+> 2026-11-20; migrations 0308 to 0310 rehearsed on a copy of production first). Written from two audits on 2026-11-19: the
 > engine, data and operations, and every screen a sports fan touches.
 > Phase 0 confirmed all four inferences, each with a check, and found two bigger gaps; step 1.0 closed both (BACKLOG 220 and 221),
 > 1.3 made team defenses people and kept same-named players apart (BACKLOG 145), 1.2 stopped silent zeros and takes corrections,
 > 1.4 keeps rosters current (signings, trades), 1.5 reads injuries and byes, 1.6 made the small fixes (BACKLOG 108, 78), and
 > 1.1's part 1 puts finals in the standings within the hour; its part 2 counts a week's games as they end; its part 3 counts a
 > game being played, its points so far, for anyone shown everything (never an own-pace seat or anyone hiding sports scores).
-> Next: the merge, then Phase 2 (its calls answered 2026-11-19, own pace for sports added) and 4.1; 1.1's
+> Next: Phase 2 (its calls answered 2026-11-19, own pace for sports added) and 4.1, on a fresh branch from master; 1.1's
 > part 4 (the screens, on a small live read) is the design round's page 2.
 > The user's calls 212–219 are answered ("Decisions", below); BACKLOG 175 still waits.
 
@@ -442,16 +442,17 @@ default selection.
 
 ## The order, and how it fits the rest
 
-1. **Now, beside the Survivor 51 work:** the merge (the user's OK to push; not on an episode night; 1.1's parts 1 to 3 done).
-   Rehearsed 2026-11-20: on branch merge-sports in rfl-merge (the branch's tip, a fast-forward of master) the unit suite (2,457)
+1. **Done 2026-11-20: the merge** (the user: "yes, push it"; ba8f3a8e deployed in about 3½ minutes, production's build log
+   applied 0308, 0309 and 0310, no server error in its logs, the hub, Survivor 51's Games tab and Backstage read clean). Rehearsed
+   first: on branch merge-sports in rfl-merge (the branch's tip, a fast-forward of master) the unit suite (2,457)
    and `next build` pass, and the rehearsal on a fresh copy of production (Neon `rehearse-sports-2026-11-20`, compute
    ep-rapid-fire-b4msdllq) applied 0308, 0309 and 0310 after 0443 (migrate.js takes any file not yet applied), `[check] all
    good`, rulebooks backfilled, `[game-specs] check: PASS`; the rulebooks check's FAILs are production's own (its edited rulebooks
    against the built-ins; this merge touches no rulebook code). So no two production cast rows share provider ids (0308's new
    index built). The snapshot to roll back to is `pre-sports-2026-11-20` (auto-deletes after 7 days). While the deploy builds,
-   the old code's cast inserts fail (its conflict target is 0308's old index): a few minutes, nobody adds a show then. Phase 4.0
-   (the words) in any free session.
-2. **Then:** Phase 2 (its calls answered 2026-11-19, own pace for sports as 2.6), and Phase 4.1.
+   the old code's cast inserts fail (its conflict target is 0308's old index): a few minutes, nobody adds a show then.
+2. **Now:** Phase 2 (its calls answered 2026-11-19, own pace for sports as 2.6), and Phase 4.1. Phase 4.0 (the words) in any
+   free session.
 3. **Then:** Phase 3, the gate, and the design round's pages 1 and 3 (they need correct data, not live data).
 4. **Then:** 4.1's live path, page 2, Phase 5, and pages 4 to 6.
 5. **The pilot** (BACKLOG 212) once Phase 3 passes.
