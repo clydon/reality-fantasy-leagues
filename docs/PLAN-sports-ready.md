@@ -8,7 +8,8 @@
 > 1.4 keeps rosters current (signings, trades), 1.5 reads injuries and byes, 1.6 made the small fixes (BACKLOG 108, 78), and
 > 1.1's part 1 puts finals in the standings within the hour; its part 2 counts a week's games as they end; its part 3 counts a
 > game being played, its points so far, for anyone shown everything (never an own-pace seat or anyone hiding sports scores).
-> Next: Phase 2 (its calls answered 2026-11-19, own pace for sports added) and 4.1, on a fresh branch from master; 1.1's
+> Phase 2 under way on branch sports-phase2: 2.1 done (the NFL's season locks at each player's game).
+> Next: the rest of Phase 2 (its calls answered 2026-11-19, own pace for sports added) and 4.1; 1.1's
 > part 4 (the screens, on a small live read) is the design round's page 2.
 > The user's calls 212–219 are answered ("Decisions", below); BACKLOG 175 still waits.
 
@@ -312,6 +313,26 @@ server.
 
 1. **Locks at each player's game for the NFL** (S; BACKLOG 213, yes): football's season default becomes `closes: 'game'`. A lock
    change reruns every check that asserts a lock (HANDOFF's convention), check-lock-in.js and the explorer's lock invariants.
+   **Done 2026-11-20 (branch sports-phase2).**
+   - *Built:* football.json's season spec closes `game` (the sport's own cadence, `lock` and the defaults' top-level `closes`, stays
+     weekly: it's what a week is, not when a lineup locks). Every football base built on the season (head to head, total,
+     guillotine, keeper, auction, weeks won) takes it; the other specs and sports are unchanged. Only a game started from now on:
+     a game keeps the spec it was started with. The explorer (core-runtime-47) plays it on a world of one game an episode too, as
+     the server stamps the rows it writes for one (each episode's game, no holding's team: runtime-sports.cjs `gameLocks`), so its
+     NFL situations and design fixtures open on the new default; before, it was a gap there.
+   - *Verified:* the unit suite (2,457; a new explorer test: Friday's lineup open on Thursday where the weekly lock had it shut,
+     locked an hour into its own game, the lineup set before it standing; sports-spec's rule now says football's season locks by
+     the game; the frozen v1 NFL state reproduces with its lock put back as it was made, nothing else moved); every NFL fixture
+     check on the new default (defenses, new players, same names, week in progress, live points, hourly, finals, injuries and
+     byes, slate Pick'em; the playoff-weeks check still fails, step 2.2's); check-slate.js; check-lock-in.js; check-sports-explorer.js
+     every case; a 120-case engine campaign (`.ui-atlas/campaigns/sport-locks-game`, seed 210): 115 pass, no `sport-locks`
+     violation, the five others BACKLOG 224's generator kinds; its three cases locking at each game (two slates, one a game an
+     episode: `count.cjs`) pass. tsc; eslint has only its standing errors.
+   - *Noticed, not fixed:* check-episode-lock.js's "a new pick doesn't go in" and check-sports-couch.js --api's guide line
+     (BACKLOG 225) fail the same on master. The slates case of check-sports-explorer.js failed at 00:57 Eastern and passed at 01:00:
+     the midnight-hour edge 1.1 part 2 noted, met for real. The lineup editor's locks by game are still TEMP-UI (DN 38), and now
+     every NFL season game has them: 4.2's page 1. How it plays says "Each castaway locks when their game starts" (describe.js):
+     4.0's words.
 2. **Fantasy playoffs end by Week 17** (S; BACKLOG 214, yes), so nobody's title rides on Week 18's rested starters. Phase 0: the
    default has none, and any final lands in Week 18. Done when check-nfl-playoff-weeks.js passes.
 3. **Lineup slots for the NBA, MLB and NHL** (M; L9 part 1): `withLineupSlots` for every sport's defaults, with ESPN's positions

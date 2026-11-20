@@ -486,15 +486,21 @@ function lockTimes(world, state, shiftMs = 0) {
   return new Map([...Bench().locksOf(starts, closes, { slate })].map(([n, at]) => [n, new Date(Date.parse(at) - shiftMs).toISOString()]));
 }
 /**
- * A slate game that closes at each game's start (closes 'game', core-runtime-39): each episode's games with their starts and the end
+ * A game that closes at each game's start (closes 'game', core-runtime-39): each episode's games with their starts and the end
  * of each one's day (Eastern), and each holding's games by its team, as the server stamps them on every read (air-times.ts
  * stampGameLocks: the app's own locks.ts gameLocksOf over the game's own episodes). A Map of episode number to { gameStarts,
  * holdingGames }, or null for any other game. `shiftMs` as lockTimes'.
+ *
+ * core-runtime-47: a world of one game an episode too (the NFL's season locks at each player's game since 2026-11-20, BACKLOG 213):
+ * each episode's one game played, its event, and no holding's games, as the server stamps the rows live-db.cjs writes for it (a
+ * linked game with no teams, a cast with no team): the episode locks at its game's start (ActiveRosterLogic.lastStartOf), as a lock
+ * at the start does.
  */
 function gameLocks(world, state, shiftMs = 0) {
-  if (world.context.kind !== 'sport' || S.gameOf(state).closes !== 'game' || !slateOf(world.context)) return null;
-  const from = S.startEpisode(state) ?? 1, to = S.endEpisode(state), team = new Map(world.participants.map(p => [p.id, p.team]));
-  const games = world.events.filter(e => e.number >= from && (to == null || e.number <= to)).flatMap(e => playedOf(world.context, e).map(g => ({ episode: e.number, eventId: g.id, at: g.airAt ? new Date(Date.parse(g.airAt) + shiftMs).toISOString() : null, teams: g.teams })));
+  if (world.context.kind !== 'sport' || S.gameOf(state).closes !== 'game') return null;
+  const from = S.startEpisode(state) ?? 1, to = S.endEpisode(state), team = new Map(world.participants.map(p => [p.id, p.team])), slate = !!slateOf(world.context);
+  const at = t => (t ? new Date(Date.parse(t) + shiftMs).toISOString() : null);
+  const games = world.events.filter(e => e.number >= from && (to == null || e.number <= to)).flatMap(e => (slate ? playedOf(world.context, e).map(g => ({ episode: e.number, eventId: g.id, at: at(g.airAt), teams: g.teams })) : isOff(e) ? [] : [{ episode: e.number, eventId: e.id, at: at(e.airAt), teams: [] }]));
   const teamOf = new Map((state.castaways || []).filter(c => team.get(c.id)).map(c => [c.id, team.get(c.id)]));
   const back = at => new Date(Date.parse(at) - shiftMs).toISOString();
   return new Map([...Bench().gameLocksOf(games, teamOf)].map(([n, l]) => [n, { gameStarts: Object.fromEntries(Object.entries(l.gameStarts).map(([id, g]) => [id, { at: back(g.at), until: back(g.until) }])), holdingGames: l.holdingGames }]));

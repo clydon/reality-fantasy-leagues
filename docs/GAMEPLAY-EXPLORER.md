@@ -1596,6 +1596,11 @@ was the next slice by the handoff's order.
      game added (the server keeps each game's lines).
   4. The campaign's walk, not the product, first left the mechanic unexercised (no mid-week lineup taken), and the counts
      caught it: generators 56 and 57.
+- **On a world of one game an episode** (`core-runtime-47`, 2026-11-20): the NFL's season default locks at each player's game
+  since the sports plan's step 2.1 (BACKLOG 213), and the explorer's NFL worlds are one game an episode, so its situations
+  opened with a gap. `gameLocks` now stamps such a world as the server stamps the rows `live-db.cjs` writes for it: each
+  episode's one game played, no holding's team (a link with no teams, a cast with none), so the episode locks at its game's
+  start, never a week's first. The profile takes `closes: 'game'` on any sport scored by stats.
 
 #### Sports statistics, the last slice: a game called off, and a week in progress (2026-11-14)
 

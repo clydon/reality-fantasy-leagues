@@ -53,7 +53,7 @@
           }
         },
         "rank": { "by": "matchups" },
-        "closes": "weekly"
+        "closes": "game"
       }
     },
     "short": {

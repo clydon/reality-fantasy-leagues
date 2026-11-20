@@ -43,9 +43,12 @@ test("every sport's default specs pass the game spec's own check against the spo
         assert.deepEqual(Object.keys(spec.score).filter((k) => k !== "by" && k !== "points"), Object.keys(d.scoring).filter((k) => k.startsWith("by")), `${sport.name} ${name}: the table's own ways`);
         for (const k of ["byPosition", "byPlace", "byFormat"]) if (d.scoring[k]) assert.deepEqual(spec.score[k], d.scoring[k]);
       }
-      assert.ok(["start", specCloses(sport.lock)].includes(spec.closes), `${sport.name} ${name} closes ${spec.closes}`);
+      // (Or at each player's game: football's season, BACKLOG 213.)
+      assert.ok(["start", specCloses(sport.lock), ...(sport.id === "football" && name === "season" ? ["game"] : [])].includes(spec.closes), `${sport.name} ${name} closes ${spec.closes}`);
     }
-    if (d.specs.season) assert.equal(d.specs.season.spec.closes, specCloses(sport.lock), `${sport.name}: a season locks as the sport does`);
+    // A season locks as the sport does, but football's at each player's game (BACKLOG 213, the user's call of 2026-11-19: not every
+    // lineup at Thursday night's kickoff; docs/PLAN-sports-ready.md step 2.1).
+    if (d.specs.season) assert.equal(d.specs.season.spec.closes, sport.id === "football" ? "game" : specCloses(sport.lock), `${sport.name}: a season locks as the sport does`);
   }
 });
 

@@ -120,9 +120,9 @@ function inspect(document) {
       // Spans from or to a phase ({ phase }): placed from the world's phase starts as the server settles them (runtime-data.cjs settlePhasesIn).
       for (const end of ['from', 'to']) if (J.object(spec.span[end]) && (Object.keys(spec.span[end]).some(k => k !== 'phase') || !(context.engine.phases || []).some((x, i) => i > 0 && x.id === spec.span[end].phase))) add(game.id, p + '/span/' + end, "Only a span from or to one of the context's later phases is connected");
       // (A sport's game scored by stats also locks by the day or the week: runtime-sports.cjs lockTimes, core-runtime-34.)
-      // (And at each game's start, core-runtime-39: a slate's lineup, each holding locking with its own team's game: closes 'game'.)
-      const slateWorld = sport && context.slate !== undefined;
-      if (spec.closes !== 'start' && !(sport && stats && ['daily', 'weekly'].includes(spec.closes)) && !(sport && stats && spec.closes === 'game' && slateWorld)) add(game.id, p + '/closes', spec.closes === 'game' && sport && stats ? "A lock at each game's start needs a week of several games: a slate (context.slate)" : "Only start-based locks are connected in this runtime profile (and a sport's by the day, the week or each game's start)");
+      // (And at each game's start, core-runtime-39: a slate's lineup, each holding locking with its own team's game: closes 'game'; on a
+      // world of one game an episode, core-runtime-47, the episode's game.)
+      if (spec.closes !== 'start' && !(sport && stats && ['daily', 'weekly', 'game'].includes(spec.closes))) add(game.id, p + '/closes', "Only start-based locks are connected in this runtime profile (and a sport's by the day, the week or each game's start)");
       if (spec.pool?.where && Object.keys(spec.pool.where).some(k => k !== 'stillIn')) add(game.id, p + '/pool/where', 'Pool filter requires an eligibility fixture adapter');
       // The runtime starts after the draft; a draw is recorded as drawn (runtime-data.cjs).
       // An auction (order 'auction'): its sealed bids generated and settled at setup (runtime-data.cjs settleAuctionIn), its budget the
