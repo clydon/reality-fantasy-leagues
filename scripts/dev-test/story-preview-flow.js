@@ -24,7 +24,7 @@ const OUT = path.resolve(opt("out", ".ui-atlas/stories/preview-flow"), BEFORE ? 
 
 /** The server's answers each refusal stands for (src/lib/server: their own statuses and words). */
 const REFUSALS = [
-  ["none-left", 429, "No previews left today: more tomorrow."],
+  ["none-left", 429, "No previews left this week: more Monday."],
   ["busy", 503, "Busy: try again in a minute."],
   ["full", 503, "Previews are full this month: back on the 1st."],
   ["down", null, ""],

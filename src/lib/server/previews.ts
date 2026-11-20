@@ -71,16 +71,16 @@ async function ask<T>(method: "POST" | "DELETE", path: string, body: object, wai
 
 /**
  * A preview for `user` of `game` on a season, as the couch it would be made on sees it: theirs reopened if they have one of it at
- * their mark (free), else one of today's taken and the service asked to make it (given back if it isn't, or if it reopened one).
- * Answers its story's address on the service (a way in, used once) and how many they have left today.
+ * their mark (free), else one of this week's taken and the service asked to make it (given back if it isn't, or if it reopened one).
+ * Answers its story's address on the service (a way in, used once) and how many they have left this week.
  */
 export async function startPreview(user: SessionUser, o: { seasonId: string; couchId: string | null; game: PreviewGame; exits: Exits; origin: string }) {
   appOnly();
   if (!(await previewsOpenTo(user))) throw new HttpError(403, "Previews aren't open yet.");
   const { previewDefinition, builder } = await import("./preview-definition");
   const { definition, season } = await previewDefinition(user, o.seasonId, o.couchId, o.game);
-  const { left } = await previewsLeft(user.id);
-  const use = left > 0 ? await takePreview(user.id) : null;
+  const { left } = await previewsLeft(user.id, previewUsage);
+  const use = left > 0 ? await takePreview(user.id, previewUsage) : null;
   try {
     const req: MakeRequest = { owner: ownerKey(user.id), key: gameKeyOf(o.seasonId, season.mark, o.game), definition, rates: builder().ratesOf(season), exits: o.exits, canMake: !!use };
     const made = await ask<{ id: string; entry: string; expires: number; reopened: boolean }>("POST", "/api/preview-live/make", req);

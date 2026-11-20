@@ -1126,7 +1126,7 @@ function BaseBody(p: {
   const size = sizeFit(gm, game.base, game.spec);
   const sentences = fitWords(say(game.base.about, input.nouns), size).split(/(?<=\.)\s+/).filter(Boolean);
   const fitNote = game.fitted && size && game.fitted.to === size.to ? game.fitted : null;
-  // Try it is offered only when the desk opens previews to you, with how many you have left today under it (the flow spec's §1).
+  // Try it is offered only when the desk opens previews to you, with how many you have left this week under it (the flow spec's §1).
   const allowance = usePreviewAllowance();
   const kind = gm.kindOf(game.spec);
   const play = gm.playRow(game.spec);

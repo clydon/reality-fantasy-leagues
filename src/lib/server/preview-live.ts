@@ -136,7 +136,7 @@ export const gameKeyOf = (seasonId: string, mark: number, game: PreviewGame) => 
 /**
  * What the app asks the service to make (src/lib/server/previews.ts, step 9): the definition it built from the real season, the
  * made-up results' rates, the person as an opaque key (never their id), which game at which mark (the key that reopens it), where
- * its last card goes, and whether they have a preview left today (else it can only reopen one).
+ * its last card goes, and whether they have a preview left this week (else it can only reopen one).
  */
 export interface MakeRequest {
   owner: string;
@@ -157,7 +157,7 @@ export async function makeFromDefinition(o: MakeRequest): Promise<{ id: string; 
   await sweepLivePreviews();
   const again = await reopen(o.owner, o.key);
   if (again) return { ...again, reopened: true };
-  if (!o.canMake) throw new HttpError(429, "No previews left today: more tomorrow.");
+  if (!o.canMake) throw new HttpError(429, "No previews left this week: more Monday.");
   const { make, down } = bench();
   const resultsFor = builder().resultsFor({ rates: o.rates });
   const id = await startMaking(o.owner, o.key, o.exits);

@@ -1,5 +1,6 @@
 // Live previews' limits (docs/PLAN-preview-release.md, decision 4 and step 8), through the real routes as a zt_pv_ test account with
-// a couch of its own: the daily allowance counts down and refuses at none ("No previews left today"), a preview that isn't made gives
+// a couch of its own: the week's share is worked out at the week's first look (3 to 20, from the month's budget: preview-share.ts)
+// and kept for the week; the allowance counts down and refuses at none ("No previews left this week"), a preview that isn't made gives
 // its use back, more than AT_ONCE being made at once is refused ("Busy"), a month whose budget is spent is refused ("full this
 // month"), and a preview that's made adds what it cost to its month. Puts back everything it changes (the month's row, the uses,
 // the stand-in previews) and removes its account.
@@ -29,13 +30,18 @@ const BASE = process.env.BASE || "http://localhost:3014";
   try {
     api = await signIn({ user: username, pass: password });
     if ((await api.call("POST", "/api/couches", { name: "zt-pv couch" })).status !== 200) throw Error("couch failed");
-    const left0 = (await api.call("GET", "/api/previews/allowance")).body.left;
-    check("a new day starts with the allowance", left0 === 5, `${left0} left`);
+    const a0 = (await api.call("GET", "/api/previews/allowance")).body;
+    const [kept] = await q(`SELECT allowance, basis FROM preview_week_shares WHERE user_id = $1`, [id]);
+    check("a new week starts with its share, kept for the week", a0.open === true && a0.perWeek >= 3 && a0.perWeek <= 20 && a0.left === a0.perWeek && kept?.allowance === a0.perWeek && Number.isInteger(kept?.basis?.previewsLeft), `${a0.left} of ${a0.perWeek} left; ${JSON.stringify(kept?.basis)}`);
+    // The week's share stays put (a share of 5 here, so the rest is the same whatever the month holds).
+    await db.query(`UPDATE preview_week_shares SET allowance = 5 WHERE user_id = $1`, [id]);
+    const a1 = (await api.call("GET", "/api/previews/allowance")).body;
+    check("the week's share is the one kept, not worked out again", a1.perWeek === 5 && a1.left === 5, `${a1.left} of ${a1.perWeek}`);
 
-    // Four used already today; the fifth is made, and says none left.
+    // Four used already this week; the fifth is made, and says none left.
     for (let i = 0; i < 4; i++) await db.query(`INSERT INTO preview_uses (user_id) VALUES ($1)`, [id]);
     const fifth = await make();
-    check("the last preview of the day is made", fifth.status === 200 && fifth.body.left === 0, `${fifth.status}, ${fifth.body.left} left`);
+    check("the last preview of the week is made", fifth.status === 200 && fifth.body.left === 0, `${fifth.status}, ${fifth.body.left} left`);
     if (fifth.body.id) {
       // What it cost lands in its month once its copies have all been written.
       for (let t = 0; t < 60; t++) { const [m] = await q(`SELECT previews FROM live_preview_months WHERE month = date_trunc('month', now())::date`); if ((m?.previews ?? 0) > (month0?.previews ?? 0)) break; await new Promise((r) => setTimeout(r, 1000)); }
@@ -44,7 +50,7 @@ const BASE = process.env.BASE || "http://localhost:3014";
       await api.call("DELETE", `/api/preview-live/${fifth.body.id}`);
     }
     const sixth = await make();
-    check("none left: refused, nothing taken", sixth.status === 429 && /No previews left today/.test(sixth.body.error || "") && (await uses()) === 5, `${sixth.status} "${sixth.body.error}"`);
+    check("none left: refused, nothing taken", sixth.status === 429 && /No previews left this week/.test(sixth.body.error || "") && (await uses()) === 5, `${sixth.status} "${sixth.body.error}"`);
 
     // A preview that isn't made gives its use back (a game that doesn't exist).
     await db.query(`DELETE FROM preview_uses WHERE user_id = $1`, [id]);

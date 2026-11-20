@@ -26,12 +26,13 @@ export function tryPreview(ask: PreviewAsk): boolean {
   return true;
 }
 
-/** What the allowance route answers: whether Try it is offered at all (the desk's switch), and how many are left today. */
+/** What the allowance route answers: whether Try it is offered at all (the desk's switch), and how many are left this week of the
+ *  week's share. */
 export interface PreviewAllowance {
   open: boolean;
   left: number;
-  perDay: number;
+  perWeek: number;
 }
 
-/** Try it's line: the count first, never on the button (the flow spec's §1). */
-export const allowanceLine = (a: PreviewAllowance) => (a.left > 0 ? `${a.left} preview${a.left === 1 ? "" : "s"} left today` : "No previews left today: more tomorrow");
+/** Try it's line: the count first, never on the button (the flow spec's §1); by the week, which resets Monday. */
+export const allowanceLine = (a: PreviewAllowance) => (a.left > 0 ? `${a.left} preview${a.left === 1 ? "" : "s"} left this week` : "No previews left this week: more Monday");

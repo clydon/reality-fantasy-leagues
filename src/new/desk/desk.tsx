@@ -534,7 +534,7 @@ type SheetKey = "signups" | "previews" | "confirm" | "tiebreak" | "couches" | "a
 const PREVIEWS = [
   ["off", "Off", "Nobody sees Try it. Previews already open run out on their own within a day."],
   ["admins", "Site admins only", "Try real seasons and games before anyone else spends the month."],
-  ["everyone", "Everyone", "5 a day each, while the month's budget lasts."],
+  ["everyone", "Everyone", "A weekly share of the month's budget each (3 to 20), fixed when their week starts, while it lasts."],
 ] as const;
 
 /** This month's previews against the service's budget (step 18): one bar and one line, in previews and a share of the budget, and
@@ -709,7 +709,7 @@ function SettingsTab() {
           dot={pv.who === "everyone" && pvShare >= 0.8}
           line={
             <>
-              {pv.who === "everyone" ? "Everyone, 5 a day each" : PREVIEWS.find(([v]) => v === pv.who)?.[1]}
+              {pv.who === "everyone" ? (pv.share ? `Everyone, ${pv.share.each} a week each` : "Everyone, a weekly share each") : PREVIEWS.find(([v]) => v === pv.who)?.[1]}
               {/* Past 80% the row says why its dot is there; before, how many. */}
               {pvShare >= 0.8 ? <> · <Worth>{Math.min(100, Math.round(pvShare * 100))}% of the budget</Worth></> : pv.month?.previews ? <> · <Worth>{pv.month.previews} this month</Worth></> : null}
             </>
@@ -770,6 +770,13 @@ function SettingsTab() {
           ))}
         </div>
         <PreviewMonthBar month={pv.month} />
+        {pv.share && (
+          <p data-previews-share className="mt-2 text-[13px] leading-snug text-muted-foreground">
+            This week&apos;s share: {pv.share.each} each, from {plural(pv.share.previewsLeft, "preview", "previews")} left this month, about{" "}
+            {plural(Math.max(pv.share.people, 1), "person", "people")} previewing and {pv.share.weeksLeft < 1.5 ? "about a week" : `${Math.round(pv.share.weeksLeft)} weeks`} to go.
+            Each person&apos;s is fixed when their week starts.
+          </p>
+        )}
       </Sheet>
       <Sheet open={sheet === "confirm"} onOpenChange={(o) => !o && close()} title="Sources to confirm a result" subtitle="How many sources that agree make a result everyone's">
         <div className="flex flex-col gap-2">

@@ -18,7 +18,7 @@ export interface Refusal {
 const NOT_COUNTED = "This one wasn't counted.";
 
 const TABLE: Record<Why, Omit<Refusal, "why">> = {
-  "none-left": { title: "No previews left today", line: "More tomorrow. You can still make the game.", retry: false, gone: false },
+  "none-left": { title: "No previews left this week", line: "More on Monday. You can still make the game.", retry: false, gone: false },
   busy: { title: "Lots of previews right now", line: `Try again in a minute. ${NOT_COUNTED}`, retry: true, gone: false },
   full: { title: "Previews are full this month", line: `Back on the 1st. ${NOT_COUNTED}`, retry: false, gone: false },
   down: { title: "Previews aren't answering", line: `Try again in a minute. ${NOT_COUNTED}`, retry: true, gone: false },

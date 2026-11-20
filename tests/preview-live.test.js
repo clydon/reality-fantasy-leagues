@@ -41,3 +41,20 @@ test("the live tier writes a local database, or the preview service's marked one
   await assert.rejects(_guard.marked(said(false)), /marked as a preview database/);
   await _guard.marked(said(true));
 });
+
+test("a person's weekly share of the month's previews: what's left, split between the people previewing, over the weeks left", () => {
+  const S = jiti("../src/lib/preview-share.ts");
+  // A handful of people (counted as 5): the ceiling. Thirty: the floor. Thirty, with three times the budget: ten each.
+  assert.equal(S.weeklyShare({ previewsLeft: 400, people: 3, weeksLeft: 4 }), 20);
+  assert.equal(S.weeklyShare({ previewsLeft: 400, people: 30, weeksLeft: 4 }), 3);
+  assert.equal(S.weeklyShare({ previewsLeft: 1200, people: 30, weeksLeft: 4 }), 10);
+  // Nothing left, or no time left: the floor (the service's monthly cap is the hard stop); a part-week counts as one.
+  assert.equal(S.weeklyShare({ previewsLeft: 0, people: 10, weeksLeft: 2 }), 3);
+  assert.equal(S.weeklyShare({ previewsLeft: 40, people: 5, weeksLeft: 0.3 }), 8);
+  // Room left in a month's ledger: at the measured cost when nothing's been made yet, else at this month's own average.
+  assert.equal(S.previewsLeftIn({ previews: 0, cpuMs: 0, budgetMs: 3_600_000 }), 428);
+  assert.equal(S.previewsLeftIn({ previews: 10, cpuMs: 84_000, budgetMs: 3_600_000 }), 418);
+  assert.equal(S.previewsLeftIn({ previews: 500, cpuMs: 3_700_000, budgetMs: 3_600_000 }), 0);
+  // Weeks to the end of the month, by the service's (UTC) months: 20 November to 1 December is 11 days.
+  assert.equal(Math.round(S.weeksLeftIn(new Date(Date.UTC(2026, 10, 20))) * 7), 11);
+});

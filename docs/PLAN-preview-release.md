@@ -65,6 +65,16 @@ and Who does what, below). Nothing is open.
    limit being paused whole, every project with it, until it upgraded, some still paused after the month reset. So the service adds
    up what each preview costs it and stops making new ones at a monthly budget: 1 of the 2.6 spare hours to start (very roughly 400
    to 700 previews), "Previews are full this month: back on the 1st" past it. Staging (step 16) sets the numbers.
+   **By the week, a share of the month (revised 2026-11-20, the user: "can we dynamically scale the number of previews allowed
+   based on active users? and also reshape their limit in a per day or per week limit?").** The month's budget is fixed by the
+   plan, so more people means a smaller share each, never more previews. Each person's week (Monday on, their own time zone) gets
+   a share: previews left this month ÷ people who previewed in the last 30 days (at least 5) ÷ weeks left in the month, kept between
+   3 and 20 (`src/lib/preview-share.ts`), worked out at the first look of their week and kept for it (`preview_week_shares`,
+   migration 0446, with what it came from), so a count never jumps mid-setup; while the service can't be read, the floor, unkept.
+   Weekly because previews come in bursts (one sitting, several changes), which a day's 5 could cut off. Shown as "12 previews left
+   this week" under Try it, "No previews left this week: more Monday" at none; the desk's row says the share ("Everyone, 15 a week
+   each") and its sheet the working. The monthly cap stays the hard stop. A paid plan raises `PREVIEW_MONTH_CPU_MS`, and the shares
+   grow with it.
 5. **The spoiler rule (decided: no new rule).** A preview's mark is what the app's own spoiler guard says this person may be told
    about on this season (`seenThrough`, `src/lib/server/guard.ts`), the check every screen goes through: spoiler protection on, their
    mark; off, with a seat in a game on the season, everything; only following the season, still their mark; a show kept up by
@@ -359,8 +369,9 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
     `PREVIEW_SERVICE_URL` set as a repository variable. Production's migrations applied 0444 and 0445 on that deploy.
     **The address (2026-11-20, the user's one approval in Cloudflare):** `preview.gameyourshow.com`, a CNAME added through Vercel's
     Domain Connect, verified; the service's `BETTER_AUTH_URL`, the app's `PREVIEW_SERVICE_URL` and the sweep's variable moved to it
-    (decision 1's "before everyone"). What's left is the user's alone: the desk's switch on the live app (site admins, one preview of
-    their own, then everyone).
+    (decision 1's "before everyone"). The service's Ignore Command is by branch (`[ "$VERCEL_GIT_COMMIT_REF" != "master" ]`):
+    the first, by `VERCEL_ENV`, skipped its own production build (that variable isn't set when the step runs). What's left is the
+    user's alone: the desk's switch on the live app (site admins, one preview of their own, then everyone).
 18. **Watched**: previews made, failed and refused, and the time to the first live phone, logged; a line on the desk ("Previews this
     month: 120 · 40% of the budget"), so nobody needs Vercel's or Neon's dashboards; docs/HOSTING.md updated with the service, its
     limits and its cost.

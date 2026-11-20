@@ -10,6 +10,7 @@ import { restoreFlag } from "./desk-rulebooks-flag";
 import { signupMode, waitingCount } from "./way-in";
 import { SIGNUP_MODES, type SignupMode } from "@/lib/signups";
 import { previewSwitch, previewUsage, type PreviewMonth, type PreviewSwitch } from "./previews";
+import { shareNow } from "./preview-allowance";
 
 // The admin's desk (docs/PLAN-new-design.md step 6b part 2; the mock's community.js admin): results settle by
 // community, and the admin is the exception desk. Three tabs from the profile menu: Inbox (desk-inbox.ts: only what needs
@@ -96,14 +97,14 @@ export interface DeskSettings {
   botAiRuns: Partial<Record<BotRunKind, RunProvider>>;
   /** Game previews (docs/PLAN-preview-release.md, decision 3 and step 18): who they're open to (app_settings 'live_previews'), and
    *  this month's against the preview service's budget (null when the service doesn't answer). */
-  previews: { who: PreviewSwitch; month: PreviewMonth | null };
+  previews: { who: PreviewSwitch; month: PreviewMonth | null; share: Awaited<ReturnType<typeof shareNow>> };
 }
 
 const PREVIEW_SWITCH: PreviewSwitch[] = ["off", "admins", "everyone"];
 const PREVIEW_LINES: Record<PreviewSwitch, string> = {
   off: "Game previews: off",
   admins: "Game previews: site admins only",
-  everyone: "Game previews: everyone, 5 a day each",
+  everyone: "Game previews: everyone, a weekly share each",
 };
 
 async function setting(key: string): Promise<unknown> {
@@ -135,7 +136,10 @@ export async function deskSettings(): Promise<DeskSettings> {
     signups: { mode: await signupMode(), waiting: await waitingCount() },
     botAi: await botProvider(),
     botAiRuns: await botRunProviders(),
-    previews: { who: await previewSwitch(), month: await previewUsage() },
+    previews: await (async () => {
+      const month = await previewUsage();
+      return { who: await previewSwitch(), month, share: await shareNow(month) };
+    })(),
   };
 }
 
