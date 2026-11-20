@@ -23,6 +23,14 @@ const PREVIEW_FILES = [
   "./scripts/dev-test/fixture-art.js",
   "./node_modules/jiti/**/*",
   "./node_modules/dotenv/**/*",
+  // The live tier hashes its made-up people's password with `await import("better-auth/crypto")` (ESM, so the bundler doesn't follow
+  // it): that entry and what it loads (scripts/dev-test/preview-trace-check.js follows ESM imports too). Step 16 found it missing.
+  "./node_modules/better-auth/package.json",
+  "./node_modules/better-auth/dist/**/*",
+  "./node_modules/@better-auth/utils/**/*",
+  "./node_modules/@noble/ciphers/**/*",
+  "./node_modules/@noble/hashes/**/*",
+  "./node_modules/jose/**/*",
 ];
 
 const nextConfig: NextConfig = {

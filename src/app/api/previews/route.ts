@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireAuth } from "@/lib/server/auth-helpers";
 import { HttpError } from "@/lib/server/http-error";
-import { startPreview } from "@/lib/server/previews";
+import { appOnly, startPreview } from "@/lib/server/previews";
 
 // A game's live preview (docs/PLAN-preview-release.md, step 9; src/lib/server/previews.ts), for the gallery's Preview button (step
 // 15). Signed in, the desk's switch open to you.
@@ -16,6 +16,7 @@ export const maxDuration = 120;
 const isPath = (v: unknown): v is string => typeof v === "string" && /^\/(?!\/)[\w\-/?=&%.]*$/.test(v) && !v.includes("//");
 
 export const POST = apiRoute(async (req) => {
+  appOnly();
   const user = await requireAuth(req);
   const body = (await req.json().catch(() => ({}))) as { season?: unknown; couch?: unknown; game?: { base?: unknown; changes?: unknown }; exits?: { back?: unknown; create?: unknown } };
   if (typeof body.season !== "string") throw new HttpError(400, "Which season?");

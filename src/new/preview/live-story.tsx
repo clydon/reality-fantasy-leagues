@@ -152,7 +152,7 @@ export function LiveStory({ game, name, back }: { game: string; name?: string; b
         async (r) => {
           const body = await r.json().catch(() => ({}));
           if (!r.ok) throw refusalOf(r.status, body.error);
-          return body as { id: string; entry: string };
+          return body as { id: string; entry: string; story?: string };
         },
         () => {
           throw refusalOf(null);
@@ -162,10 +162,11 @@ export function LiveStory({ game, name, back }: { game: string; name?: string; b
         // An effect cleaned up does nothing: the one still running for this try (the same ask) goes on to the story; a page left
         // while it was made leaves it to the sweep (half an hour).
         if (gone) return;
-        // Its way in is used once: the preview host spends it, signs in as the preview's viewer and opens the story.
+        // Its way in is used once: the preview host spends it, signs in as the preview's viewer and opens the story. The server says
+        // where (`story`: the preview service's own address); without it, this host's preview.<host> (development in one server).
         const host = `${window.location.protocol}//preview.${window.location.host}`;
         const to = `/start/preview-story/live/${m.id}`;
-        window.location.replace(`${host}/api/preview-live/enter?w=${encodeURIComponent(m.entry)}&to=${encodeURIComponent(to)}`);
+        window.location.replace(m.story ?? `${host}/api/preview-live/enter?w=${encodeURIComponent(m.entry)}&to=${encodeURIComponent(to)}`);
       })
       .catch((e: unknown) => !gone && setStop(e && typeof e === "object" && "why" in e ? (e as Refusal) : refusal("failed")))
       .finally(() => clearTimeout(late));

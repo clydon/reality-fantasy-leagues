@@ -40,6 +40,27 @@ function run() {
   require(path.join(root, "scripts/dev-test/fixture-art.js"));
 }
 
+// What the live tier imports as ESM at run time (`await import(...)`, which Module._load never sees): each loaded under a resolve
+// hook that notes every file, and used as the tier uses it. Step 16 found better-auth/crypto missing from the deployed routes.
+const ESM = ["better-auth/crypto"];
+async function runEsm() {
+  const { register } = require("node:module");
+  const { pathToFileURL, fileURLToPath } = require("node:url");
+  const { port1, port2 } = new MessageChannel();
+  port1.on("message", (u) => note(fileURLToPath(u)));
+  port1.unref();
+  const hook = `let port; export function initialize(d) { port = d.port; }
+export async function resolve(s, c, next) { const r = await next(s, c); if (r.url.startsWith("file:")) port.postMessage(r.url); return r; }`;
+  register("data:text/javascript," + encodeURIComponent(hook), { parentURL: pathToFileURL(__filename).href, data: { port: port2 }, transferList: [port2] });
+  for (const spec of ESM) {
+    const file = require.resolve(spec, { paths: [root] });
+    note(file);
+    const m = await import(pathToFileURL(file).href);
+    if (m.hashPassword) await m.hashPassword("trace");
+  }
+  await new Promise((r) => setTimeout(r, 200));
+}
+
 // A route's trace as it ships: the build writes each route's trace before next.config.ts's outputFileTracingExcludes, which apply
 // when its function is packaged; so they're applied here, as they will be.
 const picomatch = require("picomatch");
@@ -53,8 +74,10 @@ function traced(route) {
   return new Set(files.map((f) => path.resolve(path.dirname(nft), f)).filter((f) => !out(path.relative(root, f).split(path.sep).join("/"))));
 }
 
+(async () => {
 seen.clear(); // what the check itself loaded (the config, picomatch) isn't a preview's
 run();
+await runEsm();
 const needed = [...seen].filter((f) => !path.basename(f).startsWith(".env") && !f.includes(`${path.sep}tests${path.sep}fixtures${path.sep}preview-season`) && !f.endsWith("preview-trace-check.js"));
 let bad = 0;
 for (const route of ROUTES) {
@@ -67,3 +90,4 @@ for (const route of ROUTES) {
   if (missing.length) bad++;
 }
 process.exitCode = bad ? 1 : 0;
+})().catch((e) => { console.error(e); process.exitCode = 1; });
