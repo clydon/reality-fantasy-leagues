@@ -209,7 +209,7 @@ function fullAnswer(prompt, { danny = true, eric = true, devin = true } = {}) {
     check((await fact(OUT6))?.fact_status === "confirmed", "who went home: confirmed (alex's quick check and jordan's answer agree)");
     check((await fact("Danny Kilby", "individualImmunity"))?.fact_status === "reported" && (await fact("Devin Way", "idolFound"))?.status === "accepted", "Danny's immunity: reported (1 source); Devin's idol in on one look");
     const jLine = (await lines("lineup", "results.full"))[0];
-    check(jLine?.user_id === fx.users.jordan && /on their own \(3\)/.test(jLine.text), "couch A's line: jordan's, three results", jLine?.text);
+    check(jLine?.user_id === fx.users.jordan && /on their own \(4\)/.test(jLine.text), "couch A's line: jordan's, four results (Devin's idol too)", jLine?.text);
     const jView = (await as.jordan.call("GET", `/api/seasons/${sid}/changes${A}`)).body.lines.find((l) => l.batch === jLine?.batch);
     const sView = (await as.sam.call("GET", `/api/seasons/${sid}/changes${A}`)).body.lines.find((l) => l.batch === jLine?.batch);
     check(jView?.undoable === true && sView?.undoable === false, "the answer is jordan's to undo, not sam's");

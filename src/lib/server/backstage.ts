@@ -186,6 +186,8 @@ export interface BackstageEpisode {
   waiting: number;
   /** Results disputed in it (once you've seen it): one more answer settles them. */
   questions: number;
+  /** Results being settled in it, each once: the questions, and results waiting for a second look (docs/PLAN-results-settle.md). */
+  settling: number;
   /** When our bot checks it again if nobody does (the desk's tie-break run, step 6c part 2), while it's on. */
   tiebreakAt: string | null;
   /** A quick check that waits for you (no names: Show me has them), while nobody's results are in. */
@@ -405,6 +407,8 @@ export async function backstageRead(scope: BackstageScope, opts: { episode?: num
     waiting: waiting.length,
     // A count, never who or what: shown whether or not you've seen the episode.
     questions: questions.get(n) ?? 0,
+    // A split that isn't in the games is both a question and a waiting row: counted once, as a question.
+    settling: (questions.get(n) ?? 0) + waiting.filter((d) => d.factStatus === "reported").length,
     tiebreakAt: questions.get(n) ? await tiebreakFor(scope.seasonId, n) : null,
     wait: wait ? { id: wait.id, doubt: wait.doubt, line: wait.line, sources: wait.sources, via: wait.via, by: wait.couchId ? wait.by : null, mine: wait.sentBy === scope.user.id, at: wait.at } : null,
   };

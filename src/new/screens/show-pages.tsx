@@ -225,7 +225,7 @@ function resultsLine(data: Backstage | undefined): string {
   const ep = data?.episode;
   if (!ep) return PAGES.results.detail;
   // Results waiting on their sources settle on their own (docs/PLAN-results-settle.md): our bot's, not the couch's.
-  const checking = ep.waiting + ep.questions;
+  const checking = ep.settling;
   if (checking) return `Episode ${ep.number} · our bot is checking ${checking === 1 ? "a result" : `${checking} results`} again`;
   if (ep.stage === "none") return `Episode ${ep.number} · who went home isn't in yet`;
   if (ep.stage === "early") return `Episode ${ep.number} · who went home is in · full scores to come`;
