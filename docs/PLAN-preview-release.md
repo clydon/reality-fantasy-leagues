@@ -280,7 +280,18 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
     And `PREVIEW_APP_URL` (the app's address, for a gone story's "Back to the app"). On its ….vercel.app address first, before the
     DNS record: `BETTER_AUTH_URL` is that address (the enter route answers on the service's own host only), and the app's
     `PREVIEW_SERVICE_URL` the same.
+    **Done but its database (2026-11-20, the user: "Go ahead").** The project `gys-preview` (team Reality Fantasy Leagues, Hobby):
+    Next.js, Node 24, Fluid compute on, not connected to GitHub until the release (so a push doesn't rebuild it; deployed from here
+    till then). Its production settings: `PREVIEW_SERVICE=1`, `BETTER_AUTH_URL=https://gys-preview.vercel.app`, `PREVIEW_APP_URL=
+    https://www.gameyourshow.com` (the app's: gameyourshow.com redirects there), its own `BETTER_AUTH_SECRET` and the shared
+    `PREVIEW_SECRET` (both made in the shell, stored as secrets, never shown). `APP_DATABASE_HOSTS` is unset: the app's database URL
+    is a write-only secret on Vercel and its host isn't written down anywhere here; the service still writes only to a database
+    marked as a preview one, which the app's never is. Deployment retention needed nothing: the app's project already keeps 30 days
+    and the last 10 deployments (Vercel's Hobby default). Its database: Neon from the Marketplace (the user's click), connected from
+    here with `vercel storage connect <store> --project gys-preview --prefix AUTH` (so it's `AUTH_DATABASE_URL`, the code's name).
 12. **The app's environment**: `PREVIEW_SERVICE_URL` and `PREVIEW_SECRET`, set from here (secrets made here, never shown).
+    **Done (2026-11-20)** on `tvleagues`' production: `PREVIEW_SERVICE_URL=https://gys-preview.vercel.app` and the shared
+    `PREVIEW_SECRET`. Nothing changes until its next production deploy, and previews stay off until the desk's switch.
 13. **A security review** (run here) of the enter route (pass, host, redirect targets), the service's create route (signature, limits), and that
     the service's routes refuse anyone but a preview's viewer.
     **Done (2026-11-20).** A separate read of every route, the session plugin and the live tier's guard: nothing critical or high.
