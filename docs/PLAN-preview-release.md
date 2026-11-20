@@ -22,11 +22,13 @@ but a development page.
 
 ## Decisions
 
-Decided by the user (2026-11-19): **the free route** (2), **an allowance people can see** (4), and **each person's own preview, never
-shared, recycled strictly** (6, revised the same day). Still open: 1, 3 and 5, each with what's recommended.
+Decided by the user (2026-11-19): **the free route** (2), **an allowance people can see** (4), **each person's own preview, never
+shared, recycled strictly** (6, revised the same day), and 1, 3 and 5 and the numbers as recommended ("go", after the recommendations
+and Who does what, below). Nothing is open.
 
-1. **Where previews run (recommended: a preview service of their own).** The same app deployed a second time, on
-   `preview.gameyourshow.com`, with its own Neon database. A preview writes copies of a season, made-up people and their sessions;
+1. **Where previews run (decided: a preview service of their own).** The same app deployed a second time, with its own Neon
+   database: on its free `….vercel.app` address first (no DNS for the user), on `preview.gameyourshow.com` before everyone has it
+   (one DNS record). A preview writes copies of a season, made-up people and their sessions;
    in their own database none of that can ever show in the real app's catalogue, counts or searches, and a bug in the preview path
    can't touch real data. The app asks the service for a preview and sends the person to its story.
    - **A second deployment, not only a second database**: the phones are the app's real pages, so whatever serves them must read the
@@ -47,7 +49,7 @@ shared, recycled strictly** (6, revised the same day). Still open: 1, 3 and 5, e
      app's organization: that one is on Launch, which would bill it. Neon's docs don't say whether a Free organization can sit beside
      a paid one; if the console refuses, a project in the Launch organization costs about $1–2 a month at these sizes.
    - **Cleanup from the hourly GitHub job** (free while the repository is public), since Hobby's cron runs once a day.
-3. **Who sees it first (recommended: a switch on the desk).** `live_previews` in `app_settings` (off, admins, everyone), on the desk's
+3. **Who sees it first (decided: a switch on the desk).** `live_previews` in `app_settings` (off, admins, everyone), on the desk's
    Settings beside Sign-ups, with a history line and Undo as Sign-ups has. It flips in a second, where a deploy (production builds
    only, migrations included) takes minutes; admins first tries what development can't (real seasons, real marks, the gallery's real
    games, real usage) before anyone else spends the month; and it's the brake if previews misbehave. No testers stage between: today
@@ -58,12 +60,12 @@ shared, recycled strictly** (6, revised the same day). Still open: 1, 3 and 5, e
    overall ("Busy: try again in a minute" past that), for the database and the wait. These aren't the free plans' own limits, which
    are monthly totals for the whole account (Vercel's 4 active CPU-hours, Neon's 100 CU-hours): they share those out so one person or
    one busy night can't use the month up.
-   **A monthly budget (recommended, added 2026-11-19).** The service is a second project on the app's Hobby account, so it spends the
+   **A monthly budget (decided, added 2026-11-19).** The service is a second project on the app's Hobby account, so it spends the
    app's own 4 CPU-hours, and Vercel's community forum has many reports (not official policy) of a Hobby account that went over a
    limit being paused whole, every project with it, until it upgraded, some still paused after the month reset. So the service adds
    up what each preview costs it and stops making new ones at a monthly budget: 1 of the 2.6 spare hours to start (very roughly 400
    to 700 previews), "Previews are full this month: back on the 1st" past it. Staging (step 16) sets the numbers.
-5. **The spoiler rule (recommended: no new rule).** A preview's mark is what the app's own spoiler guard says this person may be told
+5. **The spoiler rule (decided: no new rule).** A preview's mark is what the app's own spoiler guard says this person may be told
    about on this season (`seenThrough`, `src/lib/server/guard.ts`), the check every screen goes through: spoiler protection on, their
    mark; off, with a seat in a game on the season, everything; only following the season, still their mark; a show kept up by
    itself, what's aired; unknown, Episode 0. So a preview never shows more real results than the app would show them that day,
@@ -87,6 +89,19 @@ shared, recycled strictly** (6, revised the same day). Still open: 1, 3 and 5, e
    So the preview database holds at most one preview per person who previewed in the last day. Measured in development: 0.3 MB of the
    main tables for the Survival pool's or the Prediction sheet's copies, 0.9 MB for the Fantasy league's, perhaps twice that with
    people, sign-ins and indexes.
+
+## Who does what (the user, 2026-11-19: "i want me to do as little input as possible")
+
+Everything is done in this lane but five moments of the user's:
+1. **The design story** (step 14): one look, the design process's pause.
+2. **Vercel's sign-in, once**: the Vercel command line installed here and its sign-in approved; then the second project, its settings
+   and secrets (made here, never shown), deployment retention on the app's project, and the test deployment are done from here, each
+   change listed first. (Without it, a click-by-click list for the dashboard.)
+3. **The database, one click**: Neon added from Vercel's Marketplace on the Free plan to the service's project (its terms are the
+   user's to accept); it makes the database and sets `DATABASE_URL` on the project.
+4. **One line to the wizard lane**: "do step 15 of the preview plan" (the Preview button is its code; step 15 says what to send).
+5. **The release**: the merge (the lane's rules keep merging and pushing for the user), then on the desk: admins, one preview of
+   their own, everyone. And one DNS record for `preview.gameyourshow.com` before everyone.
 
 ## How it fits together (the target)
 
@@ -133,7 +148,7 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
 6. **The runtime shipped with the service's routes** (`outputFileTracingIncludes` for `tools/gameplay-bench/**` and the engine), and
    the bundle's size measured against Vercel's limits.
 7. **Cleanup**: a sweep on each new preview (as now), and an hourly sweep from the existing GitHub job (`reminders-waivers.yml`) calling
-   the service's protected sweep route, so a preview that's never closed still goes. The sweep also removes any copy older than the
+   the service's sweep route (open, no secret: it only removes what has expired, at most once a minute), so a preview that's never closed still goes. The sweep also removes any copy older than the
    longest a preview lives (a day, decision 6), registered or not: in development a maker that failed after writing its copies left 43 cases behind
    before the registry learned to remove them. Checked: a forgotten preview is gone within the hour; nothing left after a hundred,
    including ones made to fail partway.
@@ -152,14 +167,14 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
    (decision 6).
 
 **Infrastructure (the user's accounts)**
-10. **A Neon organization on the Free plan, with one project for previews** (decision 2), its migrations run by the same
-    `db/migrate.js` on its own build.
-11. **A Vercel project for the service** (Hobby, after old deployments are cleared: decision 2): this repository, production builds
-    only (as the app's), its own environment: the preview
+10. **A Neon database on the Free plan** (decision 2), added to the service's project from Vercel's Marketplace (the user's click: Who
+    does what), its migrations run by the same `db/migrate.js` on its own build, reading the `DATABASE_URL` the integration sets.
+11. **A Vercel project for the service** (Hobby, after deployment retention clears old deployments: decision 2), made from here with
+    the Vercel command line: this repository, production builds only (as the app's), Fluid compute on, its own environment: the preview
     database's URL, `PREVIEW_SERVICE=1`, `BETTER_AUTH_URL=https://preview.gameyourshow.com`, its own `BETTER_AUTH_SECRET`, the
     shared `PREVIEW_SECRET`; none of the app's email, push, AI or provider keys. The domain `preview.gameyourshow.com`.
-12. **The app's environment**: `PREVIEW_SERVICE_URL` and `PREVIEW_SECRET`.
-13. **A security review** of the enter route (pass, host, redirect targets), the service's create route (signature, limits), and that
+12. **The app's environment**: `PREVIEW_SERVICE_URL` and `PREVIEW_SECRET`, set from here (secrets made here, never shown).
+13. **A security review** (run here) of the enter route (pass, host, redirect targets), the service's create route (signature, limits), and that
     the service's routes refuse anyone but a preview's viewer.
 
 **Design and the gallery**
@@ -169,11 +184,14 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
 15. **The gallery's Preview button** (the wizard lane's code): it sends the game's spec, with its changes, to step 9.
 
 **Release**
-16. **On a staging pair first**: the service and a copy of the app on Vercel preview URLs with their own databases; the end-to-end
-    check run against them; 10 previews at once to see the limits hold, and what each costs (active CPU and query results: decision 4's numbers).
+16. **Tried first without production**: a production build here; then a test deployment of the service straight from this branch
+    (the Vercel command line, no push), on the preview database, asked by this lane's app and driven by the end-to-end check (no real
+    data anywhere); 10 previews at once to see the limits hold, and what each costs (active CPU and query results: decision 4's
+    numbers).
 17. **Admins, then everyone**, by the switch (decision 3).
-18. **Watched**: previews made, failed and refused, and the time to the first live phone, logged; docs/HOSTING.md updated with the
-    service, its limits and its cost.
+18. **Watched**: previews made, failed and refused, and the time to the first live phone, logged; a line on the desk ("Previews this
+    month: 120 · 40% of the budget"), so nobody needs Vercel's or Neon's dashboards; docs/HOSTING.md updated with the service, its
+    limits and its cost.
 
 ## What it costs on the free route (estimated from what development measured)
 
