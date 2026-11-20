@@ -117,6 +117,15 @@ run there as settle-again does (no bot asked), then each result in or out, each 
 - Checks after the fix: `npm test` 2482, tsc, eslint (fact-status.ts); check-new-settling 103 and check-new-community 91, each
   with the one line that fails on origin/master too (below).
 
+## After the push (2026-11-20)
+- Pushed 1:58 PM ET (master 996c2cde, `git push origin results-settle:master` from the lane); live 2:03 PM (the deployment's
+  status success; the new route 404 before, 405 to a GET after); `vercel logs` no 5xx.
+- POST /api/desk/settle-again once, 2:04 PM ET, as the site admin (a same-page fetch in the signed-in Playwright browser):
+  `{ seasons: 3, episodes: 39 }`, as the what-would-move run said; tiebreak_from 19:04:34Z. The admin's bell got the run's
+  "Ep 3 results changed · 4 results changed after final results. Your points: +0.5 in Weekly Start/Bench." The Inbox: no
+  results rows (the bot is settling them); its other three items were there before.
+- The bot's second look comes due an hour later (~3:05 PM ET): Eps 1 and 3's 25 waiting results, and Eps 7-8's splits.
+
 ## Noticed, not fixed
 - **check-new-settling and check-new-community fail one line on origin/master too** (61a13da6, run 2026-11-20): "jordan's
   Episode 6: the corrections sit right above 'Something wrong in this episode?', not at the top" ({"above":false}). Not this
