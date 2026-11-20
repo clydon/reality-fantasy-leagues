@@ -7,13 +7,15 @@
 //      reaches every game on the season, couch B's too; only couch A's Recent changes get a line.
 //   2. Anyone fills in: jordan (a player) gets Tonight's "Full scores need one paste" once he's seen Episode 6 (not
 //      sam, who hasn't; not alex, who runs the games; not while the couch says only people who run games), fills it in
-//      through Ask an AI in the browser, and every game on the season scores: trusted results reached everyone, one at
-//      medium confidence waits, who went home is confirmed by two people. His line is his to undo; sam's isn't.
+//      through Ask an AI in the browser, and every game on the season scores: every result reached everyone, the one at
+//      medium confidence too (docs/PLAN-results-settle.md: one look is enough), who went home is confirmed by two people.
+//      His line is his to undo; sam's isn't.
 //   3. "Something wrong?": jordan flags Eric's reward from the episode page (who → which result → why); riley flags
-//      Danny's immunity over the API; sam can't flag what he hasn't seen. Disputed, nothing changes, and Backstage asks
-//      for one more answer.
+//      Danny's immunity over the API; sam can't flag what he hasn't seen. Disputed, nothing changes, and it's no job for
+//      the couch: Backstage says the results are being settled.
 //   4. Couch B's casey sends the check: Danny's immunity stands (riley's flag kept), Eric's reward comes out of every
-//      league with a correction line (jordan's flag upheld), Devin's idol is split and stays out.
+//      league with a correction line (jordan's flag upheld), Devin's idol is split and stays as it was (in). Episode 6's
+//      final results were yesterday, so the correction is told: jordan, who's seen it, hears; sam and casey don't.
 //   5. A house ruling: alex keeps Eric's reward in couch A's games (previewed), players see it on Episode 6, the
 //      shared stats and couch B don't; Drop the ruling puts the correction back.
 //   6. jordan takes his answer back; riley can't (it touched games she doesn't run). The never-reviewed result was
@@ -201,18 +203,18 @@ function fullAnswer(prompt, { danny = true, eric = true, devin = true } = {}) {
     const thanks = await toasted(j.page, /Thanks/);
     check(/Thanks! Every game on the couch is scored/.test(thanks), "jordan's paste: every game on the couch scored", thanks);
     const e2 = await Promise.all(["outlast", "lineup", "pool", "extra"].map(ep6));
-    check(e2.every((e) => has(e, "Danny Kilby:individualImmunity") && has(e, "Eric Macksoud:rewardWin") && !has(e, "Devin Way:idolFound") && e.stage === null), "trusted results reached every league (final); Devin's medium idol waits", JSON.stringify(e2));
+    check(e2.every((e) => has(e, "Danny Kilby:individualImmunity") && has(e, "Eric Macksoud:rewardWin") && has(e, "Devin Way:idolFound") && e.stage === null), "every result reached every league (final), Devin's medium idol too", JSON.stringify(e2));
     const jSub = (await pool.query(`SELECT id, submitted_by, couch_id, covers FROM episode_research WHERE source = 'paste' AND submitted_by = $1`, [fx.users.jordan])).rows;
     check(jSub.length === 1 && jSub[0].couch_id === fx.couchId && jSub[0].covers.kinds === null && jSub[0].covers.people.length >= 13, "jordan's answer is its own row, from couch A, covering everyone");
     check((await fact(OUT6))?.fact_status === "confirmed", "who went home: confirmed (alex's quick check and jordan's answer agree)");
-    check((await fact("Danny Kilby", "individualImmunity"))?.fact_status === "reported" && (await fact("Devin Way", "idolFound"))?.status === "pending", "Danny's immunity: reported (1 source); Devin's idol waits");
+    check((await fact("Danny Kilby", "individualImmunity"))?.fact_status === "reported" && (await fact("Devin Way", "idolFound"))?.status === "accepted", "Danny's immunity: reported (1 source); Devin's idol in on one look");
     const jLine = (await lines("lineup", "results.full"))[0];
     check(jLine?.user_id === fx.users.jordan && /on their own \(3\)/.test(jLine.text), "couch A's line: jordan's, three results", jLine?.text);
     const jView = (await as.jordan.call("GET", `/api/seasons/${sid}/changes${A}`)).body.lines.find((l) => l.batch === jLine?.batch);
     const sView = (await as.sam.call("GET", `/api/seasons/${sid}/changes${A}`)).body.lines.find((l) => l.batch === jLine?.batch);
     check(jView?.undoable === true && sView?.undoable === false, "the answer is jordan's to undo, not sam's");
     const bs = (await as.alex.call("GET", `/api/seasons/${sid}/backstage${A}&episode=6&show=1`)).body;
-    check(bs.episode.waiting === 1 && bs.shown.waiting.length === 1 && bs.shown.waiting[0].name === "Devin Way", "Backstage waits on Devin's idol only (never the result nobody reviewed)", JSON.stringify(bs.shown?.waiting?.map((w) => w.name)));
+    check(bs.episode.waiting === 0 && bs.shown.waiting.length === 0, "Backstage waits on nothing (never the result nobody reviewed)", JSON.stringify(bs.shown?.waiting?.map((w) => w.name)));
     const filled = bs.fill.episodes.find((e) => e.episode === 6);
     check(bs.fill.anyone === true && filled?.by === "zt_nd_jordan" && filled.here && filled.sources === 1, "Backstage: Episode 6 filled in by jordan, 1 source so far", JSON.stringify(filled));
     const stats1 = (await as.jordan.call("GET", `/api/seasons/${sid}/stats${A}`)).body;
@@ -252,7 +254,7 @@ function fullAnswer(prompt, { danny = true, eric = true, devin = true } = {}) {
     const again = await as.jordan.call("POST", `/api/seasons/${sid}/disputes${A}`, { episode: 6, decisionId: ericId, reason: "didnt-happen", note: "again" });
     check(again.status === 200 && (await flagsOf(ericId)).length === 1, "flagging the same result twice is one flag");
     const bs2 = (await as.alex.call("GET", `/api/seasons/${sid}/backstage${A}&episode=6`)).body;
-    check(bs2.needs.some((x) => x.id === "question" && x.episode === 6) && bs2.episode.questions >= 2, "Backstage: results in Episode 6 are disputed, one more answer settles them", JSON.stringify(bs2.needs));
+    check(!bs2.needs.some((x) => x.id === "question" || x.id === "waiting") && bs2.episode.questions >= 2, "Backstage: Episode 6's results are being settled, and it's no job for the couch", JSON.stringify(bs2.needs));
     check(bs2.flags.length === 2 && bs2.flags.some((f) => f.who === "zt_nd_jordan" && /Eric Macksoud/.test(f.what)), "Flags from your couch: jordan's and riley's", JSON.stringify(bs2.flags));
     const res6 = (await as.jordan.call("GET", `/api/seasons/${sid}/results/6${A}`)).body;
     const eric6 = res6.people.find((p) => p.name === "Eric Macksoud")?.results[0];
@@ -268,11 +270,23 @@ function fullAnswer(prompt, { danny = true, eric = true, devin = true } = {}) {
     const ericNow = await fact("Eric Macksoud", "rewardWin");
     check(ericNow.fact_status === "removed" && ericNow.status === "rejected" && (await flagsOf(ericId)).join() === "upheld", "Eric's reward comes out: jordan's flag upheld");
     const devin = await fact("Devin Way", "idolFound");
-    check(devin.fact_status === "disputed" && devin.status === "pending", "Devin's idol: the sources split, it stays out");
+    check(devin.fact_status === "disputed" && devin.status === "accepted", "Devin's idol: the sources split, it stays as it was (in)");
     const e3 = await Promise.all(["outlast", "lineup", "pool", "extra"].map(ep6));
     check(e3.every((e) => !has(e, "Eric Macksoud:rewardWin") && has(e, "Danny Kilby:individualImmunity")), "the correction reached every league", JSON.stringify(e3));
     const corr = await lines("lineup", "results.correction");
     check(corr.length === 1 && corr[0].text === "Episode 6 corrected" && corr[0].detail.facts[0].name === "Eric Macksoud" && corr[0].detail.facts[0].change === "removed", "a correction line in the game, naming nobody in its text", JSON.stringify(corr.map((c) => c.text)));
+    // Told after final results (docs/PLAN-results-settle.md A3): Episode 6's final time has passed, so the correction is news,
+    // in the bell after the response (next/server's after()), for whoever has seen the episode, never for whoever sent it.
+    await new Promise((r) => setTimeout(r, 2500));
+    const bell = async (who) => (await pool.query("SELECT title, body FROM notifications WHERE user_id = $1 AND type = 'resultsChanged'", [fx.users[who]])).rows;
+    const jBell = await bell("jordan");
+    check(
+      jBell.length === 1 && jBell[0].title === "Ep 6 results changed" && /Eric Macksoud: Reward win taken out after final results\./.test(jBell[0].body),
+      "jordan (he's seen Episode 6) is told: Ep 6 results changed, what, and his points",
+      JSON.stringify(jBell)
+    );
+    check(!(await bell("sam")).length, "sam (on Episode 3) isn't told: he hasn't seen it");
+    check(!(await bell("casey")).length, "casey, who sent it, isn't told");
     check((await lines("extra", "results.correction")).length === 1, "and in couch B's game");
     const res6c = (await as.jordan.call("GET", `/api/seasons/${sid}/results/6${A}`)).body;
     check(res6c.corrections.length === 1 && res6c.corrections[0].episode === 6 && res6c.corrections[0].change === "removed", "Episode 6 corrected (its results)", JSON.stringify(res6c.corrections));
@@ -301,7 +315,10 @@ function fullAnswer(prompt, { danny = true, eric = true, devin = true } = {}) {
     await a.page.locator("[data-correction]").waitFor({ timeout: 20000 });
     await a.page.locator("[data-fill-state]").scrollIntoViewIfNeeded();
     check((await a.page.locator("[data-filled='6']").innerText()).includes("2 sources agree"), "Results: Episode 6 filled in, 2 sources agree");
-    check((await a.page.locator("[data-question='6']").count()) === 1, "Results: the disputed card asks to check it again");
+    check(
+      (await a.page.locator("[data-question='6']").count()) === 1 && /being settled/.test(await a.page.locator("[data-question='6']").innerText()),
+      "Results: the card says Devin's idol is being settled (the tie-break run is off here: the admin decides)"
+    );
     await shot(a.page, "results-fill-state");
     await a.page.locator("[data-correction]").scrollIntoViewIfNeeded();
     await fits(a.page, "Backstage › Results");

@@ -7,12 +7,13 @@
 //      the season (each episode marked, early, nobody out), a source of alex's; Undo. A quick check that says nobody went
 //      home waits; Show me says so; It's right applies it.
 //   2. A split: casey's full answer (Cristian voted out) disagrees with alex's "nobody": both facts disputed, nothing
-//      moves in the games; the desk's Inbox has the split at once while the tie-break run is off.
+//      moves in the games; the desk's Inbox has the episode at once while the tie-break run is off (one item an episode,
+//      docs/PLAN-results-settle.md: "2 results still split").
 //   3. The tie-break run (the desk's switch): off, the clock plans nothing for it; on (Settings, a History line), the split
-//      waits for it in the Inbox and Backstage says when the bot checks; the clock's `next` is a day after the split. A
-//      bot that's down fails it three times, then the split is the desk's. A new answer opens it again; the tie-break run
-//      (source tiebreak, nobody's) settles it: Cristian out everywhere, "nobody went home" removed with a correction line.
-//      A flag raised after it gets its own tie-break, a day later.
+//      waits for it in the Inbox and Backstage says our bot is checking it again; the clock's `next` is an hour after the
+//      split (it was a day). A bot that's down fails it three times, then the episode is the desk's ("our bot couldn't
+//      look again"). A new answer opens it again; the tie-break run (source tiebreak, nobody's) settles it: Cristian out
+//      everywhere, "nobody went home" removed with a correction line. A flag raised after it gets its own, an hour later.
 //   4. Something the rulebook doesn't have: casey's research said Episode 6 brought a Block a Vote advantage. alex sees it
 //      (another couch reported it; one more yes adds it), sam can't before he's seen it; jordan, a player, sees nothing and
 //      is refused (the rulebook is a Commissioner's), then is made a Commissioner of the lineup game and says Not new in the
@@ -61,7 +62,7 @@ function check(ok, what, detail = "") {
 
 const OUT6 = "Cristian Chavez";
 const NOTE = "A new Block a Vote advantage: whoever finds it can take away someone's vote at Tribal Council.";
-const DAY = 24 * 3600 * 1000;
+const HOUR = 3600 * 1000;
 const DESK = fixture.username("desk");
 const REAL_LEAGUES = "SELECT slug, md5(state::text) AS h FROM leagues WHERE slug NOT LIKE 'zt%' ORDER BY slug";
 
@@ -264,40 +265,45 @@ function rulebookAnswer(prompt) {
     check(e.every((x) => x.noExit && x.outs === 0), "the games: still nobody out", JSON.stringify(e));
     check((await backstage()).episode.questions >= 1, "Backstage: Episode 6 has a question open");
     let ib = await inbox();
-    check(ib.some((i) => i.kind === "split" && /Nobody went home/.test(i.title)) && ib.some((i) => i.kind === "split" && i.title.startsWith(OUT6)), "the tie-break run off: the split is the desk's at once", JSON.stringify(ib));
+    check(
+      ib.some((i) => /Episode 6: 2 results still split$/.test(i.title) && /switched off/.test(i.line) && i.href.endsWith(`/season/${sid}/e/6`)),
+      "the tie-break run off: the episode is the desk's at once, one item for its two results",
+      JSON.stringify(ib)
+    );
 
     // ---- 3. the tie-break run ----
-    let plan = await cron("GET", splitAt + DAY + 60000);
+    let plan = await cron("GET", splitAt + HOUR + 60000);
     check(!plan.due.length && plan.next === null, "off: the clock plans nothing for it", JSON.stringify(plan));
     check((await as.jordan.call("PUT", "/api/desk/settings", { tiebreak: true })).status === 403, "the switch is the desk's (jordan refused)");
     const on = await as.desk.call("PUT", "/api/desk/settings", { tiebreak: true });
     check(on.status === 200 && on.body.settings.tiebreak.on === true && on.body.settings.tiebreak.reach.includes("ZT Survivor 51"), "the desk switches the tie-break run on; it reaches every airing season", JSON.stringify(on.body.settings?.tiebreak));
-    check(on.body.history.some((h) => /When a result is disputed: the bot asks again/.test(h.text) && h.undoable), "a line in Settings' History, with Undo");
-    plan = await cron("GET", splitAt + DAY - 3600000);
-    check(!plan.due.length && Math.abs(Date.parse(plan.next) - (splitAt + DAY)) < 2000, "on: the clock's next call is a day after the split", JSON.stringify(plan));
+    check(on.body.history.some((h) => /When answers disagree: our bot looks again an hour later/.test(h.text) && h.undoable), "a line in Settings' History, with Undo");
+    plan = await cron("GET", splitAt + HOUR - 10 * 60000);
+    check(!plan.due.length && Math.abs(Date.parse(plan.next) - (splitAt + HOUR)) < 2000, "on: the clock's next call is an hour after the split", JSON.stringify(plan));
     const bs3 = await backstage();
-    check(Math.abs(Date.parse(bs3.episode.tiebreakAt) - (splitAt + DAY)) < 2000, "Backstage says when our bot checks it", JSON.stringify(bs3.episode));
+    check(Math.abs(Date.parse(bs3.episode.tiebreakAt) - (splitAt + HOUR)) < 2000, "Backstage knows when our bot checks it", JSON.stringify(bs3.episode));
+    check(!bs3.needs.some((n) => n.id === "question" || n.id === "waiting"), "and it's nobody's job on the couch", JSON.stringify(bs3.needs));
     ib = await inbox();
     check(!ib.some((i) => i.kind === "split" || i.kind === "stale"), "the split waits for its tie-break before it's the desk's", JSON.stringify(ib));
     bot.down = true;
     for (let i = 1; i <= 3; i++) {
-      const r = await cron("POST", splitAt + DAY + i * 60000);
+      const r = await cron("POST", splitAt + HOUR + i * 60000);
       check(r.job?.kind === "tiebreak" && r.job.episode === 6 && r.ok === false, `a bot that's down: tie-break try ${i} fails`, JSON.stringify(r).slice(0, 200));
     }
-    plan = await cron("GET", splitAt + DAY + 5 * 60000);
+    plan = await cron("GET", splitAt + HOUR + 5 * 60000);
     check(!plan.due.length, "after three tries, no more", JSON.stringify(plan));
     ib = await inbox();
-    check(ib.some((i) => i.kind === "split" && /the sources split$/.test(i.line)), "and the split is the desk's", JSON.stringify(ib));
+    check(ib.some((i) => i.kind === "stale" && /Episode 6: 2 results still split$/.test(i.title) && /couldn't look again/.test(i.line)), "and the episode is the desk's: our bot couldn't look again", JSON.stringify(ib));
     bot.down = false;
-    // casey checks it again: a new answer opens the question again, and its tie-break comes a day later.
+    // casey checks it again: a new answer opens the question again, and its tie-break comes an hour later.
     const cAgain = await as.casey.call("POST", `/api/seasons/${sid}/backstage/results${B}`, { episode: 6, kind: "full", answer: fullAnswer(cPrompt, { note: NOTE }) });
     check(cAgain.status === 200, "casey sends it again");
     const againAt = new Date((await subs()).at(-1).researched_at).getTime();
-    plan = await cron("GET", againAt + DAY - 60000);
-    check(Math.abs(Date.parse(plan.next) - (againAt + DAY)) < 2000, "its tie-break is a day after that answer", JSON.stringify(plan));
+    plan = await cron("GET", againAt + HOUR - 60000);
+    check(Math.abs(Date.parse(plan.next) - (againAt + HOUR)) < 2000, "its tie-break is an hour after that answer", JSON.stringify(plan));
     bot.answer = (p, kind) => (kind === "full" ? fullAnswer(p) : "{}");
     bot.asked.length = 0;
-    const tb = await cron("POST", againAt + DAY + 60000);
+    const tb = await cron("POST", againAt + HOUR + 60000);
     check(tb.job?.kind === "tiebreak" && tb.ok === true && /^Tie-break:/.test(tb.message), "the tie-break run: the bot asks Episode 6 once more", JSON.stringify(tb).slice(0, 300));
     check(bot.asked.length === 1 && bot.asked[0].kind === "full", "one full question");
     s = (await subs()).at(-1);
@@ -316,17 +322,21 @@ function rulebookAnswer(prompt) {
     check(!(await backstage()).episode.questions, "Backstage: no question open");
     plan = await cron("GET", Date.now());
     check(!plan.due.length && plan.next === null, "and no tie-break left to plan", JSON.stringify(plan));
-    // A flag raised after it gets its own, a day later.
+    // A flag raised after it gets its own, an hour later.
     check((await reveal("jordan", fx.couchId, 6)).status === 200, "jordan reveals Episode 6");
     const danny = (await pool.query("SELECT id FROM season_decisions WHERE season_id = $1 AND episode_number = 6 AND kind = 'event' AND castaway_name = 'Danny Kilby'", [sid])).rows[0].id;
     const flag = await as.jordan.call("POST", `/api/seasons/${sid}/disputes${A}`, { episode: 6, decisionId: danny, reason: "didnt-happen", note: "He lost it to Eric" });
     check(flag.status === 200, "jordan flags Danny's immunity");
     const flagAt = (await pool.query("SELECT created_at FROM fact_disputes WHERE decision_id = $1", [danny])).rows[0].created_at.getTime();
-    plan = await cron("GET", flagAt + 3600000);
-    check(Math.abs(Date.parse(plan.next) - (flagAt + DAY)) < 2000, "a flag after the tie-break: its own, a day after it was raised", JSON.stringify(plan));
+    plan = await cron("GET", flagAt + 30 * 60000);
+    check(Math.abs(Date.parse(plan.next) - (flagAt + HOUR)) < 2000, "a flag after the tie-break: its own, an hour after it was raised", JSON.stringify(plan));
     await page.goto(`${BASE}/show/${sid}/backstage/results?ep=6`);
     await page.locator("[data-question='6']").waitFor({ timeout: 20000 });
-    check(/If nobody checks it, our bot does/.test(await page.locator("[data-question='6']").innerText()), "Backstage: if nobody checks it, our bot does");
+    check(
+      (await page.locator("[data-question='6']").getAttribute("data-settling")) === "bot" && /Our bot is checking a result again/.test(await page.locator("[data-question='6']").innerText()),
+      "Backstage: our bot is checking a result again (nothing for the couch to do)"
+    );
+    check(!(await page.locator("[data-question='6'] button").count()), "no button on it");
     await page.locator("[data-question='6']").scrollIntoViewIfNeeded();
     await fits("Backstage with a question open");
     await shot("question-tiebreak");
@@ -421,7 +431,7 @@ function rulebookAnswer(prompt) {
     watch(d.page);
     await d.page.goto(`${BASE}/desk/settings`);
     await d.page.locator("[data-desk-row='tiebreak']").waitFor({ timeout: 20000 });
-    check(/The bot asks again after a day/.test(await d.page.locator("[data-desk-row='tiebreak']").innerText()), "Settings: the tie-break run is on");
+    check(/Our bot looks again an hour later/.test(await d.page.locator("[data-desk-row='tiebreak']").innerText()), "Settings: the tie-break run is on");
     await fits("the desk's Settings", d.page);
     await shot("desk-settings", d.page);
     await d.page.locator("[data-desk-row='tiebreak']").click();
@@ -429,7 +439,7 @@ function rulebookAnswer(prompt) {
     check(/ZT Survivor 51/.test(await d.page.locator("[data-tiebreak-reach]").innerText()), "its sheet says which airing seasons it reaches");
     await shot("desk-tiebreak-sheet", d.page);
     await d.page.locator("[data-tiebreak=false]").click();
-    check(/it waits for a couch/.test(await toasted(/it waits for a couch/, d.page)), "switched off from the sheet");
+    check(/it waits for you/.test(await toasted(/it waits for you/, d.page)), "switched off from the sheet");
     check((await pool.query("SELECT value FROM app_settings WHERE key = 'tiebreak'")).rows[0].value === false, "stored: off");
     // The season's bot moved to its Research and the bot (docs/PLAN-desk-parity.md part 4a).
     await d.page.goto(`${BASE}/desk/season/${sid}/research`);
