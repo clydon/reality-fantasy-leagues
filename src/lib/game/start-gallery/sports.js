@@ -108,6 +108,13 @@ function sportStandard(family, league) {
       spec.count = { ...c, slots: lineup.map((s) => ({ label: s.slot, of: 'position', values: [...s.takes], n: s.n })) };
       // Step 2.4: its IR places on a game with a draft (index.ts withLineupSlots).
       if (isObj(slots.ir) && isObj(spec.get) && spec.get.by === 'draft') spec.get = { ...spec.get, ir: { n: slots.ir.n, takes: [...slots.ir.takes] } };
+      // Step 2.5: its waivers (index.ts sportWaivers), unless the spec says its own.
+      const w = isObj(d.waivers) && isObj(spec.get) && spec.get.by === 'draft' && !(isObj(spec.extras) && spec.extras.waivers) ? d.waivers : null;
+      if (w) {
+        const team = Number.isInteger(spec.get.each) && spec.get.each >= 1 ? spec.get.each : null;
+        const swaps = w.swaps === null ? team || 1 : team === null ? w.swaps : Math.min(w.swaps, team);
+        spec.extras = { ...(isObj(spec.extras) ? spec.extras : {}), waivers: { feel: 'balanced', replace: 'never', short: null, windows: { schedule: 'everyEpisode', every: 3, swaps }, order: 'rolling', hours: w.hours, freeAgency: true, autoFill: true, ...(w.daily && spec.closes === 'game' ? { daily: true } : {}) } };
+      }
     }
     out[id] = { about: x.about, on: x.on || null, spec };
   }

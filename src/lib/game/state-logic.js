@@ -7861,9 +7861,11 @@ class WaiverLogic {
   // A swap from the old live rounds after the same episode counts too (no periodId), so a league that
   // switched to waivers mid-window can't swap twice.
   static swapsMade(state, period, playerId){
+    // Step 2.5: waivers every game day count a window's swaps across the week's days (each day's period of the same episode).
+    const ids = period.day ? new Set(WaiverLogic.periods(state).filter(p => p.day && p.episode === period.episode).map(p => p.id)) : new Set([period.id]);
     // A drop on its own (step 2.4: IrLogic, `addedCastawayId` null) uses none.
     return ((state.midSeason && state.midSeason.log) || []).filter(tx => tx.type === 'trade' && tx.playerId === playerId && tx.addedCastawayId
-      && (tx.periodId === period.id || (!tx.periodId && tx.episode === period.episode))).length;
+      && (ids.has(tx.periodId) || (!tx.periodId && tx.episode === period.episode))).length;
   }
   /** Whether replacements happen in this week: its own say (a window the commissioner opened), else the rule. */
   static windowReplaces(state, period){
@@ -8004,12 +8006,23 @@ class WaiverLogic {
     const MIN = WaiverLogic.MIN_CLAIM_HOURS * HOUR_MS;
     const opened = Date.parse(period.openedAt);
     const hand = WaiverLogic.byHandAt(period);
+    // Step 2.5: a game day's period (period.day) processes `hours` before the day's first game (halfway there, opened later) and
+    // closes when its last game starts; a day whose games are gone (moved, called off) closes at its end.
+    if(period.day){
+      const d = WaiverLogic.gameDays(state).find(x => x.until === period.day);
+      if(!d) return { processAt: new Date(Math.min(Date.parse(period.day), opened + H)).toISOString(), closesAt: period.day };
+      const at = d.first - H >= opened ? d.first - H : opened + Math.max(0, d.first - opened) / 2;
+      return { processAt: new Date(at).toISOString(), closesAt: new Date(Math.max(d.last, at)).toISOString() };
+    }
     const next = state.episodes.find(e => e.number === period.episode + 1);
     const airs = next && next.airsAt ? Date.parse(next.airsAt) : NaN;
     if(Number.isFinite(airs) && airs > opened){
       let at = airs - H >= opened ? airs - H : opened + (airs - opened) / 2;
       if(Number.isFinite(hand) && airs > hand) at = Math.max(at, Math.min(airs, hand + Math.max((airs - hand) / 2, MIN)));
-      return { processAt: new Date(at).toISOString(), closesAt: new Date(airs).toISOString() };
+      // Step 2.5: a lineup locking at each game takes free agents until the week's last game starts (each one's lock its own game's:
+      // freeAgencyMove), not only until its first.
+      const last = ActiveRosterLogic.eachGame(state, next) ? ActiveRosterLogic.lastStartOf(next) : null;
+      return { processAt: new Date(at).toISOString(), closesAt: new Date(last !== null && last > airs ? last : airs).toISOString() };
     }
     return { processAt: new Date(Math.max(opened + H, Number.isFinite(hand) ? hand + MIN : -Infinity)).toISOString(), closesAt: null };
   }
@@ -8021,10 +8034,63 @@ class WaiverLogic {
     if(p.phase === 'open') p.processAt = s.processAt;
     p.closesAt = s.closesAt;
   }
+  // ---- Every game day (step 2.5, docs/PLAN-sports-ready.md; BACKLOG 219: the NBA's, NHL's and MLB's, as Yahoo's daily waivers) ----
+  // The spec's waivers.daily, on a lineup that locks at each game (each holding at its own game, the rest of that day: Yahoo's "Daily -
+  // Today") and a window every episode: a period each day the game's episodes have games, one after another. It opens when the day
+  // before's last game starts (or as soon as the draft's done), its claims clear `hours` before the day's first game (the morning,
+  // for an evening's games), and free agents come in until its last game starts, someone whose game has started that day locked
+  // either way (freeAgencyMove). Its episode is the one before its day's (a move made in it counts from the day's episode on, game by
+  // game: a lineup that locks at each game counts each game for whoever was in it when it started), so the window's swaps are the
+  // week's, across its days (swapsMade). The days come from the episodes' games as the server stamps them (ep.gameStarts, its `until`
+  // each game's day's end in the East): a copy without them (own pace, no schedule) has none, and its waivers run by the episode.
+  static daily(state){
+    if(!WaiverLogic.supported(state) || !WaiverLogic.waivers(state).daily || gameOf(state).closes !== 'game') return false;
+    return WaiverLogic.windows(state).schedule === 'everyEpisode' && WaiverLogic.gameDays(state).length > 0;
+  }
+  // The game's days in play, in order: { until (the day's end, ISO: its key), first, last (its first and last games' starts, ms),
+  // episode }.
+  static gameDays(state){
+    const days = new Map();
+    for(const ep of state.episodes || []){
+      if(!inPlay(state, ep.number) || !ActiveRosterLogic.eachGame(state, ep)) continue;
+      for(const g of Object.values(ep.gameStarts)){
+        const t = Date.parse(g && g.at);
+        if(!Number.isFinite(t) || !g.until) continue;
+        const d = days.get(g.until);
+        if(!d) days.set(g.until, { until: g.until, first: t, last: t, episode: ep.number });
+        else { d.first = Math.min(d.first, t); d.last = Math.max(d.last, t); d.episode = Math.min(d.episode, ep.number); }
+      }
+    }
+    return [...days.values()].sort((a, b) => a.first - b.first);
+  }
+  // The game day a period opened at `now` is for: the first whose last game hasn't started.
+  static nextGameDay(state, now){
+    return WaiverLogic.gameDays(state).find(d => d.last > now) || null;
+  }
+  static dueDaily(state, now){
+    const cur = WaiverLogic.current(state);
+    if(cur){
+      if(!WaiverLogic.enabled(state)) return 'close';
+      const { processAt, closesAt } = WaiverLogic.schedule(state, cur);
+      const closing = !!closesAt && now >= Date.parse(closesAt);
+      if(cur.phase === 'open') return closing || (!cur.hold && now >= Date.parse(processAt)) ? 'process' : null;
+      return closing ? 'close' : null;
+    }
+    if(!WaiverLogic.enabled(state) || MidSeasonLogic.seasonOver(state)) return null;
+    const turn = DraftLogic.currentTurn(state);
+    if(!turn || !turn.isComplete) return null;
+    const day = WaiverLogic.nextGameDay(state, now);
+    if(!day) return null;
+    const ps = WaiverLogic.periods(state);
+    const prev = ps[ps.length - 1];
+    return prev && prev.day === day.until ? null : 'open';
+  }
   /** The step waiting at `now`: 'open' | 'process' | 'close' | 'cancel' | null. */
   static due(state, now){
     // An archived game (settings.archivedAt, step 10 part 2b) stands still: nothing runs.
     if(state.settings && state.settings.archivedAt) return null;
+    // Step 2.5: waivers every game day.
+    if(WaiverLogic.daily(state)) return WaiverLogic.dueDaily(state, now);
     const cur = WaiverLogic.current(state);
     const last = lastCompletedEpisode(state);
     if(cur){
@@ -8060,17 +8126,20 @@ class WaiverLogic {
   // opts: { window, swaps, by: 'commissioner' } -- Open a waiver window (openWindow) opening one itself.
   static open(state, now, opts){
     const o = opts || {};
-    const n = lastCompletedEpisode(state);
+    // Step 2.5: a game day's period (dueDaily): for its day, its episode the one before the day's.
+    const day = WaiverLogic.daily(state) ? WaiverLogic.nextGameDay(state, now) : null;
+    const n = day ? day.episode - 1 : lastCompletedEpisode(state);
     if(!state.midSeason.waivers) state.midSeason.waivers = { periods: [] };
     // The window waivers start with (startsAt), when the clock opens it.
-    const starts = !o.window && WaiverLogic.opensAtStart(state, n);
-    const window = !!o.window || starts || WaiverLogic.isWindowEpisode(state, n);
+    const starts = !day && !o.window && WaiverLogic.opensAtStart(state, n);
+    const window = !!o.window || !!day || starts || WaiverLogic.isWindowEpisode(state, n);
     const swaps = window ? (Number.isInteger(o.swaps) ? o.swaps : WaiverLogic.windows(state).swaps) : 0;
     const p = {
       id: Core.uid('wv'), episode: n, openedAt: new Date(now).toISOString(), processAt: null, closesAt: null,
       // addDrop: whether it allows swaps, for one release (pre-v2 readers); `window`/`swaps` are the truth.
       phase: 'open', window, swaps, addDrop: swaps > 0, claimsIn: [], run: null, autoFills: []
     };
+    if(day) p.day = day.until;
     if(o.by === 'commissioner') p.openedBy = 'commissioner';
     if(window && typeof o.replace === 'boolean') p.replace = o.replace;
     // It replaces everyone who's out, whatever the rule; `starts` names the phase it starts with.
@@ -8452,6 +8521,15 @@ class WaiverLogic {
     // Step 2.4: someone healthy on IR blocks a seat's adds.
     const blocked = IrLogic.addProblem(state, playerId);
     if(blocked) return blocked;
+    // Step 2.5: in a lineup locking at each game, free agency runs while the week's (or the day's) games go on: nobody whose game has
+    // started that day comes in, nor goes out of a lineup they're in (IrLogic.lockedProblem), as Yahoo's "Daily - Today".
+    const playing = IrLogic.nextEpisode(state);
+    if(playing && ActiveRosterLogic.eachGame(state, playing)){
+      const t = now || Date.now();
+      if(ActiveRosterLogic.heldLocked(playing, addId, t)) return `${(Core.getCastaway(state, addId) || {}).name || 'They'}'s game has started: add them once the day's over`;
+      const locked = dropId ? IrLogic.lockedProblem(state, playerId, dropId, t) : null;
+      if(locked) return locked;
+    }
     const owed = WaiverLogic.replacementsOwed(state, playerId, p);
     if(!dropId){
       // Step 2.4: no drop and an open spot (someone on IR) is an add into it, as a swap counts.

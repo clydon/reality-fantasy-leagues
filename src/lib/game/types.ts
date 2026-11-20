@@ -359,6 +359,8 @@ export interface LeagueSettings {
   freeAgencyEnabled?: boolean;
   /** Waivers start when this phase of the season does ("When Merged starts": WaiverLogic.startsAt); unset: from the start. */
   waiverStartPhase?: string;
+  /** Step 2.5 (docs/PLAN-sports-ready.md): a waiver period every game day, as the spec says it (extras.waivers.daily). */
+  waiverDaily?: boolean;
   /** C4: whom a replacement or a swap brings in (the spec's extras.waivers.own), each left out the draft's ownershipMode. */
   waiverOwn?: { replace?: "exclusive" | "shared"; swap?: "exclusive" | "shared" };
   /**
@@ -1108,8 +1110,11 @@ export interface WaiverRun {
 /** One waiver week (StateLogic.WaiverLogic): opened by an episode's results, closed when the next airs. */
 export interface WaiverPeriod {
   id: string;
-  /** The episode whose results opened it. */
+  /** The episode whose results opened it (a game day's period: the episode before its day's). */
   episode: number;
+  /** Step 2.5 (docs/PLAN-sports-ready.md): waivers every game day, the day this period is for (its end in the East, ISO: the key
+   *  of WaiverLogic.gameDays). */
+  day?: string;
   openedAt: string;
   processAt: string | null;
   /** When free agency ends (the next episode airs); null = when the next episode's results arrive. */

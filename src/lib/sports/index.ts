@@ -113,6 +113,9 @@ export interface SportDefaults {
    *  someone their roster lists as one of `takes` (ESPN's injury codes as espn.ts injuryOf tags them). */
   slots: { source: string; lineup: DefaultSlot[]; bench: number; squad?: Record<string, number>; eligible?: { source: string; across: string[] }; ir?: { source: string; n: number; takes: string[] } };
   closes: LockCadence;
+  /** Step 2.5: its season games' waivers (sportWaivers): `swaps` a week (null, no limit), `daily` a period every game day, `hours`
+   *  before the period's first game its claims clear. */
+  waivers?: { source: string; swaps: number | null; daily: boolean; hours: 12 | 24 | 48 };
   /** `on`: the season a spec plays on, where it isn't any (L8 part 1's engine items, part 2: a bracket of the playoffs is a
    *  league's playoffs slate's: specContextOf's `playoffs`). */
   specs: Record<string, { about: string; on?: "playoffs"; spec: Record<string, unknown> }>;
@@ -185,14 +188,39 @@ function withLineupSlots(d: SportDefaults): SportDefaults {
     Object.entries(d.specs).map(([id, x]) => {
       const c = (x.spec as { count?: { start?: number; best?: number } }).count;
       const fits = c && (c.start === total || c.best === total);
-      const get = (x.spec as { get?: { by?: string } }).get;
+      const get = (x.spec as { get?: { by?: string; each?: number } }).get;
       const withIr = ir && get?.by === "draft" ? { get: { ...get, ir } } : {};
-      return [id, fits ? { ...x, spec: { ...x.spec, count: { ...c, slots }, ...withIr } } : x];
+      // Step 2.5: its waivers on each such game with a draft (sportWaivers), unless the spec says its own.
+      const extras = (x.spec as { extras?: { waivers?: unknown } }).extras;
+      const waivers = get?.by === "draft" && !extras?.waivers ? sportWaivers(d, get.each, (x.spec as { closes?: string }).closes) : null;
+      const withWaivers = waivers ? { extras: { ...extras, waivers } } : {};
+      return [id, fits ? { ...x, spec: { ...x.spec, count: { ...c, slots }, ...withIr, ...withWaivers } } : x];
     })
   );
   const out = { ...d, specs };
   SLOTTED.set(d, out);
   return out;
+}
+
+/**
+ * Step 2.5 (docs/PLAN-sports-ready.md, BACKLOG 219): a team sport's waivers as the spec says them (extras.waivers), from its defaults'
+ * `waivers`: a window every episode (a week), a rolling order, free agency, `swaps` a week (null: the team's size, no limit), and
+ * `daily` (a period every game day: claims clear that morning, `hours` before its first game) for the NBA's, NHL's and MLB's lineups
+ * that lock at each game (`closes`; best ball's run by the week). Null for a
+ * sport with none (its games keep waivers off).
+ */
+export function sportWaivers(d: Pick<SportDefaults, "waivers">, each: number | undefined, closes?: string): Record<string, unknown> | null {
+  const w = d.waivers;
+  if (!w) return null;
+  const team = Number.isInteger(each) && each! >= 1 ? each! : null;
+  const swaps = w.swaps === null ? team ?? 1 : team === null ? w.swaps : Math.min(w.swaps, team);
+  return {
+    feel: "balanced", replace: "never", short: null,
+    windows: { schedule: "everyEpisode", every: 3, swaps },
+    order: "rolling", hours: w.hours, freeAgency: true, autoFill: true,
+    // Every game day only on a lineup that locks at each game (best ball has none: its waivers run by the week).
+    ...(w.daily && closes === "game" ? { daily: true } : {}),
+  };
 }
 
 /** Whether a default lineup's slots say anything: more than one slot (one taking everyone, golf's six golfers, holds nobody back). */

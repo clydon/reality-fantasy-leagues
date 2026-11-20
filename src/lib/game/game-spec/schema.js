@@ -3087,7 +3087,7 @@ const KEYS = {
   extras: ['waivers', 'bets', 'calls', 'draft', 'join', 'hideStarters', 'lockedDown', 'lateLock', 'seats'],
   lateLock: ['hours'],
   seats: ['people'],
-  waivers: ['feel', 'replace', 'short', 'windows', 'order', 'hours', 'freeAgency', 'autoFill', 'from', 'own'],
+  waivers: ['feel', 'replace', 'short', 'windows', 'order', 'hours', 'freeAgency', 'autoFill', 'from', 'own', 'daily'],
   waiverOwn: ['replace', 'swap'],
   windows: ['schedule', 'every', 'swaps'],
   draft: ['at', 'timer', 'away', 'opens'],
@@ -3932,6 +3932,13 @@ function waiverProblems(w, s) {
   // Waivers that start when a phase of the season does: which phase is the data rule's (settleProblems).
   if (w.from !== undefined && !(isObj(w.from) && typeof w.from.phase === 'string' && w.from.phase)) out.push(['.from', 'Waivers start { phase }: when which phase of the season starts, or leave it out for from the start']);
   if (w.own !== undefined) waiverOwnProblems(w.own, s).forEach(([at, p]) => out.push([`.own${at}`, p]));
+  // Step 2.5 (docs/PLAN-sports-ready.md, BACKLOG 219): a period every game day (claims clear that morning, free agents until its last
+  // game starts), for a sport's lineup that locks at each game (its games' starts say the days), on a window every episode.
+  if (w.daily !== undefined) {
+    if (typeof w.daily !== 'boolean') out.push(['.daily', 'daily is true or false']);
+    else if (w.daily && s.closes !== 'game') out.push(['.daily', 'Waivers every game day go with a lineup that locks at each game (closes: game)']);
+    else if (w.daily && !(isObj(win) && win.schedule === 'everyEpisode')) out.push(['.daily', 'Waivers every game day run on a window every episode (its swaps the week’s)']);
+  }
   return out;
 }
 

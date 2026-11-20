@@ -94,6 +94,11 @@ async function againSpecOf(leagueId: string, canAsk: string[] | null): Promise<R
       spec.count = { ...count, start: startN };
       spec.get = { ...get, each: startN + bench };
     } else spec.get = { ...get, each: Math.min(get.each, Spec.MAX_TEAM) };
+    // A window's swaps held to the team (the spec's check; step 2.5: a sport's "no limit" is the team's size).
+    const each = (spec.get as { each: number }).each;
+    const extras = spec.extras as { waivers?: { windows?: { swaps?: number } } } | undefined;
+    const w = extras?.waivers;
+    if (w?.windows && typeof w.windows.swaps === "number" && w.windows.swaps > each) spec.extras = { ...extras, waivers: { ...w, windows: { ...w.windows, swaps: each } } };
   }
   // Only the questions this season can still ask (startOptions' again.questions: a season-long one on a span, an id it hasn't got).
   if (canAsk && Array.isArray(spec.ask)) {
@@ -182,6 +187,11 @@ export async function startFromSpec(
   // How it runs (docs/PLAN-own-pace-games.md, "Pace is the game's setting"): the sheet's choice, checked against this start.
   const pace = paceAsked(body.pace, opts, !!fromPhase);
 
+  // A window's swaps held to the team (the spec's check; step 2.5: a sport's "no limit" is the team's size, so a smaller team made
+  // from its game, as a typed game or a check's may be, keeps its waivers).
+  const team = isObj(spec.get) && spec.get.by === "draft" && typeof spec.get.each === "number" ? spec.get.each : null;
+  const wv = isObj(spec.extras) && isObj(spec.extras.waivers) ? (spec.extras.waivers as { windows?: { swaps?: number } }) : null;
+  if (team !== null && wv?.windows && typeof wv.windows.swaps === "number" && wv.windows.swaps > team) spec.extras = { ...(spec.extras as object), waivers: { ...wv, windows: { ...wv.windows, swaps: team } } };
   const problems = Spec.specProblems(spec, ctx);
   if (problems.length) throw new HttpError(409, problems[0].problem);
   const waits = Spec.specWaitsFor(spec as never);

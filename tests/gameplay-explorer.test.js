@@ -94,6 +94,12 @@ test('frozen v1 state still reproduces through the existing generator and accept
       st.lockCloses = 'weekly'; st.game.closes = 'weekly';
       delete st.game.rank.playoffs; delete st.rankMatchups;
       delete st.game.get.ir; delete st.draftIr;
+      // And its waivers (step 2.5: a window every week, no limit but the team; the frozen state's were off).
+      const was = original.scenario.state.settings;
+      for (const k of ['replaceRule', 'replenishAt', 'waiverWindows', 'waiverFeel', 'autoFill', 'replenishOrderBy', 'waiverProcessHours', 'freeAgencyEnabled', 'waiverDaily', 'replenishEnabled', 'tradeEnabled', 'swapEvery']) {
+        if (was[k] === undefined) delete st[k]; else st[k] = structuredClone(was[k]);
+      }
+      st.game.extras = structuredClone(was.game.extras);
     }
     assert.equal(J.digest(scenario.state), J.digest(original.scenario.state), name);
     assert.deepEqual(scenario.marks, original.scenario.marks);

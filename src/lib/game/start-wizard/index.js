@@ -470,7 +470,13 @@ function createWizard(input) {
       const row = rowOf(span, choice);
       if (!row) return null;
       let keep = keepOf(row.spec);
-      if (choice.cnt && choice.cnt.each && keep.get && keep.get.by === 'draft') keep.get = { ...keep.get, each: choice.cnt.each };
+      if (choice.cnt && choice.cnt.each && keep.get && keep.get.by === 'draft') {
+        keep.get = { ...keep.get, each: choice.cnt.each };
+        // A window's swaps are at most the team (the spec's check): a smaller team keeps its waivers, its swaps held to it (step 2.5:
+        // a sport's "no limit" is the team's size).
+        const w = keep.extras && keep.extras.waivers;
+        if (w && w.windows && w.windows.swaps > choice.cnt.each) keep.extras = { ...keep.extras, waivers: { ...w, windows: { ...w.windows, swaps: choice.cnt.each } } };
+      }
       if (choice.cnt && choice.cnt.play && keep.count) keep.count = keep.count.start ? { ...keep.count, start: choice.cnt.play } : keep.count.best ? { ...keep.count, best: choice.cnt.play } : keep.count;
       if (keep.score && keep.score.by === 'moments') {
         const sp = scoringParts(choice, row.spec);

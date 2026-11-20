@@ -140,6 +140,8 @@ function waiversOf(st, lineup, R) {
     // Waivers that start when a phase of the season does (settings.waiverStartPhase: "When Merged starts"), only when it's
     // set, so a stored spec without it reads as it always did.
     ...(typeof st.waiverStartPhase === 'string' && st.waiverStartPhase ? { from: { phase: st.waiverStartPhase } } : {}),
+    // Step 2.5 (docs/PLAN-sports-ready.md): a period every game day (settings.waiverDaily), only when it's set.
+    ...(st.waiverDaily === true ? { daily: true } : {}),
     // C4: whom a replacement or a swap brings in (settings.waiverOwn, as the spec says it), only when it's set, so a stored spec
     // without it reads as it always did (each move the draft's own). Only what a move can be: an exclusive one beside a draft made
     // shared since (settings.ownershipMode) is the draft's own again.
@@ -536,6 +538,7 @@ function settingsOf(spec) {
         waiverProcessHours: w.hours,
         freeAgencyEnabled: w.freeAgency,
         waiverStartPhase: isObj(w.from) ? w.from.phase : undefined,
+        waiverDaily: w.daily === true ? true : undefined,
         waiverOwn: isObj(w.own) ? { ...w.own } : undefined,
         // The pre-v2 switches, kept in step for whatever still reads them (WaiverLogic.mirrorLegacy).
         replenishEnabled: w.replace !== 'never',
@@ -694,7 +697,7 @@ function withSpec(settings, spec) {
 }
 
 // The spec's parts and the settings fields each writes (OWNED is all of them).
-const WAIVER_FIELDS = ['replaceRule', 'replenishAt', 'waiverWindows', 'waiverFeel', 'autoFill', 'replenishOrderBy', 'waiverProcessHours', 'freeAgencyEnabled', 'waiverStartPhase', 'waiverOwn', 'replenishEnabled', 'tradeEnabled', 'swapEvery'];
+const WAIVER_FIELDS = ['replaceRule', 'replenishAt', 'waiverWindows', 'waiverFeel', 'autoFill', 'replenishOrderBy', 'waiverProcessHours', 'freeAgencyEnabled', 'waiverStartPhase', 'waiverOwn', 'waiverDaily', 'replenishEnabled', 'tradeEnabled', 'swapEvery'];
 const PARTS = [
   { fields: ['leagueTypeId'], read: (s) => typeOf(s) },
   { fields: ['startEpisode', 'startPhase', 'endEpisode', 'endPhase'], read: (s) => s.span },

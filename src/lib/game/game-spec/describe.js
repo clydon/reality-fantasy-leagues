@@ -1645,7 +1645,9 @@ function detailsOf(s, w) {
   out.push({ id: 'join', label: 'Who can join', recommended: e.join === null, value: e.lockedDown ? "Nobody new while it's locked down" : join });
   if (isObj(e.waivers) && isObj(e.waivers.windows)) {
     const win = e.waivers.windows;
+    // Step 2.5: waivers every game day (claims each morning, the window's swaps the week's). The words are 4.0's to finish.
     const windows = win.schedule === 'manual' ? (win.swaps > 0 ? 'windows when you open one' : 'no windows unless you open one')
+      : e.waivers.daily === true ? `claims clear each game day's morning, free agents until its last game${win.swaps ? `, ${win.swaps === 1 ? 'one swap' : `${win.swaps} swaps`} a ${w.part}` : ''}`
       : `a window ${win.schedule === 'everyEpisode' ? `after every ${w.part}` : `every ${win.every} ${w.parts}`}${win.swaps ? `, ${win.swaps === 1 ? 'one swap' : `${win.swaps} swaps`}` : ''}`;
     // Waivers that start with a phase: "From when Merged starts: ...".
     const from = isObj(e.waivers.from) ? `From when ${phaseWord(e.waivers.from.phase, w)} starts: ` : '';

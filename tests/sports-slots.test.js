@@ -19,7 +19,10 @@ const slotsOf = (league) => defaultsFor(league.split("/")[0], league).specs.seas
 // A lineup game on a league's defaults' season spec: [id, ESPN position, points], each castaway's group stamped as the server does.
 function game(league, roster, { bots = [], each = roster.length, eligible = {}, injuries, episode = {} } = {}) {
   const sport = sportOf(league);
-  const spec = { ...defaultsFor(sport.id, league).specs.season.spec, get: { by: "draft", each, order: "snake", own: "exclusive" } };
+  const d = defaultsFor(sport.id, league).specs.season.spec;
+  // Its waivers' swaps held to the team (step 2.5: the NFL's "no limit" is the team's size).
+  const w = d.extras && d.extras.waivers;
+  const spec = { ...d, get: { by: "draft", each, order: "snake", own: "exclusive" }, ...(w ? { extras: { ...d.extras, waivers: { ...w, windows: { ...w.windows, swaps: Math.min(w.windows.swaps, each) } } } } : {}) };
   const people = ["ann", ...bots];
   const s = S.migrateLeagueState({
     settings: { ...G.settingsOf(spec), showFormat: "survivor" },

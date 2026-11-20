@@ -512,6 +512,9 @@ export interface SpecWaivers {
   autoFill: boolean;
   /** Waivers that start when this phase of the season does (none before it); left out: from the start. */
   from?: { phase: string };
+  /** Step 2.5: a period every game day (claims clear `hours` before its first game, free agents until its last starts), for a
+   *  lineup that locks at each game; its window's swaps are the week's. Left out: one period an episode. */
+  daily?: boolean;
   /** C4: whom a replacement or a swap brings in, each left out the draft's own: exclusive (only someone on nobody's team) or
    *  shared (anyone still in who isn't yours already). Shared beside an exclusive draft, never exclusive beside a shared one. */
   own?: { replace?: "exclusive" | "shared"; swap?: "exclusive" | "shared" };

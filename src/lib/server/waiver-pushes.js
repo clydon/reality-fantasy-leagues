@@ -154,8 +154,12 @@ function processedMessages(state, period, name, people, label = null) {
   const base = waiversHref(state);
   const at = where(label, name);
   const out = [];
+  // Step 2.5 (docs/PLAN-sports-ready.md): a game day's period (waivers every game day) tells only who got someone or missed: a push a
+  // day to everyone ("waivers ran", "reveal first") would be noise.
+  const daily = !!period.day;
   for (const m of people) {
     if (m.seen < n) {
+      if (daily) continue;
       out.push({ userId: m.userId, message: { title: `${name} waivers ran`, body: `${at} · Reveal Ep ${n} to see every move`, url: base, run: false } });
       continue;
     }
@@ -181,7 +185,7 @@ function processedMessages(state, period, name, people, label = null) {
     } else if (owed) {
       title = "You still have someone to replace";
       body = [at, fill].join(" · ");
-    } else if (fa && W.swapsLeft(state, period, m.playerId) > 0) {
+    } else if (!daily && fa && W.swapsLeft(state, period, m.playerId) > 0) {
       title = `${name} waivers ran`;
       body = [at, fa, "Your swap is still unused"].join(" · ");
     } else continue;
@@ -221,6 +225,8 @@ async function remindWaivers(db, league, now, opts = {}) {
   const state = league.state;
   const p = W.enabled(state) ? W.current(state) : null;
   if (!p || p.phase !== "open" || p.hold || !p.processAt) return 0;
+  // Step 2.5: a game day's period reminds nobody (nobody's owed a replacement in a sport; a reminder a day would be noise).
+  if (p.day) return 0;
   const left = Date.parse(p.processAt) - now;
   if (!(left > 0 && left <= REMIND_BEFORE)) return 0;
   const n = p.episode;

@@ -25,6 +25,8 @@ function league({ hurt = {}, ir, people = ["ann"], lineups = {} } = {}) {
   const spec = {
     ...d,
     get: { ...d.get, each: 4, ...(ir !== undefined ? { ir } : {}) },
+    // Its waivers held to a team of four (step 2.5's: a window every week, no limit but the team).
+    extras: { ...d.extras, waivers: { ...d.extras.waivers, windows: { ...d.extras.waivers.windows, swaps: 4 } } },
     count: { start: 2, slots: [{ label: "QB", of: "position", values: ["QB"], n: 1 }, { label: "WR", of: "position", values: ["WR"], n: 1 }] },
   };
   const roster = [

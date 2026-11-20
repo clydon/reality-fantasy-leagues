@@ -32,6 +32,7 @@
     "ir": { "source": "Yahoo's default roster's 2 IR, outside its 15; its football IR takes IR, O (Out) and PUP (and NFI, which ESPN's rosters don't list); not Q, D or suspended (help.yahoo.com/kb/SLN6489.html, SLN6425.html, 2026-11-20)", "n": 2, "takes": ["IR", "O", "PUP"] }
   },
   "closes": "weekly",
+  "waivers": { "source": "Yahoo's football defaults: a continual rolling list, weekly waivers, no maximum acquisitions (help.yahoo.com/kb/SLN6489.html, 2026-11-20). Here a week's claims open when the week before has its results and run the day before its first game; free agents after that until the week's last game starts (docs/PLAN-sports-ready.md step 2.5)", "swaps": null, "daily": false, "hours": 24 },
   "specs": {
     "season": {
       "about": "A season-long league: draft a full roster, set a lineup each week, play someone head to head each week.",

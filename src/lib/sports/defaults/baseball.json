@@ -31,6 +31,7 @@
     }
   },
   "closes": "daily",
+  "waivers": { "source": "Yahoo's public defaults: a continual rolling list, roster changes Daily - Today, at most 6 acquisitions a week (help.yahoo.com/kb/SLN6785.html, 2026-11-20). Claims clear each game day's morning, 12 hours before its first game, then free agents until its last game starts (BACKLOG 219; docs/PLAN-sports-ready.md step 2.5)", "swaps": 6, "daily": true, "hours": 12 },
   "specs": {
     "season": {
       "about": "A season-long league: draft a full roster, set a daily lineup, play someone head to head each week.",
@@ -42,7 +43,7 @@
         "count": { "start": 18 },
         "score": { "by": "stats", "points": { "R": 1, "TB": 1, "RBI": 1, "BB": 1, "K": -1, "SB": 1, "IP": 3, "PH": -1, "ER": -2, "PBB": -1, "PK": 1, "W": 2, "L": -2, "SV": 5, "HLD": 2 } },
         "rank": { "by": "matchups" },
-        "closes": "daily"
+        "closes": "game"
       }
     },
     "short": {
@@ -68,11 +69,11 @@
     },
     "categories": {
       "about": "A season-long league by categories: draft a full roster, set a daily lineup, play someone head to head in Yahoo's 5x5's ten categories: each category you win is a win.",
-      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "draft", "each": 23, "order": "snake", "own": "exclusive" }, "count": { "start": 18 }, "score": { "by": "stats", "categories": ["R", "HR", "RBI", "SB", "AVG", "W", "SV", "PK", "ERA", "WHIP"] }, "rank": { "by": "categories" }, "closes": "daily" }
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "draft", "each": 23, "order": "snake", "own": "exclusive" }, "count": { "start": 18 }, "score": { "by": "stats", "categories": ["R", "HR", "RBI", "SB", "AVG", "W", "SV", "PK", "ERA", "WHIP"] }, "rank": { "by": "categories" }, "closes": "game" }
     },
     "roto": {
       "about": "A season-long league, roto-style: draft a full roster, set a daily lineup; each of Yahoo's 5x5's ten categories ranks everyone over the season, points by rank, most points wins.",
-      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "draft", "each": 23, "order": "snake", "own": "exclusive" }, "count": { "start": 18 }, "score": { "by": "stats", "categories": ["R", "HR", "RBI", "SB", "AVG", "W", "SV", "PK", "ERA", "WHIP"] }, "rank": { "by": "roto" }, "closes": "daily" }
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "draft", "each": 23, "order": "snake", "own": "exclusive" }, "count": { "start": 18 }, "score": { "by": "stats", "categories": ["R", "HR", "RBI", "SB", "AVG", "W", "SV", "PK", "ERA", "WHIP"] }, "rank": { "by": "roto" }, "closes": "game" }
     },
     "bestBall": {
       "about": "Best ball: draft a full roster and never set a lineup: each game, your best eighteen count, most points wins.",

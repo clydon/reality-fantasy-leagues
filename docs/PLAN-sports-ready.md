@@ -456,6 +456,53 @@ server.
      or an add into a spot "Swap" (waivers-model.ts txLabel): 4.0's words.
 5. **Waivers for daily sports** (M; BACKLOG 219, yes): claims clear each morning for the NBA, NHL and MLB; the NFL's stay weekly.
    (2.4 found a sports season game has no waiver swaps unless someone opens a window by hand: this step gives it its schedule.)
+   **Done 2026-11-20 (branch sports-phase2).**
+   - *Found first:* (a) a sports season game had no waivers that ran: its spec carried none, so windows opened only by hand (the
+     recommendation is written only from a person's Waivers card). (b) The NBA's, NHL's and MLB's season, categories and roto games
+     said "set a daily lineup" but locked `daily`, which on a league's slate (an episode is a week) locks the whole week's lineup at its
+     first game (locks.ts: a slate's episode locks at its own first game whatever `closes` says): a weekly lineup, so a pickup made on a
+     Tuesday couldn't play until the next week, and daily waivers would mean nothing. (c) Yahoo's defaults (help.yahoo.com/kb SLN6489,
+     6919, 6815, 6785, 2026-11-20): a continual rolling list everywhere; the NFL's waivers weekly with no maximum acquisitions; the NBA's,
+     NHL's and MLB's roster changes "Daily - Today" (each player locks at his own game), at most 4 acquisitions a week (MLB 6); a
+     dropped player on waivers 1 day (2 in private leagues).
+   - *The calls made:* the daily sports' lineup games lock at each player's game (`closes: 'game'`, as the NFL's since 2.1: the user's
+     call on 213, the same reasoning, and what their own words already promised), so their lineups are daily in fact. Each team sport's
+     waivers as data (its defaults' `waivers`, with its source), carried onto its games with a draft (index.ts `sportWaivers`, and the
+     gallery's copy): a window every week, a rolling order, free agency, the week's swaps (the NFL's the team's size, "no limit"; the
+     NBA's and NHL's 4, MLB's 6), claims clearing 24 hours before the NFL week's first game, 12 before a game day's first for the
+     daily sports; and `waivers.daily` (the spec's, settings `waiverDaily`) for the daily sports' lineups (not best ball's: no lineup to
+     lock, its waivers by the week).
+   - *Built:* waivers every game day (WaiverLogic.daily, gameDays, dueDaily): a period a day the game's episodes have games (the days
+     from the server's stamped games, `until` each game's day's end in the East), one after another: it opens when the day before's last
+     game starts (or once the draft's done), processes `hours` before the day's first game, and takes free agents until its last game
+     starts. Its episode is the one before its day's, so a move made in it counts from the day's episode, game by game (a lineup that
+     locks at each game counts each game for whoever was in it when it started), and a window's swaps are the week's across its days
+     (swapsMade). A copy without the stamped days (own pace, no schedule) runs them by the episode. Weekly waivers on a lineup that locks
+     at each game (the NFL's) take free agents until the week's last game starts, not its first. Free agency in such a game never brings
+     in someone whose game has started that day, nor takes out a starter in one (as Yahoo's "Daily - Today"). A game day's period
+     pushes only to whoever got someone or missed, and reminds nobody (a push a day to everyone would be noise). The wizard's and Run it
+     back's team size hold a window's swaps to the team (the spec's check: a sport's "no limit" is the team's size). The campaign
+     generator's lock draw takes waivers every game day off a game it moves to the day or the week (proof-family-66). The game's words
+     ("claims clear each game day's morning, free agents until its last game, 4 swaps a week").
+   - *Verified:* unit tests (tests/sports-waivers.test.js: each league's waivers and lock, the check, the round trip, the words; the
+     NBA's day by day (a period a game day, its morning, a swap in free agency, a free agent in a game under way refused and a starter
+     in one kept, the week's two swaps counted across its days and new the next week, nothing after the last day); waiting for the
+     draft; a copy without its days; the NFL's week, its free agency to Monday night with Thursday night's players locked); the whole
+     suite (2,480); check-sports-waivers.js (new: on the recorded NFL season, the default game: no week before Week 8's results, then
+     Week 9's waivers open by themselves, claims clearing the day before Thursday's kickoff and free agents until Monday night's; Ann's
+     claim through the route runs and she gets him; Thursday night a Ravens receiver can't come in; Saturday an Eagles receiver does;
+     free agency over at Monday night's kickoff); check-sports-ir.js, check-sports-bot-lineups.js, check-nfl-playoff-weeks.js,
+     check-lock-in.js (the lock change), sport-gallery-check.js --all-leagues (495 rows, 371 play, none off), check-sports-explorer.js
+     every case on the real routes (202, all pass), check-sports-week-in-progress.js (it failed first: its own spec, a team of three
+     from the NFL's game, carried a window of 15 swaps; startFromSpec now holds a window's swaps to the team as the wizard and Run it
+     back do, and it passes); tsc; eslint has only its standing errors.
+   - *Left:* Yahoo's waiver time (a dropped player claimable only by waiver for a day or two) isn't built: a player dropped in free agency
+     is a free agent at once (dropped in a waiver run, he waits for free agency, as before). A window opened by hand in a game with
+     waivers every game day goes by the episode (openWindow's rules). Own pace for sports (2.6) decides how a seat behind takes them. No
+     screen says any of it: the waivers screens say "Episode" and every week (Designs needed 44; 4.0's words).
+   - *Noticed, not fixed:* the week's next episode is made by a write after its results (withLeagueLock's ensureNextEpisode runs after
+     the waiver clock), so a week's waivers open at the second write or hourly run after its results, not the first (an hour in
+     production): fine, noted for 4.2 if a screen ever says "opens when results are in".
 6. **Own pace for a sports game** (M; BACKLOG 218: the user, 2026-11-19, "i want own pace, its an important option for casual
    leagues and solo games"). What's there: a sport's start sheet already offers own, live and strict (live recommended:
    start-game.ts `runs`); the season's guard goes by a person's mark when every seat they hold there is at its own pace; a caught-up
@@ -466,9 +513,9 @@ server.
    one starts (a slate's next week: its first game), the one before counts as watched: the seat's mark moves on by itself, as Keep
    up's automatic mark does for a follow (guard.ts, keep-up.ts advanceAuto), and its move for that game closes then at the latest
    (as live's late window closes when the next one airs). For the major league team sports. Two parts still open:
-   - **Baseball** is different (the user: doubleheaders). Claude's recommendation, to confirm: by the day, so the games before
-     count as watched once a game on a later day starts, and a doubleheader's first game isn't marked watched at the second's
-     first pitch.
+   - **Baseball** is different (the user: doubleheaders). **By the day (the user agreed with the recommendation, 2026-11-20):** the
+     games before count as watched once a game on a later day starts, and a doubleheader's first game isn't marked watched at the
+     second's first pitch.
    - **Individual sports** (tennis, golf, racing, fights): no rule yet (the user doesn't follow them): plain own pace until someone
      who does plays one.
    What it means: nobody's ever a week behind more than one, so head to head, the playoffs and waivers never wait longer than the

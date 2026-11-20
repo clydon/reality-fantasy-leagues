@@ -394,6 +394,10 @@ declare const StateLogic: {
     refresh(state: LeagueState): void;
     /** The step waiting at `now` (ms). */
     due(state: LeagueState, now: number): "open" | "process" | "close" | "cancel" | null;
+    /** Step 2.5: waivers every game day (the spec's waivers.daily on a lineup locking at each game, its days stamped). */
+    daily(state: LeagueState): boolean;
+    gameDays(state: LeagueState): { until: string; first: number; last: number; episode: number }[];
+    nextGameDay(state: LeagueState, now: number): { until: string; first: number; last: number; episode: number } | null;
     open(state: LeagueState, now: number, opts?: { window?: boolean; swaps?: number; replace?: boolean; by?: "commissioner" }): WaiverPeriod;
     cancel(state: LeagueState): WaiverPeriod | null;
     setClaimsIn(state: LeagueState, period: WaiverPeriod, playerIds: string[]): void;

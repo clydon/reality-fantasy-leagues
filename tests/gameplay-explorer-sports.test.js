@@ -380,7 +380,7 @@ test("head to head on a sport: the league's own season opens; a week's result is
   const s = R.open(D.create({ seed: doc.seed, world: world0, games: doc.games.map(({ id, contextId, timing, spec }) => ({ id, contextId, timing, spec })), situation: { clock: doc.situation.clock, marks: doc.situation.marks.slice(0, 2) }, content: doc.content }));
   try {
     const snap = s.snapshot(), st = snap.games.g.state, world = snap.contexts.sport, c = Sports.league(world.context), spec = S.gameOf(st);
-    assert.equal(spec.rank.by, "matchups"); assert.equal(spec.closes, "daily");
+    assert.equal(spec.rank.by, "matchups"); assert.equal(spec.closes, "game");
     const pts = (line) => round(Object.entries(spec.score.points).reduce((n, [stat, each]) => n + round((c.sport.full(line)[stat] || 0) * each), 0));
     const week = (p, e) => round(S.ActiveRosterLogic.lineupFor(st, e.id, p).reduce((n, id) => n + pts(world.facts.find((f) => f.eventId === e.id).data.lines[id]), 0));
     const played = world.events.filter((e) => e.resultStatus === "final");
