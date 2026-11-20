@@ -303,7 +303,9 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
     frame for the wait and every way it stops (`live-story.tsx`, the words in `refusals.ts` for the gallery to reuse), the story's
     strip marking moments still coming and never made, a used or ended link's own page (the enter route sends it there), and the
     desk's switch. Checked once each: Impeccable's critique 27/40 (the detector: three type sizes off the ramp), PFD 79/100; one batch
-    of fixes. Frames: `scripts/dev-test/story-preview-flow.js` into `.ui-atlas/stories/preview-flow/`.
+    of fixes. Frames: `scripts/dev-test/story-preview-flow.js` into `.ui-atlas/stories/preview-flow/`. The story:
+    https://claude.ai/artifact/YWYDNPaX9gcKFaRv8jew8f (a choice for the user: the wait as a title card, the show's art and the story's
+    strip already drawn).
 15. **The gallery's Preview button** (the wizard lane's code): it sends the game's spec, with its changes, to step 9.
 
 **Release**
