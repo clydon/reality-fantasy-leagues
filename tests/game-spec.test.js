@@ -131,10 +131,12 @@ function readings(state) {
 
 /** The round trip, on one league: its spec is valid, carries everything (rebuilt from the spec alone it plays the same),
  *  writes back nothing it didn't already say, and reads back as itself; How it works is the Rules sheet's. */
-function roundTrip(state, label) {
+function roundTrip(state, label, sport) {
   const st = state.settings;
   const spec = G.specOf(st);
-  assert.deepEqual(G.specProblems(spec), [], `${label}: its spec has no problems`);
+  // `sport`: a sport's league's page context (BACKLOG 78: a game scored by a sport's stats is checked against its sport, as the server
+  // accepts it), else none.
+  assert.deepEqual(G.specProblems(spec, sport), [], `${label}: its spec has no problems`);
   assert.deepEqual(G.specWaitsFor(spec), [], `${label}: today's engine plays it`);
   assert.equal(G.typeOf(spec), S.getLeagueType(state).id, `${label}: the spec plays as its league type`);
   const owned = G.ownedFields(spec);
@@ -640,7 +642,13 @@ test("every league in the local database round-trips through its spec", { skip: 
   const pool = new Pool({ connectionString: DB });
   let rows;
   try {
-    ({ rows } = await pool.query("SELECT id, state FROM leagues ORDER BY created_at, id"));
+    // Each league's season's sport, when it's one (its league show's ESPN league; a slate's stage), for its page context (BACKLOG 78).
+    ({ rows } = await pool.query(
+      `SELECT l.id, l.state, s.sports_league, s.kind, (SELECT x.stage FROM sports_slates x WHERE x.season_id = ss.id) AS stage
+         FROM leagues l LEFT JOIN shows s ON s.slug = l.state->'settings'->>'showId'
+         LEFT JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number::text = l.state->'settings'->>'wikiSeason'
+        ORDER BY l.created_at, l.id`
+    ));
   } catch (e) {
     return t.skip(`local database not reachable: ${e.code || e.message}`);
   } finally {
@@ -651,7 +659,9 @@ test("every league in the local database round-trips through its spec", { skip: 
     const label = `league ${r.id}`;
     const unknown = Object.keys(r.state.settings).filter((k) => !G.OWNED.includes(k) && !G.OUTSIDE.includes(k));
     assert.deepEqual(unknown, [], `${label}: a settings field the spec doesn't know. Add it to the spec (game-spec/settings.js OWNED) or to OUTSIDE`);
-    roundTrip(r.state, label);
+    const league = r.kind === "sport" && typeof r.sports_league === "string" ? r.sports_league.replace(/^[^:]*:/, "") : null;
+    const ctx = league ? (jiti("../src/lib/sports/page.ts").sportPageContext(league, { slate: r.stage != null, playoffs: r.stage === "post" }) ?? undefined) : undefined;
+    roundTrip(r.state, label, ctx);
   }
   t.diagnostic(`${rows.length} leagues`);
 });

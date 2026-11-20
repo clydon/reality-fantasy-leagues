@@ -303,3 +303,22 @@ test("a seat ahead of the move's episode keeps the lineups it saved for weeks it
   assert.deepEqual(lineup(s, "ep3", "p1"), ["a"], "the first week it hadn't played: a gap");
   assert.equal(total(s, "p1"), (2 + 2 + 1) * per(s));
 });
+
+test("a lineup locking game by game counts a player dropped mid-week in the games before the drop only (idea 209, BACKLOG 69's residual)", () => {
+  const A = StateLogic.ActiveRosterLogic;
+  const T0 = Date.parse("2026-11-12T20:00:00Z"); // set, Thursday afternoon
+  const thu = Date.parse("2026-11-13T01:15:00Z"); // Thursday night's game
+  const drop = Date.parse("2026-11-14T15:00:00Z"); // let go, Saturday
+  const sun = Date.parse("2026-11-15T18:00:00Z"); // Sunday's game
+  const state = { castaways: [{ id: "a", name: "A", ownerIds: ["p"] }, { id: "b", name: "B", ownerIds: [] }], players: [{ id: "p" }], episodes: [], midSeason: { log: [{ id: "tx1", type: "trade", playerId: "p", addedCastawayId: "c", droppedCastawayId: "b", at: new Date(drop).toISOString(), episode: 9 }] } };
+  const timed = { id: "e10", number: 10, lineupsAt: { p: [{ at: new Date(T0).toISOString(), ids: ["a", "b"] }] } };
+  assert.deepEqual(A.lineupAt(state, timed, "p", thu), ["a", "b"], "Thursday: B was still theirs");
+  assert.deepEqual(A.lineupAt(state, timed, "p", sun), ["a"], "Sunday: B let go on Saturday");
+  // A lineup set with no timed log reads the same way.
+  const set = { id: "e10", number: 10, lineups: { p: ["a", "b"] } };
+  assert.deepEqual(A.lineupAt(state, set, "p", thu), ["a", "b"]);
+  assert.deepEqual(A.lineupAt(state, set, "p", sun), ["a"]);
+  // Brought back before Sunday: counts again.
+  state.midSeason.log.push({ id: "tx2", type: "trade", playerId: "p", addedCastawayId: "b", droppedCastawayId: "c", at: new Date(drop + 3600_000).toISOString(), episode: 9 });
+  assert.deepEqual(A.lineupAt(state, timed, "p", sun), ["a", "b"]);
+});

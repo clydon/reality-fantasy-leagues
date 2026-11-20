@@ -101,13 +101,16 @@ async function down() {
   return `${rowCount + made.rowCount} shows, ${cache.rowCount + served.rowCount} cache rows`;
 }
 
-/** The throwaway user (approved, as a raw insert is); with a password when it signs in through the dev server. */
-async function makeUser(withPassword) {
+/** The throwaway user (approved, as a raw insert is); with a password when it signs in through the dev server. `hides`: "Sports scores
+ *  too" on (user_settings.hide_sports_scores): since U1 a sport shows its results straight away, whatever someone's mark, unless
+ *  they hide them, so the cases about a mark need it on (BACKLOG 101). */
+async function makeUser(withPassword, hides = false) {
   const userId = randomUUID();
   await pool.query(
     `INSERT INTO "user" (id, name, email, "emailVerified", username, "displayUsername", role, "createdAt", "updatedAt") VALUES ($1, $2, $3, true, $2, $2, 'user', now(), now())`,
     [userId, USER, `${USER}@example.invalid`]
   );
+  if (hides) await pool.query("INSERT INTO user_settings (user_id, hide_sports_scores) VALUES ($1, true) ON CONFLICT (user_id) DO UPDATE SET hide_sports_scores = true", [userId]);
   if (withPassword) {
     const { hashPassword } = await import("better-auth/crypto");
     await pool.query(`INSERT INTO account (id, "accountId", "providerId", "userId", password, "createdAt", "updatedAt") VALUES ($1, $2, 'credential', $2, $3, now(), now())`, [randomUUID(), userId, await hashPassword(PASSWORD)]);
@@ -291,7 +294,7 @@ async function standIn() {
     const again = await castFromEvents(seasonId, at(6 * HOUR));
     check(again.filled === 0 && (await castOf(seasonId)).length === 7, "run again: nobody twice", JSON.stringify(again));
 
-    const userId = await makeUser(false);
+    const userId = await makeUser(false, true);
     const me = { id: userId, name: USER };
     let roster = await rosterOf(me, seasonId, undefined, null);
     check(JSON.stringify(sizes(roster)) === JSON.stringify({ "ZT Brewers": 3, "ZT Rays": 4 }) && roster.source === "ESPN", "the Players tab: both teams, credited to ESPN", JSON.stringify(sizes(roster)));
@@ -394,7 +397,12 @@ async function standIn() {
       await markAt(userId, seasonId, n);
       return rosterOf(me, seasonId, undefined, null);
     };
+    // The default (BACKLOG 101): with "Sports scores too" off, a sport's results show straight away, whatever the mark.
+    await pool.query("UPDATE user_settings SET hide_sports_scores = false WHERE user_id = $1", [userId]);
     let tab = await view(0);
+    check(tab.stats.through === 3 && statLine(tab, "ZT Kim Slugger", "soFar")?.startsWith("3-11 H-AB"), "by default (Sports scores too off), at Game 0 the Players tab shows every game's lines: sports are live", JSON.stringify(tab.stats));
+    await pool.query("UPDATE user_settings SET hide_sports_scores = true WHERE user_id = $1", [userId]);
+    tab = await view(0);
     check(tab.stats.through === null && tab.stats.newer === 3 && tab.stats.comingInLabel === "2026 regular season", "at Game 0: no so far, Game 3's waiting, coming in is the 2026 regular season", JSON.stringify(tab.stats));
     check(!tab.groups.some((g) => g.people.some((p) => p.stats?.soFar)), "  nobody has a so far");
     check(statLine(tab, "ZT Kim Slugger", "comingIn") === "560 AB · 88 R · 160 H · 35 HR · 101 RBI · 70 BB · .286 AVG · .370 OBP · .540 SLG", "  a hitter's coming in, in the columns the games show", statLine(tab, "ZT Kim Slugger", "comingIn"));

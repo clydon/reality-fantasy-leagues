@@ -4496,12 +4496,29 @@ class ActiveRosterLogic {
     });
   }
   // The lineup a player had in force at instant `t` (ms): the last they set before it; before their first set this episode, the one
-  // they carried in.
+  // set for it, else the one they carried in. Less anyone the seat had let go by `t` (letGoAt: idea 209, BACKLOG 69's residual,
+  // docs/PLAN-sports-ready.md step 1.6): a lineup that locks game by game keeps its timed log as set, and a player dropped mid-week
+  // still counts in the games he played for them, never in a later one, nor for two seats once someone claims him.
   static lineupAt(state, ep, playerId, t){
     const log = ep.lineupsAt && ep.lineupsAt[playerId];
-    if(!Array.isArray(log) || !log.length) return ActiveRosterLogic.lineupFor(state, ep.id, playerId);
-    const before = log.filter(x => Date.parse(x.at) < t);
-    return before.length ? before[before.length - 1].ids || [] : ActiveRosterLogic.carriedLineup(state, ep, playerId);
+    const before = Array.isArray(log) ? log.filter(x => Date.parse(x.at) < t) : [];
+    const set = ep.lineups && Object.prototype.hasOwnProperty.call(ep.lineups, playerId) && !(Array.isArray(log) && log.length);
+    const ids = before.length ? (before[before.length - 1].ids || []) : set ? (ep.lineups[playerId] || []) : ActiveRosterLogic.carriedLineup(state, ep, playerId);
+    const gone = ActiveRosterLogic.letGoAt(state, playerId, t);
+    return gone.size && ids.some(id => gone.has(id)) ? ids.filter(id => !gone.has(id)) : ids;
+  }
+  // Whom a seat had let go by instant `t` (ms; a Set of ids): dropped in a move made before it and not brought back by one since,
+  // by the log's own times (letGoBefore's, by the instant rather than the episode: a game that starts mid-week).
+  static letGoAt(state, playerId, t){
+    const gone = new Set();
+    for(const tx of ActiveRosterLogic.movesFor(state)){
+      if(tx.playerId !== playerId) continue;
+      const at = Date.parse(tx.at);
+      if(!Number.isFinite(at) || at >= t) continue;
+      if(tx.droppedCastawayId) gone.add(tx.droppedCastawayId);
+      if(tx.addedCastawayId) gone.delete(tx.addedCastawayId);
+    }
+    return gone;
   }
   // Each game's counted holdings for a player (Map event id -> Set of castaway ids: the lineup in force at its start; a game with no
   // start stamped, the lineup as it stands), or null when the episode plays as one lineup.

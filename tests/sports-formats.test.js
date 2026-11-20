@@ -132,3 +132,23 @@ test("lineup locks per sport: each game's own start, its day's first, its week's
   const twice = [{ episode: 1, at: "2026-07-04T17:05:00Z" }, { episode: 2, at: "2026-07-04T23:10:00Z" }, { episode: 3, at: "2026-07-05T17:35:00Z" }];
   assert.deepEqual(at(locksOf(twice, "daily")).slice(0, 3), ["2026-07-04T17:05:00.000Z", "2026-07-04T17:05:00.000Z", "2026-07-05T17:35:00.000Z"]);
 });
+
+test("a league's slate (BACKLOG 108): a game's final asked of a week is refused, asked of each game or once is fine, and squares go on one game", () => {
+  const { sportPageContext } = jiti("../src/lib/sports/page.ts");
+  const { sportRail, perGame } = jiti("../src/lib/sports/start-games.ts");
+  const slate = sportPageContext("football/nfl", { slate: true, part: { singular: "week", plural: "weeks" } });
+  const game = sportPageContext("football/nfl", {});
+  const pickem = { spec: 1, span: { from: 1, to: 18 }, pool: { of: "cast", where: null }, get: { by: "none" }, count: null, score: { by: "answers" }, rank: { by: "total" }, closes: "start", ask: [{ id: "winner", ask: "Who wins?", answer: "side", points: 1, settle: { by: "final", take: "winner" }, asked: "each", closes: "start" }] };
+  const at = (spec, ctx) => specProblems(spec, ctx).map((p) => p.at);
+  assert.deepEqual(at(pickem, slate), ["ask[0].each"], "a week's one 'Who wins?'");
+  assert.deepEqual(at(pickem, game), [], "a team's games: one game an episode, fine");
+  assert.deepEqual(at(perGame(pickem), slate), [], "asked of each game");
+  assert.equal(perGame(pickem).ask[0].each, "game");
+  const squares = { spec: 1, span: { from: 1, to: 18 }, pool: { of: "cast", where: null }, get: { by: "squares", grid: 10, take: "pick" }, count: null, score: { by: "squares", pays: [{ at: "final", points: 1 }] }, rank: { by: "total" }, closes: "start" };
+  assert.ok(at(squares, slate).includes("get.by"), "squares on a week of games");
+  assert.ok(!at(squares, game).includes("get.by"));
+  // The sports route's rail on a slate: its Pick'em asks each game, and every game it offers there passes our check.
+  const rail = sportRail("football/nfl", { count: 18, slate: true });
+  assert.equal(rail.find((g) => g.id === "pickem").spec.ask[0].each, "game");
+  assert.deepEqual(rail.filter((g) => g.why).map((g) => [g.id, g.why]), []);
+});

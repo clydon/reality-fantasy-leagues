@@ -12,8 +12,9 @@
 //                          it (start-spec.ts startFromSpec) on the same week and answered with every game's winner: proof that the
 //                          week, its finals and the grading work, so a miss above is the route's game and not the setup
 // What's asserted is where Phase 1.6 leaves it: the route's Pick'em is either refused on a slate (specProblems) or asks about each
-// game and grades the week. On 2026-11-19 it fails: the route's Pick'em asks one question a week with no sides to pick from, takes an
-// answer anyway, and never grades it (Phase 0 confirmed the inference); the control grades every game. Its last line says which.
+// game and grades the week. Phase 0 (2026-11-19) found it failing: the route's Pick'em asked one question a week with no sides to
+// pick from, took an answer anyway, and never graded it; step 1.6 made it ask each game (start-games.ts perGame), and our check
+// refuses a game's final asked of a slate's episode (ctx.slate). Its last line says which.
 //
 //   node scripts/dev-test/check-slate-pickem.js [--week=9] [--keep]
 //
@@ -69,10 +70,13 @@ const fact = (s) => console.log(`      ${s}`);
     const cq = (await gameQuestions(w.users.ann, w.seasonId, control.leagueId)).questions[0];
     check(cq.each === "game" && cq.games?.length === week.games.length && cq.games.every((g) => g.sides?.length === 2), `the control asks about each of the week's ${week.games.length} games, both sides of each`, { games: cq.games?.length });
 
-    // Answers: the route's, the first game's winner (all a week-long question can take); the control's, every game's.
+    // Answers: the route's, the first game's winner (a week-long question's one answer, or that game's of a question about each);
+    // the control's, every game's.
     if (plain) {
-      const a = await answerQuestions(w.users.ann, w.seasonId, plain.leagueId, { episode: WEEK, answers: { winner: winner(first) ?? first.home } });
-      fact(`the route's Pick'em took "${a.questions[0].mine}" (the ${first.name} winner) for ${week.label}`);
+      const q = (await gameQuestions(w.users.ann, w.seasonId, plain.leagueId)).questions[0];
+      const pick = winner(first) ?? first.home;
+      const a = await answerQuestions(w.users.ann, w.seasonId, plain.leagueId, { episode: WEEK, answers: { winner: q.each === "game" ? { [first.id]: pick } : pick } });
+      fact(`the route's Pick'em took ${JSON.stringify(a.questions[0].mine)} (the ${first.name} winner) for ${week.label}`);
     }
     const picks = Object.fromEntries(week.games.map((g) => [g.id, winner(g) ?? g.home]));
     const ca = await answerQuestions(w.users.ann, w.seasonId, control.leagueId, { episode: WEEK, answers: { winner: picks } });

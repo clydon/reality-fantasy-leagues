@@ -691,6 +691,12 @@ const CASES = {
       try {
         await withRows(s, async ({ ids, as, write, routes }) => {
           const world = s.snapshot().contexts.sport, week = world.events[1], [g1, g2, g3] = Sports.gamesOf(world.context, week);
+          // The Eastern day's edge (part 3's guard, BACKLOG's "calledoff part 4"): E stays locked only while an hour past the second
+          // game's start is still the first game's Eastern day (a holding's lock lasts to the end of its game's day, by design).
+          if (Oracle.easternDay(Date.parse(g1.airAt)) !== Oracle.easternDay(Date.parse(g2.airAt) + 3600000)) {
+            note("a lock at each game: the week's first game and an hour past its second fall on different Eastern days now; run --case=calledoff again in a few hours");
+            return;
+          }
           const teamOf = id => world.participants.find(p => p.id === id).team, held = s.snapshot().games.g.state.castaways.filter(x => x.ownerIds.includes('ann')).map(x => x.id);
           const E = held.find(id => g1.teams.includes(teamOf(id))), M = held.find(id => g2.teams.includes(teamOf(id))), X = held.find(id => id !== E && id !== M && !g1.teams.includes(teamOf(id)));
           if (!(E && M && X)) { check("Ann holds someone in the week's first game, someone in its second and another outside the first", false, { E, M, X }); return; }

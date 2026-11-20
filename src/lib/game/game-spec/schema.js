@@ -4372,6 +4372,17 @@ function settleProblems(s, ctx, opts) {
   if (score.by === 'stats') statScoreSettles(score, ctx, stats).forEach((x) => out.push(x));
   // L4 part 2: squares are a team game's two scores (ctx.shape), paid at its periods (ctx.periods: the sport's regulation ones).
   if (get.by === 'squares' && (ctx.shape === 'field' || ctx.shape === 'card')) out.push(['get.by', `Squares need a game's two scores: a ${ctx.shape} has none`]);
+  // BACKLOG 108 (docs/PLAN-sports-ready.md step 1.6): on a league's slate an episode is several games (ctx.slate), and the server
+  // keeps no one game for it, so a game's final asked of the episode never settles and squares never pay: ask it of each game
+  // (each: 'game'), or once, and put squares on one game.
+  if (ctx.slate) {
+    const part = isObj(ctx.part) && typeof ctx.part.singular === 'string' ? ctx.part.singular : 'episode';
+    if (get.by === 'squares') out.push(['get.by', `A ${part} here is several games and squares are one game's score: start squares on a single game`]);
+    (Array.isArray(s.ask) ? s.ask : []).forEach((q, i) => {
+      const st = isObj(q) && isObj(q.settle) ? q.settle : {};
+      if (st.by === 'final' && st.take !== 'bracket' && q.asked !== 'once' && q.each !== 'game') out.push([`ask[${i}].each`, `A ${part} here is several games: ask it of each game`]);
+    });
+  }
   if (score.by === 'squares' && Array.isArray(score.pays) && isObj(ctx.periods) && isInt(ctx.periods.regulation, 1)) {
     const per = ctx.periods;
     const n = per.regulation;
