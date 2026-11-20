@@ -1,8 +1,8 @@
 # Plan: the bot settles results, final at noon, changes after final are told
 
-> **Status (2026-11-20, 1:30 PM): A and B built on branch `results-settle` (lane `rfl-results`, port 3017), not pushed; the
-> screenshot story waits on the user's review.** Then D: a what-would-move run over a fresh production backup, and the push on
-> the user's OK (no migration, so no Neon rehearsal). After the deploy, POST /api/desk/settle-again once.
+> **Status (2026-11-20, 3:30 PM): A and B built on branch `results-settle` (lane `rfl-results`, port 3017), not pushed. D's
+> what-would-move run is done (below, "D: what would move"); it found one fix, made. Waiting on the user's OK to push** (no
+> migration, so no Neon rehearsal; never a Wednesday). After the deploy, POST /api/desk/settle-again once and check the Inbox.
 
 ## Why
 
@@ -97,6 +97,26 @@ for the user before the push; the deploy rehearsal if a migration lands; then th
   check-desk-episode (92), all at 390; `npm test` 2482. The story's frames: `scripts/dev-test/capture-results-settle.js`
   (any version of the code), under `.ui-atlas/stories/results-settle/`.
 
+## D: what would move (2026-11-20, backups/prod-2026-11-20 taken 1:41 PM ET)
+`scripts/dev-test/what-would-move.js --backup=<dir>`: the backup restored into a scratch `restore_` database, settleEverything
+run there as settle-again does (no bot asked), then each result in or out, each game's totals and each notice, against the backup.
+- **First run: a fix.** Survivor 51 Ep 6's two results (Ori's shot in the dark and lost vote, in the games and confirmed) went
+  to a split: Autopilot answered before AND after final, both without them, and `#after` counted it twice against the catch-up
+  and the tie-break (2 to 2), a split no further look could break (the tie-break's newer answer replaces its own). Now a bot's
+  after-final answer that says what it said before is one voice; only a change of mind is its own (`fact-status.ts settleFact`,
+  tests/fact-status.test.js). Ep 6 stays confirmed.
+- **With the fix:** one game moves, the couch's Weekly Start/Bench: Survivor 51 Ep 3's four catch-up-only results (Danny's and
+  Mike's sat out, Lewis searched another's bag, Rob gave away an advantage) come out to wait for a second look: +1, +0.5, +0.5,
+  no places change; each of the three is told once ("Ep 3 results changed"). Below Deck 13 Ep 5 (7) and The Traitors 5 Eps 3, 5,
+  9, 10 (75) go in: seasons without games. Nothing else moves; the other Survivor games and The Challenge stay as they are.
+- **Then the bot's look** (settle-again re-asks every open question; due an hour later): 25 Survivor results waiting for a
+  second look on Eps 1 (16) and 3 (9, the four above among them), catch-up-only, 21 of them never in the games (Ep 1's reward
+  wins among them). If it agreed with all of them (a one-off bound, not a prediction): the same game, +5, +5 and 0 against
+  production now, no places change. Eps 7 and 8's splits (16 and 26, Autopilot against the catch-up, no tie-break answer yet)
+  settle by the tie-break either way, pushed or not (on in production since 12:08 PM).
+- Checks after the fix: `npm test` 2482, tsc, eslint (fact-status.ts); check-new-settling 103 and check-new-community 91, each
+  with the one line that fails on origin/master too (below).
+
 ## Noticed, not fixed
 - **check-new-settling and check-new-community fail one line on origin/master too** (61a13da6, run 2026-11-20): "jordan's
   Episode 6: the corrections sit right above 'Something wrong in this episode?', not at the top" ({"above":false}). Not this
@@ -104,7 +124,7 @@ for the user before the push; the deploy rehearsal if a migration lands; then th
 - **ESLint on origin/master: 3 errors, 7 warnings** in files this branch doesn't touch (src/new/show/game-page.tsx and
   lineup-sheet.tsx `react-hooks/purity`, src/new/preview/*, src/lib/episode-results.ts, format-timeline.js,
   start-gallery/index.js, src/new/desk/pages.tsx). For whoever pushes next to look at.
-- **The settle-again's one-time churn, to measure before the push (step D):** Survivor 51's Episode 3 has four results only the
+- **(Measured: "D: what would move" above.) The settle-again's one-time churn, to measure before the push (step D):** Survivor 51's Episode 3 has four results only the
   2026-11-16 catch-up reported (they went in that night on the user's word); under the two looks after final they wait for a
   second look, so settle-again takes them out and the tie-break run looks again within the hour (likely back in: two notices
   for the couch, once). Episodes 4-6 had bot answers after their final times too (the 2026-10-29 re-runs), mostly backed by a

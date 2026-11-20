@@ -3,8 +3,10 @@
 // nothing a check loads this way builds a response.
 module.exports = {
   after(task) {
-    Promise.resolve()
+    const p = Promise.resolve()
       .then(typeof task === "function" ? task : () => task)
       .catch((e) => console.error("[after]", e));
+    // A script that waits for every piece of work (what-would-move.js) sets this list first.
+    if (Array.isArray(globalThis.__afterPending)) globalThis.__afterPending.push(p);
   },
 };

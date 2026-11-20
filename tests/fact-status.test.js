@@ -120,6 +120,19 @@ test("after final results, a bot's answer is a voice of its own and needs a seco
   assert.deepEqual([claim.factStatus, claim.live], ["disputed", false]);
   const agreed = one(idol([yes("c"), yes("t")]), [full("a", "bot:autopilot", 50), full("c", "bot:catchup", 200), full("t", "bot:tiebreak", 300)], after);
   assert.deepEqual([agreed.factStatus, agreed.live], ["confirmed", true]);
+  // The same bot after final saying what it said before is still one voice (Survivor 51 Ep 6): Autopilot without it before and
+  // after, the catch-up and the tie-break with it, is two against one, confirmed, not a split no further look could break.
+  const ep6 = one(idol([yes("c"), yes("t")], { live: true }), [full("a", "bot:autopilot", 50), full("r", "bot:autopilot", 150), full("c", "bot:catchup", 200), full("t", "bot:tiebreak", 300)], after);
+  assert.deepEqual([ep6.factStatus, ep6.live, ep6.yes, ep6.no], ["confirmed", true, 2, 1]);
+  const twice = one(idol([yes("a"), yes("r")], { live: true }), [full("a", "bot:autopilot", 50), full("r", "bot:autopilot", 150)], after);
+  assert.deepEqual([twice.factStatus, twice.live, twice.yes], ["reported", true, 1]);
+  // A change of method after final is a change of mind: its own voice still.
+  const how = settleEpisode(
+    [{ ...idol([yes("a", "high", "votedOut"), yes("r", "high", "medevac")], { live: true }), kind: "elimination", method: "votedOut" }],
+    [full("a", "bot:autopilot", 50), full("r", "bot:autopilot", 150)],
+    after
+  )[0];
+  assert.deepEqual([how.factStatus, how.live], ["disputed", true]);
 });
 
 test("after final, a result only a late look reports waits for a second one; an episode with nothing yet takes the first", () => {

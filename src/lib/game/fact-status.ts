@@ -127,6 +127,17 @@ function settleFact(f: FactInput, submissions: Submission[], byId: Map<string, S
     const v = voiceOf(s, finalAt);
     if (!newest.has(v) || newest.get(v)!.at < s.at) newest.set(v, s);
   }
+  // A bot saying after final what it said before is still one voice: only a change of mind is a voice of its own (Survivor 51
+  // Ep 6, 2026-11-20: Autopilot's two answers both without Ori's shot in the dark counted twice against the catch-up and the
+  // tie-break, a split no further look could break, since the tie-break's newer answer only replaces its own).
+  const stance = (s: Submission) => {
+    const yes = said.get(s.id);
+    return yes ? `yes:${METHOD_KINDS.has(f.kind) ? yes.method : ""}` : "no";
+  };
+  for (const [v, s] of [...newest]) {
+    const before = v.endsWith("#after") ? newest.get(v.slice(0, -"#after".length)) : undefined;
+    if (before && stance(before) === stance(s)) newest.delete(v);
+  }
   const methods = new Map<string, number>();
   let against = 0;
   for (const s of newest.values()) {
