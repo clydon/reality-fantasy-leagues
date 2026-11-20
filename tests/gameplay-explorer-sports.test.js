@@ -922,10 +922,10 @@ const callOff = (s, ev, o = {}) => s.apply({ type: "calledOff", contextId: "spor
 const seeded = (s, ev) => { let k = 0; const w = s.snapshot().contexts.sport; return Sports.resultsFor(w.context, w.participants, () => (k = (k * 7919 + 104729) % 1000003), ev); };
 const at = (s, ms) => assert.equal(s.apply({ type: "clock", at: new Date(ms).toISOString() }).status, "accepted");
 
-test("the called-off and week-in-progress oracle is the rule: a week in once every game is final or off, its games final counted; a game called off locks nothing", () => {
+test("the called-off and week-in-progress oracle is the rule: a week in once every game is final or off, its games final counted as they end; a game called off locks nothing", () => {
   assert.equal(Oracle.weekIn(["a", "b", "c"], ["a", "b"], []), false, "a game still to play");
   assert.equal(Oracle.weekIn(["a", "b", "c"], ["a", "b"], ["c"]), true, "the last one postponed");
-  assert.deepEqual(Oracle.counted(["a", "b", "c"], ["a"], []), [], "nothing of a week in progress counts, not even its games final");
+  assert.deepEqual(Oracle.counted(["a", "b", "c"], ["a"], []), ["a"], "a week in progress counts its games final so far (docs/PLAN-sports-ready.md step 1.1, part 2)");
   assert.deepEqual(Oracle.counted(["a", "b", "c"], ["a", "c"], ["b"]), ["a", "c"]);
   assert.deepEqual(Oracle.counted(["a", "b"], [], ["a", "b"]), [], "a week whose every game is off is in, with nothing in it");
   const games = [{ id: "a", at: "2099-01-07T18:00:00.000Z" }, { id: "b", at: "2099-01-07T23:00:00.000Z" }];
@@ -939,7 +939,7 @@ test("the called-off and week-in-progress oracle is the rule: a week in once eve
   assert.equal(Oracle.holdingLocked([games[0]], [], Date.parse("2099-01-08T06:00:00.000Z")), false, "the next Eastern day");
 });
 
-test("a slate week in progress counts nothing until its last game played is in; then a postponed game puts it in, its games played counted", () => {
+test("a slate week in progress counts its games final as they end, early (no head to head yet); then a postponed game puts it in, its games played counted", () => {
   const s = R.open(slateDoc({ completed: 1, events: 3, ann: 1, bo: 1, cy: 1 }));
   try {
     const world = s.snapshot().contexts.sport, week = world.events[1], [g1, g2, g3] = Sports.gamesOf(world.context, week), full = seeded(s, week);
@@ -950,15 +950,23 @@ test("a slate week in progress counts nothing until its last game played is in; 
     assert.match(send(s, week, "partial", only()).message, /has a game final/);
     assert.equal(send(s, week, "partial", only(g1)).status, "accepted");
     let snap = s.snapshot();
-    assert.equal(snap.contexts.sport.events[1].resultStatus, "unavailable", "the week stays out until every game is in or off");
-    assert.ok(!("statLines" in snap.games.g.state.episodes[1]) && !snap.games.g.state.episodes[1].gameFinal, "nothing of it is stamped");
-    assert.deepEqual(table(snap.games.g.state), t0, "nobody's total moves");
+    assert.equal(snap.contexts.sport.events[1].resultStatus, "unavailable", "the week isn't in until every game is in or off");
+    // Step 1.1, part 2 (core-runtime-46): its first game's lines stamped, early: the table moves by them, the week has no results yet.
+    const ep1 = snap.games.g.state.episodes[1];
+    assert.ok(ep1.statEarly === true && "statLines" in ep1 && !ep1.gameFinal, "its games so far stamped, early");
+    assert.equal(S.resultsStage(ep1), "early");
+    assert.equal(S.episodeHasResults(ep1), false, "its results aren't in: lineups, this week's choice and waivers go on as before");
+    const soFar = (snap_, gs) => { const st_ = snap_.games.g.state, out = {}; for (const p of st_.players) { const team = st_.castaways.filter((x) => x.ownerIds.includes(p.id)).map((x) => x.id); out[p.id] = round(slateWeek(snap_, "g", p.id, world.events[0], () => team) + slateWeek(snap_, "g", p.id, snap_.contexts.sport.events[1], (g) => (gs.includes(g.id) ? team : []))); } return out; };
+    assert.deepEqual(table(snap.games.g.state), soFar(snap, [g1.id]), "everyone's total moves by the first game's lines");
+    const seen = S.SpoilerLogic.viewThrough(snap.games.g.state, 1).episodes[1];
+    assert.ok(!("statLines" in seen) && !("statEarly" in seen), "someone a week behind is told nothing of the week in progress");
     assert.match(s.apply({ type: "reveal", contextId: "sport", personId: "ann", episode: 2 }).message, /Reveal only/, "a week in progress isn't there to reveal");
     at(s, Date.parse(g2.airAt) + 3600000);
     assert.match(send(s, week, "partial", only(g2)).message, /stays in the week/, "a game final stays final");
     assert.match(send(s, week, "final", only(g1, g2)).message, /each of its week's games played/, "a game still to play");
     assert.equal(send(s, week, "partial", only(g1, g2)).status, "accepted");
-    assert.deepEqual(table(s.snapshot().games.g.state), t0);
+    const two = soFar(s.snapshot(), [g1.id, g2.id]);
+    assert.deepEqual(table(s.snapshot().games.g.state), two, "and by the second's");
     // The last game postponed before it starts: the week is in with the two played.
     assert.match(callOff(s, week, { game: "nope" }).message, /Name one of the week's games/);
     assert.match(callOff(s, week, { game: g1.id }).message, /final can't be called off/);
@@ -974,9 +982,27 @@ test("a slate week in progress counts nothing until its last game played is in; 
       want[p.id] = round(slateWeek(snap, "g", p.id, world.events[0], () => team) + slateWeek(snap, "g", p.id, snap.contexts.sport.events[1], (g) => (counted.includes(g.id) ? team : [])));
     }
     assert.deepEqual(table(st), want, "the week is its two games played");
+    assert.deepEqual(want, two, "as the week in progress had them: in, nothing moves");
     assert.notDeepEqual(table(st), t0);
     assert.deepEqual(Object.keys(st.episodes[1].statGames).sort(), [g1.id, g2.id].sort(), "each game played kept beside the week's; none for the postponed one");
     assert.match(callOff(s, week, { game: g2.id }).message, /results are in/, "a week in can't be called off");
+  } finally { s.dispose(); }
+});
+
+test("at its own pace, a caught-up seat's copy leaves a week in progress out, even told everything (the game waits for them; step 1.1, part 2)", () => {
+  const s = R.open(slateDoc({ completed: 1, events: 3, ann: 1, bo: 1, cy: 1, timing: "own-pace" }));
+  try {
+    const world = s.snapshot().contexts.sport, week = world.events[1], [g1] = Sports.gamesOf(world.context, week), full = seeded(s, week);
+    at(s, Date.parse(g1.airAt) + 3600000);
+    assert.equal(send(s, week, "partial", { ...full, games: { [g1.id]: full.games[g1.id] } }).status, "accepted");
+    const st = s.snapshot().games.g.state, seat = st.players.find((p) => p.lateJoin && !p.lateJoin.catchingUp && p.lateJoin.seenThrough === 1);
+    assert.ok(seat, "a seat caught up through week 1");
+    assert.equal(S.EpisodeLogic.inProgress(st.episodes[1]), true, "the full state has the week in progress");
+    for (const mark of [null, 1, 5]) {
+      const ep = S.GhostLogic.viewFor(st, seat.id, mark).episodes[1];
+      assert.ok(!("statLines" in ep) && !("statEarly" in ep), "their copy, told through " + mark + ", leaves it out");
+    }
+    assert.ok("statLines" in S.GhostLogic.viewFor(st, null, null).episodes[1], "someone told everything without a seat here still sees it");
   } finally { s.dispose(); }
 });
 

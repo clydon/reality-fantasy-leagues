@@ -1605,7 +1605,8 @@ the server, results in with nothing in them: an episode's one game is among the 
 status 'off'), so nothing scores and the game moves on past it. It locks nothing (`air-times.ts` `PLAYED`: a day's or a week's
 lock is its first game played, a holding of its team stays free to move). A league's slate week counts only once every game in it
 is over, final or called off (`score.ts`: `done`); until then nothing of it is stamped, not even its games already final. No
-specimen needed either: they're the real schedule's.
+specimen needed either: they're the real schedule's. (Since 2026-11-19 a week in progress counts its games final as they end:
+"A week in progress counts as it goes", below.)
 
 - **Runtime** (`core-runtime-40`; `runtime-sports.cjs` "Called off, and a week in progress"):
   - **the `calledOff` action** `{ contextId, eventId, game?, called: 'postponed' | 'cancelled' }`: any time before the event's
@@ -1794,6 +1795,38 @@ Built in the engine lane; what changed here, where the explorer restates a rule 
   The situation `xw-waivers-run` runs at its time. A 60-case campaign (`rulefix-60`, seed 1114) passed whole.
 - **Left:** B84's overall by places isn't connected in the runtime (the profile's gap stands); until it is, the page says the
   overall is points beside head-to-head stages.
+
+### A week in progress counts as it goes (2026-11-19, docs/PLAN-sports-ready.md step 1.1, part 2)
+
+The user's goal for step 1.1 (BACKLOG 215): live scores during games. Part 2: a slate's week counts each game's lines as it ends,
+not only once every game is over. The server (`score.ts` `stampStats`) stamps a week in progress with its games final so far and
+`early` (StatsLogic.stamp: `ep.statEarly`); the engine reads it as early results that aren't yet "results" (`EpisodeLogic.inProgress`,
+`resultsStage` 'early', `hasResults` false): the scoring walk counts it in the totals and roto, never in the series, so head to
+head (points or categories), a race and a cut wait for its last game; the spoiler cut hides it from anyone behind
+(`SpoilerLogic.hiddenEpisodes`), and a seat at its own pace never sees one past its mark, caught up or not (`GhostLogic.viewFor`:
+the season's guard tells a caught-up seat everything; found by `sport-wip-slates` case 111, where the runtime and the server
+agreed and the invariant's own-pace rule didn't).
+- **Runtime** (`core-runtime-46`): `applyFacts` stamps a slate's unreleased week with a fact (a 'partial' result) as the server
+  does: its lines and each game's so far, `early`. Partial results apply the facts to every game on the context.
+- **The rule, restated** (`campaign/sports-oracle.cjs`): `counted` is a week's games final, in or not (it was none until the week
+  was in); `weekIn` is unchanged, and head to head decides only weeks in.
+- **Invariants** (`campaign/case.cjs`): `stats-table` and `sport-roto` count a week in progress's games final; `sport-matchup` and
+  `sport-categories` take a last matchup only on a week in (a week in progress is named in the violation); `sport-called-off`
+  now asks a week in progress to hold exactly its games final so far's lines, early and with no final, nothing before its first
+  game is final, and a week in never early.
+- **Unit tests** (`tests/gameplay-explorer-sports.test.js`): the oracle (`counted` of a week in progress is its games final); a slate
+  week in progress stamps its first game's lines early, the table moving by them and then by the second's, the week not in, no
+  reveal, someone a week behind told nothing; its last game postponed puts it in with nothing moving.
+- **Real routes** (`check-sports-explorer.js`, every case): calledoff's slate now has the week moving with each game (Ann with and
+  without "Sports scores too"), the postponement moving nothing; its control is a game final so far written wrong behind the
+  runtime mid-week (the server counts it: the tables disagree). The case found the server and the runtime showing a hider a week
+  behind the week in progress (`hiddenEpisodes` went by `hasResults` alone): fixed.
+- **Campaigns:** `sport-wip-60` (seed 139, generator 65): 56 of 60; its four others fail the same on master (BACKLOG 224), and it
+  reached only two weeks in progress. `sport-wip-slates` (seed 210, chosen from its definitions for its slates; `count.cjs`: 19
+  sports cases, 6 slates, 5 weeks in progress taken and 1 refused, 4 moving a table, 31 states with one, no last matchup on one):
+  113 of 120, then 114 on the final code (case 111 fixed: the own-pace rule above); its six others are standing (BACKLOG 224).
+- **NFL fixture** (`check-sports-week-in-progress.js`): the recorded NFL season, head to head; Sunday evening's hourly run counts the
+  early games, every matchup undecided; Monday night's final decides them.
 
 ### Product fixes from these findings (2026-11-12, uncommitted; the user asked for all four)
 

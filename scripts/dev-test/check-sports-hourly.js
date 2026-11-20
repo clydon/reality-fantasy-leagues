@@ -4,13 +4,15 @@
 //
 // On nfl-slate-fixture.js (the recorded NFL season through the stand-in ESPN; a game is being played for 3½ hours after its start,
 // then final as recorded), with a default season game started before the week:
-//   the week to its Monday night   the daily job each morning: every game final and kept but Monday night's; the week not counted
-//   during Monday night's game     the job's run at five past: the game being played, the week still not counted
-//   after it                       the first run after its final (at most an hour on): the game final and kept, the week counted
+//   the week to its Monday night   the daily job each morning: every game final and kept but Monday night's; the week not final
+//   during Monday night's game     the job's run at five past: the game being played, the week still not final
+//   after it                       the first run after its final (at most an hour on): the game final and kept, the week final
 //                                  (score.ts leagueGames: every game in it done), the season game reading its lines
+// (Since part 2 a week in progress counts its games final as they end: check-sports-week-in-progress.js. Here "final" is every
+// game in it done.)
 //   a run with nothing new         an hour later: nothing saved or corrected, and ESPN (the stand-in) asked little
 // The runs are the job's own script (fixture world.hourly(): a process of its own on the fixture's clock, against the stand-in and
-// this season only). Prints PASS/FAIL, and when the daily job alone would have counted the week.
+// this season only). Prints PASS/FAIL, and when the daily job alone would have had the week final.
 //
 //   node scripts/dev-test/check-sports-hourly.js [--week=9] [--keep]
 //
@@ -60,7 +62,7 @@ const iso = (t) => new Date(t).toISOString();
       [w.seasonId, WEEK]
     );
     let c = await counted();
-    check(kept[0].kept === week.games.length - 1 && !c.done, `${week.label} to Monday night: ${kept[0].kept} of ${week.games.length} finals kept, the week not counted (${last.name} to play)`, { kept: kept[0].kept, c });
+    check(kept[0].kept === week.games.length - 1 && !c.done, `${week.label} to Monday night: ${kept[0].kept} of ${week.games.length} finals kept, the week not final (${last.name} to play)`, { kept: kept[0].kept, c });
 
     // During Monday night's game: the job's run at five past.
     const during = nextRun(Date.parse(last.at) + HOUR);
@@ -68,7 +70,7 @@ const iso = (t) => new Date(t).toISOString();
     let out = await w.hourly();
     const r1 = await row(last.id);
     c = await counted();
-    check(/\[sports-refresh\]/.test(out) && r1?.state === "in" && !r1.final && !c.done, `the job's run at ${iso(during).slice(11, 16)}Z, ${last.name} being played: not final, the week not counted`, { r1, c, out: out.slice(0, 300) });
+    check(/\[sports-refresh\]/.test(out) && r1?.state === "in" && !r1.final && !c.done, `the job's run at ${iso(during).slice(11, 16)}Z, ${last.name} being played: not final, nor the week`, { r1, c, out: out.slice(0, 300) });
 
     // The first run after its final.
     const end = Date.parse(last.at) + fx.GAME_MS;
@@ -78,11 +80,11 @@ const iso = (t) => new Date(t).toISOString();
     const r2 = await row(last.id);
     c = await counted();
     fact(`${last.name} final at ${iso(end).slice(11, 16)}Z; the job's next run at ${iso(first).slice(11, 16)}Z (${Math.round((first - end) / MIN)} minutes on): ${out.trim().split("\n").find((l) => /finals saved/.test(l))}`);
-    check(r2?.final && r2.kept && c.done && c.lines > 0 && first - end <= HOUR, `within the hour of its final, it's kept and ${week.label} is counted (${c.lines} lines in the season game)`, { r2, c });
+    check(r2?.final && r2.kept && c.done && c.lines > 0 && first - end <= HOUR, `within the hour of its final, it's kept and ${week.label} is final (${c.lines} lines in the season game)`, { r2, c });
     const morning = new Date(end);
     morning.setUTCHours(11, 0, 0, 0);
     if (morning.getTime() < end) morning.setUTCDate(morning.getUTCDate() + 1);
-    fact(`the daily job alone would have counted it at ${iso(morning).slice(0, 16)}Z, ${((morning.getTime() - end) / HOUR).toFixed(1)} hours after the final`);
+    fact(`the daily job alone would have had it final at ${iso(morning).slice(0, 16)}Z, ${((morning.getTime() - end) / HOUR).toFixed(1)} hours after the final`);
 
     // An hour later, nothing new.
     const asked = w.espn.asked.length;

@@ -313,7 +313,7 @@ export async function sidesFor(state: LeagueState, episode: number, games?: Map<
 /** A final game's score as the squares read it (StatsLogic.stamp's `o.games`). */
 type GameScore = Pick<SportsGameFacts, "status" | "sides" | "periods">;
 /** What a stamp writes (StateLogic.StatsLogic.stamp's `o`). */
-type Stamp = { lines: Record<number, Record<string, Stats>>; bouts: Record<number, Record<string, StatBout[]>>; groups: Record<string, string>; teamIds: Record<string, string>; finals: number[]; defs: CategoryDefs; games: Record<number, GameScore>; periods: number | null; byGame: Record<number, Record<string, Record<string, Stats>>> };
+type Stamp = { lines: Record<number, Record<string, Stats>>; early: number[]; bouts: Record<number, Record<string, StatBout[]>>; groups: Record<string, string>; teamIds: Record<string, string>; finals: number[]; defs: CategoryDefs; games: Record<number, GameScore>; periods: number | null; byGame: Record<number, Record<string, Record<string, Stats>>> };
 // The league poll reads every 15 s (league-read.ts readyLeague), and a season's kept finals are big (everyone's counts, a game an
 // episode): each server instance keeps the last stamp it worked out for a league, with a fingerprint of what it read (32 bytes: the
 // season's kept finals, its games called off, its cast's provider ids and positions, the league's castaways), and reads the finals again only when it moves.
@@ -365,11 +365,13 @@ export async function stampStats(state: LeagueState): Promise<LeagueState> {
     // L3 part 2e: each final game's score, for squares (its sides and each period's end); a called-off one's its status alone (its
     // squares pay nobody: payScore's 'off').
     const games = Object.fromEntries(finals.map((n) => { const f = g.games.get(n)!; return [n, { status: f.status, sides: f.sides, ...(f.periods ? { periods: f.periods } : {}) }]; }));
-    // L3 part 2f: a slate's episode only once every game in it is over (its results then: a partial week is never in), its lines
-    // the week's and each game's (a table scored game by game: byGame).
-    const lines = Object.fromEntries([...g.lines].filter(([n]) => !g.slate.has(n) || g.done.has(n)));
-    const byGame = Object.fromEntries([...g.byGame].filter(([n]) => g.done.has(n)).map(([n, m]) => [n, Object.fromEntries(m)]));
-    hit = { key, stamp: { lines, bouts: Object.fromEntries(g.bouts), groups: g.groups, teamIds: g.teamIds, finals: [...finals, ...g.done], defs: g.defs, games, periods: g.periods, byGame } };
+    // L3 part 2f: a slate's episode's lines, the week's and each game's (a table scored game by game: byGame). Step 1.1, part 2
+    // (docs/PLAN-sports-ready.md): a week in progress too, its games final so far, its results early (StatsLogic.stamp's `early`),
+    // so a table moves as each game ends; it's final, and head to head, a race or a cut is decided, once every game in it is over.
+    const lines = Object.fromEntries([...g.lines]);
+    const early = [...g.lines.keys()].filter((n) => g.slate.has(n) && !g.done.has(n));
+    const byGame = Object.fromEntries([...g.byGame].map(([n, m]) => [n, Object.fromEntries(m)]));
+    hit = { key, stamp: { lines, early, bouts: Object.fromEntries(g.bouts), groups: g.groups, teamIds: g.teamIds, finals: [...finals, ...g.done], defs: g.defs, games, periods: g.periods, byGame } };
     stamps.delete(id);
     stamps.set(id, hit);
     if (stamps.size > MAX_STAMPS) stamps.delete(stamps.keys().next().value!);

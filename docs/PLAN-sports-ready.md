@@ -5,8 +5,8 @@
 > Phase 0 confirmed all four inferences, each with a check, and found two bigger gaps; step 1.0 closed both (BACKLOG 220 and 221),
 > 1.3 made team defenses people and kept same-named players apart (BACKLOG 145), 1.2 stopped silent zeros and takes corrections,
 > 1.4 keeps rosters current (signings, trades), 1.5 reads injuries and byes, 1.6 made the small fixes (BACKLOG 108, 78), and
-> 1.1's part 1 puts finals in the standings within the hour. Next: 1.1's parts 2 and 3 toward live scores, Phase 2 (the user's
-> calls 213, 214, 219) and 4.1.
+> 1.1's part 1 puts finals in the standings within the hour; its part 2 counts a week's games as they end. Next: 1.1's part 3,
+> live points during games, then Phase 2 (the user's calls 213, 214, 219) and 4.1.
 > The decisions it needs are BACKLOG 175 and 212–219 ("Waiting on you").
 
 The user, 2026-11-19: "I want to make sure sports is in a good spot both technically and redesign needs. Make a plan for that."
@@ -166,10 +166,34 @@ server.
      nothing new asking ESPN nothing; and the script run with only AUTH_DATABASE_URL, as the job has it. It takes effect once the
      branch is on master (GitHub runs the default branch's workflow). jiti is now a dev dependency of its own (it was only
      eslint's and Tailwind's).
-   - **Part 2, a week in progress counts as it goes.** A slate's week counts only once every game is final (score.ts stampStats,
-     `done`): count each final game provisionally (its lines in, the week marked unfinished: no matchup won or lost until its
-     last game), so Sunday's matchups move as each game ends. Engine and server; the game view says the week is in progress
-     (4.1.2's first half). Check: the fixture's week with some games final, the matchups moving per game.
+   - **Part 2, a week in progress counts as it goes. Done 2026-11-19.** A slate's week counted only once every game was final
+     (score.ts stampStats, `done`). Now each game's lines count as it ends: the server stamps a week in progress with its games
+     final so far, marked early (`ep.statEarly`; StatsLogic.stamp's `early`). In the engine a week in progress is early results
+     (EpisodeLogic.resultsStage 'early', EpisodeLogic.inProgress) without "having results" (hasResults stays false, so lineups,
+     this week's choice, waiver weeks and a move's episode go on as before its last game). The scoring walk counts its points in
+     the totals and roto, never in the series: head to head (points or categories), a race and a cut wait for its last game,
+     a week in progress behind a later one too (a makeup game). The spoiler cut hides it from anyone behind
+     (SpoilerLogic.hiddenEpisodes). The explorer's runtime (core-runtime-46), the oracle (`counted`: a week's games final, in or
+     not) and the campaign's invariants say the same. Verified: check-sports-week-in-progress.js on the recorded NFL season (four
+     seats, head to head, two quarterbacks from Sunday's early games and one from Monday night's each): Sunday evening's hourly
+     run has the week early, everyone's total moved by their quarterbacks, every record 0-0 and someone a week behind told
+     nothing; after Monday night's final the week is final, each matchup decided, each total moved by its Monday night player
+     alone. check-sports-explorer.js, every case (calledoff's control now a game final so far written wrong behind the runtime
+     mid-week: the server counts it); the unit suite (2,456); campaigns sport-wip-slates (seed 210, generator 65, chosen for its slates: 6 slate cases, 5 weeks in progress taken, 4 moving a table, no matchup ever decided on one): 114 of 120 on the final code, the six others standing failures that fail the same on master (BACKLOG 224). **What a screen says** about a week in progress
+     (resultsStage 'early' is there to read) is part 4's.
+     - *A call made on the way (the user may reverse it):* a seat playing at its own pace that's caught up never sees a week in
+       progress past its mark (GhostLogic.viewFor), even when the season's guard tells it everything (it holds a live seat there
+       too). Otherwise its own-pace game showed Sunday's points and then, once the week was final and the seat was catching up
+       to it, took them away again until it watched the week. Before part 2 nothing past a caught-up mark had a line, so the
+       question never came up. Found by a campaign (sport-wip-slates, case 111); a unit test holds it.
+     - *Found and fixed on the way:* a hider a week behind was told a week in progress (hiddenEpisodes went by hasResults alone),
+       caught by the calledoff route case; and the slates case's "next morning" fell on the first game's own Eastern day after
+       9 PM Eastern (the server's now is the real one): it's now half an hour past the next Eastern midnight as the server sees it.
+     - *Noticed, not fixed:* the same case's "an hour into the first game" step would be the next Eastern day if run between
+       midnight and 1 AM Eastern (left: the window is an hour; the check would say FAIL, not pass wrongly).
+     - *For part 4:* the game view's "through" (game-view.ts: `latestWithResults`) stays at the last week in while its totals
+       take in the week in progress, so a page that says "through Week 8" beside totals with Sunday's games in needs the week's
+       stage said (`resultsStage` 'early' on the episode; the season's games route answers nothing of it yet).
    - **Part 3, live points during games.** The server's live poller (src/lib/server/sports/live-proxy.ts, already polling ESPN
      for phones at most once a game every 15 s) gives each game's lines so far; run them through the game's table under the
      spoiler rule (Hide scores, Watch it as if live), so a matchup moves play by play (4.1.2's second half, Phase 5's feed
@@ -343,7 +367,7 @@ default selection.
 
 ## The order, and how it fits the rest
 
-1. **Now, beside the Survivor 51 work:** 1.1's parts 2 and 3 toward live scores (part 1 done), then Phase 2 once the user's calls
+1. **Now, beside the Survivor 51 work:** 1.1's part 3 toward live scores (parts 1 and 2 done), then Phase 2 once the user's calls
    are in. Phase 4.0 (the words) in any free session.
 2. **Then:** Phase 2 (once the user has made the calls), and Phase 4.1.
 3. **Then:** Phase 3, the gate, and the design round's pages 1 and 3 (they need correct data, not live data).

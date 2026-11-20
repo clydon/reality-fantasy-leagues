@@ -1056,7 +1056,9 @@ class ScoringLogic {
     const players = state.players || [];
     const from = Spec.spanStart(game.span);
     const to = Spec.spanEnd(game.span);
-    const episodes = from === null ? [] : (state.episodes || []).filter(e => e.number >= from && (to === null || e.number <= to) && EpisodeLogic.hasResults(e)).sort((a,b) => a.number - b.number);
+    // A sport's week in progress too (step 1.1, part 2: EpisodeLogic.inProgress), as early results: its points so far in the totals,
+    // never in the series head to head and a race or a cut read (the newest early episode waits: `final` below).
+    const episodes = from === null ? [] : (state.episodes || []).filter(e => e.number >= from && (to === null || e.number <= to) && (EpisodeLogic.hasResults(e) || EpisodeLogic.inProgress(e))).sort((a,b) => a.number - b.number);
     const newest = episodes.length ? episodes[episodes.length - 1].number : null;
     // The game that's played (playedGame: a spec no game plays is scored as an Outlast, as its table's scorer is: scorePiece).
     const outlast = playedGame(state).score.by === 'place';
@@ -1126,7 +1128,8 @@ class ScoringLogic {
     let finaleIn = false;
     const series = [];
     for(const ep of episodes){
-      const final = !(EpisodeLogic.resultsStage(ep) === 'early' && ep.number === newest);
+      // (A sport's week in progress never is, newest or not: a makeup game can leave one open behind a later week.)
+      const final = !(EpisodeLogic.inProgress(ep) || (EpisodeLogic.resultsStage(ep) === 'early' && ep.number === newest));
       if(bounty && (w.now || final)){
         const moved = BountyLogic.episodeLines(state, ep, bounty, exits);
         if(moved) moved.forEach((pts, id) => { if(taken.has(id)) taken.set(id, Seq.round(taken.get(id) + pts)); });
@@ -1558,7 +1561,8 @@ class MatchupLogic {
     // L3 part 2d: on categories, each episode's totals compared category by category (sequence/categories.js categoryMatchups).
     if(parts.categories){
       const sides = (state.players || []).map(p => p.id);
-      const played = StatsLogic.played(state).map(ep => ({ number: ep.number, totals: StatsLogic.totals(state, [ep], sides, parts.categories) }));
+      // (A week in progress is decided once its last game is final: step 1.1, part 2.)
+      const played = StatsLogic.played(state).filter(ep => !EpisodeLogic.inProgress(ep)).map(ep => ({ number: ep.number, totals: StatsLogic.totals(state, [ep], sides, parts.categories) }));
       return Cats.categoryMatchups(played, {
         parts, defs: state.statDefs || {}, start: startEpisode(state), from: MatchupLogic.playoffsFrom(state, parts),
         finale: finale ? finale.number : null, ended, seatsAt: k => MatchupLogic.seatsAt(state, k),
@@ -3887,7 +3891,10 @@ function roundPoints(n){ return Seq.round(n); }
 // allowed: each a game's); stamped only once every game of the week is over, so a partial week is never its results.
 // G3 part 3b: a game whose pool is some teams' or positions' players (PoolLogic), every castaway's position group from their
 // roster (`state.statGroups`, a kept final or not) and the ESPN id of the team they're listed on now (`state.statTeams`).
-const STAMPED = { episode: ['statLines', 'statBouts', 'gameFinal', 'gameScore', 'squareDigits', 'statGames'], state: ['statGroups', 'statDefs', 'statPeriods', 'statTeams'] };
+// docs/PLAN-sports-ready.md step 1.1, part 2: a slate's week in progress, its games final so far (`ep.statEarly`: its lines are the
+// games final so far, its results early: EpisodeLogic.resultsStage), so a table moves as each game ends while head to head, a
+// race and a cut wait for the week's last game, as they wait on a show's early results.
+const STAMPED = { episode: ['statLines', 'statBouts', 'gameFinal', 'gameScore', 'squareDigits', 'statGames', 'statEarly'], state: ['statGroups', 'statDefs', 'statPeriods', 'statTeams'] };
 // The settles a sport's game answers (L1 part 4b).
 const SPORTS_SETTLES = ['final', 'stat'];
 class StatsLogic {
@@ -3949,6 +3956,7 @@ class StatsLogic {
     const bouts = (o && o.bouts) || {};
     const finals = new Set((o && o.finals) || []);
     const byGame = (o && o.byGame) || {};
+    const early = new Set((o && o.early) || []);
     const games = (o && o.games) || {};
     const digits = (o && o.digits) || {};
     (state.episodes || []).forEach(ep => {
@@ -3958,6 +3966,7 @@ class StatsLogic {
       const at = lines[ep.number];
       if(!at || typeof at !== 'object') return;
       ep.statLines = only(at);
+      if(early.has(ep.number)) ep.statEarly = true;
       if(bouts[ep.number]) ep.statBouts = only(bouts[ep.number]);
       if(byGame[ep.number] && typeof byGame[ep.number] === 'object') ep.statGames = Object.fromEntries(Object.entries(byGame[ep.number]).map(([event, l]) => [event, only(l)]));
     });
@@ -8352,7 +8361,9 @@ class EpisodeLogic {
       || (ep.roles||[]).length > 0 || (ep.groups||[]).length > 0 || (ep.props||[]).length > 0
       // L3 part 2: a game scored by a sport's stats, once its game's lines are in (StatsLogic.stamp); part 2c, any game reading a
       // sport's, once its game is final.
-      || (!!ep.statLines && typeof ep.statLines === 'object') || ep.gameFinal === true);
+      // Step 1.1, part 2: not a week in progress (its lines so far count in the scoring walk alone, as early results: resultsStage),
+      // so its lineups, this week's choice, a waiver week and a move's episode all go on as before its last game is final.
+      || (!!ep.statLines && typeof ep.statLines === 'object' && ep.statEarly !== true) || ep.gameFinal === true);
   }
   // Nobody went home in this episode (on), or that's taken back (off). Only the season sync's shared
   // "nobody went home" fact sets it (decision-apply.ts).
@@ -8368,10 +8379,15 @@ class EpisodeLogic {
   // (every scoring moment). Null with nothing in yet. The mark (ep.resultsStage = 'early') is set by whoever
   // applies the early results and taken off when the full ones are applied; absent means final, which is every
   // episode from before stages existed and any entered by hand.
+  // A sport's week in progress is early (`ep.statEarly`, StatsLogic.stamp: its games final so far, the rest to play), though it
+  // hasn't results yet (hasResults): only the scoring walk reads it (ScoringLogic.walk: its points so far, never head to head's).
   static resultsStage(ep){
+    if(EpisodeLogic.inProgress(ep)) return 'early';
     if(!EpisodeLogic.hasResults(ep)) return null;
     return ep.resultsStage === 'early' ? 'early' : 'final';
   }
+  // A sport's week in progress (docs/PLAN-sports-ready.md step 1.1, part 2): some of its games final, the rest to play.
+  static inProgress(ep){ return !!ep && ep.statEarly === true && !!ep.statLines && typeof ep.statLines === 'object'; }
   static setResultsStage(state, epId, stage){
     const ep = state.episodes.find(e => e.id === epId);
     if(!ep) return false;
@@ -9619,7 +9635,8 @@ class SpoilerLogic {
   // Episodes whose results this viewer hasn't seen yet, oldest first.
   static hiddenEpisodes(state, seenThrough){
     if(seenThrough === null || seenThrough === undefined) return [];
-    return state.episodes.filter(e => e.number > seenThrough && EpisodeLogic.hasResults(e)).sort((a,b) => a.number - b.number);
+    // (A sport's week in progress too, its games final so far: docs/PLAN-sports-ready.md step 1.1, part 2.)
+    return state.episodes.filter(e => e.number > seenThrough && (EpisodeLogic.hasResults(e) || EpisodeLogic.inProgress(e))).sort((a,b) => a.number - b.number);
   }
   // The latest episode with results, i.e. what "seen everything" means right now (0 when none).
   static latestWithResults(state){
@@ -9725,7 +9742,7 @@ class SpoilerLogic {
       if(s.secretRoles && s.secretRoles.at === ep.number) delete s.secretRoles;
       delete ep.resultsStage; delete ep.noExit;
       // L3 part 2: a sport's stat lines and its game's final (StatsLogic.stamp).
-      delete ep.statLines; delete ep.statBouts; delete ep.gameFinal; delete ep.gameScore; delete ep.statGames;
+      delete ep.statLines; delete ep.statBouts; delete ep.gameFinal; delete ep.gameScore; delete ep.statGames; delete ep.statEarly;
       ep.postMerge = visible ? !!visible.postMerge : false;
       (ep.bets || []).forEach(b => { (b.predictions || []).forEach(p => { p.correct = null; }); delete b.ai; delete b.settledBy; });
       ep.resultsHidden = true;
@@ -10156,6 +10173,23 @@ class GhostLogic {
   // opts.full: the copy the reveal works from instead (the client's fullState) -- the same, except
   // their week's results are still in it, so the reveal has something to show. Never later ones.
   static viewFor(state, viewerId, seenThrough, opts){
+    const out = GhostLogic.viewAt(state, viewerId, seenThrough, opts);
+    // A sport's week in progress (docs/PLAN-sports-ready.md step 1.1, part 2) past the mark of a seat playing at its own pace that's
+    // caught up stays out of its copy, as the week will once it's final and they're catching up to it: the game waits for them (the
+    // season's guard tells a caught-up seat everything, and before part 2 nothing past its mark had a line). Only a week in
+    // progress: nothing else past a caught-up seat's mark has results.
+    if(opts && opts.full) return out;
+    const lj = GhostLogic.ownPace(state) ? GhostLogic.lateJoinOf(state, viewerId) : null;
+    if(!lj || lj.catchingUp || !Number.isInteger(lj.seenThrough)) return out;
+    const past = new Set((out.episodes || []).filter(e => e.number > lj.seenThrough && EpisodeLogic.inProgress(e)).map(e => e.number));
+    if(!past.size) return out;
+    const s = out === state ? JSON.parse(JSON.stringify(state)) : out;
+    delete s.answerWalk;
+    delete s.answerLines;
+    s.episodes.forEach(ep => { if(past.has(ep.number)){ delete ep.statLines; delete ep.statBouts; delete ep.statGames; delete ep.statEarly; } });
+    return s;
+  }
+  static viewAt(state, viewerId, seenThrough, opts){
     const full = !!(opts && opts.full);
     const others = new Set((state.players || []).filter(p => isGhost(p) && p.id !== viewerId).map(p => p.id));
     const catchingUp = GhostLogic.isCatchingUp(state, viewerId) && Number.isInteger(seenThrough);

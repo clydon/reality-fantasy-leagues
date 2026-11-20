@@ -61,6 +61,21 @@ Grouped so each group is about one session. Take them in any order.
 
 ### Fix the stale and flaky checks
 
+**224. The engine campaign's four standing failures (found 2026-11-19, on master f1488cf1 as on sports-phase0).** A 60-case
+campaign on generator proof-family-65 (`.ui-atlas/campaigns/sport-wip-60`, seed 139, depth 30; run for the sports plan's step
+1.1 part 2, which changes none of them: each fails the same on master's code) passed 56. Case 20, `sport-locks`: a season game
+locking by the week has p1's episode 2 lineup open at 17:00 where the invariant locks it at 16:00 (the engine's lock or the
+invariant's week edge: find which). Cases 23 and 41, the generator itself: `nextAction` reads `q.options.map` on an open question
+with no options (generator.cjs:659; a question kind the walk doesn't know). Case 56: the generator made a definition the engine
+refuses ("Runtime requires an engine-valid playable definition"). Repro: `node scripts/gameplay-bench.js campaign
+--dir=.ui-atlas/campaigns/sport-wip-60 --repro=<20|23|41|56> --out=<file>`. A second (`sport-wip-120`, seed 150) passed 112 of
+120 with the same three kinds (cases 13, 67, 77; 66, 75, 89) and two more, also the same on master: case 1, `waivers-by-hand`
+("lineup: a window opened or changed isn't open"), and case 88, `share-overpaid` ("p3 sees questions boot|4 pay [4] (split, 2)").
+A third (`sport-wip-slates`, seed 210) adds `carried-lineup-rewritten` (cases 2 and 42, the same on master: "p2's lineup for
+episode 2, already played, went from [one] to [two] on a waiverUndo step": an undone waiver run rewrites a played week's carried
+lineup), with `waivers-by-hand` (62) and the generator's two (82, 100; 89).
+[S–M · checks, explorer]
+
 **223. check-new-make-it.js --api fails at its first ask.** On the sports-phase0 branch (2026-11-19) its stand-in bot gives no
 cast answer for ZT Yacht Life ("ChatGPT didn't answer ... no answer for cast"), so Make it a game stops at "needs cast" and every
 line after it fails. Not from step 1.3 (it fails before the cast insert that step changed). Find whether fake-bot.js's cast kind or
