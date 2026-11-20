@@ -38,6 +38,7 @@ export interface PreviewGame {
 
 type Builder = {
   build: (season: PreviewSeason, o: object) => object;
+  verdict: (definition: object) => { ok: boolean; why: string | null; gaps: string[] };
   resultsFor: (season: PreviewSeason) => unknown;
   mixTribes: <T>(cast: T[]) => T[];
   ratesOf: (season: Pick<PreviewSeason, "cast" | "real" | "mark">) => Record<string, number>;
@@ -116,6 +117,12 @@ export async function previewDefinition(user: SessionUser, seasonId: string, cou
   const B = builder();
   try {
     const definition = B.build(season, { base: game.base, changes: game.changes ?? [], gameId: game.base, seed: seedOf(user.id, seasonId, season.mark) });
+    // A game the runtime can't play yet says so now, never a preview that fails partway (the release plan's step 2).
+    const v = B.verdict(definition);
+    if (!v.ok) {
+      console.warn(`[preview] no preview for ${game.base}: ${v.gaps.join("; ") || v.why}`);
+      throw new HttpError(422, "No preview for this game yet");
+    }
     return { definition, season, resultsFor: B.resultsFor(season) };
   } catch (e) {
     const code = (e as { code?: string }).code;

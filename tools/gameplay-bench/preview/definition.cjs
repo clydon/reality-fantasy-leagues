@@ -11,6 +11,7 @@
 //
 //   const P = require('./definition.cjs')
 //   P.build(season, { base, changes, gameId, gameName, seed, merge }) -> the v2 definition
+//   P.verdict(definition) -> { ok, why, gaps }: whether the runtime can play it (asked before anything is made)
 //   P.resultsFor(season) -> (session, n) => episode n's made-up results, shaped like the season's
 //   P.mixTribes(cast)    -> the cast a tribe at a time in turn (so a smaller pool still has every tribe)
 'use strict';
@@ -182,4 +183,21 @@ function resultsFor(season) {
   };
 }
 
-module.exports = { build, resultsFor, mixTribes, ratesOf, COUCH, CAST_FIELDS };
+/**
+ * Whether the runtime can play this definition's game (the release plan's step 2), asked before anything is made: the explorer's own
+ * analysis (engine-valid, and a runtime profile with no gaps). Checked against the gallery's whole catalogue
+ * (scripts/dev-test/preview-catalogue.js): every game it passes played a season headless, every one it stops failed. `why` is the
+ * first gap's reason (the builder's words, for the log and the desk); the app says "No preview for this game yet".
+ */
+function verdict(definition) {
+  const { analyze } = require('../explorer/analyze.cjs');
+  const a = analyze(definition);
+  if (a.engine.status !== 'valid') {
+    const p = a.nodes.flatMap((n) => [...n.engine.problems, ...n.engine.waits])[0];
+    return { ok: false, why: p ? p.problem || p.reason || String(p.waitsFor || 'it waits for something') : "the game isn't valid", gaps: [] };
+  }
+  const gaps = (a.runtimeSupport.gaps || []).map((g) => g.reason);
+  return a.runtimeSupport.status === 'supported-profile' && !a.diagnostics.length ? { ok: true, why: null, gaps: [] } : { ok: false, why: gaps[0] || a.diagnostics[0]?.message || "the runtime can't play it yet", gaps };
+}
+
+module.exports = { build, verdict, resultsFor, mixTribes, ratesOf, COUCH, CAST_FIELDS };

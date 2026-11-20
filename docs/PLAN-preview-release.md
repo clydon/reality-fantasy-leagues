@@ -146,6 +146,14 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
    now rings the most shared one (`live.cjs` teamsRing).
 2. **Games the runtime can't play yet** say so before anything is made ("No preview for this game yet", with the reason from the
    explorer's own analysis of the spec), never a preview that fails partway. Checked against the gallery's whole catalogue.
+   **Done (2026-11-19).** `definition.cjs` `verdict` (the explorer's analysis: engine-valid and a runtime profile with no gaps), asked
+   by `preview-definition.ts` after building and before anything is made: a game it stops answers 422 "No preview for this game
+   yet", its reasons logged. `scripts/dev-test/preview-catalogue.js` runs the gallery's whole catalogue: on the made-up season and
+   on Survivor 51, 31 of the 50 games the gallery offers can be previewed, and the verdict and a season played headless agree on
+   every one; with `--live`, all 31 were made as live previews through the real routes (1 to 2 s each) and removed. The 19 that
+   can't yet, by the analysis's reasons: a salary cap and a stock market (prices from the data), a draft across tribes (the world's
+   tribes), no-repeat picks, most question games beyond per-episode cast and yes/no questions (boot order, most, over/under, pairs,
+   split, quote, seal, bank, props, trivia, host), bingo, bingo with trivia, two halves, and a redraft at a format change.
 3. **The registry in the service's database** (a `live_previews` table: id, owner key, expiry, the viewer, the copies, the story as it
    fills in, complete or failed), since serverless instances don't share memory. Checked: two instances read one preview.
 4. **Sign-in minted by the service** for the preview's viewer (Better Auth's own session for that user), no password at all, and **a

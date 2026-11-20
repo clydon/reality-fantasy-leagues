@@ -421,7 +421,7 @@ async function story() {
 }
 const who2name = (id) => (COUCH.find((p) => p.id === id) || { name: id }).name;
 
-module.exports = { definition, galleryFacts, gallerySpec, baseGame, COUCH, openCase, advance, STOPS, _h: { lineups, night, resultsFor, teamsOf, stagesOf, draftOpen, must, nameOf } };
+module.exports = { definition, galleryFacts, gallerySpec, baseGame, COUCH, openCase, advance, STOPS, _h: { season, lineups, night, resultsFor, teamsOf, stagesOf, draftOpen, must, nameOf } };
 
 if (require.main === module) {
   const fail = (e) => { console.error(e); process.exitCode = 1; };

@@ -9,18 +9,13 @@ const assert = require("node:assert/strict");
 const path = require("path");
 const Def = require("../tools/gameplay-bench/preview/definition.cjs");
 const R = require("../tools/gameplay-bench/explorer/runtime.cjs");
-const { page } = require("./fixtures/preview-season/page.json");
+const Fixture = require("./fixtures/preview-season/season.js");
 
-const WEEK = 7 * 24 * 3600 * 1000, EP1 = Date.parse("2030-02-12T01:00:00.000Z");
-const cast = Array.from({ length: 18 }, (_, i) => ({ name: "Castaway " + (i + 1), photoUrl: null, tribe: i % 2 ? "Blue" : "Red" }));
+const { WEEK, EP1, cast } = Fixture;
 const exit = (n, who) => ({ n, kind: "elimination", name: "Castaway " + who, method: "Voted Out", type: null });
 const moment = (n, who, type) => ({ n, kind: "event", name: "Castaway " + who, method: null, type });
 const REAL = [exit(1, 18), moment(1, 2, "tribeImmunity"), moment(1, 4, "tribeImmunity"), exit(2, 17), moment(2, 1, "rewardWin"), exit(3, 16), moment(3, 3, "tribeImmunity")];
-const season = (o = {}) => ({
-  label: "Test Island 1", format: "survivor", show: { name: "Test Island", slug: "test-island" }, seasonName: "Season 1", number: 1,
-  cast, episodes: Array.from({ length: 10 }, (_, i) => ({ number: i + 1, airAt: new Date(EP1 + i * WEEK).toISOString() })),
-  real: REAL.filter((x) => x.n <= (o.mark ?? 3)), mark: 3, from: 4, page, ...o,
-});
+const season = (o = {}) => Fixture.season({ episodes: Fixture.season().episodes.slice(0, 10), real: REAL.filter((x) => x.n <= (o.mark ?? 3)), ...o });
 const code = (c) => (e) => e.code === c;
 
 test("a season at its mark: the real results through it, the rest to come, the clock before the game's first episode", () => {
@@ -99,3 +94,11 @@ test("the server's half: the calendar fills a missing air time a week on, and th
   assert.notEqual(seedOf("u", "s", 3), seedOf("u", "s", 4));
   assert.notEqual(seedOf("u", "s", 3), seedOf("v", "s", 3));
 });
+
+test("a game the runtime can't play yet is stopped before anything is made, with the analysis's reason", () => {
+  assert.equal(Def.verdict(Def.build(season(), { base: "fantasy" })).ok, true);
+  const v = Def.verdict(Def.build(season(), { base: "cap", gameId: "cap" }));
+  assert.equal(v.ok, false);
+  assert.match(v.why, /salary cap/);
+});
+
