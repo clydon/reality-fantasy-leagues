@@ -64,7 +64,8 @@ Newest first. The plan or archive section named holds the detail.
    Designs-needed words batch, and the production check-ups.
 4. **C8, the 2-on-1 head to head**, on a fresh branch from master (its seven answers are in decisions.md, 2026-11-19; who plays
    alone first is drawn at random), then the rest of the redo plan's E3.
-5. **Sports, a lane of its own:** [PLAN-sports-ready.md](PLAN-sports-ready.md): one Neon rehearsal and the merge (step 1.1's
+5. **Sports, a lane of its own:** [PLAN-sports-ready.md](PLAN-sports-ready.md): the merge, rehearsed 2026-11-20 and waiting on the
+   user's OK to push (the plan's "The order" has the rehearsal's results; step 1.1's
    parts 1 to 3 are done: finals within the hour, a week counted as its games end, and live points during games for anyone shown
    everything, never an own-pace seat or anyone hiding sports scores), then Phase 2 (the user answered 212–219 on 2026-11-19:
    every recommendation but 218, where they want own pace for sports, now Phase 2.6). 1.1's part 4, the live screens, is the
