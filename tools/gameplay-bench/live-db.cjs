@@ -41,12 +41,13 @@ const PASSWORD = 'zt-pass-12345';
 // renders in that worktree's app); or, on the preview service (PREVIEW_SERVICE=1), a database that says it's a preview database
 // (app_settings 'preview_database' true: scripts/preview-database.js mark). Never one of the app's, by its host
 // (APP_DATABASE_HOSTS, set on the service), whatever the flag says.
-const LOCAL = /@(localhost|127\.0\.0\.1|\[::1\])[:/]/;
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
 const hostOf = url => { try { return new URL(url).hostname.toLowerCase(); } catch { return ''; } };
 function allowed(url, env = process.env) {
   const app = (env.APP_DATABASE_HOSTS || '').split(',').map(h => h.trim().toLowerCase()).filter(Boolean);
   if (app.includes(hostOf(url))) throw Error("Bench live mode never writes to the app's database");
-  if (LOCAL.test(url)) return 'local';
+  // Local by its host alone (step 13's review: "@localhost:" in a password or a query string isn't a local database).
+  if (LOCAL_HOSTS.has(hostOf(url))) return 'local';
   if (env.PREVIEW_SERVICE === '1') return 'service';
   throw Error("Bench live mode writes to a local database only, or the preview service's own");
 }

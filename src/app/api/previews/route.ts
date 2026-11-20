@@ -12,7 +12,8 @@ import { startPreview } from "@/lib/server/previews";
 // before it answers, the rest after.
 export const maxDuration = 120;
 
-const isPath = (v: unknown): v is string => typeof v === "string" && /^\/[\w\-/?=&%.]*$/.test(v);
+// A path on this host: one leading slash, never two (a "//host" would be another site's address).
+const isPath = (v: unknown): v is string => typeof v === "string" && /^\/(?!\/)[\w\-/?=&%.]*$/.test(v) && !v.includes("//");
 
 export const POST = apiRoute(async (req) => {
   const user = await requireAuth(req);

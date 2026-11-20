@@ -9,6 +9,7 @@ import { autopilotSeasons, nudgeBotClock, tiebreakReach } from "./desk-bot";
 import { restoreFlag } from "./desk-rulebooks-flag";
 import { signupMode, waitingCount } from "./way-in";
 import { SIGNUP_MODES, type SignupMode } from "@/lib/signups";
+import { previewSwitch, previewUsage, type PreviewMonth, type PreviewSwitch } from "./previews";
 
 // The admin's desk (docs/PLAN-new-design.md step 6b part 2; the mock's community.js admin): results settle by
 // community, and the admin is the exception desk. Three tabs from the profile menu: Inbox (desk-inbox.ts: only what needs
@@ -93,7 +94,17 @@ export interface DeskSettings {
   /** The bot runs sent to an AI of their own instead (app_settings 'bot_ai_runs', src/lib/bot-runs.ts; none by default).
    *  Set with PUT `botAiRuns`; no screen yet. */
   botAiRuns: Partial<Record<BotRunKind, RunProvider>>;
+  /** Game previews (docs/PLAN-preview-release.md, decision 3 and step 18): who they're open to (app_settings 'live_previews'), and
+   *  this month's against the preview service's budget (null when the service doesn't answer). */
+  previews: { who: PreviewSwitch; month: PreviewMonth | null };
 }
+
+const PREVIEW_SWITCH: PreviewSwitch[] = ["off", "admins", "everyone"];
+const PREVIEW_LINES: Record<PreviewSwitch, string> = {
+  off: "Game previews: off",
+  admins: "Game previews: site admins only",
+  everyone: "Game previews: everyone, 5 a day each",
+};
 
 async function setting(key: string): Promise<unknown> {
   const { rows } = await pool.query("SELECT value FROM app_settings WHERE key = $1", [key]);
@@ -124,6 +135,7 @@ export async function deskSettings(): Promise<DeskSettings> {
     signups: { mode: await signupMode(), waiting: await waitingCount() },
     botAi: await botProvider(),
     botAiRuns: await botRunProviders(),
+    previews: { who: await previewSwitch(), month: await previewUsage() },
   };
 }
 
@@ -136,7 +148,7 @@ const putSetting = (key: string, value: unknown) =>
 /** Changes one setting (with its undo in History); the Confirmed threshold settles every community fact again. */
 export async function setDeskSetting(
   user: SessionUser,
-  body: { confirmAt?: unknown; newCouchesAnyone?: unknown; tiebreak?: unknown; signups?: unknown; botAi?: unknown; botAiRuns?: unknown }
+  body: { confirmAt?: unknown; newCouchesAnyone?: unknown; tiebreak?: unknown; signups?: unknown; botAi?: unknown; botAiRuns?: unknown; livePreviews?: unknown }
 ): Promise<DeskSettings & { changeIds: string[] }> {
   const was = await deskSettings();
   // The changes made, for the toast's Undo (each sheet changes one setting; a PUT may change several).
@@ -252,6 +264,26 @@ export async function setDeskSetting(
       );
     }
   }
+  // Who can preview a game: from the next Preview tapped (one being watched runs out on its own).
+  if (body.livePreviews !== undefined) {
+    if (!PREVIEW_SWITCH.includes(body.livePreviews as PreviewSwitch)) throw new HttpError(400, "livePreviews is off, admins or everyone");
+    const who = body.livePreviews as PreviewSwitch;
+    if (who !== was.previews.who) {
+      await putSetting("live_previews", who);
+      changeIds.push(
+        await logDesk(pool, {
+          entity: "settings",
+          entityId: "live_previews",
+          action: "set",
+          text: PREVIEW_LINES[who],
+          before: was.previews.who,
+          after: who,
+          undo: { type: "setting", key: "live_previews", value: was.previews.who },
+          userId: user.id,
+        })
+      );
+    }
+  }
   return { ...(await deskSettings()), changeIds };
 }
 
@@ -273,6 +305,7 @@ export async function restoreSetting(key: string, value: unknown, userId: string
   } else if (key === "signups" && SIGNUP_MODES.includes(value as SignupMode)) await putSetting("signups", value);
   else if (key === "bot_ai" && BOT_PROVIDERS.includes(value as BotProvider)) await putSetting("bot_ai", value);
   else if (key === "bot_ai_runs") await putSetting("bot_ai_runs", runProviders(value));
+  else if (key === "live_previews" && PREVIEW_SWITCH.includes(value as PreviewSwitch)) await putSetting("live_previews", value);
   else if (key === "rulebooks") await restoreFlag(value === true);
   else throw new HttpError(409, "That setting can't be put back here");
 }
@@ -287,6 +320,7 @@ export const settingsLines = async () =>
     ...(await deskLines("settings", "bot_ai")),
     ...(await deskLines("settings", "bot_ai_runs")),
     ...(await deskLines("settings", "rulebooks")),
+    ...(await deskLines("settings", "live_previews")),
   ]);
 
 // ---------- shared by the Inbox (desk-inbox.ts) and Find ----------

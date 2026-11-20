@@ -228,7 +228,11 @@ async function make(o) {
   // The rest, side by side, then what's typical: the story polls for them.
   const rest = (async () => {
     try {
-      await Promise.all(states.slice(1).map((_, i) => write(i + 1, made[0].ids.users)));
+      // Every copy's write settles before this does (a failed one's siblings still land: never a copy written after its preview says
+      // it stopped, which its registry row would never learn of), then the first failure is the preview's.
+      const wrote = await Promise.allSettled(states.slice(1).map((_, i) => write(i + 1, made[0].ids.users)));
+      const bad = wrote.find((r) => r.status === 'rejected');
+      if (bad) throw bad.reason;
       lap('the copies');
       strip();
       const nSeasons = o.seasons ?? 5;

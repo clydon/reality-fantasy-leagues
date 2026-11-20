@@ -24,6 +24,15 @@ export async function previewSwitch(): Promise<PreviewSwitch> {
   return process.env.NODE_ENV === "production" ? "off" : "everyone";
 }
 
+/** The app's half runs on the app only: on the preview service (whose people are all made up) it would ask itself, in-process and
+ *  unsigned (step 13's review). */
+export function appOnly() {
+  if (process.env.PREVIEW_SERVICE === "1") throw new HttpError(404, "Not found");
+}
+
+/** A preview's id as the service names it (anything else never reaches its path). */
+const PREVIEW_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
 /** Whether previews are open to `user` now. */
 export async function previewsOpenTo(user: SessionUser): Promise<boolean> {
   const s = await previewSwitch();
@@ -37,12 +46,13 @@ export function serviceUrl(appOrigin: string): string {
   return `${u.protocol}//preview.${u.host}`;
 }
 
-/** An ask of the service: in-process in development, signed over HTTPS once it's a service of its own. */
-async function ask<T>(method: "POST" | "DELETE", path: string, body: object): Promise<T> {
+/** An ask of the service: in-process in development, signed over HTTPS once it's a service of its own (`wait`: how long to wait). */
+async function ask<T>(method: "POST" | "DELETE", path: string, body: object, wait?: number): Promise<T> {
   const url = process.env.PREVIEW_SERVICE_URL;
   if (!url) {
     const live = await import("./preview-live");
     if (path === "/api/preview-live/make") return (await live.makeFromDefinition(body as MakeRequest)) as T;
+    if (path === "/api/preview-live/month") return (await live.previewMonth()) as T;
     const m = /^\/api\/preview-live\/([\w-]+)$/.exec(path);
     if (method === "DELETE" && m) return (await live.closeByOwner(m[1], (body as { owner: string }).owner)) as T;
     throw new Error("No such ask: " + path);
@@ -50,7 +60,7 @@ async function ask<T>(method: "POST" | "DELETE", path: string, body: object): Pr
   const text = JSON.stringify(body);
   let r: Response;
   try {
-    r = await fetch(url.replace(/\/$/, "") + path, { method, headers: { "content-type": "application/json", ...signedHeaders(text) }, body: text });
+    r = await fetch(url.replace(/\/$/, "") + path, { method, headers: { "content-type": "application/json", ...signedHeaders(method, path, text) }, body: text, ...(wait ? { signal: AbortSignal.timeout(wait) } : {}) });
   } catch {
     throw new HttpError(503, "The preview service isn't answering. Try again in a minute.");
   }
@@ -65,6 +75,7 @@ async function ask<T>(method: "POST" | "DELETE", path: string, body: object): Pr
  * Answers its story's address on the service (a way in, used once) and how many they have left today.
  */
 export async function startPreview(user: SessionUser, o: { seasonId: string; couchId: string | null; game: PreviewGame; exits: Exits; origin: string }) {
+  appOnly();
   if (!(await previewsOpenTo(user))) throw new HttpError(403, "Previews aren't open yet.");
   const { previewDefinition, builder } = await import("./preview-definition");
   const { definition, season } = await previewDefinition(user, o.seasonId, o.couchId, o.game);
@@ -88,7 +99,22 @@ export async function startPreview(user: SessionUser, o: { seasonId: string; cou
   }
 }
 
+export type PreviewMonth = { previews: number; cpuMs: number; budgetMs: number };
+
+/** This month's previews and their cost against the service's budget (the desk's line: step 18), or null when the service doesn't
+ *  answer within a few seconds (the desk still opens). */
+export async function previewUsage(): Promise<PreviewMonth | null> {
+  try {
+    return await ask<PreviewMonth>("POST", "/api/preview-live/month", {}, 3000);
+  } catch (e) {
+    console.error("[previews] the month:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
 /** The person's preview, gone (the game made from it, or they're done): kept or not. */
 export async function endPreview(user: SessionUser, id: string) {
+  appOnly();
+  if (!PREVIEW_ID.test(id)) throw new HttpError(404, "No such preview");
   await ask("DELETE", `/api/preview-live/${id}`, { owner: ownerKey(user.id) });
 }

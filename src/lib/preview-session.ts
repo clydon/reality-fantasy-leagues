@@ -18,8 +18,10 @@ export const previewSession = () =>
         const user = await ctx.context.internalAdapter.findUserById(userId);
         const name = (user as { username?: string | null } | null)?.username ?? "";
         if (!user || !PREVIEW_USER.test(name)) throw new APIError("FORBIDDEN", { message: "Not a preview's person" });
-        const session = await ctx.context.internalAdapter.createSession(user.id);
-        await setSessionCookie(ctx, { session, user });
+        // A day at most, and a cookie that ends with the browser (step 13's review: not the app's 60 days). A preview lasts half an
+        // hour, or a day kept; its person goes with it, and its sessions with them.
+        const session = await ctx.context.internalAdapter.createSession(user.id, true);
+        await setSessionCookie(ctx, { session, user }, true);
         return ctx.json({ ok: true });
       }),
     },

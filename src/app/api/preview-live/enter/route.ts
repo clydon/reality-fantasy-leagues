@@ -15,15 +15,27 @@ export const GET = apiRoute(async (req) => {
   const url = new URL(req.url);
   const host = req.headers.get("host") ?? url.host;
   if (!host.startsWith("preview.")) throw new HttpError(404, "Not found");
+  // Where it sends you: the service's own address when it's deployed (step 13's review: never built from a request's Host), else
+  // this host (development's preview.localhost).
+  const base = process.env.PREVIEW_SERVICE === "1" && process.env.BETTER_AUTH_URL ? new URL(process.env.BETTER_AUTH_URL).origin : `${url.protocol}//${host}`;
   const to = url.searchParams.get("to") ?? "";
   if (!SCREEN.test(to)) throw new HttpError(400, "Not a screen");
-  const { id, viewerUserId } = await enterLivePreview(url.searchParams.get("w") ?? "");
+  // A way in it won't spend (used, ended, never one): one page for every reason, so a link can't be probed (the flow spec's §5).
+  const gone = () => NextResponse.redirect(new URL("/start/preview-story/live/gone", base), 302);
+  let entry: { id: string; viewerUserId: string };
+  try {
+    entry = await enterLivePreview(url.searchParams.get("w") ?? "");
+  } catch (e) {
+    if (e instanceof HttpError && e.status === 403) return gone();
+    throw e;
+  }
+  const { id, viewerUserId } = entry;
   // The story's own address names its preview: never another's.
   if (to.startsWith("/start/preview-story/live/") && !to.startsWith(`/start/preview-story/live/${id}`)) throw new HttpError(400, "Not this preview's story");
   const { headers } = await (auth.api as unknown as Minter).previewSession({ body: { userId: viewerUserId }, returnHeaders: true });
-  const res = NextResponse.redirect(new URL(to, `${url.protocol}//${host}`), 302);
+  const res = NextResponse.redirect(new URL(to, base), 302);
   for (const c of headers.getSetCookie()) res.headers.append("Set-Cookie", c);
   // No first-time tour over a preview's screens (the checks' own switch: scripts/dev-test/browser.js).
-  res.headers.append("Set-Cookie", "gys_tour=off; Path=/; SameSite=Lax");
+  res.headers.append("Set-Cookie", `gys_tour=off; Path=/; SameSite=Lax${base.startsWith("https:") ? "; Secure" : ""}`);
   return res;
 });

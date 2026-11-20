@@ -482,13 +482,30 @@ function Story({ p }: { p: Preview }) {
       {/* The one authored moment: as you move on, the next phone rises in (already mostly visible); none on first paint or under reduced motion. */}
       <style>{`.nd-story-in{animation:nd-story-in .3s cubic-bezier(.16,1,.3,1) both}@keyframes nd-story-in{from{opacity:.45;transform:translateY(14px)}}@media (prefers-reduced-motion:reduce){.nd-story-in{animation:none}}@keyframes nd-live-sweep{from{transform:translateX(-100%)}to{transform:translateX(200%)}}`}</style>
       <div className="mx-auto flex w-full max-w-[430px] flex-1 flex-col overflow-hidden pt-[env(safe-area-inset-top,0px)]">
-        {/* Where you are: each moment a segment, a tap away. */}
+        {/* Where you are: each moment a segment, a tap away. Live (the flow spec's §3), a moment still being made is hollow, an outline
+            that breathes (still under reduced motion: never a part-filled bar, which reads as half watched); one that never came is
+            split in two, dim (not dashes: the app's dashes mean a week still to come). Next still goes to either, and its phone says. */}
+        <style>{`@keyframes nd-coming{50%{opacity:.35}}`}</style>
         <nav aria-label="The moments" className="flex gap-1 px-4 pt-1">
-          {p.moments.map((x, i) => (
-            <button key={x.id} type="button" onClick={() => go(i)} aria-label={nameOf(x)} aria-current={i === k ? "step" : undefined} className="group flex h-5 flex-1 items-center" data-progress={x.kind}>
-              <span className="h-1 w-full rounded-full" style={{ background: i <= k ? "var(--foreground)" : "color-mix(in oklab, var(--foreground) 18%, transparent)" }} />
-            </button>
-          ))}
+          {p.moments.map((x, i) => {
+            const state = !live || x.screens.some((s) => s.path) ? "ready" : p.complete ? "never" : "coming";
+            const on = i <= k ? "var(--foreground)" : "color-mix(in oklab, var(--foreground) 18%, transparent)";
+            const dim = "color-mix(in oklab, var(--foreground) 18%, transparent)";
+            return (
+              <button key={x.id} type="button" onClick={() => go(i)} aria-label={`${nameOf(x)}${state === "coming" ? ", being made" : state === "never" ? ", couldn't be made" : ""}`} aria-current={i === k ? "step" : undefined} className="group flex h-5 flex-1 items-center" data-progress={x.kind} data-progress-state={state}>
+                {state === "ready" ? (
+                  <span className="h-1 w-full rounded-full" style={{ background: on }} />
+                ) : state === "coming" ? (
+                  <span className="h-[6px] w-full animate-[nd-coming_1.6s_ease-in-out_infinite] rounded-full motion-reduce:animate-none" style={{ boxShadow: `inset 0 0 0 1px color-mix(in oklab, var(--foreground) ${i === k ? 70 : 45}%, transparent)` }} />
+                ) : (
+                  <span className="flex h-1 w-full gap-1.5">
+                    <span className="h-full flex-1 rounded-full" style={{ background: dim }} />
+                    <span className="h-full flex-1 rounded-full" style={{ background: dim }} />
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </nav>
         <div className="flex h-11 items-center gap-3 px-4">
           <span className="type-caption inline-flex h-7 flex-none items-center bg-secondary pl-2.5 pr-5 text-[15px] tracking-[0.04em] [clip-path:polygon(0_0,100%_0,calc(100%-9px)_100%,0_100%)]">Made-up season</span>

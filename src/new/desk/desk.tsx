@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Bot, BookOpen, Check, CheckCheck, ChevronRight, Flag, RotateCcw, Search, Trophy, Tv, User, Users, Zap } from "lucide-react";
+import { Bot, BookOpen, Check, CheckCheck, ChevronRight, Flag, Play, RotateCcw, Search, Trophy, Tv, User, Users, Zap } from "lucide-react";
 import { colourOf } from "@/lib/people";
 import { NavLink } from "../nav";
 import { paths, type DeskKind, type DeskSeasonPage, type DeskShowPage } from "../routes";
@@ -526,7 +526,53 @@ const SIGNUPS = [
   ["open", "Anyone gets in", "Every new account plays straight away."],
 ] as const;
 
-type SheetKey = "signups" | "confirm" | "tiebreak" | "couches" | "autopilot" | "ai" | "rulebooks" | "history";
+type SheetKey = "signups" | "previews" | "confirm" | "tiebreak" | "couches" | "autopilot" | "ai" | "rulebooks" | "history";
+
+/** Game previews (docs/PLAN-preview-release.md, decision 3; docs/design-round/preview-flow-spec.md §7): who they're open to, each
+ *  with what it means. No recommended one: it depends on where the release is (site admins first, then everyone). */
+const PREVIEWS = [
+  ["off", "Off", "Nobody sees Try it. Previews already open run out on their own within a day."],
+  ["admins", "Site admins only", "Try real seasons and games before anyone else spends the month."],
+  ["everyone", "Everyone", "5 a day each, while the month's budget lasts."],
+] as const;
+
+/** This month's previews against the service's budget (step 18): one bar and one line, in previews and a share of the budget, and
+ *  when the month starts again (85% on the 25th isn't 85% on the 5th). */
+function PreviewMonthBar({ month }: { month: DeskSettings["previews"]["month"] }) {
+  const next = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const head = (
+    <div className="mb-3 flex items-baseline justify-between gap-3 border-b border-border pb-2">
+      <h3 className="type-caption text-[19px] text-muted-foreground">This month</h3>
+      <span className="text-[13px] text-muted-foreground">Starts again {next}</span>
+    </div>
+  );
+  if (!month)
+    return (
+      <div data-previews-month="none" className="mt-5">
+        {head}
+        <p className="text-[15px] leading-snug text-muted-foreground">The preview service isn&apos;t answering, so this month&apos;s count can&apos;t be read.</p>
+      </div>
+    );
+  const share = month.budgetMs ? month.cpuMs / month.budgetMs : 0, pct = Math.min(100, Math.round(share * 100));
+  return (
+    <div data-previews-month={share >= 1 ? "full" : share >= 0.8 ? "high" : "ok"} className="mt-5">
+      {head}
+      {/* A gauge, not a control: square ends, and at least a sliver once anything's spent (never a round dot like a handle). */}
+      <span className="block h-2 overflow-hidden rounded-[1px] bg-background" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label="This month's preview budget used">
+        <span className={`block h-full ${share >= 0.8 ? "bg-chyron" : "bg-foreground"}`} style={{ width: month.previews ? `max(6px, ${pct}%)` : 0 }} />
+      </span>
+      <p className="mt-2 text-[15px] leading-snug">
+        {share >= 1 ? (
+          <>Full: new previews wait for {next} · {plural(month.previews, "preview", "previews")}</>
+        ) : (
+          <>
+            <Worth>{plural(month.previews, "preview", "previews")}</Worth> · {pct}% of the budget
+          </>
+        )}
+      </p>
+    </div>
+  );
+}
 
 /** Which AI our bot asks (part 7c; ask-bot.ts BOT_PROVIDERS): each with what it means; Gemini shown, not a choice. */
 const BOT_AIS = [
@@ -634,12 +680,13 @@ function SettingsTab() {
     }
   };
   const mode = SIGNUPS.find(([m]) => m === s.signups.mode);
+  const pv = s.previews, pvShare = pv.month && pv.month.budgetMs ? pv.month.cpuMs / pv.month.budgetMs : 0;
   const disputed = (on: boolean) => (on ? "The bot asks again after a day" : "It waits for a couch to check again");
   const fill = (anyone: boolean) => (anyone ? "Anyone on the couch" : "Only people who run games");
   const rb = s.rulebooks;
   return (
     <>
-      <SetSection title="People" line="When someone makes an account, and who's waiting.">
+      <SetSection title="People" line="When someone makes an account, who's waiting, and who can preview a game.">
         <DeskRow
           data="signups"
           onClick={() => setSheet("signups")}
@@ -650,6 +697,20 @@ function SettingsTab() {
             <>
               {mode?.[1]}
               {s.signups.waiting ? <> · <Worth>{s.signups.waiting} waiting</Worth></> : null}
+            </>
+          }
+        />
+        <DeskRow
+          data="previews"
+          onClick={() => setSheet("previews")}
+          lead={<IconLead icon={Play} />}
+          title="Game previews"
+          dot={pv.who === "everyone" && pvShare >= 0.8}
+          line={
+            <>
+              {pv.who === "everyone" ? "Everyone, 5 a day each" : PREVIEWS.find(([v]) => v === pv.who)?.[1]}
+              {/* Past 80% the row says why its dot is there; before, how many. */}
+              {pvShare >= 0.8 ? <> · <Worth>{Math.min(100, Math.round(pvShare * 100))}% of the budget</Worth></> : pv.month?.previews ? <> · <Worth>{pv.month.previews} this month</Worth></> : null}
             </>
           }
         />
@@ -700,6 +761,14 @@ function SettingsTab() {
         {s.signups.mode !== "invites" && <ResetLink onClick={() => put({ signups: "invites" }, "Who gets in: invites let people in")} />}
         <p className="mt-3 text-[13px] leading-snug text-muted-foreground">Changing this never lets in anyone already waiting.</p>
         <WaitingList open={sheet === "signups"} onClose={close} />
+      </Sheet>
+      <Sheet open={sheet === "previews"} onOpenChange={(o) => !o && close()} title="Game previews" subtitle="Who can watch a game play out before making it">
+        <div className="flex flex-col gap-2">
+          {PREVIEWS.map(([v, t, d]) => (
+            <ChoiceCard key={v} attrs={{ "data-previews": v }} on={pv.who === v} title={t} line={d} onClick={() => (v === pv.who ? close() : put({ livePreviews: v }, `Game previews: ${t.toLowerCase()}`))} />
+          ))}
+        </div>
+        <PreviewMonthBar month={pv.month} />
       </Sheet>
       <Sheet open={sheet === "confirm"} onOpenChange={(o) => !o && close()} title="Sources to confirm a result" subtitle="How many sources that agree make a result everyone's">
         <div className="flex flex-col gap-2">

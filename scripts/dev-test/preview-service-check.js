@@ -27,19 +27,25 @@ const BASE = process.env.BASE || "http://localhost:3014";
   let id = null;
   try {
     check("unsigned: refused", (await send("POST", "/api/preview-live/make", text, {})).status === 401);
-    check("signed for another body: refused", (await send("POST", "/api/preview-live/make", text, signedHeaders(text + " "))).status === 401);
-    check("signed ten minutes ago: refused", (await send("POST", "/api/preview-live/make", text, signedHeaders(text, Date.now() - 600_000))).status === 401);
-    const made = await send("POST", "/api/preview-live/make", text, signedHeaders(text));
+    check("signed for another body: refused", (await send("POST", "/api/preview-live/make", text, signedHeaders("POST", "/api/preview-live/make", text + " "))).status === 401);
+    check("signed ten minutes ago: refused", (await send("POST", "/api/preview-live/make", text, signedHeaders("POST", "/api/preview-live/make", text, Date.now() - 600_000))).status === 401);
+    const made = await send("POST", "/api/preview-live/make", text, signedHeaders("POST", "/api/preview-live/make", text));
     id = made.body.id;
     check("signed: made, with a way in", made.status === 200 && !!made.body.entry && made.body.reopened === false, `${made.status} ${made.body.error || ""}`);
-    const again = await send("POST", "/api/preview-live/make", text, signedHeaders(text));
+    const again = await send("POST", "/api/preview-live/make", text, signedHeaders("POST", "/api/preview-live/make", text));
     check("the same owner and key: reopened", again.status === 200 && again.body.reopened === true && again.body.id === id);
     const other = JSON.stringify({ owner: owner + "-not" });
-    await send("DELETE", `/api/preview-live/${id}`, other, signedHeaders(other));
+    await send("DELETE", `/api/preview-live/${id}`, other, signedHeaders("DELETE", `/api/preview-live/${id}`, other));
     const [still] = (await db.query(`SELECT count(*)::int AS k FROM live_previews WHERE id = $1`, [id])).rows;
     check("another owner's removal: it stays", still.k === 1);
     const mine = JSON.stringify({ owner });
-    const gone = await send("DELETE", `/api/preview-live/${id}`, mine, signedHeaders(mine));
+    // A signed ask is good for its own route and method only (step 13's review): a make's signature never removes one.
+    const asMake = await send("DELETE", `/api/preview-live/${id}`, mine, signedHeaders("POST", "/api/preview-live/make", mine));
+    check("signed for another route: refused", asMake.status === 401);
+    const month = await send("POST", "/api/preview-live/month", "{}", signedHeaders("POST", "/api/preview-live/month", "{}"));
+    check("the month, signed: previews against the budget", month.status === 200 && Number.isInteger(month.body.previews) && month.body.budgetMs > 0, JSON.stringify(month.body));
+    check("the month, unsigned: refused", (await send("POST", "/api/preview-live/month", "{}", {})).status === 401);
+    const gone = await send("DELETE", `/api/preview-live/${id}`, mine, signedHeaders("DELETE", `/api/preview-live/${id}`, mine));
     const [left] = (await db.query(`SELECT count(*)::int AS k FROM live_previews WHERE id = $1`, [id])).rows;
     check("its owner's removal: gone", gone.status === 200 && left.k === 0);
   } finally {

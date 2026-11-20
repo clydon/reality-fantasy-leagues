@@ -24,7 +24,7 @@ export const DELETE = apiRoute(async (req, { params }: { params: Promise<{ id: s
   // The app's own ask (signed: its owner, by their key), or the story's or its owner's session.
   if (req.headers.get("x-preview-signature")) {
     const text = await req.text();
-    if (!signedBy(req.headers, text)) throw new HttpError(401, "Not the app's");
+    if (!signedBy(req, text)) throw new HttpError(401, "Not the app's");
     const { owner } = JSON.parse(text) as { owner?: unknown };
     if (typeof owner !== "string") throw new HttpError(400, "Whose?");
     await closeByOwner(id, owner);

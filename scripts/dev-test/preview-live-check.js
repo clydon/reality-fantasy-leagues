@@ -70,11 +70,12 @@ async function account(db) {
     // Nobody else gets in: the way in a second time, and the story asked by a browser that isn't its viewer.
     // (A page of its own: the browser resolves preview.localhost, Node doesn't.)
     const stranger = await browser.newContext(), sp = await stranger.newPage();
-    const again = entered ? (await sp.goto(entered).catch(() => null))?.status() ?? null : null;
+    // (The way in a second time lands on the one page for a link it won't open: the flow spec's §5.)
+    const again = entered ? await sp.goto(entered).then(() => new URL(sp.url()).pathname).catch(() => null) : null;
     const storyId = new URL(page.url()).pathname.split("/").pop();
     const peek = await sp.evaluate(async (u) => (await fetch(u)).status, `${new URL(page.url()).origin}/api/preview-live/${storyId}`).catch(() => null);
     await stranger.close();
-    console.log(`refused: the way in again ${again} (${again === 403 ? "used once" : "WRONG"}), the story to a stranger ${peek} (${peek === 401 || peek === 403 ? "refused" : "WRONG"})`);
+    console.log(`refused: the way in again lands on ${again} (${again === "/start/preview-story/live/gone" ? "used once" : "WRONG"}), the story to a stranger ${peek} (${peek === 401 || peek === 403 ? "refused" : "WRONG"})`);
     console.log(`made and shown at ${made} s, first phone ready at ${shown} s · the story is on ${storyHost} as ${phoneMe} (${phoneMe && phoneMe !== me.username ? "the preview's viewer" : "WRONG"}) · the app's own host is still ${ownMe} (${ownMe === me.username ? "the account's own" : "WRONG"})`);
     // Each card, each step of its path.
     const cards = await page.locator("[data-progress]").count();

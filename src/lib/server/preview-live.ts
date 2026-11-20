@@ -48,7 +48,12 @@ export function serviceOnly() {
   if (process.env.NODE_ENV === "production" && process.env.PREVIEW_SERVICE !== "1") throw new HttpError(404, "Not found");
 }
 
-const secret = () => process.env.BETTER_AUTH_SECRET || "dev";
+function secret() {
+  const s = process.env.BETTER_AUTH_SECRET;
+  if (s) return s;
+  if (process.env.NODE_ENV === "production") throw new Error("BETTER_AUTH_SECRET isn't set");
+  return "dev";
+}
 /** Whose a preview is, as the service keeps it: an opaque key from the person's id, never the id. */
 export const ownerKey = (userId: string) => crypto.createHmac("sha256", secret()).update(`preview-owner.${userId}`).digest("base64url");
 export const tokenHash = (token: string) => crypto.createHash("sha256").update(token).digest("base64url");
@@ -57,6 +62,11 @@ export const tokenHash = (token: string) => crypto.createHash("sha256").update(t
 function storyOf(p: Made) {
   const out = JSON.parse(JSON.stringify(p)) as Record<string, unknown>;
   for (const k of ["viewerUser", "viewerPass", "copies"]) delete out[k];
+  // Why it stopped is the log's, never the viewer's (step 13's review): the story only says a moment couldn't be made.
+  if (out.failed) {
+    console.error("[preview-live] stopped partway:", out.failed);
+    out.failed = "stopped";
+  }
   return out;
 }
 async function save(id: string, p: Made): Promise<boolean> {
@@ -162,6 +172,8 @@ export async function makeFromDefinition(o: MakeRequest): Promise<{ id: string; 
     out = await make({ input: o.definition, app: process.env.BETTER_AUTH_URL || "http://localhost:3014", resultsFor, seasons: 5, onState });
   } catch (e) {
     await pool.query(`DELETE FROM live_previews WHERE id = $1`, [id]).catch(() => {});
+    // What a make that failed cost still counts against the month (step 13's review), though its person gets their use back.
+    await spent(cpu0, false);
     throw e;
   }
   made = out.preview;  try {
@@ -174,10 +186,11 @@ export async function makeFromDefinition(o: MakeRequest): Promise<{ id: string; 
     const finished = made;
     // Closed before its last copy landed: those go too.
     after(() =>
-      out.rest.then(async () => {
-        if (!(await save(id, finished))) await down(finished);
-        await spent(cpu0);
-      })
+      out.rest
+        .then(async () => {
+          if (!(await save(id, finished))) await down(finished);
+        })
+        .finally(() => spent(cpu0))
     );
     return { id, entry, expires: Date.now() + LIVE_MINUTES * 60_000, reopened: false };
   } catch (e) {
@@ -185,6 +198,7 @@ export async function makeFromDefinition(o: MakeRequest): Promise<{ id: string; 
     const failed = made;
     await Promise.resolve(out.rest).catch(() => {}).then(() => down(failed)).catch(() => {});
     await pool.query(`DELETE FROM live_previews WHERE id = $1`, [id]).catch(() => {});
+    await spent(cpu0, false);
     throw e;
   }
 }
@@ -244,14 +258,15 @@ async function startMaking(owner: string, key: string, exits: Exits | null): Pro
 }
 
 /** What a preview cost the service, added to its month (the process's CPU since it started: a bound, as others share the process). */
-async function spent(cpu0: NodeJS.CpuUsage) {
+async function spent(cpu0: NodeJS.CpuUsage, made = true) {
   const d = process.cpuUsage(cpu0);
-  const ms = Math.round((d.user + d.system) / 1000) + PHONES_CPU_MS;
+  // A make that failed: its CPU only (no phones ever load it), and not a preview in the month's count.
+  const ms = Math.round((d.user + d.system) / 1000) + (made ? PHONES_CPU_MS : 0), n = made ? 1 : 0;
   await pool
     .query(
-      `INSERT INTO live_preview_months (month, previews, cpu_ms) VALUES (date_trunc('month', now())::date, 1, $1)
-         ON CONFLICT (month) DO UPDATE SET previews = live_preview_months.previews + 1, cpu_ms = live_preview_months.cpu_ms + $1`,
-      [ms]
+      `INSERT INTO live_preview_months (month, previews, cpu_ms) VALUES (date_trunc('month', now())::date, $2, $1)
+         ON CONFLICT (month) DO UPDATE SET previews = live_preview_months.previews + $2, cpu_ms = live_preview_months.cpu_ms + $1`,
+      [ms, n]
     )
     .catch((e: unknown) => console.error("[preview-live] spent:", e));
 }

@@ -280,11 +280,30 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
 12. **The app's environment**: `PREVIEW_SERVICE_URL` and `PREVIEW_SECRET`, set from here (secrets made here, never shown).
 13. **A security review** (run here) of the enter route (pass, host, redirect targets), the service's create route (signature, limits), and that
     the service's routes refuse anyone but a preview's viewer.
+    **Done (2026-11-20).** A separate read of every route, the session plugin and the live tier's guard: nothing critical or high.
+    Fixed: the app's preview routes refuse on the service (`previews.ts` `appOnly`: there they'd have asked the service in-process,
+    unsigned) and the development page's route refuses in production; a preview viewer's session lasts a day and ends with the
+    browser (it took the app's 60 days); a signature covers its method and path (a make's body can't stand in as a removal); a make
+    that fails still counts its CPU against the month (not as a preview); the enter route's redirect is the service's own address, its
+    tour cookie Secure on HTTPS; the live tier calls a database local by its host alone; a preview id is checked before it reaches
+    the service's path; why a make stopped goes to the log, never the viewer; `ownerKey` needs `BETTER_AUTH_SECRET` in production;
+    exits refuse `//`. Left as they are: a signed ask can be replayed inside its five minutes (it needs the app-to-service HTTPS
+    traffic, and a replay only reopens the owner's own preview); the way in is a bearer link (whoever holds it in its two minutes
+    enters a made-up viewer on the preview host, where nothing is real); a preview-style username can be registered on the service
+    (only the registry's viewer is ever signed in). Found on the way: the story's own page returned 404 in any production build, so
+    the service couldn't have shown it (now: development, or `PREVIEW_SERVICE=1`); and a preview that stopped partway could have
+    copies land after it said so (the maker now waits for every write: `preview-sweep-check.js` holds it).
 
 **Design and the gallery**
 14. **The design round on the flow** (docs/DESIGN-PROCESS.md: Intent, Perception-First Design and Impeccable once each, one check, one
     batch, the screenshot story, a pause): the Preview button's place, the wait (today's making screen), moments arriving, the phone's
     states, the ended and failed states, and Create this game.
+    **Built, waiting for the user's look (2026-11-20).** docs/design-round/preview-flow-spec.md (Intent: the flow, every refusal,
+    Try it's line for step 15, the desk), preview-flow-first-view.md (PFD: R1 to R5; no count during the wait), then built: one
+    frame for the wait and every way it stops (`live-story.tsx`, the words in `refusals.ts` for the gallery to reuse), the story's
+    strip marking moments still coming and never made, a used or ended link's own page (the enter route sends it there), and the
+    desk's switch. Checked once each: Impeccable's critique 27/40 (the detector: three type sizes off the ramp), PFD 79/100; one batch
+    of fixes. Frames: `scripts/dev-test/story-preview-flow.js` into `.ui-atlas/stories/preview-flow/`.
 15. **The gallery's Preview button** (the wizard lane's code): it sends the game's spec, with its changes, to step 9.
 
 **Release**
@@ -296,6 +315,9 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
 18. **Watched**: previews made, failed and refused, and the time to the first live phone, logged; a line on the desk ("Previews this
     month: 120 · 40% of the budget"), so nobody needs Vercel's or Neon's dashboards; docs/HOSTING.md updated with the service, its
     limits and its cost.
+    **The desk's half done (2026-11-20).** Settings › People › Game previews: off, site admins only, everyone (`livePreviews`, a line
+    in Settings history with Undo), and this month's previews against the budget as one bar and one line, asked of the service
+    (`POST /api/preview-live/month`, signed; the desk still opens when it doesn't answer). HOSTING.md waits for the service to exist.
 
 ## What it costs on the free route (estimated from what development measured)
 

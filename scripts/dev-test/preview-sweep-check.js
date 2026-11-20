@@ -63,6 +63,13 @@ const REGISTERED = n("registered", 5), ORPHANS = n("orphans", 8);
     const couches = (await one(`SELECT name FROM couches WHERE name LIKE 'ZT Bench %'`)).map((r) => r.name.slice(9));
     const ok = first.swept && first.expired === REGISTERED && !second.swept && rows === 0 && fresh.every((k) => leftKeys.has(k)) && leftKeys.size === fresh.length && couches.every((k) => fresh.includes(k));
     console.log(`${total} copies made (${REGISTERED} registered previews past their time, ${ORPHANS} orphans a day old, one fresh). First sweep: ${JSON.stringify(first)}; a second inside the minute: ${JSON.stringify(second)}. Left: ${leftKeys.size} cop${leftKeys.size === 1 ? "y" : "ies"} (the fresh orphan's ${fresh.length}), ${rows} registry rows. ${ok ? "OK" : "WRONG"}`);
+    // Anything left that shouldn't be, by where it came from (a registered preview's, an orphan's), with its rows' ages.
+    const extra = [...leftKeys].filter((k) => !fresh.includes(k));
+    for (const k of extra) {
+      const from = made.find((p) => p.copies.includes(k)), was = from ? (old.includes(k) ? "an old orphan's" : "a registered preview's") : "nobody's here";
+      const ages = await one(`SELECT slug, round(extract(epoch FROM now() - created_at) / 3600) AS h FROM shows WHERE slug LIKE $1`, [`zt-gb-${k}-%`]);
+      console.log(`  left: ${k}, ${was}${from?.failed ? ` (it stopped partway: ${from.failed})` : ""}: ${ages.map((r) => `${r.slug} ${r.h} h`).join(", ")}`);
+    }
     process.exitCode = ok ? 0 : 1;
   } finally {
     for (const p of made) await Live.down(p).catch(() => {});

@@ -6,7 +6,7 @@ import { pool } from "@/lib/server/db";
 import { startPreview } from "@/lib/server/previews";
 
 // Make a game's preview now (docs/PLAN-game-preview.md, "On demand"; src/lib/server/preview-live.ts): a made-up season played on the
-// server and each of its moments written as a temporary copy of the game, for the story to show live. In development and on the preview service. The first
+// server and each of its moments written as a temporary copy of the game, for the story to show live. In development only. The first
 // moment answers, with a way into its story used once; the rest are written after the response, inside this route's time.
 export const maxDuration = 120;
 
@@ -14,6 +14,8 @@ export const maxDuration = 120;
 const GAMES: Record<string, { base: string; changes?: unknown[] }> = { fantasy: { base: "fantasy", changes: ["redraft"] }, sheet: { base: "sheet" }, pool: { base: "pool" } };
 
 export const POST = apiRoute(async (req) => {
+  // The development page's only (step 13's review): the gallery asks through /api/previews, and the service only through make.
+  if (process.env.NODE_ENV === "production") throw new HttpError(404, "Not found");
   const user = await requireAuth(req);
   const body = (await req.json().catch(() => ({}))) as { game?: unknown; season?: unknown; couch?: unknown };
   if (typeof body.game !== "string") throw new HttpError(400, "Which game?");
