@@ -579,7 +579,13 @@ and builds.
 
 ### Sports: the calls [PLAN-sports-ready.md](PLAN-sports-ready.md) needs
 
-All answered 2026-11-19 (Closed, below); kept here until the next tidy so a link to them still lands.
+- **226. The NFL's default season game: playoffs, or end at Week 17?** Step 2.2 (2026-11-20) put any final by Week 17, but the
+  default game has no playoffs, so its title is the standings after Week 18, when teams rest their starters. *Recommended: the
+  default plays a final between the top two in Week 17 (Yahoo's and ESPN's leagues all have playoffs; a couch of three or four
+  still gets a last-week decider), "No playoffs" a tap away; and a game with no playoffs on the NFL's slate ends at Week 17 too,
+  so Week 18 never counts.*
+
+212 to 219 were all answered 2026-11-19 (Closed, below); kept here until the next tidy so a link to them still lands.
 
 - **212. The target, and the couch's first real sports game.** *Recommended: the NFL first, the NBA and NHL next, MLB by its
   Opening Day (late March 2027). The pilot is one of January's NFL playoffs, played by the couch once the plan's Phase 3 (a whole

@@ -369,6 +369,28 @@ test("byes in the bracket; the playoffs at the season's end as its schedule says
   assert.equal(M.playoffsFrom(short), null);
 });
 
+// Step 2.2 (BACKLOG 214): a league whose fantasy playoffs end before its regular season does (the NFL's by Week 17 of 18: the
+// server's state.playoffsBy, air-times.ts stampSeasonLength).
+test("the playoffs by a league's last week they may use: the NFL's final in Week 17 of 18, Week 18 not played; a span ending earlier wins", () => {
+  const s = league(h2h({ playoffs: { teams: 4 } }, { span: { from: 1, to: 18 } }));
+  s.seasonEpisodes = 18;
+  assert.equal(M.playoffsFrom(s), 17, "without it, the semifinals at 17 and the final at 18");
+  s.playoffsBy = 17;
+  assert.equal(M.playoffsFrom(s), 16);
+  assert.equal(M.endsAt(s), 17);
+  assert.equal(S.lastEpisode(s), 17, "the game ends with its final");
+  assert.equal(M.moveProblem(s, 18), "This game ended with episode 17");
+  // A span that ends before it: the span's end, as ever.
+  const early = league(h2h({ playoffs: { teams: 2 } }, { span: { from: 1, to: 10 } }));
+  early.seasonEpisodes = 18;
+  early.playoffsBy = 17;
+  assert.equal(M.endsAt(early), 10);
+  // Nothing else saying the game's end: no playoffs placed by it alone.
+  const open = league(h2h({ playoffs: { teams: 2 } }));
+  open.playoffsBy = 17;
+  assert.equal(M.playoffsFrom(open), null);
+});
+
 test("the season over first: the best seed still in, or the standings when nothing placed the playoffs; Outlast head to head", () => {
   // The schedule said 8, the season ended at 7 (the winner crowned) with the semifinals played: the better seed still in wins.
   const s = league(h2h({ playoffs: { teams: 4 } }));

@@ -505,6 +505,16 @@ function gameLocks(world, state, shiftMs = 0) {
   const back = at => new Date(Date.parse(at) - shiftMs).toISOString();
   return new Map([...Bench().gameLocksOf(games, teamOf)].map(([n, l]) => [n, { gameStarts: Object.fromEntries(Object.entries(l.gameStarts).map(([id, g]) => [id, { at: back(g.at), until: back(g.until) }])), holdingGames: l.holdingGames }]));
 }
+/**
+ * The last episode a slate's fantasy playoffs may use (step 2.2, BACKLOG 214, core-runtime-48), as the server stamps it
+ * (air-times.ts stampSeasonLength: a league's regular-season slate, its league's playoffsEndBefore; live-db.cjs writes a slate as
+ * the regular season): the world's events less the weeks the league leaves out, or null (no slate, or a league that leaves none).
+ */
+function playoffsBy(world) {
+  if (world.context.kind !== 'sport' || !slateOf(world.context)) return null;
+  const rest = Bench().playoffsEndBefore(world.context.key), n = world.events.length;
+  return rest && n - rest >= 1 ? n - rest : null;
+}
 /** The locks on a state's episodes, in place (around an action: the engine's own lock check reads ep.locksAt); `unstampLocks` takes them off. */
 function stampLocks(world, state, shiftMs = 0) {
   const locks = lockTimes(world, state, shiftMs), each = gameLocks(world, state, shiftMs);
@@ -527,4 +537,4 @@ function saved(state) {
   const keys = new Set(S.StatsLogic.stampedKeys());
   return JSON.parse(JSON.stringify(state, (k, v) => (keys.has(k) ? undefined : v)));
 }
-module.exports = { league, contextFor, realPool, realDeal, assignRoles, assignTeams, slateOf, teamsOf, gamesOf, playedOf, offOf, isOff, slateLines, gameLocks, linesFor, resultsFor, isField, keptLines, shapeOf, boutsOf, checkData, applyFacts, saved, guard, lockTimes, stampLocks, unstampLocks, withLocks };
+module.exports = { playoffsBy, league, contextFor, realPool, realDeal, assignRoles, assignTeams, slateOf, teamsOf, gamesOf, playedOf, offOf, isOff, slateLines, gameLocks, linesFor, resultsFor, isField, keptLines, shapeOf, boutsOf, checkData, applyFacts, saved, guard, lockTimes, stampLocks, unstampLocks, withLocks };

@@ -1450,11 +1450,14 @@ class MatchupLogic {
     return !!(parts && parts.playoffs && parts.playoffs.from === null);
   }
   // The game's last episode as the data has it, for its playoffs: its span's end, else the season's from its schedule, the earlier
-  // of the two when both are known; null when neither is.
+  // of the two when both are known; null when neither is. Step 2.2 (BACKLOG 214): no later than the last a league's fantasy
+  // playoffs may use (state.playoffsBy, the server's: the NFL's Week 17, before Week 18's rested starters), where it says one.
   static lastOf(state){
     const to = endEpisode(state);
     const n = Number.isInteger(state.seasonEpisodes) && state.seasonEpisodes >= 1 ? state.seasonEpisodes : null;
-    return to === null ? n : n === null ? to : Math.min(to, n);
+    const last = to === null ? n : n === null ? to : Math.min(to, n);
+    const by = Number.isInteger(state.playoffsBy) && state.playoffsBy >= 1 ? state.playoffsBy : null;
+    return by === null || last === null ? last : Math.min(last, by);
   }
   // The episode the playoffs' first round is, or null (none, or nothing says the game's end yet): the spec's `from`; else where they
   // began (state.playoffsFrom, once their first round has results); else the game's last `rounds` episodes, as long as at least

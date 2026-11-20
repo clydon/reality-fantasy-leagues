@@ -898,6 +898,16 @@ test("a slate's results are refused without each of its week's games, with a lin
   } finally { s.dispose(); }
 });
 
+// Step 2.2 (core-runtime-48): on a league's slate, the NFL's fantasy playoffs end a week before its last (the server's
+// stampSeasonLength, its playoffsBy); a world of one game an episode, or a league that leaves none out, has none.
+test("the last week a slate's fantasy playoffs may use: the NFL's last but one; none off a slate or for the NBA", () => {
+  const world = (key, slate, n) => ({ context: { kind: "sport", key, ...(slate ? { slate: { games: 2 } } : {}) }, events: Array.from({ length: n }, (_, i) => ({ number: i + 1 })) });
+  assert.equal(Sports.playoffsBy(world("football/nfl", true, 6)), 5);
+  assert.equal(Sports.playoffsBy(world("football/nfl", false, 6)), null);
+  assert.equal(Sports.playoffsBy(world("basketball/nba", true, 6)), null);
+  assert.equal(Sports.playoffsBy(world("football/nfl", true, 1)), null, "never the whole season");
+});
+
 // Step 2.1 (core-runtime-47): the NFL's season locks at each player's game (BACKLOG 213), and the explorer's NFL worlds are one game an
 // episode. Stamped as the server stamps the rows live-db.cjs writes for such a world (a linked game, no teams): each episode its game.
 test("a lock at each game's start on a world of one game an episode: each episode locks at its own game, never a week's first", () => {

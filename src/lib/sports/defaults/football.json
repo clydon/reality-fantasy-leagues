@@ -99,6 +99,10 @@
   },
   "leagues": {
     "nfl": {
+      "playoffs": {
+        "source": "Yahoo's and ESPN's fantasy playoffs end at Week 17, the regular season's last week before Week 18's, when teams rest their starters (BACKLOG 214, the user's call of 2026-11-19)",
+        "endsBefore": 1
+      },
       "specs": {
         "bracket": {
           "about": "A playoff bracket: before the NFL playoffs start, pick who wins every game, round by round to the Super Bowl. A point for each one right in the first round, doubling each round after it; most points wins.",

@@ -111,9 +111,12 @@ export interface SportDefaults {
   /** `on`: the season a spec plays on, where it isn't any (L8 part 1's engine items, part 2: a bracket of the playoffs is a
    *  league's playoffs slate's: specContextOf's `playoffs`). */
   specs: Record<string, { about: string; on?: "playoffs"; spec: Record<string, unknown> }>;
+  /** Step 2.2 (BACKLOG 214): a league whose fantasy playoffs end before its regular season does (the NFL's at Week 17, before Week
+   *  18's rested starters): `endsBefore` of the regular season's last weeks they leave out. A league's own only. */
+  playoffs?: { source: string; endsBefore: number };
   /** A league's own, where its standard game differs from the sport's (racing's F1 and IndyCar from NASCAR's): each part given
    *  replaces the sport's, and its specs each of the sport's of the same name (defaultsFor with the league). */
-  leagues?: Record<string, Partial<Pick<SportDefaults, "about" | "scoring" | "categories" | "slots" | "specs">>>;
+  leagues?: Record<string, Partial<Pick<SportDefaults, "about" | "scoring" | "categories" | "slots" | "specs" | "playoffs">>>;
 }
 
 const DEFAULTS: Record<string, SportDefaults> = {
@@ -137,6 +140,19 @@ export function defaultsFor(sportId: string, league?: string): SportDefaults | n
   // A league's specs over the sport's, one by one (L4 part 1a: F1's own season and short beside racing's pick'em).
   const out = own ? { ...d, ...own, ...(own.specs ? { specs: { ...d.specs, ...own.specs } } : {}) } : d;
   return withLineupSlots(sportId, out);
+}
+
+/**
+ * Step 2.2 (BACKLOG 214): how many of the regular season's last weeks a league's fantasy playoffs leave out (the NFL's 1: its final
+ * by Week 17), 0 for none. `league` as "football/nfl"; a check's stand-in league ("football/zt-nfl-slate") reads as its sport's own
+ * first, as sportOf and specContextOf read it.
+ */
+export function playoffsEndBefore(league: string): number {
+  const sport = sportOf(league);
+  const name = String(league).split("/")[1];
+  const d = sport ? defaultsFor(sport.id, name?.startsWith("zt-") ? (sport.leagues?.[0] ?? name) : name) : null;
+  const n = d?.playoffs?.endsBefore;
+  return Number.isInteger(n) && n! > 0 ? n! : 0;
 }
 
 /**

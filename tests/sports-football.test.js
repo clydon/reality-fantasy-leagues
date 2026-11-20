@@ -11,7 +11,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("path");
 const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
-const { sportOf, sportById, defaultsFor, allSports, defenseId } = jiti("../src/lib/sports/index.ts");
+const { sportOf, sportById, defaultsFor, allSports, defenseId, playoffsEndBefore } = jiti("../src/lib/sports/index.ts");
 const { playNames, sentencesOf } = jiti("../src/lib/sports/football.ts");
 
 const football = sportOf("football/nfl");
@@ -357,6 +357,15 @@ test("whose it is: a safety on a return, a touchdown off a muffed punt, a defens
   assert.deepEqual([l["def:1"].PA ?? 0, l["def:2"].PA], [0, 12], "the away side's defense allowed neither the safety nor the defensive two");
 });
 
+// Step 2.2 (BACKLOG 214): the NFL's fantasy playoffs leave out its regular season's last week (Week 18's rested starters); a check's
+// stand-in league reads as the NFL; college football's and every other league's leave none out.
+test("the NFL's fantasy playoffs end a week before its regular season does; nobody else's", () => {
+  assert.equal(playoffsEndBefore("football/nfl"), 1);
+  assert.equal(playoffsEndBefore("football/zt-nfl-slate"), 1);
+  for (const l of ["football/college-football", "basketball/nba", "hockey/nhl", "baseball/mlb", "soccer/eng.1", "golf/pga", "nope/nfl"]) assert.equal(playoffsEndBefore(l), 0, l);
+  assert.equal(defaultsFor("football").playoffs, undefined, "the NFL's own, not the sport's");
+});
+
 test("Football's defaults are data the spec reads: Yahoo's half-PPR points, kickers and team defense, slots, weekly locks", () => {
   const d = defaultsFor("football");
   assert.equal(d.sport, "football");
@@ -367,7 +376,8 @@ test("Football's defaults are data the spec reads: Yahoo's half-PPR points, kick
   const fill = new Set([...football.positions.map((p) => p.key), ...football.groups.map((g) => g.key)]);
   for (const s of d.slots.lineup) for (const t of s.takes) assert.ok(fill.has(t), `${s.slot} takes ${t}`);
   assert.deepEqual(d.slots.lineup.map((s) => [s.slot, s.n]), [["QB", 1], ["WR", 2], ["RB", 2], ["TE", 1], ["W/R/T", 1], ["K", 1], ["DEF", 1]]);
-  assert.equal(d.closes, football.lock);
+  assert.equal(d.closes, football.lock, "a week is the sport's cadence");
+  assert.equal(d.specs.season.spec.closes, "game", "the season's lineup locks at each player's game (BACKLOG 213)");
   const starters = d.slots.lineup.reduce((n, s) => n + s.n, 0);
   assert.equal(d.specs.season.spec.count.start, starters, "the season's lineup is its slots");
   assert.equal(d.specs.season.spec.get.each, starters + d.slots.bench, "and its draft the slots and the bench: Yahoo's 15");

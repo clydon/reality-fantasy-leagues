@@ -8,7 +8,8 @@
 > 1.4 keeps rosters current (signings, trades), 1.5 reads injuries and byes, 1.6 made the small fixes (BACKLOG 108, 78), and
 > 1.1's part 1 puts finals in the standings within the hour; its part 2 counts a week's games as they end; its part 3 counts a
 > game being played, its points so far, for anyone shown everything (never an own-pace seat or anyone hiding sports scores).
-> Phase 2 under way on branch sports-phase2: 2.1 done (the NFL's season locks at each player's game).
+> Phase 2 under way on branch sports-phase2: 2.1 done (the NFL's season locks at each player's game), 2.2 done (any fantasy
+> playoffs end by Week 17; BACKLOG 226 asks about the default's).
 > Next: the rest of Phase 2 (its calls answered 2026-11-19, own pace for sports added) and 4.1; 1.1's
 > part 4 (the screens, on a small live read) is the design round's page 2.
 > The user's calls 212–219 are answered ("Decisions", below); BACKLOG 175 still waits.
@@ -325,7 +326,7 @@ server.
      the game; the frozen v1 NFL state reproduces with its lock put back as it was made, nothing else moved); every NFL fixture
      check on the new default (defenses, new players, same names, week in progress, live points, hourly, finals, injuries and
      byes, slate Pick'em; the playoff-weeks check still fails, step 2.2's); check-slate.js; check-lock-in.js; check-sports-explorer.js
-     every case; a 120-case engine campaign (`.ui-atlas/campaigns/sport-locks-game`, seed 210): 115 pass, no `sport-locks`
+     (its first full run was cut off by a timeout in `calledoff`; every case ran on 2.2's code, below); a 120-case engine campaign (`.ui-atlas/campaigns/sport-locks-game`, seed 210): 115 pass, no `sport-locks`
      violation, the five others BACKLOG 224's generator kinds; its three cases locking at each game (two slates, one a game an
      episode: `count.cjs`) pass. tsc; eslint has only its standing errors.
    - *Noticed, not fixed:* check-episode-lock.js's "a new pick doesn't go in" and check-sports-couch.js --api's guide line
@@ -335,6 +336,23 @@ server.
      4.0's words.
 2. **Fantasy playoffs end by Week 17** (S; BACKLOG 214, yes), so nobody's title rides on Week 18's rested starters. Phase 0: the
    default has none, and any final lands in Week 18. Done when check-nfl-playoff-weeks.js passes.
+   **Done 2026-11-20 (branch sports-phase2).**
+   - *Built:* the NFL's own defaults say its fantasy playoffs leave out the regular season's last week (football.json
+     `leagues.nfl.playoffs.endsBefore: 1`, read by sports/index.ts `playoffsEndBefore`; a check's `zt-` league reads as the NFL, as
+     `sportOf` reads it). On a game whose playoffs sit at the season's end, on a league's regular-season slate, the server stamps
+     the last week they may use beside the season's length (air-times.ts stampSeasonLength: `state.playoffsBy`, 17 of 18), and the
+     engine places them no later (MatchupLogic.lastOf). The game ends with its final, so Week 18 isn't played: no move is due for
+     it. A span that ends earlier still wins; a team's own season and the playoffs' slate carry none; college football and every
+     other league leave none out. The explorer stamps the same on a slate (core-runtime-48: runtime-sports.cjs `playoffsBy`).
+   - *Verified:* check-nfl-playoff-weeks.js passes (Top 2's final Week 17; Top 4's semifinals 16 and final 17, from Week 1 and from
+     Week 9; Top 6's quarterfinals 15, semifinals 16, final 17); unit tests (2,460: the engine's placement, the league lookup, the
+     explorer's stamp); tsc; check-sports-explorer.js every case on the real routes (202 checks: head to head on the NFL's season
+     and by categories, slates, calledoff and the rest), its one failure `calledoff`'s step 4 at 01:22 Eastern, the same on master:
+     its day guard read the scenario's own days, where the server and the runtime read the calendar shifted to now. The guard and
+     its rule now read the shifted days, so at that hour it says to run again later (it can't be proven between about midnight and
+     the morning, Eastern); the rest of the case passes.
+   - *Left for the user (BACKLOG 226):* the default season game still has no playoffs, so its title is the standings after Week 18,
+     rested starters and all.
 3. **Lineup slots for the NBA, MLB and NHL** (M; L9 part 1): `withLineupSlots` for every sport's defaults, with ESPN's positions
    and MLB's two-way players, and computer players setting legal lineups. Verify with the explorer's slot invariant on real-size
    pools, and unit tests per sport.

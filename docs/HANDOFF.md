@@ -50,8 +50,9 @@ Newest first. The plan or archive section named holds the detail.
 
 ## In flight
 
-- **Sports Phase 2, branch `sports-phase2`** (from master cd1427a8): step 2.1 done, the NFL's season locking at each player's game
-  (football.json; the explorer's core-runtime-47). Not merged: next is 2.2 (playoffs by Week 17) and on through 2.6.
+- **Sports Phase 2, branch `sports-phase2`** (from master cd1427a8): 2.1 and 2.2 done: the NFL's season locks at each player's game,
+  and any fantasy playoffs end by Week 17 (the explorer's core-runtime-47 and 48). Not merged: next is 2.3 (the NBA's, MLB's and
+  NHL's lineup slots) and on through 2.6. BACKLOG 226 (the default's playoffs) waits on the user.
   [PLAN-sports-ready.md](PLAN-sports-ready.md) has each step's record.
 - **Game preview, branch `preview`** (lane rfl-preview): 17 commits not on master, 55 commits behind it, about 11 conflict
   hunks (strip.tsx, game-week.tsx, your-move.ts, tonight.tsx). It has P0, the visual story, the bench's preview maker and

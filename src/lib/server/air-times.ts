@@ -4,6 +4,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import * as Air from "@/lib/game/air-schedule.js";
 import * as Spec from "@/lib/game/game-spec";
 import { byesOf, gameLocksOf, locksOf, type Closes } from "@/lib/sports/locks";
+import { playoffsEndBefore } from "@/lib/sports";
 import { stampCardChoices } from "./card-choices";
 import { stampVoteRecords } from "./vote-records";
 import { stampSecretRoles } from "./secret-roles";
@@ -171,18 +172,28 @@ export async function sportLocks(db: Pool | PoolClient, seasonId: string, closes
  * season's length as its schedule says it (state.seasonEpisodes, show_seasons.episode_count: public, not a spoiler, so a league
  * catching up gets it too), for the engine to place them (MatchupLogic.playoffsFrom); any other league carries none. Stamped with
  * the air times, and again after a write's mutation (db.ts withLeagueLock), so a write that turns head to head on saves it.
+ *
+ * Step 2.2 (BACKLOG 214): on a league's regular-season slate whose league's fantasy playoffs end before its regular season does (the
+ * NFL's: sports/index.ts playoffsEndBefore), the last week they may use (state.playoffsBy: Week 17 of 18), so the final is never
+ * in Week 18, when teams rest their starters. A team's own season, or the playoffs' slate, carries none.
  */
 export async function stampSeasonLength(db: Pool | PoolClient, state: LeagueState): Promise<void> {
   const { showId, wikiSeason } = state.settings;
   if (!StateLogic.MatchupLogic.readsSeasonLength(state) || !showId || wikiSeason == null) {
     delete state.seasonEpisodes;
+    delete state.playoffsBy;
     return;
   }
   const { rows } = await db.query(
-    "SELECT ss.episode_count FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE s.slug = $1 AND ss.season_number = $2",
+    `SELECT ss.episode_count, x.league, x.stage FROM show_seasons ss JOIN shows s ON s.id = ss.show_id
+       LEFT JOIN sports_slates x ON x.season_id = ss.id
+      WHERE s.slug = $1 AND ss.season_number = $2`,
     [showId, wikiSeason]
   );
   const n = rows[0]?.episode_count;
   if (Number.isInteger(n) && n > 0) state.seasonEpisodes = n;
   else delete state.seasonEpisodes;
+  const rest = rows[0]?.stage === "regular" && typeof rows[0]?.league === "string" ? playoffsEndBefore(rows[0].league) : 0;
+  if (rest && Number.isInteger(n) && n - rest >= 1) state.playoffsBy = n - rest;
+  else delete state.playoffsBy;
 }
