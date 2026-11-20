@@ -574,9 +574,6 @@ and builds.
 - **214. Fantasy playoffs end by Week 17.** *Recommended: yes, so nobody's title rides on Week 18's rested starters.* Phase 0
   found the default has no playoffs at all (the standings after Week 18 decide it), and a final at the end always lands in Week
   18; check-nfl-playoff-weeks.js asserts the recommendation.
-- **215. Sports results every hour.** Sports scores reach the standings once a day, when the bot VM calls. *Recommended: a sports
-  refresh in the existing hourly GitHub job (free on the public repo; no new Neon wake-up), more often only right after a game
-  ends, with BACKLOG 184's Vercel cron as the backstop.*
 - **216. Does a sport get a reveal by default?** Today a sport shows results straight away and has no reveal. *Recommended: keep
   that, and give anyone who turns on "Sports scores too" the reveal; the design round's page 3 designs it.*
 - **217. What's pushed when a sports game or matchup ends?** Nothing is today. *Recommended: one push when your matchup is
@@ -727,6 +724,8 @@ longer depends on the wiki.)
 ## Closed since the cleanup
 
 One line each: the number, done or dropped, and the commit or the reason.
+- **215** answered (the user, 2026-11-19): yes to the hourly refresh, and the goal is further: live scores during games ("minus the
+  moments that the live api cant get, we'll deal with that later"). In [PLAN-sports-ready.md](PLAN-sports-ready.md) step 1.1.
 - **145** done (bc1bf8a3, branch sports-phase0, migration 0308): two players who share a name are two people, kept, drafted,
   scored and locked apart; check-sports-same-names.js. Showing the team beside a repeated name moved to the plan's Phase 4.0.
 - **220** done (bb35bea6, branch sports-phase0): a sport's people are approved as they're filled and go into every game on the

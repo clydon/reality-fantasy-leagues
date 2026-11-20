@@ -156,7 +156,10 @@ server.
    GitHub Actions job (no new Neon wake-up; Actions are free on the public repo), asked more often only when a linked game ended
    in the last few hours. The daily run stays as the fallback, and BACKLOG 184's Vercel daily cron backs up both. Done when a game
    is in the standings within an hour of ESPN's final. Verify with check-slate.js on fake-espn and a fake clock. HOSTING.md gets
-   the calls and their cost. *Needs BACKLOG 215.*
+   the calls and their cost. **The user's call on BACKLOG 215 (2026-11-19):** yes to the hourly refresh, and the goal is further,
+   live scores during games: "minus the moments that the live api cant get, we'll deal with that later". So when 1.1 is taken
+   up, plan it toward live: the hourly job for finals and corrections, and 4.1's provisional and live points brought forward
+   (Phase 5's server-polled feed), what only a final's box score carries left for later.
 2. **Never zero a game silently; take corrections (S–M).** A read error or an empty answer is retried, not stored as `{}`. A game
    still empty after its retries is flagged on the desk. Each final is read again at +24 hours and before the next week's first
    lock (NFL corrections land midweek), and rewritten with a new `lines_at` when it differs. The stamp fingerprint includes
