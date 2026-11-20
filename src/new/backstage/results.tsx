@@ -84,7 +84,8 @@ export function ResultsPage({ seasonId, show }: { seasonId: string; show: ShowDa
     } else {
       const batch = r.batch;
       const line = r.applied ? `${r.applied} ${r.applied === 1 ? "result" : "results"} applied to ${r.games} ${r.games === 1 ? "game" : "games"}` : "Nothing applied on its own";
-      toast(`${line}${r.waiting ? ` · ${r.waiting} ${r.waiting === 1 ? "waits" : "wait"} for you` : ""}`, batch ? { undo: () => void undo(batch, "the full results") } : {});
+      // What another answer disagrees with is our bot's to settle, not yours (docs/PLAN-results-settle.md).
+      toast(`${line}${r.waiting ? ` · ${r.waiting} being settled` : ""}`, batch ? { undo: () => void undo(batch, "the full results") } : {});
     }
   };
   const onUse = async (answer: string, opts: { confirmed: boolean }) => {
@@ -128,7 +129,7 @@ export function ResultsPage({ seasonId, show }: { seasonId: string; show: ShowDa
           {ways.data && <ResultsWays seasonId={seasonId} couchId={couchId} ways={ways.data} anyone={data.fill.anyone} seasonName={seasonName} />}
           <Block title="Full scores" aside={settles(data, "full")}>
             <FillState seasonId={seasonId} couchId={couchId} data={data} />
-            {ep.questions > 0 && <QuestionCard episode={ep.number} count={ep.questions} tiebreakAt={ep.tiebreakAt} />}
+            {ep.settling > 0 && <QuestionCard episode={ep.number} count={ep.settling} tiebreakAt={ep.tiebreakAt} />}
             <FullCard
               ep={ep}
               look={look}
@@ -137,7 +138,6 @@ export function ResultsPage({ seasonId, show }: { seasonId: string; show: ShowDa
               onAsk={() => setAsk({ kind: "full", episode: ep.number })}
               onShow={() => setLooking(ep.number)}
               onUndo={(batch) => undo(batch, "the full results")}
-              onApply={(items) => setGuard({ title: `Apply ${items.length} of Episode ${ep.number}'s results?`, cta: `Apply ${items.length} to ${allGames}`, items, quick: false, episode: ep.number })}
             />
           </Block>
           <p className="px-4 pt-6 text-[13px] leading-relaxed text-muted-foreground">
@@ -421,7 +421,6 @@ function FullCard({
   onAsk,
   onShow,
   onUndo,
-  onApply,
 }: {
   ep: BackstageEpisode;
   look: Shown | null;
@@ -431,11 +430,9 @@ function FullCard({
   onAsk: () => void;
   onShow: () => void;
   onUndo: (batch: string) => void;
-  onApply: (items: Chosen[]) => void;
 }) {
   const f = ep.full && !ep.full.undone ? ep.full : null;
   const own = !!f?.own;
-  const [ticked, setTicked] = useState<Set<string>>(new Set());
 
   return (
     <div data-full={ep.stage} className="flex flex-col gap-3">
@@ -461,39 +458,9 @@ function FullCard({
         </div>
       )}
 
-      {ep.waiting > 0 && (
-        <div data-waiting={ep.waiting} className="rounded-[4px] bg-card p-3.5">
-          <b className="block text-[16px]">
-            {ep.waiting} {ep.waiting === 1 ? "result waits" : "results wait"} for you
-          </b>
-          <small className="text-[13px] leading-snug text-muted-foreground">The sources don&apos;t agree, or weren&apos;t sure. Nothing of these applies unless you tick it.</small>
-          {looking && look ? (
-            <>
-              <div className="mt-3 flex flex-col">
-                {look.waiting.map((r) => (
-                  <TickRow key={r.id} row={r} on={ticked.has(r.id!)} onTick={() => setTicked((t) => toggle(t, r.id!))} />
-                ))}
-              </div>
-              <Btn
-                data-apply-waiting
-                tone="must"
-                wide
-                className="mt-3"
-                disabled={!ticked.size}
-                onClick={() => onApply([...ticked].map((id) => ({ id })))}
-              >
-                {ticked.size ? `Apply ${ticked.size} ${ticked.size === 1 ? "result" : "results"}` : "Tick what's right"}
-              </Btn>
-            </>
-          ) : (
-            <Btn data-show-me className="mt-3" wide onClick={onShow}>
-              Show me
-            </Btn>
-          )}
-        </div>
-      )}
-
-      {ep.stage === "final" && !ep.waiting ? (
+      {/* Results waiting on their sources aren't the couch's to tick in any more: our bot settles them, and Results'
+          card says so (docs/PLAN-results-settle.md). */}
+      {ep.stage === "final" ? (
         <>
           {!f && <Clear title={`Episode ${ep.number}'s full scores are in`} line="In every game here" />}
           {looking && look ? <AppliedList rows={look.applied} /> : !f ? null : (
@@ -644,31 +611,6 @@ function Way({ id, name, price, line, on, tag, soon, onClick }: { id: string; na
       </span>
       <small className="ml-7 mt-1 block text-[13px] leading-snug text-muted-foreground">{line}</small>
       {tag && <span className="type-caption ml-7 mt-2 inline-block text-[11px] tracking-[0.06em] text-good">{tag}</span>}
-    </button>
-  );
-}
-
-const toggle = (set: Set<string>, id: string) => {
-  const next = new Set(set);
-  if (next.has(id)) next.delete(id);
-  else next.add(id);
-  return next;
-};
-
-function TickRow({ row, on, onTick }: { row: ResultRow; on: boolean; onTick: () => void }) {
-  return (
-    <button type="button" data-tick={row.id} aria-pressed={on} onClick={onTick} className="flex min-h-[60px] items-center gap-3 border-t border-border py-2 text-left first:border-t-0">
-      <span className={`grid size-6 flex-none place-items-center rounded-[3px] ${on ? "bg-foreground text-background" : "outline-2 -outline-offset-2 outline-input"}`}>
-        {on && <Check className="size-4" strokeWidth={3} aria-hidden />}
-      </span>
-      <Face src={row.photo} name={row.name} className="size-10 flex-none rounded-[3px]" />
-      <span className="min-w-0 flex-1">
-        <span className="type-caption block text-[11px] tracking-[0.06em] text-muted-foreground">{row.label}</span>
-        <b className="block text-[15px]">{row.name}</b>
-        <small className="block text-[12px] text-chyron-line">
-          {row.confidence === "high" ? "The sources disagree" : `${row.confidence ?? "Low"} confidence`} · {row.sources === 1 ? "1 source" : `${row.sources} sources`}
-        </small>
-      </span>
     </button>
   );
 }

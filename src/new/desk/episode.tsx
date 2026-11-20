@@ -34,7 +34,7 @@ const stat = (f: EpisodeFact) =>
   ({
     wait: "Not in the games yet",
     disputed: "Disputed",
-    live: f.sources >= 2 ? `In every game · ${f.sources} sources agree` : "In every game · 1 source, sure of it",
+    live: f.sources >= 2 ? `In every game · ${f.sources} sources agree` : "In every game · 1 source",
     canon: `In every game · ${f.decidedBy ?? "an admin"} decided`,
     gone: "Out of every game",
   })[f.state];
@@ -162,7 +162,7 @@ export function EpisodePage({ id, n }: { id: string; n: number }) {
             <div data-waiting-count className="flex items-center gap-4 rounded-[4px] bg-card p-3.5">
               <b className="type-num text-[44px] leading-none">{waiting.length}</b>
               <span className="text-[14px] leading-snug">
-                {[sure.length && `${sure.length} one source wasn't sure of`, waiting.length - sure.length && `${waiting.length - sure.length} not in the cast: say who, with names shown`]
+                {[sure.length && `${sure.length} waiting for a second look`, waiting.length - sure.length && `${waiting.length - sure.length} not in the cast: say who, with names shown`]
                   .filter(Boolean)
                   .map((t) => (
                     <span key={String(t)} className="block">
@@ -337,7 +337,7 @@ export function EpisodePage({ id, n }: { id: string; n: number }) {
         title={sure.length === 1 ? "Accept it?" : sure.length < waiting.length ? `Accept these ${sure.length}?` : `Accept all ${sure.length}?`}
         subtitle={`Episode ${n} · ${e.season.name}${waiting.length > sure.length ? ` · ${hide ? (waiting.length - sure.length === 1 ? "one needs" : `${waiting.length - sure.length} need`) : `${shown(waiting.find((f) => f.unknown)!).split(" · ")[0]} needs`} a name first, so ${waiting.length - sure.length === 1 ? "it waits" : "they wait"}` : ""}`}
         lines={[
-          ...(hide ? [{ face: null, icon: "check" as const, label: plural(sure.length, "result one source wasn't sure of", "results one source wasn't sure of"), change: "Into every game" }] : sure.map((f) => moveOf(f, "Into every game"))),
+          ...(hide ? [{ face: null, icon: "check" as const, label: plural(sure.length, "result waiting for a second look", "results waiting for a second look"), change: "Into every game" }] : sure.map((f) => moveOf(f, "Into every game"))),
           { face: null, icon: "people", label: `Its ${plural(e.games, "game")}`, change: "As each player reveals it" },
           { face: null, icon: "poll", label: "Shared stats and trivia", change: `Count ${sure.length > 1 ? "them" : "it"}` },
         ]}
@@ -530,7 +530,7 @@ function GroupRow({ label, facts, onClick }: { label: string; facts: EpisodeFact
           {facts.length > 1 && <span className="type-num ml-1.5 text-[15px] text-muted-foreground">{facts.length}</span>}
         </b>
         <small className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">
-          {who} · {canon ? `${canon.decidedBy ?? "an admin"} decided` : least >= 2 ? `${least} sources agree` : "1 source, sure of it"}
+          {who} · {canon ? `${canon.decidedBy ?? "an admin"} decided` : least >= 2 ? `${least} sources agree` : "1 source"}
         </small>
       </span>
       <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />

@@ -1,9 +1,9 @@
 // Dev-only check for an episode's page on the desk (docs/PLAN-desk-parity.md step 4, part 4b), against this lane's dev server,
 // on a fixture of its own (zt_de_ people: zt_de_desk a site admin who has seen through Episode 3, zt_de_jo who runs the ZT DE
-// Couch's one game; the ZT DE Show, Season 1 airing weekly at 8 PM Eastern, Episodes 1-5 aired and 6 in six days, the
+// Couch's one game; the ZT DE Show, Season 1 airing weekly at 8 PM Eastern, Episodes 1-5 aired and 6 in five days, the
 // Survivor 51 showcase cast). Episode 5 has three answers (jo's quick check and paste, and our bot's Run now) and eight
 // results: Carter voted out and two tribe immunities in every game from more than one source, Kristin's journey from one
-// sure source; Kristin's idol and Ori's advantage waiting (one source, not sure), "Lynnea" waiting (nobody in the cast is
+// sure source; Kristin's idol and Ori's advantage waiting for a second look (docs/PLAN-results-settle.md: one late look), "Lynnea" waiting (nobody in the cast is
 // called that), and Eric's idol disputed (a player's flag). Episode 4 is settled; Episode 3 has nothing. Two trivia questions
 // were written after Episode 5 (one its check dropped). The ask-AI bot is never asked (Ask our bot only opens its sheet).
 //   1. Only site admins: zt_de_jo is refused the page, its question and every change.
@@ -106,10 +106,11 @@ async function up(pool) {
   await add("jo");
   const one = async (sql, params) => (await pool.query(sql, params)).rows[0];
   ids.show = (await one("INSERT INTO shows (slug, name, kind, created_by, set_up_at) VALUES ($1, $2, 'competition', $3, now()) RETURNING id", [SHOW, NAME, ids.desk])).id;
-  // Episodes 1-5 aired (29, 22, 15, 8 and 1 days ago), 6 in six days.
+  // Episodes 1-5 aired (30, 23, 16, 9 and 2 days ago), 6 in five days: Episode 5's final results (yesterday noon) are past,
+  // whatever the time of day.
   ids.season = (await one(
     `INSERT INTO show_seasons (show_id, season_number, status, premiere_date, air_time, air_tz, release, episode_count, cast_approved_at)
-     VALUES ($1, 1, 'airing', current_date - 29, '20:00', 'America/New_York', 'weekly', 10, now()) RETURNING id`,
+     VALUES ($1, 1, 'airing', current_date - 30, '20:00', 'America/New_York', 'weekly', 10, now()) RETURNING id`,
     [ids.show]
   )).id;
   for (const [i, slug] of FACES.entries()) {
@@ -142,9 +143,12 @@ async function up(pool) {
     )).id;
   const all = { people: CAST, kinds: null };
   const without = (...names) => ({ people: CAST.filter((c) => !names.includes(c)), kinds: null });
-  ids.a1 = await sub(5, "quick", ids.jo, { people: CAST, kinds: ["elimination"] }, 20);
-  ids.a2 = await sub(5, "paste", ids.jo, without("Ori Jean Charles"), 12);
-  ids.a3 = await sub(5, "autopilot", null, without("Kristin Flickinger", "Eric Macksoud"), 10);
+  // jo's two before Episode 5's final results (36 hours ago or more is before yesterday noon); our bot's after them (10 hours ago
+  // is after it): a voice of its own, the only one that speaks to Kristin's idol and Ori's advantage, so they wait for a second
+  // look (docs/PLAN-results-settle.md). jo's paste reports Kristin's journey without answering for her otherwise.
+  ids.a1 = await sub(5, "quick", ids.jo, { people: CAST, kinds: ["elimination"] }, 40);
+  ids.a2 = await sub(5, "paste", ids.jo, without("Kristin Flickinger", "Ori Jean Charles"), 38);
+  ids.a3 = await sub(5, "autopilot", null, without("Eric Macksoud"), 10);
   ids.b1 = await sub(4, "paste", ids.jo, all, 160);
   ids.b2 = await sub(4, "autopilot", null, all, 158);
   // Our bot's answer was a Run now (its run's row names it).
@@ -169,7 +173,7 @@ async function up(pool) {
   ids.danny = await fact(5, "event", "Danny Kilby", "", "tribeImmunity", "accepted", "confirmed", [[ids.a2, "high"], [ids.a3, "high"]]);
   ids.lewis = await fact(5, "event", "Lewis Kelly", "", "tribeImmunity", "accepted", "confirmed", [[ids.a2, "high"], [ids.a3, "high"]]);
   ids.journey = await fact(5, "event", "Kristin Flickinger", "", "wentOnJourney", "accepted", "reported", [[ids.a2, "high"]]);
-  ids.idol = await fact(5, "event", "Kristin Flickinger", "", "idolFound", "pending", "reported", [[ids.a2, "low"]]);
+  ids.idol = await fact(5, "event", "Kristin Flickinger", "", "idolFound", "pending", "reported", [[ids.a3, "low"]]);
   ids.ori = await fact(5, "event", "Ori Jean Charles", "", "learnedOfAdvantage", "pending", "reported", [[ids.a3, "medium"]]);
   ids.lynnea = await fact(5, "event", "Lynnea", "", "learnedOfAdvantage", "pending", "reported", [[ids.a3, "low"]]);
   ids.eric = await fact(5, "event", "Eric Macksoud", "", "idolFound", "pending", "disputed", [[ids.a2, "high"]]);
@@ -250,9 +254,9 @@ function fullAnswer(prompt) {
     const e = r.body;
     const F = (fid) => e.facts.find((f) => f.id === fid);
     check(r.status === 200 && e.tag === "Final" && e.wentHome === "Carter voted out" && e.aired && !e.seen, "Episode 5: Final, Carter voted out, not seen by the desk's admin", JSON.stringify({ s: r.status, tag: e.tag, w: e.wentHome, seen: e.seen }));
-    check(e.meta === "4 results in every game · 3 not yet · 1 disputed · from 3 answers", "its line: what's in, what waits, how many answers", e.meta);
-    check(F(ids.carter).state === "live" && F(ids.carter).sources === 2 && F(ids.danny).state === "live" && F(ids.journey).state === "live" && F(ids.journey).why === "1 source, sure of it", "in every game: two sources (jo once, however many answers), and one sure one");
-    check(F(ids.idol).state === "wait" && /One source \(yours\)|One source \(zt_de_jo's\), and it wasn't sure/.test(F(ids.idol).why) && F(ids.ori).state === "wait", "waiting: one source, and it wasn't sure", F(ids.idol).why);
+    check(e.meta === "4 results in every game · 3 not yet · 1 being settled · from 3 answers", "its line: what's in, what waits, how many answers", e.meta);
+    check(F(ids.carter).state === "live" && F(ids.carter).sources === 2 && F(ids.danny).state === "live" && F(ids.journey).state === "live" && F(ids.journey).why === "1 source", "in every game: two sources (jo once, however many answers), and one on its own");
+    check(F(ids.idol).state === "wait" && /^One look \(our bot's\) after final results\. It goes in once another agrees$/.test(F(ids.idol).why) && F(ids.ori).state === "wait", "waiting: one look after final results, for a second", F(ids.idol).why);
     check(F(ids.lynnea).state === "wait" && F(ids.lynnea).unknown && F(ids.lynnea).guess === "Linnea Capobianco" && /Nobody called Lynnea is in the cast\. Linnea Capobianco, maybe\?/.test(F(ids.lynnea).why), "a name not in the cast: waiting, with a guess", F(ids.lynnea).why);
     check(F(ids.eric).state === "disputed" && /^Flagged: it didn't happen/.test(F(ids.eric).why), "disputed: a player's flag", F(ids.eric).why);
     const A = (aid) => e.answers.find((a) => a.id === aid);
@@ -267,7 +271,7 @@ function fullAnswer(prompt) {
     const rows = Object.fromEntries(season.episodeRows.map((x) => [x.n, x.line]));
     check(season.episodeRows[0].n === 6 && / · next$/.test(rows[6]) && /^Aired .* · 3 not in the games yet$/.test(rows[5]) && /in every game$/.test(rows[4]) && /no results yet$/.test(rows[3]), "the season page: the next episode, then each aired one and how it stands", JSON.stringify(season.episodeRows.slice(0, 4)));
     const research = (await as.desk.call("GET", `/api/desk/seasons/${ids.season}/research`)).body;
-    check(research.waiting.length === 1 && research.waiting[0].n === 5 && research.waiting[0].count === 3 && research.waiting[0].line === "2 one source wasn't sure of · 1 not in the cast", "Research's Not in the games yet: Episode 5, three", JSON.stringify(research.waiting));
+    check(research.waiting.length === 1 && research.waiting[0].n === 5 && research.waiting[0].count === 3 && research.waiting[0].line === "2 waiting for a second look · 1 not in the cast", "Research's Not in the games yet: Episode 5, three", JSON.stringify(research.waiting));
     // Take it back's preview: the paste alone held up Kristin's journey; nothing written.
     const tb = await as.desk.call("POST", `${P}/5`, { takeBack: ids.a2, preview: true });
     check(tb.status === 200 && tb.body.lines.some((l) => l.label === "Kristin Flickinger · Went on a journey" && l.change === "Out of every game") && tb.body.lines.some((l) => /Its 1 game/.test(l.label)), "Take it back's preview: what only it reported leaves every game", JSON.stringify(tb.body));
@@ -349,7 +353,7 @@ function fullAnswer(prompt) {
     // Hide names: on by itself, counts only
     check((await pg.locator("[data-desk-episode]").getAttribute("data-hidden")) === "on" && (await pg.locator("[data-waiting-count]").count()) === 1, "Hide names is on by itself for an episode you haven't seen");
     const hiddenText = await pg.locator("[data-desk-episode]").innerText();
-    check(!/Carter|Kristin|Lynnea|Danny/.test(hiddenText) && /On: you haven't seen Episode 5 yet/.test(hiddenText) && /2 one source wasn't sure of/.test(hiddenText), "no names anywhere on the page, the counts instead", (hiddenText.match(/.{0,40}(Carter|Kristin|Lynnea|Danny).{0,40}/) || [""])[0]);
+    check(!/Carter|Kristin|Lynnea|Danny/.test(hiddenText) && /On: you haven't seen Episode 5 yet/.test(hiddenText) && /2 waiting for a second look/.test(hiddenText), "no names anywhere on the page, the counts instead", (hiddenText.match(/.{0,40}(Carter|Kristin|Lynnea|Danny).{0,40}/) || [""])[0]);
     await shot("hidden");
     await pg.locator("[data-hide-names]").click();
     await pg.locator("[data-waiting]").waitFor({ timeout: 10000 });
@@ -448,7 +452,7 @@ function fullAnswer(prompt) {
     // Research's Not in the games yet, and a run's link to its episode
     await pg.goto(`${BASE}/desk/season/${ids.season}/research`);
     await pg.locator("[data-waiting-episodes] [data-desk-row]").first().waitFor({ timeout: 30000 });
-    check(/Episode 5/.test(await pg.locator("[data-waiting-episodes]").innerText()) && /one source wasn't sure of/.test(await pg.locator("[data-waiting-episodes]").innerText()), "Research: Not in the games yet lists Episode 5");
+    check(/Episode 5/.test(await pg.locator("[data-waiting-episodes]").innerText()) && /waiting for a second look/.test(await pg.locator("[data-waiting-episodes]").innerText()), "Research: Not in the games yet lists Episode 5");
     await pg.locator("[data-waiting-episodes]").scrollIntoViewIfNeeded();
     await shot("research-waiting");
     await pg.locator(`[data-run]`).first().click();

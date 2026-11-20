@@ -133,6 +133,9 @@ test("after final, a result only a late look reports waits for a second one; an 
   // The second look doesn't report it: settled out, not a question for anyone.
   const no = one(idol([yes("c")]), [full("c", "bot:catchup", 200), full("t", "bot:tiebreak", 300)], { finalAt: FINAL, hadResults: true });
   assert.deepEqual([no.factStatus, no.live], ["removed", false]);
+  // A second look that agreed, then taken back (the desk's paste undone): one late look again, so it waits again, though it was in.
+  const undone = one(idol([yes("c")], { live: true }), [full("c", "bot:catchup", 200)], { finalAt: FINAL, hadResults: true });
+  assert.deepEqual([undone.factStatus, undone.live], ["reported", false]);
   // An episode with no results by its final time (research came late): its first answer is one look, and counts.
   const first = one(idol([yes("a")]), [full("a", "bot:autopilot", 200)], { finalAt: FINAL, hadResults: false });
   assert.deepEqual([first.factStatus, first.live], ["reported", true]);

@@ -165,10 +165,10 @@ function settleFact(f: FactInput, submissions: Submission[], byId: Map<string, S
     const no = N + voice;
     // Confirmed takes `need` sources; a majority short of that is still a question.
     status = no === 0 ? (Y >= need ? "confirmed" : "reported") : Y > no ? (Y >= need ? "confirmed" : "disputed") : no > Y ? "removed" : "disputed";
-    // Two looks after final (docs/PLAN-results-settle.md): a result not in the games that only the bot's later answers speak to,
-    // on an episode that had its results by then, split even: that's the second look saying no, so it stays out, settled. A
-    // split with an answer from before final, or with players' flags, is the tie-break's like any other.
-    if (hadResults && !f.live && status === "disputed" && voice === 0 && Y === N && sides.every((x) => x.late)) status = "removed";
+    // Two looks after final (docs/PLAN-results-settle.md): a result only the bot's later answers speak to, on an episode that had
+    // its results by then, split even: that's the second look saying no, so it's out, settled. A split with an answer from before
+    // final, or with players' flags, is the tie-break's like any other.
+    if (hadResults && status === "disputed" && voice === 0 && Y === N && sides.every((x) => x.late)) status = "removed";
   }
   if (status !== "disputed") base.settle = checked.map((x) => ({ id: x.id, status: status === "removed" ? "upheld" : "kept" }));
 
@@ -178,8 +178,9 @@ function settleFact(f: FactInput, submissions: Submission[], byId: Map<string, S
   if (SETTLES_AT_ONCE.has(f.kind)) return { ...base, factStatus: status, live: status !== "removed" };
   // One look is enough (the user, 2026-11-20: "let the AI settle"), whatever its confidence. Except after final, on an episode
   // that had its results by then: a result only the bot's later answers report waits, out of the games, for a second look (the
-  // tie-break run gives it one): in once one agrees (confirmed), out once one doesn't (removed, above).
-  const waitsForSecond = hadResults && !f.live && status === "reported" && sides.every((x) => x.late);
+  // tie-break run gives it one): in once one agrees (confirmed), out once one doesn't (removed, above). Whether it's in the
+  // games now doesn't matter: a second look taken back (an answer withdrawn) leaves it waiting again, as it was.
+  const waitsForSecond = hadResults && status === "reported" && sides.every((x) => x.late);
   const live = status === "confirmed" ? true : status === "removed" ? false : status === "disputed" ? f.live : !waitsForSecond;
   return { ...base, factStatus: status, live };
 }

@@ -5,8 +5,8 @@
 //      Needs you asks who went home in Episode 6; Results' quick check through the Ask an AI sheet (the ChatGPT link to
 //      a parked question, Another AI? Copy the question, the paste and its check) applies on its own to all three
 //      games (early results) and shows no name until Show me; Undo from Recent changes takes it off again; entering who
-//      went home yourself goes through the tier-2 preview; the full results' paste applies what's trusted and leaves
-//      the medium-confidence result waiting; ticking it previews and applies it (final).
+//      went home yourself goes through the tier-2 preview; the full results' paste applies every result, the
+//      medium-confidence one too (one look is enough: docs/PLAN-results-settle.md), and nothing waits to be ticked in.
 //   2. The API: a player (sam) is refused Backstage and reads Recent changes with nothing to undo; riley (Game admin of
 //      one game) gets only that game and can't undo a change to all three; someone off the couch (casey) gets 404;
 //      the quick check that isn't sure (one source, a name we don't know) waits and applies nothing; no line names
@@ -52,7 +52,7 @@ const quickAnswer = (left, sources = 2) =>
   "\n```";
 
 // The full answer: the prompt's own skeleton, everyone answered with high confidence, and four things that happened.
-// Devin's idol only at medium confidence: that one waits.
+// Devin's idol only at medium confidence: it goes in all the same (docs/PLAN-results-settle.md).
 function fullAnswer(prompt) {
   const at = prompt.indexOf("Start from this skeleton");
   const a = JSON.parse(prompt.slice(prompt.indexOf("{", at), prompt.lastIndexOf("}") + 1));
@@ -257,7 +257,7 @@ function fullAnswer(prompt) {
     await page.locator("[data-quick=in]").waitFor();
     check((await allEp6()).every((e) => e.outs === 1 && e.stage === "early"), "every league: early results, entered by hand");
 
-    // The full results: what's trusted applies on its own, Devin's medium-confidence idol waits.
+    // The full results: everything applies on its own, Devin's medium-confidence idol too.
     await page.locator("[data-ask=full]").click();
     await copyAndPaste("full");
     await page.locator("[data-ask-ai=full]").waitFor();
@@ -268,25 +268,13 @@ function fullAnswer(prompt) {
     await page.locator("[data-ai-check=ok]").waitFor();
     await page.locator("[data-ai-use]").click();
     const fullToast = await toasted(/applied to 3 games/);
-    check(/results? applied to 3 games · 1 waits for you/.test(fullToast), "the full results: trusted ones applied, one waits", fullToast);
-    await page.locator("[data-waiting='1']").waitFor();
+    check(/results? applied to 3 games/.test(fullToast) && !/wait|settled/.test(fullToast), "the full results: every one applied, nothing left over", fullToast);
+    await page.locator("[data-full=final]").waitFor();
     const e3 = await allEp6();
     check(e3[1].events >= 2 && e3.every((e) => e.stage === null), "every league is final, Weekly Lineup has the scoring moments", JSON.stringify(e3));
-    check(!(await visibleText()).includes("Devin"), "what waits isn't named until Show me");
-    await shot("results-waiting");
-    await page.locator("[data-waiting] [data-show-me]").click();
-    await page.locator("[data-tick]").first().waitFor();
-    check((await page.locator("[data-tick]").count()) === 1 && (await page.locator("[data-tick]").innerText()).includes("Devin Way"), "Show me: Devin's idol, to tick");
-    await page.locator("[data-tick]").first().click();
-    await shot("results-ticked");
-    await page.locator("[data-apply-waiting]").click();
-    await page.locator("[data-guard-confirm]:not([disabled])").waitFor();
-    await shot("guard-full");
-    await page.locator("[data-guard-confirm]").click();
-    check(/Applied to 3 games/.test(await toasted(/Applied to 3 games/)), "the ticked result applied");
-    await page.locator("[data-full=final]").waitFor();
-    const e4 = await allEp6();
-    check(e4[1].events === e3[1].events + 1, "Weekly Lineup gained the idol", `${e3[1].events} → ${e4[1].events}`);
+    const idol = (await pool.query("SELECT status, fact_status FROM season_decisions WHERE season_id = $1 AND episode_number = 6 AND castaway_name = 'Devin Way'", [sid])).rows[0];
+    check(idol?.status === "accepted" && idol.fact_status === "reported", "Devin's medium-confidence idol is in every game (one look)", JSON.stringify(idol));
+    check((await page.locator("[data-waiting], [data-tick], [data-apply-waiting]").count()) === 0, "nothing to tick in by hand");
     const bs4 = await as.alex.call("GET", `/api/seasons/${sid}/backstage${q}&episode=6`);
     check(bs4.body.episode.waiting === 0 && bs4.body.episode.stage === "final" && !bs4.body.needs.length, "nothing waits; Needs you is clear");
     await shot("results-final");
@@ -300,10 +288,10 @@ function fullAnswer(prompt) {
     const batches = [...new Map(rows.map((r) => [r.batch, r])).values()];
     const quickBatch = batches.filter((r) => r.kind === "results.quick" && !r.undone_at).pop();
     const fullBatches = batches.filter((r) => r.kind === "results.full");
-    check(fullBatches.length === 2, "two full-results batches: on their own, then chosen");
+    check(fullBatches.length === 1, "one full-results batch: everything on its own (nothing chosen by hand)");
     const early = await as.alex.call("POST", `/api/seasons/${sid}/changes/${quickBatch.batch}/undo${q}`);
     check(early.status === 409, "undoing who went home under later full results: the later change first", JSON.stringify(early.body));
-    const rileyUndo = await as.riley.call("POST", `/api/seasons/${sid}/changes/${fullBatches[1].batch}/undo${q}`);
+    const rileyUndo = await as.riley.call("POST", `/api/seasons/${sid}/changes/${fullBatches[0].batch}/undo${q}`);
     check(rileyUndo.status === 403, "riley can't undo a change to games she doesn't run");
     for (const fb of [...fullBatches].reverse()) {
       const r = await as.alex.call("POST", `/api/seasons/${sid}/changes/${fb.batch}/undo${q}`);
