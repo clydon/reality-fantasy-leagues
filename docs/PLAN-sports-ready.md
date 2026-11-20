@@ -1,10 +1,10 @@
 # Plan: sports in good shape, technically and in design
 
-> **Status (2026-11-19): Active, Phase 0 and steps 1.0, 1.2 and 1.3 done** (branch sports-phase0, not merged; migrations 0308 and
+> **Status (2026-11-19): Active, Phase 0 and steps 1.0, 1.2, 1.3 and 1.4 done** (branch sports-phase0, not merged; migrations 0308 and
 > 0309 to rehearse). Written from two audits that day: the engine, data and operations, and every screen a sports fan touches.
 > Phase 0 confirmed all four inferences, each with a check, and found two bigger gaps; step 1.0 closed both (BACKLOG 220 and 221),
-> 1.3 made team defenses people and kept same-named players apart (BACKLOG 145), and 1.2 stopped silent zeros and takes
-> corrections. Next: 1.4, 1.5, 1.6, and 1.1 (BACKLOG 215 answered: toward live scores).
+> 1.3 made team defenses people and kept same-named players apart (BACKLOG 145), 1.2 stopped silent zeros and takes corrections,
+> and 1.4 keeps rosters current (signings, trades). Next: 1.5, 1.6, and 1.1 (BACKLOG 215 answered: toward live scores).
 > The decisions it needs are BACKLOG 175 and 212–219 ("Waiting on you").
 
 The user, 2026-11-19: "I want to make sure sports is in a good spot both technically and redesign needs. Make a plan for that."
@@ -189,9 +189,16 @@ server.
      the rows already say each one's team): Phase 4.0.
    - *Noticed:* check-new-make-it.js --api fails at its first ask (the stand-in bot gets no cast answer), before the insert this
      step changed (BACKLOG 223).
-4. **Rosters stay current (S–M).** A daily roster refresh for slate seasons: a trade updates the player's team (and his lock
-   follows the new team's game), a signing is added, and new people reach running leagues' pools. Done with a fixture trade and a
-   fixture signing (nfl-slate-fixture.js's `edit`), and check-sports-new-players.js passing.
+4. **Rosters stay current. Done 2026-11-19 (b12ea70c).**
+   - *Built:* the daily job refills each sports season with a team game near now once a day (cast.ts `refreshRosters`: at most 10
+     a run, oldest fill first; rosters cached a day, shared by a league's seasons). A signing is added; someone whose roster is
+     another team's now moves team on their row, so their per-game lock follows, and the push brings the new team into every game
+     on the season. Not every sports season, only those with a game from three days back to eight ahead.
+   - *Verified:* check-sports-new-players.js (the signing in by the daily job alone; a Giants receiver traded to the Lions moved in
+     the season and the running game, his lock held by the Lions' Sunday game); the sports checks and unit tests. HOSTING.md has
+     the calls.
+   - *Left:* someone cut stays in the season and the games (a free agent nobody can sign elsewhere: ESPN lists him nowhere); a
+     trade's team is retroactive in a game's own record (a show's starting tribe), harmless for scoring (lines are by game and id).
 5. **Injuries and byes (M; L9 part 2).** Read ESPN's roster injury status in the daily refresh (Q, D, O, IR) and mark byes (no
    game in the week). They're facts the lineup editor and the draft room show (Phase 4.2). Verify with recorded roster fixtures
    carrying injuries, and a bye-week slate.
@@ -305,7 +312,7 @@ default selection.
 
 ## The order, and how it fits the rest
 
-1. **Now, beside the Survivor 51 work:** the rest of Phase 1 as a sports lane (Phase 0, 1.0, 1.2 and 1.3 are done): 1.4, 1.5 and
+1. **Now, beside the Survivor 51 work:** the rest of Phase 1 as a sports lane (Phase 0, 1.0, 1.2, 1.3 and 1.4 are done): 1.5 and
    1.6, and 1.1 toward live scores (BACKLOG 215 answered). Phase 4.0 (the words) in any free session.
 2. **Then:** Phase 2 (once the user has made the calls), and Phase 4.1.
 3. **Then:** Phase 3, the gate, and the design round's pages 1 and 3 (they need correct data, not live data).
