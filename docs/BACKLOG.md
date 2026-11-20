@@ -452,6 +452,19 @@ the game's own played weeks), so a bot's sports draft is its taste within what t
 slot takes, and a team that fills every slot). A ranking from last season's lines or ESPN's projections would make a real draft,
 and the draft room needs the same ranking (4.3). Before Phase 3's replay, where a couch of computer players drafts. [M · sports]
 
+**231. Head to head through the final on a season whose playoffs grow.** Since step 2.7 a game can run on through the playoffs
+(no end of its own). On the NFL's full slate the playoff weeks are known at once (the calendar lists them), so head to head's own
+final sits in the Super Bowl's week. A day's slate (the NBA's, the NHL's, MLB's) and a team's season list their playoff episodes as
+they're set, so head to head places its playoffs at the last episode listed so far, and keeps them there once their first round has
+results: its final can come before the real Finals. Either make a day's or a week's playoffs at once from the stage's bounds (an
+empty week after the Finals end), or place a growing season's fantasy playoffs only once the league's final is listed. Rare (head
+to head through the Finals on a daily sport). Found in step 2.7. [S · sports]
+
+**232. A league's weekly slate says "Game" for a week.** On Start a game ("Game 12 to Game 17", "Through Game 17") and in Game
+settings ("Through Game 18", and the playoff weeks as numbers, not Wild Card or Divisional Round), an NFL slate's episodes read as
+games; they're weeks, named as the calendar names them. Game settings' foot also says "To end it after an game". Words, with
+step 4.0's pass. Found in step 2.7's screenshot story. [S · sports]
+
 ### Research and the desk
 
 **92. Backstage says "All clear" above "Results · Episode 8 · 5 waiting".** Needs you lists waiting results only for episodes

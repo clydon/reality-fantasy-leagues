@@ -59,6 +59,11 @@ Newest first. The plan or archive section named holds the detail.
 
 ## In flight
 
+- **Sports step 2.7, a game through the playoffs, branch `sports-playoffs`** (2026-11-20, from master f56df0ce; not merged or
+  pushed; migration 0312 to rehearse first): one season of both stages for a league, a team's season that takes its playoff games,
+  "Regular season" (the default) or "Through the Super Bowl" on Start a game and in Game settings, each sport's final as data. Checked:
+  the unit suite, check-sports-through-playoffs.js (new) and every NFL fixture check. Waits on the user's review of its screenshot
+  story (https://claude.ai/artifact/EFxQiodtwincGM5ggKZvin), then the rehearsal and the merge. Detail: PLAN-sports-ready.md 2.7.
 - **Game preview, branch `preview`** (lane rfl-preview): 17 commits not on master, 55 commits behind it, about 11 conflict
   hunks (strip.tsx, game-week.tsx, your-move.ts, tonight.tsx). It has P0, the visual story, the bench's preview maker and
   Round 5 (four real-app fixes, among them the finale reveal ranking a stage that had ended). It waits on the user's review of
@@ -79,8 +84,8 @@ Newest first. The plan or archive section named holds the detail.
    Designs-needed words batch, and the production check-ups.
 4. **C8, the 2-on-1 head to head**, on a fresh branch from master (its seven answers are in decisions.md, 2026-11-19; who plays
    alone first is drawn at random), then the rest of the redo plan's E3.
-5. **Sports, a lane of its own:** [PLAN-sports-ready.md](PLAN-sports-ready.md): Phases 0 and 1 and Phase 2's 2.1 to 2.6 are live (above); next is
-   2.7 (a game through the playoffs) and 4.1, on a fresh branch from master. 1.1's part 4, the live screens, is the design round's page 2 and needs a small live
+5. **Sports, a lane of its own:** [PLAN-sports-ready.md](PLAN-sports-ready.md): Phases 0 and 1 and Phase 2's 2.1 to 2.6 are live (above); 2.7 (a
+   game through the playoffs) is built on branch sports-playoffs (In flight); next is 4.1, then Phase 3. 1.1's part 4, the live screens, is the design round's page 2 and needs a small live
    read (polling the whole games read would be ~100 MB a phone an NFL game). Its words pass (4.0) can go in any free session.
 6. The order after that is in [PLANS.md](PLANS.md).
 

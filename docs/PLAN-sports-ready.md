@@ -12,7 +12,8 @@
 > playoffs end by Week 17, and the default plays a final between the top two then: BACKLOG 226), 2.3 done (lineup slots for every
 > team sport, MLB's eligibility from ESPN's positions, computer players drafting and starting legal lineups), 2.4 and 2.5 done (IR,
 > waivers that run), 2.6 done (own pace for a sport: a team sport's seat never more than one game behind, by itself). 2.7 added: a game's timing on
-> through the playoffs, the maker's choice (the user, 2026-11-20).
+> through the playoffs, the maker's choice (the user, 2026-11-20); 2.7's parts (a) to (e) built and checked on branch sports-playoffs
+> (2026-11-20, not merged: migration 0312; the screenshot story waits on the user's review).
 > Next: the rest of Phase 2 (its calls answered 2026-11-19, own pace for sports added) and 4.1; 1.1's
 > part 4 (the screens, on a small live read) is the design round's page 2.
 > The user's calls 212–219 are answered ("Decisions", below); BACKLOG 175 still waits.
@@ -652,7 +653,31 @@ server.
      Divisional Round, all still held, the 24 of teams still in scoring; the Bills' team season taking its Wild Card game and ending
      after its loss at Denver (its last episode 19), the Seahawks' taking nothing in its bye week and its three games after, ended as
      champion, the Dolphins' ending once the Divisional Round was listed in full; the Pro Bowl never linked. The NFL fixture's other
-     checks on the new default: (filled in below as they run). tsc; eslint clean on the changed files.
+     checks on the new default (its slate full since this step), every one passing: check-nfl-playoff-weeks (now on `world.regular`),
+     check-slate-pickem, check-sports-own-pace, check-stats-game, check-sports-week-in-progress, check-sports-live-points,
+     check-sports-waivers, check-sports-bot-lineups, check-sports-ir, check-sports-injuries-byes, check-sports-hourly,
+     check-sports-finals; check-slate (its own stand-in; updated: a league's usual slate is full, its regular-season cases ask for the
+     regular season); sport-gallery-check.js --all-leagues; check-sports-couch.js --api whole. tsc; eslint clean on the changed files.
+     The screenshot story at 390 (story-sports-timing.js; published: https://claude.ai/artifact/EFxQiodtwincGM5ggKZvin): the sheet's
+     How long before (a regular slate: "Every game left") and after ("Regular season" chosen, "Through Game 17"; "Through the Super
+     Bowl" picked, "Playoffs included"), Game settings before and after ("Game 11 through the Super Bowl", its Ends options). It found
+     one bug, fixed: the sheet opened a sport's season game on "Through the Super Bowl" (the sport's ready specs carry no end, and the
+     default skipped a base opened with a span).
+   - *Left:* the user's review of the story (the design process's pause). The words (4.0): "Regular season", "Through the Super
+     Bowl", "Playoffs included", the finals' names, Game settings' "· the regular season" and "· the fantasy season". A day's slate's
+     playoffs (the NBA's, the NHL's, MLB's by the day) and the NBA's by the week grow as they're listed (their calendars list no
+     playoff days ahead), checked only in unit tests on ESPN's recorded calendars: no stand-in daily world with a postseason yet;
+     and on such a growing season head to head through the final places its playoffs at the season's last episode as listed so far,
+     kept once its first round has results, so its final can come before the real one (BACKLOG 231). A team's season's playoff game
+     started from the team's sheet as one game gets its own matchup, as any game outside the regular season did (teamSeasonFor takes
+     only regular games). A team out of the playoffs reads as "on a bye" each week after (stampByes: right for the computer players'
+     lineups, wrong words on the lineup sheet: 4.2's page 1). A survival pool across the line and own pace through the playoffs
+     aren't checked. The explorer's headless worlds have no full slate. The real postseason recording (January 2027) for Phase 3.
+     Migration 0312 to rehearse on a copy of production before the merge.
+   - *Noticed, not fixed:* a league's weekly slate calls its episodes games on the sheet and in Game settings ("Game 12", "Through
+     Game 17"), and its playoff weeks are numbers there, not their names (4.0's words; BACKLOG 232). Game settings' foot says "To end it
+     after an game" (BACKLOG 232). nfl-slate-fixture.js stamped a final with the database's clock, which a check past the real day
+     left outside the finals' look-back (fixed in the fixture: a stamp made just now takes the process clock).
 
 ### Phase 3. The gate: a real season, replayed (L, about 2–3 sessions)
 
