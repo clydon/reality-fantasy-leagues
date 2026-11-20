@@ -356,7 +356,11 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
     master's "out"); this branch's migrations renumbered past master's to 0444 and 0445 (the lane's and the service's databases'
     records renamed to match). The whole suite (2,470 tests), a production build and the trace check pass. Then pushed to master
     (the app redeploys with previews off), the service connected to GitHub (production builds only) and the sweep's
-    `PREVIEW_SERVICE_URL` set as a repository variable.
+    `PREVIEW_SERVICE_URL` set as a repository variable. Production's migrations applied 0444 and 0445 on that deploy.
+    **The address (2026-11-20, the user's one approval in Cloudflare):** `preview.gameyourshow.com`, a CNAME added through Vercel's
+    Domain Connect, verified; the service's `BETTER_AUTH_URL`, the app's `PREVIEW_SERVICE_URL` and the sweep's variable moved to it
+    (decision 1's "before everyone"). What's left is the user's alone: the desk's switch on the live app (site admins, one preview of
+    their own, then everyone).
 18. **Watched**: previews made, failed and refused, and the time to the first live phone, logged; a line on the desk ("Previews this
     month: 120 · 40% of the budget"), so nobody needs Vercel's or Neon's dashboards; docs/HOSTING.md updated with the service, its
     limits and its cost.
