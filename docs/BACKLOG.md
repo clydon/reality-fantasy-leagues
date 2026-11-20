@@ -347,6 +347,20 @@ verdict, saying "Settles when Joanna reaches Episode 3", until every human seat 
 Build `pool.where.group` in PoolLogic (read through `viewThrough`, so a later swap doesn't change who was eligible), describe it,
 and turn the gallery's option on. [M · engine]
 
+**230. New moments mid-season: whose call, and from when (the user, 2026-11-20).** On 2026-11-05/06, after Episode 7, Survivor 51's
+rulebook gained moments the season started without (Mutinied to another tribe +5, Gave away an advantage -0.5, among others)
+and had moments rescored, as a desk "Fixed a mistake", so they counted back to Episode 1. The Nov 16 catch-up and the second
+looks of 2026-11-20 filled them in (Carter's Episode 3 mutiny: +5 to two seats). A correction to a moment in the rules all
+along (Cristian's Episode 8 idol, +8) is plainly right. A new moment, or new points, counted backwards is the contestable
+one: nobody could set a lineup for it. The proposal, a game setting "When the show gets a new moment" (or a moment's points
+change): **count it from the start**, **count it from the next episode**, or **the players vote** (the game's maker breaks a
+tie). Default by how settled the format is: a brand-new show, or one whose seasons differ (The Challenge), counts from the
+start; a known format from the next episode. Under the user's "let the AI settle" (2026-11-20) nothing waits: the default applies while a vote
+runs (until the next episode, say), and the players are told either way. The desk keeps its own two (Fixed a mistake, from the
+premiere; The show changed from Episode N); this is the game's say on top. Open for the user: the defaults by show, whether
+a vote binds or advises, and whether a rescore counts as new. Through the design process (the notice, the vote, the
+setting). [M–L · engine + design]
+
 ### Game page, Tonight and the reveal
 
 **46. Head to head: what's still missing.** The game page round built this week's matchup, the champion, no OUT marks, quiet
