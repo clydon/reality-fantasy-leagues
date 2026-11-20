@@ -197,3 +197,16 @@ export async function stampSeasonLength(db: Pool | PoolClient, state: LeagueStat
   if (rest && Number.isInteger(n) && n - rest >= 1) state.playoffsBy = n - rest;
   else delete state.playoffsBy;
 }
+
+/**
+ * BACKLOG 226 (the user, 2026-11-20): where a fantasy season on a league's regular-season slate ends, when its league's ends before
+ * the regular season does (the NFL's Week 17 of 18: sports/index.ts playoffsEndBefore), or null (another league, a team's own
+ * season, the playoffs' slate). A game scored by players' stats started to the season's end runs to it (start-spec.ts, the sports
+ * route); a maker who picks a later week keeps it.
+ */
+export async function fantasySeasonEnd(db: Pool | PoolClient, seasonId: string): Promise<number | null> {
+  const { rows } = await db.query("SELECT ss.episode_count, x.league, x.stage FROM show_seasons ss JOIN sports_slates x ON x.season_id = ss.id WHERE ss.id = $1", [seasonId]);
+  const n = rows[0]?.episode_count;
+  const rest = rows[0]?.stage === "regular" && typeof rows[0]?.league === "string" ? playoffsEndBefore(rows[0].league) : 0;
+  return rest && Number.isInteger(n) && n - rest >= 1 ? n - rest : null;
+}

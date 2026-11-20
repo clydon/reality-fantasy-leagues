@@ -86,9 +86,14 @@ test('frozen v1 state still reproduces through the existing generator and accept
   for (const name of ['legacy-lineup-v1', 'legacy-picks-v1', 'legacy-nfl-v1']) {
     const original = read(name), scenario = B.makeScenario(original.initialConfig);
     for (const command of original.commands) B.command(scenario, command);
-    // (The NFL's season has locked at each player's game since 2026-11-20, BACKLOG 213: the frozen state predates it, so its lock is
-    // put back as it was made; everything else must still reproduce.)
-    if (name === 'legacy-nfl-v1') { scenario.state.settings.lockCloses = 'weekly'; scenario.state.settings.game.closes = 'weekly'; }
+    // (The NFL's season has locked at each player's game since 2026-11-20, BACKLOG 213, and played a final between the top two since
+    // BACKLOG 226: the frozen state predates both, so its lock and its playoffs are put back as it was made; everything else must
+    // still reproduce.)
+    if (name === 'legacy-nfl-v1') {
+      const st = scenario.state.settings;
+      st.lockCloses = 'weekly'; st.game.closes = 'weekly';
+      delete st.game.rank.playoffs; delete st.rankMatchups;
+    }
     assert.equal(J.digest(scenario.state), J.digest(original.scenario.state), name);
     assert.deepEqual(scenario.marks, original.scenario.marks);
   }

@@ -105,10 +105,14 @@ function sportStandard(family, league) {
   return out;
 }
 
-/** `b`'s parts over `a`'s, one level deep (a part that's an object merges; anything else, null and lists, replaces). */
+/** `b`'s parts over `a`'s, one level deep (a part that's an object merges; anything else, null and lists, replaces). A ranking
+ *  of another kind replaces the standard's whole (BACKLOG 226: Season points on the NFL's season takes none of its final). */
 function over(a, b) {
   const out = clone(a);
-  for (const [k, v] of Object.entries(b || {})) out[k] = isObj(v) && isObj(out[k]) ? { ...out[k], ...clone(v) } : clone(v);
+  for (const [k, v] of Object.entries(b || {})) {
+    const other = k === 'rank' && isObj(v) && isObj(out[k]) && v.by !== undefined && v.by !== out[k].by;
+    out[k] = isObj(v) && isObj(out[k]) && !other ? { ...out[k], ...clone(v) } : clone(v);
+  }
   return out;
 }
 

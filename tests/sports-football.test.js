@@ -366,6 +366,20 @@ test("the NFL's fantasy playoffs end a week before its regular season does; nobo
   assert.equal(defaultsFor("football").playoffs, undefined, "the NFL's own, not the sport's");
 });
 
+// BACKLOG 226 (the user, 2026-11-20): the NFL's season plays a final between the top two (in Week 17: the server's stamps); college
+// football's doesn't, and a gallery game ranked another way on the NFL's takes none of it.
+test("the NFL's season game has a final between the top two; Season points, Guillotine and Weekly high score take none of it", () => {
+  const Gallery = require("../src/lib/game/start-gallery/sports.js");
+  assert.deepEqual(defaultsFor("football", "nfl").specs.season.spec.rank, { by: "matchups", playoffs: { teams: 2 } });
+  assert.deepEqual(defaultsFor("football", "nfl").specs.season.spec.score, defaultsFor("football").specs.season.spec.score, "the same table as the sport's");
+  assert.deepEqual(defaultsFor("football", "college-football").specs.season.spec.rank, { by: "matchups" });
+  const rank = (base) => Gallery.sportSpec(base, "football/nfl", { from: 1, to: null }).rank;
+  for (const base of ["sp-league", "sp-keeper", "sp-auction"]) assert.deepEqual(rank(base).playoffs, { teams: 2 }, base);
+  assert.deepEqual(rank("sp-points"), { by: "total" });
+  assert.deepEqual(rank("sp-weeks"), { by: "weeks" });
+  assert.deepEqual(rank("sp-guillotine"), { by: "standing", cut: [{ at: { every: 1 }, out: 1 }] });
+});
+
 test("Football's defaults are data the spec reads: Yahoo's half-PPR points, kickers and team defense, slots, weekly locks", () => {
   const d = defaultsFor("football");
   assert.equal(d.sport, "football");

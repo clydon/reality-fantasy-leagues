@@ -100,10 +100,34 @@
   "leagues": {
     "nfl": {
       "playoffs": {
-        "source": "Yahoo's and ESPN's fantasy playoffs end at Week 17, the regular season's last week before Week 18's, when teams rest their starters (BACKLOG 214, the user's call of 2026-11-19)",
+        "source": "Yahoo's and ESPN's fantasy seasons, playoffs and all, end at Week 17, the regular season's last week before Week 18's, when teams rest their starters (BACKLOG 214 and 226, the user's calls of 2026-11-19 and 11-20): a game scored by players' stats on the regular season ends there unless its maker says otherwise, and its playoffs end there whatever its span",
         "endsBefore": 1
       },
       "specs": {
+        "season": {
+          "about": "A season-long league: draft a full roster, set a lineup each week, play someone head to head each week, and the top two meet in a final in Week 17.",
+          "spec": {
+            "spec": 1,
+            "span": { "from": 1, "to": null },
+            "pool": { "of": "cast", "where": null },
+            "get": { "by": "draft", "each": 15, "order": "snake", "own": "exclusive" },
+            "count": { "start": 9 },
+            "score": {
+              "by": "stats",
+              "points": {
+                "PYDS": 0.04, "PTD": 4, "INT": -1,
+                "RYDS": 0.1, "RTD": 6,
+                "REC": 0.5, "RECYDS": 0.1, "RECTD": 6,
+                "RETTD": 6, "FRTD": 6, "2PT": 2, "FUML": -2,
+                "FGM0": 3, "FGM20": 3, "FGM30": 3, "FGM40": 4, "FGM50": 5, "XPM": 1,
+                "DSTSACK": 1, "DSTINT": 2, "DSTFR": 2, "DSTTD": 6, "DSTSAF": 2, "DSTBLK": 2,
+                "PA0": 10, "PA1_6": 7, "PA7_13": 4, "PA14_20": 1, "PA21_27": 0, "PA28_34": -1, "PA35": -4
+              }
+            },
+            "rank": { "by": "matchups", "playoffs": { "teams": 2 } },
+            "closes": "game"
+          }
+        },
         "bracket": {
           "about": "A playoff bracket: before the NFL playoffs start, pick who wins every game, round by round to the Super Bowl. A point for each one right in the first round, doubling each round after it; most points wins.",
           "on": "playoffs",

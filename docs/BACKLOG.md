@@ -579,13 +579,8 @@ and builds.
 
 ### Sports: the calls [PLAN-sports-ready.md](PLAN-sports-ready.md) needs
 
-- **226. The NFL's default season game: playoffs, or end at Week 17?** Step 2.2 (2026-11-20) put any final by Week 17, but the
-  default game has no playoffs, so its title is the standings after Week 18, when teams rest their starters. *Recommended: the
-  default plays a final between the top two in Week 17 (Yahoo's and ESPN's leagues all have playoffs; a couch of three or four
-  still gets a last-week decider), "No playoffs" a tap away; and a game with no playoffs on the NFL's slate ends at Week 17 too,
-  so Week 18 never counts.*
-
-212 to 219 were all answered 2026-11-19 (Closed, below); kept here until the next tidy so a link to them still lands.
+212 to 219 (2026-11-19) and 226 (2026-11-20) are answered (Closed, below); kept here until the next tidy so a link to them still
+lands.
 
 - **212. The target, and the couch's first real sports game.** *Recommended: the NFL first, the NBA and NHL next, MLB by its
   Opening Day (late March 2027). The pilot is one of January's NFL playoffs, played by the couch once the plan's Phase 3 (a whole
@@ -745,6 +740,10 @@ longer depends on the wiki.)
 ## Closed since the cleanup
 
 One line each: the number, done or dropped, and the commit or the reason.
+- **226** answered (the user, 2026-11-20, "i agree with your rec"): the NFL's default season game plays a final between the top two in
+  Week 17, and a stats game to the season's end stops at Week 17 (PLAN-sports-ready.md 2.2's follow-on, branch sports-phase2). The
+  user added that a game's timing is the maker's: on through the playoffs to the final if they want, for every sport of that shape
+  (the plan's new 2.7).
 - **212, 213, 214, 216, 217, 219** answered yes (the user, 2026-11-19, "i agree with all your recs except 218; i want own pace, its an important option for casual leagues and solo games"): each is in
   [PLAN-sports-ready.md](PLAN-sports-ready.md)'s Decisions and its phase (Phase 2.1, 2.2, 2.5; 4.2 page 3; the pilot).
 - **218** answered (the user, 2026-11-19): own pace for sports, yes, against the recommendation: "an important option for casual

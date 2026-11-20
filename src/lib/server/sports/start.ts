@@ -6,6 +6,7 @@ import { startOptions } from "../start-game";
 import { addGames, addSlate, regularOf, seasonGames, type AddAsk, type SlateAsk } from "./find";
 import { sportsProviders } from "./index";
 import { LEAGUE_SEASON_JOIN } from "../league-season";
+import { fantasySeasonEnd } from "../air-times";
 import type { SportsEvent } from "./types";
 import type { SportsProvider } from "./types";
 
@@ -128,12 +129,16 @@ export async function startSport(
   if (teamEpisode !== null && !listed.includes(teamEpisode)) throw new HttpError(409, "That game has started: picks closed at the start");
   const from = teamEpisode ?? (typeof body.from === "number" && listed.includes(body.from) ? body.from : o.from);
   const last = Math.max(...listed);
-  // `only`: that one game (or that one week of a slate).
-  const to = body.only === true || teamEpisode !== null ? from : typeof body.to === "number" && Number.isInteger(body.to) && body.to >= from && body.to <= last ? body.to : last;
   const { rows: slates } = await pool.query("SELECT 1 FROM sports_slates WHERE season_id = $1", [seasonId]);
   const rail = sportRail(o.sport.league, { count: last, slate: slates.length > 0 });
   const pick = rail.find((g) => g.id === game);
   if (!pick) throw new HttpError(400, "That game isn't one this sport plays here");
+  // `only`: that one game (or that one week of a slate). Else to the week asked for, or the season's end: for a game scored by
+  // players' stats on the NFL's regular season, the fantasy season's (Week 17: BACKLOG 226).
+  const one = body.only === true || teamEpisode !== null;
+  const asked = typeof body.to === "number" && Number.isInteger(body.to) && body.to >= from && body.to <= last ? body.to : null;
+  const end = !one && asked === null && (pick.spec.score as { by?: string } | undefined)?.by === "stats" ? await fantasySeasonEnd(pool, seasonId) : null;
+  const to = one ? from : asked ?? (end !== null && end >= from && end <= last ? end : last);
   const started = await startFromSpec(user, seasonId, couchId, {
     spec: railSpec(pick.spec, from, to),
     name: isObj(body) && typeof body.name === "string" ? body.name : undefined,

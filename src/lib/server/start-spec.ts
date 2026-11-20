@@ -15,6 +15,7 @@ import { HttpError, pool, withLeagueLock } from "./db";
 import { deleteLeague } from "./end-game";
 import { makeStages } from "./engine-lab";
 import { followLeagueProgress } from "./follows";
+import { fantasySeasonEnd } from "./air-times";
 import { asksToday, packFor } from "./game-words";
 import { refused } from "./game-writes";
 import { makeLeague } from "./new-game";
@@ -172,6 +173,12 @@ export async function startFromSpec(
     throw new HttpError(400, `Pick a start the listing has, from ${opts.part.singular} ${opts.from} on`);
   }
   if (typeof span.to === "number" && typeof span.from === "number" && span.to < span.from) throw new HttpError(400, "It ends before it starts");
+  // BACKLOG 226: a game scored by players' stats on the NFL's regular season, to the season's end, runs to the fantasy season's end
+  // (Week 17, before Week 18's rested starters); a later week picked is kept.
+  if (!staged && span.to == null && typeof span.from === "number" && isObj(spec.score) && spec.score.by === "stats") {
+    const end = await fantasySeasonEnd(pool, seasonId);
+    if (end !== null && end >= span.from) span.to = end;
+  }
   // How it runs (docs/PLAN-own-pace-games.md, "Pace is the game's setting"): the sheet's choice, checked against this start.
   const pace = paceAsked(body.pace, opts, !!fromPhase);
 

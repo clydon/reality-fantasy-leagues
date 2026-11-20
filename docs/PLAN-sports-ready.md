@@ -9,7 +9,8 @@
 > 1.1's part 1 puts finals in the standings within the hour; its part 2 counts a week's games as they end; its part 3 counts a
 > game being played, its points so far, for anyone shown everything (never an own-pace seat or anyone hiding sports scores).
 > Phase 2 under way on branch sports-phase2: 2.1 done (the NFL's season locks at each player's game), 2.2 done (any fantasy
-> playoffs end by Week 17; BACKLOG 226 asks about the default's).
+> playoffs end by Week 17, and the default plays a final between the top two then: BACKLOG 226). 2.7 added: a game's timing on
+> through the playoffs, the maker's choice (the user, 2026-11-20).
 > Next: the rest of Phase 2 (its calls answered 2026-11-19, own pace for sports added) and 4.1; 1.1's
 > part 4 (the screens, on a small live read) is the design round's page 2.
 > The user's calls 212–219 are answered ("Decisions", below); BACKLOG 175 still waits.
@@ -351,8 +352,21 @@ server.
      its day guard read the scenario's own days, where the server and the runtime read the calendar shifted to now. The guard and
      its rule now read the shifted days, so at that hour it says to run again later (it can't be proven between about midnight and
      the morning, Eastern); the rest of the case passes.
-   - *Left for the user (BACKLOG 226):* the default season game still has no playoffs, so its title is the standings after Week 18,
-     rested starters and all.
+   - *Then BACKLOG 226 (the user's call of 2026-11-20, the recommendation): the default plays a final, and Week 18 never counts.*
+     *Built:* the NFL's own season game (football.json `leagues.nfl.specs.season`: the sport's spec with `rank.playoffs: { teams: 2
+     }`), so the default is head to head with a final between the top two in Week 17; college football's season is unchanged (its
+     last regular weeks are conference championships). A gallery base that ranks another way (Season points, Guillotine, Weekly
+     high score) takes none of it: the gallery's `over` now replaces a ranking of another kind whole (start-gallery/sports.js). A
+     game scored by players' stats started to the season's end on the NFL's regular season ends at Week 17 (air-times.ts
+     `fantasySeasonEnd`: start-spec.ts for the wizard's "The rest of the season", the sports route's default `to`); a maker who
+     picks Week 18 keeps it. Pick'em and other games scored by answers still run to Week 18.
+     *Verified:* unit tests (the NFL's and college's season ranks, the gallery's three; the frozen v1 NFL state reproduces with
+     its lock and playoffs put back); sport-gallery-check.js --all-leagues (495 rows, 371 play, none off); tsc.
+     *Not yet run:* check-nfl-playoff-weeks.js's three new lines (the default's final and span at Week 17; Season points to the
+     season's end ending at 17, through Week 18 keeping 18): the local database was down (see the commit).
+     *Noticed, not fixed:* the sheet's "The rest of the season" line still says "to the season's end" for a stats game on the NFL's
+     slate, which now ends at Week 17 (4.0's words). College football's season locks at each player's game too since 2.1 (the
+     two share football's season spec; the user decided the NFL's).
 3. **Lineup slots for the NBA, MLB and NHL** (M; L9 part 1): `withLineupSlots` for every sport's defaults, with ESPN's positions
    and MLB's two-way players, and computer players setting legal lineups. Verify with the explorer's slot invariant on real-size
    pools, and unit tests per sport.
@@ -384,6 +398,21 @@ server.
    computer players, live for a league of people, own one tap away; (d) the reveal an own-pace seat moves its mark with, the same
    one BACKLOG 216 gives anyone hiding sports scores (4.2's page 3 designs it); (e) live points (1.1 part 3) and the matchup push
    (217) never past an own-pace seat's mark (live points: done in 1.1 part 3, never sent to an own-pace game at all).
+7. **A game through the playoffs** (M–L; the user, 2026-11-20). "When a normal 'season long' game ends (because playoffs start and
+   some teams are out) that doesn't mean all games end. Someone doing a game just for a team could extend all the way to the Super
+   Bowl, if they wanted it. The game maker has the ability to set the timing to be regular season and the playoffs, and the Super
+   Bowl. (This goes generally for all sports with similar formats.)" The default stays the regular season (the fantasy season's
+   end for the NFL: 226). Today a game can't: a league's slate is one stage (sports_slates.stage, regular or post), and a team's
+   season takes only its regular-season games (find.ts `regularOf`). What it needs: (a) the timing choice on the sheet and in Game
+   settings: the regular season (the default), or on through the playoffs to the final (the Super Bowl, the Finals, the World
+   Series, the Stanley Cup Final); (b) a league's slate of both stages, its playoff rounds as episodes after the regular season's
+   weeks (the playoffs' weeks listed as ESPN's calendar lists them); (c) a team's season that takes its playoff games as they're
+   set, and ends when the team is out; (d) the engine's rules across the line: a drafted player whose team is out scores nothing
+   and stays held, lineups and waivers go on, the fantasy playoffs placed at the game's own end (a span into the postseason isn't
+   capped at Week 17: 2.2's stamp is the regular season's only), and a Pick'em or a pool asks each playoff game; (e) the words
+   ("Regular season", "Through the Super Bowl") by sport, through 4.0. Sports with the same shape: the NFL, NBA, NHL, MLB, MLS and
+   college football. Checks: the NFL fixture's recording has Weeks 1-9 only, so a playoffs recording (record-espn-slate.js, the
+   2026 postseason in January) or a stand-in season with a postseason.
 
 ### Phase 3. The gate: a real season, replayed (L, about 2–3 sessions)
 
@@ -519,6 +548,10 @@ Answered by the user on 2026-11-19 (215 earlier that day, the rest at once: "i a
 - **218, own pace: yes, against the recommendation.** "An important option for casual leagues and solo games" (Phase 2.6).
 - **219, yes.** Daily waivers for the NBA, NHL and MLB, weekly for the NFL (Phase 2.5).
 - **175** still waits: step 10 as its own round, recommended as this plan's Phase 4, ahead of the stages round.
+- **226, yes** (the user, 2026-11-20, "i agree with your rec"): the NFL's default season game plays a final between the top two in
+  Week 17, and a stats game to the season's end stops at Week 17 (2.2's follow-on). With it, the user's general point: a game's
+  timing is the maker's, the regular season by default or on through the playoffs to the final, for every sport of that shape
+  (2.7).
 
 ## Backlog items this plan carries
 
