@@ -62,6 +62,9 @@ function local() {
   if (!/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(DB)) throw new Error("nfl-slate-fixture runs against a local database only");
 }
 
+/** A recorded game's length: being played from its start for this long, then final as recorded (an NFL game runs about 3¼ hours). */
+const GAME_MS = 3.5 * 3_600_000;
+
 /** A headshot for the few the recording has none for, so a fill never asks Wikipedia for one (show-art.ts: a real network call). */
 const NO_PHOTO = "https://a.espncdn.com/i/headshots/nophoto.png";
 
@@ -85,7 +88,7 @@ function recording(file) {
 
 /**
  * The recording's games as ESPN would have answered at `at`: a game that starts after it still to play (no score, no box score);
- * one that started before it as recorded (final with its box score for the weeks played before the recording; a game the recording
+ * one being played (GAME_MS from its start) in progress, with neither; one over by then as recorded (final with its box score for the weeks played before the recording; a game the recording
  * has still to play stays to play). One copy each, so a check can change them.
  */
 function gamesAsOf(events, at) {
@@ -94,6 +97,11 @@ function gamesAsOf(events, at) {
     const c = structuredClone(e);
     if (Date.parse(e.at) > t) {
       c.state = "pre";
+      delete c.score;
+      delete c.box;
+    } else if (e.state === "post" && t < Date.parse(e.at) + GAME_MS) {
+      // Being played: no final and no box score until its length is up (step 1.1's hourly check reads a final as it lands).
+      c.state = "in";
       delete c.score;
       delete c.box;
     }
@@ -194,6 +202,12 @@ async function up(opts = {}) {
   const cast = opts.cast === false ? null : await castFromEvents(added.seasonId, { providers });
   await alignFill(pool, added.seasonId);
 
+  // The database stamps a final's time and a fill's with its own now() (matchup.ts storeEvents, cast_fills): the process clock's
+  // here, as production's are the same clock.
+  const aligned = async () => {
+    await pool.query("UPDATE sports_events SET final_at = $2 WHERE league = $1 AND final_at > $2::timestamptz + interval '1 minute'", [LEAGUE, new Date()]);
+    await alignFill(pool, added.seasonId);
+  };
   const world = {
     espn,
     providers,
@@ -209,11 +223,24 @@ async function up(opts = {}) {
      *  each linked game's facts, then the finals' lines). */
     daily: async () => {
       const out = await app("../../src/lib/server/sports/matchup.ts").refreshSportsEvents({ providers, now: new Date(), only: [added.seasonId] });
-      // A final's time is the database's now() (matchup.ts storeEvents): the process clock's here, as production's are the same.
-      await pool.query("UPDATE sports_events SET final_at = $2 WHERE league = $1 AND final_at > $2::timestamptz + interval '1 minute'", [LEAGUE, new Date()]);
-      // And its roster refresh's fill (cast_fills.updated_at, the database's now()): when it ran by the process clock.
-      await alignFill(pool, added.seasonId);
+      await aligned();
       return out;
+    },
+    /**
+     * The hourly job's run (db/sports-refresh.js, step 1.1) at the clock's moment: the job's own script in a process of its own, on
+     * the process clock (sim-clock.js's file), against the stand-in and this season alone; then the database's stamps aligned as
+     * after a daily run. Returns what it printed.
+     */
+    hourly: async () => {
+      const file = path.join(require("os").tmpdir(), `zt-nfl-clock-${process.pid}.txt`);
+      clock.share(file, Date.now());
+      const { stdout, stderr } = await require("util").promisify(require("child_process").execFile)(
+        process.execPath,
+        [path.join(ROOT, "db", "sports-refresh.js"), `--base=${espn.url}`, `--only=${added.seasonId}`, `--prefix=${CACHE}`],
+        { cwd: ROOT, env: { ...process.env, NODE_OPTIONS: `--require ${path.join(__dirname, "sim-clock.js")}`, SIM_CLOCK_FILE: file }, encoding: "utf8", timeout: 180_000 }
+      );
+      await aligned();
+      return `${stdout}${stderr}`;
     },
     /**
      * The clock moved on to `to` a day at a time, the daily job run each day at `hour` UTC (the bot VM's morning call: tv-listings.ts)
@@ -283,7 +310,7 @@ async function finish(world, { keep = false } = {}) {
   await close(world);
 }
 
-module.exports = { up, down, close, finish, app, clock, recording, weeksOf, gamesAsOf, LEAGUE, CACHE, PEOPLE, PASSWORD, idOf };
+module.exports = { up, down, close, finish, app, clock, recording, weeksOf, gamesAsOf, alignFill, LEAGUE, CACHE, PEOPLE, PASSWORD, GAME_MS, idOf };
 
 if (require.main === module) {
   const cmd = process.argv[2];

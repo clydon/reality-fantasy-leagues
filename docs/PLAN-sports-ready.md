@@ -1,11 +1,12 @@
 # Plan: sports in good shape, technically and in design
 
-> **Status (2026-11-19): Active, Phase 0 and every Phase 1 step but 1.1 done** (branch sports-phase0, not merged; migrations
+> **Status (2026-11-19): Active, Phase 0 and Phase 1 done but 1.1's live parts** (branch sports-phase0, not merged; migrations
 > 0308 to 0310 to rehearse). Written from two audits that day: the engine, data and operations, and every screen a sports fan touches.
 > Phase 0 confirmed all four inferences, each with a check, and found two bigger gaps; step 1.0 closed both (BACKLOG 220 and 221),
 > 1.3 made team defenses people and kept same-named players apart (BACKLOG 145), 1.2 stopped silent zeros and takes corrections,
-> 1.4 keeps rosters current (signings, trades), 1.5 reads injuries and byes, and 1.6 made the small fixes (BACKLOG 108, 78). Next:
-> 1.1 toward live scores (BACKLOG 215 answered), then Phase 2 (the user's calls 213, 214, 219) and 4.1.
+> 1.4 keeps rosters current (signings, trades), 1.5 reads injuries and byes, 1.6 made the small fixes (BACKLOG 108, 78), and
+> 1.1's part 1 puts finals in the standings within the hour. Next: 1.1's parts 2 and 3 toward live scores, Phase 2 (the user's
+> calls 213, 214, 219) and 4.1.
 > The decisions it needs are BACKLOG 175 and 212–219 ("Waiting on you").
 
 The user, 2026-11-19: "I want to make sure sports is in a good spot both technically and redesign needs. Make a plan for that."
@@ -154,14 +155,28 @@ server.
    - *Noticed:* every game on a slate now holds all of its ~2,500 people, a Pick'em or Squares game too (a start copies the
      approved cast into any game): Phase 3 measures what that costs. The draft room's position chips list every roster position
      (G, C, LS, P...), not only those a lineup takes (4.3).
-1. **Results within the hour (S–M).** A `db/sports-refresh.js` (`refreshSportsEvents` and `saveFinals`) in the existing hourly
-   GitHub Actions job (no new Neon wake-up; Actions are free on the public repo), asked more often only when a linked game ended
-   in the last few hours. The daily run stays as the fallback, and BACKLOG 184's Vercel daily cron backs up both. Done when a game
-   is in the standings within an hour of ESPN's final. Verify with check-slate.js on fake-espn and a fake clock. HOSTING.md gets
-   the calls and their cost. **The user's call on BACKLOG 215 (2026-11-19):** yes to the hourly refresh, and the goal is further,
-   live scores during games: "minus the moments that the live api cant get, we'll deal with that later". So when 1.1 is taken
-   up, plan it toward live: the hourly job for finals and corrections, and 4.1's provisional and live points brought forward
-   (Phase 5's server-polled feed), what only a final's box score carries left for later.
+1. **Results within the hour, toward live scores.** The user's call on BACKLOG 215 (2026-11-19): yes to the hourly refresh, and
+   the goal is further, live scores during games: "minus the moments that the live api cant get, we'll deal with that later". In
+   four parts, each its own session and check:
+   - **Part 1, finals within the hour. Done 2026-11-19.** `db/sports-refresh.js` runs the sports part of the daily job
+     (refreshSportsEvents: slates, rosters once a day, linked games, finals, corrections) as a step of the hourly "Reminders and
+     waivers" GitHub Actions job (no new secret; no new Neon wake-up: the job already connects hourly). The daily run stays the
+     fallback. Verified by check-sports-hourly.js on the NFL fixture, the job's own script run on the fixture's clock: Monday
+     night's game final at 04:45Z, the week counted by the 05:05Z run (20 minutes; the daily job alone, 6.3 hours), a run with
+     nothing new asking ESPN nothing; and the script run with only AUTH_DATABASE_URL, as the job has it. It takes effect once the
+     branch is on master (GitHub runs the default branch's workflow). jiti is now a dev dependency of its own (it was only
+     eslint's and Tailwind's).
+   - **Part 2, a week in progress counts as it goes.** A slate's week counts only once every game is final (score.ts stampStats,
+     `done`): count each final game provisionally (its lines in, the week marked unfinished: no matchup won or lost until its
+     last game), so Sunday's matchups move as each game ends. Engine and server; the game view says the week is in progress
+     (4.1.2's first half). Check: the fixture's week with some games final, the matchups moving per game.
+   - **Part 3, live points during games.** The server's live poller (src/lib/server/sports/live-proxy.ts, already polling ESPN
+     for phones at most once a game every 15 s) gives each game's lines so far; run them through the game's table under the
+     spoiler rule (Hide scores, Watch it as if live), so a matchup moves play by play (4.1.2's second half, Phase 5's feed
+     brought forward). Measure Vercel's transfer (Phase 5's estimate: about 20 MB and 780 edge requests a phone an NFL game).
+   - **Part 4, the screens:** the design round's page 2 (the live game and a week in progress), through the design process.
+   - **Later (the user's words):** what the live feed can't give (a defense's points allowed until the final, a stat only the
+     box score has) stays on the final's read.
 2. **Never zero a game silently; take corrections. Done 2026-11-19 (2621a3e1).**
    - *Built:* migration 0309 (sports_events.read_tries, read_error, checked_at). A final that can't be read is said on its row and
      asked again; two days on it's kept as none so its week can finish (Claude's call: a held week stalls every matchup, a
@@ -328,8 +343,8 @@ default selection.
 
 ## The order, and how it fits the rest
 
-1. **Now, beside the Survivor 51 work:** the rest of Phase 1 as a sports lane (all of it done but 1.1): 1.1 toward live scores
-   (BACKLOG 215 answered), then Phase 2 once the user's calls are in. Phase 4.0 (the words) in any free session.
+1. **Now, beside the Survivor 51 work:** 1.1's parts 2 and 3 toward live scores (part 1 done), then Phase 2 once the user's calls
+   are in. Phase 4.0 (the words) in any free session.
 2. **Then:** Phase 2 (once the user has made the calls), and Phase 4.1.
 3. **Then:** Phase 3, the gate, and the design round's pages 1 and 3 (they need correct data, not live data).
 4. **Then:** 4.1's live path, page 2, Phase 5, and pages 4 to 6.
