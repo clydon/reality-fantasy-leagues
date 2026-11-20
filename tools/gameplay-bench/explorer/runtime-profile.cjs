@@ -84,7 +84,9 @@ function inspect(document) {
     // Only some moments count (score.only, a fixed list) and hits counted (score.hits): each moment's worth on every read
     // (Spec.momentWorth), nothing kept. The weekly card (spec.card, drawn in turn from the spec's own list: Spec.cardLines, pure)
     // and only its moments counting each week (only: 'card', Spec.onlyAt). A card the bot chooses or a host writes needs their choice.
-    const drawnCard = !!spec.card && G.cardOf(spec)?.from === 'moments';
+    // (A card the bot chooses or a host writes, on a world whose results carry the server's own facts, a live preview's: its choice
+    // made up from the card's own list each episode, stamped as the server stamps it: runtime.cjs stampAllCards, core-runtime-45.)
+    const drawnCard = !!spec.card && (G.cardOf(spec)?.from === 'moments' || (!!context.bank && G.chosenCard(G.cardOf(spec)) && Array.isArray(G.cardOf(spec)?.of)));
     if (spec.card && !drawnCard) add(game.id, p + '/card', "Only a card drawn from the spec's own list is connected; one the bot chooses or a host writes needs their choice");
     if (spec.score?.only !== undefined && !Array.isArray(spec.score.only) && !(spec.score.only === 'card' && drawnCard)) add(game.id, p + '/score/only', "Only a fixed list of moments, or a drawn card's, is connected");
     // A race to N and cuts (the guillotine): KnockoutLogic and the answer walk work them out on every read; moves after someone's out
@@ -170,20 +172,37 @@ function inspect(document) {
       // Confidence picks (who goes home, ranked surest first: each right one scores its points times its weight), each episode.
       const confidence = q.answer === 'confidence' && q.asked === 'each' && q.closes === 'start' && q.settle?.by === 'results' && q.settle?.take === 'out';
       const momentOnce = q.asked === 'once' && q.closes === 'start' && q.settle?.by === 'moment' && ({ who: 'person', first: 'person', happened: 'yesNo', count: 'number' })[q.settle?.take] === q.answer;
-      if (!seasonLong && !phaseStart && !momentOnce && !confidence && (!['person', 'yesNo'].includes(q.answer) || q.asked !== 'each' || q.closes !== 'start')) add(game.id, at, 'Only per-event cast/yes-no questions, season-long winner/final-N, phase-start, whole-game moment and confidence questions are connected');
+      // A live preview's (core-runtime-45, 2026-11-20): the boot order (a ranked order of the cast, settled by where they finished,
+      // within N places), who outlasts whom (pairs from who was in at the start), the jury's vote split, over or under a line on a
+      // moment's count, who a moment happens to most, a choice; each the server's answer kinds, checked and graded as answers.ts
+      // and the grader do. And, on a world whose results carry the server's own facts (context.bank: the trivia round written after
+      // each episode, research's episode facts), a trivia round and who says the title quote.
+      const bank = !!context.bank;
+      const preview = (['order', 'pairs', 'split'].includes(q.answer) && q.settle?.by === 'results' && ({ order: 'order', pairs: 'outlast', split: 'split' })[q.answer] === q.settle?.take)
+        || (q.answer === 'overUnder' && q.settle?.by === 'moment' && q.settle?.take === 'count' && typeof q.line === 'number')
+        || (q.answer === 'person' && q.settle?.by === 'moment' && q.settle?.take === 'most')
+        || (q.answer === 'person' && q.settle?.by === 'results' && ['winner', 'out', 'top'].includes(q.settle?.take))
+        || (q.answer === 'choice' && Array.isArray(q.options))
+        || (q.answer === 'ticket' && q.settle?.by === 'legs' && !!G.ticketOf(q))
+        || (drawnCard && q.card === true && ['yesNo', 'person'].includes(q.answer) && q.settle?.by === 'moment')
+        || (bank && G.isTrivia(q))
+        || (bank && q.answer === 'person' && q.settle?.by === 'fact');
+      if (!seasonLong && !phaseStart && !momentOnce && !confidence && !preview && (!['person', 'yesNo'].includes(q.answer) || q.asked !== 'each' || q.closes !== 'start')) add(game.id, at, 'Only per-event cast/yes-no questions, season-long winner/final-N, phase-start, whole-game moment and confidence questions are connected');
       if (q.from !== undefined && q.from !== 'cast') add(game.id, at + '/from', 'Only questions about the cast are connected');
       // share (A9): a pot split between everyone right, or only the only one right scores; graded on every read.
       // wager (A8/A9/C6): stake up to a number, or any of your points ('total'), at even odds or the pool's; held as the server holds it.
       // rollover (A9): a window nobody earns anything on carries its points (and what it carried) into the next; graded on every read.
       // beat (A14 part 2): played against the bot's own call per window (its calls in the bot store; the botCall action), a person or
       // yes/no question asked each episode, its fallback with no call 'plays' or 'void'; never beside a share, stake or rollover.
-      const keys = ['id', 'ask', 'answer', 'points', 'asked', 'closes', 'pick', 'from', 'settle', 'share', 'wager', 'odds', 'rollover', 'beat'];
+      // (within: an order's places off that still score; line: over/under's; pairs: how many pairs; shrink: a seal's points falling
+      // each episode it's left open; options: a choice's. The grader reads each; nothing kept.)
+      const keys = ['id', 'ask', 'answer', 'points', 'asked', 'closes', 'pick', 'from', 'settle', 'share', 'wager', 'odds', 'rollover', 'beat', 'within', 'line', 'pairs', 'shrink', 'options', ...(drawnCard ? ['card'] : [])];
       if (q.beat !== undefined && !(q.beat?.by === 'bot' && ['plays', 'void', undefined].includes(q.beat.none) && ['person', 'yesNo'].includes(q.answer) && q.asked === 'each' && q.share === undefined && q.wager === undefined && !q.rollover)) add(game.id, at + '/beat', 'Only a person or yes/no question asked each episode is connected against the bot');
       if (q.share !== undefined && !['split', 'only'].includes(q.share)) add(game.id, at + '/share', 'Unknown share rule');
       for (const [key, value] of Object.entries(q)) if (!keys.includes(key) && active(value)) add(game.id, at + '/' + J.pointer(key), 'Question rider needs an explicit adapter');
       // players (A14 part 1): settled by the couch's own answers (the majority or minority, of its own or another question's).
-      if (!['results', 'moment', 'players', 'phase'].includes(q.settle?.by)) add(game.id, at + '/settle', 'Question fact provider is not connected');
-      for (const key of Object.keys(q.settle || {})) if (!['by', 'take', 'moment', 'place', 'of', 'tie', 'phase'].includes(key)) add(game.id, at + '/settle/' + J.pointer(key), 'Settlement modifier needs an adapter');
+      if (!['results', 'moment', 'players', 'phase', 'legs', ...(bank ? ['trivia', 'fact'] : [])].includes(q.settle?.by)) add(game.id, at + '/settle', 'Question fact provider is not connected');
+      for (const key of Object.keys(q.settle || {})) if (!['by', 'take', 'moment', 'place', 'of', 'tie', 'phase', ...(bank ? ['fact'] : [])].includes(key)) add(game.id, at + '/settle/' + J.pointer(key), 'Settlement modifier needs an adapter');
     }
   });
   return { status: gaps.length ? 'blocked' : 'supported-profile', gaps, notes, profile: 'core-post-acquisition-v1' };

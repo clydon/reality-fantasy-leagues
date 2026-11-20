@@ -222,7 +222,7 @@ function applyFacts(world, state) {
     if (facts.length !== 1) throw Error('A released event needs exactly one coherent fact bundle: ' + event.id);
     const data = facts[0].data;
     if (!data || !Array.isArray(data.events) || !Array.isArray(data.scoringEvents)) throw Error('Event facts need events and scoringEvents arrays');
-    if (Object.keys(data).some(k => !['events', 'scoringEvents', 'noExit', 'resultsStage', 'votes'].includes(k))) throw Error('Event fact contains an unconnected field');
+    if (Object.keys(data).some(k => !['events', 'scoringEvents', 'noExit', 'resultsStage', 'votes', 'trivia', 'episodeFacts'].includes(k))) throw Error('Event fact contains an unconnected field');
     if (data.votes !== undefined && (!Array.isArray(data.votes) || data.votes.some(v => !J.object(v) || Object.keys(v).some(k => !['castawayId', 'votedFor', 'votesReceived'].includes(k)) || !state.castaways.some(c => c.id === v.castawayId) || (v.votedFor != null && !state.castaways.some(c => c.id === v.votedFor)) || (v.votesReceived !== undefined && !Number.isInteger(v.votesReceived))))) throw Error('Votes name participants: { castawayId, votedFor, votesReceived }');
     if (data.noExit !== undefined && typeof data.noExit !== 'boolean') throw Error('noExit must be boolean');
     if (data.noExit && data.events.length) throw Error('noExit contradicts an elimination');
@@ -295,8 +295,9 @@ function gameData(document, game, world, actors) {
   if (game.stageOf !== undefined) state.settings.stageOf = game.stageOf;
   state.players = actors.filter(p => seats.includes(p.id)).map((p, i) => ({ id: p.id, name: p.name, color: p.color || ['#ce6e42', '#568f96', '#ae86b8'][i % 3], active: true }));
   state.castaways = world.participants.map(p => ({ id: p.id, name: p.name, photoUrl: document.content.images === 'missing' ? null : p.photoUrl || null, status: 'active', ownerIds: [], acquiredVia: spec.get.by === 'draft' && !opensAtStart ? 'draft' : null, ...(p.tribeId ? { tribeId: p.tribeId } : {}) }));
-  // The world's tribes (state.tribes: what SpreadLogic reads as the cast's groups), named in turn.
-  if (world.context.tribes) state.tribes = Array.from({ length: world.context.tribes }, (_, i) => ({ id: 'tribe-' + (i + 1), name: ['Luvu', 'Gata', 'Yase', 'Vatu'][i] }));
+  // The world's tribes (state.tribes: what SpreadLogic reads as the cast's groups), named in turn, or by the world's own names
+  // (context.tribeNames: a real season's, a live preview's).
+  if (world.context.tribes) state.tribes = Array.from({ length: world.context.tribes }, (_, i) => ({ id: 'tribe-' + (i + 1), name: world.context.tribeNames?.[i] || ['Luvu', 'Gata', 'Yase', 'Vatu'][i] }));
   // (An auction's teams are settled from its bids below, once the game's settings carry its budget: settleAuctionIn.)
   if (opensAtStart) state.draftOrder = state.players.map(p => p.id);
   else if (spec.get.by === 'draft' && spec.get.order !== 'auction') {

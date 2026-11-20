@@ -39,7 +39,7 @@ test("a cast member is who they are: a format's secret field (the Traitors' role
   const traitors = cast.map((c, i) => (i === 3 ? { ...c, role: "traitor" } : c));
   assert.throws(() => Def.build(season({ cast: traitors }), { base: "fantasy" }), code("preview-spoiler"));
   const d = Def.build(season(), { base: "fantasy" });
-  assert.ok(d.world.participants.every((p) => Object.keys(p).every((k) => ["id", "contextId", "name", "photoUrl"].includes(k))));
+  assert.ok(d.world.participants.every((p) => Object.keys(p).every((k) => ["id", "contextId", "name", "photoUrl", "tribeId"].includes(k))));
 });
 
 test("behind the game's start: real through the mark, the episodes between made up (someone goes home each)", () => {
@@ -58,7 +58,7 @@ test("the made-up moments' rates come from the episodes through the mark", () =>
   // 18 + 17 + 16 cast-episodes; three tribe immunities and one reward.
   assert.equal(r.tribeImmunity, 3 / 51);
   assert.equal(r.rewardWin, 1 / 51);
-  assert.deepEqual(Def.ratesOf(season({ mark: 0, real: [] })), {});
+  assert.deepEqual(Def.ratesOf(season({ mark: 0, real: [] })), Def.TYPICAL_RATES, "nothing to go by: typical rates");
   assert.deepEqual(Def.ratesOf({ ...season({ mark: 0, real: [] }), rates: { rewardWin: 0.1 } }), { rewardWin: 0.1 });
 });
 

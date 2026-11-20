@@ -62,12 +62,44 @@ function answerMoves(session, gameId, personId, seed) {
     const mine = atClock(now, () => Bots.answers(st, [], { now })).filter((a) => a.playerId === personId);
     if (mine.length) return mine.map((a) => ({ type: 'answer', gameId, personId, question: a.question, episode: a.episode, answer: a.answer }));
   }
-  return open.map((q) => {
-    const ids = (q.options || []).map((o) => (o && typeof o === 'object' ? o.id : o)).filter((x) => x !== undefined && x !== null);
-    const pickN = Math.max(1, q.pick || 1);
-    const order = ids.slice().sort((a, b) => roll(seed, gameId, personId, q.id, q.episode, a) - roll(seed, gameId, personId, q.id, q.episode, b));
-    const answer = pickN > 1 ? order.slice(0, pickN) : order[0];
-    return { type: 'answer', gameId, personId, question: q.id, episode: q.episode, answer: q.wager === null || q.wager === undefined ? answer : { answer, stake: 0 } };
+  const r = (...k) => roll(seed, gameId, personId, q0Key, ...k);
+  let q0Key = '', staked = 0; // what this batch has staked already: one person's stakes share their room
+  return open.flatMap((q) => {
+    q0Key = q.id + '|' + q.episode;
+    let answer;
+    // Each kind's shape, as the sheet takes it: who outlasts whom in each pair; one option for each of a trivia round's questions; a
+    // vote split; a ranked order or one of the options (people, yes/no, over/under, a choice).
+    if (q.answer === 'pairs') answer = Object.fromEntries((q.options || []).map((p) => [p.key, p.ids[r(p.key) % 2]]));
+    else if (q.answer === 'trivia') {
+      if (!(q.options || []).length) return []; // no round for this episode (the premiere's): nothing to answer
+      answer = Object.fromEntries(q.options.map((t) => [t.id, t.options[r(t.id) % t.options.length]]));
+    } else if (q.answer === 'split') {
+      const jury = 5 + (r('jury') % 5), first = Math.ceil(jury / 2) + (r('lead') % 2);
+      answer = [Math.min(jury, first), jury - Math.min(jury, first), 0].filter((x, i) => i < 2 || x > 0);
+    } else if (q.answer === 'ticket') {
+      // A ticket: some of its legs (between its least and most), staked below as any wager.
+      const t = q.options;
+      if (!t || !Array.isArray(t.of)) return [];
+      const n = t.min + (r('legs') % (t.max - t.min + 1));
+      const legs = t.of.slice().sort((a, b) => r(a) - r(b)).slice(0, n);
+      const room = Math.max(0, (q.stakeMost ?? 0) - staked), stake = Math.floor((room * (1 + (r('stake') % 3))) / 10);
+      staked += stake;
+      return [{ type: 'answer', gameId, personId, question: q.id, episode: q.episode, answer: { legs, stake } }];
+    } else if (q.answer === 'number') {
+      if (!Array.isArray(q.options) || !q.options.length) return [];
+      answer = q.options[r('n') % q.options.length];
+    } else {
+      const ids = (q.options || []).map((o) => (o && typeof o === 'object' ? o.id : o)).filter((x) => x !== undefined && x !== null);
+      if (!ids.length) return [];
+      const pickN = Math.max(1, q.pick || 1);
+      const order = ids.slice().sort((a, b) => r(a) - r(b));
+      answer = ['order', 'confidence'].includes(q.answer) || pickN > 1 ? order.slice(0, pickN) : order[0];
+    }
+    // A wager: some of what they may stake (a tenth to a half of it), as a couch would; nothing when there's nothing to stake.
+    const room = Math.max(0, (q.stakeMost ?? (typeof q.wager === 'number' ? q.wager : 0)) - (q.stakeMost === null || q.stakeMost === undefined ? 0 : staked));
+    const stake = Math.max(0, Math.floor((room * (1 + (r('stake') % 5))) / 10));
+    staked += stake;
+    return [{ type: 'answer', gameId, personId, question: q.id, episode: q.episode, answer: q.wager === null || q.wager === undefined ? answer : { answer, stake } }];
   });
 }
 

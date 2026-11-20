@@ -56,9 +56,21 @@ function checked(season) {
   return season;
 }
 
-/** How often each moment happened per cast member still in, over the episodes through the mark (season.rates if given). */
+/**
+ * How often moments happen per cast member still in, when a season gives nothing to go by (no episode seen, no other season of the
+ * show): typical made-up rates, so a preview of a premiere still has nights where things happen. Only the format's own moments are
+ * ever used (knownOf).
+ */
+const TYPICAL_RATES = { tribeImmunity: 0.18, rewardWin: 0.16, chosenForReward: 0.05, idolFound: 0.03, idolPlayed: 0.02, votesNegated: 0.01, wentOnJourney: 0.03, advantageTargeted: 0.02, votedWithMajority: 0.42, zeroVotesSafe: 0.35, survivedVotes: 0.08, cried: 0.06, confessional: 0.3 };
+
+/** How often each moment happened per cast member still in, over the episodes through the mark (season.rates if given; typical rates
+ *  when there's nothing to go by). */
 function ratesOf(season) {
-  if (season.rates) return season.rates;
+  if (season.rates && Object.keys(season.rates).length) return season.rates;
+  const seen = learnedRates(season);
+  return Object.keys(seen).length ? seen : { ...TYPICAL_RATES };
+}
+function learnedRates(season) {
   const real = season.real || [], cast = season.cast.length;
   const exits = real.filter((x) => x.kind === 'elimination');
   let castEpisodes = 0;
@@ -149,11 +161,18 @@ function build(input, o = {}) {
   const count = season.page.ctx.pool || season.cast.length;
   if (count > season.cast.length) throw Object.assign(Error('No preview for this season: its cast is smaller than its game\'s pool'), { code: 'preview-season' });
   // The cast in the order the caller dealt it (the app: mixTribes of the season's order; the proof: its recording, already mixed).
-  const participants = season.cast.slice(0, count).map((c, i) => ({ id: 'show-participant-' + (i + 1), contextId: 'show', name: c.name, photoUrl: c.photoUrl || null }));
+  const dealt = season.cast.slice(0, count);
+  // The season's tribes as its cast lists them (2 to 4: a draft spread across them, a tribe's moments), each person on their own.
+  const tribeNames = [...new Set(dealt.map((c) => c.tribe).filter(Boolean))];
+  const tribal = tribeNames.length >= 2 && tribeNames.length <= 4 && dealt.every((c) => c.tribe);
+  const participants = dealt.map((c, i) => ({ id: 'show-participant-' + (i + 1), contextId: 'show', name: c.name, photoUrl: c.photoUrl || null, ...(tribal ? { tribeId: 'tribe-' + (tribeNames.indexOf(c.tribe) + 1) } : {}) }));
   const context = {
     id: 'show', kind: 'show', label, format: { id: season.format || 'survivor' },
     engine: { ...season.page.ctx, moments, couch: COUCH.length, pool: season.page.ctx.pool },
     phaseStarts: { merged: merge },
+    ...(tribal ? { tribes: tribeNames.length, tribeNames } : {}),
+    // Its results carry the server's own facts (resultsFor: a trivia round about each episode, who says its title quote).
+    bank: true,
     // The art: given (the app's reader sends the real show's, as its URLs) or, without it, borrowed by slug (the dev proof's).
     dress: { name: season.show?.name || label, seasonName: season.seasonName || label, number: season.number, art: season.art ? { given: season.art } : { borrow: season.show?.slug || season.format || 'survivor' } },
   };
@@ -170,8 +189,12 @@ function build(input, o = {}) {
   });
 }
 
-/** Episode n's results as the story plays it: who goes out (the bench's own Publish: the finale crowns a winner and its finalists)
- *  and the moments shaped like the season's. */
+/**
+ * Episode n's results as the story plays it: who goes out (the bench's own Publish: the finale crowns a winner and its finalists),
+ * the moments shaped like the season's, and the bank, what research gives the server for each episode, made up from these same
+ * results so each has a right answer: the finale's jury votes (a split question), a round of trivia about the episode (asked before
+ * the next: who went home, who won immunity, how many are left), and who says the title quote (an episode fact).
+ */
 function resultsFor(season) {
   const rates = ratesOf(season);
   return (s, n) => {
@@ -180,8 +203,52 @@ function resultsFor(season) {
     const gone = new Set(world.facts.filter((f) => f.eventId !== e.id).flatMap((f) => (f.data.events || []).map((o) => o.castawayId)));
     const still = world.participants.map((p) => p.id).filter((id) => !gone.has(id));
     const known = new Set(world.context.engine.moments.filter((m) => !m.auto && !m.off).map((m) => m.id));
-    return { ...data, scoringEvents: shapedMoments(rates, doc.seed, n, still, data.events, known, n >= world.context.phaseStarts.merged) };
+    const merge = world.context.phaseStarts.merged, last = Math.max(...world.events.map((x) => x.number));
+    const scoringEvents = shapedMoments(rates, doc.seed, n, still, data.events, known, n >= merge);
+    const events = n === last ? withJury(data.events, world, merge, doc.seed) : data.events;
+    const name = new Map(world.participants.map((p) => [p.id, p.name]));
+    return { ...data, events, scoringEvents, trivia: triviaRound(n, still, events, scoringEvents, name, doc.seed), episodeFacts: { titleQuote: titleQuote(n, still, name, doc.seed) } };
   };
+}
+
+/** The finale's jury votes: a jury of who went home since the merge (3 to 10; 7 when there's no telling), the winner's a majority. */
+function withJury(events, world, merge, seed) {
+  const num = new Map(world.events.map((x) => [x.id, x.number]));
+  const juried = world.facts.filter((f) => num.get(f.eventId) >= merge).flatMap((f) => f.data.events || []).length;
+  const jury = Math.max(5, Math.min(10, juried || 7));
+  const winner = events[events.length - 1], others = events.filter((o, i) => i < events.length - 1 && o.method === events[events.length - 2]?.method && o !== winner);
+  if (!winner) return events;
+  // The winner's a majority (more than half, now and then all of it); the rest split between the others, the first more often.
+  const most = Math.floor(jury / 2) + 1 + (roll(seed, 'jury', 'lead') % Math.max(1, jury - Math.floor(jury / 2) - 1));
+  let rest = jury - most;
+  const theirs = others.map((o, i) => { const v = i === others.length - 1 ? rest : Math.min(rest, Math.ceil(rest / 2) + (roll(seed, 'jury', o.castawayId) % 2)); rest -= v; return v; });
+  const votes = new Map([[winner.castawayId, most], ...others.map((o, i) => [o.castawayId, theirs[i]])]);
+  return events.map((o) => (votes.has(o.castawayId) ? { ...o, juryVotes: votes.get(o.castawayId) } : o));
+}
+
+/** Four names for a question: the right one and three others from `pool`, in a seeded order. */
+function fourOf(right, pool, seed, key) {
+  const others = pool.filter((x) => x !== right).sort((a, b) => roll(seed, key, a) - roll(seed, key, b)).slice(0, 3);
+  return [right, ...others].sort((a, b) => roll(seed, key, 'o', a) - roll(seed, key, 'o', b));
+}
+
+/** A round of trivia about episode n (asked before n + 1), as the bot's trivia research writes it: { id, kind, question, options, answer }. */
+function triviaRound(n, still, events, scoringEvents, name, seed) {
+  const round = [], names = still.map((id) => name.get(id));
+  const out = events.find((o) => o.method && !/win|sole|survivor/i.test(o.method));
+  if (out && names.length >= 4) round.push({ id: `trivia-${n}-out`, kind: 'person', question: `Who went home in Episode ${n}?`, options: fourOf(name.get(out.castawayId), names, seed, `out${n}`), answer: name.get(out.castawayId) });
+  const imm = scoringEvents.find((m) => m.type === 'individualImmunity') || scoringEvents.find((m) => m.type === 'tribeImmunity');
+  if (imm && names.length >= 4) round.push({ id: `trivia-${n}-imm`, kind: 'person', question: imm.type === 'individualImmunity' ? `Who won immunity in Episode ${n}?` : `Whose tribe won immunity in Episode ${n}? (one of them)`, options: fourOf(name.get(imm.castawayId), names, seed, `imm${n}`), answer: name.get(imm.castawayId) });
+  const left = still.length - events.filter((o) => o.method).length;
+  if (left > 1) round.push({ id: `trivia-${n}-left`, kind: 'number', question: `How many were still in after Episode ${n}?`, options: [left - 1, left, left + 1, left + 2].map(String), answer: String(left) });
+  return round;
+}
+
+/** Who says the episode's title quote (an episode fact, research's 'who'): someone still in at its start. */
+function titleQuote(n, still, name, seed) {
+  if (!still.length) return { state: 'none' };
+  const who = still[roll(seed, 'quote', n) % still.length];
+  return { state: 'who', who, name: name.get(who) };
 }
 
 /**
@@ -201,4 +268,4 @@ function verdict(definition) {
   return a.runtimeSupport.status === 'supported-profile' && !a.diagnostics.length ? { ok: true, why: null, gaps: [] } : { ok: false, why: gaps[0] || a.diagnostics[0]?.message || "the runtime can't play it yet", gaps };
 }
 
-module.exports = { build, verdict, resultsFor, mixTribes, ratesOf, COUCH, CAST_FIELDS };
+module.exports = { build, verdict, resultsFor, mixTribes, ratesOf, COUCH, CAST_FIELDS, TYPICAL_RATES };
