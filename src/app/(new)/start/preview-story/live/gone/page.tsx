@@ -8,5 +8,5 @@ export const metadata: Metadata = { title: "See it play" };
 // probed): docs/design-round/preview-flow-spec.md §5. In development, and on the preview service.
 export default function LivePreviewGonePage() {
   if (process.env.NODE_ENV === "production" && process.env.PREVIEW_SERVICE !== "1") notFound();
-  return <LiveStoryGone />;
+  return <LiveStoryGone app={process.env.PREVIEW_APP_URL || undefined} />;
 }

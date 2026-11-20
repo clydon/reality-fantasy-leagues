@@ -14,10 +14,13 @@ type Minter = { previewSession: (o: { body: { userId: string }; returnHeaders: t
 export const GET = apiRoute(async (req) => {
   const url = new URL(req.url);
   const host = req.headers.get("host") ?? url.host;
-  if (!host.startsWith("preview.")) throw new HttpError(404, "Not found");
+  // The service answers on its own address only (BETTER_AUTH_URL: its ….vercel.app one first, preview.gameyourshow.com later, the
+  // release plan's decision 1); development on preview.<its host>, never the app's own.
+  const own = process.env.PREVIEW_SERVICE === "1" && process.env.BETTER_AUTH_URL ? new URL(process.env.BETTER_AUTH_URL) : null;
+  if (own ? host !== own.host : !host.startsWith("preview.")) throw new HttpError(404, "Not found");
   // Where it sends you: the service's own address when it's deployed (step 13's review: never built from a request's Host), else
   // this host (development's preview.localhost).
-  const base = process.env.PREVIEW_SERVICE === "1" && process.env.BETTER_AUTH_URL ? new URL(process.env.BETTER_AUTH_URL).origin : `${url.protocol}//${host}`;
+  const base = own ? own.origin : `${url.protocol}//${host}`;
   const to = url.searchParams.get("to") ?? "";
   if (!SCREEN.test(to)) throw new HttpError(400, "Not a screen");
   // A way in it won't spend (used, ended, never one): one page for every reason, so a link can't be probed (the flow spec's §5).

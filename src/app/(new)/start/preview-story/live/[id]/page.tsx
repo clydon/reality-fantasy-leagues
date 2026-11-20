@@ -11,5 +11,5 @@ export default async function LivePreviewStoryPage({ params }: PageProps<"/start
   if (process.env.NODE_ENV === "production" && process.env.PREVIEW_SERVICE !== "1") notFound();
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
-  return <LiveStoryShow id={id} />;
+  return <LiveStoryShow id={id} app={process.env.PREVIEW_APP_URL || undefined} />;
 }

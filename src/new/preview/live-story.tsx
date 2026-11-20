@@ -92,19 +92,20 @@ function goBack(back?: string) {
   else window.location.assign("/");
 }
 
-/** The app's own host, from the preview host (preview.<host>): where a story that's gone sends you. */
-const appHome = () => `${window.location.protocol}//${window.location.host.replace(/^preview\./, "")}${paths.home}`;
+/** The app's home, from the preview host: where a story that's gone sends you. The service says where the app is (`app`, its
+ *  PREVIEW_APP_URL: on its own ….vercel.app address the app isn't its host less "preview."); development drops "preview.". */
+const appHome = (app?: string) => (app ? app.replace(/\/$/, "") : `${window.location.protocol}//${window.location.host.replace(/^preview\./, "")}`) + paths.home;
 
 /** A refusal as the frame shows it: its headline and line, then the one way on that can work now (and Back, where Try again or
  *  the couch leads). */
-function refusalFrame(r: Refusal, back?: string, onRetry?: () => void): FrameProps {
+function refusalFrame(r: Refusal, back?: string, onRetry?: () => void, app?: string): FrameProps {
   const lead = (label: string, go: () => void) => (
     <Btn tone="ink" wide onClick={go}>
       {label}
     </Btn>
   );
   const actions = r.gone ? (
-    lead(r.why === "used" ? "Open the app" : "Back to the app", () => window.location.assign(appHome()))
+    lead(r.why === "used" ? "Open the app" : "Back to the app", () => window.location.assign(appHome(app)))
   ) : r.why === "signin" ? (
     <>
       {lead("Sign in", () => window.location.assign(paths.signin(window.location.pathname + window.location.search)))}
@@ -127,8 +128,8 @@ function refusalFrame(r: Refusal, back?: string, onRetry?: () => void): FramePro
 }
 
 /** A refusal on the frame, on its own (a page that's only that: a used link). */
-export function RefusalFrame({ r, onRetry, back }: { r: Refusal; onRetry?: () => void; back?: string }) {
-  return <PreviewFrame {...refusalFrame(r, back, onRetry)} />;
+export function RefusalFrame({ r, onRetry, back, app }: { r: Refusal; onRetry?: () => void; back?: string; app?: string }) {
+  return <PreviewFrame {...refusalFrame(r, back, onRetry, app)} />;
 }
 
 /** One make per try, however often the page's effect runs (React runs it twice in development): the first ask's answer, shared. */
@@ -195,7 +196,7 @@ export function LiveStory({ game, name, back }: { game: string; name?: string; b
 }
 
 /** On the preview host, as the preview's viewer (signed in by its way in): its story, its screens live. */
-export function LiveStoryShow({ id }: { id: string }) {
+export function LiveStoryShow({ id, app }: { id: string; app?: string }) {
   const [story, setStory] = useState<{ preview: Preview & { complete?: boolean; failed?: string | null }; pass: LivePass } | null>(null);
   const [stop, setStop] = useState<Refusal | null>(null);
   useEffect(() => {
@@ -235,12 +236,12 @@ export function LiveStoryShow({ id }: { id: string }) {
       window.removeEventListener("pagehide", close);
     };
   }, [id]);
-  if (stop && !story) return <RefusalFrame r={stop} />;
+  if (stop && !story) return <RefusalFrame r={stop} app={app} />;
   if (!story) return <PreviewFrame state="working" title="Opening your preview" line={<p>The first moment is ready; the rest land while you look.</p>} actions={null} />;
   return <PreviewStory preview={story.preview} live={story.pass} />;
 }
 
 /** On the preview host, where the enter route sends a way in that's spent, ended or unknown: one page for every reason. */
-export function LiveStoryGone() {
-  return <RefusalFrame r={refusal("used")} />;
+export function LiveStoryGone({ app }: { app?: string }) {
+  return <RefusalFrame r={refusal("used")} app={app} />;
 }

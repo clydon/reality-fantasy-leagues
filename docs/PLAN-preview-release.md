@@ -277,6 +277,9 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
     shared `PREVIEW_SECRET`; none of the app's email, push, AI or provider keys. The domain `preview.gameyourshow.com`.
     Also `AUTH_DATABASE_URL` (the code's name: the integration's `DATABASE_URL`, copied from here, never shown), and
     `APP_DATABASE_HOSTS` (the app's database host, so the live tier refuses it: step 5); then `scripts/preview-database.js mark`.
+    And `PREVIEW_APP_URL` (the app's address, for a gone story's "Back to the app"). On its ….vercel.app address first, before the
+    DNS record: `BETTER_AUTH_URL` is that address (the enter route answers on the service's own host only), and the app's
+    `PREVIEW_SERVICE_URL` the same.
 12. **The app's environment**: `PREVIEW_SERVICE_URL` and `PREVIEW_SECRET`, set from here (secrets made here, never shown).
 13. **A security review** (run here) of the enter route (pass, host, redirect targets), the service's create route (signature, limits), and that
     the service's routes refuse anyone but a preview's viewer.
