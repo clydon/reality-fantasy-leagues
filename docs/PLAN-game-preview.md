@@ -349,7 +349,8 @@ The release plan is its own document: docs/PLAN-preview-release.md (decisions, t
 3. **Sign-in without a shared password.** The bench's people share one password; the service mints the preview viewer's session
    itself.
 4. **Speed.** What's typical played after the story opens (its line arrives a moment later); each moment shown as its copy lands, not
-   after the last; a preview kept for a few minutes for the same game and mark; more copies written side by side.
+   after the last; your own preview kept while you make the game, never shared (the release plan's decision 6); more copies written
+   side by side.
 5. **Where it starts and ends.** The gallery's Preview button opens it (the wizard lane's), and the last card's Create this game
    goes back to the app's host to make the game for you.
 

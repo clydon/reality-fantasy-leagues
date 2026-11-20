@@ -22,38 +22,71 @@ but a development page.
 
 ## Decisions
 
-Decided by the user (2026-11-19): **the free route** (2), **pruned once seen, unless saved or a popular community game** (6), and **an
-allowance people can see** (4). Still open: 1, 3 and 5.
+Decided by the user (2026-11-19): **the free route** (2), **an allowance people can see** (4), and **each person's own preview, never
+shared, recycled strictly** (6, revised the same day). Still open: 1, 3 and 5, each with what's recommended.
 
 1. **Where previews run (recommended: a preview service of their own).** The same app deployed a second time, on
    `preview.gameyourshow.com`, with its own Neon database. A preview writes copies of a season, made-up people and their sessions;
    in their own database none of that can ever show in the real app's catalogue, counts or searches, and a bug in the preview path
-   can't touch real data. The app asks the service for a preview and sends the person to its story. Rejected: the same database with
-   the copies hidden (every query would need a filter, and one missed is a leak); one deployment choosing a database per host (the
-   app's one connection pool is global, so every query path would change).
+   can't touch real data. The app asks the service for a preview and sends the person to its story.
+   - **A second deployment, not only a second database**: the phones are the app's real pages, so whatever serves them must read the
+     preview database.
+   - **Its failures stay its own**: the preview database's limits (decision 2) only ever stop previews, never the app.
+   - **A subdomain is safe** because the app's sign-in cookie is host-only (Better Auth's default; `src/lib/auth.ts` doesn't share it
+     with subdomains), so the service never receives anyone's real session. Step 13 checks it stays so.
+   - **What it shares is the Vercel account**: hence decision 4's monthly budget.
+
+   Rejected: the same database with the copies hidden (every query would need a filter, and one missed is a leak); one deployment
+   choosing a database per host (the app's one connection pool is global, so every query path would change).
 2. **The free route (decided: "We definitely want to go the free route").** Nothing new is paid for:
    - **Vercel Hobby**, the service a second project on the same account (free; it shares the account's monthly limits). Hobby's
      Functions Storage is already over its 10 GB (docs/HOSTING.md, Alerts): before the second project, set deployment retention so old
      deployments go (Vercel › Settings), and keep the service's bundle to what it runs.
-   - **A Neon organization of its own on the Free plan** for the preview database (0.5 GB, 100 CU-hours a month, compute asleep after
-     5 idle minutes). Not a second project in the app's organization: that one is on Launch, which would bill it.
+   - **A Neon organization of its own on the Free plan** for the preview database (1 GB of storage, 100 CU-hours and 5 GB of query
+     results a month, compute asleep after 5 idle minutes; running out suspends that database alone). Not a second project in the
+     app's organization: that one is on Launch, which would bill it. Neon's docs don't say whether a Free organization can sit beside
+     a paid one; if the console refuses, a project in the Launch organization costs about $1–2 a month at these sizes.
    - **Cleanup from the hourly GitHub job** (free while the repository is public), since Hobby's cron runs once a day.
-3. **Who sees it first.** A switch in `app_settings` (`live_previews`: off, admins, everyone), as `catchup_hold` and `bot_ai` are.
+3. **Who sees it first (recommended: a switch on the desk).** `live_previews` in `app_settings` (off, admins, everyone), on the desk's
+   Settings beside Sign-ups, with a history line and Undo as Sign-ups has. It flips in a second, where a deploy (production builds
+   only, migrations included) takes minutes; admins first tries what development can't (real seasons, real marks, the gallery's real
+   games, real usage) before anyone else spends the month; and it's the brake if previews misbehave. No testers stage between: today
+   everyone is one couch.
 4. **An allowance you can see (decided).** "You have 3 previews left today" on the Preview button and the wait, and "No previews left
-   today: the kept ones still open, and more tomorrow" at none. Proposed: 5 a day each; opening a kept preview (6) costs nothing and
-   doesn't count. And at most 10 being made at once overall ("Busy: try again in a minute" past that). These aren't the free plans'
-   own limits, which are monthly totals for the whole account (Vercel's 4 active CPU-hours, Neon's 100 CU-hours): they share those out
-   so one person or one busy night can't use the month up. The numbers are tuned once staging (step 16) measures what a preview costs.
-5. **The spoiler rule for someone with spoiler protection off.** Proposed: their mark is the latest aired episode, so real results run
-   to it and only what comes after is made up.
-6. **What's kept (decided: "prune preview games once they are made, unless favorites, or a community game with more than one
-   playing").** A preview's copies go as soon as it's been seen: when its story closes, and at most 30 minutes after it was made.
-   Kept instead, and shared: a preview of a **saved game** (the gallery's heart) or of a **community game more than one person plays**.
-   A kept preview is keyed by the game's recipe, the season and the mark, so anyone on that mark opens it at once and nobody sees a
-   result past their own; it's shown read-only, so one person's taps can't change it for the next; it goes when the next episode airs
-   (the mark moves on), after 7 days unopened, or when kept previews pass 300 MB of the free 500 (the longest unopened first). Measured
-   in development: 0.3 MB of the main tables for the Survival pool's or the Prediction sheet's copies, 0.9 MB for the Fantasy league's,
-   perhaps twice that with people, sign-ins and indexes: a few hundred kept previews fit.
+   today: more tomorrow" at none. Proposed: 5 a day each (a look through the gallery is 3 to 5 previews, and a day is easy to
+   understand where an hour isn't); reopening your own kept preview (6) costs nothing and doesn't count. At most 10 being made at once
+   overall ("Busy: try again in a minute" past that), for the database and the wait. These aren't the free plans' own limits, which
+   are monthly totals for the whole account (Vercel's 4 active CPU-hours, Neon's 100 CU-hours): they share those out so one person or
+   one busy night can't use the month up.
+   **A monthly budget (recommended, added 2026-11-19).** The service is a second project on the app's Hobby account, so it spends the
+   app's own 4 CPU-hours, and Vercel's community forum has many reports (not official policy) of a Hobby account that went over a
+   limit being paused whole, every project with it, until it upgraded, some still paused after the month reset. So the service adds
+   up what each preview costs it and stops making new ones at a monthly budget: 1 of the 2.6 spare hours to start (very roughly 400
+   to 700 previews), "Previews are full this month: back on the 1st" past it. Staging (step 16) sets the numbers.
+5. **The spoiler rule (recommended: no new rule).** A preview's mark is what the app's own spoiler guard says this person may be told
+   about on this season (`seenThrough`, `src/lib/server/guard.ts`), the check every screen goes through: spoiler protection on, their
+   mark; off, with a seat in a game on the season, everything; only following the season, still their mark; a show kept up by
+   itself, what's aired; unknown, Episode 0. So a preview never shows more real results than the app would show them that day,
+   whatever the guard's rules become. Everything becomes the latest episode whose results are in, not the latest aired (an episode
+   that aired an hour ago has no results yet, so it's made up). The first proposal here, the latest aired episode for anyone with
+   protection off, would have shown someone who only follows the season more than the app does.
+6. **Each person's own preview, recycled strictly (decided; revised the same day: "if we are going to make a preview from a certain
+   point in the season it might spoil other users if it's saved and reused. so maybe we should really just have this per user and
+   have some strict recycling").** This replaces the first answer, previews of saved and popular community games kept and shared by
+   recipe, season and mark. Keyed by mark, sharing wouldn't have shown anyone more than they'd seen, but one wrong key would have
+   spoiled everyone who opened it, it needed read-only phones, and at today's size it saved almost nothing. Now:
+   - **Never shared.** A preview is made for one person, and only they can open it (step 4's way in).
+   - **One at a time.** Making a preview removes your last one.
+   - **Gone when you're done**: when the story closes, and at most 30 minutes after it was made, **unless you leave it to make the
+     game** (Create this game, or going back to change it). Then it's kept for coming back to while you make that game, reopened from
+     it at once and free, as long as the game's settings and your mark haven't changed. It goes when the game is created, when you
+     make another, when your mark moves (it would be out of date), and after 24 hours whatever happens.
+   - **A change, previewed again**, makes a new one (it counts) on the same made-up season for you at that point, so the second shows
+     what your change did.
+
+   So the preview database holds at most one preview per person who previewed in the last day. Measured in development: 0.3 MB of the
+   main tables for the Survival pool's or the Prediction sheet's copies, 0.9 MB for the Fantasy league's, perhaps twice that with
+   people, sign-ins and indexes.
 
 ## How it fits together (the target)
 
@@ -83,33 +116,40 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
 **Code (this lane)**
 1. **The definition from real data, for any season** (`src/lib/server/preview-definition.ts`). Out of the dev script
    (`scripts/dev-test/preview-proof.js` builds the fixture): a season, a mark and a gallery spec become the v2 definition, with the
-   explorer's document builder and the gallery's own spec (start-gallery, the wizard lane's). Checked: Survivor 51's definition equals
-   today's fixture; a definition for mark N holds no real result past N; a season without a cast refuses with why.
+   explorer's document builder and the gallery's own spec (start-gallery, the wizard lane's), at the mark decision 5 gives. Checked:
+   Survivor 51's definition equals today's fixture; a definition for mark N holds no real result past N, and no secret a format keeps
+   past N (in a Traitors season the roles of anyone not revealed by N are made up, or the made-up episodes would give the real ones
+   away); a season without a cast refuses with why.
 2. **Games the runtime can't play yet** say so before anything is made ("No preview for this game yet", with the reason from the
    explorer's own analysis of the spec), never a preview that fails partway. Checked against the gallery's whole catalogue.
 3. **The registry in the service's database** (a `live_previews` table: id, owner key, expiry, the viewer, the copies, the story as it
    fills in, complete or failed), since serverless instances don't share memory. Checked: two instances read one preview.
-4. **Sign-in minted by the service** for the preview's viewer (Better Auth's own session for that user), no password at all. Checked:
-   the enter route signs in without one; an expired or another preview's pass is refused.
+4. **Sign-in minted by the service** for the preview's viewer (Better Auth's own session for that user), no password at all, and **a
+   way in used once**: the app asks the service for it each time its owner opens or reopens the preview (decision 6), so a copied
+   link opens nothing (today's pass is good until the preview expires). Checked: the enter route signs in without a password; an
+   expired, used or another preview's way in is refused.
 5. **The live tier's guard**: today "a local database only"; then "a local database, or one marked as a preview database"
    (`PREVIEW_SERVICE=1`), and it refuses the production database by its host whatever the flag says. Checked both ways.
 6. **The runtime shipped with the service's routes** (`outputFileTracingIncludes` for `tools/gameplay-bench/**` and the engine), and
    the bundle's size measured against Vercel's limits.
 7. **Cleanup**: a sweep on each new preview (as now), and an hourly sweep from the existing GitHub job (`reminders-waivers.yml`) calling
    the service's protected sweep route, so a preview that's never closed still goes. The sweep also removes any copy older than the
-   longest a preview lives, registered or not: in development a maker that failed after writing its copies left 43 cases behind
+   longest a preview lives (a day, decision 6), registered or not: in development a maker that failed after writing its copies left 43 cases behind
    before the registry learned to remove them. Checked: a forgotten preview is gone within the hour; nothing left after a hundred,
    including ones made to fail partway.
-8. **The allowance and errors**: the daily allowance, counted in the app's database (a `preview_uses` row each time one is made) and
-   shown as "previews left", and the overall cap (decision 4); the story's states for a service that's down, a preview that failed
-   partway (the moments made so far stay), and one that has ended. Checked in the end-to-end check.
-8a. **Kept previews** (decision 6): the service keeps a preview of a saved or popular community game under its recipe, season and mark,
-   opens it for anyone asking with the same three without making another, shows its phones read-only (the app's read-only mode: writes
-   refused), and the sweep removes it when its mark is passed, after 7 days unopened, or by size. The app says which games count
-   (saved by the person; a community game with more than one playing). Checked: a second person opens the same preview at once; a
-   different mark makes a new one; nothing kept outlives its episode.
+8. **The allowance, the budget and errors**: the daily allowance, counted in the app's database (a `preview_uses` row each time one is
+   made) and shown as "previews left", the overall cap, and the monthly budget, the service adding up what each preview costs it
+   (decision 4); the story's states for a service that's down, a preview that failed partway (the moments made so far stay), one
+   that has ended, and a month that's full. Checked in the end-to-end check.
+8a. **Your preview, kept while you make the game** (decision 6): one per person (making one removes the last); removed when its story
+   closes unless you left it for Create this game or a change, then kept against the game you're making (its settings and your mark)
+   and reopened from it without making another; removed when that game is created, another is made, your mark moves, or after 24
+   hours. A preview after a change plays the same made-up season (its seed from the person, the season and the mark, not the game).
+   Checked: reopening within the day makes nothing; a change makes a new one and the old is gone; a copied link opens nothing for
+   anyone else; nothing outlives a day.
 9. **The app's side**: `POST /api/previews` (signed in, the switch on) builds the definition, asks the service (signed with a shared
-   secret), and returns the story's address; Create this game comes back to the app with the game's spec.
+   secret), and returns the story's way in; Create this game comes back to the app with the game's spec and the preview it came from
+   (decision 6).
 
 **Infrastructure (the user's accounts)**
 10. **A Neon organization on the Free plan, with one project for previews** (decision 2), its migrations run by the same
@@ -130,7 +170,7 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
 
 **Release**
 16. **On a staging pair first**: the service and a copy of the app on Vercel preview URLs with their own databases; the end-to-end
-    check run against them; 10 previews at once to see the limits hold and what each costs.
+    check run against them; 10 previews at once to see the limits hold, and what each costs (active CPU and query results: decision 4's numbers).
 17. **Admins, then everyone**, by the switch (decision 3).
 18. **Watched**: previews made, failed and refused, and the time to the first live phone, logged; docs/HOSTING.md updated with the
     service, its limits and its cost.
@@ -138,14 +178,17 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
 ## What it costs on the free route (estimated from what development measured)
 
 Money: nothing (decision 2). What it uses of the free plans:
-- **Vercel active CPU** (4 hours a month for the whole account, about 1.4 of them used in the last snapshot): a preview is about a
-  second of the runtime, 2 to 6 seconds playing what's typical, and its copies' writes, mostly waiting on the database, which Fluid
-  compute doesn't count. Call it 3 to 8 active seconds: the 2.6 spare hours are 1,000 to 3,000 previews a month, more as kept ones are
-  opened instead of made. What's typical can be played once per kept preview, or with fewer seasons, if it's tight.
+- **Vercel active CPU** (4 hours a month for the whole account, about 1.4 of them used in the last snapshot): making a preview is
+  about a second of the runtime, 2 to 6 seconds playing what's typical, and its copies' writes, mostly waiting on the database, which
+  Fluid compute doesn't count; then its phones' page loads, a second or two in all. Call it 5 to 9 active seconds: the monthly
+  budget's 1 hour (decision 4) is about 400 to 700 previews, and all 2.6 spare hours would be 1,000 to 1,900. What's typical can be
+  played with fewer seasons if it's tight.
 - **Neon CU-hours** (100 a month, the preview database's own): each burst of previews keeps it awake about five minutes (about 0.02
   CU-hours), so thousands.
-- **Neon storage** (0.5 GB): 0.3 to 0.9 MB per preview in the main tables; what's being looked at is gone within 30 minutes, and kept
-  previews are capped at 300 MB (decision 6).
+- **Neon query results** (5 GB a month, its own): not measured; if a preview's phones read 1 to 3 MB, that's 1,700 or more a month,
+  above the CPU budget.
+- **Neon storage** (1 GB): 0.3 to 0.9 MB per preview in the main tables, perhaps twice that with people and sign-ins; at most one
+  per person who previewed in the last day (decision 6).
 All estimates until step 16 measures them.
 
 ## Risks
@@ -153,5 +196,9 @@ All estimates until step 16 measures them.
 - **Bundle size**: the service's functions carry the runtime, on an account already over Hobby's Functions Storage (decision 2).
 - **Coverage**: a game with a twist the runtime can't play yet has no preview (step 2 says so); the explorer's gaps list is the
   roadmap.
-- **Spoilers**: a wrong mark would put real results in a preview; step 1's check holds the rule.
+- **Vercel's pause**: the service shares the app's Hobby account, and an account over a limit can be paused whole, the app with it
+  (decision 4). The monthly budget keeps previews well inside the spare, and the switch (3) stops them at once.
+- **Spoilers** come from what goes into a preview, not who opens it: a wrong mark, or a secret a format keeps, would put real results
+  in one. The mark is the app's own guard's (5), and step 1's checks hold the rest. Previews are never shared (6), so a mistake
+  reaches one person, not everyone on a mark.
 - **Two lanes**: the gallery (the wizard lane's) owns the button and the spec's shape; this plan needs both agreed before step 9.
