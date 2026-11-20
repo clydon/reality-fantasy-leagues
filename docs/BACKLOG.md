@@ -80,7 +80,7 @@ lineup), with `waivers-by-hand` (62) and the generator's two (82, 100; 89).
 Eastern while checking the sports plan's step 2.1; it fails the same on master (cd1427a8), so it isn't that step's. Its other lines
 pass. The guide's week lists five games (94101, 93104, 94102, 94103, 93108) and the line wants the one on now and tomorrow's among
 them: find whether it's the hour it ran (the fixture's "now" and "tomorrow" against the guide's Eastern day, like 70's
-talk-fixture case) or the guide. It passed whole the same morning at about 3 AM Eastern (sports-phase2, c3078c30's follow-on), so
+talk-fixture case) or the guide. It passed whole the same morning at about 9:30 AM Eastern (sports-phase2, c3078c30's follow-on), so
 it's likely the hour: find which hours fail before changing anything. [S · checks]
 
 **223. check-new-make-it.js --api fails at its first ask.** On the sports-phase0 branch (2026-11-19) its stand-in bot gives no
