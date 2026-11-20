@@ -279,11 +279,25 @@ server.
    leagues and solo games"). What's there: a sport's start sheet already offers own, live and strict (live recommended:
    start-game.ts `runs`); the season's guard goes by a person's mark when every seat they hold there is at its own pace; a caught-up
    own-pace seat never sees a week in progress past its mark (1.1 part 2); the explorer plays own-pace sports games and its
-   campaigns check them. What it needs: (a) an own-pace season game end to end on the NFL fixture (a check): a seat behind told
-   nothing past its mark on any read, its week's lineup open until it has watched the week (own pace's rule), its reveal moving it
-   a week at a time, head to head and the playoffs at own pace, waivers waiting at their sync points (daily ones too, item 5); (b) a
-   solo game at its own pace, alone or with computer players, started from Week 1 of a season under way (a catch-up) and from a week
-   to come; (c) the pace a sheet recommends for a sport: Claude's call, reversible, own for a game played alone or only with
+   campaigns check them.
+   **The rule, tightened (the user, 2026-11-19): a sport's seat at its own pace is never more than one game behind.** "Someone
+   watching the Patriots game won't still want to watch last week's game after this week's game is starting." When a game's next
+   one starts (a slate's next week: its first game), the one before counts as watched: the seat's mark moves on by itself, as Keep
+   up's automatic mark does for a follow (guard.ts, keep-up.ts advanceAuto), and its move for that game closes then at the latest
+   (as live's late window closes when the next one airs). For the major league team sports. Two parts still open:
+   - **Baseball** is different (the user: doubleheaders). Claude's recommendation, to confirm: by the day, so the games before
+     count as watched once a game on a later day starts, and a doubleheader's first game isn't marked watched at the second's
+     first pitch.
+   - **Individual sports** (tennis, golf, racing, fights): no rule yet (the user doesn't follow them): plain own pace until someone
+     who does plays one.
+   What it means: nobody's ever a week behind more than one, so head to head, the playoffs and waivers never wait longer than the
+   next game's start; and a sports game at own pace starts at the game to come or the one just played, never as a catch-up from
+   Week 1 of a season well under way, or a finished season (both would be marked watched at once). Replaying a past season alone is
+   a different thing (Watch it as if live's, or a mode of its own), raised with the user, not planned.
+   What it needs: (a) an own-pace season game end to end on the NFL fixture (a check): a seat behind told nothing past its mark on
+   any read, its week's lineup open until it has watched the week or the next week starts, its reveal moving it a week at a time and
+   the next week's start moving it by itself, head to head and the playoffs at own pace, waivers waiting at their sync points (daily
+   ones too, item 5); (b) a solo game at its own pace, alone or with computer players, from the game to come; (c) the pace a sheet recommends for a sport: Claude's call, reversible, own for a game played alone or only with
    computer players, live for a league of people, own one tap away; (d) the reveal an own-pace seat moves its mark with, the same
    one BACKLOG 216 gives anyone hiding sports scores (4.2's page 3 designs it); (e) live points (1.1 part 3) and the matchup push
    (217) never past an own-pace seat's mark.
