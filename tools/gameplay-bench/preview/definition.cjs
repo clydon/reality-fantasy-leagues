@@ -154,7 +154,8 @@ function build(input, o = {}) {
     id: 'show', kind: 'show', label, format: { id: season.format || 'survivor' },
     engine: { ...season.page.ctx, moments, couch: COUCH.length, pool: season.page.ctx.pool },
     phaseStarts: { merged: merge },
-    dress: { name: season.show?.name || label, seasonName: season.seasonName || label, number: season.number, art: { borrow: season.show?.slug || season.format || 'survivor' } },
+    // The art: given (the app's reader sends the real show's, as its URLs) or, without it, borrowed by slug (the dev proof's).
+    dress: { name: season.show?.name || label, seasonName: season.seasonName || label, number: season.number, art: season.art ? { given: season.art } : { borrow: season.show?.slug || season.format || 'survivor' } },
   };
   const events = season.episodes.slice().sort((a, b) => a.number - b.number).map((e) => ({ id: 'show-event-' + e.number, contextId: 'show', number: e.number, airAt: e.airAt, resultStatus: e.number < season.from ? 'final' : 'unavailable' }));
   const real = realFacts(season, participants, new Set(moments.map((m) => m.id)));

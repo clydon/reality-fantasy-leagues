@@ -13,7 +13,7 @@ const Module = require("module");
 
 const root = path.resolve(__dirname, "../..");
 const dist = path.resolve(root, (process.argv.find((a) => a.startsWith("--dist=")) || "--dist=.next-build").slice(7));
-const ROUTES = ["api/preview-live", "api/preview-live/[id]", "api/preview-live/sweep"];
+const ROUTES = ["api/previews", "api/preview-live", "api/preview-live/make", "api/preview-live/[id]", "api/preview-live/sweep"];
 
 // Everything loaded or read from this checkout while a preview's runtime runs.
 const seen = new Set();

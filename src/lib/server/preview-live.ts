@@ -27,10 +27,13 @@ export const AT_ONCE = 10;
 export const MONTH_CPU_MS = Number(process.env.PREVIEW_MONTH_CPU_MS) || 3_600_000;
 /** What a preview's phones cost on top of making it (their pages' renders, not measured here): a second and a half. */
 const PHONES_CPU_MS = 1500;
-/** The first slice's gallery games (the gallery's Preview button sends any game's spec: the release plan's step 15). */
-const GAMES: Record<string, PreviewGame> = { fantasy: { base: "fantasy", changes: ["redraft"] }, sheet: { base: "sheet" }, pool: { base: "pool" } };
 
 type Made = { viewerUser: string; viewerPass?: string; copies: string[]; complete?: boolean; failed?: string | null } & Record<string, unknown>;
+
+/** The preview builder (its made-up results, from the rates the app sends), loaded as the maker is. */
+function builder() {
+  return createRequire(path.join(process.cwd(), "package.json"))("./tools/gameplay-bench/preview/definition.cjs") as { resultsFor: (season: { rates: Record<string, number> }) => unknown };
+}
 
 /** The bench's live maker, loaded from disk at run time (plain CommonJS outside src/, never bundled). */
 function bench() {
@@ -111,13 +114,6 @@ export async function sweepAll(): Promise<{ swept: boolean; expired: number; sta
   return { swept: true, expired, stale: stale.length };
 }
 
-/** Development's season when none is asked for: Survivor 51 in this database (the first slice's). */
-async function devSeason(): Promise<string> {
-  const { rows } = await pool.query(`SELECT ss.id FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE s.slug = 'survivor' AND ss.season_number = 51`);
-  if (!rows[0]) throw new HttpError(422, "No Survivor 51 in this database");
-  return rows[0].id;
-}
-
 /** Where the story's last card goes (the gallery's, step 15: back to the game's setup, or on to make it), on the app's host. */
 export interface Exits {
   back: string;
@@ -128,38 +124,33 @@ export interface Exits {
 export const gameKeyOf = (seasonId: string, mark: number, game: PreviewGame) => crypto.createHash("sha256").update(JSON.stringify([seasonId, mark, game.base, game.changes ?? []])).digest("base64url");
 
 /**
- * A live preview of a gallery game for `user`: the season read for them at their own mark (preview-definition.ts, step 1), its
- * moments, each screen's copy and address on the preview host. `where`: the season (default Survivor 51) and the couch the game would
- * be made on (default their first). Their preview of the same game at the same mark, while it lasts, is reopened instead, free
- * (decision 6); otherwise `take` takes one of their day's previews (given back if it isn't made) and any other preview of theirs
- * goes (one at a time). Answers the preview's id and a way into its story.
+ * What the app asks the service to make (src/lib/server/previews.ts, step 9): the definition it built from the real season, the
+ * made-up results' rates, the person as an opaque key (never their id), which game at which mark (the key that reopens it), where
+ * its last card goes, and whether they have a preview left today (else it can only reopen one).
  */
-export async function makeLivePreview(
-  user: SessionUser,
-  game: string,
-  where: { seasonId?: string; couchId?: string | null; exits?: Exits } = {},
-  take: () => Promise<{ left: number; giveBack: () => Promise<void> }> = async () => ({ left: 0, giveBack: async () => {} })
-) {
+export interface MakeRequest {
+  owner: string;
+  key: string;
+  definition: object;
+  rates: Record<string, number>;
+  exits: Exits | null;
+  canMake: boolean;
+}
+
+/**
+ * Make a live preview from a definition (the service's half): their preview of the same game at the same mark, while it lasts, is
+ * reopened instead (decision 6); otherwise any other preview of theirs goes (one at a time) and this one is made: its moments, each
+ * screen's copy and address on the preview host. Answers its id and a way into its story.
+ */
+export async function makeFromDefinition(o: MakeRequest): Promise<{ id: string; entry: string; expires: number; reopened: boolean }> {
   serviceOnly();
-  const g = GAMES[game];
-  if (!g) throw new HttpError(400, "No such game to preview");
   await sweepLivePreviews();
-  const { make, down } = bench();
-  // Loaded when used: the season reader brings the start-a-game modules with it.
-  const { previewDefinition } = await import("./preview-definition");
-  const seasonId = where.seasonId ?? (await devSeason());
-  const { definition, resultsFor, season } = await previewDefinition(user, seasonId, where.couchId ?? null, g);
-  const key = gameKeyOf(seasonId, season.mark, g);
-  const again = await reopen(user.id, key);
+  const again = await reopen(o.owner, o.key);
   if (again) return { ...again, reopened: true };
-  const use = await take();
-  let id: string;
-  try {
-    id = await startMaking(user.id, key, where.exits ?? null);
-  } catch (e) {
-    await use.giveBack();
-    throw e;
-  }
+  if (!o.canMake) throw new HttpError(429, "No previews left today: more tomorrow.");
+  const { make, down } = bench();
+  const resultsFor = builder().resultsFor({ rates: o.rates });
+  const id = await startMaking(o.owner, o.key, o.exits);
   const cpu0 = process.cpuUsage();
   let made: Made | null = null;
   // Each copy as it lands, saved for whichever instance the story asks (its row exists once the first is written).
@@ -168,14 +159,12 @@ export async function makeLivePreview(
   // its route's maxDuration).
   let out: Awaited<ReturnType<ReturnType<typeof bench>["make"]>>;
   try {
-    out = await make({ input: definition, app: process.env.BETTER_AUTH_URL || "http://localhost:3014", resultsFor, seasons: 5, onState });
+    out = await make({ input: o.definition, app: process.env.BETTER_AUTH_URL || "http://localhost:3014", resultsFor, seasons: 5, onState });
   } catch (e) {
     await pool.query(`DELETE FROM live_previews WHERE id = $1`, [id]).catch(() => {});
-    await use.giveBack();
     throw e;
   }
-  made = out.preview;
-  try {
+  made = out.preview;  try {
     // The people's password is the maker's alone (its writes as each person, through the real routes): never kept.
     delete made.viewerPass;
     const { rows } = await pool.query(`SELECT id FROM "user" WHERE username = $1`, [made.viewerUser]);
@@ -190,22 +179,21 @@ export async function makeLivePreview(
         await spent(cpu0);
       })
     );
-    return { id, entry, expires: Date.now() + LIVE_MINUTES * 60_000, left: use.left, reopened: false };
+    return { id, entry, expires: Date.now() + LIVE_MINUTES * 60_000, reopened: false };
   } catch (e) {
     // Never a copy nobody knows about: anything that fails once copies exist removes them (the ones still landing too).
     const failed = made;
     await Promise.resolve(out.rest).catch(() => {}).then(() => down(failed)).catch(() => {});
     await pool.query(`DELETE FROM live_previews WHERE id = $1`, [id]).catch(() => {});
-    await use.giveBack();
     throw e;
   }
 }
 
 /** Their preview of this game at this mark, while it lasts (its first copy written): a new way into it. */
-async function reopen(userId: string, key: string): Promise<{ id: string; entry: string; expires: number } | null> {
+async function reopen(owner: string, key: string): Promise<{ id: string; entry: string; expires: number } | null> {
   const { rows } = await pool.query(
     `SELECT id, COALESCE(kept_until, expires_at) AS until FROM live_previews WHERE owner_key = $1 AND game_key = $2 AND viewer_user_id IS NOT NULL AND COALESCE(kept_until, expires_at) > now() ORDER BY created_at DESC LIMIT 1`,
-    [ownerKey(userId), key]
+    [owner, key]
   );
   if (!rows[0]) return null;
   return { id: rows[0].id, entry: await entryFor(rows[0].id), expires: new Date(rows[0].until).getTime() };
@@ -229,7 +217,7 @@ export async function keepLivePreview(id: string, user: SessionUser): Promise<{ 
  * A preview's row, from the moment it starts being made (its viewer and copies once the first is written), so the previews being
  * made at once can be counted: refused past AT_ONCE ("Busy"), or once the month's budget is spent ("full this month").
  */
-async function startMaking(userId: string, key: string, exits: Exits | null): Promise<string> {
+async function startMaking(owner: string, key: string, exits: Exits | null): Promise<string> {
   const db = await pool.connect();
   let old: { id: string; copies: string[] }[] = [];
   try {
@@ -240,9 +228,9 @@ async function startMaking(userId: string, key: string, exits: Exits | null): Pr
     const { rows: [busy] } = await db.query(`SELECT count(*)::int AS k FROM live_previews WHERE NOT complete AND created_at > now() - interval '5 minutes'`);
     if (busy.k >= AT_ONCE) throw new HttpError(503, "Busy: try again in a minute.");
     // One at a time (decision 6): their other previews go.
-    old = (await db.query(`DELETE FROM live_previews WHERE owner_key = $1 RETURNING id, copies`, [ownerKey(userId)])).rows;
+    old = (await db.query(`DELETE FROM live_previews WHERE owner_key = $1 RETURNING id, copies`, [owner])).rows;
     const id = crypto.randomUUID();
-    await db.query(`INSERT INTO live_previews (id, owner_key, game_key, story, expires_at) VALUES ($1, $2, $3, $4, now() + make_interval(mins => $5))`, [id, ownerKey(userId), key, JSON.stringify({ exits }), LIVE_MINUTES]);
+    await db.query(`INSERT INTO live_previews (id, owner_key, game_key, story, expires_at) VALUES ($1, $2, $3, $4, now() + make_interval(mins => $5))`, [id, owner, key, JSON.stringify({ exits }), LIVE_MINUTES]);
     await db.query("COMMIT");
     if (old.length) void drop(old);
     return id;
@@ -306,6 +294,13 @@ export async function livePreviewStory(id: string, user: SessionUser) {
   );
   if (!rows[0]) throw new HttpError(403, "This preview has ended");
   return { ...rows[0].story, complete: rows[0].complete, failed: rows[0].failed, id, expires: new Date(rows[0].until).getTime() };
+}
+
+/** The game made, or the person done with it (the app's own ask, signed: step 9): their preview goes, kept or not. */
+export async function closeByOwner(id: string, owner: string) {
+  serviceOnly();
+  const { rows } = await pool.query(`DELETE FROM live_previews WHERE id = $1 AND owner_key = $2 RETURNING id, copies`, [id, owner]);
+  await drop(rows);
 }
 
 /**

@@ -28,6 +28,8 @@ export interface PreviewSeason {
   from: number;
   page: { ctx: Record<string, unknown>; pack: Record<string, unknown> };
   rates?: Record<string, number>;
+  /** The show's art as the app shows it (URLs: TMDB's or the project's own), written on the preview's copies. */
+  art?: { art: string | null; backdrop: string | null; logo: string | null; artStyle: unknown; backdropStyle: unknown; season: string | null };
 }
 
 /** The game previewed: a gallery base and the gallery's changes on it. */
@@ -50,7 +52,8 @@ export function builder(): Builder {
 /** The season as the builder takes it, for `user` on `couchId`'s page. */
 export async function previewSeason(user: SessionUser, seasonId: string, couchId: string | null, now = new Date()): Promise<PreviewSeason> {
   const { rows: [s] } = await pool.query(
-    `SELECT sh.name AS show, sh.slug, sh.format, sh.kind, ss.name, ss.season_number FROM show_seasons ss JOIN shows sh ON sh.id = ss.show_id WHERE ss.id = $1`,
+    `SELECT sh.name AS show, sh.slug, sh.format, sh.kind, ss.name, ss.season_number, sh.art_url, sh.backdrop_url, sh.logo_url, sh.art_style, sh.backdrop_style, ss.art_url AS season_art
+       FROM show_seasons ss JOIN shows sh ON sh.id = ss.show_id WHERE ss.id = $1`,
     [seasonId]
   );
   if (!s) throw new HttpError(404, "No such season");
@@ -89,6 +92,7 @@ export async function previewSeason(user: SessionUser, seasonId: string, couchId
     mark,
     from: opts.from,
     page,
+    art: { art: s.art_url ?? null, backdrop: s.backdrop_url ?? null, logo: s.logo_url ?? null, artStyle: s.art_style ?? null, backdropStyle: s.backdrop_style ?? null, season: s.season_art ?? null },
   };
   // Too little of this season seen to shape the made-up moments by: the show's latest other season's (all aired, its rates only).
   if (mark < 2) season.rates = await otherSeasonRates(seasonId);

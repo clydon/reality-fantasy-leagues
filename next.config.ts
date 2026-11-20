@@ -12,7 +12,7 @@ const EMBEDDING_ROUTES = [
 // (src/lib/server/preview-live.ts and preview-definition.ts, createRequire), outside what the bundler sees, and the engine it plays
 // (src/lib/game, some of it TypeScript compiled as it loads, by jiti). Shipped with those routes only.
 // scripts/dev-test/preview-trace-check.js checks a build's trace holds everything a preview loads.
-const PREVIEW_ROUTES = ["/api/preview-live", "/api/preview-live/[id]", "/api/preview-live/sweep"];
+const PREVIEW_ROUTES = ["/api/previews", "/api/preview-live", "/api/preview-live/make", "/api/preview-live/[id]", "/api/preview-live/sweep"];
 const PREVIEW_FILES = [
   "./tools/gameplay-bench/**/*.{cjs,js,json}",
   "./tools/ui-atlas/**/*.{cjs,js,json}",

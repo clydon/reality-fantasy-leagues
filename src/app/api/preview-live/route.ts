@@ -2,26 +2,28 @@ import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireAuth } from "@/lib/server/auth-helpers";
 import { HttpError } from "@/lib/server/http-error";
-import { giveBack, takePreview } from "@/lib/server/preview-allowance";
-import { makeLivePreview } from "@/lib/server/preview-live";
+import { pool } from "@/lib/server/db";
+import { startPreview } from "@/lib/server/previews";
 
 // Make a game's preview now (docs/PLAN-game-preview.md, "On demand"; src/lib/server/preview-live.ts): a made-up season played on the
 // server and each of its moments written as a temporary copy of the game, for the story to show live. In development and on the preview service. The first
 // moment answers, with a way into its story used once; the rest are written after the response, inside this route's time.
 export const maxDuration = 120;
 
+/** The first slice's gallery games, by the development page's names (the gallery's Preview button sends any game: step 15). */
+const GAMES: Record<string, { base: string; changes?: unknown[] }> = { fantasy: { base: "fantasy", changes: ["redraft"] }, sheet: { base: "sheet" }, pool: { base: "pool" } };
+
 export const POST = apiRoute(async (req) => {
   const user = await requireAuth(req);
   const body = (await req.json().catch(() => ({}))) as { game?: unknown; season?: unknown; couch?: unknown };
   if (typeof body.game !== "string") throw new HttpError(400, "Which game?");
+  const game = GAMES[body.game];
+  if (!game) throw new HttpError(400, "No such game to preview");
   const str = (v: unknown) => (typeof v === "string" && v ? v : undefined);
-  // Their preview of this game at this mark reopens, free; otherwise one of today's previews (the app's allowance: decision 4), given
-  // back if this one isn't made. Its last card goes back to the app's own host (the gallery's places come with step 15).
-  const app = new URL(req.url).origin;
-  const exits = { back: `${app}/home`, create: `${app}/home` };
-  const take = async () => {
-    const use = await takePreview(user.id);
-    return { left: use.left, giveBack: () => giveBack(use.useId) };
-  };
-  return NextResponse.json(await makeLivePreview(user, body.game, { seasonId: str(body.season), couchId: str(body.couch) ?? null, exits }, take));
+  // The season: the one asked for, else Survivor 51 in this database (the first slice's).
+  const season = str(body.season) ?? (await pool.query(`SELECT ss.id FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE s.slug = 'survivor' AND ss.season_number = 51`)).rows[0]?.id;
+  if (!season) throw new HttpError(422, "No Survivor 51 in this database");
+  // Through the app's own half (src/lib/server/previews.ts), as the gallery's button will be; its last card goes back home.
+  const origin = new URL(req.url).origin;
+  return NextResponse.json(await startPreview(user, { seasonId: season, couchId: str(body.couch) ?? null, game, exits: { back: `${origin}/home`, create: `${origin}/home` }, origin }));
 });

@@ -233,6 +233,17 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
    from, as the live tier does locally: `fixture-art.js` borrow): `POST /api/previews` (signed in, the switch on) builds the definition, asks the service (signed with a shared
    secret), and returns the story's way in; Create this game comes back to the app with the game's spec and the preview it came from
    (decision 6).
+   **Done (2026-11-19).** `src/lib/server/previews.ts` (the app's half): the desk's switch (`app_settings` `live_previews`: off,
+   admins, everyone; off in production until set, everyone in development), the season read for the person
+   (`preview-definition.ts`, now with the show's art), one of today's previews taken, and the service asked: in-process in
+   development, else over HTTPS to `PREVIEW_SERVICE_URL`, signed with `PREVIEW_SECRET` (`preview-signature.ts`: an HMAC of the time
+   and the body, five minutes). It sends the definition, the made-up results' rates, the person as an opaque key and the game's key;
+   a reopened preview gives its use back; at none left it can still reopen. `POST /api/previews` answers the story's address on the
+   service (a way in) and how many are left; `DELETE /api/previews/[id]` removes it (the game made: kept or not). The service's half,
+   `preview-live.ts` `makeFromDefinition` behind `POST /api/preview-live/make`, takes only signed asks, and a signed `DELETE` removes
+   an owner's preview. The development page goes through the app's half too. Checked: `scripts/dev-test/preview-service-check.js`
+   (unsigned, wrongly signed and stale asks refused; made, reopened, another owner's removal refused, its owner's done, all over
+   HTTP); the end-to-end, limits and keep checks through the app's half. The app's `ask` over HTTPS is tried for real at step 16.
 
 **Infrastructure (the user's accounts)**
 10. **A Neon database on the Free plan** (decision 2), added to the service's project from Vercel's Marketplace (the user's click: Who
@@ -241,6 +252,8 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
     the Vercel command line: this repository, production builds only (as the app's), Fluid compute on, its own environment: the preview
     database's URL, `PREVIEW_SERVICE=1`, `BETTER_AUTH_URL=https://preview.gameyourshow.com`, its own `BETTER_AUTH_SECRET`, the
     shared `PREVIEW_SECRET`; none of the app's email, push, AI or provider keys. The domain `preview.gameyourshow.com`.
+    Also `AUTH_DATABASE_URL` (the code's name: the integration's `DATABASE_URL`, copied from here, never shown), and
+    `APP_DATABASE_HOSTS` (the app's database host, so the live tier refuses it: step 5); then `scripts/preview-database.js mark`.
 12. **The app's environment**: `PREVIEW_SERVICE_URL` and `PREVIEW_SECRET`, set from here (secrets made here, never shown).
 13. **A security review** (run here) of the enter route (pass, host, redirect targets), the service's create route (signature, limits), and that
     the service's routes refuse anyone but a preview's viewer.

@@ -122,7 +122,13 @@ async function up(snap, document, dbUrl, onLease, opts = {}) {
       const dress = world.context.dress || null, number = dress?.number || 1;
       const show = (await one(`INSERT INTO shows (slug, name, format, created_by${sport ? ', kind, castaway_term, tribe_term, episode_term, set_up_at' : ''}) VALUES ($1, $2, $3, $4${sport ? ", 'sport', 'Player', 'Team', 'Game', now()" : ''}) RETURNING id`, [slug, dress?.name || 'ZT Bench ' + (world.context.label || contextId), format, owner])).id;
       const season = (await one(`INSERT INTO show_seasons (show_id, season_number, name, status, air_tz, episode_count, episode_minutes, cast_approved_at) VALUES ($1, $2, $3, 'airing', 'America/New_York', $4, 60, now()) RETURNING id`, [show, number, dress?.seasonName || 'ZT Bench ' + key, world.events.length])).id;
-      if (dress?.art?.borrow) await require('../../scripts/dev-test/fixture-art.js').borrow(db, slug, dress.art.borrow);
+      // The show's art given with the definition (a live preview's, read by the app: its database has the real show, the preview
+      // service's doesn't), else borrowed from a real show here, else the project's own generated art.
+      if (dress?.art?.given) {
+        const g = dress.art.given;
+        await db.query(`UPDATE shows SET art_url = $2, backdrop_url = $3, logo_url = $4, art_style = $5, backdrop_style = $6 WHERE slug = $1`, [slug, g.art || null, g.backdrop || null, g.logo || null, g.artStyle ?? null, g.backdropStyle ?? null]);
+        if (g.season) await db.query(`UPDATE show_seasons SET art_url = $2 WHERE id = $1`, [season, g.season]);
+      } else if (dress?.art?.borrow) await require('../../scripts/dev-test/fixture-art.js').borrow(db, slug, dress.art.borrow);
       else if (dress?.art?.generated) await require('../../scripts/dev-test/fixture-art.js').generated(db, slug, dress.art.generated);
       ids.seasons[contextId] = { id: season, slug, number, ...(sport ? { sport: { league: world.context.key, events: slugOf(key, 'c' + (ci + 1)) } } : {}) };
       ids.groups[contextId] = (await one(`INSERT INTO league_groups (created_by) VALUES ($1) RETURNING id`, [owner])).id;
