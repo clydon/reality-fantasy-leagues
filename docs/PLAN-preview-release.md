@@ -298,7 +298,7 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
 14. **The design round on the flow** (docs/DESIGN-PROCESS.md: Intent, Perception-First Design and Impeccable once each, one check, one
     batch, the screenshot story, a pause): the Preview button's place, the wait (today's making screen), moments arriving, the phone's
     states, the ended and failed states, and Create this game.
-    **Built, waiting for the user's look (2026-11-20).** docs/design-round/preview-flow-spec.md (Intent: the flow, every refusal,
+    **Approved (2026-11-20, the user: "looks good"; the wait stays as built, not the title card).** docs/design-round/preview-flow-spec.md (Intent: the flow, every refusal,
     Try it's line for step 15, the desk), preview-flow-first-view.md (PFD: R1 to R5; no count during the wait), then built: one
     frame for the wait and every way it stops (`live-story.tsx`, the words in `refusals.ts` for the gallery to reuse), the story's
     strip marking moments still coming and never made, a used or ended link's own page (the enter route sends it there), and the
