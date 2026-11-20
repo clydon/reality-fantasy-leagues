@@ -241,6 +241,13 @@ cached; a suspended game's for 30 days, and a game its day's scoreboard hasn't g
 hours, at most 10 a run: L3 part 3b), a game first seen after it started taking its summary's line (the box score the stats read anyway, cached for good), and
 sets each matchup season's status. Measured on the real 76ers home opener (2026-10-28): 5 ESPN calls in 0.5 s (the schedule, its summary for
 the line, two rosters, the next game's scoreboard), none a second time. Not backed up (asked again).
+**The daily job's sports upkeep since 2026-11-19 (branch sports-phase0, docs/PLAN-sports-ready.md steps 1.2 and 1.4; not merged)**
+wakes nothing new: it runs inside the same daily listings job. It refills each sports season with a game near now once a day (at
+most 10 seasons a run: a roster call per linked team, cached a day and shared by a league's seasons, so about 32 calls a day for
+the NFL however many seasons follow it), so signings and trades arrive; and it reads each kept final again for a correction, about
+a day after it was kept and once before the next game of a season linking it (a summary call per game, twice: an NFL week about
+30 calls), a final with nothing readable every six hours until it reads. Neon: three columns on `sports_events` (migration 0309),
+an update a re-read, and the cast fill's writes as before.
 **Finding a game by team (track L, L7, migration 0303; merged and live 2026-11-07; no screen calls it yet)** polls nothing
 and wakes nothing of its own: three routes, asked only when someone searches, opens a team or adds. **Search** (`/api/sports/search`,
 open signed out, edge-cached an hour per query) matches the words against each team sport's league team list, read from ESPN's

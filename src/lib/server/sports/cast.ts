@@ -17,8 +17,9 @@ import { SportsUnavailable, type Person, type SportsProvider } from "./types";
 //
 // Only a sport nobody's made a game of, whose people are none yet or came from here: a game's cast (Make it a game, the desk) and
 // one our bot or a paste filled in are never touched. It only adds (whoever's missing as more games are linked or played), never
-// removes; someone already in has their position kept as their roster says it now. The season's fill (cast_fills) is held while
-// it runs, as Fill in who's playing's ask holds it (rosters.ts).
+// removes; someone already in has their position and team kept as their roster says them now (a trade: step 1.4). The season's
+// fill (cast_fills) is held while it runs, as Fill in who's playing's ask holds it (rosters.ts). The daily job refills every
+// sports season with games near now once a day (refreshRosters), so a signing or a trade is in within a day.
 //
 // BACKLOG 220: the people are the season's cast as soon as they're in (season-cast.ts approveSportCast), so a game started on the
 // season takes them, and anyone a fill adds later (a team linked later, a signing) reaches every game already on it, as the desk's
@@ -65,6 +66,8 @@ export interface CastFill {
   message: string | null;
   /** Someone else's fill is going. */
   busy?: boolean;
+  /** People already in whose team changed (a trade: step 1.4). */
+  moved?: number;
   /** Why it wasn't looked at (not a sport, a game's cast...). */
   skipped?: string;
 }
@@ -177,29 +180,34 @@ export async function releaseFill(seasonId: string, message: string | null, fill
 /**
  * Write whoever's missing (by the provider's id, else by name), after the people already there, and keep the position of someone
  * already there (by the provider's id) as their roster says it now (BACKLOG 221: a season filled before positions were ESPN's
- * abbreviations); only while it's still castable. Then the season's people approved (BACKLOG 220). Returns who it added and
- * whether it approved them just now.
+ * abbreviations) and their team as the roster that lists them now (a trade, step 1.4: their per-game lock follows it, air-times.ts
+ * reads their row); only while it's still castable. Then the season's people approved (BACKLOG 220). Returns who it added, how
+ * many moved team, and whether it approved them just now.
  */
-async function saveCast(seasonId: string, groups: CastGroup[]): Promise<{ added: CastPerson[]; approved: boolean }> {
+async function saveCast(seasonId: string, groups: CastGroup[]): Promise<{ added: CastPerson[]; moved: number; approved: boolean }> {
   const c = await pool.connect();
   try {
     await c.query("BEGIN");
     await c.query("SELECT id FROM show_seasons WHERE id = $1 FOR UPDATE", [seasonId]);
     if (!(await castable(seasonId, c)).ok) {
       await c.query("ROLLBACK");
-      return { added: [], approved: false };
+      return { added: [], moved: 0, approved: false };
     }
-    const { rows } = await c.query("SELECT id, lower(name) AS name, role, provider_ids, sort_order FROM season_cast WHERE season_id = $1", [seasonId]);
+    const { rows } = await c.query("SELECT id, lower(name) AS name, role, tribe_name, provider_ids, sort_order FROM season_cast WHERE season_id = $1", [seasonId]);
     const names = new Set(rows.map((r) => r.name as string));
     const ids = new Map(rows.flatMap((r) => Object.entries((r.provider_ids ?? {}) as Record<string, string>).map(([k, v]) => [`${k}:${v}`, r] as const)));
     let order = rows.reduce((m, r) => Math.max(m, (r.sort_order as number) ?? 0), -1) + 1;
     const added: CastPerson[] = [];
+    let moved = 0;
     for (const g of groups) {
       for (const p of g.people) {
         const had = Object.entries(p.ids).map(([k, v]) => ids.get(`${k}:${v}`)).find(Boolean);
         const role = p.role?.slice(0, 60) ?? null;
         if (had) {
-          if (role && had.role !== role) await c.query("UPDATE season_cast SET role = $2 WHERE id = $1", [had.id, role]);
+          const team = g.name.slice(0, 60);
+          const traded = g.name !== FIELD && had.tribe_name !== team;
+          if ((role && had.role !== role) || traded) await c.query("UPDATE season_cast SET role = COALESCE($2, role), tribe_name = $3 WHERE id = $1", [had.id, role, traded ? team : had.tribe_name]);
+          if (traded) moved++;
           continue;
         }
         // Someone the provider names is theirs by id alone (step 1.3, migration 0308): two who share a name are two people.
@@ -216,13 +224,52 @@ async function saveCast(seasonId: string, groups: CastGroup[]): Promise<{ added:
     }
     const approved = await approveSportCast(c, seasonId);
     await c.query("COMMIT");
-    return { added, approved };
+    return { added, moved, approved };
   } catch (e) {
     await c.query("ROLLBACK").catch(() => {});
     throw e;
   } finally {
     c.release();
   }
+}
+
+/** Seasons refilled a daily run, at most (each a roster call a linked team, cached a day and shared by a league's seasons). */
+const ROSTERS_A_RUN = 10;
+/** A season's people refilled when its last fill is this old (the daily job's: a day, give or take its hour). */
+const ROSTER_EVERY_MS = 20 * 3_600_000;
+
+/**
+ * Step 1.4: the daily job's roster refresh (refreshSportsEvents). Every sports season whose people came from here, with a team game
+ * linked from three days back to eight ahead, refilled when its last fill is a day old: a signing is added, a trade moves the
+ * player's team (and his lock), and anyone new reaches every game on the season (castFromEvents). The oldest fill first, at
+ * most ROSTERS_A_RUN; `only` (a check's seasons) looks at just those.
+ */
+export async function refreshRosters(opts: { providers?: SportsProvider[]; now?: Date; only?: string[] } = {}): Promise<{ seasons: number; filled: number; moved: number; errors: string[] }> {
+  const now = opts.now ?? new Date();
+  const { rows } = await pool.query(
+    `SELECT ss.id FROM show_seasons ss JOIN shows s ON s.id = ss.show_id LEFT JOIN cast_fills f ON f.season_id = ss.id
+      WHERE s.kind = 'sport' AND ($3::uuid[] IS NULL OR ss.id = ANY($3::uuid[]))
+        AND EXISTS (SELECT 1 FROM season_events e WHERE e.season_id = ss.id AND e.teams IS NOT NULL
+                     AND e.starts_at BETWEEN $1::timestamptz - interval '3 days' AND $1::timestamptz + interval '8 days')
+        AND EXISTS (SELECT 1 FROM season_cast c WHERE c.season_id = ss.id AND c.provider_ids IS NOT NULL)
+        AND f.asking_at IS NULL AND (f.updated_at IS NULL OR f.updated_at < $1::timestamptz - make_interval(secs => $2))
+      ORDER BY f.updated_at NULLS FIRST LIMIT ${ROSTERS_A_RUN}`,
+    [now, ROSTER_EVERY_MS / 1000, opts.only ?? null]
+  );
+  let filled = 0;
+  let moved = 0;
+  const errors: string[] = [];
+  for (const r of rows) {
+    try {
+      const out = await castFromEvents(r.id, { providers: opts.providers, now });
+      filled += out.filled;
+      moved += out.moved ?? 0;
+      if (out.message) errors.push(`rosters ${r.id}: ${out.message}`);
+    } catch (e) {
+      errors.push(`rosters ${r.id}: ${(e as Error).message.slice(0, 160)}`);
+    }
+  }
+  return { seasons: rows.length, filled, moved, errors };
 }
 
 /** The season's people, into every game on it (BACKLOG 220): whoever a game hasn't got, its group their team. */
@@ -251,10 +298,10 @@ export async function castFromEvents(seasonId: string, opts: { providers?: Sport
     const links: LinkedEvent[] = rows.map((r) => ({ episode: r.episode, provider: r.provider, league: r.league, eventId: r.event_id, part: r.part, startsAt: r.starts_at ? (r.starts_at as Date).toISOString() : null, teams: r.teams }));
     if (links.length) {
       const { groups, waiting } = await rosterFromEvents(links, opts.providers ?? sportsProviders(), now);
-      const { added, approved } = await saveCast(seasonId, groups);
-      out = { filled: added.length, waiting, message: null };
+      const { added, moved, approved } = await saveCast(seasonId, groups);
+      out = { filled: added.length, waiting, message: null, ...(moved ? { moved } : {}) };
       // Everyone new, into every game on the season (one failing is that game's alone: applyApprovedCastToLeagues).
-      if (added.length || approved) await intoGames(seasonId).catch((e) => console.error("[sports] cast into games", seasonId, e));
+      if (added.length || moved || approved) await intoGames(seasonId).catch((e) => console.error("[sports] cast into games", seasonId, e));
       const bare = added.filter((p) => !p.photoUrl && !p.side).map((p) => p.name);
       if (bare.length) await fillCastPhotos(seasonId, undefined, { roster: true, only: bare }).catch((e) => console.error("[sports] photos", seasonId, e));
     }

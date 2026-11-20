@@ -211,6 +211,8 @@ async function up(opts = {}) {
       const out = await app("../../src/lib/server/sports/matchup.ts").refreshSportsEvents({ providers, now: new Date(), only: [added.seasonId] });
       // A final's time is the database's now() (matchup.ts storeEvents): the process clock's here, as production's are the same.
       await pool.query("UPDATE sports_events SET final_at = $2 WHERE league = $1 AND final_at > $2::timestamptz + interval '1 minute'", [LEAGUE, new Date()]);
+      // And its roster refresh's fill (cast_fills.updated_at, the database's now()): when it ran by the process clock.
+      await alignFill(pool, added.seasonId);
       return out;
     },
     /**

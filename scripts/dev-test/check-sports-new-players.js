@@ -16,6 +16,9 @@
 //                                  the rest of the week: the daily job each morning (its slate sync), then the Players tab's read
 //                                  (rosters.ts rosterOf: it fills the season's people again once a game has ended since the last fill)
 //   where he lands                 the season's people, and the running game's people (who a waiver claim or a draft can name)
+//   a trade (step 1.4)             a receiver on a team in the next week's first game traded to a Sunday team: the daily job's
+//                                  roster refresh moves him in the season's people and the running game, and his lock in a game
+//                                  locking at each player's game follows him (held by the Sunday game)
 // What's asserted: a game started on a slate has the slate's people to draft, and a signing reaches the running game. Phase 0
 // (2026-11-19) found both failing (BACKLOG 220): a game started through the sports route or the wizard got nobody at all (its draft
 // said "Add the cast first"), since nothing approved a slate's people, and with them approved by hand a later signing (or a team on
@@ -103,7 +106,7 @@ const fact = (s) => console.log(`      ${s}`);
     await w.settle();
     const afterRead = await inSeason();
     fact(`after the Players tab's read (${roster.people?.length ?? roster.groups?.reduce?.((n, g) => n + g.people.length, 0) ?? "?"} shown): in the season's people? ${afterRead}`);
-    check(afterDaily || afterRead, "the signing reaches the season's people");
+    check(afterDaily, "the daily job's roster refresh brings the signing into the season's people (step 1.4: no Players tab read needed)");
     const st = await w.league(s.leagueId);
     const inGame = st.castaways.some((c) => c.name === "ZT Signing");
     // Anyone else the season gained after the game started: a team on a bye that week, linked (and filled) only later.
@@ -114,10 +117,37 @@ const fact = (s) => console.log(`      ${s}`);
     fact(`the season's people now ${await seasonPeople()}, the game's ${st.castaways.length}; the season gained after its start: ${gained.map((g) => `${g.tribe_name} ${g.n}`).join(", ") || "nobody"}`);
     check(inGame, `the signing reaches the running season game's people, so a claim can name him (${st.castaways.length} there)`);
 
+    // A trade (step 1.4): a receiver on a team in next week's first game goes to a team that plays on the Sunday.
+    const next = fx.weeksOf(w.input).find((x) => x.n === WEEK + 1);
+    const early = next.games[0];
+    const late = next.games.find((g) => Date.parse(g.at) - Date.parse(early.at) > 2 * 24 * HOUR && ![g.home, g.away].includes(early.home) && ![g.home, g.away].includes(early.away));
+    const from = w.input.teams.find((t) => t.id === early.home);
+    const to = w.input.teams.find((t) => t.id === late.home);
+    const player = from.roster.find((r) => r.abbr === "WR");
+    from.roster = from.roster.filter((r) => r !== player);
+    to.roster.push(player);
+    fact(`the ${from.name} trade ${player.name} to the ${to.name} (${next.label}: ${early.name}, then ${late.name})`);
+    await w.days(new Date(Date.parse(week.last) + 2 * 24 * HOUR + 8 * HOUR).toISOString());
+    const { rows: tradedRow } = await w.pool.query("SELECT id, tribe_name FROM season_cast WHERE season_id = $1 AND provider_ids->>'espn' = $2", [w.seasonId, String(player.id)]);
+    check(tradedRow[0]?.tribe_name === to.name, `the daily job's roster refresh moves him to the ${to.name} in the season's people (${tradedRow[0]?.tribe_name})`);
+    const after = await w.league(s.leagueId);
+    const him = after.castaways.find((c) => c.seasonCastId === tradedRow[0]?.id);
+    const teamName = (c) => after.tribes.find((t) => t.id === c?.tribeId)?.name;
+    check(teamName(him) === to.name, `in the running season game he's a ${to.name.split(" ").at(-1)} now (${teamName(him)})`);
+    const { startFromSpec: start } = fx.app("../../src/lib/server/start-spec.ts");
+    const { readyLeague } = fx.app("../../src/lib/server/league-read.ts");
+    const S = fx.app("../../src/lib/game/state-logic.js");
+    const spec = { ...structuredClone(S.gameOf(after)), span: { from: WEEK + 1, to: w.slate.episodes }, closes: "game" };
+    const lg = await start(w.users.ann, w.seasonId, w.couchId, { spec, name: "ZT locks at each game", tell: false }, new Date());
+    const ls = await readyLeague(lg.leagueId, await w.league(lg.leagueId));
+    const lc = ls.castaways.find((c) => c.seasonCastId === tradedRow[0]?.id);
+    const held = ls.episodes.find((e) => e.number === WEEK + 1)?.holdingGames?.[lc?.id] ?? [];
+    check(held.length === 1 && held[0] === late.id, `his lock follows him: held by ${late.name}, not ${early.name} (${held.join(", ") || "none"})`);
+
     const routeGetsNobody = wzPeople === 0;
     console.log(
-      inGame
-        ? "VERDICT (b): STRUCK: a player signed after the slate's games start reaches a running game"
+      inGame && !failures
+        ? "VERDICT (b): STRUCK: a player signed or traded after the slate's games start reaches a running game, on his new team"
         : `VERDICT (b): CONFIRMED: a player signed after the slate's games start never reaches a running game${routeGetsNobody ? "; wider: a game started through the sports route or the wizard gets nobody at all (nothing approves a slate's people: BACKLOG 220)" : ""}`
     );
   } finally {

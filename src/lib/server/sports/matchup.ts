@@ -3,7 +3,7 @@ import { slugOf } from "@/lib/game/listing";
 import { factsOf, leagueName, matchupKey, matchupName, matchupStatus, pickMatchup, type MatchupAsk } from "@/lib/sports/matchup";
 import { TeamSport, sportOf } from "@/lib/sports";
 import { pool } from "../db";
-import { castFromEvents } from "./cast";
+import { castFromEvents, refreshRosters } from "./cast";
 import { sportsProviders } from "./index";
 import { saveFinals } from "./finals";
 import { fillLater } from "./season";
@@ -255,6 +255,12 @@ export async function refreshSportsEvents(opts: { providers?: SportsProvider[]; 
     errors.push(...(await syncSlates({ providers, now, only: opts.only })).errors);
   } catch (e) {
     errors.push(`slates: ${(e as Error).message.slice(0, 160)}`);
+  }
+  // Step 1.4: every sports season's people refilled once a day (signings, trades), anyone new into its games.
+  try {
+    errors.push(...(await refreshRosters({ providers, now, only: opts.only })).errors);
+  } catch (e) {
+    errors.push(`rosters: ${(e as Error).message.slice(0, 160)}`);
   }
   const { rows } = await pool.query(
     `SELECT DISTINCT ON (e.provider, e.league, e.event_id) e.provider, e.league, e.event_id, e.starts_at, e.teams IS NOT NULL AS linked, e.teams->0->>'id' AS side
