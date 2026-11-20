@@ -97,8 +97,10 @@ test("the server's half: the calendar fills a missing air time a week on, and th
 
 test("a game the runtime can't play yet is stopped before anything is made, with the analysis's reason", () => {
   assert.equal(Def.verdict(Def.build(season(), { base: "fantasy" })).ok, true);
-  const v = Def.verdict(Def.build(season(), { base: "cap", gameId: "cap" }));
+  // (A game in stages made at its own pace: no product path yet.)
+  const d = Def.build(season(), { base: "halves", gameId: "halves" });
+  const v = Def.verdict({ ...d, games: d.games.map((g) => ({ ...g, timing: "own-pace" })) });
   assert.equal(v.ok, false);
-  assert.match(v.why, /salary cap/);
+  assert.match(v.why, /own pace/);
 });
 

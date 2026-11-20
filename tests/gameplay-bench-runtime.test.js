@@ -1271,10 +1271,13 @@ test("stages: two games split at the merge, each a game of its own; the second d
   assert.deepEqual(doc.games.map(g => [g.id, g.stageOf ?? null]), [['two', null], ['two~before', 'two'], ['two~after', 'two'], ['out', null], ['out~before', 'out'], ['out~after', 'out']]);
   assert.deepEqual(D.read(doc), doc, 'derived the same however often it is read');
   assert.equal(doc.games[2].spec.extras.draft.opens, 'start', "a later stage's draft opens at its start");
-  // What stays a gap: own pace, an overall by places, a rider on a stage.
+  // What stays a gap: own pace, an overall by something else, a rider on a stage. (An overall by places or stages won is the engine's
+  // own, read with the walk: connected since core-runtime-45.)
   const gapsOf = games => P.inspect(D.create({ seed: 9, world, games, situation: { clock: '2099-01-10T12:00:00.000Z', marks: [] } })).gaps.map(g => g.path);
   assert.deepEqual(gapsOf([{ id: 'g', contextId: 'show', timing: 'own-pace', spec: staged(lineup) }]), ['/games/0/timing']);
-  assert.deepEqual(gapsOf([{ id: 'g', contextId: 'show', timing: 'live-only', spec: { ...staged(lineup), overall: { by: 'places' } } }]), ['/games/0/spec/overall']);
+  assert.deepEqual(gapsOf([{ id: 'g', contextId: 'show', timing: 'live-only', spec: { ...staged(lineup), overall: { by: 'places' } } }]), []);
+  assert.deepEqual(gapsOf([{ id: 'g', contextId: 'show', timing: 'live-only', spec: { ...staged(lineup), overall: { by: 'wins' } } }]), []);
+  assert.deepEqual(gapsOf([{ id: 'g', contextId: 'show', timing: 'live-only', spec: { ...staged(lineup), overall: { by: 'votes' } } }]), ['/games/0/spec/overall']);
   assert.deepEqual(gapsOf([{ id: 'g', contextId: 'show', timing: 'live-only', spec: { ...staged(lineup), stages: [staged(lineup).stages[0], { ...staged(lineup).stages[1], game: { ...lineup, score: { by: 'moments', captain: { times: 2 } }, span: { from: { phase: 'merged' } } } }] } }]), ['/games/0/spec/stages/1/game']);
   // ...and a stage drafted out of a hat, or with waivers of its own beyond a window opened by hand (the specimens' are by hand only).
   const firstAs = game => ({ ...staged(lineup), stages: [{ ...staged(lineup).stages[0], game: { ...game, span: { from: 1, to: { phase: 'merged' } } } }, staged(lineup).stages[1]] });

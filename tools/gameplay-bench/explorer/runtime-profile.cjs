@@ -38,7 +38,10 @@ function inspect(document) {
         if (G.stageAlongside(st)) add(game.id, at + '/alongside', "A stage alongside the game's own (bingo with trivia) needs its own stores");
         if (G.stageSeason(st)) add(game.id, at + '/season', 'A stage on another season needs a second world context bound to it');
       });
-      if (J.canonical(spec.overall) !== J.canonical({ by: 'points' })) add(game.id, p + '/overall', 'Only an overall by points is connected (by places or stages won needs its own proof)');
+      // The overall by points, places or stages won (C2 part 3): the engine's own (StageLogic.overall, read with the walk as the server's
+      // stageWalk builds it: runtime.cjs stageWalk), a place's points as the spec gives them. A live preview's (core-runtime-45).
+      const ov = spec.overall || { by: 'points' };
+      if (!['points', 'places', 'wins'].includes(ov.by) || Object.keys(ov).some(k => !['by', 'points'].includes(k))) add(game.id, p + '/overall', 'Only an overall by points, places or stages won is connected');
       for (const [key, value] of Object.entries(spec.extras || {})) if (active(value)) add(game.id, p + '/extras/' + J.pointer(key), 'Nondefault modifier needs an explicit adapter');
       return;
     }
@@ -89,12 +92,14 @@ function inspect(document) {
     const drawnCard = !!spec.card && (G.cardOf(spec)?.from === 'moments' || (!!context.bank && G.chosenCard(G.cardOf(spec)) && Array.isArray(G.cardOf(spec)?.of)));
     if (spec.card && !drawnCard) add(game.id, p + '/card', "Only a card drawn from the spec's own list is connected; one the bot chooses or a host writes needs their choice");
     if (spec.score?.only !== undefined && !Array.isArray(spec.score.only) && !(spec.score.only === 'card' && drawnCard)) add(game.id, p + '/score/only', "Only a fixed list of moments, or a drawn card's, is connected");
+    // A pool's last one standing (rank.oneLeft: it ends, or plays on) and everyone out the same night (rank.allOut: they share it, or
+    // it goes by points): the pool's walk on every read (KnockoutLogic, KnockoutLogic.together), as the server reads it.
     // A race to N and cuts (the guillotine): KnockoutLogic and the answer walk work them out on every read; moves after someone's out
     // or the game ended are refused by the production setters (validateLineup's moveProblem) and the answer action's limits.
     // Weeks won (WeekLogic) is worked out on every read from the same series and seats as head to head: nothing kept to settle.
     // Lives (score.lives, livesOn) and co-op (rank.by 'coop', score.saves): the answer walk works them out on every read; answers
     // after you're out or the game ended are refused as the server refuses them.
-    if (!['total', 'streak', 'standing', 'matchups', 'weeks', 'coop'].includes(spec.rank?.by) && !(sport && stats && ['categories', 'roto'].includes(spec.rank?.by))) add(game.id, p + '/rank/by', 'Ranking fixture adapter not implemented');
+    if (!['total', 'streak', 'standing', 'matchups', 'weeks', 'coop', ...(G.marketOf(spec) ? ['worth'] : [])].includes(spec.rank?.by) && !(sport && stats && ['categories', 'roto'].includes(spec.rank?.by))) add(game.id, p + '/rank/by', 'Ranking fixture adapter not implemented');
     // Head to head: its odd one out, quiet nights and playoffs placed by the season's length or a fixed episode (settleWrite).
     if (spec.rank?.playoffs && Object.keys(spec.rank.playoffs).some(k => !['teams', 'from'].includes(k))) add(game.id, p + '/rank/playoffs', 'Playoff rider needs an explicit adapter');
     const allowed = {
@@ -106,7 +111,7 @@ function inspect(document) {
       // The top scorer's twist (score.twist): its choices per episode, the twist action, stamped as twists.ts stamps them.
       // Outlast in reverse (score.reverse: each holding worth the cast's size + 1 less its place): EliminationOrderScoringStrategy.
       // Multipliers (score.times: an episode's or the finale's points times N): ActiveRosterLogic.timesFor on every read.
-      count: ['start', 'best', 'all', 'pick', 'slots'], score: ['by', 'points', 'means', 'only', 'hits', 'lives', 'livesOn', 'saves', 'bank', 'bounty', 'parlays', 'times', 'reverse', 'twist', 'captain', 'roles', 'buyback', 'mulligans', 'multiply', ...(sport && stats ? ['categories', 'byPlace', 'byPosition', 'byFormat'] : [])], rank: ['by', 'odd', 'quiet', 'playoffs', 'ties', 'race', 'cut', 'teams'],
+      count: ['start', 'best', 'all', 'pick', 'slots'], score: ['by', 'points', 'means', 'only', 'hits', 'lives', 'livesOn', 'saves', 'bank', 'bounty', 'parlays', 'times', 'reverse', 'twist', 'captain', 'roles', 'buyback', 'mulligans', 'multiply', ...(sport && stats ? ['categories', 'byPlace', 'byPosition', 'byFormat'] : [])], rank: ['by', 'odd', 'quiet', 'playoffs', 'ties', 'race', 'cut', 'teams', 'oneLeft', 'allOut'],
     };
     // A pool's second pick (get.second): the pick action's second: true; it counts on a night two or more go home (or every night: counts).
     // A draft spread across the cast's groups (get.across, of 'group'): the generated draft spread as SpreadLogic requires, on a world
@@ -130,7 +135,13 @@ function inspect(document) {
       // An auction (order 'auction'): its sealed bids generated and settled at setup (runtime-data.cjs settleAuctionIn), its budget the
       // auction's own (total, the lowest price, fill or short); a salary cap or a stock market (prices from the data, trading) is another.
       if (spec.get?.order && !['blind', 'snake', 'draw', 'auction'].includes(spec.get.order)) add(game.id, p + '/get/order', 'Acquisition method requires its own setup adapter');
-      if (spec.get?.budget && (spec.get.order !== 'auction' || Object.keys(spec.get.budget).some(k => !['total', 'floor', 'fallback'].includes(k)))) add(game.id, p + '/get/budget', 'Only an auction\'s budget (total, floor, fallback) is connected; a salary cap or a stock market needs prices from the data');
+      // A salary cap (a budget beside a snake, private or drawn draft: its prices the engine's own, from each one's points so far:
+      // PriceLogic), its teams dealt within it once the results before the game are in (runtime-data.cjs settleCapIn, core-runtime-45).
+      // A stock market (a budget that trades) needs its trades.
+      // A stock market (a cap that trades: MarketLogic) too, ranked by worth (cash and the team at today's prices, the engine's own on
+      // every read); its trades are free-agency moves (the freeAgency action) at the market's terms.
+      const cap = !!spec.get?.budget && ['snake', 'blind', 'draw'].includes(spec.get.order);
+      if (spec.get?.budget && !cap && (spec.get.order !== 'auction' || Object.keys(spec.get.budget).some(k => !['total', 'floor', 'fallback'].includes(k)))) add(game.id, p + '/get/budget', 'Only an auction\'s budget (total, floor, fallback) or a salary cap is connected; a stock market needs its trades');
       for (const [key, value] of Object.entries(spec.extras || {})) {
         if (!active(value)) continue;
         if (key === 'hideStarters') continue;

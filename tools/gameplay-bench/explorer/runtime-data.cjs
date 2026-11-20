@@ -360,11 +360,34 @@ function gameData(document, game, world, actors) {
     }
     if (history) applyFacts({ ...world, events: world.events.map(e => e.number <= event.number ? e : { ...e, resultStatus: 'unavailable' }) }, state);
   }
+  // A salary cap (a budget beside any draft but an auction: PriceLogic.capOn, core-runtime-45): the teams dealt again, now the results
+  // before the game are in, as the engine's own draw deals within a cap (DrawLogic.outcome: each pick one that keeps its team inside
+  // the cap at the prices going into the game's first episode), each one's price in the draft's log and a private draft's paid, as a
+  // real one records them, seeded from the game's id.
+  if (spec.get.by === 'draft' && spec.get.order !== 'auction' && !opensAtStart && S.PriceLogic.capOn(state)) settleCapIn(game, state, spec);
   syncMarks(world, game, state);
   settleWrite(world, state, { phases: true, clock: document.situation.clock });
   // A draft that opens at its start, open already (its game's start known and the episode before it played): made now.
   if (opensAtStart) Stages.draftAtStart(document, game, state, document.situation.clock);
   return { state, source: 'seeded-post-acquisition-setup' };
+}
+function settleCapIn(game, state, spec) {
+  const first = S.startEpisode(state), prices = S.PriceLogic.prices(state, Math.max(0, (first ?? 1) - 1));
+  for (const c of state.castaways) c.ownerIds = [];
+  const out = S.DrawLogic.outcome(state, 'zt-' + game.id, prices), at = state.blindDraft?.revealedAt || null, paid = {};
+  state.draftLog = [];
+  let n = 0;
+  for (let round = 0; round < spec.get.each; round++) for (const pid of out.order) {
+    const cid = out.teams[pid][round];
+    if (!cid) continue;
+    state.castaways.find(c => c.id === cid).ownerIds.push(pid);
+    paid[pid] = (paid[pid] || 0) + (prices.get(cid) || 0);
+    n++;
+    // (A snake's or a draw's price goes in its log; a private draft has none: what each paid is recorded at its reveal.)
+    if (spec.get.order !== 'blind') state.draftLog.push({ n, playerId: pid, castawayId: cid, at, price: prices.get(cid) || 0, ...(spec.get.order === 'draw' ? { drawn: true } : {}) });
+  }
+  if (spec.get.order === 'blind' && state.blindDraft) state.blindDraft.paid = paid;
+  state.draftPicksMade = n;
 }
 // An auction (get.order 'auction'): each seat's sealed bids (auctionBids), settled as the server settles them once everyone has
 // locked in (AuctionLogic.settle: every bid from the highest down, won at what was bid, ties in a seeded order; a team its bids didn't

@@ -103,10 +103,34 @@ function answerMoves(session, gameId, personId, seed) {
   });
 }
 
+/**
+ * A stock market's trade (a free-agency move at the market's terms: MarketLogic), now and then, as a couch trades: about one week in
+ * three, sell their cheapest holding for the best value they can afford (points so far for the price), checked by the engine's own
+ * rule (MarketLogic.moveProblem). None without a market, or when nothing fits.
+ */
+function marketMoves(session, gameId, personId, seed) {
+  const st = session.snapshot().games[gameId]?.state;
+  if (!st || !S.MarketLogic.on(st) || !st.players.some((p) => p.id === personId)) return [];
+  if (roll(seed, gameId, personId, 'trade', S.PriceLogic.latest(st)) % 3) return [];
+  const prices = S.PriceLogic.prices(st), points = S.PriceLogic.points(st);
+  const live = st.castaways.filter((c) => c.status !== 'eliminated');
+  const mine = live.filter((c) => c.ownerIds.includes(personId)).sort((a, b) => (prices.get(a.id) || 0) - (prices.get(b.id) || 0));
+  const free = live.filter((c) => !c.ownerIds.includes(personId)).sort((a, b) => (points.get(b.id) || 0) / Math.max(1, prices.get(b.id) || 1) - (points.get(a.id) || 0) / Math.max(1, prices.get(a.id) || 1));
+  const drop = mine[0];
+  if (!drop) return [];
+  const adds = free.filter((c) => !S.MarketLogic.moveProblem(st, personId, drop.id, c.id, prices)).slice(0, 3).map((c) => c.id);
+  if (!adds.length) return [];
+  // While the week's waivers are open, a claim (settled at their run, as the server runs them); once they've run, free agency.
+  const week = S.WaiverLogic.current(st);
+  if (week?.phase === 'open') return [{ type: 'claim', gameId, personId, spot: { dropId: drop.id, addIds: adds } }];
+  if (week?.phase === 'processed') return [{ type: 'freeAgency', gameId, personId, addId: adds[0], dropId: drop.id }];
+  return [];
+}
+
 /** Every move `personIds` have open now, across the definition's games, in a stable order. */
 function movesFor(session, personIds, seed) {
   const out = [];
-  for (const g of playable(session)) for (const pid of personIds) out.push(...e1Moves(session, g.id, pid), ...answerMoves(session, g.id, pid, seed));
+  for (const g of playable(session)) for (const pid of personIds) out.push(...e1Moves(session, g.id, pid), ...answerMoves(session, g.id, pid, seed), ...marketMoves(session, g.id, pid, seed));
   return out;
 }
 
