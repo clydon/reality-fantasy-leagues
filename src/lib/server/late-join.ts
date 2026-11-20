@@ -19,7 +19,11 @@ export async function catchingUpMark(leagueId: string, state: LeagueState, playe
   const late = StateLogic.GhostLogic.lateJoinOf(state, playerId);
   if (!late || late.startEpisode === null) throw new HttpError(400, "Choose where to start first");
   // A team two people share (step A10 part 4b): the lowest of their marks, so neither is carried past what they've seen.
-  return (await seatMark(pool, leagueId, playerId, late.startEpisode - 1)) ?? late.startEpisode - 1;
+  const mark = (await seatMark(pool, leagueId, playerId, late.startEpisode - 1)) ?? late.startEpisode - 1;
+  // A team sport's own pace (step 2.6): never behind the floor the seat was moved to, in the write's own transaction (sport-pace.ts),
+  // which this read, outside it, doesn't see yet.
+  const floor = StateLogic.GhostLogic.paceTarget(state);
+  return floor !== null && (late.seenThrough ?? -1) >= floor ? Math.max(mark, floor) : mark;
 }
 
 /** For the moves a late joiner sits out until they've caught up (side bets, finale predictions). */

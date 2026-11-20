@@ -33,7 +33,11 @@
 //            draft and the draft filling the rest, whatever its kind; cost place (a place on the team, nothing else: a snake
 //            passes over a full team, so your last rounds go) | round (a snake's earliest rounds: you sit out one for each)
 //            | price (their price at the draft, from a budget the data prices: a salary cap or a stock market); fallback best
-//            (someone who names nobody keeps their best who are back) | none: KeeperLogic) | { by: 'pick', each: 1, repeat: 'cycle',
+//            (someone who names nobody keeps their best who are back) | none: KeeperLogic). Step 2.4 (docs/PLAN-sports-ready.md):
+//            ir { n, takes, healthy? }, injured reserve: n places (1 to MAX_IR) outside the roster's count, each for someone their
+//            roster lists as one of `takes` (a sport's injury codes: the NFL's IR, O, PUP), who never starts or scores while there;
+//            healthy blocks (the default: someone healthy left there blocks their seat's adds) | stays: IrLogic
+//            | { by: 'pick', each: 1, repeat: 'cycle',
 //            second? } (one an episode, nobody again until everyone still in is used, never twice running. A10 part 2's second:
 //            { fallback: void | counts }, a second pick beside the first, open every episode, that counts on a night two or more
 //            go home: nothing at a lock says a night is a double, only its results do; on a night only one goes, void (no
@@ -665,6 +669,10 @@ const TWIST = { who: 'top', by: 'episode', closes: 12, fallback: 'none' };
 /** A10 part 1: a draft's most group slots (the user's "+1 or +2"), and a slot's defaults when the spec leaves them out (the
  *  user's to set: the plan's Noticed for A10). */
 const MAX_GROUP_SLOTS = 2;
+/** Step 2.4 (docs/PLAN-sports-ready.md): a draft's most IR places (MLB's default is Yahoo's 4), and what someone healthy left on IR
+ *  does: blocks their seat's adds (Yahoo's and ESPN's rule, the default) or stays. */
+const MAX_IR = 6;
+const IR_HEALTHY = ['blocks', 'stays'];
 const GROUP_SLOTS = { slots: 1, own: 'shared', swap: false, fallback: 'void', points: 'mean' };
 /** A10 part 2: a pool's most lives, buybacks, mulligans and a buyback's most cost; a buyback's and a second pick's defaults when
  *  the spec leaves them out (the user's to set: the plan's Noticed for A10 part 2). A buyback's cost left out is one right
@@ -2584,6 +2592,7 @@ function specProblems(spec, ctx, opts) {
     if (get.groups !== undefined) groupSlotProblems(get.groups, s).forEach(([at, p]) => add(`get.groups${at}`, p));
     if (get.across !== undefined) acrossProblems(get.across).forEach(([at, p]) => add(`get.across${at}`, p));
     if (get.needs !== undefined) needsProblems(get.needs, s).forEach(([at, p]) => add(`get.needs${at}`, p));
+    if (get.ir !== undefined) irProblems(get.ir, s).forEach(([at, p]) => add(`get.ir${at}`, p));
     if (get.budget !== undefined) budgetProblems(get.budget, s).forEach(([at, p]) => add(`get.budget${at}`, p));
     if (get.keep !== undefined) keepProblems(get.keep, s).forEach(([at, p]) => add(`get.keep${at}`, p));
   }
@@ -3046,7 +3055,7 @@ const KEYS = {
   span: ['from', 'to'],
   from: ['phase', 'at'],
   pool: ['of', 'where'],
-  get: { draft: ['by', 'each', 'order', 'own', 'groups', 'across', 'budget', 'keep', 'needs'], pick: ['by', 'each', 'repeat', 'second', 'fallback'], card: ['by'], none: ['by'], squares: ['by', 'grid', 'take', 'each'] },
+  get: { draft: ['by', 'each', 'order', 'own', 'groups', 'across', 'budget', 'keep', 'needs', 'ir'], pick: ['by', 'each', 'repeat', 'second', 'fallback'], card: ['by'], none: ['by'], squares: ['by', 'grid', 'take', 'each'] },
   groups: ['slots', 'own', 'swap', 'fallback', 'points'],
   keep: ['each', 'from', 'cost', 'fallback'],
   across: ['of', 'then'],
@@ -3078,7 +3087,7 @@ const KEYS = {
   extras: ['waivers', 'bets', 'calls', 'draft', 'join', 'hideStarters', 'lockedDown', 'lateLock', 'seats'],
   lateLock: ['hours'],
   seats: ['people'],
-  waivers: ['feel', 'replace', 'short', 'windows', 'order', 'hours', 'freeAgency', 'autoFill', 'from', 'own'],
+  waivers: ['feel', 'replace', 'short', 'windows', 'order', 'hours', 'freeAgency', 'autoFill', 'from', 'own', 'daily'],
   waiverOwn: ['replace', 'swap'],
   windows: ['schedule', 'every', 'swaps'],
   draft: ['at', 'timer', 'away', 'opens'],
@@ -3387,6 +3396,22 @@ function needsProblems(needs, s) {
     seen.add(key);
   });
   if (each && total > each) out.push(['', `The needs add up to ${total}, more than a team of ${each}`]);
+  return out;
+}
+
+/**
+ * Step 2.4 (docs/PLAN-sports-ready.md): a draft's injured reserve (get.ir), as [[at, problem]]: { n: 1 to MAX_IR places, takes: the
+ * injury codes a roster lists that can sit there (each once: IR, O, PUP, IL10), healthy?: blocks | stays }. A team scored by a
+ * lineup, best ball or its whole team: someone there counts nowhere.
+ */
+function irProblems(ir, s) {
+  if (!isObj(ir)) return [['', 'IR is { n, takes, healthy }']];
+  const out = [];
+  for (const k of Object.keys(ir)) if (!['n', 'takes', 'healthy'].includes(k)) out.push([`.${k}`, `IR takes n, takes and healthy, not ${k}`]);
+  if (!(isInt(ir.n, 1) && ir.n <= MAX_IR)) out.push(['.n', `IR holds 1 to ${MAX_IR}`]);
+  if (!(Array.isArray(ir.takes) && ir.takes.length && ir.takes.every((v) => typeof v === 'string' && /^[A-Z][A-Z0-9-]{0,9}$/.test(v)) && new Set(ir.takes).size === ir.takes.length)) out.push(['.takes', 'IR takes one or more injury codes, each once (IR, O, PUP)']);
+  if (ir.healthy !== undefined && !IR_HEALTHY.includes(ir.healthy)) out.push(['.healthy', 'Someone healthy on IR blocks their seat’s adds, or stays']);
+  if (!['start', 'best', 'all'].includes(countKind(s.count))) out.push(['', 'IR goes with a team that counts: a lineup, best ball or the whole team']);
   return out;
 }
 
@@ -3907,6 +3932,13 @@ function waiverProblems(w, s) {
   // Waivers that start when a phase of the season does: which phase is the data rule's (settleProblems).
   if (w.from !== undefined && !(isObj(w.from) && typeof w.from.phase === 'string' && w.from.phase)) out.push(['.from', 'Waivers start { phase }: when which phase of the season starts, or leave it out for from the start']);
   if (w.own !== undefined) waiverOwnProblems(w.own, s).forEach(([at, p]) => out.push([`.own${at}`, p]));
+  // Step 2.5 (docs/PLAN-sports-ready.md, BACKLOG 219): a period every game day (claims clear that morning, free agents until its last
+  // game starts), for a sport's lineup that locks at each game (its games' starts say the days), on a window every episode.
+  if (w.daily !== undefined) {
+    if (typeof w.daily !== 'boolean') out.push(['.daily', 'daily is true or false']);
+    else if (w.daily && s.closes !== 'game') out.push(['.daily', 'Waivers every game day go with a lineup that locks at each game (closes: game)']);
+    else if (w.daily && !(isObj(win) && win.schedule === 'everyEpisode')) out.push(['.daily', 'Waivers every game day run on a window every episode (its swaps the week’s)']);
+  }
   return out;
 }
 

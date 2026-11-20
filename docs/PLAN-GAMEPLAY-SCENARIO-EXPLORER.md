@@ -503,6 +503,19 @@ The user, 2026-11-12: build these in the new app, but batch them, since several 
       read the cut text's whole box, fixed in overlaps.js; the table's half-cut first week, the real fault, fixed);
     - a game in progress has no screen: the phone's live poller (src/lib/sports/live.ts) isn't on a page.
 
+43. **IR on the lineup sheet and in waivers** (found 2026-11-20 by docs/PLAN-sports-ready.md step 2.4: the engine and its route
+    are there, nothing on a screen). Who is on IR (and how many places are left), who may go there (an injury the IR takes), the
+    moves (put on IR, bring back, bring back dropping someone, drop), why a move is refused (a lineup that's locked, the IR full,
+    the roster full), an open spot as something to fill (a claim or a free-agency add with no drop), and someone healthy on IR
+    blocking every add until they're back or dropped (Joanna forgets: the block says what to do). With item 34's positions and 4.2's
+    page 1 (the lineup editor).
+44. **Waivers every game day, and free agency through a week** (found 2026-11-20 by docs/PLAN-sports-ready.md step 2.5: the engine
+    runs them, the screens don't say them). The NBA's, NHL's and MLB's waivers are a period a game day (claims clear that morning,
+    12 hours before its first game; free agents until its last game starts), their swaps the week's (4, MLB's 6) across its days; the
+    NFL's free agency runs until Monday night's kickoff. The waivers screens and pushes say "Episode", "Ep N airs" and every week
+    (waivers-words.ts, waiver-pushes.js); a refusal says "X's game has started: add them once the day's over" with nothing on the
+    screen saying who is locked. With item 41's and 4.2's waivers.
+
 ### Suggested order from here
 
 A. Bench for redesign testing: host surfaces, social seeding, renderer = app origin side by side, situation controls (viewer, clock, results, reveal) and opening campaign failures. Designed through Intent, Impeccable and PFD; one page for review.

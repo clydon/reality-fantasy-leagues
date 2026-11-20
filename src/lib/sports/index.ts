@@ -43,6 +43,8 @@ export * from "./spec";
 export * from "./final";
 export * from "./points";
 export * from "./locks";
+export * from "./pace";
+import type { PaceBy } from "./pace";
 export { Baseball } from "./baseball";
 export { CollegeBaseball } from "./college-baseball";
 export { Basketball, CollegeBasketball } from "./basketball";
@@ -106,14 +108,28 @@ export interface SportDefaults {
   scoring: { source: string; points: Record<string, number>; byPosition?: Record<string, Record<string, number>>; byPlace?: Record<string, Record<string, number>>; byFormat?: Record<string, Record<string, number>> };
   categories: { source: string; stats: string[] };
   /** `squad`: how many of each position group a roster holds (FPL's 2 goalkeepers, 5 defenders, 5 midfielders, 3 forwards). */
-  slots: { source: string; lineup: DefaultSlot[]; bench: number; squad?: Record<string, number> };
+  /** `eligible` (step 2.3): a player fills the other positions their roster lists them at (ESPN's `positions`, the ones they've
+   *  played), each in their own position group, and those named in `across` in another group too (baseball's SP: a two-way
+   *  player). Without it a player fills their roster's one position. */
+  /** `ir` (step 2.4): injured reserve on its season games, as the spec's get.ir: `n` places outside the roster's count, each for
+   *  someone their roster lists as one of `takes` (ESPN's injury codes as espn.ts injuryOf tags them). */
+  slots: { source: string; lineup: DefaultSlot[]; bench: number; squad?: Record<string, number>; eligible?: { source: string; across: string[] }; ir?: { source: string; n: number; takes: string[] } };
   closes: LockCadence;
+  /** Step 2.5: its season games' waivers (sportWaivers): `swaps` a week (null, no limit), `daily` a period every game day, `hours`
+   *  before the period's first game its claims clear. */
+  waivers?: { source: string; swaps: number | null; daily: boolean; hours: 12 | 24 | 48 };
+  /** Step 2.6 (BACKLOG 218): how a seat at its own pace keeps up (pace.ts paceFloor): by each game, or by the day (baseball's). A
+   *  sport without one (an individual sport's) stays plain own pace. */
+  pace?: { source: string; by: PaceBy };
   /** `on`: the season a spec plays on, where it isn't any (L8 part 1's engine items, part 2: a bracket of the playoffs is a
    *  league's playoffs slate's: specContextOf's `playoffs`). */
   specs: Record<string, { about: string; on?: "playoffs"; spec: Record<string, unknown> }>;
+  /** Step 2.2 (BACKLOG 214): a league whose fantasy playoffs end before its regular season does (the NFL's at Week 17, before Week
+   *  18's rested starters): `endsBefore` of the regular season's last weeks they leave out. A league's own only. */
+  playoffs?: { source: string; endsBefore: number };
   /** A league's own, where its standard game differs from the sport's (racing's F1 and IndyCar from NASCAR's): each part given
    *  replaces the sport's, and its specs each of the sport's of the same name (defaultsFor with the league). */
-  leagues?: Record<string, Partial<Pick<SportDefaults, "about" | "scoring" | "categories" | "slots" | "specs">>>;
+  leagues?: Record<string, Partial<Pick<SportDefaults, "about" | "scoring" | "categories" | "slots" | "specs" | "playoffs">>>;
 }
 
 const DEFAULTS: Record<string, SportDefaults> = {
@@ -133,35 +149,123 @@ const DEFAULTS: Record<string, SportDefaults> = {
 export function defaultsFor(sportId: string, league?: string): SportDefaults | null {
   const d = DEFAULTS[sportId];
   if (!d) return null;
-  const own = league ? d.leagues?.[String(league).split("/").pop()!] : undefined;
+  // A check's stand-in league ("zt-nfl-slate": fake-espn.js) reads as its sport's own first, as sportOf reads it, so the recorded
+  // NFL season plays the NFL's own games (BACKLOG 226's final).
+  const name = league ? String(league).split("/").pop()! : undefined;
+  const key = name?.startsWith("zt-") ? (sportById(sportId)?.leagues?.[0] ?? name) : name;
+  const own = key ? d.leagues?.[key] : undefined;
   // A league's specs over the sport's, one by one (L4 part 1a: F1's own season and short beside racing's pick'em).
   const out = own ? { ...d, ...own, ...(own.specs ? { specs: { ...d.specs, ...own.specs } } : {}) } : d;
-  return withLineupSlots(sportId, out);
+  return withLineupSlots(out);
 }
 
 /**
- * Cast properties (docs/PLAN-cast-properties.md chunk 5): football's standard games start its lineup by position, its defaults'
- * slots as the spec's count.slots (QB, 2 RB, 2 WR, TE, a W/R/T, K, DEF), on each spec counting exactly that many. Football's `takes`
- * are ESPN positions, which a castaway's stamped `position` (its roster's) names; other sports' are position groups, left as they
- * were until their games stamp them.
+ * Step 2.2 (BACKLOG 214): how many of the regular season's last weeks a league's fantasy playoffs leave out (the NFL's 1: its final
+ * by Week 17), 0 for none. `league` as "football/nfl"; a check's stand-in league ("football/zt-nfl-slate") reads as its sport's own
+ * first, as sportOf and specContextOf read it.
+ */
+export function playoffsEndBefore(league: string): number {
+  const sport = sportOf(league);
+  const d = sport ? defaultsFor(sport.id, String(league).split("/")[1]) : null;
+  const n = d?.playoffs?.endsBefore;
+  return Number.isInteger(n) && n! > 0 ? n! : 0;
+}
+
+/**
+ * Step 2.6 (BACKLOG 218): how a league's seats at their own pace keep up ("game", "day": pace.ts), or null for plain own pace (an
+ * individual sport's, or one not built). `league` as "football/nfl"; a check's stand-in league reads as its sport's own.
+ */
+export function paceBy(league: string): PaceBy | null {
+  const sport = sportOf(league);
+  const by = sport ? defaultsFor(sport.id, String(league).split("/")[1])?.pace?.by : undefined;
+  return by === "game" || by === "day" ? by : null;
+}
+
+/**
+ * Cast properties (docs/PLAN-cast-properties.md chunk 5): a sport's standard games start its lineup by position, its defaults'
+ * slots as the spec's count.slots (football's QB, 2 RB, 2 WR, TE, a W/R/T, K, DEF; the NBA's PG, SG, G, SF, PF, F, 2 C, 2 Util), on
+ * each spec counting exactly that many. A slot's `takes` are ESPN positions, which a castaway's stamped `position` (its roster's)
+ * names, or position groups ("guards", "batters"), which their stamped group (state.statGroups) names: SlotLogic.fits reads both.
+ * Football's since chunk 5; every sport's since step 2.3 (docs/PLAN-sports-ready.md: the NBA's, MLB's and NHL's, soccer's
+ * formation). Not a lineup of one slot taking everyone (golf's golfers, racing's drivers): it constrains nothing.
  */
 const SLOTTED = new WeakMap<SportDefaults, SportDefaults>();
-function withLineupSlots(sportId: string, d: SportDefaults): SportDefaults {
-  if (sportId !== "football" || !d.slots?.lineup?.length) return d;
+function withLineupSlots(d: SportDefaults): SportDefaults {
+  if (!slotted(d.slots?.lineup)) return d;
   // The same defaults read twice are the same object (college's are football's own).
   const had = SLOTTED.get(d);
   if (had) return had;
   const total = d.slots.lineup.reduce((n, s) => n + s.n, 0);
   const slots = d.slots.lineup.map((s) => ({ label: s.slot, of: "position", values: [...s.takes], n: s.n }));
+  // Step 2.4 (docs/PLAN-sports-ready.md): its IR places on each such game with a draft (a season's).
+  const ir = d.slots.ir ? { n: d.slots.ir.n, takes: [...d.slots.ir.takes] } : null;
   const specs = Object.fromEntries(
     Object.entries(d.specs).map(([id, x]) => {
       const c = (x.spec as { count?: { start?: number; best?: number } }).count;
       const fits = c && (c.start === total || c.best === total);
-      return [id, fits ? { ...x, spec: { ...x.spec, count: { ...c, slots } } } : x];
+      const get = (x.spec as { get?: { by?: string; each?: number } }).get;
+      const withIr = ir && get?.by === "draft" ? { get: { ...get, ir } } : {};
+      // Step 2.5: its waivers on each such game with a draft (sportWaivers), unless the spec says its own.
+      const extras = (x.spec as { extras?: { waivers?: unknown } }).extras;
+      const waivers = get?.by === "draft" && !extras?.waivers ? sportWaivers(d, get.each, (x.spec as { closes?: string }).closes) : null;
+      const withWaivers = waivers ? { extras: { ...extras, waivers } } : {};
+      return [id, fits ? { ...x, spec: { ...x.spec, count: { ...c, slots }, ...withIr, ...withWaivers } } : x];
     })
   );
   const out = { ...d, specs };
   SLOTTED.set(d, out);
+  return out;
+}
+
+/**
+ * Step 2.5 (docs/PLAN-sports-ready.md, BACKLOG 219): a team sport's waivers as the spec says them (extras.waivers), from its defaults'
+ * `waivers`: a window every episode (a week), a rolling order, free agency, `swaps` a week (null: the team's size, no limit), and
+ * `daily` (a period every game day: claims clear that morning, `hours` before its first game) for the NBA's, NHL's and MLB's lineups
+ * that lock at each game (`closes`; best ball's run by the week). Null for a
+ * sport with none (its games keep waivers off).
+ */
+export function sportWaivers(d: Pick<SportDefaults, "waivers">, each: number | undefined, closes?: string): Record<string, unknown> | null {
+  const w = d.waivers;
+  if (!w) return null;
+  const team = Number.isInteger(each) && each! >= 1 ? each! : null;
+  const swaps = w.swaps === null ? team ?? 1 : team === null ? w.swaps : Math.min(w.swaps, team);
+  return {
+    feel: "balanced", replace: "never", short: null,
+    windows: { schedule: "everyEpisode", every: 3, swaps },
+    order: "rolling", hours: w.hours, freeAgency: true, autoFill: true,
+    // Every game day only on a lineup that locks at each game (best ball has none: its waivers run by the week).
+    ...(w.daily && closes === "game" ? { daily: true } : {}),
+  };
+}
+
+/** Whether a default lineup's slots say anything: more than one slot (one taking everyone, golf's six golfers, holds nobody back). */
+export function slotted(lineup: DefaultSlot[] | null | undefined): boolean {
+  return Array.isArray(lineup) && lineup.length > 1;
+}
+
+/**
+ * Step 2.3: what else someone fills besides their roster's position, by their league's rule (its defaults' `slots.eligible`): the
+ * positions their roster lists them at (ESPN's `positions`) in their own position group, and those the rule names `across` in
+ * another, with that position's group (a two-way player listed SP fills SP and the pitchers' P). Stamped per read as
+ * state.castEligible (cast-props.ts) and read by SlotLogic.fits. [] for a league with no rule (the NBA's and NHL's rosters list
+ * one position), a role the sport doesn't know, or nothing listed.
+ */
+export function eligibleFor(league: string, role: string | null | undefined, listed: readonly string[] | null | undefined): string[] {
+  const sport = sportOf(league);
+  const rule = sport ? defaultsFor(sport.id, String(league).split("/")[1])?.slots?.eligible : null;
+  const own = role ? sport?.position(sport.positionKey(role) ?? "") : null;
+  if (!sport || !rule || !own || !listed?.length) return [];
+  const out: string[] = [];
+  const add = (v: string) => { if (v !== own.key && !out.includes(v)) out.push(v); };
+  for (const said of listed) {
+    const p = sport.position(sport.positionKey(said) ?? "");
+    if (!p) continue;
+    if (p.group === own.group) add(p.key);
+    else if (rule.across.includes(p.key)) {
+      add(p.key);
+      add(p.group);
+    }
+  }
   return out;
 }
 

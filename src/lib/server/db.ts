@@ -19,6 +19,7 @@ import { stampSeatHistory } from "./handicaps";
 import { seatStage, settleStageDraft, stagesToSeat } from "./stages";
 import { stampStats } from "./sports/score";
 import { stampCastProps } from "./cast-props";
+import { keepSportPace } from "./sport-pace";
 import { after } from "next/server";
 
 // Re-exported so route handlers can import { pool, withLeagueLock, HttpError } from one place,
@@ -112,6 +113,9 @@ export async function withLeagueLock(
     StateLogic.TeamLogic.settle(state, Date.now());
     // A draft that opens at its game's start (step A12 part 1: a later stage's), as it opens: an exclusive one the seats no longer fit
     // among who's still in is shared from then on, so the mutation drafts as it will be played (stages.ts settleStageDraft).
+    // A team sport's game at its own pace (docs/PLAN-sports-ready.md step 2.6): a seat the next game's start has passed moves on before
+    // the mutation, so a move for a week it has passed is refused as it would be after (sport-pace.ts; again after the mutation, below).
+    await keepSportPace(client, leagueId, state);
     const sharedBefore = settleStageDraft(state);
     const before = change ? structuredClone(state) : null;
     await mutatorFn(state, client);
@@ -140,6 +144,9 @@ export async function withLeagueLock(
     // A game at your own pace keeps waiting all season (docs/PLAN-own-pace-games.md, "Pace is the game's setting" step 2): a seat that
     // results the mutation applied have left behind is catching up again, before the waiver clock and the bots read it.
     StateLogic.GhostLogic.settlePace(state);
+    // A team sport's game at its own pace is never more than one game behind (docs/PLAN-sports-ready.md step 2.6): a seat the next
+    // game's start has passed moves on by itself (sport-pace.ts), before the waiver clock and the bots read it.
+    await keepSportPace(client, leagueId, state);
     // Teams of players (step A11 part 5): a seed for the draw on the write that turns them on; once the game has started, who's on
     // which kept, a seat new to it placed, a disabled one off its team, from the first episode still to play.
     StateLogic.TeamLogic.settle(state, Date.now());

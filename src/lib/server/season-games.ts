@@ -211,9 +211,18 @@ interface Listed {
 async function listHere(user: SessionUser, seasonId: string, couchId: string | null, only?: string | ReadonlySet<string>): Promise<Listed> {
   const wanted = (id: string) => !only || (typeof only === "string" ? id === only : only.has(id));
   const list = (await games(user.id, couchId ? { couchIds: [couchId], seasonId, withSolo: true } : { mine: true, seasonId })).filter((g) => g.yourRole && wanted(g.leagueId));
+  const ids = list.map((g) => g.leagueId);
+  // A sports game at its own pace (docs/PLAN-sports-ready.md step 2.6) moves its seats on by itself as the next game starts, and its
+  // seats catch up as its finals arrive: readied first, so the marks read below are where that left them, not a read behind.
+  if (ids.length) {
+    const before = await leagueStates(ids);
+    for (const [id, st] of before) {
+      if (!StateLogic.GhostLogic.ownPace(st) || !StateLogic.StatsLogic.on(st)) continue;
+      await readyLeague(id, st).catch((e) => console.error(`[season-games] league ${id}:`, e));
+    }
+  }
   const seen = await seenThrough(user.id, seasonId);
   if (!list.length) return { seen, list, seats: { mine: new Map(), users: new Map(), marks: new Map() } as Listed["seats"], states: new Map() };
-  const ids = list.map((g) => g.leagueId);
   const [seats, states] = await Promise.all([seatsIn(user.id, ids), leagueStates(ids)]);
   return { seen, list, seats, states };
 }

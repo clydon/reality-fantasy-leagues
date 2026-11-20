@@ -1,14 +1,19 @@
 # Plan: sports in good shape, technically and in design
 
-> **Status (2026-11-20): Active, Phase 0 and Phase 1 done but 1.1's screens** (branch sports-phase0, not merged; migrations 0308 to
-> 0310 rehearsed on a copy of production 2026-11-20, the merge waiting on the user's OK). Written from two audits on 2026-11-19: the
+> **Status (2026-11-20): Active, Phase 0 and Phase 1 done but 1.1's screens, merged and live** (f1488cf1..ba8f3a8e, deployed
+> 2026-11-20; migrations 0308 to 0310 rehearsed on a copy of production first). Written from two audits on 2026-11-19: the
 > engine, data and operations, and every screen a sports fan touches.
 > Phase 0 confirmed all four inferences, each with a check, and found two bigger gaps; step 1.0 closed both (BACKLOG 220 and 221),
 > 1.3 made team defenses people and kept same-named players apart (BACKLOG 145), 1.2 stopped silent zeros and takes corrections,
 > 1.4 keeps rosters current (signings, trades), 1.5 reads injuries and byes, 1.6 made the small fixes (BACKLOG 108, 78), and
 > 1.1's part 1 puts finals in the standings within the hour; its part 2 counts a week's games as they end; its part 3 counts a
 > game being played, its points so far, for anyone shown everything (never an own-pace seat or anyone hiding sports scores).
-> Next: the merge, then Phase 2 (its calls answered 2026-11-19, own pace for sports added) and 4.1; 1.1's
+> Phase 2 under way on branch sports-phase2: 2.1 done (the NFL's season locks at each player's game), 2.2 done (any fantasy
+> playoffs end by Week 17, and the default plays a final between the top two then: BACKLOG 226), 2.3 done (lineup slots for every
+> team sport, MLB's eligibility from ESPN's positions, computer players drafting and starting legal lineups), 2.4 and 2.5 done (IR,
+> waivers that run), 2.6 done (own pace for a sport: a team sport's seat never more than one game behind, by itself). 2.7 added: a game's timing on
+> through the playoffs, the maker's choice (the user, 2026-11-20).
+> Next: the rest of Phase 2 (its calls answered 2026-11-19, own pace for sports added) and 4.1; 1.1's
 > part 4 (the screens, on a small live read) is the design round's page 2.
 > The user's calls 212–219 are answered ("Decisions", below); BACKLOG 175 still waits.
 
@@ -312,13 +317,193 @@ server.
 
 1. **Locks at each player's game for the NFL** (S; BACKLOG 213, yes): football's season default becomes `closes: 'game'`. A lock
    change reruns every check that asserts a lock (HANDOFF's convention), check-lock-in.js and the explorer's lock invariants.
+   **Done 2026-11-20 (branch sports-phase2).**
+   - *Built:* football.json's season spec closes `game` (the sport's own cadence, `lock` and the defaults' top-level `closes`, stays
+     weekly: it's what a week is, not when a lineup locks). Every football base built on the season (head to head, total,
+     guillotine, keeper, auction, weeks won) takes it; the other specs and sports are unchanged. Only a game started from now on:
+     a game keeps the spec it was started with. The explorer (core-runtime-47) plays it on a world of one game an episode too, as
+     the server stamps the rows it writes for one (each episode's game, no holding's team: runtime-sports.cjs `gameLocks`), so its
+     NFL situations and design fixtures open on the new default; before, it was a gap there.
+   - *Verified:* the unit suite (2,457; a new explorer test: Friday's lineup open on Thursday where the weekly lock had it shut,
+     locked an hour into its own game, the lineup set before it standing; sports-spec's rule now says football's season locks by
+     the game; the frozen v1 NFL state reproduces with its lock put back as it was made, nothing else moved); every NFL fixture
+     check on the new default (defenses, new players, same names, week in progress, live points, hourly, finals, injuries and
+     byes, slate Pick'em; the playoff-weeks check still fails, step 2.2's); check-slate.js; check-lock-in.js; check-sports-explorer.js
+     (its first full run was cut off by a timeout in `calledoff`; every case ran on 2.2's code, below); a 120-case engine campaign (`.ui-atlas/campaigns/sport-locks-game`, seed 210): 115 pass, no `sport-locks`
+     violation, the five others BACKLOG 224's generator kinds; its three cases locking at each game (two slates, one a game an
+     episode: `count.cjs`) pass. tsc; eslint has only its standing errors.
+   - *Noticed, not fixed:* check-episode-lock.js's "a new pick doesn't go in" and check-sports-couch.js --api's guide line
+     (BACKLOG 225) fail the same on master. The slates case of check-sports-explorer.js failed at 00:57 Eastern and passed at 01:00:
+     the midnight-hour edge 1.1 part 2 noted, met for real. The lineup editor's locks by game are still TEMP-UI (DN 38), and now
+     every NFL season game has them: 4.2's page 1. How it plays says "Each castaway locks when their game starts" (describe.js):
+     4.0's words.
 2. **Fantasy playoffs end by Week 17** (S; BACKLOG 214, yes), so nobody's title rides on Week 18's rested starters. Phase 0: the
    default has none, and any final lands in Week 18. Done when check-nfl-playoff-weeks.js passes.
+   **Done 2026-11-20 (branch sports-phase2).**
+   - *Built:* the NFL's own defaults say its fantasy playoffs leave out the regular season's last week (football.json
+     `leagues.nfl.playoffs.endsBefore: 1`, read by sports/index.ts `playoffsEndBefore`; a check's `zt-` league reads as the NFL, as
+     `sportOf` reads it). On a game whose playoffs sit at the season's end, on a league's regular-season slate, the server stamps
+     the last week they may use beside the season's length (air-times.ts stampSeasonLength: `state.playoffsBy`, 17 of 18), and the
+     engine places them no later (MatchupLogic.lastOf). The game ends with its final, so Week 18 isn't played: no move is due for
+     it. A span that ends earlier still wins; a team's own season and the playoffs' slate carry none; college football and every
+     other league leave none out. The explorer stamps the same on a slate (core-runtime-48: runtime-sports.cjs `playoffsBy`).
+   - *Verified:* check-nfl-playoff-weeks.js passes (Top 2's final Week 17; Top 4's semifinals 16 and final 17, from Week 1 and from
+     Week 9; Top 6's quarterfinals 15, semifinals 16, final 17); unit tests (2,460: the engine's placement, the league lookup, the
+     explorer's stamp); tsc; check-sports-explorer.js every case on the real routes (202 checks: head to head on the NFL's season
+     and by categories, slates, calledoff and the rest), its one failure `calledoff`'s step 4 at 01:22 Eastern, the same on master:
+     its day guard read the scenario's own days, where the server and the runtime read the calendar shifted to now. The guard and
+     its rule now read the shifted days, so at that hour it says to run again later (it can't be proven between about midnight and
+     the morning, Eastern); the rest of the case passes.
+   - *Then BACKLOG 226 (the user's call of 2026-11-20, the recommendation): the default plays a final, and Week 18 never counts.*
+     *Built:* the NFL's own season game (football.json `leagues.nfl.specs.season`: the sport's spec with `rank.playoffs: { teams: 2
+     }`), so the default is head to head with a final between the top two in Week 17; college football's season is unchanged (its
+     last regular weeks are conference championships). A gallery base that ranks another way (Season points, Guillotine, Weekly
+     high score) takes none of it: the gallery's `over` now replaces a ranking of another kind whole (start-gallery/sports.js). A
+     game scored by players' stats started to the season's end on the NFL's regular season ends at Week 17 (air-times.ts
+     `fantasySeasonEnd`: start-spec.ts for the wizard's "The rest of the season", the sports route's default `to`); a maker who
+     picks Week 18 keeps it. Pick'em and other games scored by answers still run to Week 18.
+     A check's stand-in league ("football/zt-nfl-slate") now reads as its sport's own first league in `defaultsFor` and the
+     gallery's `sportStandard`, as `sportOf` reads it, so the recorded NFL season plays the NFL's own games (it had football's
+     generic season, with no final); the NBA's, MLB's, NHL's and WNBA's stand-ins get their leagues' own the same way.
+     *Verified:* check-nfl-playoff-weeks.js whole (the default's final between the top two in Week 17, its span ending there;
+     Season points to the season's end ending at 17, through Week 18 keeping 18; every Top N final by 17); unit tests (2,461: the
+     NFL's and college's season ranks, the gallery's three; the frozen v1 NFL state reproduces with its lock and playoffs put
+     back); sport-gallery-check.js --all-leagues (495 rows, 371 play, none off); every NFL fixture check on the new default
+     (defenses, new players, same names, week in progress, live points, hourly, finals, injuries and byes, slate Pick'em);
+     check-slate, check-finals, check-stats-game, check-sports-couch.js --api whole; tsc.
+     *Noticed, not fixed:* the sheet's "The rest of the season" line still says "to the season's end" for a stats game on the NFL's
+     slate, which now ends at Week 17 (4.0's words). College football's season locks at each player's game too since 2.1 (the
+     two share football's season spec; the user decided the NFL's).
 3. **Lineup slots for the NBA, MLB and NHL** (M; L9 part 1): `withLineupSlots` for every sport's defaults, with ESPN's positions
    and MLB's two-way players, and computer players setting legal lineups. Verify with the explorer's slot invariant on real-size
    pools, and unit tests per sport.
+   **Done 2026-11-20 (branch sports-phase2).**
+   - *Found first* (ESPN's real rosters, every team, 2026-11-20): the NBA's and WNBA's list each player as G, F or C only (never
+     PG, SG, SF or PF); the NHL's as C, LW, RW, D or G; MLB's as SP, RP, C, 1B... and, in a second field (`positions`), every
+     position each has played (Ohtani: P, DH, SP; a utility man up to ten; position players who pitched in a blowout RP and P).
+     Neither the NBA's nor the NHL's has that field.
+   - *Built:* every sport's standard games carry its defaults' slots (sports/index.ts `withLineupSlots`, and the gallery's own copy,
+     start-gallery/sports.js), not a lineup of one slot taking everyone (golf, racing, MMA, tennis: `slotted`). A slot's `takes`
+     are positions or position groups ("guards", "batters", "pitchers"), matched as before (the castaway's stamped position, or
+     its group, state.statGroups). So a G fills PG, SG, G or Util; five centers don't fit (two C, two Util). Soccer's formation came
+     with it (a keeper, 3 defenders, 2 midfielders, a forward, 4 outfield). MLB's eligibility, as data (baseball.json
+     `slots.eligible`): a player fills each position his roster lists in his own group (a shortstop listed at 2B fills 2B, a
+     reliever listed SP fills SP), and one listed SP from another group (a two-way player) the pitchers' too; never a catcher who
+     pitched in a blowout. ESPN's list read (espn.ts readRoster `positions`), the rule applied as the fill writes each person
+     (cast.ts, sports/index.ts `eligibleFor`) into season_cast.eligible (migration 0311), kept current by the daily roster
+     refresh, stamped per read as state.castEligible (cast-props.ts), never saved, read by SlotLogic.fits and the lineup sheet's
+     fits (game-view.ts). Computer players: their draft takes only players some slot takes (no offensive tackles) and keeps a team
+     that can fill every slot (SlotLogic.draftKeeps); their lineup sits anyone Out, on injured reserve, an injured list or
+     suspended (state.castInjuries), on a bye (ep.byeTeams) or with no game in a lineup locking at each game (ep.holdingGames),
+     unless nobody else can fill the slot. Questionable, doubtful and day to day still play.
+   - *Verified:* unit tests (tests/sports-slots.test.js: each sport's slots and that every value is one the sport knows; the
+     NBA's G, F and C; the NHL's two goalies; MLB's eligibility and the two-way player on a lineup; ESPN's roster read; the cast
+     fill writing it; the bots' draft and their sitting someone Out or on a bye); the whole suite (2,468); check-sports-bot-lineups.js
+     (new: eight computer players draft the NFL's default season game from the recorded season's 2,425 people through the app's
+     own reads; every team fills all nine slots, every Week 9 lineup fits, nobody on a bye starts where the bench could, a starter
+     marked Out replaced); sport-gallery-check.js --all-leagues (495 rows, 371 play, none off); check-sports-explorer.js every case (202; its own games count other than the defaults, so no slots there); tsc;
+     eslint has only its standing errors.
+   - *Left:* MLB's two-way player scores everything wherever he starts (BACKLOG 227, the user's call: Yahoo's two players
+     recommended). The NBA's PG and SG take any guard, and the sheet places the best guard in G (228). Bots draft a sport by taste
+     within the slots: nothing rates an athlete before the game's own weeks (229). ESPN's eligibility is every position played, with
+     no games-at-a-position threshold (Yahoo's 5 starts or 10 games); a utility man fits nearly everywhere. A team with no catcher
+     left in the pool plays short. WNBA rosters have 25 centers for the NBA's two C slots a seat. The NBA, MLB and NHL lineup sheets
+     weren't seen in a browser: the bench's and the explorer's worlds don't link their people to a season's cast, so slots are off
+     there (as football's always were), and no stand-in world of those leagues with a season game exists; the lineup editor is 4.2's
+     page 1 (DN 38), with the NFL's.
 4. **An IR slot** (S–M, after 1.5): a player marked IR can sit there without costing a roster spot.
+   **Done 2026-11-20 (branch sports-phase2).**
+   - *Found first* (Yahoo's help pages, 2026-11-20: SLN6489, 6919, 6815, 6785, 6425; ESPN's support article on IR and waivers): every
+     league's injured places sit outside the roster's count (the NFL's 2 IR beside its 15; the NBA's 3 IL beside 13; the NHL's 2 IR
+     beside 16; MLB's 4 IL beside 23). Who may go there: football's IR, O, PUP and NFI; basketball's Out and Out for season; hockey's
+     the NHL's own IR (its IR+, which takes DTD and O, isn't in the default); baseball's injured list. Someone there scores nothing,
+     may stay all season, and comes back only into an open spot. Someone healthy left there: Yahoo blocks any add until they're
+     activated; ESPN refuses claims until the IR is cleared (a claim already in still goes through).
+   - *The calls made (the plan's "strict or lenient as data", Yahoo's and ESPN's rule the default):* the spec's `get.ir: { n, takes,
+     healthy }`, `healthy` 'blocks' (the default) or 'stays'; each sport's IR as data in its defaults (`slots.ir`, with its source),
+     carried onto each of its games with a draft whose lineup is the sport's (the season's: index.ts withLineupSlots and the
+     gallery's copy); the codes ESPN's rosters give (espn.ts injuryOf): the NFL's IR, O, PUP; the NBA's O; the NHL's IR; MLB's IL7,
+     IL10, IL15, IL60.
+   - *Built:* the engine's IrLogic (state-logic.js). Moves on and off IR are their own log (`midSeason.ir`, each stamped as a
+     mid-season move is: the episode, an own-pace seat's mark past it), so someone goes out of the lineup from the episode after the
+     latest with results, never out of a week played (BACKLOG 57's rule), and by the move's own time in a lineup locking at each game
+     (letGoBefore, letGoAt, carriesInto, teamFor; validateLineup refuses someone on IR). Never someone in a lineup that's locked, or
+     whose game has started that day. A seat's open spots are its roster's size less everyone it holds who isn't on IR; a waiver claim's
+     pair may drop nobody (`dropId: null`) and free agency an add with no drop goes into one, each as a swap counts. Bringing someone back
+     needs room, a drop with it when full (a drop on its own is a logged move of its own: `via: 'ir'`, no add, no swap used). Someone
+     healthy on IR blocks the seat's adds (pairProblem, freeAgencyMove, couldSwap) unless the game says 'stays'; "healthy" only on a read
+     stamped with the rosters' injuries (cast-props.ts now stamps an empty list for a season nobody's hurt in). A dropped IR player leaves
+     IR with the move and comes back with it on Undo (revert); a viewer behind sees no IR move past their mark (redact). The route:
+     POST /api/leagues/[id]/ir { action: place | back | drop, castawayId, dropId?, playerId? } (a seat's own; whoever runs the game,
+     anyone's). Computer players put anyone listed as the IR takes on it while there's a place, claim the best free agents into the
+     spot, and bring someone healthy back at once (dropping whom they rate lowest, him if it's him). The spec's check and words
+     (describe.js: "two IR spots beside its roster, for someone listed IR, O or PUP..."), settings `draftIr`.
+   - *Verified:* unit tests (tests/sports-ir.test.js: each league's IR and its round trip through the settings; the check; placing,
+     the week played keeping him, the lineup refused, the IR full; a locked lineup keeping its starter; the open spot in free agency and
+     a claim; the healthy block, back with a drop, the drop alone, 'stays', a copy without injuries; redact and Undo; the bots); the whole
+     suite (2,476); check-sports-ir.js (new: on the recorded NFL season, through the route signed in as Ann: a healthy receiver refused,
+     one Out on IR and out of her lineup, a free agent into the spot once Week 9 had its results, healthy again blocking her adds, back
+     refused with a full roster and then back with a drop; a computer player's starter on injured reserve on its IR at the next read;
+     stored with its moves, never the injuries); check-sports-bot-lineups.js, check-sports-injuries-byes.js, sport-gallery-check.js
+     --all-leagues (495 rows, 371 play, none off); tsc; eslint has only its standing errors. check-sports-explorer.js every case on the real routes (202, all pass; the NFL default now carrying IR).
+   - *Left:* ESPN's rosters don't list NFI (Yahoo takes it), so it isn't in the NFL's list; Yahoo's commissioner options (more IR
+     statuses, adding someone hurt straight onto IR) aren't built; the NHL's IR+ isn't. The explorer's worlds have nobody hurt, so its
+     profile accepts `get.ir` on a sport's stats game as inert, and IR's moves are its gap (docs/GAMEPLAY-EXPLORER.md). Nothing is on a
+     screen: the lineup sheet doesn't show IR or offer the moves, and the claim screens can't make an add with no drop (Designs needed
+     43, 4.2's page 1); the route is all there is.
+   - *Noticed, not fixed:* a sports season game starts with no waiver swaps at all (its spec has no waivers: windows only when
+     whoever runs it opens one by hand; the recommendation is written only from a person's Waivers card, backstage-games.ts), so an open
+     IR spot can't be filled until then: for 2.5, which gives the NFL its weekly waivers. The waivers history labels a drop on its own
+     or an add into a spot "Swap" (waivers-model.ts txLabel): 4.0's words.
 5. **Waivers for daily sports** (M; BACKLOG 219, yes): claims clear each morning for the NBA, NHL and MLB; the NFL's stay weekly.
+   (2.4 found a sports season game has no waiver swaps unless someone opens a window by hand: this step gives it its schedule.)
+   **Done 2026-11-20 (branch sports-phase2).**
+   - *Found first:* (a) a sports season game had no waivers that ran: its spec carried none, so windows opened only by hand (the
+     recommendation is written only from a person's Waivers card). (b) The NBA's, NHL's and MLB's season, categories and roto games
+     said "set a daily lineup" but locked `daily`, which on a league's slate (an episode is a week) locks the whole week's lineup at its
+     first game (locks.ts: a slate's episode locks at its own first game whatever `closes` says): a weekly lineup, so a pickup made on a
+     Tuesday couldn't play until the next week, and daily waivers would mean nothing. (c) Yahoo's defaults (help.yahoo.com/kb SLN6489,
+     6919, 6815, 6785, 2026-11-20): a continual rolling list everywhere; the NFL's waivers weekly with no maximum acquisitions; the NBA's,
+     NHL's and MLB's roster changes "Daily - Today" (each player locks at his own game), at most 4 acquisitions a week (MLB 6); a
+     dropped player on waivers 1 day (2 in private leagues).
+   - *The calls made:* the daily sports' lineup games lock at each player's game (`closes: 'game'`, as the NFL's since 2.1: the user's
+     call on 213, the same reasoning, and what their own words already promised), so their lineups are daily in fact. Each team sport's
+     waivers as data (its defaults' `waivers`, with its source), carried onto its games with a draft (index.ts `sportWaivers`, and the
+     gallery's copy): a window every week, a rolling order, free agency, the week's swaps (the NFL's the team's size, "no limit"; the
+     NBA's and NHL's 4, MLB's 6), claims clearing 24 hours before the NFL week's first game, 12 before a game day's first for the
+     daily sports; and `waivers.daily` (the spec's, settings `waiverDaily`) for the daily sports' lineups (not best ball's: no lineup to
+     lock, its waivers by the week).
+   - *Built:* waivers every game day (WaiverLogic.daily, gameDays, dueDaily): a period a day the game's episodes have games (the days
+     from the server's stamped games, `until` each game's day's end in the East), one after another: it opens when the day before's last
+     game starts (or once the draft's done), processes `hours` before the day's first game, and takes free agents until its last game
+     starts. Its episode is the one before its day's, so a move made in it counts from the day's episode, game by game (a lineup that
+     locks at each game counts each game for whoever was in it when it started), and a window's swaps are the week's across its days
+     (swapsMade). A copy without the stamped days (own pace, no schedule) runs them by the episode. Weekly waivers on a lineup that locks
+     at each game (the NFL's) take free agents until the week's last game starts, not its first. Free agency in such a game never brings
+     in someone whose game has started that day, nor takes out a starter in one (as Yahoo's "Daily - Today"). A game day's period
+     pushes only to whoever got someone or missed, and reminds nobody (a push a day to everyone would be noise). The wizard's and Run it
+     back's team size hold a window's swaps to the team (the spec's check: a sport's "no limit" is the team's size). The campaign
+     generator's lock draw takes waivers every game day off a game it moves to the day or the week (proof-family-66). The game's words
+     ("claims clear each game day's morning, free agents until its last game, 4 swaps a week").
+   - *Verified:* unit tests (tests/sports-waivers.test.js: each league's waivers and lock, the check, the round trip, the words; the
+     NBA's day by day (a period a game day, its morning, a swap in free agency, a free agent in a game under way refused and a starter
+     in one kept, the week's two swaps counted across its days and new the next week, nothing after the last day); waiting for the
+     draft; a copy without its days; the NFL's week, its free agency to Monday night with Thursday night's players locked); the whole
+     suite (2,480); check-sports-waivers.js (new: on the recorded NFL season, the default game: no week before Week 8's results, then
+     Week 9's waivers open by themselves, claims clearing the day before Thursday's kickoff and free agents until Monday night's; Ann's
+     claim through the route runs and she gets him; Thursday night a Ravens receiver can't come in; Saturday an Eagles receiver does;
+     free agency over at Monday night's kickoff); check-sports-ir.js, check-sports-bot-lineups.js, check-nfl-playoff-weeks.js,
+     check-lock-in.js (the lock change), sport-gallery-check.js --all-leagues (495 rows, 371 play, none off), check-sports-explorer.js
+     every case on the real routes (202, all pass), check-sports-week-in-progress.js (it failed first: its own spec, a team of three
+     from the NFL's game, carried a window of 15 swaps; startFromSpec now holds a window's swaps to the team as the wizard and Run it
+     back do, and it passes); tsc; eslint has only its standing errors.
+   - *Left:* Yahoo's waiver time (a dropped player claimable only by waiver for a day or two) isn't built: a player dropped in free agency
+     is a free agent at once (dropped in a waiver run, he waits for free agency, as before). A window opened by hand in a game with
+     waivers every game day goes by the episode (openWindow's rules). Own pace for sports (2.6) decides how a seat behind takes them. No
+     screen says any of it: the waivers screens say "Episode" and every week (Designs needed 44; 4.0's words).
+   - *Noticed, not fixed:* the week's next episode is made by a write after its results (withLeagueLock's ensureNextEpisode runs after
+     the waiver clock), so a week's waivers open at the second write or hourly run after its results, not the first (an hour in
+     production): fine, noted for 4.2 if a screen ever says "opens when results are in".
 6. **Own pace for a sports game** (M; BACKLOG 218: the user, 2026-11-19, "i want own pace, its an important option for casual
    leagues and solo games"). What's there: a sport's start sheet already offers own, live and strict (live recommended:
    start-game.ts `runs`); the season's guard goes by a person's mark when every seat they hold there is at its own pace; a caught-up
@@ -329,9 +514,9 @@ server.
    one starts (a slate's next week: its first game), the one before counts as watched: the seat's mark moves on by itself, as Keep
    up's automatic mark does for a follow (guard.ts, keep-up.ts advanceAuto), and its move for that game closes then at the latest
    (as live's late window closes when the next one airs). For the major league team sports. Two parts still open:
-   - **Baseball** is different (the user: doubleheaders). Claude's recommendation, to confirm: by the day, so the games before
-     count as watched once a game on a later day starts, and a doubleheader's first game isn't marked watched at the second's
-     first pitch.
+   - **Baseball** is different (the user: doubleheaders). **By the day (the user agreed with the recommendation, 2026-11-20):** the
+     games before count as watched once a game on a later day starts, and a doubleheader's first game isn't marked watched at the
+     second's first pitch.
    - **Individual sports** (tennis, golf, racing, fights): no rule yet (the user doesn't follow them): plain own pace until someone
      who does plays one.
    What it means: nobody's ever a week behind more than one, so head to head, the playoffs and waivers never wait longer than the
@@ -345,6 +530,77 @@ server.
    computer players, live for a league of people, own one tap away; (d) the reveal an own-pace seat moves its mark with, the same
    one BACKLOG 216 gives anyone hiding sports scores (4.2's page 3 designs it); (e) live points (1.1 part 3) and the matchup push
    (217) never past an own-pace seat's mark (live points: done in 1.1 part 3, never sent to an own-pace game at all).
+   **Done 2026-11-20 (branch sports-phase2).**
+   - *Found first:* own pace for a sport didn't work past the start, five ways. (1) A sport's results arrive with no write (finals
+     are stamped on a read), so the settle that makes a seat catch up (GhostLogic.settlePace, run only on writes) never ran: an own-pace
+     seat was shown each week as if live. (2) The guard takes the lower of the show's mark and the game's, and a sports fan's show mark
+     is 0 (sports were shown live, so nothing moved it): once a seat did catch up it was told nothing at all and couldn't reveal. (3) A
+     catching-up seat's copy dropped its week's air time but kept each game's start, so a week played long ago stayed locked game by
+     game. (4) The waivers of a game with exclusive teams at its own pace open only at a "waiver moment" (someone on a team went home:
+     Outlast's), so a sports game's weekly windows never opened. (5) The sheet recommended own pace for the recorded NFL season, whose
+     rulebook's kind isn't "sport" (start-game.ts read only that).
+   - *Built:* the rule as data, each team sport's defaults' `pace` (`by: "game"`: football, basketball, hockey, soccer and their
+     college leagues; `"day"`: baseball, college baseball); an individual sport has none and stays plain own pace. `sports/pace.ts`
+     paceFloor: from each episode's first game played, the episode before the latest one started, or by the day the one before the
+     first begun on the latest one's Eastern day (a doubleheader's two are one day's). air-times.ts stamps it on an own-pace team
+     sport's game (`state.paceFloor`, never saved). GhostLogic.paceTarget/paceBehind/paceDue/keepPace move every seat behind it
+     (never past the game's end, never a seat still choosing its start), caught up once at the latest results. `sport-pace.ts`
+     keepSportPace runs in withLeagueLock before the mutation (so a move for a week passed is refused) and after it: computer players
+     play the weeks first (catchUpBots), then the seats move, then the people's membership and show marks go forward to the floor or
+     the game's start-1, whichever is later (what came before a sports game's start counts as watched). readyLeague writes when a seat
+     is behind the floor, or when a stats game at its own pace has a seat its finals left behind (fix 1). The season's games read
+     readies its own-pace sports games before reading anyone's mark, so the first read after a kickoff isn't a week behind.
+     `sport-pace-clock.ts` keepAllSportPace, run by the hourly sports job (db/sports-refresh.js), readies every one, so a mark moves
+     within the hour with nobody reading. The rewound copy drops a sport's stamped locks (rewindTo: fix 3), and a lineup set on a copy
+     replaces the week's timed sets for that seat (applyAs), so it scores as the week's one lineup. catchingUpMark is never behind the
+     floor the seat was moved to in the same transaction. Paced waivers open at every episode everyone has reached when the game has
+     a window every week (WaiverLogic.windowEvery, read by waivers.js lossAt and the explorer's runtime-waivers.cjs: fix 4), on a copy
+     with no game day after the week following everyone's mark (WaiverLogic.pacedView, both again): the full explorer run found the
+     first cut opening a daily game's waiver day (the NBA's, NHL's, MLB's, college's) past the furthest-behind seat. The start: a team sport at its own pace starts with the game to come or the one
+     just played (`pace.here`/`top` the latest begun; any other aired start isn't taken), and never on a finished season (blocked);
+     `runs.alone` ("own" for a sport) is what the sheet starts on for a game with nobody else told (model.ts lockOf: part c, Claude's
+     call, reversible). The sports route's start passes `pace`, `bots` and `level` through (part b).
+   - *Verified:* tests/sports-pace.test.js (the floor by the game and by the day, a doubleheader, a late game's Eastern day, a game
+     called off; each sport's rule; keepPace's moves, limits and its game's end; the stamp never saved); the suite; check-sports-own-pace.js
+     (new, on the recorded NFL season: the sheet's paces, a start from Week 2 not taken and one from the week just played taken; Ann
+     alone with three computer players at her own pace from Week 7, drafted together; Week 7 played, Ann told nothing past her mark on
+     the season's games read, her Week 7 lineup still hers, no waiver week while she's behind; her reveal moving her, the computer
+     players with her, her table and record taking the week in, Week 8's waivers opening then; Week 8 played and unrevealed, still
+     hers; at Week 9's first kickoff, with no read, the hourly pass moving her to Week 8 in the game, her membership and her show, the
+     computer players too, Week 8 closed to her, Week 9 hers, her table taking Week 8 and not Week 9's game under way; at Week 10's
+     kickoff a read of her games moving her; a waiver week at each week everyone reached); check-sports-week-in-progress.js,
+     check-sports-live-points.js, check-sports-waivers.js, check-lock-in.js, check-trivia-game.js (the lock change), check-own-pace-start.js,
+     check-own-pace.js, sport-gallery-check.js --all-leagues (495 rows, 371 play, none off); check-sports-explorer.js every case on the
+     real routes (202: 181 on the first cut, its 21 failures the daily waiver days above; the tables case again on the fix, 95 of 95); check-own-pace-live.js fails three steps,
+     the same three on the code before this step (noted below); tsc; eslint has only its standing errors.
+   - *Left:* (d) the reveal is the season's reveal route as it is (revealSeason): its screen for a sport is 4.2's page 3 (BACKLOG
+     216's). The playoffs at own pace and daily waivers at own pace (the NBA's, NHL's, MLB's) aren't checked: the recording has Weeks
+     1-9 of the NFL only (2.7's postseason recording, Phase 3's NBA and MLB months). No MLB doubleheader on a real route either (the unit
+     tests hold the day rule). The explorer's headless runtime doesn't move marks by the floor (it has no server stamp): its own-pace
+     sports games are plain own pace there, and its real-route frames get the rule from the server. The matchup push (217) isn't built;
+     when it is, an own-pace seat's goes at its mark (BACKLOG 217's note). The sheet's words for a sport's "where you are" start ("You've
+     seen 1 to 8; catch up one at a time") are a show's: 4.0's.
+   - *Noticed, not fixed:* the classic state route (GET /api/leagues/[id]/state) sends a late joiner the whole state and the client
+     trims it, as it always has for every late joiner, so "told nothing past the mark" holds on the new design's reads only.
+     check-own-pace-live.js fails "the home's moves list the Episode 6 lineup as late", "the reminders job would tell jordan once" and
+     its browser step (a stale selector, recorded in PLAN-start-a-game-redo.md), the same on the code before this step: the first two
+     most likely since a full lineup carried in counts as set (7cfb1bb5); BACKLOG's stale checks. Under the full suite's load
+     tests/gameplay-campaign.test.js timed out a case once (it passes alone).
+7. **A game through the playoffs** (M–L; the user, 2026-11-20). "When a normal 'season long' game ends (because playoffs start and
+   some teams are out) that doesn't mean all games end. Someone doing a game just for a team could extend all the way to the Super
+   Bowl, if they wanted it. The game maker has the ability to set the timing to be regular season and the playoffs, and the Super
+   Bowl. (This goes generally for all sports with similar formats.)" The default stays the regular season (the fantasy season's
+   end for the NFL: 226). Today a game can't: a league's slate is one stage (sports_slates.stage, regular or post), and a team's
+   season takes only its regular-season games (find.ts `regularOf`). What it needs: (a) the timing choice on the sheet and in Game
+   settings: the regular season (the default), or on through the playoffs to the final (the Super Bowl, the Finals, the World
+   Series, the Stanley Cup Final); (b) a league's slate of both stages, its playoff rounds as episodes after the regular season's
+   weeks (the playoffs' weeks listed as ESPN's calendar lists them); (c) a team's season that takes its playoff games as they're
+   set, and ends when the team is out; (d) the engine's rules across the line: a drafted player whose team is out scores nothing
+   and stays held, lineups and waivers go on, the fantasy playoffs placed at the game's own end (a span into the postseason isn't
+   capped at Week 17: 2.2's stamp is the regular season's only), and a Pick'em or a pool asks each playoff game; (e) the words
+   ("Regular season", "Through the Super Bowl") by sport, through 4.0. Sports with the same shape: the NFL, NBA, NHL, MLB, MLS and
+   college football. Checks: the NFL fixture's recording has Weeks 1-9 only, so a playoffs recording (record-espn-slate.js, the
+   2026 postseason in January) or a stand-in season with a postseason.
 
 ### Phase 3. The gate: a real season, replayed (L, about 2–3 sessions)
 
@@ -442,16 +698,17 @@ default selection.
 
 ## The order, and how it fits the rest
 
-1. **Now, beside the Survivor 51 work:** the merge (the user's OK to push; not on an episode night; 1.1's parts 1 to 3 done).
-   Rehearsed 2026-11-20: on branch merge-sports in rfl-merge (the branch's tip, a fast-forward of master) the unit suite (2,457)
+1. **Done 2026-11-20: the merge** (the user: "yes, push it"; ba8f3a8e deployed in about 3½ minutes, production's build log
+   applied 0308, 0309 and 0310, no server error in its logs, the hub, Survivor 51's Games tab and Backstage read clean). Rehearsed
+   first: on branch merge-sports in rfl-merge (the branch's tip, a fast-forward of master) the unit suite (2,457)
    and `next build` pass, and the rehearsal on a fresh copy of production (Neon `rehearse-sports-2026-11-20`, compute
    ep-rapid-fire-b4msdllq) applied 0308, 0309 and 0310 after 0443 (migrate.js takes any file not yet applied), `[check] all
    good`, rulebooks backfilled, `[game-specs] check: PASS`; the rulebooks check's FAILs are production's own (its edited rulebooks
    against the built-ins; this merge touches no rulebook code). So no two production cast rows share provider ids (0308's new
    index built). The snapshot to roll back to is `pre-sports-2026-11-20` (auto-deletes after 7 days). While the deploy builds,
-   the old code's cast inserts fail (its conflict target is 0308's old index): a few minutes, nobody adds a show then. Phase 4.0
-   (the words) in any free session.
-2. **Then:** Phase 2 (its calls answered 2026-11-19, own pace for sports as 2.6), and Phase 4.1.
+   the old code's cast inserts fail (its conflict target is 0308's old index): a few minutes, nobody adds a show then.
+2. **Now:** Phase 2 (its calls answered 2026-11-19, own pace for sports as 2.6), and Phase 4.1. Phase 4.0 (the words) in any
+   free session.
 3. **Then:** Phase 3, the gate, and the design round's pages 1 and 3 (they need correct data, not live data).
 4. **Then:** 4.1's live path, page 2, Phase 5, and pages 4 to 6.
 5. **The pilot** (BACKLOG 212) once Phase 3 passes.
@@ -479,6 +736,10 @@ Answered by the user on 2026-11-19 (215 earlier that day, the rest at once: "i a
 - **218, own pace: yes, against the recommendation.** "An important option for casual leagues and solo games" (Phase 2.6).
 - **219, yes.** Daily waivers for the NBA, NHL and MLB, weekly for the NFL (Phase 2.5).
 - **175** still waits: step 10 as its own round, recommended as this plan's Phase 4, ahead of the stages round.
+- **226, yes** (the user, 2026-11-20, "i agree with your rec"): the NFL's default season game plays a final between the top two in
+  Week 17, and a stats game to the season's end stops at Week 17 (2.2's follow-on). With it, the user's general point: a game's
+  timing is the maker's, the regular season by default or on through the playoffs to the final, for every sport of that shape
+  (2.7).
 
 ## Backlog items this plan carries
 

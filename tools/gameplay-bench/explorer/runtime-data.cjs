@@ -151,6 +151,10 @@ function contextData(document, context, actors) {
 // catching up) change only on writes, so running it after each action that changed the game's state matches the server.
 function settleWrite(world, state, o = {}) {
   if (S.MatchupLogic.readsSeasonLength(state)) state.seasonEpisodes = world.events.length; else delete state.seasonEpisodes;
+  // (Step 2.2, BACKLOG 214, core-runtime-48: and on a league's slate, which the materializer writes as its regular season, the last
+  // week its fantasy playoffs may use where the league's leave its last weeks out: the NFL's, before Week 18's rested starters.)
+  const by = S.MatchupLogic.readsSeasonLength(state) ? Sports.playoffsBy(world) : null;
+  if (by !== null) state.playoffsBy = by; else delete state.playoffsBy;
   // Teams of players: the server settles them before the mutation and again after head to head's settle (db.ts withLeagueLock):
   // once the game has started (by the scenario clock), the draw kept as it stood.
   const now = Date.parse(o.clock || '');

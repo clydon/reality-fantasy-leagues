@@ -24,6 +24,12 @@ Newest first. The plan or archive section named holds the detail.
   (noon the day after); after them a bot correction needs a second look by the bot and the game's players are told; splits
   go to the tie-break an hour later; Backstage has nothing for the couch to tick; the desk's Inbox is one row an episode the
   bot couldn't settle. POST /api/desk/settle-again ran once after the deploy. [PLAN-results-settle.md](PLAN-results-settle.md).
+- **Sports in good shape, Phases 0 and 1** (2026-11-20, f1488cf1..ba8f3a8e; migrations 0308–0310, rehearsed on a copy of
+  production; the snapshot `pre-sports-2026-11-20` keeps 7 days): a sport's people go into its games and fit football's slots,
+  team defenses, two players who share a name kept apart, rosters kept current, injuries and byes, finals never zeroed silently
+  and corrections taken, finals in the standings within the hour (the hourly GitHub job now runs `db/sports-refresh.js`), a week
+  counted as its games end, and live points during games for anyone shown everything (never an own-pace seat or anyone hiding
+  sports scores). [PLAN-sports-ready.md](PLAN-sports-ready.md).
 - **Episode night** (2026-11-19, 50651ca4 and 7cfb1bb5): look C is the app; Lock in is a real lock (`GhostLogic.lockIn`, the
   lock-in route, Undo for a minute); a full lineup carried in from last week counts as set. Survivor 51's Ep 10 (Wed
   2026-11-25) is the first night with it (BACKLOG 110). Spec: docs/design-round/strip-night-spec.md.
@@ -48,6 +54,17 @@ Newest first. The plan or archive section named holds the detail.
 
 ## In flight
 
+- **Sports Phase 2, branch `sports-phase2`** (from master cd1427a8): 2.1 to 2.6 done: the NFL's season locks at each player's
+  game, any fantasy playoffs end by Week 17 and the default plays a final (BACKLOG 226), every team sport's lineup has its slots
+  (MLB's players fill each position they've played; computer players draft and start legal lineups; migration 0311), and every
+  team sport's season game has IR places (Yahoo's defaults; the engine, its route and the computer players; no screen yet: Designs
+  needed 43), and waivers that run: the NFL's weekly with free agency to Monday night, the NBA's, NHL's and MLB's every game day,
+  their lineups now locking at each player's game ("Daily - Today"; they locked the whole week at its first game). 2.6 done: own
+  pace for a sports game works (it didn't past the start), a team sport's seat never more than one game behind, moving on by itself
+  at the next game's start (baseball by the day), solo games recommended at their own pace. **Merged into master locally
+  (2026-11-20), not pushed: the push waits on the user** (migration 0311 runs on it; light prep, the user's call: no sports games
+  in production). Next is 2.7, on a fresh branch from master. BACKLOG 227 (MLB's two-way player) waits on the user, by March.
+  [PLAN-sports-ready.md](PLAN-sports-ready.md) has each step's record.
 - **Game preview, branch `preview`** (lane rfl-preview): 17 commits not on master, 55 commits behind it, about 11 conflict
   hunks (strip.tsx, game-week.tsx, your-move.ts, tonight.tsx). It has P0, the visual story, the bench's preview maker and
   Round 5 (four real-app fixes, among them the finale reveal ranking a stage that had ended). It waits on the user's review of
@@ -68,18 +85,10 @@ Newest first. The plan or archive section named holds the detail.
    Designs-needed words batch, and the production check-ups.
 4. **C8, the 2-on-1 head to head**, on a fresh branch from master (its seven answers are in decisions.md, 2026-11-19; who plays
    alone first is drawn at random), then the rest of the redo plan's E3.
-5. **Sports, a lane of its own:** [PLAN-sports-ready.md](PLAN-sports-ready.md): the merge, rehearsed 2026-11-20 and waiting on the
-   user's OK to push (the plan's "The order" has the rehearsal's results; step 1.1's
-   parts 1 to 3 are done: finals within the hour, a week counted as its games end, and live points during games for anyone shown
-   everything, never an own-pace seat or anyone hiding sports scores), then Phase 2 (the user answered 212–219 on 2026-11-19:
-   every recommendation but 218, where they want own pace for sports, now Phase 2.6). 1.1's part 4, the live screens, is the
-   design round's page 2 and needs a small live read (polling the whole games read would be ~100 MB a phone an NFL game). Phase 0
-   and all of Phase 1 but part 4 are done on branch sports-phase0, not merged yet (0309 and 0310 are additive). **Its migration 0308 is applied to the main folder's local database**: master's code names
-   the old season_cast conflict target, so on master locally a cast insert (Make it a game, the desk's cast edits) fails until
-   the branch merges. To undo it locally: `DROP INDEX season_cast_provider_idx; DROP INDEX season_cast_name_idx; CREATE UNIQUE
-   INDEX season_cast_name_idx ON season_cast (season_id, lower(name)); DELETE FROM schema_migrations WHERE version =
-   '0308_season_cast_provider_ids.sql';`. At the merge, rehearse 0308 to 0310 on a Neon branch; while a deploy builds, the old
-   deployment's cast inserts fail for those minutes. Its words pass (4.0) can go in any free session.
+5. **Sports, a lane of its own:** [PLAN-sports-ready.md](PLAN-sports-ready.md): Phases 0 and 1 are live (above); next is Phase 2
+   (the user answered 212–219 on 2026-11-19: every recommendation but 218, where they want own pace for sports, now Phase 2.6)
+   and 4.1, on a fresh branch from master. 1.1's part 4, the live screens, is the design round's page 2 and needs a small live
+   read (polling the whole games read would be ~100 MB a phone an NFL game). Its words pass (4.0) can go in any free session.
 6. The order after that is in [PLANS.md](PLANS.md).
 
 **Waiting on the user:** BACKLOG's "Waiting on you" section, with a recommendation on each. The ones that unblock ready work

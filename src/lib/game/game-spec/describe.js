@@ -1350,6 +1350,12 @@ function drawRules(s, w) {
     if (needsOf(s).some((n) => n.of === 'gender')) out.push('Someone nonbinary counts as either, on whichever side lets the team fit.');
     out.push(`A replacement keeps what the team needs, while someone free can.`);
   }
+  // Step 2.4 (docs/PLAN-sports-ready.md): injured reserve. The words are 4.0's to finish.
+  const ir = s.get && s.get.by === 'draft' && s.get.ir && s.get.ir.n >= 1 ? s.get.ir : null;
+  if (ir) {
+    out.push(`Each team has ${say(ir.n)} IR ${ir.n === 1 ? 'spot' : 'spots'} beside its roster, for someone listed ${listOf(ir.takes).replace(/ and ([^ ]+)$/, ' or $1')}: they don't take a roster spot there, so you can add someone in their place, and they don't play or score until you bring them back. Bringing them back needs room on your roster.`);
+    if (ir.healthy !== 'stays') out.push('Once someone on IR is healthy, you can’t add anyone until you bring them back or drop them.');
+  }
   return out;
 }
 
@@ -1639,7 +1645,9 @@ function detailsOf(s, w) {
   out.push({ id: 'join', label: 'Who can join', recommended: e.join === null, value: e.lockedDown ? "Nobody new while it's locked down" : join });
   if (isObj(e.waivers) && isObj(e.waivers.windows)) {
     const win = e.waivers.windows;
+    // Step 2.5: waivers every game day (claims each morning, the window's swaps the week's). The words are 4.0's to finish.
     const windows = win.schedule === 'manual' ? (win.swaps > 0 ? 'windows when you open one' : 'no windows unless you open one')
+      : e.waivers.daily === true ? `claims clear each game day's morning, free agents until its last game${win.swaps ? `, ${win.swaps === 1 ? 'one swap' : `${win.swaps} swaps`} a ${w.part}` : ''}`
       : `a window ${win.schedule === 'everyEpisode' ? `after every ${w.part}` : `every ${win.every} ${w.parts}`}${win.swaps ? `, ${win.swaps === 1 ? 'one swap' : `${win.swaps} swaps`}` : ''}`;
     // Waivers that start with a phase: "From when Merged starts: ...".
     const from = isObj(e.waivers.from) ? `From when ${phaseWord(e.waivers.from.phase, w)} starts: ` : '';

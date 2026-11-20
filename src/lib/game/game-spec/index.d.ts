@@ -76,7 +76,7 @@ export type SpecGet =
   /** A10 part 3: order "draw" deals each team at random when the draft starts (either ownership); across spreads a draft over
    *  the cast's groups as the data has them then. Part 3b: order "auction" (exclusive) sells the cast by sealed bids; a budget
    *  beside any other order is a salary cap, prices from the data. */
-  | { by: "draft"; each: number; order: "snake" | "blind" | "draw" | "auction"; own: "exclusive" | "shared"; groups?: GroupSlots; across?: DraftAcross; budget?: DraftBudget; keep?: DraftKeep; needs?: DraftNeed[] }
+  | { by: "draft"; each: number; order: "snake" | "blind" | "draw" | "auction"; own: "exclusive" | "shared"; groups?: GroupSlots; across?: DraftAcross; budget?: DraftBudget; keep?: DraftKeep; needs?: DraftNeed[]; ir?: DraftIr }
   /** A10 part 2's second: a second pick beside the first, open every episode, counting on a night two or more go home (void, or
    *  counts like the first, on a night only one goes). */
   /** A11 part 2: repeat "never", nobody picked twice in the game, and its fallback for a night you've picked everyone still in
@@ -512,6 +512,9 @@ export interface SpecWaivers {
   autoFill: boolean;
   /** Waivers that start when this phase of the season does (none before it); left out: from the start. */
   from?: { phase: string };
+  /** Step 2.5: a period every game day (claims clear `hours` before its first game, free agents until its last starts), for a
+   *  lineup that locks at each game; its window's swaps are the week's. Left out: one period an episode. */
+  daily?: boolean;
   /** C4: whom a replacement or a swap brings in, each left out the draft's own: exclusive (only someone on nobody's team) or
    *  shared (anyone still in who isn't yours already). Shared beside an exclusive draft, never exclusive beside a shared one. */
   own?: { replace?: "exclusive" | "shared"; swap?: "exclusive" | "shared" };
@@ -638,6 +641,14 @@ export interface DraftNeed {
   of: string;
   value: string;
   n: number;
+}
+
+/** Step 2.4 (docs/PLAN-sports-ready.md): injured reserve. `n` places outside the roster's count for someone their roster lists as one
+ *  of `takes` (a sport's injury codes); someone healthy left there blocks their seat's adds (the default) or stays. */
+export interface DraftIr {
+  n: number;
+  takes: string[];
+  healthy?: "blocks" | "stays";
 }
 
 export interface DraftAcross {

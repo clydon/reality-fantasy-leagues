@@ -394,6 +394,14 @@ declare const StateLogic: {
     refresh(state: LeagueState): void;
     /** The step waiting at `now` (ms). */
     due(state: LeagueState, now: number): "open" | "process" | "close" | "cancel" | null;
+    /** Step 2.5: waivers every game day (the spec's waivers.daily on a lineup locking at each game, its days stamped). */
+    daily(state: LeagueState): boolean;
+    gameDays(state: LeagueState): { until: string; first: number; last: number; episode: number }[];
+    /** Step 2.6: the league at the episode everyone has reached (own pace, exclusive teams), no game day after the week following it. */
+    pacedView(state: LeagueState, n: number): LeagueState;
+    /** Step 2.6: a window every episode (a sports season game's): each episode everyone has reached is a waiver moment at own pace. */
+    windowEvery(state: LeagueState): boolean;
+    nextGameDay(state: LeagueState, now: number): { until: string; first: number; last: number; episode: number } | null;
     open(state: LeagueState, now: number, opts?: { window?: boolean; swaps?: number; replace?: boolean; by?: "commissioner" }): WaiverPeriod;
     cancel(state: LeagueState): WaiverPeriod | null;
     setClaimsIn(state: LeagueState, period: WaiverPeriod, playerIds: string[]): void;
@@ -499,6 +507,12 @@ declare const StateLogic: {
     /** A game at your own pace keeps waiting: seats that new results have left behind are catching up again (after every write);
      *  a game made before it aired (paceTogether) has its seats made late joiners here, at its first results. */
     settlePace(state: LeagueState): boolean;
+    /** Step 2.6: a team sport at its own pace, never more than one game behind: the floor its seats move to (state.paceFloor,
+     *  stamped; never past the game's end), the seats short of it, whether any is, and moving them ([{ playerId, from, to }]). */
+    paceTarget(state: LeagueState): number | null;
+    paceBehind(state: LeagueState): LeagueState["players"];
+    paceDue(state: LeagueState): boolean;
+    keepPace(state: LeagueState): { playerId: string; from: number; to: number }[];
     /** Sets a game at its own pace before its first episode airs: made and drafted as a live one (settings.startedTogether). */
     paceTogether(state: LeagueState): void;
     /** Shared teams at your own pace where each seat picks its own (a game made on an aired episode): no draft room. */
@@ -944,6 +958,9 @@ declare const StateLogic: {
   MidSeasonLogic: {
     applyPickup(state: LeagueState, playerId: string, addId: string, lossId: string | null, extra?: Partial<MidSeasonLogEntry>): MidSeasonLogEntry;
     applyAddDrop(state: LeagueState, playerId: string, dropId: string, addId: string, extra?: Partial<MidSeasonLogEntry>): MidSeasonLogEntry;
+    /** Step 2.4, a game with IR: a free agent into an open spot, and a drop on its own. */
+    applyAdd(state: LeagueState, playerId: string, addId: string, extra?: Partial<MidSeasonLogEntry>): MidSeasonLogEntry;
+    applyDrop(state: LeagueState, playerId: string, dropId: string, extra?: Partial<MidSeasonLogEntry>): MidSeasonLogEntry;
     /** Undoes one logged move (several: newest first). */
     revert(state: LeagueState, tx: MidSeasonLogEntry): void;
     replenishAt(state: LeagueState): number;
@@ -1024,6 +1041,30 @@ declare const StateLogic: {
     summary(state: LeagueState): string;
     problem(state: LeagueState, ids: string[]): string | null;
     best(state: LeagueState, ranked: string[], n: number): string[];
+    /** Step 2.3: whether a position slot's value takes someone: their position group, or a position they're eligible at. */
+    positionFits(state: LeagueState, id: string, value: string): boolean;
+    /** Step 2.3: of a computer player's draft candidates, those that keep its team able to fill every slot (all, with room). */
+    draftKeeps(state: LeagueState, mine: string[], candidates: string[], left: number): string[];
+  };
+  /** Step 2.4 (docs/PLAN-sports-ready.md): injured reserve, the spec's get.ir. Each write returns why it was refused, or null. */
+  IrLogic: {
+    config(state: LeagueState): import("./game-spec/index.js").DraftIr | null;
+    on(state: LeagueState): boolean;
+    places(state: LeagueState): number;
+    moves(state: LeagueState): import("./types").IrMove[];
+    onFor(state: LeagueState, playerId: string, episodeNumber: number): Set<string>;
+    onNow(state: LeagueState, playerId: string): Set<string>;
+    onAt(state: LeagueState, playerId: string, t: number): Set<string>;
+    eligible(state: LeagueState, castawayId: string): boolean;
+    healthy(state: LeagueState, playerId: string): string[];
+    addProblem(state: LeagueState, playerId: string): string | null;
+    openSpots(state: LeagueState, playerId: string): number;
+    placeProblem(state: LeagueState, playerId: string, castawayId: string, now?: number): string | null;
+    place(state: LeagueState, playerId: string, castawayId: string, now?: number): string | null;
+    backProblem(state: LeagueState, playerId: string, castawayId: string, dropId: string | null, now?: number): string | null;
+    back(state: LeagueState, playerId: string, castawayId: string, dropId: string | null, now?: number): string | null;
+    dropProblem(state: LeagueState, playerId: string, castawayId: string, now?: number): string | null;
+    drop(state: LeagueState, playerId: string, castawayId: string, now?: number): string | null;
   };
   /** Step A10 part 3: names out of a hat (the spec's get.order 'draw'), seeded and recorded in state.draw. */
   DrawLogic: {

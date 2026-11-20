@@ -21,9 +21,12 @@
       { "slot": "C", "n": 2, "takes": ["C"] },
       { "slot": "Util", "n": 2, "takes": ["guards", "forwards", "centers"] }
     ],
-    "bench": 3
+    "bench": 3,
+    "ir": { "source": "Yahoo's default roster's 3 IL, outside its 13; it takes Out (and Out For Season, which ESPN's rosters list as Out); not P, Q or D (help.yahoo.com/kb/SLN6919.html, SLN6425.html, 2026-11-20)", "n": 3, "takes": ["O"] }
   },
   "closes": "daily",
+  "waivers": { "source": "Yahoo's public defaults: a continual rolling list, roster changes Daily - Today, at most 4 acquisitions a week (help.yahoo.com/kb/SLN6919.html, 2026-11-20). Claims clear each game day's morning, 12 hours before its first game, then free agents until its last game starts (BACKLOG 219; docs/PLAN-sports-ready.md step 2.5)", "swaps": 4, "daily": true, "hours": 12 },
+  "pace": { "source": "The user's rule (2026-11-19, BACKLOG 218): a seat at its own pace is never more than one game behind; when the next game starts, the one before counts as watched (docs/PLAN-sports-ready.md step 2.6)", "by": "game" },
   "specs": {
     "season": {
       "about": "A season-long league: draft a full roster, set a daily lineup, play someone head to head each week.",
@@ -35,7 +38,7 @@
         "count": { "start": 10 },
         "score": { "by": "stats", "points": { "PTS": 1, "REB": 1.2, "AST": 1.5, "STL": 3, "BLK": 3, "TO": -1 } },
         "rank": { "by": "matchups" },
-        "closes": "daily"
+        "closes": "game"
       }
     },
     "short": {
@@ -61,11 +64,11 @@
     },
     "categories": {
       "about": "A season-long league by categories: draft a full roster, set a daily lineup, play someone head to head in Yahoo's nine categories: each category you win is a win.",
-      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "draft", "each": 13, "order": "snake", "own": "exclusive" }, "count": { "start": 10 }, "score": { "by": "stats", "categories": ["FG%", "FT%", "3PM", "PTS", "REB", "AST", "STL", "BLK", "TO"] }, "rank": { "by": "categories" }, "closes": "daily" }
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "draft", "each": 13, "order": "snake", "own": "exclusive" }, "count": { "start": 10 }, "score": { "by": "stats", "categories": ["FG%", "FT%", "3PM", "PTS", "REB", "AST", "STL", "BLK", "TO"] }, "rank": { "by": "categories" }, "closes": "game" }
     },
     "roto": {
       "about": "A season-long league, roto-style: draft a full roster, set a daily lineup; each of Yahoo's nine categories ranks everyone over the season, points by rank, most points wins.",
-      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "draft", "each": 13, "order": "snake", "own": "exclusive" }, "count": { "start": 10 }, "score": { "by": "stats", "categories": ["FG%", "FT%", "3PM", "PTS", "REB", "AST", "STL", "BLK", "TO"] }, "rank": { "by": "roto" }, "closes": "daily" }
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "draft", "each": 13, "order": "snake", "own": "exclusive" }, "count": { "start": 10 }, "score": { "by": "stats", "categories": ["FG%", "FT%", "3PM", "PTS", "REB", "AST", "STL", "BLK", "TO"] }, "rank": { "by": "roto" }, "closes": "game" }
     },
     "bestBall": {
       "about": "Best ball: draft a full roster and never set a lineup: each game, your best ten count, most points wins.",

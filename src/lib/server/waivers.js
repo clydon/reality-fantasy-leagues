@@ -38,7 +38,7 @@ function pacedMark(state) {
 /** The league as it stood at that episode, for its waivers; null for any other game. */
 function pacedCopy(state) {
   const n = pacedMark(state);
-  return n === null ? null : StateLogic.SpoilerLogic.viewThrough(state, n);
+  return n === null ? null : W.pacedView(state, n);
 }
 const OWNED_KEYS = ["ownerIds", "acquiredVia", "replenishClaimed", "formerOwnerId", "departedVia"];
 /** What whoever runs the game acts on: the copy at everyone's episode in a game at its own pace with exclusive teams (`none`: such
@@ -60,8 +60,11 @@ function foldBack(state, copy) {
     });
   });
 }
-/** A waiver moment at the copy's episode: someone on a team went home in it, not replaced yet. */
+/** A waiver moment at the copy's episode: someone on a team went home in it, not replaced yet; or, a game whose waivers have a window
+ *  every week (a sports season game's: docs/PLAN-sports-ready.md step 2.5), every episode everyone has reached (step 2.6: with nobody
+ *  ever more than one game behind, that's at the next game's start at the latest). */
 function lossAt(copy) {
+  if (W.windowEvery(copy)) return true;
   const n = StateLogic.SpoilerLogic.latestWithResults(copy);
   const ep = copy.episodes.find((e) => e.number === n);
   return !!ep && copy.castaways.some((c) => c.exitEpisodeId === ep.id && W.lossOpen(copy, c));
