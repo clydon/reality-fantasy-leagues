@@ -144,6 +144,24 @@ function gameSpec(pg, base, changes) {
   return { spec, name: b.name };
 }
 
+/**
+ * A stage a format change starts (a stage's `on`: a new draft whenever the format changes): in a made-up season the change is its
+ * merge (the format's major change, tribes into individuals), so the stage plays from there, as a stage that starts at the merge
+ * does (span from { phase: 'merged' }); the change's own settings (extras.changes: the maker's say, a vote) go with it. A format
+ * without a merge keeps it as it is (the explorer's gap).
+ */
+function atTheMerge(spec, ctx) {
+  if (!Array.isArray(spec.stages) || !spec.stages.some((st) => st && st.on)) return spec;
+  if (!(ctx.phases || []).some((p) => p.id === 'merged')) return spec;
+  const stages = spec.stages.map((st) => {
+    if (!st || !st.on) return st;
+    const { on, ...rest } = st;
+    return { ...rest, game: { ...st.game, span: { ...(st.game.span || {}), from: { phase: 'merged' } } } };
+  });
+  const extras = spec.extras ? Object.fromEntries(Object.entries(spec.extras).filter(([k]) => k !== 'changes')) : undefined;
+  return { ...spec, stages, ...(extras ? { extras } : {}) };
+}
+
 /** The made-up merge: halfway from the game's start to the season's last episode (season.merge when the season says). */
 function mergeOf(season) {
   if (Number.isInteger(season.merge)) return season.merge;
@@ -156,7 +174,8 @@ function build(input, o = {}) {
   const seed = o.seed ?? 51, merge = o.merge ?? mergeOf(season), known = knownOf(season);
   const label = season.label || season.page.pack?.page || 'The season';
   const pg = G.pageFacts(season.page, { show: label });
-  const { spec, name } = o.spec ? { spec: o.spec, name: o.gameName || 'Your game' } : gameSpec(pg, o.base || 'fantasy', o.changes);
+  const made = o.spec ? { spec: o.spec, name: o.gameName || 'Your game' } : gameSpec(pg, o.base || 'fantasy', o.changes);
+  const spec = atTheMerge(made.spec, season.page.ctx), name = made.name;
   const moments = season.page.ctx.moments.filter((m) => known.has(m.id));
   const count = season.page.ctx.pool || season.cast.length;
   if (count > season.cast.length) throw Object.assign(Error('No preview for this season: its cast is smaller than its game\'s pool'), { code: 'preview-season' });

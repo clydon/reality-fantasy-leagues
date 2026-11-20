@@ -154,6 +154,25 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
    can't yet, by the analysis's reasons: a salary cap and a stock market (prices from the data), a draft across tribes (the world's
    tribes), no-repeat picks, most question games beyond per-episode cast and yes/no questions (boot order, most, over/under, pairs,
    split, quote, seal, bank, props, trivia, host), bingo, bingo with trivia, two halves, and a redraft at a format change.
+   **All 50 (2026-11-20, the user: "lets get the remaining ... working. even if we have a bank of fake questions and answer or
+   scenarios").** Each of the 19 connected in the explorer's runtime (core-runtime-45), and on the real screens:
+   - **A bank** of what research gives the server, made up from each episode's own made-up results so every answer exists: a
+     round of trivia about each episode (who went home, who won immunity, how many are left), who says the title quote, the
+     finale's jury votes; filed where the server reads them (trivia_questions, episode_research). Typical moment rates when a season
+     gives nothing to go by.
+   - **More question kinds** (the boot order, who outlasts whom, a vote split, over/under, a ticket, a trivia round, a choice), each
+     with its options as the sheet has them; a card the bot chooses or a host writes, made up from its own list each episode
+     (card_choices, host_cards); the computer players answer each kind and stake within their room.
+   - **The season's real tribes** (a draft spread across them); a pool's last one standing; an overall by places or stages won; a
+     salary cap (teams dealt within it at the engine's own prices); a stock market ranked by worth, its players trading now and then.
+   - **Weekly Bingo** (`runtime-bingo.cjs`: a card of the show's moments each episode, ticked as it airs, settled by the results;
+     the cards and ticks filed as kept, and a season bank for cards still to come); stages scored outside their state (bingo beside
+     trivia).
+   - **A new draft at a format change** plays from the made-up season's merge (the format's major change), as a stage that starts
+     at the merge does: the one simplification (a format without a merge keeps it as a gap).
+   Checked: the catalogue, 50 of 50 on the made-up season and on Survivor 51, verdict and season agreeing on every one, all 50 made
+   live; in the browser, the trivia sheet's round, the quote settled, bingo's card and lines, bingo with trivia and redraft's stories;
+   the explorer's, runtime's, bench's and preview's tests (235).
 3. **The registry in the service's database** (a `live_previews` table: id, owner key, expiry, the viewer, the copies, the story as it
    fills in, complete or failed), since serverless instances don't share memory. Checked: two instances read one preview.
    **Done (2026-11-19).** `db/migrations/0442_live_previews.sql` (`live_previews`: the owner as an opaque key, the made-up viewer,
