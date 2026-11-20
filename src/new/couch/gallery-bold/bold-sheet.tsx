@@ -391,8 +391,9 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
     let sp: Span = next ?? span ?? (b.len === "1 episode" ? one : { from: input.from, to: null });
     const s = spec ?? gm.baseSpec(b, sp, pg);
     if (!s) return;
-    // Step 2.7: a season game on a sport's season that goes on into its playoffs opens on its regular season (the default).
-    const reg = !next && !span && sp.to === null ? regularTo(input, s) : null;
+    // Step 2.7: a season game on a sport's season that goes on into its playoffs opens on its regular season (the default), whatever
+    // opened it (the sport's ready specs carry no end).
+    const reg = !next && sp.to === null ? regularTo(input, s) : null;
     if (reg !== null) sp = { from: input.from, to: reg };
     const fitted = (s as unknown as { __fitted?: Game["fitted"] }).__fitted ?? null;
     setGame({ base: b, spec: withSpan(s, sp), span: sp, pace: null, before: {}, asked: false, from, name: name ?? b.name, moment: null, fitted, own: [], bots });
