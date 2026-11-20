@@ -74,6 +74,28 @@ export interface GameLocks {
  * at its own game's start for the rest of that day (StateLogic.ActiveRosterLogic.heldLocked), so one place in a lineup is never
  * counted twice in a day; a game with no start has none. Names match ignoring case. Days are the zone's (Eastern, as `locksOf`'s).
  */
+/**
+ * Step 1.5: each episode's teams with no game in it (a bye), from a league's slate's linked games ({ episode, teams: names }): only
+ * for an episode whose games are all linked, which a later episode's having one says (a slate links its days in order), so a week
+ * linked halfway never calls the rest of the league idle. The teams are every team the linked games name.
+ */
+export function byesOf(links: { episode: number; teams: string[] }[]): Map<number, string[]> {
+  const all = new Set<string>();
+  const playing = new Map<number, Set<string>>();
+  for (const l of links) {
+    const s = playing.get(l.episode) ?? new Set<string>();
+    for (const t of l.teams) {
+      s.add(t);
+      all.add(t);
+    }
+    playing.set(l.episode, s);
+  }
+  const last = Math.max(0, ...playing.keys());
+  const out = new Map<number, string[]>();
+  for (const [n, s] of playing) if (n < last) out.set(n, [...all].filter((t) => !s.has(t)).sort());
+  return out;
+}
+
 export function gameLocksOf(games: { episode: number; eventId: string; at: string | null; teams: string[] }[], teamOf: Map<string, string>, zone = LOCK_ZONE): Map<number, GameLocks> {
   const out = new Map<number, GameLocks>();
   const byTeam = new Map<string, string[]>();

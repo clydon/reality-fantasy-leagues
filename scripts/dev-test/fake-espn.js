@@ -23,7 +23,7 @@
 //
 //   const espn = await require("./fake-espn").start({ teams, leagues, events, seasons });
 //   // teams:   [{ id, name, short, location, abbreviation, league: "baseball/zt-mlb", color?, logo?,
-//   //             roster?: [{ id, name, position, abbr? (its abbreviation: ESPN gives both), headshot? }] }]
+//   //             roster?: [{ id, name, position, abbr? (its abbreviation: ESPN gives both), headshot?, injuries? ([{ status, date }], ESPN's) }] }]
 //   // leagues: [{ league: "baseball/zt-little", name: "ZT Little League World Series", short? }]
 //   // events:  [{ league, id, at (ISO), home: teamId, away: teamId, state: "pre" | "in" | "post", score?: [home, away], note?,
 //   //             stage?: "pre" | "regular" | "post" (its season's, as ESPN's slug says it; "regular" unless said),
@@ -190,7 +190,7 @@ async function start(opts = {}) {
       const t = teamOf(decodeURIComponent(m[3]));
       if (!t || t.league !== `${m[1]}/${m[2]}`) return send(404, { code: 404 });
       // A position as ESPN gives it: its name, and its abbreviation where the roster says one (`abbr`: the recorded NFL season's).
-      const athlete = (p) => ({ id: p.id, displayName: p.name, position: { displayName: p.position, ...(p.abbr ? { abbreviation: p.abbr } : {}) }, ...(p.headshot ? { headshot: { href: p.headshot } } : {}) });
+      const athlete = (p) => ({ id: p.id, displayName: p.name, position: { displayName: p.position, ...(p.abbr ? { abbreviation: p.abbr } : {}) }, ...(p.headshot ? { headshot: { href: p.headshot } } : {}), ...(p.injuries ? { injuries: p.injuries } : {}) });
       return send(200, { athletes: (t.roster || []).map(athlete), coach: [{ id: "1", firstName: "ZT", lastName: "Manager" }] });
     }
     if ((m = u.pathname.match(/^\/apis\/site\/v2\/sports\/([^/]+)\/([^/]+)\/summary$/))) {

@@ -244,7 +244,8 @@ the line, two rosters, the next game's scoreboard), none a second time. Not back
 **The daily job's sports upkeep since 2026-11-19 (branch sports-phase0, docs/PLAN-sports-ready.md steps 1.2 and 1.4; not merged)**
 wakes nothing new: it runs inside the same daily listings job. It refills each sports season with a game near now once a day (at
 most 10 seasons a run: a roster call per linked team, cached a day and shared by a league's seasons, so about 32 calls a day for
-the NFL however many seasons follow it), so signings and trades arrive; and it reads each kept final again for a correction, about
+the NFL however many seasons follow it), so signings, trades and each player's injury arrive (the same roster calls; `season_cast.injury`,
+migration 0310); and it reads each kept final again for a correction, about
 a day after it was kept and once before the next game of a season linking it (a summary call per game, twice: an NFL week about
 30 calls), a final with nothing readable every six hours until it reads. Neon: three columns on `sports_events` (migration 0309),
 an update a re-read, and the cast fill's writes as before.

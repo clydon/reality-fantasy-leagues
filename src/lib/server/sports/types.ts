@@ -137,11 +137,21 @@ export interface SportsEvent {
 }
 
 /** A player on a team's roster (players only: a provider's coaches and staff are left out). */
+/** A player's injury as their roster says it now (step 1.5): a short `code` ("Q", "D", "O", "IR"; another status as the provider
+ *  words it), its `status` in the provider's words, and when it was noted. */
+export interface Injury {
+  code: string;
+  status: string;
+  date: string | null;
+}
+
 /** One of a team's roster: its `position` the sport's key, ESPN's abbreviation ("QB"), where the roster gives one (espn.ts readRoster). */
 export interface RosterPlayer extends Person {
   /** The roster's own grouping, when it has one ("Pitchers", "Infielders"). */
   group: string | null;
   jersey: string | null;
+  /** Their injury now (step 1.5), null when the roster lists none. */
+  injury: Injury | null;
 }
 
 /** One table of a team's lines in a game ("batting", "pitching"; one table for a sport with one kind of line). */

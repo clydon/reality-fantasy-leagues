@@ -3980,7 +3980,9 @@ class StatsLogic {
   // L8 part 1's engine items: the server's game starts for a lineup locking at each game's (air-times.ts), never saved either.
   // Cast properties (docs/PLAN-cast-properties.md chunk 3: server/cast-props.ts stampCastProps): each castaway's values and the
   // season's properties, read from the season's cast on every read, never saved.
-  static stampedKeys(){ return [...STAMPED.episode, ...STAMPED.state, 'gameStarts', 'holdingGames', 'castProps', 'castPropDefs']; }
+  // Step 1.5 (docs/PLAN-sports-ready.md): a sport's player's injury (state.castInjuries, cast-props.ts) and each week's teams on a
+  // bye (ep.byeTeams, air-times.ts), stamped per read too.
+  static stampedKeys(){ return [...STAMPED.episode, ...STAMPED.state, 'gameStarts', 'holdingGames', 'castProps', 'castPropDefs', 'castInjuries', 'byeTeams']; }
   // L3 part 2d: a game ranked by a sport's categories (Spec.categoryParts: head to head by each, by most, or roto), or null.
   static categories(state){
     const g = playedGame(state);

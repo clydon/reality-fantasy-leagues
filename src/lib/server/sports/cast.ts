@@ -4,7 +4,7 @@ import { pool } from "../db";
 import { applyApprovedCastToLeagues, approveSportCast, seasonCastRows } from "../season-cast";
 import { fillCastPhotos } from "../show-art";
 import { sportsProviders } from "./index";
-import { SportsUnavailable, type Person, type SportsProvider } from "./types";
+import { SportsUnavailable, type Injury, type Person, type SportsProvider } from "./types";
 
 // A sport's cast from its linked games (docs/PLAN-sports-data.md step 3; db/migrations/0149): the teams in a season's season_events
 // give its people, each team's players from the provider (players only: a provider's coaches and staff are apart), each with the
@@ -41,6 +41,8 @@ export interface CastPerson {
   from: number | null;
   /** A team's own person (its defense: TeamSport.teamPeople), its picture the team's logo: no headshot to look for. */
   side?: true;
+  /** Their injury as their roster says it now (step 1.5); left out for anyone not from a roster (a box score's, a field's). */
+  injury?: Injury | null;
 }
 export interface CastGroup {
   name: string;
@@ -89,7 +91,8 @@ export async function rosterFromEvents(links: LinkedEvent[], providers: SportsPr
       const key = `${provider}:${p?.id}`;
       if (!p?.id || !p.name || seen.has(key)) continue;
       seen.add(key);
-      g.people.push({ name: p.name, role: p.position, photoUrl: p.headshot, ids: { [provider]: p.id }, from, ...(side ? { side: true as const } : {}) });
+      const injury = (p as { injury?: Injury | null }).injury;
+      g.people.push({ name: p.name, role: p.position, photoUrl: p.headshot, ids: { [provider]: p.id }, from, ...(side ? { side: true as const } : {}), ...(injury !== undefined ? { injury } : {}) });
       n++;
     }
     return n;
@@ -193,7 +196,7 @@ async function saveCast(seasonId: string, groups: CastGroup[]): Promise<{ added:
       await c.query("ROLLBACK");
       return { added: [], moved: 0, approved: false };
     }
-    const { rows } = await c.query("SELECT id, lower(name) AS name, role, tribe_name, provider_ids, sort_order FROM season_cast WHERE season_id = $1", [seasonId]);
+    const { rows } = await c.query("SELECT id, lower(name) AS name, role, tribe_name, injury, provider_ids, sort_order FROM season_cast WHERE season_id = $1", [seasonId]);
     const names = new Set(rows.map((r) => r.name as string));
     const ids = new Map(rows.flatMap((r) => Object.entries((r.provider_ids ?? {}) as Record<string, string>).map(([k, v]) => [`${k}:${v}`, r] as const)));
     let order = rows.reduce((m, r) => Math.max(m, (r.sort_order as number) ?? 0), -1) + 1;
@@ -208,14 +211,16 @@ async function saveCast(seasonId: string, groups: CastGroup[]): Promise<{ added:
           const traded = g.name !== FIELD && had.tribe_name !== team;
           if ((role && had.role !== role) || traded) await c.query("UPDATE season_cast SET role = COALESCE($2, role), tribe_name = $3 WHERE id = $1", [had.id, role, traded ? team : had.tribe_name]);
           if (traded) moved++;
+          // Their injury as the roster says it now (step 1.5): set, changed or cleared (only for someone a roster lists).
+          if (p.injury !== undefined && JSON.stringify(had.injury ?? null) !== JSON.stringify(p.injury)) await c.query("UPDATE season_cast SET injury = $2::jsonb WHERE id = $1", [had.id, p.injury ? JSON.stringify(p.injury) : null]);
           continue;
         }
         // Someone the provider names is theirs by id alone (step 1.3, migration 0308): two who share a name are two people.
         if (!Object.keys(p.ids).length && names.has(p.name.toLowerCase())) continue;
         const { rowCount } = await c.query(
-          `INSERT INTO season_cast (season_id, name, tribe_name, role, photo_url, provider_ids, shown_from, sort_order) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8)
+          `INSERT INTO season_cast (season_id, name, tribe_name, role, photo_url, provider_ids, shown_from, sort_order, injury) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9::jsonb)
            ON CONFLICT DO NOTHING`,
-          [seasonId, p.name.slice(0, 120), g.name.slice(0, 60), p.role?.slice(0, 60) ?? null, p.photoUrl, JSON.stringify(p.ids), p.from, order++]
+          [seasonId, p.name.slice(0, 120), g.name.slice(0, 60), p.role?.slice(0, 60) ?? null, p.photoUrl, JSON.stringify(p.ids), p.from, order++, p.injury ? JSON.stringify(p.injury) : null]
         );
         if (!rowCount) continue;
         names.add(p.name.toLowerCase());
