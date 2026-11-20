@@ -6,8 +6,8 @@
 > 1.3 made team defenses people and kept same-named players apart (BACKLOG 145), 1.2 stopped silent zeros and takes corrections,
 > 1.4 keeps rosters current (signings, trades), 1.5 reads injuries and byes, 1.6 made the small fixes (BACKLOG 108, 78), and
 > 1.1's part 1 puts finals in the standings within the hour; its part 2 counts a week's games as they end. Next: 1.1's part 3,
-> live points during games, then Phase 2 (the user's calls 213, 214, 219) and 4.1.
-> The decisions it needs are BACKLOG 175 and 212–219 ("Waiting on you").
+> live points during games, then Phase 2 (its calls answered 2026-11-19, own pace for sports added) and 4.1.
+> The user's calls 212–219 are answered ("Decisions", below); BACKLOG 175 still waits.
 
 The user, 2026-11-19: "I want to make sure sports is in a good spot both technically and redesign needs. Make a plan for that."
 
@@ -198,6 +198,8 @@ server.
      for phones at most once a game every 15 s) gives each game's lines so far; run them through the game's table under the
      spoiler rule (Hide scores, Watch it as if live), so a matchup moves play by play (4.1.2's second half, Phase 5's feed
      brought forward). Measure Vercel's transfer (Phase 5's estimate: about 20 MB and 780 edge requests a phone an NFL game).
+     A seat at its own pace (BACKLOG 218: the user wants own pace for sports) is never sent a live point past its mark, nor is
+     anyone hiding sports scores.
    - **Part 4, the screens:** the design round's page 2 (the live game and a week in progress), through the design process.
    - **Later (the user's words):** what the live feed can't give (a defense's points allowed until the final, a stat only the
      box score has) stays on the final's read.
@@ -262,17 +264,29 @@ server.
    - *Verified:* 580 unit tests; check-sports-explorer.js lineup, slates, locks, calledoff; check-sports-couch.js --api; the NFL
      checks. Golden replays not run (a sport's game-by-game lineup, a slate's refusal).
 
-### Phase 2. The rules a season game needs (about 2–3 sessions; needs the user's calls)
+### Phase 2. The rules a season game needs (about 3–4 sessions; the user's calls answered 2026-11-19)
 
-1. **Locks at each player's game for the NFL** (S; BACKLOG 213): football's season default becomes `closes: 'game'`. A lock
+1. **Locks at each player's game for the NFL** (S; BACKLOG 213, yes): football's season default becomes `closes: 'game'`. A lock
    change reruns every check that asserts a lock (HANDOFF's convention), check-lock-in.js and the explorer's lock invariants.
-2. **Fantasy playoffs end by Week 17** (S; BACKLOG 214), so nobody's title rides on Week 18's rested starters. Phase 0: the
+2. **Fantasy playoffs end by Week 17** (S; BACKLOG 214, yes), so nobody's title rides on Week 18's rested starters. Phase 0: the
    default has none, and any final lands in Week 18. Done when check-nfl-playoff-weeks.js passes.
 3. **Lineup slots for the NBA, MLB and NHL** (M; L9 part 1): `withLineupSlots` for every sport's defaults, with ESPN's positions
    and MLB's two-way players, and computer players setting legal lineups. Verify with the explorer's slot invariant on real-size
    pools, and unit tests per sport.
 4. **An IR slot** (S–M, after 1.5): a player marked IR can sit there without costing a roster spot.
-5. **Waivers for daily sports** (M; BACKLOG 219): claims that clear daily for the NBA, NHL and MLB if the user says so.
+5. **Waivers for daily sports** (M; BACKLOG 219, yes): claims clear each morning for the NBA, NHL and MLB; the NFL's stay weekly.
+6. **Own pace for a sports game** (M; BACKLOG 218: the user, 2026-11-19, "i want own pace, its an important option for casual
+   leagues and solo games"). What's there: a sport's start sheet already offers own, live and strict (live recommended:
+   start-game.ts `runs`); the season's guard goes by a person's mark when every seat they hold there is at its own pace; a caught-up
+   own-pace seat never sees a week in progress past its mark (1.1 part 2); the explorer plays own-pace sports games and its
+   campaigns check them. What it needs: (a) an own-pace season game end to end on the NFL fixture (a check): a seat behind told
+   nothing past its mark on any read, its week's lineup open until it has watched the week (own pace's rule), its reveal moving it
+   a week at a time, head to head and the playoffs at own pace, waivers waiting at their sync points (daily ones too, item 5); (b) a
+   solo game at its own pace, alone or with computer players, started from Week 1 of a season under way (a catch-up) and from a week
+   to come; (c) the pace a sheet recommends for a sport: Claude's call, reversible, own for a game played alone or only with
+   computer players, live for a league of people, own one tap away; (d) the reveal an own-pace seat moves its mark with, the same
+   one BACKLOG 216 gives anyone hiding sports scores (4.2's page 3 designs it); (e) live points (1.1 part 3) and the matchup push
+   (217) never past an own-pace seat's mark.
 
 ### Phase 3. The gate: a real season, replayed (L, about 2–3 sessions)
 
@@ -336,8 +350,9 @@ every week:
 2. **The live game and a week in progress:** the matchup moving, the plays that moved someone, on the game page and Tonight, and
    Watch it as if live's sync. Judged on the Patriots v Lions recording. Needs 4.1's provisional and live points.
 3. **A game's night, Tonight's Last time, the reveal and the pushes** (BACKLOG 100): what leads a sport's night instead of "Nobody
-   went home", whether a sport has a reveal (BACKLOG 216), what's pushed when a matchup is decided (217), and how a called-off game
-   reads (DN 39's other half).
+   went home", the reveal for anyone hiding sports scores and any seat at its own pace (BACKLOG 216 and 218: results show straight
+   away for everyone else), the one push when a matchup is decided (217: "You beat Andrew 112–98", without the score for anyone
+   hiding scores or behind at their own pace; nothing for each game), and how a called-off game reads (DN 39's other half).
 4. **The family variants of the game page:** categories head to head and roto (DN 35), a field's leaderboard (DN 36), a card's
    matches (DN 37). Each family judged on its own real recording.
 5. **Players and the athlete at long seasons:** a sortable stat table, Compare for athletes, the athlete chart at 82 and 162
@@ -367,9 +382,10 @@ default selection.
 
 ## The order, and how it fits the rest
 
-1. **Now, beside the Survivor 51 work:** 1.1's part 3 toward live scores (parts 1 and 2 done), then Phase 2 once the user's calls
-   are in. Phase 4.0 (the words) in any free session.
-2. **Then:** Phase 2 (once the user has made the calls), and Phase 4.1.
+1. **Now, beside the Survivor 51 work:** 1.1's part 3 toward live scores (parts 1 and 2 done), then one Neon rehearsal of
+   migrations 0308 to 0310 and the merge (the user's OK to push; not on an episode night). Phase 4.0 (the words) in any free
+   session.
+2. **Then:** Phase 2 (its calls answered 2026-11-19, own pace for sports as 2.6), and Phase 4.1.
 3. **Then:** Phase 3, the gate, and the design round's pages 1 and 3 (they need correct data, not live data).
 4. **Then:** 4.1's live path, page 2, Phase 5, and pages 4 to 6.
 5. **The pilot** (BACKLOG 212) once Phase 3 passes.
@@ -384,17 +400,19 @@ lineup editor (dock.tsx), which E3 should leave alone while 4.2's page 1 is open
 
 ## Decisions for the user
 
-Each is in BACKLOG's "Waiting on you" with Claude's recommendation:
-- **212.** The target and the pilot: the NFL first, the NBA and NHL next, MLB by its Opening Day. The couch's first real sports game
-  is one of January's NFL playoffs, once Phase 3 passes.
-- **213.** The NFL default locks at each player's game, not Thursday's kickoff.
-- **214.** Fantasy playoffs end by Week 17.
-- **215.** Sports results refresh hourly from the hourly GitHub job.
-- **216.** Does a sport get a reveal by default?
-- **217.** What's pushed when a sports game or matchup ends?
-- **218.** Can a sports season game run at your own pace?
-- **219.** A daily sport's waivers: daily or weekly?
-- **175.** Step 10 as its own round. The recommendation is now "yes, as this plan's Phase 4, ahead of the stages round".
+Answered by the user on 2026-11-19 (215 earlier that day, the rest at once: "i agree with all your recs except 218; i want own pace, its an important option for casual leagues and solo games"):
+- **212, yes.** The target and the pilot: the NFL first, the NBA and NHL next, MLB by its Opening Day. The couch's first real sports
+  game is one of January's NFL playoffs, once Phase 3 passes.
+- **213, yes.** The NFL default locks at each player's game, not Thursday's kickoff (Phase 2.1).
+- **214, yes.** Fantasy playoffs end by Week 17 (Phase 2.2).
+- **215, yes and further.** Results hourly, toward live scores during games (step 1.1).
+- **216, yes.** A sport keeps showing results straight away; anyone who turns on "Sports scores too" gets the reveal (4.2 page 3),
+  and so does a seat at its own pace (218).
+- **217, yes.** One push when your matchup is decided, without the score for anyone hiding sports scores (or behind at their own
+  pace), nothing for each game (4.2 page 3).
+- **218, own pace: yes, against the recommendation.** "An important option for casual leagues and solo games" (Phase 2.6).
+- **219, yes.** Daily waivers for the NBA, NHL and MLB, weekly for the NFL (Phase 2.5).
+- **175** still waits: step 10 as its own round, recommended as this plan's Phase 4, ahead of the stages round.
 
 ## Backlog items this plan carries
 

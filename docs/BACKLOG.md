@@ -571,6 +571,8 @@ and builds.
 
 ### Sports: the calls [PLAN-sports-ready.md](PLAN-sports-ready.md) needs
 
+All answered 2026-11-19 (Closed, below); kept here until the next tidy so a link to them still lands.
+
 - **212. The target, and the couch's first real sports game.** *Recommended: the NFL first, the NBA and NHL next, MLB by its
   Opening Day (late March 2027). The pilot is one of January's NFL playoffs, played by the couch once the plan's Phase 3 (a whole
   recorded season replayed with zero disagreements) passes. A season-long NFL league waits for next September.*
@@ -729,6 +731,10 @@ longer depends on the wiki.)
 ## Closed since the cleanup
 
 One line each: the number, done or dropped, and the commit or the reason.
+- **212, 213, 214, 216, 217, 219** answered yes (the user, 2026-11-19, "i agree with all your recs except 218; i want own pace, its an important option for casual leagues and solo games"): each is in
+  [PLAN-sports-ready.md](PLAN-sports-ready.md)'s Decisions and its phase (Phase 2.1, 2.2, 2.5; 4.2 page 3; the pilot).
+- **218** answered (the user, 2026-11-19): own pace for sports, yes, against the recommendation: "an important option for casual
+  leagues and solo games". The work is the plan's Phase 2.6.
 - **108** done (1ae9b833): the sports route's Pick'em asks each game on a slate, and our check refuses a game's final asked of a
   slate's episode and squares there; check-slate-pickem.js.
 - **78** done (1ae9b833): the unit suite's local-database pass checks a sports league against its sport's page context.

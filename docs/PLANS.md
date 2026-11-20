@@ -17,7 +17,8 @@ The small and medium work is in [BACKLOG.md](BACKLOG.md); what's live and in fli
 4. **Sports in good shape** ([PLAN-sports-ready.md](PLAN-sports-ready.md)), a lane of its own beside Start a game: first the
    data you can trust and the rules a season game needs (its Phases 0–2), then a whole recorded NFL season replayed as the gate
    (Phase 3), then the design round's step 10, Sports in full (Phase 4), then live points (Phase 5). Its words pass (4.0) can
-   ship any time. The user's calls are BACKLOG 212–219 and 175.
+   ship any time. The user answered BACKLOG 212–219 on 2026-11-19 (own pace for sports, 218, against the recommendation); 175
+   still waits.
 5. **Start a game, E3**, in [PLAN-start-a-game-redo.md](PLAN-start-a-game-redo.md): C8 (the 2-on-1 head to head) first; then
    the pair and pick-many answers (BACKLOG 94), stages that take turns (160), the overall by places (84), the creative ask and
    instant answer choices in Describe, and cast properties' chunk 7. Then E5–E10.
@@ -41,7 +42,7 @@ The gameplay explorer's own steps run alongside, when a step above needs them (t
 | [PLAN-start-a-game-redo.md](PLAN-start-a-game-redo.md) | Active | Rounds 1–5, B1–B4, E1, E2 and E3's first slice live 2026-11-19. Next: C8, the rest of E3, then E5–E10. |
 | [PLAN-game-preview.md](PLAN-game-preview.md) | Active, on branch `preview` | Round 5's review (BACKLOG 155), the rebase and merge, then P1 ("See it play" in Start a game), then A or B for the drill-ins. |
 | [PLAN-local-game-writer.md](PLAN-local-game-writer.md) | Active, on branch `writer` | Merge, and the user picks the way on (BACKLOG 156). |
-| [PLAN-sports-ready.md](PLAN-sports-ready.md) | Active (Phase 0 and Phase 1 done but 1.1's live parts, 2026-11-19, branch sports-phase0, not merged) | Step 1.1's part 3, live points during games (parts 1 and 2, finals within the hour and a week counted as it goes, done), then Phase 2 (the user's calls 213, 214, 219) and 4.1. The user's calls: BACKLOG 212–214, 216–219. |
+| [PLAN-sports-ready.md](PLAN-sports-ready.md) | Active (Phase 0 and Phase 1 done but 1.1's live parts, 2026-11-19, branch sports-phase0, not merged) | Step 1.1's part 3, live points during games (parts 1 and 2, finals within the hour and a week counted as it goes, done), then one Neon rehearsal and the merge, then Phase 2 (the user's calls 212–219 answered 2026-11-19; own pace for sports added as 2.6) and 4.1. BACKLOG 175 still waits. |
 | [PLAN-GAMEPLAY-SCENARIO-EXPLORER.md](PLAN-GAMEPLAY-SCENARIO-EXPLORER.md) | Partly done | Its status table and "Next" list at the top; Designs needed (§6A); the design sweep (§6B). The working guide is [GAMEPLAY-EXPLORER.md](GAMEPLAY-EXPLORER.md). |
 | The design round ([DESIGN-PROCESS.md](DESIGN-PROCESS.md), [DESIGN-ROUND-PACKET.md](DESIGN-ROUND-PACKET.md), [design-round/](design-round/)) | Steps 2–9 live | Steps 10 (Sports in full, now PLAN-sports-ready.md's Phase 4), 11 (story shows) and 12 (tour, couches, settings) not started. decisions.md is the record; an index of the folder is BACKLOG 153. |
 
