@@ -8,7 +8,7 @@
 > 1.4 keeps rosters current (signings, trades), 1.5 reads injuries and byes, 1.6 made the small fixes (BACKLOG 108, 78), and
 > 1.1's part 1 puts finals in the standings within the hour; its part 2 counts a week's games as they end; its part 3 counts a
 > game being played, its points so far, for anyone shown everything (never an own-pace seat or anyone hiding sports scores).
-> Phase 2 under way on branch sports-phase2: 2.1 done (the NFL's season locks at each player's game), 2.2 done (any fantasy
+> Phase 2's 2.1 to 2.6 merged and live (d4e594cf, pushed 2026-11-20; migration 0311): 2.1 done (the NFL's season locks at each player's game), 2.2 done (any fantasy
 > playoffs end by Week 17, and the default plays a final between the top two then: BACKLOG 226), 2.3 done (lineup slots for every
 > team sport, MLB's eligibility from ESPN's positions, computer players drafting and starting legal lineups), 2.4 and 2.5 done (IR,
 > waivers that run), 2.6 done (own pace for a sport: a team sport's seat never more than one game behind, by itself). 2.7 added: a game's timing on

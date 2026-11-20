@@ -17,9 +17,14 @@ puts its build notes in its plan, not here.
 
 ---
 
-## Live (production = origin/master, results-settle f63b2492 + docs, deployed 2026-11-20)
+## Live (production = origin/master, d4e594cf, deployed 2026-11-20)
 
 Newest first. The plan or archive section named holds the detail.
+- **Sports Phase 2, steps 2.1 to 2.6** (2026-11-20, merged and pushed d4e594cf; migration 0311 on the build; light prep, the
+  user's call: no sports games in production): each NFL player locks at his own game, fantasy playoffs end by Week 17 with a final,
+  lineup slots for every team sport, IR places, waivers that run (weekly for the NFL, every game day for the NBA, NHL and MLB), and
+  own pace for a sports game (a team sport's seat never more than one game behind, moving on by itself; baseball by the day).
+  Next is 2.7 (a game through the playoffs), on a fresh branch. [PLAN-sports-ready.md](PLAN-sports-ready.md).
 - **Results settle on their own** (2026-11-20, f63b2492; no migration): the bot's latest answer counts until final results
   (noon the day after); after them a bot correction needs a second look by the bot and the game's players are told; splits
   go to the tie-break an hour later; Backstage has nothing for the couch to tick; the desk's Inbox is one row an episode the
@@ -54,17 +59,6 @@ Newest first. The plan or archive section named holds the detail.
 
 ## In flight
 
-- **Sports Phase 2, branch `sports-phase2`** (from master cd1427a8): 2.1 to 2.6 done: the NFL's season locks at each player's
-  game, any fantasy playoffs end by Week 17 and the default plays a final (BACKLOG 226), every team sport's lineup has its slots
-  (MLB's players fill each position they've played; computer players draft and start legal lineups; migration 0311), and every
-  team sport's season game has IR places (Yahoo's defaults; the engine, its route and the computer players; no screen yet: Designs
-  needed 43), and waivers that run: the NFL's weekly with free agency to Monday night, the NBA's, NHL's and MLB's every game day,
-  their lineups now locking at each player's game ("Daily - Today"; they locked the whole week at its first game). 2.6 done: own
-  pace for a sports game works (it didn't past the start), a team sport's seat never more than one game behind, moving on by itself
-  at the next game's start (baseball by the day), solo games recommended at their own pace. **Merged into master locally
-  (2026-11-20), not pushed: the push waits on the user** (migration 0311 runs on it; light prep, the user's call: no sports games
-  in production). Next is 2.7, on a fresh branch from master. BACKLOG 227 (MLB's two-way player) waits on the user, by March.
-  [PLAN-sports-ready.md](PLAN-sports-ready.md) has each step's record.
 - **Game preview, branch `preview`** (lane rfl-preview): 17 commits not on master, 55 commits behind it, about 11 conflict
   hunks (strip.tsx, game-week.tsx, your-move.ts, tonight.tsx). It has P0, the visual story, the bench's preview maker and
   Round 5 (four real-app fixes, among them the finale reveal ranking a stage that had ended). It waits on the user's review of
@@ -85,9 +79,8 @@ Newest first. The plan or archive section named holds the detail.
    Designs-needed words batch, and the production check-ups.
 4. **C8, the 2-on-1 head to head**, on a fresh branch from master (its seven answers are in decisions.md, 2026-11-19; who plays
    alone first is drawn at random), then the rest of the redo plan's E3.
-5. **Sports, a lane of its own:** [PLAN-sports-ready.md](PLAN-sports-ready.md): Phases 0 and 1 are live (above); next is Phase 2
-   (the user answered 212–219 on 2026-11-19: every recommendation but 218, where they want own pace for sports, now Phase 2.6)
-   and 4.1, on a fresh branch from master. 1.1's part 4, the live screens, is the design round's page 2 and needs a small live
+5. **Sports, a lane of its own:** [PLAN-sports-ready.md](PLAN-sports-ready.md): Phases 0 and 1 and Phase 2's 2.1 to 2.6 are live (above); next is
+   2.7 (a game through the playoffs) and 4.1, on a fresh branch from master. 1.1's part 4, the live screens, is the design round's page 2 and needs a small live
    read (polling the whole games read would be ~100 MB a phone an NFL game). Its words pass (4.0) can go in any free session.
 6. The order after that is in [PLANS.md](PLANS.md).
 
