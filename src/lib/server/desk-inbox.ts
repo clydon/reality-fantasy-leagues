@@ -73,27 +73,42 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 async function disputes(): Promise<InboxItem[]> {
   const on = await tiebreakOn(pool);
   const questions = await tiebreakQuestions(pool);
-  const { rows } = await pool.query<{ season_id: string; episode_number: number; season: string; n: number }>(
-    `SELECT d.season_id, d.episode_number, ${seasonName} AS season, count(*)::int AS n
+  // A result waiting for its second look (reported after final results, out of the games: fact-status.ts) is the desk's too once
+  // that look can't come (2026-11-20: Survivor 51 Ep 1's 16, the bot's three tries timed out, and nothing said so).
+  const WAITING = "(d.fact_status = 'reported' AND d.status = 'pending')";
+  const { rows } = await pool.query<{ season_id: string; episode_number: number; season: string; split: number; waiting: number }>(
+    `SELECT d.season_id, d.episode_number, ${seasonName} AS season,
+            count(*) FILTER (WHERE NOT ${WAITING})::int AS split, count(*) FILTER (WHERE ${WAITING})::int AS waiting
        FROM season_decisions d JOIN show_seasons ss ON ss.id = d.season_id JOIN shows s ON s.id = ss.show_id
       WHERE d.locked_at IS NULL AND d.fact_status IS NOT NULL
-        AND (d.fact_status = 'disputed' OR EXISTS (SELECT 1 FROM fact_disputes x WHERE x.decision_id = d.id AND x.status = 'open'))
+        AND (d.fact_status = 'disputed' OR ${WAITING} OR EXISTS (SELECT 1 FROM fact_disputes x WHERE x.decision_id = d.id AND x.status = 'open'))
       GROUP BY d.season_id, d.episode_number, season`
   );
   const out: { item: InboxItem; newest: number }[] = [];
+  const results = (n: number) => (n === 1 ? "a result" : `${n} results`);
   for (const r of rows) {
     const q = questions.find((x) => x.seasonId === r.season_id && x.episode === r.episode_number);
     const next = q ? tiebreakNext(q) : null;
     // The bot's turn: its look is still to come, and not gone stale (three days past due: the bot was down, say).
     if (on && next && next.next.getTime() - next.due.getTime() <= 3 * 24 * 3600 * 1000) continue;
     const looked = !!q?.tries.some((t) => t.ok === true);
-    const why = !on ? "our bot's second look is switched off" : looked ? "our bot looked again and the answers still disagree" : "our bot couldn't look again";
+    const why = !on
+      ? "our bot's second look is switched off"
+      : !looked
+        ? "our bot couldn't look again"
+        : r.split
+          ? "our bot looked again and the answers still disagree"
+          : "our bot looked again but didn't answer for them";
+    // "Survivor 51, Episode 1: 16 results waiting for a second look" / "…: 2 results still split, 4 waiting for a second look".
+    const what = r.split && r.waiting ? `${results(r.split)} still split, ${r.waiting} waiting for a second look` : r.waiting ? `${results(r.waiting)} waiting for a second look` : `${results(r.split)} still split`;
+    // A split stays as it was in the games; a waiting result is out of them until someone decides.
+    const outLine = !r.waiting ? "" : r.split ? `; the ${r.waiting} waiting ${r.waiting === 1 ? "is" : "are"} out of every game` : `, so ${r.waiting === 1 ? "it's" : "they're"} out of every game`;
     out.push({
       newest: q?.newest ? Date.parse(String(q.newest)) : 0,
       item: {
       kind: looked ? "split" : "stale",
-      title: `${r.season}, Episode ${r.episode_number}: ${r.n === 1 ? "a result" : `${r.n} results`} still split`,
-      line: `${why.charAt(0).toUpperCase()}${why.slice(1)} · decide on the episode's page`,
+      title: `${r.season}, Episode ${r.episode_number}: ${what}`,
+      line: `${why.charAt(0).toUpperCase()}${why.slice(1)}${outLine} · decide on the episode's page`,
       href: `/desk/season/${r.season_id}/e/${r.episode_number}`,
       },
     });

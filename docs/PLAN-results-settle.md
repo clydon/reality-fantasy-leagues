@@ -117,6 +117,26 @@ run there as settle-again does (no bot asked), then each result in or out, each 
 - Checks after the fix: `npm test` 2482, tsc, eslint (fact-status.ts); check-new-settling 103 and check-new-community 91, each
   with the one line that fails on origin/master too (below).
 
+## After the push (2026-11-20)
+- Pushed 1:58 PM ET (master 996c2cde, `git push origin results-settle:master` from the lane); live 2:03 PM (the deployment's
+  status success; the new route 404 before, 405 to a GET after); `vercel logs` no 5xx.
+- POST /api/desk/settle-again once, 2:04 PM ET, as the site admin (a same-page fetch in the signed-in Playwright browser):
+  `{ seasons: 3, episodes: 39 }`, as the what-would-move run said; tiebreak_from 19:04:34Z. The admin's bell got the run's
+  "Ep 3 results changed · 4 results changed after final results. Your points: +0.5 in Weekly Start/Bench." The Inbox: no
+  results rows (the bot is settling them); its other three items were there before.
+- The bot's second look comes due an hour later (~3:05 PM ET): Eps 1 and 3's 25 waiting results, and Eps 7-8's splits.
+- **Before the push, Eps 7-8 had already moved:** the tie-break (on since noon, the old code) settled their splits at 1:54 and
+  1:57 PM, after the backup, with no notice (the old code had none): Ep 7 one result in, Ep 8 three in and one out; Weekly
+  Start/Bench +8 and +1.5 for two seats. Settle-again moved nothing more there.
+- **The second look (3:05 PM on):** Ep 3's third try answered at 3:50 PM: 8 results changed in the games (the four back in,
+  four more in, the extra-vote and one advantage result out), one notice each. Weekly Start/Bench against the 1:41 PM backup:
+  +5, +13, +1.5, no places changed. Ep 1's three tries all timed out at the bot ("ChatGPT didn't answer"): its 16 results
+  stay out of the games, waiting.
+- **A gap that showed, fixed on the branch (not pushed):** the Inbox listed only splits, so results waiting for a second look
+  that can't come (Ep 1's) showed nowhere. Now one row an episode says so ("Survivor 51, Episode 1: 16 results waiting for
+  a second look" / "Our bot couldn't look again, so they're out of every game · decide on the episode's page"; both kinds:
+  "2 results still split, 4 waiting for a second look"); what-would-move.js prints the Inbox's results rows too.
+
 ## Noticed, not fixed
 - **check-new-settling and check-new-community fail one line on origin/master too** (61a13da6, run 2026-11-20): "jordan's
   Episode 6: the corrections sit right above 'Something wrong in this episode?', not at the top" ({"above":false}). Not this

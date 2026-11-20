@@ -3,7 +3,8 @@
 // does (community-results.ts settleEverything, as the system), and then, compared with the backup as it was:
 //   - each result that goes in or comes out of the games (or changes how it's settled), by show, season and episode;
 //   - each game whose players' totals move: who, from what to what;
-//   - each notice the run would leave in someone's bell (the after-final "results changed" ones among them).
+//   - each notice the run would leave in someone's bell (the after-final "results changed" ones among them);
+//   - the desk's Inbox rows for results left for a person, were the bot's look never to come.
 // Read-only for everything but its own scratch database: no bot is asked or told (settle-again's tie-break re-ask and its nudge
 // to the bot's clock are left out, so a result waiting for a second look stays out here), and the paid AI keys, web push and
 // email are blanked in this process before anything loads. The backup holds no push subscriptions, so nothing can reach a phone.
@@ -133,6 +134,17 @@ async function snapshot(pool) {
     );
     console.log(`\n== Notices the run leaves in bells (${told.length}) ==`);
     for (const n of told) console.log(`  ${n.name} [${n.type}] ${n.title} — ${n.body}`);
+
+    // What's left for a person: the desk's Inbox rows for results. A backup holds no app_settings, so the copy's tie-break switch
+    // is off and every question still open shows: what the desk would have if the bot's look never came.
+    try {
+      const { inbox } = jiti("../../src/lib/server/desk-inbox.ts");
+      const rows = (await inbox()).items.filter((i) => i.kind === "split" || i.kind === "stale");
+      console.log(`\n== Left for the desk if the bot's look never came: its Inbox's results rows (${rows.length}) ==`);
+      for (const i of rows) console.log(`  ${i.title} — ${i.line}`);
+    } catch (e) {
+      console.log(`\n[moves] the Inbox couldn't be read on the copy: ${e.message}`);
+    }
   } finally {
     await pool.end();
   }
