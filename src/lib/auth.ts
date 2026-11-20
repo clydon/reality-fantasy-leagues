@@ -55,6 +55,11 @@ export const auth = betterAuth({
   session: {
     expiresIn: 60 * 24 * 60 * 60,
   },
+  // The preview service only (docs/PLAN-preview-release.md, step 16): its maker signs in each of a preview's made-up people through
+  // this real route, many at once from the service's one address, which Better Auth's sign-in limit (on in production) refused with
+  // 429. Every account there is made up, with a random password of its preview's own (tools/gameplay-bench/preview/live.cjs), so
+  // the limit protects nothing there; everywhere else it stays as it is.
+  ...(process.env.PREVIEW_SERVICE === "1" ? { rateLimit: { customRules: { "/sign-in/username": false as const } } } : {}),
   user: {
     additionalFields: {
       // Early access gate (db/migrations/0058_user_approval.sql): `input: false` keeps a signup
