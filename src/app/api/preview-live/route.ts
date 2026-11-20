@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireAuth } from "@/lib/server/auth-helpers";
 import { HttpError } from "@/lib/server/http-error";
+import { giveBack, takePreview } from "@/lib/server/preview-allowance";
 import { makeLivePreview } from "@/lib/server/preview-live";
 
 // Make a game's preview now (docs/PLAN-game-preview.md, "On demand"; src/lib/server/preview-live.ts): a made-up season played on the
@@ -14,5 +15,12 @@ export const POST = apiRoute(async (req) => {
   const body = (await req.json().catch(() => ({}))) as { game?: unknown; season?: unknown; couch?: unknown };
   if (typeof body.game !== "string") throw new HttpError(400, "Which game?");
   const str = (v: unknown) => (typeof v === "string" && v ? v : undefined);
-  return NextResponse.json(await makeLivePreview(user, body.game, { seasonId: str(body.season), couchId: str(body.couch) ?? null }));
+  // One of today's previews (the app's allowance: decision 4), given back if this one isn't made.
+  const use = await takePreview(user.id);
+  try {
+    return NextResponse.json({ ...(await makeLivePreview(user, body.game, { seasonId: str(body.season), couchId: str(body.couch) ?? null })), left: use.left });
+  } catch (e) {
+    await giveBack(use.useId);
+    throw e;
+  }
 });

@@ -21,6 +21,12 @@ import type { PreviewGame } from "./preview-definition";
 
 export const LIVE_MINUTES = 30;
 const ENTRY_MINUTES = 2;
+/** At most this many previews being made at once, whoever's (decision 4): for the database and the wait. */
+export const AT_ONCE = 10;
+/** The month's budget of what previews cost the service (decision 4): an hour of CPU to start, of the free plan's spare 2.6. */
+export const MONTH_CPU_MS = Number(process.env.PREVIEW_MONTH_CPU_MS) || 3_600_000;
+/** What a preview's phones cost on top of making it (their pages' renders, not measured here): a second and a half. */
+const PHONES_CPU_MS = 1500;
 /** The first slice's gallery games (the gallery's Preview button sends any game's spec: the release plan's step 15). */
 const GAMES: Record<string, PreviewGame> = { fantasy: { base: "fantasy", changes: ["redraft"] }, sheet: { base: "sheet" }, pool: { base: "pool" } };
 
@@ -125,27 +131,36 @@ export async function makeLivePreview(user: SessionUser, game: string, where: { 
   // Loaded when used: the season reader brings the start-a-game modules with it.
   const { previewDefinition } = await import("./preview-definition");
   const { definition, resultsFor } = await previewDefinition(user, where.seasonId ?? (await devSeason()), where.couchId ?? null, g);
-  const id = crypto.randomUUID();
+  const id = await startMaking(user.id);
+  const cpu0 = process.cpuUsage();
   let made: Made | null = null;
   // Each copy as it lands, saved for whichever instance the story asks (its row exists once the first is written).
   const onState = () => void (made && save(id, made).catch((e: unknown) => console.error(`[preview-live] save ${id}:`, e)));
   // The first moment's copy is written before this returns; the rest land after the response (after(): the request's own time,
   // its route's maxDuration).
-  const out = await make({ input: definition, app: process.env.BETTER_AUTH_URL || "http://localhost:3014", resultsFor, seasons: 5, onState });
+  let out: Awaited<ReturnType<ReturnType<typeof bench>["make"]>>;
+  try {
+    out = await make({ input: definition, app: process.env.BETTER_AUTH_URL || "http://localhost:3014", resultsFor, seasons: 5, onState });
+  } catch (e) {
+    await pool.query(`DELETE FROM live_previews WHERE id = $1`, [id]).catch(() => {});
+    throw e;
+  }
   made = out.preview;
   try {
     // The people's password is the maker's alone (its writes as each person, through the real routes): never kept.
     delete made.viewerPass;
     const { rows } = await pool.query(`SELECT id FROM "user" WHERE username = $1`, [made.viewerUser]);
     if (!rows[0]) throw new Error("The preview's viewer wasn't made");
-    await pool.query(
-      `INSERT INTO live_previews (id, owner_key, viewer_user_id, story, copies, expires_at) VALUES ($1, $2, $3, $4, $5, now() + make_interval(mins => $6))`,
-      [id, ownerKey(user.id), rows[0].id, JSON.stringify(storyOf(made)), JSON.stringify(made.copies), LIVE_MINUTES]
-    );
+    await pool.query(`UPDATE live_previews SET viewer_user_id = $2, story = $3, copies = $4 WHERE id = $1`, [id, rows[0].id, JSON.stringify(storyOf(made)), JSON.stringify(made.copies)]);
     const entry = await entryFor(id);
     const finished = made;
     // Closed before its last copy landed: those go too.
-    after(() => out.rest.then(async () => { if (!(await save(id, finished))) await down(finished); }));
+    after(() =>
+      out.rest.then(async () => {
+        if (!(await save(id, finished))) await down(finished);
+        await spent(cpu0);
+      })
+    );
     return { id, entry, expires: Date.now() + LIVE_MINUTES * 60_000 };
   } catch (e) {
     // Never a copy nobody knows about: anything that fails once copies exist removes them (the ones still landing too).
@@ -154,6 +169,50 @@ export async function makeLivePreview(user: SessionUser, game: string, where: { 
     await pool.query(`DELETE FROM live_previews WHERE id = $1`, [id]).catch(() => {});
     throw e;
   }
+}
+
+/**
+ * A preview's row, from the moment it starts being made (its viewer and copies once the first is written), so the previews being
+ * made at once can be counted: refused past AT_ONCE ("Busy"), or once the month's budget is spent ("full this month").
+ */
+async function startMaking(userId: string): Promise<string> {
+  const db = await pool.connect();
+  try {
+    await db.query("BEGIN");
+    await db.query("SELECT pg_advisory_xact_lock(hashtext('live-preview-making'))");
+    const { rows: [month] } = await db.query(`SELECT cpu_ms FROM live_preview_months WHERE month = date_trunc('month', now())::date`);
+    if (Number(month?.cpu_ms ?? 0) >= MONTH_CPU_MS) throw new HttpError(503, "Previews are full this month: back on the 1st.");
+    const { rows: [busy] } = await db.query(`SELECT count(*)::int AS k FROM live_previews WHERE NOT complete AND created_at > now() - interval '5 minutes'`);
+    if (busy.k >= AT_ONCE) throw new HttpError(503, "Busy: try again in a minute.");
+    const id = crypto.randomUUID();
+    await db.query(`INSERT INTO live_previews (id, owner_key, story, expires_at) VALUES ($1, $2, '{}'::jsonb, now() + make_interval(mins => $3))`, [id, ownerKey(userId), LIVE_MINUTES]);
+    await db.query("COMMIT");
+    return id;
+  } catch (e) {
+    await db.query("ROLLBACK").catch(() => {});
+    throw e;
+  } finally {
+    db.release();
+  }
+}
+
+/** What a preview cost the service, added to its month (the process's CPU since it started: a bound, as others share the process). */
+async function spent(cpu0: NodeJS.CpuUsage) {
+  const d = process.cpuUsage(cpu0);
+  const ms = Math.round((d.user + d.system) / 1000) + PHONES_CPU_MS;
+  await pool
+    .query(
+      `INSERT INTO live_preview_months (month, previews, cpu_ms) VALUES (date_trunc('month', now())::date, 1, $1)
+         ON CONFLICT (month) DO UPDATE SET previews = live_preview_months.previews + 1, cpu_ms = live_preview_months.cpu_ms + $1`,
+      [ms]
+    )
+    .catch((e: unknown) => console.error("[preview-live] spent:", e));
+}
+
+/** This month's previews and what they've cost, against the budget (the desk's line: step 18). */
+export async function previewMonth(): Promise<{ previews: number; cpuMs: number; budgetMs: number }> {
+  const { rows: [m] } = await pool.query(`SELECT previews, cpu_ms FROM live_preview_months WHERE month = date_trunc('month', now())::date`);
+  return { previews: m?.previews ?? 0, cpuMs: Number(m?.cpu_ms ?? 0), budgetMs: MONTH_CPU_MS };
 }
 
 /** A way into one of `user`'s own previews (opening it again: decision 6), while it lasts. */

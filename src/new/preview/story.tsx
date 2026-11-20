@@ -34,6 +34,8 @@ export interface Preview {
   last: number;
   moments: Moment[];
   seasons?: { seed: number; tables?: Record<string, TableRow[]>; error?: string }[];
+  /** A live preview: every copy written, or stopped partway (its moments made so far stay). */
+  complete?: boolean;
 }
 
 const WORDS = showWords(null);
@@ -326,14 +328,17 @@ function LiveScreen({ screen, className = "" }: { screen: Screen; className?: st
     </span>
   );
 }
-/** A live moment whose copy of the game is still being written (the maker writes the first at once, the rest while you look). */
-function Pending() {
+/** A live moment whose copy of the game is still being written (the maker writes the first at once, the rest while you look); or,
+ *  once the preview is all made, one that couldn't be (a preview that failed partway keeps the moments it made). */
+function Pending({ ended = false }: { ended?: boolean }) {
   return (
-    <span className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-card px-8 text-center" data-live-pending>
-      <span className="h-[3px] w-1/3 overflow-hidden rounded-full bg-secondary" aria-hidden>
-        <span className="block h-full w-1/2 animate-[nd-live-sweep_1.1s_ease-in-out_infinite] rounded-full bg-foreground/70 motion-reduce:animate-none" />
-      </span>
-      <span className="text-[13px] leading-snug text-muted-foreground">Getting this moment ready</span>
+    <span className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-card px-8 text-center" data-live-pending={ended ? "ended" : ""}>
+      {!ended && (
+        <span className="h-[3px] w-1/3 overflow-hidden rounded-full bg-secondary" aria-hidden>
+          <span className="block h-full w-1/2 animate-[nd-live-sweep_1.1s_ease-in-out_infinite] rounded-full bg-foreground/70 motion-reduce:animate-none" />
+        </span>
+      )}
+      <span className="text-[13px] leading-snug text-muted-foreground">{ended ? "This moment couldn’t be made" : "Getting this moment ready"}</span>
     </span>
   );
 }
@@ -355,7 +360,7 @@ function Phone({ p, screen, onOpen }: { p: Preview; screen: Screen | undefined; 
       <div data-phone={screen.id} data-live style={size} className="flex flex-none flex-col rounded-[30px] bg-[#0b0a10] px-[6px] pb-[6px] outline-1 -outline-offset-1 outline-[color-mix(in_oklab,var(--foreground)_32%,transparent)]">
         <span className="type-caption flex h-5 flex-none items-center justify-center text-[11px] tracking-[0.14em] text-[#a9a4b8]">Made-up season · live</span>
         <span className="relative block overflow-hidden rounded-[24px]" style={{ width: "var(--sw)", height: "calc(var(--sw) * 844 / 390)" }}>
-          {screen.path ? <LiveScreen screen={screen} className="size-full" /> : <Pending />}
+          {screen.path ? <LiveScreen screen={screen} className="size-full" /> : <Pending ended={!!p.complete} />}
         </span>
       </div>
     );
@@ -384,7 +389,7 @@ function FullScreen({ p, screen, onClose }: { p: Preview; screen: Screen; onClos
       <div className="flex min-h-0 flex-1 items-start justify-center [container-type:size]">
         <div className="relative" style={fit}>
           {live ? (
-            screen.path ? <LiveScreen screen={screen} className="size-full" /> : <Pending />
+            screen.path ? <LiveScreen screen={screen} className="size-full" /> : <Pending ended={!!p.complete} />
           ) : (
             <>
               {/* eslint-disable-next-line @next/next/no-img-element -- a dev-only shot of the app's own screen */}

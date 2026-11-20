@@ -204,6 +204,16 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
    made) and shown as "previews left", the overall cap, and the monthly budget, the service adding up what each preview costs it
    (decision 4); the story's states for a service that's down, a preview that failed partway (the moments made so far stay), one
    that has ended, and a month that's full. Checked in the end-to-end check.
+   **Done (2026-11-19), but for what's shown.** `db/migrations/0443`: `preview_uses` (the app's: a row per preview made, counted
+   over the person's own day by `user_settings.tz`) and `live_preview_months` (the service's: previews and CPU milliseconds a month).
+   `preview-allowance.ts` takes one of today's 5 (one take at a time per person) and gives it back when the preview isn't made;
+   `GET /api/previews/allowance` says how many are left, for the Preview button and the wait. The maker's row now exists from the
+   start, so `startMaking` refuses an 11th being made at once ("Busy: try again in a minute.") and a month past its budget
+   ("Previews are full this month: back on the 1st."); each made preview adds the process's CPU while it was made, plus 1.5 s for
+   its phones, to its month (`PREVIEW_MONTH_CPU_MS`, an hour by default). The story's moment that a preview stopped partway never
+   made says "This moment couldn't be made". `scripts/dev-test/preview-limits-check.js` holds each through the real routes; a
+   Survival pool preview measured 7.3 s on the dev server (with the phones' 1.5), so the hour is about 490 a month. What's left for
+   the design round (step 14): "You have 3 previews left today" on the Preview button and the wait, and these refusals' screens.
 8a. **Your preview, kept while you make the game** (decision 6): one per person (making one removes the last); removed when its story
    closes unless you left it for Create this game or a change, then kept against the game you're making (its settings and your mark)
    and reopened from it without making another; removed when that game is created, another is made, your mark moves, or after 24
