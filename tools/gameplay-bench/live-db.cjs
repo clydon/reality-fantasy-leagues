@@ -265,6 +265,28 @@ async function sync(ids, snap, document, shiftMs) {
         // them under ids made from its own key (triviaId), and its answers to them say the same: game_answers, below.)
         for (const t of f.data.trivia) await client.query(`INSERT INTO trivia_questions (id, season_id, made_after, episode, kind, question, options, answer, source, status, created_at) VALUES ($8, $1, $2, $2, $3, $4, $5, $6, 'zt-gameplay-bench', 'live', $7)`, [season.id, e.number, t.kind === 'person' ? 'cast' : t.kind === 'number' ? 'number' : 'text', t.question, JSON.stringify(t.options), t.answer, at, triviaId(ids.key, t.id)]);
       }
+      // Weekly Bingo (runtime-bingo.cjs): each aired episode's card of the show's moments and what each person ticked (bingo_cards,
+      // bingo_marks: a card kept from its first tick, so the server counts the runtime's lines), and the season's own bank (bingo_squares:
+      // the format's moments, by likelihood) for the cards of episodes still to air, which the server deals from it.
+      const Bg = require('./explorer/runtime-bingo.cjs');
+      const bingoGames = document.games.filter(g => g.contextId === contextId && snap.games[g.id] && Bg.on(snap.games[g.id].state));
+      if (bingoGames.length) {
+        await client.query(`DELETE FROM bingo_cards WHERE season_id = $1`, [season.id]);
+        await client.query(`DELETE FROM bingo_squares WHERE season_id = $1`, [season.id]);
+        const latest = Math.max(0, ...world.events.filter(released).map(e => e.number));
+        for (const sq of Bg.bankOf(world, latest + 1)) await client.query(`INSERT INTO bingo_squares (season_id, episode, label, likelihood, status) VALUES ($1, NULL, $2, $3, 'live')`, [season.id, String(sq.label).slice(0, 60), sq.likelihood]);
+        const seats = [...new Set(bingoGames.flatMap(g => snap.games[g.id].state.players.map(p => p.id)))].filter(id => ids.users[id]);
+        const start = Math.min(...bingoGames.map(g => S.startEpisode(snap.games[g.id].state) ?? Infinity));
+        for (const e of world.events) {
+          if (!released(e) || e.number < start) continue;
+          const at = new Date(Date.parse(e.airAt) + shiftMs + 30 * 60000).toISOString();
+          for (const r of Bg.episodeCards(document, world, seats, e.number)) {
+            if (!r.card || !r.ticked.length) continue;
+            const card = (await client.query(`INSERT INTO bingo_cards (user_id, season_id, episode, squares, created_at) VALUES ($1, $2, $3, $4, $5) RETURNING id`, [ids.users[r.personId].id, season.id, e.number, JSON.stringify(r.card), at])).rows[0].id;
+            for (const sq of r.ticked) await client.query(`INSERT INTO bingo_marks (card_id, square, marked_at) VALUES ($1, $2, $3)`, [card, sq, at]);
+          }
+        }
+      }
       for (const m of world.marks) {
         const user = ids.users[m.personId].id;
         await client.query(`INSERT INTO show_follows (user_id, season_id, seen_through) VALUES ($1, $2, $3) ON CONFLICT (user_id, season_id) DO UPDATE SET seen_through = EXCLUDED.seen_through, early_seen = NULL, early_night = NULL`, [user, season.id, m.through]);

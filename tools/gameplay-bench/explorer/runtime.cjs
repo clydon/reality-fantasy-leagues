@@ -4,6 +4,7 @@ const S = require('../../../src/lib/game/state-logic'), G = require('../../../sr
 const D = require('./document.cjs'), J = require('./json.cjs'), P = require('./planner.cjs'), Data = require('./runtime-data.cjs'), Profile = require('./runtime-profile.cjs'), Stages = require('./stages.cjs');
 // Weekly Calls (runtime-calls.cjs), loaded only by a case that has them (it reads the TypeScript calls module).
 let callsModule = null; const Calls = () => callsModule || (callsModule = require('./runtime-calls.cjs'));
+let bingoModule = null; const Bingo = () => bingoModule || (bingoModule = require('./runtime-bingo.cjs'));
 let waiversModule = null; const Waivers = () => waiversModule || (waiversModule = require('./runtime-waivers.cjs'));
 let sportsModule = null; const Sports = () => sportsModule || (sportsModule = require('./runtime-sports.cjs'));
 const isWeekly = game => G.callsAsk(G.fullSpec(game.spec).ask);
@@ -333,7 +334,8 @@ function open(input, internal = {}) {
     // The table's points as answer-points.ts pointsOf: a game with a walk (lives, a race, co-op) its walk's totals, frozen once it's
     // over (a season-long answer settled after a co-op couch lost counts for nothing); else the grade's.
     // Weekly Calls: the table from the person's calls (calls.ts leagueCalls); its one question isn't the answer grade's.
-    const call = isWeekly(game) ? Calls().gameCalls(worldFor(game), state.stores.calls[game.contextId], full, member ? personId : null, seen, now) : S.AnswerLogic.questions(full).length ? { right: walk ? (id => walk.totals[id] ?? 0) : (id => grade.points.get(id) || 0), move: null, through: seen, walk, lines, bot: botLineOf(view, live, facts, grade) } : undefined;
+    // Weekly Bingo (runtime-bingo.cjs): a card of the show's moments each episode, each person's lines through their mark.
+    const call = isWeekly(game) ? Calls().gameCalls(worldFor(game), state.stores.calls[game.contextId], full, member ? personId : null, seen, now) : Bingo().on(full) ? Bingo().gameBingo(document, worldFor(game), full, seen) : S.AnswerLogic.questions(full).length ? { right: walk ? (id => walk.totals[id] ?? 0) : (id => grade.points.get(id) || 0), move: null, through: seen, walk, lines, bot: botLineOf(view, live, facts, grade) } : undefined;
     const ref = { leagueId: present.leagueId || game.id, name: game.name || 'Synthetic game', gameName: game.name || G.typeOf(game.spec), gameType: G.typeOf(game.spec), yourRole: game.roles[personId] || 'member', ownPace: game.timing === 'own-pace', solo: full.players.length === 1 ? 'private' : null };
     // (Everything is the server's null there: season-games.ts markFor.)
     const result = gameView(ref, full, member ? personId : null, seen === Infinity ? null : seen, present.userOf || (id => id), call, { now, marks: new Map(worldFor(game).marks.map(m => [m.personId, m.through])) });

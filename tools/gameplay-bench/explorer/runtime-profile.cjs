@@ -60,14 +60,17 @@ function inspect(document) {
       if (spec.get?.by !== 'draft' || !['snake', 'blind'].includes(spec.get?.order) || !byHand || !['moments', 'place'].includes(spec.score?.by) || !(spec.rank?.by === 'total' || h2h) || (spec.rank?.by === 'total' && ['odd', 'quiet', 'playoffs'].some(k => active(spec.rank[k]))) || (spec.ask || []).length || Object.entries(plain).some(([section, keys]) => Object.entries(spec[section] || {}).some(([k, v]) => !keys.includes(k) && active(v))) || Object.entries(spec.extras || {}).some(([k, v]) => active(v) && !['bets', 'waivers', 'draft', 'hideStarters'].includes(k)))
         add(game.id, p, "Only a plain Weekly Lineup or Outlast is connected as a stage (the specimens' shapes); a rider on a stage needs its own proof");
     }
-    if (!['draft', 'pick', 'none'].includes(spec.get?.by)) add(game.id, p + '/get/by', 'Acquisition adapter not implemented');
+    // Weekly Bingo (get.by 'card', scored by its lines): a card of the show's moments each episode, settled by the season's results
+    // (runtime-bingo.cjs, core-runtime-45); a bank's squares, settled by the couch, aren't connected.
+    const bingo = spec.get?.by === 'card' && spec.score?.by === 'lines';
+    if (!['draft', 'pick', 'none'].includes(spec.get?.by) && !bingo) add(game.id, p + '/get/by', 'Acquisition adapter not implemented');
     // A sport context (runtime-sports.cjs, core-runtime-30): its results are box scores, so only a game scored by its stats plays
     // on one, and such a game only there. First slice: a drafted team, plain points for each stat (no points by position, place or
     // a match's format; no categories), ranked by total. Its lock at the start is the check below.
     const sport = context.kind === 'sport', stats = spec.score?.by === 'stats';
     if (stats && !sport) add(game.id, p + '/score/by', "A game scored by a sport's stats needs a sport context (kind 'sport': runtime-sports.cjs)");
     else if (sport && !stats) add(game.id, p + '/score/by', "Only a game scored by the sport's stats is connected on a sport context");
-    else if (!stats && !['moments', 'survive', 'place', 'answers'].includes(spec.score?.by)) add(game.id, p + '/score/by', 'Generated result adapter not implemented for this scoring basis');
+    else if (!stats && !['moments', 'survive', 'place', 'answers'].includes(spec.score?.by) && !bingo) add(game.id, p + '/score/by', 'Generated result adapter not implemented for this scoring basis');
     if (sport && stats) {
       if (spec.get?.by !== 'draft') add(game.id, p + '/get/by', "Only a drafted team is connected for a game scored by a sport's stats");
       // (Categories, the third slice: score.categories, a list of the sport's stats, ranked head to head by each category, by most
