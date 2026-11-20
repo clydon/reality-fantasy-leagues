@@ -135,6 +135,15 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
    Survivor 51's definition equals today's fixture; a definition for mark N holds no real result past N, and no secret a format keeps
    past N (in a Traitors season the roles of anyone not revealed by N are made up, or the made-up episodes would give the real ones
    away); a season without a cast refuses with why.
+   **Done (2026-11-19).** The builder is `tools/gameplay-bench/preview/definition.cjs` (pure: it refuses a real result past the mark
+   and any cast field but name, photo and tribe); the app's reader is `src/lib/server/preview-definition.ts` (the season page from
+   the wizard's own `wizardOptions`, so a couch is needed: the one asked for, else the person's first; the mark from `seenThrough`;
+   the cast mixed a tribe at a time; air times a week apart where none are listed; under two episodes seen, the show's latest other
+   season's rates) and `preview-season.ts` (the calendar, the seed). The dev preview now uses it: an account that hasn't watched
+   Survivor 51 gets Episodes 1 to 8 made up too. Checked: the proof's three definitions equal the recorded fixture byte for byte;
+   `tests/preview-definition.test.js` (a made-up season, `tests/fixtures/preview-season`); the end-to-end check on all three games,
+   every ring found. Found on the way: the teams' ring asked for a castaway on every team, which only seed 51's season had; it
+   now rings the most shared one (`live.cjs` teamsRing).
 2. **Games the runtime can't play yet** say so before anything is made ("No preview for this game yet", with the reason from the
    explorer's own analysis of the spec), never a preview that fails partway. Checked against the gallery's whole catalogue.
 3. **The registry in the service's database** (a `live_previews` table: id, owner key, expiry, the viewer, the copies, the story as it

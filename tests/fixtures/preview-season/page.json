@@ -1,0 +1,773 @@
+{
+ "note": "A made-up season page (the shape of the season page the game wizard reads: start-spec.ts wizardOptions), no real people: for tests/preview-definition.test.js",
+ "page": {
+  "ctx": {
+   "moments": [
+    {
+     "id": "rewardWin",
+     "label": "Won the Reward challenge",
+     "defaultPoints": {
+      "shared": 2,
+      "exclusive": 2
+     },
+     "answeredBy": "research",
+     "auto": false,
+     "off": false
+    },
+    {
+     "id": "chosenForReward",
+     "label": "Chosen to join a reward",
+     "defaultPoints": 0.5,
+     "answeredBy": "research",
+     "auto": false,
+     "off": false
+    },
+    {
+     "id": "individualImmunity",
+     "label": "Won the Immunity challenge",
+     "defaultPoints": {
+      "shared": 3,
+      "exclusive": 3
+     },
+     "answeredBy": "research",
+     "auto": false,
+     "off": false
+    },
+    {
+     "id": "challengeRunnerUp",
+     "label": "2nd in the Immunity challenge",
+     "defaultPoints": {
+      "shared": 1,
+      "exclusive": 1
+     },
+     "answeredBy": "research",
+     "auto": false,
+     "off": false
+    },
+    {
+     "id": "challengeThird",
+     "label": "3rd in the Immunity challenge",
+     "defaultPoints": 0.5,
+     "answeredBy": "research",
+     "auto": false,
+     "off": false
+    },
+    {
+     "id": "tribeImmunity",
+     "label": "Tribe won the Immunity challenge",
+     "defaultPoints": 0.5,
+     "answeredBy": "research",
+     "auto": false,
+     "off": false
+    },
+    {
+     "id": "satOut",
+     "label": "Sat out a challenge",
+     "defaultPoints": -0.5,
+     "answeredBy": "research",
+     "auto": false,
+     "off": false
+    },
+    {
+     "id": "zeroVotesSafe",
+     "label": "Zero votes at Tribal Council",
+     "defaultPoints": {
+      "shared": 1,
+      "exclusive": 1
+     },
+     "answeredBy": "research",
+     "auto": false,
+     "off": false
+    },
+    {
+     "id": "survivedVotes",
+     "label": "Received votes at Tribal Council and survived",
+     "defaultPoints": 2,
+     "answeredBy": "research",
+     "auto": false,
+     "off": false
+    },
+    {
+     "id": "votedWithMajority",
+     "label": "Voted with the majority",
+     "defaultPoints": {
+      "shared": 0.5,
+      "exclusive": 0.5
+     },
+     "answeredBy": "research",
+     "auto": false,
+     "off": false
+    },
+    {
+     "id": "votedAgainstMajority",
+     "label": "Voted against the majority",
+     "defaultPoints": -0.5,
+     "answeredBy": "research",
+     "auto": false,
+     "off": false
+    },
+    {
+     "id": "shotInTheDarkPlayed",
+     "label": "Played their Shot in the Dark",
+     "defaultPoints": 0.5,
+     "answeredBy": "research",
+     "auto": false,
+     "off": false
+    },
+    {
+     "id": "shotInTheDarkSafe",
+     "label": "Was safe from their Shot in the Dark",
+     "defaultPoints": {
+      "shared": 4,
+      "exclusive": 3
+     },
+     "answeredBy": "research",
+     "auto": false,
+     "off": false
+    },
+    {
+     "id": "survivedRockDraw",
+     "label": "Survived a rock draw",
+     "defaultPoints": {
+      "shared": 4,
+      "exclusive": 3
+     },
+     "answeredBy": "research",
+     "auto": false,
+     "off": false
+    },
+    {
+     "id": "attendedTribalCouncil",
+     "label": "Attended Tribal Council",
+     "defaultPoints": 0.5,
+     "answeredBy": "research",
+     "auto": false,
+     "off": false
+    },
+    {
+     "id": "survivedBeingTarget",
+     "label": "Survived being the primary target",
+     "defaultPoints": {
+      "shared": 3,
+      "exclusive": 2.5
+     },
+     "answeredBy": "research",
+     "auto": false,
+     "off": false
+    },
+    {
+     "id": "wonFireMaking",
+     "label": "Won the Fire-making",
+     "defaultPoints": {
+      "shared": 6,
+      "exclusive": 5
+     },
+     "answeredBy": "research",
+     "auto": false,
+     "off": false
+    },
+    {
+     "id": "idolFound",
+     "label": "Got an idol or advantage",
+     "defaultPoints": {
+      "shared": 3,
+      "exclusive": 2.5
+     },
+     "answeredBy": "research",
+     "auto": false,
+     "off": false
+    },
+    {
+     "id": "idolPlayed",
+     "label": "Played an idol or advantage",
+     "defaultPoints": 0.5,
+     "answeredBy": "research",
+     "auto": false,
+     "off": false
+    },
+    {
+     "id": "votesNegated",
+     "label": "Played an idol or advantage that cancelled votes",
+     "defaultPoints": {
+      "shared": 5,
+      "exclusive": 4
+     },
+     "answeredBy": "research",
+     "auto": false,
+     "off": false
+    },
+    {
+     "id": "advantageTargeted",
+     "label": "Had an idol or advantage used against them",
+     "defaultPoints": -1,
+     "answeredBy": "research",
+     "auto": false,
+     "off": false
+    },
+    {
+     "id": "receivedExtraVote",
+     "label": "Received an extra vote",
+     "defaultPoints": {
+      "shared": 3,
+      "exclusive": 2.5
+     },
+     "answeredBy": "research",
+     "auto": false,
+     "off": false
+    },
+    {
+     "id": "lostVote",
+     "label": "Lost their vote",
+     "defaultPoints": -0.5,
+     "answeredBy": "research",
+     "auto": false,
+     "off": false
+    },
+    {
+     "id": "wentOnJourney",
+     "label": "Went on a journey",
+     "defaultPoints": 0.5,
+     "answeredBy": "research",
+     "auto": false,
+     "off": false
+    },
+    {
+     "id": "wentToExile",
+     "label": "Sent to Exile",
+     "defaultPoints": 0,
+     "answeredBy": "research",
+     "auto": false,
+     "off": false
+    },
+    {
+     "id": "votedOut",
+     "label": "Voted out",
+     "defaultPoints": -2,
+     "auto": true,
+     "off": false
+    },
+    {
+     "id": "medevac",
+     "label": "Medically evacuated",
+     "defaultPoints": 0,
+     "auto": true,
+     "off": false
+    },
+    {
+     "id": "quit",
+     "label": "Quit",
+     "defaultPoints": -3,
+     "auto": true,
+     "off": false
+    },
+    {
+     "id": "lostFireMaking",
+     "label": "Lost fire-making",
+     "defaultPoints": -1,
+     "auto": true,
+     "off": false
+    },
+    {
+     "id": "finalist",
+     "label": "Finalist",
+     "defaultPoints": {
+      "shared": 5,
+      "exclusive": 4
+     },
+     "auto": true,
+     "off": false
+    },
+    {
+     "id": "soleSurvivor",
+     "label": "Sole Survivor",
+     "defaultPoints": {
+      "shared": 3,
+      "exclusive": 3
+     },
+     "auto": true,
+     "off": false
+    },
+    {
+     "id": "juryVote",
+     "label": "Each jury vote received",
+     "defaultPoints": {
+      "shared": 1,
+      "exclusive": 1
+     },
+     "auto": true,
+     "off": false
+    },
+    {
+     "id": "zeroJuryVotes",
+     "label": "Finalist with no jury votes",
+     "defaultPoints": {
+      "shared": -1,
+      "exclusive": -1
+     },
+     "auto": true,
+     "off": false
+    },
+    {
+     "id": "wonHeadToHeadChallenge",
+     "label": "Won a head-to-head challenge",
+     "defaultPoints": {
+      "shared": 5,
+      "exclusive": 4.5
+     },
+     "answeredBy": "research",
+     "auto": false,
+     "off": false
+    },
+    {
+     "id": "lostHeadToHeadChallenge",
+     "label": "Lost a head-to-head challenge",
+     "defaultPoints": -1,
+     "answeredBy": "research",
+     "auto": false,
+     "off": false
+    },
+    {
+     "id": "pickedLast",
+     "label": "Picked last for a challenge or team",
+     "defaultPoints": -0.5,
+     "answeredBy": "research",
+     "auto": false,
+     "off": false
+    },
+    {
+     "id": "madeMerge",
+     "label": "Made the merge",
+     "defaultPoints": {
+      "shared": 4,
+      "exclusive": 3
+     },
+     "answeredBy": "research",
+     "auto": false,
+     "off": false
+    }
+   ],
+   "results": true,
+   "winner": true,
+   "calls": "results",
+   "phases": [
+    {
+     "id": "tribes",
+     "name": "Tribes"
+    },
+    {
+     "id": "merged",
+     "name": "Merged"
+    }
+   ],
+   "roles": [],
+   "grouped": true,
+   "group": "tribe",
+   "jury": true,
+   "votes": true,
+   "properties": [
+    {
+     "key": "gender",
+     "name": "Gender",
+     "values": [
+      "Man",
+      "Woman",
+      "Nonbinary"
+     ],
+     "flex": {
+      "Nonbinary": [
+       "Man",
+       "Woman"
+      ]
+     },
+     "plurals": {
+      "Man": "Men",
+      "Woman": "Women",
+      "Nonbinary": "Nonbinary"
+     }
+    }
+   ],
+   "trivia": true,
+   "facts": {
+    "titleQuote": {
+     "asked": 18,
+     "settled": 17
+    }
+   },
+   "tvmaze": false,
+   "show": "Test Island 1",
+   "couch": 4,
+   "pool": 18
+  },
+  "pack": {
+   "page": "Test Island 1",
+   "show": "Test Island",
+   "season": 1,
+   "kind": "show",
+   "status": "airing",
+   "today": "2030-03-01",
+   "episodes": {
+    "aired": 3,
+    "next": {
+     "number": 4,
+     "airs": "2030-03-05T01:00:00.000Z"
+    }
+   },
+   "phases": [
+    {
+     "id": "tribes",
+     "name": "Tribes"
+    },
+    {
+     "id": "merged",
+     "name": "Merged"
+    }
+   ],
+   "words": {
+    "person": "person",
+    "people": "people",
+    "group": "tribe"
+   },
+   "cast": [
+    {
+     "id": "c1",
+     "name": "Castaway 1",
+     "in": true,
+     "group": "Red"
+    },
+    {
+     "id": "c2",
+     "name": "Castaway 2",
+     "in": true,
+     "group": "Blue"
+    },
+    {
+     "id": "c3",
+     "name": "Castaway 3",
+     "in": true,
+     "group": "Red"
+    },
+    {
+     "id": "c4",
+     "name": "Castaway 4",
+     "in": true,
+     "group": "Blue"
+    },
+    {
+     "id": "c5",
+     "name": "Castaway 5",
+     "in": true,
+     "group": "Red"
+    },
+    {
+     "id": "c6",
+     "name": "Castaway 6",
+     "in": true,
+     "group": "Blue"
+    },
+    {
+     "id": "c7",
+     "name": "Castaway 7",
+     "in": true,
+     "group": "Red"
+    },
+    {
+     "id": "c8",
+     "name": "Castaway 8",
+     "in": true,
+     "group": "Blue"
+    },
+    {
+     "id": "c9",
+     "name": "Castaway 9",
+     "in": true,
+     "group": "Red"
+    },
+    {
+     "id": "c10",
+     "name": "Castaway 10",
+     "in": true,
+     "group": "Blue"
+    },
+    {
+     "id": "c11",
+     "name": "Castaway 11",
+     "in": true,
+     "group": "Red"
+    },
+    {
+     "id": "c12",
+     "name": "Castaway 12",
+     "in": true,
+     "group": "Blue"
+    },
+    {
+     "id": "c13",
+     "name": "Castaway 13",
+     "in": true,
+     "group": "Red"
+    },
+    {
+     "id": "c14",
+     "name": "Castaway 14",
+     "in": true,
+     "group": "Blue"
+    },
+    {
+     "id": "c15",
+     "name": "Castaway 15",
+     "in": true,
+     "group": "Red"
+    },
+    {
+     "id": "c16",
+     "name": "Castaway 16",
+     "in": true,
+     "group": "Blue"
+    },
+    {
+     "id": "c17",
+     "name": "Castaway 17",
+     "in": true,
+     "group": "Red"
+    },
+    {
+     "id": "c18",
+     "name": "Castaway 18",
+     "in": true,
+     "group": "Blue"
+    }
+   ],
+   "stillIn": 18,
+   "moments": [
+    {
+     "id": "rewardWin",
+     "says": "Won the Reward challenge",
+     "points": 2
+    },
+    {
+     "id": "chosenForReward",
+     "says": "Chosen to join a reward",
+     "points": 0.5
+    },
+    {
+     "id": "individualImmunity",
+     "says": "Won the Immunity challenge",
+     "points": 3
+    },
+    {
+     "id": "challengeRunnerUp",
+     "says": "2nd in the Immunity challenge",
+     "points": 1
+    },
+    {
+     "id": "challengeThird",
+     "says": "3rd in the Immunity challenge",
+     "points": 0.5
+    },
+    {
+     "id": "tribeImmunity",
+     "says": "Tribe won the Immunity challenge",
+     "points": 0.5
+    },
+    {
+     "id": "satOut",
+     "says": "Sat out a challenge",
+     "points": -0.5
+    },
+    {
+     "id": "zeroVotesSafe",
+     "says": "Zero votes at Tribal Council",
+     "points": 1
+    },
+    {
+     "id": "survivedVotes",
+     "says": "Received votes at Tribal Council and survived",
+     "points": 2
+    },
+    {
+     "id": "votedWithMajority",
+     "says": "Voted with the majority",
+     "points": 0.5
+    },
+    {
+     "id": "votedAgainstMajority",
+     "says": "Voted against the majority",
+     "points": -0.5
+    },
+    {
+     "id": "shotInTheDarkPlayed",
+     "says": "Played their Shot in the Dark",
+     "points": 0.5
+    },
+    {
+     "id": "shotInTheDarkSafe",
+     "says": "Was safe from their Shot in the Dark",
+     "points": {
+      "exclusive": 3,
+      "shared": 4
+     }
+    },
+    {
+     "id": "survivedRockDraw",
+     "says": "Survived a rock draw",
+     "points": {
+      "exclusive": 3,
+      "shared": 4
+     }
+    },
+    {
+     "id": "attendedTribalCouncil",
+     "says": "Attended Tribal Council",
+     "points": 0.5
+    },
+    {
+     "id": "survivedBeingTarget",
+     "says": "Survived being the primary target",
+     "points": {
+      "exclusive": 2.5,
+      "shared": 3
+     }
+    },
+    {
+     "id": "wonFireMaking",
+     "says": "Won the Fire-making",
+     "points": {
+      "exclusive": 5,
+      "shared": 6
+     }
+    },
+    {
+     "id": "idolFound",
+     "says": "Got an idol or advantage",
+     "points": {
+      "exclusive": 2.5,
+      "shared": 3
+     }
+    },
+    {
+     "id": "idolPlayed",
+     "says": "Played an idol or advantage",
+     "points": 0.5
+    },
+    {
+     "id": "votesNegated",
+     "says": "Played an idol or advantage that cancelled votes",
+     "points": {
+      "exclusive": 4,
+      "shared": 5
+     }
+    },
+    {
+     "id": "advantageTargeted",
+     "says": "Had an idol or advantage used against them",
+     "points": -1
+    },
+    {
+     "id": "receivedExtraVote",
+     "says": "Received an extra vote",
+     "points": {
+      "exclusive": 2.5,
+      "shared": 3
+     }
+    },
+    {
+     "id": "lostVote",
+     "says": "Lost their vote",
+     "points": -0.5
+    },
+    {
+     "id": "wentOnJourney",
+     "says": "Went on a journey",
+     "points": 0.5
+    },
+    {
+     "id": "wentToExile",
+     "says": "Sent to Exile",
+     "points": 0
+    },
+    {
+     "id": "votedOut",
+     "says": "Voted out",
+     "points": -2
+    },
+    {
+     "id": "medevac",
+     "says": "Medically evacuated",
+     "points": 0
+    },
+    {
+     "id": "quit",
+     "says": "Quit",
+     "points": -3
+    },
+    {
+     "id": "lostFireMaking",
+     "says": "Lost fire-making",
+     "points": -1
+    },
+    {
+     "id": "finalist",
+     "says": "Finalist",
+     "points": {
+      "exclusive": 4,
+      "shared": 5
+     }
+    },
+    {
+     "id": "soleSurvivor",
+     "says": "Sole Survivor",
+     "points": 3
+    },
+    {
+     "id": "juryVote",
+     "says": "Each jury vote received",
+     "points": 1
+    },
+    {
+     "id": "zeroJuryVotes",
+     "says": "Finalist with no jury votes",
+     "points": -1
+    },
+    {
+     "id": "wonHeadToHeadChallenge",
+     "says": "Won a head-to-head challenge",
+     "points": {
+      "exclusive": 4.5,
+      "shared": 5
+     }
+    },
+    {
+     "id": "lostHeadToHeadChallenge",
+     "says": "Lost a head-to-head challenge",
+     "points": -1
+    },
+    {
+     "id": "pickedLast",
+     "says": "Picked last for a challenge or team",
+     "points": -0.5
+    },
+    {
+     "id": "madeMerge",
+     "says": "Made the merge",
+     "points": {
+      "exclusive": 3,
+      "shared": 4
+     }
+    }
+   ],
+   "roles": [],
+   "knows": {
+    "whoGoesHome": true,
+    "whoWins": true,
+    "groups": true,
+    "juryVote": true,
+    "whoVotedForWhom": true,
+    "trivia": true
+   },
+   "couch": {
+    "people": 4,
+    "games": []
+   }
+  }
+ }
+}

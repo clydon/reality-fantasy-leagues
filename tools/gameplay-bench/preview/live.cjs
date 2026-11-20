@@ -76,6 +76,13 @@ async function make(o) {
 
   // A blind draft's three states on the app's path: open before it starts (Tonight: the runner's Start the draft, or everyone else's
   // wait), started with the couch locked in (the room, yours to make: the real routes' writes), revealed (the teams: the runtime's).
+  // The teams' ring: the castaway on the most teams (its ×N), as many as this made-up season put there; none shared, your own team.
+  const teamsRing = (dealt, gameId) => {
+    const k = new Map();
+    for (const ids of Object.values(teamsOf(dealt.games[gameId].state))) for (const id of ids) k.set(id, (k.get(id) || 0) + 1);
+    const most = Math.max(0, ...k.values());
+    return most >= 2 ? { text: `×${most}` } : { text: 'You' };
+  };
   const draftStates = (open, dealt, gameId) => {
     const want = teamsOf(dealt.games[gameId].state);
     const started = stateOf(open, async (made, as) => {
@@ -103,7 +110,7 @@ async function make(o) {
     const d = draftStates(opening, start, blindFirst.id);
     screen('tonight', 'Tonight', atStart, (made) => where.tonight(made), null, { selector: '[data-strip]' });
     screen('room', 'Draft room', d.started, where.room(blindFirst.id), null, { text: 'Nobody sees until|Choose \\d+' });
-    screen('teams', 'The teams', d.revealed, where.room(blindFirst.id), null, { text: `×${people.length}` });
+    screen('teams', 'The teams', d.revealed, where.room(blindFirst.id), null, teamsRing(start, blindFirst.id));
   }
   lap('the game and its draft');
 
@@ -146,7 +153,7 @@ async function make(o) {
         const d = draftStates(open, after, opened.id);
         screen('tonight', 'Tonight', beforeStart, (made) => where.tonight(made), null, { selector: '[data-strip]' });
         screen('room', 'Draft room', d.started, where.room(opened.id), null, { text: 'Nobody sees until|Choose \\d+' });
-        screen('teams', 'The teams', d.revealed, where.room(opened.id), null, { text: `×${people.length}` });
+        screen('teams', 'The teams', d.revealed, where.room(opened.id), null, teamsRing(after, opened.id));
       }
     }
   }

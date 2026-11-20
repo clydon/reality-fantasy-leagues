@@ -11,7 +11,8 @@ export const maxDuration = 120;
 
 export const POST = apiRoute(async (req) => {
   const user = await requireAuth(req);
-  const body = (await req.json().catch(() => ({}))) as { game?: unknown };
+  const body = (await req.json().catch(() => ({}))) as { game?: unknown; season?: unknown; couch?: unknown };
   if (typeof body.game !== "string") throw new HttpError(400, "Which game?");
-  return NextResponse.json(await makeLivePreview(user.id, body.game));
+  const str = (v: unknown) => (typeof v === "string" && v ? v : undefined);
+  return NextResponse.json(await makeLivePreview(user, body.game, { seasonId: str(body.season), couchId: str(body.couch) ?? null }));
 });

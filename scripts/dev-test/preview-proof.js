@@ -41,9 +41,7 @@ const W = Number(opt("width", 390)), H = Number(opt("height", 844)), SEED = Numb
 
 const D = require(path.join(root, "tools/gameplay-bench/explorer/document.cjs"));
 const R = require(path.join(root, "tools/gameplay-bench/explorer/runtime.cjs"));
-const Dress = require(path.join(root, "tools/gameplay-bench/explorer/dress.cjs"));
 const Data = require(path.join(root, "tools/gameplay-bench/explorer/runtime-data.cjs"));
-const { resultsData } = require(path.join(root, "tools/gameplay-bench/explorer/publish.cjs"));
 const G = require(path.join(root, "src/lib/game/start-gallery/index.js"));
 const S = require(path.join(root, "src/lib/game/state-logic"));
 
@@ -107,61 +105,26 @@ function galleryFacts() {
   return { page: r.page, pg: G.pageFacts(r.page, { show: "Survivor 51" }), record: r };
 }
 
-// ---- Made-up results shaped like the real season's (the plan: "use as much real data ... then randomize") ----
-const J = require(path.join(root, "tools/gameplay-bench/explorer/json.cjs"));
-const roll = (seed, ...parts) => parseInt(J.digest([seed, ...parts]).slice(0, 8), 16);
-/** How often each moment happened per castaway still in, over the real season's aired episodes. */
-function ratesOf(r) {
-  const goneBy = (n) => r.exits.filter((x) => x.n < n).length;
-  const castEpisodes = Array.from({ length: r.aired }, (_, i) => r.cast - goneBy(i + 1)).reduce((a, b) => a + b, 0);
-  const rates = {};
-  for (const m of r.moments) rates[m.type] = (rates[m.type] || 0) + m.k / castEpisodes;
-  return rates;
-}
-/** An episode's moments: each kind drawn at the real season's rate among those still in, given to castaways at random (by the seed);
- *  after the merge, one individual immunity a night instead of tribe immunity. Kinds the format doesn't know are left out. */
-function shapedMoments(seed, n, still, outs, known, merged) {
-  const r = recorded(), rates = ratesOf(r), out = new Set(outs.map((o) => o.castawayId)), list = [];
-  const safe = new Set(["zeroVotesSafe", "survivedVotes", "votedWithMajority"]);
-  const kinds = Object.keys(rates).filter((t) => known.has(t) && !(merged && (t === "tribeImmunity" || t === "individualImmunity"))).sort();
-  for (const type of kinds) {
-    const want = rates[type] * still.length, k = Math.floor(want) + ((roll(seed, n, type, "frac") % 1000) / 1000 < want - Math.floor(want) ? 1 : 0);
-    const pool = still.filter((id) => !(safe.has(type) && out.has(id))).sort((a, b) => roll(seed, n, type, a) - roll(seed, n, type, b));
-    for (const id of pool.slice(0, k)) list.push({ id: "moment-" + J.digest([n, type, id]).slice(0, 16), type, castawayId: id });
-  }
-  if (merged && known.has("individualImmunity") && still.length) { const id = still[roll(seed, n, "immunity") % still.length]; if (!out.has(id)) list.push({ id: "moment-" + J.digest([n, "individualImmunity", id]).slice(0, 16), type: "individualImmunity", castawayId: id }); }
-  return list;
-}
-/** The results up to the viewer's mark, as supplied facts: the season's own (decision 7, the user: "Show the real results up to where
- *  I've watched, and make up only what comes after"), recorded from this lane's database: who went home each episode and how, and
- *  each moment and whose, mapped to the dress's participants by name. Moments the format doesn't know are left out, as the world's
- *  rulebook is the format's. From the next episode on, the results are made up (resultsFor). */
-function realFacts(participants, known, through) {
+// ---- The season as the builder takes it (tools/gameplay-bench/preview/definition.cjs, the release plan's step 1) ----
+const Def = require(path.join(root, "tools/gameplay-bench/preview/definition.cjs"));
+const DRESS = path.join(root, ".ui-atlas/fixtures/real/survivor-51.json");
+/** Survivor 51 from the recordings, as the app reads a season from its database (src/lib/server/preview-definition.ts): the cast
+ *  (the dress, already a tribe at a time), its calendar, the real results through the mark, the season page. */
+function season(o = {}) {
   const r = recorded();
   if (!r.real) throw Error("The record has no real results: run `node --env-file=.env.local scripts/dev-test/preview-proof.js record` again");
-  const idOf = new Map(participants.map((p) => [p.name, p.id]));
-  const id = (name) => { const x = idOf.get(name); if (!x) throw Error("No participant named " + name + " in the dress"); return x; };
-  const facts = [];
-  for (let n = 1; n <= through; n++) {
-    const rows = r.real.filter((x) => x.n === n);
-    const events = rows.filter((x) => x.kind === "elimination").map((x) => ({ castawayId: id(x.name), method: x.method || "Voted Out" }));
-    const seen = new Set();
-    const scoringEvents = rows.filter((x) => x.kind === "event" && known.has(x.type)).filter((x) => { const k = x.type + "|" + x.name; if (seen.has(k)) return false; seen.add(k); return true; })
-      .map((x) => ({ id: "moment-" + J.digest([n, x.type, x.name]).slice(0, 16), type: x.type, castawayId: id(x.name) }));
-    facts.push({ id: "fact-show-event-" + n, eventId: "show-event-" + n, contextId: "show", source: "real-season", data: { events, scoringEvents, ...(events.length ? {} : { noExit: true }) } });
-  }
-  return facts;
+  if (!fs.existsSync(DRESS)) throw Error("No Survivor 51 dress (record it with real-dress.js)");
+  const dress = JSON.parse(fs.readFileSync(DRESS, "utf8"));
+  const mark = FROM - 1;
+  return {
+    label: "Survivor 51", format: "survivor", show: { name: dress.show.name, slug: "survivor" }, seasonName: dress.season.name, number: dress.season.number,
+    cast: dress.cast.map((c) => ({ name: c.name, photoUrl: c.photoUrl || null, tribe: c.tribe || null })),
+    episodes: Array.from({ length: EPISODES }, (_, i) => ({ number: i + 1, airAt: airOf(i + 1) })),
+    real: r.real.filter((x) => x.n <= mark), mark, from: FROM, merge: o.merge ?? MERGE, page: r.page,
+  };
 }
-/** Episode n's results: who goes out (the bench's own Publish: the finale crowns a winner and its finalists) and the moments shaped
- *  like the real season's. */
-function resultsFor(s, n) {
-  const snap = s.snapshot(), doc = s.export().input, world = snap.contexts.show, e = world.events.find((x) => x.number === n);
-  const data = resultsData(snap, doc, "show", e.id, "final");
-  const gone = new Set(world.facts.filter((f) => f.eventId !== e.id).flatMap((f) => (f.data.events || []).map((o) => o.castawayId)));
-  const still = world.participants.map((p) => p.id).filter((id) => !gone.has(id));
-  const known = new Set(world.context.engine.moments.filter((m) => !m.auto && !m.off).map((m) => m.id));
-  return { ...data, scoringEvents: shapedMoments(doc.seed, n, still, data.events, known, n >= world.context.phaseStarts.merged) };
-}
+/** Episode n's made-up results (the builder's, on the recorded season's rates). */
+const resultsFor = (s, n) => Def.resultsFor(season())(s, n);
 
 /** Any of the gallery's games on this season: a base from the next episode, with the gallery's changes on it, checked. */
 function baseGame(pg, id, changes) {
@@ -183,49 +146,11 @@ function gallerySpec(pg) {
   return { base, spec, verdict };
 }
 
-/** The definition: the real season's people and calendar, the couch, the gallery's game; made-up results through Episode 8. */
+/** The definition: the real season's people and calendar, the couch, the gallery's game; real results through Episode 8. */
 function definition(o = {}) {
-  const { page, pg } = galleryFacts();
   // `o.base` (a gallery base's id) and `o.changes` (the gallery's changes on it) make another of the gallery's games on the same
   // season; by default, the Fantasy league with a new draft at the merge (the proof's).
-  const spec = o.base ? baseGame(pg, o.base, o.changes || []).spec : gallerySpec(pg).spec;
-  const gameName = o.base ? G.baseById(o.base).name : "Fantasy league";
-  const seed = o.seed ?? SEED, merge = o.merge ?? MERGE;
-  // The season's own rulebook has moments the format's doesn't (Survivor 51: 37, 11 beyond the format's 27: a Shot in the Dark, a
-  // rock draw, made the merge...). The runtime's game state and a zt season without its own rulebook know the format's only, so the
-  // world keeps the season's moments the format knows (a finding: a preview needs the season's rulebook copied in).
-  const known = new Set(require(path.join(root, "src/lib/game/formats")).formatFor("survivor").events.map((e) => e.id));
-  const moments = page.ctx.moments.filter((m) => known.has(m.id));
-  const events = Array.from({ length: EPISODES }, (_, i) => ({ id: "show-event-" + (i + 1), contextId: "show", number: i + 1, airAt: airOf(i + 1), resultStatus: i + 1 < FROM ? "final" : "unavailable" }));
-  // The cast first (the dress), so Episodes 1 to 8's made-up results can name them.
-  const bare = D.create({
-    seed,
-    world: {
-      contexts: [{ id: "show", kind: "show", label: "Survivor 51", format: { id: "survivor" }, engine: { ...page.ctx, moments, couch: COUCH.length, pool: page.ctx.pool }, phaseStarts: { merged: merge } }],
-      people: COUCH,
-      events: events.map((e) => ({ ...e, resultStatus: "unavailable" })),
-    },
-    games: [{ id: "fantasy", contextId: "show", spec, timing: "live-only" }],
-    situation: { clock: new Date(EP9 - 5 * HOUR).toISOString(), marks: [] },
-    content: { labels: "normal" },
-  });
-  const { definition: cast, missing } = Dress.apply(bare, "real");
-  if (missing.length) throw Error("No Survivor 51 dress: " + missing.join(", ") + " (record it with real-dress.js)");
-  const participants = cast.world.participants;
-  const doc = D.create({
-    seed,
-    world: {
-      contexts: cast.world.contexts,
-      people: COUCH,
-      participants,
-      events,
-      facts: realFacts(participants, new Set(moments.map((m) => m.id)), FROM - 1),
-    },
-    games: [{ id: o.gameId || "fantasy", name: gameName, contextId: "show", spec, timing: "live-only" }],
-    situation: { clock: new Date(EP9 - 5 * HOUR).toISOString(), viewerId: "alex", marks: COUCH.map((p) => ({ personId: p.id, contextId: "show", through: FROM - 1 })) },
-    content: { labels: "normal" },
-  });
-  return doc;
+  return Def.build(season(o), { base: o.base || "fantasy", changes: o.base ? o.changes || [] : ["redraft"], gameId: o.gameId || "fantasy", gameName: o.base ? G.baseById(o.base).name : "Fantasy league", seed: o.seed ?? SEED });
 }
 
 // ---- Steps: the runtime's actions, as situations.cjs makes them ----

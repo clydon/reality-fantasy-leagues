@@ -2,7 +2,10 @@ import crypto from "node:crypto";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { after } from "next/server";
+import type { SessionUser } from "./auth-helpers";
+import { pool } from "./db";
 import { HttpError } from "./http-error";
+import type { PreviewGame } from "./preview-definition";
 
 // A game's preview made on demand (docs/PLAN-game-preview.md, "On demand"), with no screenshots and nobody making it by hand: the
 // gameplay bench's live maker (tools/gameplay-bench/preview/live.cjs) plays a made-up season in the explorer's runtime and writes
@@ -15,7 +18,8 @@ import { HttpError } from "./http-error";
 // preview service with its own database, on its own host).
 
 export const LIVE_MINUTES = 30;
-const GAMES: Record<string, { base?: string; gameId?: string }> = { fantasy: {}, sheet: { base: "sheet", gameId: "sheet" }, pool: { base: "pool", gameId: "pool" } };
+/** The first slice's gallery games (the gallery's Preview button sends any game's spec: the release plan's step 15). */
+const GAMES: Record<string, PreviewGame> = { fantasy: { base: "fantasy", changes: ["redraft"] }, sheet: { base: "sheet" }, pool: { base: "pool" } };
 
 interface LivePreview {
   id: string;
@@ -35,7 +39,6 @@ function bench() {
   const req = createRequire(path.join(process.cwd(), "package.json"));
   return {
     Live: req("./tools/gameplay-bench/preview/live.cjs") as { make: (o: object) => Promise<{ preview: LivePreview["preview"] & { viewerPass?: string }; rest: Promise<void> }>; down: (p: object) => Promise<void> },
-    Proof: req("./scripts/dev-test/preview-proof.js") as { definition: (o: object) => object; _h: { resultsFor: unknown } },
   };
 }
 
@@ -66,23 +69,37 @@ async function sweep() {
   for (const p of [...registry.values()]) if (p.expires <= now) await drop(p);
 }
 
-/** Make a live preview of a gallery game for `userId`: its moments, each screen's copy and address on the preview host. */
-export async function makeLivePreview(userId: string, game: string) {
+/** Development's season when none is asked for: Survivor 51 in this database (the first slice's). */
+async function devSeason(): Promise<string> {
+  const { rows } = await pool.query(`SELECT ss.id FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE s.slug = 'survivor' AND ss.season_number = 51`);
+  if (!rows[0]) throw new HttpError(422, "No Survivor 51 in this database");
+  return rows[0].id;
+}
+
+/**
+ * Make a live preview of a gallery game for `user`: the season read for them at their own mark (preview-definition.ts, the release
+ * plan's step 1), its moments, each screen's copy and address on the preview host. `where`: the season (default Survivor 51) and
+ * the couch the game would be made on (default their first).
+ */
+export async function makeLivePreview(user: SessionUser, game: string, where: { seasonId?: string; couchId?: string | null } = {}) {
   devOnly();
   const g = GAMES[game];
   if (!g) throw new HttpError(400, "No such game to preview");
   await sweep();
-  const { Live, Proof } = bench();
+  const { Live } = bench();
+  // Loaded when used: the season reader brings the start-a-game modules with it.
+  const { previewDefinition } = await import("./preview-definition");
+  const { definition, resultsFor } = await previewDefinition(user, where.seasonId ?? (await devSeason()), where.couchId ?? null, g);
   // The first moment's copy is written before this returns; the rest land after the response (after(): the request's own time,
   // its route's maxDuration), and the story asks for them as they do.
-  const made = await Live.make({ input: Proof.definition({ seed: 51, ...g }), app: process.env.BETTER_AUTH_URL || "http://localhost:3014", resultsFor: Proof._h.resultsFor, seasons: 5 });
+  const made = await Live.make({ input: definition, app: process.env.BETTER_AUTH_URL || "http://localhost:3014", resultsFor, seasons: 5 });
   try {
     const { preview, rest } = made;
     const viewerPass = String(preview.viewerPass ?? "");
     delete preview.viewerPass;
     const id = crypto.randomUUID();
     const expires = Date.now() + LIVE_MINUTES * 60_000;
-    registry.set(id, { id, owner: userId, expires, preview, viewerPass });
+    registry.set(id, { id, owner: user.id, expires, preview, viewerPass });
     after(() => rest);
     return { id, expires, pass: passFor(id, expires) };
   } catch (e) {

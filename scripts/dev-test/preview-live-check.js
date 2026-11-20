@@ -41,6 +41,9 @@ async function account(db) {
     page.on("pageerror", (e) => errors.push(String(e.message).slice(0, 200)));
     const r = await page.context().request.post(BASE + "/api/auth/sign-in/username", { data: { username: me.username, password: me.password }, headers: { origin: BASE } });
     if (!r.ok()) throw Error("sign-in failed " + r.status());
+    // A couch of their own: a preview reads the season as the couch the game would be made on sees it (preview-definition.ts).
+    const c = await page.context().request.post(BASE + "/api/couches", { data: { name: "zt-pv couch" }, headers: { origin: BASE } });
+    if (!c.ok()) throw Error("couch failed " + c.status());
     const t0 = Date.now();
     await page.goto(`${BASE}/start/preview-story/live?game=${GAME}`, { waitUntil: "domcontentloaded" });
     await page.screenshot({ path: path.join(OUT, `${GAME}-0-making.png`) });
@@ -86,6 +89,7 @@ async function account(db) {
       await page.waitForTimeout(1500);
     }
     if (browser) await browser.close();
+    await db.query(`DELETE FROM couches WHERE id IN (SELECT couch_id FROM couch_members WHERE user_id = $1 AND role = 'owner')`, [me.id]);
     await db.query(`DELETE FROM "user" WHERE id = $1`, [me.id]);
     await db.end();
   }
