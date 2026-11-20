@@ -24,7 +24,7 @@ import { BaseSquare, CatHead, ChipRow, ChoiceSquare, Controls, EffortMark, Finde
 import { Avatar } from "../../ui/bars";
 import { colourOf } from "@/lib/people";
 import { toast } from "../../ui/toast";
-import { baseOfGame, communityOf, costWords, effortOf, fitWords, inputOf, isSentence, lengthId, lengthsOf, lockOf, lockWords, readyOf, say, shortDate, shortWhy, sizeFit, stretchLine, stripOf, withSpan, type Community, type Input, type Pace, type Span } from "./model";
+import { baseOfGame, communityOf, costWords, effortOf, fitWords, inputOf, isSentence, lengthId, lengthsOf, lockOf, lockWords, readyOf, regularTo, say, shortDate, shortWhy, sizeFit, stretchLine, stripOf, withSpan, type Community, type Input, type Pace, type Span } from "./model";
 import { keyOf, savedRows, useSaved, useToggleSaved, type SavedRow } from "./saved";
 import { nextStep, type Goal, type Step } from "./ladders";
 import { OwnMomentsBody, type OwnMoment } from "./own-moments";
@@ -329,6 +329,9 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
         tell: true,
         ...(start.late ? { late: true } : {}),
         ...(input.ownPace ? {} : { pace }),
+        // Step 2.7: on a sport's season that goes on into its playoffs, no end is through the final (the server plays the regular
+        // season otherwise).
+        ...(input.playoffs && g.span.to === null ? { timing: "final" } : {}),
         // Computer players, while this game is one they play (a change since may have made it one they don't yet).
         ...(g.bots && !gm.botsFit(g.spec) ? { bots: g.bots.n, level: g.bots.level } : {}),
         // `unchanged`: no rule changed on the setup screen, so the sentence describes this game (the server keeps it only then).
@@ -385,9 +388,12 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
     // A team's Next game: every game it can be opens on just that one (one that can't run a single game keeps its own length).
     const oneSpec = start.length === "next" && from === "base" ? (spec ? withSpan(spec, one) : gm.baseSpec(b, one, pg)) : null;
     const next = oneSpec && gm.check(oneSpec, pg).ok ? one : null;
-    const sp: Span = next ?? span ?? (b.len === "1 episode" ? one : { from: input.from, to: null });
+    let sp: Span = next ?? span ?? (b.len === "1 episode" ? one : { from: input.from, to: null });
     const s = spec ?? gm.baseSpec(b, sp, pg);
     if (!s) return;
+    // Step 2.7: a season game on a sport's season that goes on into its playoffs opens on its regular season (the default).
+    const reg = !next && !span && sp.to === null ? regularTo(input, s) : null;
+    if (reg !== null) sp = { from: input.from, to: reg };
     const fitted = (s as unknown as { __fitted?: Game["fitted"] }).__fitted ?? null;
     setGame({ base: b, spec: withSpan(s, sp), span: sp, pace: null, before: {}, asked: false, from, name: name ?? b.name, moment: null, fitted, own: [], bots });
     push({ k: "base" });
@@ -1134,6 +1140,10 @@ function BaseBody(p: {
   const rowLine = (row: string) => (gm.rowLine(row, game.spec, pg) ?? "").replace(/ · The show's points|The show's points · /, "").replace(/(?<!One game)^One game · /, "").replace("A new draft at a stage", later ? `A new draft at ${later.start}` : "A new draft at a stage");
   // A length's card says what its title doesn't: one episode's day, else where it runs from and to.
   const lengthLine = (l: (typeof lengths)[number]) => {
+    // Step 2.7 (impeccable clarify): the regular season says where it ends (a stats game's is Week 17, not the 18th), and through the
+    // final says what it adds.
+    if (l.id === "regular" && typeof l.span.to === "number") return `Through ${input.ep.replace(/^./, (c) => c.toUpperCase())} ${l.span.to}`;
+    if (l.id === "final") return "Playoffs included";
     if (l.id === "next") {
       const e = input.listed.find((x) => x.number === input.from);
       const day = e ? shortDate(e.airAt) : null;

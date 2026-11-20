@@ -171,3 +171,28 @@ test("head to head's playoffs at the game's own end: a regular season's game by 
   assert.equal(M.endsAt(final), 22, "through the Super Bowl: the final in its week");
   assert.equal(SL.lastEpisode(final), 22);
 });
+
+test("Start a game's How long on a season that goes on into its playoffs: the regular season (the default), or through the final", () => {
+  const M = jiti("../src/new/couch/gallery-bold/model.ts");
+  const playoffs = { through: 18, fantasy: 17, final: "the Super Bowl" };
+  const input = { from: 15, ep: "week", eps: "weeks", stages: [], ownPace: false, playoffs };
+  const stats = { score: { by: "stats" } };
+  const answers = { score: { by: "answers" } };
+  // A stats game's regular season ends with the fantasy season's (Week 17); any other's with the regular season's.
+  assert.equal(M.regularTo(input, stats), 17);
+  assert.equal(M.regularTo(input, answers), 18);
+  assert.equal(M.regularTo({ ...input, from: 18 }, stats), 18, "started in Week 18: the regular season's end");
+  assert.equal(M.regularTo({ ...input, from: 19 }, stats), null, "started in the playoffs: no regular season left");
+  assert.equal(M.regularTo({ ...input, playoffs: null }, stats), null);
+  // With no spec (the engine's check left out), the regular season's end is the regular season's.
+  const ids = (inp) => M.lengthsOf(null, inp, null).map((l) => [l.id, l.label, l.span.to]);
+  assert.deepEqual(ids(input), [["next", "Just Week 15", 15], ["regular", "Regular season", 18], ["final", "Through the Super Bowl", null]]);
+  assert.deepEqual(ids({ ...input, from: 19 }), [["next", "Just Week 19", 19], ["final", "Through the Super Bowl", null]]);
+  assert.deepEqual(ids({ ...input, playoffs: null }), [["next", "Just Week 15", 15], ["rest", "The rest of the season", null]]);
+  // Which chip a game's span is.
+  assert.equal(M.lengthId({ from: 15, to: null }, input), "final");
+  assert.equal(M.lengthId({ from: 15, to: 17 }, input), "regular");
+  assert.equal(M.lengthId({ from: 15, to: 18 }, input), "regular");
+  assert.equal(M.lengthId({ from: 15, to: 15 }, input), "next");
+  assert.equal(M.lengthId({ from: 15, to: null }, { ...input, playoffs: null }), "rest");
+});

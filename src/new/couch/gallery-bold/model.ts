@@ -50,6 +50,9 @@ export interface Input {
   couch: { id: string; name: string; members: number };
   marks: { userId: string; name: string; seen: number; you: boolean }[];
   sport: boolean;
+  /** Step 2.7 (docs/PLAN-sports-ready.md): a sport's season that goes on into its playoffs: where its regular season ends (`fantasy`
+   *  for a game scored by players' stats: the NFL's Week 17) and its final's name ("the Super Bowl"); else null. */
+  playoffs: { through: number; fantasy: number; final: string } | null;
   nouns: Nouns;
 }
 
@@ -105,6 +108,7 @@ export function inputOf(o: WizardOptions, home: Home | undefined, couchId: strin
     couch: o.couch,
     marks,
     sport: !!o.sport,
+    playoffs: o.sport?.playoffs ?? null,
     nouns: nounsOf({ show: o.show }, (pack as { words?: { person?: string; people?: string; group?: string } }).words),
   };
 }
@@ -160,7 +164,11 @@ export function lengthsOf(spec: Spec | null, input: Input, gm: G): Length[] {
     }
   }
   // Most wanted first (the user's U0 rule): the next episode, the season, then the stages.
-  out.splice(1, 0, { id: "rest", label: input.ownPace ? "The whole season" : "The rest of the season", span: { from, to: null } });
+  // Step 2.7: a sport's season that goes on into its playoffs, its regular season (the default) and through its final, in place of the
+  // rest of the season; started in the playoffs, through the final alone.
+  const reg = regularTo(input, spec);
+  if (input.playoffs) out.splice(1, 0, ...(reg !== null ? [{ id: "regular", label: "Regular season", span: { from, to: reg } }] : []), { id: "final", label: `Through ${input.playoffs.final}`, span: { from, to: null } });
+  else out.splice(1, 0, { id: "rest", label: input.ownPace ? "The whole season" : "The rest of the season", span: { from, to: null } });
   return out.map((l) => {
     if (!spec) return { ...l, ok: true, why: null, full: null };
     // A game in stages runs over its stages (withSpan moves only its first stage's start): any other length would look chosen and
@@ -188,12 +196,28 @@ export function shortWhy(why: string): string {
   const s = why.replace(/\s*\(.*?\)\s*/g, " ").split(/[:;.]/)[0].trim();
   return s.length > 44 ? `${s.slice(0, 42).trim()}…` : s;
 }
+/**
+ * Step 2.7: where a game's regular season ends on a sport's season that goes on into its playoffs: its last regular episode (the
+ * fantasy season's for a game scored by players' stats: the NFL's Week 17), no earlier than the start; null when the start is past it
+ * (in the playoffs), or for any other season.
+ */
+export function regularTo(input: Pick<Input, "from" | "playoffs">, spec: Spec | null): number | null {
+  const po = input.playoffs;
+  if (!po) return null;
+  const stats = (spec?.score as { by?: string } | undefined)?.by === "stats";
+  const end = stats && po.fantasy >= input.from ? po.fantasy : po.through;
+  return end >= input.from ? end : null;
+}
+
 /** Which length a span is, for the chips. */
 export function lengthId(span: Span | undefined, input: Input): string {
-  if (!span) return "rest";
+  if (!span) return input.playoffs ? "regular" : "rest";
   const f = span.from;
   const t = span.to;
   if (typeof f === "number" && t === f) return "next";
+  // Step 2.7: a sport's season that goes on into its playoffs: through the final (no end), or its regular season.
+  if (input.playoffs && typeof f === "number" && t === null) return "final";
+  if (input.playoffs && typeof f === "number" && (t === input.playoffs.through || t === input.playoffs.fantasy)) return "regular";
   if (typeof f === "number" && t === null) return "rest";
   if (typeof f === "number" && t && typeof t === "object") return `until:${t.phase}`;
   if (f && typeof f === "object" && t === null) return `from:${f.phase}`;

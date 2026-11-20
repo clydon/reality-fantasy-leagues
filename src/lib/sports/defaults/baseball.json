@@ -1,6 +1,8 @@
 {
   "sport": "baseball",
   "about": "Baseball's defaults, as data (docs/PLAN-start-a-game-gpt.md track L, L1): a sport's standard scoring, categories, lineup slots and locks, and the game specs a sport's Make it a game starts from instead of asking the bot. Stat keys are Baseball's (src/lib/sports/baseball.ts); slots take its positions or position groups. The specs are in the game spec's shape (A1's schema, on the engine branch); slots and categories aren't in that schema yet (L4 adds them), so they're kept beside it for the spec to read.",
+  "final": "the World Series",
+  "finalSource": "Step 2.7 (docs/PLAN-sports-ready.md): the final a game through the playoffs runs to, as people name it (\"Through the Super Bowl\"); words for 4.0's pass",
   "scoring": {
     "source": "ESPN's standard points league for baseball",
     "points": { "R": 1, "TB": 1, "RBI": 1, "BB": 1, "K": -1, "SB": 1, "IP": 3, "PH": -1, "ER": -2, "PBB": -1, "PK": 1, "W": 2, "L": -2, "SV": 5, "HLD": 2 }

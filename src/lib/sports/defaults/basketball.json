@@ -1,6 +1,8 @@
 {
   "sport": "basketball",
   "about": "Basketball's defaults, as data (docs/PLAN-start-a-game-gpt.md track L, L1): a sport's standard scoring, categories, lineup slots and locks, and the game specs a sport's Make it a game starts from instead of asking the bot. Stat keys are Basketball's (src/lib/sports/basketball.ts); slots take its positions or position groups (a box score says G, F or C, a roster PG, SG, SF, PF or C, so a guard's slot takes G too). The specs are in the game spec's shape (A1's schema, on the engine branch); slots and categories aren't in that schema yet (L4 adds them), so they're kept beside it for the spec to read.",
+  "final": "the Finals",
+  "finalSource": "Step 2.7 (docs/PLAN-sports-ready.md): the final a game through the playoffs runs to, as people name it (\"Through the Super Bowl\"); words for 4.0's pass",
   "scoring": {
     "source": "Yahoo's default head-to-head points (help.yahoo.com/kb/SLN6919.html)",
     "points": { "PTS": 1, "REB": 1.2, "AST": 1.5, "STL": 3, "BLK": 3, "TO": -1 }
@@ -81,6 +83,7 @@
   },
   "leagues": {
     "mens-college-basketball": {
+      "final": "the national championship",
       "specs": {
         "squares": {
           "about": "Squares on each game: take squares on a 10-by-10 grid of the two scores' last digits, the digits drawn at random once everyone has theirs. The square of the score wins a point at halftime and two for the final score, most points wins.",
@@ -89,6 +92,7 @@
       }
     },
     "nba": {
+      "final": "the Finals",
       "specs": {
         "bracket": {
           "about": "A playoff bracket: before the NBA playoffs start, pick who wins every series, round by round to the Finals. A point for each one right in the first round, doubling each round after it; most points wins.",
@@ -98,6 +102,7 @@
       }
     },
     "wnba": {
+      "final": "the Finals",
       "specs": {
         "bracket": {
           "about": "A playoff bracket: before the WNBA playoffs start, pick who wins every series, round by round to the Finals. A point for each one right in the first round, doubling each round after it; most points wins.",

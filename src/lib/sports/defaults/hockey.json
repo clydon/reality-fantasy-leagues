@@ -1,6 +1,8 @@
 {
   "sport": "hockey",
   "about": "Hockey's defaults, as data (docs/PLAN-start-a-game-gpt.md track L, L1): a sport's standard scoring, categories, lineup slots and locks, and the game specs a sport's Make it a game starts from instead of asking the bot. Stat keys are Hockey's (src/lib/sports/hockey.ts): skaters' and goalies' in one table, since a key is unique in the sport (a skater scores goals, G; a goalie allows them, GA). Slots take its positions or position groups. The specs are in the game spec's shape (A1's schema, on the engine branch); slots and categories aren't in that schema yet (L4 adds them), so they're kept beside it for the spec to read.",
+  "final": "the Stanley Cup Final",
+  "finalSource": "Step 2.7 (docs/PLAN-sports-ready.md): the final a game through the playoffs runs to, as people name it (\"Through the Super Bowl\"); words for 4.0's pass",
   "scoring": {
     "source": "Yahoo's default head-to-head points (help.yahoo.com/kb/SLN6815.html): skaters, then goalies",
     "points": { "G": 6, "A": 4, "PM": 2, "PPP": 2, "SOG": 0.9, "BLK": 1, "W": 5, "GA": -3, "SV": 0.6, "SO": 5 }

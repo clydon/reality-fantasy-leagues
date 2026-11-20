@@ -31,6 +31,8 @@ import { ourRules, type OurRules } from "./ours";
 import { contextOf, leagueBook } from "./answers";
 import { questionChoices, questionLine } from "@/lib/game/question-choices";
 import { showWords } from "@/lib/game/show-words";
+import { finalName } from "@/lib/sports";
+import { regularEnd } from "./air-times";
 import type { Question } from "@/lib/game/game-spec/index.js";
 
 // Backstage II (docs/PLAN-new-design.md step 6a): the game's own pages for whoever runs it. Waivers (the week running,
@@ -536,6 +538,10 @@ export interface GameSettings {
     starts: { number: number }[];
     phase: { id: string; name: string } | null;
     phases: { id: string; name: string; at: number | null }[];
+    /** Step 2.7 (docs/PLAN-sports-ready.md): a sport's season that goes on into its playoffs: where its regular season ends
+     *  (`fantasy` a stats game's default end) and its final's name, so How long can say "Through the Super Bowl" (no end) and the
+     *  regular season's; else null. */
+    playoffs: { through: number; fantasy: number; final: string } | null;
   };
   /**
    * The lock on its current episode's lineups or picks (a game with either; else null): closed at its start, unless whoever runs
@@ -687,7 +693,7 @@ export async function paceWrite(scope: BackstageScope, leagueId: unknown, mode: 
  * come, listed, up to its end, and the phases of the season still to come (`phases`, its rulebook's: step A3). A game waiting for
  * its phase hasn't started, and has no end to choose until its start is settled.
  */
-function spanState(s: LeagueState, schedule: SeasonSchedule | undefined, phases: SeasonPhase[]): GameSettings["span"] {
+function spanState(s: LeagueState, schedule: SeasonSchedule | undefined, phases: SeasonPhase[], playoffs: GameSettings["span"]["playoffs"] = null): GameSettings["span"] {
   const type = StateLogic.getLeagueType(s);
   const outside = !!type.hasCalls || !!type.hasBingo;
   const played = outside ? latestAired(schedule) : StateLogic.SpoilerLogic.latestWithResults(s);
@@ -701,7 +707,7 @@ function spanState(s: LeagueState, schedule: SeasonSchedule | undefined, phases:
   const id = StateLogic.startPhase(s);
   const phase = id ? { id, name: phases.find((p) => p.id === id)?.name ?? id } : null;
   const later = started || over ? [] : phases.filter((p) => !p.first && (p.from === null || p.from > gone)).map((p) => ({ id: p.id, name: p.name, at: p.from }));
-  return { from, to: end, over, ends, started, starts, phase, phases: later };
+  return { from, to: end, over, ends, started, starts, phase, phases: later, playoffs };
 }
 
 /** A game locked down (step 15 part 4): its rules don't change for the season. */
@@ -720,6 +726,11 @@ export async function gameSettings(scope: BackstageScope): Promise<{ games: Game
   // Each game's phases, from the rulebook it plays by (its couch's own copy, else the season's, read once): Starts' phases.
   const season = await seasonBlocks(scope.seasonId);
   const phases = await Promise.all(loaded.map((l) => leaguePhases(pool, l.game.leagueId, scope.seasonId, season)));
+  // Step 2.7: a sport's season that goes on into its playoffs (a full slate, a team's season).
+  const { rows: sportRows } = await pool.query("SELECT s.sports_league FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1 AND s.kind = 'sport'", [scope.seasonId]);
+  const sportLeague = typeof sportRows[0]?.sports_league === "string" ? (sportRows[0].sports_league as string).replace(/^[a-z]+:/, "") : null;
+  const reg = sportLeague ? await regularEnd(pool, scope.seasonId) : null;
+  const playoffs = reg && sportLeague ? { ...reg, final: finalName(sportLeague) } : null;
   // A Prediction Sheet's questions (step A4 part 2), switchable until it starts, in the show's word for an episode (as Start a game).
   const sheets = loaded.some((l) => StateLogic.getLeagueType(l.state).hasQuestions)
     ? await (async () => {
@@ -750,7 +761,7 @@ export async function gameSettings(scope: BackstageScope): Promise<{ games: Game
         waivers: c ? `${RULE_WORDS[c.replaceRule]} · ${c.waiverWindows.swaps > 0 ? `${c.waiverWindows.swaps} optional swap${c.waiverWindows.swaps === 1 ? "" : "s"} per window` : "no optional swaps"}` : null,
         lockedDown: StateLogic.GhostLogic.lockedDown(s),
         pace: { mode: StateLogic.GhostLogic.pace(s), of: l.game.stageOf ? (loaded.find((x) => x.game.leagueId === l.game.stageOf)?.game.name ?? "its game") : null },
-        span: spanState(s, schedule, phases[i]),
+        span: spanState(s, schedule, phases[i], playoffs),
         lock: lockOf(s),
         questions: sheets[i],
       };

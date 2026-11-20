@@ -1512,7 +1512,7 @@ export const savedApi = {
 
 export const wizardApi = {
   /** Start from a spec: the wizard's game, checked again on the server; the couch hears after the hold. */
-  start: (seasonId: string, couchId: string, body: { spec: unknown; name?: string; tell: boolean; bots?: number; level?: BotLevel; late?: boolean; made?: Record<string, unknown>; pace?: "own" | "live" | "strict" }) =>
+  start: (seasonId: string, couchId: string, body: { spec: unknown; name?: string; tell: boolean; bots?: number; level?: BotLevel; late?: boolean; made?: Record<string, unknown>; pace?: "own" | "live" | "strict"; timing?: "final" }) =>
     post<SpecStarted>(seasonUrl(seasonId, "/start", { couch: couchId }), body),
   /** Take back a game you just started (inside the hold, nobody hears). */
   undo: (seasonId: string, couchId: string, leagueId: string) => post<{ undone: true }>(seasonUrl(seasonId, "/start", { couch: couchId }), { undo: leagueId }),
