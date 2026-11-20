@@ -106,7 +106,10 @@ export interface SportDefaults {
   scoring: { source: string; points: Record<string, number>; byPosition?: Record<string, Record<string, number>>; byPlace?: Record<string, Record<string, number>>; byFormat?: Record<string, Record<string, number>> };
   categories: { source: string; stats: string[] };
   /** `squad`: how many of each position group a roster holds (FPL's 2 goalkeepers, 5 defenders, 5 midfielders, 3 forwards). */
-  slots: { source: string; lineup: DefaultSlot[]; bench: number; squad?: Record<string, number> };
+  /** `eligible` (step 2.3): a player fills the other positions their roster lists them at (ESPN's `positions`, the ones they've
+   *  played), each in their own position group, and those named in `across` in another group too (baseball's SP: a two-way
+   *  player). Without it a player fills their roster's one position. */
+  slots: { source: string; lineup: DefaultSlot[]; bench: number; squad?: Record<string, number>; eligible?: { source: string; across: string[] } };
   closes: LockCadence;
   /** `on`: the season a spec plays on, where it isn't any (L8 part 1's engine items, part 2: a bracket of the playoffs is a
    *  league's playoffs slate's: specContextOf's `playoffs`). */
@@ -143,7 +146,7 @@ export function defaultsFor(sportId: string, league?: string): SportDefaults | n
   const own = key ? d.leagues?.[key] : undefined;
   // A league's specs over the sport's, one by one (L4 part 1a: F1's own season and short beside racing's pick'em).
   const out = own ? { ...d, ...own, ...(own.specs ? { specs: { ...d.specs, ...own.specs } } : {}) } : d;
-  return withLineupSlots(sportId, out);
+  return withLineupSlots(out);
 }
 
 /**
@@ -159,14 +162,16 @@ export function playoffsEndBefore(league: string): number {
 }
 
 /**
- * Cast properties (docs/PLAN-cast-properties.md chunk 5): football's standard games start its lineup by position, its defaults'
- * slots as the spec's count.slots (QB, 2 RB, 2 WR, TE, a W/R/T, K, DEF), on each spec counting exactly that many. Football's `takes`
- * are ESPN positions, which a castaway's stamped `position` (its roster's) names; other sports' are position groups, left as they
- * were until their games stamp them.
+ * Cast properties (docs/PLAN-cast-properties.md chunk 5): a sport's standard games start its lineup by position, its defaults'
+ * slots as the spec's count.slots (football's QB, 2 RB, 2 WR, TE, a W/R/T, K, DEF; the NBA's PG, SG, G, SF, PF, F, 2 C, 2 Util), on
+ * each spec counting exactly that many. A slot's `takes` are ESPN positions, which a castaway's stamped `position` (its roster's)
+ * names, or position groups ("guards", "batters"), which their stamped group (state.statGroups) names: SlotLogic.fits reads both.
+ * Football's since chunk 5; every sport's since step 2.3 (docs/PLAN-sports-ready.md: the NBA's, MLB's and NHL's, soccer's
+ * formation). Not a lineup of one slot taking everyone (golf's golfers, racing's drivers): it constrains nothing.
  */
 const SLOTTED = new WeakMap<SportDefaults, SportDefaults>();
-function withLineupSlots(sportId: string, d: SportDefaults): SportDefaults {
-  if (sportId !== "football" || !d.slots?.lineup?.length) return d;
+function withLineupSlots(d: SportDefaults): SportDefaults {
+  if (!slotted(d.slots?.lineup)) return d;
   // The same defaults read twice are the same object (college's are football's own).
   const had = SLOTTED.get(d);
   if (had) return had;
@@ -181,6 +186,37 @@ function withLineupSlots(sportId: string, d: SportDefaults): SportDefaults {
   );
   const out = { ...d, specs };
   SLOTTED.set(d, out);
+  return out;
+}
+
+/** Whether a default lineup's slots say anything: more than one slot (one taking everyone, golf's six golfers, holds nobody back). */
+export function slotted(lineup: DefaultSlot[] | null | undefined): boolean {
+  return Array.isArray(lineup) && lineup.length > 1;
+}
+
+/**
+ * Step 2.3: what else someone fills besides their roster's position, by their league's rule (its defaults' `slots.eligible`): the
+ * positions their roster lists them at (ESPN's `positions`) in their own position group, and those the rule names `across` in
+ * another, with that position's group (a two-way player listed SP fills SP and the pitchers' P). Stamped per read as
+ * state.castEligible (cast-props.ts) and read by SlotLogic.fits. [] for a league with no rule (the NBA's and NHL's rosters list
+ * one position), a role the sport doesn't know, or nothing listed.
+ */
+export function eligibleFor(league: string, role: string | null | undefined, listed: readonly string[] | null | undefined): string[] {
+  const sport = sportOf(league);
+  const rule = sport ? defaultsFor(sport.id, String(league).split("/")[1])?.slots?.eligible : null;
+  const own = role ? sport?.position(sport.positionKey(role) ?? "") : null;
+  if (!sport || !rule || !own || !listed?.length) return [];
+  const out: string[] = [];
+  const add = (v: string) => { if (v !== own.key && !out.includes(v)) out.push(v); };
+  for (const said of listed) {
+    const p = sport.position(sport.positionKey(said) ?? "");
+    if (!p) continue;
+    if (p.group === own.group) add(p.key);
+    else if (rule.across.includes(p.key)) {
+      add(p.key);
+      add(p.group);
+    }
+  }
   return out;
 }
 

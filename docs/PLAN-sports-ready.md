@@ -9,7 +9,8 @@
 > 1.1's part 1 puts finals in the standings within the hour; its part 2 counts a week's games as they end; its part 3 counts a
 > game being played, its points so far, for anyone shown everything (never an own-pace seat or anyone hiding sports scores).
 > Phase 2 under way on branch sports-phase2: 2.1 done (the NFL's season locks at each player's game), 2.2 done (any fantasy
-> playoffs end by Week 17, and the default plays a final between the top two then: BACKLOG 226). 2.7 added: a game's timing on
+> playoffs end by Week 17, and the default plays a final between the top two then: BACKLOG 226), 2.3 done (lineup slots for every
+> team sport, MLB's eligibility from ESPN's positions, computer players drafting and starting legal lineups). 2.7 added: a game's timing on
 > through the playoffs, the maker's choice (the user, 2026-11-20).
 > Next: the rest of Phase 2 (its calls answered 2026-11-19, own pace for sports added) and 4.1; 1.1's
 > part 4 (the screens, on a small live read) is the design round's page 2.
@@ -375,6 +376,40 @@ server.
 3. **Lineup slots for the NBA, MLB and NHL** (M; L9 part 1): `withLineupSlots` for every sport's defaults, with ESPN's positions
    and MLB's two-way players, and computer players setting legal lineups. Verify with the explorer's slot invariant on real-size
    pools, and unit tests per sport.
+   **Done 2026-11-20 (branch sports-phase2).**
+   - *Found first* (ESPN's real rosters, every team, 2026-11-20): the NBA's and WNBA's list each player as G, F or C only (never
+     PG, SG, SF or PF); the NHL's as C, LW, RW, D or G; MLB's as SP, RP, C, 1B... and, in a second field (`positions`), every
+     position each has played (Ohtani: P, DH, SP; a utility man up to ten; position players who pitched in a blowout RP and P).
+     Neither the NBA's nor the NHL's has that field.
+   - *Built:* every sport's standard games carry its defaults' slots (sports/index.ts `withLineupSlots`, and the gallery's own copy,
+     start-gallery/sports.js), not a lineup of one slot taking everyone (golf, racing, MMA, tennis: `slotted`). A slot's `takes`
+     are positions or position groups ("guards", "batters", "pitchers"), matched as before (the castaway's stamped position, or
+     its group, state.statGroups). So a G fills PG, SG, G or Util; five centers don't fit (two C, two Util). Soccer's formation came
+     with it (a keeper, 3 defenders, 2 midfielders, a forward, 4 outfield). MLB's eligibility, as data (baseball.json
+     `slots.eligible`): a player fills each position his roster lists in his own group (a shortstop listed at 2B fills 2B, a
+     reliever listed SP fills SP), and one listed SP from another group (a two-way player) the pitchers' too; never a catcher who
+     pitched in a blowout. ESPN's list read (espn.ts readRoster `positions`), the rule applied as the fill writes each person
+     (cast.ts, sports/index.ts `eligibleFor`) into season_cast.eligible (migration 0311), kept current by the daily roster
+     refresh, stamped per read as state.castEligible (cast-props.ts), never saved, read by SlotLogic.fits and the lineup sheet's
+     fits (game-view.ts). Computer players: their draft takes only players some slot takes (no offensive tackles) and keeps a team
+     that can fill every slot (SlotLogic.draftKeeps); their lineup sits anyone Out, on injured reserve, an injured list or
+     suspended (state.castInjuries), on a bye (ep.byeTeams) or with no game in a lineup locking at each game (ep.holdingGames),
+     unless nobody else can fill the slot. Questionable, doubtful and day to day still play.
+   - *Verified:* unit tests (tests/sports-slots.test.js: each sport's slots and that every value is one the sport knows; the
+     NBA's G, F and C; the NHL's two goalies; MLB's eligibility and the two-way player on a lineup; ESPN's roster read; the cast
+     fill writing it; the bots' draft and their sitting someone Out or on a bye); the whole suite (2,468); check-sports-bot-lineups.js
+     (new: eight computer players draft the NFL's default season game from the recorded season's 2,425 people through the app's
+     own reads; every team fills all nine slots, every Week 9 lineup fits, nobody on a bye starts where the bench could, a starter
+     marked Out replaced); sport-gallery-check.js --all-leagues (495 rows, 371 play, none off); check-sports-explorer.js every case (202; its own games count other than the defaults, so no slots there); tsc;
+     eslint has only its standing errors.
+   - *Left:* MLB's two-way player scores everything wherever he starts (BACKLOG 227, the user's call: Yahoo's two players
+     recommended). The NBA's PG and SG take any guard, and the sheet places the best guard in G (228). Bots draft a sport by taste
+     within the slots: nothing rates an athlete before the game's own weeks (229). ESPN's eligibility is every position played, with
+     no games-at-a-position threshold (Yahoo's 5 starts or 10 games); a utility man fits nearly everywhere. A team with no catcher
+     left in the pool plays short. WNBA rosters have 25 centers for the NBA's two C slots a seat. The NBA, MLB and NHL lineup sheets
+     weren't seen in a browser: the bench's and the explorer's worlds don't link their people to a season's cast, so slots are off
+     there (as football's always were), and no stand-in world of those leagues with a season game exists; the lineup editor is 4.2's
+     page 1 (DN 38), with the NFL's.
 4. **An IR slot** (S–M, after 1.5): a player marked IR can sit there without costing a roster spot.
 5. **Waivers for daily sports** (M; BACKLOG 219, yes): claims clear each morning for the NBA, NHL and MLB; the NFL's stay weekly.
 6. **Own pace for a sports game** (M; BACKLOG 218: the user, 2026-11-19, "i want own pace, its an important option for casual

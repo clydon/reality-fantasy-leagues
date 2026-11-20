@@ -777,9 +777,10 @@ function slotsOf(view: LeagueState, ids: string[]): LineupMove["lineupSlots"] {
   const fits = Object.fromEntries(ids.map((id) => [id, slots.map((s, i) => (fitsOne(view, id, s) ? i : -1)).filter((i) => i >= 0)]));
   return { labels: slots.map((s) => s.label), widths: slots.map((s) => s.values.length), fits, summary: SL.summary(view) };
 }
-/** Whether a slot takes someone: StateLogic.SlotLogic.fits's rule (a value they count as, or a sport's position group). */
+/** Whether a slot takes someone: StateLogic.SlotLogic.fits's rule (a value they count as, a sport's position group, or a position
+ *  their league lets them fill: step 2.3's state.castEligible). */
 function fitsOne(view: LeagueState, id: string, s: { of: string; values: string[] }): boolean {
-  return s.values.some((v) => StateLogic.CastPropLogic.matches(view, id, s.of, v) || (s.of === "position" && (view as { statGroups?: Record<string, string> }).statGroups?.[id] === v));
+  return s.values.some((v) => StateLogic.CastPropLogic.matches(view, id, s.of, v) || (s.of === "position" && StateLogic.SlotLogic.positionFits(view, id, v)));
 }
 
 function pickOf(view: LeagueState, me: string, now?: number): PickMove | null {

@@ -227,7 +227,10 @@ function snakeDraft(state) {
     // and within it, read over every free agent as the pick's own checks read it (else whoever keeps it that this list lacks).
     const fits = StateLogic.draftFitsFor(on, turn.playerId);
     const mine = free.filter((id) => fits.includes(id));
-    const best = draftOrderFor(on, turn.playerId, mine.length ? mine : fits, Core.ownedCastawayIds(state, turn.playerId))[0];
+    const owned = Core.ownedCastawayIds(state, turn.playerId);
+    // Step 2.3: a team that can still fill every lineup slot (a catcher and two starting pitchers by the end, not ten shortstops).
+    const keeps = StateLogic.SlotLogic.draftKeeps(on, owned, mine.length ? mine : fits, StateLogic.rosterSize(state) - owned.length);
+    const best = draftOrderFor(on, turn.playerId, keeps, owned)[0];
     if (!best) break;
     const before = state.draftPicksMade;
     DraftLogic.pick(state, best);
@@ -299,12 +302,32 @@ function lineups(state) {
   });
   return made;
 }
+// Step 2.3 (docs/PLAN-sports-ready.md): an athlete a computer player sits when it can: out injured (the roster's Out, injured
+// reserve or an injured list, a suspension: state.castInjuries), or with no game in the episode (their team on a bye or idle that
+// day: ep.byeTeams; on a lineup locking at each game, none of theirs listed: ep.holdingGames). Questionable, doubtful and day to day
+// still play, as most managers start them.
+const SITS = new Set(["O", "IR", "SUSP", "PUP"]);
+function sitsOut(state, ep, id) {
+  const hurt = state.castInjuries && state.castInjuries[id];
+  if (hurt && (SITS.has(hurt.code) || /^IL\d+$/.test(hurt.code))) return true;
+  if (Array.isArray(ep.byeTeams) && ep.byeTeams.length) {
+    const c = Core.getCastaway(state, id);
+    const team = c && c.tribeId ? Core.getTribe(state, c.tribeId) : null;
+    if (team && ep.byeTeams.includes(team.name)) return true;
+  }
+  const games = ep.holdingGames;
+  return !!games && typeof games === "object" && Object.keys(games).length > 0 && !(games[id] || []).length;
+}
+
 // One bot's lineup (and captain) for `ep`, on `state`: the league's, or a catching-up bot's own copy (catchUpTo).
 function lineupFor(state, ep, pid, slots) {
   const mine = state.castaways.filter((c) => c.status === "active" && (c.ownerIds || []).includes(pid)).map((c) => c.id);
   if (!mine.length) return 0;
-  // Cast properties (chunk 5): the best lineup the slots take (a QB in the QB slot), else the top `slots`.
-  const best = StateLogic.SlotLogic.best(state, ranked(state, pid, mine, "points"), slots);
+  // Cast properties (chunk 5): the best lineup the slots take (a QB in the QB slot), else the top `slots`. Step 2.3: anyone out or
+  // with no game only where nobody else can fill their slot (they score nothing either way).
+  const order = ranked(state, pid, mine, "points");
+  const sits = order.filter((id) => sitsOut(state, ep, id));
+  const best = StateLogic.SlotLogic.best(state, sits.length ? [...order.filter((id) => !sits.includes(id)), ...sits] : order, slots);
   const current = ActiveRosterLogic.lineupFor(state, ep.id, pid);
   // A game with a captain (A9 part 2): the best of them wears it.
   const captainOk = !ActiveRosterLogic.captainTimes(state) || ActiveRosterLogic.captainFor(state, ep.id, pid) === best[0];

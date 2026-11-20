@@ -6,7 +6,7 @@ and in flight is in [HANDOFF.md](HANDOFF.md).
 
 **How this file works**
 - **Numbers are permanent.** Code, tests and commits cite "BACKLOG 57", so a number never changes and is never reused. A new
-  item takes the next free number: **the next is 225.**
+  item takes the next free number: **the next is 230.**
 - **Closing an item:** delete it here and add one line under "Closed since the cleanup" at the end: the number, done or
   dropped, and the commit or the reason. Numbers closed in the cleanup itself are listed, with their full old text, in
   [archive/BACKLOG-2026-11-19.md](archive/BACKLOG-2026-11-19.md).
@@ -188,6 +188,12 @@ and `AskSheet` if they're used), with check-tonight-up-next.js retired or repoin
 [S · cleanup]
 
 ### Small UI fixes (one Impeccable polish pass)
+
+**228. A sport's lineup sheet puts the best guard in "G", not "PG".** The sheet's tidying (SlotLogic.assignment) puts an earlier
+starter in the narrower slot, judged by how many values a slot lists: the NBA's G slot takes one ("guards", a position group) and
+PG takes two ("PG", "G"), so G reads narrowest. The lineup is legal either way; it only reads oddly. And since ESPN's NBA rosters
+list only G, F or C (checked 2026-11-20), PG and SG each take any guard: the slot labels may want to say G (the 4.0 words, or 4.2's
+lineup editor). Found in step 2.3. [S · sports]
 
 **51. Outlast in reverse says "Fewest points wins".** The most points still win. Drop the note at game-page/model.ts:427, or say
 what reverse means ("the earlier yours go home, the more they bank"), through impeccable's clarify. The same as DN-22's first
@@ -437,6 +443,11 @@ full (PLANS.md). Part of [PLAN-sports-ready.md](PLAN-sports-ready.md), step 4.2,
 **43. First run finds teams and leagues, not only shows.** first-run.tsx searches shows only, while Add a show already offers
 teams and leagues (`useTeamSearch`, `SportsResults`). Give first run the same, so "Giants" offers the team. Part of [PLAN-sports-ready.md](PLAN-sports-ready.md), step 4.1. [S · sports]
 
+**229. Computer players draft a sport by taste.** Before a game is played every athlete rates zero for them (ratings come from
+the game's own played weeks), so a bot's sports draft is its taste within what the slots allow (step 2.3 keeps it to players some
+slot takes, and a team that fills every slot). A ranking from last season's lines or ESPN's projections would make a real draft,
+and the draft room needs the same ranking (4.3). Before Phase 3's replay, where a couch of computer players drafts. [M · sports]
+
 ### Research and the desk
 
 **92. Backstage says "All clear" above "Results · Episode 8 · 5 waiting".** Needs you lists waiting results only for episodes
@@ -599,6 +610,13 @@ lands.
   watched with "Watch it as if live", and own pace for sports waits until someone asks.*
 - **219. A daily sport's waivers: daily or weekly?** *Recommended: daily for the NBA, NHL and MLB (claims clear each morning, as
   Yahoo's do), weekly for the NFL.*
+
+- **227. MLB's two-way player: what does he score?** Shohei Ohtani bats and pitches. Since step 2.3 he fills batting slots and
+  pitching slots (ESPN's roster lists him at DH and SP), but wherever he starts he scores everything he does, his batting and his
+  pitching, which no fantasy app allows. Yahoo splits him into two players (Ohtani (Batter), Ohtani (Pitcher)), each scoring only
+  his own kind of stats and held by anyone; ESPN keeps one player whose stats count by the slot he's in. *Recommended: Yahoo's
+  two players, since the engine scores each person whole and a slot-by-slot count would need the lineup's slot in every score.
+  Needed by MLB's Opening Day (late March 2027).*
 
 ### When we get there: plan-level calls
 

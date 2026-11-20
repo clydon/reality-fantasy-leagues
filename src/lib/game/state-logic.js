@@ -3002,9 +3002,16 @@ class SlotLogic {
     });
     return out;
   }
-  // Whether a slot takes someone: a value they count as, or (a sport's position) their roster's position group.
+  // Whether a slot takes someone: a value they count as, or (a sport's position) their roster's position group, or another position
+  // their league lets them fill (step 2.3, docs/PLAN-sports-ready.md: state.castEligible, stamped per read: baseball's shortstop
+  // listed at second base, a two-way player's SP and the pitchers').
   static fits(state, id, slot, asOf){
-    return slot.values.some(v => CastPropLogic.matches(state, id, slot.of, v, asOf) || (slot.of === 'position' && !!state.statGroups && state.statGroups[id] === v));
+    return slot.values.some(v => CastPropLogic.matches(state, id, slot.of, v, asOf) || (slot.of === 'position' && SlotLogic.positionFits(state, id, v)));
+  }
+  static positionFits(state, id, v){
+    if(state.statGroups && state.statGroups[id] === v) return true;
+    const also = state.castEligible && state.castEligible[id];
+    return Array.isArray(also) && also.includes(v);
   }
   // The most of `ids` the slots can take, one each, earlier ids first: { size, owner: slot index -> id }.
   static match(state, ids, slots, asOf){
@@ -3065,6 +3072,20 @@ class SlotLogic {
       if(SlotLogic.match(state, [...kept, id], slots).size === kept.length + 1) kept.push(id);
     }
     return kept;
+  }
+  // Step 2.3 (docs/PLAN-sports-ready.md): a computer player's draft keeps its team able to fill every lineup slot. Of `candidates`,
+  // only those some slot takes (never an offensive tackle for a lineup of QB, RB, WR, TE, K and DEF: he'd never start), and of
+  // those, the ones after whom the slots `mine` can't fill are no more than the picks still to come (`left`, counting this one);
+  // while there's room to spare, any of them. None that keep it (a pool short of catchers): all of them, as before.
+  static draftKeeps(state, mine, candidates, left){
+    if(!SlotLogic.on(state)) return candidates;
+    const slots = SlotLogic.expanded(state);
+    const starts = candidates.filter(id => slots.some(s => SlotLogic.fits(state, id, s)));
+    const pool = starts.length ? starts : candidates;
+    const open = ids => slots.length - SlotLogic.match(state, ids, slots).size;
+    if(open(mine) < left) return pool;
+    const ok = pool.filter(id => open([...mine, id]) <= left - 1);
+    return ok.length ? ok : pool;
   }
   // Best ball with slots: the best legal n count (Seq.best's, by the slots).
   static countBest(state, lines, n){
@@ -3994,7 +4015,7 @@ class StatsLogic {
   // season's properties, read from the season's cast on every read, never saved.
   // Step 1.5 (docs/PLAN-sports-ready.md): a sport's player's injury (state.castInjuries, cast-props.ts) and each week's teams on a
   // bye (ep.byeTeams, air-times.ts), stamped per read too.
-  static stampedKeys(){ return [...STAMPED.episode, ...STAMPED.state, 'gameStarts', 'holdingGames', 'castProps', 'castPropDefs', 'castInjuries', 'byeTeams']; }
+  static stampedKeys(){ return [...STAMPED.episode, ...STAMPED.state, 'gameStarts', 'holdingGames', 'castProps', 'castPropDefs', 'castInjuries', 'castEligible', 'byeTeams']; }
   // L3 part 2d: a game ranked by a sport's categories (Spec.categoryParts: head to head by each, by most, or roto), or null.
   static categories(state){
     const g = playedGame(state);

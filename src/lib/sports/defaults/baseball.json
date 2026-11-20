@@ -23,7 +23,11 @@
       { "slot": "RP", "n": 2, "takes": ["RP"] },
       { "slot": "P", "n": 4, "takes": ["pitchers"] }
     ],
-    "bench": 5
+    "bench": 5,
+    "eligible": {
+      "source": "Yahoo's and ESPN's: a player fills each position he plays, not only his roster's one. ESPN's roster lists the positions each has played; a player counts at each in his own group (a shortstop listed at second base fills 2B, a reliever listed as a starter fills SP), and a batter listed as a starting pitcher (a two-way player: Shohei Ohtani) at the pitchers' too. Not a batter listed as a reliever: a position player who pitched in a blowout.",
+      "across": ["SP"]
+    }
   },
   "closes": "daily",
   "specs": {

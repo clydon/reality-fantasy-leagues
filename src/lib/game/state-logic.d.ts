@@ -1024,6 +1024,10 @@ declare const StateLogic: {
     summary(state: LeagueState): string;
     problem(state: LeagueState, ids: string[]): string | null;
     best(state: LeagueState, ranked: string[], n: number): string[];
+    /** Step 2.3: whether a position slot's value takes someone: their position group, or a position they're eligible at. */
+    positionFits(state: LeagueState, id: string, value: string): boolean;
+    /** Step 2.3: of a computer player's draft candidates, those that keep its team able to fill every slot (all, with room). */
+    draftKeeps(state: LeagueState, mine: string[], candidates: string[], left: number): string[];
   };
   /** Step A10 part 3: names out of a hat (the spec's get.order 'draw'), seeded and recorded in state.draw. */
   DrawLogic: {

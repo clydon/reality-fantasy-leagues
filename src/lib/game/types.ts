@@ -1220,6 +1220,10 @@ export interface LeagueState {
   /** L3 part 2: a game scored by a sport's stats, each castaway's position group from their roster (StatsLogic.stamp): never
    *  stored. */
   statGroups?: Record<string, string>;
+  /** Step 2.3 (docs/PLAN-sports-ready.md): the other positions (and, across groups, position groups) a sport's player fills
+   *  besides their roster's, by their league's rule (sports/index.ts eligibleFor: baseball's shortstop at 2B, a two-way player's SP),
+   *  stamped per read from season_cast.eligible (cast-props.ts): never stored. */
+  castEligible?: Record<string, string[]>;
   /** G3 part 3b: a game whose pool is some teams' players, each castaway's team as an ESPN id (the team they're listed on now, as the
    *  season's linked games name it: StatsLogic.stamp): never stored. */
   statTeams?: Record<string, string>;

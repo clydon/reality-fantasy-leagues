@@ -84,7 +84,7 @@ function pageKindOf(page) {
 
 /**
  * The sport's standard games on a league, { [id]: { about, on, spec } }, as defaultsFor gives them (src/lib/sports/index.ts): a
- * league's own specs over the sport's (racing's F1 and IndyCar, the NBA's bracket), and football's lineup slots as each spec's
+ * league's own specs over the sport's (racing's F1 and IndyCar, the NBA's bracket), and its lineup slots as each spec's
  * count.slots where it counts exactly the lineup (index.ts withLineupSlots; the check script holds the two the same).
  */
 function sportStandard(family, league) {
@@ -97,7 +97,8 @@ function sportStandard(family, league) {
   const own = key && isObj(d.leagues) ? d.leagues[key] : null;
   const specs = { ...d.specs, ...(own && isObj(own.specs) ? own.specs : {}) };
   const slots = own && isObj(own.slots) ? own.slots : d.slots;
-  const lineup = family === 'football' && isObj(slots) && Array.isArray(slots.lineup) ? slots.lineup : [];
+  // Every sport's since step 2.3 (index.ts slotted: not a lineup of one slot taking everyone, golf's golfers).
+  const lineup = isObj(slots) && Array.isArray(slots.lineup) && slots.lineup.length > 1 ? slots.lineup : [];
   const total = lineup.reduce((n, s) => n + s.n, 0);
   const out = {};
   for (const [id, x] of Object.entries(specs)) {

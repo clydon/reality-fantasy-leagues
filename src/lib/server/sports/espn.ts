@@ -45,6 +45,8 @@ interface RawAthlete {
   jersey?: string;
   /** A roster's: the player's injuries, the latest first (step 1.5). */
   injuries?: { status?: string; date?: string }[];
+  /** A roster's (MLB's): every position they've played (step 2.3). */
+  positions?: { abbreviation?: string }[];
 }
 interface RawStatus {
   type?: { state?: string; completed?: boolean; name?: string };
@@ -346,7 +348,9 @@ export function readRoster(raw: { athletes?: (RawAthlete & { position?: unknown;
     const p = readPerson(a);
     if (!p.id || !p.name || seen.has(p.id)) return;
     seen.add(p.id);
-    out.push({ ...p, position: str(a.position?.abbreviation)?.toUpperCase() ?? p.position, group, jersey: str(a.jersey), injury: injuryOf(a.injuries?.[0]) });
+    // Step 2.3: every position it lists them at (MLB's roster: the ones they've played), for their league's eligibility rule.
+    const positions = Array.isArray(a.positions) ? [...new Set(a.positions.map((x) => str(x?.abbreviation)?.toUpperCase()).filter((x): x is string => !!x))] : [];
+    out.push({ ...p, position: str(a.position?.abbreviation)?.toUpperCase() ?? p.position, group, jersey: str(a.jersey), injury: injuryOf(a.injuries?.[0]), ...(positions.length ? { positions } : {}) });
   };
   for (const g of raw?.athletes ?? []) {
     if (Array.isArray(g.items)) for (const a of g.items) add(a, str(g.position));
