@@ -104,7 +104,11 @@ function sportStandard(family, league) {
   for (const [id, x] of Object.entries(specs)) {
     const spec = clone(x.spec);
     const c = spec.count;
-    if (lineup.length && isObj(c) && (c.start === total || c.best === total)) spec.count = { ...c, slots: lineup.map((s) => ({ label: s.slot, of: 'position', values: [...s.takes], n: s.n })) };
+    if (lineup.length && isObj(c) && (c.start === total || c.best === total)) {
+      spec.count = { ...c, slots: lineup.map((s) => ({ label: s.slot, of: 'position', values: [...s.takes], n: s.n })) };
+      // Step 2.4: its IR places on a game with a draft (index.ts withLineupSlots).
+      if (isObj(slots.ir) && isObj(spec.get) && spec.get.by === 'draft') spec.get = { ...spec.get, ir: { n: slots.ir.n, takes: [...slots.ir.takes] } };
+    }
     out[id] = { about: x.about, on: x.on || null, spec };
   }
   return out;

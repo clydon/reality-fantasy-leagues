@@ -21,7 +21,8 @@
       { "slot": "C", "n": 2, "takes": ["C"] },
       { "slot": "Util", "n": 2, "takes": ["guards", "forwards", "centers"] }
     ],
-    "bench": 3
+    "bench": 3,
+    "ir": { "source": "Yahoo's default roster's 3 IL, outside its 13; it takes Out (and Out For Season, which ESPN's rosters list as Out); not P, Q or D (help.yahoo.com/kb/SLN6919.html, SLN6425.html, 2026-11-20)", "n": 3, "takes": ["O"] }
   },
   "closes": "daily",
   "specs": {

@@ -96,7 +96,10 @@ function inspect(document) {
     // Head to head: its odd one out, quiet nights and playoffs placed by the season's length or a fixed episode (settleWrite).
     if (spec.rank?.playoffs && Object.keys(spec.rank.playoffs).some(k => !['teams', 'from'].includes(k))) add(game.id, p + '/rank/playoffs', 'Playoff rider needs an explicit adapter');
     const allowed = {
-      span: ['from', 'to'], pool: ['of', 'where'], get: ['by', 'each', 'own', 'order', 'repeat', 'fallback', 'across', 'second', 'groups', 'budget'],
+      // IR (get.ir, step 2.4: a sport's season game's): the engine reads it on every read, but nobody in a generated world is hurt
+      // (no roster injuries are stamped: state.castInjuries), so nobody ever goes on it; its moves (the ir route's place, back and
+      // drop) and an add into an open spot are a gap (docs/GAMEPLAY-EXPLORER.md).
+      span: ['from', 'to'], pool: ['of', 'where'], get: ['by', 'each', 'own', 'order', 'repeat', 'fallback', 'across', 'second', 'groups', 'budget', ...(sport && stats ? ['ir'] : [])],
       // Parlays (score.parlays: every leg right in a window multiplies their points): graded on every read (AnswerLogic.grade).
       // A survival pool's buyback and mulligans (score.buyback, score.mulligans): automatic, the pool's walk on every read.
       // Secret roles (score.roles): dealt from a seed of the game's id once due, stamped as secret-roles.ts stamps them.

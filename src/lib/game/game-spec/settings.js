@@ -276,6 +276,8 @@ function readSpec(st, copy) {
     if (isObj(st.draftAcross)) get.across = copy ? clone(st.draftAcross) : st.draftAcross;
     // Cast properties (chunk 4): what a team needs (draftNeeds, as the spec says it).
     if (Array.isArray(st.draftNeeds) && st.draftNeeds.length) get.needs = copy ? clone(st.draftNeeds) : st.draftNeeds;
+    // Step 2.4 (docs/PLAN-sports-ready.md): injured reserve (draftIr, as the spec says it).
+    if (isObj(st.draftIr)) get.ir = copy ? clone(st.draftIr) : st.draftIr;
     if (isObj(st.draftBudget)) get.budget = copy ? clone(st.draftBudget) : st.draftBudget;
     // A10 part 4: keepers from last season's game (draftKeep, as the spec says them).
     if (isObj(st.draftKeep)) get.keep = copy ? clone(st.draftKeep) : st.draftKeep;
@@ -635,6 +637,7 @@ function settingsOf(spec) {
   out.draftDraw = draft && s.get.order === 'draw' ? true : undefined;
   out.draftAcross = draft && isObj(s.get.across) ? clone(s.get.across) : undefined;
   out.draftNeeds = draft && Array.isArray(s.get.needs) && s.get.needs.length ? clone(s.get.needs) : undefined;
+  out.draftIr = draft && isObj(s.get.ir) ? clone(s.get.ir) : undefined;
   out.lineupSlots = isObj(s.count) && Array.isArray(s.count.slots) && s.count.slots.length ? clone(s.count.slots) : undefined;
   // A10 part 3b: an auction, and a draft's prices.
   out.draftAuction = draft && s.get.order === 'auction' ? true : undefined;
@@ -701,7 +704,7 @@ const PARTS = [
   { fields: ['stages', 'stageOverall'], read: (s) => [s.stages || null, s.overall || null] },
   // A12 part 2: how a game a format change moves takes the change.
   { fields: ['formatChanges'], read: (s) => (Array.isArray(s.stages) && isObj(s.extras) ? s.extras.changes || null : null) },
-  { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots', 'bestBall', 'countAll', 'groupSlots', 'poolSecond', 'poolRepeat', 'poolFallback', 'poolEach', 'draftDraw', 'draftAcross', 'draftNeeds', 'lineupSlots', 'draftAuction', 'draftBudget', 'draftKeep', 'squaresGet'], read: (s) => [s.get, s.count] },
+  { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots', 'bestBall', 'countAll', 'groupSlots', 'poolSecond', 'poolRepeat', 'poolFallback', 'poolEach', 'draftDraw', 'draftAcross', 'draftNeeds', 'draftIr', 'lineupSlots', 'draftAuction', 'draftBudget', 'draftKeep', 'squaresGet'], read: (s) => [s.get, s.count] },
   { fields: ['eventPoints', 'statScoring', 'pickemCorrectPoints', 'poolSurvive', 'parlays', 'linePoints', 'captainTimes', 'pointsTimes', 'joinedTimes', 'bounty', 'secretRoles', 'twist', 'reverseOrder', 'poolScore', 'scoreOnly', 'scoreHits', 'poolLives', 'poolBuyback', 'poolMulligans', 'questionsLives', 'questionsLivesOn', 'questionsSaves', 'questionsBank', 'squaresScore'], read: (s) => s.score },
   { fields: ['poolRank', 'draftRank', 'draftRace', 'draftCut', 'rankOneLeft', 'rankAllOut', 'questionsRank', 'questionsRace', 'questionsCut', 'rankMatchups', 'rankTies', 'rankTeams', 'rankHandicap'], read: (s) => s.rank },
   { fields: ['allowLateJoiners', 'joinMode'], read: (s) => s.extras.join },

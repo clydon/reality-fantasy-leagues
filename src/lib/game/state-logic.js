@@ -3096,6 +3096,179 @@ class SlotLogic {
   }
 }
 
+// ---------- IrLogic: injured reserve (docs/PLAN-sports-ready.md step 2.4: the spec's get.ir) ----------
+// A draft's IR places (get.ir: { n, takes, healthy }): someone their roster lists as one of `takes` (their injury now:
+// state.castInjuries, stamped per read; the NFL's IR, O or PUP) can sit on IR, outside the roster's count, so their seat has an open
+// spot to add someone into (a waiver claim or a free-agency move with no drop: WaiverLogic). Someone on IR never starts and scores
+// nothing, in a lineup or a whole team. They stay as long as their seat likes (Yahoo's rule); bringing them back needs room on the
+// roster (a drop with it, when it's full). While a seat has someone on IR their roster no longer lists as hurt, `healthy` 'blocks'
+// (Yahoo's and ESPN's rule, the default) refuses the seat's adds until it brings them back or drops them; 'stays' lets them sit.
+// The moves are their own log (midSeason.ir: { id, playerId, castawayId, on, episode, at, seen?, tx? }), read episode by episode
+// as the mid-season log is (a move made after episode k counts from k + 1; an own-pace seat's from after its mark), so a week
+// already played keeps whom it fielded, and a viewer's copy takes back the moves past their mark (WaiverLogic.redact). Without
+// get.ir nothing here does anything.
+class IrLogic {
+  static config(state){
+    const g = gameOf(state).get;
+    return g.by === 'draft' && g.ir && typeof g.ir === 'object' && Number.isInteger(g.ir.n) && g.ir.n >= 1 ? g.ir : null;
+  }
+  static on(state){ return !!IrLogic.config(state); }
+  static places(state){ const c = IrLogic.config(state); return c ? c.n : 0; }
+  static moves(state){ return (state.midSeason && Array.isArray(state.midSeason.ir) && state.midSeason.ir) || []; }
+  // Whom a seat had on IR after the moves `keep` says count, in order.
+  static replay(state, playerId, keep){
+    const on = new Set();
+    for(const m of IrLogic.moves(state)){
+      if(m.playerId !== playerId || !keep(m)) continue;
+      if(m.on) on.add(m.castawayId);
+      else on.delete(m.castawayId);
+    }
+    return on;
+  }
+  // On IR for episode `number`: the moves that count before it (a move logged at k, or at a seat's own mark past it, counts from
+  // the episode after; one from before any results stands for every episode, as a move before the game does: Seq.heldAt).
+  static onFor(state, playerId, number){
+    if(!IrLogic.moves(state).length) return new Set();
+    return IrLogic.replay(state, playerId, m => {
+      const at = Number.isInteger(m.seen) && Number.isInteger(m.episode) && m.seen > m.episode ? m.seen : m.episode;
+      return !Number.isInteger(at) || at < number;
+    });
+  }
+  static onNow(state, playerId){
+    if(!IrLogic.moves(state).length) return new Set();
+    return IrLogic.replay(state, playerId, () => true);
+  }
+  // On IR at instant `t` (ms), by the moves' own times: a lineup that locks at each game (letGoAt's).
+  static onAt(state, playerId, t){
+    if(!IrLogic.moves(state).length) return new Set();
+    return IrLogic.replay(state, playerId, m => { const at = Date.parse(m.at); return Number.isFinite(at) && at < t; });
+  }
+  // Whether someone's roster lists them as the IR takes (their injury now).
+  static eligible(state, castawayId){
+    const c = IrLogic.config(state);
+    const hurt = state.castInjuries && state.castInjuries[castawayId];
+    return !!c && !!hurt && Array.isArray(c.takes) && c.takes.includes(hurt.code);
+  }
+  // Whom a seat has on IR now that their roster no longer lists as it takes. Only on a copy stamped with the rosters' injuries (the
+  // server stamps an empty list for a season with nobody hurt: cast-props.ts); a copy without them can't tell, so nobody.
+  static healthy(state, playerId){
+    if(!IrLogic.on(state) || !state.castInjuries || typeof state.castInjuries !== 'object') return [];
+    return [...IrLogic.onNow(state, playerId)].filter(id => !IrLogic.eligible(state, id));
+  }
+  // Why a seat can't add anyone now (healthy 'blocks', someone healthy on IR), or null.
+  static addProblem(state, playerId){
+    const c = IrLogic.config(state);
+    if(!c || c.healthy === 'stays') return null;
+    const back = IrLogic.healthy(state, playerId)[0];
+    if(!back) return null;
+    const x = Core.getCastaway(state, back);
+    return `${x ? x.name : 'Someone on your IR'} is healthy: bring them back from IR, or drop them, before you add anyone`;
+  }
+  // How many more a seat's roster takes now: the roster's size, less everyone it holds who's still in and not on IR.
+  static openSpots(state, playerId){
+    if(!IrLogic.on(state)) return 0;
+    const ir = IrLogic.onNow(state, playerId);
+    const held = state.castaways.filter(c => c.status === 'active' && ownerListOf(c).includes(playerId) && !ir.has(c.id)).length;
+    return Math.max(0, rosterSize(state) - held);
+  }
+  // The episode a move made now first counts in: the one after the latest with results.
+  static nextEpisode(state){
+    const done = lastCompletedEpisode(state);
+    return state.episodes.filter(e => done === null || e.number > done).sort((a, b) => a.number - b.number)[0] || null;
+  }
+  // Why taking someone out of a seat's lineup now would change a week already under way, or null: in a lineup that locks at each
+  // game, they're in it and their game has started today; else the week's lineups have locked and they count in it (its lineup,
+  // or a game that counts the whole team).
+  static lockedProblem(state, playerId, castawayId, now){
+    const ep = IrLogic.nextEpisode(state);
+    if(!ep) return null;
+    const x = Core.getCastaway(state, castawayId);
+    const name = x ? x.name : 'They';
+    if(ActiveRosterLogic.eachGame(state, ep)){
+      const t = now || Date.now();
+      return ActiveRosterLogic.heldLocked(ep, castawayId, t) && ActiveRosterLogic.lineupAt(state, ep, playerId, t).includes(castawayId) ? `${name}'s game has started: move them once the day's over` : null;
+    }
+    if(!ActiveRosterLogic.isLineupLocked(state, ep.id, now)) return null;
+    const whole = !!ActiveRosterLogic.bestOf(state) || StatsLogic.wholeTeam(state);
+    return whole || ActiveRosterLogic.lineupFor(state, ep.id, playerId).includes(castawayId) ? `${name} is in a lineup that's locked: move them once its results are in` : null;
+  }
+  // Why a seat can't put someone on IR now, or null.
+  static placeProblem(state, playerId, castawayId, now){
+    const c = IrLogic.config(state);
+    if(!c) return 'This game has no IR';
+    if(!inLeagueRotation(Core.getPlayer(state, playerId))) return 'No such player';
+    if(KnockoutLogic.isOut(state, playerId)) return 'You’re out of this game';
+    const x = Core.getCastaway(state, castawayId);
+    if(!x || !ownerListOf(x).includes(playerId)) return 'They’re not on your roster';
+    const ir = IrLogic.onNow(state, playerId);
+    if(ir.has(castawayId)) return `${x.name} is already on IR`;
+    if(ir.size >= c.n) return `Your IR is full: it holds ${c.n}`;
+    if(!IrLogic.eligible(state, castawayId)) return `Only someone listed ${c.takes.join(', ')} can go on IR`;
+    return IrLogic.lockedProblem(state, playerId, castawayId, now);
+  }
+  static place(state, playerId, castawayId, now){
+    const why = IrLogic.placeProblem(state, playerId, castawayId, now);
+    if(why) return why;
+    IrLogic.record(state, playerId, castawayId, true, now);
+    return null;
+  }
+  // Why a seat can't bring someone back from IR now (`dropId`: whom it drops to make room, or none), or null.
+  static backProblem(state, playerId, castawayId, dropId, now){
+    if(!IrLogic.on(state)) return 'This game has no IR';
+    if(KnockoutLogic.isOut(state, playerId)) return 'You’re out of this game';
+    const x = Core.getCastaway(state, castawayId);
+    const ir = IrLogic.onNow(state, playerId);
+    if(!x || !ir.has(castawayId)) return 'They’re not on your IR';
+    if(dropId){
+      const d = Core.getCastaway(state, dropId);
+      if(!d || dropId === castawayId || !ownerListOf(d).includes(playerId)) return 'Drop someone on your roster';
+      if(ir.has(dropId)) return IrLogic.openSpots(state, playerId) < 1 ? `${d.name} is on IR too: dropping them makes no room` : null;
+      return IrLogic.lockedProblem(state, playerId, dropId, now);
+    }
+    return IrLogic.openSpots(state, playerId) < 1 ? `Your roster is full: drop someone to bring ${x.name} back` : null;
+  }
+  static back(state, playerId, castawayId, dropId, now){
+    const why = IrLogic.backProblem(state, playerId, castawayId, dropId, now);
+    if(why) return why;
+    if(dropId) MidSeasonLogic.applyDrop(state, playerId, dropId, { via: 'ir', at: new Date(now || Date.now()).toISOString() });
+    IrLogic.record(state, playerId, castawayId, false, now);
+    return null;
+  }
+  // Why a seat can't drop someone now (to free a spot, or someone healthy on IR it doesn't want back), or null. Only in a game with
+  // IR: elsewhere a drop is always half of a move.
+  static dropProblem(state, playerId, castawayId, now){
+    if(!IrLogic.on(state)) return 'This game has no IR';
+    if(!inLeagueRotation(Core.getPlayer(state, playerId))) return 'No such player';
+    if(KnockoutLogic.isOut(state, playerId)) return 'You’re out of this game';
+    const x = Core.getCastaway(state, castawayId);
+    if(!x || !ownerListOf(x).includes(playerId)) return 'They’re not on your roster';
+    return IrLogic.onNow(state, playerId).has(castawayId) ? null : IrLogic.lockedProblem(state, playerId, castawayId, now);
+  }
+  static drop(state, playerId, castawayId, now){
+    const why = IrLogic.dropProblem(state, playerId, castawayId, now);
+    if(why) return why;
+    MidSeasonLogic.applyDrop(state, playerId, castawayId, { via: 'ir', at: new Date(now || Date.now()).toISOString() });
+    return null;
+  }
+  // A move dropped someone a seat had on IR: they leave it with the move (and come back with it, when it's taken back: revert).
+  static leave(state, playerId, castawayId, tx){
+    if(!IrLogic.moves(state).length || !IrLogic.onNow(state, playerId).has(castawayId)) return;
+    const m = { id: Core.uid('ir'), playerId, castawayId, on: false, episode: tx.episode, at: tx.at, tx: tx.id };
+    if(Number.isInteger(tx.seen)) m.seen = tx.seen;
+    state.midSeason.ir.push(m);
+  }
+  // One move, stamped as the mid-season log stamps its own (MidSeasonLogic.log: its episode, and a seat's own mark past it).
+  static record(state, playerId, castawayId, on, now){
+    if(!state.midSeason) state.midSeason = {};
+    const m = { id: Core.uid('ir'), playerId, castawayId, on, episode: lastCompletedEpisode(state), at: new Date(now || Date.now()).toISOString() };
+    const mover = Core.getPlayer(state, playerId);
+    const mark = mover && mover.lateJoin && Number.isInteger(mover.lateJoin.seenThrough) ? mover.lateJoin.seenThrough : null;
+    if(Number.isInteger(m.episode) && mark !== null && mark > m.episode) m.seen = mark;
+    (state.midSeason.ir = state.midSeason.ir || []).push(m);
+    return m;
+  }
+}
+
 // ---------- DrawLogic + DrawDraftStrategy: names out of a hat (A10 part 3: the spec's get.order 'draw') ----------
 // Nobody picks: when the draft starts (the Commissioner's Start, or its scheduled time, drawn at the next write or read of the
 // league), every seat in the rotation is dealt `each` at random. The draw is seeded and recorded (state.draw: its seed, when,
@@ -4373,6 +4546,8 @@ class ActiveRosterLogic {
       if(tx.droppedCastawayId) gone.add(tx.droppedCastawayId);
       if(tx.addedCastawayId) gone.delete(tx.addedCastawayId);
     }
+    // Step 2.4 (docs/PLAN-sports-ready.md): someone on IR for the episode is out of its lineup as someone let go is (IrLogic.onFor).
+    IrLogic.onFor(state, playerId, number).forEach(id => gone.add(id));
     return gone;
   }
   // The team a player held for an episode (best ball, which has no lineups to store it): who they hold now, with every move
@@ -4380,8 +4555,10 @@ class ActiveRosterLogic {
   // spoiler view and the waiver weeks have it), less anyone out before it. In the cast's order.
   static teamFor(state, ep, playerId){
     const team = ActiveRosterLogic.heldFor(state, playerId, ep.number);
+    // Step 2.4: nor anyone on IR for it.
+    const ir = IrLogic.onFor(state, playerId, ep.number);
     return state.castaways.filter(c => {
-      if(!team.has(c.id)) return false;
+      if(!team.has(c.id) || ir.has(c.id)) return false;
       if(c.status !== 'eliminated') return true;
       const exit = state.episodes.find(e => e.id === c.exitEpisodeId);
       return !!exit && exit.number >= ep.number;
@@ -4455,7 +4632,7 @@ class ActiveRosterLogic {
     if(!ep) return [];
     if(ep.lineups && Object.prototype.hasOwnProperty.call(ep.lineups, playerId)){
       const set = ep.lineups[playerId] || [];
-      if(!set.length || !((state.midSeason && state.midSeason.log) || []).length) return set;
+      if(!set.length || (!((state.midSeason && state.midSeason.log) || []).length && !IrLogic.moves(state).length)) return set;
       const gone = ActiveRosterLogic.letGoBefore(state, playerId, ep.number);
       return gone.size && set.some(id => gone.has(id)) ? set.filter(id => !gone.has(id)) : set;
     }
@@ -4480,6 +4657,8 @@ class ActiveRosterLogic {
   static carriesInto(state, castawayId, playerId, number, held){
     const c = Core.getCastaway(state, castawayId);
     if(!c || !(held || ActiveRosterLogic.heldFor(state, playerId, number)).has(castawayId)) return false;
+    // Step 2.4: nor someone on IR for it.
+    if(IrLogic.onFor(state, playerId, number).has(castawayId)) return false;
     if(c.status !== 'eliminated') return true;
     const exit = state.episodes.find(e => e.id === c.exitEpisodeId);
     return !!exit && exit.number >= number;
@@ -4551,6 +4730,8 @@ class ActiveRosterLogic {
       if(tx.droppedCastawayId) gone.add(tx.droppedCastawayId);
       if(tx.addedCastawayId) gone.delete(tx.addedCastawayId);
     }
+    // Step 2.4: and anyone on IR by then, by the move's own time.
+    IrLogic.onAt(state, playerId, t).forEach(id => gone.add(id));
     return gone;
   }
   // Each game's counted holdings for a player (Map event id -> Set of castaway ids: the lineup in force at its start; a game with no
@@ -4599,6 +4780,10 @@ class ActiveRosterLogic {
       // before going, so excluding them would lose real points.
       if(!ownerListOf(c).includes(playerId)) return c.name + " isn't on your roster";
     }
+    // Step 2.4 (docs/PLAN-sports-ready.md): nobody on IR for the episode starts.
+    const ir = IrLogic.onFor(state, playerId, ep.number);
+    const hurt = ids.find(id => ir.has(id));
+    if(hurt) return Core.getCastaway(state, hurt).name + ' is on IR: bring them back to start them';
     // Cast properties (chunk 5): everyone in a lineup with slots has an open slot that takes them.
     const unslotted = SlotLogic.problem(state, ids, ep.number);
     if(unslotted) return unslotted;
@@ -7222,7 +7407,31 @@ class MidSeasonLogic {
     if(MidSeasonLogic.isShared(state, 'swap')) Core.addOwner(state, addId, playerId);
     else Core.setOwner(state, addId, playerId);
     add.acquiredVia = 'trade';
-    return MidSeasonLogic.log(state, { type:'trade', playerId, addedCastawayId: addId, droppedCastawayId: dropId, prev, ...extra });
+    const tx = MidSeasonLogic.log(state, { type:'trade', playerId, addedCastawayId: addId, droppedCastawayId: dropId, prev, ...extra });
+    // Step 2.4: someone dropped off IR leaves it.
+    IrLogic.leave(state, playerId, dropId, tx);
+    return tx;
+  }
+  // Step 2.4 (docs/PLAN-sports-ready.md), a game with IR only: a free agent into an open spot (someone on IR left one), and a drop
+  // on its own (to make room, or someone healthy on IR a seat doesn't want back). Each a swap's half, logged as one ('trade', the
+  // other side null: `via` says which): the history and the spoiler views read it as they read a swap.
+  static applyAdd(state, playerId, addId, extra){
+    const add = Core.getCastaway(state, addId);
+    const prev = { added: fieldsOf(add, ADDED_KEYS), dropped: null };
+    if(MidSeasonLogic.isShared(state, 'swap')) Core.addOwner(state, addId, playerId);
+    else Core.setOwner(state, addId, playerId);
+    add.acquiredVia = 'trade';
+    return MidSeasonLogic.log(state, { type:'trade', playerId, addedCastawayId: addId, droppedCastawayId: null, prev, ...extra });
+  }
+  static applyDrop(state, playerId, dropId, extra){
+    const drop = Core.getCastaway(state, dropId);
+    const prev = { added: null, dropped: fieldsOf(drop, DROPPED_KEYS) };
+    drop.formerOwnerId = playerId;
+    drop.departedVia = 'trade';
+    Core.removeOwner(state, dropId, playerId);
+    const tx = MidSeasonLogic.log(state, { type:'trade', playerId, addedCastawayId: null, droppedCastawayId: dropId, prev, ...extra });
+    IrLogic.leave(state, playerId, dropId, tx);
+    return tx;
   }
   static log(state, entry){
     // `|| []`: league rows are read from Postgres without migrateLeagueState, so a league that
@@ -7264,6 +7473,9 @@ class MidSeasonLogic {
         dropped.departedVia = null;
       }
     }
+    // Step 2.4: someone the move took off IR with their drop goes back on it (IrLogic.leave).
+    const ir = state.midSeason && state.midSeason.ir;
+    if(Array.isArray(ir) && ir.some(m => m.tx === tx.id)) state.midSeason.ir = ir.filter(m => m.tx !== tx.id);
   }
 }
 
@@ -7649,7 +7861,8 @@ class WaiverLogic {
   // A swap from the old live rounds after the same episode counts too (no periodId), so a league that
   // switched to waivers mid-window can't swap twice.
   static swapsMade(state, period, playerId){
-    return ((state.midSeason && state.midSeason.log) || []).filter(tx => tx.type === 'trade' && tx.playerId === playerId
+    // A drop on its own (step 2.4: IrLogic, `addedCastawayId` null) uses none.
+    return ((state.midSeason && state.midSeason.log) || []).filter(tx => tx.type === 'trade' && tx.playerId === playerId && tx.addedCastawayId
       && (tx.periodId === period.id || (!tx.periodId && tx.episode === period.episode))).length;
   }
   /** Whether replacements happen in this week: its own say (a window the commissioner opened), else the rule. */
@@ -7749,7 +7962,9 @@ class WaiverLogic {
   static couldSwap(state, period, playerId){
     if(!(WaiverLogic.swapsLeft(state, period, playerId) > 0)) return false;
     if(!inLeagueRotation(Core.getPlayer(state, playerId))) return false;
-    if(!state.castaways.some(c => c.status === 'active' && ownerListOf(c).includes(playerId))) return false;
+    // Step 2.4: an open spot (someone on IR) takes an add with no drop.
+    if(!state.castaways.some(c => c.status === 'active' && ownerListOf(c).includes(playerId)) && !IrLogic.openSpots(state, playerId)) return false;
+    if(IrLogic.addProblem(state, playerId)) return false;
     return MidSeasonLogic.availableFor(state, playerId, 'swap').length > 0;
   }
   // At your own pace with exclusive teams, a week has no airtime of its own to wait for (the server's syncPaced runs it on the copy at
@@ -7952,10 +8167,13 @@ class WaiverLogic {
     const legacy = !(Array.isArray(i.pairs) && i.pairs.length) && ['pickupIds', 'dropId', 'addIds'].some(k => hasKey(i, k));
     if(!legacy){
       const seen = new Set(), pairs = [];
+      // Step 2.4: in a game with IR, a pair may drop nobody (dropId null): an add into an open spot.
+      const open = IrLogic.on(state);
       (Array.isArray(i.pairs) ? i.pairs : []).forEach(x => {
-        if(!x || !isId(x.addId) || !isId(x.dropId) || seen.has(x.addId + '|' + x.dropId)) return;
-        seen.add(x.addId + '|' + x.dropId);
-        pairs.push({ addId: x.addId, dropId: x.dropId });
+        const dropId = x && isId(x.dropId) ? x.dropId : open && x && x.dropId === null ? null : undefined;
+        if(!x || !isId(x.addId) || dropId === undefined || seen.has(x.addId + '|' + dropId)) return;
+        seen.add(x.addId + '|' + dropId);
+        pairs.push({ addId: x.addId, dropId });
       });
       return { pairs, legacy: false };
     }
@@ -7969,6 +8187,16 @@ class WaiverLogic {
   }
   // Why one pair can't be claimed this week, or null. owed/swapsLeft: the player's, passed in.
   static pairProblem(state, period, playerId, pair, owed, swapsLeft, prices){
+    // Step 2.4: someone healthy on IR blocks a seat's adds (IrLogic.addProblem); a pair dropping nobody fills an open spot, as a
+    // swap counts (its window's swaps).
+    const blocked = IrLogic.addProblem(state, playerId);
+    if(blocked) return blocked;
+    if(pair.dropId === null){
+      if(!IrLogic.openSpots(state, playerId)) return 'Your roster is full: drop someone';
+      if(!WaiverLogic.swapsAllowed(period)) return 'No swaps this week';
+      if(!swapsLeft) return 'You’ve used this window’s swaps';
+      return MidSeasonLogic.isAvailableFor(state, pair.addId, playerId, 'swap') ? null : 'Claim free agents only';
+    }
     const drop = Core.getCastaway(state, pair.dropId);
     if(!drop || !ownerListOf(drop).includes(playerId)) return 'Drop someone on your team';
     if(drop.status === 'active'){
@@ -7991,7 +8219,9 @@ class WaiverLogic {
   static claimOf(state, pairs){
     const out = id => { const c = Core.getCastaway(state, id); return !!c && c.status !== 'active'; };
     const swaps = pairs.filter(x => !out(x.dropId));
-    const dropId = swaps.length ? swaps[0].dropId : null;
+    // Step 2.4: the first swap that drops someone (an add into an open spot drops nobody).
+    const first = swaps.find(x => x.dropId) || swaps[0];
+    const dropId = first ? first.dropId : null;
     return {
       pairs,
       pickupIds: uniqIds(pairs.filter(x => out(x.dropId)).map(x => x.addId)),
@@ -8121,9 +8351,14 @@ class WaiverLogic {
     // went, or its kind's limit is used); else why not, as a WaiverPass.
     const blocked = (pid, x) => {
       const r = run[pid];
-      const drop = Core.getCastaway(state, x.dropId);
-      if(!drop || !ownerListOf(drop).includes(pid)) return { silent: true };
-      if(drop.status !== 'active' ? r.repLeft <= 0 : r.swapLeft <= 0) return { silent: true };
+      // Step 2.4: an add into an open spot, while the seat still has one (a swap's limit).
+      if(x.dropId === null){
+        if(r.swapLeft <= 0 || IrLogic.openSpots(state, pid) < 1) return { silent: true };
+      } else {
+        const drop = Core.getCastaway(state, x.dropId);
+        if(!drop || !ownerListOf(drop).includes(pid)) return { silent: true };
+        if(drop.status !== 'active' ? r.repLeft <= 0 : r.swapLeft <= 0) return { silent: true };
+      }
       const kind = kindOf(x);
       if((sharedFor[kind] || !justDropped.has(x.addId)) && MidSeasonLogic.isAvailableFor(state, x.addId, pid, moveOf(kind))){
         return prices && BudgetLogic.moveProblem(state, pid, x.dropId, x.addId, prices) ? { castawayId: x.addId, reason: market ? 'cash' : 'cap' } : null;
@@ -8145,6 +8380,7 @@ class WaiverLogic {
           const m = market ? { ...meta, ...MarketLogic.terms(state, x.dropId, x.addId, prices) } : meta;
           const tx = kind === 'pickup'
             ? MidSeasonLogic.applyPickup(state, pid, x.addId, x.dropId, m)
+            : x.dropId === null ? MidSeasonLogic.applyAdd(state, pid, x.addId, m)
             : MidSeasonLogic.applyAddDrop(state, pid, x.dropId, x.addId, m);
           r.done.add(i);
           // Why the ones ranked above it for the same drop didn't go (each told once), and which choice
@@ -8160,7 +8396,7 @@ class WaiverLogic {
           if(!firstTaker[x.addId]) firstTaker[x.addId] = pid;
           r.mine.add(x.addId);
           if(kind === 'pickup') r.repLeft--;
-          else { r.swapLeft--; r.swapped++; justDropped.add(x.dropId); }
+          else { r.swapLeft--; r.swapped++; if(x.dropId) justDropped.add(x.dropId); }
           movers.add(pid);
           moved = true;
           break;
@@ -8213,8 +8449,19 @@ class WaiverLogic {
     // A10 part 3b and 3c: a salary cap's or a stock market's prices, read once (a market's move records what it sold and paid).
     const prices = BudgetLogic.priced(state) ? PriceLogic.prices(state) : undefined;
     const entryOf = (sold) => (MarketLogic.on(state) ? { ...meta, ...MarketLogic.terms(state, sold, addId, prices) } : meta);
+    // Step 2.4: someone healthy on IR blocks a seat's adds.
+    const blocked = IrLogic.addProblem(state, playerId);
+    if(blocked) return blocked;
     const owed = WaiverLogic.replacementsOwed(state, playerId, p);
     if(!dropId){
+      // Step 2.4: no drop and an open spot (someone on IR) is an add into it, as a swap counts.
+      if(!owed.count && IrLogic.openSpots(state, playerId) > 0){
+        if(!WaiverLogic.swapsAllowed(p)) return 'No swaps this week';
+        if(!WaiverLogic.swapsLeft(state, p, playerId)) return 'You’ve used this window’s swaps';
+        if(!MidSeasonLogic.isAvailableFor(state, addId, playerId, 'swap')) return 'They’re not a free agent any more';
+        MidSeasonLogic.applyAdd(state, playerId, addId, meta);
+        return null;
+      }
       if(!owed.count) return 'Choose who to drop';
       dropId = owed.lossIds[0];
     }
@@ -8338,6 +8585,8 @@ class WaiverLogic {
     const later = (ms.log || []).filter(tx => Number.isInteger(tx.episode) && tx.episode > seenThrough);
     [...later].reverse().forEach(tx => MidSeasonLogic.revert(s, tx));
     if(later.length) ms.log = ms.log.filter(tx => !later.includes(tx));
+    // Step 2.4: IR moves from those episodes too (IrLogic).
+    if(Array.isArray(ms.ir)) ms.ir = ms.ir.filter(m => !(Number.isInteger(m.episode) && m.episode > seenThrough));
     let restored = false;
     WaiverLogic.periods(s).forEach(p => {
       if(p.episode <= seenThrough) return;
@@ -10747,7 +10996,7 @@ return {
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are those pieces,
   // exported directly for code that wants to bypass the dispatch.
   Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, AnswerLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, StatsLogic, RotoLogic, SquaresLogic, SquaresScoringStrategy, GroupSlotLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
-  PoolLogic, SpreadLogic, CastPropLogic, CompositionLogic, SlotLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, WeekLogic, TeamLogic, HandicapLogic, StageLogic, BountyLogic, SecretRoleLogic, TwistLogic, HostLogic, draftFits, draftFitsFor, rankKey,
+  PoolLogic, SpreadLogic, CastPropLogic, CompositionLogic, SlotLogic, IrLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, WeekLogic, TeamLogic, HandicapLogic, StageLogic, BountyLogic, SecretRoleLogic, TwistLogic, HostLogic, draftFits, draftFitsFor, rankKey,
   SnakeDraftStrategy, StagesScoringStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy, DrawDraftStrategy, AuctionDraftStrategy
 };
 

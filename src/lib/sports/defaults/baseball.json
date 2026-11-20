@@ -24,6 +24,7 @@
       { "slot": "P", "n": 4, "takes": ["pitchers"] }
     ],
     "bench": 5,
+    "ir": { "source": "Yahoo's default roster's 4 IL, outside its 23, for someone his team has put on the injured list (help.yahoo.com/kb/SLN6785.html, SLN6425.html, 2026-11-20)", "n": 4, "takes": ["IL7", "IL10", "IL15", "IL60"] },
     "eligible": {
       "source": "Yahoo's and ESPN's: a player fills each position he plays, not only his roster's one. ESPN's roster lists the positions each has played; a player counts at each in his own group (a shortstop listed at second base fills 2B, a reliever listed as a starter fills SP), and a batter listed as a starting pitcher (a two-way player: Shohei Ohtani) at the pitchers' too. Not a batter listed as a reliever: a position player who pitched in a blowout.",
       "across": ["SP"]

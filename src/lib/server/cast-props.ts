@@ -68,7 +68,8 @@ export async function stampCastProps<S extends { castaways?: { id: string; seaso
     if (Object.keys(p).length) out[c.id] = p;
   }
   st.castProps = out;
-  if (Object.keys(injuries).length) (st as { castInjuries?: typeof injuries }).castInjuries = injuries;
+  // Stamped even when nobody's hurt (step 2.4: IR reads someone missing from it as healthy; a copy without it can't tell).
+  (st as { castInjuries?: typeof injuries }).castInjuries = injuries;
   if (Object.keys(eligible).length) (st as { castEligible?: typeof eligible }).castEligible = eligible;
   st.castPropDefs = propertyViews(await seasonCastProperties(rows[0].season_id, db));
   return state;

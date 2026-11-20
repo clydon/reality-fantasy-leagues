@@ -1837,6 +1837,16 @@ agreed and the invariant's own-pace rule didn't).
 - **NFL fixture** (`check-sports-week-in-progress.js`): the recorded NFL season, head to head; Sunday evening's hourly run counts the
   early games, every matchup undecided; Monday night's final decides them.
 
+### IR on a sport's season game: inert here (2026-11-20, docs/PLAN-sports-ready.md step 2.4)
+
+Every team sport's season game now has IR places (the spec's `get.ir`: StateLogic.IrLogic). The engine reads them on every read,
+but a generated world stamps no roster injuries (`state.castInjuries`), so nobody is ever eligible and nobody goes on IR: the
+profile accepts `get.ir` on a sport's stats game as inert (`runtime-profile.cjs`), so the NFL's situations keep opening on the
+default. **A gap:** IR's moves (the `ir` route's place, back and drop), an add into an open spot (a claim pair with `dropId: null`,
+free agency with no drop) and the healthy block. To close it: injuries in the world's facts (stamped as `cast-props.ts` stamps them),
+an `ir` action through the route, and invariants (nobody on IR in a lineup or a team's points; held minus IR within the roster; adds
+refused while someone healthy is on IR). The frozen v1 NFL state reproduces with its IR put back as it was made.
+
 ### Product fixes from these findings (2026-11-12, uncommitted; the user asked for all four)
 
 Each was reproduced through the bench, fixed, and is now a hard assertion in `check-explorer-proof.js` or a UI oracle:

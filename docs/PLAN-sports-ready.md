@@ -411,7 +411,51 @@ server.
      there (as football's always were), and no stand-in world of those leagues with a season game exists; the lineup editor is 4.2's
      page 1 (DN 38), with the NFL's.
 4. **An IR slot** (S–M, after 1.5): a player marked IR can sit there without costing a roster spot.
+   **Done 2026-11-20 (branch sports-phase2).**
+   - *Found first* (Yahoo's help pages, 2026-11-20: SLN6489, 6919, 6815, 6785, 6425; ESPN's support article on IR and waivers): every
+     league's injured places sit outside the roster's count (the NFL's 2 IR beside its 15; the NBA's 3 IL beside 13; the NHL's 2 IR
+     beside 16; MLB's 4 IL beside 23). Who may go there: football's IR, O, PUP and NFI; basketball's Out and Out for season; hockey's
+     the NHL's own IR (its IR+, which takes DTD and O, isn't in the default); baseball's injured list. Someone there scores nothing,
+     may stay all season, and comes back only into an open spot. Someone healthy left there: Yahoo blocks any add until they're
+     activated; ESPN refuses claims until the IR is cleared (a claim already in still goes through).
+   - *The calls made (the plan's "strict or lenient as data", Yahoo's and ESPN's rule the default):* the spec's `get.ir: { n, takes,
+     healthy }`, `healthy` 'blocks' (the default) or 'stays'; each sport's IR as data in its defaults (`slots.ir`, with its source),
+     carried onto each of its games with a draft whose lineup is the sport's (the season's: index.ts withLineupSlots and the
+     gallery's copy); the codes ESPN's rosters give (espn.ts injuryOf): the NFL's IR, O, PUP; the NBA's O; the NHL's IR; MLB's IL7,
+     IL10, IL15, IL60.
+   - *Built:* the engine's IrLogic (state-logic.js). Moves on and off IR are their own log (`midSeason.ir`, each stamped as a
+     mid-season move is: the episode, an own-pace seat's mark past it), so someone goes out of the lineup from the episode after the
+     latest with results, never out of a week played (BACKLOG 57's rule), and by the move's own time in a lineup locking at each game
+     (letGoBefore, letGoAt, carriesInto, teamFor; validateLineup refuses someone on IR). Never someone in a lineup that's locked, or
+     whose game has started that day. A seat's open spots are its roster's size less everyone it holds who isn't on IR; a waiver claim's
+     pair may drop nobody (`dropId: null`) and free agency an add with no drop goes into one, each as a swap counts. Bringing someone back
+     needs room, a drop with it when full (a drop on its own is a logged move of its own: `via: 'ir'`, no add, no swap used). Someone
+     healthy on IR blocks the seat's adds (pairProblem, freeAgencyMove, couldSwap) unless the game says 'stays'; "healthy" only on a read
+     stamped with the rosters' injuries (cast-props.ts now stamps an empty list for a season nobody's hurt in). A dropped IR player leaves
+     IR with the move and comes back with it on Undo (revert); a viewer behind sees no IR move past their mark (redact). The route:
+     POST /api/leagues/[id]/ir { action: place | back | drop, castawayId, dropId?, playerId? } (a seat's own; whoever runs the game,
+     anyone's). Computer players put anyone listed as the IR takes on it while there's a place, claim the best free agents into the
+     spot, and bring someone healthy back at once (dropping whom they rate lowest, him if it's him). The spec's check and words
+     (describe.js: "two IR spots beside its roster, for someone listed IR, O or PUP..."), settings `draftIr`.
+   - *Verified:* unit tests (tests/sports-ir.test.js: each league's IR and its round trip through the settings; the check; placing,
+     the week played keeping him, the lineup refused, the IR full; a locked lineup keeping its starter; the open spot in free agency and
+     a claim; the healthy block, back with a drop, the drop alone, 'stays', a copy without injuries; redact and Undo; the bots); the whole
+     suite (2,476); check-sports-ir.js (new: on the recorded NFL season, through the route signed in as Ann: a healthy receiver refused,
+     one Out on IR and out of her lineup, a free agent into the spot once Week 9 had its results, healthy again blocking her adds, back
+     refused with a full roster and then back with a drop; a computer player's starter on injured reserve on its IR at the next read;
+     stored with its moves, never the injuries); check-sports-bot-lineups.js, check-sports-injuries-byes.js, sport-gallery-check.js
+     --all-leagues (495 rows, 371 play, none off); tsc; eslint has only its standing errors. check-sports-explorer.js every case on the real routes (202, all pass; the NFL default now carrying IR).
+   - *Left:* ESPN's rosters don't list NFI (Yahoo takes it), so it isn't in the NFL's list; Yahoo's commissioner options (more IR
+     statuses, adding someone hurt straight onto IR) aren't built; the NHL's IR+ isn't. The explorer's worlds have nobody hurt, so its
+     profile accepts `get.ir` on a sport's stats game as inert, and IR's moves are its gap (docs/GAMEPLAY-EXPLORER.md). Nothing is on a
+     screen: the lineup sheet doesn't show IR or offer the moves, and the claim screens can't make an add with no drop (Designs needed
+     43, 4.2's page 1); the route is all there is.
+   - *Noticed, not fixed:* a sports season game starts with no waiver swaps at all (its spec has no waivers: windows only when
+     whoever runs it opens one by hand; the recommendation is written only from a person's Waivers card, backstage-games.ts), so an open
+     IR spot can't be filled until then: for 2.5, which gives the NFL its weekly waivers. The waivers history labels a drop on its own
+     or an add into a spot "Swap" (waivers-model.ts txLabel): 4.0's words.
 5. **Waivers for daily sports** (M; BACKLOG 219, yes): claims clear each morning for the NBA, NHL and MLB; the NFL's stay weekly.
+   (2.4 found a sports season game has no waiver swaps unless someone opens a window by hand: this step gives it its schedule.)
 6. **Own pace for a sports game** (M; BACKLOG 218: the user, 2026-11-19, "i want own pace, its an important option for casual
    leagues and solo games"). What's there: a sport's start sheet already offers own, live and strict (live recommended:
    start-game.ts `runs`); the season's guard goes by a person's mark when every seat they hold there is at its own pace; a caught-up

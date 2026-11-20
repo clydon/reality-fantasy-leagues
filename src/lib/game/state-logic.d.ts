@@ -944,6 +944,9 @@ declare const StateLogic: {
   MidSeasonLogic: {
     applyPickup(state: LeagueState, playerId: string, addId: string, lossId: string | null, extra?: Partial<MidSeasonLogEntry>): MidSeasonLogEntry;
     applyAddDrop(state: LeagueState, playerId: string, dropId: string, addId: string, extra?: Partial<MidSeasonLogEntry>): MidSeasonLogEntry;
+    /** Step 2.4, a game with IR: a free agent into an open spot, and a drop on its own. */
+    applyAdd(state: LeagueState, playerId: string, addId: string, extra?: Partial<MidSeasonLogEntry>): MidSeasonLogEntry;
+    applyDrop(state: LeagueState, playerId: string, dropId: string, extra?: Partial<MidSeasonLogEntry>): MidSeasonLogEntry;
     /** Undoes one logged move (several: newest first). */
     revert(state: LeagueState, tx: MidSeasonLogEntry): void;
     replenishAt(state: LeagueState): number;
@@ -1028,6 +1031,26 @@ declare const StateLogic: {
     positionFits(state: LeagueState, id: string, value: string): boolean;
     /** Step 2.3: of a computer player's draft candidates, those that keep its team able to fill every slot (all, with room). */
     draftKeeps(state: LeagueState, mine: string[], candidates: string[], left: number): string[];
+  };
+  /** Step 2.4 (docs/PLAN-sports-ready.md): injured reserve, the spec's get.ir. Each write returns why it was refused, or null. */
+  IrLogic: {
+    config(state: LeagueState): import("./game-spec/index.js").DraftIr | null;
+    on(state: LeagueState): boolean;
+    places(state: LeagueState): number;
+    moves(state: LeagueState): import("./types").IrMove[];
+    onFor(state: LeagueState, playerId: string, episodeNumber: number): Set<string>;
+    onNow(state: LeagueState, playerId: string): Set<string>;
+    onAt(state: LeagueState, playerId: string, t: number): Set<string>;
+    eligible(state: LeagueState, castawayId: string): boolean;
+    healthy(state: LeagueState, playerId: string): string[];
+    addProblem(state: LeagueState, playerId: string): string | null;
+    openSpots(state: LeagueState, playerId: string): number;
+    placeProblem(state: LeagueState, playerId: string, castawayId: string, now?: number): string | null;
+    place(state: LeagueState, playerId: string, castawayId: string, now?: number): string | null;
+    backProblem(state: LeagueState, playerId: string, castawayId: string, dropId: string | null, now?: number): string | null;
+    back(state: LeagueState, playerId: string, castawayId: string, dropId: string | null, now?: number): string | null;
+    dropProblem(state: LeagueState, playerId: string, castawayId: string, now?: number): string | null;
+    drop(state: LeagueState, playerId: string, castawayId: string, now?: number): string | null;
   };
   /** Step A10 part 3: names out of a hat (the spec's get.order 'draw'), seeded and recorded in state.draw. */
   DrawLogic: {

@@ -18,7 +18,8 @@
       { "slot": "D", "n": 4, "takes": ["D"] },
       { "slot": "G", "n": 2, "takes": ["G"] }
     ],
-    "bench": 4
+    "bench": 4,
+    "ir": { "source": "Yahoo's default roster's 2 IR, outside its 16, for someone on the NHL's injured reserve only (its IR+, which takes DTD and O too, isn't in the default) (help.yahoo.com/kb/SLN6815.html, SLN6425.html, 2026-11-20)", "n": 2, "takes": ["IR"] }
   },
   "closes": "daily",
   "specs": {

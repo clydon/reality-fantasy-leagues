@@ -26,7 +26,7 @@ const Spec = require("./game-spec/index.js");
 
 const {
   Core, DraftLogic, BlindDraftLogic, AuctionLogic, BudgetLogic, PriceLogic, MarketLogic, ActiveRosterLogic, PickEmLogic, MidSeasonLogic,
-  KeeperLogic, EpisodeLogic, FinaleLogic, GroupSlotLogic, KnockoutLogic, PoolLogic, piecesOf, inPlay, closedForPlay,
+  KeeperLogic, EpisodeLogic, FinaleLogic, GroupSlotLogic, KnockoutLogic, PoolLogic, IrLogic, piecesOf, inPlay, closedForPlay,
   currentEpisode, finalePredictionsAvailable, seasonWinner,
 } = StateLogic;
 
@@ -319,9 +319,39 @@ function sitsOut(state, ep, id) {
   return !!games && typeof games === "object" && Object.keys(games).length > 0 && !(games[id] || []).length;
 }
 
+// Step 2.4 (docs/PLAN-sports-ready.md): a computer player's IR, in a game with it. Someone its roster lists as the IR takes goes on
+// it while there's a place (its best first), so the open spot takes a free agent at its next waiver claim (waiverClaim). Someone on
+// it who's healthy again comes back, so its adds never block: into an open spot, else dropping whoever it rates lowest of them and
+// its roster (the healthy one himself, when that's him). A move the lock refuses (a starter whose game has started) waits for the
+// next run. Returns how many moves it made.
+function irMoves(state) {
+  if (!IrLogic.on(state)) return 0;
+  const outs = KnockoutLogic.outs(state);
+  let made = 0;
+  botIds(state).forEach((pid) => {
+    if (outs.has(pid)) return;
+    for (const id of IrLogic.healthy(state, pid)) {
+      if (!IrLogic.back(state, pid, id, null)) { made++; continue; }
+      const on = IrLogic.onNow(state, pid);
+      const roster = state.castaways.filter((c) => c.status === "active" && (c.ownerIds || []).includes(pid) && !on.has(c.id)).map((c) => c.id);
+      const worst = ranked(state, pid, [...roster, id], "value").reverse();
+      for (const d of worst) {
+        const done = d === id ? IrLogic.drop(state, pid, id) : IrLogic.back(state, pid, id, d);
+        if (!done) { made++; break; }
+      }
+    }
+    const on = IrLogic.onNow(state, pid);
+    const hurt = state.castaways.filter((c) => (c.ownerIds || []).includes(pid) && !on.has(c.id) && IrLogic.eligible(state, c.id)).map((c) => c.id);
+    for (const id of ranked(state, pid, hurt, "value")) if (!IrLogic.place(state, pid, id)) made++;
+  });
+  return made;
+}
+
 // One bot's lineup (and captain) for `ep`, on `state`: the league's, or a catching-up bot's own copy (catchUpTo).
 function lineupFor(state, ep, pid, slots) {
-  const mine = state.castaways.filter((c) => c.status === "active" && (c.ownerIds || []).includes(pid)).map((c) => c.id);
+  // Step 2.4: never anyone on IR for the episode (validateLineup refuses them).
+  const ir = IrLogic.onFor(state, pid, ep.number);
+  const mine = state.castaways.filter((c) => c.status === "active" && (c.ownerIds || []).includes(pid) && !ir.has(c.id)).map((c) => c.id);
   if (!mine.length) return 0;
   // Cast properties (chunk 5): the best lineup the slots take (a QB in the QB slot), else the top `slots`. Step 2.3: anyone out or
   // with no game only where nobody else can fill their slot (they score nothing either way).
@@ -476,6 +506,9 @@ function waiverClaim(state, playerId, period) {
   // the dearest, refused for want of cash), so a castaway whose price has run ahead of how they rate them pays for one who hasn't.
   const market = MarketLogic.on(state);
   const affords = (a, d) => !market || !MarketLogic.moveProblem(state, playerId, d, a, prices);
+  // Step 2.4: an open spot (someone on IR) takes the best free agents first, dropping nobody, each a swap's worth.
+  const open = Math.min(IrLogic.openSpots(state, playerId), swapsLeft);
+  if (open > 0 && !IrLogic.addProblem(state, playerId)) ranked(state, playerId, offeredFor("swap"), "value").slice(0, open + 2).forEach((a) => push(a, null));
   if (owed.count) {
     const reps = ranked(state, playerId, offeredFor("replace"), "value");
     if (market) owed.outIds.forEach((d) => reps.filter((a) => affords(a, d)).slice(0, owed.count + 2).forEach((a) => push(a, d)));
@@ -526,7 +559,7 @@ function run(state) {
   if (!state.players.some(isBot)) return 0;
   let total = 0;
   for (let pass = 0; pass < 5; pass++) {
-    const made = snakeDraft(state) + lineups(state) + groupSlotPicks(state) + eliminatorPicks(state) + finalePicks(state) + squarePicks(state);
+    const made = snakeDraft(state) + irMoves(state) + lineups(state) + groupSlotPicks(state) + eliminatorPicks(state) + finalePicks(state) + squarePicks(state);
     total += made;
     if (!made) break;
   }

@@ -414,6 +414,8 @@ export interface LeagueSettings {
   draftAcross?: import("./game-spec/index.js").DraftAcross;
   /** Cast properties (chunk 4): what a team needs, as the spec says it (get.needs). */
   draftNeeds?: import("./game-spec/index.js").DraftNeed[];
+  /** Step 2.4 (docs/PLAN-sports-ready.md): injured reserve, as the spec says it (get.ir). */
+  draftIr?: import("./game-spec/index.js").DraftIr;
   /** Cast properties (chunk 5): a lineup's or best ball's slots, as the spec says them (count.slots). */
   lineupSlots?: import("./game-spec/index.js").LineupSlot[];
   /** Step A10 part 3b, each absent unless a game says it: an auction (get.order 'auction'), and a draft's prices (get.budget: an
@@ -1006,13 +1008,27 @@ export interface DraftLogEntry {
   filled?: boolean;
 }
 
+/** Step 2.4 (docs/PLAN-sports-ready.md): a move on or off IR (StateLogic.IrLogic), stamped as a MidSeasonLogEntry is: `episode`
+ *  the latest with results then, `seen` a seat's own mark past it, `tx` the mid-season move whose drop took them off it. */
+export interface IrMove {
+  id: string;
+  playerId: string;
+  castawayId: string;
+  on: boolean;
+  episode: number | null;
+  at: string;
+  seen?: number;
+  tx?: string;
+}
+
 // A completed pickup (replenish) or add/drop (trade): Transactions. MidSeasonLogic.applyPickup /
 // applyAddDrop append one of these; only Undo last waiver run and the spoiler views take one back.
 export interface MidSeasonLogEntry {
   id: string;
   type: "replenish" | "trade";
   playerId: string;
-  addedCastawayId: string;
+  /** Null for a drop on its own (step 2.4, a game with IR: IrLogic), as `droppedCastawayId` is for an add into an open spot. */
+  addedCastawayId: string | null;
   droppedCastawayId: string | null;
   at: string;
   /** The most recent episode with results as of the transaction (state-logic.js's
@@ -1025,7 +1041,7 @@ export interface MidSeasonLogEntry {
   seen?: number;
   /** Waivers (docs/PLAN-midseason-waivers.md): how it was made -- processed claims, free agency, or
    * assigned when a pickup was still unfilled at airtime. Absent on live-round moves. */
-  via?: "waivers" | "freeAgency" | "auto";
+  via?: "waivers" | "freeAgency" | "auto" | "ir";
   /** The waiver week it belongs to. */
   periodId?: string;
   /** A stock market (step A10 part 3c): what the move sold for and paid, at the prices then, and its fee (the cash ledger). */
@@ -1035,7 +1051,7 @@ export interface MidSeasonLogEntry {
   /** The castaway fields the move overwrote, as they were (only keys they had), so it can be undone
    * exactly (MidSeasonLogic.revert). */
   prev?: {
-    added: { acquiredVia?: string | null };
+    added: { acquiredVia?: string | null } | null;
     dropped: { replenishClaimed?: boolean; formerOwnerId?: string | null; departedVia?: string | null } | null;
   };
 }
@@ -1131,6 +1147,8 @@ export interface WaiverPeriod {
 /** "Add X, drop Y": one ranked line of a claim. Dropping someone out of the game replaces them; still in, swaps them. */
 export interface WaiverPair {
   addId: string;
+  /** The engine also takes null here (step 2.4, a game with IR: an add into an open spot, WaiverLogic.pairsOf); the claim screens
+   *  don't make one yet (docs/PLAN-sports-ready.md 4.2). */
   dropId: string;
 }
 
@@ -1180,6 +1198,8 @@ export interface LeagueState {
     priority?: string[];
     /** Waivers: every waiver week, oldest first. */
     waivers?: { periods: WaiverPeriod[] };
+    /** Step 2.4 (docs/PLAN-sports-ready.md): moves on and off IR, oldest first (StateLogic.IrLogic). */
+    ir?: IrMove[];
   };
   draftOrder: string[];
   draftPicksMade: number;

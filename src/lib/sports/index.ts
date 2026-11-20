@@ -109,7 +109,9 @@ export interface SportDefaults {
   /** `eligible` (step 2.3): a player fills the other positions their roster lists them at (ESPN's `positions`, the ones they've
    *  played), each in their own position group, and those named in `across` in another group too (baseball's SP: a two-way
    *  player). Without it a player fills their roster's one position. */
-  slots: { source: string; lineup: DefaultSlot[]; bench: number; squad?: Record<string, number>; eligible?: { source: string; across: string[] } };
+  /** `ir` (step 2.4): injured reserve on its season games, as the spec's get.ir: `n` places outside the roster's count, each for
+   *  someone their roster lists as one of `takes` (ESPN's injury codes as espn.ts injuryOf tags them). */
+  slots: { source: string; lineup: DefaultSlot[]; bench: number; squad?: Record<string, number>; eligible?: { source: string; across: string[] }; ir?: { source: string; n: number; takes: string[] } };
   closes: LockCadence;
   /** `on`: the season a spec plays on, where it isn't any (L8 part 1's engine items, part 2: a bracket of the playoffs is a
    *  league's playoffs slate's: specContextOf's `playoffs`). */
@@ -177,11 +179,15 @@ function withLineupSlots(d: SportDefaults): SportDefaults {
   if (had) return had;
   const total = d.slots.lineup.reduce((n, s) => n + s.n, 0);
   const slots = d.slots.lineup.map((s) => ({ label: s.slot, of: "position", values: [...s.takes], n: s.n }));
+  // Step 2.4 (docs/PLAN-sports-ready.md): its IR places on each such game with a draft (a season's).
+  const ir = d.slots.ir ? { n: d.slots.ir.n, takes: [...d.slots.ir.takes] } : null;
   const specs = Object.fromEntries(
     Object.entries(d.specs).map(([id, x]) => {
       const c = (x.spec as { count?: { start?: number; best?: number } }).count;
       const fits = c && (c.start === total || c.best === total);
-      return [id, fits ? { ...x, spec: { ...x.spec, count: { ...c, slots } } } : x];
+      const get = (x.spec as { get?: { by?: string } }).get;
+      const withIr = ir && get?.by === "draft" ? { get: { ...get, ir } } : {};
+      return [id, fits ? { ...x, spec: { ...x.spec, count: { ...c, slots }, ...withIr } } : x];
     })
   );
   const out = { ...d, specs };

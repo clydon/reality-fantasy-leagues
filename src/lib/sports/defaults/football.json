@@ -28,7 +28,8 @@
       { "slot": "K", "n": 1, "takes": ["PK"] },
       { "slot": "DEF", "n": 1, "takes": ["DEF"] }
     ],
-    "bench": 6
+    "bench": 6,
+    "ir": { "source": "Yahoo's default roster's 2 IR, outside its 15; its football IR takes IR, O (Out) and PUP (and NFI, which ESPN's rosters don't list); not Q, D or suspended (help.yahoo.com/kb/SLN6489.html, SLN6425.html, 2026-11-20)", "n": 2, "takes": ["IR", "O", "PUP"] }
   },
   "closes": "weekly",
   "specs": {
