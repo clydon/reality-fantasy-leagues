@@ -57,13 +57,14 @@ export function LiveStory({ game }: { game: string }) {
       .then(async (r) => {
         const body = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(r.status === 401 ? "Sign in first: a preview is made for you." : body.error || `It didn't work (${r.status})`);
-        return body as LivePass;
+        return body as { id: string; entry: string };
       })
       .then((m) => {
         if (gone) return void fetch(`/api/preview-live/${m.id}`, { method: "DELETE", keepalive: true });
+        // Its way in is used once: the preview host spends it, signs in as the preview's viewer and opens the story.
         const host = `${window.location.protocol}//preview.${window.location.host}`;
         const to = `/start/preview-story/live/${m.id}`;
-        window.location.replace(`${host}/api/preview-live/enter?p=${m.id}&e=${m.expires}&t=${encodeURIComponent(m.pass)}&to=${encodeURIComponent(to)}`);
+        window.location.replace(`${host}/api/preview-live/enter?w=${encodeURIComponent(m.entry)}&to=${encodeURIComponent(to)}`);
       })
       .catch((e: Error) => !gone && setError(e.message))
       .finally(() => clearInterval(tick));
@@ -75,22 +76,20 @@ export function LiveStory({ game }: { game: string }) {
   return <Making game={game} error={error} secs={secs} onRetry={() => { setError(null); setSecs(0); setTries((n) => n + 1); }} />;
 }
 
-/** On the preview host, as the preview's viewer: its story, read with the pass, its screens live. */
+/** On the preview host, as the preview's viewer (signed in by its way in): its story, its screens live. */
 export function LiveStoryShow({ id }: { id: string }) {
   const [story, setStory] = useState<{ preview: Preview & { complete?: boolean; failed?: string | null }; pass: LivePass } | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    const q = new URLSearchParams(window.location.search);
-    const pass: LivePass = { id, expires: Number(q.get("e")), pass: q.get("t") ?? "" };
-    const url = `/api/preview-live/${id}?e=${pass.expires}&t=${encodeURIComponent(pass.pass)}`;
+    const url = `/api/preview-live/${id}`;
     let timer: ReturnType<typeof setTimeout> | null = null;
     // The first moment is there at once; the rest land while you look: ask again until they all have (and what's typical).
     const read = () =>
       fetch(url)
         .then(async (r) => {
           const body = await r.json().catch(() => ({}));
-          if (!r.ok) throw new Error(r.status === 403 ? "This preview has ended. Make another from the game." : body.error || `It didn't work (${r.status})`);
-          setStory({ preview: body as Preview & { complete?: boolean }, pass });
+          if (!r.ok) throw new Error(r.status === 403 || r.status === 401 ? "This preview has ended. Make another from the game." : body.error || `It didn't work (${r.status})`);
+          setStory({ preview: body as Preview & { complete?: boolean }, pass: { id, expires: Number(body.expires) } });
           if (!body.complete) timer = setTimeout(read, 1000);
         })
         .catch((e: Error) => setError(e.message));

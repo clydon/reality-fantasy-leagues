@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { username, admin } from "better-auth/plugins";
+import { previewSession } from "./preview-session";
 import { Pool } from "pg";
 import { isPlaceholderEmail } from "@/lib/no-email";
 import { signupModeOf } from "@/lib/signups";
@@ -132,6 +133,8 @@ export const auth = betterAuth({
     // (leagues/memberships) still need custom routes; this plugin has no concept of a league.
     // A stopped account (the desk's Stop them signing in: its ban) is told so plainly at sign-in.
     admin({ bannedUserMessage: "This account can't sign in right now." }),
+    // A live preview's made-up viewer signed in by the server (preview-session.ts): on the preview service and in development only.
+    ...(process.env.NODE_ENV !== "production" || process.env.PREVIEW_SERVICE === "1" ? [previewSession()] : []),
   ],
 });
 

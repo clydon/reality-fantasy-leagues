@@ -156,10 +156,21 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
    split, quote, seal, bank, props, trivia, host), bingo, bingo with trivia, two halves, and a redraft at a format change.
 3. **The registry in the service's database** (a `live_previews` table: id, owner key, expiry, the viewer, the copies, the story as it
    fills in, complete or failed), since serverless instances don't share memory. Checked: two instances read one preview.
+   **Done (2026-11-19).** `db/migrations/0442_live_previews.sql` (`live_previews`: the owner as an opaque key, the made-up viewer,
+   the story as it fills in, the copies, until when; `live_preview_entries`: ways in, kept as hashes); `preview-live.ts` saves each
+   copy's landing there, reads and closes by the session asking, and sweeps by taking rows (`DELETE ... RETURNING`, so two
+   instances never remove one preview twice). A story closed before its last copy landed has those removed when they land. Every
+   read is the database's, so any instance answers alike (one dev server shows it; a second instance is step 16's).
 4. **Sign-in minted by the service** for the preview's viewer (Better Auth's own session for that user), no password at all, and **a
    way in used once**: the app asks the service for it each time its owner opens or reopens the preview (decision 6), so a copied
    link opens nothing (today's pass is good until the preview expires). Checked: the enter route signs in without a password; an
    expired, used or another preview's way in is refused.
+   **Done (2026-11-19).** `src/lib/preview-session.ts`: a Better Auth endpoint marked server-only (its router never serves those),
+   called as `auth.api.previewSession`, minting a session for a preview's made-up person only (the live tier's usernames), registered
+   in development and on the preview service only. The enter route spends a way in (`?w=`, one use, two minutes, the story's own
+   address) and signs the viewer in with it; the maker's per-preview password is the maker's alone and never kept. The story asks
+   for nothing but its session. Checked end to end on all three games: the way in a second time is refused (403), the story to a
+   browser that isn't its viewer too (401), and nothing is left after (no rows, ways in, people or sessions).
 5. **The live tier's guard**: today "a local database only"; then "a local database, or one marked as a preview database"
    (`PREVIEW_SERVICE=1`), and it refuses the production database by its host whatever the flag says. Checked both ways.
 6. **The runtime shipped with the service's routes** (`outputFileTracingIncludes` for `tools/gameplay-bench/**` and the engine), and

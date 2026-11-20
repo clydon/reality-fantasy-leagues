@@ -199,9 +199,9 @@ export interface RingSpec {
   within?: string;
   union?: boolean;
 }
-/** An on-demand preview's pass (src/lib/server/preview-live.ts): its story runs on the preview host as the preview's own viewer, and
+/** An on-demand preview (src/lib/server/preview-live.ts): its story runs on the preview host as the preview's own viewer, and
  *  each screen is the app itself on that same host, live. */
-export interface LivePass { id: string; expires: number; pass: string }
+export interface LivePass { id: string; expires: number }
 const Live = createContext<LivePass | null>(null);
 
 /** The boxes a ring goes round, in the screen's own CSS pixels (the phone's 390 x 844), on a live page. */

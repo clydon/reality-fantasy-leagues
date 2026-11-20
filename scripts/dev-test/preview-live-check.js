@@ -44,6 +44,9 @@ async function account(db) {
     // A couch of their own: a preview reads the season as the couch the game would be made on sees it (preview-definition.ts).
     const c = await page.context().request.post(BASE + "/api/couches", { data: { name: "zt-pv couch" }, headers: { origin: BASE } });
     if (!c.ok()) throw Error("couch failed " + c.status());
+    // The way into the story (used once), as the page is sent to it.
+    let entered = null;
+    page.on("request", (q) => { if (q.url().includes("/api/preview-live/enter")) entered = q.url(); });
     const t0 = Date.now();
     await page.goto(`${BASE}/start/preview-story/live?game=${GAME}`, { waitUntil: "domcontentloaded" });
     await page.screenshot({ path: path.join(OUT, `${GAME}-0-making.png`) });
@@ -61,6 +64,14 @@ async function account(db) {
     const storyHost = new URL(page.url()).host;
     const phoneMe = await page.evaluate(async () => (await (await fetch("/api/me")).json()).user?.username ?? null).catch(() => null);
     const ownMe = await (await page.context().request.get(BASE + "/api/me")).json().then((j) => j.user?.username ?? null).catch(() => null);
+    // Nobody else gets in: the way in a second time, and the story asked by a browser that isn't its viewer.
+    // (A page of its own: the browser resolves preview.localhost, Node doesn't.)
+    const stranger = await browser.newContext(), sp = await stranger.newPage();
+    const again = entered ? (await sp.goto(entered).catch(() => null))?.status() ?? null : null;
+    const storyId = new URL(page.url()).pathname.split("/").pop();
+    const peek = await sp.evaluate(async (u) => (await fetch(u)).status, `${new URL(page.url()).origin}/api/preview-live/${storyId}`).catch(() => null);
+    await stranger.close();
+    console.log(`refused: the way in again ${again} (${again === 403 ? "used once" : "WRONG"}), the story to a stranger ${peek} (${peek === 401 || peek === 403 ? "refused" : "WRONG"})`);
     console.log(`made and shown at ${made} s, first phone ready at ${shown} s · the story is on ${storyHost} as ${phoneMe} (${phoneMe && phoneMe !== me.username ? "the preview's viewer" : "WRONG"}) · the app's own host is still ${ownMe} (${ownMe === me.username ? "the account's own" : "WRONG"})`);
     // Each card, each step of its path.
     const cards = await page.locator("[data-progress]").count();
