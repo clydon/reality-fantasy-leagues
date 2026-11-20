@@ -68,11 +68,40 @@ async function drop(rows: { id: string; copies: string[] }[]) {
   for (const r of rows) await down({ copies: r.copies }).catch((e: unknown) => console.error(`[preview-live] ${r.id}:`, e));
 }
 
+/** The longest a preview lives (kept while its game is made: a day; decision 6), and a margin: any copy older is the sweep's. */
+export const STALE_HOURS = 26;
+/** The live tier itself (its stale-copy sweep), loaded as the maker is. */
+function tier() {
+  return createRequire(path.join(process.cwd(), "package.json"))("./tools/gameplay-bench/live-db.cjs") as {
+    downStale: (olderThanMs: number, keep: Set<string>) => Promise<string[]>;
+  };
+}
+
 /** Expired previews' copies, removed (each new preview sweeps first; the hourly job too: step 7). */
 export async function sweepLivePreviews(): Promise<number> {
   const { rows } = await pool.query(`DELETE FROM live_previews WHERE COALESCE(kept_until, expires_at) <= now() RETURNING id, copies`);
   await drop(rows);
   return rows.length;
+}
+
+/**
+ * The full sweep (the open route the hourly job calls, step 7): expired previews, then any copy older than STALE_HOURS that no
+ * preview still holds, registered or not (a maker that failed once left 43 behind before the registry learned to remove them).
+ * At most once a minute, whoever asks: the last sweep's time is kept in app_settings, taken in one statement.
+ */
+export async function sweepAll(): Promise<{ swept: boolean; expired: number; stale: number }> {
+  serviceOnly();
+  const { rowCount } = await pool.query(
+    `INSERT INTO app_settings (key, value, updated_at) VALUES ('live_previews_swept', 'true'::jsonb, now())
+       ON CONFLICT (key) DO UPDATE SET updated_at = now() WHERE app_settings.updated_at < now() - interval '1 minute'`
+  );
+  if (!rowCount) return { swept: false, expired: 0, stale: 0 };
+  const expired = await sweepLivePreviews();
+  const { rows } = await pool.query(`SELECT copies FROM live_previews`);
+  const keep = new Set<string>(rows.flatMap((r) => r.copies as string[]));
+  const stale = await tier().downStale(STALE_HOURS * 3600_000, keep);
+  if (expired || stale.length) console.log(`[preview-live] swept ${expired} expired, ${stale.length} stale`);
+  return { swept: true, expired, stale: stale.length };
 }
 
 /** Development's season when none is asked for: Survivor 51 in this database (the first slice's). */

@@ -13,6 +13,8 @@
 #   AUTH_DATABASE_URL   -- the production database.
 #   NEXT_PUBLIC_VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT -- the same Web Push keys the app uses (Vercel env).
 #                          Without them both steps run and send nothing.
+# And, for the live previews' sweep, this repository variable (not a secret: the address is public):
+#   PREVIEW_SERVICE_URL -- the preview service's address (docs/PLAN-preview-release.md, step 7). Unset, the step is skipped.
 name: Reminders and waivers
 
 on:
@@ -51,3 +53,10 @@ jobs:
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
           VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
         run: node db/waivers.js
+
+      # Live previews' sweep (docs/PLAN-preview-release.md, step 7): any preview past its time goes, and any copy older than the
+      # longest a preview lives, even one the registry never knew. The route is open (it only removes what's due) and does it at
+      # most once a minute; nothing here needs the service's database.
+      - name: Sweep live previews
+        if: ${{ !cancelled() && vars.PREVIEW_SERVICE_URL != '' }}
+        run: curl -fsS -X POST "${{ vars.PREVIEW_SERVICE_URL }}/api/preview-live/sweep"

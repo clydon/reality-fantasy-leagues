@@ -352,8 +352,9 @@ async function down(key, dbUrl) {
   const groups = (await db.query(`SELECT DISTINCT group_id FROM leagues WHERE slug LIKE $1 AND group_id IS NOT NULL`, [like])).rows.map(r => r.group_id);
   await db.query(`DELETE FROM leagues WHERE slug LIKE $1`, [like]);
   if (groups.length) await db.query(`DELETE FROM league_groups WHERE id = ANY($1::uuid[])`, [groups]);
-  // A copy that shares another case's people (up's opts.users) has none of its own: its couch is any bench person's.
-  await db.query(`DELETE FROM couches WHERE name = $1 AND (created_by = ANY($2::text[]) OR created_by IN (SELECT id FROM "user" WHERE username ~ '_ztgb[0-9a-f]{8}[0-9]{1,2}$'))`, ['ZT Bench ' + key, users]);
+  // A copy that shares another case's people (up's opts.users) has none of its own: its couch is any bench person's, or one whose
+  // maker is gone already (the case holding the people removed first, as a story closed partway removes it).
+  await db.query(`DELETE FROM couches c WHERE c.name = $1 AND (c.created_by = ANY($2::text[]) OR c.created_by IN (SELECT id FROM "user" WHERE username ~ '_ztgb[0-9a-f]{8}[0-9]{1,2}$') OR NOT EXISTS (SELECT 1 FROM "user" u WHERE u.id = c.created_by))`, ['ZT Bench ' + key, users]);
   await db.query(`DELETE FROM shows WHERE slug LIKE $1`, [like]);
   // A sports case's games (shared rows, no cascade: the header). (A worktree's database from before the sports tables has none.)
   if (await hasSports(db)) await db.query(`DELETE FROM sports_events WHERE provider = $1 AND event_id LIKE $2`, [PROVIDER, like]);
@@ -368,8 +369,22 @@ async function downAll(dbUrl) {
   for (const key of keys) if (/^[0-9a-f]{8}$/.test(key)) await down(key, dbUrl);
   return [...keys];
 }
+/**
+ * Remove every case older than `olderThanMs` but those in `keep` (a live preview's sweep, docs/PLAN-preview-release.md step 7: any
+ * copy older than the longest a preview lives goes, whether the registry knows it or not). A case's age is its show's (every case
+ * writes one), its people's or its couch's. Returns the keys removed.
+ */
+async function downStale(olderThanMs, keep = new Set(), dbUrl) {
+  const db = await checked(dbUrl || undefined), secs = Math.max(0, Math.round(olderThanMs / 1000));
+  const keys = new Set((await db.query(`SELECT slug FROM shows WHERE slug LIKE 'zt-gb-%' AND created_at < now() - make_interval(secs => $1)`, [secs])).rows.map(r => r.slug.split('-')[2]));
+  for (const r of (await db.query(`SELECT username FROM "user" WHERE username ~ '_ztgb[0-9a-f]{8}[0-9]{1,2}$' AND "createdAt" < now() - make_interval(secs => $1)`, [secs])).rows) keys.add(r.username.match(/_ztgb([0-9a-f]{8})\d+$/)[1]);
+  for (const r of (await db.query(`SELECT name FROM couches WHERE name ~ '^ZT Bench [0-9a-f]{8}$' AND created_at < now() - make_interval(secs => $1)`, [secs])).rows) keys.add(r.name.slice(9));
+  const gone = [...keys].filter(k => /^[0-9a-f]{8}$/.test(k) && !keep.has(k));
+  for (const key of gone) await down(key, dbUrl);
+  return gone;
+}
 const close = async () => { const all = [...pools.values()]; pools.clear(); await Promise.all(all.map(p => p.end())); };
-module.exports = { up, sync, seedSocial, read, castNames, down, downAll, close, PASSWORD, PROVIDER, released, _guard: { allowed, marked } };
+module.exports = { up, sync, seedSocial, read, castNames, down, downAll, downStale, close, PASSWORD, PROVIDER, released, _guard: { allowed, marked } };
 
 if (require.main === module) {
   // down-all: this checkout's database and every worktree's (cases may have rendered in a worktree's app).

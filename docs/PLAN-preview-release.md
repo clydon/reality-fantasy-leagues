@@ -192,6 +192,14 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
    longest a preview lives (a day, decision 6), registered or not: in development a maker that failed after writing its copies left 43 cases behind
    before the registry learned to remove them. Checked: a forgotten preview is gone within the hour; nothing left after a hundred,
    including ones made to fail partway.
+   **Done (2026-11-19).** `POST /api/preview-live/sweep` (`preview-live.ts` `sweepAll`): previews past their time, then any copy
+   older than 26 hours that no preview holds (`live-db.cjs` `downStale`: by its show's, people's or couch's age), at most once a
+   minute whoever asks (the last sweep's time in `app_settings`, taken in one statement). The hourly job's step calls it once the
+   repository variable `PREVIEW_SERVICE_URL` is set. `scripts/dev-test/preview-sweep-check.js`: 78 copies (5 previews past their
+   time, 8 orphans a day old, some stopped partway, one fresh orphan) swept to the fresh one's alone, a second sweep inside the
+   minute did nothing, and nothing left after. Found on the way: a copy sharing another's people left its couch behind when that
+   other went first (as a story closed partway removes it): 95 such couches and 8 copies from this session's own checks, removed;
+   `down` now takes a bench couch whose maker is gone.
 8. **The allowance, the budget and errors**: the daily allowance, counted in the app's database (a `preview_uses` row each time one is
    made) and shown as "previews left", the overall cap, and the monthly budget, the service adding up what each preview costs it
    (decision 4); the story's states for a service that's down, a preview that failed partway (the moments made so far stay), one
