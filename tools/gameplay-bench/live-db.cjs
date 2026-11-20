@@ -34,6 +34,8 @@
 // Nor the Players tab's stat tables (game_lines: the season's stats fill, from a provider's box score in its own columns).
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env.local'), quiet: true });
 const crypto = require('crypto');
+// The spec and the engine (a game's card: its choices filed where the server reads them).
+const G = require('../../src/lib/game/game-spec'), S = require('../../src/lib/game/state-logic.js');
 const PASSWORD = 'zt-pass-12345';
 // Where it may write (docs/PLAN-preview-release.md, step 5): a local database (this checkout's by default, or a worktree's when a case
 // renders in that worktree's app); or, on the preview service (PREVIEW_SERVICE=1), a database that says it's a preview database
@@ -66,6 +68,9 @@ async function checked(url = process.env.AUTH_DATABASE_URL || '') {
   return db;
 }
 const keyOf = () => crypto.randomBytes(4).toString('hex');
+/** A trivia question's id in one copy: a UUID from the copy's key and the world's own id for it (each copy files its rounds apart). */
+const triviaId = (key, id) => { const h = crypto.createHash('sha256').update(key + '|' + id).digest('hex'); return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20, 32)}`; };
+const J = { object: v => v !== null && typeof v === 'object' && !Array.isArray(v) };
 const slugOf = (key, ...parts) => ['zt-gb', key, ...parts].join('-');
 const usernameOf = (key, i, name) => ((name || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12) || 'p') + '_ztgb' + key + i;
 const released = e => ['partial', 'final', 'corrected', 'postponed', 'cancelled'].includes(e.resultStatus);
@@ -242,8 +247,23 @@ async function sync(ids, snap, document, shiftMs) {
       const showId = (await client.query(`SELECT show_id FROM show_seasons WHERE id = $1`, [season.id])).rows[0].show_id;
       await client.query(`DELETE FROM episode_research WHERE show_id = $1`, [showId]);
       for (const f of world.facts) {
-        const e = world.events.find(x => x.id === f.eventId), payload = e && released(e) && !sport ? require('./explorer/runtime-data.cjs').researchOf(world, f.data, e.number) : null;
+        const e = world.events.find(x => x.id === f.eventId);
+        let payload = e && released(e) && !sport ? require('./explorer/runtime-data.cjs').researchOf(world, f.data, e.number) : null;
+        // Research's facts on the episode (a world's bank: who says the title quote), as episode-facts.ts reads them.
+        const tq = e && released(e) && f.data.episodeFacts?.titleQuote;
+        if (tq) payload = { ...(payload || {}), episodeFacts: { titleQuote: tq.state === 'who' ? { isQuote: 'yes', line: 'You have to play the game', by: tq.name || name.get(tq.who), sure: 'high' } : { isQuote: 'no', line: null, by: null, sure: 'high' } } };
         if (payload) await client.query(`INSERT INTO episode_research (show_id, season_number, episode_number, payload, provenance, source) VALUES ($1, $2, $3, $4, $5, 'combined')`, [showId, season.number, e.number, JSON.stringify(payload), JSON.stringify({ source: 'zt-gameplay-bench' })]);
+      }
+      // The trivia round written after each episode (a world's bank), as the bot's trivia research files it (trivia_questions, 0140:
+      // live, made after the episode, before the next one's start, which is the round's lock: trivia-key.ts reads it as it stood then).
+      await client.query(`DELETE FROM trivia_questions WHERE season_id = $1`, [season.id]);
+      for (const f of world.facts) {
+        const e = world.events.find(x => x.id === f.eventId);
+        if (!e || !released(e) || !Array.isArray(f.data.trivia)) continue;
+        const at = new Date(Date.parse(e.airAt) + shiftMs + 3 * 3600000).toISOString();
+        // (Each with an id of its own: the round's answers are keyed by it. Every copy of a world has the same rounds, so each files
+        // them under ids made from its own key (triviaId), and its answers to them say the same: game_answers, below.)
+        for (const t of f.data.trivia) await client.query(`INSERT INTO trivia_questions (id, season_id, made_after, episode, kind, question, options, answer, source, status, created_at) VALUES ($8, $1, $2, $2, $3, $4, $5, $6, 'zt-gameplay-bench', 'live', $7)`, [season.id, e.number, t.kind === 'person' ? 'cast' : t.kind === 'number' ? 'number' : 'text', t.question, JSON.stringify(t.options), t.answer, at, triviaId(ids.key, t.id)]);
       }
       for (const m of world.marks) {
         const user = ids.users[m.personId].id;
@@ -270,7 +290,12 @@ async function sync(ids, snap, document, shiftMs) {
       for (const [periodId, week] of Object.entries(snap.stores.waivers?.[game.id]?.weeks || {})) for (const [playerId, x] of Object.entries(week).sort(([, a], [, b]) => a.seq - b.seq))
         await client.query(`INSERT INTO waiver_claims (league_id, period_id, player_id, pairs, pickup_ids, drop_id, add_ids, updated_at) VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7::jsonb, now() + make_interval(secs => $8))`, [league, periodId, playerId, JSON.stringify(x.claim.pairs), JSON.stringify(x.claim.pickupIds || []), x.claim.dropId || null, JSON.stringify(x.claim.addIds || []), x.seq / 1000]);
       await client.query(`DELETE FROM game_answers WHERE league_id = $1`, [league]);
-      for (const r of snap.stores.answers[game.id] || []) await client.query(`INSERT INTO game_answers (league_id, player_id, question, episode, answer, answered_by) VALUES ($1, $2, $3, $4, $5, $6)`, [league, r.playerId, r.question, r.episode, JSON.stringify(r.answer), ids.users[r.playerId]?.id || null]);
+      const trivia = new Set(G.askOf(G.fullSpec(game.spec)).filter(q => G.isTrivia(q)).map(q => q.id));
+      for (const r of snap.stores.answers[game.id] || []) {
+        // A trivia round's answer is keyed by its questions' ids: this copy's own (triviaId), as its rows are filed.
+        const answer = trivia.has(r.question) && J.object(r.answer) ? Object.fromEntries(Object.entries(r.answer).map(([id, o]) => [triviaId(ids.key, id), o])) : r.answer;
+        await client.query(`INSERT INTO game_answers (league_id, player_id, question, episode, answer, answered_by) VALUES ($1, $2, $3, $4, $5, $6)`, [league, r.playerId, r.question, r.episode, JSON.stringify(answer), ids.users[r.playerId]?.id || null]);
+      }
       // Secret roles: the deal (secret_role_deals), the runtime's (seeded from the game's id), replacing any the server made on a read
       // (its seed is random); none yet, none. The stamps travel with the state. Cascades with the league.
       if (snap.stores.roles && game.id in snap.stores.roles) {
@@ -283,6 +308,20 @@ async function sync(ids, snap, document, shiftMs) {
       if (snap.stores.twists?.[game.id]) {
         await client.query(`DELETE FROM twist_choices WHERE league_id = $1`, [league]);
         for (const [n, r] of Object.entries(snap.stores.twists[game.id])) await client.query(`INSERT INTO twist_choices (league_id, episode, player_id, twist, filed, how) VALUES ($1, $2, $3, $4, $5, $6)`, [league, Number(n), r.playerId, r.twist, !!r.filed, r.how]);
+      }
+      // A card the bot chooses or a host writes: each episode's choice the runtime stamped (stampAllCards), filed where the server reads
+      // it (card_choices, the season's, by a stand-in; host_cards, the league's), so its stamp on every read is the runtime's.
+      const card = G.cardOf(S.gameOf(snap.games[game.id].state));
+      if (card && G.chosenCard(card)) {
+        const eps = snap.games[game.id].state.episodes.filter(ep => ep.cardChoice?.moments?.length);
+        if (G.hostCard(card)) {
+          await client.query(`DELETE FROM host_cards WHERE league_id = $1`, [league]);
+          for (const ep of eps) await client.query(`INSERT INTO host_cards (league_id, episode, player_id, moments, filed, how) VALUES ($1, $2, $3, $4, true, 'host')`, [league, ep.number, ep.cardChoice.host, ep.cardChoice.moments]);
+        } else {
+          const seasonId = ids.seasons[game.contextId].id;
+          await client.query(`DELETE FROM card_choices WHERE season_id = $1`, [seasonId]);
+          for (const ep of eps) await client.query(`INSERT INTO card_choices (season_id, episode, asked, moments, status, made_by) VALUES ($1, $2, $3, $4, 'live', 'stand-in')`, [seasonId, ep.number, JSON.stringify(card.of), JSON.stringify(ep.cardChoice.moments)]);
+        }
       }
       // Beat the bot: its calls (bot_calls, filed as a stand-in's: never production's), the runtime's bot store. Cascades with the league.
       if (snap.stores.bot?.[game.id]) {

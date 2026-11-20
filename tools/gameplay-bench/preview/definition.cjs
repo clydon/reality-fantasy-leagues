@@ -178,7 +178,7 @@ function build(input, o = {}) {
   };
   const events = season.episodes.slice().sort((a, b) => a.number - b.number).map((e) => ({ id: 'show-event-' + e.number, contextId: 'show', number: e.number, airAt: e.airAt, resultStatus: e.number < season.from ? 'final' : 'unavailable' }));
   const real = realFacts(season, participants, new Set(moments.map((m) => m.id)));
-  const facts = [...real, ...madeUpBefore(season, participants, real, new Set(moments.map((m) => m.id)), seed, merge)];
+  const facts = withBank([...real, ...madeUpBefore(season, participants, real, new Set(moments.map((m) => m.id)), seed, merge)], participants, seed);
   const start = events.find((e) => e.number === season.from);
   return D.create({
     seed,
@@ -226,21 +226,37 @@ function withJury(events, world, merge, seed) {
   return events.map((o) => (votes.has(o.castawayId) ? { ...o, juryVotes: votes.get(o.castawayId) } : o));
 }
 
+/** The bank for the episodes before the game (real through the mark, made up after): each its trivia round and its title quote, as
+ *  the story's own nights have them (resultsFor), so the game's first round, about the episode before it, has questions too. A real
+ *  episode's round asks only what its results say, which the person has seen. */
+function withBank(facts, participants, seed) {
+  const name = new Map(participants.map((p) => [p.id, p.name])), gone = new Set();
+  return facts.map((f) => {
+    const n = Number(f.eventId.replace('show-event-', '')), still = participants.map((p) => p.id).filter((id) => !gone.has(id));
+    for (const o of f.data.events || []) gone.add(o.castawayId);
+    return { ...f, data: { ...f.data, trivia: triviaRound(n, still, f.data.events || [], f.data.scoringEvents || [], name, seed), episodeFacts: { titleQuote: titleQuote(n, still, name, seed) } } };
+  });
+}
+
 /** Four names for a question: the right one and three others from `pool`, in a seeded order. */
 function fourOf(right, pool, seed, key) {
   const others = pool.filter((x) => x !== right).sort((a, b) => roll(seed, key, a) - roll(seed, key, b)).slice(0, 3);
   return [right, ...others].sort((a, b) => roll(seed, key, 'o', a) - roll(seed, key, 'o', b));
 }
 
+/** A trivia question's id: a UUID from the seed, the episode and which question (the server's key is its rows' ids: the live tier
+ *  files each with this one, so an answer the runtime took is the server's too). */
+const uuidOf = (...parts) => { const h = J.digest(['trivia', ...parts]); return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20, 32)}`; };
+
 /** A round of trivia about episode n (asked before n + 1), as the bot's trivia research writes it: { id, kind, question, options, answer }. */
 function triviaRound(n, still, events, scoringEvents, name, seed) {
   const round = [], names = still.map((id) => name.get(id));
   const out = events.find((o) => o.method && !/win|sole|survivor/i.test(o.method));
-  if (out && names.length >= 4) round.push({ id: `trivia-${n}-out`, kind: 'person', question: `Who went home in Episode ${n}?`, options: fourOf(name.get(out.castawayId), names, seed, `out${n}`), answer: name.get(out.castawayId) });
+  if (out && names.length >= 4) round.push({ id: uuidOf(seed, n, 'out'), kind: 'person', question: `Who went home in Episode ${n}?`, options: fourOf(name.get(out.castawayId), names, seed, `out${n}`), answer: name.get(out.castawayId) });
   const imm = scoringEvents.find((m) => m.type === 'individualImmunity') || scoringEvents.find((m) => m.type === 'tribeImmunity');
-  if (imm && names.length >= 4) round.push({ id: `trivia-${n}-imm`, kind: 'person', question: imm.type === 'individualImmunity' ? `Who won immunity in Episode ${n}?` : `Whose tribe won immunity in Episode ${n}? (one of them)`, options: fourOf(name.get(imm.castawayId), names, seed, `imm${n}`), answer: name.get(imm.castawayId) });
+  if (imm && names.length >= 4) round.push({ id: uuidOf(seed, n, 'imm'), kind: 'person', question: imm.type === 'individualImmunity' ? `Who won immunity in Episode ${n}?` : `Whose tribe won immunity in Episode ${n}? (one of them)`, options: fourOf(name.get(imm.castawayId), names, seed, `imm${n}`), answer: name.get(imm.castawayId) });
   const left = still.length - events.filter((o) => o.method).length;
-  if (left > 1) round.push({ id: `trivia-${n}-left`, kind: 'number', question: `How many were still in after Episode ${n}?`, options: [left - 1, left, left + 1, left + 2].map(String), answer: String(left) });
+  if (left > 1) round.push({ id: uuidOf(seed, n, 'left'), kind: 'number', question: `How many were still in after Episode ${n}?`, options: [left - 1, left, left + 1, left + 2].map(String), answer: String(left) });
   return round;
 }
 

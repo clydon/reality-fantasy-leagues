@@ -227,8 +227,9 @@ async function startMaking(owner: string, key: string, exits: Exits | null): Pro
     if (Number(month?.cpu_ms ?? 0) >= MONTH_CPU_MS) throw new HttpError(503, "Previews are full this month: back on the 1st.");
     const { rows: [busy] } = await db.query(`SELECT count(*)::int AS k FROM live_previews WHERE NOT complete AND created_at > now() - interval '5 minutes'`);
     if (busy.k >= AT_ONCE) throw new HttpError(503, "Busy: try again in a minute.");
-    // One at a time (decision 6): their other previews go.
-    old = (await db.query(`DELETE FROM live_previews WHERE owner_key = $1 RETURNING id, copies`, [owner])).rows;
+    // One at a time (decision 6): their other previews go, each once its first copy is in (one still being made is left to finish:
+    // two taps at once, or a page asking twice, mustn't pull a preview out from under its own making; the next one made takes it).
+    old = (await db.query(`DELETE FROM live_previews WHERE owner_key = $1 AND viewer_user_id IS NOT NULL RETURNING id, copies`, [owner])).rows;
     const id = crypto.randomUUID();
     await db.query(`INSERT INTO live_previews (id, owner_key, game_key, story, expires_at) VALUES ($1, $2, $3, $4, now() + make_interval(mins => $5))`, [id, owner, key, JSON.stringify({ exits }), LIVE_MINUTES]);
     await db.query("COMMIT");

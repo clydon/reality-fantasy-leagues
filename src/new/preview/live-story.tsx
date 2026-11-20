@@ -44,6 +44,13 @@ function Making({ game, error, secs, onRetry }: { game: string; error: string | 
   );
 }
 
+/** One make per try, however often the page's effect runs (React runs it twice in development): the first ask's answer, shared. */
+const asked = new Map<string, Promise<Response>>();
+const askOnce = (key: string, game: string) => {
+  if (!asked.has(key)) asked.set(key, fetch("/api/preview-live", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ game }) }));
+  return asked.get(key)!.then((r) => r.clone());
+};
+
 /** On the app's own host: make the preview, then go to its story on the preview host. */
 export function LiveStory({ game }: { game: string }) {
   const [error, setError] = useState<string | null>(null);
@@ -53,14 +60,16 @@ export function LiveStory({ game }: { game: string }) {
     let gone = false;
     const t0 = Date.now();
     const tick = setInterval(() => setSecs(Math.floor((Date.now() - t0) / 1000)), 500);
-    fetch("/api/preview-live", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ game }) })
+    askOnce(`${game}:${tries}`, game)
       .then(async (r) => {
         const body = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(r.status === 401 ? "Sign in first: a preview is made for you." : body.error || `It didn't work (${r.status})`);
         return body as { id: string; entry: string };
       })
       .then((m) => {
-        if (gone) return void fetch(`/api/preview-live/${m.id}`, { method: "DELETE", keepalive: true });
+        // An effect cleaned up does nothing: the one still running for this try (the same ask) goes on to the story; a page left
+        // while it was made leaves it to the sweep (half an hour).
+        if (gone) return;
         // Its way in is used once: the preview host spends it, signs in as the preview's viewer and opens the story.
         const host = `${window.location.protocol}//preview.${window.location.host}`;
         const to = `/start/preview-story/live/${m.id}`;

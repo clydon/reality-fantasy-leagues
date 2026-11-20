@@ -17,7 +17,8 @@ export const POST = apiRoute(async (req) => {
   const user = await requireAuth(req);
   const body = (await req.json().catch(() => ({}))) as { game?: unknown; season?: unknown; couch?: unknown };
   if (typeof body.game !== "string") throw new HttpError(400, "Which game?");
-  const game = GAMES[body.game];
+  // The first slice's names, else any gallery game by its base's id (the season's own check says whether it plays).
+  const game = GAMES[body.game] ?? (/^[a-z][a-z0-9]{1,30}$/.test(body.game) ? { base: body.game } : null);
   if (!game) throw new HttpError(400, "No such game to preview");
   const str = (v: unknown) => (typeof v === "string" && v ? v : undefined);
   // The season: the one asked for, else Survivor 51 in this database (the first slice's).
