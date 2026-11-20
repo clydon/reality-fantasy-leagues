@@ -1,5 +1,7 @@
 # Plan: named linked-league groups in the league dropdown
 
+> **Status (2026-11-19): Superseded.** built 2026-10-03 (c6957cc0) for classic's league menu. In the new design the couch, one lasting group with its games, replaced linked groups. Kept for history.
+
 Linked leagues (db/migrations/0040, 0046, `src/lib/server/league-groups.ts`) get a name, and the
 league dropdowns (desktop sidebar and mobile top bar) show each group as one row that opens into its
 leagues. The point is a shorter menu for people in a lot of leagues.

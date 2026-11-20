@@ -1,5 +1,32 @@
 # Plan: the Start-a-game GPT, on games as data
 
+> **Status (2026-11-19): Partly done.** Mostly built and live (S1-S2, A1-A14, F1-F4, C1-C7, R1-R2, G1-G5, L1-L8, U0, U1 steps 1-4). Open: C8 (next, answers in), A15 (BACKLOG 179), R3 (178), S3 (177), and L9's IR, FAAB and trades. See "Where this plan stands" below. Start a game itself moved to PLAN-start-a-game-redo.md. The Noticed lists below are history, not a work list.
+
+## Where this plan stands (2026-11-19)
+
+Most of this plan is built and live. Start a game itself (the wizard, the Games tab's archive, Game settings, computer
+players) moved to [PLAN-start-a-game-redo.md](PLAN-start-a-game-redo.md), which is the active plan. Each step's As built
+below is the record. The Noticed lists (here and under track L) are history, not a work list: live items are in
+[BACKLOG.md](BACKLOG.md), and BACKLOG 152 is a one-time triage of them.
+
+| Track | What | Status |
+|---|---|---|
+| S | Survivor off built-in rules | S1 and S2 live 2026-10-28 (`eb1e19f0`). **S3 open:** the games play by Survivor 51's rulebook, but survivor.js's reader and `BUILT_IN_READERS` remain (BACKLOG 177). |
+| A | The engine reads game specs | A1–A14 live 2026-10-30 to 11-07. **A15 (live calls, one clock) not started:** designed in U0's last round; the round after Start a game (BACKLOG 179). |
+| F | Formats nobody announced | F1–F4 live 2026-10-30 (`df527fe6`). Their defaults wait on the user (BACKLOG 180). |
+| C | Pieces that compose | C1–C7 and C4b live 2026-11-06. **C8 (2 on 1) is next:** its seven answers are in (2026-11-19). C9 (a shuffled bank) waits on BACKLOG 172. |
+| R | Today's games on the engine | R1 and R2 live 2026-10-30/31. **R3 (the old type code out) not started:** needs the user's OK (BACKLOG 178). |
+| G | The Start-a-game GPT | G1 (and its typed fixes), G3, G4 and G5 live 2026-11-07 to 11-09. G0 and G2 folded into U0 and U1. |
+| L | Live sports | L1–L8 released 2026-11-07 (`e7f5dc0b`). **L9:** football's lineup slots were built by cast properties chunk 5; IR, FAAB, trades and other sports' slots not started. |
+| V | Game pages, generated | Superseded: U1 step 1's compiler is the generator, and the review set became the explorer plan's design sweep (§6B). |
+| U | The UI | U0 designed 2026-11-07/08. U1 steps 1–2b (game page), 3 (wizard) and 4 (sports on the couch) live 2026-11-09. Step 3's wizard was replaced by the redo's B1 (2026-11-19). |
+
+**Waiting on the user:** S3, A15's go, R3's OK, the format-change defaults, and closing "a preset's rule" as (a), which every
+start already does (BACKLOG 177–181).
+**Next build:** C8, in its own session from master.
+
+**Earlier status (history, kept as written):**
+
 Status: **planned 2026-10-27; hardened 2026-10-28** with the user: the engine first, built to everything in "Where the engine
 is headed", then today's games recreated on it, then the UI last; the GPT's words grow alongside the engine. **S1 (2026-10-27)
 and S2 (both parts, 2026-10-28) are built and merged into master** (their As built is under track S); the test couch plays

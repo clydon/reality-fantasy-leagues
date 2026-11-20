@@ -1,5 +1,5 @@
 import StateLogic from "@/lib/game/state-logic.js";
-import Bots from "@/lib/game/bot-logic.js";
+import { catchUpBots } from "./bots";
 import type { LeagueState } from "@/lib/game/types";
 import { pool, HttpError, withLeagueLock } from "./db";
 import { groupLeagueIds, groupOrder } from "./league-groups";
@@ -66,13 +66,13 @@ export async function revealAcrossGroup(userId: string, fromLeagueId: string, pr
     const to = jump ? latest : Math.min(n, latest);
     if (to <= seen) continue;
     await markResultsSeen(userId, id, to);
-    await withLeagueLock(id, (s) => {
+    await withLeagueLock(id, async (s, client) => {
       StateLogic.GhostLogic.markCaughtUp(s, playerId, to);
       const lj = StateLogic.GhostLogic.lateJoinOf(s, playerId);
       if (lj) lj.seenThrough = to;
       // Its computer players keep pace with whoever reveals first, here as in its own reveal (found 2026-11-13: a game at its
       // own pace linked to the couch's others was only ever reached this way, so its computer players never moved).
-      if (StateLogic.GhostLogic.ownPace(s)) Bots.catchUpTo(s, to);
+      if (StateLogic.GhostLogic.ownPace(s)) await catchUpBots(client, id, s, to);
     });
   }
 }

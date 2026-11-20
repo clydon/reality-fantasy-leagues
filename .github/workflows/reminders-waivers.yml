@@ -6,6 +6,9 @@
 # Hourly is the resolution: each reminder is sent at most once (reminder_log), so running more often only makes them more
 # punctual. A run with nothing due exits in seconds.
 #
+# Then sports results (db/sports-refresh.js, docs/PLAN-sports-ready.md step 1.1): the sports part of the daily listings job each
+# hour, so a game's final is in the standings within the hour (ESPN's public API, no key; the daily job stays the fallback).
+#
 # This job used to run paid Claude research first (db/auto-research.js, "Auto research"); that went with classic's admin
 # (docs/PLAN-desk-parity.md, decision 9 and step 8, part 8b). Our bot researches now, on the VM's tick (docs/HOSTING.md).
 #
@@ -35,6 +38,9 @@ jobs:
           cache: "npm"
 
       - run: npm ci
+        env:
+          # See .npmrc: the onnxruntime CUDA download 404s; the CPU binaries ship in the package.
+          ONNXRUNTIME_NODE_INSTALL_CUDA: skip
 
       - name: Run reminders.js
         env:
@@ -53,6 +59,13 @@ jobs:
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
           VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
         run: node db/waivers.js
+
+      # Its own step too: ESPN being down or slow never holds up the reminders or a waiver week.
+      - name: Run sports-refresh.js
+        if: ${{ !cancelled() }}
+        env:
+          AUTH_DATABASE_URL: ${{ secrets.AUTH_DATABASE_URL }}
+        run: node db/sports-refresh.js
 
       # Live previews' sweep (docs/PLAN-preview-release.md, step 7): any preview past its time goes, and any copy older than the
       # longest a preview lives, even one the registry never knew. The route is open (it only removes what's due) and does it at

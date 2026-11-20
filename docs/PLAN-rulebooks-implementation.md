@@ -1,5 +1,7 @@
 # Plan: rulebooks — implementation (core logic → database → API → UI)
 
+> **Status (2026-11-19): Partly done.** Phases 1–8 are built (R1–R3, then PLAN-new-design 6b and 10). The table's 'not started' for phases 4, 5 and 7, and 'Nothing in this plan is built yet', are out of date. Phase 9, retiring show_formats, league_rulesets and season_rule_changes, waits on the new design's Step C (BACKLOG 45).
+
 Written 2026-10-16 for a fresh session to build from. **Read first:**
 
 1. `docs/PLAN-admin-shows-rulebooks.md` — the design: why, the decisions, the vocabulary, every editor

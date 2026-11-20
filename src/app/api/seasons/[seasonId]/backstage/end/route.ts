@@ -3,13 +3,14 @@ import { apiRoute } from "@/lib/server/api-route";
 import { requireAuth } from "@/lib/server/auth-helpers";
 import { backstageScope } from "@/lib/server/backstage";
 import { HttpError } from "@/lib/server/db";
-import { archiveGame, deleteGame, deletePreview, endGamesOf, unarchiveGame } from "@/lib/server/end-game";
+import { archiveGame, archiveGames, deleteGame, deletePreview, endGamesOf, unarchiveGame } from "@/lib/server/end-game";
 
 // Backstage › Game settings' "Archive or delete a game" (docs/PLAN-new-design.md step 10 part 2b; end-game.ts), a
 // Commissioner's, on a couch (`?couch=`).
 //   GET                                      the games here, archived ones too, and which are yours to archive or delete
 //   POST { action: "archive", leagueId }     tier 1: stays on the trophy shelf, stops scoring -> { batch } (Undo)
 //   POST { action: "unarchive", leagueId }   Bring it back: it scores again -> { batch }
+//   POST { action: "archiveAll", leagueIds } B4: several at once, one batch (one Undo) -> { batch, archived }
 //   POST { action: "delete", leagueId, preview }  tier 3: preview -> the hold sheet's sentence; else -> { batch }
 //                                            (restorable from Recent changes for 30 days)
 export const GET = apiRoute(async (req, { params }: { params: Promise<{ seasonId: string }> }) => {
@@ -23,12 +24,14 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ seasonI
   const { seasonId } = await params;
   const user = await requireAuth(req);
   const scope = await backstageScope(user, seasonId, new URL(req.url).searchParams.get("couch"), { archived: true });
-  const body = (await req.json().catch(() => ({}))) as { action?: unknown; leagueId?: unknown; preview?: unknown };
+  const body = (await req.json().catch(() => ({}))) as { action?: unknown; leagueId?: unknown; leagueIds?: unknown; preview?: unknown };
   switch (body.action) {
     case "archive":
       return NextResponse.json(await archiveGame(scope, body.leagueId));
     case "unarchive":
       return NextResponse.json(await unarchiveGame(scope, body.leagueId));
+    case "archiveAll":
+      return NextResponse.json(await archiveGames(scope, body.leagueIds));
     case "delete":
       return NextResponse.json(body.preview ? await deletePreview(scope, body.leagueId) : await deleteGame(scope, body.leagueId));
     default:

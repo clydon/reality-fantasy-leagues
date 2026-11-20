@@ -17,12 +17,20 @@ export interface Cat {
   short: string;
   name: string;
   says: string;
+  /** The category's lead games, the first that plays drawn with the season. */
+  leads?: string[];
+  /** A story show's leads instead. */
+  storyLeads?: string[];
 }
 
 export interface Base {
   id: string;
   cat: string;
   also?: string;
+  /** What fans also call it ("survivor pool", "eliminator"): said once on its screen, read by search. */
+  aka?: string[];
+  /** Other categories it sits on too, where a person would look for it. */
+  shelves?: string[];
   name: string;
   plain: string;
   about: string;
@@ -119,7 +127,7 @@ export const CATS: Cat[];
 export const BASES: Base[];
 export const SPORT: Base[];
 export const ROWS: Row[];
-export const CHANGES: { id: string; row: string; name: string; line: string; icon: string; kinds?: string[]; coming?: string; controls?: Control[] }[];
+export const CHANGES: { id: string; row: string; name: string; line: string; icon: string; kinds?: string[]; coming?: string; controls?: Control[]; aka?: string }[];
 export const QUESTION_KINDS: QuestionKind[];
 export const QUESTION_CONTROLS: Control[];
 
@@ -139,4 +147,8 @@ export function setControl(spec: Spec, id: string, controlId: string, value: unk
 export function rowLine(row: string, spec: Spec, pg: PageFacts): string | null;
 export function betOn(spec: Spec): boolean;
 export function offBets(spec: Spec): Spec;
+/** Bases matching what was typed, best first, by their own words and what fans call them; `aka` the fan's name that matched. */
+export function searchKnown<B extends { id: string; name: string; plain: string; about: string; aka?: string[] }>(q: string, bases: B[]): { base: B; score: number; aka: string | null }[];
+/** Why computer players can't play this game yet, or null (E1a). */
+export function botsFit(spec: Spec): string | null;
 export function homesOf(): { key: string; value: string; row: string; change: string | null; control: string | null }[];

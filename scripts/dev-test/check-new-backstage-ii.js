@@ -340,7 +340,9 @@ const first = (name) => name.split(" ")[0];
     check(faWeek.run?.freeAgency.some((m) => m.name === "jordan"), "the week's page lists free agency's move");
 
     // ---- 5. Game settings and Scoring rules ----
-    await page.goto(`${BASE}/show/${sid}/backstage/settings`);
+    // Round 4 (B4): each game's settings are its own page; a link opens it with a rule open (?page=game-settings&game=&line=).
+    const gameSettings = (id, line) => page.goto(`${BASE}/show/${sid}/backstage/settings?page=game-settings&game=${id}${line ? `&line=${line}` : ""}`);
+    await gameSettings(L.lineup, "lineup");
     await page.locator("[data-settings=lineup]").waitFor({ timeout: 20000 });
     await page.locator("[data-settings=lineup]").getByRole("button", { name: "More" }).first().click();
     check(/4 score each week from Episode 6/.test(await toasted(/score each week/)), "Who scores each week: more starters, from the next episode");
@@ -369,19 +371,23 @@ const first = (name) => name.split(" ")[0];
     s = await state("lineup");
     check(s.settings.activeSlots === 3 && s.settings.benchSlots === 2, "Reset to recommended: 3 score, 2 on the bench");
     check(/Set at the draft/.test(await page.locator("[data-settings=lineup]").innerText()), "the bench is set at the draft");
+    await gameSettings(L.outlast, "joining");
+    await page.locator('[data-settings-game="Outlast"] [data-join=locked]').waitFor({ timeout: 20000 });
     await page.locator('[data-settings-game="Outlast"] [data-join=locked]').click();
     check(/Nobody new/.test(await toasted(/Nobody new/)), "who can join: nobody new");
     check((await state("outlast")).settings.allowLateJoiners === false, "saved at once");
     await toastUndo();
     await page.waitForTimeout(1500);
     check((await state("outlast")).settings.allowLateJoiners !== false, "and the toast's Undo opens it again");
-    check((await page.locator("[data-end-games]").count()) === 1, "archive or delete a game, folded at the end (step 10 part 2b)");
+    check((await page.locator("[data-game-settings] [data-end-games]").count()) === 1, "archive or delete this game, folded at the end (step 10 part 2b; Round 4: the game's own)");
     check((await bs("alex", "settings", "PATCH", { leagueId: L.lineup, set: { benchSlots: 3 } })).status === 409, "the bench can't change after the draft (409)");
     check((await bs("riley", "settings", "PATCH", { leagueId: L.lineup, set: { activeSlots: 4 } })).status === 403, "a Game admin can't change settings");
     await fits("Game settings");
     await shot("settings");
 
-    // Lock it down (step 15 part 4): competitive mode, every game alex runs here at once.
+    // Lock it down (step 15 part 4): competitive mode, every game alex runs here at once (on the list, under the game's page).
+    await page.goto(`${BASE}/show/${sid}/backstage/settings`);
+    await page.locator("[data-lock-down]").waitFor({ timeout: 20000 });
     check((await bs("riley", "settings", "PATCH", { lockDown: true })).status === 403, "Lock it down: a Game admin can't");
     check((await bs("alex", "settings", "PATCH", { lockDown: "yes" })).status === 400, "lockDown must be true or false");
     const lockRow = page.locator("[data-lock-down]");
@@ -401,8 +407,13 @@ const first = (name) => name.split(" ")[0];
     check(lockLines.length === 1, "one batch, a line in Recent changes for the couch to see", JSON.stringify(lockLines));
     const joinable = (await as.riley.call("GET", `/api/couches/${fx.couchId}/games`)).body.games;
     check(joinable.filter((g) => [L.outlast, L.lineup, L.pool].includes(g.leagueId)).every((g) => g.mode === "locked" && g.lockedDown), "nobody new: every game says locked, locked down");
-    check(/Locked down for the season/.test(await page.locator('[data-settings-game="Outlast"] [data-settings=joining]').innerText()) && (await page.locator('[data-settings-game="Outlast"] [data-join=ask]').isDisabled()), "Who can join says so, and can't be changed");
-    check(await page.locator("[data-settings=lineup]").getByRole("button", { name: "More" }).first().isDisabled(), "the lineup's size is frozen");
+    // Round 4: a frozen rule is a line that says why, with nothing to open.
+    await gameSettings(L.outlast);
+    await page.locator('[data-setting-line="joining"]').waitFor({ timeout: 20000 });
+    check(/Locked down for the season/.test(await page.locator('[data-setting-line="joining"]').innerText()) && (await page.locator('[data-setting-line="joining"] button').count()) === 0, "Who can join says so, and can't be changed");
+    await gameSettings(L.lineup);
+    await page.locator('[data-setting-line="lineup"]').waitFor({ timeout: 20000 });
+    check(/Locked down for the season/.test(await page.locator('[data-setting-line="lineup"]').innerText()) && (await page.locator('[data-setting-line="lineup"] button').count()) === 0, "the lineup's size is frozen");
     check((await bs("alex", "settings", "PATCH", { leagueId: L.lineup, set: { activeSlots: 4 } })).status === 409, "a settings change is refused (409)");
     check((await bs("alex", "rules", "POST", { action: "ours" })).status === 409, "and Make it ours (409)");
     check((await bs("alex", "rules", "POST", { action: "points", leagueId: L.lineup, points: { immunity: 3 } })).status === 409, "and the points (409)");

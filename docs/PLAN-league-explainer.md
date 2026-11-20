@@ -1,5 +1,7 @@
 # Plan: "How this league works" explainer (every joiner, plus late joiners)
 
+> **Status (2026-11-19): Superseded.** built 2026-10-11 (1620f13d) for classic. The new design explains each game with its own How it plays and the first-time tour (docs/PLAN-first-time-tour.md). Kept for history.
+
 **Status:** Built 2026-10-11 (see **As built** at the end). Not committed; What's New entry not written.
 Builds the BACKLOG #2 "How this league works" cards that `PLAN-guided-tour.md` set aside (its Classic
 and Eliminator Pool chapters). Sits in front of the late-joiner start flow in `PLAN-late-joiners.md`.

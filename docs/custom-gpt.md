@@ -1,5 +1,7 @@
 # The Game Your Show custom GPT
 
+> **Status (2026-11-19): Superseded.** The custom GPT button is gone from the app; the do-it-yourself path is stage 2 of PLAN-ai-access.md (tabled). Kept for history.
+
 Part of the "skip the copy" experiment (`src/components/ask-ai.tsx`). Every prompt the app hands out is
 also parked at `/b/<code>` (`src/app/b/[code]/route.ts`), and the test row under each Copy button opens
 ChatGPT, Claude, Gemini and the rest with a one-line message pointing at it.

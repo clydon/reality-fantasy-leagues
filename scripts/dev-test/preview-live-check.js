@@ -4,7 +4,7 @@
 // is signed in as the preview's own viewer while the account's own session is untouched, then closes the story (its copies go) and
 // removes the account.
 //
-//   node --env-file=.env.local scripts/dev-test/preview-live-check.js [--game=pool|fantasy|sheet] [--create] [--out=.ui-atlas/stories/game-preview/live]
+//   node --env-file=.env.local scripts/dev-test/preview-live-check.js [--game=pool|fantasy|sheet] [--create] [--gallery] [--out=.ui-atlas/stories/game-preview/live]
 //
 // Needs this lane's dev server (BASE, default http://localhost:3014) and its database; the browser reaches preview.localhost (any
 // *.localhost is this machine).
@@ -21,6 +21,9 @@ const GAME = opt("game", "pool");
 // --create: at the last card, Create this game, as someone would: the preview kept while they make it (decision 6), the story's
 // page closing leaves it, and asking for the same game again reopens it.
 const CREATE = args.includes("--create");
+// --gallery: as the gallery's Try it starts it (step 15): its ask handed over in the tab's session storage, the wait page asking the
+// app's own route (/api/previews: the desk's switch, the allowance, the couch) rather than the development one.
+const GALLERY = args.includes("--gallery");
 const OUT = path.resolve(opt("out", ".ui-atlas/stories/game-preview/live"));
 
 async function account(db) {
@@ -51,7 +54,13 @@ async function account(db) {
     let entered = null;
     page.on("request", (q) => { if (q.url().includes("/api/preview-live/enter")) entered = q.url(); });
     const t0 = Date.now();
-    await page.goto(`${BASE}/start/preview-story/live?game=${GAME}`, { waitUntil: "domcontentloaded" });
+    if (GALLERY) {
+      const { rows: [s51] } = await db.query(`SELECT ss.id FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE s.slug = 'survivor' AND ss.season_number = 51`);
+      const couch = (await c.json()).id ?? null;
+      await page.goto(`${BASE}/home`, { waitUntil: "domcontentloaded" });
+      await page.evaluate((ask) => sessionStorage.setItem("gys-preview-ask", JSON.stringify(ask)), { season: s51.id, couch, game: { base: GAME }, name: GAME, back: "/home" });
+      await page.goto(`${BASE}/start/preview-story/live?from=gallery`, { waitUntil: "domcontentloaded" });
+    } else await page.goto(`${BASE}/start/preview-story/live?game=${GAME}`, { waitUntil: "domcontentloaded" });
     await page.screenshot({ path: path.join(OUT, `${GAME}-0-making.png`) });
     await page.locator("[data-preview-story]").waitFor({ timeout: 120000 });
     const made = Math.round((Date.now() - t0) / 100) / 10;

@@ -14,15 +14,19 @@ export interface GameTwists {
   captain: { episode: number; castawayId: string | null; times: number } | null;
   /** A Survival Pool's lives or mulligans (score.lives, score.mulligans, score.buyback): what's left, out since when, and whether
    *  buying back in is open to you now. */
-  pool: { lives: number | null; livesOf: number | null; mulligans: number | null; mulligansOf: number; out: number | null; buyBack: boolean } | null;
+  pool: { lives: number | null; livesOf: number | null; mulligans: number | null; mulligansOf: number; out: number | null; buyBack: boolean; buybacks?: { left: number; of: number; cost: number } | null } | null;
   /** Your group slots going into the next episode (get.groups): each slot's standing and its group's name. */
-  slots: { slot: number; status: "held" | "void" | "dropped" | "waiting" | "empty"; group: string | null; groupId: string | null; members: string[] }[] | null;
-  /** The groups a slot can pick going into the next episode, and that episode's id (the group-slots route's). */
-  offered: { epId: string; groups: { id: string; name: string; size: number }[] } | null;
+  slots: { slot: number; status: "held" | "void" | "dropped" | "waiting" | "empty"; group: string | null; groupId: string | null; members: string[]; endedAt?: number | null; why?: string[] }[] | null;
+  /** The groups a slot can pick going into the next episode, and that episode's id (the group-slots route's). Round 5 (B2): each
+   *  group's people (castaway ids) and, in an exclusive game, the seats already holding it for that episode (`heldBy`). */
+  offered: { epId: string; groups: { id: string; name: string; size: number; members?: string[]; heldBy?: string[] }[] } | null;
   /** The next cut (rank.cut): the episode it falls after (null: at a phase, or none left), the phase by name, how many go. */
   cut: { after: number | null; phase: string | null; out: number | "half" } | null;
   /** Seats knocked out (a cut, a race won, a pool's lives), as far as you've seen. */
   out: string[];
+  /** Round 5 (B2, Designs needed 10): the episode you were knocked out after (a cut, a race won), as far as you've seen; null while
+   *  you're in, or in a game that knocks nobody out. */
+  outAfter?: number | null;
   /** The next episode whose points multiply (score.times), and by how much. */
   times: { episode: number; times: number } | null;
   /** Bounties (score.bounty): each seat's points from them so far, by player id. */
@@ -59,19 +63,30 @@ export function twistsOf(view: LeagueState, me: string, next: number, teams: Map
       // A buyback is automatic (Seq.poolEmptied, the night the lives run out): someone out had none left or was past its deadline
       // that night, so this holds only should a buyback still be left and in time for the night they went out.
       buyBack: !!parts.buyback && out !== null && (h.buybacks ?? 0) > 0 && S.PickEmLogic.canBuyBack(view, parts.buyback, out),
+      // Round 5 (B2): the buy-backs left, of how many, and what one costs, for the pick sheet's line.
+      buybacks: parts.buyback ? { left: Math.max(0, h.buybacks ?? parts.buyback.times), of: parts.buyback.times, cost: parts.buyback.cost } : null,
     };
   }
 
   const cfg = S.GroupSlotLogic.config(view);
   let slots: GameTwists["slots"] = null;
   let offeredOut: GameTwists["offered"] = null;
-  if (seat && cfg && nextEp) {
-    const offered = S.GroupSlotLogic.offered(view, next).groups;
-    offeredOut = { epId: nextEp.id, groups: offered.map((g) => ({ id: g.id, name: g.name, size: g.members.length })) };
+  // (Knocked out, Round 5's review: no slot is theirs to fill, as no lineup is.)
+  if (seat && cfg && nextEp && !(S.KnockoutLogic.on(view) && S.KnockoutLogic.isOut(view, me))) {
+    const on = S.GroupSlotLogic.offered(view, next);
+    const offered = on.groups;
+    // In an exclusive game (while the groups cover everyone), who already holds each group for the episode, by the route's own rule.
+    const holders = (id: string) => {
+      const o = S.GroupSlotLogic.heldBy(view, me, next, id);
+      return o ? [o.id] : [];
+    };
+    offeredOut = { epId: nextEp.id, groups: offered.map((g) => ({ id: g.id, name: g.name, size: g.members.length, members: g.members.slice(), heldBy: holders(g.id) })) };
     slots = Array.from({ length: cfg.slots }, (_, slot) => {
       const st = S.GroupSlotLogic.standing(view, me, slot, next);
       const id = st.pick?.id ?? null;
-      return { slot, status: st.status, group: id ? (offered.find((g) => g.id === id)?.name ?? null) : null, groupId: id, members: st.members };
+      // A group no longer on offer (dropped: re-paired) is named as it was when it was picked.
+      const then = id && st.from ? S.GroupSlotLogic.record(view, st.from - 1)?.end.groups.find((g) => g.id === id)?.name : null;
+      return { slot, status: st.status, group: id ? (offered.find((g) => g.id === id)?.name ?? then ?? null) : null, groupId: id, members: st.members.length ? st.members : (st.pick?.members ?? []), endedAt: st.endedAt ?? null, why: st.why ?? [] };
     });
   }
 
@@ -85,6 +100,7 @@ export function twistsOf(view: LeagueState, me: string, next: number, teams: Map
     cut = { after: after ?? null, phase: first.at.phase ?? null, out: first.out };
   }
   const out = ko ? (view.players ?? []).map((p) => p.id).filter((id) => S.KnockoutLogic.isOut(view, id)) : [];
+  const outAfter = ko && seat ? S.KnockoutLogic.outOf(view, me) : null;
 
   let multiplied: GameTwists["times"] = null;
   const lastN = Math.max(last ?? 0, episodes.at(-1)?.number ?? 0);
@@ -119,5 +135,5 @@ export function twistsOf(view: LeagueState, me: string, next: number, teams: Map
     }
   }
 
-  return { captain, pool, slots, offered: offeredOut, cut, out, times: multiplied, bounty, budget };
+  return { captain, pool, slots, offered: offeredOut, cut, out, outAfter, times: multiplied, bounty, budget };
 }

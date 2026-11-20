@@ -5,10 +5,10 @@ import type { AnswerLines, AnswerWalk, CoopWalk, HandicapView, MatchupView, Team
 import { castawayEventStats } from "./active-roster-rows";
 import { castawayPoints, teamOrder } from "./classic-view";
 import { latestScoredEpisode } from "./episode-team-summary";
-import { gameRules, gameShort } from "./game-rules";
+import { gameRules, gameWords } from "./game-rules";
 import { compileGame, type GamePage } from "./game-page/compile";
 import { twistsOf, type GameTwists } from "./game-twists";
-import { playsOf, type GamePlays } from "./game-plays";
+import { playsOf, type GamePlays, type RowPick } from "./game-plays";
 import { lineupStatus } from "./lineup-view";
 import { pickWindow } from "./pool-view";
 import { pointsPerLine } from "./bingo";
@@ -60,8 +60,9 @@ export interface TableRow {
   team: string[];
   /** Weekly Lineup: who started the latest scored episode. */
   last: string[];
-  /** Survival Pool: picks oldest first. Only decided ones, except your own. */
-  picks: { episode: number; castawayId: string | null; correct: boolean | null }[];
+  /** Survival Pool: picks oldest first. Only decided ones, except your own. Round 5: each with its night beyond right or wrong (a
+   *  second pick, forgiven, bought back, skipped: game-plays.ts PickNight). */
+  picks: RowPick[];
   /** A computer player (bot-logic.js): a practice couch's. */
   bot: boolean;
   /** Calls that were right (Call it, step 12 part 2): a public pool's Who goes home? (settings.calls) or Weekly Calls'; else 0. */
@@ -88,6 +89,11 @@ export interface LineupWeek {
   started: { id: string; points: number; why: string[] }[];
   /** What each scored that episode, which didn't count. */
   bench: { id: string; points: number }[];
+  /** Round 5 (B2): the captain that episode (one of `started`, their points already multiplied) and by how much; absent without one. */
+  captain?: { id: string; times: number } | null;
+  /** Round 5 (B2): each group slot that episode (get.groups): its group's name, its people, how it stood and what it scored (why
+   *  nothing, when it didn't). Absent in a game without slots. */
+  slots?: { slot: number; status: "held" | "void" | "dropped" | "waiting" | "empty"; group: string | null; members: string[]; points: number; why: string[] }[];
 }
 
 export interface LineupMove {
@@ -142,6 +148,11 @@ export interface PickMove {
   /** Step A11 part 2: "used", a pick that never repeats: picked before. */
   blocked: { id: string; episode: number; reason: "cycle" | "backToBack" | "used" }[];
   streak: number;
+  /**
+   * Round 5 (B2, Designs needed 27): a pool's second pick (get.second), beside the first and never the same person: who (null: none
+   * yet), and whether it counts every night (`always`) or only on a night two or more go home. Null without one.
+   */
+  second: { id: string | null; always: boolean } | null;
 }
 
 /**
@@ -219,7 +230,7 @@ export interface GameCalls {
 export interface BotLine {
   called: number;
   right: number;
-  vs: Record<string, { beat: number; beaten: number }>;
+  vs: Record<string, { beat: number; beaten: number; level?: number }>;
 }
 
 export interface PredictionMove {
@@ -301,6 +312,8 @@ export interface GameView extends GameRefIn {
   /** U1: the game's own page, compiled from its spec (game-page/compile.ts: what goes where), and its short line (describe.js). */
   page: GamePage;
   short: string;
+  /** The game in one plain sentence, the engine's (B1: the game page's title card says it until you've made a move). */
+  sentence: string;
   /** Step C5, a game ranked by weeks won: each seat's weeks won (a split one's share), by player id; null for any other game. */
   weeksWon: Record<string, number> | null;
   /** U1 step 2: the game's twists as you may see them (game-twists.ts): your captain, a pool's lives, your group slots, the next
@@ -322,10 +335,15 @@ export interface GameView extends GameRefIn {
   linePoints: number | null;
   /** A sheet of questions to answer now (step A4 part 2): filled in by the server (season-games.ts), which reads the answers. */
   sheet: SheetMove | null;
+  /** Round 3's night row: the seats that have answered the sheet's episode (season-games.ts), never what they answered. */
+  sheetIn?: string[] | null;
   predictions: PredictionMove[];
   progress: WeekProgress | null;
   /** Results you haven't revealed stand in the way of this week's lineup or pick: the first of them. */
   revealFirst: number | null;
+  /** Round 5 (B2, BACKLOG 47): why no lineup or pick is yours to make (knocked out, a race won, head to head's final played:
+   *  KnockoutLogic.moveProblem), or null. Your moves leaves such a game out. */
+  blocked?: string | null;
   /** A late joiner playing their own season (GhostLogic): their week is the episode after their mark. */
   catchingUp: boolean;
   /** Catching up (step 9): the episode they're on (their week), and the latest the game has results for ("Episode 2 of 4"). */
@@ -334,6 +352,9 @@ export interface GameView extends GameRefIn {
    *  that you haven't watched: its moves are still open to you (the lineup's and pick's episode is it) until you watch it or the
    *  next one airs (`until`, its air time; null: not known). Only while you're one behind (further back, you reveal first). */
   late: { episode: number; until: string | null } | null;
+  /** The episode you've said you're watching (the episode-night strip's Lock in: StateLogic.GhostLogic.lockIn) while you're one
+   *  behind it: its moves closed for you, as watching closes them (no `late` for it). Null otherwise; optional: older readers omit it. */
+  watching?: number | null;
   /** Whoever the couch is waiting on, playing at their own pace with nothing set yet for the episode that aired (head to head's
    *  "Waiting on Joanna's lineup"). The server reads their marks; empty without them. */
   waiting: { playerId: string; name: string; episode: number }[];
@@ -366,6 +387,11 @@ export interface GameView extends GameRefIn {
   /** Step A14 part 2: a game played against the bot, how the couch did against it as far as you've seen; null (or left out) for any
    *  other game. What it shows is U1's. */
   bot?: BotLine | null;
+  /**
+   * Round 5 (B2, Designs needed 30): a draft by an auction (get.order 'auction'), once its bids are settled: the budget each had, what
+   * each castaway went for (`filled`: a place nobody's bids filled, at the lowest price) and what each seat spent. Null otherwise.
+   */
+  prices?: { budget: number; paid: Record<string, { price: number; filled: boolean }>; spent: Record<string, number> } | null;
   /** The design round's step 2 (week-view.ts): the side bets the game's page shows (null: side bets are off), and both sides of
    *  your matchup once its episode's lineups have locked, before its results (null otherwise). Optional: older readers omit them. */
   bets?: SideBets | null;
@@ -428,6 +454,8 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
     : progress && progress.episode > through && !isPublic
       ? { episode: progress.episode, set: Object.fromEntries(progress.people.map((p) => [p.playerId, p.done])) }
       : (calls?.next ?? null);
+  // (Knocked out, Round 5's BACKLOG 47: no move is theirs, so the grid's next square says nothing.)
+  if (nextIn && StateLogic.KnockoutLogic.on(view)) for (const id of StateLogic.KnockoutLogic.outs(view).keys()) if (id in nextIn.set) nextIn.set[id] = null;
   const waiting = own
     ? StateLogic.GhostLogic.lateWaiting(full, own.marks, now).map((w) => ({ ...w, name: everyone.find((r) => r.playerId === w.playerId)?.name ?? "someone" }))
     : [];
@@ -460,7 +488,7 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
     players: everyone.length,
     rules: gameRules(view),
     page: compileGame(StateLogic.gameOf(view) as unknown as Record<string, unknown>),
-    short: gameShort(view),
+    ...gameWords(view),
     weeksWon: StateLogic.gameOf(view).rank.by === "weeks" ? Object.fromEntries(StateLogic.computeScores(view).map((r) => [r.playerId, r.weeks?.won ?? 0])) : null,
     cast: castOf(view),
     plays,
@@ -476,9 +504,11 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
     progress,
     // Playing at your own pace with the aired episode still open to you: its results don't stand in the way of its own move.
     revealFirst: hidden.length && !catchingUp && seat && !late ? hidden[0].number : null,
+    blocked: seat ? (() => { const ep = StateLogic.currentEpisode(view); return ep ? StateLogic.KnockoutLogic.moveProblem(view, me, ep.number) : null; })() : null,
     catchingUp,
     catchUp,
     late,
+    watching: seat && seen !== null ? StateLogic.GhostLogic.lockedInFor(full, me, seen) : null,
     waiting,
     pace: null,
     coop: calls?.walk?.coop ?? null,
@@ -487,6 +517,7 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
     teams: StateLogic.TeamLogic.view(view, seat ? me : null, everyone.map((r) => ({ playerId: r.playerId, total: r.points, team: r.side }))),
     handicap: StateLogic.HandicapLogic.view(view, seat ? me : null),
     bot: calls?.bot ?? null,
+    prices: pricesOf(view),
     bets: seat ? sideBetsOf(view, me, new Map(everyone.map((r) => [r.playerId, r.name])), through, now) : null,
     locked: seat && pieces.hasActiveRoster ? lockedMatchup(view, me, matchups?.next, now) : null,
     castWeeks: seat ? castWeeks(view) : null,
@@ -590,8 +621,8 @@ export function tableOf(view: LeagueState, me: string, userOf: UserOf, right: (p
       // Someone else's pick stays theirs until it's decided.
       picks: pool
         ? (histories?.get(r.playerId) ?? StateLogic.pickEmHistory(view, r.playerId))
-            .rows.filter((p) => you || p.correct !== null)
-            .map((p) => ({ episode: p.episode, castawayId: p.castawayId, correct: p.correct }))
+            .rows.filter((p) => you || p.correct !== null || p.skipped)
+            .map(rowPick)
         : [],
       bot: bots.has(r.playerId),
       calls: calls ? right(r.playerId) : 0,
@@ -601,6 +632,32 @@ export function tableOf(view: LeagueState, me: string, userOf: UserOf, right: (p
       weeks: [],
     };
   });
+}
+
+/** A pool's history row as the table carries it (Round 5: with its night beyond right or wrong, game-plays.ts PickNight). */
+function rowPick(p: { episode: number; castawayId: string | null; correct: boolean | null; second?: { castawayId: string; correct: boolean | null; void?: boolean; forgiven?: boolean; lifeLost?: boolean }; forgiven?: boolean; lifeLost?: boolean; boughtBack?: number; skipped?: boolean }): RowPick {
+  const out: RowPick = { episode: p.episode, castawayId: p.castawayId, correct: p.correct };
+  if (p.second) out.second = { id: p.second.castawayId, correct: p.second.void ? null : p.second.correct, void: !!p.second.void };
+  if (p.forgiven || p.second?.forgiven) out.forgiven = true;
+  if (p.lifeLost || p.second?.lifeLost) out.lifeLost = true;
+  if (typeof p.boughtBack === "number") out.boughtBack = p.boughtBack;
+  if (p.skipped) out.skipped = true;
+  return out;
+}
+
+/** An auction's prices (GameView.prices): from the draft's log, once its bids are settled; null for any other game. */
+function pricesOf(view: LeagueState): GameView["prices"] {
+  const get = StateLogic.gameOf(view).get as { by?: string; order?: string; budget?: { total?: number } };
+  if (get.by !== "draft" || get.order !== "auction" || typeof get.budget?.total !== "number") return null;
+  const log = ((view as { draftLog?: { playerId: string; castawayId: string; price?: number; filled?: boolean }[] }).draftLog ?? []).filter((e) => typeof e.price === "number");
+  if (!log.length) return null;
+  const paid: Record<string, { price: number; filled: boolean }> = {};
+  const spent: Record<string, number> = {};
+  for (const e of log) {
+    paid[e.castawayId] = { price: e.price as number, filled: !!e.filled };
+    spent[e.playerId] = (spent[e.playerId] ?? 0) + (e.price as number);
+  }
+  return { budget: get.budget.total, paid, spent };
 }
 
 /**
@@ -619,13 +676,16 @@ export function weeksOf(view: LeagueState, playerId: string): LineupWeek[] {
     .sort((a, b) => a.number - b.number)
     .map((ep) => {
       const b = teamEpisodeBreakdown(view, ep.id, playerId);
-      return {
+      const week: LineupWeek = {
         episode: ep.number,
         total: b.total,
         predictions: b.predictions,
         started: b.started.map((l) => ({ id: l.c.id, points: l.points, why: whyOf(l.items) })),
         bench: b.benched.map((l) => ({ id: l.c.id, points: l.points })),
       };
+      if (b.captain && b.started.some((l) => l.c.id === b.captain)) week.captain = { id: b.captain, times: b.captainTimes };
+      if (b.slots.length) week.slots = b.slots.map((x) => ({ slot: x.slot, status: x.status, group: x.group, members: x.members.map((c) => c.id), points: x.points, why: x.why }));
+      return week;
     });
 }
 
@@ -685,6 +745,8 @@ export function castOf(view: LeagueState): CastFace[] {
 function lineupOf(view: LeagueState, me: string, now?: number): LineupMove | null {
   const ep = StateLogic.currentEpisode(view);
   if (!ep) return null;
+  // BACKLOG 47 (Round 5, B2): someone knocked out (a cut, a race won, one left) has no lineup to set: the server refuses it.
+  if (StateLogic.KnockoutLogic.moveProblem(view, me, ep.number)) return null;
   const AR = StateLogic.ActiveRosterLogic;
   const mine = view.castaways.filter((c) => c.ownerIds.includes(me));
   const stillIn = new Set(mine.filter((c) => c.status !== "eliminated").map((c) => c.id));
@@ -733,8 +795,11 @@ function fitsOne(view: LeagueState, id: string, s: { of: string; values: string[
 function pickOf(view: LeagueState, me: string, now?: number): PickMove | null {
   const { ep, open } = pickWindow(view, now);
   if (!ep) return null;
+  // BACKLOG 47 (Round 5, B2): nor a pick once you're out of a game that knocks people out.
+  if (StateLogic.KnockoutLogic.moveProblem(view, me, ep.number)) return null;
   const { available, blocked } = StateLogic.pickEmEligibility(view, ep.id, me);
   const mine = StateLogic.pickEmPickFor(view, ep.id, me);
+  const parts = StateLogic.PickEmLogic.parts(view);
   return {
     epId: ep.id,
     episode: ep.number,
@@ -746,6 +811,7 @@ function pickOf(view: LeagueState, me: string, now?: number): PickMove | null {
     available,
     blocked: Object.entries(blocked).map(([id, b]) => ({ id, ...b })),
     streak: StateLogic.pickEmHistory(view, me).currentStreak,
+    second: parts?.second ? { id: (mine as { second?: string } | null)?.second ?? null, always: parts.second.fallback === "counts" } : null,
   };
 }
 

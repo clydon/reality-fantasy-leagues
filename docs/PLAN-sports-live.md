@@ -1,5 +1,7 @@
 # Plan: sports, live (the `sports` branch)
 
+> **Status (2026-11-19): Superseded.** Folded into PLAN-start-a-game-gpt.md track L on 2026-10-28 and released 2026-11-07 (e7f5dc0b). Live data is polled by the app since 2026-11-15. No screen shows a game live yet: that's Sports in full, the design round's step 10 (PLANS.md). Kept for its details (ESPN's shapes, the classes).
+
 **Folded into master's `docs/PLAN-start-a-game-gpt.md` on 2026-10-28** (the user's ask), as track L in "Live sports in the
 same engine": that's the plan now, and its order wins. The formats are built once, as the engine's pieces (A8, A9, A11, A15),
 with L bringing each sport's data to them; the screens wait for its UI track (U0, U1); the steps here are renumbered there

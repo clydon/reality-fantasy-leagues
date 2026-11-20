@@ -1,5 +1,7 @@
 # Plan: season rule changes (mid-season rule/mechanic checkpoints)
 
+> **Status (2026-11-19): Superseded.** all five phases were built 2026-10-06 for classic. A rulebook's timeline and the desk's Check for changes through our bot (docs/PLAN-rulebook-research.md, live 2026-11-04) replaced it. Research's rulesNote is still asked but shown only in classic (BACKLOG 147). Kept for history.
+
 Phase 5 of `docs/PLAN-ai-generated-show-formats.md` ("season-level delta research"), designed
 2026-10-06 and confirmed by the user the same day. That plan's text (its pipeline step 3 and the
 "season-to-season rule variance" table row) was the starting point. It was written before any real

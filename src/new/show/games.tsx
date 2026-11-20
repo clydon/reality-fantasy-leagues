@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
-import { Archive, BookOpen, ChevronDown, ChevronRight, Plus, RotateCcw } from "lucide-react";
+import { Archive, BookOpen, Check, ChevronDown, ChevronRight, Plus, RotateCcw } from "lucide-react";
 import { airTime, lockTime } from "../clock";
 import { backstage, gamesApi, useAfterReveal, useCouchGames, useHowItWorks, useSeasonDraft, useSeasonPolls, useSeasonWaivers, useStartOptions, type DraftGame, type GameView, type JoinGame, type TableRow, type WaiverWeek } from "../data";
 import { NavLink, useNav } from "../nav";
@@ -17,12 +17,13 @@ import { Avatar } from "../ui/bars";
 import { usePushedPage } from "../ui/page";
 import { Chip, Row } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
-import { faceIn, first, openMoves } from "./moves";
+import { castName, faceIn, first, openMoves } from "./moves";
+import { matchSlots } from "@/lib/lineup-slots";
 import { yourMove, type YourMove } from "./your-move";
 import { placeOf, sheetAsks } from "./tonight";
 import { Block, Face } from "./parts";
 import { playsWaivers, WaiversHowBody } from "./waivers";
-import { CouchPractice, SoloGames } from "./solo";
+import { SoloGames } from "./solo";
 import { useOpenMake } from "./make-game";
 import { CallRow } from "./calls";
 import { SheetRow } from "./questions";
@@ -32,7 +33,8 @@ import { bingoEpisode, BingoRow } from "./bingo";
 import { TriviaRow } from "./trivia";
 import { nextWeek, signed } from "./lineup-sheet";
 import { opensSheet, totalWords, useGameDrill } from "./game-sheets";
-import { thisWeek } from "./this-week";
+import { oneGame, thisWeek } from "./this-week";
+import { WhatsOn } from "./whats-on";
 
 // Games (the mock's show.js tabStandings, gamestab.js, rulebook.js rbHowRow): where you play. Since the design round's step 6
 // (docs/design-round/step6-games-spec.md) one row per game: your place, its move, a mini leaderboard and Last picks (GameRows
@@ -168,7 +170,29 @@ function YourGamesHere({ show }: { show: ShowData }) {
     <>
       {playing ? (
         show.play ? (
-          <GameRows show={show} moves={moves} drafts={drafts} onPlayer={people.openPerson} />
+          // Round 3 (docs/design-round/round3-short-games-spec.md): what's on, by episode; the season's games as step 6's rows; the
+          // newest results, Again, and the archive's door.
+          <WhatsOn
+              show={show}
+              moves={moves}
+              oneNight={<ThisWeek show={show} bare />}
+              row={(g) => {
+                const play = show.play ?? [];
+                const twin = play.filter((x) => x.gameType === g.gameType && !oneGame(x)).length > 1;
+                return (
+                  <GameRow
+                    key={g.leagueId}
+                    show={show}
+                    g={g}
+                    name={g.solo === "public" ? "Everyone" : twin && g.name !== g.gameName ? g.name : g.gameName}
+                    move={moves.get(g.leagueId) ?? null}
+                    draft={drafts.find((d) => d.leagueId === g.leagueId && d.phase !== "done") ?? null}
+                    onPlayer={people.openPerson}
+                    onCast={people.openCast}
+                  />
+                );
+              }}
+            />
         ) : (
           <div aria-busy className="mx-4 mt-4 h-72 animate-pulse rounded-[4px] bg-card" />
         )
@@ -189,10 +213,8 @@ function YourGamesHere({ show }: { show: ShowData }) {
         </Block>
       )}
       {show.ready && <HowRow show={show} name={name} />}
-      <ThisWeek show={show} />
-      {!show.solo && show.ready && <StartRow show={show} others={others} />}
-      {/* Anyone on a couch can practise against computer players too (solo players have it under On your own). */}
-      {!show.solo && show.ready && <CouchPractice show={show} />}
+      {!playing && <ThisWeek show={show} />}
+      {!show.solo && show.ready && <StartRow show={show} />}
       {people.sheets}
       <RulesSheet game={rules} play={show.play ?? []} onGame={setRules} waivers={wv.data?.games ?? []} />
     </>
@@ -215,47 +237,7 @@ function totalShort(g: GameView, r: TableRow): string {
 /** Nothing has counted in this game yet (as far as you've seen): no ranking to show. */
 const nothingYet = (g: GameView) => g.through < 1 || (g.table.every((r) => r.total === 0 && r.weeks.length === 0 && !r.record?.wins && !r.record?.losses) && g.plays.kind !== "pick");
 
-function GameRows({ show, moves, drafts, onPlayer }: { show: ShowData; moves: Map<string, YourMove>; drafts: DraftGame[]; onPlayer: (row: TableRow, game: GameView, week: number | null) => void }) {
-  const play = (show.play ?? []).filter((g) => !g.stageOf);
-  const twin = (g: GameView) => play.filter((x) => x.gameType === g.gameType).length > 1;
-  // The ones that need you first, then as they started (a stable sort keeps the rest in order).
-  const order = [...play].sort((a, b) => Number(!!moves.get(b.leagueId)?.due) - Number(!!moves.get(a.leagueId)?.due));
-  const running = play.filter((g) => g.to === null || !g.over);
-  const through = play.length ? Math.min(...(running.length ? running : play).map((g) => g.through)) : 0;
-  const talk = play.every((g) => g.gameType === "weekly-calls" || g.gameType === "weekly-bingo");
-  const over = show.header?.status === "completed";
-  const ep = show.words.episode.toLowerCase();
-  return (
-    <div className="mt-4" data-game-rows>
-      <div className="flex flex-col gap-2.5 px-2">
-        {order.map((g) => (
-          <GameRow
-            key={g.leagueId}
-            show={show}
-            g={g}
-            name={g.solo === "public" ? "Everyone" : twin(g) && g.name !== g.gameName ? g.name : g.gameName}
-            move={moves.get(g.leagueId) ?? null}
-            draft={drafts.find((d) => d.leagueId === g.leagueId && d.phase !== "done") ?? null}
-            onPlayer={onPlayer}
-          />
-        ))}
-      </div>
-      <p className="px-4 pt-3 text-[13px] text-muted-foreground" data-games-foot>
-        {over
-          ? `Final standings, through ${show.words.ep} ${through}.`
-          : talk
-          ? through
-            ? `Through ${show.words.ep} ${through}. Standings move as you watch and the couch says what happened.`
-            : "Nothing counted yet. Standings start once a show's aired and you've watched it."
-          : through
-            ? `Standings as of ${show.words.ep} ${through}, where you are. They move when you reveal.`
-            : `No results yet. Standings start once ${/^[aeiou]/.test(ep) ? "an" : "a"} ${ep}'s in and you've revealed it.`}
-      </p>
-    </div>
-  );
-}
-
-function GameRow({ show, g, name, move, draft, onPlayer }: { show: ShowData; g: GameView; name: string; move: YourMove | null; draft: DraftGame | null; onPlayer: (row: TableRow, game: GameView, week: number | null) => void }) {
+function GameRow({ show, g, name, move, draft, onPlayer, onCast }: { show: ShowData; g: GameView; name: string; move: YourMove | null; draft: DraftGame | null; onPlayer: (row: TableRow, game: GameView, week: number | null) => void; onCast: (g: GameView, id: string) => void }) {
   const [open, setOpen] = useState(false);
   const seasonId = show.header?.seasonId ?? "";
   const href = seasonId ? paths.gamePage(seasonId, g.leagueId) : null;
@@ -283,7 +265,8 @@ function GameRow({ show, g, name, move, draft, onPlayer }: { show: ShowData; g: 
         <>
           <Place show={show} g={g} fresh={fresh} />
           {g.archived && <Archived g={g} scope={show.header && show.couch ? { seasonId: show.header.seasonId, couchId: show.couch.id } : null} />}
-          {move && <MoveLine g={g} m={move} />}
+          {/* Who you've got, at a glance (the user, 2026-11-18: "we mention Thien but never show her face plate"): Glance. */}
+          <Glance g={g} m={move} onCast={onCast} />
           {g.table.length > 0 && (
             <div className="mt-1" data-leaderboard>
               {rows.map((r) => (
@@ -370,6 +353,262 @@ function MoveLine({ g, m }: { g: GameView; m: YourMove }) {
         <small className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-muted-foreground">{m.line}</small>
       </span>
       <span className="grid h-9 flex-none place-items-center whitespace-nowrap rounded-[3px] px-3.5 text-[15px] font-bold outline-[1.5px] -outline-offset-[1.5px] outline-input">{m.action}</span>
+    </button>
+  );
+}
+
+/**
+ * Episode night's at-a-glance (strip-night.ts): who you've got, in each game's own shape (the user, 2026-11-18: "different game
+ * types should have different at a glance views"; "the UI should consider a large starting lineup"), one row a game however many the
+ * couch has going ("keep the vertical real estate in check... who's to know how many games could be going on"). The move's own row,
+ * its people leading as small cast tiles (Tonight's plate's rows, the same anatomy), at most three places (past them a "+N"):
+ *   a lineup:   its starters (by slot where the game has slots), an empty slot dashed; set, the row names them;
+ *   a pick:     the pick, ticked; set, the row names it;
+ *   a claim:    who leaves (greyed) and who comes in;
+ *   a team:     a game with a team and nothing weekly to set (Outlast), or swaps open on it: your team, whoever's out greyed.
+ * The tiles open the detail in place: the face plates (a slot's tag, points, the bench, what a pick puts on the line), each opening
+ * its sheet, and Show less. The words and the button open Your moves, as MoveLine's do.
+ */
+type GlanceFace = { id: string; sub: string; out?: boolean; tick?: boolean; slot?: string | null };
+type GlanceShape = { kind: "lineup" | "pick" | "claim" | "team"; faces: GlanceFace[]; gaps: string[]; note: { title: string; body: string } | null };
+
+/** The row's places: three, so a row of nine is the same height as a row of one. */
+const CELLS = 3;
+/** The detail's plates a row. */
+const ROW = 4;
+const pts = (n: number | null | undefined) => `${String(Math.round((n ?? 0) * 10) / 10).replace("-", "−")} pts`;
+const listed = (xs: string[]) => (xs.length < 3 ? xs.join(" and ") : `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}`);
+
+function glanceShape(g: GameView, m: YourMove | null): GlanceShape | null {
+  if (m?.kind === "lineup" && g.lineup) {
+    const L = g.lineup;
+    const ls = L.lineupSlots;
+    const owner = ls ? matchSlots(L.starters, ls.fits, ls.widths) : null;
+    const slotOf = (id: string) => (ls && owner ? (ls.labels[owner.indexOf(id)] ?? null) : null);
+    // By slot where the game has them (QB, RB, RB, WR...), else as set.
+    const starters = [...m.faces].sort((a, b) => (owner ? owner.indexOf(a) - owner.indexOf(b) : 0));
+    const gaps = ls && owner ? ls.labels.filter((_, i) => owner[i] === null).slice(0, m.empty) : Array.from({ length: m.empty }, () => "");
+    while (gaps.length < m.empty) gaps.push("");
+    const bench = L.roster.filter((id) => !m.faces.includes(id) && !faceIn(g, id)?.left);
+    return {
+      kind: "lineup",
+      faces: starters.map((id) => {
+        const c = faceIn(g, id);
+        const slot = slotOf(id);
+        return { id, slot, out: m.out.includes(id) || !!c?.left, sub: slot ? `${slot} · ${pts(c?.points)}` : pts(c?.points) };
+      }),
+      gaps,
+      note: bench.length ? { title: "Bench", body: bench.map((id) => castName(faceIn(g, id), g)).join(", ") } : null,
+    };
+  }
+  if (m?.kind === "pick" && g.pick) {
+    const p = g.pick;
+    const who = m.faces[0] ? first(faceIn(g, m.faces[0])?.name ?? "") : "";
+    return {
+      kind: "pick",
+      faces: m.faces.map((id) => ({ id, tick: true, sub: p.streak ? `Streak ${p.streak}` : "Your pick" })),
+      gaps: Array.from({ length: m.empty }, () => "Pick"),
+      note: m.faces.length
+        ? { title: "On the line", body: p.streak ? `Streak ${p.streak} → ${p.streak + 1} if ${who} survives` : "A right pick starts a streak" }
+        : { title: "To pick from", body: `${p.available.length} you haven't used${p.streak ? ` · streak ${p.streak} on the line` : ""}` },
+    };
+  }
+  if (m?.kind === "waivers" && m.faces.length === 2 && m.out.length === 1) {
+    return {
+      kind: "claim",
+      faces: m.faces.map((id) => ({ id, out: m.out.includes(id), sub: m.out.includes(id) ? "Leaves" : "Comes in" })),
+      gaps: [],
+      note: null,
+    };
+  }
+  // A game with a team and nothing weekly to set (or a swap to make with it): your team, still in first.
+  const team = g.you?.team ?? [];
+  if ((!m || m.kind === "swaps") && team.length && g.gameType !== "active-roster") {
+    const ids = [...team].sort((a, b) => Number(!!faceIn(g, a)?.knocked) - Number(!!faceIn(g, b)?.knocked));
+    return {
+      kind: "team",
+      faces: ids.map((id) => {
+        const c = faceIn(g, id);
+        return { id, out: !!c?.knocked, sub: c?.knocked ? (c.out ? `Out · Ep ${c.out}` : "Out") : "Still in" };
+      }),
+      gaps: [],
+      note: null,
+    };
+  }
+  return null;
+}
+
+/** The row's words: who you've got when it's set (the names are the glance: "Cristian, Danny and Devin", "Thien"), the move's own
+ *  words when something's missing, or it's a claim or swaps on your team (the move is the news there); a lineup too big to name is
+ *  counted ("9 starting"). */
+function glanceWords(g: GameView, m: YourMove | null, s: GlanceShape): string {
+  if (!m) return "Your team";
+  if (m.due || s.kind === "claim" || s.kind === "team" || !s.faces.length) return m.kind === "pick" ? m.title.replace(/:\s.*$/, "") : m.title;
+  if (s.faces.length > CELLS) return `${s.faces.length} starting`;
+  return listed(s.faces.map((f) => castName(faceIn(g, f.id), g)));
+}
+
+function Glance({ g, m, onCast }: { g: GameView; m: YourMove | null; onCast: (g: GameView, id: string) => void }) {
+  const nav = useNav();
+  const [open, setOpen] = useState(false);
+  const s = glanceShape(g, m);
+  if (!s) return m ? <MoveLine g={g} m={m} /> : null;
+  const go = () => (m ? ("tab" in m.go ? openMoves(m.go.tab, g.leagueId) : nav.push(m.go.href)) : undefined);
+  const stillIn = s.faces.filter((f) => !f.out).length;
+  const words = glanceWords(g, m, s);
+  const line = m ? m.line : `${stillIn} of ${s.faces.length} still in`;
+  // The row's places: past three, the empty ones first (what's missing never hides), then faces, then "+N".
+  const total = s.faces.length + s.gaps.length;
+  const over = total > CELLS;
+  const gapsShown = over ? Math.min(s.gaps.length, CELLS - 1) : s.gaps.length;
+  const facesShown = over ? Math.max(0, CELLS - 1 - gapsShown) : s.faces.length;
+  const hidden = total - gapsShown - facesShown;
+  const hiddenGaps = s.gaps.length - gapsShown;
+  const tile = "h-[34px] w-[26px] flex-none rounded-[2px]";
+  const gap = (i: number) => (
+    <span key={`g${i}`} data-glance-gap className={`grid ${tile} place-items-center text-muted-foreground outline-dashed outline-[1.5px] -outline-offset-[1.5px] outline-edge`}>
+      <Plus className="size-3.5" aria-hidden />
+    </span>
+  );
+  const faces = s.faces.slice(0, facesShown).map((f) => {
+    const c = faceIn(g, f.id);
+    return (
+      <span key={f.id} data-glance-face={f.id} className="relative flex-none">
+        <Face src={c?.photo ?? null} name={c?.name} className={`${tile} text-[13px] ${f.out ? "opacity-50 grayscale" : ""}`} />
+        {f.tick && (
+          <span className="absolute -right-1.5 -top-1.5 grid size-4 place-items-center rounded-full bg-good text-good-foreground shadow-[0_0_0_2px_var(--card)]">
+            <Check className="size-2.5" strokeWidth={3.5} aria-hidden />
+          </span>
+        )}
+      </span>
+    );
+  });
+  const gaps = Array.from({ length: gapsShown }, (_, i) => gap(i));
+  return (
+    <div data-your-move={m?.kind ?? "team"} data-due={m?.due ?? false} data-move-plates data-glance={s.kind} data-glance-open={open || undefined} className="mt-0.5">
+      <div className="-mx-1 flex min-h-[52px] w-[calc(100%+8px)] items-center gap-2.5 px-1">
+        {m?.due && <i data-move-due className="size-[7px] flex-none rounded-full bg-chyron-line" aria-label="Needs you" />}
+        {/* Who, as tiles: the way into the detail (bigger faces, slots, points, the bench), in place. */}
+        <button
+          type="button"
+          data-glance-tiles
+          aria-expanded={open}
+          aria-label={`${open ? "Hide" : "Show"} ${s.kind === "team" ? "your team" : s.kind === "pick" ? "your pick" : s.kind === "claim" ? "your claim" : "your lineup"}`}
+          onClick={() => setOpen(!open)}
+          className="nd-press -my-1 flex min-h-11 flex-none items-center gap-[3px] rounded-[4px] py-1"
+        >
+          {over ? [...gaps, ...faces] : [...faces, ...gaps]}
+          {hidden > 0 && (
+            <span
+              data-glance-more
+              className={`type-num grid ${tile} place-items-center text-[13px] font-bold ${hiddenGaps === hidden ? "text-muted-foreground outline-dashed outline-[1.5px] -outline-offset-[1.5px] outline-edge" : "bg-secondary"}`}
+            >
+              +{hidden}
+            </span>
+          )}
+        </button>
+        {m ? (
+          <button type="button" onClick={go} className="nd-press flex min-h-11 min-w-0 flex-1 items-center gap-2 self-stretch rounded-[4px] text-left">
+            <span className="min-w-0 flex-1">
+              {/* Never cut a name: a long one takes a second line (the alert strip's rule: grow, don't truncate). */}
+              <b className="line-clamp-2 text-pretty text-[15px] font-bold leading-tight">{words}</b>
+              <small className="mt-0.5 line-clamp-2 text-pretty text-[13px] leading-snug text-muted-foreground">{line}</small>
+            </span>
+            {/* The verb as Tonight's plate says it (the outlined button took the names' room: four lines a row at 390). */}
+            <span className="flex flex-none items-center gap-0.5 whitespace-nowrap text-[14px] font-bold">
+              {m.action}
+              <ChevronRight className="size-4" aria-hidden />
+            </span>
+          </button>
+        ) : (
+          <span className="min-w-0 flex-1">
+            <b className="block text-[15px] font-bold leading-tight">{words}</b>
+            <small className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">{line}</small>
+          </span>
+        )}
+      </div>
+      {open && <GlanceDetail g={g} s={s} go={go} onCast={onCast} close={() => setOpen(false)} />}
+    </div>
+  );
+}
+
+/** A glance opened: the face plates, four a row, each opening its sheet; an empty place dashed and named by its slot; the bench or
+ *  what's on the line beside them; Show less. A lineup with nothing in it, bigger than a row, is one dashed line naming its slots. */
+function GlanceDetail({ g, s, go, onCast, close }: { g: GameView; s: GlanceShape; go: () => void; onCast: (g: GameView, id: string) => void; close: () => void }) {
+  const used = s.faces.length + s.gaps.length;
+  const left = (ROW - (used % ROW)) % ROW;
+  const emptyLine = s.faces.length === 0 && s.gaps.length > ROW;
+  const plate = "relative overflow-hidden rounded-[3px] bg-plate text-left text-plate-foreground";
+  return (
+    <div data-glance-detail className="pb-1">
+      {emptyLine ? (
+        <button
+          type="button"
+          onClick={go}
+          data-glance-empty
+          className="nd-press mt-1 flex w-full items-center gap-3 rounded-[3px] px-3 py-3 text-left outline-dashed outline-[1.5px] -outline-offset-[1.5px] outline-edge"
+        >
+          <Plus className="size-5 flex-none text-muted-foreground" aria-hidden />
+          <span className="min-w-0">
+            <b className="type-caption block text-[15px]">{s.gaps.length} open</b>
+            <small className="block text-[13px] leading-snug text-muted-foreground">{s.gaps.filter(Boolean).join(", ") || "Nobody starting yet"}</small>
+          </span>
+        </button>
+      ) : (
+        <div className="mt-1 grid grid-cols-4 gap-2">
+          {s.faces.map((f) => {
+            const c = faceIn(g, f.id);
+            const name = castName(c, g);
+            return (
+              <button key={f.id} type="button" data-glance-plate={f.id} onClick={() => onCast(g, f.id)} className={`nd-press ${plate} ${f.out ? "opacity-50 grayscale" : ""}`}>
+                <Face src={c?.photo ?? null} name={c?.name} className="aspect-[4/4.2] w-full text-[24px]" />
+                {f.slot && <span className="type-caption absolute left-1 top-1 rounded-[2px] bg-[rgba(16,14,21,.8)] px-1.5 py-0.5 text-[11px] tracking-[0.06em] text-white">{f.slot}</span>}
+                {f.tick && (
+                  <span className="absolute right-1 top-1 grid size-6 place-items-center rounded-full bg-good text-good-foreground">
+                    <Check className="size-3.5" strokeWidth={3} aria-hidden />
+                  </span>
+                )}
+                <span className="block px-1.5 pb-1.5 pt-1">
+                  <b className={`type-caption block truncate ${name.length > 9 ? "text-[13px]" : "text-[15px]"}`}>{name}</b>
+                  <small className="block truncate text-[11px] text-plate-muted">{f.sub}</small>
+                </span>
+              </button>
+            );
+          })}
+          {s.gaps.map((label, i) => (
+            <GapCell key={`g${i}`} label={label} kind={s.kind} onClick={go} />
+          ))}
+          {s.note && left > 0 && (
+            <span className="flex flex-col justify-end rounded-[3px] px-2 pb-1.5 pt-2 outline-1 -outline-offset-1 outline-border" style={{ gridColumn: `span ${left}` }}>
+              <b className="type-caption block text-[13px] tracking-[0.05em] text-muted-foreground">{s.note.title}</b>
+              <span className="mt-0.5 block text-[14px] font-semibold leading-snug">{s.note.body}</span>
+            </span>
+          )}
+        </div>
+      )}
+      {s.note && (left === 0 || emptyLine) && (
+        <p className="mt-2 text-[14px] leading-snug">
+          <b className="type-caption mr-1.5 text-[13px] tracking-[0.05em] text-muted-foreground">{s.note.title}</b>
+          {s.note.body}
+        </p>
+      )}
+      <button type="button" data-glance-less onClick={close} className="flex min-h-10 items-center gap-1 text-[14px] font-semibold text-muted-foreground">
+        Show less
+        <ChevronDown className="size-4 rotate-180" aria-hidden />
+      </button>
+    </div>
+  );
+}
+
+/** An empty place in a glance's detail: dashed, named by its slot where the game has them ("Open · TE"); a tap goes to the move. */
+function GapCell({ label, kind, onClick }: { label: string; kind: GlanceShape["kind"]; onClick: () => void }) {
+  return (
+    <button type="button" data-glance-gap onClick={onClick} className="nd-press grid aspect-[4/5.2] place-items-center rounded-[3px] text-center text-muted-foreground outline-dashed outline-[1.5px] -outline-offset-[1.5px] outline-edge">
+      <span>
+        <Plus className="mx-auto size-5" aria-hidden />
+        <b className="type-caption mt-1 block text-[14px] text-foreground">{kind === "pick" ? "Pick" : "Open"}</b>
+        {label && kind !== "pick" && <small className="block text-[12px]">{label}</small>}
+      </span>
     </button>
   );
 }
@@ -840,25 +1079,10 @@ export function PlayIt({ show }: { show: ShowData }) {
  * Start a game, under the Games tab's games (the mock's cp-start): any game that fits this show, for anyone on the couch.
  * Once every episode has aired it's Run it back: the same game on the show's next season, when there's one to play.
  */
-/**
- * A game of yours over a span that's over (step 6 of docs/PLAN-sports-data.md), the latest, to run back on the next span: none
- * once a game of its kind has started here since it ended (yours or the couch's).
- */
-function spanToRunBack(show: ShowData, others: JoinGame[]): GameView | null {
-  // A game waiting for its phase (start null) starts after anything that's over.
-  const started = [...show.games.map((x) => ({ id: x.leagueId, type: x.gameType, start: x.start === undefined ? 1 : x.start })), ...others.map((x) => ({ id: x.leagueId, type: x.gameType, start: x.start }))];
-  return (
-    (show.play ?? [])
-      .filter((g) => !g.solo && g.to !== null && g.over && !started.some((x) => x.id !== g.leagueId && x.type === g.gameType && (x.start === null || x.start > (g.to as number))))
-      .sort((a, b) => (b.to ?? 0) - (a.to ?? 0))[0] ?? null
-  );
-}
-
-function StartRow({ show, others }: { show: ShowData; others: JoinGame[] }) {
+function StartRow({ show }: { show: ShowData }) {
   const h = show.header;
   const over = !!h && (h.status === "completed" || (!!h.episodeCount && show.latestAired >= h.episodeCount && !show.upNext));
-  const done = over ? null : spanToRunBack(show, others);
-  const opts = useStartOptions(h?.seasonId ?? null, show.couch?.id ?? null, done?.leagueId ?? null, over || !!done);
+  const opts = useStartOptions(h?.seasonId ?? null, show.couch?.id ?? null, null, over);
   const finished = (show.play ?? []).find((g) => !g.solo);
   const next = opts.data?.nextSeason ?? null;
   // A season that's over is still a game at your own pace (docs/PLAN-own-pace-games.md), and its next season Run it back.
@@ -892,26 +1116,6 @@ function StartRow({ show, others }: { show: ShowData; others: JoinGame[] }) {
           </button>
         )}
       </>
-    );
-  }
-  // Run it back on the next span, when there's one listed.
-  const back = done && opts.data?.again && opts.data.again.to !== null && !opts.data.blocked ? opts.data : null;
-  if (done && back) {
-    return (
-      <button
-        type="button"
-        data-start-row="again-span"
-        onClick={() => openStartGame({ seasonId: h?.seasonId, couchId: show.couch?.id ?? null, again: done.leagueId })}
-        className="nd-press mx-4 mt-[26px] flex w-[calc(100%-32px)] items-center gap-3 rounded-[4px] p-4 text-left outline-[1.5px] -outline-offset-[1.5px] outline-dashed outline-input"
-      >
-        <RotateCcw className="size-6 flex-none" aria-hidden />
-        <span>
-          <b className="block text-base">Run it back · {spanName(back.from, back.again!.to, back.part)}</b>
-          <small className="block text-[13px] leading-snug text-muted-foreground">
-            {done.gameName} again, after {back.again!.label}. The couch hears about it.
-          </small>
-        </span>
-      </button>
     );
   }
   return (
@@ -984,7 +1188,7 @@ function HowRow({ show, name }: { show: ShowData; name: string }) {
   );
 }
 
-function ThisWeek({ show }: { show: ShowData }) {
+function ThisWeek({ show, bare }: { show: ShowData; bare?: boolean }) {
   const up = show.upNext;
   const couchId = show.couch?.id ?? null;
   const seasonId = show.header?.seasonId ?? null;
@@ -1001,17 +1205,22 @@ function ThisWeek({ show }: { show: ShowData }) {
   const bingo = bingoEpisode(show);
   // Each Prediction Sheet you play here with something to answer (step A4 part 2): this week's to fill in. One that asks about the
   // next episode stands in for Call it.
-  const sheets = (show.play ?? []).filter((g) => g.gameType === "questions" && !g.archived && !!g.sheet);
+  // Round 3 (`bare`): the rows alone, inside the next episode's block, where a one-episode game's sheet is its night row.
+  const sheets = (show.play ?? []).filter((g) => g.gameType === "questions" && !g.archived && !!g.sheet && !(bare && oneGame(g)));
+  const rows = (
+    <div data-this-week>
+      {bingo && seasonId && <BingoRow icon target={{ seasonId, couchId, episode: bingo, label: showLabel(show), solo: show.solo }} />}
+      {call && seasonId && !sheetAsks(show, call) && <CallRow icon target={{ seasonId, couchId, episode: call, label: showLabel(show), solo: show.solo }} />}
+      {seasonId && sheets.map((g) => <SheetRow key={g.leagueId} icon move={g.sheet!} target={{ seasonId, leagueId: g.leagueId, episode: null, game: g.name }} />)}
+      {onCouch && (polls.data?.polls ?? []).map((p) => <PollRow key={p.id} icon p={p} couchId={couchId!} />)}
+      {seasonId && <TriviaRow icon target={{ seasonId, couchId: show.solo ? null : couchId }} />}
+      {onCouch && <StartPollRow seasonId={seasonId!} couchId={couchId!} label={showLabel(show)} />}
+    </div>
+  );
+  if (bare) return rows;
   return (
     <Block title={paced ? `Your Episode ${next}` : "This week"} aside={paced ? "Before you watch" : "One night each"}>
-      <div data-this-week>
-        {bingo && seasonId && <BingoRow icon target={{ seasonId, couchId, episode: bingo, label: showLabel(show), solo: show.solo }} />}
-        {call && seasonId && !sheetAsks(show, call) && <CallRow icon target={{ seasonId, couchId, episode: call, label: showLabel(show), solo: show.solo }} />}
-        {seasonId && sheets.map((g) => <SheetRow key={g.leagueId} icon move={g.sheet!} target={{ seasonId, leagueId: g.leagueId, episode: null, game: g.name }} />)}
-        {onCouch && (polls.data?.polls ?? []).map((p) => <PollRow key={p.id} icon p={p} couchId={couchId!} />)}
-        {seasonId && <TriviaRow icon target={{ seasonId, couchId: show.solo ? null : couchId }} />}
-        {onCouch && <StartPollRow seasonId={seasonId!} couchId={couchId!} label={showLabel(show)} />}
-      </div>
+      {rows}
     </Block>
   );
 }

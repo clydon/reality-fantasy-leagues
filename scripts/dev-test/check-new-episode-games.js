@@ -71,6 +71,13 @@ function check(ok, what, detail = "") {
   if (!ok) failures++;
 }
 
+// Round 3 (B3): a player's Games tab folds This week into the next episode's block, one line ("Also: bingo, calls, trivia and
+// polls"): open it when it's there.
+const openExtras = async (page) => {
+  const fold = page.locator('[data-night-extras="closed"] button').first();
+  if (await fold.waitFor({ timeout: 15_000 }).then(() => true, () => false)) await fold.click();
+};
+
 (async () => {
   const pool = new Pool({ connectionString: DB });
   fs.mkdirSync(out, { recursive: true });
@@ -340,6 +347,7 @@ function check(ok, what, detail = "") {
 
       // The Games tab's This week: Call it, the couch's polls, Start a poll.
       await cp.goto(`${BASE}/show/${sid}/games`, { waitUntil: "load" });
+      await openExtras(cp);
       await cp.locator("[data-this-week] [data-call-row]").waitFor({ timeout: 30_000 });
       await cp.locator(`[data-poll-row="${P1}"]`).waitFor({ timeout: 20_000 });
       await cp.waitForTimeout(800);
@@ -850,6 +858,7 @@ function check(ok, what, detail = "") {
       await D.shot("episode-bingo");
       // The Games tab's This week: the card and this week's trivia.
       await dp.goto(`${BASE}/show/${sid}/games`, { waitUntil: "load" });
+      await openExtras(dp);
       const trow = dp.locator("[data-this-week] [data-trivia-row]");
       await trow.waitFor({ timeout: 30_000 });
       await dp.locator('[data-this-week] [data-bingo-row="7"]').waitFor({ timeout: 20_000 });

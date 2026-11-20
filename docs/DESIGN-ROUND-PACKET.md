@@ -1,8 +1,10 @@
 # The design round's packet
 
+> **Status (2026-11-19): Reference.** The round's frame still holds. Its "Decisions you owe" were all settled 2026-11-14 (design-round/decisions.md). Steps 10–12 are in PLANS.md.
+
 Prepared 2026-11-14 for the game UI/UX overhaul. It merges three lists into one, ranked and grouped by the page each item lands on:
 the explorer plan's [Designs needed](PLAN-GAMEPLAY-SCENARIO-EXPLORER.md) (39 items, "DN" below), the backlog's UI items
-([BACKLOG.md](BACKLOG.md), "B"), and the overhaul index and ideas in [UX-IDEAS.md](UX-IDEAS.md). Nothing here is designed or
+([BACKLOG.md](BACKLOG.md), "B"), and the overhaul index and ideas in [UX-IDEAS.md](archive/UX-IDEAS-2026-11-19.md) (archived 2026-11-19; its ideas are in BACKLOG.md). Nothing here is designed or
 approved. The round follows the [fresh-start brief](APP-REVIEW-DESIGN-BRIEF.md): one page with its situation variants, through
 impeccable (shape, then critique) at 390 px first, then a pause for your review before anything else is redesigned.
 
@@ -109,7 +111,7 @@ Spoilers and pace are at their extreme there (a binge drop spreads a couch acros
 seasons.
 
 **Live games**, real-time prompts during watch-along (A15, live calls), are a future mode. The designs leave room for them: a move
-whose lock is seconds away, nothing mid-episode in notifications, the night's calls in the reveal. See UX-IDEAS.md, "Live games".
+whose lock is seconds away, nothing mid-episode in notifications, the night's calls in the reveal. See archive/UX-IDEAS-2026-11-19.md, "Live games" (now BACKLOG 179, A15).
 
 **Inspiration from apps that already solve our problems** (the user). Borrow patterns; don't copy any app's look:
 - fantasy football (Sleeper, ESPN, Yahoo): the matchup screen, setting a lineup, the draft room with its queue and auto-pick,

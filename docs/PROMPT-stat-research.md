@@ -1,5 +1,7 @@
 # Reusable prompt: surveying a show's wiki for fantasy-scoring stats
 
+> **Status (2026-11-19): Superseded.** A prompt for surveying a show's wiki. Rulebook research through our bot replaced it (PLAN-rulebook-research.md, PLAN-getting-it-ready.md). Kept for history.
+
 Hand this to an AI that can actually browse the wiki. Fill in the four fields at the top and paste
 the rest verbatim. Written for Survivor first, but the whole point is that it's show-agnostic — see
 `docs/RESEARCH-extractable-stats.md` for the framework it encodes and for the Survivor answer to

@@ -34,14 +34,17 @@ type Keep = number | null;
 /**
  * `key`'s answer from the cache while it's good, else `ask()` (kept for as long as `keep` says). `db` and `now` are for checks.
  */
-export async function cached<T>(key: string, ask: () => Promise<T>, keep: (value: T) => Keep, opts: { db?: Queryable; now?: number } = {}): Promise<T> {
+export async function cached<T>(key: string, ask: () => Promise<T>, keep: (value: T) => Keep, opts: { db?: Queryable; now?: number; fresh?: boolean } = {}): Promise<T> {
   const db = opts.db ?? pool;
   const now = opts.now ?? Date.now();
   let hit: { value: T; expires_at: Date | null } | undefined;
-  try {
-    hit = (await db.query("SELECT value, expires_at FROM sports_cache WHERE key = $1", [key])).rows[0];
-  } catch (e) {
-    console.error("[sports] cache read:", (e as Error).message);
+  // `fresh`: asked again whatever's kept (a final read again for a correction: finals.ts), and kept as the new answer.
+  if (!opts.fresh) {
+    try {
+      hit = (await db.query("SELECT value, expires_at FROM sports_cache WHERE key = $1", [key])).rows[0];
+    } catch (e) {
+      console.error("[sports] cache read:", (e as Error).message);
+    }
   }
   if (hit && (hit.expires_at === null || hit.expires_at.getTime() > now)) return hit.value;
   let value: T;
@@ -118,7 +121,7 @@ export function withCache(p: SportsProvider, opts: { prefix?: string; db?: Query
       cached(key("box", league, event), () => p.boxScore(league, event), (b) => (b?.final ? null : b?.state === "in" ? 3 * MIN : b?.state === "post" ? DAY : HOUR), at()),
     // L3 parts 1 and 3: a game's or an event's counts, asked once it's final and saved with it (finals.ts), so the cache keeps
     // them a day.
-    game: (league, event) => cached(key("game", league, event), () => p.game(league, event), (g) => (g?.final ? DAY : HOUR), at()),
+    game: (league, event, go) => cached(key("game", league, event), () => p.game(league, event), (g) => (g?.final ? DAY : HOUR), { ...at(), fresh: go?.fresh }),
     seasonStats: (league, athlete, season) => cached(key("season", league, athlete, season), () => p.seasonStats(league, athlete, season), () => DAY, at()),
   };
 }

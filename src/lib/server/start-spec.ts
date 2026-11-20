@@ -1,16 +1,19 @@
 import { after } from "next/server";
 import Bots from "@/lib/game/bot-logic.js";
 import StateLogic from "@/lib/game/state-logic.js";
+import type { LeagueState } from "@/lib/game/types";
 import { addBot, botsPlay, MAX_BOTS, type BotLevel } from "@/lib/game/computer-players";
 import * as Spec from "@/lib/game/game-spec/index.js";
 import type { SpecContext } from "@/lib/game/game-spec/index.js";
 import type { Pack } from "@/lib/game/game-words/index.js";
 import { spanName } from "@/lib/game/spans";
+import { gameFingerprint } from "@/lib/game/game-rules";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { recordChange } from "./change-log";
 import { couchMembers } from "./couches";
-import { HttpError, pool } from "./db";
+import { HttpError, pool, withLeagueLock } from "./db";
 import { deleteLeague } from "./end-game";
+import { makeStages } from "./engine-lab";
 import { followLeagueProgress } from "./follows";
 import { asksToday, packFor } from "./game-words";
 import { refused } from "./game-writes";
@@ -20,7 +23,7 @@ import { leaguePhases, scheduleOf, settleIn } from "./phase-starts";
 import { queueSeasonBingo } from "./desk-research";
 import { madeGames, type MadeGame } from "./made-games";
 import { notifyGameStarted } from "./push-events";
-import { applyPace, couchGamesOn, freeName, linkIn, paceAsked, startOptions, watchersOf, type StartOptions } from "./start-game";
+import { applyPace, couchGamesOn, gameName, linkIn, paceAsked, startOptions, watchersOf, type StartOptions } from "./start-game";
 
 // Start a game, the wizard (docs/PLAN-start-a-game-gpt.md U1; U0's settled board "B, settled"). The sheet rolls, checks and words
 // every game on the phone (the engine's rollSpec, specProblems and describeSpec, bundled for the browser) from the page this reads:
@@ -35,7 +38,7 @@ import { applyPace, couchGamesOn, freeName, linkIn, paceAsked, startOptions, wat
 //
 // Start it tells the couch (only those who watch the show or play it there: U1's note) after a 10-second hold: the push waits in
 // the request's `after` and goes only if the game is still standing, so Undo inside the hold takes it back before anyone hears.
-// A game in stages (the redraft, trivia too) isn't made here yet: the sheet doesn't offer those twists.
+// A game in stages (the redraft, trivia too) is made as the engine lab makes one: its game, and a league for each stage.
 
 /** How long Start it holds the couch's push for Undo. */
 export const TELL_HOLD_MS = 10_000;
@@ -55,18 +58,48 @@ export interface WizardPage {
   made: MadeGame[];
 }
 
-export type WizardOptions = StartOptions & { wizard: WizardPage | null };
+export type WizardOptions = StartOptions & {
+  wizard: WizardPage | null;
+  /** Run it back: the game it plays again, as its rules (its spec, its dates left out: the sheet sets them on this season). */
+  againSpec: Record<string, unknown> | null;
+};
 
-/** What can start, and (for a season with episodes still to air, set up) the wizard's page. */
-export async function wizardOptions(user: SessionUser, seasonId: string, couchId: string | null, now = new Date(), late = false, start: number | null = null): Promise<WizardOptions> {
+/** What can start, and (for a season set up) the page Start a game checks and words games on. */
+export async function wizardOptions(user: SessionUser, seasonId: string, couchId: string | null, now = new Date(), late = false, start: number | null = null, again: string | null = null): Promise<WizardOptions> {
   // `start`: an episode that's aired, to catch up from at your own pace (where you are, on a season still airing).
-  const opts = await startOptions(user, seasonId, couchId, null, now, late, start);
+  const opts = await startOptions(user, seasonId, couchId, again, now, late, start);
   // An aired season at your own pace takes the wizard too (the user, 2026-11-09): it starts where the season's starts say.
-  if (opts.blocked) return { ...opts, wizard: null };
+  if (opts.blocked) return { ...opts, wizard: null, againSpec: null };
   const [{ pack, ctx }, asks, tells, made] = await Promise.all([packFor(user, seasonId, opts.couch.id, now), asksToday(user), audience(user, opts.couch.id, seasonId), madeGames(seasonId)]);
   const listed = Math.max(0, ...opts.starts.map((e) => e.number));
   const last = pack.episodes.total ?? (listed >= opts.from ? listed : null);
-  return { ...opts, wizard: { page: { ctx, pack }, last, asksLeft: asks.left, tells: tells.length, made } };
+  return { ...opts, wizard: { page: { ctx, pack }, last, asksLeft: asks.left, tells: tells.length, made }, againSpec: opts.again ? await againSpecOf(opts.again.leagueId, opts.again.questions) : null };
+}
+
+/** Run it back's game as its rules: the league's spec (StateLogic.gameOf), its span left for the sheet to set on this season. */
+async function againSpecOf(leagueId: string, canAsk: string[] | null): Promise<Record<string, unknown> | null> {
+  const { rows } = await pool.query("SELECT state FROM leagues WHERE id = $1 AND deleted_at IS NULL", [leagueId]);
+  const state = rows[0]?.state as LeagueState | undefined;
+  if (!state) return null;
+  const spec = structuredClone(StateLogic.gameOf(state)) as unknown as Record<string, unknown>;
+  delete spec.span;
+  // A draft held to today's limits, as Run it back always did (start-game.ts againParts): starters, bench, a team's size.
+  const get = spec.get as { by?: string; each?: number } | undefined;
+  const count = spec.count as { start?: number } | undefined;
+  if (get?.by === "draft" && typeof get.each === "number") {
+    if (count && typeof count.start === "number") {
+      const startN = Math.min(count.start, Spec.MAX_STARTERS);
+      const bench = Math.min(Math.max(0, get.each - count.start), Spec.MAX_BENCH);
+      spec.count = { ...count, start: startN };
+      spec.get = { ...get, each: startN + bench };
+    } else spec.get = { ...get, each: Math.min(get.each, Spec.MAX_TEAM) };
+  }
+  // Only the questions this season can still ask (startOptions' again.questions: a season-long one on a span, an id it hasn't got).
+  if (canAsk && Array.isArray(spec.ask)) {
+    const kept = (spec.ask as Record<string, unknown>[]).filter((q) => typeof q.id === "string" && canAsk.includes(q.id));
+    if (kept.length) spec.ask = kept;
+  }
+  return spec;
 }
 
 /** Who Start it tells: the couch's members who watch the show or play it here, never the starter. */
@@ -100,7 +133,7 @@ export async function startFromSpec(
   user: SessionUser,
   seasonId: string,
   couchId: string | null,
-  body: { spec?: unknown; name?: unknown; tell?: unknown; bots?: unknown; level?: unknown; late?: unknown; made?: unknown; pace?: unknown },
+  body: { spec?: unknown; name?: unknown; typed?: unknown; tell?: unknown; bots?: unknown; level?: unknown; late?: unknown; made?: unknown; pace?: unknown },
   now = new Date(),
   o: { origin?: string; bot?: string } = {}
 ): Promise<SpecStarted> {
@@ -114,14 +147,23 @@ export async function startFromSpec(
   const couch = opts.couch.id;
   const { ctx } = await packFor(user, seasonId, couch, now);
   const spec = structuredClone(body.spec) as Record<string, unknown>;
-  if (Array.isArray(spec.stages)) throw new HttpError(409, "A game in stages can't start from here yet");
+  // A game in stages (A12): its game and a league for each stage (engine-lab.ts makeStages, as the lab makes them), on this season.
+  const staged = Array.isArray(spec.stages);
+  if (staged && opts.ownPace) throw new HttpError(409, "A game in stages can't be played at your own pace yet");
 
   // Where it starts: the next to air (or the one on now, with `late`), a later listed one, or a phase still to come; where it ends:
   // the season's end, a later episode, or a phase.
   // No span (a described game that runs all season): from the start the options give (the next to air, or where you are at your
   // own pace) to the season's end.
-  if (!isObj(spec.span)) spec.span = { from: opts.from, to: null };
-  const span = spec.span as Record<string, unknown>;
+  // A game in stages starts where its first stage does: that's the start checked below (the review, B1), and the one on now isn't
+  // offered to it yet (makeStages' stage leagues don't carry Include it's open window).
+  const stage0 = staged && isObj((spec.stages as unknown[])[0]) && isObj(((spec.stages as Record<string, unknown>[])[0]).game) ? (((spec.stages as Record<string, unknown>[])[0]).game as Record<string, unknown>) : null;
+  if (staged && !stage0) throw new HttpError(400, "A game in stages needs its first stage");
+  if (staged && late) throw new HttpError(409, "A game in stages can't include the one on now yet: it starts with the next one");
+  if (stage0 && !isObj(stage0.span)) stage0.span = { from: opts.from };
+  if (stage0 && isObj(stage0.span) && stage0.span.from === undefined) (stage0.span as Record<string, unknown>).from = opts.from;
+  if (!staged && !isObj(spec.span)) spec.span = { from: opts.from, to: null };
+  const span = (stage0 ? stage0.span : spec.span) as Record<string, unknown>;
   const fromPhase = phaseOf(span.from);
   if (fromPhase) {
     if (late) throw new HttpError(400, "Include the one on now, or start with a phase: not both");
@@ -146,12 +188,21 @@ export async function startFromSpec(
   const describe = Spec.describeSpec(spec as never, ctx);
   const here = await couchGamesOn(user, couch, seasonId);
   const want = typeof body.name === "string" && body.name.trim() ? body.name.trim().slice(0, 60) : describe.short.title || "A game";
-  const name = freeName(want, here);
-  const starter = (user as { username?: string | null }).username || user.name;
   const { rows: seasonRow } = await pool.query("SELECT ss.season_number, s.slug FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1", [seasonId]);
+  // A one-episode game says its episode (start-game.ts gameName: Round 3's archive reads a game's kind from its name).
+  const one = Spec.spanStart(spec.span as never);
+  const only = typeof one === "number" && Spec.spanEnd(spec.span as never) === one;
+  // (`typed`: the person typed the name, sent as typed: true. The sheet sends its base's name on every start and has no field to type
+  // one yet, so a sent name alone isn't typed: the branch review, 2026-11-19.)
+  const name = gameName(want, here, only ? { episode: one as number, word: opts.part.singular.replace(/^./, (c) => c.toUpperCase()) } : null, body.typed === true && typeof body.name === "string" && !!body.name.trim());
+  const starter = (user as { username?: string | null }).username || user.name;
   const row = { id: seasonId, number: seasonRow[0].season_number as number, slug: seasonRow[0].slug as string };
   const copy = await copyOf(here.map((g) => g.leagueId));
-  const to = typeof span.to === "number" ? span.to : null;
+  // A game in stages ends where its last stage does (span is its first stage's: where it starts). The branch review, 2026-11-19.
+  const stagesList = staged ? (spec.stages as Record<string, unknown>[]) : [];
+  const lastSpan = staged && isObj(stagesList[stagesList.length - 1]?.game) ? ((stagesList[stagesList.length - 1].game as Record<string, unknown>).span as Record<string, unknown> | undefined) : null;
+  const toOf = staged ? lastSpan?.to : span.to;
+  const to = typeof toOf === "number" ? toOf : null;
   const spanWords = typeof span.from === "number" && to !== null ? spanName(span.from, to, opts.part) : null;
   const P = opts.part.singular.replace(/^./, (c) => c.toUpperCase());
   const when = fromPhase ? ` from when ${opts.phases.find((p) => p.id === fromPhase)?.name ?? fromPhase} starts` : spanWords ? ` for ${spanWords}` : ` from ${P} ${span.from}`;
@@ -163,8 +214,9 @@ export async function startFromSpec(
   const leagueId = await makeLeague(row, {
     name,
     createdBy: user.id,
-    // A game of questions (or one of the newer kinds with nothing held) starts from Survival Pool's type, as the lab's do.
-    type: type === "questions" ? "pickem" : type,
+    // A game of questions (or one of the newer kinds with nothing held) starts from Survival Pool's type, as the lab's do; a game in
+    // stages too (its stages are leagues of their own).
+    type: type === "questions" || type === "stages" ? "pickem" : type,
     couchId: couch,
     rulebookId: copy?.id ?? null,
     before: (s) => {
@@ -181,6 +233,13 @@ export async function startFromSpec(
         opts.ownPace ? opts.from - 1 : null,
       ]);
       refused(StateLogic.setGame(s, spec as never, { ctx }), 409);
+      // The setup card's sentence, kept for the game page's title card (B1): what its maker read at Start.
+      if (made && typeof made.about === "string" && made.about.trim() && made.unchanged === true) {
+        const st = s.settings as unknown as { about?: string; aboutOf?: string };
+        st.about = made.about.trim().slice(0, 200);
+        // The rules it describes: if they change later (Backstage, the maker's Scoring page), the engine's own sentence takes over.
+        st.aboutOf = gameFingerprint(StateLogic.gameOf(s));
+      }
       if (bots && !botsPlay(s)) throw new HttpError(409, "Computer players don't play this game");
       if (StateLogic.readsPhases(s) || StateLogic.startPhase(s) || StateLogic.endPhase(s)) {
         settleIn(s, await leaguePhases(client, id, seasonId), await scheduleOf(seasonId, now), now);
@@ -223,6 +282,16 @@ export async function startFromSpec(
     throw e;
   });
   if (!leagueId) throw new HttpError(500, "Couldn't make the game, try again");
+  if (staged) {
+    await makeStages(user, leagueId, name, spec, { ...row, label: opts.label }, couch, copy?.id ?? null, ctx, new Map(), false).catch(async (e) => {
+      await pool.query("DELETE FROM leagues WHERE id = $1 AND created_by = $2", [leagueId, user.id]);
+      throw e;
+    });
+  }
+  // Computer players answering questions (E1b): a write through the league's lock runs them, so their answers to the first open
+  // questions are in from the start (bots.ts answerForBots).
+  // A failure here doesn't undo a game that's made: their answers then come with the next write to it.
+  if (bots) await withLeagueLock(leagueId, () => undefined).catch((e) => console.error(`[start-spec] computer players' first answers for ${leagueId}:`, e));
   const linked = await linkIn(leagueId, here, user.id).catch((e) => {
     console.error(`[start-spec] couldn't link ${leagueId}:`, e);
     return false;

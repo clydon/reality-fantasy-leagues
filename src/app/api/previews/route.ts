@@ -22,8 +22,12 @@ export const POST = apiRoute(async (req) => {
   if (typeof body.season !== "string") throw new HttpError(400, "Which season?");
   if (typeof body.game?.base !== "string") throw new HttpError(400, "Which game?");
   const changes = Array.isArray(body.game.changes) ? body.game.changes : [];
+  // The game as the gallery holds it (step 15), checked on the season like a base before anything plays it; a few KB at most.
+  const raw = (body.game as { spec?: unknown }).spec;
+  const spec = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : undefined;
+  if (spec && JSON.stringify(spec).length > 32_000) throw new HttpError(413, "That game is too big to preview");
   const origin = new URL(req.url).origin;
   // Only places on this host: a preview's buttons never send anyone elsewhere.
   const exits = { back: origin + (isPath(body.exits?.back) ? body.exits.back : "/home"), create: origin + (isPath(body.exits?.create) ? body.exits.create : "/home") };
-  return NextResponse.json(await startPreview(user, { seasonId: body.season, couchId: typeof body.couch === "string" ? body.couch : null, game: { base: body.game.base, changes }, exits, origin }));
+  return NextResponse.json(await startPreview(user, { seasonId: body.season, couchId: typeof body.couch === "string" ? body.couch : null, game: { base: body.game.base, changes, ...(spec ? { spec } : {}) }, exits, origin }));
 });

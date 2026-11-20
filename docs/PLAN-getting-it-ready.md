@@ -1,5 +1,7 @@
 # Plan: getting a show ready when it's added
 
+> **Status (2026-11-19): Done.** Built and live 2026-11-01 (95caf528, migrations 0160-0161), with What scores added as a step (0435). Challenge 42 was deleted and re-added that day. Nothing open.
+
 ## The ask (the user, 2026-11-01)
 
 Added The Challenge 42 (a finished season of 14) on their phone, up to Episode 1. The Contestants tab said "No contestants

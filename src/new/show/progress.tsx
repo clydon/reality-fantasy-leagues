@@ -14,7 +14,9 @@ import { upNextEpisode, WatchedSheet } from "./up-next";
 import { useCatchingUp } from "./behind-ask";
 import { useOpenWatch } from "./watch-along";
 import { paceReveal, usePaceReveal } from "./pace-plate";
-import { stripState } from "./strip";
+import { stripState, WatchLockSheet } from "./strip";
+import { openMoves } from "./moves";
+import { useLockIn, windowEpisode } from "./strip-night";
 import { StepGuard, StepLaterLine, StepLine } from "./step-through";
 
 // The progress control (the design round's step 3: docs/design-round/step3-tonight-spec.md, "Two parts every show tab shares";
@@ -89,6 +91,30 @@ export function ProgressControl({ show, compact }: { show: ShowData; compact?: b
   const action = watchAction(show);
   const openReveal = useOpenReveal();
   const openWatch = useOpenWatch();
+  // Episode night (strip-night.ts): Watch along is watching, so while your moves for the episode on air are open it says first that
+  // starting locks them (the server's lock; once locked in there's no window, so it just opens).
+  const nightEp = windowEpisode(show);
+  const lock = useLockIn(show.header?.seasonId ?? "");
+  const [watchAsk, setWatchAsk] = useState<number | null>(null);
+  const startWatch = (n: number) => (nightEp === n && show.upNext?.live ? setWatchAsk(n) : openWatch(n));
+  const watchLock = watchAsk != null && (
+    <WatchLockSheet
+      show={show}
+      n={watchAsk}
+      open
+      onOpenChange={(o) => !o && setWatchAsk(null)}
+      onStart={() => {
+        const n = watchAsk;
+        setWatchAsk(null);
+        void lock(n, `Locked in for Episode ${n}. Enjoy the episode.`).then(() => openWatch(n));
+      }}
+      onChange={() => {
+        const lead = stripState(show)?.open;
+        setWatchAsk(null);
+        openMoves(lead?.tab ?? "lineup", lead?.leagueId ?? null);
+      }}
+    />
+  );
   const [confirm, setConfirm] = useState(false);
   const seasonId = show.header?.seasonId ?? "";
   const couchId = show.readOnly ? null : (show.couch?.id ?? null);
@@ -128,7 +154,7 @@ export function ProgressControl({ show, compact }: { show: ShowData; compact?: b
           I watched {ep} {action.n}
         </SmallButton>
       ) : action?.kind === "live" ? (
-        <SmallButton data-progress-watch={action.n} onClick={() => openWatch(action.n)}>
+        <SmallButton data-progress-watch={action.n} onClick={() => startWatch(action.n)}>
           Watch along
         </SmallButton>
       ) : null;
@@ -155,6 +181,7 @@ export function ProgressControl({ show, compact }: { show: ShowData; compact?: b
         </button>
         {act}
         {paced.node}
+        {watchLock}
         {action && (action.kind === "reveal" || action.kind === "watched") && seasonId && (
           <WatchedSheet open={confirm} onOpenChange={setConfirm} show={show} seasonId={seasonId} n={action.n} play={action.kind === "reveal"} onReveal={() => openReveal(action.n)} />
         )}
@@ -228,7 +255,7 @@ export function ProgressControl({ show, compact }: { show: ShowData; compact?: b
               I watched {show.words.ep} {action.n}
             </PlateButton>
           ) : null}
-          <PlateButton fill={action.kind === "live"} data-progress-watch={action.n} onClick={() => openWatch(action.n)}>
+          <PlateButton fill={action.kind === "live"} data-progress-watch={action.n} onClick={() => startWatch(action.n)}>
             Watch along
           </PlateButton>
         </div>
@@ -237,6 +264,7 @@ export function ProgressControl({ show, compact }: { show: ShowData; compact?: b
         <StepGuard open={guard} onOpenChange={setGuard} show={show} seasonId={seasonId} seen={seen!} latest={latest} play={action!.kind === "reveal"} onReveal={openReveal} />
       )}
       {paced.node}
+      {watchLock}
       {action && !behind && (action.kind === "reveal" || action.kind === "watched") && seasonId && (
         <WatchedSheet open={confirm} onOpenChange={setConfirm} show={show} seasonId={seasonId} n={action.n} play={action.kind === "reveal"} onReveal={() => openReveal(action.n)} />
       )}

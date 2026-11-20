@@ -1,5 +1,7 @@
 # Up next for you (Tonight), and a slim All set
 
+> **Status (2026-11-19): Done.** Built 2026-11-02 (eb7188f6), the user's pick A. The plate and 'I watched it' still stand under one episode at a time and episode night. Left: the held work of making every reveal door ask first (BACKLOG 159).
+
 The user, 2026-11-01, after React with a GIF shipped: "put much more thought into the reveal next episode UI/UX": a way to ask
 people to watch along, to move on to the next episode yourself, and to add your GIF when you reveal (or wherever makes the best
 sense); it can't get in the way of Your moves, "because we don't want people to miss that accidentally". Asked: ping now or plan

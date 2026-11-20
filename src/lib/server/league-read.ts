@@ -6,6 +6,7 @@ import { stampAirTimes } from "./air-times";
 import { notifyDraftTurn } from "./push-events";
 import { stampStats } from "./sports/score";
 import { stampCastProps } from "./cast-props";
+import { botsDue } from "./bots";
 
 // What a league read does before it answers: the classic league load (GET /api/leagues/[id]/state) and the new
 // design's show space (season-games.ts) both read through here, so a league moves on whichever design is open.
@@ -24,7 +25,8 @@ function draftTurn(state: LeagueState) {
  * read would never match. The check runs on a copy so the common case (nothing to do) costs no write.
  *
  * Same for a computer player with a move waiting that no write has prompted -- typically a draft whose scheduled
- * start time just passed with a bot first on the clock. withLeagueLock runs the bots. If that moved a turn on,
+ * start time just passed with a bot first on the clock; or (E1b) answers due now that no write prompted (a card that came out, a
+ * window the clock opened) or its turn to host a card (bots.ts botsDue). withLeagueLock runs the bots. If that moved a turn on,
  * whoever's up now hears about it as they would after a person's pick. Air times are stamped first so a bot never
  * sees a lineup as open when its episode is already airing.
  *
@@ -36,8 +38,11 @@ function draftTurn(state: LeagueState) {
  *
  * L3 part 2: a game scored by a sport's stats gets its final games' lines stamped (sports/score.ts stampStats), never stored. Part
  * 2e: a squares game's deal at its first lock, and each locked episode's digits, kept the same way as a draw's teams.
+ *
+ * `live` (docs/PLAN-sports-ready.md step 1.1, part 3): the games being played counted too, their lines so far, for a viewer the
+ * season shows everything to (the caller knows: season-games.ts). Off unless asked, so every other read stays at the finals.
  */
-export async function readyLeague(leagueId: string, state: LeagueState): Promise<LeagueState> {
+export async function readyLeague(leagueId: string, state: LeagueState, o: { live?: boolean } = {}): Promise<LeagueState> {
   await stampAirTimes(pool, state, leagueId);
   const waiverStepDue = !!StateLogic.WaiverLogic.due(state, Date.now());
   // A draw whose scheduled time has come (step A10 part 3): withLeagueLock draws it.
@@ -48,10 +53,16 @@ export async function readyLeague(leagueId: string, state: LeagueState): Promise
   const keepersDue = StateLogic.KeeperLogic.due(state);
   // A squares game whose first episode has locked (its deal) or an episode whose digits are drawn (L3 part 2e): withLeagueLock keeps them.
   const squaresDue = StateLogic.SquaresLogic.due(state);
-  if (!StateLogic.ensureNextEpisode(structuredClone(state)) && !Bots.hasWork(state) && !waiverStepDue && !drawDue && !auctionDue && !keepersDue && !squaresDue) return stampCastProps(await stampStats(state));
+  // Computer players' answers or a turn to host that came due with no write (E1b: a card that came out, a window the clock opened).
+  const botsWaiting = () =>
+    botsDue(pool, leagueId, state).catch((e) => {
+      console.error(`[league-read] couldn't tell whether computer players have something due in ${leagueId}:`, e);
+      return false;
+    });
+  if (!StateLogic.ensureNextEpisode(structuredClone(state)) && !Bots.hasWork(state) && !waiverStepDue && !drawDue && !auctionDue && !keepersDue && !squaresDue && !(await botsWaiting())) return stampCastProps(await stampStats(state, o));
   const before = draftTurn(state);
   const next = await withLeagueLock(leagueId, () => {});
   if (draftTurn(next) !== before) notifyDraftTurn(leagueId, next, null);
   await stampAirTimes(pool, next, leagueId);
-  return stampCastProps(await stampStats(next));
+  return stampCastProps(await stampStats(next, o));
 }

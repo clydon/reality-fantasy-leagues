@@ -103,7 +103,7 @@ async function sportPart(seasonId: string, label: string, terms: { castaway?: st
   // A slate's episode is its cadence's (a week of games, a day's), else the show's word for one (a matchup's: a game).
   const cadence = slate[0]?.cadence as string | undefined;
   const part = cadence && CADENCES.has(cadence) ? cadence : terms.episode?.toLowerCase();
-  const ctx = sportPageContext(league, { show: label, person: { one: one.toLowerCase(), many: (terms.people?.trim() || `${one}s`).toLowerCase() }, ...(part ? { part: { singular: part, plural: `${part}s` } } : {}), playoffs });
+  const ctx = sportPageContext(league, { show: label, person: { one: one.toLowerCase(), many: (terms.people?.trim() || `${one}s`).toLowerCase() }, ...(part ? { part: { singular: part, plural: `${part}s` } } : {}), playoffs, slate: slate.length > 0 });
   if (!ctx) return null;
   const at = (v: unknown) => (v ? new Date(v as string).toISOString() : null);
   const all = rows

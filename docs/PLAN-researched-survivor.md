@@ -1,5 +1,7 @@
 # Plan: Survivor on researched rules, tested on shadow leagues during Season 51
 
+> **Status (2026-11-19): Partly done.** Live: the rehearsal, R2 (the game-specs flag on), rulebooks for every season, and Survivor 51's episode count. Not done: S3, moving Survivor 51 off the built-in Survivor reader and deleting the code half of survivor.js. It waits on the user (BACKLOG 177; after the finale is recommended).
+
 Status: **the season-forward rehearsal is done (2026-10-30, below): the couch's three Survivor 51 games played from
 production's 2026-10-30 backup to a finale three ways (realistic, the rough weeks, the daylight-saving week), every read the
 same with the game-specs flag off and on and through master's engine, every invariant holding, the screens' words the same.**

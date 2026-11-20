@@ -15,6 +15,8 @@ export type SportPageContext = ReturnType<typeof specContextOf> & {
   part: { singular: string; plural: string };
   /** The sport's id and ESPN's league ("basketball/nba"). */
   sport: string;
+  /** A league's slate: an episode is several games (BACKLOG 108). */
+  slate?: boolean;
   league: string;
   /** Nobody goes home or wins a season of games; no research runs on one (no trivia, no votes, no moments). */
   results: false;
@@ -41,7 +43,7 @@ const PART_WORDS: Record<string, { singular: string; plural: string }> = {
  * game); `playoffs`: a season made of a league's playoffs (specContextOf's).
  */
 
-export function sportPageContext(league: string, o: { show?: string; person?: { one: string; many: string }; part?: { singular: string; plural: string }; playoffs?: boolean } = {}): SportPageContext | null {
+export function sportPageContext(league: string, o: { show?: string; person?: { one: string; many: string }; part?: { singular: string; plural: string }; playoffs?: boolean; slate?: boolean } = {}): SportPageContext | null {
   const sport = sportOf(league);
   if (!sport) return null;
   const name = league.split("/")[1];
@@ -61,6 +63,9 @@ export function sportPageContext(league: string, o: { show?: string; person?: { 
     moments: [],
     phases: [],
     roles: [],
+    // BACKLOG 108: a league's slate, an episode several games (a week's, a day's, a round's): our check asks a game's final of each
+    // game there (each: 'game'), and squares on one game.
+    ...(o.slate ? { slate: true } : {}),
   };
 }
 

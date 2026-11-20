@@ -507,6 +507,13 @@ declare const StateLogic: {
     setPace(state: LeagueState, mode: string): string | null;
     /** The aired episode their moves are open late for at `now`, given their mark (Infinity: sees results as they come). */
     lateWindow(state: LeagueState, playerId: string, mark: number | null | undefined, now?: number): { episode: number; epId: string; until: string | null } | null;
+    /** The episode-night strip's Lock in: the seat says it has started watching episode `n`, closing its window for it (lateWindow)
+     *  as watching would. `at` ISO. False when there's no such episode or seat, or it's locked in already. */
+    lockIn(state: LeagueState, playerId: string, n: number, at: string): boolean;
+    /** Undoes a lock in for a moment only (within `graceMs` of it, at `now` ms): false once that's passed or nothing's there. */
+    unlockIn(state: LeagueState, playerId: string, n: number, now: number, graceMs: number): boolean;
+    /** The episode this seat locked in for while it's one behind it (its mark + 1), else null. */
+    lockedInFor(state: LeagueState, playerId: string, mark: number | null | undefined): number | null;
     /** The league going into episode `n`, with `n` still open (its results hidden, the teams as they are). */
     lateCopy(state: LeagueState, n: number): LeagueState;
     /** A lineup set for the episode (not carried in) or a pick. */
@@ -714,6 +721,8 @@ declare const StateLogic: {
     episodeLines(state: LeagueState, ep: Episode, playerId: string, events?: ScoringEvent[], times?: number, ix?: GroupSlotIndex): GroupSlotLine[];
     /** episodeLines on the episode's moments already at the game's points (ActiveRosterLogic.scoredEvents): C2 part 1. */
     scoredLines(state: LeagueState, ep: Episode, playerId: string, scored: { castawayId: string; points: number }[], times?: number, ix?: GroupSlotIndex): GroupSlotLine[];
+    /** The other team holding a group for episode n in an exclusive game (validatePick refuses it), or null. */
+    heldBy(state: LeagueState, playerId: string, n: number, groupId: string, ix?: GroupSlotIndex): Player | null;
     validatePick(state: LeagueState, epId: string, playerId: string, slot: number, groupId: string | null): string | null;
     setPick(state: LeagueState, epId: string, playerId: string, slot: number, groupId: string | null): boolean;
     settle(state: LeagueState, records: Map<number, EpisodeFormatGroups> | Record<number, EpisodeFormatGroups>): boolean;
@@ -1381,6 +1390,8 @@ declare const StateLogic: {
     episodeNow(state: LeagueState): number | null;
     /** A7: the episode someone answers for now with a late lock (the one after their mark while it's open for them). */
     lateEpisode(state: LeagueState, mark: number | null, o?: { now?: number; airAtOf?: (episode: number) => string | null; player?: string | null }): number | null;
+    /** Whether a seat answers by its own mark: catching up in a game at your own pace (docs/PLAN-own-pace-games.md part 4). */
+    ownWeek(state: LeagueState, playerId: string): boolean;
     /** earned: each window's ("question|episode") points by player, A9's ways of combining in; worth: a rollover's window's
      *  points with its jackpot. */
     grade(

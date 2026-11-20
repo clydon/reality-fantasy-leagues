@@ -459,6 +459,16 @@ export function inOrder(plays: Play[]): Play[] {
  * timeline are the same for all of them.
  */
 export abstract class TeamSport extends Sport {
+  /**
+   * A team's own people, beside its roster's: whoever a final scores as the team itself (football's defense and special teams,
+   * one line a side: football.ts defenseId), so a season's cast has them to draft and their lines have someone to belong to
+   * (docs/PLAN-sports-ready.md step 1.3). Each one's id is the final's, its position the sport's key. None unless the sport says.
+   */
+  teamPeople(team: { id: string; name: string }): { id: string; name: string; position: string }[] {
+    void team;
+    return [];
+  }
+
   /** ESPN's own box score, in the sport's keys; null when the summary has none. */
   abstract readBox(summary: EspnSummary): Box | null;
   /** ESPN's plays, in order (times that never go back: inOrder), each with its stat deltas. `issues` collects what the reader

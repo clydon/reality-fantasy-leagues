@@ -3964,8 +3964,9 @@ function waiverOwnOf(spec, kind) {
 /**
  * A game of questions' parlays (A9), as [[at, problem]]: each { of: 2 to MAX_LEGS of its question ids, times: more than 1,
  * up to MAX_TIMES }. A leg is one answer that's right or wrong (one person or group, a yes or no, a choice, a number, an
- * over/under), unstaked and not a split pot (C2 part 4: one that rolls over, shrinks or pays only the only one right is multiplied
- * as it stands), and every leg is asked the same way, so they share their windows; a question is in one parlay at most.
+ * over/under; C2 part 4, C6 and E3: one that rolls over, shrinks, pays only the only one right, splits a pot or is staked is
+ * multiplied as it stands, a split pot's share after the split), and every leg is asked the same way, so they share their windows;
+ * a question is in one parlay at most.
  */
 function parlayProblems(list, s) {
   if (!Array.isArray(list) || !list.length || list.length > MAX_PARLAYS) return [['', `Parlays are a list of 1 to ${MAX_PARLAYS}`]];
@@ -3996,9 +3997,8 @@ function parlayProblems(list, s) {
       if (!single) out.push([`${at}.of`, `"${q.id}" isn't one answer that's right or wrong: a parlay's legs are one person or group, a yes or no, a choice, a number or an over/under`]);
       // C2 part 4: a leg that rolls over, shrinks or pays only the only one right is multiplied as it stands (its window's worth and
       // its share, then the parlay: the scoring sequence's order). C6: a staked leg too, its stake's winnings with its points (a
-      // parlay pays only when every leg is right, so a stake it multiplies is one won). A split pot waits on a rule (the plan's
-      // Noticed: does a parlay multiply your share, or your call before the split?).
-      else if (q.share === 'split') out.push([`${at}.of`, `"${q.id}" splits a pot: a parlay on a split pot waits on a rule (does it multiply your share, or your call before the split?)`]);
+      // parlay pays only when every leg is right, so a stake it multiplies is one won). E3, p25 (the user's call, 2026-11-19): a
+      // split pot too, by the same order: the pot is split first and the parlay multiplies your share, never the others'.
     }
     const way = (q) => `${q.asked}|${q.every || ''}|${q.over || ''}`;
     if (legs.length > 1 && legs.some((q) => way(q) !== way(legs[0]))) out.push([`${at}.of`, "A parlay's questions are asked the same way, so they're answered together"]);
@@ -4372,6 +4372,17 @@ function settleProblems(s, ctx, opts) {
   if (score.by === 'stats') statScoreSettles(score, ctx, stats).forEach((x) => out.push(x));
   // L4 part 2: squares are a team game's two scores (ctx.shape), paid at its periods (ctx.periods: the sport's regulation ones).
   if (get.by === 'squares' && (ctx.shape === 'field' || ctx.shape === 'card')) out.push(['get.by', `Squares need a game's two scores: a ${ctx.shape} has none`]);
+  // BACKLOG 108 (docs/PLAN-sports-ready.md step 1.6): on a league's slate an episode is several games (ctx.slate), and the server
+  // keeps no one game for it, so a game's final asked of the episode never settles and squares never pay: ask it of each game
+  // (each: 'game'), or once, and put squares on one game.
+  if (ctx.slate) {
+    const part = isObj(ctx.part) && typeof ctx.part.singular === 'string' ? ctx.part.singular : 'episode';
+    if (get.by === 'squares') out.push(['get.by', `A ${part} here is several games and squares are one game's score: start squares on a single game`]);
+    (Array.isArray(s.ask) ? s.ask : []).forEach((q, i) => {
+      const st = isObj(q) && isObj(q.settle) ? q.settle : {};
+      if (st.by === 'final' && st.take !== 'bracket' && q.asked !== 'once' && q.each !== 'game') out.push([`ask[${i}].each`, `A ${part} here is several games: ask it of each game`]);
+    });
+  }
   if (score.by === 'squares' && Array.isArray(score.pays) && isObj(ctx.periods) && isInt(ctx.periods.regulation, 1)) {
     const per = ctx.periods;
     const n = per.regulation;

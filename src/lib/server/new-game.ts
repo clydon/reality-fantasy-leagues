@@ -7,7 +7,7 @@ import { syncLeagueRulebook } from "@db/rulebooks.js";
 import { syncLeagueGame } from "@db/game-specs.js";
 import { pool, withLeagueLock, HttpError } from "./db";
 import { genJoinCode, slugify } from "./league-codes";
-import { approvedCastFor, applyCastToState } from "./season-cast";
+import { approvedCastFor, applyCastToState, approveSportCast } from "./season-cast";
 import { syncLeagueDecisions } from "./season-decisions";
 
 // Making a game in the new design (docs/PLAN-new-design.md step 9 part 3's solo games, step 10 part 2b's Start a game): an
@@ -76,6 +76,8 @@ export async function makeLeague(row: SeasonRef, opts: MakeOpts): Promise<string
     StateLogic.updateSettings(s, "wikiSeason", row.number);
     await syncLeagueChanges(client, s.settings, { adoptAll: true });
     await syncLeagueRulebook(client, leagueId, s.settings);
+    // A sport's people, filled before they were approved as they're filled (BACKLOG 220), approved now so the game takes them.
+    await approveSportCast(client, row.id);
     const approved = await approvedCastFor(client, row.slug, row.number);
     if (approved) applyCastToState(s, approved.cast, approved.tribesFromEpisode);
     await syncLeagueDecisions(client, leagueId, s);

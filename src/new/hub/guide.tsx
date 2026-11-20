@@ -600,21 +600,22 @@ export function useGuideWeek(read: Home, couch: Couch | null) {
 }
 
 /** A card in miniature, for On TV's crawl: the art, the time (or On now, or the day past today), the name; whoever on the couch is
- *  watching along with it now, as their face. */
+ *  watching along with it now, as their face. It opens the show (the user, 2026-11-19: not the guide), its art growing into the
+ *  show bar like the guide's own cards; the first-time tour's practice cards, not real shows, open the guide on their day. */
 function MiniCard({ c, offset, now, along, onOpen }: { c: GuideCard; offset: number; now: number; along: { userId: string; name: string }[]; onOpen: () => void }) {
   const quiet = useContext(HiddenSports).has(c.seasonId) && c.at < now;
   const live = c.live && !quiet;
   const when = live ? "On now" : quiet ? "Started" : offset === 0 ? timeOf(c.at).replace(":00", "") : `${DAY[new Date(c.at).getDay()]} ${timeOf(c.at).replace(":00", "")}`;
-  return (
-    <button
-      type="button"
-      data-guide-card={c.key}
-      data-live={live || undefined}
-      data-tie={c.tie}
-      onClick={onOpen}
-      aria-label={`${c.name}, ${episodeLine(c)}, ${live ? "on now" : airTime(c.at)}${along.length ? `, ${namesOf(along.map((a) => a.name))} watching along` : ""}. Opens the guide`}
-      className={`relative isolate flex h-[72px] w-[124px] flex-none flex-col justify-end overflow-hidden rounded-[3px] bg-secondary px-2 pb-1.5 text-left text-white active:scale-[.97] ${c.tie === "couch" ? FADED : ""}`}
-    >
+  const practice = c.key.startsWith("tour-");
+  const props = {
+    "data-guide-card": c.key,
+    "data-live": live || undefined,
+    "data-tie": c.tie,
+    "aria-label": `${c.name}, ${episodeLine(c)}, ${live ? "on now" : airTime(c.at)}${along.length ? `, ${namesOf(along.map((a) => a.name))} watching along` : ""}. ${practice ? "Opens the guide" : "Opens the show"}`,
+    className: `relative isolate flex h-[72px] w-[124px] flex-none flex-col justify-end overflow-hidden rounded-[3px] bg-secondary px-2 pb-1.5 text-left text-white active:scale-[.97] ${c.tie === "couch" ? FADED : ""}`,
+  };
+  const body = (
+    <>
       <GuideArt id={`ontv-${c.key}`} c={c} bare />
       <span aria-hidden className="absolute inset-0 -z-[1] bg-[linear-gradient(180deg,rgba(10,8,14,.1)_0%,rgba(10,8,14,.5)_45%,rgba(10,8,14,.92)_100%)]" />
       <span
@@ -639,7 +640,16 @@ function MiniCard({ c, offset, now, along, onOpen }: { c: GuideCard; offset: num
         </span>
       )}
       <span className="type-caption truncate text-[15px] leading-[.95] [text-shadow:0_1px_8px_rgba(0,0,0,.5)]">{c.name}</span>
+    </>
+  );
+  return practice ? (
+    <button type="button" {...props} onClick={onOpen}>
+      {body}
     </button>
+  ) : (
+    <NavLink href={paths.show(c.seasonId)} channel {...props}>
+      {body}
+    </NavLink>
   );
 }
 
@@ -694,7 +704,7 @@ function SportsMini({ g, onOpen }: { g: WeekGame; onOpen: () => void }) {
  * On TV (Phase 0's decision 7, the design round's step 7): the hub's door to the guide, a channel bug and a crawl, the Lower
  * Third's own form. The bug ("On TV", a live dot while something's on, "Guide") opens the guide on today; the row is this week's
  * cards in miniature, from what's on now or next, still (the motion is the guide's: the user, 2026-11-15), swiped by hand; a
- * card opens the guide on its day. The first-time tour lights it (`data-guide`).
+ * card opens its show (the user, 2026-11-19). The first-time tour lights it (`data-guide`).
  * On a game day the couch's teams' games today lead the crawl (the sports check), each opening the guide on Sports.
  */
 export function OnTvRow({ home: read, couch }: { home: Home; couch: Couch | null }) {

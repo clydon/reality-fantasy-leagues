@@ -408,7 +408,7 @@ test("stages one after another: a gap between them is refused, and so is an over
 
 // ---- The rule fixes of 2026-11-14 (the user's decisions: BACKLOG 62, 82, 84) ----
 
-test("BACKLOG 62: a stage's Outlast counts boots from the stage's own start, so it starts everyone level; a game of its own counts the season", () => {
+test("BACKLOG 62: an Outlast counts boots from its own start, a stage's or a game of its own's (2026-11-19), so it starts everyone level", () => {
   const spec = { preset: "outlast", get: { by: "draft", each: 2, own: "exclusive", order: "snake" }, count: { all: true }, score: { by: "place" }, rank: { by: "total" }, span: { from: 4, to: null } };
   const make = (stage) => {
     const s = league(spec, { n: 12 });
@@ -420,7 +420,8 @@ test("BACKLOG 62: a stage's Outlast counts boots from the stage's own start, so 
   const totals = (s) => Object.fromEntries(Object.values(S.computeScores(s)).map((r) => [r.playerId, r.total]));
   const own = make(false);
   const stage = make(true);
-  assert.deepEqual(totals(own), { ann: 8, bo: 8, cy: 8, di: 8 }, "a game of its own from Episode 4: each holding 1 + the three boots before it");
+  assert.deepEqual(totals(own), { ann: 2, bo: 2, cy: 2, di: 2 }, "a game of its own from Episode 4: 1 a holding, level (the user, 2026-11-19)");
+  assert.equal(S.EliminationOrderScoringStrategy.baseOf(own), 3);
   assert.deepEqual(totals(stage), { ann: 2, bo: 2, cy: 2, di: 2 }, "a stage from Episode 4: 1 a holding, level");
   assert.equal(S.EliminationOrderScoringStrategy.baseOf(stage), 3);
   // Its first boot: whoever went home has 1 (the stage's first out), everyone still in 2.

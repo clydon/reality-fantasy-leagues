@@ -49,6 +49,23 @@ test("Weekly Lineup: set says what you've set and when it locks; not set is due,
   assert.equal(yourMove(game({ gameType: "active-roster", lineup: lineup({ locked: true, lockedBy: "day" }) }), ctx()).line, "Locked when the day's first game began");
 });
 
+test("After airtime, before you start watching (a live game): a full lineup carried in is set; a gap and a missing pick are due", () => {
+  const late = { episode: 7, until: null };
+  const full = yourMove(game({ gameType: "active-roster", late, lineup: lineup({ carried: true }) }), ctx());
+  assert.equal(full.due, false, "every slot filled from last week: set (the user, 2026-11-19)");
+  assert.equal(full.action, "Edit");
+  assert.equal(full.line, "Last week's lineup · locks when you start watching");
+  const mine = yourMove(game({ gameType: "active-roster", late, lineup: lineup() }), ctx());
+  assert.equal(mine.line, "Locks when you start watching");
+  const gap = yourMove(game({ gameType: "active-roster", late, lineup: lineup({ set: false, carried: true, starters: ["c4", "c1"] }) }), ctx());
+  assert.equal(gap.due, true, "a starter short: due");
+  assert.equal(gap.empty, 1);
+  assert.equal(gap.line, "Before you start watching");
+  const noPick = yourMove(game({ gameType: "pickem", late, pick: pick({ pick: null }) }), ctx());
+  assert.equal(noPick.due, true);
+  assert.equal(noPick.line, "Before you start watching");
+});
+
 test("Survival Pool: your pick by name, or a pick due; the show's own word for an episode", () => {
   const set = yourMove(game({ gameType: "pickem", pick: pick() }), ctx({ episode: "Game" }));
   assert.equal(set.title, "Your Game 7 pick: Sharonda");

@@ -48,18 +48,23 @@ export async function stampCastProps<S extends { castaways?: { id: string; seaso
   const st = state as S & { castProps?: Record<string, Record<string, string>>; castPropDefs?: CastPropertyView[] };
   const links = (state.castaways ?? []).filter((c) => c.seasonCastId);
   if (!links.length) return state;
-  const { rows } = await db.query("SELECT id, season_id, props, role FROM season_cast WHERE id = ANY($1::uuid[])", [links.map((c) => c.seasonCastId)]);
+  const { rows } = await db.query("SELECT id, season_id, props, role, injury FROM season_cast WHERE id = ANY($1::uuid[])", [links.map((c) => c.seasonCastId)]);
   if (!rows.length) return state;
   const byId = new Map(rows.map((r) => [r.id as string, r]));
   const out: Record<string, Record<string, string>> = {};
+  // A sport's player's injury as their roster says it now (step 1.5: season_cast.injury), by castaway: a fact the lineup editor and
+  // the draft room show (the design round), never saved.
+  const injuries: Record<string, { code: string; status: string; date: string | null }> = {};
   for (const c of links) {
     const r = byId.get(c.seasonCastId!);
     if (!r) continue;
+    if (r.injury && typeof r.injury === "object" && typeof r.injury.code === "string") injuries[c.id] = r.injury;
     const p = propsOf(r.props);
     if (typeof r.role === "string" && r.role.trim() && !p.position) p.position = r.role.trim();
     if (Object.keys(p).length) out[c.id] = p;
   }
   st.castProps = out;
+  if (Object.keys(injuries).length) (st as { castInjuries?: typeof injuries }).castInjuries = injuries;
   st.castPropDefs = propertyViews(await seasonCastProperties(rows[0].season_id, db));
   return state;
 }

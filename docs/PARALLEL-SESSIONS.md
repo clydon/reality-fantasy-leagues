@@ -1,5 +1,7 @@
 # Running sessions in parallel: lanes
 
+> **Status (2026-11-19): Reference.** How lanes work is still right. The lane list below is from 2026-10-28; `git worktree list` is the current one. Never run next dev or build in a worktree whose node_modules is junctioned to main.
+
 For the user, and for any session asked to set up or work in a lane. `docs/PLAN-start-a-game-gpt.md` uses lanes first: its lanes
 section says which steps can run at once. The `sports` branch is a lane too.
 

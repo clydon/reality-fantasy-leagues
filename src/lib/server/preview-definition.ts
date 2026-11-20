@@ -36,6 +36,8 @@ export interface PreviewSeason {
 export interface PreviewGame {
   base: string;
   changes?: unknown[];
+  /** The game as the gallery holds it (its rules, the changes already in them): previewed as set, checked like a base. */
+  spec?: Record<string, unknown>;
 }
 
 type Builder = {
@@ -120,7 +122,7 @@ export async function previewDefinition(user: SessionUser, seasonId: string, cou
   const season = await previewSeason(user, seasonId, couchId, now);
   const B = builder();
   try {
-    const definition = B.build(season, { base: game.base, changes: game.changes ?? [], gameId: game.base, seed: seedOf(user.id, seasonId, season.mark) });
+    const definition = B.build(season, { base: game.base, changes: game.changes ?? [], spec: game.spec, gameId: game.base, seed: seedOf(user.id, seasonId, season.mark) });
     // A game the runtime can't play yet says so now, never a preview that fails partway (the release plan's step 2).
     const v = B.verdict(definition);
     if (!v.ok) {

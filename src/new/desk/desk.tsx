@@ -127,6 +127,7 @@ const TAGS: Record<InboxItem["kind"], [string, "must" | "quiet"]> = {
   made: ["Rulebook", "quiet"],
   show: ["Show", "quiet"],
   catchup: ["Scores", "must"],
+  sports: ["Scores", "must"],
 };
 
 /**

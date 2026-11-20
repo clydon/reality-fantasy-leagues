@@ -12,7 +12,7 @@ import type { PreviewGame } from "./preview-definition";
 // copy of the game. The story runs on the preview host (preview.<host>), signed in there as the preview's own made-up viewer, its
 // phones the real app on that same host, so the person's own session, on the app's host, is never touched.
 //
-// The registry is a table (db/migrations/0442: step 3), so whichever server instance answers reads the same preview. The way into a
+// The registry is a table (db/migrations/0444: step 3), so whichever server instance answers reads the same preview. The way into a
 // story is a token used once, minutes long, kept as its hash (step 4): whoever made the preview asks for it each time they open it,
 // so a copied link opens nothing; the enter route spends it and signs the viewer in with a session the server mints
 // (src/lib/preview-session.ts), no password. The story is read, and closed, by its viewer's session or its owner's.
@@ -131,7 +131,7 @@ export interface Exits {
 }
 
 /** Which game at which mark a preview is of (decision 6): the same key reopens it rather than making another. */
-export const gameKeyOf = (seasonId: string, mark: number, game: PreviewGame) => crypto.createHash("sha256").update(JSON.stringify([seasonId, mark, game.base, game.changes ?? []])).digest("base64url");
+export const gameKeyOf = (seasonId: string, mark: number, game: PreviewGame) => crypto.createHash("sha256").update(JSON.stringify([seasonId, mark, game.base, game.changes ?? [], game.spec ?? null])).digest("base64url");
 
 /**
  * What the app asks the service to make (src/lib/server/previews.ts, step 9): the definition it built from the real season, the

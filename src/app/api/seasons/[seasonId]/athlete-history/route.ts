@@ -12,5 +12,5 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ seasonId
   const sports = sportsFor(req);
   const name = new URL(req.url).searchParams.get("name") ?? "";
   if (sports === null) return NextResponse.json({ seasons: [], source: null, unavailable: false });
-  return NextResponse.json(await athleteHistory(seasonId, name, sportsProviders({ base: sports })));
+  return NextResponse.json(await athleteHistory(seasonId, name, sportsProviders({ base: sports }), new URL(req.url).searchParams.get("team")));
 });

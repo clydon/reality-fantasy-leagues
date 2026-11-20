@@ -12,8 +12,7 @@ import { TeamMark } from "../../sports/parts";
 import { Avatar } from "../../ui/bars";
 import { Face } from "../../show/parts";
 import { FOCUS, LengthMark } from "./parts";
-import { lockWords, say, type Input } from "../gallery/model";
-import { baseName } from "./known";
+import { lockWords, say, type Input } from "./model";
 
 // The lead tile (docs/design-round/wizard-r2b-shape.md): each category's best-known game drawn with this season's own things, so
 // it's recognised before its name is read (PFD's R4): the faces still in as far as you've seen (the Cast tab's read, so nobody
@@ -292,7 +291,7 @@ export function LeadTile({ cat, base, spec, state, plain, line, input, gm, data,
   return (
     <button type="button" data-gallery-lead={base.id} onClick={onOpen} className={`nd-press col-span-2 flex min-h-[132px] w-full flex-col gap-2.5 rounded-[4px] bg-secondary p-3.5 text-left hover:brightness-110 ${FOCUS}`}>
       <span className="flex w-full items-start justify-between gap-3">
-        <b className="type-caption text-[26px] leading-[0.95]">{say(baseName(base.id, base.name), input.nouns, true)}</b>
+        <b className="type-caption text-[26px] leading-[0.95]">{say(base.name, input.nouns, true)}</b>
         <span className="pt-1">{state === "plays" ? <LengthMark len={base.len} /> : <span className="type-caption text-[12px] tracking-[0.06em] text-muted-foreground">{state === "coming" ? "Coming" : "Not here"}</span>}</span>
       </span>
       {pic && <span className="flex w-full">{pic}</span>}

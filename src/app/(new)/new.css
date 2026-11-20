@@ -363,6 +363,124 @@ html[data-nav="right"] .nd-dock {
   }
 }
 
+/* The reveal's plates (reveal.tsx PlateTile, PlateHero, TribePlate, PoolBeat): each builds like a broadcast lower third. The photo
+   comes up, the caption strip wipes across from its left, the tribe's colour slides onto its end last; a row of them a step apart
+   (--i). A fate wipes onto the photo once the plate is up (--fate): Out greys the photo as it lands. The pool's streak rolls from
+   the last number to this one and its new pip lands; a streak that ended is struck through and its pips go out from the last. */
+@keyframes nd-wipe {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+}
+@keyframes nd-plate-in {
+  from {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+}
+@keyframes nd-wedge-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+@keyframes nd-goes-grey {
+  to {
+    filter: grayscale(1) brightness(0.82);
+  }
+}
+@keyframes nd-streak-roll {
+  from {
+    transform: translateY(0);
+  }
+}
+@keyframes nd-pip-land {
+  0% {
+    transform: scaleY(0);
+  }
+  60% {
+    transform: scaleY(1.6);
+  }
+}
+@keyframes nd-pip-out {
+  from {
+    background-color: var(--foreground);
+  }
+}
+@keyframes nd-strike {
+  from {
+    transform: scaleX(0);
+  }
+}
+.nd-wipe {
+  animation: nd-wipe 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 60ms;
+}
+.nd-plate {
+  --at: calc(min(var(--i, 0), 9) * 70ms + 120ms);
+  animation: nd-plate-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--at);
+}
+.nd-plate .nd-strip {
+  animation: nd-wipe 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--at) + 140ms);
+}
+.nd-plate .nd-wedge {
+  animation: nd-wedge-in 0.34s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--at) + 380ms);
+}
+.nd-plate .nd-fate-tag {
+  animation: nd-wipe 0.36s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--fate, 600ms);
+}
+.nd-fate-out img {
+  animation: nd-goes-grey 0.7s ease-out both;
+  animation-delay: var(--fate, 600ms);
+}
+.nd-streak-roll {
+  animation: nd-streak-roll 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 620ms;
+}
+.nd-pip-new {
+  transform-origin: bottom;
+  animation: nd-pip-land 0.5s cubic-bezier(0.34, 1.45, 0.64, 1) both;
+  animation-delay: 900ms;
+}
+.nd-pip-drain {
+  animation: nd-pip-out 0.3s ease-out both;
+  animation-delay: calc(1000ms + var(--j, 0) * 45ms);
+}
+.nd-strike {
+  transform-origin: left;
+  animation: nd-strike 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 1000ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nd-wipe,
+  .nd-plate,
+  .nd-plate .nd-strip,
+  .nd-plate .nd-wedge,
+  .nd-streak-roll,
+  .nd-pip-new,
+  .nd-pip-drain,
+  .nd-strike {
+    animation: none;
+  }
+  /* What a fate says still lands, as a fade, not a wipe; the grey is there from the start. */
+  .nd-plate .nd-fate-tag {
+    animation-name: nd-beat-fade;
+    animation-duration: 0.3s;
+  }
+  .nd-fate-out img {
+    animation: none;
+    filter: grayscale(1) brightness(0.82);
+  }
+}
+@keyframes nd-beat-fade {
+  from {
+    opacity: 0;
+  }
+}
+
 /* The Cast explorer's episode slider: two native ranges on one track, only their thumbs take a finger. */
 .nd-range {
   appearance: none;

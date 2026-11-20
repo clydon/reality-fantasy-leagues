@@ -1,5 +1,7 @@
 # Games at your own pace: a game on a season that has already aired
 
+> **Status (2026-11-19): Done.** Built and live: parts 1-3 (2026-11-05/06), pace as the game's setting with its two steps, the late lock retired and BACKLOG 56, 57, 68 and 69 fixed (all pushed 2026-11-14, 8b12ef71). Part 4 (answers at your own pace) came with Start a game's E1b (3ad1e98b). The honour note gave way to episode night's started gate and Lock in (2026-11-19). Left: BACKLOG 130 and 131, and the edges in idea 208.
+
 **Status:** planned 2026-11-02 (the user wanted a game on The Challenge 42, which had finished airing; Start a game refused
 it: "The season's over: every episode has aired"). **Part 1 built and checked 2026-11-05** (see "As built"); parts 2–4 next.
 Decisions below are the user's (2026-11-02).
@@ -615,7 +617,7 @@ an explanation: an explanation (a lock would take away a game that works).
 - (2026-11-14) **After an episode has started, whoever runs the game can't close it for people who haven't watched.** The lock
   row is a switch: open to everyone, or back to the pace's rule. With the pace, an aired episode has three states (open to
   everyone / open to whoever hasn't watched / locked for everyone) and the row shows two. Making the game At airtime for a week
-  is the workaround. docs/UX-IDEAS.md "The lock row says who it's open for".
+  is the workaround. docs/UX-IDEAS.md "The lock row says who it's open for" (now BACKLOG 157).
 - (2026-11-13, step 2; **done 2026-11-14**, "As built: three own-pace bugs") BACKLOG 56 and 57 on the default path, and
   exclusive teams at own pace taking nobody new after the draft (BACKLOG 68).
 - (2026-11-13, step 2) A seat created by the settle starts with `seenThrough: start - 1` in the state even when the person is

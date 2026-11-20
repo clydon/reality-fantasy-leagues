@@ -360,12 +360,15 @@ async function newcomer(pool, who) {
       await page.locator('[data-request="zt_nd_jordan"] [data-let-in]').click();
       check(/zt_nd_jordan can join now/.test(await toasted(/can join now/, page)), "Let in");
       check((await pool.query("SELECT outcome FROM game_join_requests WHERE league_id = $1 AND user_id = $2 ORDER BY created_at DESC LIMIT 1", [L.outlast, fx.users.jordan])).rows[0]?.outcome === "let-in", "jordan's let in");
-      await page.goto(`${BASE}/show/${sid}/backstage/settings`);
-      await page.locator('[data-settings-game="Outlast"] [data-settings="joining"]').waitFor({ timeout: 30_000 });
-      const outlastModes = await page.locator('[data-settings-game="Outlast"] [data-join]').evaluateAll((els) => els.map((e) => e.getAttribute("data-join")));
-      const lineupModes = await page.locator('[data-settings-game="Weekly Lineup"] [data-join]').evaluateAll((els) => els.map((e) => e.getAttribute("data-join")));
+      // (Round 4, B4: each game's settings are a page of their own; a link opens one with Who can join open.)
+      const joining = async (leagueId, game) => {
+        await page.goto(`${BASE}/show/${sid}/backstage/settings?page=game-settings&game=${leagueId}&line=joining`);
+        await page.locator(`[data-settings-game="${game}"] [data-setting-line="joining"][data-setting-open="yes"] [data-join]`).first().waitFor({ timeout: 30_000 });
+        return page.locator(`[data-settings-game="${game}"] [data-join]`).evaluateAll((els) => els.map((e) => e.getAttribute("data-join")));
+      };
+      const outlastModes = await joining(L.outlast, "Outlast");
+      const lineupModes = await joining(L.lineup, "Weekly Lineup");
       check(outlastModes.join() === "ask,locked" && lineupModes.join() === "open,ask,locked", "Who can join: Outlast ask or nobody new; Weekly Lineup any of three", `${outlastModes} / ${lineupModes}`);
-      await page.locator('[data-settings-game="Weekly Lineup"] [data-settings="joining"]').scrollIntoViewIfNeeded();
       await shot("who-can-join", page);
       await page.locator('[data-settings-game="Weekly Lineup"] [data-join="ask"]').click();
       check(/Ask me first/.test(await toasted(/Ask me first/, page)) && (await state("lineup")).settings.joinMode === "ask", "Weekly Lineup: Ask me first, saved at once");

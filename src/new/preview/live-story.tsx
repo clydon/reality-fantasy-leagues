@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { paths } from "../routes";
 import { Btn } from "../ui/parts";
+import { PREVIEW_ASK, type PreviewAsk } from "./ask";
 import { refusal, refusalOf, type Refusal } from "./refusals";
 import { PreviewStory, type LivePass, type Preview } from "./story";
 
@@ -132,22 +133,49 @@ export function RefusalFrame({ r, onRetry, back, app }: { r: Refusal; onRetry?: 
   return <PreviewFrame {...refusalFrame(r, back, onRetry, app)} />;
 }
 
-/** One make per try, however often the page's effect runs (React runs it twice in development): the first ask's answer, shared. */
+
+/** One make per try, however often the page's effect runs (React runs it twice in development): the first ask's answer, shared.
+ *  The gallery's asks go to the app's own route (/api/previews, the desk's switch and your allowance); the development page's
+ *  (a game by its base's id alone) to its own. */
 const asked = new Map<string, Promise<Response>>();
-const askOnce = (key: string, game: string) => {
-  if (!asked.has(key)) asked.set(key, fetch("/api/preview-live", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ game }) }));
+const askOnce = (key: string, game: string, ask?: PreviewAsk) => {
+  if (!asked.has(key))
+    asked.set(
+      key,
+      ask
+        ? fetch("/api/previews", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ season: ask.season, couch: ask.couch, game: ask.game, exits: { back: ask.back, create: ask.back } }) })
+        : fetch("/api/preview-live", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ game }) })
+    );
   return asked.get(key)!.then((r) => r.clone());
 };
 
+/** The gallery's Try it, on this page: its ask from session storage (none: back home), then the wait as below. */
+export function LiveStoryAsk() {
+  const [ask, setAsk] = useState<PreviewAsk | null | undefined>(undefined);
+  useEffect(() => {
+    let a: PreviewAsk | null = null;
+    try {
+      a = JSON.parse(sessionStorage.getItem(PREVIEW_ASK) ?? "null") as PreviewAsk | null;
+    } catch {
+      a = null;
+    }
+    if (!a) window.location.replace(paths.home);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- read once from the tab's storage, which the server can't see
+    setAsk(a);
+  }, []);
+  if (!ask) return <PreviewFrame state="working" title="Opening the preview" line={<p>A moment.</p>} actions={null} />;
+  return <LiveStory game={ask.game.base} name={ask.name} back={ask.back} ask={ask} />;
+}
+
 /** On the app's own host: make the preview, then go to its story on the preview host. `back`: the game's page (the gallery's). */
-export function LiveStory({ game, name, back }: { game: string; name?: string; back?: string }) {
+export function LiveStory({ game, name, back, ask }: { game: string; name?: string; back?: string; ask?: PreviewAsk }) {
   const [stop, setStop] = useState<Refusal | null>(null);
   const [tries, setTries] = useState(0);
   const [slow, setSlow] = useState(false);
   useEffect(() => {
     let gone = false;
     const late = setTimeout(() => setSlow(true), SLOW_MS);
-    askOnce(`${game}:${tries}`, game)
+    askOnce(`${ask ? JSON.stringify(ask) : game}:${tries}`, game, ask)
       .then(
         async (r) => {
           const body = await r.json().catch(() => ({}));
@@ -174,7 +202,7 @@ export function LiveStory({ game, name, back }: { game: string; name?: string; b
       gone = true;
       clearTimeout(late);
     };
-  }, [game, tries]);
+  }, [game, tries, ask]);
   // One frame throughout (its live region stays mounted): the wait, or why it stopped.
   const frame: FrameProps = stop
     ? refusalFrame(stop, back, () => {

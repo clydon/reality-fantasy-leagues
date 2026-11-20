@@ -171,10 +171,10 @@ function gamesOf(context, event) {
 // server works the locks out on every read). The `calledOff` action (runtime.cjs): an episode's one game, its event's resultStatus
 // 'postponed' or 'cancelled' (the document's words; the server's 'canceled'); a slate's game, the event's `calledOff`
 // ({ [game id]: 'postponed' | 'cancelled' }).
-// A slate's week in progress (score.ts: an episode only once every game in it is over, final and kept, or off: a partial week is
-// never its results): a `results` action 'partial' carries the games final so far (`games`, some of the week's played games, not
-// all). The event stays unavailable, nothing of it is stamped, and the fact holds those games' lines for the materializer, which
-// writes each one final. Once every game is final or called off, the week is in: 'final' with every game played, or by the last
+// A slate's week in progress (score.ts; since core-runtime-46, the server's step 1.1 part 2, its games final so far count as they
+// end): a `results` action 'partial' carries the games final so far (`games`, some of the week's played games, not all). The event
+// stays unavailable (its results aren't in), its lines so far are stamped early (a table moves; head to head, a race or a cut
+// waits for the week), and the fact holds those games' lines for the materializer, which writes each one final. Once every game is final or called off, the week is in: 'final' with every game played, or by the last
 // call-off. An episode of one game has no partial result: the server keeps a line only once its game is final.
 /** A slate week's games called off ({ [game id]: 'postponed' | 'cancelled' }). */
 const offOf = event => (event && event.calledOff) || {};
@@ -416,11 +416,17 @@ function checkData(world, data, event, partial = false) {
  * on the state as the server stamps them, everything else an episode's results could hold cleared. `released`: the event test.
  */
 function applyFacts(world, state, released) {
-  const c = league(world.context), lines = {}, finals = [], bouts = {}, byGame = {}, onCard = c.context.shape === 'card', slate = !!slateOf(world.context);
+  const c = league(world.context), lines = {}, finals = [], bouts = {}, byGame = {}, early = [], onCard = c.context.shape === 'card', slate = !!slateOf(world.context);
   for (const ep of state.episodes) {
     const event = world.events.find(e => e.id === ep.id);
     ep.events = []; ep.scoringEvents = []; delete ep.noExit; delete ep.resultsStage; delete ep.voteRecord;
-    if (!event || !released(event)) continue;
+    if (!event || !released(event)) {
+      // A slate's week in progress (core-runtime-46, the server's step 1.1 part 2): a 'partial' result's games final so far, stamped
+      // as score.ts stamps them, early (its lines so far count in the table; head to head, a race or a cut waits for the week).
+      const partial = slate && event ? world.facts.find(f => f.eventId === event.id) : null;
+      if (partial && partial.data.games && Object.keys(partial.data.games).length) { const r = slateLines(c, partial.data); lines[ep.number] = r.week; byGame[ep.number] = r.byGame; early.push(ep.number); }
+      continue;
+    }
     // (An episode's one game called off: its results are in, nothing happened: among the finals, with no lines.)
     if (isOff(event)) { finals.push(ep.number); continue; }
     const facts = world.facts.filter(f => f.eventId === event.id);
@@ -439,7 +445,7 @@ function applyFacts(world, state, released) {
   // As stampStats hands it to the engine for a game scored by stats: the lines, the finals, each castaway's position group; the
   // sport's category definitions only for a game ranked by categories.
   const groups = Object.fromEntries(world.participants.map(p => [p.id, c.sport.position(p.role)?.group || null]).filter(([, g]) => g));
-  S.StatsLogic.stamp(state, { lines, finals, groups, ...(onCard ? { bouts } : {}), ...(slate ? { byGame } : {}), ...(S.StatsLogic.categories(state) ? { defs: c.sport.categoryDefs() } : {}) });
+  S.StatsLogic.stamp(state, { lines, finals, groups, ...(onCard ? { bouts } : {}), ...(slate ? { byGame, early } : {}), ...(S.StatsLogic.categories(state) ? { defs: c.sport.categoryDefs() } : {}) });
   for (const ep of state.episodes) { const event = world.events.find(e => e.id === ep.id); if (event && released(event) && !S.episodeHasResults(ep)) throw Error('Released event has no result facts'); }
 }
 /**

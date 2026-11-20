@@ -16,9 +16,10 @@ Identity is Better Auth (`src/lib/auth.ts`) with the `username` and `admin` plug
 account system for everything (league access, admin, all of it). There is no other login.
 
 If you're picking this up in a fresh session: read `docs/HANDOFF.md` first (current state, what's next,
-what's waiting on the user). Also check for a `docs/PLAN-*.md` file describing
+what's waiting on the user), then `docs/BACKLOG.md` (everything open) and `docs/PLANS.md` (every
+plan's status and the order of the big work). Also check for a `docs/PLAN-*.md` file describing
 in-flight feature work before assuming something is undesigned — one may already exist with a
-concrete plan, routes, and schema ready to execute against.
+concrete plan, routes, and schema ready to execute against. `docs/archive/` is history: never act on it.
 
 
 ## Testing: build for reuse

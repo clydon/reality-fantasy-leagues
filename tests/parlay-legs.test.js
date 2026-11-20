@@ -1,8 +1,8 @@
 // A parlay's legs that combine their own way (docs/PLAN-start-a-game-gpt.md track C, C2 part 4a: combinations the scoring sequence
 // opens where the order is settled): a leg that rolls over (its window's worth, the jackpot, then the parlay), shrinks (its call's
 // worth when it was made, then the parlay) or pays only the only one right (its share, then the parlay: the same either way round,
-// as only one line is left). Still refused: a staked leg (C6, money) and a split pot (a rule question: does the parlay multiply your
-// share, or your call before the split? the plan's Noticed). Every number worked out by hand. Run with `npm test`.
+// as only one line is left), is staked (C6, money) or splits a pot (E3, p25, the user's call of 2026-11-19: the pot is split, then
+// your share is multiplied). Every number worked out by hand. Run with `npm test`.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const S = require("../src/lib/game/state-logic.js");
@@ -20,7 +20,7 @@ const CTX = {
   results: true, winner: true, roles: [], grouped: true, jury: true, phases: [],
 };
 
-test("its shape: legs that roll over, shrink, pay only the only one right or (C6) are staked; not a split pot", () => {
+test("its shape: legs that roll over, shrink, pay only the only one right, (C6) are staked or (E3) split a pot", () => {
   const ok = (ask, of, times = 3) => G.specProblems(game(ask, [{ of, times }]), CTX).map((p) => p.problem);
   assert.deepEqual(ok([ROLL, IMM], ["out", "imm"]), []);
   assert.deepEqual(ok([ONLY, IMM], ["out", "imm"]), []);
@@ -30,7 +30,7 @@ test("its shape: legs that roll over, shrink, pay only the only one right or (C6
   assert.equal(G.typeOf(game([ROLL, IMM], [{ of: ["out", "imm"], times: 3 }])), "questions");
   // C6: a staked leg, its stake's winnings multiplied with its points (tests/money.test.js).
   assert.deepEqual(ok([{ ...OUT, wager: 3 }, IMM], ["out", "imm"]), []);
-  assert.deepEqual(ok([{ ...OUT, share: "split" }, IMM], ["out", "imm"]), ['"out" splits a pot: a parlay on a split pot waits on a rule (does it multiply your share, or your call before the split?)']);
+  assert.deepEqual(ok([{ ...OUT, share: "split" }, IMM], ["out", "imm"]), [], "E3, p25: a split pot, your share multiplied");
   // Still asked the same way, so they share their windows.
   assert.deepEqual(ok([ROLL, { ...IMM, asked: "every", every: 2 }], ["out", "imm"]).length, 1);
 });
@@ -69,6 +69,26 @@ test("a leg that rolls over: its jackpot, then the parlay", () => {
   assert.deepEqual(Object.fromEntries(g.earned.get("out|2")), { ann: 12, bo: 4 });
   assert.deepEqual(Object.fromEntries(g.earned.get("imm|2")), { ann: 6 });
   assert.deepEqual(Object.fromEntries(g.points), { ann: 20, bo: 4 });
+});
+
+test("E3, p25: a leg that splits a pot: the split, then your share multiplied; the words", () => {
+  // Tracker row p25: "Who goes home is a 10-point pot split between everyone right, and if you also get immunity your share doubles."
+  const SPLIT = { ...OUT, points: 10, share: "split" };
+  const s = league([SPLIT, IMM], [{ of: ["out", "imm"], times: 2 }]);
+  const c = (i) => s.castaways[i].id;
+  const ep = S.ensureEpisodeNumber(s, 1, false);
+  S.addElimination(s, ep.id, c(5), "Voted Out");
+  S.addScoringEvent(s, ep.id, "individualImmunity", c(0));
+  const g = S.AnswerLogic.grade(s, [
+    // ann and bo right on who goes home (5 each); ann right on immunity too: her share doubles (10) and her immunity (4). bo keeps 5.
+    ...A("out", 1, [["ann", c(5)], ["bo", c(5)], ["cy", c(3)]]),
+    ...A("imm", 1, [["ann", c(0)], ["bo", c(1)]]),
+  ]);
+  assert.deepEqual(Object.fromEntries(g.earned.get("out|1")), { ann: 10, bo: 5 });
+  assert.deepEqual(Object.fromEntries(g.earned.get("imm|1")), { ann: 4 });
+  assert.deepEqual(Object.fromEntries(g.points), { ann: 14, bo: 5 });
+  const d = G.describeSpec(game([SPLIT, IMM], [{ of: ["out", "imm"], times: 2 }]), { show: "Survivor 51" });
+  assert.match(d.rules.join(" "), /On a split pot, it's your share that is\./);
 });
 
 test("a leg that pays only the only one right: its share, then the parlay", () => {

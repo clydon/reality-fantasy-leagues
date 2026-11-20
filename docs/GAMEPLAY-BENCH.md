@@ -1,5 +1,7 @@
 # Gameplay bench
 
+> **Status (2026-11-19): Superseded.** The v1 pilot at /__atlas/bench, kept only for sports recipes. The explorer page (/__atlas/explorer, docs/GAMEPLAY-EXPLORER.md) replaces it. The multi-pick editor gap it describes is fixed, and its Create game surface still targets the old wizard.
+
 Open **http://127.0.0.1:4400/__atlas/bench**, or choose **Gameplay bench** in the UI Atlas. Start it with `node scripts/ui-atlas.js serve` while the app runs on port 3000. It needs the existing `recorded` Atlas dataset and its local `zt_` fixture login; see [UI-ATLAS.md](UI-ATLAS.md) for setup.
 
 The [scenario explorer implementation plan](PLAN-GAMEPLAY-SCENARIO-EXPLORER.md) defines the next architecture and dependency-ordered chunks for arbitrary specs, composable adapters, semantic controls and full capability coverage. This guide describes the current implementation; planned milestones are not implemented support.

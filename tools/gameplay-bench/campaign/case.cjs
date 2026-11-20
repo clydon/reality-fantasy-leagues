@@ -64,8 +64,9 @@ function invariants(session, document, before, record, step, inject, known = new
           return cents((spec.count.best ? [...pts].sort((a, b) => b - a).slice(0, spec.count.best) : pts).reduce((a, b) => a + b, 0));
         };
         // (A seat's points for one game, from its box score: the whole team, the starters it fielded, or its best n.)
-        // (A game called off, proof-family-58: told, with nothing in it. A slate's week counts only once it's in, and then only its
-        // games final: its fact's, a game called off has no line. Sports-oracle.cjs counted.)
+        // (A game called off, proof-family-58: told, with nothing in it. A slate's week counts its games final, its fact's, as each
+        // ends (a week in progress too: docs/PLAN-sports-ready.md step 1.1, part 2); a game called off has no line. Sports-oracle.cjs
+        // counted.)
         const weekOf = (playerId, e) => {
           const data = world.facts.find(f => f.eventId === e.id)?.data;
           if (!data) return 0;
@@ -79,7 +80,12 @@ function invariants(session, document, before, record, step, inject, known = new
         // (Which weeks are in: an episode of one game by its results; a slate's week by the rule, never the runtime's own status: every
         // game final or called off, sports-oracle.cjs weekIn over its fact's games and its games called off.)
         const weekIn = e => { const f = world.facts.find(x => x.eventId === e.id)?.data; return !!f && Or.weekIn(Sp.gamesOf(world.context, e).map(g => g.id), Object.keys(f.games || {}), Object.keys(Sp.offOf(e))); };
-        const toldGames = world.events.filter(e => (slateOn ? weekIn(e) : ['final', 'corrected', 'postponed', 'cancelled'].includes(e.resultStatus)) && e.number <= told);
+        const isIn = e => (slateOn ? weekIn(e) : ['final', 'corrected', 'postponed', 'cancelled'].includes(e.resultStatus));
+        // What a table counts: the weeks in and (step 1.1, part 2) a slate's week in progress, its games final so far (its fact, or
+        // a game of it called off); what head to head decides: the weeks in alone (`inGames`).
+        const inProgress = e => slateOn && !weekIn(e) && !!world.facts.find(x => x.eventId === e.id)?.data?.games;
+        const toldGames = world.events.filter(e => (isIn(e) || inProgress(e)) && e.number <= told);
+        const inGames = toldGames.filter(isIn);
         // A game of the sport's categories (proof-family-50) has no points: its table and its weeks are the categories', recounted
         // from the box scores by the rule restated apart from the engine (sports-oracle.cjs: a count adds up; a rate is worked out
         // from the counts added up, from its own group's lines; the better value takes a category; roto ranks each category across
@@ -99,8 +105,8 @@ function invariants(session, document, before, record, step, inject, known = new
           } else {
             const lastCats = member ? v.matchups?.last : null;
             if (lastCats) {
-              const e = toldGames.find(x => x.number === lastCats.episode);
-              if (!e) throw new Violation('sport-categories', person.id + "'s last matchup in " + game.id + ' is episode ' + lastCats.episode + ', which they have not been told', step);
+              const e = inGames.find(x => x.number === lastCats.episode);
+              if (!e) throw new Violation('sport-categories', person.id + "'s last matchup in " + game.id + ' is episode ' + lastCats.episode + ', which they have not been told' + (toldGames.some(x => x.number === lastCats.episode) ? ' as in (a week in progress)' : ''), step);
               if (lastCats.opponent) {
                 const w = Oracle.week(over(person.id, [e]), over(lastCats.opponent, [e]), catsList, defs), hush = Oracle.quiet(full.players.map(p => over(p.id, [e])), catsList) && (spec.rank?.quiet ?? 'skip') !== 'tie';
                 if (hush ? lastCats.result !== null : lastCats.points !== w.won || lastCats.against !== w.lost || lastCats.result !== w.result)
@@ -111,13 +117,14 @@ function invariants(session, document, before, record, step, inject, known = new
         }
         const want = {};
         for (const p of full.players) want[p.id] = cents(toldGames.reduce((n, e) => n + weekOf(p.id, e), 0));
-        // Head to head ('sport-matchup'; proof-family-49): this viewer's last matchup is a game they've been told, their points in
-        // it are that game's box score's, and against a seat (not the median, or a week off) the other side's are that seat's
-        // and the result is who scored more. Who plays whom is the engine's schedule; who won is worked out here.
+        // Head to head ('sport-matchup'; proof-family-49): this viewer's last matchup is a game they've been told is in (never a
+        // week in progress: step 1.1, part 2), their points in it are that game's box score's, and against a seat (not the median,
+        // or a week off) the other side's are that seat's and the result is who scored more. Who plays whom is the engine's
+        // schedule; who won is worked out here.
         const last = member && !catsList ? v.matchups?.last : null;
         if (last) {
-          const e = toldGames.find(x => x.number === last.episode);
-          if (!e) throw new Violation('sport-matchup', person.id + "'s last matchup in " + game.id + ' is episode ' + last.episode + ', which they have not been told', step);
+          const e = inGames.find(x => x.number === last.episode);
+          if (!e) throw new Violation('sport-matchup', person.id + "'s last matchup in " + game.id + ' is episode ' + last.episode + ', which they have not been told' + (toldGames.some(x => x.number === last.episode) ? ' as in (a week in progress)' : ''), step);
           const mine = weekOf(person.id, e), theirs = last.opponent ? weekOf(last.opponent, e) : null;
           // (A night nobody scored counts for nobody, the default, unless the game ties everyone: rank.quiet.)
           const quiet = full.players.every(p => weekOf(p.id, e) === 0) && (spec.rank?.quiet ?? 'skip') !== 'tie';
@@ -164,12 +171,17 @@ function invariants(session, document, before, record, step, inject, known = new
         if (!catsList && Object.keys(want).some(k => Math.abs((got[k] ?? NaN) - want[k]) > 1e-9)) throw new Violation('stats-table', person.id + ' (through ' + seen + (told === Infinity ? ', told everything' : '') + ') sees ' + game.id + ' at ' + JSON.stringify(got) + '; the box scores they have seen add up to ' + JSON.stringify(want), step);
         // A game called off and a week in progress ('sport-called-off', proof-family-58), in the full state: an episode whose one game
         // is called off has its results in (final) with no line; a slate's week in progress (its fact holds the games final so far,
-        // the event still unavailable) has nothing stamped, no line, no final, no game's lines.
+        // the event still unavailable) has those games' lines stamped early (step 1.1, part 2: statEarly, each game final so far's
+        // lines and no other's, no final), and nothing at all before its first game is final; a week in is never early.
         for (const e of world.events) {
           const ep = full.episodes.find(x => x.id === e.id);
           if (!ep) continue;
           if (Sp.isOff(e) && (ep.gameFinal !== true || ep.statLines)) throw new Violation('sport-called-off', 'episode ' + e.number + ' of ' + game.id + ' is ' + e.resultStatus + ' but its state ' + (ep.statLines ? 'holds lines' : 'has no results'), step);
-          if (!['final', 'corrected', 'postponed', 'cancelled'].includes(e.resultStatus) && (ep.statLines || ep.gameFinal || ep.statGames)) throw new Violation('sport-called-off', 'episode ' + e.number + ' of ' + game.id + " is still in progress (" + Object.keys(world.facts.find(f => f.eventId === e.id)?.data.games || {}).length + ' games final) but its state holds ' + (ep.statLines ? 'lines' : ep.gameFinal ? 'a final' : "games' lines"), step);
+          const so = world.facts.find(f => f.eventId === e.id)?.data?.games, isOut = ['final', 'corrected', 'postponed', 'cancelled'].includes(e.resultStatus);
+          if (isOut && ep.statEarly) throw new Violation('sport-called-off', 'episode ' + e.number + ' of ' + game.id + ' is ' + e.resultStatus + ' but its state is still early (a week in progress)', step);
+          if (!isOut && !so && (ep.statLines || ep.gameFinal || ep.statGames || ep.statEarly)) throw new Violation('sport-called-off', 'episode ' + e.number + ' of ' + game.id + " has no game final but its state holds " + (ep.statLines ? 'lines' : ep.gameFinal ? 'a final' : ep.statGames ? "games' lines" : 'an early mark'), step);
+          if (!isOut && so && (ep.statEarly !== true || !ep.statLines || ep.gameFinal || JSON.stringify(Object.keys(ep.statGames || {}).sort()) !== JSON.stringify(Object.keys(so).sort())))
+            throw new Violation('sport-called-off', 'episode ' + e.number + ' of ' + game.id + ' is in progress (' + Object.keys(so).length + " games final) but its state " + (ep.statEarly !== true ? "isn't early" : !ep.statLines ? 'holds no lines' : ep.gameFinal ? 'holds a final' : "holds games' lines " + JSON.stringify(Object.keys(ep.statGames || {}))), step);
         }
         const mine = S0.GhostLogic.viewFor(full, member ? person.id : null, seen);
         const leak = mine.episodes.find(e => e.number > seen && (e.statLines || e.gameFinal || e.statGames));

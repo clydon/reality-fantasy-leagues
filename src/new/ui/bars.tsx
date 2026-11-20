@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { ChevronLeft } from "lucide-react";
+import { Bot, ChevronLeft } from "lucide-react";
+import { isBotSeat } from "./bot-seats";
 import { colourOf, pictureUrl } from "@/lib/people";
 import { usePerson } from "../data";
 import { useNav } from "../nav";
@@ -14,9 +15,16 @@ import { useNav } from "../nav";
  * they chose in their profile, which come with the home read for you and everyone on your couches; anyone else, and anyone
  * before the home is read, is on the colour their id picks). `colour` sets it outright (a computer player).
  */
-export function Avatar({ id, name, size = 34, colour }: { id: string; name: string; size?: number; colour?: string }) {
+export function Avatar({ id, name, size = 34, colour, bot }: { id: string; name: string; size?: number; colour?: string; bot?: boolean }) {
   const face = usePerson(id);
   const [broken, setBroken] = useState<number | null>(null);
+  // A computer player (E1): a robot on a quiet tile, never an initial that reads as a person's (ui/bot-seats.ts).
+  if (bot || isBotSeat(id))
+    return (
+      <span className="relative grid flex-none place-items-center overflow-hidden rounded-[3px] bg-secondary text-foreground outline-1 -outline-offset-1 outline-border" style={{ width: size, height: size }} data-face="bot" aria-hidden>
+        <Bot style={{ width: Math.round(size * 0.62), height: Math.round(size * 0.62) }} strokeWidth={2} />
+      </span>
+    );
   const picture = face?.picture != null && face.picture !== broken ? face.picture : null;
   return (
     <span

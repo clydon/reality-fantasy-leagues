@@ -680,18 +680,32 @@ export async function bingoLinesOn(seasonId: string, n: number, only?: string[],
 export async function bingoLines(
   seasonId: string,
   userIds: string[],
-  opts: { from: number; through: number; couchId: string | null; book?: CallBook; byEpisode?: Map<number, Map<string, number>> }
+  opts: { from: number; through: number; couchId: string | null; book?: CallBook; byEpisode?: Map<number, Map<string, number>>; bots?: string[] }
 ): Promise<Map<string, number>> {
   const out = new Map<string, number>();
   const upTo = Number.isFinite(opts.through) ? opts.through : 100000;
-  if (!userIds.length || upTo < Math.max(1, opts.from)) return out;
-  const { rows } = await pool.query(
-    `SELECT c.user_id, c.episode, c.squares, c.called_lines, array_agg(m.square) AS ticked
-       FROM bingo_cards c JOIN bingo_marks m ON m.card_id = c.id
-      WHERE c.season_id = $1 AND c.user_id = ANY($2::text[]) AND c.episode BETWEEN $3 AND $4
-      GROUP BY c.id`,
-    [seasonId, userIds, Math.max(1, opts.from), upTo]
-  );
+  const bots = opts.bots ?? [];
+  if ((!userIds.length && !bots.length) || upTo < Math.max(1, opts.from)) return out;
+  const { rows: people } = userIds.length
+    ? await pool.query(
+        `SELECT c.user_id, c.episode, c.squares, c.called_lines, array_agg(m.square) AS ticked
+           FROM bingo_cards c JOIN bingo_marks m ON m.card_id = c.id
+          WHERE c.season_id = $1 AND c.user_id = ANY($2::text[]) AND c.episode BETWEEN $3 AND $4
+          GROUP BY c.id`,
+        [seasonId, userIds, Math.max(1, opts.from), upTo]
+      )
+    : { rows: [] as Record<string, unknown>[] };
+  // E1c: computer players' cards (the user, 2026-11-18: bingo "is settled by AI too, so sure"): dealt from each episode's bank by
+  // the seat (the same card every read, never stored), each square ticked once it's settled as happened, every full line called.
+  const botRows: Record<string, unknown>[] = [];
+  for (let n = Math.max(1, opts.from); bots.length && n <= upTo; n++) {
+    const bank = (await bankFor(seasonId, n)).squares;
+    for (const b of bots) {
+      const squares = dealCard(bank, seedOf(b, seasonId, n, 0));
+      if (squares) botRows.push({ user_id: b, episode: n, squares, called_lines: null, ticked: null, bot: true });
+    }
+  }
+  const rows = [...people, ...botRows] as { user_id: string; episode: number; squares: BingoSquare[]; called_lines: unknown; ticked: number[] | null; bot?: boolean }[];
   if (!rows.length) return out;
   const book = opts.book ?? (await seasonBook(seasonId));
   const talk = kindOf(book.blocks) === "talk";
@@ -717,6 +731,11 @@ export async function bingoLines(
   const lines = rows.map((r) => {
     const squares = r.squares as BingoSquare[];
     const t = truthOf(squares, (k) => truthAt(r.user_id, r.episode, k));
+    // A computer player ticks what's settled as happened (and the free square), and calls every line it has whole.
+    if (r.bot) {
+      const ticked = new Set(squares.flatMap((s, i) => (s.key === FREE_KEY || t[i] === "yes" ? [i] : [])));
+      return { id: r.user_id, episode: r.episode, n: countLines(squares, ticked, t, LINES.map((_, i) => i)).standing };
+    }
     // A bank's card counts its called lines (step 3); one from before the banks, every ticked line.
     const called = callsOn(squares) ? calledOf(r.called_lines).map((c) => c.line) : null;
     return { id: r.user_id as string, episode: r.episode as number, n: countLines(squares, new Set((r.ticked as number[]).map(Number)), t, called).standing };
@@ -777,17 +796,20 @@ export async function leagueBingo(o: {
   // A game waiting for its phase (step A3 of docs/PLAN-start-a-game-gpt.md) counts no lines yet, and hands no card.
   const from = StateLogic.startEpisode(o.state);
   const userIds = o.state.players.map((p) => o.userOf(p.id)).filter((id): id is string => !!id);
+  // E1c: computer players' cards, tallied by seat.
+  const bots = o.state.players.filter((p) => p.automated && !p.disabled).map((p) => p.id);
+  const tallyOf = (p: string) => o.userOf(p) ?? (bots.includes(p) ? p : null);
   // U1 step 2b: each episode's lines too, for the season grid (game-plays.ts).
   const byEpisode = new Map<number, Map<string, number>>();
   const [lines, move] = await Promise.all([
-    from === null ? new Map<string, number>() : bingoLines(o.seasonId, userIds, { from, through, couchId: o.couchId, book: o.book, byEpisode }),
+    from === null ? new Map<string, number>() : bingoLines(o.seasonId, userIds, { from, through, couchId: o.couchId, book: o.book, byEpisode, bots }),
     o.playerId && from !== null ? bingoMove(o.userId, o.seasonId, mark, from, schedule, now) : Promise.resolve(null),
   ]);
   // Points per line (step A9 of docs/PLAN-start-a-game-gpt.md), 1 when the game says none: the sequence's count at a line's points.
   const each = pointsPerLine(o.state);
   return {
-    right: (p) => Seq.counted(lines.get(o.userOf(p) ?? "") ?? 0, each),
-    episodes: episodesByPlayer(o.state.players, o.userOf, byEpisode, each),
+    right: (p) => Seq.counted(lines.get(tallyOf(p) ?? "") ?? 0, each),
+    episodes: episodesByPlayer(o.state.players, tallyOf, byEpisode, each),
     move: null,
     bingo: move && (end === null || move.episode <= end) ? move : null,
     through,

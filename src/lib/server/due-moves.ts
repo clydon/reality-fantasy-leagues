@@ -55,11 +55,9 @@ export async function dueMoves(userId: string): Promise<{ items: LeagueMove[]; c
         const w = StateLogic.GhostLogic.lateWindow(r.state, r.player_id, mark, Date.now());
         if (w && mark === w.episode - 1) {
           const weekly = (it: { kind: string }) => it.kind === "lineup" || it.kind === "pick";
+          // Only something missing is due: a full lineup carried in from last week is set, as before airtime (the user, 2026-11-19;
+          // the Games tab's card says the same, your-move.ts). A starter short, an empty slot or no pick, the copy lists.
           const late: ActionItem[] = actionItems(StateLogic.GhostLogic.lateCopy(r.state, w.episode), r.player_id, mark).filter((it) => weekly(it) && it.episode === w.episode);
-          // A lineup carried in from last week isn't one set for this episode (the Games tab's card says the same).
-          if (!late.length && StateLogic.piecesOf(r.state).hasActiveRoster && !StateLogic.GhostLogic.movedFor(r.state, r.player_id, w.epId)) {
-            late.push({ kind: "lineup", text: `Set your episode ${w.episode} lineup`, href: "/lineup", episode: w.episode, who: "you" });
-          }
           own = [...late.map((it) => ({ ...it, deadline: w.until, late: true })), ...own.filter((it) => !weekly(it))];
         }
       }

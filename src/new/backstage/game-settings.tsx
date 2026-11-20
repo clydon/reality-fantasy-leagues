@@ -1,0 +1,360 @@
+"use client";
+
+import { useState, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
+import { Check, ChevronDown, ChevronRight } from "lucide-react";
+import { lockTime } from "../clock";
+import { gameColour } from "../games";
+import { backstage, gameAdmin, gamesApi, useGameSettings, type GameSettings } from "../data";
+import { NavLink } from "../nav";
+import { paths } from "../routes";
+import type { ShowData } from "../screens/show-space";
+import { PushedPage, usePushedPage } from "../ui/page";
+import { toast } from "../ui/toast";
+import { TitleCard } from "../couch/gallery-bold/parts";
+import { Pictogram } from "../couch/gallery-bold/icons";
+import { kindOf, spanName } from "@/lib/game/spans";
+import { EndGames, HowLong, JoinControl, LineupControl, LockRow, SheetQuestions, useAfter, useSettingsWrite } from "./settings";
+
+// Round 4: changing a game later (docs/design-round/round4-game-settings-spec.md, -first-view.md, -shape.md; approved 2026-11-19
+// and built in B4). Backstage › Game settings is a list of the games you run here, a row each; each game's settings are its own
+// page, pushed over the game (its ⋯ menu) or over Backstage: the title card Start a game made, this episode's lock, then the rules as
+// lines, value first, one opened at a time, and Archive or delete. A link opens it: ?page=game-settings&game=<league id>, and
+// &line=<pace | lineup | questions | joining | length> with that rule open.
+
+type Write = ReturnType<typeof useSettingsWrite>;
+const FOCUS = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
+
+/** The page that holds one game's settings, pushed over wherever it's opened from (`?page=game-settings&game=<league id>`). */
+export function useGameSettingsPage() {
+  return usePushedPage("game-settings", ["game", "from", "line"]);
+}
+
+const joinWords = { open: "Anyone on the couch", ask: "Ask me first", locked: "Nobody new" } as const;
+const paceWords = (g: GameSettings) => (g.pace.mode === "own" ? "At your own pace" : "Together");
+const oneEpisode = (g: GameSettings) => g.span.from !== null && g.span.to !== null && g.span.from === g.span.to;
+const changedIn = (g: GameSettings) => (!g.joining.fixed && g.joining.mode !== g.joining.rec) || (!!g.lineup && (g.lineup.starters !== g.lineup.rec.starters || (!g.draftStarted && g.lineup.bench !== g.lineup.rec.bench)));
+
+/** What's notable about a game in one line: this episode's lock, how moves lock, who joins. */
+function notable(g: GameSettings, word: string): string {
+  // A season game named by its couch says its type ("Couch Cup · Outlast"); a one-episode game's name is its kind already (the
+  // engine's type would say "Prediction Sheet" for a pot or a majority).
+  const type = !oneEpisode(g) && kindOf(g.name) !== g.gameName ? g.gameName : null;
+  if (g.span.over) return [type, "It's over"].filter(Boolean).join(" · ");
+  const at = g.lock?.airsAt ? lockTime(Date.parse(g.lock.airsAt)) : null;
+  const lock = g.lock ? `${word} ${g.lock.episode}'s ${g.lock.what} ${g.lock.closed ? "locked" : at ? `lock ${at}` : "open"}` : null;
+  return [type, lock, paceWords(g), g.lockedDown ? "Locked down" : joinWords[g.joining.mode]].filter(Boolean).join(" · ");
+}
+
+// ---------- the list ----------
+
+function ListRow({ g, word, onOpen }: { g: GameSettings; word: string; onOpen: (id: string) => void }) {
+  return (
+    <button type="button" data-settings-row={g.leagueId} onClick={() => onOpen(g.leagueId)} className={`nd-press flex min-h-[60px] w-full items-center gap-3 border-t border-border py-2 text-left first:border-t-0 ${FOCUS}`}>
+      <i className="size-2 flex-none rounded-full" style={{ background: gameColour(g.gameName) }} aria-hidden />
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-2">
+          <b className="type-caption min-w-0 truncate text-[17px] leading-none">{g.name}</b>
+          {changedIn(g) && <em className="type-caption rounded-[2px] bg-quiet-tag px-1.5 text-[11px] not-italic tracking-[0.05em] text-quiet-tag-foreground">Changed</em>}
+        </span>
+        <small className="mt-1 block truncate text-[13px] text-muted-foreground">{notable(g, word)}</small>
+      </span>
+      <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
+    </button>
+  );
+}
+
+/** Backstage › Game settings (Round 4): the games you run here, a row each. Running first; a night's games by episode, folded;
+ *  finished ones folded. */
+export function SettingsList({ seasonId, couchId, games, show, onOpen }: { seasonId: string; couchId: string; games: GameSettings[]; show: ShowData; onOpen: (id: string) => void }) {
+  const E = show.words.episode;
+  const [opened, setOpened] = useState<Set<string>>(new Set());
+  const after = useAfter();
+  const [busy, setBusy] = useState(false);
+  const running = games.filter((g) => !g.span.over && !oneEpisode(g));
+  const nights = games.filter((g) => !g.span.over && oneEpisode(g));
+  // Finished: newest first (by where each ended).
+  const done = games.filter((g) => g.span.over).sort((a, b) => (b.span.to ?? Infinity) - (a.span.to ?? Infinity) || a.name.localeCompare(b.name));
+  // B4 (the user's call on Round 4's story): the finished ones archived at once, one Undo for them all. (An archived game isn't in
+  // this read: it leaves the list, and Archive or delete a game below brings one back.)
+  const toArchive = done.filter((g) => g.commissioner);
+  const archiveAll = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const r = await gamesApi.archiveAll(seasonId, couchId, toArchive.map((g) => g.leagueId));
+      await after();
+      toast(`Archived ${r.archived} finished ${r.archived === 1 ? "game" : "games"} · still on the trophy shelf`, {
+        undo: async () => {
+          try {
+            await backstage.undo(seasonId, couchId, r.batch);
+            await after();
+            toast("Undone");
+          } catch (e) {
+            toast.quiet((e as Error).message);
+          }
+        },
+      });
+    } catch (e) {
+      toast.quiet((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const eps = [...new Set(nights.map((g) => g.span.from as number))].sort((a, b) => a - b);
+  const fold = (key: string, title: string, aside: string, line: string, list: GameSettings[]) => (
+    <section key={key} className="mt-6 px-2" data-settings-fold={key}>
+      <h2 className="flex items-baseline gap-2 px-2 pb-2">
+        <b className="type-caption text-[15px] tracking-[0.04em]">{title}</b>
+        <small className="text-[13px] text-muted-foreground">{aside}</small>
+      </h2>
+      <div className="rounded-[10px] bg-card px-3.5 py-1">
+        <button type="button" aria-expanded={opened.has(key)} onClick={() => setOpened(new Set(opened.has(key) ? [...opened].filter((k) => k !== key) : [...opened, key]))} className={`flex min-h-12 w-full items-center gap-3 text-left ${FOCUS}`}>
+          <span className="min-w-0 flex-1 text-[15px] font-semibold text-muted-foreground">{line}</span>
+          <ChevronDown className={`size-4 flex-none text-muted-foreground transition-transform duration-200 ${opened.has(key) ? "rotate-180" : ""}`} aria-hidden />
+        </button>
+        {opened.has(key) && (
+          <div className="border-t border-border">
+            {key === "done" && toArchive.length > 1 && (
+              <button type="button" data-archive-all disabled={busy} onClick={() => void archiveAll()} className={`nd-press my-2 grid min-h-11 w-full place-items-center rounded-[3px] text-[15px] font-bold outline-[1.5px] -outline-offset-[1.5px] outline-input ${FOCUS}`}>
+                {busy ? "Archiving…" : `Archive all ${toArchive.length}`}
+              </button>
+            )}
+            {list.map((g) => (
+              <ListRow key={g.leagueId} g={g} word={show.words.ep} onOpen={onOpen} />
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+  return (
+    <div data-settings-list>
+      {running.length > 0 && (
+        <section className="mt-4 px-2">
+          <h2 className="flex items-baseline gap-2 px-2 pb-2">
+            <b className="type-caption text-[15px] tracking-[0.04em]">Running</b>
+            <small className="text-[13px] text-muted-foreground">{running.length === 1 ? "1 game" : `${running.length} games`}</small>
+          </h2>
+          <div className="rounded-[10px] bg-card px-3.5 py-1">
+            {running.map((g) => (
+              <ListRow key={g.leagueId} g={g} word={show.words.ep} onOpen={onOpen} />
+            ))}
+          </div>
+        </section>
+      )}
+      {eps.map((n) => {
+        const list = nights.filter((g) => g.span.from === n);
+        return fold(`ep-${n}`, `${E} ${n}`, `${list.length} ${list.length === 1 ? "game" : "games"}`, list.length === 1 ? kindOf(list[0].name) : `${list.length} one-${E.toLowerCase()} games`, list);
+      })}
+      {done.length > 0 && fold("done", "Finished", `${done.length} ${done.length === 1 ? "game" : "games"}`, "Nothing left to change but archive or delete", done)}
+    </div>
+  );
+}
+
+// ---------- a game's settings ----------
+
+/** A rule as a line, value first (Start a game's RuleLine): its control opens under it, one at a time; a fixed one says why. */
+function SettingLine({
+  id,
+  icon,
+  label,
+  value,
+  fixed,
+  changed,
+  open,
+  onToggle,
+  href,
+  children,
+}: {
+  id: string;
+  icon: string;
+  label: string;
+  value: string;
+  /** Can't change: its reason, or `true` to keep the line's own detail (a Game admin: the title card says why, once). */
+  fixed?: string | true | null;
+  changed?: boolean;
+  open?: boolean;
+  onToggle?: () => void;
+  href?: string;
+  children?: ReactNode;
+}) {
+  const [head, ...rest] = value.split(" · ");
+  const second = typeof fixed === "string" ? fixed : rest.length ? rest.join(" · ") : null;
+  const body = (
+    <>
+      <span className="grid size-10 flex-none place-items-center rounded-[3px] bg-secondary">
+        <Pictogram id={icon} className="size-6" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-2">
+          <span className="type-caption text-[13px] tracking-[0.05em] text-muted-foreground">{label}</span>
+          {changed && <em className="type-caption rounded-[2px] bg-quiet-tag px-1.5 text-[11px] not-italic tracking-[0.05em] text-quiet-tag-foreground">Changed</em>}
+        </span>
+        <b className="block text-[16px] font-semibold leading-snug">{head}</b>
+        {second && <small className="block text-[13px] leading-snug text-muted-foreground">{second}</small>}
+      </span>
+      {!fixed && <ChevronRight className={`size-5 flex-none text-muted-foreground transition-transform duration-200 ${open ? "rotate-90" : ""}`} aria-hidden />}
+    </>
+  );
+  return (
+    <div data-setting-line={id} data-setting-open={open ? "yes" : "no"} className="border-t border-border first:border-t-0">
+      {fixed ? (
+        <div className="flex min-h-[64px] items-center gap-3 py-2">{body}</div>
+      ) : href ? (
+        <NavLink href={href} className={`nd-press flex min-h-[64px] items-center gap-3 py-2 ${FOCUS}`}>
+          {body}
+        </NavLink>
+      ) : (
+        <button type="button" aria-expanded={!!open} onClick={onToggle} className={`nd-press flex min-h-[64px] w-full items-center gap-3 py-2 text-left ${FOCUS}`}>
+          {body}
+        </button>
+      )}
+      {open && !fixed && children && <div className="mb-3 rounded-[3px] bg-background px-3 pb-1 pt-3">{children}</div>}
+    </div>
+  );
+}
+
+/** A choice in a game's settings: chosen in bone with a tick (the chyron stays for what's due), or set aside with why. */
+function Choice({ data, title, line, why, tag, chosen, onPick }: { data: string; title: string; line: string; why?: string | null; tag?: string | null; chosen: boolean; onPick?: () => void }) {
+  const off = !chosen && !!why;
+  return (
+    <button
+      type="button"
+      data-settings-choice={data}
+      aria-pressed={chosen}
+      aria-disabled={off || !onPick}
+      onClick={() => !off && onPick?.()}
+      className={`nd-press flex w-full flex-col rounded-[4px] px-3 py-2.5 text-left ${FOCUS} ${chosen ? "bg-secondary outline-[1.5px] -outline-offset-[1.5px] outline-foreground" : off ? "border border-dashed border-edge" : "bg-secondary"}`}
+    >
+      <span className="flex items-start justify-between gap-2">
+        <b className={`text-[16px] font-semibold leading-tight ${off ? "text-muted-foreground" : ""}`}>{title}</b>
+        <span className="flex flex-none items-center gap-1.5 pt-0.5">
+          {tag && <span className="type-caption text-[12px] tracking-[0.05em] text-muted-foreground">{tag}</span>}
+          {chosen && <Check className="size-5" strokeWidth={3} aria-hidden />}
+        </span>
+      </span>
+      <span className="mt-1 text-[14px] leading-snug text-muted-foreground">{line}</span>
+      {off && <span className="mt-1 text-[13px] font-semibold leading-snug">{why}</span>}
+    </button>
+  );
+}
+
+/** How moves lock: Start a game's two ways. At your own pace is chosen when a game starts; Together still chooses its late moves (on
+ *  the honour system until you've watched it or the next one airs, the recommended one, or none: everything locks when it airs). */
+function PaceCards({ seasonId, couchId, g, can, why, word }: { seasonId: string; couchId: string; g: GameSettings; can: boolean; why: string | null; word: string }) {
+  const after = useAfter();
+  const [busy, setBusy] = useState(false);
+  const ep = word.toLowerCase();
+  const own = g.pace.mode === "own";
+  const set = async (mode: "live" | "strict", undoing = false) => {
+    if (busy || !can || (!undoing && g.pace.mode === mode)) return;
+    const was = g.pace.mode === "strict" ? "strict" : "live";
+    setBusy(true);
+    try {
+      await gameAdmin.pace(seasonId, couchId, g.leagueId, mode);
+      await after();
+      const said = mode === "live" ? "late moves on the honour system" : "no late moves: everything locks when it airs";
+      toast(`${undoing ? "Back to" : "Saved"}: ${g.gameName} · ${said}`, undoing ? undefined : { undo: () => void set(was, true) });
+    } catch (e) {
+      toast.quiet((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (g.pace.of) return <p className="pb-2 text-[15px] leading-snug">A stage follows its game: change it on {g.pace.of}.</p>;
+  return (
+    <div data-settings="pace" data-pace={g.pace.mode} className="flex flex-col gap-2 pb-2">
+      <Choice data="pace-together" title="Together" line={`One deadline for everyone: when the ${ep} airs. Late moves below.`} chosen={!own} why="Chosen when a game starts, so it can't change now." />
+      <Choice data="pace-own" title="At your own pace" line="Your move locks when you start watching. Nobody's cut off." chosen={own} why="Chosen when a game starts, so it can't change now." />
+      {!own && (
+        <div className="mt-2" data-settings="late">
+          <p className="type-caption pb-1.5 text-[13px] tracking-[0.05em] text-muted-foreground">Late moves</p>
+          <div className="flex flex-col gap-2">
+            <Choice data="late-honour" title="On the honour system" tag="Recommended" line={`Open after the ${ep} airs until you've watched it, or the next one airs.`} chosen={g.pace.mode === "live"} why={can ? null : why} onPick={() => void set("live")} />
+            <Choice data="late-none" title="None" line={`Everything locks when the ${ep} airs.`} chosen={g.pace.mode === "strict"} why={can ? null : why} onPick={() => void set("strict")} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** One game's settings: the title card, this episode's lock, the rules as lines, Stop this game. */
+function GameSettingsBody({ seasonId, couchId, show, g, write, line }: { seasonId: string; couchId: string; show: ShowData; g: GameSettings; write: Write; line: string | null }) {
+  const [open, setOpen] = useState<string | null>(line);
+  const toggle = (id: string) => setOpen(open === id ? null : id);
+  const can = g.commissioner && !g.lockedDown && !g.span.over;
+  const E = show.words.episode;
+  // Why a line can't change: a Game admin's lines keep their own detail (the title card says why, once); a Commissioner's say why.
+  const why = g.lockedDown ? "Locked down for the season" : g.span.over ? "It's over" : null;
+  const frozen: string | true | null = !g.commissioner ? true : why;
+  const sp = g.span;
+  const part = { singular: E.toLowerCase(), plural: show.words.episodes.toLowerCase() };
+  const length = sp.from === null ? `When ${sp.phase?.name ?? "its phase"} starts` : sp.to === null ? `${E} ${sp.from} to the season's end` : spanName(sp.from, sp.to, part);
+  const L = g.lineup;
+  const art = show.header?.show.backdropUrl ?? show.header?.show.artUrl ?? null;
+  const kicker = show.header ? `${(show.header.show.name ?? "").replace(/^The /, "")}${show.header.seasonNumber ? ` · Season ${show.header.seasonNumber}` : ""}` : "";
+  const role = g.commissioner ? (g.span.over ? "You ran this game. It's over: nothing left to change but archive or delete." : "You run this game. Each change saves at once, with Undo.") : "Game admin: you open or close this episode's lock. The Commissioner changes the rest.";
+  return (
+    <div data-game-settings={g.leagueId} data-settings-game={g.gameName} data-settings-league={g.leagueId} className="px-4 pb-16 pt-2">
+      <TitleCard name={g.name} kicker={kicker} art={art} aka={[]} sentence={role} />
+      {g.lock && !g.span.over && (
+        <div className="mt-3">
+          <LockRow seasonId={seasonId} couchId={couchId} g={g} lock={g.lock} word={show.words.ep} />
+        </div>
+      )}
+      <p className="type-caption mt-5 pb-1 text-[13px] tracking-[0.05em] text-muted-foreground">The rules</p>
+      <div className="rounded-[10px] bg-card px-3.5">
+        <SettingLine id="pace" icon="clock" label="How moves lock" value={g.pace.mode === "own" ? "At your own pace · moves lock as you each watch" : `Together · ${g.pace.mode === "strict" ? "no late moves" : "late moves on the honour system"}`} fixed={g.pace.mode === "own" ? "Chosen when the game started" : frozen} open={open === "pace"} onToggle={() => toggle("pace")}>
+          <PaceCards seasonId={seasonId} couchId={couchId} g={g} can={can} why={why} word={E} />
+        </SettingLine>
+        {L && (
+          <SettingLine id="lineup" icon="team" label="Who scores each week" value={`${L.starters} of your ${L.starters + L.bench} · ${L.bench} on the bench`} changed={L.starters !== L.rec.starters} fixed={frozen} open={open === "lineup"} onToggle={() => toggle("lineup")}>
+            <LineupControl g={g} can={can} write={write} compact />
+          </SettingLine>
+        )}
+        {g.team && <SettingLine id="team" icon="teams" label="Team size" value={`${g.team.size} each`} fixed={g.draftStarted ? "Set at the draft" : "Set in the draft room, before it starts"} />}
+        {g.questions && (
+          <SettingLine id="questions" icon="sheet" label="The questions" value={`${g.questions.list.filter((x) => x.on).length} on · ${g.questions.list.filter((x) => x.on).map((x) => x.ask).slice(0, 2).join(", ")}`} fixed={frozen ?? (g.questions.editable ? null : (g.questions.why ?? "Answers are in"))} open={open === "questions"} onToggle={() => toggle("questions")}>
+            <SheetQuestions seasonId={seasonId} couchId={couchId} g={g} q={g.questions} />
+          </SettingLine>
+        )}
+        <SettingLine id="joining" icon="person" label="Who can join" value={joinWords[g.joining.mode]} changed={!g.joining.fixed && g.joining.mode !== g.joining.rec} fixed={g.joining.fixed ? (g.joining.mode === "open" ? "Until the draft starts, the game decides" : "The game decides: players own their castaways") : frozen} open={open === "joining"} onToggle={() => toggle("joining")}>
+          <JoinControl g={g} can={can} write={write} compact />
+        </SettingLine>
+        <SettingLine id="length" icon="halves" label="How long" value={length} fixed={sp.over ? "It's over" : frozen} open={open === "length"} onToggle={() => toggle("length")}>
+          <HowLong g={g} words={show.words} can={can} write={write} compact />
+        </SettingLine>
+        {g.waivers && <SettingLine id="waivers" icon="swap" label="Replacing people who leave" value={`When someone's out · ${g.waivers}`} fixed={frozen} href={paths.backstage(seasonId, "waivers")} />}
+      </div>
+      <div className="-mx-4">
+        <EndGames seasonId={seasonId} couchId={couchId} only={g.leagueId} />
+      </div>
+      {g.commissioner && !g.span.over && <p className="mt-2 text-[13px] leading-snug text-muted-foreground">To end it after an {E.toLowerCase()} instead, change How long above.</p>}
+    </div>
+  );
+}
+
+/** One game's settings as a page pushed over the game or Backstage. Its data is Backstage's settings read, asked once it opens. */
+export function GameSettingsPage({ seasonId, show }: { seasonId: string; show: ShowData }) {
+  const page = useGameSettingsPage();
+  const params = useSearchParams();
+  const id = params.get("game");
+  const couchId = show.couch?.id ?? null;
+  const data = useGameSettings(seasonId, couchId, page.open);
+  const write = useSettingsWrite(seasonId, couchId);
+  const g = data.data?.games.find((x) => x.leagueId === id) ?? null;
+  const fromGame = params.get("from") === "game";
+  return (
+    <PushedPage open={page.open} onClose={page.close} title="Game settings" back={fromGame ? (g?.name ?? "Back") : "Game settings"}>
+      {!data.data || !couchId ? (
+        <div aria-busy className="mx-4 mt-4 h-64 animate-pulse rounded-[4px] bg-card" />
+      ) : g ? (
+        <GameSettingsBody key={`${g.leagueId}:${params.get("line") ?? ""}`} seasonId={seasonId} couchId={couchId} show={show} g={g} write={write} line={params.get("line")} />
+      ) : (
+        <p className="px-4 pt-6 text-[15px] text-muted-foreground">This game&apos;s settings aren&apos;t yours to see here.</p>
+      )}
+    </PushedPage>
+  );
+}

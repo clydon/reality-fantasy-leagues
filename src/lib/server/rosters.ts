@@ -181,7 +181,7 @@ async function saveRoster(seasonId: string, groups: RosterGroup[]): Promise<numb
     for (const g of groups) {
       for (const p of g.people) {
         await c.query(
-          "INSERT INTO season_cast (season_id, name, tribe_name, role, sort_order) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (season_id, lower(name)) DO NOTHING",
+          "INSERT INTO season_cast (season_id, name, tribe_name, role, sort_order) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (season_id, lower(name)) WHERE provider_ids IS NULL DO NOTHING",
           [seasonId, p.name, g.name, p.role, i++]
         );
       }

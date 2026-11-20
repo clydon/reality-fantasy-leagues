@@ -22,8 +22,9 @@
 // its own line at its format's points (a stat's points in the table for that many sets, else the table's own; a group's still
 // first), and whatever their day's line has besides their matches' at the table's own points.
 // And a game called off, and a week in progress (the last sports slice; the server's L3 part 3b and part 2f), from the rule alone:
-//   a week of several games is in once every game in it is over, final or called off (postponed, cancelled); until then nothing of
-//     it counts, not even its games already final;
+//   a week of several games is in once every game in it is over, final or called off (postponed, cancelled); until then its games
+//     already final count for its points as they end (docs/PLAN-sports-ready.md step 1.1, part 2, 2026-11-19), but head to head, a
+//     race or a cut decides nothing of it;
 //   a game called off has no line and scores nothing, and locks nothing: a week's lock, a day's, is its first game played; a
 //     holding whose team's game is called off is free to move;
 //   an episode of one game called off is in, with nothing in it: everyone scores 0 for it.
@@ -121,8 +122,9 @@ function placed(counts, standing, sport) {
 }
 /** Whether a week of several games is in: every game (`games`, ids) final (`final`: ids with a line kept) or called off (`off`: ids). */
 const weekIn = (games, final, off) => games.every(g => final.includes(g) || off.includes(g));
-/** The games whose lines count for a week: none until it's in, then the ones final (a game called off has none). */
-const counted = (games, final, off) => (weekIn(games, final, off) ? games.filter(g => final.includes(g) && !off.includes(g)) : []);
+/** The games whose lines count for a week's points: each one final so far (a week in progress counts as it goes, the server's step
+ *  1.1 part 2; a game called off has none). Head to head, a race or a cut decides a week only once it's in (weekIn). */
+const counted = (games, final, off) => games.filter(g => final.includes(g) && !off.includes(g));
 /** The first start (ms) among games played (`games`: [{ id, at }], `off`: ids called off), or null: a week's or a day's lock. */
 function firstPlayed(games, off) {
   const t = games.filter(g => !off.includes(g.id)).map(g => Date.parse(g.at)).filter(Number.isFinite);

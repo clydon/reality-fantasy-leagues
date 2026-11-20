@@ -1,5 +1,7 @@
 # Plan: the maker edits a made game's scoring, and episodes are looked up again for what's new
 
+> **Status (2026-11-19): Done.** Built and pushed 2026-10-27 (9c9faab8, migration 0154): the header's 'not started' is wrong. Edits after a game starts are Make it ours and the commissioners' What scores. Left: BACKLOG 19.
+
 Status: **planned 2026-10-27, not started.** Decisions are the user's (2026-10-27); file references are from a code map made
 the same day (check them before relying on a line number).
 

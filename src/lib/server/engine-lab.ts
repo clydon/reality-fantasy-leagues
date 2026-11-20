@@ -105,7 +105,7 @@ function labRows(): (LabRow & { raw: Record<string, unknown> })[] {
   });
 }
 
-interface LabSeasonRow {
+export interface LabSeasonRow {
   id: string;
   number: number;
   slug: string;
@@ -338,9 +338,9 @@ function withStart(pasted: Record<string, unknown>, from: number, there?: (key: 
  * the game was (makeLeague), its spec the stage's game written through its writer with the season's ctx (a later stage's exclusive
  * count waits for its draft to open: StateLogic.settleDraftShare), tied to the game (stage_of, stage_key), with the game's seats under
  * the same ids and their memberships; a stage that starts or ends at a phase settled when that's known. A12 part 4b: a stage on another
- * season (`others`, by its key) on that season, with its rules there.
+ * season (`others`, by its key) on that season, with its rules there. Start a game's games in stages too (start-spec.ts, B1).
  */
-async function makeStages(user: SessionUser, parentId: string, name: string, spec: unknown, home: LabSeasonRow, couchId: string, homeCopy: string | null, homeCtx: SpecContext, others: Map<string, Other>): Promise<void> {
+export async function makeStages(user: SessionUser, parentId: string, name: string, spec: unknown, home: LabSeasonRow, couchId: string, homeCopy: string | null, homeCtx: SpecContext, others: Map<string, Other>, lab = true): Promise<void> {
   const full = Spec.fullSpec(spec as never);
   const { rows } = await pool.query("SELECT state FROM leagues WHERE id = $1", [parentId]);
   const parent = rows[0].state as LeagueState;
@@ -376,7 +376,7 @@ async function makeStages(user: SessionUser, parentId: string, name: string, spe
           s.settings.stageOf = parentId;
           await client.query("UPDATE leagues SET stage_of = $2, stage_key = $3 WHERE id = $1", [id, parentId, stage.id]);
           if (StateLogic.readsPhases(s) || StateLogic.startPhase(s) || StateLogic.endPhase(s)) settleIn(s, await leaguePhases(client, id, season.id), await scheduleOf(season.id));
-          await recordChange(client, id, s, { userId: user.id, kind: "game.start", tier: 1, text: `${stage.name || `Stage ${i + 1}`} of ${name}, from the engine lab`, detail: { lab: true, stageOf: parentId } });
+          await recordChange(client, id, s, { userId: user.id, kind: "game.start", tier: 1, text: `${stage.name || `Stage ${i + 1}`} of ${name}${lab ? ", from the engine lab" : ""}`, detail: { ...(lab ? { lab: true } : {}), stageOf: parentId } });
         },
       }
     );

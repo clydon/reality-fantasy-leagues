@@ -57,7 +57,7 @@ function mirrorPace(parent: LeagueState, stage: LeagueState): boolean {
 }
 
 /** The fields of a seat that are the seat's, not the game's: what a stage's copy of it mirrors. */
-const SEAT_FIELDS = ["name", "disabled", "formerName", "disabledFromUserId", "automated"] as const;
+const SEAT_FIELDS = ["name", "disabled", "formerName", "disabledFromUserId", "automated", "botLevel"] as const;
 type Fields = Record<string, unknown>;
 
 /** The game's seats a stage seats: everyone on it but a late joiner's private season or a seat waiting to be brought in (one that
@@ -70,6 +70,9 @@ export const seatsToMirror = (parent: LeagueState) => parent.players.filter((p) 
  */
 export function seatIn(stage: LeagueState, p: Player): Player {
   const made = StateLogic.addPlayer(stage, p.name, p.automated ? { automated: true } : undefined) as Player;
+  // E1e: a computer player plays each stage at the level it plays the game.
+  const level = (p as { botLevel?: string }).botLevel;
+  if (level) (made as { botLevel?: string }).botLevel = level;
   const was = made.id;
   made.id = p.id;
   made.color = p.color;

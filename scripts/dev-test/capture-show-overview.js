@@ -71,7 +71,7 @@ async function attempt(title,fn){if(only&&only!==title)return;try{await fn();}ca
     await attempt('Episode detail',async()=>{await b.page.goto(base+'/episodes');await b.page.locator('[data-ep="4"]').click();await shot('05-episode-detail','Episode detail','[data-episode-page]');});
     await attempt('Game detail',async()=>{await b.page.goto(base+'/game/'+fx.leagues.lineup);await shot('06-game-detail','Game detail','[data-game-page]');});
     await attempt('Player detail',async()=>{await b.page.goto(base+'/cast');await b.page.locator('[data-cast]').first().click();await shot('07-player-detail','Contestant detail','[data-story]');});
-    await attempt('Start game',async()=>{await b.page.goto(base+'/games');await b.page.locator('[data-start-row]').first().click();await shot('08-start-game','Start game wizard','[data-start-card]');});
+    await attempt('Start game',async()=>{await b.page.goto(base+'/games');await b.page.locator('[data-start-row]').first().click();await shot('08-start-game','Start game wizard','[data-gallery=gallery]');});
     await attempt('Behind viewer',async()=>{await b.close();b=await open({user:fixture.username('sam'),pass:fixture.PASSWORD,width,height:844});await b.page.goto(base+'/tonight');await shot('09-behind-tonight','Behind viewer on Tonight','[data-tab=tonight]');await b.page.goto(base+'/chat');await shot('10-behind-chat','Folded future chat','[data-chat]');});
   } finally {
     if(b)await b.close();

@@ -19,6 +19,7 @@ import { first } from "./moves";
 import { EpisodeGifStrip, GifsAction, GifsBeat, openGif, showLabel, type GifTarget } from "./react";
 import { Face } from "./parts";
 import { useStepEnd, useWatcherNext } from "./step-through";
+import { resultWords, WinnerFaces } from "./whats-on";
 
 // The one reveal (the mock's episode.js revealPlay, stages.js, share.js; docs/PLAN-new-design.md step 2): one
 // broadcast per episode for every game you play on the show. Tapping Reveal asks the server to reveal it in all of
@@ -280,6 +281,7 @@ function Beats({
   // The tap a swipe ends in is the swipe's, not a Next.
   const swipe = useRef<{ x: number; y: number } | null>(null);
   const swiped = useRef(false);
+  const nightIds = new Set((r?.nights ?? []).map((a) => a.leagueId));
   const beats: { key: string; node: ReactNode; action?: ReactNode }[] = r
     ? [
         { key: "open", node: <Opener r={r} name={name} season={season} replay={replay} /> },
@@ -289,8 +291,10 @@ function Beats({
         ...(r.out.length || r.lineup || r.games.length || r.predictions.length || r.table ? [{ key: "out", node: <VoteCards r={r} /> }] : []),
         ...(gifs ? [{ key: "gifs", node: gifs.node, action: gifs.action }] : []),
         ...(r.lineup ? [{ key: "lineup", node: <LineupBeat r={r} /> }] : []),
+        // Round 3: the night's one-episode games, ended tonight, one beat between them.
+        ...(r.nights?.length ? [{ key: "nights", node: <NightBeat r={r} /> }] : []),
         // Each other game a beat of its own, in its own measure (never one list of everything else).
-        ...[...r.games, ...r.predictions].map((g) => ({ key: `game-${g.leagueId}-${g.gameType}`, node: <GameBeat g={g} /> })),
+        ...[...r.games, ...r.predictions].filter((g) => !nightIds.has(g.leagueId)).map((g) => ({ key: `game-${g.leagueId}-${g.gameType}`, node: <GameBeat g={g} /> })),
         ...(r.table ? [{ key: "table", node: <TableBeat r={r} /> }] : []),
       ]
     : [];
@@ -592,29 +596,161 @@ function Recap({ r }: { r: SeasonReveal }) {
   );
 }
 
-function Challenges({ r }: { r: SeasonReveal }) {
+// ---------- the plates (the user, 2026-11-19: "Missing some name plates that would go well here") ----------
+// Everyone the reveal names is a plate: their face over a caption strip, their tribe's colour on its angled end (the merge's once
+// merged: one colour across the row says it). It builds like a broadcast lower third: the photo comes up, the strip wipes across,
+// the colour lands last; a fate (Out, Survived) wipes onto the photo once the plate is up (new.css nd-plate, nd-strip, nd-fate-*).
+
+type Plated = { name: string; photo: string | null; tribe?: { name: string; colour: string } | null };
+type Fate = "in" | "out" | "gone";
+
+/** A plate's angled end in its tribe's colour (DESIGN.md's Tags Not Fills: the colour is the plate's end, never its fill). */
+function Wedge({ colour, wide }: { colour?: string | null; wide?: boolean }) {
+  if (!colour) return null;
   return (
-    <div>
+    <i
+      aria-hidden
+      data-wedge={colour}
+      className={`nd-wedge absolute inset-y-0 right-0 ${wide ? "w-[22px] [clip-path:polygon(11px_0,100%_0,100%_100%,0_100%)]" : "w-[14px] [clip-path:polygon(7px_0,100%_0,100%_100%,0_100%)]"}`}
+      style={{ background: colour }}
+    />
+  );
+}
+
+/** A plate's fate on its photo's corner, wiped on once the plate is up: Out (red: someone leaving), Survived (teal), Ep 4 (quiet). */
+function FateTag({ tone, big, children }: { tone: "live" | "good" | "quiet"; big?: boolean; children: ReactNode }) {
+  const fill = tone === "live" ? "bg-live text-live-foreground" : tone === "good" ? "bg-good text-good-foreground" : "bg-quiet-tag text-quiet-tag-foreground";
+  return (
+    <span className="nd-fate-tag absolute bottom-0 left-0 flex">
+      <span className={`type-caption tracking-[0.04em] [clip-path:polygon(0_0,100%_0,calc(100%_-_9px)_100%,0_100%)] ${big ? "py-1.5 pl-3 pr-6 text-[17px]" : "py-[3px] pl-2 pr-4 text-[12px]"} ${fill}`}>
+        {children}
+      </span>
+    </span>
+  );
+}
+
+/** A beat's section tag (Reward, Immunity): the quiet angled tag, wiped in. */
+function Tag({ children }: { children: ReactNode }) {
+  return (
+    <span className="nd-wipe inline-flex">
+      <span className="type-caption flex h-7 items-center bg-quiet-tag pl-2.5 pr-5 text-[14px] tracking-[0.04em] text-quiet-tag-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_10px)_100%,0_100%)]">
+        {children}
+      </span>
+    </span>
+  );
+}
+
+/** When a plate's fate lands: once the plate is up, an exit a beat later than old news (the photo greys with it). */
+const fateAt = (i: number, fate?: Fate) => `${Math.min(i, 9) * 70 + 120 + (fate === "out" ? 820 : 380)}ms`;
+
+/** One face in a row of them: the photo, the strip with the first name, the colour; greyed with its episode once gone. */
+function PlateTile({ f, i, fate, tag, dense }: { f: Plated; i: number; fate?: Fate; tag?: string; dense?: boolean }) {
+  const gone = fate === "gone";
+  return (
+    <div
+      data-plate={first(f.name)}
+      data-fate={fate}
+      className={`nd-plate min-w-0 ${fate === "out" ? "nd-fate-out" : ""}`}
+      style={{ ["--i" as string]: i, ["--fate" as string]: fateAt(i, fate) }}
+    >
+      <div className="relative overflow-hidden rounded-t-[3px] bg-secondary">
+        <Face src={f.photo} name={f.name} out={gone} className={`aspect-[4/5] w-full text-[28px] ${gone ? "opacity-55" : ""}`} />
+        {tag && <FateTag tone={fate === "out" ? "live" : "quiet"}>{tag}</FateTag>}
+      </div>
+      <div className={`nd-strip relative flex h-[26px] items-center overflow-hidden rounded-b-[3px] bg-plate text-plate-foreground ${dense ? "pl-1.5 pr-[15px]" : "pl-2 pr-[17px]"}`}>
+        <b className={`type-caption truncate leading-none ${dense ? "text-[13px]" : "text-[15px]"} ${gone ? "text-plate-muted" : ""}`}>{first(f.name)}</b>
+        <Wedge colour={f.tribe?.colour} />
+      </div>
+    </div>
+  );
+}
+
+/** One winner on their own: a lower third, the face beside a plate with their name big and their tribe under it. */
+function PlateHero({ f, i }: { f: Plated; i: number }) {
+  return (
+    <div data-plate={first(f.name)} className="nd-plate flex h-[112px] items-stretch shadow-plate" style={{ ["--i" as string]: i }}>
+      <Face src={f.photo} name={f.name} className="aspect-[4/5] h-full flex-none rounded-l-[3px] text-[40px]" />
+      <div className="nd-strip relative flex min-w-0 flex-1 flex-col justify-center overflow-hidden rounded-r-[3px] bg-plate pl-4 pr-9 text-plate-foreground">
+        <b className="type-caption block truncate text-[44px] leading-[.9]">{first(f.name)}</b>
+        {f.tribe && <small className="mt-1.5 block truncate text-[14px] font-semibold text-plate-muted">{f.tribe.name}</small>}
+        <Wedge colour={f.tribe?.colour} wide />
+      </div>
+    </div>
+  );
+}
+
+/** A tribe that won as one: its name on the plate, who won it as a stack of faces, its colour on the end. */
+function TribePlate({ name, colour, members, i }: { name: string; colour: string | null; members: Plated[]; i: number }) {
+  const shown = members.slice(0, 5);
+  return (
+    <div data-plate-tribe={name} className="nd-plate" style={{ ["--i" as string]: i }}>
+      <div className="nd-strip relative flex h-[60px] items-center gap-3 overflow-hidden rounded-[3px] bg-plate pl-4 pr-9 text-plate-foreground shadow-plate">
+        <b className="type-caption min-w-0 flex-1 truncate text-[30px] leading-none">{name}</b>
+        {shown.length > 0 && (
+          <span className="flex flex-none items-center -space-x-2.5">
+            {shown.map((m) => (
+              <Face key={m.name} src={m.photo} name={m.name} className="size-9 rounded-[3px] text-[15px] ring-2 ring-plate" />
+            ))}
+            {members.length > shown.length && (
+              <span className="type-caption grid size-9 place-items-center rounded-[3px] bg-plate-foreground text-[14px] text-plate ring-2 ring-plate">+{members.length - shown.length}</span>
+            )}
+          </span>
+        )}
+        <Wedge colour={colour} wide />
+      </div>
+    </div>
+  );
+}
+
+/** What happened: each headline win under its tag, its winners as plates (one alone a lower third; a tribe a plate of its own). */
+function Challenges({ r }: { r: SeasonReveal }) {
+  const people = (h: SeasonReveal["happened"][number]): Plated[] =>
+    h.winners.filter((w) => !w.members && !w.colour).map((w) => w.face ?? { name: w.name, photo: null, tribe: null });
+  let i = 0;
+  return (
+    <div data-reveal-happened>
       <Kicker>What happened</Kicker>
-      <div className="flex flex-col gap-2.5">
-        {r.happened.map((h, i) => (
-          <div key={h.label} style={{ ["--i" as string]: i }} className="nd-beat-row flex min-h-[64px] items-stretch overflow-hidden rounded-[3px] bg-plate text-plate-foreground shadow-plate">
-            <span className="type-caption -mr-[13px] flex w-[110px] flex-none items-center bg-secondary py-0 pl-3 pr-[22px] text-sm tracking-[0.04em] text-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_13px)_100%,0_100%)]">
-              {h.label}
-            </span>
-            <span className="flex flex-1 flex-wrap items-center gap-1.5 py-2 pl-5 pr-3">
-              {h.winners.map((w) => (
-                <span
-                  key={w.name}
-                  className="type-caption rounded-[2px] px-2 py-0.5 text-[17px]"
-                  style={w.colour ? { background: w.colour, color: "#121018" } : undefined}
-                >
-                  {w.name}
-                </span>
+      <div className="flex flex-col gap-5">
+        {r.happened.map((h) => {
+          const tribes = h.winners.filter((w) => w.members || w.colour);
+          const who = people(h);
+          // One colour across the row (after the merge, everyone's) is said once, beside the tag.
+          const shared = who.length > 1 && who.every((p) => p.tribe && p.tribe.name === who[0].tribe?.name) ? who[0].tribe! : null;
+          // Four across, two rows at most; a bigger win (a big team challenge) packs five across.
+          const many = who.length > 8;
+          const cap = many ? 10 : 8;
+          const shown = who.length > cap ? who.slice(0, cap - 1) : who;
+          return (
+            <section key={h.label} data-happened={h.label} className="flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-3">
+                <Tag>{h.label}</Tag>
+                {shared && (
+                  <span className="nd-wipe flex min-w-0 items-center gap-1.5 text-[13px] font-semibold text-muted-foreground" data-shared-tribe={shared.name}>
+                    <i aria-hidden className="h-3 w-4 flex-none [clip-path:polygon(5px_0,100%_0,calc(100%_-_5px)_100%,0_100%)]" style={{ background: shared.colour }} />
+                    <span className="truncate">{shared.name}</span>
+                  </span>
+                )}
+              </div>
+              {tribes.map((t) => (
+                <TribePlate key={t.name} name={t.name} colour={t.colour} members={t.members ?? []} i={i++} />
               ))}
-            </span>
-          </div>
-        ))}
+              {who.length === 1 ? (
+                <PlateHero f={who[0]} i={i++} />
+              ) : (
+                who.length > 1 && (
+                  <div className={`grid gap-2 ${many ? "grid-cols-5" : "grid-cols-4"}`}>
+                    {shown.map((p) => (
+                      <PlateTile key={p.name} f={p} i={i++} dense={many} />
+                    ))}
+                    {who.length > shown.length && (
+                      <span className="type-caption grid aspect-[4/5] place-items-center rounded-[3px] bg-secondary text-[22px] text-muted-foreground">+{who.length - shown.length}</span>
+                    )}
+                  </div>
+                )
+              )}
+            </section>
+          );
+        })}
       </div>
     </div>
   );
@@ -640,9 +776,10 @@ function VoteCards({ r }: { r: SeasonReveal }) {
               {c.method ?? "Out"}
             </span>
           </div>
-          <div className="px-3 pb-3 pt-2">
+          <div className="relative px-3 pb-3 pr-9 pt-2">
             <b className={`type-caption block leading-none ${two ? "text-[22px]" : "text-[34px]"}`}>{c.name}</b>
             {c.place && <small className="mt-1 block text-sm text-plate-muted">Finished {ordinal(c.place)}</small>}
+            <Wedge colour={c.tribe?.colour} wide />
           </div>
         </div>
       ))}
@@ -672,7 +809,18 @@ function LineupBeat({ r }: { r: SeasonReveal }) {
           const w = (Math.abs(s.points) / span) * 100;
           return (
             <div key={s.name} style={{ ["--i" as string]: i }} className="nd-beat-row grid grid-cols-[48px_1fr_112px] items-center gap-3 rounded-[4px] bg-card p-2">
-              <Face src={s.photo} name={s.name} className="size-12 flex-none rounded-[3px]" />
+              {/* Their tribe's colour on the face's corner, the plates' angled end at a row's size (the merge's once merged). */}
+              <span className="relative size-12 flex-none overflow-hidden rounded-[3px]">
+                <Face src={s.photo} name={s.name} className="size-12" />
+                {s.tribe && (
+                  <i
+                    aria-hidden
+                    data-wedge={s.tribe.colour}
+                    className="absolute bottom-0 right-0 h-3 w-[18px] [clip-path:polygon(6px_0,100%_0,100%_100%,0_100%)]"
+                    style={{ background: s.tribe.colour }}
+                  />
+                )}
+              </span>
               <span className="min-w-0">
                 <b className="block truncate text-[16px]">{first(s.name)}</b>
                 <small className="block truncate text-[13px] text-muted-foreground">{s.why || "Nothing scored"}</small>
@@ -704,8 +852,51 @@ function LineupBeat({ r }: { r: SeasonReveal }) {
   );
 }
 
-/** One of your other games, its own beat: its name, its result big, a streak as numbers that move. */
+/** Round 3: the night's games in one beat (docs/design-round/round3-short-games-spec.md): what the night came to first, then a row each,
+ *  its winners' faces and the result in words, your place at the right (teal when you came first), rising in one after another. */
+function NightBeat({ r }: { r: SeasonReveal }) {
+  const nights = r.nights ?? [];
+  const firsts = nights.filter((a) => !!a.you && a.you.place === 1 && !a.level && !a.nobody);
+  const outright = firsts.filter((a) => a.winners.length === 1).length;
+  const shared = firsts.length - outright;
+  const sum = outright
+    ? `You won ${outright} of ${nights.length}${shared ? `, and shared ${shared}` : ""}`
+    : shared
+      ? `You shared ${shared} of ${nights.length}`
+      : nights.some((a) => !a.nobody && !a.level)
+        ? `No wins for you in ${nights.length}`
+        : "Nobody won outright";
+  return (
+    <div data-reveal-nights>
+      <Kicker>{`Episode ${r.episode}'s games`}</Kicker>
+      <b className="type-caption block text-[30px] leading-[.95]">{sum}</b>
+      <div className="mt-4 flex flex-col">
+        {nights.slice(0, 5).map((a, i) => {
+          const won = !!a.you && a.you.place === 1 && !a.level && !a.nobody;
+          return (
+            <div key={a.leagueId} data-reveal-night={a.leagueId} className="nd-rise flex min-h-[72px] items-center gap-3 border-t border-border py-2.5" style={{ animationDelay: `${160 + i * 160}ms` }}>
+              <span className="flex w-[66px] flex-none">
+                <WinnerFaces a={a} size={40} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <small className="type-caption block truncate text-[13px] tracking-[0.05em] text-muted-foreground">{a.kind}</small>
+                <b className="type-caption block truncate text-[24px] leading-none">{resultWords(a)}</b>
+              </span>
+              {a.you && !a.nobody && <b className={`type-num flex-none text-[30px] leading-none ${won ? "text-good" : ""}`}>{a.you.rank.startsWith("T") ? a.you.rank : ordinal(a.you.place)}</b>}
+            </div>
+          );
+        })}
+        {nights.length > 5 && <p className="border-t border-border pt-2 text-[15px] text-muted-foreground">and {nights.length - 5} more on the Games tab</p>}
+      </div>
+    </div>
+  );
+}
+
+/** One of your other games, its own beat: its name, its result big, a streak as numbers that move. A pick or a team comes as plates
+ *  (PoolBeat, TeamBeat); a game with no one to show (a sheet, predictions) as words. */
 function GameBeat({ g }: { g: SeasonReveal["games"][number] }) {
+  if (g.streak && g.faces?.length === 1) return <PoolBeat g={g} f={g.faces[0]} />;
+  if (g.faces?.length) return <TeamBeat g={g} />;
   return (
     <div data-reveal-game={g.leagueId}>
       <Kicker>Your {g.gameName}</Kicker>
@@ -718,6 +909,117 @@ function GameBeat({ g }: { g: SeasonReveal["games"][number] }) {
         </span>
       ) : (
         g.line && <p className="mt-3 text-[17px] text-muted-foreground">{g.line}</p>
+      )}
+    </div>
+  );
+}
+
+type FacedGame = SeasonReveal["games"][number];
+type GameFace = NonNullable<FacedGame["faces"]>[number];
+
+/**
+ * A pool's pick: their plate big, Survived (or Went home) wiped onto the photo, and the streak as data: the number rolls from the
+ * last one to this one, and a pip a pick, the new one landing teal (or, the streak ended, every pip going out from the last).
+ */
+function PoolBeat({ g, f }: { g: FacedGame; f: GameFace }) {
+  const s = g.streak!;
+  const ended = f.fate === "out";
+  const n = ended ? s.from : s.to;
+  return (
+    <div data-reveal-game={g.leagueId} data-pool-pick={first(f.name)} data-fate={f.fate}>
+      <Kicker>Your {g.gameName}</Kicker>
+      <h2 className="sr-only">{g.title}</h2>
+      <div className="grid grid-cols-[minmax(0,172px)_1fr] items-end gap-4">
+        <div className={`nd-plate ${ended ? "nd-fate-out" : ""}`} style={{ ["--fate" as string]: ended ? "900ms" : "560ms" }}>
+          <div className="relative overflow-hidden rounded-t-[4px] bg-secondary">
+            <Face src={f.photo} name={f.name} className="aspect-[4/5] w-full text-[64px]" />
+            <FateTag tone={ended ? "live" : "good"} big>
+              {ended ? "Went home" : "Survived"}
+            </FateTag>
+          </div>
+          <div className="nd-strip relative flex h-[40px] items-center overflow-hidden rounded-b-[4px] bg-plate pl-3 pr-8 text-plate-foreground">
+            <b className="type-caption truncate text-[26px] leading-none">{first(f.name)}</b>
+            <Wedge colour={f.tribe?.colour} wide />
+          </div>
+        </div>
+        <div className="min-w-0 pb-1" data-streak={`${s.from}-${s.to}`}>
+          {ended && !s.from ? (
+            <p className="text-[17px] leading-snug text-muted-foreground">{g.line}</p>
+          ) : (
+            <>
+              {ended ? (
+                <span className="relative inline-block">
+                  <b className="type-num block text-[120px] leading-[104px] text-muted-foreground">{s.from}</b>
+                  <i aria-hidden className="nd-strike absolute -inset-x-2 top-[calc(50%_-_4px)] h-2 rounded-[1px] bg-live" />
+                </span>
+              ) : s.from !== s.to ? (
+                <span className="block h-[104px] overflow-hidden">
+                  <span className="nd-streak-roll flex flex-col gap-8" style={{ transform: "translateY(calc(-100% + 104px))" }}>
+                    <b aria-hidden className="type-num block text-[120px] leading-[104px] text-muted-foreground">
+                      {s.from}
+                    </b>
+                    <b className="type-num block text-[120px] leading-[104px] text-good">{s.to}</b>
+                  </span>
+                </span>
+              ) : (
+                <b className="type-num block text-[120px] leading-[104px] text-good">{s.to}</b>
+              )}
+              <span className="type-caption mt-4 block text-[22px] leading-none">{ended ? "Streak over" : "In a row"}</span>
+            </>
+          )}
+        </div>
+      </div>
+      {n > 0 && n <= 24 && (
+        <div aria-hidden data-pips={n} className="mt-5 flex gap-[3px]">
+          {Array.from({ length: n }, (_, j) => (
+            <i
+              key={j}
+              className={`h-3.5 max-w-[22px] flex-1 rounded-[1px] ${ended ? "nd-pip-drain bg-secondary" : j === n - 1 && s.from !== s.to ? "nd-pip-new bg-good" : "bg-foreground/75"}`}
+              style={{ ["--j" as string]: n - 1 - j }}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Outlast's team: the headline, then everyone you've had as plates (who went tonight first, greying as Out wipes on; who went
+ *  before dim with their episode), then who else lost someone, with their faces. */
+function TeamBeat({ g }: { g: FacedGame }) {
+  const faces = g.faces!;
+  const shown = faces.slice(0, 10);
+  const after = { ["--i" as string]: Math.min(shown.length, 6) };
+  return (
+    <div data-reveal-game={g.leagueId} data-team={faces.length}>
+      <Kicker>Your {g.gameName}</Kicker>
+      <b className="type-caption block text-[44px] leading-[.95]">{g.title}</b>
+      <div className={`mt-4 grid gap-2 ${faces.length > 8 ? "grid-cols-5" : "grid-cols-4"}`}>
+        {shown.map((f, i) => (
+          <PlateTile key={f.id} f={f} i={i} dense={faces.length > 8} fate={f.fate} tag={f.fate === "out" ? "Out" : f.fate === "gone" && f.outEp ? `Ep ${f.outEp}` : undefined} />
+        ))}
+      </div>
+      {g.others?.length ? (
+        <ul className="mt-4 flex flex-col gap-2">
+          {g.others.map((o) => (
+            <li key={o.name} className="nd-beat-row flex flex-wrap items-center gap-x-2 gap-y-1 text-[15px]" style={after}>
+              <b className="font-semibold">{o.name}</b>
+              <span className="text-muted-foreground">lost</span>
+              {o.lost.map((l) => (
+                <span key={l.id} className="inline-flex items-center gap-1.5">
+                  <Face src={l.photo} name={l.name} out className="size-7 rounded-[2px] text-[12px]" />
+                  <b className="font-semibold">{first(l.name)}</b>
+                </span>
+              ))}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        g.line && (
+          <p className="nd-beat-row mt-4 text-[15px] text-muted-foreground" style={after}>
+            {g.line}
+          </p>
+        )
       )}
     </div>
   );

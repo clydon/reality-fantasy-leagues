@@ -1,5 +1,7 @@
 # Bingo bank: fun squares, written fresh for every episode, settled on the honour system
 
+> **Status (2026-11-19): Done.** All four steps built and pushed 2026-10-27 (5e53fa3b, migration 0146), live since then. Left: a few ideas in the Noticed list, and premieres getting no squares written for them (BACKLOG 149).
+
 **Status:** planned 2026-10-27. **All four steps built 2026-10-27 and pushed to master** (production gets migration 0146 with the deploy; see "As built" at the end). The What's
 New entry is drafted for the user, not added: What's New is paused (the user, 2026-10-27), and only classic shows it. Replaces how bingo picks its squares (step 12 part 3 of [PLAN-new-design.md](PLAN-new-design.md)); the card,
 ticking, lines and "who got a line first" stay. **Don't deploy step 1 on its own**: see "Noticed, not fixed".

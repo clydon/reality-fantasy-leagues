@@ -37,6 +37,18 @@ export interface RailGame {
   spec: Record<string, unknown>;
 }
 
+/** A standard game's spec on a league's slate (BACKLOG 108): each question about a game's final asked each episode, of each game
+ *  of it (each: 'game', each pick locking at its own game's start), as the gallery's Pick'em asks. Anything else as it is. */
+export function perGame(spec: Record<string, unknown>): Record<string, unknown> {
+  const ask = spec.ask;
+  if (!Array.isArray(ask)) return spec;
+  const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
+  return {
+    ...spec,
+    ask: ask.map((q) => (isObj(q) && isObj(q.settle) && q.settle.by === "final" && q.settle.take !== "bracket" && q.asked !== "once" && q.each === undefined ? { ...q, each: "game" } : q)),
+  };
+}
+
 /** The spec for one of a sport's standard games over episodes `from` to `to` of the season it starts on. */
 export function railSpec(spec: Record<string, unknown>, from: number, to: number): Record<string, unknown> {
   return { ...structuredClone(spec), span: { from, to } };
@@ -47,16 +59,18 @@ export function railSpec(spec: Record<string, unknown>, from: number, to: number
  * team's (`team`) or a whole league's slate. `show`/`part` name the season as its page would.
  */
 export function sportRail(league: string, o: { count: number; slate?: boolean; playoffs?: boolean; show?: string; part?: { singular: string; plural: string } }): RailGame[] {
-  const ctx = sportPageContext(league, { playoffs: o.playoffs, show: o.show, part: o.part });
+  const ctx = sportPageContext(league, { playoffs: o.playoffs, show: o.show, part: o.part, slate: o.slate });
   if (!ctx) return [];
   const order = o.slate ? SLATE : TEAM;
   const games = sportGames(league, { playoffs: o.playoffs }).filter((g) => order.includes(g.id));
   games.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
   return games.map((g) => {
-    const spec = railSpec(g.spec, 1, Math.max(1, o.count));
+    // BACKLOG 108: on a slate, a game's final asked each episode is asked of each game (the gallery's Pick'em: each: 'game').
+    const own = o.slate ? perGame(g.spec) : g.spec;
+    const spec = railSpec(own, 1, Math.max(1, o.count));
     const problem = Spec.specProblems(spec, ctx as never)[0]?.problem ?? Spec.specWaitsFor(spec as never)[0]?.problem ?? (Spec.typeOf(spec as never) ? null : "No game plays this way yet");
     const d = Spec.describeSpec(spec as never, ctx as never);
     const n = NAMES[g.id] ?? { name: d.short.title || g.id, sub: "" };
-    return { id: g.id, name: n.name, sub: n.sub, about: g.about, line: d.short.line, rules: d.rules, why: problem ?? null, spec: g.spec };
+    return { id: g.id, name: n.name, sub: n.sub, about: g.about, line: d.short.line, rules: d.rules, why: problem ?? null, spec: own };
   });
 }

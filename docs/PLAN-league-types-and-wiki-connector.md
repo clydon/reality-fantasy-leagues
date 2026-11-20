@@ -1,5 +1,7 @@
 # Plan: League types expansion (ownership modes, Pick'em, Active Roster) + wiki connector
 
+> **Status (2026-11-19): Done.** ownership modes, Pick'em (the survival pool) and Active Roster (Weekly Lineup) were built 2026-09-24 and are still the engine's pieces. The wiki connector (D) was retired with classic's admin (2026-10-28/29): research is our ChatGPT bot plus TMDB, TVmaze and ESPN. Kept for history.
+
 **Status:** Step 1 (`ownerId` -> `ownerIds`) and Features A (ownership mode + blind
 draft), B (Pick'em) and C (Active Roster) are all **implemented and verified**. Feature D (wiki
 connector) is **investigated, with cast import built** (`db/wiki-sync.js` plus the

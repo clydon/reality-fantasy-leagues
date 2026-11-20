@@ -1,5 +1,7 @@
 # Plan: the desk catches up with classic's admin
 
+> **Status (2026-11-19): Done.** Done: steps 1–8 merged and live 2026-10-29, and classic /admin is gone. What's New as data was postponed by the user. The few small Noticed notes still open are in docs/BACKLOG.md.
+
 Written 2026-10-27. The new design's desk (`/desk`: Inbox · Find · Settings · Library; `src/new/desk/`, `src/lib/server/desk*.ts`)
 is ahead of classic's admin in places (disputes and canonical locks, couches nobody runs, rulebooks, TMDB art, undo from
 History), but a site admin still has to go back to classic for about 25 things, and the new design has no way into classic's

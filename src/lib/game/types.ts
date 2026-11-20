@@ -271,6 +271,10 @@ export interface Episode {
   /** Seats whose move for this episode was set after it aired, before they'd watched it (playing at their own pace:
    *  StateLogic.GhostLogic.applyAs late), by player id: the couch's quiet marker. */
   lateSet?: Record<string, boolean>;
+  /** Seats that said they've started watching this episode (the episode-night strip's Lock in, Your moves' "Yes, I'm watching",
+   *  Watch along: docs/design-round/strip-night-spec.md), by player id, when (ISO): their window for it closed, as their watching
+   *  it would close it (StateLogic.GhostLogic.lockIn, lateWindow). */
+  lockedIn?: Record<string, string>;
 }
 
 /** A group slot's pick (step A10 part 1): the group as it was offered (its id in the season's format timeline, and its members,

@@ -1,5 +1,7 @@
 # Research: what a fantasy scoring system can actually extract from a show's wiki
 
+> **Status (2026-11-19): Superseded.** A study (2026-09-25) of what can be pulled from a show's wiki. The wiki read is retired: research is our bot plus TMDB, TVmaze and ESPN. Kept for history.
+
 **Status:** Research. Survivor is worked through in full; the framework at the end is what to re-run
 for Traitors, The Challenge, Big Brother and anything else added later.
 

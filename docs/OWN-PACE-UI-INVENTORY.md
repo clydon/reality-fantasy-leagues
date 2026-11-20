@@ -1,5 +1,7 @@
 # Own-pace UI screenshot inventory — 2026-11-10
 
+> **Status (2026-11-19): Superseded.** A screenshot inventory from 2026-11-10, taken before own pace became the game's setting and before the design round. Historical; scripts/dev-test/capture-own-pace.js still exists.
+
 The current local implementation, captured for reviewing the experience of watching at your own pace, whether a season is still airing or finished. Product screens were not changed.
 
 Open `captures/own-pace-2026-11-10/index.html` in a browser, or serve it locally:

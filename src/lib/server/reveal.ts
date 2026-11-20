@@ -1,5 +1,5 @@
 import StateLogic from "@/lib/game/state-logic.js";
-import Bots from "@/lib/game/bot-logic.js";
+import { catchUpBots } from "./bots";
 import type { LeagueState } from "@/lib/game/types";
 import type { SessionUser } from "./auth-helpers";
 import { pool, HttpError, withLeagueLock } from "./db";
@@ -62,14 +62,14 @@ export async function markRevealed(user: SessionUser, leagueId: string, playerId
     // The seat's own state follows the lowest mark on it (a team two people share, step A10 part 4b: shared-seats.ts), so
     // one of them revealing never carries the other past what they've seen.
     const seat = (await seatMark(pool, leagueId, playerId, late.startEpisode - 1)) ?? n;
-    await withLeagueLock(leagueId, (s) => {
+    await withLeagueLock(leagueId, async (s, client) => {
       StateLogic.GhostLogic.markCaughtUp(s, playerId, seat);
       const lj = StateLogic.GhostLogic.lateJoinOf(s, playerId);
       // Forward only: someone behind on the team never takes it back.
       if (lj && !((lj.seenThrough ?? -1) >= seat)) lj.seenThrough = seat;
       // A game at your own pace (docs/PLAN-own-pace-games.md): its computer players play each week up to this one on their own
       // copies, the moment the first person reveals it, so they're never ahead of or behind anyone.
-      if (StateLogic.GhostLogic.ownPace(s)) Bots.catchUpTo(s, n);
+      if (StateLogic.GhostLogic.ownPace(s)) await catchUpBots(client, leagueId, s, n);
     });
     await revealAcrossGroup(user.id, leagueId, seen, n, late.catchingUp && jump);
     if (StateLogic.getPlayer(current, playerId)?.ghost) return;

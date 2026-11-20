@@ -150,6 +150,14 @@ function gameSpec(pg, base, changes) {
   return { spec, name: b.name };
 }
 
+/** A game's rules as the gallery holds them (a person's own, so checked as a base's are before anything plays them). */
+function specChecked(pg, spec, name) {
+  if (!spec || typeof spec !== 'object' || Array.isArray(spec)) throw Object.assign(Error('Not a game'), { code: 'preview-game' });
+  const verdict = G.check(spec, pg);
+  if (!verdict.ok) throw Object.assign(Error("The game doesn't check: " + verdict.problems.join('; ')), { code: 'preview-game' });
+  return { spec, name };
+}
+
 /**
  * A stage a format change starts (a stage's `on`: a new draft whenever the format changes): in a made-up season the change is its
  * merge (the format's major change, tribes into individuals), so the stage plays from there, as a stage that starts at the merge
@@ -180,7 +188,9 @@ function build(input, o = {}) {
   const seed = o.seed ?? 51, merge = o.merge ?? mergeOf(season), known = knownOf(season);
   const label = season.label || season.page.pack?.page || 'The season';
   const pg = G.pageFacts(season.page, { show: label });
-  const made = o.spec ? { spec: o.spec, name: o.gameName || 'Your game' } : gameSpec(pg, o.base || 'fantasy', o.changes);
+  // The gallery's game as set (o.spec: its rules, its changes already in them), checked on the season's page as a base is; else a
+  // base and its changes.
+  const made = o.spec ? specChecked(pg, o.spec, o.gameName || (G.baseById(o.base || '') || {}).name || 'Your game') : gameSpec(pg, o.base || 'fantasy', o.changes);
   const spec = atTheMerge(made.spec, season.page.ctx), name = made.name;
   const moments = season.page.ctx.moments.filter((m) => known.has(m.id));
   const count = season.page.ctx.pool || season.cast.length;

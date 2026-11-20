@@ -74,9 +74,10 @@
 //   calledoff   a week in progress and a game called off (the last sports slice: the materializer writes each game final so far
 //               with its box score, a game called off as its row over without a final, state 'post' with its `called`). A slate (the
 //               NBA's team of three), live, Ann a game behind with and without "Sports scores too": a week with one game final, then
-//               two, counts nothing; its last game postponed puts it in, its two games played counted; the server's table, the
-//               runtime's and the rule (campaign/sports-oracle.cjs counted) the same each time; a control: the postponed game written
-//               as still to play behind the runtime, the server leaves the week out. An episode of one game cancelled (the NFL's team
+//               two, counts each game as it ends (step 1.1, part 2: a week in progress); its last game postponed puts it in, its two
+//               games played counted, nothing moving; the server's table, the runtime's and the rule (campaign/sports-oracle.cjs
+//               counted) the same each time; a control: a game final so far written wrong behind the runtime mid-week, the server's
+//               tables move off (it counts a week in progress). An episode of one game cancelled (the NFL's team
 //               of three and its head-to-head season): its results are in with nothing in them, the next game's lineup offered. A
 //               day's lock opened by a call-off (the NBA's rule): today's first game postponed after it began, the next game's
 //               lineup is open for the server, the runtime and the rule, and the route takes what it refused. A lock at each game's
@@ -531,7 +532,13 @@ const CASES = {
           await at(Date.parse(g1.airAt) + 3600000);
           r = await both(after, false);
           check("an hour into the first game, benching a holding whose game began today is refused by both", r.ok, r);
-          await at(Date.parse(g3.airAt) - 3 * 3600000);
+          // "The next morning": half an hour past the Eastern midnight after the first game's start, as the server's calendar has it.
+          // (The server's now is the real now, the schedule moved to it, so where a day ends falls by the real time of day: three
+          // hours before the next day's game was the first game's own day again after 9 PM Eastern.)
+          const sinceMidnight = (now => { let lo = now; const k = Oracle.easternDay(now); while (Oracle.easternDay(lo - 3600000) === k) lo -= 3600000; while (Oracle.easternDay(lo - 60000) === k) lo -= 60000; return now - lo; })(Date.now());
+          const morning = Date.parse(g1.airAt) + sinceMidnight + 30 * 60000;
+          if (morning >= Date.parse(g3.airAt) - 15 * 60000) { note("the next morning: the real Eastern time of day leaves no morning before the next day's game; run --case=slates again in an hour"); return; }
+          await at(morning);
           r = await both(after, true);
           check("the next morning (that day over, the next game to come) the change is taken by both", r.ok, r);
           await at(Date.parse(g3.airAt) + 3600000);
@@ -566,14 +573,15 @@ const CASES = {
   async calledoff() {
     // A week in progress and a game called off (the last sports slice, core-runtime-40: the materializer writes each game final so far
     // with its box score, and a game called off as its row over without a final, state 'post' with its `called`). Three ways each
-    // time: the server, the runtime and the rule restated apart from the engine (campaign/sports-oracle.cjs: a week counts once every
-    // game in it is final or called off, and then only its games final; a game called off scores nothing and locks nothing).
+    // time: the server, the runtime and the rule restated apart from the engine (campaign/sports-oracle.cjs: a week's games final
+    // count as each ends, the week in once every game in it is final or called off; a game called off scores nothing and locks
+    // nothing).
     const Oracle = require(path.join(root, 'tools/gameplay-bench/campaign/sports-oracle.cjs'));
     const serverGames = async (as, ids, who) => (((await as(who, 'GET', '/api/seasons/' + ids.seasons.sport.id + '/games?couch=' + ids.couchId)).json?.games || []).find(g => g.leagueId === ids.leagues.g)) || null;
     const serverTable = async (as, ids, who) => Object.fromEntries(((await serverGames(as, ids, who))?.table || []).map(r => [r.playerId, r.total]));
     const same = (x, y) => JSON.stringify(Object.entries(x).sort()) === JSON.stringify(Object.entries(y).sort());
     const mine = (s, who) => Object.fromEntries(s.project('g', who).game.table.map(r => [r.playerId, r.total]));
-    /** Each seat's points told through `upTo`, from the box scores: a week only once every game is final or called off, its games final. */
+    /** Each seat's points told through `upTo`, from the box scores: a week's games final (a week in progress's so far). */
     const ruleOf = (snap, upTo) => {
       const st = snap.games.g.state, world = snap.contexts.sport, c = Sports.league(world.context), spec = S.gameOf(st);
       const group = id => c.sport.position(world.participants.find(x => x.id === id).role)?.group ?? null;
@@ -607,25 +615,29 @@ const CASES = {
           await at(s, write, Date.parse(g1.airAt) + 3600000);
           must(s, { type: 'results', contextId: 'sport', eventId: week.id, source: 'provider-fixture', resultStatus: 'partial', data: { ...full, games: { [g1.id]: full.games[g1.id] } } });
           await write();
-          let now = await compare("week 3 in progress (its first game final): nothing of it counts yet", true);
-          check('week 3 in progress changes nobody\'s total (the rule)', same(now.bo, before.bo));
+          let now = await compare("week 3 in progress (its first game final): its first game counts (step 1.1, part 2)", true);
+          check("week 3 in progress moves the table by its first game, for whoever is told it (the rule)", !same(now.bo, before.bo) && (hides.length ? same(now.ann, before.ann) : true), { before, now });
+          // Control: the game final so far written wrong behind the runtime: the server counts a week in progress, so its tables move
+          // off the runtime's; written back, clean.
+          {
+            const right = s.snapshot(), wrong = clone(right), f = wrong.contexts.sport.facts.find(x => x.eventId === week.id).data;
+            for (const id of Object.keys(f.games[g1.id])) f.games[g1.id][id] = Object.fromEntries(Object.entries(f.games[g1.id][id]).map(([k, v]) => [k, v * 3 + 1]));
+            await write(wrong);
+            check("control: week 3's game final so far written wrong behind the runtime, the server counts it and its tables disagree", (await routes(right)).some(x => x.signature === 'standings-disagree'));
+            await write(right);
+            check('control: the right rows written back, clean again', !real(await routes()).length);
+          }
           await at(s, write, Date.parse(g2.airAt) + 3600000);
           must(s, { type: 'results', contextId: 'sport', eventId: week.id, source: 'provider-fixture', resultStatus: 'partial', data: { ...full, games: { [g1.id]: full.games[g1.id], [g2.id]: full.games[g2.id] } } });
           await write();
-          await compare('week 3 with two games final and one to play: still nothing of it');
+          const two = await compare('week 3 with two games final and one to play: both count');
           must(s, { type: 'calledOff', contextId: 'sport', eventId: week.id, game: g3.id, called: 'postponed' });
           await write();
           now = await compare("week 3's last game postponed: the week is in, its two games played counted");
-          check("the postponement put week 3 in for whoever is told it (Bo's table moved by its two games)", !same(now.bo, before.bo) && (hides.length ? same(now.ann, before.ann) : true), { before, now });
+          check("the postponement put week 3 in with nobody's total moving: its two games counted as they ended", same(now.bo, two.bo) && same(now.ann, two.ann), { two, now });
           if (!hides.length && !(await said(as, ids, 'bo'))) note('nothing the season\'s games route answers says a game was postponed (Designs needed)');
-          // Control: the postponed game written as still to play behind the runtime: the server leaves the week out, so its tables
-          // disagree with the runtime's (which has the week in); written back, clean.
-          const right = s.snapshot(), wrong = clone(right);
-          delete wrong.contexts.sport.events[2].calledOff;
-          await write(wrong);
-          check("control: the postponed game written as still to play behind the runtime, the server leaves week 3 out and its tables disagree", (await routes(right)).some(x => x.signature === 'standings-disagree'));
-          await write(right);
-          check('control: the right rows written back, clean again', !real(await routes()).length);
+          // (A week in progress and a week in score the same; what tells them apart is the week's stage, early until its last game,
+          // which no route answers yet: step 1.1, part 4, the screens.)
         });
       } finally { s.dispose(); }
     }
@@ -691,6 +703,12 @@ const CASES = {
       try {
         await withRows(s, async ({ ids, as, write, routes }) => {
           const world = s.snapshot().contexts.sport, week = world.events[1], [g1, g2, g3] = Sports.gamesOf(world.context, week);
+          // The Eastern day's edge (part 3's guard, BACKLOG's "calledoff part 4"): E stays locked only while an hour past the second
+          // game's start is still the first game's Eastern day (a holding's lock lasts to the end of its game's day, by design).
+          if (Oracle.easternDay(Date.parse(g1.airAt)) !== Oracle.easternDay(Date.parse(g2.airAt) + 3600000)) {
+            note("a lock at each game: the week's first game and an hour past its second fall on different Eastern days now; run --case=calledoff again in a few hours");
+            return;
+          }
           const teamOf = id => world.participants.find(p => p.id === id).team, held = s.snapshot().games.g.state.castaways.filter(x => x.ownerIds.includes('ann')).map(x => x.id);
           const E = held.find(id => g1.teams.includes(teamOf(id))), M = held.find(id => g2.teams.includes(teamOf(id))), X = held.find(id => id !== E && id !== M && !g1.teams.includes(teamOf(id)));
           if (!(E && M && X)) { check("Ann holds someone in the week's first game, someone in its second and another outside the first", false, { E, M, X }); return; }

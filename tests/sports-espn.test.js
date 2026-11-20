@@ -7,7 +7,8 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("path");
 const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
-const { readScoreboard, readSearch, readRoster, readBoxScore, readSeasonStats, readTeam, sizedHeadshot, stageOf } = jiti("../src/lib/server/sports/espn.ts");
+const { readScoreboard, readSearch, readRoster, readBoxScore, readSeasonStats, readTeam, sizedHeadshot, stageOf, injuryOf } = jiti("../src/lib/server/sports/espn.ts");
+const { byesOf } = jiti("../src/lib/sports/locks.ts");
 const { keepDay } = jiti("../src/lib/server/sports/cache.ts");
 
 const RAYS = { id: "30", displayName: "Tampa Bay Rays", shortDisplayName: "Rays", name: "Rays", location: "Tampa Bay", abbreviation: "TB", logo: "https://a.espncdn.com/i/teamlogos/mlb/500/tb.png" };
@@ -122,12 +123,20 @@ test("a roster: grouped by position or one list, each player once, with headshot
   const p = (id, name, position, extra = {}) => ({ id, displayName: name, position: { displayName: position }, headshot: { href: `https://a.espncdn.com/${id}.png` }, jersey: "47", ...extra });
   const grouped = readRoster({ athletes: [{ position: "Pitchers", items: [p("40884", "Bryan Baker", "Relief Pitcher")] }, { position: "Designated Hitter", items: [p("33481", "Yandy Diaz", "Designated Hitter"), p("40884", "Bryan Baker", "Relief Pitcher")] }] });
   assert.deepEqual(grouped, [
-    { id: "40884", name: "Bryan Baker", position: "Relief Pitcher", headshot: "https://a.espncdn.com/40884.png", group: "Pitchers", jersey: "47" },
-    { id: "33481", name: "Yandy Diaz", position: "Designated Hitter", headshot: "https://a.espncdn.com/33481.png", group: "Designated Hitter", jersey: "47" },
+    { id: "40884", name: "Bryan Baker", position: "Relief Pitcher", headshot: "https://a.espncdn.com/40884.png", group: "Pitchers", jersey: "47", injury: null },
+    { id: "33481", name: "Yandy Diaz", position: "Designated Hitter", headshot: "https://a.espncdn.com/33481.png", group: "Designated Hitter", jersey: "47", injury: null },
   ]);
   const flat = readRoster({ athletes: [p("1", "Jayson Tatum", "Forward", { headshot: undefined, jersey: undefined })] });
-  assert.deepEqual(flat, [{ id: "1", name: "Jayson Tatum", position: "Forward", headshot: null, group: null, jersey: null }]);
+  assert.deepEqual(flat, [{ id: "1", name: "Jayson Tatum", position: "Forward", headshot: null, group: null, jersey: null, injury: null }]);
   assert.deepEqual(readRoster({ athletes: [] }), []);
+});
+
+test("a roster's position is ESPN's abbreviation where it gives one, the sport's key a slot takes (BACKLOG 221); its name where not", () => {
+  const p = (id, name, position) => ({ id, displayName: name, position });
+  const nfl = readRoster({ athletes: [{ position: "offense", items: [p("3139477", "Patrick Mahomes", { name: "Quarterback", displayName: "Quarterback", abbreviation: "QB" }), p("4", "A Kicker", { displayName: "Place Kicker", abbreviation: "pk" })] }] });
+  assert.deepEqual(nfl.map((x) => [x.name, x.position, x.group]), [["Patrick Mahomes", "QB", "offense"], ["A Kicker", "PK", "offense"]]);
+  assert.equal(readRoster({ athletes: [p("5", "No Abbreviation", { displayName: "Guard" })] })[0].position, "Guard");
+  assert.equal(readRoster({ athletes: [p("6", "No Position", undefined)] })[0].position, null);
 });
 
 test("a headshot at a face's size, through ESPN's own resizer (its full ones are ~210 KB); any other address as it is", () => {
@@ -214,4 +223,27 @@ test("the cache keeps a day's games 3 minutes while one's on, a month once the d
   assert.equal(keepDay([e("post")], "2026-10-26", now), 3_600_000);
   assert.equal(keepDay([e("pre")], "2026-10-23", now), 3_600_000);
   assert.equal(keepDay([], "2026-10-30", now), 3_600_000);
+});
+
+test("a roster's injuries (step 1.5): ESPN's latest, as a short tag the fantasy apps use, its words and when it was noted; none when healthy", () => {
+  // ESPN's shape (a real roster's, 2026-11-19: injuries [{ status, date }] beside the player's roster status), the names made up.
+  const p = (id, injuries) => ({ id, displayName: `ZT Player ${id}`, position: { displayName: "Wide Receiver", abbreviation: "WR" }, status: { type: injuries ? "day-to-day" : "active" }, ...(injuries ? { injuries } : {}) });
+  const roster = readRoster({ athletes: [{ position: "offense", items: [p("1", [{ status: "Questionable", date: "2026-11-19T01:51Z" }]), p("2", [{ status: "Injured Reserve", date: "2026-10-02T15:00Z" }]), p("3", undefined), p("4", [{ status: "10-Day IL" }]), p("5", [{ status: "Personal" }])] }] });
+  assert.deepEqual(roster.map((x) => x.injury), [
+    { code: "Q", status: "Questionable", date: "2026-11-19T01:51Z" },
+    { code: "IR", status: "Injured Reserve", date: "2026-10-02T15:00Z" },
+    null,
+    { code: "IL10", status: "10-Day IL", date: null },
+    { code: "Personal", status: "Personal", date: null },
+  ]);
+  assert.deepEqual(["Out", "Doubtful", "Day-To-Day", "Suspension"].map((status) => injuryOf({ status }).code), ["O", "D", "DTD", "SUSP"]);
+  assert.equal(injuryOf(undefined), null);
+});
+
+test("a slate's byes (step 1.5): each week's teams with no game, only once a later week has a game linked (a week half linked names nobody)", () => {
+  const g = (episode, ...teams) => ({ episode, teams });
+  const byes = byesOf([g(1, "Bears", "Lions"), g(1, "Packers", "Vikings"), g(2, "Bears", "Packers"), g(3, "Lions", "Vikings")]);
+  assert.deepEqual([...byes.entries()], [[1, []], [2, ["Lions", "Vikings"]]]);
+  assert.equal(byes.has(3), false, "the last week linked may be linked halfway: no byes said");
+  assert.deepEqual([...byesOf([]).entries()], []);
 });

@@ -226,3 +226,33 @@ test("findSeasonCastaway: a season's spelling finds the LINKED castaway, whateve
   assert.equal(StateLogic.Core.findSeasonCastaway(s, "Kyle Smith", cast).castaway?.name, "Kyle Smith");
   assert.equal(StateLogic.Core.findSeasonCastaway(s, "Kyle Smith", null).castaway?.name, "Kyle Smith");
 });
+
+test("two rows that share a name are two people when each is its own row (a sport's two Josh Allens: docs/PLAN-sports-ready.md step 1.3)", () => {
+  // A fresh game: both added, each linked to its own row, on its own team.
+  const s = StateLogic.defaultState();
+  const cast = [row("bills-qb", "Josh Allen", "Buffalo Bills"), row("jags-lb", "Josh Allen", "Jacksonville Jaguars")];
+  const out = applyCast(s, cast, true);
+  assert.equal(s.castaways.length, 2);
+  assert.deepEqual(out.needsReview, []);
+  const tribe = (c) => s.tribes.find((t) => t.id === c.tribeId)?.name;
+  assert.deepEqual(s.castaways.map((c) => [c.seasonCastId, tribe(c)]).sort(), [["bills-qb", "Buffalo Bills"], ["jags-lb", "Jacksonville Jaguars"]]);
+  // The second applied again, or with a game already holding the first: nobody added twice.
+  applyCast(s, cast, true);
+  assert.equal(s.castaways.length, 2);
+  const t = StateLogic.defaultState();
+  applyCast(t, [cast[0]], true);
+  applyCast(t, cast, true);
+  assert.deepEqual(t.castaways.map((c) => c.seasonCastId).sort(), ["bills-qb", "jags-lb"]);
+});
+
+test("a namesake nobody's linked is still taken for the same person: a show's cast is unchanged by step 1.3", () => {
+  // A league that added "Kyle Fraser" by hand: the season's row links to him, nobody's added beside him.
+  const s = league(["Kyle Fraser"]);
+  applyCast(s, [row("r1", "Kyle Fraser")], false);
+  assert.equal(s.castaways.length, 1);
+  assert.equal(s.castaways[0].seasonCastId, "r1");
+  // A row with no id (an import by name) never adds a second of a name already here.
+  const added = StateLogic.applyCastImport(s, { castaways: [{ name: "Kyle Fraser" }] });
+  assert.deepEqual(added.skipped, ["Kyle Fraser"]);
+  assert.equal(s.castaways.length, 1);
+});

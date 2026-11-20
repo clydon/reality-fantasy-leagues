@@ -6,7 +6,7 @@
 //   - with --reveal, as sam (two behind, results waiting): the plate's Reveal goes to the reveal (`?page=reveal`). Opening it
 //     reveals, as a tap on Reveal does: sam's mark moves, so bring the couch up again after (census-app.js --up);
 //   - On TV: the bug opens the guide as its own page (`?page=guide`, the week's seven cells, today's rundown), Back closes it to the
-//     hub; a card in the crawl opens the guide on its day.
+//     hub; a card in the crawl opens its show (the user, 2026-11-19).
 // Needs: the app on :3000 (npm run dev; BASE= for another) and the zt_nd couch up (census-app.js --up, or new-fixture.js up). Reads
 // only, but for --reveal. Never beside another check on the zt_nd fixture.
 // Run:   node scripts/dev-test/check-hub-next.js [--width=390] [--reveal] [--out=<dir for a frame of each step>]
@@ -85,13 +85,15 @@ async function as(who, fn) {
     await p.locator('[role="dialog"]:has([data-guide-page]) button:has-text("Home")').click();
     await p.waitForTimeout(900);
     check(!/page=guide/.test(p.url()) && (await p.locator("[data-on-tv]").isVisible()), "Back closes the guide to the hub", p.url());
-    const card = p.locator('[data-on-tv] [data-guide-day="1"] [data-guide-card]').first();
+    // A crawl card opens its show, not the guide (the user, 2026-11-19).
+    const card = p.locator('[data-on-tv] [data-guide-card]:not([data-guide-card^="tour-"]):not([data-guide-card^="sport:"])').first();
     if (await card.count()) {
+      const seasonId = (await card.getAttribute("data-guide-card")).split(":")[0];
       await card.click();
-      await p.locator('[data-guide-page] [data-guide-day="1"]').waitFor({ timeout: 15000 });
-      check(/[?&]day=1/.test(p.url()), "a crawl card opens the guide on its day", p.url());
-      await shot(p, "4-guide-tomorrow");
-    } else check(false, "the crawl has a card for tomorrow");
+      await p.waitForURL((u) => u.pathname.includes(seasonId), { timeout: 15000 }).catch(() => {});
+      check(p.url().includes(seasonId) && !/page=guide/.test(p.url()), "a crawl card opens its show", p.url());
+      await shot(p, "4-crawl-card-show");
+    } else check(false, "the crawl has a show card");
   });
   console.log(failures ? `\n${failures} FAILED` : "\nALL PASS");
   process.exit(failures ? 1 : 0);

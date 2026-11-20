@@ -167,7 +167,7 @@ function sportGallery(page, o = {}) {
     if (!base.sports.includes(family) || (Array.isArray(base.leagues) && !base.leagues.includes(league))) continue;
     const b = sportBase(base, league);
     const len = lenOn(b, kind);
-    const row = { id: b.id, cat: b.cat, name: b.name, plain: b.plain, about: b.about, effort: b.effort, len, on: b.on, gap: b.gap || null, needs: b.needs || null, short: null, sentence: null, rules: null, type: null, spec: null, fitted: null };
+    const row = { id: b.id, cat: b.cat, name: b.name, aka: b.aka || [], plain: b.plain, about: b.about, effort: b.effort, len, on: b.on, gap: b.gap || null, needs: b.needs || null, short: null, sentence: null, rules: null, type: null, spec: null, fitted: null };
     if (!b.on.includes(kind)) {
       if (o.all) out.push({ ...row, len: b.len, state: 'elsewhere', why: `Made for ${pageWords(b.on[0])}` });
       continue;

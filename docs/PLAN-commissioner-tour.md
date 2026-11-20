@@ -1,5 +1,7 @@
 # Plan: commissioner tour (rebuilt 2026-10-17)
 
+> **Status (2026-11-19): Superseded.** built 2026-10-17 (555ddb86) for classic. The new design's first-time tour (docs/PLAN-first-time-tour.md) replaced the classic tours. Kept for history.
+
 Replaces the commissioner path in PLAN-guided-tour.md. Built, uncommitted. Check: `node scripts/dev-test/check-commissioner-tour.js [outDir] [--width=390]` (logged out, plays every step, screenshots each).
 
 ## Assumptions

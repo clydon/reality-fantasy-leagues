@@ -14,6 +14,9 @@ const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, ".
 const G = require("../src/lib/game/game-spec/index.js");
 const C = require("../src/lib/game/game-spec/capabilities.js");
 const { pageCtx: ctxOf, pageName } = jiti("../src/lib/game/capability-rows.ts");
+// E1d (docs/PLAN-start-a-game-redo.md): whether computer players play each row that plays now, by the gallery's own rule (botsFit:
+// the one Start a game's Who's playing reads), and why not where they don't.
+const { botsFit } = require("../src/lib/game/start-gallery/index.js");
 
 const TRACKER = path.join(__dirname, "..", "tests", "fixtures", "engine-capabilities.json");
 const DOC = path.join(__dirname, "..", "docs", "ENGINE-CAPABILITIES.md");
@@ -28,15 +31,18 @@ function statusRows(tracker) {
     const ctx = ctxOf(row.page);
     const st = C.statusOf(row, ctx);
     let needs;
+    let bots = null;
     if (st.state === "yes") {
       needs = G.describeSpec(row.spec, { ...(ctx || {}), show: pageName(row.page) || "this show" }).sentence;
       if (row.page && row.page.checkedAs) needs += ` (Checked against ${SHOWS[row.page.rulebook] || row.page.rulebook}'s rules, a show of its kind.)`;
+      bots = botsFit(row.spec);
+      if (bots) needs += ` ${bots}.`;
     }
     else if (st.state === "step") needs = `${st.step}${row.note ? `: ${row.note}` : ""}`;
     else if (st.state === "decide") needs = row.decide;
     else if (st.state === "gpt") needs = row.note || "";
     else needs = row.note || "not planned";
-    return { row, st, needs };
+    return { row, st, needs, bots };
   });
 }
 
@@ -59,6 +65,11 @@ function render(tracker, all = statusRows(tracker)) {
   out.push("");
   out.push(`**Now:** ${["yes", "step", "new", "decide", "gpt"].map((s) => `${count(s)} ${C.MARKS[s]}`).join(" · ")}, of ${all.length}.`);
   out.push(`**Waiting, by step:** ${steps.map(([s, n]) => `${s} ${n}`).join(" · ")}.`);
+  // E1d: computer players, on the rows that play now (Start a game's Who's playing reads the same rule).
+  const playing = all.filter((x) => x.st.state === "yes");
+  const not = new Map();
+  for (const x of playing) if (x.bots) not.set(x.bots, (not.get(x.bots) || 0) + 1);
+  out.push(`**Computer players** play ${playing.length - [...not.values()].reduce((a, b) => a + b, 0)} of the ${playing.length} that play now${not.size ? `; not yet: ${[...not].map(([why, n]) => `${why.replace(/^Computer players /, "")} (${n})`).join(", ")}` : ""}. Each row says so where they don't.`);
   out.push("");
   out.push("## The dials");
   out.push("");

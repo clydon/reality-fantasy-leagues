@@ -1,5 +1,7 @@
 # Plan: scoring rules as data, editable as a list or a flowchart
 
+> **Status (2026-11-19): Superseded.** phases 1, 2 and 4 were built 2026-10-05/09 (rules.js, league rulesets 6e579ea1, classic's rule-list editor 463ff51d). Rulebooks (docs/PLAN-admin-shows-rulebooks.md, docs/PLAN-rulebooks-implementation.md) replaced the editors. The flowchart (phase 5) was never built and isn't planned. Kept for history.
+
 Builds on stage 2 of `docs/PLAN-rollout-order.md`, which split every format into a plain-JSON data
 half and a code half (`src/lib/game/formats/define.js`; details under phase 2 in
 `docs/PLAN-ai-generated-show-formats.md`). This plan moves most of the remaining code half — the

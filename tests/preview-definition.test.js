@@ -119,3 +119,13 @@ test("a game the runtime can't play yet is stopped before anything is made, with
   assert.match(v.why, /own pace/);
 });
 
+
+test("the gallery's game as set (its rules) builds the same preview, and rules that don't check are refused", () => {
+  const byBase = Def.build(season(), { base: "pool", seed: 7 });
+  const spec = byBase.games[0].spec;
+  const bySpec = Def.build(season(), { base: "pool", spec, seed: 7 });
+  assert.deepEqual(bySpec.games[0].spec, spec, "the rules as given");
+  assert.equal(bySpec.games[0].name, byBase.games[0].name, "named as its base");
+  assert.throws(() => Def.build(season(), { base: "pool", spec: { get: { by: "nothing-like-this" } }, seed: 7 }), code("preview-game"));
+  assert.throws(() => Def.build(season(), { base: "pool", spec: [1, 2], seed: 7 }), code("preview-game"));
+});

@@ -1,5 +1,7 @@
 # Waivers v2: one claim type, replacement rules, waiver windows, smart defaults
 
+> **Status (2026-11-19): Done.** Done: phases 1–3 built and pushed 2026-10-16, then the 'Only when short' change on 2026-10-17. Later waiver work is in docs/BACKLOG.md (59, 71, 91, 130, and the waivers round, 140).
+
 **Status:** planned 2026-10-16; phase 1 (engine) built and pushed 2026-10-16, see "As built:
 phase 1". Phase 2 (the UI) built and pushed 2026-10-16, see "As built: phase 2". Phase 3 (the
 window pushes) built and pushed 2026-10-16, see "As built: phase 3". What's New is drafted,

@@ -744,7 +744,7 @@ export async function confirmMake(user: SessionUser, seasonId: string, couchId: 
     // The cast: the season's, approved, finished (only the desk changes it from here).
     for (const [i, p] of cast.entries()) {
       await c.query(
-        "INSERT INTO season_cast (season_id, name, tribe_name, photo_url, props, bio, sort_order) VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7) ON CONFLICT (season_id, lower(name)) DO NOTHING",
+        "INSERT INTO season_cast (season_id, name, tribe_name, photo_url, props, bio, sort_order) VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7) ON CONFLICT (season_id, lower(name)) WHERE provider_ids IS NULL DO NOTHING",
         [seasonId, p.name.slice(0, 120), p.group, p.photoUrl, JSON.stringify(p.props ?? {}), p.bio ? JSON.stringify(p.bio) : null, i]
       );
     }

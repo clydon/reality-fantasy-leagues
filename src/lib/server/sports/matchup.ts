@@ -3,7 +3,7 @@ import { slugOf } from "@/lib/game/listing";
 import { factsOf, leagueName, matchupKey, matchupName, matchupStatus, pickMatchup, type MatchupAsk } from "@/lib/sports/matchup";
 import { TeamSport, sportOf } from "@/lib/sports";
 import { pool } from "../db";
-import { castFromEvents } from "./cast";
+import { castFromEvents, refreshRosters } from "./cast";
 import { sportsProviders } from "./index";
 import { saveFinals } from "./finals";
 import { fillLater } from "./season";
@@ -246,7 +246,7 @@ export async function storeEvents(provider: string, league: string, events: Spor
  * team game its day's scoreboard hasn't got (moved to another day: the same event, ESPN's "Rescheduled from Sep. 26") is looked up
  * on its first side's schedule (movedGames), its new start kept with it and on its links.
  */
-export async function refreshSportsEvents(opts: { providers?: SportsProvider[]; now?: Date; only?: string[] } = {}): Promise<{ days: number; stored: number; finals: number; errors: string[] }> {
+export async function refreshSportsEvents(opts: { providers?: SportsProvider[]; now?: Date; only?: string[] } = {}): Promise<{ days: number; stored: number; finals: number; corrected: number; errors: string[] }> {
   const now = opts.now ?? new Date();
   const providers = opts.providers ?? sportsProviders();
   const errors: string[] = [];
@@ -255,6 +255,12 @@ export async function refreshSportsEvents(opts: { providers?: SportsProvider[]; 
     errors.push(...(await syncSlates({ providers, now, only: opts.only })).errors);
   } catch (e) {
     errors.push(`slates: ${(e as Error).message.slice(0, 160)}`);
+  }
+  // Step 1.4: every sports season's people refilled once a day (signings, trades), anyone new into its games.
+  try {
+    errors.push(...(await refreshRosters({ providers, now, only: opts.only })).errors);
+  } catch (e) {
+    errors.push(`rosters: ${(e as Error).message.slice(0, 160)}`);
   }
   const { rows } = await pool.query(
     `SELECT DISTINCT ON (e.provider, e.league, e.event_id) e.provider, e.league, e.event_id, e.starts_at, e.teams IS NOT NULL AS linked, e.teams->0->>'id' AS side
@@ -315,15 +321,18 @@ export async function refreshSportsEvents(opts: { providers?: SportsProvider[]; 
     [now]
   );
   // L3 parts 1 and 3: the games and events just final, their counts saved with them (finals.ts).
+  // Step 1.2: and kept finals read again, a changed one (a correction) kept anew.
   let finals = 0;
+  let corrected = 0;
   try {
     const f = await saveFinals({ providers, now, seasons: opts.only });
     finals = f.saved;
+    corrected = f.corrected;
     errors.push(...f.errors);
   } catch (e) {
     errors.push(`finals: ${(e as Error).message.slice(0, 160)}`);
   }
-  return { days: Math.min(days.size, MAX_DAYS), stored, finals, errors };
+  return { days: Math.min(days.size, MAX_DAYS), stored, finals, corrected, errors };
 }
 
 /**

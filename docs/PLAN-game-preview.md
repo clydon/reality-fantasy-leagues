@@ -1,5 +1,7 @@
 # A game's preview, on the real screens (the user, 2026-11-18)
 
+> **Status (2026-11-19): Active.** P0, the visual story, the bench's preview maker and Round 5 are built on branch `preview`, which is unmerged and has 11 conflict hunks with master. It waits on the user's review of Round 5, and later on A or B for the drill-ins. This copy on master is behind the branch's (BACKLOG 155).
+
 > "Still want a game preview ... every game, before creating, you are able to preview the stages: (the starting phase; draft, picks,
 > whatever. later stages. quick actions. the game page. the player stat sheets. etc). is that possible? we could use as much real data
 > that we have then randomize values so no spoilers exist. thisll be dynamic and show the real ui as it will be created rather than

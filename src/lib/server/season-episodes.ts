@@ -10,7 +10,8 @@ import { markRevealed } from "./reveal";
 import { seasonGifs, type EpisodeGifLine } from "./episode-gifs";
 import { DEFAULT_RUNTIME_MIN, finalAtOf, seasonSchedules } from "./schedule";
 import type { ReadOnly } from "./read-only";
-import { gamesHere, type GameHere } from "./season-games";
+import { archivedOf, gamesHere, viewWithCalls, type ArchivedGame, type GameHere } from "./season-games";
+import type { MarkMemo } from "./own-pace-seats";
 import { seasonFactsFor } from "./season-stats";
 import { keepsAnswers, leagueAnswers, sheetNights, storedAnswers } from "./answer-points";
 
@@ -235,6 +236,9 @@ export interface SeasonReveal {
   lineup: RevealPart["lineup"];
   games: RevealGame[];
   predictions: RevealGame[];
+  /** Round 3: the one-episode games that ended on this episode, kept small (who won, your place), for one beat of the night's games
+   *  (docs/design-round/round3-short-games-spec.md, "The reveal with many games in a night"). */
+  nights?: ArchivedGame[];
   /** The table that moves on the last beat: Weekly Lineup once final, else Survival Pool's streaks, else Outlast. */
   table: RevealTable | null;
   /** Another episode whose results are in past this one. */
@@ -310,6 +314,19 @@ export async function revealSeason(user: SessionUser, seasonId: string, couchId:
   if (!parts.length) throw new HttpError(400, "Nothing to reveal for that episode yet");
   const beats = revealAcross(parts);
   const stage = beats.stage;
+  // Round 3: the night's games, the one-episode games that ended on n, as the archive keeps them.
+  const once = here.filter((h) => (h.mark === null || h.mark >= n) && StateLogic.startEpisode(h.state) === n && StateLogic.lastEpisode(h.state) === n);
+  const nights: ArchivedGame[] = [];
+  // One marks memo across the night's games (each account's mark read once, as the archive's read does: the branch review).
+  const memo: MarkMemo = new Map();
+  for (const h of once) {
+    try {
+      const view = await viewWithCalls(user, seasonId, h, memo);
+      if (view.over) nights.push(archivedOf(view, n));
+    } catch (e) {
+      console.error(`[reveal] night ${h.game.leagueId}:`, e);
+    }
+  }
   const states = here.map((h) => h.state);
   // Seen early: the morning update waits for its final scores. Seen final: the one waiting is done if its own
   // final scores are in too (it's this episode, or an earlier one that has since been finished).
@@ -345,6 +362,7 @@ export async function revealSeason(user: SessionUser, seasonId: string, couchId:
     lineup: beats.lineup,
     games: beats.games,
     predictions: beats.predictions,
+    nights,
     table,
     next: nextUp && stageAcross(states, nextUp) ? nextUp : null,
     soFar,
@@ -376,6 +394,7 @@ async function watchedReveal(user: SessionUser, seasonId: string, couchId: strin
     lineup: null,
     games: [],
     predictions: [],
+    nights: [],
     table: null,
     next: null,
     soFar: null,

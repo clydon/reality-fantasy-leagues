@@ -207,9 +207,9 @@ async function remindLate(pool, league, seasons, now, opts, queue = null) {
     const mark = Number.isInteger(m.seen_through) ? m.seen_through : 0;
     const w = G.lateWindow(state, m.player_id, mark, now.getTime());
     if (!w || mark !== w.episode - 1) continue;
+    // Only something missing is due: a full lineup carried in from last week is set, as before airtime (the user, 2026-11-19; the
+    // app's due move says the same). Locked in (the strip's Lock in) there's no window, so nothing to remind.
     const due = actionItems(G.lateCopy(state, w.episode), m.player_id, mark).filter((it) => (it.kind === "lineup" || it.kind === "pick") && it.episode === w.episode);
-    // A lineup carried in from last week isn't one set for this episode (the app's due move says the same).
-    if (!due.length && StateLogic.piecesOf(state).hasActiveRoster && !G.movedFor(state, m.player_id, w.epId)) due.push({ kind: "lineup", text: `Set your episode ${w.episode} lineup` });
     if (!due.length) continue;
     if (!opts.dry) {
       const { rowCount } = await pool.query(

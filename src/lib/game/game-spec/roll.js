@@ -16,14 +16,17 @@
 // `page` is { ctx, pack } (G1's: the SpecContext our check reads and the context pack, for the episodes left, the cast and the
 // couch), or a SpecContext alone. `locks` (all optional): `length` ('one', 'few', 'half', 'rest', a number of episodes, 'phase' from
 // the next phase, 'until-phase' to it, or a span), `play` (draft, pick, questions or card), `base` (an id of ROLL.bases), `win` (an id
-// of ROLL.wins), `twists` (ids of ROLL.twists, up to two; [] for none) and `keep` (part of a spec, held over whatever's rolled: what
-// someone typed, the doors mixed).
+// of ROLL.wins), `twists` (ids of ROLL.twists, up to two; [] for none), `keep` (part of a spec, held over whatever's rolled: what
+// someone typed, the doors mixed) and `bots` (true: only a game computer players play, for a roll with them: no stages, and every
+// question one they answer, answers.js botAnswers; docs/PLAN-start-a-game-redo.md E1d).
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
 const schema = require('./schema.js');
 const { describeSpec, shortSpec, lowerFirst } = require('./describe.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const { PRESETS, fullSpec, specProblems, specWaitsFor, typeOf, covers, finaleQuestions } = schema;
+/* eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
+const { botsWhy } = require('./answers.js');
 
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 const isInt = (v, min = -Infinity) => Number.isInteger(v) && v >= min;
@@ -294,7 +297,6 @@ const WINS = [
   },
 ];
 
-const inParlay = (s, q) => isObj(s.score) && Array.isArray(s.score.parlays) && s.score.parlays.some((p) => Array.isArray(p.of) && p.of.includes(q.id));
 const cutsOrRace = (s) => isObj(s.rank) && (Array.isArray(s.rank.cut) || isObj(s.rank.race));
 const winIs = (s, ...by) => isObj(s.rank) && by.includes(s.rank.by);
 const hasStages = (s) => Array.isArray(s.stages);
@@ -400,10 +402,11 @@ const TWISTS = [
   },
   // ---- a game of questions' ----
   {
+    // (E3, p25: a split pot can be a parlay's leg, your share multiplied.)
     id: 'split-pot', cost: 1, weight: 1.5, family: 'share',
-    fits: (s) => s.score && s.score.by === 'answers' && eachAsks(s).some((q) => !q.share && !q.wager && q.answer !== 'calls' && !inParlay(s, q)),
+    fits: (s) => s.score && s.score.by === 'answers' && eachAsks(s).some((q) => !q.share && !q.wager && q.answer !== 'calls'),
     apply: (s) => {
-      const i = askList(s).findIndex((q) => q.asked === 'each' && !q.share && !q.wager && !inParlay(s, q));
+      const i = askList(s).findIndex((q) => q.asked === 'each' && !q.share && !q.wager);
       return { ...s, ask: askList(s).map((q, j) => (j === i ? { ...q, points: 10, share: 'split' } : q)) };
     },
     seen: (s) => askList(s).some((q) => q.share === 'split'),
@@ -442,9 +445,10 @@ const TWISTS = [
     seen: (s) => isObj(s.score) && isObj(s.score.bank),
   },
   {
+    // (Its legs can be shared: a split pot's or only-one-right's share is what it multiplies. E3, p25.)
     id: 'parlay', cost: 2, weight: 1,
-    fits: (s) => s.score && s.score.by === 'answers' && eachAsks(s).filter((q) => !q.share && q.answer !== 'calls').length >= 2,
-    apply: (s, d) => ({ ...s, score: { ...s.score, parlays: [{ of: eachAsks(s).filter((q) => !q.share).slice(0, 2).map((q) => q.id), times: d.one([2, 3]) }] } }),
+    fits: (s) => s.score && s.score.by === 'answers' && eachAsks(s).filter((q) => q.answer !== 'calls').length >= 2,
+    apply: (s, d) => ({ ...s, score: { ...s.score, parlays: [{ of: eachAsks(s).filter((q) => q.answer !== 'calls').slice(0, 2).map((q) => q.id), times: d.one([2, 3]) }] } }),
     seen: (s) => isObj(s.score) && Array.isArray(s.score.parlays),
   },
   {
@@ -658,6 +662,8 @@ function rollSpec(page, locks, seed, opts = {}) {
   const start = seed === undefined || seed === null ? 1 : seed;
   const tries = isInt(opts.tries, 1) ? opts.tries : MAX_TRIES;
   let nearest = null;
+  // A roll with computer players: whether a game that plays went again only because they don't play it (said as the why).
+  let botsOut = false;
   for (let i = 0; i < tries; i++) {
     const s = nextSeed(start, i);
     // A roll whose short form can't show every piece goes again with a twist fewer (the same dice), before the next try.
@@ -665,6 +671,12 @@ function rollSpec(page, locks, seed, opts = {}) {
       const r = tryRoll(pg, l, s, opts.weights, most);
       if (!r) break;
       const v = verdictOf(r.spec, pg.ctx);
+      // A roll with computer players (`bots`): one they don't play goes again, as one that doesn't play would.
+      // A roll with computer players (`bots`): one they don't play goes again (the engine's one rule, botsWhy), never the nearest.
+      if (l.bots && v.plays && botsWhy(r.spec)) {
+        botsOut = true;
+        break;
+      }
       if (v.plays && !v.busy) return { ok: true, seed: s, tries: i + 1, ...r, describe: describeSpec(r.spec, pg.ctx), problems: [], waits: [], why: null };
       if (!nearest || v.misses < nearest.v.misses) nearest = { s, i, r, v };
       if (!v.busy || Array.isArray(l.twists) || r.twists.length < most) break;
@@ -673,6 +685,9 @@ function rollSpec(page, locks, seed, opts = {}) {
   // Every try played but said too much at a glance: the nearest of them plays, so it's a game. Its seed is the one rolled (the same
   // tries again give it), not its try's, whose own next tries would find another.
   if (nearest && nearest.v.plays) return { ok: true, seed: start, tries, ...nearest.r, describe: describeSpec(nearest.r.spec, pg.ctx), problems: [], waits: [], why: null };
+  // A game that played (every lock held) went again only because computer players don't play it: that's what stands in the way,
+  // whatever the tries that didn't play said.
+  if (botsOut) return { ok: false, seed: start, tries, spec: null, base: null, win: null, twists: [], length: null, describe: null, problems: [], waits: [], why: "Computer players don't play the games this show rolls yet: roll without them" };
   if (!nearest) return { ok: false, seed: start, tries, spec: null, base: null, win: null, twists: [], length: null, describe: null, problems: [], waits: [], why: 'Nothing fits those locks on this show: unlock one and roll again' };
   const { s, r, v } = nearest;
   const first = v.problems[0] || v.waits[0];

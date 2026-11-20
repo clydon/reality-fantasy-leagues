@@ -1,5 +1,7 @@
 # Plan: Dashboard, Admin table overhaul, disabled-player reclaim, league invites
 
+> **Status (2026-11-19): Done.** built 2026-09-23 for the classic app. Invites and seat reclaim live on in the engine and the new design's Members and Invite; classic's dashboard and Admin › Users were replaced by the hub and the desk's People (2026-10-29). Kept for history.
+
 **Status:** Implemented (all four features). See README's "Dashboard, league invites, seat
 reclaim, admin users table" section for what shipped and where it differs from this plan. In
 short: admin-delete-account seats can't actually be reclaimed, because the deleted account id

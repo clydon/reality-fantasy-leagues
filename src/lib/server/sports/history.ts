@@ -29,12 +29,13 @@ export interface AthleteHistory {
 
 const NONE: AthleteHistory = { seasons: [], source: null, unavailable: false };
 
-export async function athleteHistory(seasonId: string, name: string, providers: SportsProvider[]): Promise<AthleteHistory> {
+/** `team`: theirs, for a name two players share (step 1.3); the first of that name without it. */
+export async function athleteHistory(seasonId: string, name: string, providers: SportsProvider[], team: string | null = null): Promise<AthleteHistory> {
   if (!isUuid(seasonId)) throw new HttpError(404, "Season not found");
   const who = name.trim();
   if (!who || who.length > 120) throw new HttpError(400, "Say who: ?name=");
   const [{ rows: cast }, { rows: slate }, { rows: events }] = await Promise.all([
-    pool.query("SELECT provider_ids FROM season_cast WHERE season_id = $1 AND lower(name) = lower($2) AND provider_ids IS NOT NULL LIMIT 1", [seasonId, who]),
+    pool.query("SELECT provider_ids FROM season_cast WHERE season_id = $1 AND lower(name) = lower($2) AND provider_ids IS NOT NULL AND ($3::text IS NULL OR tribe_name = $3) ORDER BY sort_order LIMIT 1", [seasonId, who, team || null]),
     pool.query("SELECT provider, league, season, stage FROM sports_slates WHERE season_id = $1", [seasonId]),
     pool.query("SELECT provider, league, event_id, starts_at FROM season_events WHERE season_id = $1 AND starts_at IS NOT NULL ORDER BY episode LIMIT 1", [seasonId]),
   ]);

@@ -2,7 +2,7 @@ import { readOdds, type EspnOdds } from "@/lib/sports/matchup";
 // One copy of the sports' classes (the index's): `instanceof` reads them alike wherever they're imported from.
 import { FieldSport, LiveEvent, TeamSport, feedOf, idOf, sportOf, storedCard, storedField, storedGame, str, type BoutAnswer, type BoutSport, type EspnSummary, type EventFeed, type FieldAnswer, type Play, type StoredCard, type StoredField } from "@/lib/sports";
 import type { CalendarStage, CalendarWeek, LeagueCalendar } from "@/lib/sports/slate";
-import { SportsUnavailable, type LeagueName, type LeagueTeams, type BoxScore, type Called, type Competitor, type EventState, type Found, type League, type Person, type RosterPlayer, type SeasonLine, type SeasonStage, type SportsEvent, type SportsProvider, type StatTable, type Team } from "./types";
+import { SportsUnavailable, type LeagueName, type LeagueTeams, type BoxScore, type Called, type Competitor, type EventState, type Found, type Injury, type League, type Person, type RosterPlayer, type SeasonLine, type SeasonStage, type SportsEvent, type SportsProvider, type StatTable, type Team } from "./types";
 
 // ESPN (docs/PLAN-sports-data.md, docs/HOSTING.md): free, no key, but unofficial and undocumented, with no stated rate limit or
 // terms, so it's asked little (every call is cached: cache.ts) and credited in Credits. Three hosts:
@@ -40,9 +40,11 @@ interface RawAthlete {
   id?: string | number;
   displayName?: string;
   fullName?: string;
-  position?: { displayName?: string; name?: string };
+  position?: { displayName?: string; name?: string; abbreviation?: string };
   headshot?: { href?: string } | string;
   jersey?: string;
+  /** A roster's: the player's injuries, the latest first (step 1.5). */
+  injuries?: { status?: string; date?: string }[];
 }
 interface RawStatus {
   type?: { state?: string; completed?: boolean; name?: string };
@@ -309,7 +311,34 @@ export function readTeams(league: string, raw: { sports?: { leagues?: (RawLeague
   return { league, name: name ? { name, short: str(l.abbreviation) ?? str(l.shortName) } : null, teams };
 }
 
-/** A team's roster (site.api …/teams/{id}/roster): grouped by position (baseball) or one list; players only (its coaches are separate). */
+/** ESPN's injury statuses' short tags (the fantasy apps' Q, D, O, IR; MLB's injured lists by their days); another as ESPN words it. */
+const INJURY_CODES: Record<string, string> = {
+  questionable: "Q",
+  doubtful: "D",
+  out: "O",
+  "injured reserve": "IR",
+  "day-to-day": "DTD",
+  suspension: "SUSP",
+  "physically unable to perform": "PUP",
+  "7-day il": "IL7",
+  "10-day il": "IL10",
+  "15-day il": "IL15",
+  "60-day il": "IL60",
+};
+
+/** A roster's latest injury (step 1.5): `{ code, status, date }`, or null for none. */
+export function injuryOf(i: { status?: string; date?: string } | undefined): Injury | null {
+  const status = str(i?.status);
+  if (!status) return null;
+  return { code: INJURY_CODES[status.toLowerCase()] ?? status, status, date: str(i?.date) };
+}
+
+/**
+ * A team's roster (site.api …/teams/{id}/roster): grouped by position (baseball) or one list; players only (its coaches are separate).
+ * Each one's position is ESPN's abbreviation for it ("QB", "RP", "G"), the sports' own key (sport.ts positionKey): what a lineup's
+ * slots, a face's qualifier and a table's position groups read (BACKLOG 221: the name, "Quarterback", fit no slot). Its name only
+ * where it gives no abbreviation.
+ */
 export function readRoster(raw: { athletes?: (RawAthlete & { position?: unknown; items?: RawAthlete[] })[] } | null): RosterPlayer[] {
   const out: RosterPlayer[] = [];
   const seen = new Set<string>();
@@ -317,7 +346,7 @@ export function readRoster(raw: { athletes?: (RawAthlete & { position?: unknown;
     const p = readPerson(a);
     if (!p.id || !p.name || seen.has(p.id)) return;
     seen.add(p.id);
-    out.push({ ...p, group, jersey: str(a.jersey) });
+    out.push({ ...p, position: str(a.position?.abbreviation)?.toUpperCase() ?? p.position, group, jersey: str(a.jersey), injury: injuryOf(a.injuries?.[0]) });
   };
   for (const g of raw?.athletes ?? []) {
     if (Array.isArray(g.items)) for (const a of g.items) add(a, str(g.position));

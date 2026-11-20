@@ -77,12 +77,13 @@ const kept = new Map<string, Kept>();
 const asking = new Map<string, Promise<Kept>>();
 const KEEP_MAX = 200;
 
-/** ESPN's answer for a checked address, at most once per FLOOR_MS per instance, one ask at a time. `base`: a stand-in (checks). */
-export async function liveAnswer(host: LiveHost, url: string, summary: boolean, opts: { base?: string; now?: number; fetch?: typeof fetch } = {}): Promise<{ body: string; stale: boolean; settled: boolean }> {
+/** ESPN's answer for a checked address, at most once per FLOOR_MS per instance, one ask at a time. `base`: a stand-in (checks).
+ *  `at`: when the answer was taken (this instance's clock), so a reader can tell a new answer from the one it read before. */
+export async function liveAnswer(host: LiveHost, url: string, summary: boolean, opts: { base?: string; now?: number; fetch?: typeof fetch } = {}): Promise<{ body: string; stale: boolean; settled: boolean; at: number }> {
   const now = opts.now ?? Date.now();
   const key = (opts.base ?? "") + host + url;
   const last = kept.get(key);
-  if (last && now - last.at < FLOOR_MS) return { body: last.body, stale: false, settled: last.settled };
+  if (last && now - last.at < FLOOR_MS) return { body: last.body, stale: false, settled: last.settled, at: last.at };
   let p = asking.get(key);
   if (!p) {
     p = (async () => {
@@ -99,9 +100,9 @@ export async function liveAnswer(host: LiveHost, url: string, summary: boolean, 
   }
   try {
     const k = await p;
-    return { body: k.body, stale: false, settled: k.settled };
+    return { body: k.body, stale: false, settled: k.settled, at: k.at };
   } catch (e) {
-    if (last && !(e instanceof HttpError && e.status === 404)) return { body: last.body, stale: true, settled: last.settled };
+    if (last && !(e instanceof HttpError && e.status === 404)) return { body: last.body, stale: true, settled: last.settled, at: last.at };
     throw e instanceof HttpError ? e : new HttpError(502, "ESPN didn't answer");
   }
 }
@@ -110,6 +111,12 @@ export async function liveAnswer(host: LiveHost, url: string, summary: boolean, 
 export function cacheControl(a: { stale: boolean; settled: boolean }): string {
   const s = a.stale ? 5 : a.settled ? SETTLED_S : EVERY_MS / 1000;
   return `public, s-maxage=${s}, stale-while-revalidate=${s}`;
+}
+
+/** The last answer kept for an address, however old (a reader that can't wait for a new one: live-lines.ts), or null. */
+export function keptAnswer(host: LiveHost, url: string, base?: string): { body: string; settled: boolean; at: number } | null {
+  const k = kept.get((base ?? "") + host + url);
+  return k ? { body: k.body, settled: k.settled, at: k.at } : null;
 }
 
 /** For tests: forget what's kept. */

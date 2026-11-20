@@ -1,5 +1,7 @@
 # Plan: guided tour (player and commissioner)
 
+> **Status (2026-11-19): Superseded.** built 2026-10-10 (b542c3e9, 23351ec9) for classic. The first-time tour (docs/PLAN-first-time-tour.md, v3 live) replaced it. Kept for history.
+
 Shaped 2026-10-10 with `/impeccable shape` + `distill`. Answers the feedback that the app feels
 overwhelming at first. Supersedes the BACKLOG entry "A guided onboarding tour / coachmarks:
 backburnered" (its staleness concern is answered under **Staying fresh** below).

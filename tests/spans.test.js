@@ -7,7 +7,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("path");
 const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
-const { spanChoices, spanEnds, spanName, seriesEnd, nextSpan } = jiti("../src/lib/game/spans.ts");
+const { kindOf, spanChoices, spanEnds, spanName, seriesEnd, nextSpan } = jiti("../src/lib/game/spans.ts");
 const { buildDemoState } = jiti("../src/lib/game/demo-season-builder.ts");
 const S = require("../src/lib/game/state-logic.js");
 
@@ -262,4 +262,16 @@ test("a game waiting for its phase plays nothing: no episode in play, nothing as
   const whole = S.migrateLeagueState(JSON.parse(JSON.stringify(buildDemoState(data, "classic-draft", EPISODES))));
   S.updateSettings(whole, "startPhase", "merged");
   assert.deepEqual([S.gameOver(whole), S.startEpisode(whole)], [true, null], "over, never started");
+});
+
+// Round 3: a game's kind from its name (the archive's chips and record), whatever a show calls its episodes, a counter after it too.
+test("kindOf: a one-episode game's name without its episode", () => {
+  assert.equal(kindOf("Prediction sheet · Episode 20"), "Prediction sheet");
+  assert.equal(kindOf("Predictions · Game 3"), "Predictions");
+  assert.equal(kindOf("Pick'em · Game 5 2"), "Pick'em");
+  assert.equal(kindOf("Prediction sheet · Race 5"), "Prediction sheet");
+  assert.equal(kindOf("Split the pot · Matchday 12"), "Split the pot");
+  assert.equal(kindOf("Survival Pool"), "Survival Pool");
+  assert.equal(kindOf("Weekly Lineup 2"), "Weekly Lineup 2", "a season game's counter is its name");
+  assert.equal(kindOf("Couch Cup"), "Couch Cup");
 });

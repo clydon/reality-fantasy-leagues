@@ -87,7 +87,8 @@ export function useShow(seasonId: string) {
   // An archived game (step 10 part 2b) stands still: Backstage runs the rest.
   const runs = games.filter((g) => (g.yourRole === "commissioner" || g.yourRole === "admin") && !g.archived);
   const people = space.data?.people ?? null;
-  // Your moves due in this couch's games here, soonest first (the home's list: actionItems).
+  // Your moves due in this couch's games here, soonest first (the home's list: actionItems; a full lineup carried in isn't due in
+  // the window, the server's rule since 2026-11-19).
   const moves = movesByDue(home.data?.moves.filter((m) => yours.some((g) => g.leagueId === m.leagueId)) ?? []);
   return {
     home: home.data,
@@ -302,7 +303,7 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
       )}
       <main style={{ paddingBottom: `calc(${foot}px + env(safe-area-inset-bottom, 0px))` }}>
         {!ro && tab !== "tonight" && show.header && <ProgressControl show={show} compact />}
-        {!ro && tab !== "chat" && show.header && <MovesStrip show={show} />}
+        {!ro && tab !== "chat" && show.header && <MovesStrip show={show} tab={tab} />}
         {children}
       </main>
       <TabBar

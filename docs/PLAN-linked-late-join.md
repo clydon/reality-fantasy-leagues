@@ -1,5 +1,7 @@
 # Plan: linked leagues, one answer and one catch-up
 
+> **Status (2026-11-19): Superseded.** built 2026-10-11 (206a9c27) for classic's linked leagues. In the new design, where you're up to is one mark per person and season, across the couch's games. Kept for history.
+
 **Status:** Decided 2026-10-11 (with `/impeccable shape`). **Built 2026-10-11, awaiting review/commit**
 (see "As built" at the end).
 

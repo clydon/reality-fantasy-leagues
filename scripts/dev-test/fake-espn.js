@@ -23,7 +23,7 @@
 //
 //   const espn = await require("./fake-espn").start({ teams, leagues, events, seasons });
 //   // teams:   [{ id, name, short, location, abbreviation, league: "baseball/zt-mlb", color?, logo?,
-//   //             roster?: [{ id, name, position, headshot? }] }]
+//   //             roster?: [{ id, name, position, abbr? (its abbreviation: ESPN gives both), headshot?, injuries? ([{ status, date }], ESPN's) }] }]
 //   // leagues: [{ league: "baseball/zt-little", name: "ZT Little League World Series", short? }]
 //   // events:  [{ league, id, at (ISO), home: teamId, away: teamId, state: "pre" | "in" | "post", score?: [home, away], note?,
 //   //             stage?: "pre" | "regular" | "post" (its season's, as ESPN's slug says it; "regular" unless said),
@@ -189,7 +189,8 @@ async function start(opts = {}) {
     if ((m = u.pathname.match(/^\/apis\/site\/v2\/sports\/([^/]+)\/([^/]+)\/teams\/([^/]+)\/roster$/))) {
       const t = teamOf(decodeURIComponent(m[3]));
       if (!t || t.league !== `${m[1]}/${m[2]}`) return send(404, { code: 404 });
-      const athlete = (p) => ({ id: p.id, displayName: p.name, position: { displayName: p.position }, ...(p.headshot ? { headshot: { href: p.headshot } } : {}) });
+      // A position as ESPN gives it: its name, and its abbreviation where the roster says one (`abbr`: the recorded NFL season's).
+      const athlete = (p) => ({ id: p.id, displayName: p.name, position: { displayName: p.position, ...(p.abbr ? { abbreviation: p.abbr } : {}) }, ...(p.headshot ? { headshot: { href: p.headshot } } : {}), ...(p.injuries ? { injuries: p.injuries } : {}) });
       return send(200, { athletes: (t.roster || []).map(athlete), coach: [{ id: "1", firstName: "ZT", lastName: "Manager" }] });
     }
     if ((m = u.pathname.match(/^\/apis\/site\/v2\/sports\/([^/]+)\/([^/]+)\/summary$/))) {
@@ -206,9 +207,12 @@ async function start(opts = {}) {
       if (!e || !e.box) return send(404, { code: 404 });
       const status = { type: { state: e.state, completed: e.state === "post" && !e.off } };
       const side = (id, homeAway, score) => ({ homeAway, team: rawTeam(teamOf(id)), score: score == null ? "0" : String(score) });
+      // A table's name where ESPN puts it: football's as `name` ("passing", "rushing": what football.ts's final reads; the recorded
+      // NFL season's box scores, espn-snapshot.js), baseball's as `type` ("batting", "pitching").
+      const named = m[1] === "football" ? "name" : "type";
       const players = Object.entries(e.box).map(([id, t]) => ({
         team: rawTeam(teamOf(id)),
-        statistics: (t.tables || [t]).map((x) => ({ type: x.name, labels: x.labels, athletes: x.rows.map((r) => ({ starter: true, athlete: { id: r.id, displayName: r.name, position: { displayName: r.position } }, stats: r.stats })) })),
+        statistics: (t.tables || [t]).map((x) => ({ [named]: x.name, labels: x.labels, athletes: x.rows.map((r) => ({ starter: true, athlete: { id: r.id, displayName: r.name, position: { displayName: r.position } }, stats: r.stats })) })),
       }));
       return send(200, { header: { id: e.id, season: seasonOf(e), competitions: [{ status, competitors: [side(e.home, "home", e.score?.[0]), side(e.away, "away", e.score?.[1])] }] }, boxscore: { players }, ...(e.odds ? { pickcenter: [line(e.odds)] } : {}) });
     }

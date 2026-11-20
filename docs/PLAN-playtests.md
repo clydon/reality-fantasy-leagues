@@ -1,5 +1,7 @@
 # Season tapes and playtests
 
+> **Status (2026-11-19): Done.** Done 2026-10-28: the tapes recorder, the words corpus, the replays and the reviews. The tools live on (tapes.js, playtest.js, golden.js, blind.js). Findings and their status are in PLAYTEST-REPORT.md.
+
 For the playtest lane's sessions and the user. Status: planned 2026-10-28, started that night in the playtest lane
 (`../rfl-playtest`, branch `playtest`, database `rfl_playtest`, port 3005). P1 built and recording; P2 started (the local bot
 was silent from 09:17 to 11:00 UTC on 2026-10-28, its ChatGPT profile capped, and answers again on a fresh one; the corpus records

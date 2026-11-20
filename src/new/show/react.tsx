@@ -173,15 +173,17 @@ function CouchGifs({ people, of }: { people: { userId: string; name: string; gif
 }
 
 /** One GIF with whose it is on a lower third: yours on the chyron's yellow, everyone else's on a plate. */
+/** Someone's GIF with whose it is: the picture whole, the name on a plate strip under it (the user, 2026-11-19: "It's hard to see the
+ *  gifs over our nametags": a tag laid over a small tile hid half of it). Yours on the You badge's colours. */
 export function GifTile({ gif, name, you, wide }: { gif: Gif; name?: string; you?: boolean; wide?: boolean }) {
   return (
-    <div data-gif-tile={you ? "you" : name} className={`relative overflow-hidden rounded-[4px] bg-secondary ${wide ? "col-span-2 aspect-[2/1]" : "aspect-[4/3]"}`}>
-      {/* eslint-disable-next-line @next/next/no-img-element -- KLIPY's own picture */}
-      <img src={gif.url} alt={`${you ? "Your" : `${name}'s`} GIF${gif.title ? `: ${gif.title}` : ""}`} className="absolute inset-0 size-full object-cover" loading="lazy" />
-      <span
-        className={`type-caption tag-cut absolute bottom-0 left-0 max-w-[calc(100%-6px)] truncate py-1.5 pl-2.5 pr-5 text-[15px] ${you ? "bg-foreground text-background" : "bg-plate text-plate-foreground"}`}
-      >
-        {you ? "You" : name}
+    <div data-gif-tile={you ? "you" : name} className={`flex min-w-0 flex-col overflow-hidden rounded-[4px] ${wide ? "col-span-2" : ""}`}>
+      <div className={`relative bg-secondary ${wide ? "aspect-[2/1]" : "aspect-[4/3]"}`}>
+        {/* eslint-disable-next-line @next/next/no-img-element -- KLIPY's own picture */}
+        <img src={gif.url} alt={`${you ? "Your" : `${name}'s`} GIF${gif.title ? `: ${gif.title}` : ""}`} className="absolute inset-0 size-full object-cover" loading="lazy" />
+      </div>
+      <span className={`type-caption flex h-6 flex-none items-center truncate px-2 text-[14px] leading-none ${you ? "bg-foreground text-background" : "bg-plate text-plate-foreground"}`}>
+        <span className="truncate">{you ? "You" : name}</span>
       </span>
     </div>
   );
@@ -233,7 +235,7 @@ export function EpisodeGifStrip({ target, ep, cols = 3 }: { target: GifTarget; e
             type="button"
             data-gif-add
             onClick={() => openGif(target)}
-            className="nd-press flex aspect-[4/3] flex-col items-center justify-center gap-0.5 rounded-[4px] border-2 border-dashed border-edge text-center"
+            className="nd-press flex h-full min-h-[72px] flex-col items-center justify-center gap-0.5 rounded-[4px] border-2 border-dashed border-edge text-center"
           >
             <Plus className="size-5" aria-hidden />
             <b className="text-[14px] leading-tight">Your GIF</b>

@@ -10,6 +10,7 @@ import { Btn } from "../ui/parts";
 import { SwipePager, type PagerHandle } from "../ui/swipe-pager";
 import { castName, faceIn, first, openMoves } from "./moves";
 import { Face } from "./parts";
+import { groupShort } from "./dock";
 
 // A Weekly Lineup player's sheet (the 2026-10-30 mock): week by week as bars, the dashed line their average; then the week
 // picked: who started, with what each scored that episode and why, and the bench (scored, didn't count), or for the episode
@@ -50,7 +51,9 @@ export function nextWeek(g: GameView): { episode: number; airsAt: string | null;
   const p = g.progress;
   if (!p || p.label !== "lineups set" || g.over) return null;
   if (p.episode <= (g.table[0]?.weeks.at(-1)?.episode ?? 0)) return null;
-  return { episode: p.episode, airsAt: g.lineup?.episode === p.episode ? g.lineup.airsAt : null, done: new Map(p.people.map((x) => [x.playerId, x.done])) };
+  // (Knocked out, BACKLOG 47: no lineup is theirs, so nobody's told it's set.)
+  const out = new Set(g.twists?.out ?? []);
+  return { episode: p.episode, airsAt: g.lineup?.episode === p.episode ? g.lineup.airsAt : null, done: new Map(p.people.filter((x) => !out.has(x.playerId)).map((x) => [x.playerId, x.done])) };
 }
 
 /** The week a sheet opens on when nothing asked for one: the latest with results, else the one being set. */
@@ -127,7 +130,7 @@ export function LineupSheet({ g, r, week, onWeek, words, onClose, onFace, openEp
                 className="relative flex flex-col items-center py-1.5"
               >
                 <span className={`type-num h-4 text-[15px] leading-4 transition-colors duration-200 ${!it.w ? (set ? "text-good" : "text-muted-foreground") : on ? "" : "text-muted-foreground"}`}>
-                  {it.w ? fmt(it.w.total) : set ? "Set" : "—"}
+                  {it.w ? fmt(it.w.total) : set ? "Set" : !it.w && next && (g.twists?.out ?? []).includes(r.playerId) ? "Out" : "—"}
                 </span>
                 <span className="mt-1 flex w-full items-end justify-center" style={{ height: BAR }}>
                   {it.w ? (
@@ -184,7 +187,10 @@ function WeekPane({ g, r, it, next, words, onClose, onFace, openEpisode }: { g: 
     const caption = r.you ? "Your lineup" : set ? "Their team" : "Stands in";
     // Last week's lineup stands in only where there is one (a first week has none).
     const carries = r.you ? !!g.lineup?.carried : r.last.length > 0;
-    const note = lateYou
+    const outAfter = r.you ? g.twists?.outAfter : null;
+    const note = outAfter != null
+      ? `You're out: cut after ${words.ep} ${outAfter}. Your points stand; the others play on.`
+      : lateYou
       ? set
         ? "Yours to change until you watch it."
         : `Set your lineup before you watch it.${carries ? " Until you do, last week's stands in." : ""}`
@@ -208,9 +214,9 @@ function WeekPane({ g, r, it, next, words, onClose, onFace, openEpisode }: { g: 
     return (
       <div data-week-pane={it.n}>
         <h3 className="type-caption text-[26px]">{title}</h3>
-        <p className="mt-1 text-[13px] text-muted-foreground">{[set ? "Set" : "Not set yet", airs].filter(Boolean).join(" · ")}</p>
+        <p className="mt-1 text-[13px] text-muted-foreground">{(outAfter != null ? ["Out", airs] : [set ? "Set" : "Not set yet", airs]).filter(Boolean).join(" · ")}</p>
         <p className="mt-3.5 text-[15px] leading-snug">{note}</p>
-        {faces.length > 0 && (
+        {faces.length > 0 && outAfter == null && (
           <>
             <p className="type-caption mb-2 mt-4 text-[14px] tracking-[0.02em] text-muted-foreground">{caption}</p>
             <div className="flex flex-wrap gap-2">
@@ -243,6 +249,9 @@ function WeekPane({ g, r, it, next, words, onClose, onFace, openEpisode }: { g: 
       </div>
     );
   }
+  // Round 5 (B2): the captain first among the starters, tagged ×N; each group slot's row after them.
+  const cap = w.captain ?? null;
+  const started = cap ? [...w.started].sort((a, b) => Number(b.id === cap.id) - Number(a.id === cap.id)) : w.started;
   // Its square: set late by someone playing at their own pace, or (head to head) a matchup waiting on their lineup.
   const sq = g.plays.rows[r.playerId]?.find((s) => s.episode === it.n);
   const wait = sq?.waiting ? g.waiting?.find((x) => x.episode === it.n && (x.playerId === r.playerId || x.playerId === sq.result?.against)) : undefined;
@@ -271,21 +280,43 @@ function WeekPane({ g, r, it, next, words, onClose, onFace, openEpisode }: { g: 
       <p className="type-caption mb-2 mt-[18px] text-[14px] tracking-[0.02em] text-muted-foreground">Started</p>
       {w.started.length === 0 && <p className="text-sm text-muted-foreground">Nobody started this week.</p>}
       <div className="grid grid-cols-3 gap-2">
-        {w.started.map((s) => {
+        {started.map((s) => {
           const c = faceIn(g, s.id);
+          const captain = cap?.id === s.id;
           return (
-            <FaceDoor key={s.id} id={s.id} onFace={onFace} attrs={{ "data-starter": s.id }}>
-              <Face src={c?.photo ?? null} name={c?.name} draggable={false} className="aspect-square w-full rounded-[3px] text-[30px]" />
+            <FaceDoor key={s.id} id={s.id} onFace={onFace} attrs={{ "data-starter": s.id, ...(captain ? { "data-week-captain": "" } : {}) }}>
+              <span className="relative block">
+                <Face src={c?.photo ?? null} name={c?.name} draggable={false} className="aspect-square w-full rounded-[3px] text-[30px]" />
+                {captain && <span className="type-caption absolute left-1.5 top-1.5 rounded-[2px] bg-foreground px-1.5 py-0.5 text-[11px] tracking-[0.06em] text-background">Captain ×{cap!.times}</span>}
+              </span>
               <div className="mt-[7px] flex items-baseline justify-between gap-1.5">
                 <b className="type-caption min-w-0 truncate text-[17px]">{castName(c, g)}</b>
                 <b className="type-num flex-none text-[19px]">{signed(s.points)}</b>
               </div>
               {/* What scored most: a rulebook's labels run long ("Voted with the majority (voted for who went home)"). */}
-              {s.why.length > 0 && <small className="mt-1 line-clamp-2 text-[12px] leading-[1.3] text-muted-foreground">{shortWhy(s.why[0])}</small>}
+              {s.why.length > 0 && <small className="mt-1 line-clamp-2 text-[12px] leading-[1.3] text-muted-foreground">{shortWhy(s.why[0])}{captain ? ` ×${cap!.times}` : ""}</small>}
             </FaceDoor>
           );
         })}
       </div>
+      {(w.slots ?? []).map((x) => (
+          <div key={x.slot} data-week-slot={x.slot} className="mt-3 flex min-h-[52px] items-center gap-3 border-t border-border pt-2">
+            <span className={`type-caption flex-none rounded-[2px] px-1.5 py-0.5 text-[11px] tracking-[0.06em] ${x.status === "held" ? "bg-good text-good-foreground" : "bg-quiet-tag text-quiet-tag-foreground"}`}>Group slot{(w.slots ?? []).length > 1 ? ` ${x.slot + 1}` : ""}</span>
+            <span className="min-w-0 flex-1">
+              <b className="block truncate text-[15px] font-semibold">{groupShort(x.group) ?? (x.status === "empty" ? "Nothing in it" : "Its group")}</b>
+              <small className="block truncate text-[13px] text-muted-foreground">
+                {x.status === "held" ? (x.members.length > 1 ? `Their mean, ${x.members.length} of them` : "Still together") : x.status === "void" ? `Void${x.why[0] ? `: ${x.why[0].charAt(0).toLowerCase()}${x.why[0].slice(1)}` : ""}` : x.status === "dropped" ? "Dropped: the show re-formed its groups" : x.status === "empty" ? "No group picked" : "Waiting"}
+              </small>
+            </span>
+            <span className="flex flex-none -space-x-1.5">
+              {x.members.slice(0, 3).map((id) => {
+                const c = faceIn(g, id);
+                return <Face key={id} src={c?.photo ?? null} name={c?.name} className="size-7 rounded-[3px] text-[12px] outline-2 outline-card" />;
+              })}
+            </span>
+            <b className={`type-num w-10 flex-none text-right text-[19px] ${x.status === "held" ? "" : "text-muted-foreground"}`}>{x.status === "held" ? signed(x.points) : "–"}</b>
+          </div>
+        ))}
       {w.predictions !== 0 && <p className="mt-3 text-[13px] text-muted-foreground">{signed(w.predictions)} from predictions</p>}
       {w.bench.length > 0 && (
         <>

@@ -3,7 +3,7 @@ import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import * as Air from "@/lib/game/air-schedule.js";
 import * as Spec from "@/lib/game/game-spec";
-import { gameLocksOf, locksOf, type Closes } from "@/lib/sports/locks";
+import { byesOf, gameLocksOf, locksOf, type Closes } from "@/lib/sports/locks";
 import { stampCardChoices } from "./card-choices";
 import { stampVoteRecords } from "./vote-records";
 import { stampSecretRoles } from "./secret-roles";
@@ -81,7 +81,10 @@ async function stampSportLocks(db: Pool | PoolClient, state: LeagueState, season
     delete ep.locksAt;
     delete ep.gameStarts;
     delete ep.holdingGames;
+    delete (ep as { byeTeams?: string[] }).byeTeams;
   });
+  // Step 1.5: a game scored by a sport's stats on a league's slate, each week's teams on a bye (sports/locks.ts byesOf).
+  if (StateLogic.StatsLogic.on(state)) await stampByes(db, state, seasonId);
   const closes = Spec.gameOf(state.settings).closes;
   if (closes === "game") return stampGameLocks(db, state, seasonId);
   if (closes !== "daily" && closes !== "weekly") return;
@@ -89,6 +92,21 @@ async function stampSportLocks(db: Pool | PoolClient, state: LeagueState, season
   for (const ep of state.episodes) {
     const at = locks.get(ep.number);
     if (at) ep.locksAt = at;
+  }
+}
+
+/** Step 1.5: each episode's teams on a bye (ep.byeTeams: their names, as the linked games name them), for a league's slate's episodes
+ *  whose games are all linked; never saved (StatsLogic.stampedKeys). One query. */
+async function stampByes(db: Pool | PoolClient, state: LeagueState, seasonId: string): Promise<void> {
+  const { rows } = await db.query(
+    "SELECT e.episode, e.teams FROM season_events e WHERE e.season_id = $1 AND e.teams IS NOT NULL AND EXISTS (SELECT 1 FROM sports_slates x WHERE x.season_id = $1)",
+    [seasonId]
+  );
+  if (!rows.length) return;
+  const byes = byesOf(rows.map((r) => ({ episode: r.episode as number, teams: ((r.teams ?? []) as { name?: string | null }[]).map((t) => t.name).filter((n): n is string => !!n) })));
+  for (const ep of state.episodes) {
+    const b = byes.get(ep.number);
+    if (b) (ep as { byeTeams?: string[] }).byeTeams = b;
   }
 }
 
@@ -109,11 +127,13 @@ async function stampGameLocks(db: Pool | PoolClient, state: LeagueState, seasonI
     [seasonId, StateLogic.startEpisode(state) ?? 1, to]
   );
   if (!rows.length) return;
-  const { rows: cast } = await db.query("SELECT name, tribe_name FROM season_cast WHERE season_id = $1 AND tribe_name IS NOT NULL", [seasonId]);
+  const { rows: cast } = await db.query("SELECT id, name, tribe_name FROM season_cast WHERE season_id = $1 AND tribe_name IS NOT NULL", [seasonId]);
+  // A castaway's own row (castaway.seasonCastId: two who share a name are two rows, step 1.3), else by name.
+  const teamByRow = new Map(cast.map((c) => [String(c.id), String(c.tribe_name)]));
   const teamByName = new Map(cast.map((c) => [String(c.name).toLowerCase(), String(c.tribe_name)]));
   const teamOf = new Map<string, string>();
   for (const c of state.castaways ?? []) {
-    const team = teamByName.get(c.name.toLowerCase());
+    const team = (c.seasonCastId ? teamByRow.get(c.seasonCastId) : undefined) ?? teamByName.get(c.name.toLowerCase());
     if (team) teamOf.set(c.id, team);
   }
   const games = rows.map((r) => ({

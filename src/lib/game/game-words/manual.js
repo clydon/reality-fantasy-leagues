@@ -281,7 +281,7 @@ const FIELDS = {
   'score.lives': "a pool or a game of questions: lives (a wrong pick or answer costs one; at none you're out; rank standing); with rank coop, the couch's lives together",
   'score.mulligans': 'a pool: your first wrong picks forgiven',
   'score.buyback': "a pool: { times, before: { phase } }: back in after you're out",
-  'score.parlays': '[{ of: [question ids], times }]: every leg right multiplies their points',
+  'score.parlays': '[{ of: [question ids], times }]: every leg right multiplies their points (a split pot: your share after the split)',
   'score.bank': '{ start }: units everyone starts with, every stake drawn from it',
   'score.bounty': "{ points }: a draft's bounty when one of yours votes out someone else's",
   'score.roles': '{ count, points, on }: secret roles dealt to some of you',
@@ -521,6 +521,8 @@ function manualFor(ctx, { kind = 'show', examples = [], limit = 16, show = null,
     'A game is a spec: { "spec": 1, "preset", "span", "pool", "get", "count", "score", "rank", "ask", "closes", "extras", "stages", "overall", "card" }. ' +
       'Leave out every part their words don\'t decide: a preset fills in the rest, and our defaults fill what no preset does.'
   );
+  // E1d (docs/PLAN-start-a-game-redo.md): computer players aren't part of a game; any game can have them as it starts.
+  lines.push('Who plays is never in the spec (computer players go in the answer\'s "bots").');
   lines.push('');
   if (kind === 'sport') {
     lines.push(...sportLines(Array.isArray(games) ? games : [], isObj(ctx) && Array.isArray(ctx.positions) ? ctx.positions : []));

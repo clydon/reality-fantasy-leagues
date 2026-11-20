@@ -1,6 +1,10 @@
 import StateLogic from "./state-logic.js";
+import Bots from "./bot-logic.js";
+import * as Spec from "./game-spec/index.js";
 import type { LeagueState } from "./types";
-import { BOT_NAMES } from "./practice";
+/** The computer players' first names, in order (a seventh and on gets a number: freeBotName). Were the practice couch's (retired
+ *  2026-11-18). */
+const BOT_NAMES = ["Ada", "Max", "Ivy"];
 
 // Computer players in any game (not only the practice couch, solo.ts): seats with no account that bot-logic.js plays, added
 // with Start a game's Computer players or Backstage › Members by whoever runs the game (Commissioner or Game admin). Pure, for
@@ -31,10 +35,19 @@ export const botsIn = (s: LeagueState): Seat[] => s.players.filter((p) => p.auto
 
 export const levelOf = (p: Seat): BotLevel => LEVEL_OF[p.botLevel ?? "solid"] ?? "normal";
 
-/** Whether bot-logic.js plays this kind of game: a draft or Survival Pool, not a calls, bingo or questions game. */
+/** Whether bot-logic.js plays this kind of game: a draft or Survival Pool, and (E1b) a game of questions every one of whose questions
+ *  it answers; not calls or bingo yet. */
 export function botsPlay(s: LeagueState): boolean {
+  // E1e: a game in stages (each stage a game they play: its league seats them as the game's) and squares, by the one rule.
+  if (StateLogic.StageLogic.on(s) || StateLogic.SquaresLogic.on(s)) return !Spec.botsWhy(StateLogic.gameOf(s));
   const t = StateLogic.piecesOf(s);
-  return !t.hasCalls && !t.hasBingo && !t.hasQuestions && !!(t.hasRoster || t.hasWeeklyPicks);
+  // E1c: Weekly Calls' calls are guesses, made up for them as they're graded (calls.ts botCalls).
+  // And Weekly Bingo's cards, dealt by seat and ticked from what's settled (bingo.ts bingoLines).
+  if ((t.hasCalls || t.hasBingo) && !t.hasQuestions) return true;
+  // At your own pace too (E1b's second slice): each catches up on its own copy, answering each week as it reaches it (bots.ts
+  // catchUpBots).
+  if (t.hasQuestions) return Bots.answersAll(s);
+  return !!(t.hasRoster || t.hasWeeklyPicks);
 }
 
 /** A draft that's open: started, and not yet done (every pick made, or the blind draft revealed). */

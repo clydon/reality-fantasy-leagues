@@ -15,7 +15,9 @@ export function useWithRoles(g: GameView | null, seasonId: string, sport: boolea
     const roles = new Map<string, string>();
     for (const grp of roster.data.groups) for (const p of grp.people) if (p.role) roles.set(p.name.toLowerCase(), p.role);
     if (!roles.size) return g;
-    return { ...g, cast: g.cast.map((c) => ({ ...c, role: roles.get(c.name.toLowerCase()) ?? c.role ?? null })) };
+    // The game's own position for a face first (stamped per person: two players who share a name have their own), the roster's
+    // by name only where the game has none.
+    return { ...g, cast: g.cast.map((c) => ({ ...c, role: c.role ?? roles.get(c.name.toLowerCase()) ?? null })) };
   }, [g, sport, roster.data]);
 }
 

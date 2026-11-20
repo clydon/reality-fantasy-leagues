@@ -8,12 +8,15 @@
 //   basketball/zt-scb ZT Sixers (9401) host the ZT Knicks (9402) three days running from tomorrow (a series), then play them away
 //   API (as alex): the search (a team, two teams as a matchup), a team's schedule (opponents' colours), Follow and the couch's
 //   teams, the guide's week, the rail (Pick'em first, every game fitting), Play the next game (Pick'em on one game, its spec, its
-//   span) and its Undo, Squares on the same game, a draft on the series, Pick'em on the rest of the season, a sport's season on the
+//   span) and its Undo, Squares on the same game, a draft on the series (both rosters reach it: BACKLOG 220), Pick'em on the rest
+//   of the season (and again from the
+//   gallery's route with a computer player, its pick of a side in at once: E1b), a sport's season on the
 //   couch started by its id, refusals (a game the sport doesn't play, a start with no games left); Sports scores too (the guard:
 //   everything while it's off, the mark while it's on) and Show the score moving the mark; each started game's page answering.
 //   In a real browser at --width (390): Add a show finds the Eagles (Teams above Shows), their sheet (the plate, Follow, the game
 //   on now with only "Started" while scores are hidden, Show the score letting it out, Play the next game the one yellow, Coming
-//   up), Start a game… (When it runs, the rail, the white card, Start it), Squares started and its page; the guide's Sports (the
+//   up), Start a game… (the team's games added, the gallery on them, Squares on just the next game, Every game left), Squares
+//   started and its page; the guide's Sports (the
 //   couch's team first, other games by league); Settings' Sports scores too. Nothing wider than the screen, no page errors.
 //
 //   npm run dev -- -p 3004   (the sports lane; BASE=http://localhost:3004)
@@ -156,20 +159,26 @@ async function apiChecks(pool, me, couch, started) {
   check(rail.body.games?.[0]?.id === "pickem" && rail.body.games.every((g) => !g.why), "the rail: Pick'em first, every game fitting one game", rail.body.games?.map((g) => [g.id, g.why]));
   check(rail.body.games?.some((g) => g.id === "squares"), "squares on a football game");
 
-  // Play the next game: Pick'em on it, one tap.
+  // Play the next game: Pick'em on it, one tap, on the team's season (Round 3, 2026-11-18: a team's one-game games share a Games tab,
+  // an archive and a record), that game only.
   const p = await me.call("POST", `/api/sports/start?couch=${couch}`, { league: FB, team: "9301", games: ["93104"], game: "pickem", tell: false });
-  check(p.status === 200 && p.body.leagueId && p.body.from === 1 && p.body.to === 1, "Play the next game starts Pick'em on that one game", p.body);
+  const nextEp = p.body.seasonId ? (await pool.query("SELECT episode FROM season_events WHERE season_id = $1 AND event_id = '93104'", [p.body.seasonId])).rows[0]?.episode : null;
+  check(p.status === 200 && p.body.leagueId && Number.isInteger(nextEp) && p.body.from === nextEp && p.body.to === nextEp && /season/i.test(p.body.season ?? ""), `Play the next game starts Pick'em on that one game, on the Eagles' season (its Game ${nextEp})`, p.body);
   // Its game as the engine reads it (gameOf: the spec, from the league's settings).
   const StateLogic = require("../../src/lib/game/state-logic.js");
   const st = p.body.leagueId ? (await pool.query("SELECT state FROM leagues WHERE id = $1", [p.body.leagueId])).rows[0]?.state : null;
   const game = st ? StateLogic.gameOf(st) : null;
-  check(game?.ask?.[0]?.settle?.by === "final" && game?.span?.from === 1 && game?.span?.to === 1, "its game is the sport's Pick'em on that game (settled by the final)", game && { ask: game.ask, span: game.span });
+  check(game?.ask?.[0]?.settle?.by === "final" && game?.span?.from === nextEp && game?.span?.to === nextEp, "its game is the sport's Pick'em on that game (settled by the final)", game && { ask: game.ask, span: game.span });
   const u = await me.call("POST", `/api/seasons/${p.body.seasonId}/start?couch=${couch}`, { undo: p.body.leagueId });
   check(u.status === 200, "Undo takes it back", u.body);
 
   const sq = await me.call("POST", `/api/sports/start?couch=${couch}`, { league: FB, team: "9301", games: ["93104"], game: "squares", tell: false });
   check(sq.status === 200 && sq.body.seasonId === p.body.seasonId, "Squares on the same game shares its season", sq.body);
   started.squares = sq.body;
+  // The same game from the other side's sheet (the review, B4): the season the couch already plays it on, not the Cowboys' own.
+  const other = await me.call("POST", `/api/sports/start?couch=${couch}`, { league: FB, team: "9302", games: ["93104"], game: "pickem", tell: false });
+  check(other.status === 200 && other.body.seasonId === sq.body.seasonId && /at|vs/i.test(other.body.game ?? ""), "the same game from the Cowboys' sheet joins the season the couch plays it on, the toast naming the game", other.body);
+  if (other.body?.leagueId) await me.call("POST", `/api/seasons/${other.body.seasonId}/start?couch=${couch}`, { undo: other.body.leagueId });
 
   const bs = await me.call("GET", `/api/sports/schedule?league=${BB}&team=9401`);
   const series = bs.body.series?.find((x) => x.games.length === 3);
@@ -177,10 +186,32 @@ async function apiChecks(pool, me, couch, started) {
   const dr = series ? await me.call("POST", `/api/sports/start?couch=${couch}`, { league: BB, team: "9401", games: series.games, game: "short", tell: false }) : { status: 0 };
   check(dr.status === 200 && dr.body.to - dr.body.from === 2, "a draft on the series runs its three games", dr.body);
   started.draft = dr.body;
+  // BACKLOG 220: the series' people (both rosters, filled after the answer) reach the draft, however soon after its start they come.
+  if (dr.body?.leagueId) {
+    let people = 0;
+    for (let i = 0; i < 40 && people < 16; i++) {
+      people = ((await pool.query("SELECT state FROM leagues WHERE id = $1", [dr.body.leagueId])).rows[0]?.state?.castaways ?? []).length;
+      if (people < 16) await new Promise((r) => setTimeout(r, 500));
+    }
+    check(people === 16, `the draft on the series has both rosters to pick from (${people} of 16)`);
+  }
 
   const ss = await me.call("POST", `/api/sports/start?couch=${couch}`, { league: FB, team: "9301", whole: "season", game: "pickem", tell: false });
   check(ss.status === 200 && ss.body.to > ss.body.from, "Pick'em on the rest of the Eagles' season", ss.body);
   started.season = ss.body;
+  // E1b: the same Pick'em started from the gallery's route with a computer player: its pick of a side for the season's first game is
+  // in at once (a side's faces from the season's games as the server reads them: answers.ts factFaces).
+  const ssGame = ss.body.leagueId ? require("../../src/lib/game/state-logic.js").gameOf((await pool.query("SELECT state FROM leagues WHERE id = $1", [ss.body.leagueId])).rows[0].state) : null;
+  const withBot = ssGame ? await me.call("POST", `/api/seasons/${ss.body.seasonId}/start?couch=${couch}`, { spec: ssGame, name: "Pick'em with a computer player", tell: false, bots: 1 }) : { status: 0, body: {} };
+  const { rows: botPicks } = withBot.status === 200 ? await pool.query("SELECT question, episode, answer FROM game_answers WHERE league_id = $1", [withBot.body.leagueId]) : { rows: [] };
+  check(withBot.status === 200 && botPicks.length >= 1 && botPicks.every((r) => ["9301", "9302", "9303", "9304"].includes(r.answer)), `Pick'em with a computer player: its pick of a side in at once (${botPicks.map((r) => `${r.question}@${r.episode}=${JSON.stringify(r.answer)}`).join(", ")})`, `${withBot.status} ${JSON.stringify(withBot.body).slice(0, 300)}`);
+  // E1e: an over/under on the game's own line (the stand-in's 44.5 on 93104) with a computer player: the line kept as it opens inside
+  // the start's own write (on its connection: on another, the insert waited on the league row the write holds), its answer in at once.
+  const ouSpec = ssGame ? { spec: 1, get: { by: "none" }, score: { by: "answers" }, rank: { by: "total" }, span: ssGame.span, ask: [{ id: "ou", ask: "Total points: over or under?", answer: "overUnder", points: 1, asked: "each", line: "game", closes: "start", settle: { by: "final", take: "total" } }] } : null;
+  const ouBot = ouSpec ? await me.call("POST", `/api/seasons/${ss.body.seasonId}/start?couch=${couch}`, { spec: ouSpec, name: "Over or under with a computer player", tell: false, bots: 1 }) : { status: 0, body: {} };
+  const { rows: ouAnswers } = ouBot.status === 200 ? await pool.query("SELECT episode, answer FROM game_answers WHERE league_id = $1", [ouBot.body.leagueId]) : { rows: [] };
+  const { rows: ouLines } = ouBot.status === 200 ? await pool.query("SELECT line::float8 AS line FROM question_lines WHERE league_id = $1", [ouBot.body.leagueId]) : { rows: [] };
+  check(ouBot.status === 200 && ouLines.some((l) => l.line === 44.5) && ouAnswers.length >= 1 && ouAnswers.every((r) => r.answer === "over" || r.answer === "under"), `an over/under on the game's line with a computer player: the line kept (${ouLines.map((l) => l.line).join(", ")}), its answer in at once (${ouAnswers.map((r) => `${r.episode}=${JSON.stringify(r.answer)}`).join(", ")})`, `${ouBot.status} ${JSON.stringify(ouBot.body).slice(0, 200)}`);
   // A sport's season on the couch, by its id: Pick a few on its next game only.
   const by = ss.body.seasonId ? await me.call("POST", `/api/sports/start?couch=${couch}`, { seasonId: ss.body.seasonId, game: "pickAFew", only: true, tell: false }) : { status: 0 };
   check(by.status === 200 && by.body.from === by.body.to, "a sport's season here starts by its id, its next game only", by.body);
@@ -197,7 +228,7 @@ async function apiChecks(pool, me, couch, started) {
   check(on.status === 200 && on.body.hideSportsScores === true, "Sports scores too saves", on.body.hideSportsScores);
   check((await seenThrough(uid, sq.body.seasonId)) === 0, "with it on, a sport's season goes by the mark (none yet)");
   const shown = await me.call("POST", "/api/sports/shown", { league: FB, event: "93104" });
-  check(shown.status === 200 && shown.body.moved >= 1 && (await seenThrough(uid, sq.body.seasonId)) === 1, "Show the score moves the mark to that game", shown.body);
+  check(shown.status === 200 && shown.body.moved >= 1 && (await seenThrough(uid, sq.body.seasonId)) === nextEp, "Show the score moves the mark to that game", shown.body);
   await me.call("PUT", "/api/me/profile", { hideSportsScores: false });
 
   // It plays: alex picks the Eagles in the season's first game, the game goes final in the stand-in, the daily refresh keeps the
@@ -248,7 +279,8 @@ async function browserChecks(pool, headers, couch) {
     check(w[0] <= w[1], `${what}: nothing wider than the screen`, w);
   };
   try {
-    await page.goto(BASE + "/home", { waitUntil: "networkidle" });
+    // The guide is its own page over the hub now (?page=guide), its Add a show in its header.
+    await page.goto(BASE + "/home?page=guide", { waitUntil: "networkidle" });
     await page.evaluate(() => document.querySelector("[data-guide-add]")?.scrollIntoView());
     await page.click("[data-guide-add]");
     await page.fill("[data-add-input]", "zt eagles");
@@ -276,17 +308,23 @@ async function browserChecks(pool, headers, couch) {
     await page.click("[data-live-now] [data-show-score]");
     await page.waitForFunction(() => /14/.test(document.querySelector("[data-live-now]")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
     check(/14/.test(await page.textContent("[data-live-now]")), "Show the score lets that game's score out");
+    // Start a game… (docs/PLAN-start-a-game-redo.md B1): the team's games added, then the same gallery as a show's on that season,
+    // every game opening on just the next one (what Start a game… picked).
     await page.click('[data-more="start"]');
-    await page.waitForSelector("[data-sport-start] [data-sport-game]", { timeout: 15000 });
-    await page.click('[data-sport-game="squares"]');
-    const card = await page.textContent("[data-start-card]");
-    check(/Squares/.test(card), "the white card names the game picked", card.slice(0, 80));
+    await page.waitForSelector("[data-gallery=gallery]", { timeout: 30000 });
+    const sq = page.locator('[data-gallery-base="sp-squares"], [data-gallery-lead="sp-squares"]').first();
+    await sq.scrollIntoViewIfNeeded();
+    await sq.click();
+    await page.waitForSelector("[data-gallery=base]", { timeout: 15000 });
+    const card = await page.textContent("[data-gallery-title]");
+    check(/Squares/i.test(card), "the game's screen names the game picked", card.slice(0, 80));
+    check((await page.locator("[data-gallery-option=length-next][data-chosen]").count()) === 1, "Start a game…'s Next game: it opens on just the next game");
     await wide("Start a game on a team");
     await shot("3-start");
-    await page.click("[data-sport-mode=season]");
-    check(/games/.test(await page.textContent("[data-start-readout]")), "Rest of season reads as its games");
-    await page.click("[data-sport-mode=next]");
-    await page.click("[data-start-go]");
+    await page.locator("[data-gallery-option=length-rest]").click();
+    check(/Every game left/.test(await page.textContent("[data-gallery-length]")), "the rest reads as its games (Every game left)");
+    await page.locator("[data-gallery-option=length-next]").click();
+    await page.click("[data-gallery-start]");
     await page.waitForURL(/\/game\//, { timeout: 20000 });
     await page.waitForSelector("[data-game-title]", { timeout: 20000 });
     await shot("4-squares-page");
@@ -316,7 +354,8 @@ async function browserChecks(pool, headers, couch) {
       await shot("6-draft-page");
     } else check(false, "the draft on the series starts", dr.body);
 
-    await page.goto(BASE + "/home", { waitUntil: "networkidle" });
+    // The guide is its own page over the hub now (?page=guide), its Add a show in its header.
+    await page.goto(BASE + "/home?page=guide", { waitUntil: "networkidle" });
     await page.evaluate(() => document.querySelector("[data-guide]")?.scrollIntoView());
     const sports = await page.$('[data-guide-tv-choice="sports"]');
     if (sports) {

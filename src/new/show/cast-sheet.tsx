@@ -889,7 +889,7 @@ export type Athlete = { name: string; role: string | null; photoUrl: string | nu
 /** An athlete's sheet in the same order: who (the headshot in the same frame, team · position, the season's line), Counted by over
  *  Game by game (or the game's points), In your games, this season's games, past seasons. */
 export function AthleteSheet({ seasonId, show, p, lens, lenses, onLens, go, from = null }: { seasonId: string; show: ShowData; p: Athlete; lens: GameView | null; lenses: GameView[]; onLens: (id: string | null) => void; go: Go; from?: string | null }) {
-  const log = usePlayerLog(seasonId, p.name);
+  const log = usePlayerLog(seasonId, p.name, true, p.team || null);
   const w = show.words;
   const face = lens ? (lens.cast.find((x) => same(x.name, p.name)) ?? null) : null;
   const n = lens ? Math.max(0, ...(lens.castWeeks?.episodes ?? [])) : 0;
@@ -922,7 +922,7 @@ export function AthleteSheet({ seasonId, show, p, lens, lenses, onLens, go, from
       ) : null}
       <GamesRows key={p.name} show={show} name={p.name} go={go} from={from} />
       {/* Before this season has a game of theirs, what they did before it comes first (the draft's question). */}
-      {!log.isPending && !log.data?.games.length && <PastSeasons seasonId={seasonId} name={p.name} />}
+      {!log.isPending && !log.data?.games.length && <PastSeasons seasonId={seasonId} name={p.name} team={p.team || null} />}
       <SheetCaption right="Newest first">This season</SheetCaption>
       {log.isPending ? (
         <div aria-busy className="h-24 animate-pulse rounded-[3px] bg-background" />
@@ -959,7 +959,7 @@ export function AthleteSheet({ seasonId, show, p, lens, lenses, onLens, go, from
         <p className="text-sm text-muted-foreground">No games of theirs you&apos;ve seen yet.</p>
       )}
       {log.data?.newer && <p className="mt-2 text-[13px] text-muted-foreground">A later game&rsquo;s line is in: it shows once you&rsquo;ve seen that game.</p>}
-      {!!log.data?.games.length && <PastSeasons seasonId={seasonId} name={p.name} />}
+      {!!log.data?.games.length && <PastSeasons seasonId={seasonId} name={p.name} team={p.team || null} />}
     </div>
   );
 }

@@ -20,7 +20,8 @@ export interface LoggedGame {
   game: { league: string; id: string; team: string } | null;
 }
 
-export async function playerLog(user: SessionUser, seasonId: string, name: string): Promise<{ games: LoggedGame[]; newer: boolean }> {
+/** `team`: theirs, for a name two players share (step 1.3: a sport's people are unique by id, not name); every team's without it. */
+export async function playerLog(user: SessionUser, seasonId: string, name: string, team: string | null = null): Promise<{ games: LoggedGame[]; newer: boolean }> {
   if (!isUuid(seasonId)) throw new HttpError(404, "Season not found");
   const who = name.trim();
   if (!who || who.length > 120) throw new HttpError(400, "Say who: ?name=");
@@ -30,12 +31,12 @@ export async function playerLog(user: SessionUser, seasonId: string, name: strin
     pool.query(
       `SELECT g.episode, g.team, g.tables, e.starts_at, e.teams, e.event_id, e.league
          FROM game_lines g LEFT JOIN LATERAL (SELECT starts_at, teams, event_id, league FROM season_events x WHERE x.season_id = g.season_id AND x.episode = g.episode ORDER BY starts_at LIMIT 1) e ON true
-        WHERE g.season_id = $1 AND lower(g.name) = lower($2) AND g.episode BETWEEN 1 AND $3
+        WHERE g.season_id = $1 AND lower(g.name) = lower($2) AND g.episode BETWEEN 1 AND $3 AND ($4::text IS NULL OR g.team = $4)
         ORDER BY g.episode DESC`,
-      [seasonId, who, mark]
+      [seasonId, who, mark, team || null]
     ),
     // A later game's line, past where they are: it opens once they've seen that game.
-    pool.query("SELECT 1 FROM game_lines WHERE season_id = $1 AND lower(name) = lower($2) AND episode > $3 LIMIT 1", [seasonId, who, mark]),
+    pool.query("SELECT 1 FROM game_lines WHERE season_id = $1 AND lower(name) = lower($2) AND episode > $3 AND ($4::text IS NULL OR team = $4) LIMIT 1", [seasonId, who, mark, team || null]),
   ]);
   const games = rows.map((r) => {
     const sides = Array.isArray(r.teams) ? (r.teams as { id: string; name: string }[]) : [];

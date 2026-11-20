@@ -142,22 +142,25 @@ function check(ok, what, detail = "") {
       await page.goto(`${BASE}/show/${sid}/games`, { waitUntil: "load" });
       await page.locator("[data-start-row]").waitFor();
       await page.locator("[data-start-row]").click();
-      const sheet = page.locator('[data-start-sheet="competition"]');
-      await sheet.waitFor();
-      await sheet.locator('[data-start-game="weeklyLineup"]').click();
-      const starts = sheet.locator("[data-start-from]");
-      await starts.waitFor();
-      const merged = starts.locator('[data-start-from-choice="phase:merged"]');
-      check(/When Merged starts/.test(await merged.innerText()) && /individual/i.test(await merged.innerText()), "the sheet: Starts offers When Merged starts, with what it is", await merged.innerText());
+      // Start a game (docs/PLAN-start-a-game-redo.md B1): a game's screen offers the season's stages as lengths; "From the merge"
+      // starts when Merged does and runs to the season's end.
+      await page.locator("[data-gallery=gallery]").waitFor({ timeout: 60000 });
+      const lineup = page.locator('[data-gallery-lead="fantasy"], [data-gallery-base="fantasy"]').first();
+      await lineup.scrollIntoViewIfNeeded();
+      await lineup.click();
+      await page.locator("[data-gallery=base]").waitFor();
+      const merged = page.locator('[data-gallery-option="length-from:merged"]');
+      check((await merged.count()) === 1 && /From the merge/i.test(await merged.innerText()), "a game's screen: How long? offers From the merge", await merged.innerText().catch(() => ""));
       await merged.click();
-      await page.locator("text=ZT Survivor · when Merged starts").first().waitFor({ timeout: 10000 }).catch(() => {});
-      check((await merged.getAttribute("aria-checked")) === "true" && (await page.locator("text=ZT Survivor · when Merged starts").count()) > 0, "  chosen: the title says when Merged starts");
-      check(/It waits for Merged to start/.test((await sheet.locator("[data-start-from-note]").textContent()) ?? "") && (await sheet.locator("[data-start-span]").count()) === 0, "  its note says it waits, and How long goes (it runs to the season's end)");
-      await starts.scrollIntoViewIfNeeded();
+      await page.waitForTimeout(300);
+      const length = await page.locator("[data-gallery-length]").innerText();
+      check((await merged.getAttribute("data-chosen")) !== null && /From the merge to the finale/i.test(length), "  chosen: it runs from the merge to the finale", length.split("\n").slice(0, 3).join(" · "));
+      check(/Together/.test(await page.locator("[data-gallery-stretch]").innerText()), "  a stage start plays Together (it can't wait for people yet)", await page.locator("[data-gallery-stretch]").innerText());
+      await merged.scrollIntoViewIfNeeded();
       await shot(page, "start-when-merged");
-      await wide(page, "Start a game, when Merged starts");
-      await page.locator('[role=dialog]:has([data-start-sheet="competition"]) [data-start-go]').click();
-      await page.locator("text=Weekly Lineup started").first().waitFor({ timeout: 20000 });
+      await wide(page, "Start a game, from the merge");
+      await page.locator("[data-gallery-start]").click();
+      await page.locator("text=Fantasy league started").first().waitFor({ timeout: 20000 });
       const { rows } = await pool.query("SELECT id FROM leagues WHERE created_by = $1 AND state->'settings'->>'startPhase' = 'merged' AND deleted_at IS NULL", [fx.users.jordan]);
       LINEUP = rows[0]?.id ?? null;
     } else {
@@ -172,7 +175,7 @@ function check(ok, what, detail = "") {
     r = await start({ game: "outlast", tell: false, from: 9 });
     const OUTLAST = r.body.leagueId;
     check(r.status === 200 && (await span(OUTLAST)).at === 9, "an Outlast from Episode 9", JSON.stringify(r.body));
-    check((await changes()).some((t) => /started Weekly Lineup from when Merged starts/.test(t)), "  Recent changes: started Weekly Lineup from when Merged starts", JSON.stringify((await changes()).slice(0, 4)));
+    check((await changes()).some((t) => /started (Weekly Lineup|Fantasy league) from when Merged starts/.test(t)), "  Recent changes: started the lineup game from when Merged starts", JSON.stringify((await changes()).slice(0, 4)));
 
     // ---------- While it waits ----------
     let games = await gamesOf();

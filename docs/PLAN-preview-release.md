@@ -179,7 +179,7 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
    the explorer's, runtime's, bench's and preview's tests (235).
 3. **The registry in the service's database** (a `live_previews` table: id, owner key, expiry, the viewer, the copies, the story as it
    fills in, complete or failed), since serverless instances don't share memory. Checked: two instances read one preview.
-   **Done (2026-11-19).** `db/migrations/0442_live_previews.sql` (`live_previews`: the owner as an opaque key, the made-up viewer,
+   **Done (2026-11-19).** `db/migrations/0444_live_previews.sql` (0442 until the merge with master, 2026-11-20) (`live_previews`: the owner as an opaque key, the made-up viewer,
    the story as it fills in, the copies, until when; `live_preview_entries`: ways in, kept as hashes); `preview-live.ts` saves each
    copy's landing there, reads and closes by the session asking, and sweeps by taking rows (`DELETE ... RETURNING`, so two
    instances never remove one preview twice). A story closed before its last copy landed has those removed when they land. Every
@@ -227,7 +227,7 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
    made) and shown as "previews left", the overall cap, and the monthly budget, the service adding up what each preview costs it
    (decision 4); the story's states for a service that's down, a preview that failed partway (the moments made so far stay), one
    that has ended, and a month that's full. Checked in the end-to-end check.
-   **Done (2026-11-19), but for what's shown.** `db/migrations/0443`: `preview_uses` (the app's: a row per preview made, counted
+   **Done (2026-11-19), but for what's shown.** `db/migrations/0445` (0443 until the merge): `preview_uses` (the app's: a row per preview made, counted
    over the person's own day by `user_settings.tz`) and `live_preview_months` (the service's: previews and CPU milliseconds a month).
    `preview-allowance.ts` takes one of today's 5 (one take at a time per person) and gives it back when the preview isn't made;
    `GET /api/previews/allowance` says how many are left, for the Preview button and the wait. The maker's row now exists from the
@@ -321,6 +321,14 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
     https://claude.ai/artifact/YWYDNPaX9gcKFaRv8jew8f (a choice for the user: the wait as a title card, the show's art and the story's
     strip already drawn).
 15. **The gallery's Preview button** (the wizard lane's code): it sends the game's spec, with its changes, to step 9.
+    **Done here (2026-11-20, the user: "you do all thats left for me"; the wizard lane's work already in master, its session
+    closed).** On master's bold gallery (`gallery-bold/bold-sheet.tsx`, `TRY_IT` on): Try it shows only when the desk opens
+    previews to you (`GET /api/previews/allowance` now says `open`), "n previews left today" under it (the flow spec's §1; the
+    "your preview is ready" line isn't built: it needs the service to say what it kept). It hands the game as set up (its rules,
+    `spec`) to the wait page in the tab's session storage (`src/new/preview/ask.ts`), which asks `/api/previews`
+    (`/start/preview-story/live?from=gallery`, now served in production on the app; never on the service); the server checks those
+    rules on the season like a base (`definition.cjs` `specChecked`), keys the preview by them, and caps them at 32 KB. A community
+    game's own Try it does the same. Checked: `preview-live-check.js --gallery` (the hand-off, /api/previews, the story).
 
 **Release**
 16. **Tried first without production**: a production build here; then a test deployment of the service straight from this branch
@@ -342,6 +350,13 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
     phones (about 430 a month on the hour's budget); all closed, both databases empty after. The shared secret was replaced once
     so the test could sign (the copy it used is deleted). Query results weren't measured here (Neon's console has them).
 17. **Admins, then everyone**, by the switch (decision 3).
+    **Merged (2026-11-20, the user: push when ready).** Master (80 commits ahead) merged into `preview`: five conflicts kept both
+    sides (the runtime now core-runtime-47; the workflow's sports refresh and preview sweep; Your team's counted points with master's
+    prices and captain; the strip's episode night with round 5's draft start and "soon"; the week line's "nothing counted yet" with
+    master's "out"); this branch's migrations renumbered past master's to 0444 and 0445 (the lane's and the service's databases'
+    records renamed to match). The whole suite (2,470 tests), a production build and the trace check pass. Then pushed to master
+    (the app redeploys with previews off), the service connected to GitHub (production builds only) and the sweep's
+    `PREVIEW_SERVICE_URL` set as a repository variable.
 18. **Watched**: previews made, failed and refused, and the time to the first live phone, logged; a line on the desk ("Previews this
     month: 120 · 40% of the budget"), so nobody needs Vercel's or Neon's dashboards; docs/HOSTING.md updated with the service, its
     limits and its cost.

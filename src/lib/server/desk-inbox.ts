@@ -24,7 +24,7 @@ import { signupMode, WAITING } from "./way-in";
 // with no schedule, and Coming up with "research N h later"; what the desk leaves behind is in the plan's As built.
 
 export interface InboxItem {
-  kind: "split" | "stale" | "phase" | "change" | "stranded" | "schedule" | "usual" | "cast" | "people" | "report" | "suggestion" | "made" | "show" | "catchup";
+  kind: "split" | "stale" | "phase" | "change" | "stranded" | "schedule" | "usual" | "cast" | "people" | "report" | "suggestion" | "made" | "show" | "catchup" | "sports";
   title: string;
   line: string;
   href: string;
@@ -262,6 +262,18 @@ export async function inbox(now = new Date()): Promise<Inbox> {
       add: { seasonId: l.id, kind: l.kind },
     });
   items.push(...casts, ...people);
+  // A sports final kept as none because nothing could be read (docs/PLAN-sports-ready.md step 1.2: never zeroed silently), on a
+  // season a game plays: it counts for nobody until it reads, and every run asks again (sports/finals.ts).
+  const { rows: unread } = await pool.query(
+    `SELECT DISTINCT ON (f.provider, f.league, f.event_id) f.name, f.read_error, e.season_id, ${seasonName} AS season
+       FROM sports_events f JOIN season_events e ON e.provider = f.provider AND e.league = f.league AND e.event_id = f.event_id
+       JOIN show_seasons ss ON ss.id = e.season_id JOIN shows s ON s.id = ss.show_id
+      WHERE f.read_error IS NOT NULL AND f.lines IS NOT NULL AND f.final_at > now() - interval '30 days'
+        AND EXISTS (SELECT 1 FROM leagues l WHERE l.deleted_at IS NULL AND l.state->'settings'->>'showId' = s.slug AND l.state->'settings'->>'wikiSeason' = ss.season_number::text)
+      ORDER BY f.provider, f.league, f.event_id, e.season_id LIMIT 20`
+  );
+  for (const u of unread)
+    items.push({ kind: "sports", title: `${u.season}: ${u.name ?? "a game"} has no stats`, line: `${u.read_error} · counts for nobody until it reads; tried again every few hours`, href: `/desk/season/${u.season_id}` });
   // The catch-up (chunk 6c): an episode whose answer would change scores waits for you, and a catch-up that stopped.
   for (const h of await holdsWaiting())
     items.push({ kind: "catchup", title: `${h.season}: Episode ${h.episode} would change scores`, line: `The catch-up's answer · ${h.games.length === 1 ? "1 game" : `${h.games.length} games`} · Send it or leave it out`, href: `/desk/season/${h.seasonId}/e/${h.episode}` });
