@@ -8,6 +8,23 @@ const EMBEDDING_ROUTES = [
   "/api/leagues/[leagueId]/episodes/[epId]/bets/[betId]/suggested-answer",
 ];
 
+// Live previews (docs/PLAN-preview-release.md, step 6): their routes load the gameplay bench's runtime from disk at run time
+// (src/lib/server/preview-live.ts and preview-definition.ts, createRequire), outside what the bundler sees, and the engine it plays
+// (src/lib/game, some of it TypeScript compiled as it loads, by jiti). Shipped with those routes only.
+// scripts/dev-test/preview-trace-check.js checks a build's trace holds everything a preview loads.
+const PREVIEW_ROUTES = ["/api/preview-live", "/api/preview-live/[id]", "/api/preview-live/sweep"];
+const PREVIEW_FILES = [
+  "./tools/gameplay-bench/**/*.{cjs,js,json}",
+  "./tools/ui-atlas/**/*.{cjs,js,json}",
+  "./src/lib/**/*",
+  "./tests/fixtures/gameplay-explorer/**/*",
+  "./db/rulebooks.js",
+  "./db/show-formats.js",
+  "./scripts/dev-test/fixture-art.js",
+  "./node_modules/jiti/**/*",
+  "./node_modules/dotenv/**/*",
+];
+
 const nextConfig: NextConfig = {
   // A second dev server from this folder (another port, another local database: a real-data story's shoot, beside the dev server
   // already on :3000) needs its own build folder, since next dev locks its folder: NEXT_DIST_DIR=.next-real. Unset, it's .next.
@@ -19,12 +36,13 @@ const nextConfig: NextConfig = {
   htmlLimitedBots: /.*/,
   // Ship the embedding model (fetched into .models/ at build) and the ONNX runtime's Linux binary
   // with the routes that use them, so they read from disk instead of downloading on a cold start.
-  outputFileTracingIncludes: Object.fromEntries(
-    EMBEDDING_ROUTES.map((route) => [
+  outputFileTracingIncludes: Object.fromEntries([
+    ...EMBEDDING_ROUTES.map((route) => [
       route.replace(/[[\]]/g, "\\$&"),
       ["./.models/**/*", "./node_modules/onnxruntime-node/bin/napi-v3/linux/x64/**/*"],
-    ])
-  ),
+    ]),
+    ...PREVIEW_ROUTES.map((route) => [route.replace(/[[\]]/g, "\\$&"), PREVIEW_FILES]),
+  ]),
   // onnxruntime-node ships binaries for every OS (~200MB), and onnxruntime-web isn't loaded on a
   // server at all. Without these, a traced function can pass the deploy size limit.
   outputFileTracingExcludes: {
@@ -34,6 +52,14 @@ const nextConfig: NextConfig = {
       "./node_modules/onnxruntime-node/bin/napi-v3/linux/arm64/**/*",
       "./node_modules/onnxruntime-web/**/*",
     ],
+    // A preview never embeds text (db/embeddings.js imports the model's runtime only when it does), so its routes leave it out:
+    // about 90 MB each.
+    ...Object.fromEntries(
+      PREVIEW_ROUTES.map((route) => [
+        route.replace(/[[\]]/g, "\\$&"),
+        ["./node_modules/onnxruntime-node/**/*", "./node_modules/onnxruntime-common/**/*", "./node_modules/@huggingface/**/*", "./.models/**/*"],
+      ])
+    ),
   },
   // The full-site design mock, served as static files outside the app shell (public/mock/, built by
   // scripts/dev-test/publish-site-mock.js). /mock/hub is the older link people already have.

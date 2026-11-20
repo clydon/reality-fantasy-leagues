@@ -181,6 +181,12 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
    local path unchanged (three live previews made and removed). The service's own path is tried for real at step 16.
 6. **The runtime shipped with the service's routes** (`outputFileTracingIncludes` for `tools/gameplay-bench/**` and the engine), and
    the bundle's size measured against Vercel's limits.
+   **Done (2026-11-19).** `next.config.ts` `PREVIEW_ROUTES`/`PREVIEW_FILES`: the bench, `src/lib` (the engine, some of it TypeScript
+   compiled by jiti as it loads), the explorer's fixtures, `db/rulebooks.js`, `fixture-art.js`, jiti and dotenv; and the embedding
+   model's runtime left out (a preview never embeds; `db/embeddings.js` imports it only when it does). Each preview route ships
+   21.4 MB (Vercel allows 250 MB unzipped), and `scripts/dev-test/preview-trace-check.js` finds every file a preview loads in its
+   trace (it applies the config's excludes itself: a build writes a route's trace before them). Locally the build runs with
+   `--webpack` into `.next-build`: Turbopack refuses this checkout's `.models`, a link out of the folder (Vercel's builds fetch it).
 7. **Cleanup**: a sweep on each new preview (as now), and an hourly sweep from the existing GitHub job (`reminders-waivers.yml`) calling
    the service's sweep route (open, no secret: it only removes what has expired, at most once a minute), so a preview that's never closed still goes. The sweep also removes any copy older than the
    longest a preview lives (a day, decision 6), registered or not: in development a maker that failed after writing its copies left 43 cases behind
@@ -196,7 +202,8 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
    hours. A preview after a change plays the same made-up season (its seed from the person, the season and the mark, not the game).
    Checked: reopening within the day makes nothing; a change makes a new one and the old is gone; a copied link opens nothing for
    anyone else; nothing outlives a day.
-9. **The app's side**: `POST /api/previews` (signed in, the switch on) builds the definition, asks the service (signed with a shared
+9. **The app's side** (also: the show's art sent with the definition, since the service's database has no real show to borrow it
+   from, as the live tier does locally: `fixture-art.js` borrow): `POST /api/previews` (signed in, the switch on) builds the definition, asks the service (signed with a shared
    secret), and returns the story's way in; Create this game comes back to the app with the game's spec and the preview it came from
    (decision 6).
 
