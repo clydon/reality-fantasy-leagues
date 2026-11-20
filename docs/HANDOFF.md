@@ -17,9 +17,13 @@ puts its build notes in its plan, not here.
 
 ---
 
-## Live (production = origin/master, 7cfb1bb5, deployed 2026-11-19)
+## Live (production = origin/master, results-settle f63b2492 + docs, deployed 2026-11-20)
 
 Newest first. The plan or archive section named holds the detail.
+- **Results settle on their own** (2026-11-20, f63b2492; no migration): the bot's latest answer counts until final results
+  (noon the day after); after them a bot correction needs a second look by the bot and the game's players are told; splits
+  go to the tie-break an hour later; Backstage has nothing for the couch to tick; the desk's Inbox is one row an episode the
+  bot couldn't settle. POST /api/desk/settle-again ran once after the deploy. [PLAN-results-settle.md](PLAN-results-settle.md).
 - **Episode night** (2026-11-19, 50651ca4 and 7cfb1bb5): look C is the app; Lock in is a real lock (`GhostLogic.lockIn`, the
   lock-in route, Undo for a minute); a full lineup carried in from last week counts as set. Survivor 51's Ep 10 (Wed
   2026-11-25) is the first night with it (BACKLOG 110). Spec: docs/design-round/strip-night-spec.md.

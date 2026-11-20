@@ -1,8 +1,8 @@
 # Plan: the bot settles results, final at noon, changes after final are told
 
-> **Status (2026-11-20, 3:30 PM): A and B built on branch `results-settle` (lane `rfl-results`, port 3017), not pushed. D's
-> what-would-move run is done (below, "D: what would move"); it found one fix, made. Waiting on the user's OK to push** (no
-> migration, so no Neon rehearsal; never a Wednesday). After the deploy, POST /api/desk/settle-again once and check the Inbox.
+> **Status (2026-11-20, 2 PM): A, B and D done and PUSHED on the user's OK (branch `results-settle`, a2a95b4b..f63b2492 and
+> its docs; no migration).** D's what-would-move run found one fix, made (below, "D: what would move"). After the deploy:
+> POST /api/desk/settle-again once, then the desk's Inbox (what happened: "After the push" below, once run).
 
 ## Why
 

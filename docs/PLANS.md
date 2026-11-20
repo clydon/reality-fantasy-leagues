@@ -73,7 +73,7 @@ Each one's Status line says what was built and when.
   [bingo bank](PLAN-bingo-bank.md), [show formats](PLAN-show-formats.md), [cast import prompt](PLAN-cast-import-prompt.md),
   [universal season cast](PLAN-universal-season-cast.md).
 - **Sports:** [sports data](PLAN-sports-data.md), [sports by team](PLAN-sports-add.md).
-- **The app:** [desk parity](PLAN-desk-parity.md), [the first-time tour](PLAN-first-time-tour.md),
+- **The app:** [results settle on their own](PLAN-results-settle.md), [desk parity](PLAN-desk-parity.md), [the first-time tour](PLAN-first-time-tour.md),
   [up next](PLAN-up-next.md), [GIF reactions](PLAN-gif-reactions.md), [playtests](PLAN-playtests.md),
   [dashboard, invites and reclaim](PLAN-dashboard-admin-reclaim-invites.md).
 
