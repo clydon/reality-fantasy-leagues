@@ -6,7 +6,7 @@ and in flight is in [HANDOFF.md](HANDOFF.md).
 
 **How this file works**
 - **Numbers are permanent.** Code, tests and commits cite "BACKLOG 57", so a number never changes and is never reused. A new
-  item takes the next free number: **the next is 230.**
+  item takes the next free number: **the next is 237.**
 - **Closing an item:** delete it here and add one line under "Closed since the cleanup" at the end: the number, done or
   dropped, and the commit or the reason. Numbers closed in the cleanup itself are listed, with their full old text, in
   [archive/BACKLOG-2026-11-19.md](archive/BACKLOG-2026-11-19.md).
@@ -191,6 +191,27 @@ the first of a tie: use `leadWorthNaming` (couch-standings.ts:445), as By the nu
 and `AskSheet` if they're used), with check-tonight-up-next.js retired or repointed. tsc, eslint and the unit suite clean.
 [S · cleanup]
 
+**232. Signing out leaves this phone getting the account's notifications.** `logOut` and `logOutTo` (src/lib/auth-client.ts)
+end any acting hour and sign out, but never take this phone off `push_subscriptions`, though DELETE /api/me/push-subscriptions
+says signing out does. On a shared phone the next person gets the last one's pushes. Unsubscribe this phone's endpoint before
+the session goes (best effort), with a case in check-new-notify.js. Found by the settings audit (2026-11-20). [S · notifications]
+
+**233. A Game admin can undo a Commissioner's changes.** league-changes.ts `canUndo` lets whoever runs every game a change
+touched take it back, and only a rulebook line checks for a Commissioner. So a Game admin can undo a Commissioner's starters,
+join rule or role change from Recent changes, while Game settings tells them "Only a Commissioner changes these". Check the role
+for each kind of undo (settings, roles and members: a Commissioner; results, waivers and the lock: either), with a case in
+check-new-backstage-ii.js. [S · backstage]
+
+**234. Game settings' Recommended is hard-coded.** backstage-games.ts `REC` is 3 starters, 2 on the bench and a team of 3 for
+every game, so a game started on other numbers (Salary cap: 4 each, 2 start) shows Changed and Reset to recommended though
+nobody changed it. Read Recommended from the game's own base defaults. [S · backstage]
+
+**235. The results-to-fill-in push is moot.** db/reminders.js `remindResults` still tells a game's Commissioners, the morning
+after, "Nothing's in yet. Copy the question into any AI chat, paste its answer back, then apply", though results settle on
+their own (PLAN-results-settle.md). Settings' "Backstage" notifications switch exists only for it (it shows to Game admins, who
+never get it), and its other type, `wikiReview`, is never sent (BACKLOG 24). Stop sending it where the bot runs the season. The
+switch goes in the settings overhaul's Round 1 (its C4), or with this fix through Impeccable alone. [S · notifications]
+
 ### Small UI fixes (one Impeccable polish pass)
 
 **228. A sport's lineup sheet puts the best guard in "G", not "PG".** The sheet's tidying (SlotLogic.assignment) puts an earlier
@@ -255,6 +276,10 @@ A visible change everywhere, so show the user a before/after at 390 in Night and
 - Your shows' poster says "Fri" for an episode weeks away (sections.tsx:471): past six days, show the date.
 - No text under 11 px in src/new (21 `text-[10px]`, among them Home's game chips at sections.tsx:786 and :793). Ties read "T1"
   on Stats as elsewhere. ShowArt's fallback fits the Episodes tile. Toasts sit clear of first run's Back.
+
+**236. Where you are points to a heading that doesn't exist.** where.tsx:303 says "Change it in Settings, under Keeping you
+spoiler-free"; the switch is "Shows that move along by themselves", under Everything else. Name the real place, or make the line
+open it. Words through Impeccable's clarify. Found by the settings audit (2026-11-20). [S · words]
 
 ### The Designs-needed words batch
 
@@ -568,7 +593,10 @@ and builds.
   rulebook for the show, and each game's own copy only in that game's rows.*
 - **168. "Who decides results" no longer changes anything.** Every desk accept locks, and a locked result reaches every game
   either way, yet Setup still offers the choice and the episode page says "nothing reaches the games until you accept it".
-  *Recommended: fold it into one behaviour, keep "sources that agree", and fix the two lines.*
+  The settings audit (2026-11-20) found more words telling the old rules: the desk's Sources to confirm sheet (desk.tsx:781-792),
+  Setup's line (setup.tsx:319) and the Inbox's "confirmed by 2+ sources" (desk.tsx:299). A data step comes first: Survivor 51 is
+  on You decide, and `results_admin_since` still filters what reaches the games (season-decisions.ts).
+  *Recommended: fold it into one behaviour, keep "sources that agree", and fix every line (the settings plan's C44–C45).*
 - **169. The drill pass: the Compare flow, the order, and a game's points on a castaway's sheet.** *Recommended: when a sheet is
   opened from a game, its head carries that game's points and place in one line; then the castaway sheet's one header (135);
   hold the Compare change until someone misses it.*
@@ -659,9 +687,11 @@ lands.
 - **16. The bot's fallback on the PC.** Production asks the VM first, then bot-home (the PC), but the PC's bot isn't a startup
   task and its tunnel isn't kept running. *Recommended: drop the PC fallback, keep the VM, add a second free VM if episode nights
   back up, and make HOSTING.md say what's running.*
-- **185. Account recovery, Google sign-in and the tie-break run.** Username accounts have no email, Continue with Google is
-  built but off, and the desk's tie-break run is off. *Recommended: leave all three until a second couch; make the Google OAuth
-  client before strangers sign up. The desk's Reset password covers the couch.*
+- **185. Account recovery and Google sign-in.** Username accounts have no email, and Continue with Google is built but off.
+  (The desk's tie-break run, once part of this item, went on 2026-11-20 with results settling on their own:
+  PLAN-results-settle.md, decision 3.) *Recommended: leave both until a second couch; make the Google OAuth client before
+  strangers sign up. The desk's Reset password covers the couch. The settings plan's A1 (an email to reset your own password)
+  and A2 (delete my account) wait on this.*
 - **186. Housekeeping.** Drop the paused ghost-faces stash (`stash@{0}`, moot since the ghost account went). Delete four local
   branches whose changes are on master: check-fix, docs-fix, fix-status-plate-dst, merge-engine. Prune the worktrees of merged
   lanes by hand, never with node_modules junctioned to main (the memory "Junctioned worktree + next"). *Recommended: yes.*
@@ -716,7 +746,6 @@ Kept so they aren't lost. Each waits for a reason to pick it up.
   (archived as history): take one when its area is next touched.
 - **196.** Studio, a light theme with personality, as its own design round. Not until someone asks for light.
 - **197.** Desktop layouts, the desk first.
-- **198.** "Tick all" for held results in Backstage.
 - **199.** A schema tidy for the next migration that's going out anyway: `season_air_dates` refuses writes; drop the unread
   `cast_stats` and `user_settings.share_ratings`.
 - **200.** When research names someone who isn't in the cast (a mid-season arrival), the desk's Inbox gets an item to add them.
@@ -764,6 +793,8 @@ longer depends on the wiki.)
 ## Closed since the cleanup
 
 One line each: the number, done or dropped, and the commit or the reason.
+- **198** dropped (2026-11-20): nothing's left to tick in Backstage since results settle on their own (PLAN-results-settle.md);
+  the settings plan's C43.
 - **226** answered (the user, 2026-11-20, "i agree with your rec"): the NFL's default season game plays a final between the top two in
   Week 17, and a stats game to the season's end stops at Week 17 (PLAN-sports-ready.md 2.2's follow-on, branch sports-phase2). The
   user added that a game's timing is the maker's: on through the playoffs to the final if they want, for every sport of that shape

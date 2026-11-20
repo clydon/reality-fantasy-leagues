@@ -22,13 +22,17 @@ The small and medium work is in [BACKLOG.md](BACKLOG.md); what's live and in fli
 5. **Start a game, E3**, in [PLAN-start-a-game-redo.md](PLAN-start-a-game-redo.md): C8 (the 2-on-1 head to head) first; then
    the pair and pick-many answers (BACKLOG 94), stages that take turns (160), the overall by places (84), the creative ask and
    instant answer choices in Describe, and cast properties' chunk 7. Then E5–E10.
-6. **Design rounds from the explorer's Designs needed:** answers that settle (BACKLOG 139), waivers (140), then a game in
+6. **Settings, the overhaul** ([PLAN-settings-overhaul.md](PLAN-settings-overhaul.md)), a lane of its own (the user,
+   2026-11-20): every settings place in the app cut, re-homed on what it's about, and renamed in plain words; Backstage retired
+   or thinned and renamed; the desk's pass last. Round 0 (the map, the cuts and the shape, rendered; it builds nothing) can
+   start now. Round 3 (running a game) waits for the sports lane's 2.7, which edits Backstage's settings files.
+7. **Design rounds from the explorer's Designs needed:** answers that settle (BACKLOG 139), waivers (140), then a game in
    stages (141, after `preview` merges).
-7. **After the finale:** remove the classic app (step C, BACKLOG 45), then S3 (177) and R3 (178).
-8. **A15, live calls on the episode's clock** (BACKLOG 179), then the watch-along round.
-9. **The design round's steps 11 and 12:** the story-show flavor (once a story show can be added and played), then the tour,
-   couches, account settings and Where you are's eight controls.
-10. **The design sweep** (the explorer plan's §6B): every game's every screen, once `preview` has merged, the Designs-needed
+8. **After the finale:** remove the classic app (step C, BACKLOG 45), then S3 (177) and R3 (178).
+9. **A15, live calls on the episode's clock** (BACKLOG 179), then the watch-along round.
+10. **The design round's step 11 and the rest of 12:** the story-show flavor (once a story show can be added and played), then
+    the tour. Step 12's couches, account settings and Where you are's eight controls are now the settings overhaul's (6).
+11. **The design sweep** (the explorer plan's §6B): every game's every screen, once `preview` has merged, the Designs-needed
     rounds have run and review packets exist.
 
 The gameplay explorer's own steps run alongside, when a step above needs them (the explorer plan's "Next").
@@ -44,7 +48,8 @@ The gameplay explorer's own steps run alongside, when a step above needs them (t
 | [PLAN-local-game-writer.md](PLAN-local-game-writer.md) | Active, on branch `writer` | Merge, and the user picks the way on (BACKLOG 156). |
 | [PLAN-sports-ready.md](PLAN-sports-ready.md) | Active (Phase 0 and Phase 1 done but 1.1's screens, merged and live 2026-11-20, ba8f3a8e) | Phase 2 under way on branch sports-phase2 (2.1 and 2.2 done 2026-11-20: the NFL's season locks at each player's game, its playoffs end by Week 17), and 4.1 (step 1.1's parts 1 to 3 done: finals within the hour, a week counted as it goes, live points during games), then Phase 2 (the user's calls 212–219 answered 2026-11-19; own pace for sports added as 2.6) and 4.1. 1.1's part 4, the live screens, is the design round's page 2. BACKLOG 175 still waits. |
 | [PLAN-GAMEPLAY-SCENARIO-EXPLORER.md](PLAN-GAMEPLAY-SCENARIO-EXPLORER.md) | Partly done | Its status table and "Next" list at the top; Designs needed (§6A); the design sweep (§6B). The working guide is [GAMEPLAY-EXPLORER.md](GAMEPLAY-EXPLORER.md). |
-| The design round ([DESIGN-PROCESS.md](DESIGN-PROCESS.md), [DESIGN-ROUND-PACKET.md](DESIGN-ROUND-PACKET.md), [design-round/](design-round/)) | Steps 2–9 live | Steps 10 (Sports in full, now PLAN-sports-ready.md's Phase 4), 11 (story shows) and 12 (tour, couches, settings) not started. decisions.md is the record; an index of the folder is BACKLOG 153. |
+| The design round ([DESIGN-PROCESS.md](DESIGN-PROCESS.md), [DESIGN-ROUND-PACKET.md](DESIGN-ROUND-PACKET.md), [design-round/](design-round/)) | Steps 2–9 live | Steps 10 (Sports in full, now PLAN-sports-ready.md's Phase 4), 11 (story shows) and 12 (the tour; its settings part is now PLAN-settings-overhaul.md) not started. decisions.md is the record; an index of the folder is BACKLOG 153. |
+| [PLAN-settings-overhaul.md](PLAN-settings-overhaul.md) | Planned (2026-11-20) | Round 0: render today's settings in every role, the cuts (C1–C49) and adds (A1–A20) for the user to approve by number, the three shapes as grey boxes, and Backstage's fate. The audit: [design-round/settings-audit.md](design-round/settings-audit.md). |
 
 ## Partly done
 
