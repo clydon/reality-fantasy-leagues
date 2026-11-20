@@ -224,9 +224,11 @@ function remindLine(d: RemindPreview): string {
 function resultsLine(data: Backstage | undefined): string {
   const ep = data?.episode;
   if (!ep) return PAGES.results.detail;
-  // Results waiting on their sources settle on their own (docs/PLAN-results-settle.md): our bot's, not the couch's.
+  // Results waiting on their sources settle on their own (docs/PLAN-results-settle.md): our bot's while its look is to come,
+  // else the desk's (Results' card says the same), never the couch's.
   const checking = ep.settling;
-  if (checking) return `Episode ${ep.number} · our bot is checking ${checking === 1 ? "a result" : `${checking} results`} again`;
+  const some = checking === 1 ? "a result" : `${checking} results`;
+  if (checking) return ep.tiebreakAt ? `Episode ${ep.number} · our bot is checking ${some} again` : `Episode ${ep.number} · ${some} being settled`;
   if (ep.stage === "none") return `Episode ${ep.number} · who went home isn't in yet`;
   if (ep.stage === "early") return `Episode ${ep.number} · who went home is in · full scores to come`;
   return `Episode ${ep.number} · final scores in · copy and paste, free`;
