@@ -327,6 +327,20 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
     (the Vercel command line, no push), on the preview database, asked by this lane's app and driven by the end-to-end check (no real
     data anywhere); 10 previews at once to see the limits hold, and what each costs (active CPU and query results: decision 4's
     numbers).
+    **Done (2026-11-20).** The service is live at https://gys-preview.vercel.app, deployed from a clean export of the branch
+    (`git archive`: nothing local, no settings files). Its database came from the Marketplace by the command line (`vercel
+    integration add neon --billing-plan free_v3 --meta region=iad1`, after the user accepted Neon's terms), connected with `--prefix
+    AUTH`; a fresh database first needs Better Auth's own tables (`npx @better-auth/cli@1 migrate`, with the `approved` column then
+    dropped so migration 0058 adds it), then the build runs the app's migrations, then `scripts/preview-database.js mark`. Three
+    things the first deploys found, fixed: the install needs `ONNXRUNTIME_NODE_INSTALL_CUDA=skip` (a GPU download that's gone; the
+    app's project gets past it on its build cache); the live tier's `import("better-auth/crypto")` wasn't shipped with the routes
+    (now in `PREVIEW_FILES`; the trace check follows ESM imports and catches it); Better Auth's production sign-in limit refused the
+    maker's sign-ins (off on the service only: its accounts are all made up, each preview's password random). Checked: this lane's
+    app asking the service over HTTPS, signed: the story on the service in 8.5 s, its first phone at 13.8 s, signed in there as the
+    made-up viewer, the account's own session untouched, a used link to the gone page, a stranger refused; 11 asked at once
+    (`scripts/dev-test/preview-load-check.js`): 10 made, 1 busy, the first moment back in 6.9 s (median), 8.4 s of CPU each with the
+    phones (about 430 a month on the hour's budget); all closed, both databases empty after. The shared secret was replaced once
+    so the test could sign (the copy it used is deleted). Query results weren't measured here (Neon's console has them).
 17. **Admins, then everyone**, by the switch (decision 3).
 18. **Watched**: previews made, failed and refused, and the time to the first live phone, logged; a line on the desk ("Previews this
     month: 120 · 40% of the budget"), so nobody needs Vercel's or Neon's dashboards; docs/HOSTING.md updated with the service, its
