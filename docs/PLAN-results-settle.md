@@ -132,10 +132,15 @@ run there as settle-again does (no bot asked), then each result in or out, each 
   four more in, the extra-vote and one advantage result out), one notice each. Weekly Start/Bench against the 1:41 PM backup:
   +5, +13, +1.5, no places changed. Ep 1's three tries all timed out at the bot ("ChatGPT didn't answer"): its 16 results
   stay out of the games, waiting.
-- **A gap that showed, fixed on the branch (not pushed):** the Inbox listed only splits, so results waiting for a second look
+- **A gap that showed, fixed:** the Inbox listed only splits, so results waiting for a second look
   that can't come (Ep 1's) showed nowhere. Now one row an episode says so ("Survivor 51, Episode 1: 16 results waiting for
   a second look" / "Our bot couldn't look again, so they're out of every game · decide on the episode's page"; both kinds:
   "2 results still split, 4 waiting for a second look"); what-would-move.js prints the Inbox's results rows too.
+- **Pushed 4:32 PM (e627836a, the user's yes), live 4:34.** The Inbox then had Ep 1's row ("16 results waiting for a second
+  look · Our bot couldn't look again, so they're out of every game"). Settle-again once more at 4:36 PM on the user's yes:
+  `{ seasons: 0, episodes: 39 }` (nothing moved), and the row went: the bot's turn again, its first try due ~5:36 PM.
+- The user asked to reinstate Rob's quit (Ep 3): it never left. It's an admin's result (locked), scored -5 in Weekly
+  Start/Bench (a vote-out -3), and counted against the seat that started him, this morning and since.
 
 ## Noticed, not fixed
 - **check-new-settling and check-new-community fail one line on origin/master too** (61a13da6, run 2026-11-20): "jordan's
