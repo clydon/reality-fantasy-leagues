@@ -35,7 +35,10 @@ function inspect(document) {
         const at = p + '/stages/' + k;
         if (G.stageOn(st)) add(game.id, at + '/on', 'A stage a format change starts needs the format timeline and its copies (change-stages.ts)');
         if (G.stageSide(st)) add(game.id, at + '/side', 'A side stage needs the format timeline and its copies');
-        if (G.stageAlongside(st)) add(game.id, at + '/alongside', "A stage alongside the game's own (bingo with trivia) needs its own stores");
+        // A stage alongside the game's own (bingo with trivia): one scored outside its state (bingo's lines, or answers), each its own
+        // game with its own store, read in the walk as the server's stageWalk reads it (runtime.cjs outsideCall, core-runtime-45).
+        const sg = G.fullSpec(st.game || {}), outside = (sg.get?.by === 'card' && sg.score?.by === 'lines') || (sg.get?.by === 'none' && sg.score?.by === 'answers');
+        if (G.stageAlongside(st) && !outside) add(game.id, at + '/alongside', "A stage alongside the game's own needs one scored outside its state (bingo, questions)");
         if (G.stageSeason(st)) add(game.id, at + '/season', 'A stage on another season needs a second world context bound to it');
       });
       // The overall by points, places or stages won (C2 part 3): the engine's own (StageLogic.overall, read with the walk as the server's
@@ -51,7 +54,9 @@ function inspect(document) {
     // called connected. Head to head on a Weekly Lineup's stage (core-runtime-42: the design round's staged pilot, no specimen has
     // one) is: each stage's own schedule, record and playoffs, inside its own span, its odd one out and quiet nights as alone; best
     // ball or Outlast head to head on a stage is still a gap.
-    if (stageIndex >= 0) {
+    // (A stage scored outside its state, Weekly Bingo's or a stage of questions, plays as it would alone: checked below as any game.)
+    const outsideStage = (spec.get?.by === 'card' && spec.score?.by === 'lines') || (spec.get?.by === 'none' && spec.score?.by === 'answers');
+    if (stageIndex >= 0 && !outsideStage) {
       const plain = { get: ['by', 'each', 'own', 'order'], count: ['start', 'best', 'all'], score: ['by', 'points'], rank: ['by', 'odd', 'quiet', 'playoffs'] };
       const w = spec.extras?.waivers, byHand = !active(w) || (J.object(w) && w.replace === 'never' && w.windows?.schedule === 'manual');
       const h2h = spec.rank?.by === 'matchups' && J.object(spec.count) && spec.count.start !== undefined && spec.score?.by === 'moments';

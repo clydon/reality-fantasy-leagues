@@ -293,8 +293,20 @@ function open(input, internal = {}) {
   let walkRev = 0, walkAt = -1; const walks = new Map();
   const stageWalk = game => {
     if (walkAt !== walkRev) { walks.clear(); walkAt = walkRev; }
-    if (!walks.has(game.id)) walks.set(game.id, Stages.walkOf(Stages.childrenOf(document.games, game.id).map(g => ({ game: g, state: state.games[g.id].state })), (child, st, n) => gameView(STAGE_REF, st, null, n, () => null, undefined)));
+    if (!walks.has(game.id)) walks.set(game.id, Stages.walkOf(Stages.childrenOf(document.games, game.id).map(g => ({ game: g, state: state.games[g.id].state })), (child, st, n) => gameView(STAGE_REF, st, null, n, () => null, outsideCall(child, st, n))));
     return walks.get(game.id);
+  };
+  // A stage scored outside its state (A12 part 4a: answer-points.ts stageWalk reads its count as the stage's own game would): Weekly
+  // Bingo's lines, or a stage of questions graded on its answers, as anyone on its couch sees them at episode n (core-runtime-45: a
+  // stage of bingo beside one of trivia).
+  const outsideCall = (game, full, n) => {
+    if (Bingo().on(full)) return Bingo().gameBingo(document, worldFor(game), full, n);
+    if (!S.AnswerLogic.questions(full).length || G.isCalls(S.AnswerLogic.questions(full)[0])) return undefined;
+    const copy = S.GhostLogic.viewFor(full, null, n), rows = state.stores.answers[game.id] || [], bf = botFacts(game, full);
+    const walk = S.AnswerLogic.walk(copy, rows, { ...S.AnswerLogic.facts(copy), ...bf });
+    const view = S.spanView(walk ? S.AnswerLogic.withWalk(copy, walk) : copy), live = walk ? S.AnswerLogic.liveRows(copy, rows, walk.out) : rows;
+    const grade = S.AnswerLogic.grade(view, live, { ...S.AnswerLogic.facts(view), ...bf });
+    return { right: walk ? (id => walk.totals[id] ?? 0) : (id => grade.points.get(id) || 0), move: null, through: n };
   };
   function resolveGame(gameId) {
     const game = definitions.get(gameId);
