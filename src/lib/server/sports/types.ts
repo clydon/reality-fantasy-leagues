@@ -152,6 +152,9 @@ export interface RosterPlayer extends Person {
   jersey: string | null;
   /** Their injury now (step 1.5), null when the roster lists none. */
   injury: Injury | null;
+  /** Step 2.3: every position the roster lists them at (ESPN's `positions`: the ones they've played, MLB's), as its abbreviations;
+   *  left out when it lists none (the NBA's and NHL's rosters). Their league's rule decides which count (sports/index.ts eligibleFor). */
+  positions?: string[] | null;
 }
 
 /** One table of a team's lines in a game ("batting", "pitching"; one table for a sport with one kind of line). */

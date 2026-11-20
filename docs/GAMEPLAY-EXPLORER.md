@@ -1596,6 +1596,20 @@ was the next slice by the handoff's order.
      game added (the server keeps each game's lines).
   4. The campaign's walk, not the product, first left the mechanic unexercised (no mid-week lineup taken), and the counts
      caught it: generators 56 and 57.
+- **On a world of one game an episode** (`core-runtime-47`, 2026-11-20): the NFL's season default locks at each player's game
+  since the sports plan's step 2.1 (BACKLOG 213), and the explorer's NFL worlds are one game an episode, so its situations
+  opened with a gap. `gameLocks` now stamps such a world as the server stamps the rows `live-db.cjs` writes for it: each
+  episode's one game played, no holding's team (a link with no teams, a cast with none), so the episode locks at its game's
+  start, never a week's first. The profile takes `closes: 'game'` on any sport scored by stats.
+- **A slate's fantasy playoffs** (`core-runtime-48`, 2026-11-20, the sports plan's step 2.2): on a slate (the materializer writes
+  one as its league's regular season) whose league's playoffs leave its last weeks out (the NFL's one: Week 18's rested
+  starters), `settleWrite` stamps `state.playoffsBy` beside the season's length, as the server's `stampSeasonLength` does
+  (runtime-sports.cjs `playoffsBy`), so head to head's final is a week before the world's last.
+- **Own pace's waivers on a sport** (`core-runtime-49`, 2026-11-20, the sports plan's step 2.6): at its own pace with exclusive
+  teams, a game whose waivers have a window every episode opens a waiver week at each episode everyone has reached (not only at
+  a loss), on a copy with no game day past the week after (`WaiverLogic.windowEvery` and `pacedView`, shared with the server's
+  waivers.js). The runtime doesn't move a seat's mark by the next game's start (the server's stamped floor, sport-pace.ts): its
+  own-pace sports games are plain own pace headless, and its real-route frames get the rule from the server.
 
 #### Sports statistics, the last slice: a game called off, and a week in progress (2026-11-14)
 
@@ -1827,6 +1841,16 @@ agreed and the invariant's own-pace rule didn't).
   113 of 120, then 114 on the final code (case 111 fixed: the own-pace rule above); its six others are standing (BACKLOG 224).
 - **NFL fixture** (`check-sports-week-in-progress.js`): the recorded NFL season, head to head; Sunday evening's hourly run counts the
   early games, every matchup undecided; Monday night's final decides them.
+
+### IR on a sport's season game: inert here (2026-11-20, docs/PLAN-sports-ready.md step 2.4)
+
+Every team sport's season game now has IR places (the spec's `get.ir`: StateLogic.IrLogic). The engine reads them on every read,
+but a generated world stamps no roster injuries (`state.castInjuries`), so nobody is ever eligible and nobody goes on IR: the
+profile accepts `get.ir` on a sport's stats game as inert (`runtime-profile.cjs`), so the NFL's situations keep opening on the
+default. **A gap:** IR's moves (the `ir` route's place, back and drop), an add into an open spot (a claim pair with `dropId: null`,
+free agency with no drop) and the healthy block. To close it: injuries in the world's facts (stamped as `cast-props.ts` stamps them),
+an `ir` action through the route, and invariants (nobody on IR in a lineup or a team's points; held minus IR within the roster; adds
+refused while someone healthy is on IR). The frozen v1 NFL state reproduces with its IR put back as it was made.
 
 ### Product fixes from these findings (2026-11-12, uncommitted; the user asked for all four)
 

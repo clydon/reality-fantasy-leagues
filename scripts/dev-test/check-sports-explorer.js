@@ -704,8 +704,12 @@ const CASES = {
         await withRows(s, async ({ ids, as, write, routes }) => {
           const world = s.snapshot().contexts.sport, week = world.events[1], [g1, g2, g3] = Sports.gamesOf(world.context, week);
           // The Eastern day's edge (part 3's guard, BACKLOG's "calledoff part 4"): E stays locked only while an hour past the second
-          // game's start is still the first game's Eastern day (a holding's lock lasts to the end of its game's day, by design).
-          if (Oracle.easternDay(Date.parse(g1.airAt)) !== Oracle.easternDay(Date.parse(g2.airAt) + 3600000)) {
+          // game's start is still the first game's Eastern day (a holding's lock lasts to the end of its game's day, by design). Days
+          // as the server and the runtime read them: on the calendar shifted so the scenario's clock is now (write's s.calendar), so
+          // an hour past the second game is about now and the first game's start that long before it (2026-11-20: the scenario's own
+          // days let it run at 1 AM Eastern, where both rightly took the bench).
+          const gap = Date.parse(g2.airAt) + 3600000 - Date.parse(g1.airAt), soon = Date.now() + 5 * 60000;
+          if (Oracle.easternDay(soon - gap) !== Oracle.easternDay(soon)) {
             note("a lock at each game: the week's first game and an hour past its second fall on different Eastern days now; run --case=calledoff again in a few hours");
             return;
           }
@@ -718,7 +722,9 @@ const CASES = {
           must(s, { type: 'calledOff', contextId: 'sport', eventId: week.id, game: g2.id, called: 'postponed' });
           await write();
           await at(s, write, Date.parse(g2.airAt) + 3600000);
-          const off = [g2.id], now = Date.parse(g2.airAt) + 3600000, gamesOf = id => Sports.gamesOf(world.context, week).filter(g => g.teams.includes(teamOf(id))).map(g => ({ id: g.id, at: g.airAt }));
+          // (The rule on the same shifted calendar: each start moved by the shift the write just set.)
+          const sh = Date.now() - (Date.parse(g2.airAt) + 3600000), moved = t => new Date(Date.parse(t) + sh).toISOString();
+          const off = [g2.id], now = Date.parse(g2.airAt) + 3600000 + sh, gamesOf = id => Sports.gamesOf(world.context, week).filter(g => g.teams.includes(teamOf(id))).map(g => ({ id: g.id, at: moved(g.airAt) }));
           check('the rule: an hour past the postponed game\'s start, E (first game) is locked and M (postponed game) is free', Oracle.holdingLocked(gamesOf(E), off, now) && !Oracle.holdingLocked(gamesOf(M), off, now));
           r = await both([E, X], true);
           check("an hour past the postponed second game's start, benching M (its game called off) is taken by both", r.ok, r);

@@ -84,31 +84,51 @@ function pageKindOf(page) {
 
 /**
  * The sport's standard games on a league, { [id]: { about, on, spec } }, as defaultsFor gives them (src/lib/sports/index.ts): a
- * league's own specs over the sport's (racing's F1 and IndyCar, the NBA's bracket), and football's lineup slots as each spec's
+ * league's own specs over the sport's (racing's F1 and IndyCar, the NBA's bracket), and its lineup slots as each spec's
  * count.slots where it counts exactly the lineup (index.ts withLineupSlots; the check script holds the two the same).
  */
 function sportStandard(family, league) {
   const d = DEFAULTS[family];
   if (!d) return {};
-  const own = league && isObj(d.leagues) ? d.leagues[String(league).split('/').pop()] : null;
+  // (A check's stand-in league, "football/zt-nfl-slate", reads as its family's core league, as defaultsFor reads it.)
+  const name = league ? String(league).split('/').pop() : null;
+  const core = SPORT_FAMILIES.find((f) => f.id === family)?.core;
+  const key = name && name.startsWith('zt-') && typeof core === 'string' ? core.split('/').pop() : name;
+  const own = key && isObj(d.leagues) ? d.leagues[key] : null;
   const specs = { ...d.specs, ...(own && isObj(own.specs) ? own.specs : {}) };
   const slots = own && isObj(own.slots) ? own.slots : d.slots;
-  const lineup = family === 'football' && isObj(slots) && Array.isArray(slots.lineup) ? slots.lineup : [];
+  // Every sport's since step 2.3 (index.ts slotted: not a lineup of one slot taking everyone, golf's golfers).
+  const lineup = isObj(slots) && Array.isArray(slots.lineup) && slots.lineup.length > 1 ? slots.lineup : [];
   const total = lineup.reduce((n, s) => n + s.n, 0);
   const out = {};
   for (const [id, x] of Object.entries(specs)) {
     const spec = clone(x.spec);
     const c = spec.count;
-    if (lineup.length && isObj(c) && (c.start === total || c.best === total)) spec.count = { ...c, slots: lineup.map((s) => ({ label: s.slot, of: 'position', values: [...s.takes], n: s.n })) };
+    if (lineup.length && isObj(c) && (c.start === total || c.best === total)) {
+      spec.count = { ...c, slots: lineup.map((s) => ({ label: s.slot, of: 'position', values: [...s.takes], n: s.n })) };
+      // Step 2.4: its IR places on a game with a draft (index.ts withLineupSlots).
+      if (isObj(slots.ir) && isObj(spec.get) && spec.get.by === 'draft') spec.get = { ...spec.get, ir: { n: slots.ir.n, takes: [...slots.ir.takes] } };
+      // Step 2.5: its waivers (index.ts sportWaivers), unless the spec says its own.
+      const w = isObj(d.waivers) && isObj(spec.get) && spec.get.by === 'draft' && !(isObj(spec.extras) && spec.extras.waivers) ? d.waivers : null;
+      if (w) {
+        const team = Number.isInteger(spec.get.each) && spec.get.each >= 1 ? spec.get.each : null;
+        const swaps = w.swaps === null ? team || 1 : team === null ? w.swaps : Math.min(w.swaps, team);
+        spec.extras = { ...(isObj(spec.extras) ? spec.extras : {}), waivers: { feel: 'balanced', replace: 'never', short: null, windows: { schedule: 'everyEpisode', every: 3, swaps }, order: 'rolling', hours: w.hours, freeAgency: true, autoFill: true, ...(w.daily && spec.closes === 'game' ? { daily: true } : {}) } };
+      }
+    }
     out[id] = { about: x.about, on: x.on || null, spec };
   }
   return out;
 }
 
-/** `b`'s parts over `a`'s, one level deep (a part that's an object merges; anything else, null and lists, replaces). */
+/** `b`'s parts over `a`'s, one level deep (a part that's an object merges; anything else, null and lists, replaces). A ranking
+ *  of another kind replaces the standard's whole (BACKLOG 226: Season points on the NFL's season takes none of its final). */
 function over(a, b) {
   const out = clone(a);
-  for (const [k, v] of Object.entries(b || {})) out[k] = isObj(v) && isObj(out[k]) ? { ...out[k], ...clone(v) } : clone(v);
+  for (const [k, v] of Object.entries(b || {})) {
+    const other = k === 'rank' && isObj(v) && isObj(out[k]) && v.by !== undefined && v.by !== out[k].by;
+    out[k] = isObj(v) && isObj(out[k]) && !other ? { ...out[k], ...clone(v) } : clone(v);
+  }
   return out;
 }
 

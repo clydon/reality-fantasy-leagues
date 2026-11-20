@@ -56,4 +56,4 @@ function make(config,{NOW,finish}){
  const result=finish(config,context,spec,state);result.sport={id:c.sport.id,league:c.league,label:c.label,cadence:c.defaults.closes,slots:c.defaults.slots,part:c.context.part,game:c.row.id,about:c.row.about,periods:c.sport.periods,source:'Synthetic stats; engine sport definitions and standard game defaults',surfaces:(catalog().find(s=>s.id===c.league)||addLeague(c.league)).games.find(g=>g.id===config.sportGame).surfaces};return result;
 }
 // (locksOf: the app's own lock rule, src/lib/sports/locks.ts, for the explorer's sports world: explorer/runtime-sports.cjs lockTimes.)
-module.exports={catalog,resolve,make,rawLine,addLeague,sportRail:R.sportRail,locksOf:L.locksOf,gameLocksOf:L.gameLocksOf};
+module.exports={catalog,resolve,make,rawLine,addLeague,sportRail:R.sportRail,locksOf:L.locksOf,gameLocksOf:L.gameLocksOf,playoffsEndBefore:L.playoffsEndBefore};

@@ -86,6 +86,21 @@ test('frozen v1 state still reproduces through the existing generator and accept
   for (const name of ['legacy-lineup-v1', 'legacy-picks-v1', 'legacy-nfl-v1']) {
     const original = read(name), scenario = B.makeScenario(original.initialConfig);
     for (const command of original.commands) B.command(scenario, command);
+    // (The NFL's season has locked at each player's game since 2026-11-20, BACKLOG 213, and played a final between the top two since
+    // BACKLOG 226, and has had IR places since step 2.4: the frozen state predates them, so its lock, its playoffs and its IR are put
+    // back as it was made; everything else must still reproduce.)
+    if (name === 'legacy-nfl-v1') {
+      const st = scenario.state.settings;
+      st.lockCloses = 'weekly'; st.game.closes = 'weekly';
+      delete st.game.rank.playoffs; delete st.rankMatchups;
+      delete st.game.get.ir; delete st.draftIr;
+      // And its waivers (step 2.5: a window every week, no limit but the team; the frozen state's were off).
+      const was = original.scenario.state.settings;
+      for (const k of ['replaceRule', 'replenishAt', 'waiverWindows', 'waiverFeel', 'autoFill', 'replenishOrderBy', 'waiverProcessHours', 'freeAgencyEnabled', 'waiverDaily', 'replenishEnabled', 'tradeEnabled', 'swapEvery']) {
+        if (was[k] === undefined) delete st[k]; else st[k] = structuredClone(was[k]);
+      }
+      st.game.extras = structuredClone(was.game.extras);
+    }
     assert.equal(J.digest(scenario.state), J.digest(original.scenario.state), name);
     assert.deepEqual(scenario.marks, original.scenario.marks);
   }

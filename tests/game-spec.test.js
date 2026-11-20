@@ -49,13 +49,13 @@ const demo = (type, after) => {
 
 // What each kind of game is made of, written here apart from the spec's own code, so a field the spec forgets is caught:
 // the round trip takes these out of a league and writes them back from its spec alone.
-const WAIVER_FIELDS = ["replaceRule", "replenishAt", "waiverWindows", "waiverFeel", "autoFill", "replenishOrderBy", "waiverProcessHours", "freeAgencyEnabled", "waiverStartPhase", "waiverOwn", "replenishEnabled", "tradeEnabled", "swapEvery"];
+const WAIVER_FIELDS = ["replaceRule", "replenishAt", "waiverWindows", "waiverFeel", "autoFill", "replenishOrderBy", "waiverProcessHours", "freeAgencyEnabled", "waiverStartPhase", "waiverOwn", "waiverDaily", "replenishEnabled", "tradeEnabled", "swapEvery"];
 // A10 part 3: a draw and a draft spread across the cast's groups; part 3b: an auction and a draft's prices; part 4: keepers.
 // A11 part 1: a draft's rank (a stock market's worth, or last one standing), its race and its cuts; part 2, whether one left ends it;
 // part 4, head to head's playoffs and fallbacks.
 // A12 part 1: when the draft room opens.
 // C2 part 4c: a draft's own questions (draftQuestions).
-const DRAFT_FIELDS = ["ownershipMode", "draftScheduledAt", "draftTimer", "draftAway", "draftOpens", "finalePredictionsEnabled", "finaleTop3Points", "finaleWinnerPoints", "finalePredictionScope", "draftQuestions", "draftDraw", "draftAcross", "draftNeeds", "draftAuction", "draftBudget", "draftKeep", "draftRank", "draftRace", "draftCut", "rankOneLeft", "rankMatchups", "rankTeams", "rankHandicap", "rankTies"];
+const DRAFT_FIELDS = ["ownershipMode", "draftScheduledAt", "draftTimer", "draftAway", "draftOpens", "finalePredictionsEnabled", "finaleTop3Points", "finaleWinnerPoints", "finalePredictionScope", "draftQuestions", "draftDraw", "draftAcross", "draftNeeds", "draftIr", "draftAuction", "draftBudget", "draftKeep", "draftRank", "draftRace", "draftCut", "rankOneLeft", "rankMatchups", "rankTeams", "rankHandicap", "rankTies"];
 const GAME_FIELDS = {
   // A12 part 1: an end at a phase.
   // L3 part 2b: a sport's day's or week's lock (lockCloses). G3 part 3b: a pool of some teams' or positions' players (poolWhere).

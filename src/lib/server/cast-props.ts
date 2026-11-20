@@ -48,23 +48,29 @@ export async function stampCastProps<S extends { castaways?: { id: string; seaso
   const st = state as S & { castProps?: Record<string, Record<string, string>>; castPropDefs?: CastPropertyView[] };
   const links = (state.castaways ?? []).filter((c) => c.seasonCastId);
   if (!links.length) return state;
-  const { rows } = await db.query("SELECT id, season_id, props, role, injury FROM season_cast WHERE id = ANY($1::uuid[])", [links.map((c) => c.seasonCastId)]);
+  const { rows } = await db.query("SELECT id, season_id, props, role, injury, eligible FROM season_cast WHERE id = ANY($1::uuid[])", [links.map((c) => c.seasonCastId)]);
   if (!rows.length) return state;
   const byId = new Map(rows.map((r) => [r.id as string, r]));
   const out: Record<string, Record<string, string>> = {};
   // A sport's player's injury as their roster says it now (step 1.5: season_cast.injury), by castaway: a fact the lineup editor and
   // the draft room show (the design round), never saved.
   const injuries: Record<string, { code: string; status: string; date: string | null }> = {};
+  // Step 2.3: the other positions a sport's player fills (season_cast.eligible: their league's rule over their roster's list), for a
+  // lineup's slots (SlotLogic.fits), never saved.
+  const eligible: Record<string, string[]> = {};
   for (const c of links) {
     const r = byId.get(c.seasonCastId!);
     if (!r) continue;
     if (r.injury && typeof r.injury === "object" && typeof r.injury.code === "string") injuries[c.id] = r.injury;
+    if (Array.isArray(r.eligible) && r.eligible.length) eligible[c.id] = r.eligible.filter((x: unknown) => typeof x === "string");
     const p = propsOf(r.props);
     if (typeof r.role === "string" && r.role.trim() && !p.position) p.position = r.role.trim();
     if (Object.keys(p).length) out[c.id] = p;
   }
   st.castProps = out;
-  if (Object.keys(injuries).length) (st as { castInjuries?: typeof injuries }).castInjuries = injuries;
+  // Stamped even when nobody's hurt (step 2.4: IR reads someone missing from it as healthy; a copy without it can't tell).
+  (st as { castInjuries?: typeof injuries }).castInjuries = injuries;
+  if (Object.keys(eligible).length) (st as { castEligible?: typeof eligible }).castEligible = eligible;
   st.castPropDefs = propertyViews(await seasonCastProperties(rows[0].season_id, db));
   return state;
 }

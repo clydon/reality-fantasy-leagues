@@ -4,6 +4,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import * as Air from "@/lib/game/air-schedule.js";
 import * as Spec from "@/lib/game/game-spec";
 import { byesOf, gameLocksOf, locksOf, type Closes } from "@/lib/sports/locks";
+import { paceBy, paceFloor, playoffsEndBefore } from "@/lib/sports";
 import { stampCardChoices } from "./card-choices";
 import { stampVoteRecords } from "./vote-records";
 import { stampSecretRoles } from "./secret-roles";
@@ -46,6 +47,7 @@ async function stampAirs(db: Pool | PoolClient, state: LeagueState): Promise<voi
     delete ep.gameStarts;
     delete ep.holdingGames;
   });
+  delete state.paceFloor;
   const { showId, wikiSeason } = state.settings;
   if (!showId || wikiSeason == null || StateLogic.RevealLogic.isCatchingUp(state)) return clear();
   const { rows } = await db.query(
@@ -85,6 +87,8 @@ async function stampSportLocks(db: Pool | PoolClient, state: LeagueState, season
   });
   // Step 1.5: a game scored by a sport's stats on a league's slate, each week's teams on a bye (sports/locks.ts byesOf).
   if (StateLogic.StatsLogic.on(state)) await stampByes(db, state, seasonId);
+  // Step 2.6: a team sport's game at its own pace, the last episode its seats have watched by now at the latest.
+  await stampPaceFloor(db, state, seasonId);
   const closes = Spec.gameOf(state.settings).closes;
   if (closes === "game") return stampGameLocks(db, state, seasonId);
   if (closes !== "daily" && closes !== "weekly") return;
@@ -93,6 +97,28 @@ async function stampSportLocks(db: Pool | PoolClient, state: LeagueState, season
     const at = locks.get(ep.number);
     if (at) ep.locksAt = at;
   }
+}
+
+/**
+ * Step 2.6 (docs/PLAN-sports-ready.md; BACKLOG 218): a team sport's game at its own pace carries the last episode its seats have
+ * watched by now at the latest (state.paceFloor, never saved: sports/pace.ts paceFloor, from its episodes' first games played and its
+ * sport's `pace.by`), for GhostLogic.keepPace. Any other game, and an individual sport's, none. One query, only for such a game.
+ */
+async function stampPaceFloor(db: Pool | PoolClient, state: LeagueState, seasonId: string): Promise<void> {
+  delete state.paceFloor;
+  if (!StateLogic.GhostLogic.ownPace(state)) return;
+  const { rows } = await db.query(
+    `SELECT s.sports_league,
+            (SELECT json_agg(json_build_object('episode', e.episode, 'at', e.starts_at)) FROM season_events e
+              WHERE e.season_id = ss.id AND e.starts_at IS NOT NULL AND ${PLAYED}) AS starts
+       FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1 AND s.kind = 'sport'`,
+    [seasonId]
+  );
+  const league = typeof rows[0]?.sports_league === "string" ? (rows[0].sports_league as string).replace(/^[a-z]+:/, "") : null;
+  const by = league ? paceBy(league) : null;
+  if (!by) return;
+  const floor = paceFloor((rows[0].starts ?? []) as { episode: number; at: string | null }[], Date.now(), by);
+  if (floor !== null) state.paceFloor = floor;
 }
 
 /** Step 1.5: each episode's teams on a bye (ep.byeTeams: their names, as the linked games name them), for a league's slate's episodes
@@ -171,18 +197,41 @@ export async function sportLocks(db: Pool | PoolClient, seasonId: string, closes
  * season's length as its schedule says it (state.seasonEpisodes, show_seasons.episode_count: public, not a spoiler, so a league
  * catching up gets it too), for the engine to place them (MatchupLogic.playoffsFrom); any other league carries none. Stamped with
  * the air times, and again after a write's mutation (db.ts withLeagueLock), so a write that turns head to head on saves it.
+ *
+ * Step 2.2 (BACKLOG 214): on a league's regular-season slate whose league's fantasy playoffs end before its regular season does (the
+ * NFL's: sports/index.ts playoffsEndBefore), the last week they may use (state.playoffsBy: Week 17 of 18), so the final is never
+ * in Week 18, when teams rest their starters. A team's own season, or the playoffs' slate, carries none.
  */
 export async function stampSeasonLength(db: Pool | PoolClient, state: LeagueState): Promise<void> {
   const { showId, wikiSeason } = state.settings;
   if (!StateLogic.MatchupLogic.readsSeasonLength(state) || !showId || wikiSeason == null) {
     delete state.seasonEpisodes;
+    delete state.playoffsBy;
     return;
   }
   const { rows } = await db.query(
-    "SELECT ss.episode_count FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE s.slug = $1 AND ss.season_number = $2",
+    `SELECT ss.episode_count, x.league, x.stage FROM show_seasons ss JOIN shows s ON s.id = ss.show_id
+       LEFT JOIN sports_slates x ON x.season_id = ss.id
+      WHERE s.slug = $1 AND ss.season_number = $2`,
     [showId, wikiSeason]
   );
   const n = rows[0]?.episode_count;
   if (Number.isInteger(n) && n > 0) state.seasonEpisodes = n;
   else delete state.seasonEpisodes;
+  const rest = rows[0]?.stage === "regular" && typeof rows[0]?.league === "string" ? playoffsEndBefore(rows[0].league) : 0;
+  if (rest && Number.isInteger(n) && n - rest >= 1) state.playoffsBy = n - rest;
+  else delete state.playoffsBy;
+}
+
+/**
+ * BACKLOG 226 (the user, 2026-11-20): where a fantasy season on a league's regular-season slate ends, when its league's ends before
+ * the regular season does (the NFL's Week 17 of 18: sports/index.ts playoffsEndBefore), or null (another league, a team's own
+ * season, the playoffs' slate). A game scored by players' stats started to the season's end runs to it (start-spec.ts, the sports
+ * route); a maker who picks a later week keeps it.
+ */
+export async function fantasySeasonEnd(db: Pool | PoolClient, seasonId: string): Promise<number | null> {
+  const { rows } = await db.query("SELECT ss.episode_count, x.league, x.stage FROM show_seasons ss JOIN sports_slates x ON x.season_id = ss.id WHERE ss.id = $1", [seasonId]);
+  const n = rows[0]?.episode_count;
+  const rest = rows[0]?.stage === "regular" && typeof rows[0]?.league === "string" ? playoffsEndBefore(rows[0].league) : 0;
+  return rest && Number.isInteger(n) && n - rest >= 1 ? n - rest : null;
 }

@@ -1,5 +1,5 @@
 import { easternDay } from "@/lib/game/tv-listings";
-import { TeamSport, sportOf } from "@/lib/sports";
+import { TeamSport, eligibleFor, sportOf } from "@/lib/sports";
 import { pool } from "../db";
 import { applyApprovedCastToLeagues, approveSportCast, seasonCastRows } from "../season-cast";
 import { fillCastPhotos } from "../show-art";
@@ -43,6 +43,9 @@ export interface CastPerson {
   side?: true;
   /** Their injury as their roster says it now (step 1.5); left out for anyone not from a roster (a box score's, a field's). */
   injury?: Injury | null;
+  /** Step 2.3: the other positions their league lets them fill, from the positions their roster lists (sports/index.ts eligibleFor:
+   *  baseball's); left out for anyone not from a roster. */
+  eligible?: string[];
 }
 export interface CastGroup {
   name: string;
@@ -83,7 +86,8 @@ export async function rosterFromEvents(links: LinkedEvent[], providers: SportsPr
   const groups: CastGroup[] = [];
   const waiting: string[] = [];
   const seen = new Set<string>();
-  const add = (group: string, provider: string, people: (Person | null)[], from: number | null = null, side = false) => {
+  // `league`: a roster's league, for its eligibility rule (step 2.3).
+  const add = (group: string, provider: string, people: (Person | null)[], from: number | null = null, side = false, league?: string) => {
     let g = groups.find((x) => x.name === group);
     if (!g) groups.push((g = { name: group, people: [] }));
     let n = 0;
@@ -92,7 +96,8 @@ export async function rosterFromEvents(links: LinkedEvent[], providers: SportsPr
       if (!p?.id || !p.name || seen.has(key)) continue;
       seen.add(key);
       const injury = (p as { injury?: Injury | null }).injury;
-      g.people.push({ name: p.name, role: p.position, photoUrl: p.headshot, ids: { [provider]: p.id }, from, ...(side ? { side: true as const } : {}), ...(injury !== undefined ? { injury } : {}) });
+      const eligible = league ? eligibleFor(league, p.position, (p as { positions?: string[] | null }).positions) : undefined;
+      g.people.push({ name: p.name, role: p.position, photoUrl: p.headshot, ids: { [provider]: p.id }, from, ...(side ? { side: true as const } : {}), ...(injury !== undefined ? { injury } : {}), ...(eligible ? { eligible } : {}) });
       n++;
     }
     return n;
@@ -117,7 +122,7 @@ export async function rosterFromEvents(links: LinkedEvent[], providers: SportsPr
     if (!p) continue;
     const roster = await p.roster(t.league, t.id);
     if (roster?.length) {
-      add(t.name, p.id, roster);
+      add(t.name, p.id, roster, null, false, t.league);
       await sides(p, t);
       continue;
     }
@@ -196,7 +201,7 @@ async function saveCast(seasonId: string, groups: CastGroup[]): Promise<{ added:
       await c.query("ROLLBACK");
       return { added: [], moved: 0, approved: false };
     }
-    const { rows } = await c.query("SELECT id, lower(name) AS name, role, tribe_name, injury, provider_ids, sort_order FROM season_cast WHERE season_id = $1", [seasonId]);
+    const { rows } = await c.query("SELECT id, lower(name) AS name, role, tribe_name, injury, eligible, provider_ids, sort_order FROM season_cast WHERE season_id = $1", [seasonId]);
     const names = new Set(rows.map((r) => r.name as string));
     const ids = new Map(rows.flatMap((r) => Object.entries((r.provider_ids ?? {}) as Record<string, string>).map(([k, v]) => [`${k}:${v}`, r] as const)));
     let order = rows.reduce((m, r) => Math.max(m, (r.sort_order as number) ?? 0), -1) + 1;
@@ -213,14 +218,16 @@ async function saveCast(seasonId: string, groups: CastGroup[]): Promise<{ added:
           if (traded) moved++;
           // Their injury as the roster says it now (step 1.5): set, changed or cleared (only for someone a roster lists).
           if (p.injury !== undefined && JSON.stringify(had.injury ?? null) !== JSON.stringify(p.injury)) await c.query("UPDATE season_cast SET injury = $2::jsonb WHERE id = $1", [had.id, p.injury ? JSON.stringify(p.injury) : null]);
+          // The other positions they fill (step 2.3), as the roster lists them now: set, changed or cleared.
+          if (p.eligible !== undefined && JSON.stringify(had.eligible ?? []) !== JSON.stringify(p.eligible)) await c.query("UPDATE season_cast SET eligible = $2 WHERE id = $1", [had.id, p.eligible.length ? p.eligible : null]);
           continue;
         }
         // Someone the provider names is theirs by id alone (step 1.3, migration 0308): two who share a name are two people.
         if (!Object.keys(p.ids).length && names.has(p.name.toLowerCase())) continue;
         const { rowCount } = await c.query(
-          `INSERT INTO season_cast (season_id, name, tribe_name, role, photo_url, provider_ids, shown_from, sort_order, injury) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9::jsonb)
+          `INSERT INTO season_cast (season_id, name, tribe_name, role, photo_url, provider_ids, shown_from, sort_order, injury, eligible) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9::jsonb, $10)
            ON CONFLICT DO NOTHING`,
-          [seasonId, p.name.slice(0, 120), g.name.slice(0, 60), p.role?.slice(0, 60) ?? null, p.photoUrl, JSON.stringify(p.ids), p.from, order++, p.injury ? JSON.stringify(p.injury) : null]
+          [seasonId, p.name.slice(0, 120), g.name.slice(0, 60), p.role?.slice(0, 60) ?? null, p.photoUrl, JSON.stringify(p.ids), p.from, order++, p.injury ? JSON.stringify(p.injury) : null, p.eligible?.length ? p.eligible : null]
         );
         if (!rowCount) continue;
         names.add(p.name.toLowerCase());

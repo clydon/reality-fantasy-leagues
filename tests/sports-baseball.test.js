@@ -548,7 +548,8 @@ test("Baseball's defaults are data the spec reads: stat keys, slots of its posit
   const season = d.specs.season.spec;
   assert.equal(season.count.start, starters, "the season's lineup is its slots");
   assert.equal(season.get.each, starters + d.slots.bench, "and its draft the slots and the bench");
-  assert.equal(season.closes, d.closes);
+  // Each player at his own game, the rest of that day (step 2.5: Yahoo's "Daily - Today"), the sport's cadence a day.
+  assert.equal(season.closes, "game");
   for (const { spec } of Object.values(d.specs).filter((x) => x.spec.score.by === "stats" && !x.spec.score.categories)) {
     assert.equal(spec.spec, 1);
     assert.equal(spec.score.by, "stats");

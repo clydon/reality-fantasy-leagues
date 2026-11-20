@@ -90,12 +90,10 @@ test("a show's slots: start one Interior and one Deck", () => {
   assert.match(S.ActiveRosterLogic.validateLineup(s, "ep1", "ann", ["i1", "i2"]), /I2 has no open slot: the lineup is 1 Interior, 1 Deck/);
 });
 
-test("football's standard games carry their defaults' slots; other sports stay as they were", () => {
+test("football's standard games carry their defaults' slots (every team sport's since step 2.3: tests/sports-slots.test.js)", () => {
   const d = defaultsFor("football", "football/nfl");
   const season = d.specs.season.spec.count;
   assert.equal(season.start, 9);
   assert.deepEqual(season.slots.map((x) => `${x.n} ${x.label}`), ["1 QB", "2 WR", "2 RB", "1 TE", "1 W/R/T", "1 K", "1 DEF"]);
   assert.deepEqual(G.specProblems(d.specs.season.spec, null).filter((p) => /count/.test(p.at)), []);
-  const soccer = defaultsFor("soccer");
-  if (soccer) assert.ok(!Object.values(soccer.specs).some((x) => x.spec.count && x.spec.count.slots), "soccer: groups, not positions");
 });

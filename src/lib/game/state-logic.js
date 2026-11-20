@@ -1450,11 +1450,14 @@ class MatchupLogic {
     return !!(parts && parts.playoffs && parts.playoffs.from === null);
   }
   // The game's last episode as the data has it, for its playoffs: its span's end, else the season's from its schedule, the earlier
-  // of the two when both are known; null when neither is.
+  // of the two when both are known; null when neither is. Step 2.2 (BACKLOG 214): no later than the last a league's fantasy
+  // playoffs may use (state.playoffsBy, the server's: the NFL's Week 17, before Week 18's rested starters), where it says one.
   static lastOf(state){
     const to = endEpisode(state);
     const n = Number.isInteger(state.seasonEpisodes) && state.seasonEpisodes >= 1 ? state.seasonEpisodes : null;
-    return to === null ? n : n === null ? to : Math.min(to, n);
+    const last = to === null ? n : n === null ? to : Math.min(to, n);
+    const by = Number.isInteger(state.playoffsBy) && state.playoffsBy >= 1 ? state.playoffsBy : null;
+    return by === null || last === null ? last : Math.min(last, by);
   }
   // The episode the playoffs' first round is, or null (none, or nothing says the game's end yet): the spec's `from`; else where they
   // began (state.playoffsFrom, once their first round has results); else the game's last `rounds` episodes, as long as at least
@@ -2999,9 +3002,16 @@ class SlotLogic {
     });
     return out;
   }
-  // Whether a slot takes someone: a value they count as, or (a sport's position) their roster's position group.
+  // Whether a slot takes someone: a value they count as, or (a sport's position) their roster's position group, or another position
+  // their league lets them fill (step 2.3, docs/PLAN-sports-ready.md: state.castEligible, stamped per read: baseball's shortstop
+  // listed at second base, a two-way player's SP and the pitchers').
   static fits(state, id, slot, asOf){
-    return slot.values.some(v => CastPropLogic.matches(state, id, slot.of, v, asOf) || (slot.of === 'position' && !!state.statGroups && state.statGroups[id] === v));
+    return slot.values.some(v => CastPropLogic.matches(state, id, slot.of, v, asOf) || (slot.of === 'position' && SlotLogic.positionFits(state, id, v)));
+  }
+  static positionFits(state, id, v){
+    if(state.statGroups && state.statGroups[id] === v) return true;
+    const also = state.castEligible && state.castEligible[id];
+    return Array.isArray(also) && also.includes(v);
   }
   // The most of `ids` the slots can take, one each, earlier ids first: { size, owner: slot index -> id }.
   static match(state, ids, slots, asOf){
@@ -3063,12 +3073,199 @@ class SlotLogic {
     }
     return kept;
   }
+  // Step 2.3 (docs/PLAN-sports-ready.md): a computer player's draft keeps its team able to fill every lineup slot. Of `candidates`,
+  // only those some slot takes (never an offensive tackle for a lineup of QB, RB, WR, TE, K and DEF: he'd never start), and of
+  // those, the ones after whom the slots `mine` can't fill are no more than the picks still to come (`left`, counting this one);
+  // while there's room to spare, any of them. None that keep it (a pool short of catchers): all of them, as before.
+  static draftKeeps(state, mine, candidates, left){
+    if(!SlotLogic.on(state)) return candidates;
+    const slots = SlotLogic.expanded(state);
+    const starts = candidates.filter(id => slots.some(s => SlotLogic.fits(state, id, s)));
+    const pool = starts.length ? starts : candidates;
+    const open = ids => slots.length - SlotLogic.match(state, ids, slots).size;
+    if(open(mine) < left) return pool;
+    const ok = pool.filter(id => open([...mine, id]) <= left - 1);
+    return ok.length ? ok : pool;
+  }
   // Best ball with slots: the best legal n count (Seq.best's, by the slots).
   static countBest(state, lines, n){
     const order = [...lines].sort((a, b) => b.points - a.points).map(l => l.castawayId);
     const keep = new Set(SlotLogic.best(state, order, n));
     lines.forEach(l => { l.counted = keep.has(l.castawayId); });
     return lines;
+  }
+}
+
+// ---------- IrLogic: injured reserve (docs/PLAN-sports-ready.md step 2.4: the spec's get.ir) ----------
+// A draft's IR places (get.ir: { n, takes, healthy }): someone their roster lists as one of `takes` (their injury now:
+// state.castInjuries, stamped per read; the NFL's IR, O or PUP) can sit on IR, outside the roster's count, so their seat has an open
+// spot to add someone into (a waiver claim or a free-agency move with no drop: WaiverLogic). Someone on IR never starts and scores
+// nothing, in a lineup or a whole team. They stay as long as their seat likes (Yahoo's rule); bringing them back needs room on the
+// roster (a drop with it, when it's full). While a seat has someone on IR their roster no longer lists as hurt, `healthy` 'blocks'
+// (Yahoo's and ESPN's rule, the default) refuses the seat's adds until it brings them back or drops them; 'stays' lets them sit.
+// The moves are their own log (midSeason.ir: { id, playerId, castawayId, on, episode, at, seen?, tx? }), read episode by episode
+// as the mid-season log is (a move made after episode k counts from k + 1; an own-pace seat's from after its mark), so a week
+// already played keeps whom it fielded, and a viewer's copy takes back the moves past their mark (WaiverLogic.redact). Without
+// get.ir nothing here does anything.
+class IrLogic {
+  static config(state){
+    const g = gameOf(state).get;
+    return g.by === 'draft' && g.ir && typeof g.ir === 'object' && Number.isInteger(g.ir.n) && g.ir.n >= 1 ? g.ir : null;
+  }
+  static on(state){ return !!IrLogic.config(state); }
+  static places(state){ const c = IrLogic.config(state); return c ? c.n : 0; }
+  static moves(state){ return (state.midSeason && Array.isArray(state.midSeason.ir) && state.midSeason.ir) || []; }
+  // Whom a seat had on IR after the moves `keep` says count, in order.
+  static replay(state, playerId, keep){
+    const on = new Set();
+    for(const m of IrLogic.moves(state)){
+      if(m.playerId !== playerId || !keep(m)) continue;
+      if(m.on) on.add(m.castawayId);
+      else on.delete(m.castawayId);
+    }
+    return on;
+  }
+  // On IR for episode `number`: the moves that count before it (a move logged at k, or at a seat's own mark past it, counts from
+  // the episode after; one from before any results stands for every episode, as a move before the game does: Seq.heldAt).
+  static onFor(state, playerId, number){
+    if(!IrLogic.moves(state).length) return new Set();
+    return IrLogic.replay(state, playerId, m => {
+      const at = Number.isInteger(m.seen) && Number.isInteger(m.episode) && m.seen > m.episode ? m.seen : m.episode;
+      return !Number.isInteger(at) || at < number;
+    });
+  }
+  static onNow(state, playerId){
+    if(!IrLogic.moves(state).length) return new Set();
+    return IrLogic.replay(state, playerId, () => true);
+  }
+  // On IR at instant `t` (ms), by the moves' own times: a lineup that locks at each game (letGoAt's).
+  static onAt(state, playerId, t){
+    if(!IrLogic.moves(state).length) return new Set();
+    return IrLogic.replay(state, playerId, m => { const at = Date.parse(m.at); return Number.isFinite(at) && at < t; });
+  }
+  // Whether someone's roster lists them as the IR takes (their injury now).
+  static eligible(state, castawayId){
+    const c = IrLogic.config(state);
+    const hurt = state.castInjuries && state.castInjuries[castawayId];
+    return !!c && !!hurt && Array.isArray(c.takes) && c.takes.includes(hurt.code);
+  }
+  // Whom a seat has on IR now that their roster no longer lists as it takes. Only on a copy stamped with the rosters' injuries (the
+  // server stamps an empty list for a season with nobody hurt: cast-props.ts); a copy without them can't tell, so nobody.
+  static healthy(state, playerId){
+    if(!IrLogic.on(state) || !state.castInjuries || typeof state.castInjuries !== 'object') return [];
+    return [...IrLogic.onNow(state, playerId)].filter(id => !IrLogic.eligible(state, id));
+  }
+  // Why a seat can't add anyone now (healthy 'blocks', someone healthy on IR), or null.
+  static addProblem(state, playerId){
+    const c = IrLogic.config(state);
+    if(!c || c.healthy === 'stays') return null;
+    const back = IrLogic.healthy(state, playerId)[0];
+    if(!back) return null;
+    const x = Core.getCastaway(state, back);
+    return `${x ? x.name : 'Someone on your IR'} is healthy: bring them back from IR, or drop them, before you add anyone`;
+  }
+  // How many more a seat's roster takes now: the roster's size, less everyone it holds who's still in and not on IR.
+  static openSpots(state, playerId){
+    if(!IrLogic.on(state)) return 0;
+    const ir = IrLogic.onNow(state, playerId);
+    const held = state.castaways.filter(c => c.status === 'active' && ownerListOf(c).includes(playerId) && !ir.has(c.id)).length;
+    return Math.max(0, rosterSize(state) - held);
+  }
+  // The episode a move made now first counts in: the one after the latest with results.
+  static nextEpisode(state){
+    const done = lastCompletedEpisode(state);
+    return state.episodes.filter(e => done === null || e.number > done).sort((a, b) => a.number - b.number)[0] || null;
+  }
+  // Why taking someone out of a seat's lineup now would change a week already under way, or null: in a lineup that locks at each
+  // game, they're in it and their game has started today; else the week's lineups have locked and they count in it (its lineup,
+  // or a game that counts the whole team).
+  static lockedProblem(state, playerId, castawayId, now){
+    const ep = IrLogic.nextEpisode(state);
+    if(!ep) return null;
+    const x = Core.getCastaway(state, castawayId);
+    const name = x ? x.name : 'They';
+    if(ActiveRosterLogic.eachGame(state, ep)){
+      const t = now || Date.now();
+      return ActiveRosterLogic.heldLocked(ep, castawayId, t) && ActiveRosterLogic.lineupAt(state, ep, playerId, t).includes(castawayId) ? `${name}'s game has started: move them once the day's over` : null;
+    }
+    if(!ActiveRosterLogic.isLineupLocked(state, ep.id, now)) return null;
+    const whole = !!ActiveRosterLogic.bestOf(state) || StatsLogic.wholeTeam(state);
+    return whole || ActiveRosterLogic.lineupFor(state, ep.id, playerId).includes(castawayId) ? `${name} is in a lineup that's locked: move them once its results are in` : null;
+  }
+  // Why a seat can't put someone on IR now, or null.
+  static placeProblem(state, playerId, castawayId, now){
+    const c = IrLogic.config(state);
+    if(!c) return 'This game has no IR';
+    if(!inLeagueRotation(Core.getPlayer(state, playerId))) return 'No such player';
+    if(KnockoutLogic.isOut(state, playerId)) return 'You’re out of this game';
+    const x = Core.getCastaway(state, castawayId);
+    if(!x || !ownerListOf(x).includes(playerId)) return 'They’re not on your roster';
+    const ir = IrLogic.onNow(state, playerId);
+    if(ir.has(castawayId)) return `${x.name} is already on IR`;
+    if(ir.size >= c.n) return `Your IR is full: it holds ${c.n}`;
+    if(!IrLogic.eligible(state, castawayId)) return `Only someone listed ${c.takes.join(', ')} can go on IR`;
+    return IrLogic.lockedProblem(state, playerId, castawayId, now);
+  }
+  static place(state, playerId, castawayId, now){
+    const why = IrLogic.placeProblem(state, playerId, castawayId, now);
+    if(why) return why;
+    IrLogic.record(state, playerId, castawayId, true, now);
+    return null;
+  }
+  // Why a seat can't bring someone back from IR now (`dropId`: whom it drops to make room, or none), or null.
+  static backProblem(state, playerId, castawayId, dropId, now){
+    if(!IrLogic.on(state)) return 'This game has no IR';
+    if(KnockoutLogic.isOut(state, playerId)) return 'You’re out of this game';
+    const x = Core.getCastaway(state, castawayId);
+    const ir = IrLogic.onNow(state, playerId);
+    if(!x || !ir.has(castawayId)) return 'They’re not on your IR';
+    if(dropId){
+      const d = Core.getCastaway(state, dropId);
+      if(!d || dropId === castawayId || !ownerListOf(d).includes(playerId)) return 'Drop someone on your roster';
+      if(ir.has(dropId)) return IrLogic.openSpots(state, playerId) < 1 ? `${d.name} is on IR too: dropping them makes no room` : null;
+      return IrLogic.lockedProblem(state, playerId, dropId, now);
+    }
+    return IrLogic.openSpots(state, playerId) < 1 ? `Your roster is full: drop someone to bring ${x.name} back` : null;
+  }
+  static back(state, playerId, castawayId, dropId, now){
+    const why = IrLogic.backProblem(state, playerId, castawayId, dropId, now);
+    if(why) return why;
+    if(dropId) MidSeasonLogic.applyDrop(state, playerId, dropId, { via: 'ir', at: new Date(now || Date.now()).toISOString() });
+    IrLogic.record(state, playerId, castawayId, false, now);
+    return null;
+  }
+  // Why a seat can't drop someone now (to free a spot, or someone healthy on IR it doesn't want back), or null. Only in a game with
+  // IR: elsewhere a drop is always half of a move.
+  static dropProblem(state, playerId, castawayId, now){
+    if(!IrLogic.on(state)) return 'This game has no IR';
+    if(!inLeagueRotation(Core.getPlayer(state, playerId))) return 'No such player';
+    if(KnockoutLogic.isOut(state, playerId)) return 'You’re out of this game';
+    const x = Core.getCastaway(state, castawayId);
+    if(!x || !ownerListOf(x).includes(playerId)) return 'They’re not on your roster';
+    return IrLogic.onNow(state, playerId).has(castawayId) ? null : IrLogic.lockedProblem(state, playerId, castawayId, now);
+  }
+  static drop(state, playerId, castawayId, now){
+    const why = IrLogic.dropProblem(state, playerId, castawayId, now);
+    if(why) return why;
+    MidSeasonLogic.applyDrop(state, playerId, castawayId, { via: 'ir', at: new Date(now || Date.now()).toISOString() });
+    return null;
+  }
+  // A move dropped someone a seat had on IR: they leave it with the move (and come back with it, when it's taken back: revert).
+  static leave(state, playerId, castawayId, tx){
+    if(!IrLogic.moves(state).length || !IrLogic.onNow(state, playerId).has(castawayId)) return;
+    const m = { id: Core.uid('ir'), playerId, castawayId, on: false, episode: tx.episode, at: tx.at, tx: tx.id };
+    if(Number.isInteger(tx.seen)) m.seen = tx.seen;
+    state.midSeason.ir.push(m);
+  }
+  // One move, stamped as the mid-season log stamps its own (MidSeasonLogic.log: its episode, and a seat's own mark past it).
+  static record(state, playerId, castawayId, on, now){
+    if(!state.midSeason) state.midSeason = {};
+    const m = { id: Core.uid('ir'), playerId, castawayId, on, episode: lastCompletedEpisode(state), at: new Date(now || Date.now()).toISOString() };
+    const mover = Core.getPlayer(state, playerId);
+    const mark = mover && mover.lateJoin && Number.isInteger(mover.lateJoin.seenThrough) ? mover.lateJoin.seenThrough : null;
+    if(Number.isInteger(m.episode) && mark !== null && mark > m.episode) m.seen = mark;
+    (state.midSeason.ir = state.midSeason.ir || []).push(m);
+    return m;
   }
 }
 
@@ -3991,7 +4188,7 @@ class StatsLogic {
   // season's properties, read from the season's cast on every read, never saved.
   // Step 1.5 (docs/PLAN-sports-ready.md): a sport's player's injury (state.castInjuries, cast-props.ts) and each week's teams on a
   // bye (ep.byeTeams, air-times.ts), stamped per read too.
-  static stampedKeys(){ return [...STAMPED.episode, ...STAMPED.state, 'gameStarts', 'holdingGames', 'castProps', 'castPropDefs', 'castInjuries', 'byeTeams']; }
+  static stampedKeys(){ return [...STAMPED.episode, ...STAMPED.state, 'gameStarts', 'holdingGames', 'castProps', 'castPropDefs', 'castInjuries', 'castEligible', 'byeTeams', 'paceFloor']; }
   // L3 part 2d: a game ranked by a sport's categories (Spec.categoryParts: head to head by each, by most, or roto), or null.
   static categories(state){
     const g = playedGame(state);
@@ -4349,6 +4546,8 @@ class ActiveRosterLogic {
       if(tx.droppedCastawayId) gone.add(tx.droppedCastawayId);
       if(tx.addedCastawayId) gone.delete(tx.addedCastawayId);
     }
+    // Step 2.4 (docs/PLAN-sports-ready.md): someone on IR for the episode is out of its lineup as someone let go is (IrLogic.onFor).
+    IrLogic.onFor(state, playerId, number).forEach(id => gone.add(id));
     return gone;
   }
   // The team a player held for an episode (best ball, which has no lineups to store it): who they hold now, with every move
@@ -4356,8 +4555,10 @@ class ActiveRosterLogic {
   // spoiler view and the waiver weeks have it), less anyone out before it. In the cast's order.
   static teamFor(state, ep, playerId){
     const team = ActiveRosterLogic.heldFor(state, playerId, ep.number);
+    // Step 2.4: nor anyone on IR for it.
+    const ir = IrLogic.onFor(state, playerId, ep.number);
     return state.castaways.filter(c => {
-      if(!team.has(c.id)) return false;
+      if(!team.has(c.id) || ir.has(c.id)) return false;
       if(c.status !== 'eliminated') return true;
       const exit = state.episodes.find(e => e.id === c.exitEpisodeId);
       return !!exit && exit.number >= ep.number;
@@ -4431,7 +4632,7 @@ class ActiveRosterLogic {
     if(!ep) return [];
     if(ep.lineups && Object.prototype.hasOwnProperty.call(ep.lineups, playerId)){
       const set = ep.lineups[playerId] || [];
-      if(!set.length || !((state.midSeason && state.midSeason.log) || []).length) return set;
+      if(!set.length || (!((state.midSeason && state.midSeason.log) || []).length && !IrLogic.moves(state).length)) return set;
       const gone = ActiveRosterLogic.letGoBefore(state, playerId, ep.number);
       return gone.size && set.some(id => gone.has(id)) ? set.filter(id => !gone.has(id)) : set;
     }
@@ -4456,6 +4657,8 @@ class ActiveRosterLogic {
   static carriesInto(state, castawayId, playerId, number, held){
     const c = Core.getCastaway(state, castawayId);
     if(!c || !(held || ActiveRosterLogic.heldFor(state, playerId, number)).has(castawayId)) return false;
+    // Step 2.4: nor someone on IR for it.
+    if(IrLogic.onFor(state, playerId, number).has(castawayId)) return false;
     if(c.status !== 'eliminated') return true;
     const exit = state.episodes.find(e => e.id === c.exitEpisodeId);
     return !!exit && exit.number >= number;
@@ -4527,6 +4730,8 @@ class ActiveRosterLogic {
       if(tx.droppedCastawayId) gone.add(tx.droppedCastawayId);
       if(tx.addedCastawayId) gone.delete(tx.addedCastawayId);
     }
+    // Step 2.4: and anyone on IR by then, by the move's own time.
+    IrLogic.onAt(state, playerId, t).forEach(id => gone.add(id));
     return gone;
   }
   // Each game's counted holdings for a player (Map event id -> Set of castaway ids: the lineup in force at its start; a game with no
@@ -4575,6 +4780,10 @@ class ActiveRosterLogic {
       // before going, so excluding them would lose real points.
       if(!ownerListOf(c).includes(playerId)) return c.name + " isn't on your roster";
     }
+    // Step 2.4 (docs/PLAN-sports-ready.md): nobody on IR for the episode starts.
+    const ir = IrLogic.onFor(state, playerId, ep.number);
+    const hurt = ids.find(id => ir.has(id));
+    if(hurt) return Core.getCastaway(state, hurt).name + ' is on IR: bring them back to start them';
     // Cast properties (chunk 5): everyone in a lineup with slots has an open slot that takes them.
     const unslotted = SlotLogic.problem(state, ids, ep.number);
     if(unslotted) return unslotted;
@@ -7198,7 +7407,31 @@ class MidSeasonLogic {
     if(MidSeasonLogic.isShared(state, 'swap')) Core.addOwner(state, addId, playerId);
     else Core.setOwner(state, addId, playerId);
     add.acquiredVia = 'trade';
-    return MidSeasonLogic.log(state, { type:'trade', playerId, addedCastawayId: addId, droppedCastawayId: dropId, prev, ...extra });
+    const tx = MidSeasonLogic.log(state, { type:'trade', playerId, addedCastawayId: addId, droppedCastawayId: dropId, prev, ...extra });
+    // Step 2.4: someone dropped off IR leaves it.
+    IrLogic.leave(state, playerId, dropId, tx);
+    return tx;
+  }
+  // Step 2.4 (docs/PLAN-sports-ready.md), a game with IR only: a free agent into an open spot (someone on IR left one), and a drop
+  // on its own (to make room, or someone healthy on IR a seat doesn't want back). Each a swap's half, logged as one ('trade', the
+  // other side null: `via` says which): the history and the spoiler views read it as they read a swap.
+  static applyAdd(state, playerId, addId, extra){
+    const add = Core.getCastaway(state, addId);
+    const prev = { added: fieldsOf(add, ADDED_KEYS), dropped: null };
+    if(MidSeasonLogic.isShared(state, 'swap')) Core.addOwner(state, addId, playerId);
+    else Core.setOwner(state, addId, playerId);
+    add.acquiredVia = 'trade';
+    return MidSeasonLogic.log(state, { type:'trade', playerId, addedCastawayId: addId, droppedCastawayId: null, prev, ...extra });
+  }
+  static applyDrop(state, playerId, dropId, extra){
+    const drop = Core.getCastaway(state, dropId);
+    const prev = { added: null, dropped: fieldsOf(drop, DROPPED_KEYS) };
+    drop.formerOwnerId = playerId;
+    drop.departedVia = 'trade';
+    Core.removeOwner(state, dropId, playerId);
+    const tx = MidSeasonLogic.log(state, { type:'trade', playerId, addedCastawayId: null, droppedCastawayId: dropId, prev, ...extra });
+    IrLogic.leave(state, playerId, dropId, tx);
+    return tx;
   }
   static log(state, entry){
     // `|| []`: league rows are read from Postgres without migrateLeagueState, so a league that
@@ -7240,6 +7473,9 @@ class MidSeasonLogic {
         dropped.departedVia = null;
       }
     }
+    // Step 2.4: someone the move took off IR with their drop goes back on it (IrLogic.leave).
+    const ir = state.midSeason && state.midSeason.ir;
+    if(Array.isArray(ir) && ir.some(m => m.tx === tx.id)) state.midSeason.ir = ir.filter(m => m.tx !== tx.id);
   }
 }
 
@@ -7625,8 +7861,11 @@ class WaiverLogic {
   // A swap from the old live rounds after the same episode counts too (no periodId), so a league that
   // switched to waivers mid-window can't swap twice.
   static swapsMade(state, period, playerId){
-    return ((state.midSeason && state.midSeason.log) || []).filter(tx => tx.type === 'trade' && tx.playerId === playerId
-      && (tx.periodId === period.id || (!tx.periodId && tx.episode === period.episode))).length;
+    // Step 2.5: waivers every game day count a window's swaps across the week's days (each day's period of the same episode).
+    const ids = period.day ? new Set(WaiverLogic.periods(state).filter(p => p.day && p.episode === period.episode).map(p => p.id)) : new Set([period.id]);
+    // A drop on its own (step 2.4: IrLogic, `addedCastawayId` null) uses none.
+    return ((state.midSeason && state.midSeason.log) || []).filter(tx => tx.type === 'trade' && tx.playerId === playerId && tx.addedCastawayId
+      && (ids.has(tx.periodId) || (!tx.periodId && tx.episode === period.episode))).length;
   }
   /** Whether replacements happen in this week: its own say (a window the commissioner opened), else the rule. */
   static windowReplaces(state, period){
@@ -7725,7 +7964,9 @@ class WaiverLogic {
   static couldSwap(state, period, playerId){
     if(!(WaiverLogic.swapsLeft(state, period, playerId) > 0)) return false;
     if(!inLeagueRotation(Core.getPlayer(state, playerId))) return false;
-    if(!state.castaways.some(c => c.status === 'active' && ownerListOf(c).includes(playerId))) return false;
+    // Step 2.4: an open spot (someone on IR) takes an add with no drop.
+    if(!state.castaways.some(c => c.status === 'active' && ownerListOf(c).includes(playerId)) && !IrLogic.openSpots(state, playerId)) return false;
+    if(IrLogic.addProblem(state, playerId)) return false;
     return MidSeasonLogic.availableFor(state, playerId, 'swap').length > 0;
   }
   // At your own pace with exclusive teams, a week has no airtime of its own to wait for (the server's syncPaced runs it on the copy at
@@ -7765,12 +8006,23 @@ class WaiverLogic {
     const MIN = WaiverLogic.MIN_CLAIM_HOURS * HOUR_MS;
     const opened = Date.parse(period.openedAt);
     const hand = WaiverLogic.byHandAt(period);
+    // Step 2.5: a game day's period (period.day) processes `hours` before the day's first game (halfway there, opened later) and
+    // closes when its last game starts; a day whose games are gone (moved, called off) closes at its end.
+    if(period.day){
+      const d = WaiverLogic.gameDays(state).find(x => x.until === period.day);
+      if(!d) return { processAt: new Date(Math.min(Date.parse(period.day), opened + H)).toISOString(), closesAt: period.day };
+      const at = d.first - H >= opened ? d.first - H : opened + Math.max(0, d.first - opened) / 2;
+      return { processAt: new Date(at).toISOString(), closesAt: new Date(Math.max(d.last, at)).toISOString() };
+    }
     const next = state.episodes.find(e => e.number === period.episode + 1);
     const airs = next && next.airsAt ? Date.parse(next.airsAt) : NaN;
     if(Number.isFinite(airs) && airs > opened){
       let at = airs - H >= opened ? airs - H : opened + (airs - opened) / 2;
       if(Number.isFinite(hand) && airs > hand) at = Math.max(at, Math.min(airs, hand + Math.max((airs - hand) / 2, MIN)));
-      return { processAt: new Date(at).toISOString(), closesAt: new Date(airs).toISOString() };
+      // Step 2.5: a lineup locking at each game takes free agents until the week's last game starts (each one's lock its own game's:
+      // freeAgencyMove), not only until its first.
+      const last = ActiveRosterLogic.eachGame(state, next) ? ActiveRosterLogic.lastStartOf(next) : null;
+      return { processAt: new Date(at).toISOString(), closesAt: new Date(last !== null && last > airs ? last : airs).toISOString() };
     }
     return { processAt: new Date(Math.max(opened + H, Number.isFinite(hand) ? hand + MIN : -Infinity)).toISOString(), closesAt: null };
   }
@@ -7782,10 +8034,79 @@ class WaiverLogic {
     if(p.phase === 'open') p.processAt = s.processAt;
     p.closesAt = s.closesAt;
   }
+  // ---- Every game day (step 2.5, docs/PLAN-sports-ready.md; BACKLOG 219: the NBA's, NHL's and MLB's, as Yahoo's daily waivers) ----
+  // The spec's waivers.daily, on a lineup that locks at each game (each holding at its own game, the rest of that day: Yahoo's "Daily -
+  // Today") and a window every episode: a period each day the game's episodes have games, one after another. It opens when the day
+  // before's last game starts (or as soon as the draft's done), its claims clear `hours` before the day's first game (the morning,
+  // for an evening's games), and free agents come in until its last game starts, someone whose game has started that day locked
+  // either way (freeAgencyMove). Its episode is the one before its day's (a move made in it counts from the day's episode on, game by
+  // game: a lineup that locks at each game counts each game for whoever was in it when it started), so the window's swaps are the
+  // week's, across its days (swapsMade). The days come from the episodes' games as the server stamps them (ep.gameStarts, its `until`
+  // each game's day's end in the East): a copy without them (own pace, no schedule) has none, and its waivers run by the episode.
+  static daily(state){
+    if(!WaiverLogic.supported(state) || !WaiverLogic.waivers(state).daily || gameOf(state).closes !== 'game') return false;
+    return WaiverLogic.windows(state).schedule === 'everyEpisode' && WaiverLogic.gameDays(state).length > 0;
+  }
+  // The game's days in play, in order: { until (the day's end, ISO: its key), first, last (its first and last games' starts, ms),
+  // episode }.
+  // A game at your own pace with exclusive teams runs its waivers on the league as it stood at the episode everyone has reached
+  // (server waivers.js pacedCopy, and the explorer's runtime-waivers.cjs, both through here): the spoiler view at `n`, with no game day
+  // after the week following it (docs/PLAN-sports-ready.md step 2.6), so a daily game's periods are for the days of a week everyone
+  // can still play, never one past it. Never the league itself (a copy, so the stamped days are only taken off it).
+  static pacedView(state, n){
+    const v = SpoilerLogic.viewThrough(state, n);
+    const copy = v === state ? JSON.parse(JSON.stringify(state)) : v;
+    (copy.episodes || []).forEach(ep => { if(ep.number > n + 1){ delete ep.gameStarts; delete ep.holdingGames; } });
+    return copy;
+  }
+  // Whether a game's waivers have a window every episode (a sports season game's: step 2.5): at its own pace with exclusive teams,
+  // each episode everyone has reached is a waiver moment (step 2.6), as a loss is in Outlast.
+  static windowEvery(state){
+    const w = WaiverLogic.windows(state);
+    return w.schedule === 'everyEpisode' && w.swaps > 0;
+  }
+  static gameDays(state){
+    const days = new Map();
+    for(const ep of state.episodes || []){
+      if(!inPlay(state, ep.number) || !ActiveRosterLogic.eachGame(state, ep)) continue;
+      for(const g of Object.values(ep.gameStarts)){
+        const t = Date.parse(g && g.at);
+        if(!Number.isFinite(t) || !g.until) continue;
+        const d = days.get(g.until);
+        if(!d) days.set(g.until, { until: g.until, first: t, last: t, episode: ep.number });
+        else { d.first = Math.min(d.first, t); d.last = Math.max(d.last, t); d.episode = Math.min(d.episode, ep.number); }
+      }
+    }
+    return [...days.values()].sort((a, b) => a.first - b.first);
+  }
+  // The game day a period opened at `now` is for: the first whose last game hasn't started.
+  static nextGameDay(state, now){
+    return WaiverLogic.gameDays(state).find(d => d.last > now) || null;
+  }
+  static dueDaily(state, now){
+    const cur = WaiverLogic.current(state);
+    if(cur){
+      if(!WaiverLogic.enabled(state)) return 'close';
+      const { processAt, closesAt } = WaiverLogic.schedule(state, cur);
+      const closing = !!closesAt && now >= Date.parse(closesAt);
+      if(cur.phase === 'open') return closing || (!cur.hold && now >= Date.parse(processAt)) ? 'process' : null;
+      return closing ? 'close' : null;
+    }
+    if(!WaiverLogic.enabled(state) || MidSeasonLogic.seasonOver(state)) return null;
+    const turn = DraftLogic.currentTurn(state);
+    if(!turn || !turn.isComplete) return null;
+    const day = WaiverLogic.nextGameDay(state, now);
+    if(!day) return null;
+    const ps = WaiverLogic.periods(state);
+    const prev = ps[ps.length - 1];
+    return prev && prev.day === day.until ? null : 'open';
+  }
   /** The step waiting at `now`: 'open' | 'process' | 'close' | 'cancel' | null. */
   static due(state, now){
     // An archived game (settings.archivedAt, step 10 part 2b) stands still: nothing runs.
     if(state.settings && state.settings.archivedAt) return null;
+    // Step 2.5: waivers every game day.
+    if(WaiverLogic.daily(state)) return WaiverLogic.dueDaily(state, now);
     const cur = WaiverLogic.current(state);
     const last = lastCompletedEpisode(state);
     if(cur){
@@ -7821,17 +8142,20 @@ class WaiverLogic {
   // opts: { window, swaps, by: 'commissioner' } -- Open a waiver window (openWindow) opening one itself.
   static open(state, now, opts){
     const o = opts || {};
-    const n = lastCompletedEpisode(state);
+    // Step 2.5: a game day's period (dueDaily): for its day, its episode the one before the day's.
+    const day = WaiverLogic.daily(state) ? WaiverLogic.nextGameDay(state, now) : null;
+    const n = day ? day.episode - 1 : lastCompletedEpisode(state);
     if(!state.midSeason.waivers) state.midSeason.waivers = { periods: [] };
     // The window waivers start with (startsAt), when the clock opens it.
-    const starts = !o.window && WaiverLogic.opensAtStart(state, n);
-    const window = !!o.window || starts || WaiverLogic.isWindowEpisode(state, n);
+    const starts = !day && !o.window && WaiverLogic.opensAtStart(state, n);
+    const window = !!o.window || !!day || starts || WaiverLogic.isWindowEpisode(state, n);
     const swaps = window ? (Number.isInteger(o.swaps) ? o.swaps : WaiverLogic.windows(state).swaps) : 0;
     const p = {
       id: Core.uid('wv'), episode: n, openedAt: new Date(now).toISOString(), processAt: null, closesAt: null,
       // addDrop: whether it allows swaps, for one release (pre-v2 readers); `window`/`swaps` are the truth.
       phase: 'open', window, swaps, addDrop: swaps > 0, claimsIn: [], run: null, autoFills: []
     };
+    if(day) p.day = day.until;
     if(o.by === 'commissioner') p.openedBy = 'commissioner';
     if(window && typeof o.replace === 'boolean') p.replace = o.replace;
     // It replaces everyone who's out, whatever the rule; `starts` names the phase it starts with.
@@ -7928,10 +8252,13 @@ class WaiverLogic {
     const legacy = !(Array.isArray(i.pairs) && i.pairs.length) && ['pickupIds', 'dropId', 'addIds'].some(k => hasKey(i, k));
     if(!legacy){
       const seen = new Set(), pairs = [];
+      // Step 2.4: in a game with IR, a pair may drop nobody (dropId null): an add into an open spot.
+      const open = IrLogic.on(state);
       (Array.isArray(i.pairs) ? i.pairs : []).forEach(x => {
-        if(!x || !isId(x.addId) || !isId(x.dropId) || seen.has(x.addId + '|' + x.dropId)) return;
-        seen.add(x.addId + '|' + x.dropId);
-        pairs.push({ addId: x.addId, dropId: x.dropId });
+        const dropId = x && isId(x.dropId) ? x.dropId : open && x && x.dropId === null ? null : undefined;
+        if(!x || !isId(x.addId) || dropId === undefined || seen.has(x.addId + '|' + dropId)) return;
+        seen.add(x.addId + '|' + dropId);
+        pairs.push({ addId: x.addId, dropId });
       });
       return { pairs, legacy: false };
     }
@@ -7945,6 +8272,16 @@ class WaiverLogic {
   }
   // Why one pair can't be claimed this week, or null. owed/swapsLeft: the player's, passed in.
   static pairProblem(state, period, playerId, pair, owed, swapsLeft, prices){
+    // Step 2.4: someone healthy on IR blocks a seat's adds (IrLogic.addProblem); a pair dropping nobody fills an open spot, as a
+    // swap counts (its window's swaps).
+    const blocked = IrLogic.addProblem(state, playerId);
+    if(blocked) return blocked;
+    if(pair.dropId === null){
+      if(!IrLogic.openSpots(state, playerId)) return 'Your roster is full: drop someone';
+      if(!WaiverLogic.swapsAllowed(period)) return 'No swaps this week';
+      if(!swapsLeft) return 'You’ve used this window’s swaps';
+      return MidSeasonLogic.isAvailableFor(state, pair.addId, playerId, 'swap') ? null : 'Claim free agents only';
+    }
     const drop = Core.getCastaway(state, pair.dropId);
     if(!drop || !ownerListOf(drop).includes(playerId)) return 'Drop someone on your team';
     if(drop.status === 'active'){
@@ -7967,7 +8304,9 @@ class WaiverLogic {
   static claimOf(state, pairs){
     const out = id => { const c = Core.getCastaway(state, id); return !!c && c.status !== 'active'; };
     const swaps = pairs.filter(x => !out(x.dropId));
-    const dropId = swaps.length ? swaps[0].dropId : null;
+    // Step 2.4: the first swap that drops someone (an add into an open spot drops nobody).
+    const first = swaps.find(x => x.dropId) || swaps[0];
+    const dropId = first ? first.dropId : null;
     return {
       pairs,
       pickupIds: uniqIds(pairs.filter(x => out(x.dropId)).map(x => x.addId)),
@@ -8097,9 +8436,14 @@ class WaiverLogic {
     // went, or its kind's limit is used); else why not, as a WaiverPass.
     const blocked = (pid, x) => {
       const r = run[pid];
-      const drop = Core.getCastaway(state, x.dropId);
-      if(!drop || !ownerListOf(drop).includes(pid)) return { silent: true };
-      if(drop.status !== 'active' ? r.repLeft <= 0 : r.swapLeft <= 0) return { silent: true };
+      // Step 2.4: an add into an open spot, while the seat still has one (a swap's limit).
+      if(x.dropId === null){
+        if(r.swapLeft <= 0 || IrLogic.openSpots(state, pid) < 1) return { silent: true };
+      } else {
+        const drop = Core.getCastaway(state, x.dropId);
+        if(!drop || !ownerListOf(drop).includes(pid)) return { silent: true };
+        if(drop.status !== 'active' ? r.repLeft <= 0 : r.swapLeft <= 0) return { silent: true };
+      }
       const kind = kindOf(x);
       if((sharedFor[kind] || !justDropped.has(x.addId)) && MidSeasonLogic.isAvailableFor(state, x.addId, pid, moveOf(kind))){
         return prices && BudgetLogic.moveProblem(state, pid, x.dropId, x.addId, prices) ? { castawayId: x.addId, reason: market ? 'cash' : 'cap' } : null;
@@ -8121,6 +8465,7 @@ class WaiverLogic {
           const m = market ? { ...meta, ...MarketLogic.terms(state, x.dropId, x.addId, prices) } : meta;
           const tx = kind === 'pickup'
             ? MidSeasonLogic.applyPickup(state, pid, x.addId, x.dropId, m)
+            : x.dropId === null ? MidSeasonLogic.applyAdd(state, pid, x.addId, m)
             : MidSeasonLogic.applyAddDrop(state, pid, x.dropId, x.addId, m);
           r.done.add(i);
           // Why the ones ranked above it for the same drop didn't go (each told once), and which choice
@@ -8136,7 +8481,7 @@ class WaiverLogic {
           if(!firstTaker[x.addId]) firstTaker[x.addId] = pid;
           r.mine.add(x.addId);
           if(kind === 'pickup') r.repLeft--;
-          else { r.swapLeft--; r.swapped++; justDropped.add(x.dropId); }
+          else { r.swapLeft--; r.swapped++; if(x.dropId) justDropped.add(x.dropId); }
           movers.add(pid);
           moved = true;
           break;
@@ -8189,8 +8534,28 @@ class WaiverLogic {
     // A10 part 3b and 3c: a salary cap's or a stock market's prices, read once (a market's move records what it sold and paid).
     const prices = BudgetLogic.priced(state) ? PriceLogic.prices(state) : undefined;
     const entryOf = (sold) => (MarketLogic.on(state) ? { ...meta, ...MarketLogic.terms(state, sold, addId, prices) } : meta);
+    // Step 2.4: someone healthy on IR blocks a seat's adds.
+    const blocked = IrLogic.addProblem(state, playerId);
+    if(blocked) return blocked;
+    // Step 2.5: in a lineup locking at each game, free agency runs while the week's (or the day's) games go on: nobody whose game has
+    // started that day comes in, nor goes out of a lineup they're in (IrLogic.lockedProblem), as Yahoo's "Daily - Today".
+    const playing = IrLogic.nextEpisode(state);
+    if(playing && ActiveRosterLogic.eachGame(state, playing)){
+      const t = now || Date.now();
+      if(ActiveRosterLogic.heldLocked(playing, addId, t)) return `${(Core.getCastaway(state, addId) || {}).name || 'They'}'s game has started: add them once the day's over`;
+      const locked = dropId ? IrLogic.lockedProblem(state, playerId, dropId, t) : null;
+      if(locked) return locked;
+    }
     const owed = WaiverLogic.replacementsOwed(state, playerId, p);
     if(!dropId){
+      // Step 2.4: no drop and an open spot (someone on IR) is an add into it, as a swap counts.
+      if(!owed.count && IrLogic.openSpots(state, playerId) > 0){
+        if(!WaiverLogic.swapsAllowed(p)) return 'No swaps this week';
+        if(!WaiverLogic.swapsLeft(state, p, playerId)) return 'You’ve used this window’s swaps';
+        if(!MidSeasonLogic.isAvailableFor(state, addId, playerId, 'swap')) return 'They’re not a free agent any more';
+        MidSeasonLogic.applyAdd(state, playerId, addId, meta);
+        return null;
+      }
       if(!owed.count) return 'Choose who to drop';
       dropId = owed.lossIds[0];
     }
@@ -8314,6 +8679,8 @@ class WaiverLogic {
     const later = (ms.log || []).filter(tx => Number.isInteger(tx.episode) && tx.episode > seenThrough);
     [...later].reverse().forEach(tx => MidSeasonLogic.revert(s, tx));
     if(later.length) ms.log = ms.log.filter(tx => !later.includes(tx));
+    // Step 2.4: IR moves from those episodes too (IrLogic).
+    if(Array.isArray(ms.ir)) ms.ir = ms.ir.filter(m => !(Number.isInteger(m.episode) && m.episode > seenThrough));
     let restored = false;
     WaiverLogic.periods(s).forEach(p => {
       if(p.episode <= seenThrough) return;
@@ -10012,6 +10379,43 @@ class GhostLogic {
     });
     return changed;
   }
+  // ---- A team sport at your own pace: never more than one game behind (docs/PLAN-sports-ready.md step 2.6; BACKLOG 218) ----
+  // The user, 2026-11-19: "someone watching the Patriots game won't still want to watch last week's game after this week's game is
+  // starting." When a game's next one starts, the one before counts as watched: each seat's mark moves on by itself to the floor
+  // the server stamps (state.paceFloor, never saved: sports/pace.ts paceFloor, by the game or, baseball's, by the day; none on an
+  // individual sport's game), never past the game's own last episode. Its moves for the weeks it passes close with them (applyAs
+  // takes only the week after the mark); a lineup it never set is the one carried in. The server runs computer players' weeks up to
+  // it first (catchUpBots), then this, then writes the people's marks (sports/pace.ts on the server: keepSportPace).
+  static paceTarget(state){
+    if(!GhostLogic.ownPace(state) || !Number.isInteger(state.paceFloor)) return null;
+    const end = lastEpisode(state);
+    return end === null ? state.paceFloor : Math.min(state.paceFloor, end);
+  }
+  // The seats behind the floor: a seat with a mark of its own (settlePace gives one at the game's first results) that's short of it.
+  static paceBehind(state){
+    const t = GhostLogic.paceTarget(state);
+    if(t === null) return [];
+    return (state.players || []).filter(p => {
+      if(p.disabled || isGhost(p) || p.active === false) return false;
+      const lj = p.lateJoin;
+      if(!lj || !Number.isInteger(lj.startEpisode)) return false;
+      const seen = Number.isInteger(lj.seenThrough) ? lj.seenThrough : lj.startEpisode - 1;
+      return seen < t;
+    });
+  }
+  // Whether a read has a mark to move (league-read.ts readyLeague: withLeagueLock moves it).
+  static paceDue(state){ return GhostLogic.paceBehind(state).length > 0; }
+  // Moves every seat behind the floor to it. [{ playerId, from, to }] for each one moved.
+  static keepPace(state){
+    const t = GhostLogic.paceTarget(state);
+    return GhostLogic.paceBehind(state).map(p => {
+      const lj = p.lateJoin;
+      const from = Number.isInteger(lj.seenThrough) ? lj.seenThrough : lj.startEpisode - 1;
+      lj.seenThrough = t;
+      GhostLogic.markCaughtUp(state, p.id, t);
+      return { playerId: p.id, from, to: t };
+    });
+  }
   // A seat at your own pace in a game with teams that has none yet (the starter and its computer players: paceAll set their
   // start; a joiner picks theirs as they join, begin). Never while a private draft is still to be revealed (a game made before it
   // aired: its teams come from that).
@@ -10247,6 +10651,11 @@ class GhostLogic {
     s.episodes.forEach(ep => {
       if(ep.number < now) return;
       delete ep.airsAt;
+      // A sport's stamped locks too (its week's or day's lock, each game's start: air-times.ts), or a week played long ago would lock
+      // game by game in their copy (docs/PLAN-sports-ready.md step 2.6): they lock when their results are revealed, as one lineup.
+      delete ep.locksAt;
+      delete ep.gameStarts;
+      delete ep.holdingGames;
       ep.lineupsLocked = false;
       // A title can give the episode away ("The Blindside"); the number is enough.
       ep.title = null; ep.airDate = null;
@@ -10277,10 +10686,14 @@ class GhostLogic {
       e.lineups && e.lineups[playerId], e.captains && e.captains[playerId], e.groupSlots && e.groupSlots[playerId], (e.picks || []).filter(pk => pk.playerId === playerId),
     ]);
     const before = late ? theirs(ep) : null;
+    const lineupBefore = JSON.stringify(ep.lineups && ep.lineups[playerId]);
     const result = fn(view);
     if(vEp.lineups && Object.prototype.hasOwnProperty.call(vEp.lineups, playerId)){
       ep.lineups = ep.lineups || {};
       ep.lineups[playerId] = vEp.lineups[playerId];
+      // Their copy plays the week as one lineup (no game-by-game locks in it: rewindTo, lateCopy), so one set there is the week's: a
+      // set the week's games had timed before it (ep.lineupsAt, read first by lineupAt) would otherwise outrank it (step 2.6).
+      if(JSON.stringify(ep.lineups[playerId]) !== lineupBefore && ep.lineupsAt && ep.lineupsAt[playerId]) delete ep.lineupsAt[playerId];
     }
     // A lineup's captain (A9 part 2), as their lineup.
     if(vEp.captains && Object.prototype.hasOwnProperty.call(vEp.captains, playerId)){
@@ -10723,7 +11136,7 @@ return {
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are those pieces,
   // exported directly for code that wants to bypass the dispatch.
   Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, AnswerLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, StatsLogic, RotoLogic, SquaresLogic, SquaresScoringStrategy, GroupSlotLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
-  PoolLogic, SpreadLogic, CastPropLogic, CompositionLogic, SlotLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, WeekLogic, TeamLogic, HandicapLogic, StageLogic, BountyLogic, SecretRoleLogic, TwistLogic, HostLogic, draftFits, draftFitsFor, rankKey,
+  PoolLogic, SpreadLogic, CastPropLogic, CompositionLogic, SlotLogic, IrLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, WeekLogic, TeamLogic, HandicapLogic, StageLogic, BountyLogic, SecretRoleLogic, TwistLogic, HostLogic, draftFits, draftFitsFor, rankKey,
   SnakeDraftStrategy, StagesScoringStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy, DrawDraftStrategy, AuctionDraftStrategy
 };
 

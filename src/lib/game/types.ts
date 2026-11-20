@@ -359,6 +359,8 @@ export interface LeagueSettings {
   freeAgencyEnabled?: boolean;
   /** Waivers start when this phase of the season does ("When Merged starts": WaiverLogic.startsAt); unset: from the start. */
   waiverStartPhase?: string;
+  /** Step 2.5 (docs/PLAN-sports-ready.md): a waiver period every game day, as the spec says it (extras.waivers.daily). */
+  waiverDaily?: boolean;
   /** C4: whom a replacement or a swap brings in (the spec's extras.waivers.own), each left out the draft's ownershipMode. */
   waiverOwn?: { replace?: "exclusive" | "shared"; swap?: "exclusive" | "shared" };
   /**
@@ -414,6 +416,8 @@ export interface LeagueSettings {
   draftAcross?: import("./game-spec/index.js").DraftAcross;
   /** Cast properties (chunk 4): what a team needs, as the spec says it (get.needs). */
   draftNeeds?: import("./game-spec/index.js").DraftNeed[];
+  /** Step 2.4 (docs/PLAN-sports-ready.md): injured reserve, as the spec says it (get.ir). */
+  draftIr?: import("./game-spec/index.js").DraftIr;
   /** Cast properties (chunk 5): a lineup's or best ball's slots, as the spec says them (count.slots). */
   lineupSlots?: import("./game-spec/index.js").LineupSlot[];
   /** Step A10 part 3b, each absent unless a game says it: an auction (get.order 'auction'), and a draft's prices (get.budget: an
@@ -1006,13 +1010,27 @@ export interface DraftLogEntry {
   filled?: boolean;
 }
 
+/** Step 2.4 (docs/PLAN-sports-ready.md): a move on or off IR (StateLogic.IrLogic), stamped as a MidSeasonLogEntry is: `episode`
+ *  the latest with results then, `seen` a seat's own mark past it, `tx` the mid-season move whose drop took them off it. */
+export interface IrMove {
+  id: string;
+  playerId: string;
+  castawayId: string;
+  on: boolean;
+  episode: number | null;
+  at: string;
+  seen?: number;
+  tx?: string;
+}
+
 // A completed pickup (replenish) or add/drop (trade): Transactions. MidSeasonLogic.applyPickup /
 // applyAddDrop append one of these; only Undo last waiver run and the spoiler views take one back.
 export interface MidSeasonLogEntry {
   id: string;
   type: "replenish" | "trade";
   playerId: string;
-  addedCastawayId: string;
+  /** Null for a drop on its own (step 2.4, a game with IR: IrLogic), as `droppedCastawayId` is for an add into an open spot. */
+  addedCastawayId: string | null;
   droppedCastawayId: string | null;
   at: string;
   /** The most recent episode with results as of the transaction (state-logic.js's
@@ -1025,7 +1043,7 @@ export interface MidSeasonLogEntry {
   seen?: number;
   /** Waivers (docs/PLAN-midseason-waivers.md): how it was made -- processed claims, free agency, or
    * assigned when a pickup was still unfilled at airtime. Absent on live-round moves. */
-  via?: "waivers" | "freeAgency" | "auto";
+  via?: "waivers" | "freeAgency" | "auto" | "ir";
   /** The waiver week it belongs to. */
   periodId?: string;
   /** A stock market (step A10 part 3c): what the move sold for and paid, at the prices then, and its fee (the cash ledger). */
@@ -1035,7 +1053,7 @@ export interface MidSeasonLogEntry {
   /** The castaway fields the move overwrote, as they were (only keys they had), so it can be undone
    * exactly (MidSeasonLogic.revert). */
   prev?: {
-    added: { acquiredVia?: string | null };
+    added: { acquiredVia?: string | null } | null;
     dropped: { replenishClaimed?: boolean; formerOwnerId?: string | null; departedVia?: string | null } | null;
   };
 }
@@ -1092,8 +1110,11 @@ export interface WaiverRun {
 /** One waiver week (StateLogic.WaiverLogic): opened by an episode's results, closed when the next airs. */
 export interface WaiverPeriod {
   id: string;
-  /** The episode whose results opened it. */
+  /** The episode whose results opened it (a game day's period: the episode before its day's). */
   episode: number;
+  /** Step 2.5 (docs/PLAN-sports-ready.md): waivers every game day, the day this period is for (its end in the East, ISO: the key
+   *  of WaiverLogic.gameDays). */
+  day?: string;
   openedAt: string;
   processAt: string | null;
   /** When free agency ends (the next episode airs); null = when the next episode's results arrive. */
@@ -1131,6 +1152,8 @@ export interface WaiverPeriod {
 /** "Add X, drop Y": one ranked line of a claim. Dropping someone out of the game replaces them; still in, swaps them. */
 export interface WaiverPair {
   addId: string;
+  /** The engine also takes null here (step 2.4, a game with IR: an add into an open spot, WaiverLogic.pairsOf); the claim screens
+   *  don't make one yet (docs/PLAN-sports-ready.md 4.2). */
   dropId: string;
 }
 
@@ -1180,6 +1203,8 @@ export interface LeagueState {
     priority?: string[];
     /** Waivers: every waiver week, oldest first. */
     waivers?: { periods: WaiverPeriod[] };
+    /** Step 2.4 (docs/PLAN-sports-ready.md): moves on and off IR, oldest first (StateLogic.IrLogic). */
+    ir?: IrMove[];
   };
   draftOrder: string[];
   draftPicksMade: number;
@@ -1220,6 +1245,10 @@ export interface LeagueState {
   /** L3 part 2: a game scored by a sport's stats, each castaway's position group from their roster (StatsLogic.stamp): never
    *  stored. */
   statGroups?: Record<string, string>;
+  /** Step 2.3 (docs/PLAN-sports-ready.md): the other positions (and, across groups, position groups) a sport's player fills
+   *  besides their roster's, by their league's rule (sports/index.ts eligibleFor: baseball's shortstop at 2B, a two-way player's SP),
+   *  stamped per read from season_cast.eligible (cast-props.ts): never stored. */
+  castEligible?: Record<string, string[]>;
   /** G3 part 3b: a game whose pool is some teams' players, each castaway's team as an ESPN id (the team they're listed on now, as the
    *  season's linked games name it: StatsLogic.stamp): never stored. */
   statTeams?: Record<string, string>;
@@ -1238,6 +1267,12 @@ export interface LeagueState {
    *  stamped by the server on every read and write: air-times.ts), and where they began once their first round had results
    *  (StateLogic.MatchupLogic.settle), so the schedule changing after that moves nothing. */
   seasonEpisodes?: number;
+  /** Step 2.2 (BACKLOG 214): the last episode a league's fantasy playoffs may use, where its league's defaults say they end before
+   *  its regular season does (the NFL's Week 17 of 18), stamped with seasonEpisodes for a game on a league's regular-season slate. */
+  playoffsBy?: number;
+  /** Step 2.6 (docs/PLAN-sports-ready.md): a team sport's game at its own pace, the last episode its seats have watched by now at the
+   *  latest (sports/pace.ts paceFloor), stamped with the air times, never saved: GhostLogic.keepPace moves them to it. */
+  paceFloor?: number;
   playoffsFrom?: number;
   /** A14 part 4: a game's secret roles once revealed (the reveal's episode has results), stamped by the server on every read and
    *  write from secret_role_deals (secret-roles.ts); absent before then, so nobody's copy says who holds one. The spoiler view takes

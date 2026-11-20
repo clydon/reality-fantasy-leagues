@@ -14,7 +14,9 @@
 // What's asserted is the plan's recommendation for BACKLOG 214 (the user's call): wherever a game has playoffs, its final is by Week
 // 17 (--last). On 2026-11-19 it fails (Phase 0 confirmed the inference): the default has no playoffs (the title is the standings
 // after Week 18), and with any playoffs on, the final is Week 18 (Top 4: Weeks 17 and 18; 6 teams: 16 to 18). Its last line says
-// which.
+// which. Since step 2.2 (2026-11-20) it passes. BACKLOG 226 (the user's call of 2026-11-20) adds: the default plays a final between
+// the top two in Week 17, its span ending there; a game scored by stats started to the season's end (the wizard's "The rest of the
+// season", Season points here) ends at Week 17 too, and one whose maker picks Week 18 keeps it.
 //
 //   node scripts/dev-test/check-nfl-playoff-weeks.js [--last=17] [--from=9] [--keep]
 //
@@ -57,6 +59,17 @@ const fact = (s) => console.log(`      ${s}`);
     const def = await placed(d.leagueId);
     fact(`the default season game: ${label(d.from)} to ${label(d.to)}, ranked by ${S.gameOf(def.st).rank.by}, playoffs ${JSON.stringify(def.parts?.playoffs ?? null)}, seasonEpisodes ${def.st.seasonEpisodes}`);
     if (!def.parts?.playoffs) fact(`so the default has no playoffs: the standings after ${label(d.to)} decide it`);
+    check(def.parts?.playoffs?.teams === 2 && def.end === LAST && d.to === LAST, `(BACKLOG 226) the default plays a final between the top two in ${label(LAST)}, its span ending there`, { playoffs: def.parts?.playoffs ?? null, final: def.end, to: d.to });
+
+    // BACKLOG 226: a game scored by stats to the season's end (the wizard's "The rest of the season", span.to null) ends at Week 17;
+    // one whose maker picks Week 18 keeps it. Season points: the same rules ranked by total.
+    const points = { ...structuredClone(S.gameOf(def.st)), rank: { by: "total" } };
+    for (const [to, want] of [[null, LAST], [w.slate.episodes, w.slate.episodes]]) {
+      const s = await startFromSpec(w.users.ann, w.seasonId, w.couchId, { spec: { ...structuredClone(points), span: { from: 1, to } }, name: `ZT Points ${to ?? "rest"}`, tell: false }, new Date());
+      const st = await w.league(s.leagueId);
+      const got = S.gameOf(st).span.to;
+      check(got === want, `(BACKLOG 226) Season points started ${to === null ? "to the season's end" : `through ${label(to)}`}: it ends with ${label(want)} (it's ${got === null ? "the season's end" : label(got)})`);
+    }
 
     // The same rules with playoffs, as the wizard's "A final at the end" writes them.
     const spec = S.gameOf(def.st);

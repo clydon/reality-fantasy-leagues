@@ -23,9 +23,16 @@
       { "slot": "RP", "n": 2, "takes": ["RP"] },
       { "slot": "P", "n": 4, "takes": ["pitchers"] }
     ],
-    "bench": 5
+    "bench": 5,
+    "ir": { "source": "Yahoo's default roster's 4 IL, outside its 23, for someone his team has put on the injured list (help.yahoo.com/kb/SLN6785.html, SLN6425.html, 2026-11-20)", "n": 4, "takes": ["IL7", "IL10", "IL15", "IL60"] },
+    "eligible": {
+      "source": "Yahoo's and ESPN's: a player fills each position he plays, not only his roster's one. ESPN's roster lists the positions each has played; a player counts at each in his own group (a shortstop listed at second base fills 2B, a reliever listed as a starter fills SP), and a batter listed as a starting pitcher (a two-way player: Shohei Ohtani) at the pitchers' too. Not a batter listed as a reliever: a position player who pitched in a blowout.",
+      "across": ["SP"]
+    }
   },
   "closes": "daily",
+  "waivers": { "source": "Yahoo's public defaults: a continual rolling list, roster changes Daily - Today, at most 6 acquisitions a week (help.yahoo.com/kb/SLN6785.html, 2026-11-20). Claims clear each game day's morning, 12 hours before its first game, then free agents until its last game starts (BACKLOG 219; docs/PLAN-sports-ready.md step 2.5)", "swaps": 6, "daily": true, "hours": 12 },
+  "pace": { "source": "The user's rule (2026-11-19, BACKLOG 218), by the day for baseball (2026-11-20: doubleheaders): a seat at its own pace has watched the games before once a game on a later day starts, so a doubleheader's first isn't marked watched at the second's first pitch (docs/PLAN-sports-ready.md step 2.6)", "by": "day" },
   "specs": {
     "season": {
       "about": "A season-long league: draft a full roster, set a daily lineup, play someone head to head each week.",
@@ -37,7 +44,7 @@
         "count": { "start": 18 },
         "score": { "by": "stats", "points": { "R": 1, "TB": 1, "RBI": 1, "BB": 1, "K": -1, "SB": 1, "IP": 3, "PH": -1, "ER": -2, "PBB": -1, "PK": 1, "W": 2, "L": -2, "SV": 5, "HLD": 2 } },
         "rank": { "by": "matchups" },
-        "closes": "daily"
+        "closes": "game"
       }
     },
     "short": {
@@ -63,11 +70,11 @@
     },
     "categories": {
       "about": "A season-long league by categories: draft a full roster, set a daily lineup, play someone head to head in Yahoo's 5x5's ten categories: each category you win is a win.",
-      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "draft", "each": 23, "order": "snake", "own": "exclusive" }, "count": { "start": 18 }, "score": { "by": "stats", "categories": ["R", "HR", "RBI", "SB", "AVG", "W", "SV", "PK", "ERA", "WHIP"] }, "rank": { "by": "categories" }, "closes": "daily" }
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "draft", "each": 23, "order": "snake", "own": "exclusive" }, "count": { "start": 18 }, "score": { "by": "stats", "categories": ["R", "HR", "RBI", "SB", "AVG", "W", "SV", "PK", "ERA", "WHIP"] }, "rank": { "by": "categories" }, "closes": "game" }
     },
     "roto": {
       "about": "A season-long league, roto-style: draft a full roster, set a daily lineup; each of Yahoo's 5x5's ten categories ranks everyone over the season, points by rank, most points wins.",
-      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "draft", "each": 23, "order": "snake", "own": "exclusive" }, "count": { "start": 18 }, "score": { "by": "stats", "categories": ["R", "HR", "RBI", "SB", "AVG", "W", "SV", "PK", "ERA", "WHIP"] }, "rank": { "by": "roto" }, "closes": "daily" }
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "draft", "each": 23, "order": "snake", "own": "exclusive" }, "count": { "start": 18 }, "score": { "by": "stats", "categories": ["R", "HR", "RBI", "SB", "AVG", "W", "SV", "PK", "ERA", "WHIP"] }, "rank": { "by": "roto" }, "closes": "game" }
     },
     "bestBall": {
       "about": "Best ball: draft a full roster and never set a lineup: each game, your best eighteen count, most points wins.",

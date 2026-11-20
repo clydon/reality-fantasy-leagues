@@ -15,6 +15,7 @@ import { HttpError, pool, withLeagueLock } from "./db";
 import { deleteLeague } from "./end-game";
 import { makeStages } from "./engine-lab";
 import { followLeagueProgress } from "./follows";
+import { fantasySeasonEnd } from "./air-times";
 import { asksToday, packFor } from "./game-words";
 import { refused } from "./game-writes";
 import { makeLeague } from "./new-game";
@@ -93,6 +94,11 @@ async function againSpecOf(leagueId: string, canAsk: string[] | null): Promise<R
       spec.count = { ...count, start: startN };
       spec.get = { ...get, each: startN + bench };
     } else spec.get = { ...get, each: Math.min(get.each, Spec.MAX_TEAM) };
+    // A window's swaps held to the team (the spec's check; step 2.5: a sport's "no limit" is the team's size).
+    const each = (spec.get as { each: number }).each;
+    const extras = spec.extras as { waivers?: { windows?: { swaps?: number } } } | undefined;
+    const w = extras?.waivers;
+    if (w?.windows && typeof w.windows.swaps === "number" && w.windows.swaps > each) spec.extras = { ...extras, waivers: { ...w, windows: { ...w.windows, swaps: each } } };
   }
   // Only the questions this season can still ask (startOptions' again.questions: a season-long one on a span, an id it hasn't got).
   if (canAsk && Array.isArray(spec.ask)) {
@@ -172,9 +178,20 @@ export async function startFromSpec(
     throw new HttpError(400, `Pick a start the listing has, from ${opts.part.singular} ${opts.from} on`);
   }
   if (typeof span.to === "number" && typeof span.from === "number" && span.to < span.from) throw new HttpError(400, "It ends before it starts");
+  // BACKLOG 226: a game scored by players' stats on the NFL's regular season, to the season's end, runs to the fantasy season's end
+  // (Week 17, before Week 18's rested starters); a later week picked is kept.
+  if (!staged && span.to == null && typeof span.from === "number" && isObj(spec.score) && spec.score.by === "stats") {
+    const end = await fantasySeasonEnd(pool, seasonId);
+    if (end !== null && end >= span.from) span.to = end;
+  }
   // How it runs (docs/PLAN-own-pace-games.md, "Pace is the game's setting"): the sheet's choice, checked against this start.
   const pace = paceAsked(body.pace, opts, !!fromPhase);
 
+  // A window's swaps held to the team (the spec's check; step 2.5: a sport's "no limit" is the team's size, so a smaller team made
+  // from its game, as a typed game or a check's may be, keeps its waivers).
+  const team = isObj(spec.get) && spec.get.by === "draft" && typeof spec.get.each === "number" ? spec.get.each : null;
+  const wv = isObj(spec.extras) && isObj(spec.extras.waivers) ? (spec.extras.waivers as { windows?: { swaps?: number } }) : null;
+  if (team !== null && wv?.windows && typeof wv.windows.swaps === "number" && wv.windows.swaps > team) spec.extras = { ...(spec.extras as object), waivers: { ...wv, windows: { ...wv.windows, swaps: team } } };
   const problems = Spec.specProblems(spec, ctx);
   if (problems.length) throw new HttpError(409, problems[0].problem);
   const waits = Spec.specWaitsFor(spec as never);

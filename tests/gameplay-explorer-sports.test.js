@@ -199,8 +199,9 @@ test("what isn't connected says so: stats on a show, a show's game on a sport, p
   const onShow = D.create({ seed: 1, world: { contexts: [{ id: "show", kind: "show", format: { id: "survivor" }, engine: { couch: 3, pool: 12, results: true } }], people: PEOPLE }, games: [{ id: "g", contextId: "show", spec: nfl }], situation: { clock: "2099-01-10T12:00:00.000Z" }, content: {} });
   assert.ok(gapsOf(onShow).some((g) => /^\/score\/by :: .*needs a sport context/.test(g)));
   assert.ok(gapsOf(define("football/nfl", { preset: "outlast" })).some((g) => /^\/score\/by :: Only a game scored by the sport's stats/.test(g)));
-  assert.deepEqual(gapsOf(define("football/nfl", "season")), [], "the NFL's season, head to head and locking by the week, runs since core-runtime-34");
-  assert.ok(gapsOf(define("football/nfl", { ...nfl, closes: "game" })).some((g) => /^\/closes ::/.test(g)), "a lock at each game's own start is next");
+  assert.deepEqual(gapsOf(define("football/nfl", "season")), [], "the NFL's season, head to head and locking at each player's game, runs since core-runtime-47");
+  assert.deepEqual(gapsOf(define("football/nfl", { ...Bench.resolve("football/nfl", "season").row.spec, closes: "weekly" })), [], "and locking by the week since core-runtime-34");
+  assert.ok(gapsOf(define("football/nfl", { preset: "outlast", closes: "game" })).some((g) => /^\/closes ::|^\/score\/by ::/.test(g)), "a lock at each game's start is a sport's stats game's");
   const cats = Bench.catalog().find((c) => c.games.some((g) => g.id === "categories"));
   assert.deepEqual(gapsOf(define(cats.id, "categories")), [], "a league's categories game runs since the third slice");
   assert.ok(gapsOf(define(cats.id, { ...Bench.resolve(cats.id, "categories").row.spec, rank: { by: "total" } })).some((g) => /^\/rank\/by :: /.test(g)), "categories have no points to total");
@@ -379,7 +380,7 @@ test("head to head on a sport: the league's own season opens; a week's result is
   const s = R.open(D.create({ seed: doc.seed, world: world0, games: doc.games.map(({ id, contextId, timing, spec }) => ({ id, contextId, timing, spec })), situation: { clock: doc.situation.clock, marks: doc.situation.marks.slice(0, 2) }, content: doc.content }));
   try {
     const snap = s.snapshot(), st = snap.games.g.state, world = snap.contexts.sport, c = Sports.league(world.context), spec = S.gameOf(st);
-    assert.equal(spec.rank.by, "matchups"); assert.equal(spec.closes, "daily");
+    assert.equal(spec.rank.by, "matchups"); assert.equal(spec.closes, "game");
     const pts = (line) => round(Object.entries(spec.score.points).reduce((n, [stat, each]) => n + round((c.sport.full(line)[stat] || 0) * each), 0));
     const week = (p, e) => round(S.ActiveRosterLogic.lineupFor(st, e.id, p).reduce((n, id) => n + pts(world.facts.find((f) => f.eventId === e.id).data.lines[id]), 0));
     const played = world.events.filter((e) => e.resultStatus === "final");
@@ -897,9 +898,37 @@ test("a slate's results are refused without each of its week's games, with a lin
   } finally { s.dispose(); }
 });
 
-test("a lock at each game's start needs a slate: on a world of one game an episode it's a gap", () => {
-  const spec = { ...Bench.resolve("basketball/nba", "short").row.spec, get: { by: "draft", each: 4, order: "snake", own: "exclusive" }, count: { start: 2 }, closes: "game" };
-  assert.ok(P.inspect(proofOf({ league: "basketball/nba", game: spec })).gaps.some((g) => /slate/.test(g.message || g.reason || JSON.stringify(g))));
+// Step 2.2 (core-runtime-48): on a league's slate, the NFL's fantasy playoffs end a week before its last (the server's
+// stampSeasonLength, its playoffsBy); a world of one game an episode, or a league that leaves none out, has none.
+test("the last week a slate's fantasy playoffs may use: the NFL's last but one; none off a slate or for the NBA", () => {
+  const world = (key, slate, n) => ({ context: { kind: "sport", key, ...(slate ? { slate: { games: 2 } } : {}) }, events: Array.from({ length: n }, (_, i) => ({ number: i + 1 })) });
+  assert.equal(Sports.playoffsBy(world("football/nfl", true, 6)), 5);
+  assert.equal(Sports.playoffsBy(world("football/nfl", false, 6)), null);
+  assert.equal(Sports.playoffsBy(world("basketball/nba", true, 6)), null);
+  assert.equal(Sports.playoffsBy(world("football/nfl", true, 1)), null, "never the whole season");
+});
+
+// Step 2.1 (core-runtime-47): the NFL's season locks at each player's game (BACKLOG 213), and the explorer's NFL worlds are one game an
+// episode. Stamped as the server stamps the rows live-db.cjs writes for such a world (a linked game, no teams): each episode its game.
+test("a lock at each game's start on a world of one game an episode: each episode locks at its own game, never a week's first", () => {
+  const s = R.open(proofOf({ league: "football/nfl", game: lineupSpec(), closes: "game", schedule: WEEK, completed: 1, clock: "2099-01-08T17:00:00.000Z", timing: "live-only", ann: 1, bo: 1, cy: 1 }));
+  try {
+    assert.deepEqual(P.inspect(s.export().input).gaps, []);
+    const snap = s.snapshot(), each = Sports.gameLocks(snap.contexts.sport, snap.games.g.state);
+    assert.equal(Sports.lockTimes(snap.contexts.sport, snap.games.g.state), null, "no day's or week's lock");
+    assert.deepEqual(Object.keys(each.get(2).gameStarts), ["sport-event-2"]);
+    assert.equal(each.get(2).gameStarts["sport-event-2"].at, WEEK[1]);
+    assert.deepEqual(each.get(2).holdingGames, {}, "nobody's team named, as the server reads a link with none");
+    assert.ok(snap.games.g.state.episodes.every((e) => !("gameStarts" in e)), "the kept state holds no lock");
+    // Thursday noon: Wednesday's game has started, and Friday's lineup is still open (a weekly lock had it locked).
+    const l = s.project("g", "bo").game.lineup;
+    assert.deepEqual([l.episode, l.locked], [2, false]);
+    assert.equal(put(s, 2, l.roster.slice(2, 4)).status, "accepted");
+    // Friday's game an hour in: locked, as its own game.
+    assert.equal(s.apply({ type: "clock", at: new Date(Date.parse(WEEK[1]) + 3600000).toISOString() }).status, "accepted");
+    assert.equal(put(s, 2, l.roster.slice(0, 2)).message, "This episode has started -- lineups are locked");
+    assert.deepEqual(S.ActiveRosterLogic.lineupFor(s.snapshot().games.g.state, "sport-event-2", "bo"), l.roster.slice(2, 4), "the lineup set before it stands");
+  } finally { s.dispose(); }
 });
 
 test("roto on a slate: each category ranked across the seats from every game's line of the week (a rate from the week's counts added up)", () => {

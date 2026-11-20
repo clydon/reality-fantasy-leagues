@@ -6,7 +6,7 @@ and in flight is in [HANDOFF.md](HANDOFF.md).
 
 **How this file works**
 - **Numbers are permanent.** Code, tests and commits cite "BACKLOG 57", so a number never changes and is never reused. A new
-  item takes the next free number: **the next is 225.**
+  item takes the next free number: **the next is 230.**
 - **Closing an item:** delete it here and add one line under "Closed since the cleanup" at the end: the number, done or
   dropped, and the commit or the reason. Numbers closed in the cleanup itself are listed, with their full old text, in
   [archive/BACKLOG-2026-11-19.md](archive/BACKLOG-2026-11-19.md).
@@ -76,6 +76,13 @@ episode 2, already played, went from [one] to [two] on a waiverUndo step": an un
 lineup), with `waivers-by-hand` (62) and the generator's two (82, 100; 89).
 [S–M · checks, explorer]
 
+**225. check-sports-couch.js --api: "the guide's week has the game on now and tomorrow's" fails.** Found 2026-11-20 at about 1 AM
+Eastern while checking the sports plan's step 2.1; it fails the same on master (cd1427a8), so it isn't that step's. Its other lines
+pass. The guide's week lists five games (94101, 93104, 94102, 94103, 93108) and the line wants the one on now and tomorrow's among
+them: find whether it's the hour it ran (the fixture's "now" and "tomorrow" against the guide's Eastern day, like 70's
+talk-fixture case) or the guide. It passed whole the same morning at about 9:30 AM Eastern (sports-phase2, c3078c30's follow-on), so
+it's likely the hour: find which hours fail before changing anything. [S · checks]
+
 **223. check-new-make-it.js --api fails at its first ask.** On the sports-phase0 branch (2026-11-19) its stand-in bot gives no
 cast answer for ZT Yacht Life ("ChatGPT didn't answer ... no answer for cast"), so Make it a game stops at "needs cast" and every
 line after it fails. Not from step 1.3 (it fails before the cast insert that step changed). Find whether fake-bot.js's cast kind or
@@ -91,6 +98,10 @@ commit each:
   check-new-reveal, check-gif-reactions, check-game-page ("Close didn't shut them all"), check-group-slots (five old FAILs from
   Episode 6 on), check-desk-shows ("Show 5 more"), check-new-desk's rulebook section, check-new-listings' art race and
   check-new-studio's reels.
+- check-own-pace-live.js (found by step 2.6 of PLAN-sports-ready.md, failing the same before it): "the home's moves list the
+  Episode 6 lineup as late" and "the reminders job would tell jordan once" (most likely since a full lineup carried in counts as
+  set, 7cfb1bb5: give jordan a lineup a starter short), and its browser step's `[data-move='lineup-…']` selector (nothing renders
+  it since Tonight's rebuild).
 - check-new-tour (phase J), and run it once as a solo account: if the reveal step lights Up next with nothing to tap, light the
   made-up reveal's button or skip the step.
 - check-new-episode-games: talk-fixture.js dates its show by the database's UTC day, so part 2 fails in the evening, Eastern.
@@ -181,6 +192,12 @@ and `AskSheet` if they're used), with check-tonight-up-next.js retired or repoin
 [S · cleanup]
 
 ### Small UI fixes (one Impeccable polish pass)
+
+**228. A sport's lineup sheet puts the best guard in "G", not "PG".** The sheet's tidying (SlotLogic.assignment) puts an earlier
+starter in the narrower slot, judged by how many values a slot lists: the NBA's G slot takes one ("guards", a position group) and
+PG takes two ("PG", "G"), so G reads narrowest. The lineup is legal either way; it only reads oddly. And since ESPN's NBA rosters
+list only G, F or C (checked 2026-11-20), PG and SG each take any guard: the slot labels may want to say G (the 4.0 words, or 4.2's
+lineup editor). Found in step 2.3. [S · sports]
 
 **51. Outlast in reverse says "Fewest points wins".** The most points still win. Drop the note at game-page/model.ts:427, or say
 what reverse means ("the earlier yours go home, the more they bank"), through impeccable's clarify. The same as DN-22's first
@@ -430,6 +447,11 @@ full (PLANS.md). Part of [PLAN-sports-ready.md](PLAN-sports-ready.md), step 4.2,
 **43. First run finds teams and leagues, not only shows.** first-run.tsx searches shows only, while Add a show already offers
 teams and leagues (`useTeamSearch`, `SportsResults`). Give first run the same, so "Giants" offers the team. Part of [PLAN-sports-ready.md](PLAN-sports-ready.md), step 4.1. [S · sports]
 
+**229. Computer players draft a sport by taste.** Before a game is played every athlete rates zero for them (ratings come from
+the game's own played weeks), so a bot's sports draft is its taste within what the slots allow (step 2.3 keeps it to players some
+slot takes, and a team that fills every slot). A ranking from last season's lines or ESPN's projections would make a real draft,
+and the draft room needs the same ranking (4.3). Before Phase 3's replay, where a couch of computer players drafts. [M · sports]
+
 ### Research and the desk
 
 **92. Backstage says "All clear" above "Results · Episode 8 · 5 waiting".** Needs you lists waiting results only for episodes
@@ -573,7 +595,8 @@ and builds.
 
 ### Sports: the calls [PLAN-sports-ready.md](PLAN-sports-ready.md) needs
 
-All answered 2026-11-19 (Closed, below); kept here until the next tidy so a link to them still lands.
+212 to 219 (2026-11-19) and 226 (2026-11-20) are answered (Closed, below); kept here until the next tidy so a link to them still
+lands.
 
 - **212. The target, and the couch's first real sports game.** *Recommended: the NFL first, the NBA and NHL next, MLB by its
   Opening Day (late March 2027). The pilot is one of January's NFL playoffs, played by the couch once the plan's Phase 3 (a whole
@@ -587,10 +610,18 @@ All answered 2026-11-19 (Closed, below); kept here until the next tidy so a link
   that, and give anyone who turns on "Sports scores too" the reveal; the design round's page 3 designs it.*
 - **217. What's pushed when a sports game or matchup ends?** Nothing is today. *Recommended: one push when your matchup is
   decided ("You beat Andrew 112–98"), worded without the score for anyone hiding sports scores, and nothing for each game.*
+  When it's built: a seat at its own pace hears of a matchup only once its mark has reached that week (PLAN-sports-ready.md 2.6 (e)).
 - **218. Can a sports season game run at your own pace?** *Recommended: not now. Sports season games are live; a past game is
   watched with "Watch it as if live", and own pace for sports waits until someone asks.*
 - **219. A daily sport's waivers: daily or weekly?** *Recommended: daily for the NBA, NHL and MLB (claims clear each morning, as
   Yahoo's do), weekly for the NFL.*
+
+- **227. MLB's two-way player: what does he score?** Shohei Ohtani bats and pitches. Since step 2.3 he fills batting slots and
+  pitching slots (ESPN's roster lists him at DH and SP), but wherever he starts he scores everything he does, his batting and his
+  pitching, which no fantasy app allows. Yahoo splits him into two players (Ohtani (Batter), Ohtani (Pitcher)), each scoring only
+  his own kind of stats and held by anyone; ESPN keeps one player whose stats count by the slot he's in. *Recommended: Yahoo's
+  two players, since the engine scores each person whole and a slot-by-slot count would need the lineup's slot in every score.
+  Needed by MLB's Opening Day (late March 2027).*
 
 ### When we get there: plan-level calls
 
@@ -733,6 +764,10 @@ longer depends on the wiki.)
 ## Closed since the cleanup
 
 One line each: the number, done or dropped, and the commit or the reason.
+- **226** answered (the user, 2026-11-20, "i agree with your rec"): the NFL's default season game plays a final between the top two in
+  Week 17, and a stats game to the season's end stops at Week 17 (PLAN-sports-ready.md 2.2's follow-on, branch sports-phase2). The
+  user added that a game's timing is the maker's: on through the playoffs to the final if they want, for every sport of that shape
+  (the plan's new 2.7).
 - **212, 213, 214, 216, 217, 219** answered yes (the user, 2026-11-19, "i agree with all your recs except 218; i want own pace, its an important option for casual leagues and solo games"): each is in
   [PLAN-sports-ready.md](PLAN-sports-ready.md)'s Decisions and its phase (Phase 2.1, 2.2, 2.5; 4.2 page 3; the pilot).
 - **218** answered (the user, 2026-11-19): own pace for sports, yes, against the recommendation: "an important option for casual

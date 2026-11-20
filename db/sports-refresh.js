@@ -18,6 +18,17 @@ const path = require("path");
 const root = path.join(__dirname, "..");
 const opt = (k) => process.argv.find((a) => a.startsWith(`--${k}=`))?.slice(k.length + 3) ?? null;
 
+/** A check's seasons' leagues (`--only`), so its run never reads anyone else's game. */
+async function leaguesOn(pool, seasonIds) {
+  const { rows } = await pool.query(
+    `SELECT l.id FROM leagues l JOIN shows s ON s.slug = l.state->'settings'->>'showId'
+       JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number::text = l.state->'settings'->>'wikiSeason'
+      WHERE ss.id = ANY($1::uuid[])`,
+    [seasonIds]
+  );
+  return rows.map((r) => r.id);
+}
+
 async function main() {
   if (!process.env.AUTH_DATABASE_URL) {
     console.log("[sports-refresh] no AUTH_DATABASE_URL: nothing to do");
@@ -37,6 +48,11 @@ async function main() {
     console.log(`[sports-refresh] ${r.days} days read, ${r.stored} games kept, ${r.finals} finals saved, ${r.corrected} corrected in ${((Date.now() - started) / 1000).toFixed(1)}s`);
     for (const e of r.errors.slice(0, 10)) console.log(`[sports-refresh]   ${e}`);
     if (r.errors.length > 10) console.log(`[sports-refresh]   ...and ${r.errors.length - 10} more`);
+    // Step 2.6: every sports game at its own pace readied, so a seat the next game's start has passed moves on within the hour.
+    const { keepAllSportPace } = jiti("../src/lib/server/sport-pace-clock.ts");
+    const paced = await keepAllSportPace(only ? await leaguesOn(pool, only) : undefined);
+    await after.settled();
+    if (paced) console.log(`[sports-refresh] ${paced} game${paced === 1 ? "" : "s"} at their own pace kept up`);
   } finally {
     await after.settled().catch(() => {});
     await pool.end();
