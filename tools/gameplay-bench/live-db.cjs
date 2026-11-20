@@ -7,7 +7,7 @@
 // times go in season_episodes.air_at (source 'admin'), shifted so the scenario clock maps to the server's now (no route
 // takes an injected clock); spoiler marks are league_memberships.results_seen_through + show_follows.seen_through
 // (+ lateJoin in own-pace state); answers are game_answers rows. Every row is keyed on a zt-gb-<key> slug or a
-// <name>_ztgb<key><n> username (a person's own initial on faces), so down() can only remove what up() made. Refuses a non-local database.
+// <name>_ztgb<key><n> username (a person's own initial on faces), so down() can only remove what up() made. Refuses any database but a local one or the preview service's own (allowed, below).
 //
 // A sports case (a context of kind 'sport': explorer/runtime-sports.cjs; added 2026-11-14): the server never reads a stat line from
 // a saved league. It rebuilds them on every read (src/lib/server/sports/score.ts leagueGames, stampStats) from each episode's
@@ -35,12 +35,35 @@
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env.local'), quiet: true });
 const crypto = require('crypto');
 const PASSWORD = 'zt-pass-12345';
-// One pool per local database: this checkout's by default, or a worktree's when a case renders in that worktree's app.
-const pools = new Map();
+// Where it may write (docs/PLAN-preview-release.md, step 5): a local database (this checkout's by default, or a worktree's when a case
+// renders in that worktree's app); or, on the preview service (PREVIEW_SERVICE=1), a database that says it's a preview database
+// (app_settings 'preview_database' true: scripts/preview-database.js mark). Never one of the app's, by its host
+// (APP_DATABASE_HOSTS, set on the service), whatever the flag says.
+const LOCAL = /@(localhost|127\.0\.0\.1|\[::1\])[:/]/;
+const hostOf = url => { try { return new URL(url).hostname.toLowerCase(); } catch { return ''; } };
+function allowed(url, env = process.env) {
+  const app = (env.APP_DATABASE_HOSTS || '').split(',').map(h => h.trim().toLowerCase()).filter(Boolean);
+  if (app.includes(hostOf(url))) throw Error("Bench live mode never writes to the app's database");
+  if (LOCAL.test(url)) return 'local';
+  if (env.PREVIEW_SERVICE === '1') return 'service';
+  throw Error("Bench live mode writes to a local database only, or the preview service's own");
+}
+/** A preview service's database says it's one (a row the app's database never has). */
+async function marked(db) {
+  const { rows } = await db.query(`SELECT value FROM app_settings WHERE key = 'preview_database'`);
+  if (rows[0]?.value !== true) throw Error("Bench live mode writes only to a database marked as a preview database (this one isn't)");
+}
+const pools = new Map(), checkedUrls = new Set();
 function pool(url = process.env.AUTH_DATABASE_URL || '') {
-  if (!/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(url)) throw Error('Bench live mode writes to a local database only');
+  allowed(url);
   if (!pools.has(url)) { const { Pool } = require('pg'); pools.set(url, new Pool({ connectionString: url, max: 4 })); }
   return pools.get(url);
+}
+/** The pool, once a service's database has said it's a preview database (asked once per database). */
+async function checked(url = process.env.AUTH_DATABASE_URL || '') {
+  const db = pool(url);
+  if (allowed(url) === 'service' && !checkedUrls.has(url)) { await marked(db); checkedUrls.add(url); }
+  return db;
 }
 const keyOf = () => crypto.randomBytes(4).toString('hex');
 const slugOf = (key, ...parts) => ['zt-gb', key, ...parts].join('-');
@@ -70,7 +93,7 @@ function stateFor(state, season, shiftMs = 0) {
  *  (its ids.users), reused rather than made again, so several copies of a game (a live preview's moments, live.cjs) share one set of
  *  people and one sign-in; that case removes them (down this one first). `opts.password`: theirs, instead of the bench's PASSWORD. */
 async function up(snap, document, dbUrl, onLease, opts = {}) {
-  const db = pool(dbUrl || undefined), key = keyOf(), one = async (sql, params) => (await db.query(sql, params)).rows[0];
+  const db = await checked(dbUrl || undefined), key = keyOf(), one = async (sql, params) => (await db.query(sql, params)).rows[0];
   const { hashPassword } = await import('better-auth/crypto');
   // `opts.password`: the case's people sign in with one of its own (a live preview's: live.cjs), not the bench's shared one.
   const hash = opts.users ? null : await hashPassword(opts.password || PASSWORD);
@@ -180,7 +203,7 @@ async function syncSport(db, season, world, clock, shiftMs) {
   }
 }
 async function sync(ids, snap, document, shiftMs) {
-  const db = pool(ids.db || undefined), client = await db.connect();
+  const db = await checked(ids.db || undefined), client = await db.connect();
   try {
     await client.query('BEGIN');
     for (const [contextId, world] of Object.entries(snap.contexts)) {
@@ -273,7 +296,7 @@ async function sync(ids, snap, document, shiftMs) {
  * allowed host (the app only accepts KLIPY/GIPHY media); real GIF art needs a cached-asset decision (docs/VISUAL-ASSETS.md).
  */
 async function seedSocial(ids, snap, document, shiftMs) {
-  const db = pool(ids.db || undefined), people = snap.people, user = id => ids.users[id].id, name = new Map(people.map(p => [p.id, p.name]));
+  const db = await checked(ids.db || undefined), people = snap.people, user = id => ids.users[id].id, name = new Map(people.map(p => [p.id, p.name]));
   for (const [contextId, world] of Object.entries(snap.contexts)) {
     const season = ids.seasons[contextId].id, league = ids.leagues[document.games.find(g => g.contextId === contextId)?.id];
     const who = new Map(world.participants.map(p => [p.id, p.name])), markOf = id => world.marks.find(m => m.personId === id).through;
@@ -301,7 +324,7 @@ async function seedSocial(ids, snap, document, shiftMs) {
 
 /** What the app's real writes left: per-game state, per-person marks, answers. */
 async function read(ids) {
-  const db = pool(ids.db || undefined), leagues = Object.values(ids.leagues), users = Object.values(ids.users).map(u => u.id);
+  const db = await checked(ids.db || undefined), leagues = Object.values(ids.leagues), users = Object.values(ids.users).map(u => u.id);
   const states = (await db.query(`SELECT id, state FROM leagues WHERE id = ANY($1::uuid[])`, [leagues])).rows;
   const members = (await db.query(`SELECT league_id, player_id, role, results_seen_through FROM league_memberships WHERE league_id = ANY($1::uuid[])`, [leagues])).rows;
   const follows = (await db.query(`SELECT user_id, season_id, seen_through FROM show_follows WHERE user_id = ANY($1::text[])`, [users])).rows;
@@ -317,14 +340,14 @@ async function read(ids) {
 
 /** A materialized season's cast, season_cast id -> name (a call names someone by their season_cast id). */
 async function castNames(ids, seasonId) {
-  const db = pool(ids.db || undefined);
+  const db = await checked(ids.db || undefined);
   return new Map((await db.query(`SELECT id, name FROM season_cast WHERE season_id = $1`, [seasonId])).rows.map(r => [r.id, r.name]));
 }
 
 const hasSports = async db => !!(await db.query(`SELECT to_regclass('public.sports_events') AS t`)).rows[0].t;
 async function down(key, dbUrl) {
   if (!/^[0-9a-f]{8}$/.test(key)) throw Error('Unexpected bench case key');
-  const db = pool(dbUrl || undefined), like = slugOf(key, '%');
+  const db = await checked(dbUrl || undefined), like = slugOf(key, '%');
   const users = (await db.query(`SELECT id FROM "user" WHERE username LIKE $1`, ['%\\_ztgb' + key + '_%'])).rows.map(r => r.id);
   const groups = (await db.query(`SELECT DISTINCT group_id FROM leagues WHERE slug LIKE $1 AND group_id IS NOT NULL`, [like])).rows.map(r => r.group_id);
   await db.query(`DELETE FROM leagues WHERE slug LIKE $1`, [like]);
@@ -338,7 +361,7 @@ async function down(key, dbUrl) {
 }
 /** Remove every bench case's rows (after a crash or an Atlas restart). */
 async function downAll(dbUrl) {
-  const db = pool(dbUrl || undefined);
+  const db = await checked(dbUrl || undefined);
   const keys = new Set((await db.query(`SELECT username FROM "user" WHERE username ~ '_ztgb[0-9a-f]{8}[0-9]{1,2}$' OR username LIKE 'zt\\_gb\\_%'`)).rows.map(r => (r.username.match(/_ztgb([0-9a-f]{8})\d+$/) || r.username.match(/^zt_gb_([0-9a-f]{8})_/) || [])[1]).filter(Boolean));
   for (const slug of (await db.query(`SELECT slug FROM shows WHERE slug LIKE 'zt-gb-%'`)).rows.map(r => r.slug)) keys.add(slug.split('-')[2]);
   if (await hasSports(db)) for (const id of (await db.query(`SELECT event_id FROM sports_events WHERE provider = $1 AND event_id LIKE 'zt-gb-%'`, [PROVIDER])).rows.map(r => r.event_id)) keys.add(id.split('-')[2]);
@@ -346,7 +369,7 @@ async function downAll(dbUrl) {
   return [...keys];
 }
 const close = async () => { const all = [...pools.values()]; pools.clear(); await Promise.all(all.map(p => p.end())); };
-module.exports = { up, sync, seedSocial, read, castNames, down, downAll, close, PASSWORD, PROVIDER, released };
+module.exports = { up, sync, seedSocial, read, castNames, down, downAll, close, PASSWORD, PROVIDER, released, _guard: { allowed, marked } };
 
 if (require.main === module) {
   // down-all: this checkout's database and every worktree's (cases may have rendered in a worktree's app).

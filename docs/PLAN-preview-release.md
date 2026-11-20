@@ -173,6 +173,12 @@ Each step says what it changes and how it's checked. Steps 1 to 9 are code on th
    browser that isn't its viewer too (401), and nothing is left after (no rows, ways in, people or sessions).
 5. **The live tier's guard**: today "a local database only"; then "a local database, or one marked as a preview database"
    (`PREVIEW_SERVICE=1`), and it refuses the production database by its host whatever the flag says. Checked both ways.
+   **Done (2026-11-19).** `live-db.cjs` `allowed`: the app's databases by host (`APP_DATABASE_HOSTS`, set on the service from the
+   app's own settings, so no host is written in this public repository) refused first, whatever the flag; then a local database;
+   then, with `PREVIEW_SERVICE=1`, a database that says it's a preview database (`app_settings` `preview_database`, asked once per
+   database before any write), which `scripts/preview-database.js mark` sets, refusing the app's host and any database with one
+   person in it who isn't a preview's. Checked: `tests/preview-live.test.js` both ways (and the mark refused or missing); the
+   local path unchanged (three live previews made and removed). The service's own path is tried for real at step 16.
 6. **The runtime shipped with the service's routes** (`outputFileTracingIncludes` for `tools/gameplay-bench/**` and the engine), and
    the bundle's size measured against Vercel's limits.
 7. **Cleanup**: a sweep on each new preview (as now), and an hourly sweep from the existing GitHub job (`reminders-waivers.yml`) calling
