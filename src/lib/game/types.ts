@@ -1270,6 +1270,10 @@ export interface LeagueState {
   /** Step 2.2 (BACKLOG 214): the last episode a league's fantasy playoffs may use, where its league's defaults say they end before
    *  its regular season does (the NFL's Week 17 of 18), stamped with seasonEpisodes for a game on a league's regular-season slate. */
   playoffsBy?: number;
+  /** Step 2.7 (docs/PLAN-sports-ready.md): a sport's season's last episode once it's over (its playoffs' final decided, a team's
+   *  season's team out), stamped for a game with no end of its own (through the final), never saved: it ends there
+   *  (StateLogic.lastEpisode). */
+  seasonLast?: number;
   /** Step 2.6 (docs/PLAN-sports-ready.md): a team sport's game at its own pace, the last episode its seats have watched by now at the
    *  latest (sports/pace.ts paceFloor), stamped with the air times, never saved: GhostLogic.keepPace moves them to it. */
   paceFloor?: number;

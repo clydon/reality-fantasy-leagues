@@ -161,7 +161,9 @@ function endPhase(state){ return Spec.spanEndPhase(gameOf(state).span); }
 // left one (step A11 part 1: KnockoutLogic.endsAt), or where head to head's playoffs end (part 4: MatchupLogic.endsAt). It's over there (gameOver) and scores as it stood then (spanView); the
 // span's end (endEpisode) stays what the game was made with, for what it says and for Game settings.
 function lastEpisode(state){
-  const to = endEpisode(state);
+  // Step 2.7: a sport's game with no end of its own (on through the final) ends with its season once that's over (state.seasonLast,
+  // the server's: air-times.ts stampSeasonLast), and runs on while its playoffs may still be listed.
+  const to = endEpisode(state) ?? (Number.isInteger(state.seasonLast) && state.seasonLast >= 1 ? state.seasonLast : null);
   // A12 part 1: a game in stages ends with its last stage, which may end early (StageLogic.endsAt).
   const ends = [KnockoutLogic.endsAt(state), StageLogic.endsAt(state)].filter(n => n !== null);
   const early = ends.length ? Math.min(...ends) : null;
@@ -4188,7 +4190,7 @@ class StatsLogic {
   // season's properties, read from the season's cast on every read, never saved.
   // Step 1.5 (docs/PLAN-sports-ready.md): a sport's player's injury (state.castInjuries, cast-props.ts) and each week's teams on a
   // bye (ep.byeTeams, air-times.ts), stamped per read too.
-  static stampedKeys(){ return [...STAMPED.episode, ...STAMPED.state, 'gameStarts', 'holdingGames', 'castProps', 'castPropDefs', 'castInjuries', 'castEligible', 'byeTeams', 'paceFloor']; }
+  static stampedKeys(){ return [...STAMPED.episode, ...STAMPED.state, 'gameStarts', 'holdingGames', 'castProps', 'castPropDefs', 'castInjuries', 'castEligible', 'byeTeams', 'paceFloor', 'seasonLast']; }
   // L3 part 2d: a game ranked by a sport's categories (Spec.categoryParts: head to head by each, by most, or roto), or null.
   static categories(state){
     const g = playedGame(state);

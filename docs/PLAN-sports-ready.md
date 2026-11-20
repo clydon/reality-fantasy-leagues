@@ -601,6 +601,23 @@ server.
    ("Regular season", "Through the Super Bowl") by sport, through 4.0. Sports with the same shape: the NFL, NBA, NHL, MLB, MLS and
    college football. Checks: the NFL fixture's recording has Weeks 1-9 only, so a playoffs recording (record-espn-slate.js, the
    2026 postseason in January) or a stand-in season with a postseason.
+   **Started 2026-11-20 (branch sports-playoffs).**
+   - *Decided (Claude's calls, reversible; the user's rule stands: the regular season by default):*
+     - **One season holds both stages**, so Game settings can move a game across the line after it starts (a league's season is
+       its season: a game can't move to another one). A league's slate gains a third stage, `full`: its regular season's episodes,
+       then its playoffs' (sports_slates.stage 'full', `regular_through` its last regular episode). A new league slate is `full`
+       whenever the league's calendar lists a postseason; `regular` and `post` slates stay as made (a game just for the playoffs is
+       still the `post` slate). A team's season keeps its regular season's games and takes its playoff games as they're set
+       (sports_matchups.regular_through), from the daily listings job.
+     - **The timing is the span's end.** "Regular season" is an explicit end, the regular season's last episode (the fantasy season's
+       for a stats game: Week 17); "Through the final" is no end (`to: null`), so a season that grows as its playoffs are listed
+       (a day's slate, a team's season) needs no number nobody knows yet. Every start on such a season (startFromSpec, the sports
+       route) turns a span with no end into the regular season's, unless the maker asked for the final (`timing: "final"`).
+     - **A season's end once it's known** (`state.seasonLast`, stamped, never saved): a sport's game with no end of its own ends
+       with its season, once that's over: the league's playoffs' final decided, a team out (a series or a game lost, the final won,
+       or, with no playoff game, a later round listed without them), or every game of a season of one stage played.
+     - **No playoff week without a round.** A postseason week or game whose name names no round of the bracket (the Pro Bowl:
+       playoffs.ts `roundOf`) isn't the slate's.
 
 ### Phase 3. The gate: a real season, replayed (L, about 2–3 sessions)
 

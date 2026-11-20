@@ -8,6 +8,7 @@ import { sportsProviders } from "./index";
 import { saveFinals } from "./finals";
 import { fillLater } from "./season";
 import { syncSlates } from "./slate";
+import { growTeamSeasons } from "./team-season";
 import { SportsUnavailable, type LeagueName, type SportsEvent, type SportsProvider } from "./types";
 
 // Games straight from a team's schedule, as a season of their own (docs/PLAN-start-a-game-gpt.md track L, L1 part 3;
@@ -82,7 +83,7 @@ export async function matchupSeason(
   provider: SportsProvider,
   league: string,
   games: SportsEvent[],
-  opts: { name?: string; key?: string; pastLines?: boolean; userId?: string | null; providers?: SportsProvider[]; now?: Date; prefix?: string; cast?: boolean } = {}
+  opts: { name?: string; key?: string; pastLines?: boolean; userId?: string | null; providers?: SportsProvider[]; now?: Date; prefix?: string; cast?: boolean; regularThrough?: number | null } = {}
 ): Promise<Matchup> {
   const now = opts.now ?? new Date();
   const sorted = [...games].sort((a, b) => (a.at ?? "").localeCompare(b.at ?? ""));
@@ -131,8 +132,9 @@ export async function matchupSeason(
     const last = dates.length ? Date.parse(dates[dates.length - 1]) : now.getTime();
     await c.query(`INSERT INTO sports_links (season_id, provider, league, linked, message, checked_at, next_at) VALUES ($1, $2, $3, $4, NULL, now(), $5)`, [seasonId, provider.id, league, sorted.length, new Date(last + 30 * 86_400_000)]);
     const { rowCount } = await c.query(
-      `INSERT INTO sports_matchups (season_id, provider, league, events, key, made_by) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (key) DO NOTHING`,
-      [seasonId, provider.id, league, ids, key, opts.userId ?? null]
+      // Step 2.7: a team's season keeps where its regular season ends, and takes its playoff games after it (team-season.ts).
+      `INSERT INTO sports_matchups (season_id, provider, league, events, key, made_by, regular_through) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (key) DO NOTHING`,
+      [seasonId, provider.id, league, ids, key, opts.userId ?? null, opts.regularThrough ?? null]
     );
     if (!rowCount) {
       // Someone asked for the same games a moment ago: theirs.
@@ -256,6 +258,12 @@ export async function refreshSportsEvents(opts: { providers?: SportsProvider[]; 
   } catch (e) {
     errors.push(`slates: ${(e as Error).message.slice(0, 160)}`);
   }
+  // Step 2.7: each team's season still running, its playoff games linked as they're set, and its end once the team is out.
+  try {
+    errors.push(...(await growTeamSeasons({ providers, now, only: opts.only })).errors);
+  } catch (e) {
+    errors.push(`team seasons: ${(e as Error).message.slice(0, 160)}`);
+  }
   // Step 1.4: every sports season's people refilled once a day (signings, trades), anyone new into its games.
   try {
     errors.push(...(await refreshRosters({ providers, now, only: opts.only })).errors);
@@ -312,11 +320,12 @@ export async function refreshSportsEvents(opts: { providers?: SportsProvider[]; 
   await pool.query(
     `UPDATE show_seasons ss SET status = x.status, updated_at = now()
        FROM (SELECT m.season_id,
-                    CASE WHEN bool_and(COALESCE(f.state = 'post', false)) THEN 'completed'
+                    -- Step 2.7: a team's season that grows is completed only once its team is out (team-season.ts: ended_at).
+                    CASE WHEN bool_and(COALESCE(f.state = 'post', false)) AND (m.regular_through IS NULL OR m.ended_at IS NOT NULL) THEN 'completed'
                          WHEN bool_or(f.state IN ('in', 'post') OR e.starts_at <= $1) THEN 'airing' ELSE 'upcoming' END AS status
                FROM sports_matchups m JOIN season_events e ON e.season_id = m.season_id
                LEFT JOIN sports_events f ON f.provider = e.provider AND f.league = e.league AND f.event_id = e.event_id
-              GROUP BY m.season_id) x
+              GROUP BY m.season_id, m.regular_through, m.ended_at) x
       WHERE ss.id = x.season_id AND ss.status IS DISTINCT FROM x.status`,
     [now]
   );

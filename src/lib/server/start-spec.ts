@@ -15,7 +15,7 @@ import { HttpError, pool, withLeagueLock } from "./db";
 import { deleteLeague } from "./end-game";
 import { makeStages } from "./engine-lab";
 import { followLeagueProgress } from "./follows";
-import { fantasySeasonEnd } from "./air-times";
+import { fantasySeasonEnd, regularEnd } from "./air-times";
 import { asksToday, packFor } from "./game-words";
 import { refused } from "./game-writes";
 import { makeLeague } from "./new-game";
@@ -139,7 +139,7 @@ export async function startFromSpec(
   user: SessionUser,
   seasonId: string,
   couchId: string | null,
-  body: { spec?: unknown; name?: unknown; typed?: unknown; tell?: unknown; bots?: unknown; level?: unknown; late?: unknown; made?: unknown; pace?: unknown },
+  body: { spec?: unknown; name?: unknown; typed?: unknown; tell?: unknown; bots?: unknown; level?: unknown; late?: unknown; made?: unknown; pace?: unknown; timing?: unknown },
   now = new Date(),
   o: { origin?: string; bot?: string } = {}
 ): Promise<SpecStarted> {
@@ -180,8 +180,15 @@ export async function startFromSpec(
   if (typeof span.to === "number" && typeof span.from === "number" && span.to < span.from) throw new HttpError(400, "It ends before it starts");
   // BACKLOG 226: a game scored by players' stats on the NFL's regular season, to the season's end, runs to the fantasy season's end
   // (Week 17, before Week 18's rested starters); a later week picked is kept.
-  if (!staged && span.to == null && typeof span.from === "number" && isObj(spec.score) && spec.score.by === "stats") {
-    const end = await fantasySeasonEnd(pool, seasonId);
+  // Step 2.7 (docs/PLAN-sports-ready.md; the user, 2026-11-20): on a season that goes on into its playoffs (a full slate, a team's
+  // season), a game to the season's end plays its regular season (a stats game's to the fantasy season's end), unless the maker asked
+  // for the final (`timing: "final"`: no end, so it runs on through the playoffs and ends with them). Started in the playoffs, it
+  // runs on through them either way.
+  const final = body.timing === "final";
+  if (!staged && span.to == null && typeof span.from === "number" && !final) {
+    const stats = isObj(spec.score) && spec.score.by === "stats";
+    const reg = await regularEnd(pool, seasonId);
+    const end = reg ? (stats ? reg.fantasy : reg.through) : stats ? await fantasySeasonEnd(pool, seasonId) : null;
     if (end !== null && end >= span.from) span.to = end;
   }
   // How it runs (docs/PLAN-own-pace-games.md, "Pace is the game's setting"): the sheet's choice, checked against this start.
