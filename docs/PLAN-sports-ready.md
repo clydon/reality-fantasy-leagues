@@ -1,10 +1,11 @@
 # Plan: sports in good shape, technically and in design
 
-> **Status (2026-11-19): Active, Phase 0 and steps 1.0, 1.2, 1.3 and 1.4 done** (branch sports-phase0, not merged; migrations 0308 and
-> 0309 to rehearse). Written from two audits that day: the engine, data and operations, and every screen a sports fan touches.
+> **Status (2026-11-19): Active, Phase 0 and steps 1.0, 1.2, 1.3, 1.4 and 1.5 done** (branch sports-phase0, not merged; migrations
+> 0308 to 0310 to rehearse). Written from two audits that day: the engine, data and operations, and every screen a sports fan touches.
 > Phase 0 confirmed all four inferences, each with a check, and found two bigger gaps; step 1.0 closed both (BACKLOG 220 and 221),
 > 1.3 made team defenses people and kept same-named players apart (BACKLOG 145), 1.2 stopped silent zeros and takes corrections,
-> and 1.4 keeps rosters current (signings, trades). Next: 1.5, 1.6, and 1.1 (BACKLOG 215 answered: toward live scores).
+> 1.4 keeps rosters current (signings, trades), and 1.5 reads injuries and byes. Next: 1.6, and 1.1 (BACKLOG 215 answered: toward
+> live scores).
 > The decisions it needs are BACKLOG 175 and 212–219 ("Waiting on you").
 
 The user, 2026-11-19: "I want to make sure sports is in a good spot both technically and redesign needs. Make a plan for that."
@@ -199,9 +200,17 @@ server.
      the calls.
    - *Left:* someone cut stays in the season and the games (a free agent nobody can sign elsewhere: ESPN lists him nowhere); a
      trade's team is retroactive in a game's own record (a show's starting tribe), harmless for scoring (lines are by game and id).
-5. **Injuries and byes (M; L9 part 2).** Read ESPN's roster injury status in the daily refresh (Q, D, O, IR) and mark byes (no
-   game in the week). They're facts the lineup editor and the draft room show (Phase 4.2). Verify with recorded roster fixtures
-   carrying injuries, and a bye-week slate.
+5. **Injuries and byes (L9 part 2). Done 2026-11-19 (f59bb62c).**
+   - *Built:* a roster's injury kept on the person (migration 0310 season_cast.injury: { code, status, date }; Q, D, O, IR, DTD,
+     SUSP, PUP, MLB's injured lists, another as ESPN words it), current through every fill and so the daily refresh; a game reads
+     it per request (state.castInjuries). A league's slate's week stamps its teams on a bye (ep.byeTeams, sports/locks.ts byesOf)
+     once a later week has a game linked, so a week linked halfway names nobody. Neither saved, nothing on a screen yet: 4.1 puts
+     them in the game view, 4.2 designs them.
+   - *Verified:* check-sports-injuries-byes.js (a Questionable quarterback and a receiver on IR read by castaway, Week 9's byes
+     the recording's Steelers and Titans, one healed and one Out a day on, nothing stored); unit tests from a real roster's shape
+     (ESPN, 2026-11-19: injuries [{ status, date }]), names made up.
+   - *Left:* ESPN's practice squad (a roster status, not an injury: 436 of the NFL's 2,552) isn't marked; the draft room may want
+     it (4.3). Computer players don't yet bench an injured or idle player (Phase 2.3's legal lineups).
 6. **The small fixes (S each).** BACKLOG 108 (give the rail's pickem `each: 'game'`, or refuse single-game questions and squares on
    a slate in `specProblems`); `lineupAt` applying `letGoBefore` for locks at each game (idea 209's residual); BACKLOG 101, 78 and
    check-sports-explorer.js's called-off part 4. Verify with unit tests, check-slate-pickem.js (108), check-slate.js and
@@ -312,8 +321,8 @@ default selection.
 
 ## The order, and how it fits the rest
 
-1. **Now, beside the Survivor 51 work:** the rest of Phase 1 as a sports lane (Phase 0, 1.0, 1.2, 1.3 and 1.4 are done): 1.5 and
-   1.6, and 1.1 toward live scores (BACKLOG 215 answered). Phase 4.0 (the words) in any free session.
+1. **Now, beside the Survivor 51 work:** the rest of Phase 1 as a sports lane (Phase 0 and 1.0 to 1.5 are done but 1.1): 1.6,
+   and 1.1 toward live scores (BACKLOG 215 answered). Phase 4.0 (the words) in any free session.
 2. **Then:** Phase 2 (once the user has made the calls), and Phase 4.1.
 3. **Then:** Phase 3, the gate, and the design round's pages 1 and 3 (they need correct data, not live data).
 4. **Then:** 4.1's live path, page 2, Phase 5, and pages 4 to 6.

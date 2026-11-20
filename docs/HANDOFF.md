@@ -64,13 +64,13 @@ Newest first. The plan or archive section named holds the detail.
    Designs-needed words batch, and the production check-ups.
 4. **C8, the 2-on-1 head to head**, on a fresh branch from master (its seven answers are in decisions.md, 2026-11-19; who plays
    alone first is drawn at random), then the rest of the redo plan's E3.
-5. **Sports, a lane of its own:** [PLAN-sports-ready.md](PLAN-sports-ready.md)'s Phase 1: 1.5 and 1.6, and 1.1 toward live scores
-   (BACKLOG 215 answered). Phase 0 and steps 1.0, 1.2, 1.3 and 1.4 are done on branch sports-phase0, not merged yet (0309 is
-   additive). **Its migration 0308 is applied to the main folder's local database**: master's code names
+5. **Sports, a lane of its own:** [PLAN-sports-ready.md](PLAN-sports-ready.md)'s Phase 1: 1.6, and 1.1 toward live scores (BACKLOG
+   215 answered). Phase 0 and steps 1.0 and 1.2 to 1.5 are done on branch sports-phase0, not merged yet (0309 and
+   0310 are additive). **Its migration 0308 is applied to the main folder's local database**: master's code names
    the old season_cast conflict target, so on master locally a cast insert (Make it a game, the desk's cast edits) fails until
    the branch merges. To undo it locally: `DROP INDEX season_cast_provider_idx; DROP INDEX season_cast_name_idx; CREATE UNIQUE
    INDEX season_cast_name_idx ON season_cast (season_id, lower(name)); DELETE FROM schema_migrations WHERE version =
-   '0308_season_cast_provider_ids.sql';`. At the merge, rehearse 0308 and 0309 on a Neon branch; while a deploy builds, the old
+   '0308_season_cast_provider_ids.sql';`. At the merge, rehearse 0308 to 0310 on a Neon branch; while a deploy builds, the old
    deployment's cast inserts fail for those minutes. Its words pass (4.0) can go in any free session.
 6. The order after that is in [PLANS.md](PLANS.md).
 
