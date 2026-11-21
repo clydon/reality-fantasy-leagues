@@ -1,8 +1,10 @@
 # Settings: the overhaul
 
-> **Status (2026-11-20): Planned.** Nothing built. Next is Round 0 (the map, the cuts and the shape, rendered), in a fresh
+> **Status (2026-11-20): Planned; the cuts and adds approved** (the user took every recommendation, added A5, and C8 is under
+> discussion: "What you decided", below). Nothing built. Next is Round 0 (the map, the shape and the names, rendered), in a fresh
 > session. Every setting, where it lives and a verdict on each are in the audit:
-> [design-round/settings-audit.md](design-round/settings-audit.md).
+> [design-round/settings-audit.md](design-round/settings-audit.md). The proposals page the user answered on:
+> https://claude.ai/artifact/3VjAovJaVsBkfZcLEqoY4V.
 
 ## What you asked (2026-11-20)
 
@@ -187,6 +189,9 @@ The shapes can combine: for example, 1, with 3's questions at the top of You.
 Numbered so you can approve them by number ("yes to all" is fine). Each round's Intent spec confirms its own. The audit has every
 setting's reasoning.
 
+**Approved 2026-11-20**, all as proposed except C8, which is under discussion. The user's answer: "Settings proposals: yes to
+your recommendations, except yes to A5. Let's talk about C8." C1 and C29 still get pictures in Round 0 before they're built.
+
 **You**
 
 | # | Today | Proposal |
@@ -198,7 +203,7 @@ setting's reasoning.
 | C5 | Lineup reminders | **Keep**, named for everything it covers (your draft turn and waivers too) |
 | C6 | What your couch sees: three levels and four switches | **Drop** the levels. **Keep** "how far I've watched", with the live preview. **Merge** "when I'm watching" into it. **Default** GIFs and reactions on (posting one is the choice) |
 | C7 | Settings' Your couches fold | **Drop** from Settings: the couch gets its own home, and the hub keeps its switcher |
-| C8 | Your AI for results | **Drop** as a setting: the Ask an AI sheet remembers your last choice |
+| C8 | Your AI for results | **Drop** as a setting: the Ask an AI sheet remembers your last choice. *Under discussion (2026-11-20).* |
 | C9 | How each game works | **Move** to each game's How it plays |
 | C10 | Back to the classic design | **Drop** with step C, after Dec 16 (BACKLOG 45) |
 | C11 | The full design (a link to the old mock) | **Drop** |
@@ -263,8 +268,11 @@ setting's reasoning.
 
 ## Missing settings to consider
 
-Each round decides its own. I recommend designing A3, A6, A9, A11 and A13–A17. A1 and A2 wait on BACKLOG 185 (account recovery,
-before strangers sign up).
+**Approved 2026-11-20:**
+- **Each in its round:** A3, A5 (the user's addition), A6, A7 (with C1), A8 (with C17), A9, A11, A13–A17.
+- **In the admin round:** A19 and A20.
+- **Not now:** A4, A10, A12 and A18.
+- **Waiting on BACKLOG 185** (account recovery, before strangers sign up): A1 and A2.
 
 | # | Missing | Home |
 | --- | --- | --- |
@@ -423,13 +431,14 @@ These went to the backlog's "Now" as 232–236. Any session can take them:
 - **The checks:** each round lists its own. Never run two checks on the zt_nd fixture at once. Run the long checks once a round,
   last.
 
-## What you decide (my recommendations)
+## What you decided (2026-11-20)
 
-1. **The cuts:** yes to all. C1 (the one results choice) and C29 (Backstage) are shown in Round 0 before they're final.
-2. **Backstage:** A, retire it, so each game has Manage this game.
-3. **The order:** You, then a show and a couch, then running a game, then the words, then the desk. Take running a game first if
-   you'd rather see Backstage sooner.
-4. **The adds:** A3, A6, A9, A11 and A13–A17. A1 and A2 wait on BACKLOG 185.
+You took every recommendation, added A5, and asked to talk about C8:
+1. **The cuts:** all of them, except C8, which is under discussion. C1 (the one results choice) and C29 (Backstage) are still shown
+   in Round 0 before they're built.
+2. **Backstage:** A. Retire it, so each game has Manage this game.
+3. **The order:** You, then a show and a couch, then running a game, then the words, then the desk.
+4. **The adds:** as listed under "Missing settings to consider" (A5 added).
 5. **The names:** Round 0 proposes them, and you pick.
 
 ## Not in this plan
