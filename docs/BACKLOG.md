@@ -6,7 +6,7 @@ and in flight is in [HANDOFF.md](HANDOFF.md).
 
 **How this file works**
 - **Numbers are permanent.** Code, tests and commits cite "BACKLOG 57", so a number never changes and is never reused. A new
-  item takes the next free number: **the next is 243.**
+  item takes the next free number: **the next is 244.**
 - **Closing an item:** delete it here and add one line under "Closed since the cleanup" at the end: the number, done or
   dropped, and the commit or the reason. Numbers closed in the cleanup itself are listed, with their full old text, in
   [archive/BACKLOG-2026-11-19.md](archive/BACKLOG-2026-11-19.md).
@@ -223,6 +223,11 @@ switch goes in the settings overhaul's Round 1 (its C4), or with this fix throug
 (`ActiveRosterLogic.filledFor` names who), but neither the reveal nor the person's lineup says so yet: the spec's "the reveal and
 the person's lineup say 'filled for you'". A line in the reveal's lineup beat and a tag on the lineup sheet's face, through
 Impeccable. Found in 3b's check; the next session on the reveal or the lineup sheet takes it. [S · UI]
+
+**243. How it plays says neither of Settings Round 3b's two rules.** A game's How it plays (describe.js, game-words) doesn't say
+when a moment the show adds mid-season counts (settings.newMoments, and a moment's own "counts from Ep N") or that an empty slot
+fills from the bench (settings.benchFill). Players read the rules there (docs/UI-REVIEW-MAP.md, "How it plays (words)"). One line
+each, in the show's words. The next words pass (Round 4's sweep) takes it. [S · words]
 
 **228. A sport's lineup sheet puts the best guard in "G", not "PG".** The sheet's tidying (SlotLogic.assignment) puts an earlier
 starter in the narrower slot, judged by how many values a slot lists: the NBA's G slot takes one ("guards", a position group) and
