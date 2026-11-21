@@ -1,6 +1,6 @@
 import StateLogic from "@/lib/game/state-logic.js";
 import * as Seq from "@/lib/game/sequence/index.js";
-import { countLines, dealCard, firstLineAt, fullLines, lineState, pointsPerLine, seedOf, truthOf, FREE_KEY, LINES, MIN_MOMENTS, SQUARES, type BankSquare, type BingoSquare, type CalledLine, type Likelihood, type LineCount, type Truth } from "@/lib/game/bingo";
+import { countLines, dealCard, firstLineAt, fullLines, pointsPerLine, seedOf, truthOf, FREE_KEY, LINES, MIN_MOMENTS, SQUARES, type BankSquare, type BingoSquare, type CalledLine, type Likelihood, type LineCount, type Truth } from "@/lib/game/bingo";
 import { settleSays, type CallBook, type EpisodeFacts } from "@/lib/game/calls";
 import { PRESENT_MS } from "@/lib/game/watch-along";
 import { kindOf } from "@/lib/game/formats/rulebook-schema.js";
@@ -59,9 +59,6 @@ export interface BingoPerson {
   /** Lines they called (or on a card from before the banks, ticked). */
   called: number;
   ticked: number;
-  /** Tonight's night (docs/design-round/tonight-night-spec.md): their card as a glyph, the squares they ticked (0 to 8, the centre free)
-   *  and the lines (indexes into LINES) that count. Only once you've seen the episode, as the rest of this. */
-  grid?: { ticked: number[]; counts: number[] };
 }
 
 /** A square in someone's called line still waiting on a second say: whether it happened is yours to say (step 3's "Did it?"). */
@@ -82,6 +79,9 @@ export interface BingoMate {
 }
 
 export interface EpisodeBingo {
+  /** Tonight's Bingo and trivia (docs/design-round/tonight-night-spec.md): the moments that happened across the couch's cards, once
+   *  you've seen the episode; absent before. */
+  hit?: { key: string; label: string }[];
   seasonId: string;
   episode: number;
   airAt: string | null;
@@ -348,16 +348,19 @@ async function readBingo(user: SessionUser, seasonId: string, n: number, ctx: Co
       called: calledOf(r.called_lines),
     };
   });
+  const hit = new Map<string, string>();
   const people = cards.map((c) => {
     const t = truthOf(c.squares, settled.truth);
+    c.squares.forEach((sq, i) => {
+      if (t[i] === "yes" && sq.key !== FREE_KEY) hit.set(sq.key, sq.label);
+    });
     const on = callsOn(c.squares);
     const lines = countLines(c.squares, c.marks, t, on ? c.called.map((x) => x.line) : null);
     const done = firstLineAt(c.squares, c.at, t, on ? c.called : null);
     if (done !== null && (!first || done < first.at)) first = { userId: c.userId, name: c.name, at: done };
-    const mine = on ? fullLines(c.squares, c.marks).filter((l) => c.called.some((x) => x.line === l)) : fullLines(c.squares, c.marks);
-    const grid = { ticked: [...c.marks].sort((a, b) => a - b), counts: mine.filter((l) => lineState(c.squares, l, t) === "counts") };
-    return { userId: c.userId, name: c.name, lines: lines.standing, waiting: lines.waiting, off: lines.off, called: lines.called, ticked: c.marks.size, grid };
+    return { userId: c.userId, name: c.name, lines: lines.standing, waiting: lines.waiting, off: lines.off, called: lines.called, ticked: c.marks.size };
   });
+  out.hit = [...hit].map(([key, label]) => ({ key, label }));
   out.people = people.sort((a, b) => Number(b.userId === user.id) - Number(a.userId === user.id) || b.lines - a.lines || b.ticked - a.ticked);
   const f = first as { userId: string; name: string; at: number } | null;
   out.first = f ? { userId: f.userId, name: f.name } : null;

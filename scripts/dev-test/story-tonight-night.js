@@ -29,7 +29,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { Pool } = require("pg");
-const { open, BASE } = require("./browser");
+const { open, api, BASE } = require("./browser");
 const { overlapsIn } = require("./overlaps");
 const night = require("./night-fixture");
 const NF = require("./new-fixture");
@@ -58,16 +58,22 @@ async function extras(pool, ids, { big = false } = {}) {
     { slug: "zt-nd-quick7", name: "Who survives? Ep 7", type: "pickem", players: ["riley", "sam"], commissioner: "riley", span: [7, 7], joinCode: "ZQUIK7" },
     ...(big ? [{ slug: "zt-nd-big", name: "Big Lineup", type: "active-roster", players: ["alex", "riley", "jordan", "sam"], commissioner: "alex", bots: 5, last: "jordan", joinCode: "ZBIGLN" }] : []),
   ]);
+  // Everyone on the couch has seen Ep 6 on the show (a tick from someone who's seen it is their say that it happened, so bingo's
+  // moments settle); each game's own mark stays the fixture's.
+  await pool.query(`UPDATE show_follows SET seen_through = 6 WHERE season_id = $1 AND user_id = ANY($2::text[])`, [ids.seasonId, [users.alex, users.riley]]); // (not sam: the behind situation is sam, two episodes back)
   // Casey on the couch, watching only, caught up through Ep 6.
   await pool.query(`INSERT INTO couch_members (couch_id, user_id, role) VALUES ($1, $2, 'member') ON CONFLICT DO NOTHING`, [ids.couchId, users.casey]);
   await pool.query(`UPDATE show_follows SET seen_through = 6 WHERE user_id = $1 AND season_id = $2`, [users.casey, ids.seasonId]);
-  // This week's trivia: three of them played (scores only reach anyone else).
-  for (const [who, score] of [["riley", 3], ["sam", 1], ["jordan", 2]]) {
-    await pool.query(
-      `INSERT INTO trivia_plays (user_id, show_id, week, round, season_id, score, questions, answers) VALUES ($1, $2, $3, '', $4, $5, 3, '{}') ON CONFLICT DO NOTHING`,
-      [users[who], showId, weekOf(new Date()), ids.seasonId, score]
-    );
+  // This week's trivia, played through the real route by three of them: riley gets every question right, jordan the first, sam none.
+  for (const [who, rightOnes] of [["riley", Infinity], ["jordan", 1], ["sam", 0]]) {
+    const a = await api({ user: NF.username(who), pass: NF.PASSWORD });
+    const round = (await a.call("GET", `/api/seasons/${ids.seasonId}/trivia?couch=${ids.couchId}`)).body;
+    const qs = round?.questions ?? [];
+    const answers = Object.fromEntries(qs.map((q, i) => [q.id, i < rightOnes ? q.answer : (q.options.find((o) => o.key !== q.answer) ?? q.options[0]).key]));
+    if (qs.length) await a.call("POST", `/api/seasons/${ids.seasonId}/trivia?couch=${ids.couchId}`, { answers });
   }
+  void showId;
+  void weekOf;
   // Bingo for Ep 6: a bank, and four cards ticked (the centre's free).
   const bank = await Bingo.up(pool, ids.seasonId, 6, { likely: 6, maybe: 6, longshot: 2 });
   const deal = (k) => [...bank.slice(k, k + 4), { key: "free", label: "Free" }, ...bank.slice(k + 4, k + 8)].map((s) => ({ key: s.key ?? s.id, label: s.label, ...(s.likelihood ? { likelihood: s.likelihood } : {}) }));
@@ -178,8 +184,10 @@ const SITUATIONS = [
       await p.locator("[data-night-quick] [data-night-everyone]").first().waitFor({ timeout: 20000 }).catch(() => {});
       await p.waitForTimeout(500);
       await shoot(p, `${s}.quick`, { what: "the night's quick game, opened" });
-      await scrollTo(p, "[data-night-extra]");
-      await shoot(p, `${s}.extras`, { what: "the couch's bingo and trivia" });
+      await scrollTo(p, "[data-episode-extras]");
+      await p.locator("[data-episode-extras-toggle]").first().click();
+      await p.waitForTimeout(600);
+      await shoot(p, `${s}.extras`, { what: "Last time's Bingo and trivia, opened" });
       await scrollTo(p, "[data-next-episode]");
       await shoot(p, `${s}.next`, { what: "the next episode's block: its quick games, the Join row" });
       const join = p.locator("[data-join-row] [data-join-button]").first();
@@ -197,10 +205,12 @@ const SITUATIONS = [
     fixture: { phase: "watched", moves: "set", pace: "live" },
     async shots(p, s) {
       await shoot(p, `${s}.top`, { what: "first view" });
-      const sec = BEFORE ? "[data-last-time]" : "[data-night-extras]";
+      const sec = BEFORE ? "[data-last-time]" : "[data-episode-extras]";
       if (await p.locator(sec).count()) {
-        await scrollTo(p, sec);
-        await shoot(p, `${s}.night`, { what: "the couch's night" });
+        await scrollTo(p, BEFORE ? sec : "[data-last-time]");
+        if (!BEFORE) await p.locator("[data-episode-extras-toggle]").first().click();
+        await p.waitForTimeout(600);
+        await shoot(p, `${s}.night`, { what: "Last time, Bingo and trivia opened" });
       }
       if (await p.locator("[data-next-episode]").count()) {
         await scrollTo(p, "[data-next-episode]");

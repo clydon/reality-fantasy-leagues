@@ -28,8 +28,8 @@ People:
 | --- | --- | --- | --- |
 | 1 | The show bar and progress control | as step 3 | none |
 | 2 | The strip | as step 3 | none |
-| 3 | **Last time · Ep N** | who left, the couch's GIFs, Discuss, Recap | none |
-| 4 | **Your night · Ep N** (players only) | a card per season game you're in; then the night's quick games you played; then the night's extras anyone played (bingo, trivia) | **new display** |
+| 3 | **Last time · Ep N** | who left, the couch's GIFs, Discuss, Recap; then the Bingo and trivia expander | gains Bingo and trivia |
+| 4 | **Your night · Ep N** (players only) | one-episode games first, each led by who won; then the longer games, a row each | **new display** |
 | 5 | **Next · Ep N+1** | watch along, watch it together, your bingo card; **quick games for Ep N+1**: yours (their state) and the couch's you're not in (Join) | gains the quick games |
 | 6 | Stats | as step 3 | none |
 
@@ -39,7 +39,7 @@ results and the morning update keep their place above it (AfterEpisode); with ea
 ### The section's two groups
 
 The night in two groups, the shortest games first (the user, 2026-11-21: "more on the game name and length, so shorter and one
-episode games are first"): **One-episode games** (the quick games that played the episode, then the couch's bingo and trivia), each
+episode games are first"): **One-episode games** (the games someone started for that one episode), each
 led by who won it; then **Longer games**, soonest to end first (a game to the season's end last). With only one group, no labels.
 "So far" sits once on the section's heading while results are early.
 
@@ -56,8 +56,7 @@ One row a game, about 64 px, led by the game, not your place (the user, 2026-11-
 ### A one-episode game's row, closed
 
 Led by who won it: the game's name on the first line, the winners' faces and "You won" (teal), "riley won", "3 tied for 1st" on the
-right; your place and points small on the second line ("You T1 of 4 · 1 pt"). Bingo's row: who got a line first, everyone's card as
-a small three-by-three beside their face. Trivia's: who scored best, everyone's score beside their face.
+right; your place and points small on the second line ("You T1 of 4 · 1 pt").
 
 The whole row opens everyone's night in place. Each fact is said once.
 
@@ -88,17 +87,18 @@ won", "You won", "Tied: you and Riley", "Nobody scored": resultWords), your plac
 night as above. Past three quick games, they fold to one row ("Ep 9's 5 quick games: you won 2"). Finished quick games older
 than Ep N live in the Games tab's record.
 
-### The night's extras (bingo, trivia)
+### Bingo and trivia: Last time's, not games
 
-Shown to everyone who follows the show (player or not), when anyone on the couch played them. One card, a line each:
+Bingo and trivia come with every episode for everyone who follows the show, so they aren't games and don't sit with them (the user,
+2026-11-21). In Last time, under Discuss and the recap: one quiet row, "Bingo and trivia", its words saying who got bingo and how
+trivia went for you, opening in place to:
 
-| Extra | The line | Open |
+| Part | Holds | Opens |
 | --- | --- | --- |
-| Bingo · Ep N | each player a small three-by-three card (ticked squares filled, counted lines drawn), lines counted; who got a line first named | each person: their card (step 3's Look at their card) |
-| Trivia · this week | each player's score as dots (2 of 3); scores only, never answers | your round (play it, when you haven't) |
+| Bingo · Ep N | The moments that hit (across the couch's cards, as they settled), then who got bingo (a line that counts, or one still settling), the first named | The couch's cards |
+| Trivia · this week | Once you've played the round: each question, its answer (a face where it's a person), and who got it right as faces (never anyone's wrong answer). Before you've played: only Play this week's round, so nothing's spoiled | Your round |
 
-You appear in each line you played; one you didn't play shows the couch's and nothing for you (no "you missed it"). Call it,
-predictions and polls stay off Tonight (the user, 2026-11-09: until a session on extras brings them back).
+Nothing when nobody played either. Someone who only watches gets the same row: it's the show's, not a game's.
 
 ### Next · Ep N+1: the quick games
 

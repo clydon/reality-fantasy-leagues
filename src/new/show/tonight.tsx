@@ -35,7 +35,7 @@ import { RemindRow } from "./remind";
 import { SeenItCard } from "./seen-it";
 import { useOpenWatch } from "./watch-along";
 import { TonightNights } from "./whats-on";
-import { JoinRows, latestSeen, YourNight } from "./night";
+import { EpisodeExtras, JoinRows, latestSeen, YourNight } from "./night";
 
 // Tonight (the design round's step 3: docs/design-round/step3-tonight-spec.md, its first view step3-tonight-first-view.md, its
 // look step3-tonight-shape.md). Where you are, the couch and the one watching action are the show bar's progress control
@@ -330,6 +330,8 @@ function LastTime({ seasonId, show, open }: { seasonId: string; show: ShowData; 
             <ChevronRight className="size-4" aria-hidden />
           </NavLink>
         </div>
+        {/* Bingo and trivia come with every episode for everyone who follows it: one quiet row, opened in place (night.tsx). */}
+        <EpisodeExtras show={show} n={n} />
       </div>
     </Block>
   );

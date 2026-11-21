@@ -2,7 +2,6 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { LINES } from "@/lib/game/bingo";
 import { kindOf } from "@/lib/game/spans";
 import { nightRowOf, type NightChange, type NightLine } from "@/lib/game/night-rows";
 import { nightKind, type Square } from "@/lib/game/game-plays";
@@ -642,121 +641,122 @@ function QuickCard({ a, show, n, open: openDoor }: { a: ArchivedGame; show: Show
   );
 }
 
-// ---------- the couch's bingo and trivia ----------
+// ---------- bingo and trivia: every episode's, not a game ----------
 
-/** A bingo card as a glyph: three by three, ticked squares filled (the centre's free), a line that counts drawn through in teal. */
-function BingoGlyph({ grid, size = 18 }: { grid: { ticked: number[]; counts: number[] }; size?: number }) {
-  const at = (i: number) => ({ x: (i % 3) * 11 + 4, y: Math.floor(i / 3) * 11 + 4 });
-  return (
-    <svg viewBox="0 0 30 30" width={size} height={size} aria-hidden className="flex-none">
-      {Array.from({ length: 9 }, (_, i) => {
-        const on = i === 4 || grid.ticked.includes(i);
-        return <rect key={i} x={(i % 3) * 11} y={Math.floor(i / 3) * 11} width={8} height={8} rx={1} className={on ? "fill-foreground" : "fill-none stroke-muted-foreground"} strokeWidth={1.5} />;
-      })}
-      {grid.counts.map((l) => {
-        const [a, , c] = LINES[l];
-        return <line key={l} x1={at(a).x} y1={at(a).y} x2={at(c).x} y2={at(c).y} className="stroke-good" strokeWidth={3.5} strokeLinecap="round" />;
-      })}
-    </svg>
-  );
-}
-
-/** One extra as a row in the one-episode group: its name and who won it, then each player's face beside their mark; opens it. */
-function ExtraLine({ title, winner, children, onOpen, data }: { title: string; winner: ReactNode; children: ReactNode; onOpen: () => void; data: string }) {
-  return (
-    <button type="button" data-night-extra={data} onClick={onOpen} className="nd-press flex min-h-16 w-full items-center gap-3 border-t border-border py-2 text-left first:border-t-0">
-      <span className="min-w-0 flex-1">
-        <b className="type-caption block truncate text-[19px] leading-none">{title}</b>
-        <span className="mt-1.5 flex min-h-[22px] items-center gap-3 overflow-hidden">{children}</span>
-      </span>
-      <span className="flex flex-none items-center">{winner}</span>
-      <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
-    </button>
-  );
-}
-
-/** A player's face beside their mark, in an extra's row. */
-const Pair = ({ id, name, children }: { id: string; name: string; children: ReactNode }) => (
-  <span className="flex flex-none items-center gap-1" title={name}>
-    <Avatar id={id} name={name} size={18} />
-    {children}
-  </span>
-);
-
-/** The couch's bingo for episode `n` and this week's trivia, when anyone played them, as rows; null otherwise. */
-function useExtras(show: ShowData, n: number): ReactNode[] {
+/**
+ * Bingo and trivia, in Last time (the user, 2026-11-21: they come with every episode for everyone who follows the show, so they're
+ * not games: "just an expander to reveal the moments that hit and who got bingo; trivia, the questions and answers and who got it
+ * right"). One quiet row that opens in place. Bingo: the moments that happened across the couch's cards, who got a line (first
+ * named). Trivia: once you've played this week's round, each question, its answer and who got it right (never anyone's wrong
+ * answer); before, only the way to play it, so nothing's spoiled. Nothing when nobody played either.
+ */
+export function EpisodeExtras({ show, n }: { show: ShowData; n: number }) {
   const me = useMe();
+  const [open, setOpen] = useState(false);
   const seasonId = show.header?.seasonId ?? null;
   const couchId = show.couch?.id ?? null;
-  const on = !!seasonId && n > 0;
+  const on = !!seasonId && n > 0 && !show.readOnly;
   const bingo = useEpisodeBingo(seasonId, couchId, n, on);
   const trivia = useTrivia(seasonId, show.solo ? null : couchId, on);
   const b = bingo.data;
   const t = trivia.data;
-  const cards = (b?.people ?? []).filter((p) => p.ticked > 0 && p.grid);
-  const scores = t ? [...(t.played ? [{ userId: me.id, name: "You", score: t.played.score, of: t.played.of }] : []), ...t.couch] : [];
-  const rows: ReactNode[] = [];
-  if (!on || !seasonId) return rows;
-  if (cards.length) {
-    const firstOne = b?.first ? cards.find((p) => p.userId === b.first?.userId) : undefined;
-    const you = b?.first?.userId === me.id;
-    rows.push(
-      <ExtraLine
-        key="bingo"
-        data="bingo"
-        title="Bingo"
-        winner={b?.first ? <Winner faces={[{ id: b.first.userId, name: firstOne?.name ?? b.first.name }]} words={you ? "Your line first" : `${first(firstOne?.name ?? b.first.name)}'s line first`} you={you} /> : <small className="text-[13px] text-muted-foreground">No line yet</small>}
-        onOpen={() => openBingo({ seasonId, couchId, episode: n, label: showLabel(show), solo: show.solo })}
-      >
-        {cards.slice(0, 5).map((p) => (
-          <Pair key={p.userId} id={p.userId} name={p.name}>
-            <BingoGlyph grid={p.grid!} />
-          </Pair>
-        ))}
-      </ExtraLine>
-    );
-  }
-  if (scores.length) {
-    const best = Math.max(...scores.map((x) => x.score));
-    const top = scores.filter((x) => x.score === best);
-    const you = top.some((x) => x.userId === me.id);
-    rows.push(
-      <ExtraLine
-        key="trivia"
-        data="trivia"
-        title="Trivia · this week"
-        winner={
-          !t?.played ? (
-            <small className="text-[13px] font-semibold">Play it</small>
-          ) : (
-            <Winner faces={top.slice(0, 3).map((x) => ({ id: x.userId, name: x.name }))} words={top.length === 1 ? `${you ? "You" : first(top[0].name)} ${best}/${top[0].of}` : `${top.length} on ${best}`} you={you && top.length === 1} />
-          )
-        }
-        onOpen={() => openTrivia({ seasonId, couchId: show.solo ? null : couchId })}
-      >
-        {scores.slice(0, 5).map((x) => (
-          <Pair key={x.userId} id={x.userId} name={x.name}>
-            <b className={`type-num text-[15px] leading-none ${x.score === best && best > 0 ? "text-good" : ""}`}>
-              {x.score}/{x.of}
-            </b>
-          </Pair>
-        ))}
-      </ExtraLine>
-    );
-  }
-  return rows;
-}
-
-/** The couch's bingo and trivia as their own block, for someone who plays nothing here (never a game's results). */
-export function NightExtras({ show, n, title }: { show: ShowData; n: number; title: string }) {
-  const rows = useExtras(show, n);
-  if (!rows.length) return null;
+  const cards = (b?.people ?? []).filter((p) => p.ticked > 0);
+  // Who got bingo: a line that counts, or one still settling (a square waiting on the couch's say), as the closed row's "first" counts.
+  const lines = cards.filter((p) => p.lines > 0 || p.waiting > 0);
+  const hit = b?.hit ?? [];
+  const theirs = t?.couch ?? [];
+  const playedTrivia = !!t?.played;
+  if (!on || !seasonId || (!cards.length && !theirs.length && !playedTrivia)) return null;
+  const nameOf = (id: string, name: string) => (id === me.id ? "you" : first(name));
+  const firstLine = b?.first ? nameOf(b.first.userId, b.first.name) : null;
+  // The closed row's words: who got bingo, how trivia went for you.
+  const bingoWords = cards.length ? (firstLine ? `${firstLine === "you" ? "You" : firstLine} got bingo` : hit.length ? `${hit.length} ${hit.length === 1 ? "moment" : "moments"} hit` : "No bingo") : null;
+  const triviaWords = playedTrivia ? `trivia ${t!.played!.score}/${t!.played!.of}` : theirs.length ? "trivia to play" : null;
+  const summary = [bingoWords, triviaWords].filter(Boolean).join(" · ");
+  const label = (s: string) => <p className="type-caption mb-1.5 mt-3 text-[13px] tracking-[0.06em] text-muted-foreground first:mt-0">{s}</p>;
   return (
-    <Block title={title}>
-      <div data-night-extras className="flex flex-col">
-        {rows}
-      </div>
-    </Block>
+    <div data-episode-extras={open ? "open" : "closed"} className="border-t border-border">
+      <button type="button" data-episode-extras-toggle onClick={() => setOpen(!open)} aria-expanded={open} className="nd-press flex min-h-12 w-full items-center gap-2 text-left">
+        <b className="flex-none text-[15px] font-semibold">Bingo and trivia</b>
+        <small className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">{summary}</small>
+        <ChevronDown className={`size-4 flex-none text-muted-foreground transition-transform duration-200 ${open ? "rotate-180" : ""}`} aria-hidden />
+      </button>
+      {open && (
+        <div data-episode-extras-body className="mb-3 rounded-[4px] bg-card px-3 py-3">
+          {cards.length > 0 && (
+            <section data-episode-bingo-hits>
+              {label(`Bingo · ${show.words.ep} ${n}`)}
+              {hit.length ? (
+                <ul className="flex flex-wrap gap-1.5" aria-label="Moments that hit">
+                  {hit.map((h) => (
+                    <li key={h.key} className="rounded-[3px] bg-secondary px-2 py-1 text-[13px] leading-tight">
+                      {h.label}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-[14px] text-muted-foreground">No moment settled as happened yet.</p>
+              )}
+              <p className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[14px]">
+                {lines.length ? (
+                  lines.map((p) => (
+                    <span key={p.userId} className="flex items-center gap-1.5">
+                      <Avatar id={p.userId} name={p.name} size={20} />
+                      <b className="font-semibold">{nameOf(p.userId, p.name) === "you" ? "You" : first(p.name)}</b>
+                      <small className="text-[13px] text-muted-foreground">
+                        {p.lines ? `${p.lines} ${p.lines === 1 ? "line" : "lines"}` : "a line, settling"}
+                        {b?.first?.userId === p.userId ? " · first" : ""}
+                      </small>
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-muted-foreground">Nobody got bingo</span>
+                )}
+              </p>
+              <button type="button" onClick={() => openBingo({ seasonId, couchId, episode: n, label: showLabel(show), solo: show.solo })} className="nd-press mt-1 flex min-h-11 items-center gap-1 text-[14px] font-semibold">
+                The couch&apos;s cards
+                <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
+              </button>
+            </section>
+          )}
+          {(theirs.length > 0 || playedTrivia) && (
+            <section data-episode-trivia className={cards.length ? "mt-2 border-t border-border pt-3" : ""}>
+              {label("Trivia · this week")}
+              {playedTrivia && t ? (
+                <ol className="flex flex-col gap-3">
+                  {t.questions.map((q) => {
+                    const answer = q.options.find((o) => o.key === q.answer);
+                    const mine = t.played!.answers[q.id] === q.answer;
+                    const got = [...(mine ? [{ userId: me.id, name: "You" }] : []), ...theirs.filter((x) => x.right?.includes(q.id))];
+                    return (
+                      <li key={q.id} data-trivia-question={q.id}>
+                        <p className="text-[14px] leading-snug text-muted-foreground">{q.lead}</p>
+                        <p className="mt-1 flex items-center gap-2">
+                          {answer?.photo && <Face src={answer.photo} name={answer.label} className="size-7 flex-none rounded-[3px] text-xs" />}
+                          <b className="min-w-0 flex-1 text-[15px] font-semibold leading-tight">{answer?.label ?? "—"}</b>
+                          <span className="flex flex-none items-center gap-1" aria-label={got.length ? `Right: ${got.map((x) => x.name).join(", ")}` : "Nobody got it"}>
+                            {got.length ? (
+                              got.slice(0, 4).map((x) => <Avatar key={x.userId} id={x.userId} name={x.name} size={20} />)
+                            ) : (
+                              <small className="text-[13px] text-muted-foreground">Nobody</small>
+                            )}
+                          </span>
+                        </p>
+                      </li>
+                    );
+                  })}
+                </ol>
+              ) : (
+                <button type="button" onClick={() => openTrivia({ seasonId, couchId: show.solo ? null : couchId })} className="nd-press flex min-h-11 items-center gap-1 text-[14px] font-semibold">
+                  Play this week&apos;s round
+                  <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
+                </button>
+              )}
+            </section>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -766,8 +766,8 @@ export function NightExtras({ show, n, title }: { show: ShowData; n: number; tit
 const GroupLabel = ({ children }: { children: ReactNode }) => <p className="type-caption pb-1.5 text-[13px] tracking-[0.06em] text-muted-foreground">{children}</p>;
 
 /** Block 4: the night in two groups, the shortest first (the user, 2026-11-21): the one-episode games that played it, each led by who
- *  won (then the couch's bingo and trivia), and the longer games, soonest to end first, each led by its name and length. Someone who
- *  only watches gets the couch's bingo and trivia alone, never a game's results. */
+ *  won, and the longer games, soonest to end first, each led by its name and length. Someone who only watches has none of it (bingo
+ *  and trivia come with every episode: Last time's EpisodeExtras). */
 export function YourNight({ show, open }: { show: ShowData; open: (d: Door) => void }) {
   const n = latestSeen(show);
   const playing = show.games.some((g) => g.yourRole);
@@ -776,9 +776,9 @@ export function YourNight({ show, open }: { show: ShowData; open: (d: Door) => v
   const couchId = show.couch?.id ?? null;
   const archive = useSeasonArchive(seasonId, couchId, null, !!seasonId && playing);
   const [quickAll, setQuickAll] = useState(false);
-  const extras = useExtras(show, n ?? 0);
   if (!n || !show.header) return null;
-  if (!playing) return show.readOnly || !extras.length ? null : <NightExtras show={show} n={n} title={`The couch's night · ${show.words.ep} ${n}`} />;
+  // Someone who only watches: no game's night (bingo and trivia are Last time's, for everyone).
+  if (!playing) return null;
   if (!show.play) return <div aria-busy className="mx-4 mt-[26px] h-[150px] animate-pulse rounded-[4px] bg-card" />;
   // Round 3: one-episode games aren't in the running read once over; the archive has them.
   const games = show.play.filter((g) => !g.stageOf && !oneGame(g) && !(g.over && g.to !== null));
@@ -796,7 +796,7 @@ export function YourNight({ show, open }: { show: ShowData; open: (d: Door) => v
   const quick = (archive.data?.pages[0]?.games ?? []).filter((a) => a.ended === n && a.from === a.to && !!a.you);
   const quickShown = quickAll || quick.length <= 3 ? quick : quick.slice(0, 2);
   const firsts = quick.filter((a) => a.you && a.you.place === 1 && !a.level && !a.nobody).length;
-  const short = quick.length + extras.length > 0;
+  const short = quick.length > 0;
   return (
     // Early results (the final ones land at noon the next day): every number here is so far, said once.
     <Block title={`Your night · ${show.words.ep} ${n}`} aside={early ? "So far" : undefined}>
@@ -813,7 +813,6 @@ export function YourNight({ show, open }: { show: ShowData; open: (d: Door) => v
                 <ChevronDown className="size-4 flex-none text-muted-foreground" aria-hidden />
               </button>
             )}
-            {extras}
           </div>
         )}
         {ordered.length > 0 && (

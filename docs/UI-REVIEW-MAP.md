@@ -41,7 +41,7 @@ The [gameplay coverage matrix](GAMEPLAY-COVERAGE.md) is the long-form ledger of 
 | **Pace, locks or spoilers** (who sees what when, own pace, live only) | The progress control; the reveal; Tonight's night at your mark (rows for whoever hasn't watched); every drill sheet; notifications' words | by hand; `tests/dst.test.js` for times |
 | **Who sees others' moves** (privacy, secret roles, lock-time reveals) | Tonight's everyone rows and news line; the game page's table; the episode and matchup sheets; waivers' everyone's moves | by hand |
 | **Spans and stages** (a game over some episodes, a game in stages) | Tonight's length words and its groups (one-episode first, then soonest to end); the Games tab's grouping and archive; the game page's stages | by hand |
-| **Results kept outside a game's state** (bingo, calls, trivia, answers) | Tonight's one-episode group (bingo, trivia); the episode page; the reveal | by hand |
+| **Results kept outside a game's state** (bingo, calls, trivia, answers) | Last time's Bingo and trivia expander (the moments that hit, who got bingo; each question, its answer, who got it right); the episode page; the reveal | by hand |
 | **A sport's capability** | The sport's own parts (sports keep their own components); the same rows above where a sport's game reaches them | by hand; the sport's checks |
 
 ## Tonight's row, by main block
@@ -62,5 +62,5 @@ where that kind was checked on a real game, and is null where it's designed but 
 | slate, ballot (questions) | none | points | your total | yes | everyone |
 | stages | your plays | points | the stage that played, the overall | yes | everyone |
 
-One-episode games that played the episode lead with who won. Bingo and trivia sit in the same group, led by who got a line first
-and who scored best.
+One-episode games that played the episode lead with who won. Bingo and trivia aren't games (every episode has them, for everyone
+who follows the show): they're one quiet expander in Last time.

@@ -1614,3 +1614,11 @@
 - Why: the row was generic past the three kinds the couch plays; a new capability would have fallen back silently.
 - Rejected: a design per game base (56 bases share 15 main blocks); relying on the gameplay coverage matrix alone (its ledger has never been used, and it doesn't fail anything).
 - Rests on: docs/UI-REVIEW-MAP.md; src/lib/game/night-rows.ts; the story's per-pattern frames.
+
+## 2026-11-21 · Bingo and trivia are Last time's quiet expander, not games; trivia shows who got each question right
+- Decided by: the user ("the bingo and trivia that always occurs can be toned down. Just an expander ... the moments that hit and who got bingo ... trivia should show questions and answers and who got it right ... it's actually just a every episode occurring feature")
+- What: out of Your night's one-episode group; one row in Last time ("Bingo and trivia", who got bingo and your trivia score), opening to the moments that hit and who got bingo, then each question, its answer and who got it right. Trivia's answers show only once you've played the round. The trivia read now carries which questions each couch member got right once you've played (never their wrong answer); bingo's read carries the moments that hit across the couch's cards.
+- Why: bingo and trivia come with every episode for everyone who follows the show; set out as game rows with winners, they read as games someone started.
+- Supersedes: trivia's "someone else on the couch sees only your score" (src/lib/server/trivia.ts), now a score plus which questions they got right.
+- Rejected: per-person bingo cards as glyphs and trivia dots in the games group (version 3).
+- Rests on: docs/design-round/tonight-night-spec.md, "Bingo and trivia: Last time's, not games".
