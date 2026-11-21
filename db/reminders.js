@@ -14,12 +14,8 @@
 // catalog with a schedule and still airing (season-clock.js isSeasonLive), and a catching-up league
 // is skipped -- it plays at its own pace, not the broadcast's.
 //
-// And one for commissioners, after an episode rather than before it: the morning after it airs (9am
-// in the season's time zone, at least six hours after airtime), if it still has no results, a push
-// to fill them in -- the same "due" rule as their alert strip (action-items.js resultsDueEpisode).
-// Any airing season counts here, not only auto-researched ones: filling in results is the
-// commissioner's job by default, and the push stops being due the moment anyone (an admin, research)
-// gets results in.
+// (Commissioners' morning-after push to fill in results went in settings Round 1, C4 and BACKLOG 235: results settle on their
+// own since 2026-11-20, so it told runners to copy and paste for nothing.)
 //
 // And one after an episode airs, for someone a Commissioner lets play at their own pace (docs/PLAN-own-pace-games.md: Backstage ›
 // Members' switch, player.ownPace): once its air time has passed, while they haven't watched it and the next hasn't aired, one push
@@ -35,7 +31,7 @@ require("dotenv").config({ path: ".env.local", quiet: true });
 const { Pool } = require("pg");
 const Air = require("../src/lib/game/air-schedule.js");
 const StateLogic = require("../src/lib/game/state-logic.js");
-const { actionItems, resultsDueEpisode, resultsHref } = require("../src/lib/game/action-items.js");
+const { actionItems } = require("../src/lib/game/action-items.js");
 const { sendPush } = require("../src/lib/server/push-core.js");
 const { remindMessage, shortEp } = require("../src/lib/server/remind-moves.js");
 const { loadSeasons, isSeasonLive } = require("./season-clock.js");
@@ -49,11 +45,10 @@ const WINDOWS = [
   { id: "24h", within: 24 * HOUR },
 ];
 const REMINDABLE = new Set(["lineup", "pick", "prediction"]);
-// The results nudge: from the morning after airtime, for the rest of that day (a job that was down
-// overnight doesn't send it at midnight).
+// The morning after airtime (9am in the season's zone, at least six hours after it aired): morningAfter, which the final
+// results' time is reckoned from.
 const MORNING = "09:00";
 const MORNING_GAP = 6 * HOUR;
-const MORNING_LASTS = 12 * HOUR;
 // The final results' push: from its time, for a day.
 const FINAL_LASTS = 24 * HOUR;
 
@@ -100,7 +95,6 @@ async function runReminders(pool, opts = {}) {
     try {
       await remindLeague(pool, league, airing, now, opts, queue);
       await remindLate(pool, league, airing, now, opts, queue);
-      sent += await remindResults(pool, league, airing, now, opts);
     } catch (e) {
       // One league's bad state mustn't cost every other league its reminders.
       console.error(`[reminders] league ${league.id}:`, e.message);
@@ -308,55 +302,6 @@ async function sendQueued(pool, queue, now, opts) {
     } catch (e) {
       console.error(`[reminders] ${r.userId} on season ${r.season.id}:`, e.message);
     }
-  }
-  return sent;
-}
-
-// The commissioner's results nudge for one league: the episode due now (aired, in play, nothing
-// recorded), once its morning-after has come, to each commissioner, once.
-async function remindResults(pool, league, seasons, now, opts) {
-  const state = league.state;
-  const settings = state.settings || {};
-  const season = seasons.get(`${settings.showId}|${settings.wikiSeason}`);
-  if (!season) return 0;
-  // Air times from the catalog (as the app stamps them on read), on a copy: never written back.
-  const stamped = { ...state, episodes: state.episodes.map((ep) => ({ ...ep })) };
-  for (const ep of stamped.episodes) {
-    const at = Air.episodeAirTime(season.schedule, ep.number, season.wikiAirDates);
-    if (at) ep.airsAt = at.toISOString();
-    else delete ep.airsAt;
-  }
-  const ep = resultsDueEpisode(stamped, now.getTime());
-  if (!ep) return 0;
-  const morning = morningAfter(new Date(ep.airsAt), season.schedule.airTz || "America/New_York");
-  const since = now.getTime() - morning.getTime();
-  if (since < 0 || since >= MORNING_LASTS) return 0;
-
-  let sent = 0;
-  const { rows: commissioners } = await pool.query(
-    "SELECT user_id FROM league_memberships WHERE league_id=$1 AND role='commissioner'",
-    [league.id]
-  );
-  for (const m of commissioners) {
-    if (!opts.dry) {
-      const { rowCount } = await pool.query(
-        `INSERT INTO reminder_log (user_id, league_id, kind, episode_number, reminder_window)
-         VALUES ($1,$2,'results',$3,'morning') ON CONFLICT DO NOTHING`,
-        [m.user_id, league.id, ep.number]
-      );
-      if (!rowCount) continue;
-    }
-    const message = {
-      title: `${league.name}: episode ${ep.number} needs its results`,
-      body: "Nothing's in yet. Copy the question into any AI chat, paste its answer back, then apply.",
-      url: `${resultsHref(state, ep)}?league=${encodeURIComponent(league.id)}`,
-      next: `/show/${season.id}/backstage/results?ep=${ep.number}`,
-      tag: `results-${league.id}`,
-      seasonId: season.id,
-    };
-    console.log(`[reminders] ${opts.dry ? "(dry) " : ""}${m.user_id} -- ${message.title}`);
-    if (!opts.dry) await sendPush(pool, [m.user_id], "resultsDue", message, { seasonId: season.id });
-    sent++;
   }
   return sent;
 }
