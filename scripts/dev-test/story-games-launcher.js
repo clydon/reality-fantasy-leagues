@@ -23,7 +23,7 @@
 //   short     alex on the busy season: many quick games, the record and the finished games' page
 //   patterns  jordan: a row for every kind of game
 // For each, under --out: <id>.top.jpg (the first view), <id>.s2.jpg, <id>.s3.jpg ... (the tab a screen at a time), <id>.full.jpg,
-// the situation's own frames (a sheet, the record), the words of each in <frame>.txt, index.json, and overlaps.json (words drawn over
+// the situation's own frames (a sheet, the record, Tonight's next-episode block: <id>.tonight-next), the words of each in <frame>.txt, index.json, and overlaps.json (words drawn over
 // words: DESIGN-PROCESS.md's rule), printed as OVERLAP lines.
 //
 //   the app running (BASE= from .env.local; this worktree's: http://localhost:3016)
@@ -169,18 +169,28 @@ async function parts(p, s) {
   if (await scrollTo(p, "[data-games-record]")) await shoot(p, `${s}.record`, { what: "your record" });
 }
 
+/** Tonight's next-episode block (its one-episode games in the Games tab's rows: BACKLOG 241), the same viewer. */
+async function tonightNext(p, s, fx) {
+  await p.goto(`${BASE}/show/${fx.seasonId}`, { waitUntil: "domcontentloaded" });
+  await p.locator("[data-progress]").first().waitFor({ timeout: 90000 });
+  await p.locator("[data-next-episode]").first().waitFor({ timeout: 30000 }).catch(() => {});
+  await p.waitForTimeout(2500);
+  if (await scrollTo(p, "[data-next-episode]")) await shoot(p, `${s}.tonight-next`, { what: "Tonight's next episode: its one-episode games" });
+}
+
 const SITUATIONS = [
   {
     id: "week",
     who: "jordan",
     up: nightUp,
-    async shots(p, s) {
+    async shots(p, s, fx) {
       await parts(p, s);
       await sheet(p, "[data-join-button], [data-join-open]", `${s}.join`, "Join's sheet");
       await sheet(p, "[data-archive-open]", `${s}.archive`, "the record: finished games", "[data-archive]");
+      await tonightNext(p, s, fx);
     },
   },
-  { id: "watcher", who: "casey", up: nightUp, async shots(p, s) { await parts(p, s); } },
+  { id: "watcher", who: "casey", up: nightUp, async shots(p, s, fx) { await parts(p, s); await tonightNext(p, s, fx); } },
   { id: "busy", who: "jordan", night: { extra: 4, extraMoves: "set" }, up: nightUp, async shots(p, s) { await parts(p, s); } },
   { id: "behind", who: "sam", up: nightUp, async shots(p, s) { await parts(p, s); } },
   {
@@ -267,7 +277,7 @@ async function main() {
         await shoot(p, `${sit.id}.top`, { what: "first view" });
         await screens(p, sit.id, sit.max ?? 4);
         await shootFull(p, sit.id);
-        await sit.shots(p, sit.id);
+        await sit.shots(p, sit.id, fx);
         if (session.errors.length) console.log(`ERRORS ${sit.id}: ${session.errors.slice(0, 3).join(" | ")}`);
       } catch (e) {
         console.log(`STOPPED ${sit.id}: ${e.message.split("\n")[0]}`);

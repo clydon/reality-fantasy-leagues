@@ -568,17 +568,6 @@ plan the same in the stack table, the Limits table and Cost by size. [S · docs]
 
 ## Waiting on you
 
-- **240. The strip's words beside a one-episode game of the same verb.** The Games tab's round (2026-11-21, story
-  https://claude.ai/artifact/5D9STJ6R4jFVgtkKEdCdpx): the strip says "Pick who survives" for Survival Pool while the tab's first game is
-  a one-episode game called "Who survives?" that jordan isn't in; both reviewers expect Joanna to tap the wrong one. *Recommended: the
-  strip names the game when another game on the show shares its verb ("Pool Party: pick who survives").*
-- **241. Tonight's next-episode rows take the Games tab's form?** Tonight's Next block lists your one-episode games in Round 3's night
-  row (src/new/show/whats-on.tsx NightRow); the Games tab's (QuickRow: "You're in", faces, the button) is newer. *Recommended: Tonight
-  takes the Games tab's row, so one game looks the same on both tabs.*
-- **239. "Quick game" or "one-episode game"?** Tonight's night groups them as "One-episode games" (the user's words, 2026-11-21);
-  the Join row and its sheet, and decisions.md's 2026-11-21 naming entry, still say "quick game". *Recommended: "one-episode game"
-  everywhere a person reads it, since it's what they called them.*
-
 Each one names the question and Claude's recommendation. "Yes to all the recommendations" is a fine answer; Claude records it
 and builds.
 
@@ -833,6 +822,8 @@ longer depends on the wiki.)
 ## Closed since the cleanup
 
 One line each: the number, done or dropped, and the commit or the reason.
+- **239, 240, 241** answered (the user, 2026-11-21, "i agree with your recs"): "one-episode game" is the app's word; the strip names a
+  pick's game when another pick game is on (pick-words.ts); Tonight's next-episode rows take the Games tab's form (branch tonight-night).
 - **198** dropped (2026-11-20): nothing's left to tick in Backstage since results settle on their own (PLAN-results-settle.md);
   the settings plan's C43.
 - **226** answered (the user, 2026-11-20, "i agree with your rec"): the NFL's default season game plays a final between the top two in

@@ -20,7 +20,7 @@ import { first, openMoves } from "./moves";
 import { openSheet } from "./questions";
 import { oneGame } from "./this-week";
 import { kindOf, spanName } from "@/lib/game/spans";
-import type { YourMove } from "./your-move";
+import { yourMove, type YourMove } from "./your-move";
 
 // The Games tab as the way into games (docs/design-round/games-launcher-spec.md, -first-view.md, -shape.md, -check.md; 2026-11-21),
 // after Round 3's "what's on" (docs/design-round/round3-short-games-spec.md, 2026-11-18): the next episode's one-episode games first
@@ -176,71 +176,6 @@ function AgainLine({ show, games }: { show: ShowData; games: ArchivedGame[] }) {
             <span className="grid h-9 place-items-center whitespace-nowrap rounded-[3px] px-3 text-[14px] font-bold outline-[1.5px] -outline-offset-[1.5px] outline-input">{quickName(a.kind)}</span>
           </button>
         ))}
-      </div>
-    </div>
-  );
-}
-
-// ---------- the night row ----------
-
-/** One of a night's games before its results (no leaderboard: nothing has counted): who's in (you marked), your move's state, its
- *  button. The lock is said once, by the episode's heading, when it's the air time. */
-function NightRow({ show, g, move }: { show: ShowData; g: GameView; move: YourMove | null }) {
-  const nav = useNav();
-  const seasonId = show.header?.seasonId ?? "";
-  const ep = g.from as number;
-  const E = show.words.ep;
-  const seats = [...g.table].sort((a, b) => Number(b.you) - Number(a.you));
-  const inSet = g.sheetIn ? new Set(g.sheetIn) : g.progress && g.progress.episode === ep ? new Set(g.progress.people.filter((p) => p.done).map((p) => p.playerId)) : null;
-  const isIn = (id: string) => (inSet ? inSet.has(id) : true);
-  const mineIn = !!g.you && isIn(g.you.playerId);
-  const sheet = g.sheet;
-  const air = show.upNext?.number === ep ? show.upNext.airAt : null;
-  const atAir = !!air && !!sheet?.closesAt && Math.abs(Date.parse(air) - Date.parse(sheet.closesAt)) < 60_000;
-  const lock = sheet?.closesAt && !atAir ? lockTime(Date.parse(sheet.closesAt)) : null;
-  let state: string;
-  let action: string | null = null;
-  let go: (() => void) | null = null;
-  if (sheet && sheet.of > 0) {
-    const all = sheet.answered === sheet.of;
-    const q = `${sheet.of} ${sheet.of === 1 ? "question" : "questions"}`;
-    state = all ? `Answered${lock ? ` · change until ${lock}` : ""}` : sheet.answered ? `${sheet.answered} of ${sheet.of} answered${lock ? ` · locks ${lock}` : ""}` : `${q}${lock ? ` · locks ${lock}` : ""}`;
-    action = all ? "Change" : "Answer";
-    go = () => openSheet({ seasonId, leagueId: g.leagueId, episode: sheet.episode, game: g.name });
-  } else if (sheet?.behind) state = `After you reveal ${E} ${sheet.behind}`;
-  else if (move) {
-    state = move.line;
-    action = move.action;
-    go = () => ("tab" in move.go ? openMoves(move.go.tab, g.leagueId) : nav.push(move.go.href));
-  } else if (ep <= show.latestAired) state = mineIn ? "Answered" : "Not answered";
-  else state = mineIn ? "Answered" : "Not open yet";
-  const count = inSet && g.table.length > 1 ? `${seats.filter((r) => inSet.has(r.playerId)).length} of ${seats.length} in` : null;
-  return (
-    <div data-night-row={g.leagueId} data-night-in={mineIn ? "yes" : "no"} className="border-t border-border py-2 first:border-t-0">
-      <div className="flex min-h-11 items-center gap-2">
-        <NavLink href={paths.gamePage(seasonId, g.leagueId)} className="nd-press -mx-1 flex min-h-11 min-w-0 flex-1 items-center rounded-[3px] px-1">
-          <b className="type-caption min-w-0 truncate text-[19px] leading-none">{kindOf(g.name)}</b>
-        </NavLink>
-        {action && go && (
-          <button type="button" data-night-move={g.leagueId} onClick={go} className="nd-press -my-1 grid min-h-11 flex-none place-items-center">
-            <span className="grid h-9 place-items-center whitespace-nowrap rounded-[3px] px-3.5 text-[15px] font-bold outline-[1.5px] -outline-offset-[1.5px] outline-input">{action}</span>
-          </button>
-        )}
-      </div>
-      <div className="mt-1 flex items-center gap-2.5">
-        <span className="flex flex-none items-center gap-1.5" aria-label={count ?? undefined}>
-          {seats.map((r) => {
-            const on = isIn(r.playerId);
-            // You: always outlined in the foreground (solid when you're in, dashed when you're not); the others only while they aren't.
-            const ring = r.you ? (on ? "outline-[1.5px] outline-offset-1 outline-foreground" : "opacity-60 outline-[1.5px] outline-offset-1 outline-dashed outline-foreground") : on ? "" : "opacity-40 outline-[1.5px] outline-offset-1 outline-dashed outline-muted-foreground";
-            return (
-              <span key={r.playerId} data-in={on ? "yes" : "no"} data-you={r.you || undefined} className={`rounded-[4px] ${ring}`} title={r.you ? "You" : r.name}>
-                <Avatar id={r.userId ?? r.playerId} name={r.name} size={22} bot={r.bot} />
-              </span>
-            );
-          })}
-        </span>
-        <small className="min-w-0 truncate text-[13px] leading-snug text-muted-foreground">{[count, state].filter(Boolean).join(" · ")}</small>
       </div>
     </div>
   );
@@ -493,14 +428,14 @@ export function WhatsOn({ show, moves, row, oneNight, start }: { show: ShowData;
 }
 
 /** What a one-episode game asks, in a few words, before you've joined. */
-function askOf(g: JoinGame): string {
+export function askOf(g: JoinGame): string {
   if (g.gameType === "pickem") return "One pick";
   if (g.teamSize) return `Pick ${g.teamSize}`;
   return "Answer before you watch";
 }
 
 /** Where joining a longer game puts you, in a few words. */
-function startWords(g: JoinGame, E: string): string {
+export function startWords(g: JoinGame, E: string): string {
   const ask = g.mode === "ask" && !g.you?.letIn ? `${g.runners[0] ? first(g.runners[0]) : "Whoever runs it"} decides who joins` : null;
   const where = g.ownPace ? "start where you are" : !g.underway ? (g.teamSize ? "you'd draft with everyone" : "from the start") : `from ${E} ${g.latest + 1}`;
   return [ask ?? `${g.faces.length} in`, where].join(" · ");
@@ -823,8 +758,9 @@ export function TonightNights({ show, under = true, part = "all" }: { show: Show
             {`${waiting.length === 1 ? `${E} ${waiting[0]}` : `${E}s ${waiting[0]} to ${waiting.at(-1)}`} · ${held} ${held === 1 ? "game" : "games"} waiting on your reveal`}
           </p>
         )}
+        {/* The Games tab's one-episode row (BACKLOG 241, the user's yes, 2026-11-21): one game looks the same on both tabs. */}
         {here.map((g) => (
-          <NightRow key={g.leagueId} show={show} g={g} move={null} />
+          <QuickRow key={g.leagueId} show={show} g={g} move={yourMove(g, { seasonId, episode: show.words.episode, when: (iso) => airTime(Date.parse(iso)) })} />
         ))}
       </div>
     );

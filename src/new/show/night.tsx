@@ -12,8 +12,8 @@ import { NavLink } from "../nav";
 import { paths } from "../routes";
 import { episodesOf, type ShowData } from "../screens/show-space";
 import { Avatar } from "../ui/bars";
-import { Btn } from "../ui/parts";
-import { JoinGameSheet } from "../couch/join-game";
+import { JoinButton, JoinGameSheet } from "../couch/join-game";
+import { askOf, LaunchRow, People, startWords } from "./whats-on";
 import { openBingo } from "./bingo";
 import { NightBadge, type Door } from "./game-sheets";
 import { EpisodeGames } from "./game-week";
@@ -855,32 +855,25 @@ export function JoinRows({ show, ep }: { show: ShowData; ep: number }) {
   if (!rows.length) return null;
   return (
     <>
+      {/* The Games tab's rows (BACKLOG 241, the user's yes, 2026-11-21): one game looks the same on both tabs. */}
       {rows.map((g) => {
         const quickOne = !!g.span && g.span.from === g.span.to;
-        const who = g.faces.length ? `${g.faces.length} in` : "Be the first in";
-        const title = quickOne ? quickName(g.name) : (GAME_NAMES[g.gameName] ?? g.gameName);
         return (
-          <div key={g.leagueId} data-join-row={g.leagueId} className="flex min-h-[60px] items-center gap-3 border-t border-border py-2">
-            <span className="flex w-5 flex-none justify-center">
-              <i className="size-2 rounded-full" style={{ background: gameInk(g.gameName) }} aria-hidden />
-            </span>
-            <span className="min-w-0 flex-1">
-              <b className="block truncate text-[15px] font-semibold">{title}</b>
-              <small className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
-                <span className="flex flex-none items-center" aria-hidden>
-                  {g.faces.slice(0, 3).map((f, i) => (
-                    <span key={f.userId} className="rounded-[4px] ring-2 ring-background" style={{ marginLeft: i ? -5 : 0, zIndex: 3 - i }}>
-                      <Avatar id={f.userId} name={f.name} size={18} />
-                    </span>
-                  ))}
-                </span>
-                <span className="min-w-0 truncate">{[who, quickOne ? "pick before you watch" : `from ${show.words.ep} ${Math.max(g.latest + 1, 1)}`].join(" · ")}</span>
-              </small>
-            </span>
-            <Btn tone="optional" className="h-10 flex-none px-4" data-join-button onClick={() => setJoining(g)}>
-              Join
-            </Btn>
-          </div>
+          <LaunchRow
+            key={g.leagueId}
+            data={{ "data-join-row": g.leagueId }}
+            dot={quickOne ? undefined : gameInk(g.gameName)}
+            name={quickOne ? quickName(g.name) : (GAME_NAMES[g.gameName] ?? g.gameName)}
+            length={quickOne ? null : g.span ? `${show.words.ep}s ${g.span.from}–${g.span.to}` : "Season"}
+            href={paths.gamePage(seasonId, g.leagueId)}
+            second={
+              <>
+                <People faces={g.faces.map((f) => ({ id: f.userId, name: f.name }))} />
+                <small className="min-w-0 truncate text-[13px] text-muted-foreground">{quickOne ? `${askOf(g)} · before you watch` : startWords(g, show.words.ep)}</small>
+              </>
+            }
+            right={<JoinButton couchId={couchId} g={g} onJoin={setJoining} />}
+          />
         );
       })}
       {quick.length > 2 && (

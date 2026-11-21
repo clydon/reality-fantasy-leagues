@@ -102,6 +102,9 @@ Nothing when nobody played either. Someone who only watches gets the same row: i
 
 ### Next · Ep N+1: the quick games
 
+(Since the Games tab's round, 2026-11-21: these rows are the Games tab's, one form on both tabs: docs/design-round/games-launcher-spec.md,
+"A one-episode game's row". In the app's words a quick game is a "one-episode game".)
+
 Under the next episode's plans, one row per quick game for it:
 - **Yours:** the game's name and your move's state ("Answered", "2 to answer", "After you reveal Ep 9"); the strip keeps the yellow.
 - **The couch's you're not in:** the game's name in plain words ("Who goes home? One pick"), who's in as faces, when it locks,

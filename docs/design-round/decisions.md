@@ -1676,3 +1676,25 @@
 - What: the stat of the week's plate moves from the bottom Stats card into Last time, under who left and above the GIFs, its title a step under the Out plate's (18 px against 19) so who left leads; the two leader boards and All N stats stay at the bottom.
 - Why: it's picked from your latest episode (cast-stats.ts featured: a stat with a clear leader that moved in it), so it's what happened last time, for watchers and players alike.
 - Rejected: moving the whole Stats block up (it would push the games down for the boards' sake).
+
+## 2026-11-21 · The strip names a pick's game when another pick game is on for the episode (BACKLOG 240)
+- Decided by: the user ("i agree with your recs"), on the Games tab's check
+- What: a pick's strip words become "Survival Pool: pick who survives" (the name the Games tab's row gives it) when another pick game covers that episode, yours or the couch's; a one-episode game's own pick says its name ("Who goes home?"). Alone, a pick keeps "Pick who survives". src/new/show/pick-words.ts; tests/strip-pick-words.test.js.
+- Why: "Pick who survives" over a one-episode game called "Who survives?" that you're not in read as that game (both reviewers: Joanna taps the wrong one).
+- Rejected: renaming one-episode games away from the pick's verb (they're named by whoever starts them).
+- Rests on: docs/design-round/games-launcher-check.md.
+
+## 2026-11-21 · Tonight's next-episode rows take the Games tab's form (BACKLOG 241)
+- Decided by: the user ("i agree with your recs")
+- What: Next · Ep N+1 lists your one-episode games as the Games tab's QuickRow (You're in, who's in, your move's state and its button) and the couch's to join as its join row (faces first, what it asks, Join or Ask); Round 3's night row is gone.
+- Why: one game looks and works the same on both tabs (PFD's L2: one form per fact).
+- Rejected: Tonight's rows staying as they were (two forms of one game, one with a button and one without).
+- Supersedes: the Next block's rows in the 2026-11-21 "Tonight's night approved as version 5" entry.
+- Rests on: docs/design-round/games-launcher-spec.md, "A one-episode game's row".
+
+## 2026-11-21 · "One-episode game" is the app's word; "quick game" was the round's shorthand (BACKLOG 239)
+- Decided by: the user ("i agree with your recs")
+- What: wherever a person reads it, a game over one episode is a "one-episode game" (Tonight's group, the Games tab's Start row); "quick game" stays only as the docs' and code's shorthand.
+- Why: it's what the user called them.
+- Supersedes: "A one-episode game is called a quick game" (2026-11-21).
+- Rests on: BACKLOG 239.
