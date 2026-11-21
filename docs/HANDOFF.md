@@ -17,9 +17,17 @@ puts its build notes in its plan, not here.
 
 ---
 
-## Live (production = origin/master, 1484417a, deployed 2026-11-21)
+## Live (production = origin/master, f5fddc1c, deployed 2026-11-21)
 
 Newest first. The plan or archive section named holds the detail.
+- **Tonight's night and the Games tab** (2026-11-21, pushed f5fddc1c; no migration; carries settings Round 3a, already on origin):
+  Tonight is the night (each game you play a row led by its name and length, one-episode games first led by who won, opening to
+  everyone's night; bingo and trivia as Last time's expander; a watcher sees no game's results), the Games tab is the way into games
+  (the next episode's one-episode games first, yours and the couch's to Join, Start one; your longer games a row each; longer games
+  to join; your record), a game's page is the season. The strip names a pick's game beside another pick game. Every kind of game
+  has a Tonight row (src/lib/game/night-rows.ts) and docs/UI-REVIEW-MAP.md lists the screens each engine change reaches. Stories:
+  https://claude.ai/artifact/1y8nHXhkub2XuSiMwwWykp (Tonight) and https://claude.ai/artifact/5D9STJ6R4jFVgtkKEdCdpx (Games);
+  docs/design-round/tonight-night-*.md and games-launcher-*.md.
 - **Sports steps 2.7 and 2.8, with 2.8's design round** (2026-11-21, merged 1484417a; migration 0312, additive, applied by the build
   without a Neon rehearsal on the user's word; no sports games in production): a game through the playoffs ("Regular season" by
   default, or "Through the Super Bowl" on Start a game and in Game settings; a team's season takes its playoff games as they're
@@ -75,12 +83,6 @@ Newest first. The plan or archive section named holds the detail.
 
 ## In flight
 
-- **Tonight's night, branch `tonight-night`** (worktree rfl-reveal, port 3016, DB rfl_reveal; 2026-11-21, from master ac4042f2; not
-  merged or pushed; no migration): Tonight's games section as each game's last episode for you and everyone in it (closed: your
-  night; open: five people, See all), the night's quick games, the couch's bingo and trivia, the next episode's Join row for a quick
-  game you're not in; a watcher sees no game's results. Version 3 (the user: too tall; too much on your place): one row a game led by its name and length, one-episode games first led by who won, then the longer games soonest to end first. Every kind of game (the 15 main blocks) has its row in src/lib/game/night-rows.ts, 12 seen on real games (story-tonight-patterns.js; 3 are sports-only); docs/UI-REVIEW-MAP.md lists the screens each engine change reaches. Server: `GameView.was`, `JoinGame.faces`, `BingoPerson.grid`. Made
-  through Intent, PFD and Impeccable; checked once (PFD 63, Impeccable 26/40), one batch fixed. Approved by the user as version 5 (2026-11-21; story https://claude.ai/artifact/1y8nHXhkub2XuSiMwwWykp); open: BACKLOG 239 and the story's two choices. **The Games tab as the way into games is built** (2026-11-21, same branch: the next episode's one-episode games first, your longer games a row each, games to join, Start, your record; no leaderboards or results; checked once, PFD 71, Impeccable 26/40, one batch fixed; story https://claude.ai/artifact/5D9STJ6R4jFVgtkKEdCdpx; docs/design-round/games-launcher-*.md; frames `node scripts/dev-test/story-games-launcher.js`). BACKLOG 239–241 answered (the user: "i agree with your recs") and built: the strip names a pick's game when another pick game is on, Tonight's next-episode rows take the Games tab's form, "one-episode game" is the app's word. Approved by the user with version 2 (2026-11-21, "Approve continue here"); both merge together (the user, 2026-11-21: not Tonight alone; ask before the push, never on an episode night).
-  docs/design-round/tonight-night-*.md; frames: `node scripts/dev-test/story-tonight-night.js`.
 - **Settings overhaul, Round 3a: merged to master, not pushed** (2026-11-21, fast-forward to 1ab47840; no migration):
   Backstage retired; each game's Manage this game (a gear on its bar) with its waiver week, Replacing people who leave and Pick
   for them in place (the user's picks on the story); Games you run, Who's playing per game, rename, remove from one game, Start a
