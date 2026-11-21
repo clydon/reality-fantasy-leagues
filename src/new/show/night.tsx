@@ -165,7 +165,7 @@ function changeFor(kind: NightChange, g: GameView, s: Square | null, n: number):
 }
 
 /** The second line's words as a game's design says them (night-rows.ts NightLine), when nobody else's night is the news. */
-function lineFor(kind: NightLine, g: GameView, s: Square | null, n: number, total: string): string {
+export function lineFor(kind: NightLine, g: GameView, s: Square | null, n: number, total: string): string {
   const me = g.you;
   if (!me) return total;
   if (kind === "opponent" && s?.result) {
@@ -501,7 +501,7 @@ function GamePageLink({ seasonId, leagueId, name }: { seasonId: string; leagueId
 
 /** How long a game runs, in the show's words, and what's left of it at episode `n`: "Season · 7 left", "Eps 4–9 · 3 left",
  *  "From Ep 4", "Ends Ep 9" on its last. */
-function lengthOf(g: GameView, show: ShowData, n: number): string {
+export function lengthOf(g: GameView, show: ShowData, n: number): string {
   const ep = show.words.ep;
   const last = g.to ?? episodesOf(show);
   const left = last - n;

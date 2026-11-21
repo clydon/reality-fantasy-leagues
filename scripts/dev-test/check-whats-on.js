@@ -1,10 +1,12 @@
-// Dev-only browser check of Round 3's Games tab, archive, Tonight and Again (docs/PLAN-start-a-game-redo.md, B3; the design:
-// docs/design-round/round3-short-games-spec.md), on short-games-fixture.js's busy season at a phone's width:
-//   alex (caught up, Episode 20 next): the Games tab opens on Episode 20's three night rows (who's in, Answer), the season's games as
-//     step 6's rows, Episode 19's results and the door; no finished game's row; the archive (record, kinds, an episode a section, the
-//     next page by its button); a result row opens the finished game's page (read by itself: the running read doesn't carry it);
-//     Tonight holds a mini per season game and the night's games as two compact parts; nothing wider than the screen.
-//   sam (two behind): Episodes 18 and 19 folded to a line each, nothing past his mark (his results and his archive start at 17).
+// Dev-only browser check of the Games tab as the way into games (docs/design-round/games-launcher-spec.md; before it Round 3's,
+// docs/PLAN-start-a-game-redo.md B3), its finished games' page, Tonight's night and Again, on short-games-fixture.js's busy season at a
+// phone's width:
+//   alex (caught up, Episode 20 next): the Games tab opens on Episode 20's three one-episode games (Answer, not in yet) and Start one,
+//     then the season's games a row each and the record row; no leaderboard, last picks or results; the finished games' page (record,
+//     kinds, an episode a section, the next page by its button); a result row opens the finished game's page (read by itself: the
+//     running read doesn't carry it); Tonight's night has a row per season game and the night's one-episode games; nothing wider than
+//     the screen.
+//   sam (two behind): Episodes 18 and 19 folded to a line each, nothing past his mark (his archive starts at 17).
 //   --no-next run (the next episode with no games yet): Again on the tab's results (one button a kind) and on the newest game's page.
 //
 //   node scripts/lane.js dev   (or npm run dev; BASE from .env.local)
@@ -56,15 +58,16 @@ async function main() {
     const S = fx.seasonId;
     await as("alex", `/show/${S}/games`, async (p) => {
       await p.locator("[data-whats-on]").waitFor({ timeout: 45000 });
-      await p.locator('[data-results="19"] [data-result-row]').first().waitFor({ timeout: 30000 });
-      check((await count(p, '[data-night="20"] [data-night-row]')) === 3, "alex · Episode 20's three night rows lead the tab");
+      await p.locator("[data-games-record]").waitFor({ timeout: 30000 });
+      check((await count(p, '[data-night="20"] [data-night-row]')) === 3, "alex · Episode 20's three one-episode games lead the tab");
       check((await count(p, '[data-night="20"] [data-night-move]')) === 3, "alex · each with Answer (nothing answered yet)");
-      check((await count(p, '[data-night-row] [data-you][data-in="no"]')) === 3, "alex · his face marked as not in on each");
-      check((await count(p, "[data-season-games] [data-game-row]")) === 3, "alex · Running: the three season games as step 6's rows");
+      check((await count(p, '[data-night-row][data-night-in="no"]')) === 3, "alex · each says he isn't in yet");
+      check((await count(p, '[data-night="20"] [data-start-row="quick"]')) === 1, "alex · Start a one-episode game in Episode 20's block");
+      check((await count(p, "[data-games-season] [data-game-row]")) === 3, "alex · Your longer games: the three season games, a row each");
       check((await count(p, "[data-game-row]")) === 3, "alex · no finished game has a row on the tab");
-      check((await count(p, '[data-results="19"] [data-result-row]')) === 3, "alex · Episode 19's three results");
-      const door = await text(p, "[data-archive-open]");
-      check(/All finished games\s*57/.test(door), "alex · the door counts 57 finished games", door);
+      check((await count(p, "[data-leaderboard], [data-last-picks], [data-result-row]")) === 0, "alex · no leaderboard, last picks or results (Tonight's and the game page's)");
+      const door = await text(p, "[data-games-record]");
+      check(/57\s*Finished games/.test(door), "alex · the record row counts 57 finished games", door);
       check(!(await wide(p)), "alex · the tab fits the screen");
       await p.locator("[data-archive-open]").click();
       await p.locator("[data-archive] [data-record]").waitFor({ timeout: 30000 });
@@ -84,19 +87,16 @@ async function main() {
       check(!(await count(p, "[data-strip-ep]")), "alex · a one-episode game's page has no week by week");
     });
     await as("alex", `/show/${S}`, async (p) => {
-      await p.locator("[data-your-games]").waitFor({ timeout: 45000 });
-      await p.locator("[data-tonight-nights] [data-result-row]").first().waitFor({ timeout: 30000 });
-      check((await count(p, "[data-game-mini]")) === 3, "alex · Tonight: a mini per season game, none per short game");
-      check((await count(p, "[data-tonight-nights] [data-result-row]")) === 3, "alex · Tonight: Episode 19's results");
-      check((await count(p, "[data-tonight-night]")) === 3, "alex · Tonight: Episode 20's games, a line each");
+      await p.locator("[data-your-night]").waitFor({ timeout: 45000 });
+      await p.locator("[data-night-quick]").first().waitFor({ timeout: 30000 });
+      check((await count(p, "[data-night-card]")) === 3, "alex · Tonight: a row per season game");
+      check((await count(p, "[data-night-quick]")) + (await count(p, "[data-night-quick-fold]")) >= 2, "alex · Tonight: Episode 19's one-episode games, led by who won");
     });
     await as("sam", `/show/${S}/games`, async (p) => {
       await p.locator("[data-whats-on]").waitFor({ timeout: 45000 });
-      await p.locator("[data-results] [data-result-row]").first().waitFor({ timeout: 30000 });
+      await p.locator("[data-games-record]").waitFor({ timeout: 30000 });
       check((await count(p, '[data-night="18"][data-night-folded="yes"]')) === 1 && (await count(p, '[data-night="19"][data-night-folded="yes"]')) === 1, "sam · Episodes 18 and 19 fold to a line each");
-      check((await p.locator("[data-results]").getAttribute("data-results")) === "17", "sam · his results are Episode 17's");
-      const words = await p.locator("[data-whats-on]").innerText();
-      check(!/won/.test(words.split(/Episode 17's results/i)[0] ?? ""), "sam · no result above his own episode's", words.slice(0, 200));
+      check((await count(p, "[data-result-row]")) === 0, "sam · no results on the tab");
       await p.locator("[data-archive-open]").click();
       await p.locator("[data-archive-ep]").first().waitFor({ timeout: 30000 });
       check((await p.locator("[data-archive-ep]").first().getAttribute("data-archive-ep")) === "17", "sam · his archive starts at Episode 17");

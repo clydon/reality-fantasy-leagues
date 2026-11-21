@@ -45,6 +45,51 @@ function whoJoins(g: JoinGame): string {
   return g.shared ? `Anyone can join. Catch up on what you missed, or start from Episode ${g.latest + 1}.` : `Anyone can join from Episode ${g.latest + 1}.`;
 }
 
+/** Whether there's anything to do about joining a game from a list: join it, ask to, or see your request waiting (a game nobody new
+ *  can join has nothing to offer there: the Games tab leaves it out; the couch's page still lists it). */
+export const joinable = (g: JoinGame) => !g.you?.playing && !g.ended && (g.mode === "open" || g.mode === "ask");
+
+/**
+ * A row's join button (the Games tab's rows, docs/design-round/games-launcher-spec.md): Join, outlined (the strip holds the yellow);
+ * Ask, which sends the request; Asked, which takes it back on a second tap. Nothing for a game nobody new can join.
+ */
+export function JoinButton({ couchId, g, onJoin }: { couchId: string; g: JoinGame; onJoin: (g: JoinGame) => void }) {
+  const after = useAfterCouch();
+  const [busy, setBusy] = useState(false);
+  const runner = g.runners[0] ?? "whoever runs it";
+  const act = async (fn: () => Promise<unknown>, said: string) => {
+    setBusy(true);
+    try {
+      await fn();
+      await after();
+      toast(said);
+    } catch (e) {
+      toast.quiet((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (g.you?.playing || g.mode === "locked") return null;
+  if (g.mode === "open" || g.you?.letIn)
+    return (
+      <Btn tone="optional" className="h-10 flex-none px-4" data-join-button onClick={() => onJoin(g)}>
+        Join
+      </Btn>
+    );
+  if (g.you?.asked)
+    return (
+      <Btn tone="optional" className="h-10 flex-none px-3 text-muted-foreground" disabled={busy} data-asked aria-label={`Asked ${runner}. Tap to take the request back`} onClick={() => act(() => couches.withdraw(couchId, g.leagueId), "Request taken back")}>
+        <Check className="size-4" aria-hidden />
+        Asked
+      </Btn>
+    );
+  return (
+    <Btn tone="optional" className="h-10 flex-none px-4" disabled={busy} data-ask-button onClick={() => act(() => couches.ask(couchId, g.leagueId), `Request sent to ${runner}`)}>
+      Ask
+    </Btn>
+  );
+}
+
 /**
  * One game you might join: its colour and name, shared or exclusive, who may join, and its button (Join, Ask to join,
  * Asked, Locked, or Open once you're in). `strong`: Join is the one yellow (the invite page, where joining is the point).

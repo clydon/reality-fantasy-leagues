@@ -21,7 +21,7 @@ The [gameplay coverage matrix](GAMEPLAY-COVERAGE.md) is the long-form ledger of 
 | Tonight's night | The last episode, a row each (closed and open), by main block | `src/new/show/night.tsx`, `src/lib/game/night-rows.ts` |
 | Tonight's next episode | One-episode games to play or join | `src/new/show/whats-on.tsx` (NightRow), `night.tsx` (JoinRows) |
 | The strip and Your moves | What's yours to set and by when | `src/new/show/strip.tsx`, `your-move.ts`, `moves.ts` |
-| Games tab | Each game's row, the archive and your record | `src/new/show/games.tsx`, `whats-on.tsx` |
+| Games tab | The way into games: the next episode's one-episode games (yours, to join, Start one), a row per longer game (its faces and measure from `NIGHT_ROWS`), longer games to join, your record | `src/new/show/games.tsx` (LongRow), `whats-on.tsx` (WhatsOn, QuickRow, LaunchRow) |
 | Drill sheets | A person, an episode (everyone's night), a matchup, a compare, a castaway | `src/new/show/game-sheets.tsx`, `game-week.tsx`, `cast-sheet.tsx` |
 | The reveal | An episode's beats across every game | `src/new/show/reveal.tsx`, `src/lib/game/episode-view.ts` (revealIn) |
 | Episodes | An episode's page and each game's line for it | `src/new/show/episodes.tsx` |
@@ -34,7 +34,7 @@ The [gameplay coverage matrix](GAMEPLAY-COVERAGE.md) is the long-form ledger of 
 
 | The engine change | Review | Check |
 | --- | --- | --- |
-| **A new main block** (a new way a game is about: a rank, a way to get, a scoring heart) | Game page main block; Tonight's row and open (add it to `NIGHT_ROWS`); Games tab row; drill sheets (the episode block by kind); the reveal's beat; Start a game's base screen and preview; How it plays | **fails**: tsc (`NIGHT_ROWS` is a `Record<MainBlock, …>`); `tests/night-rows.test.js`; `tests/game-page.test.js` |
+| **A new main block** (a new way a game is about: a rank, a way to get, a scoring heart) | Game page main block; Tonight's row and open (add it to `NIGHT_ROWS`); Games tab row (reads the same `NIGHT_ROWS` entry's faces and place); drill sheets (the episode block by kind); the reveal's beat; Start a game's base screen and preview; How it plays | **fails**: tsc (`NIGHT_ROWS` is a `Record<MainBlock, …>`); `tests/night-rows.test.js`; `tests/game-page.test.js` |
 | **A new dial value** (a twist, a scoring rule, a lock, a pace) | Game page places (its grammar); How it plays; Game settings; Tonight's change or line if it changes what an episode does; the reveal if it has a moment | **fails**: `tests/game-page.test.js` (a dial value with no place is a hole) |
 | **A new square or block kind** (`GridKind`, `BlockKind` in `game-plays.ts`) | The season grid; the person sheet's strip and episode block; the episode sheet; Tonight's faces and change (`picksOf`, `changeOf` in `night.tsx`) | by hand |
 | **A new move** (a pick, a lineup, answers, a claim, a draft turn) | The strip and Your moves; the Games tab row's glance; Tonight's next-episode rows; notifications; the catch-up sheet | by hand |

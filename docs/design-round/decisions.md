@@ -1634,3 +1634,39 @@
 - What: branch tonight-night isn't merged or pushed until the Games tab's round (the way into games) is built and approved; then both go together.
 - Why: the two pages split one job between them (Tonight the night, the Games tab what you can play); alone, Tonight would repeat the Games tab's leaderboards and Last picks.
 - Rejected: shipping Tonight alone before Ep 10 (Claude's recommendation: the couch would have seen it after Ep 10).
+
+## 2026-11-21 · The Games tab is the way into games: the next episode's one-episode games, your longer games a row each, games to join, Start, your record
+- Decided by: the user's split (2026-11-21, "Three places, three jobs"); the page's order and rows by Claude through Intent, PFD and Impeccable
+- What: For Ep N (yours, then the couch's with Join, then Start a one-episode game with Again, then the episode's extras folded); Your longer games, a row each (Tonight's row: name and length, who you've got for the next episode as small faces, your place), soonest to end first, five or four and a fold; Longer games to join; Start a longer game; your record as one row to the finished games' page. Someone who only watches gets the same page without their own games.
+- Why: the smallest step first, and one place for each fact: the night is Tonight's, the season the game's page's.
+- Rejected: keeping each game's leaderboard and Last picks (Tonight's open row and the game's page hold them); the newest episode's results on the tab (Tonight's one-episode group).
+- Supersedes: step 6's Games tab (2026-11-15: a row with a mini leaderboard and Last picks) and Round 3's "what's on" order (2026-11-18), as the decision above said it would.
+- Rests on: docs/design-round/games-launcher-spec.md, -first-view.md, -shape.md.
+
+## 2026-11-21 · Who you've got stays on the Games tab as the row's faces; the glance's opened plates leave
+- Decided by: Claude, from two settled decisions (2026-11-18: "The Games tab shows who you've got at a glance, as face plates"; 2026-11-21: "your place per game in a line, nothing more")
+- What: a longer game's second line shows your next episode's people in the game's own shape (glanceShape: starters, a pick, a team with who's out greyed, a claim) at 22 px, four then "+n", with the move's words; the plates that opened in place go (the game's page and Your moves have them).
+- Why: both decisions hold: who you've got is seen at a glance, and the row stays one line's height.
+- Rejected: dropping the faces (the 2026-11-18 decision's reason: "we mention Thien but never show her face plate"); keeping the plates opening in place (a row grows past a row).
+- Rests on: docs/design-round/games-launcher-spec.md, "A longer game's row".
+
+## 2026-11-21 · A longer game's whole row opens its page; its move stays the strip's
+- Decided by: Claude, through PFD (R4: one target a row) and Phase 0 decision 8 (one yellow a view)
+- What: the row is one link (the game's page; mid-draft, the draft room); a due move shows the strip's small dot and its words. One-episode games keep their button (the move is the whole game).
+- Why: step 6's card had four look-alike targets; the strip and Your moves are where a move is made.
+- Rejected: an outlined button on each longer row (a second target, and Pick, Set and Draft side by side on every row).
+- Rests on: docs/design-round/games-launcher-first-view.md, L3.
+
+## 2026-11-21 · A game nobody new can join isn't listed on the Games tab
+- Decided by: Claude, default
+- What: Longer games to join lists the couch's games you could join or ask to (Join, Ask, Asked); one that's locked to newcomers is left to the couch's page.
+- Why: a row with nothing to do is a dead end on a page whose job is the way in.
+- Rejected: a Locked row (today's): it reads as an offer that refuses.
+- Rests on: docs/design-round/games-launcher-spec.md, "A longer game to join's row".
+
+## 2026-11-21 · The Games tab's check: PFD 71/100, Impeccable 26/40; one batch fixed; two choices to the user
+- Decided by: Claude, through the process (one check, one batch)
+- What: the batch and what's left are in docs/design-round/games-launcher-check.md; the strip's words beside a one-episode game of the same verb (BACKLOG 240) and Tonight's next-episode rows taking this tab's form (BACKLOG 241) go to the user.
+- Why: the rules settle the rest; those two touch approved components (the strip, Tonight's night).
+- Rejected: dropping the kind dot (Impeccable's advice; it's Tonight's row's grammar, so the due dot went instead, PFD's call on what's noticed first).
+- Rests on: docs/design-round/games-launcher-check.md; the story https://claude.ai/artifact/5D9STJ6R4jFVgtkKEdCdpx.

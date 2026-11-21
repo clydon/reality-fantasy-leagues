@@ -6,7 +6,7 @@ and in flight is in [HANDOFF.md](HANDOFF.md).
 
 **How this file works**
 - **Numbers are permanent.** Code, tests and commits cite "BACKLOG 57", so a number never changes and is never reused. A new
-  item takes the next free number: **the next is 240.**
+  item takes the next free number: **the next is 243.**
 - **Closing an item:** delete it here and add one line under "Closed since the cleanup" at the end: the number, done or
   dropped, and the commit or the reason. Numbers closed in the cleanup itself are listed, with their full old text, in
   [archive/BACKLOG-2026-11-19.md](archive/BACKLOG-2026-11-19.md).
@@ -314,6 +314,11 @@ everyone starts with the points of those already out. Done when each DN entry is
 
 [S · hosting]
 
+- **242. story-strip-night.js shoots the Games tab's old glance.** Its TEAM and GLANCE_OPEN frames tap `[data-glance-tiles]` and
+  `[data-glance-more]`, which the Games tab's round (2026-11-21) removed (who you've got is the longer row's faces now). Noticed, not
+  fixed: the script is the episode-night strip's story, not this round's; repoint those frames at Your moves or drop them when the strip
+  next needs a story. [S · scripts]
+
 ---
 
 ## Next: worth doing, about a session each
@@ -563,6 +568,13 @@ plan the same in the stack table, the Limits table and Cost by size. [S · docs]
 
 ## Waiting on you
 
+- **240. The strip's words beside a one-episode game of the same verb.** The Games tab's round (2026-11-21, story
+  https://claude.ai/artifact/5D9STJ6R4jFVgtkKEdCdpx): the strip says "Pick who survives" for Survival Pool while the tab's first game is
+  a one-episode game called "Who survives?" that jordan isn't in; both reviewers expect Joanna to tap the wrong one. *Recommended: the
+  strip names the game when another game on the show shares its verb ("Pool Party: pick who survives").*
+- **241. Tonight's next-episode rows take the Games tab's form?** Tonight's Next block lists your one-episode games in Round 3's night
+  row (src/new/show/whats-on.tsx NightRow); the Games tab's (QuickRow: "You're in", faces, the button) is newer. *Recommended: Tonight
+  takes the Games tab's row, so one game looks the same on both tabs.*
 - **239. "Quick game" or "one-episode game"?** Tonight's night groups them as "One-episode games" (the user's words, 2026-11-21);
   the Join row and its sheet, and decisions.md's 2026-11-21 naming entry, still say "quick game". *Recommended: "one-episode game"
   everywhere a person reads it, since it's what they called them.*
