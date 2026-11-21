@@ -1593,3 +1593,10 @@
 - What: the batch and what's left are in docs/design-round/tonight-night-check.md; the ledger's bars and a results line in the top strip go to the user as choices.
 - Why: the rules settle the rest; those two touch an approved component and a settled order.
 - Rests on: docs/design-round/tonight-night-check.md.
+
+## 2026-11-21 · Tonight's night is one row a game, about 64 px; who scored and why is a tap deeper
+- Decided by: the user ("The games section of tonight take up WAY too much vertical real estate"); the row's form by Claude through Impeccable
+- What: each game a row (place and movement left; name, small faces with their marks and the news in the middle; the change right), opening everyone's night in place, each person a one-line row with their picks inline; the ledger (who scored and why) left Tonight for the person's sheet, one tap from your row; quick games, bingo and trivia a row each; four rows, then a fold. The closed section went from about 1,000 px to 424 px on the zt couch (three games, a quick game, bingo, trivia).
+- Why: a card of about 185 px a game ran the section past a screen for three games; the glance needs a row, the detail is on demand.
+- Rejected: trimming the cards' spacing (still a screen for three games); keeping the ledger in the open state (about 280 px more, and your detail is on your sheet).
+- Rests on: docs/design-round/tonight-night-spec.md; the story's version 2.

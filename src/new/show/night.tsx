@@ -6,7 +6,7 @@ import { LINES } from "@/lib/game/bingo";
 import { kindOf } from "@/lib/game/spans";
 import { nightKind, type Square } from "@/lib/game/game-plays";
 import { GAME_NAMES } from "@/lib/server/league-season";
-import { useCouchGames, useEpisodeBingo, useSeasonArchive, useSeasonGame, useTrivia, type ArchivedGame, type GameView, type JoinGame, type LineupWeek, type TableRow } from "../data";
+import { useCouchGames, useEpisodeBingo, useSeasonArchive, useSeasonGame, useTrivia, type ArchivedGame, type GameView, type JoinGame, type TableRow } from "../data";
 import { gameInk, ordinal } from "../games";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
@@ -20,6 +20,7 @@ import { EpisodeGames } from "./game-week";
 import { signed } from "./lineup-sheet";
 import { castName, faceIn, first } from "./moves";
 import { Block, Face } from "./parts";
+import { useMe } from "../session";
 import { showLabel } from "./react";
 import { oneGame } from "./this-week";
 import { openTrivia } from "./trivia";
@@ -169,9 +170,10 @@ function couchNews(g: GameView, n: number): { who: TableRow[]; words: string } |
   if (best.length && g.plays.kind !== "pick" && g.plays.kind !== "result") {
     const pts = top;
     const rest = best.filter((r) => !r.you);
-    const many = (rs: TableRow[]) => (rs.length <= 2 ? pair(rs) : `${name(rs[0])} and ${rs.length - 1} more`);
-    const who = rest.length === best.length ? `${many(best)} had the night` : !rest.length ? "Your night was the couch's best" : rest.length === 1 ? `You and ${name(rest[0])} had the night` : `You and ${rest.length} others had the night`;
-    return { who: best.filter((r) => !r.you).length ? best.filter((r) => !r.you) : best, words: pts != null ? `${who} · ${signed(pts)}` : who };
+    // Short enough for a row beside three faces: "Ada had the night", "Ada +2 had the night", "You and riley had the night".
+    const many = (rs: TableRow[]) => (rs.length <= 2 ? pair(rs) : `${name(rs[0])} +${rs.length - 1}`);
+    const who = rest.length === best.length ? `${many(best)} had the night` : !rest.length ? (pts != null ? `Your ${signed(pts)} was the couch's best` : "Your night was the couch's best") : rest.length === 1 ? `You and ${name(rest[0])} had the night` : `You +${rest.length} had the night`;
+    return { who: rest.length ? rest : best, words: who };
   }
   return null;
 }
@@ -302,9 +304,9 @@ function PickFace({ g, p, size, onOpen, motion, named }: { g: GameView; p: PickO
 }
 
 /** A row of picks, capped: the first `max` and "+n". */
-function Picks({ g, picks, size, max, onOpen, motion, named }: { g: GameView; picks: PickOf[]; size: number; max: number; onOpen?: (id: string) => void; motion?: boolean; named?: boolean }) {
+function Picks({ g, picks, size, max, onOpen, motion, named, points = true }: { g: GameView; picks: PickOf[]; size: number; max: number; onOpen?: (id: string) => void; motion?: boolean; named?: boolean; points?: boolean }) {
   if (!picks.length) return null;
-  const shown = picks.slice(0, max);
+  const shown = picks.slice(0, max).map((p) => (points ? p : { ...p, points: undefined }));
   return (
     <span className="flex items-start gap-1.5">
       {shown.map((p) => (
@@ -368,31 +370,109 @@ function EveryoneRow({ g, r, n, top, moved, behind, quiet, bare, open }: { g: Ga
       data-night-you={r.you || undefined}
       disabled={quiet}
       onClick={() => open({ kind: "person", playerId: r.playerId, episode: n, game: g.leagueId })}
-      className={`flex min-h-[52px] items-center gap-2 border-t py-1.5 text-left ${r.you ? "-mx-2.5 w-[calc(100%+20px)] rounded-[3px] border-transparent bg-secondary px-2.5" : "w-full border-border"}`}
+      className={`flex min-h-12 items-center gap-2 border-t py-1.5 text-left ${r.you ? "-mx-2.5 w-[calc(100%+20px)] rounded-[3px] border-transparent bg-secondary px-2.5" : "w-full border-border"}`}
     >
       <span className="type-num w-7 flex-none text-right text-[16px] text-muted-foreground">{r.rank}</span>
       <span className="w-6 flex-none">
         <Moved by={moved} small />
       </span>
-      <Avatar id={r.userId ?? r.playerId} name={r.name} size={28} bot={r.bot} />
+      <Avatar id={r.userId ?? r.playerId} name={r.name} size={26} bot={r.bot} />
       <span className="min-w-0 flex-1">
         <b className="block truncate text-[15px] font-semibold leading-tight">{r.you ? "You" : r.name}</b>
-        {behind ? (
-          <small className="mt-0.5 block truncate text-[13px] text-muted-foreground">Hasn&apos;t watched Ep {n} yet</small>
-        ) : picks.length ? (
-          <span className="mt-1 block">
-            <Picks g={g} picks={picks} size={26} max={6} />
-          </span>
-        ) : null}
+        {behind && <small className="mt-0.5 block truncate text-[13px] text-muted-foreground">Hasn&apos;t watched Ep {n} yet</small>}
       </span>
-      {change && <b className={`type-num flex-none text-right text-[17px] ${ink(change.tone)}`}>{change.text}</b>}
+      {picks.length > 0 && <Picks g={g} picks={picks} size={24} max={3} />}
+      {change && <b className={`type-num min-w-12 flex-none whitespace-nowrap text-right text-[17px] ${ink(change.tone)}`}>{change.text}</b>}
     </button>
   );
 }
 
-// ---------- a season game's card ----------
+// ---------- a game's row ----------
 
-/** One season game's night: closed, your night and one line about the couch; open, your ledger and everyone's night. */
+/**
+ * A game's night as one row (the user, 2026-11-21: the section took far too much height): your place, how it moved and of how many
+ * on the left; the game's name, then your picks as small faces with the night's news (or your total) beside them; the night's change
+ * on the right. The whole row opens everyone's night in place, which ends with the game's page.
+ */
+type RowProps = {
+  attach?: (el: HTMLDivElement | null) => void;
+  data: Record<string, string | undefined>;
+  open: boolean;
+  opens: boolean;
+  onToggle: () => void;
+  place: ReactNode;
+  placeTone?: string;
+  under: ReactNode;
+  name: string;
+  dot: string;
+  tag?: string;
+  faces?: ReactNode;
+  line?: string | null;
+  strong?: boolean;
+  change?: { text: string; unit?: string; tone: Tone } | null;
+  early?: boolean;
+  children?: ReactNode;
+};
+
+function Row({ attach, data, open, opens, onToggle, place, placeTone, under, name, dot, tag, faces, line, strong, change, early, children }: RowProps) {
+  return (
+    <div ref={attach} {...data} data-night-open={open ? "open" : "closed"} className="border-t border-border first:border-t-0">
+      <button type="button" data-night-toggle onClick={onToggle} disabled={!opens} aria-expanded={opens ? open : undefined} className="nd-press flex min-h-16 w-full items-center gap-3 py-2 text-left disabled:cursor-default">
+        <span className="w-[52px] flex-none">
+          <b className={`type-num block text-[26px] leading-none ${placeTone ?? ""}`} data-night-place>
+            {place}
+          </b>
+          <span className="mt-1 flex h-3 items-center gap-1 whitespace-nowrap text-[12px] leading-none text-muted-foreground">{under}</span>
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-1.5">
+            <i className="size-1.5 flex-none rounded-full" style={{ background: dot }} aria-hidden />
+            <span className="type-caption min-w-0 truncate text-[13px] tracking-[0.05em]">{name}</span>
+            {tag && <small className="flex-none text-[12px] text-muted-foreground">{tag}</small>}
+          </span>
+          {(faces || line) && (
+            <span className="mt-1 flex min-h-[22px] min-w-0 items-center gap-2">
+              {faces}
+              {line && (
+                <small data-night-news-line className={`min-w-0 truncate text-[13px] ${strong ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
+                  {line}
+                </small>
+              )}
+            </span>
+          )}
+        </span>
+        {change && (
+          <span className="flex flex-none flex-col items-end">
+            <b data-night-change className={`type-num whitespace-nowrap text-[19px] leading-none ${ink(change.tone)}`}>
+              {change.text}
+              {change.unit && <small className="ml-0.5 font-sans text-[12px] font-semibold text-muted-foreground">{change.unit}</small>}
+            </b>
+            {/* Early results (the final ones land at noon the next day): the night's numbers so far. */}
+            {early && <small className="mt-1 text-[11px] leading-none text-muted-foreground">so far</small>}
+          </span>
+        )}
+        {opens && <ChevronDown className={`size-4 flex-none text-muted-foreground transition-transform duration-200 ${open ? "rotate-180" : ""}`} aria-hidden />}
+      </button>
+      {open && (
+        <div data-night-well className="mb-2.5 rounded-[4px] bg-card px-2.5 pb-1 pt-1">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The open well's last row: the game's own page. */
+function GamePageLink({ seasonId, leagueId, name }: { seasonId: string; leagueId: string; name: string }) {
+  return (
+    <NavLink href={paths.gamePage(seasonId, leagueId)} data-game={leagueId} className="nd-press flex min-h-11 items-center gap-1 border-t border-border text-[14px] font-semibold">
+      <span className="min-w-0 truncate">{name}&apos;s page</span>
+      <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
+    </NavLink>
+  );
+}
+
+/** One season game's night as a row; open, everyone's night (yours among them), See all and the game's page. */
 function NightCard({ night, name, show, early, open: openDoor }: { night: Night; name: string; show: ShowData; early: boolean; open: (d: Door) => void }) {
   const { g, n, played } = night;
   const [open, setOpen] = useState(false);
@@ -403,128 +483,49 @@ function NightCard({ night, name, show, early, open: openDoor }: { night: Night;
   const picks = me && played ? picksOf(g, me, n, s) : [];
   const change = played ? changeOf(g, s, topOf(g, n, waitingOn(g, n))) : null;
   const news = played ? couchNews(g, n) : null;
-  const week: LineupWeek | undefined = me && played ? me.weeks.find((w) => w.episode === n) : undefined;
   const opens = played && g.table.length > 1;
-  const [attach, motion] = useOnce(g.leagueId, n, played && (!!moved || picks.some((p) => p.lost || p.night === "home") || !!week));
+  const [attach, motion] = useOnce(g.leagueId, n, played && (!!moved || picks.some((p) => p.lost || p.night === "home")));
   const playing = motion === "play";
   const from = me && moved ? ordinal(me.place + moved) : null;
   // A team game ranks by points (who's still in is its faces); head to head by its record; the rest in their own words.
   const team = g.plays.blocks.includes("boots") || g.plays.blocks.includes("team");
   const measure = g.plays.kind === "result" && me?.record ? `${me.record.wins}–${me.record.losses}${me.record.ties ? `–${me.record.ties}` : ""}` : team && me && countedYet(g) ? `${fmt(me.total)} pts` : yourLine(g);
-  const toggle = () => opens && setOpen((o) => !o);
   return (
-    <div ref={attach} data-night-card={g.leagueId} data-night-news={night.news ? "yes" : "no"} data-night-open={open ? "open" : "closed"} className="border-t border-border pb-1.5 pt-2 first:border-t-0 first:pt-0">
-      <NavLink href={paths.gamePage(seasonId, g.leagueId)} data-game={g.leagueId} className="nd-press -mx-1 flex min-h-11 items-center gap-2 rounded-[3px] px-1">
-        <i className="size-2 flex-none rounded-full" style={{ background: gameInk(g.gameName) }} aria-hidden />
-        <span className="type-caption min-w-0 flex-1 truncate text-[14px] tracking-[0.05em]">{name}</span>
-        <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
-      </NavLink>
-      <button type="button" data-night-standing onClick={toggle} aria-expanded={opens ? open : undefined} disabled={!opens} className="flex min-h-11 w-full items-end gap-2 text-left disabled:cursor-default">
-        <b className="type-num text-[30px] leading-[0.9]" data-night-place>
-          <PlaceFlip from={from} to={placeOf(g)} state={motion} />
-        </b>
-        {(motion !== "waiting" || !moved) && <Moved by={moved} motion={playing} />}
-        <span className="min-w-0 flex-1 truncate pb-px text-[14px] text-muted-foreground">{[g.players > 1 && me && countedYet(g) ? `of ${g.players}` : null, measure].filter(Boolean).join(" · ")}</span>
-        {change && (
-          <span className="flex flex-none flex-col items-end pb-px">
-            <b data-night-change className={`type-num text-[22px] leading-none ${ink(change.tone)}`}>
-              {change.text}
-              {change.unit && <small className="ml-1 font-sans text-[13px] font-semibold text-muted-foreground">{change.unit}</small>}
-            </b>
-            {/* Early results (the final ones land at noon the next day): the night's numbers so far. */}
-            {early && <small className="mt-0.5 text-[12px] leading-none text-muted-foreground">so far</small>}
-          </span>
-        )}
-      </button>
-      {open && week ? (
-        <Ledger g={g} week={week} open={openDoor} grow={playing} />
-      ) : picks.length ? (
-        <div className="mt-0.5" data-night-picks>
-          <Picks g={g} picks={picks} size={36} max={5} motion={playing} named={g.plays.kind === "pick"} onOpen={(id) => openDoor({ kind: "cast", id, game: g.leagueId })} />
-        </div>
-      ) : null}
-      {opens && (
-        <button type="button" data-night-toggle onClick={toggle} aria-expanded={open} className="nd-press flex min-h-11 w-full items-center gap-2 text-left">
-          {news && news.who[0] && <Avatar id={news.who[0].userId ?? news.who[0].playerId} name={news.who[0].name} size={22} bot={news.who[0].bot} />}
-          <span className={`min-w-0 flex-1 truncate text-[14px] ${news ? "font-semibold" : "text-muted-foreground"}`} data-night-news-line>
-            {news ? news.words : "Everyone's night"}
-          </span>
-          <ChevronDown className={`size-4 flex-none text-muted-foreground transition-transform duration-200 ${open ? "rotate-180" : ""}`} aria-hidden />
-        </button>
+    <Row
+      attach={attach}
+      data={{ "data-night-card": g.leagueId, "data-night-news": night.news ? "yes" : "no" }}
+      open={open}
+      opens={opens}
+      onToggle={() => opens && setOpen((o) => !o)}
+      place={<PlaceFlip from={from} to={placeOf(g)} state={motion} />}
+      under={
+        <>
+          {(motion !== "waiting" || !moved) && <Moved by={moved} small motion={playing} />}
+          {g.players > 1 && me && countedYet(g) ? <span>of {g.players}</span> : null}
+        </>
+      }
+      name={name}
+      dot={gameInk(g.gameName)}
+      faces={picks.length ? <Picks g={g} picks={picks} size={22} max={4} motion={playing} points={false} /> : null}
+      line={news ? news.words : played ? measure : yourLine(g)}
+      strong={!!news}
+      change={change}
+      early={early}
+    >
+      {g.plays.kind === "result" ? (
+        <EpisodeGames g={g} episode={n} onOpen={(pid) => openDoor({ kind: "matchup", playerId: pid, episode: n, game: g.leagueId })} />
+      ) : (
+        <Everyone g={g} n={n} open={openDoor} />
       )}
-      {open && (
-        <div data-night-well className="mt-1 rounded-[4px] bg-card px-2.5 pb-1 pt-1">
-          {g.plays.kind === "result" ? (
-            <EpisodeGames g={g} episode={n} onOpen={(pid) => openDoor({ kind: "matchup", playerId: pid, episode: n, game: g.leagueId })} />
-          ) : (
-            <Everyone g={g} n={n} open={openDoor} mineAbove />
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/**
- * Who scored, data round 3's ledger: your starters for the week, each a face, a name, a bar on one points scale shared by every
- * row (a negative an outline left of zero) and the points; then the bench, faint, which didn't count. `grow`: the bars grow from
- * zero, the card's change playing.
- */
-export function Ledger({ g, week, open, grow }: { g: GameView; week: LineupWeek; open: (d: Door) => void; grow?: boolean }) {
-  const rows = [...week.started.map((s) => ({ ...s, bench: false })), ...week.bench.map((b) => ({ ...b, why: [] as string[], bench: true }))];
-  const hi = Math.max(0, ...rows.map((r) => r.points));
-  const lo = Math.min(0, ...rows.map((r) => r.points));
-  // One scale for every row, at least 4 points wide, so one bad week doesn't draw the widest bar of all.
-  const span = Math.max(4, hi - lo);
-  const zero = (-lo / span) * 100;
-  return (
-    <div data-ledger={week.episode} className="mt-1 flex flex-col">
-      {rows.map((r, i) => {
-        const c = faceIn(g, r.id);
-        const w = (Math.abs(r.points) / span) * 100;
-        return (
-          // Each castaway opens their sheet, in this game (the drill pass, 2026-11-17).
-          <button
-            key={`${r.bench ? "b" : "s"}-${r.id}`}
-            type="button"
-            data-ledger-row={r.bench ? "bench" : "starter"}
-            data-door-cast={c?.name}
-            onClick={() => open({ kind: "cast", id: r.id, game: g.leagueId })}
-            className={`nd-press flex min-h-12 w-full items-center gap-2.5 py-1 text-left ${r.bench ? "opacity-60" : ""}`}
-          >
-            <Face src={c?.photo ?? null} name={c?.name} className="size-9 flex-none rounded-[3px] text-sm" />
-            <span className="w-[92px] min-w-0 flex-none">
-              <b className="block truncate text-[15px] font-semibold leading-tight">{castName(c, g)}</b>
-              <small className="block truncate text-[13px] text-muted-foreground">{r.bench ? "Bench" : (r.why[0] ?? "Started")}</small>
-            </span>
-            <span className="relative h-2.5 flex-1" aria-hidden>
-              <i className="absolute inset-y-0 w-px bg-border" style={{ left: `${zero}%` }} />
-              {r.points === 0 ? (
-                <i className="absolute top-1/2 size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted-foreground" style={{ left: `${zero}%` }} />
-              ) : (
-                <i
-                  className={`ledger-bar absolute inset-y-0 rounded-[2px] ${grow ? (r.points < 0 ? "nn-bar-grow-left" : "nn-bar-grow") : ""} ${r.points < 0 ? "outline-1 -outline-offset-1 outline-foreground/70" : r.bench ? "bg-foreground/40" : "bg-foreground"}`}
-                  style={{ ...(r.points < 0 ? { right: `${100 - zero}%`, width: `${w}%` } : { left: `${zero}%`, width: `${w}%` }), ["--i" as string]: i }}
-                />
-              )}
-            </span>
-            <b className="type-num w-10 flex-none text-right text-[17px]">{fmt(r.points)}</b>
-            <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
-          </button>
-        );
-      })}
-      <p className="mt-1 flex items-baseline justify-between border-t border-border pt-2 text-[14px]">
-        <span className="text-muted-foreground">Your lineup</span>
-        <b className="type-num text-[17px]">{signed(week.started.reduce((a, s) => a + s.points, 0))}</b>
-      </p>
-    </div>
+      <GamePageLink seasonId={seasonId} leagueId={g.leagueId} name={name} />
+    </Row>
   );
 }
 
 // ---------- the night's quick games ----------
 
-/** A quick game that played episode `n` (the archive's: a finished game isn't in the running read): who won, your place; open, its
- *  everyone's night from its own read. */
+/** A quick game that played episode `n` (the archive's: a finished game isn't in the running read), as a row: your place, who won
+ *  in words, your points; open, its everyone's night from its own read. */
 function QuickCard({ a, show, n, open: openDoor }: { a: ArchivedGame; show: ShowData; n: number; open: (d: Door) => void }) {
   const [open, setOpen] = useState(false);
   const seasonId = show.header?.seasonId ?? "";
@@ -536,76 +537,74 @@ function QuickCard({ a, show, n, open: openDoor }: { a: ArchivedGame; show: Show
   // Who won, in words beside your place (never "Tied" beside a "T1"): you alone, shared with whom, or whoever won.
   const others = a.winners.filter((w) => !w.you).map((w) => first(w.name));
   const words = a.nobody ? "Nobody scored" : a.level ? `All ${a.players} level` : a.winners.some((w) => w.you) ? (others.length ? `shared with ${others.length > 2 ? `${others[0]} and ${others.length - 1} more` : others.join(" and ")}` : "You won it") : `${others[0] ?? "Someone"}${others.length > 1 ? ` and ${others.length - 1} more` : ""} won`;
+  const name = quickName(a.kind);
   return (
-    <div data-night-quick={a.leagueId} data-night-open={open ? "open" : "closed"} className="border-t border-border pb-1.5 pt-2">
-      <NavLink href={paths.gamePage(seasonId, a.leagueId)} className="nd-press -mx-1 flex min-h-11 items-center gap-2 rounded-[3px] px-1">
-        <i className="size-2 flex-none rounded-full" style={{ background: gameInk(a.gameName) }} aria-hidden />
-        <span className="type-caption min-w-0 flex-1 truncate text-[14px] tracking-[0.05em]">{quickName(a.kind)}</span>
-        <small className="flex-none text-[13px] text-muted-foreground">Quick game</small>
-        <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
-      </NavLink>
-      <button type="button" data-night-quick-standing onClick={() => opens && setOpen(!open)} aria-expanded={opens ? open : undefined} disabled={!opens} className="flex min-h-11 w-full items-end gap-2 text-left disabled:cursor-default">
-        <b className={`type-num text-[30px] leading-[0.9] ${won ? "text-good" : ""}`}>{a.you ? placeWord(a.you) : "—"}</b>
-        <span className="min-w-0 flex-1 truncate pb-px text-[14px] text-muted-foreground">{[a.players > 1 && a.you ? `of ${a.players}` : null, words].filter(Boolean).join(" · ")}</span>
-        {a.you && !a.nobody && (
-          <b className="type-num flex-none pb-px text-[22px] leading-none">
-            {fmt(a.you.total)}
-            <small className="ml-1 font-sans text-[13px] font-semibold text-muted-foreground">{a.you.total === 1 ? "pt" : "pts"}</small>
-          </b>
-        )}
-      </button>
-      {opens && (
-        <button type="button" data-night-toggle onClick={() => setOpen(!open)} aria-expanded={open} className="nd-press flex min-h-11 w-full items-center gap-2 text-left">
-          <span className="min-w-0 flex-1 truncate text-[14px] text-muted-foreground">Everyone&apos;s night</span>
-          <ChevronDown className={`size-4 flex-none text-muted-foreground transition-transform duration-200 ${open ? "rotate-180" : ""}`} aria-hidden />
-        </button>
-      )}
-      {open && (
-        <div data-night-well className="mt-1 rounded-[4px] bg-card px-2.5 pb-1 pt-1">
-          {g ? <Everyone g={g} n={n} open={openDoor} /> : <div aria-busy className="h-24 animate-pulse" />}
-        </div>
-      )}
-    </div>
+    <Row
+      data={{ "data-night-quick": a.leagueId }}
+      open={open}
+      opens={opens}
+      onToggle={() => opens && setOpen(!open)}
+      place={a.you ? placeWord(a.you) : "—"}
+      placeTone={won ? "text-good" : ""}
+      under={a.players > 1 && a.you ? <span>of {a.players}</span> : null}
+      name={name}
+      dot={gameInk(a.gameName)}
+      tag="Quick game"
+      line={words}
+      change={a.you && !a.nobody ? { text: fmt(a.you.total), unit: a.you.total === 1 ? "pt" : "pts", tone: "plain" } : null}
+    >
+      {g ? <Everyone g={g} n={n} open={openDoor} /> : <div aria-busy className="h-24 animate-pulse" />}
+      <GamePageLink seasonId={seasonId} leagueId={a.leagueId} name={name} />
+    </Row>
   );
 }
 
 // ---------- the couch's bingo and trivia ----------
 
 /** A bingo card as a glyph: three by three, ticked squares filled (the centre's free), a line that counts drawn through in teal. */
-function BingoGlyph({ grid, size = 26 }: { grid: { ticked: number[]; counts: number[] }; size?: number }) {
+function BingoGlyph({ grid, size = 18 }: { grid: { ticked: number[]; counts: number[] }; size?: number }) {
   const at = (i: number) => ({ x: (i % 3) * 11 + 4, y: Math.floor(i / 3) * 11 + 4 });
   return (
     <svg viewBox="0 0 30 30" width={size} height={size} aria-hidden className="flex-none">
       {Array.from({ length: 9 }, (_, i) => {
         const on = i === 4 || grid.ticked.includes(i);
-        return <rect key={i} x={(i % 3) * 11} y={Math.floor(i / 3) * 11} width={8} height={8} rx={1} className={on ? "fill-foreground" : "fill-none stroke-muted-foreground"} strokeWidth={1} />;
+        return <rect key={i} x={(i % 3) * 11} y={Math.floor(i / 3) * 11} width={8} height={8} rx={1} className={on ? "fill-foreground" : "fill-none stroke-muted-foreground"} strokeWidth={1.5} />;
       })}
       {grid.counts.map((l) => {
         const [a, , c] = LINES[l];
-        return <line key={l} x1={at(a).x} y1={at(a).y} x2={at(c).x} y2={at(c).y} className="stroke-good" strokeWidth={3} strokeLinecap="round" />;
+        return <line key={l} x1={at(a).x} y1={at(a).y} x2={at(c).x} y2={at(c).y} className="stroke-good" strokeWidth={3.5} strokeLinecap="round" />;
       })}
     </svg>
   );
 }
 
-/** One extra's line: its name, the couch's results as small marks with names, what opens it. */
+/** One extra as a row: its name and its news, then each player's face beside their mark; it opens the extra. */
 function ExtraLine({ title, line, children, onOpen, data }: { title: string; line: string; children: ReactNode; onOpen: () => void; data: string }) {
   return (
-    <button type="button" data-night-extra={data} onClick={onOpen} className="nd-press flex w-full items-center gap-3 border-t border-border py-2.5 text-left first:border-t-0">
+    <button type="button" data-night-extra={data} onClick={onOpen} className="nd-press flex min-h-16 w-full items-center gap-3 border-t border-border py-2 text-left first:border-t-0">
       <span className="min-w-0 flex-1">
         <span className="flex items-baseline gap-2">
           <b className="flex-none text-[15px] font-semibold">{title}</b>
           <small className="min-w-0 truncate text-[13px] text-muted-foreground">{line}</small>
         </span>
-        <span className="mt-2 flex items-end gap-3.5">{children}</span>
+        <span className="mt-1.5 flex items-center gap-3 overflow-hidden">{children}</span>
       </span>
       <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
     </button>
   );
 }
 
+/** A player's face beside their mark, in an extra's row. */
+const Pair = ({ id, name, children }: { id: string; name: string; children: ReactNode }) => (
+  <span className="flex flex-none items-center gap-1" title={name}>
+    <Avatar id={id} name={name} size={18} />
+    {children}
+  </span>
+);
+
 /** The couch's bingo for episode `n` and this week's trivia, when anyone played them; nothing otherwise. `title`: as its own block. */
 export function NightExtras({ show, n, title }: { show: ShowData; n: number; title?: string }) {
+  const me = useMe();
   const seasonId = show.header?.seasonId ?? null;
   const couchId = show.couch?.id ?? null;
   const bingo = useEpisodeBingo(seasonId, couchId, n, !!seasonId);
@@ -613,46 +612,44 @@ export function NightExtras({ show, n, title }: { show: ShowData; n: number; tit
   const b = bingo.data;
   const t = trivia.data;
   const cards = (b?.people ?? []).filter((p) => p.ticked > 0 && p.grid);
-  const scores = t ? [...(t.played ? [{ userId: "you", name: "You", score: t.played.score, of: t.played.of }] : []), ...t.couch] : [];
+  const scores = t ? [...(t.played ? [{ userId: me.id, name: "You", score: t.played.score, of: t.played.of }] : []), ...t.couch] : [];
   if (!cards.length && !scores.length) return null;
   const firstLine = b?.first ? (cards.find((p) => p.userId === b.first?.userId)?.name ?? b.first.name) : null;
-  const bingoLine = firstLine ? `${first(firstLine)} got a line first` : `${cards.length} ${cards.length === 1 ? "card" : "cards"} played`;
+  const bingoLine = firstLine ? `${b?.first?.userId === me.id ? "You" : first(firstLine)} got a line first` : `${cards.length} ${cards.length === 1 ? "card" : "cards"} played`;
   const best = scores.length ? Math.max(...scores.map((x) => x.score)) : 0;
   const top = scores.filter((x) => x.score === best);
-  const triviaLine = !t?.played ? "Play this week's round" : top.length === 1 ? `${top[0].userId === "you" ? "You" : first(top[0].name)} scored best` : `Tied on ${best}`;
+  const triviaLine = !t?.played ? "play this week's round" : top.length === 1 ? `${top[0].userId === me.id ? "you" : first(top[0].name)} scored best` : `tied on ${best}`;
   const body = (
     <div data-night-extras className="flex flex-col">
       {cards.length > 0 && seasonId && (
         <ExtraLine data="bingo" title="Bingo" line={bingoLine} onOpen={() => openBingo({ seasonId, couchId, episode: n, label: showLabel(show), solo: show.solo })}>
-          {cards.slice(0, 6).map((p) => (
-            <span key={p.userId} className="flex flex-col items-center gap-1">
+          {cards.slice(0, 5).map((p) => (
+            <Pair key={p.userId} id={p.userId} name={p.name}>
               <BingoGlyph grid={p.grid!} />
-              <small className="max-w-11 truncate text-[11px] leading-none text-muted-foreground">{first(p.name)}</small>
-            </span>
+            </Pair>
           ))}
         </ExtraLine>
       )}
       {scores.length > 0 && seasonId && (
-        <ExtraLine data="trivia" title="Trivia · this week" line={triviaLine} onOpen={() => openTrivia({ seasonId, couchId: show.solo ? null : couchId })}>
-          {scores.slice(0, 6).map((x) => (
-            <span key={x.userId} className="flex flex-col items-center gap-1">
-              <b className={`type-num text-[19px] leading-none ${x.score === best && best > 0 ? "text-good" : ""}`}>
+        <ExtraLine data="trivia" title="Trivia" line={triviaLine} onOpen={() => openTrivia({ seasonId, couchId: show.solo ? null : couchId })}>
+          {scores.slice(0, 5).map((x) => (
+            <Pair key={x.userId} id={x.userId} name={x.name}>
+              <b className={`type-num text-[15px] leading-none ${x.score === best && best > 0 ? "text-good" : ""}`}>
                 {x.score}/{x.of}
               </b>
-              <small className="max-w-11 truncate text-[11px] leading-none text-muted-foreground">{first(x.name)}</small>
-            </span>
+            </Pair>
           ))}
         </ExtraLine>
       )}
     </div>
   );
-  return title ? <Block title={title}>{body}</Block> : <div className="mt-2 border-t border-border pt-1">{body}</div>;
+  return title ? <Block title={title}>{body}</Block> : <div className="border-t border-border">{body}</div>;
 }
 
 // ---------- the section ----------
 
-/** Block 4: your night in each season game, the night's quick games, the couch's bingo and trivia. A show you only watch gets the
- *  couch's bingo and trivia alone, never a game's results. */
+/** Block 4: your night in each season game, the night's quick games, the couch's bingo and trivia, a row each. A show you only watch
+ *  gets the couch's bingo and trivia alone, never a game's results. */
 export function YourNight({ show, open }: { show: ShowData; open: (d: Door) => void }) {
   const n = latestSeen(show);
   const playing = show.games.some((g) => g.yourRole);
@@ -664,18 +661,18 @@ export function YourNight({ show, open }: { show: ShowData; open: (d: Door) => v
   if (!n || !show.header) return null;
   if (!playing) return show.readOnly ? null : <NightExtras show={show} n={n} title={`The couch's night · ${show.words.ep} ${n}`} />;
   if (!show.play) return <div aria-busy className="mx-4 mt-[26px] h-[150px] animate-pulse rounded-[4px] bg-card" />;
-  // Round 3: one-episode games aren't season cards; finished ones are the archive's.
+  // Round 3: one-episode games aren't season rows; finished ones are the archive's.
   const games = show.play.filter((g) => !g.stageOf && !oneGame(g) && !(g.over && g.to !== null));
   const twin = (g: GameView) => games.filter((x) => x.gameType === g.gameType).length > 1;
   const nameOf = (g: GameView) => (g.solo === "public" ? "Everyone" : twin(g) && g.name !== g.gameName ? g.name : (GAME_NAMES[g.gameName] ?? g.gameName));
   const nights = games.map((g) => nightOf(g, n));
   const early = show.episodes?.episodes.find((e) => e.number === n)?.stage === "early";
-  // News for you first, the rest after, each in the games' own order.
+  // News for you first, the rest after, each in the games' own order; four rows, then the rest folded into one.
   const ordered = [...nights.filter((x) => x.news), ...nights.filter((x) => !x.news)];
-  const shown = all || ordered.length <= 3 ? ordered : ordered.slice(0, 3);
-  const folded = all ? [] : ordered.slice(3);
+  const shown = all || ordered.length <= 4 ? ordered : ordered.slice(0, 3);
+  const folded = all || ordered.length <= 4 ? [] : ordered.slice(3);
   const quick = (archive.data?.pages[0]?.games ?? []).filter((a) => a.ended === n && a.from === a.to && !!a.you);
-  const quickShown = quickAll || quick.length <= 3 ? quick : [];
+  const quickShown = quickAll || quick.length <= 2 ? quick : [];
   const firsts = quick.filter((a) => a.you && a.you.place === 1 && !a.level && !a.nobody).length;
   return (
     <Block title={`Your night · ${show.words.ep} ${n}`}>
@@ -684,18 +681,10 @@ export function YourNight({ show, open }: { show: ShowData; open: (d: Door) => v
           <NightCard key={x.g.leagueId} night={x} name={nameOf(x.g)} show={show} early={early} open={open} />
         ))}
         {folded.length > 0 && (
-          <button type="button" data-night-fold={folded.length} onClick={() => setAll(true)} className="nd-press flex min-h-[52px] w-full items-center gap-2.5 border-t border-border py-2 text-left">
+          <button type="button" data-night-fold={folded.length} onClick={() => setAll(true)} className="nd-press flex min-h-14 w-full items-center gap-2.5 border-t border-border py-2 text-left">
             <span className="min-w-0 flex-1">
               <b className="block text-[15px] font-semibold">{folded.length} more {folded.length === 1 ? "game" : "games"}</b>
-              <span className="mt-1.5 flex flex-wrap gap-1.5">
-                {folded.map((x) => (
-                  <span key={x.g.leagueId} className="flex max-w-full items-center gap-1.5 rounded-[3px] bg-secondary px-1.5 py-0.5 text-[13px]">
-                    <i className="size-1.5 flex-none rounded-full" style={{ background: gameInk(x.g.gameName) }} aria-hidden />
-                    <b className="type-num flex-none text-[14px]">{placeOf(x.g)}</b>
-                    <span className="truncate text-muted-foreground">{nameOf(x.g)}</span>
-                  </span>
-                ))}
-              </span>
+              <small className="mt-0.5 block truncate text-[13px] text-muted-foreground">{folded.map((x) => `${placeOf(x.g)} ${nameOf(x.g)}`).join(" · ")}</small>
             </span>
             <ChevronDown className="size-4 flex-none text-muted-foreground" aria-hidden />
           </button>
@@ -703,9 +692,9 @@ export function YourNight({ show, open }: { show: ShowData; open: (d: Door) => v
         {quickShown.map((a) => (
           <QuickCard key={a.leagueId} a={a} show={show} n={n} open={open} />
         ))}
-        {quick.length > 3 && !quickAll && (
-          <button type="button" data-night-quick-fold={quick.length} onClick={() => setQuickAll(true)} className="nd-press flex min-h-[52px] w-full items-center gap-2 border-t border-border text-left">
-            <b className="min-w-0 flex-1 truncate text-[15px] font-semibold">{`${show.words.ep} ${n}'s ${quick.length} quick games${firsts ? ` · you won ${firsts}` : ""}`}</b>
+        {quick.length > 2 && !quickAll && (
+          <button type="button" data-night-quick-fold={quick.length} onClick={() => setQuickAll(true)} className="nd-press flex min-h-14 w-full items-center gap-2 border-t border-border text-left">
+            <b className="min-w-0 flex-1 truncate text-[15px] font-semibold">{`${quick.length} quick games${firsts ? ` · you won ${firsts}` : ""}`}</b>
             <ChevronDown className="size-4 flex-none text-muted-foreground" aria-hidden />
           </button>
         )}

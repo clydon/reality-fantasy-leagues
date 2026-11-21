@@ -36,33 +36,29 @@ People:
 Block 4 is the night as it stands at your mark (`latestSeen`): the same episode Last time names. Waiting for results, early
 results and the morning update keep their place above it (AfterEpisode); with early results, block 4's numbers say "so far".
 
-### A season game's card, closed (the glance)
+### A season game's row, closed (the glance)
 
-Every card is closed when Tonight opens. Closed, it answers "how did my night go?" in the game's own measure, and shows the
-couch in one line.
+One row a game, about 64 px (the user, 2026-11-21: the cards "take up WAY too much vertical real estate"). Closed, it answers "how
+did my night go?" in the game's own measure, and shows the couch in one line.
 
-| Part | Holds | Opens |
-| --- | --- | --- |
-| Head | The game's colour dot and name | The game's page |
-| Your standing | Your place now, how it moved this episode (up 2, down 1, held), of how many | the card |
-| Your night | What the episode did for you, in the game's measure: "+4 pts", "Survived · 8 in a row", "Lost Carter · 2 of 3 still in", "Beat Riley 12–9" | the card |
-| Your picks that night | Each one a face with its result on it: a lineup's starters with their points, a pool's pick stayed or went home, a team with who left crossed out (up to five faces; more as "+3") | a face: its castaway's sheet |
-| The couch line | The night's one piece of news about someone else, when there is one: "Sam's pick went home", "Riley had the night: +11", "Casey lost Ana" | the card |
-| Open | "Everyone's night" with a chevron | opens the card in place |
+| Part | Holds |
+| --- | --- |
+| Left | Your place now (the one big number), and under it how it moved this episode and of how many ("▼2 of 4"; nothing when it held) |
+| Middle | The game's name; under it your picks as small faces wearing their result (a check, a cross and grey; up to four), then the night's news about someone else ("riley lost Cristian"), or your total when there's none |
+| Right | The night's change in the game's own measure ("−3 pts", "Went home" in live red, "All safe" in teal), "so far" while results are early |
 
-Each fact is said once on the card: "streak 8" or "3 of 3 still in" never appears twice.
+The whole row opens everyone's night in place. Each fact is said once.
 
-**The couch line, which news:** someone's pick went home (a pool), else someone lost a castaway (a team game), else whoever had
-the couch's best night when it isn't you (`Square.best`), else nothing (no line rather than filler).
+**The news, which:** someone's pick went home (a pool), else someone lost a castaway (a team game), else whoever had the couch's most
+points that episode ("Ada +2 had the night"), else your total.
 
-### A season game's card, open
+### A season game's row, open
 
 | Part | Holds | Opens |
 | --- | --- | --- |
-| Your night, in full | The step 3 ledger for a lineup (each starter: face, name, what scored, a bar on one scale; the bench faint); a pool's pick with what happened to them; a team with who left tonight and who's still in | each face: its castaway's sheet |
-| Everyone's night | Up to five people (the rule below), in standings order after the episode: place, movement, face, name, their picks as faces with results, their night's change; the couch's best night bright | a person: their sheet in that game at that episode; a face: the castaway |
-| See all | "See all 10" when the game has more than five people | the game's episode sheet (Everyone's night, ‹ › through episodes: game-sheets.tsx EpisodeBody) |
-| Close | the head's chevron turns back | |
+| Everyone's night | Up to five people (the rule below), in standings order after the episode, a row each on one line: place, movement, face, name, their picks inline (three, then "+n", a starter's points under each), their change; the couch's best night in teal; you among them on the raised fill | a person: their sheet in that game at that episode, where their night's detail is (who scored and why) |
+| See all | "See all 10" when the game has more than five people | the game's episode sheet (game-sheets.tsx EpisodeBody) |
+| The game's page | "Weekly Lineup's page" | the game's page |
 
 **The five rows:** five people or fewer, everyone. More than five: the top five when you're in them; otherwise the top three,
 the person just ahead of you, and you, with a gap mark between the third and the fourth row. You are always in it.

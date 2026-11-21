@@ -152,7 +152,10 @@ const SITUATIONS = [
     async shots(p, s) {
       await shoot(p, `${s}.top`, { what: "first view" });
       await scrollTo(p, SECTION);
-      await shoot(p, `${s}.night`, { what: "the section, closed" });
+      // How tall the section runs closed (its heading to the next block), for the story's before and after.
+      const height = Math.round(await p.locator(SECTION).first().evaluate((el) => (el.closest("section") ?? el).getBoundingClientRect().height));
+      console.log(`section height ${height}px`);
+      await shoot(p, `${s}.night`, { what: "the section, closed", height });
       if (BEFORE) {
         await p.locator("[data-mini-ledger]").first().click();
         await p.waitForTimeout(500);
