@@ -1628,3 +1628,9 @@
 - What: Tonight's games section as built on branch tonight-night through 18e313d9: one row a game led by its name and length, one-episode games first led by who won, the longer games soonest to end first, every kind of game's row (night-rows.ts), everyone's night in place, the Join row in the next episode's block, Bingo and trivia as Last time's expander. Still open: BACKLOG 239 (one-episode or quick game) and the round's two choices (a results line in the top strip; the ledger off Tonight).
 - Next: the Games tab as the way into games (the spec's "Three places, three jobs"), in a fresh session.
 - Rests on: the story https://claude.ai/artifact/1y8nHXhkub2XuSiMwwWykp (version 5); docs/design-round/tonight-night-*.md.
+
+## 2026-11-21 · Tonight's night ships with the Games tab, not before
+- Decided by: the user ("We'll wait for the games tab")
+- What: branch tonight-night isn't merged or pushed until the Games tab's round (the way into games) is built and approved; then both go together.
+- Why: the two pages split one job between them (Tonight the night, the Games tab what you can play); alone, Tonight would repeat the Games tab's leaderboards and Last picks.
+- Rejected: shipping Tonight alone before Ep 10 (Claude's recommendation: the couch would have seen it after Ep 10).
