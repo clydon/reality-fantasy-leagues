@@ -27,7 +27,9 @@
 //   node scripts/dev-test/night-fixture.js up [--phase=onair] [--moves=set] [--pace=live] [--owed] [--extra=N] [--extra-moves=set] [--art]
 //   node scripts/dev-test/night-fixture.js down
 // Also a module: `const night = require("./night-fixture"); const ids = await night.up(pool, { phase, moves, pace, owed, extra,
-// extraMoves, art })` resolves new-fixture's ids plus { viewer: "jordan", episode: 6, more: [the extra games' ids] };
+// extraMoves, art, beforeAir })` resolves new-fixture's ids plus { viewer: "jordan", episode: 6, more: [the extra games' ids],
+// added: what beforeAir resolved }; `beforeAir(ids)`, a module's own: awaited once jordan's Ep 6 moves are in and before Ep 6 airs
+// (games of its own, made and moved while Ep 6 is still days off: story-tonight-patterns.js), its rows keyed as the fixture's;
 // `await night.down(pool)` is new-fixture's down. Keyed on new-fixture's
 // zt-nd- slugs and zt_nd_ usernames; refuses a non-local database. It IS new-fixture's zt_nd_ couch: never run it beside another
 // check that uses that couch. Used by story-strip-night.js.
@@ -57,7 +59,7 @@ const EXTRA = [
 ];
 const PLAYERS = ["alex", "riley", "jordan", "sam"];
 
-async function up(pool, { phase = "onair", moves = "set", pace = "live", owed = false, extra = 0, extraMoves = "set", art = false } = {}) {
+async function up(pool, { phase = "onair", moves = "set", pace = "live", owed = false, extra = 0, extraMoves = "set", art = false, beforeAir = null } = {}) {
   if (!/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(DB)) throw new Error("night-fixture runs against a local database only");
   if (!(phase in STARTED)) throw new Error(`--phase: one of ${Object.keys(STARTED).join(", ")}`);
   if (!["set", "carried", "kept", "gap"].includes(moves)) throw new Error("--moves: set, carried, kept or gap");
@@ -130,6 +132,8 @@ async function up(pool, { phase = "onair", moves = "set", pace = "live", owed = 
     else if (type === "pickem" && extraMoves === "set") await setPick(id, i + 1);
     else if (type === "classic-draft" && extraMoves === "set") await claim(id);
   }
+  // A module's own games, made and moved while Ep 6 is still days off (the header's beforeAir).
+  const added = beforeAir ? await beforeAir({ ...ids, more }) : null;
 
   // The pace, as Backstage stores it: At airtime is settings.lockAtAir; live stores nothing. The extra games follow --pace=strict.
   const strict = pace === "strict" ? [L.outlast, L.lineup, L.pool, ...more] : pace === "mixed" ? [L.lineup] : [];
@@ -177,7 +181,7 @@ async function up(pool, { phase = "onair", moves = "set", pace = "live", owed = 
   console.log(`[night] up: phase ${phase}, moves ${moves}, pace ${pace}${owed ? ", a replacement owed" : ""}${extra ? `, ${extra} more games (${extraMoves})` : ""}; sign in as ${NF.username("jordan")} / ${NF.PASSWORD}`);
   for (const s of summary) console.log(`[night]   ${JSON.stringify(s)}`);
   console.log(`[night]   home moves: ${due.length ? due.join(" | ") : "none"}`);
-  return { ...ids, viewer: "jordan", episode: EP, more, summary, due };
+  return { ...ids, viewer: "jordan", episode: EP, more, summary, due, added };
 }
 
 const down = (pool) => NF.down(pool);

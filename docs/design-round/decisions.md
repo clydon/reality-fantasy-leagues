@@ -1580,6 +1580,172 @@
 - Rejected: a key for "you run this" on a game's bar, with the gear only for your own settings; leaving the week for 3b.
 - Rests on: src/new/backstage/waivers.tsx (WaiverJob, WaiverRule), game-settings.tsx, manage/people.tsx, manage/choice.tsx.
 
+## 2026-11-21 · Tonight is the night, the Games tab is what you can play, a game's page is the season
+- Decided by: the user ("Tonight is essentially a what happened last time tab"; "maybe this calls for the games tab to be more of a game launcher"), with Claude's split by time, which the user took ("Start")
+- What: Tonight's games section shows the last episode for everyone in each game you play (a card a game, closed to your night, open to everyone's); someone who only watches sees no game's results there, only the couch's quick games for the next episode (or a season game open to join) to Join; the Games tab becomes the way into games (quick games first, your season games one line each, games to join, start one, your record) and loses its leaderboards and Last picks; the full season stays on each game's page.
+- Why: the Games tab's rows and Tonight's opened cards would show the same leaderboard and picks twice; split by time, each place has one job, and someone with no games gets a place built to bring them in.
+- Rejected: both tabs keeping a leaderboard and last picks (they'd drift apart); Tonight showing a watcher the couch's results as a teaser (the user: it won't show results or standings if they are not in it).
+- Supersedes: Phase 0's decision 4 (2026-11-14: the Games tab kept for leaderboards and last picks) and Round 3's "what's on for me" as the Games tab's job (2026-11-18), once the Games tab's page is built.
+- Rests on: docs/design-round/tonight-night-spec.md.
+
+## 2026-11-21 · Everyone's night shows five people: the top three, the one just ahead of you, and you
+- Decided by: Claude, default (the user proposed the top four and you, then left the call open: "I'm open to anything that makes sense")
+- What: five or fewer, everyone; you in the top five, the top five; otherwise the top three, the person just ahead of you and you, with a gap mark; See all opens the game's episode sheet.
+- Why: the person you can pass next is the comparison that moves you (today's "12 behind" line says the same); the fourth place means little to someone tenth.
+- Rejected: the top four and you (the user's first idea: keeps a fourth leader the person tenth can't reach); the Games tab's top three and you (four rows, no one to chase).
+- Rests on: docs/design-round/tonight-night-spec.md, "The five rows".
+
+## 2026-11-21 · A one-episode game is called a quick game
+- Decided by: Claude, default
+- What: "quick game" in the app's words wherever one-episode games are offered or listed; a season game is "a season game" only where the two are set side by side.
+- Why: it says what makes it easy (one move, over the same night), which is the ease the user wants to encourage; "one-episode game" and "night's game" are the code's words.
+- Rejected: "one-episode game" (accurate, heavy); "Tonight's game" (clashes with the Tonight tab); "mini game" (reads as a toy).
+- Rests on: docs/design-round/tonight-night-spec.md, "Three places, three jobs".
+
+## 2026-11-21 · Quick games are encouraged by ease and spirit only
+- Decided by: the user ("incentivize people just via the ease and spirit of the app"); its rules by Claude
+- What: quick games come first wherever games are offered; who's in shown as real faces; one-tap Join; only real lock times; winners named, nobody scolded; no dismiss, count or reminder on a watcher's Join row (it's a listing, asked once); couch points unchanged and unshown.
+- Why: friends playing is the pull; pressure would make Joanna feel hustled (the round's frame: never a casino's pressure tactics).
+- Rejected: streaks or rewards for playing quick games; "you missed out" lines; a banner inviting a watcher to play.
+- Rests on: docs/design-round/tonight-night-spec.md, "The encouragement, by ease and spirit".
+
+## 2026-11-21 · Tonight's motion is what changed, once per episode
+- Decided by: Claude, default (the user: "open to animations as you scroll sections or components into view")
+- What: a card's change (place, arrow, bars, a bingo line) plays the first time it scrolls into view after a new episode, then stays still; nothing else moves on scroll; none with reduced motion.
+- Why: motion that carries the news is read; motion on every card at every visit slows reading and repeats the reveal's moment.
+- Rejected: every block fading or rising in as it scrolls (decoration, every visit).
+- Rests on: docs/design-round/tonight-night-spec.md, "Motion".
+
+## 2026-11-21 · Tonight's night shows bingo and trivia, not Call it
+- Decided by: Claude, default, from the user's 2026-11-09 decision (Call it, predictions, polls and how your calls went stay off Tonight until a session on extras brings them back)
+- What: the night's extras card holds the couch's bingo cards for the episode and this week's trivia scores, for whoever played; Call it stays off.
+- Why: the user asked for everyone's trivia and bingo; Call it was switched off on Tonight by the user's own decision, which this round doesn't reopen.
+- Rejected: Call it as a third line (the extras' general control, but reopening a settled decision without the user).
+- Rests on: src/new/show/tonight.tsx NextEpisode (`more = false`); docs/design-round/tonight-night-spec.md.
+
+## 2026-11-21 · A one-episode game is named by itself everywhere it's offered
+- Decided by: Claude, from the check (both reviewers: "Join Survival Pool" on a "Who survives?" row, beside a Survival Pool you play)
+- What: a quick game's card, Tonight's Join row and the join sheet say its own name without the episode it was named for ("Who survives?"); the sheet says it plays that episode only.
+- Why: the base game's name made two games read as one, and a player already in the season pool would skip the Join or join the wrong thing.
+- Rejected: the base game's name (what the sheet said before), the name with its episode (the block already names it).
+- Rests on: docs/design-round/tonight-night-check.md.
+
+## 2026-11-21 · The check: PFD 63/100, Impeccable 26/40; one batch fixed, five things left open
+- Decided by: Claude, through the process (one check, one batch)
+- What: the batch and what's left are in docs/design-round/tonight-night-check.md; the ledger's bars and a results line in the top strip go to the user as choices.
+- Why: the rules settle the rest; those two touch an approved component and a settled order.
+- Rests on: docs/design-round/tonight-night-check.md.
+
+## 2026-11-21 · Tonight's night is one row a game, about 64 px; who scored and why is a tap deeper
+- Decided by: the user ("The games section of tonight take up WAY too much vertical real estate"); the row's form by Claude through Impeccable
+- What: each game a row (place and movement left; name, small faces with their marks and the news in the middle; the change right), opening everyone's night in place, each person a one-line row with their picks inline; the ledger (who scored and why) left Tonight for the person's sheet, one tap from your row; quick games, bingo and trivia a row each; four rows, then a fold. The closed section went from about 1,000 px to 424 px on the zt couch (three games, a quick game, bingo, trivia).
+- Why: a card of about 185 px a game ran the section past a screen for three games; the glance needs a row, the detail is on demand.
+- Rejected: trimming the cards' spacing (still a screen for three games); keeping the ledger in the open state (about 280 px more, and your detail is on your sheet).
+- Rests on: docs/design-round/tonight-night-spec.md; the story's version 2.
+
+## 2026-11-21 · Tonight's rows are led by the game; one-episode games first, each led by who won
+- Decided by: the user ("too much emphasis on the place you're within the game. There should be more on the game name and length (so shorter and one episode games are first) ... a one episode game should maybe have its own subsection and show the winner"); the form by Claude through Impeccable
+- What: the section in two groups, "One-episode games" (each led by who won it, with the couch's bingo and trivia led by who got a line first and who scored best) then "Longer games" soonest to end first; a longer game's row leads with its name in caps and its length ("Season · 7 left", "Eps 4–9 · 3 left"), the night's change on the right with your place small under it; "So far" once on the heading.
+- Why: Tonight answers which game and how long first; your place is the game page's lead. One-episode games are the low-commitment way in, so they lead and say who won.
+- Rejected: a game's place as the row's big number (version 2); "quick game" as the group's name (the user's words are "one episode games").
+- Rests on: docs/design-round/tonight-night-spec.md; the story's version 3.
+
+## 2026-11-21 · Tonight has a row for every kind of game, and every engine change names the screens it reaches
+- Decided by: the user ("make sure there's a tonight one row designed for every game type ... if a new engine capability is added or modified, we need to have a record of all UI areas that need to be reviewed"); the registry and map by Claude
+- What: src/lib/game/night-rows.ts declares each of the 15 main blocks' Tonight row (faces, change, second line, place, open), a Record over MainBlock so a new block fails tsc, with tests/night-rows.test.js reading the grammar's list; night.tsx reads it. docs/UI-REVIEW-MAP.md lists every screen each kind of engine change reaches and which checks fail; AGENTS.md points every session to it.
+- Why: the row was generic past the three kinds the couch plays; a new capability would have fallen back silently.
+- Rejected: a design per game base (56 bases share 15 main blocks); relying on the gameplay coverage matrix alone (its ledger has never been used, and it doesn't fail anything).
+- Rests on: docs/UI-REVIEW-MAP.md; src/lib/game/night-rows.ts; the story's per-pattern frames.
+
+## 2026-11-21 · Bingo and trivia are Last time's quiet expander, not games; trivia shows who got each question right
+- Decided by: the user ("the bingo and trivia that always occurs can be toned down. Just an expander ... the moments that hit and who got bingo ... trivia should show questions and answers and who got it right ... it's actually just a every episode occurring feature")
+- What: out of Your night's one-episode group; one row in Last time ("Bingo and trivia", who got bingo and your trivia score), opening to the moments that hit and who got bingo, then each question, its answer and who got it right. Trivia's answers show only once you've played the round. The trivia read now carries which questions each couch member got right once you've played (never their wrong answer); bingo's read carries the moments that hit across the couch's cards.
+- Why: bingo and trivia come with every episode for everyone who follows the show; set out as game rows with winners, they read as games someone started.
+- Supersedes: trivia's "someone else on the couch sees only your score" (src/lib/server/trivia.ts), now a score plus which questions they got right.
+- Rejected: per-person bingo cards as glyphs and trivia dots in the games group (version 3).
+- Rests on: docs/design-round/tonight-night-spec.md, "Bingo and trivia: Last time's, not games".
+
+## 2026-11-21 · Tonight's night approved as version 5
+- Decided by: the user ("Looks good!", on the story's version 5)
+- What: Tonight's games section as built on branch tonight-night through 18e313d9: one row a game led by its name and length, one-episode games first led by who won, the longer games soonest to end first, every kind of game's row (night-rows.ts), everyone's night in place, the Join row in the next episode's block, Bingo and trivia as Last time's expander. Still open: BACKLOG 239 (one-episode or quick game) and the round's two choices (a results line in the top strip; the ledger off Tonight).
+- Next: the Games tab as the way into games (the spec's "Three places, three jobs"), in a fresh session.
+- Rests on: the story https://claude.ai/artifact/1y8nHXhkub2XuSiMwwWykp (version 5); docs/design-round/tonight-night-*.md.
+
+## 2026-11-21 · Tonight's night ships with the Games tab, not before
+- Decided by: the user ("We'll wait for the games tab")
+- What: branch tonight-night isn't merged or pushed until the Games tab's round (the way into games) is built and approved; then both go together.
+- Why: the two pages split one job between them (Tonight the night, the Games tab what you can play); alone, Tonight would repeat the Games tab's leaderboards and Last picks.
+- Rejected: shipping Tonight alone before Ep 10 (Claude's recommendation: the couch would have seen it after Ep 10).
+
+## 2026-11-21 · The Games tab is the way into games: the next episode's one-episode games, your longer games a row each, games to join, Start, your record
+- Decided by: the user's split (2026-11-21, "Three places, three jobs"); the page's order and rows by Claude through Intent, PFD and Impeccable
+- What: For Ep N (yours, then the couch's with Join, then Start a one-episode game with Again, then the episode's extras folded); Your longer games, a row each (Tonight's row: name and length, who you've got for the next episode as small faces, your place), soonest to end first, five or four and a fold; Longer games to join; Start a longer game; your record as one row to the finished games' page. Someone who only watches gets the same page without their own games.
+- Why: the smallest step first, and one place for each fact: the night is Tonight's, the season the game's page's.
+- Rejected: keeping each game's leaderboard and Last picks (Tonight's open row and the game's page hold them); the newest episode's results on the tab (Tonight's one-episode group).
+- Supersedes: step 6's Games tab (2026-11-15: a row with a mini leaderboard and Last picks) and Round 3's "what's on" order (2026-11-18), as the decision above said it would.
+- Rests on: docs/design-round/games-launcher-spec.md, -first-view.md, -shape.md.
+
+## 2026-11-21 · Who you've got stays on the Games tab as the row's faces; the glance's opened plates leave
+- Decided by: Claude, from two settled decisions (2026-11-18: "The Games tab shows who you've got at a glance, as face plates"; 2026-11-21: "your place per game in a line, nothing more")
+- What: a longer game's second line shows your next episode's people in the game's own shape (glanceShape: starters, a pick, a team with who's out greyed, a claim) at 22 px, four then "+n", with the move's words; the plates that opened in place go (the game's page and Your moves have them).
+- Why: both decisions hold: who you've got is seen at a glance, and the row stays one line's height.
+- Rejected: dropping the faces (the 2026-11-18 decision's reason: "we mention Thien but never show her face plate"); keeping the plates opening in place (a row grows past a row).
+- Rests on: docs/design-round/games-launcher-spec.md, "A longer game's row".
+
+## 2026-11-21 · A longer game's whole row opens its page; its move stays the strip's
+- Decided by: Claude, through PFD (R4: one target a row) and Phase 0 decision 8 (one yellow a view)
+- What: the row is one link (the game's page; mid-draft, the draft room); a due move shows the strip's small dot and its words. One-episode games keep their button (the move is the whole game).
+- Why: step 6's card had four look-alike targets; the strip and Your moves are where a move is made.
+- Rejected: an outlined button on each longer row (a second target, and Pick, Set and Draft side by side on every row).
+- Rests on: docs/design-round/games-launcher-first-view.md, L3.
+
+## 2026-11-21 · A game nobody new can join isn't listed on the Games tab
+- Decided by: Claude, default
+- What: Longer games to join lists the couch's games you could join or ask to (Join, Ask, Asked); one that's locked to newcomers is left to the couch's page.
+- Why: a row with nothing to do is a dead end on a page whose job is the way in.
+- Rejected: a Locked row (today's): it reads as an offer that refuses.
+- Rests on: docs/design-round/games-launcher-spec.md, "A longer game to join's row".
+
+## 2026-11-21 · The Games tab's check: PFD 71/100, Impeccable 26/40; one batch fixed; two choices to the user
+- Decided by: Claude, through the process (one check, one batch)
+- What: the batch and what's left are in docs/design-round/games-launcher-check.md; the strip's words beside a one-episode game of the same verb (BACKLOG 240) and Tonight's next-episode rows taking this tab's form (BACKLOG 241) go to the user.
+- Why: the rules settle the rest; those two touch approved components (the strip, Tonight's night).
+- Rejected: dropping the kind dot (Impeccable's advice; it's Tonight's row's grammar, so the due dot went instead, PFD's call on what's noticed first).
+- Rests on: docs/design-round/games-launcher-check.md; the story https://claude.ai/artifact/5D9STJ6R4jFVgtkKEdCdpx.
+
+## 2026-11-21 · The stat of the week sits in Last time, a step under who left
+- Decided by: the user ("we had a cool little section that included stat of the week. Should that be moved up?"; Claude's recommendation, taken)
+- What: the stat of the week's plate moves from the bottom Stats card into Last time, under who left and above the GIFs, its title a step under the Out plate's (18 px against 19) so who left leads; the two leader boards and All N stats stay at the bottom.
+- Why: it's picked from your latest episode (cast-stats.ts featured: a stat with a clear leader that moved in it), so it's what happened last time, for watchers and players alike.
+- Rejected: moving the whole Stats block up (it would push the games down for the boards' sake).
+
+## 2026-11-21 · The strip names a pick's game when another pick game is on for the episode (BACKLOG 240)
+- Decided by: the user ("i agree with your recs"), on the Games tab's check
+- What: a pick's strip words become "Survival Pool: pick who survives" (the name the Games tab's row gives it) when another pick game covers that episode, yours or the couch's; a one-episode game's own pick says its name ("Who goes home?"). Alone, a pick keeps "Pick who survives". src/new/show/pick-words.ts; tests/strip-pick-words.test.js.
+- Why: "Pick who survives" over a one-episode game called "Who survives?" that you're not in read as that game (both reviewers: Joanna taps the wrong one).
+- Rejected: renaming one-episode games away from the pick's verb (they're named by whoever starts them).
+- Rests on: docs/design-round/games-launcher-check.md.
+
+## 2026-11-21 · Tonight's next-episode rows take the Games tab's form (BACKLOG 241)
+- Decided by: the user ("i agree with your recs")
+- What: Next · Ep N+1 lists your one-episode games as the Games tab's QuickRow (You're in, who's in, your move's state and its button) and the couch's to join as its join row (faces first, what it asks, Join or Ask); Round 3's night row is gone.
+- Why: one game looks and works the same on both tabs (PFD's L2: one form per fact).
+- Rejected: Tonight's rows staying as they were (two forms of one game, one with a button and one without).
+- Supersedes: the Next block's rows in the 2026-11-21 "Tonight's night approved as version 5" entry.
+- Rests on: docs/design-round/games-launcher-spec.md, "A one-episode game's row".
+
+## 2026-11-21 · "One-episode game" is the app's word; "quick game" was the round's shorthand (BACKLOG 239)
+- Decided by: the user ("i agree with your recs")
+- What: wherever a person reads it, a game over one episode is a "one-episode game" (Tonight's group, the Games tab's Start row); "quick game" stays only as the docs' and code's shorthand.
+- Why: it's what the user called them.
+- Supersedes: "A one-episode game is called a quick game" (2026-11-21).
+- Rests on: BACKLOG 239.
+
+## 2026-11-21 · The Games tab as the way into games approved, with Tonight's night; both merge together
+- Decided by: the user ("Approve continue here", on the story's version 2)
+- What: the Games tab as built on branch tonight-night through 29b5fd30 (the next episode's one-episode games first, your longer games a row each, longer games to join, Start, your record; the strip's pick words; Tonight's next rows in this tab's form), merged to master with Tonight's night (approved as version 5).
+- Rests on: the story https://claude.ai/artifact/5D9STJ6R4jFVgtkKEdCdpx (version 2); docs/design-round/games-launcher-*.md.
+
 ## 2026-11-21 · Settings, Round 3b: changing a game once it's under way, as built
 - Decided by: the user, on 3b's story (https://claude.ai/artifact/SCCquWVBtn7qhotipLmcyx): "Agree with your recs" (all four).
 - What:

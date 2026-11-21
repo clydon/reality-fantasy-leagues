@@ -985,3 +985,63 @@ html[data-nav="right"] .nd-dock {
   pointer-events: none;
   animation: nd-lit 1.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* Tonight's night (src/new/show/night.tsx, docs/design-round/tonight-night-shape.md): a card's change, once per episode as it comes
+   into view. The place flips like a broadcast number (the old one up and out, the new one up and in), the caret slides in after it,
+   a lost castaway greys and their cross lands. Transform and opacity only. */
+@keyframes nn-flip-out {
+  to {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+}
+@keyframes nn-flip-in {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+}
+@keyframes nn-caret-in {
+  from {
+    transform: translateY(5px);
+    opacity: 0;
+  }
+}
+@keyframes nn-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes nn-cross {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+}
+.nn-flip-out,
+.nn-flip-in {
+  animation: nn-flip-out 0.42s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
+}
+.nn-flip-in {
+  animation-name: nn-flip-in;
+}
+.nn-caret-in {
+  animation: nn-caret-in 0.22s ease-out 0.5s both;
+}
+.nn-lost {
+  animation: nn-fade 0.3s ease-out 0.45s both;
+}
+.nn-cross-in {
+  animation: nn-cross 0.26s cubic-bezier(0.16, 1, 0.3, 1) 0.55s both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nn-flip-out {
+    display: none;
+  }
+  .nn-flip-in,
+  .nn-caret-in,
+  .nn-lost,
+  .nn-cross-in {
+    animation: none;
+  }
+}

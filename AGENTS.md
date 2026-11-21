@@ -40,6 +40,14 @@ The explorer is for both manual use and unattended automation, including future 
 
 The bench now includes actual episode reveals with direct lineup/standings entry, the current creation wizard with its selected generated lineup recipe (inspection only), and independent viewing marks for each player. A viewer switch must retain that person's mark; a reveal advances only that person across the episode's games. Own-pace catch-up writes use the engine's viewer copy; live-only is explicit. Keep the current wizard baseline while designing its eventual overhaul; do not treat it as a new wizard or claim its edits already drive the running preview.
 
+## When the engine changes, review its screens
+
+When an engine capability is added or changed (a new kind of game, a dial value, a move, a pace or privacy rule, a span, results kept
+outside a game's state), read [docs/UI-REVIEW-MAP.md](docs/UI-REVIEW-MAP.md): it lists every screen that kind of change reaches
+(the game page, Tonight's rows, the Games tab, the strip, the drill sheets, the reveal, Start a game, notifications) and the checks
+that fail until a screen has a design. Review each at 390 on a real game, update its registry (Tonight's: `src/lib/game/night-rows.ts`),
+and put what's left unreviewed in BACKLOG.md.
+
 ## Visual asset tooling
 
 Codex and Claude Code can use the `nano-banana` MCP server for generating and editing icons, user interface mockups, and visual assets. Consider it when an image-generation or image-editing tool would help the task. Use Impeccable for visual design, Intent for UX design and strategy, and Perception-First Design for perceptual hierarchy; asset generation supports those decisions.

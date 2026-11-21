@@ -232,10 +232,13 @@ const same = (a, b) => JSON.stringify(Object.entries(a).sort()) === JSON.stringi
     await card.waitFor({ timeout: 20_000 });
     await card.scrollIntoViewIfNeeded();
     await page.waitForTimeout(300);
-    check((await card.locator("[data-preview]").count()) === 0 && (await card.getByText("Stat of the week").count()) === 1, "Tonight's Stats card is real, with a stat of the week");
+    // The stat of the week sits in Last time since 2026-11-21 (the user: picked from your latest episode, so it's what happened last time).
+    const plate = page.locator("[data-last-time] [data-stat-week]");
+    check((await card.locator("[data-preview]").count()) === 0 && (await plate.getByText("Stat of the week").count()) === 1 && (await card.locator("[data-stat-week]").count()) === 0, "Tonight's Stats card is real, its stat of the week in Last time");
     await card.screenshot({ path: path.join(out, "tonight-stats-card.png") });
-    const week = await card.locator("[data-stat-week]").getAttribute("data-stat-week");
-    await card.locator("[data-stat-week]").click();
+    const week = await plate.getAttribute("data-stat-week");
+    await plate.scrollIntoViewIfNeeded();
+    await plate.click();
     await page.locator("[data-stats-page] [data-stat-section]").first().waitFor();
     await page.waitForTimeout(500);
     check(page.url().includes("page=stats") && page.url().includes(`stat=${week}`) && (await page.locator("[data-stats-page] [data-stat-section]").first().getAttribute("data-stat-section")) === week, "the stat of the week opens the stats page sorted by it", page.url());

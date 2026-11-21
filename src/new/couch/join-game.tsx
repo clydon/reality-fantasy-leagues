@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Check, ChevronLeft, KeyRound, Play, RotateCcw } from "lucide-react";
 import { couches, useAfterCouch, useJoinOptions, type CatchUpReveal, type GameView, type JoinGame } from "../data";
-import { spanName } from "@/lib/game/spans";
+import { kindOf, spanName } from "@/lib/game/spans";
 import { gameColour } from "../games";
 import { useNav } from "../nav";
 import { paths } from "../routes";
@@ -43,6 +43,51 @@ function whoJoins(g: JoinGame): string {
   if (g.ownPace) return "Anyone on the couch can join, from wherever they are: one episode at a time, at their own pace.";
   if (!g.underway) return g.teamSize ? "Anyone on the couch can join. You'll draft with everyone." : "Anyone on the couch can join.";
   return g.shared ? `Anyone can join. Catch up on what you missed, or start from Episode ${g.latest + 1}.` : `Anyone can join from Episode ${g.latest + 1}.`;
+}
+
+/** Whether there's anything to do about joining a game from a list: join it, ask to, or see your request waiting (a game nobody new
+ *  can join has nothing to offer there: the Games tab leaves it out; the couch's page still lists it). */
+export const joinable = (g: JoinGame) => !g.you?.playing && !g.ended && (g.mode === "open" || g.mode === "ask");
+
+/**
+ * A row's join button (the Games tab's rows, docs/design-round/games-launcher-spec.md): Join, outlined (the strip holds the yellow);
+ * Ask, which sends the request; Asked, which takes it back on a second tap. Nothing for a game nobody new can join.
+ */
+export function JoinButton({ couchId, g, onJoin }: { couchId: string; g: JoinGame; onJoin: (g: JoinGame) => void }) {
+  const after = useAfterCouch();
+  const [busy, setBusy] = useState(false);
+  const runner = g.runners[0] ?? "whoever runs it";
+  const act = async (fn: () => Promise<unknown>, said: string) => {
+    setBusy(true);
+    try {
+      await fn();
+      await after();
+      toast(said);
+    } catch (e) {
+      toast.quiet((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (g.you?.playing || g.mode === "locked") return null;
+  if (g.mode === "open" || g.you?.letIn)
+    return (
+      <Btn tone="optional" className="h-10 flex-none px-4" data-join-button onClick={() => onJoin(g)}>
+        Join
+      </Btn>
+    );
+  if (g.you?.asked)
+    return (
+      <Btn tone="optional" className="h-10 flex-none px-3 text-muted-foreground" disabled={busy} data-asked aria-label={`Asked ${runner}. Tap to take the request back`} onClick={() => act(() => couches.withdraw(couchId, g.leagueId), "Request taken back")}>
+        <Check className="size-4" aria-hidden />
+        Asked
+      </Btn>
+    );
+  return (
+    <Btn tone="optional" className="h-10 flex-none px-4" disabled={busy} data-ask-button onClick={() => act(() => couches.ask(couchId, g.leagueId), `Request sent to ${runner}`)}>
+      Ask
+    </Btn>
+  );
 }
 
 /**
@@ -111,6 +156,10 @@ export function JoinGameRow({ couchId, g, strong, onJoin }: { couchId: string; g
   );
 }
 
+/** What a game to join is called: a one-episode game by its own name, without the episode it was named for (Tonight's Join row
+ *  says the same: night.tsx quickName); any other by its kind. */
+const joinName = (g: JoinGame) => (g.span && g.span.from === g.span.to ? kindOf(g.name).replace(/[\s·]*\b(ep|episode)\s*\d+$/i, "") : g.gameName);
+
 /** The episodes aired so far, in words: "Episode 1 has aired", "Episodes 1 to 4 have aired". */
 const airedWords = (n: number) => (n === 1 ? "Episode 1 has aired" : `Episodes 1 to ${n} have aired`);
 
@@ -146,7 +195,7 @@ export function JoinGameSheet({ couchId, game, onOpenChange }: { couchId: string
       const r = await couches.joinGame(couchId, game.leagueId, { start: s, team: picks });
       await after();
       openChange(false);
-      toast(r.catchingUp ? `You're in. Catch-up starts at Episode ${r.start}.` : `You're in ${game.gameName}.`);
+      toast(r.catchingUp ? `You're in. Catch-up starts at Episode ${r.start}.` : `You're in ${joinName(game)}.`);
       if (r.seasonId) nav.push(paths.show(r.seasonId));
     } catch (e) {
       toast.quiet((e as Error).message);
@@ -160,7 +209,7 @@ export function JoinGameSheet({ couchId, game, onOpenChange }: { couchId: string
     <Sheet
       open={!!game}
       onOpenChange={openChange}
-      title={picking ? "Pick your team" : `Join ${game?.gameName ?? ""}`}
+      title={picking ? "Pick your team" : game ? `Join ${joinName(game)}` : "Join"}
       subtitle={
         !game
           ? undefined
@@ -249,9 +298,9 @@ export function JoinGameSheet({ couchId, game, onOpenChange }: { couchId: string
         </div>
       ) : !o.starts ? (
         <div data-join-simple>
-          <p className="text-[15px] leading-snug">{game.teamSize ? "You'll draft with everyone when the draft starts." : "You're in from the next episode."}</p>
+          <p className="text-[15px] leading-snug">{game.teamSize ? "You'll draft with everyone when the draft starts." : game.span && game.span.from === game.span.to ? `It plays Episode ${game.span.from} only: make your pick before you watch it.` : "You're in from the next episode."}</p>
           <Btn tone="must" wide className="mt-4" data-join-confirm disabled={busy} onClick={() => join(null, [])}>
-            {busy ? "Joining…" : `Join ${game.gameName}`}
+            {busy ? "Joining…" : `Join ${joinName(game)}`}
           </Btn>
         </div>
       ) : (

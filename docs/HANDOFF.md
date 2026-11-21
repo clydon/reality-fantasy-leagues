@@ -17,9 +17,17 @@ puts its build notes in its plan, not here.
 
 ---
 
-## Live (production = origin/master, 535e2ecf, deployed 2026-11-21)
+## Live (production = origin/master, f5fddc1c, deployed 2026-11-21)
 
 Newest first. The plan or archive section named holds the detail.
+- **Tonight's night and the Games tab** (2026-11-21, pushed f5fddc1c; no migration; carries settings Round 3a, already on origin):
+  Tonight is the night (each game you play a row led by its name and length, one-episode games first led by who won, opening to
+  everyone's night; bingo and trivia as Last time's expander; a watcher sees no game's results), the Games tab is the way into games
+  (the next episode's one-episode games first, yours and the couch's to Join, Start one; your longer games a row each; longer games
+  to join; your record), a game's page is the season. The strip names a pick's game beside another pick game. Every kind of game
+  has a Tonight row (src/lib/game/night-rows.ts) and docs/UI-REVIEW-MAP.md lists the screens each engine change reaches. Stories:
+  https://claude.ai/artifact/1y8nHXhkub2XuSiMwwWykp (Tonight) and https://claude.ai/artifact/5D9STJ6R4jFVgtkKEdCdpx (Games);
+  docs/design-round/tonight-night-*.md and games-launcher-*.md.
 - **Settings overhaul, Round 3a** (2026-11-21, pushed 535e2ecf; no migration): Backstage retired; each game's Manage this game (a
   gear on its bar) with its jobs, its waiver week in place, Who's playing per game, rename, remove from one game and Stop; Games
   you run on the show's ⋯. Stories: https://claude.ai/artifact/53oCgbQkJdW1e6RARGWP73 and

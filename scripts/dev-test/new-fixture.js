@@ -332,19 +332,42 @@ async function moreGames(pool, games) {
   SEEN = Object.fromEntries(marks.map((r) => [r.username.slice(6), r.results_seen_through]));
   const data = dataOf();
   const out = [];
-  for (const { slug, name, type, players, commissioner, joinCode } of games) {
+  // `bots`: that many computer players besides the people (no accounts, automated seats: story-tonight-night.js's big game);
+  // `last`: that person sits in the seat the engine ranks last (the rest keep their order); `span`: [from, to], a game over those
+  // episodes only (a quick game: [6, 6]).
+  for (const { slug, name, type, players, commissioner, joinCode, bots = 0, last = null, span = null } of games) {
     if (!/^zt-nd-[a-z0-9-]+$/.test(slug)) throw new Error(`a game's slug starts zt-nd-: ${slug}`);
     await pool.query(`DELETE FROM leagues WHERE slug = $1`, [slug]);
     const ids = Object.fromEntries((await pool.query(`SELECT id, username FROM "user" WHERE username = ANY($1::text[])`, [players.map(username)])).rows.map((r) => [r.username.slice(6), r.id]));
-    const state = JSON.parse(JSON.stringify(buildDemoState({ ...data, players: players.map((key) => ({ key, name: key, color: "#888" })) }, type, CURSOR)));
+    const keys = [...players, ...Array.from({ length: bots }, (_, b) => `bot${b + 1}`)];
+    const state = JSON.parse(JSON.stringify(buildDemoState({ ...data, players: keys.map((key) => ({ key, name: key, color: "#888" })) }, type, CURSOR)));
     S.migrateLeagueState(state);
     state.settings.showId = SHOW;
     state.settings.wikiSeason = 51;
+    if (span) {
+      state.settings.startEpisode = span[0];
+      state.settings.endEpisode = span[1];
+    }
+    // Who sits where: seat j is keys[j], unless `last` takes the seat the engine ranks last (swapping with whoever had it).
+    const seat = keys.map((_, j) => j);
+    if (last && players.includes(last)) {
+      const rows = S.computeScores(S.spanView(state));
+      const worst = rows.reduce((a, b) => (b.total < a.total ? b : a)).playerId;
+      const i = keys.indexOf(last);
+      const j = seat.indexOf(state.players.findIndex((p) => p.id === worst));
+      [seat[i], seat[j]] = [seat[j], seat[i]];
+    }
+    const BOT_NAMES = ["Ada", "Max", "Ivy", "Rex", "Zoe", "Kit"];
+    keys.forEach((key, k) => {
+      const p = state.players[seat[k]];
+      if (k < players.length) p.name = key;
+      else Object.assign(p, { name: BOT_NAMES[(k - players.length) % BOT_NAMES.length], automated: true, botLevel: "solid" });
+    });
     const code = joinCode ?? slug.replace(/[^a-z]/g, "").slice(4, 10).toUpperCase().padEnd(6, "O");
     const leagueId = (await one(`INSERT INTO leagues (name, slug, join_code, state, created_by, couch_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`, [name, slug, code, JSON.stringify(state), ids[commissioner], lineup.couch_id])).id;
     for (const [j, w] of players.entries()) {
       await pool.query(`INSERT INTO league_memberships (league_id, user_id, player_id, role, results_seen_through) VALUES ($1, $2, $3, $4, $5)`, [
-        leagueId, ids[w], state.players[j].id, w === commissioner ? "commissioner" : "member", SEEN[w],
+        leagueId, ids[w], state.players[seat[j]].id, w === commissioner ? "commissioner" : "member", SEEN[w],
       ]);
     }
     out.push(leagueId);

@@ -79,6 +79,9 @@ export interface BingoMate {
 }
 
 export interface EpisodeBingo {
+  /** Tonight's Bingo and trivia (docs/design-round/tonight-night-spec.md): the moments that happened across the couch's cards, once
+   *  you've seen the episode; absent before. */
+  hit?: { key: string; label: string }[];
   seasonId: string;
   episode: number;
   airAt: string | null;
@@ -345,14 +348,19 @@ async function readBingo(user: SessionUser, seasonId: string, n: number, ctx: Co
       called: calledOf(r.called_lines),
     };
   });
+  const hit = new Map<string, string>();
   const people = cards.map((c) => {
     const t = truthOf(c.squares, settled.truth);
+    c.squares.forEach((sq, i) => {
+      if (t[i] === "yes" && sq.key !== FREE_KEY) hit.set(sq.key, sq.label);
+    });
     const on = callsOn(c.squares);
     const lines = countLines(c.squares, c.marks, t, on ? c.called.map((x) => x.line) : null);
     const done = firstLineAt(c.squares, c.at, t, on ? c.called : null);
     if (done !== null && (!first || done < first.at)) first = { userId: c.userId, name: c.name, at: done };
     return { userId: c.userId, name: c.name, lines: lines.standing, waiting: lines.waiting, off: lines.off, called: lines.called, ticked: c.marks.size };
   });
+  out.hit = [...hit].map(([key, label]) => ({ key, label }));
   out.people = people.sort((a, b) => Number(b.userId === user.id) - Number(a.userId === user.id) || b.lines - a.lines || b.ticked - a.ticked);
   const f = first as { userId: string; name: string; at: number } | null;
   out.first = f ? { userId: f.userId, name: f.name } : null;

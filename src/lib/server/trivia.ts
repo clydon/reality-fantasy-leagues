@@ -45,8 +45,9 @@ export interface TriviaRound {
   questions: TriviaQuestion[];
   /** Your play of this round (the first counts). */
   played: { score: number; of: number; answers: Record<string, string> } | null;
-  /** Others on the couch who've played this round, best first: a score each, nothing else. */
-  couch: { userId: string; name: string; score: number; of: number }[];
+  /** Others on the couch who've played this round, best first: a score each, and once you've played it too, which questions they
+   *  got right (the user, 2026-11-21: Tonight shows who got each one right; never which wrong answer anyone chose). */
+  couch: { userId: string; name: string; score: number; of: number; right?: string[] }[];
   scope: "couch" | "solo";
   /** Earlier seasons of the show, over and with results here, that you haven't marked seen to the end (newest first, a few):
    *  Seen it all marks one, and trivia can ask about it (step 15 part 3, from Noticed). Not one you play. */
@@ -250,12 +251,12 @@ async function roundFor(user: SessionUser, showId: string, couchId: string | nul
     pool.query(`SELECT t.score, t.questions, t.answers, ${THIS_ROUND} AS here FROM trivia_plays t WHERE t.user_id = $1 AND t.show_id = $2`, [user.id, showId, week, round]),
     couch
       ? pool.query(
-          `SELECT t.user_id, COALESCE(u.username, u.name) AS name, t.score, t.questions FROM trivia_plays t JOIN "user" u ON u.id = t.user_id
+          `SELECT t.user_id, COALESCE(u.username, u.name) AS name, t.score, t.questions, t.answers FROM trivia_plays t JOIN "user" u ON u.id = t.user_id
             WHERE t.show_id = $1 AND ${THIS_ROUND} AND t.user_id <> $2 AND t.user_id IN (SELECT user_id FROM couch_members WHERE couch_id = $5)
             ORDER BY t.score DESC, t.played_at`,
           [showId, user.id, week, round, couch]
         )
-      : Promise.resolve({ rows: [] as { user_id: string; name: string; score: number; questions: number }[] }),
+      : Promise.resolve({ rows: [] as { user_id: string; name: string; score: number; questions: number; answers: Record<string, string> | null }[] }),
   ]);
   const mine = plays.filter((r) => r.here);
   // A researched question is asked once: never again in a later round.
@@ -283,7 +284,13 @@ async function roundFor(user: SessionUser, showId: string, couchId: string | nul
     round,
     questions,
     played: mine[0] ? { score: mine[0].score, of: mine[0].questions, answers: mine[0].answers } : null,
-    couch: theirs.map((r) => ({ userId: r.user_id, name: r.name, score: r.score, of: r.questions })),
+    couch: theirs.map((r) => ({
+      userId: r.user_id,
+      name: r.name,
+      score: r.score,
+      of: r.questions,
+      ...(mine[0] ? { right: questions.filter((q) => (r.answers ?? {})[q.id] === q.answer).map((q) => q.id) } : {}),
+    })),
     scope: couch ? "couch" : "solo",
     past,
   };

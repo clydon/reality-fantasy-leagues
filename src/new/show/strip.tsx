@@ -16,6 +16,7 @@ import { Sheet } from "../ui/sheet";
 import { openSheet } from "./questions";
 import { catchingUpIn, hasPacePlate, movedIn } from "./pace-plate";
 import { showLabel } from "./react";
+import { pickWords } from "./pick-words";
 import { dotColour, lockedInEpisode, nightGroups, nightLabel, useLockIn, windowEpisode, type NightGroup } from "./strip-night";
 import { RunnerLine } from "../manage/jobs";
 import { MomentVoteLine } from "../manage/moments";
@@ -58,8 +59,9 @@ function nightState(show: ShowData, open: Move[]): StripState | null {
   const ep = show.words.ep;
   const n = windowEpisode(show);
   const sid = show.header?.seasonId ?? "";
-  // A move's own words, never split inside ("Pick who survives"); moves joined so a line breaks between them, the dot leading.
-  const words = (ms: Move[]) => [...new Set(ms.map((m) => moveCard(m, sid, false, false, show.words.episode).title))].map((t) => t.replace(/ /g, "\u00a0"));
+  // A move's own words, never split inside ("Pick who survives"); moves joined so a line breaks between them, the dot leading. A
+  // pick names its game when another pick game is on for the episode (pickWords).
+  const words = (ms: Move[]) => [...new Set(ms.map((m) => pickWords(show, m) ?? moveCard(m, sid, false, false, show.words.episode).title))].map((t) => t.replace(/ /g, "\u00a0"));
   const join = (xs: string[]) => xs.join(" ·\u00a0");
   // You said you're watching it (Lock in, Your moves' question, or Watch along): locked in, in every game, by the server's lock.
   const watching = lockedInEpisode(show);
@@ -154,7 +156,7 @@ export function stripState(show: ShowData): StripState | null {
   if (open.length) {
     // A draft turn is due now, not at a lock: it leads, and the line says so (step 6's check).
     const turn = open.some((m) => m.kind === "draftTurn");
-    const titles = [...new Set([...open].sort((x, y) => Number(y.kind === "draftTurn") - Number(x.kind === "draftTurn")).map((m) => moveCard(m, show.header?.seasonId ?? "", false, false, show.words.episode).title))];
+    const titles = [...new Set([...open].sort((x, y) => Number(y.kind === "draftTurn") - Number(x.kind === "draftTurn")).map((m) => pickWords(show, m) ?? moveCard(m, show.header?.seasonId ?? "", false, false, show.words.episode).title))];
     const title = titles.slice(0, 2).join(" · ") + (titles.length > 2 ? ` · ${titles.length - 2} more` : "");
     const dues = open.map((m) => (m.deadline ? Date.parse(m.deadline) : null)).filter((d): d is number => d != null);
     const first = dues.length ? Math.min(...dues) : up?.airAt ? Date.parse(up.airAt) : null;
