@@ -68,8 +68,7 @@ Newest first. The plan or archive section named holds the detail.
   merged or pushed; no migration): Tonight's games section as each game's last episode for you and everyone in it (closed: your
   night; open: five people, See all), the night's quick games, the couch's bingo and trivia, the next episode's Join row for a quick
   game you're not in; a watcher sees no game's results. Version 3 (the user: too tall; too much on your place): one row a game led by its name and length, one-episode games first led by who won, then the longer games soonest to end first. Every kind of game (the 15 main blocks) has its row in src/lib/game/night-rows.ts, 12 seen on real games (story-tonight-patterns.js; 3 are sports-only); docs/UI-REVIEW-MAP.md lists the screens each engine change reaches. Server: `GameView.was`, `JoinGame.faces`, `BingoPerson.grid`. Made
-  through Intent, PFD and Impeccable; checked once (PFD 63, Impeccable 26/40), one batch fixed. Waits on the user's review of its
-  story (https://claude.ai/artifact/1y8nHXhkub2XuSiMwwWykp) and its two choices; then the Games tab as the way into games.
+  through Intent, PFD and Impeccable; checked once (PFD 63, Impeccable 26/40), one batch fixed. Approved by the user as version 5 (2026-11-21; story https://claude.ai/artifact/1y8nHXhkub2XuSiMwwWykp); open: BACKLOG 239 and the story's two choices. Next: the Games tab as the way into games, then shipping (ask first; never on an episode night).
   docs/design-round/tonight-night-*.md; frames: `node scripts/dev-test/story-tonight-night.js`.
 - **Game preview, branch `preview`** (lane rfl-preview): 17 commits not on master, 55 commits behind it, about 11 conflict
   hunks (strip.tsx, game-week.tsx, your-move.ts, tonight.tsx). It has P0, the visual story, the bench's preview maker and

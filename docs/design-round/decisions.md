@@ -1622,3 +1622,9 @@
 - Supersedes: trivia's "someone else on the couch sees only your score" (src/lib/server/trivia.ts), now a score plus which questions they got right.
 - Rejected: per-person bingo cards as glyphs and trivia dots in the games group (version 3).
 - Rests on: docs/design-round/tonight-night-spec.md, "Bingo and trivia: Last time's, not games".
+
+## 2026-11-21 · Tonight's night approved as version 5
+- Decided by: the user ("Looks good!", on the story's version 5)
+- What: Tonight's games section as built on branch tonight-night through 18e313d9: one row a game led by its name and length, one-episode games first led by who won, the longer games soonest to end first, every kind of game's row (night-rows.ts), everyone's night in place, the Join row in the next episode's block, Bingo and trivia as Last time's expander. Still open: BACKLOG 239 (one-episode or quick game) and the round's two choices (a results line in the top strip; the ledger off Tonight).
+- Next: the Games tab as the way into games (the spec's "Three places, three jobs"), in a fresh session.
+- Rests on: the story https://claude.ai/artifact/1y8nHXhkub2XuSiMwwWykp (version 5); docs/design-round/tonight-night-*.md.
