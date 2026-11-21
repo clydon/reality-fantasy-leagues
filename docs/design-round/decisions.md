@@ -1759,3 +1759,10 @@
   4. **No Lock now on episode night's plate for runners:** the lock stays on Manage this game, two taps from the game's gear.
 - Rests on: docs/design-round/settings-r3b-spec.md, -first-view.md, -shape.md, -check.md; src/new/manage/moments.tsx,
   src/lib/server/moment-votes.ts, db/rulebooks.js recordAddedMoments, state-logic.js momentFrom.
+
+## 2026-11-21 · Settings, Round 4: the words and the ripple, as built; Recent changes keeps its name
+- Decided by: the user, on Round 4's story (https://claude.ai/artifact/5mLdnBLiwQik8SiK3BifEz): "I agree with your rec, carry on".
+- What: Round 4 as built on branch settings-r4 (one set of words across Start a game and Manage this game, old homes followed, one
+  Recommended tag, Not now on every confirm, Leave the pool as a hold, Lineups hidden gone from Start a game, How it plays saying
+  Round 3b's two rules). **Recent changes keeps its name** (Round 3's shape had assumed "Changes in these games").
+- Rests on: docs/design-round/settings-r4-spec.md (its glossary and the check).
