@@ -851,8 +851,66 @@ async function syncLeagueRulebook(db, leagueId, settings, { on } = {}) {
       return off({ mismatch: `${row.name} (${row.reader}, ${row.compiled.id}) isn't what the league plays by (${today.reader}, ${today.data.id})` });
     }
   }
+  const before = had && settings.rulebook && settings.rulebook.data ? momentIdsOf(settings.rulebook) : null;
   settings.rulebook = { id: row.id, version: row.version, data: row.compiled, reader: row.reader };
+  // Settings Round 3b (A17): moments the league's rules didn't have, from the episode its rule says.
+  if (before) await recordAddedMoments(db, seasonId, settings, before);
   return { written: true, id: row.id, version: row.version, source: own.row ? "own" : "season" };
+}
+
+/** The moments a league's rulebook has (its compiled format's events), or null when it won't compile here. */
+function momentIdsOf(rulebook) {
+  try {
+    return Formats.formatForRulebook(rulebook.data, rulebook.reader).events.map((e) => e.id);
+  } catch {
+    return null;
+  }
+}
+
+/** A show's first season here, or not: a new show's first rulebook is a guess, so what it gains counts from the start. */
+async function defaultNewMoments(db, seasonId) {
+  if (!seasonId) return "next";
+  const r = await one(db, "SELECT count(*)::int AS n FROM show_seasons WHERE show_id = (SELECT show_id FROM show_seasons WHERE id = $1)", [seasonId]);
+  return r && r.n <= 1 ? "start" : "next";
+}
+
+/**
+ * Settings Round 3b (A17, BACKLOG 230: "a new moment mid-season: count it from the start, from the next episode, or let the players
+ * vote"): when a league's rulebook gains a moment it didn't have (`before`: the ids it had), the game's rule (settings.newMoments,
+ * else defaultNewMoments) says from when it counts here. From the start: nothing to record (it counts wherever results have it).
+ * From the next episode, or a vote (whose default is the next episode until the players say otherwise): settings.momentsFrom[id] =
+ * { from, at, name, points, rule, closes } with `from` the next episode to air (StateLogic's momentFrom gates scoring by it). A
+ * correction to a moment the rules had all along isn't a new id, so it always counts as the results say. Only moments added after
+ * this shipped carry an entry: no league's existing totals move. -> the ids recorded.
+ */
+async function recordAddedMoments(db, seasonId, settings, before) {
+  const now = momentIdsOf(settings.rulebook);
+  if (!now || !Array.isArray(before)) return [];
+  const had = new Set(before);
+  const known = settings.momentsFrom || {};
+  const added = now.filter((id) => !had.has(id) && !known[id]);
+  if (!added.length) return [];
+  const rule = ["start", "next", "vote"].includes(settings.newMoments) ? settings.newMoments : await defaultNewMoments(db, seasonId);
+  if (rule === "start" || !seasonId) return [];
+  const next = await one(db, "SELECT number, air_at FROM season_episodes WHERE season_id = $1 AND air_at > now() ORDER BY number LIMIT 1", [seasonId]);
+  // The season's over (nothing left to air): there's nothing it could count from but the start.
+  if (!next) return [];
+  const events = Formats.formatForRulebook(settings.rulebook.data, settings.rulebook.reader).events;
+  const at = new Date().toISOString();
+  const out = { ...known };
+  for (const id of added) {
+    const def = events.find((e) => e.id === id);
+    out[id] = {
+      from: next.number,
+      at,
+      name: (def && def.label) || id,
+      points: def && Number.isFinite(def.defaultPoints) ? def.defaultPoints : null,
+      rule,
+      closes: rule === "vote" && next.air_at ? new Date(next.air_at).toISOString() : null,
+    };
+  }
+  settings.momentsFrom = out;
+  return added;
 }
 
 /**
@@ -897,4 +955,5 @@ module.exports = {
   leaguesUsing, lineage, compiledFor, seasonRulebookFormat, seasonResearchRulebook,
   sourceFor, ensureTemplate, ensureLibraryEntry, knownPhaseStarts, phaseCues, ensureSeasonRulebook, ensureLeagueRulebook, madeFormat,
   syncLeagueRulebook, syncLeagueRow, refreshShowRulebooks, oursOf, legacyFields, isFormatsRules, builtInBlocksCompile,
+  recordAddedMoments, momentIdsOf, defaultNewMoments,
 };

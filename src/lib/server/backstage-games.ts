@@ -6,12 +6,13 @@ import type { PointGroup } from "@/lib/game/formats/rulebook-describe";
 import { castOf } from "@/lib/game/game-view";
 import { previewLines, type PreviewLine } from "@/lib/game/results-changes";
 import { gameRules } from "@/lib/game/game-rules";
-import type { LeagueState, ReplaceRule, WaiverFeel, WaiverWindows } from "@/lib/game/types";
+import type { AddedMoment, LeagueState, ReplaceRule, WaiverFeel, WaiverWindows } from "@/lib/game/types";
 import { waiverHow, waiverWeek, type WaiverWeek } from "@/lib/game/waiver-view";
 import { windowLine } from "@/lib/game/waiver-words.js";
 import { blocksAt } from "@/lib/game/formats/rulebook-patch.js";
 import { MAX_BENCH, MAX_STARTERS, MAX_TEAM } from "@/lib/game/game-spec/index.js";
-import { inForceEdits, lineage, rulebookForLeague } from "@db/rulebooks.js";
+import { defaultNewMoments, inForceEdits, lineage, rulebookForLeague } from "@db/rulebooks.js";
+import { voteTallies } from "./moment-votes";
 import { isSuperAdminUser } from "./auth-helpers";
 import type { BackstageScope } from "./backstage";
 import { plainChange, settingsSetChange, type ChangeSpec, type EpisodeLockUndo, type LockFlags } from "./change-log";
@@ -581,6 +582,16 @@ export interface GameSettings {
    * whoever runs the game to set for them: each person's choices (their team for a lineup; who they may pick for a pool), read
    * through what the runner has seen (null when they're behind it, or there's nothing open). Never anyone's move itself.
    */
+  /**
+   * Settings Round 3b (A17): when the show adds a moment mid-season (a game scored by the rulebook's moments; else null): the game's
+   * rule (`set`: chosen, else the show's default `rec`), and the moments it gained, each from when it counts here, how a vote stands.
+   */
+  moments: {
+    rule: "start" | "next" | "vote";
+    rec: "start" | "next";
+    set: boolean;
+    added: { id: string; name: string; points: number; from: number; rule: "next" | "vote"; closes: string | null; settled: AddedMoment["settled"] | null; tally: { start: number; next: number; of: number; tie: boolean } | null }[];
+  } | null;
   missing: {
     episode: number;
     epId: string;
@@ -635,7 +646,7 @@ export async function questionsWrite(scope: BackstageScope, leagueId: unknown, i
       text = `Changed ${game.name}'s questions: ${(StateLogic.gameOf(s)?.ask ?? []).map((q: { ask: string }) => q.ask).join(" · ")}`;
     },
     // Settings Round 3b: a typed Undo (rule 6), written back with the show's ctx (league-changes.ts undoBatch).
-    () => ({ ...plainChange(scope.user.id, "settings", text), batch, undo: { type: "questions", before, after: out } })
+    () => ({ ...plainChange(scope.user.id, "settings", text), batch, undo: { type: "questionList", before, after: out } })
   );
   return { questions: out, batch };
 }
@@ -807,7 +818,7 @@ export const FROZEN = "Locked down for the season: the rules are frozen. Turn of
 
 // What Game settings may change, and the limits (the bench and Outlast's team are set at the draft; a game's end only before
 // it's reached, its start only before it airs: an episode, or a phase of the season, step A3).
-const SETTING_FIELDS = ["activeSlots", "benchSlots", "teamSize", "allowLateJoiners", "joinMode", "endEpisode", "endPhase", "startEpisode", "startPhase"];
+const SETTING_FIELDS = ["activeSlots", "benchSlots", "teamSize", "allowLateJoiners", "joinMode", "endEpisode", "endPhase", "startEpisode", "startPhase", "newMoments"];
 
 /** The settings Lock it down freezes: Game settings' and the points (waivers stay the week's business). Undo asks too. */
 export const FROZEN_FIELDS = new Set([...SETTING_FIELDS, "eventPoints"]);
@@ -831,6 +842,9 @@ export async function gameSettings(scope: BackstageScope): Promise<{ games: Game
         return Promise.all(loaded.map((l, i) => questionsOf(l, scope.seasonId, spanState(l.state, schedule, phases[i]).started, part)));
       })()
     : loaded.map(() => null);
+  // Settings Round 3b (A17): the show's default for a moment added mid-season, and each vote's tally.
+  const rec = (await defaultNewMoments(pool, scope.seasonId)) as "start" | "next";
+  const tallies = await Promise.all(loaded.map((l) => voteTallies(l.game.leagueId, l.state)));
   // Settings Round 3b (166): who's who in each game, and how far the runner's seen, for the moves someone hasn't set.
   const seen = await seenThrough(scope.user.id, scope.seasonId);
   const members = new Map<string, Map<string, string>>();
@@ -865,6 +879,7 @@ export async function gameSettings(scope: BackstageScope): Promise<{ games: Game
         lock: lockOf(s),
         questions: sheets[i],
         missing: missingOf(s, seen, members.get(l.game.leagueId) ?? new Map()),
+        moments: momentsOf(s, rec, tallies[i]),
       };
     }),
   };
@@ -955,6 +970,14 @@ export async function settingsWrite(
           if (typeof v !== "string" || !now.phases.some((p) => p.id === v)) throw new HttpError(400, "Pick a phase of the season still to come");
           refused(StateLogic.updateSettings(s, k, v));
           settleIn(s, phases, schedule);
+          continue;
+        }
+        // Settings Round 3b (A17): when the show adds a moment mid-season: from the start, from the next episode, or the players vote.
+        // Moments it already gained keep how they count (each one's own call is momentWrite's).
+        if (k === "newMoments") {
+          if (v !== "start" && v !== "next" && v !== "vote") throw new HttpError(400, "newMoments: start, next or vote");
+          if (!s.settings.rulebook) throw new HttpError(409, "This game doesn't score the show's moments");
+          s.settings.newMoments = v;
           continue;
         }
         // Who can join (step 9): open, ask or locked; anything else is the recommended one. An exclusive game can't be
@@ -1203,4 +1226,39 @@ function missingOf(s: LeagueState, seen: number | null, users: Map<string, strin
     })
     .filter((x) => x.options.length > 0);
   return people.length ? { episode: ep.number, epId: ep.id, kind: lineup ? "lineup" : "pick", starters: lineup ? StateLogic.ActiveRosterLogic.activeSlots(s) : 1, people } : null;
+}
+
+/** A game's moments gained mid-season for Manage this game (GameSettings.moments): only a game scored by the rulebook's moments. */
+function momentsOf(s: LeagueState, rec: "start" | "next", tallies: Map<string, { start: number; next: number; of: number; tie: boolean }>): GameSettings["moments"] {
+  if (!s.settings.rulebook || StateLogic.gameOf(s).score.by !== "moments") return null;
+  const set = s.settings.newMoments === "start" || s.settings.newMoments === "next" || s.settings.newMoments === "vote";
+  const added = Object.entries(s.settings.momentsFrom ?? {})
+    .map(([id, m]) => ({ id, name: m.name, points: StateLogic.ActiveRosterLogic.pointsFor(s, id), from: m.from, rule: m.rule, closes: m.closes, settled: m.settled ?? null, tally: tallies.get(id) ?? null }))
+    .sort((a, b) => b.from - a.from || a.name.localeCompare(b.name));
+  return { rule: set ? s.settings.newMoments! : rec, rec, set, added };
+}
+
+/**
+ * Settings Round 3b (A17): a moment the game gained mid-season counted from the start, or from the episode it was recorded from, by
+ * whoever runs the game's Commissioner (a tie in the players' vote waits for one; until a vote's decided it can be called early).
+ * Saved with Undo (settings.momentsFrom is a setting: settingsSetChange) and a line everyone reads.
+ */
+export async function momentWrite(scope: BackstageScope, leagueId: unknown, body: unknown): Promise<{ batch: string }> {
+  const game = gameIn(scope, leagueId, { commissioner: true });
+  const b = (body ?? {}) as { id?: unknown; to?: unknown };
+  if (typeof b.id !== "string" || (b.to !== "start" && b.to !== "next")) throw new HttpError(400, "moment: { id, to: start | next }");
+  const batch = crypto.randomUUID();
+  let text = "";
+  await withLeagueLock(
+    game.leagueId,
+    (s) => {
+      if (StateLogic.GhostLogic.lockedDown(s)) throw new HttpError(409, FROZEN);
+      const m = s.settings.momentsFrom?.[b.id as string];
+      if (!m) throw new HttpError(404, "That moment isn't one this game gained mid-season");
+      s.settings.momentsFrom = { ...s.settings.momentsFrom, [b.id as string]: { ...m, settled: { to: b.to as "start" | "next", by: "runner", at: new Date().toISOString() } } };
+      text = b.to === "start" ? `Counted "${m.name}" from the start` : `Counted "${m.name}" from Episode ${m.from}`;
+    },
+    (before: LeagueState, after: LeagueState) => (settingsSetChange(scope.user.id, text, { batch, kind: "rules.moment" }) as (b: LeagueState, a: LeagueState) => ChangeSpec | null)(before, after)
+  );
+  return { batch };
 }

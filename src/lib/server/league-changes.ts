@@ -192,7 +192,7 @@ export async function undoBatch(user: SessionUser, seasonId: string, couchId: st
   if (rows.some((r) => r.undo?.type === "rulebook" && !commissioner.has(r.league_id))) throw new HttpError(403, "Only a Commissioner changes the rules");
   // A game's questions and late moves are its Commissioner's too (Settings Round 3b's typed undos; the lock and computer players are
   // any runner's).
-  if (rows.some((r) => r.undo?.type === "questions" && !commissioner.has(r.league_id))) throw new HttpError(403, "Only a Commissioner changes this");
+  if (rows.some((r) => r.undo?.type === "questionList" && !commissioner.has(r.league_id))) throw new HttpError(403, "Only a Commissioner changes this");
   // Lock it down (step 15 part 4) freezes the rules for the season, and an undo is a change to them too (Lock it down's own line
   // isn't: it's how it comes off). The couch's rulebook is frozen while any game here is locked, a setting while its own game is.
   const frozen = rows.filter((r) => freezes(r.undo!));
@@ -278,7 +278,7 @@ export async function undoBatch(user: SessionUser, seasonId: string, couchId: st
         if (StateLogic.episodeHasResults(ep)) throw new HttpError(409, "Its results are in: it stays locked");
         if (!!ep.lineupsLocked !== undo.after.lineupsLocked || !!ep.openPastAir !== undo.after.openPastAir) throw new HttpError(409, "The lock has changed since");
         setLockFlags(ep, undo.before);
-      } else if (undo.type === "questions") {
+      } else if (undo.type === "questionList") {
         const now = (StateLogic.gameOf(s)?.ask ?? []).map((q: { id: string }) => q.id);
         if (now.join() !== undo.after.join()) throw new HttpError(409, "Its questions have changed since");
         await setQuestions(s, r.league_id, seasonId, undo.before);

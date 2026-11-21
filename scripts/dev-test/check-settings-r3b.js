@@ -180,6 +180,56 @@ const brief = (x) => JSON.stringify(x)?.slice(0, 220);
       check(r.status === 200 && back.processHours === wv.settings.processHours && back.orderBy === wv.settings.orderBy && back.freeAgency === wv.settings.freeAgency, "Undo: the timing as it was", brief(back));
     }
 
+    // ---------- A17: when the show adds a moment mid-season ----------
+    // Lineup League on its season's rulebook (the local season isn't), then "Individual immunity win" recorded as gained now, the way
+    // a rulebook sync records it (db/rulebooks.js recordAddedMoments, on the real database: the next episode to air, a vote's close).
+    await at(6, 2 * 24 * 3600_000);
+    const R = require("../../db/rulebooks.js");
+    await R.syncLeagueRow(pool, L.lineup, { on: true });
+    let st = await state(L.lineup);
+    const ids = R.momentIdsOf(st.settings.rulebook) ?? [];
+    const MOMENT = "individualImmunity";
+    if (!st.settings.rulebook || !ids.includes(MOMENT)) check(false, "Lineup League plays by its season's rulebook, with individual immunity", brief(ids.slice(0, 5)));
+    else {
+      r = await patch("alex", { leagueId: L.lineup, set: { newMoments: "vote" } });
+      check(r.status === 200 && r.body.batch, "alex: new moments go to the players' vote", brief(r.body));
+      st = await state(L.lineup);
+      const got = await R.recordAddedMoments(pool, S, st.settings, ids.filter((x) => x !== MOMENT));
+      await pool.query("UPDATE leagues SET state = jsonb_set(state, '{settings,momentsFrom}', $2::jsonb) WHERE id = $1", [L.lineup, JSON.stringify(st.settings.momentsFrom)]);
+      const rec = st.settings.momentsFrom?.[MOMENT];
+      check(got.join() === MOMENT && rec?.from === 6 && rec.rule === "vote" && !!rec.closes, "recorded: counts from Episode 6 for now, the vote closing when it airs", brief(rec));
+      g = await settingsOf("alex", L.lineup);
+      const a = g?.moments?.added?.find((x) => x.id === MOMENT);
+      check(g?.moments?.rule === "vote" && a && a.tally?.of === 4 && a.tally.start === 0, "Manage this game lists it: 0 of 4 voted", brief(g?.moments));
+      const votes = async (who) => (await as[who].call("GET", `/api/seasons/${S}/moment-votes${q}`)).body.votes ?? [];
+      let v = (await votes("jordan")).find((x) => x.id === MOMENT);
+      check(!!v && v.mine === null && v.from === 6 && v.earlier.length > 0 && v.earlier.every((x) => x.episode < 6), "jordan sees the vote, with what counting it from the start would add (episodes he's seen)", brief(v));
+      const cast = (who, vote) => as[who].call("POST", `/api/seasons/${S}/moment-votes${q}`, { leagueId: L.lineup, id: MOMENT, vote });
+      r = await cast("jordan", "start");
+      v = r.body.votes?.find((x) => x.id === MOMENT);
+      check(r.status === 200 && v?.mine === "start" && v.voted === 1, "jordan votes from the start: 1 of 4, still open", brief(r.body));
+      check(!(await state(L.lineup)).settings.momentsFrom[MOMENT].settled, "one vote of four decides nothing");
+      await cast("alex", "start");
+      r = await cast("riley", "start");
+      st = await state(L.lineup);
+      const settled = st.settings.momentsFrom[MOMENT].settled;
+      check(settled?.to === "start" && settled.by === "vote" && settled.start === 3, "three of four: decided, from the start", brief(settled));
+      check(!(r.body.votes ?? []).some((x) => x.id === MOMENT), "the vote leaves everyone's strip");
+      const sam = await api({ user: fixture.username("sam"), pass: fixture.PASSWORD });
+      check((await sam.call("POST", `/api/seasons/${S}/moment-votes${q}`, { leagueId: L.lineup, id: MOMENT, vote: "next" })).status === 409, "a vote after it's decided: 409");
+      const lines = (await as.alex.call("GET", `/api/seasons/${S}/changes${q}`)).body.lines ?? [];
+      check(lines.some((l) => /voted 3–0 to count ".+" from the start/.test(l.text)), "Recent changes says how the players voted", brief(lines.slice(0, 3)));
+      // The Commissioner's own call, with Undo.
+      await pool.query("UPDATE leagues SET state = jsonb_set(state, '{settings,momentsFrom,individualImmunity}', (state->'settings'->'momentsFrom'->'individualImmunity') - 'settled') WHERE id = $1", [L.lineup]);
+      check((await patch("riley", { leagueId: L.lineup, moment: { id: MOMENT, to: "start" } })).status === 403, "riley, a Helper, can't make the call");
+      r = await patch("alex", { leagueId: L.lineup, moment: { id: MOMENT, to: "next" } });
+      st = await state(L.lineup);
+      check(r.status === 200 && st.settings.momentsFrom[MOMENT].settled?.by === "runner" && st.settings.momentsFrom[MOMENT].settled.to === "next", "alex calls it: from Episode 6", brief(r.body));
+      r = await undo("alex", r.body.batch);
+      st = await state(L.lineup);
+      check(r.status === 200 && !st.settings.momentsFrom[MOMENT].settled, "Undo: open again", brief(r.body));
+    }
+
     // ---------- Freeze rules and joining ----------
     r = await patch("alex", { lockDown: true });
     s = await state(L.lineup);

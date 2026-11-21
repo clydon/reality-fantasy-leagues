@@ -121,7 +121,7 @@ export interface LockFlags {
 
 /** A Prediction Sheet's questions as they were (backstage-games.ts questionsWrite; written back with the show's ctx). */
 export interface QuestionsUndo {
-  type: "questions";
+  type: "questionList";
   before: string[];
   after: string[];
 }

@@ -2108,3 +2108,25 @@ export function usePlayerLog(seasonId: string | null, name: string | null, enabl
     staleTime: 60_000,
   });
 }
+
+// ---- Settings Round 3b (A17): the players' vote on a moment a game's rules gained mid-season (moment-votes.ts) ----
+
+export type { OpenVote, MomentVote } from "@/lib/server/moment-votes";
+import type { OpenVote as Vote, MomentVote as VoteAnswer } from "@/lib/server/moment-votes";
+
+/** The votes open for you in this couch's games on the season (settled ones drop off). Read with the show; nothing polls. */
+export const useMomentVotes = (seasonId: string, couchId: string | null, enabled = true) =>
+  useQuery({
+    queryKey: ["new-design", "moment-votes", seasonId, couchId],
+    queryFn: () => get<{ votes: Vote[] }>(seasonUrl(seasonId, "/moment-votes", { couch: couchId ?? "" })),
+    enabled: !!couchId && enabled,
+    staleTime: 60_000,
+  });
+
+export const momentVotes = {
+  cast: (seasonId: string, couchId: string, leagueId: string, id: string, vote: VoteAnswer) =>
+    sendJson<{ votes: Vote[] }>(seasonUrl(seasonId, "/moment-votes", { couch: couchId }), "POST", { leagueId, id, vote }),
+  /** Whoever runs the game (its Commissioner): count one from the start, or from the episode it was recorded from. */
+  decide: (seasonId: string, couchId: string, leagueId: string, id: string, to: "start" | "next") =>
+    sendJson<{ batch: string }>(seasonUrl(seasonId, "/backstage/settings", { couch: couchId }), "PATCH", { leagueId, moment: { id, to } }),
+};

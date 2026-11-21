@@ -18,6 +18,7 @@ import { catchingUpIn, hasPacePlate, movedIn } from "./pace-plate";
 import { showLabel } from "./react";
 import { dotColour, lockedInEpisode, nightGroups, nightLabel, useLockIn, windowEpisode, type NightGroup } from "./strip-night";
 import { RunnerLine } from "../manage/jobs";
+import { MomentVoteLine } from "../manage/moments";
 
 // The strip (the design round's step 3: docs/design-round/step3-tonight-spec.md, "Two parts every show tab shares"; Phase 0's
 // decision 2): the show's one statement of what's yours to set, under the show bar in the same place on every tab but Chat. It
@@ -192,6 +193,7 @@ export function MovesStrip({ show, tab }: { show: ShowData; tab?: string }) {
   return (
     <>
       <PlayerStrip show={show} tab={tab} />
+      <MomentVoteLine show={show} />
       <RunnerLine show={show} />
     </>
   );

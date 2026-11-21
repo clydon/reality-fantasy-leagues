@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireAuth } from "@/lib/server/auth-helpers";
 import { backstageScope } from "@/lib/server/backstage";
-import { gameSettings, lockDownWrite, lockWrite, paceWrite, questionsWrite, settingsWrite } from "@/lib/server/backstage-games";
+import { gameSettings, lockDownWrite, lockWrite, momentWrite, paceWrite, questionsWrite, settingsWrite } from "@/lib/server/backstage-games";
 
 // Backstage › Game settings (docs/PLAN-new-design.md step 6a): each game's lineup size, who can join and its waivers' line,
 // with what's recommended. PATCH `{ leagueId, set }` or `{ leagueId, reset: "lineup" | "team" | "joining" }` (a
@@ -22,10 +22,12 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<{ season
   const { seasonId } = await params;
   const user = await requireAuth(req);
   const scope = await backstageScope(user, seasonId, new URL(req.url).searchParams.get("couch"));
-  const body = (await req.json().catch(() => ({}))) as { leagueId?: unknown; set?: Record<string, unknown>; reset?: "lineup" | "team" | "joining"; text?: string; lockDown?: unknown; lock?: unknown; questions?: unknown; pace?: unknown };
+  const body = (await req.json().catch(() => ({}))) as { leagueId?: unknown; set?: Record<string, unknown>; reset?: "lineup" | "team" | "joining"; text?: string; lockDown?: unknown; lock?: unknown; questions?: unknown; pace?: unknown; moment?: unknown };
   if ("lockDown" in body) return NextResponse.json(await lockDownWrite(scope, body.lockDown));
   if ("lock" in body) return NextResponse.json(await lockWrite(scope, body.leagueId, body.lock));
   if ("questions" in body) return NextResponse.json(await questionsWrite(scope, body.leagueId, body.questions));
   if ("pace" in body) return NextResponse.json(await paceWrite(scope, body.leagueId, body.pace));
+  // Settings Round 3b (A17): `{ leagueId, moment: { id, to: "start" | "next" } }`, a moment gained mid-season counted by the Commissioner.
+  if ("moment" in body) return NextResponse.json(await momentWrite(scope, body.leagueId, body.moment));
   return NextResponse.json(await settingsWrite(scope, body.leagueId, body));
 });

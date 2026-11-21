@@ -152,6 +152,11 @@ export function ensureLeagueRulebook(
   opts?: { parent?: Rulebook | null }
 ): Promise<{ row: Rulebook | null; change: "created" | "updated" | "unchanged" | "archived" }>;
 export function syncLeagueRulebook(db: Db, leagueId: string, settings: RuleSettings, opts?: { on?: boolean }): Promise<SyncResult>;
+/** Settings Round 3b (A17): records the moments a league's rulebook gained, from the episode its rule says; the ids recorded. */
+export function recordAddedMoments(db: Db, seasonId: string | null, settings: RuleSettings, before: string[]): Promise<string[]>;
+export function momentIdsOf(rulebook: { data: unknown; reader: string }): string[] | null;
+/** A show's first season here counts what it gains from the start; any later one from the next episode. */
+export function defaultNewMoments(db: Db, seasonId: string | null): Promise<"start" | "next">;
 export function syncLeagueRow(pool: Pool, leagueId: string, opts?: { on?: boolean }): Promise<(SyncResult & { saved: boolean }) | null>;
 export function refreshShowRulebooks(db: Db, slug: string): Promise<number>;
 /** The couch's own copy (Make it ours) this league plays by, or null. */

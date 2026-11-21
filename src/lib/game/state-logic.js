@@ -97,6 +97,14 @@ const SEED_CASTAWAYS = ['Aaliyah','Alexis','Ana','Brady','Carter','Cristian','De
 // (settings.adoptedRuleChanges, docs/PLAN-season-rule-changes.md): additive, and gated by episode, so
 // nothing before a change's effective episode scores differently. A league with none -- every league
 // until one is adopted -- gets the base itself, untouched.
+// Settings Round 3b (A17): the first episode a moment counts in for this game: 1, unless its rules gained it mid-season and the
+// game's rule (or its players' vote, or whoever runs it) said from the next episode. { from, settled: { to: 'start' | 'next' } }.
+function momentFrom(state, type){
+  const added = state && state.settings && state.settings.momentsFrom && state.settings.momentsFrom[type];
+  if(!added || !Number.isInteger(added.from)) return 1;
+  return added.settled && added.settled.to === 'start' ? 1 : added.from;
+}
+
 function formatOf(state){
   const s = state && state.settings ? state.settings : {};
   const base = s.rulebook && s.rulebook.data
@@ -4408,6 +4416,10 @@ class ActiveRosterLogic {
   // every moment the card's list names).
   static pointsFor(state, type, episode){
     if(state.settings && state.settings.rulebook && !formatOf(state).events.some(e => e.id === type)) return 0;
+    // Settings Round 3b (A17, BACKLOG 230): a moment this game's rules gained mid-season counts from the episode the game's rule
+    // says (settings.momentsFrom, written when its rulebook gains it: db/rulebooks.js recordAddedMoments), so a moment nobody could
+    // set a lineup for doesn't score weeks already played. Asked without an episode (a points table), it's its points.
+    if(Number.isInteger(episode) && episode < momentFrom(state, type)) return 0;
     const game = gameOf(state);
     const score = game.score;
     // C5: only these moments count (score.only), and hits counted (score.hits): each moment's worth (Spec.momentWorth).

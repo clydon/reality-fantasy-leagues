@@ -12,6 +12,7 @@ import { manageApi } from "../settings/api";
 import { SwitchRow } from "../settings/controls";
 import { Stepper, WaiverJob, WaiverRule, waiverRuleValue } from "./waivers";
 import { Choice } from "../manage/choice";
+import { NewMoments, newMomentsValue } from "../manage/moments";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
 import type { ShowData } from "../screens/show-space";
@@ -342,6 +343,12 @@ function GameSettingsBody({ seasonId, couchId, show, g, write, line, siblings }:
         {g.waivers && (
           <SettingLine id="waivers" icon="swap" label="Replacing people who leave" value={waivers ? waiverRuleValue(waivers) : g.waivers} open={open === "waivers"} onToggle={() => toggle("waivers")}>
             {waivers ? <WaiverRule seasonId={seasonId} couchId={couchId} g={waivers} /> : <div aria-busy className="mb-2 h-24 animate-pulse rounded-[3px] bg-secondary" />}
+          </SettingLine>
+        )}
+        {/* Settings Round 3b (A17): when the show adds a moment mid-season, and the moments this game has gained. */}
+        {g.moments && (
+          <SettingLine id="moments" icon="twist" label="When the show adds a moment" value={newMomentsValue(g.moments)} changed={g.moments.set && g.moments.rule !== g.moments.rec} open={open === "moments"} onToggle={() => toggle("moments")}>
+            <NewMoments seasonId={seasonId} couchId={couchId} g={g} ep={show.words.ep} />
           </SettingLine>
         )}
       </div>

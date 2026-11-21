@@ -377,6 +377,11 @@ export interface LeagueSettings {
   /** Live and strict (docs/PLAN-own-pace-games.md, "Pace is the game's setting"; StateLogic.GhostLogic.pace): everything locks at
    *  airtime. Set true, never stored false: a live game without it keeps a move open until you've watched, or the next one airs. */
   lockAtAir?: boolean;
+  /** Settings Round 3b (A17): when the show adds a moment mid-season, it counts here from the start, from the next episode, or as the
+   *  players vote (the next episode until they say otherwise). Left out: the show's default (db/rulebooks.js defaultNewMoments). */
+  newMoments?: "start" | "next" | "vote";
+  /** The moments this game's rules gained mid-season, each from the episode it counts in (StateLogic's momentFrom gates scoring). */
+  momentsFrom?: Record<string, AddedMoment>;
   /** The first episode whose exits are replaced per holder (migration 0207, a game made before that rule; none: every exit). */
   perHolderFrom?: number;
   /** Late joiners play from an episode of their choosing, unseen until added (StateLogic.GhostLogic).
@@ -1435,4 +1440,19 @@ export interface MyInvite {
   created_at: string;
   /** The seat they'd take over, when the invite hands one over (league_invites.player_id). */
   seat_name: string | null;
+}
+
+/** A moment a game's rules gained mid-season (Settings Round 3b, A17: LeagueSettings.momentsFrom). */
+export interface AddedMoment {
+  /** The episode it counts from here, until it's settled from the start. */
+  from: number;
+  /** When the game gained it. */
+  at: string;
+  name: string;
+  points: number | null;
+  rule: "next" | "vote";
+  /** A vote's close: the next episode's airtime. */
+  closes: string | null;
+  /** How it ended: from the start or from `from`, by the players' vote, whoever runs the game, or nobody voting. */
+  settled?: { to: "start" | "next"; by: "vote" | "runner" | "nobody"; at: string; start?: number; next?: number };
 }
