@@ -502,7 +502,8 @@ one batch of fixes.
   week is a job that opens in place (who's picked, Pick for them, Run now, Change or Turn it off). Replacing people who leave opens
   in place (this week, the last run with Undo, the feel and Fine-tune, What players see), and its value says how windows come.
   Pick for them is on a person's sheet while a window is open, for a Helper too. Backstage's Waivers page is gone; its address
-  lands on Games you run. Detail: design-round/settings-r3-check.md, "The user's picks, built"; decisions.md.
+  lands on Games you run. Detail: design-round/settings-r3-check.md, "The user's picks, built"; decisions.md. Story:
+  https://claude.ai/artifact/6CR3eNJ5sZ2uRXfJMRUtfN.
   - **Checks:** `npm test` 2523 of 2523; tsc clean; eslint shows only its four known errors.
   - **Browser checks:** check-game-settings (new waiver-week steps), check-new-backstage-ii (its Waivers part moved to Manage this
     game) and check-waiver-start all pass at 390. check-explorer-page's Waivers step and check-new-studio's list are moved but not

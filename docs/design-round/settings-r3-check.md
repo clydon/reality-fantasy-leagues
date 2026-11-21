@@ -57,7 +57,8 @@ game's only settings are its runner's. The other way: a key for "you run this" o
 
 ## The user's picks, built (2026-11-21)
 
-The user kept the gear (choice 1, as built) and moved the week now (choice 2). Recorded in decisions.md.
+The user kept the gear (choice 1, as built) and moved the week now (choice 2). Recorded in decisions.md. The story of what was
+built: https://claude.ai/artifact/6CR3eNJ5sZ2uRXfJMRUtfN.
 - **Built:**
   - The open week is a job on Manage this game that opens in place: who's picked, Pick for them, Run now, and Change or Turn it off.
   - Replacing people who leave opens in place: this week (Open a waiver window), the last run with Undo, the feel and Fine-tune (a
