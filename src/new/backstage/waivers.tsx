@@ -126,7 +126,7 @@ export function ClaimFor({ seasonId, couchId, game, who, onClose }: { seasonId: 
 
 const FEEL_WORDS = {
   casual: "Forgiving. Nobody falls behind for bad luck.",
-  balanced: "Replacements wait for a window; a swap every few episodes.",
+  balanced: "In between. Replacements come in set windows, with a swap now and then.",
   competitive: "Every loss costs you. Stay sharp.",
 } as const;
 const RULES: [WaiverAdminGame["settings"]["replaceRule"], string, string][] = [

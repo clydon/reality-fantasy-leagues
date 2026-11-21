@@ -94,6 +94,9 @@ Newest first. The plan or archive section named holds the detail.
 
 ## In flight
 
+- **Settings overhaul, Round 4, branch `settings-r4`** (lane rfl-settings): the words and the ripple, with BACKLOG 243; no
+  migration. Built and checked; waits on the user's review of its story, then a merge and a push.
+  [PLAN-settings-overhaul.md](PLAN-settings-overhaul.md), Round 4.
 - **Game preview, branch `preview`** (lane rfl-preview): 17 commits not on master, 55 commits behind it, about 11 conflict
   hunks (strip.tsx, game-week.tsx, your-move.ts, tonight.tsx). It has P0, the visual story, the bench's preview maker and
   Round 5 (four real-app fixes, among them the finale reveal ranking a stage that had ended). It waits on the user's review of

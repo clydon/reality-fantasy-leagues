@@ -81,7 +81,8 @@ function wordsOf(ctx) {
 function benchRule(s, w) {
   const from = w.running && w.running.benchFill;
   if (!isNum(from)) return [];
-  return [`When a starter goes home and nobody changes the lineup, the first on the bench starts.${from > 1 ? ` From ${w.Part} ${from} on.` : ''}`];
+  // The critique's fix (settings Round 4): the episode it starts from leads, not tacked on after.
+  return [`${from > 1 ? `From ${w.Part} ${from}, if` : 'If'} a starter goes home and nobody changes the lineup, the first on the bench starts.`];
 }
 /** Settings Round 4 (BACKLOG 243): when a moment the show adds mid-season counts here (Round 3b, A17), for a game scored by moments. */
 function newMomentsRule(s, w) {

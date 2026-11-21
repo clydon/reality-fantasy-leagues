@@ -25,7 +25,7 @@ function lineupGame(settings = {}, rulebook = true) {
     episodes: [1, 2, 3].map((n) => ({ id: `ep${n}`, number: n, events: [], lineups: {}, scoringEvents: [] })),
   });
 }
-const BENCH = /When a starter goes home and nobody changes the lineup, the first on the bench starts\./;
+const BENCH = /a starter goes home and nobody changes the lineup, the first on the bench starts\./;
 const MOMENTS = /If the show adds a moment mid-season/;
 
 test("How it plays: the bench rule only where the game fills from the bench, after the lineup's lock", () => {
@@ -33,8 +33,8 @@ test("How it plays: the bench rule only where the game fills from the bench, aft
   const on = gameRules(lineupGame({ benchFill: 1 }));
   const i = on.findIndex((r) => BENCH.test(r));
   assert.ok(i > 0 && /^Lineups lock/.test(on[i - 1]), `said after the lock: ${JSON.stringify(on)}`);
-  assert.equal(on[i], "When a starter goes home and nobody changes the lineup, the first on the bench starts.", "on from the first episode: no 'from'");
-  assert.ok(gameRules(lineupGame({ benchFill: 4 })).includes("When a starter goes home and nobody changes the lineup, the first on the bench starts. From Episode 4 on."));
+  assert.equal(on[i], "If a starter goes home and nobody changes the lineup, the first on the bench starts.", "on from the first episode: no 'from'");
+  assert.ok(gameRules(lineupGame({ benchFill: 4 })).includes("From Episode 4, if a starter goes home and nobody changes the lineup, the first on the bench starts."), "the episode leads");
 });
 
 test("How it plays: when a new moment counts, the game's choice or the show's default, on a game on the show's rulebook", () => {
@@ -54,7 +54,10 @@ test("How it plays: when a new moment counts, the game's choice or the show's de
 
 test("Start a game: the waiver feels in Manage this game's words; Lineups hidden is gone", () => {
   const waivers = Gallery.CHANGES.find((c) => c.id === "waivers");
-  assert.deepEqual(waivers.controls.find((k) => k.id === "feel").options.map((o) => o[1]), ["Relaxed", "Standard", "Strict"]);
+  const feel = waivers.controls.find((k) => k.id === "feel");
+  assert.deepEqual(feel.options.map((o) => o[1]), ["Relaxed", "Standard", "Strict"]);
+  assert.equal(feel.rec, "balanced", "Standard carries the Recommended tag, as on Manage this game");
+  assert.equal(Gallery.CHANGES.find((c) => c.id === "join").line, "Anyone on the couch, they ask first, or nobody new");
   assert.equal(Gallery.CHANGES.some((c) => c.id === "hidden"), false);
 });
 

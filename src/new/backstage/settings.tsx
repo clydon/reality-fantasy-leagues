@@ -377,7 +377,7 @@ export function lockStates(lock: NonNullable<GameSettings["lock"]>, word: string
     : { state: "auto" as const, title: "Locked at airtime", line: "This game has no late moves: everything locked when it aired.", short: "Locked when it aired", said: "locked at airtime" };
   return [
     rule,
-    { state: "open", title: "Open to everyone", line: "For a couch that sat down late: everyone can still move, on the honour system.", short: "Anyone can still move", said: "open to everyone" },
+    { state: "open", title: "Open to everyone", line: "For a couch that sat down late: everyone can still move, on the honor system.", short: "Anyone can still move", said: "open to everyone" },
     ...(lock.late ? [{ state: "locked" as const, title: "Locked for everyone", line: "Nobody moves now, watched or not.", short: "Nobody can change their move", said: "locked for everyone" }] : []),
   ];
 }

@@ -87,6 +87,8 @@ export interface Control {
   range?: [number, number];
   max?: number;
   def: unknown;
+  /** The recommended option, tagged under it (settings Round 4); left out where the control marks none. */
+  rec?: unknown;
   more: boolean;
   value?: unknown;
 }

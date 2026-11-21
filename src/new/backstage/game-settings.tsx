@@ -240,7 +240,7 @@ function PaceCards({ seasonId, couchId, g, can, why, word }: { seasonId: string;
     try {
       const r = await gameAdmin.pace(seasonId, couchId, g.leagueId, mode);
       await after();
-      const said = mode === "live" ? "late moves on the honour system" : "no late moves: everything locks when it airs";
+      const said = mode === "live" ? "late moves on the honor system" : "no late moves: everything locks when it airs";
       // Settings Round 3b: the server's Undo (rule 6), not the old value sent back.
       toast(`Saved: ${g.gameName} · ${said}`, undo(r.batch, `Back as it was: ${g.gameName}`));
     } catch (e) {
@@ -258,7 +258,7 @@ function PaceCards({ seasonId, couchId, g, can, why, word }: { seasonId: string;
         <div className="mt-2" data-settings="late">
           <p className="type-caption pb-1.5 text-[13px] tracking-[0.05em] text-muted-foreground">Late moves</p>
           <div className="flex flex-col gap-2">
-            <Choice data="late-honour" title="On the honour system" recommended line={`Open after the ${ep} airs until you've watched it, or the next one airs.`} chosen={g.pace.mode === "live"} why={can ? null : why} onPick={() => void set("live")} />
+            <Choice data="late-honour" title="On the honor system" recommended line={`Open after the ${ep} airs until you've watched it, or the next one airs.`} chosen={g.pace.mode === "live"} why={can ? null : why} onPick={() => void set("live")} />
             <Choice data="late-none" title="None" line={`Everything locks when the ${ep} airs.`} chosen={g.pace.mode === "strict"} why={can ? null : why} onPick={() => void set("strict")} />
           </div>
         </div>
@@ -315,7 +315,7 @@ function GameSettingsBody({ seasonId, couchId, show, g, write, line, siblings }:
       )}
       <Label>How it plays</Label>
       <div className="rounded-[10px] bg-card px-3.5">
-        <SettingLine id="pace" icon="clock" label="How moves lock" value={g.pace.mode === "own" ? "At your own pace · moves lock as you each watch" : `Together · ${g.pace.mode === "strict" ? "no late moves" : "late moves on the honour system"}`} fixed={g.pace.mode === "own" ? "Chosen when the game started" : frozen} open={open === "pace"} onToggle={() => toggle("pace")}>
+        <SettingLine id="pace" icon="clock" label="How moves lock" value={g.pace.mode === "own" ? "At your own pace · moves lock as you each watch" : `Together · ${g.pace.mode === "strict" ? "no late moves" : "late moves on the honor system"}`} fixed={g.pace.mode === "own" ? "Chosen when the game started" : frozen} open={open === "pace"} onToggle={() => toggle("pace")}>
           <PaceCards seasonId={seasonId} couchId={couchId} g={g} can={can} why={why} word={E} />
         </SettingLine>
         {L && (

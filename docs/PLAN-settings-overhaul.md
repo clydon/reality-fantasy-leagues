@@ -1,8 +1,9 @@
 # Settings: the overhaul
 
-> **Status (2026-11-21): Round 3 live.** 3a pushed 535e2ecf; **3b pushed af417333** (no migration; the user took all four
-> recommendations on its story, https://claude.ai/artifact/SCCquWVBtn7qhotipLmcyx; compare-totals: no league moves). Next is Round 4
-> (the words and the ripple), which also takes BACKLOG 243. Detail: Round 3, below, and design-round/settings-r3b-check.md.
+> **Status (2026-11-21): Round 4 built on branch settings-r4 (lane rfl-settings), waiting on the user's review of its story.** The
+> words and the ripple, with BACKLOG 243; no migration. Detail: Round 4, below, and design-round/settings-r4-spec.md. Round 3 is
+> live: 3a pushed 535e2ecf; 3b pushed af417333 (the user took all four recommendations on its story,
+> https://claude.ai/artifact/SCCquWVBtn7qhotipLmcyx; compare-totals: no league moves).
 >
 > **Round 2 (2026-11-21): merged and live** (pushed ce891ba2; migration 0448 on production, rehearsed first; the snapshot
 > `pre-settings-r2-2026-11-21` keeps 7 days). The user took all three recommendations (leaving drawn quiet, three results choices,
@@ -631,6 +632,42 @@ what's open, [-check.md](design-round/settings-r3b-check.md).
   requests), story-game-settings.js.
 
 ### Round 4: the words and the ripple
+
+**Built 2026-11-21 (branch settings-r4); waiting on the user's review.** A words round, so Impeccable alone (DESIGN-PROCESS.md, "When
+not to use them"): `clarify` for the spec and glossary ([design-round/settings-r4-spec.md](design-round/settings-r4-spec.md)), one
+independent `critique` of the built frames (29/40), one batch of fixes, one confirming look. Frames: `.ui-atlas/stories/settings-r4/`
+(story-settings.js `--only=^r4-`; before, after, and ripple for the shared parts' other homes).
+- **Built:**
+  - **One set of words** (the spec's glossary): Start a game's waiver feels as Relaxed · Standard · Strict, with the Recommended tag
+    under Standard; its Who can join line in Manage this game's words; describe.js's details (Replacing people who leave, the
+    replacement words, Freeze rules and joining, the draft's clock); Fewest points / Most points first; Customize the rulebook (was
+    Make it ours); Frozen for the season (was Locked down); they ask first; the draft room's Use their list; the waiver job's
+    "Replace who's out when your team is short"; Standard's line without the retired "wait for a window"; honor (US, as Customize).
+  - **Old homes followed:** the join-request, late-joiner and handed-on pushes open Manage this game or Games you run and say so;
+    errors name Manage this game (delete, the freeze, a computer player's seat, Customize first); the tab's title is Games you run;
+    a show change says This season's rules; the desk's Setup note.
+  - **One Recommended tag** (src/new/ui/recommended.tsx): the muted caps word, no fill, on Your settings' rows, Manage this game's
+    choices, the desk's cards, Who can fill in results, the draft room, and Start a game's segmented controls (`rec`).
+  - **One confirm pattern:** the guard sheet's way out is Not now, as the hold sheet's ("Not yet" is Tonight's answer to "Seen
+    it?"); Leave the pool is a hold saying the picks, calls and streak are deleted for good; Customize the rulebook? has Not now.
+  - **BACKLOG 243:** How it plays says when a moment the show adds counts (the game's choice, else the show's default, read once a
+    season by season-games.ts) after the points, and the bench rule after the lineup's lock ("From Episode 6, if a starter goes home
+    and nobody changes the lineup, the first on the bench starts.").
+  - **Start a game:** Lineups hidden is gone (it did nothing: the app hides others' lineups until the lock anyway). **A bug:** once
+    Waivers was turned off it couldn't come back on, and showed the schema's rule as its reason (its window said every 1 episode).
+- **Checks:** `npm test` 2544 of 2544 (tests/settings-r4-words.test.js new); tsc clean; eslint at its known 4. Browser checks moved
+  to the new words (check-new-backstage-ii, -new-our-scores, -new-ours, -settings-r3b, notes-fixture) but not run this round.
+- **The ripple, checked:** a face's colour is the same on Who's playing and the waiver week (3a's note compared two fixture runs,
+  whose accounts are new each time); Who's playing's You tag is a bone tag with ink, legible (3a's 1.1:1 was a misreading); How
+  long's Ends stays the native select (the phone's picker for a long list); the desk's cards and the moments choice re-rendered.
+- **Open, noticed:** Your settings' "Chosen" beside a switch drawn off until notifications are on (Round 1's design; the critique
+  flagged it); Start a game's "Fantasy league" is How it plays' "Weekly Lineup" (the wizard's naming); Who can join's picture
+  differs between Start a game and Manage this game; the desk's value lines say "· recommended" in words and its research page
+  still says an unsure answer "waits in each couch's Backstage" (Round 5); two people on a couch can share a colour (BACKLOG 246);
+  "filled for you" (BACKLOG 238) is still the reveal's.
+- **Choice for the user:** Recent changes keeps its name (Round 3's shape had assumed "Changes in these games").
+
+**The original scope:**
 - **One set of words.** Start a game and a running game use the same words. One Recommended tag. Every confirm moves to the one
   pattern.
 - **Everything that pointed at the old homes follows.** How it works, the tour, and the pushes and toasts that use the old names
@@ -757,9 +794,8 @@ Left for their round:
   - Three Undos the server keeps but no toast offers.
   - Date pickers forced dark in Studio.
   - Three Inbox rows that lead nowhere useful.
-- **Docs (whoever next touches them):** HANDOFF.md's Production list and BACKLOG 185 said the desk's tie-break stays off. It has
-  been on in production since 2026-11-20 (PLAN-results-settle.md, decision 3). 185 is corrected in this change; HANDOFF's line
-  waits for its next edit.
+- **Docs:** HANDOFF.md's Production list and BACKLOG 185 said the desk's tie-break stays off; it has been on since 2026-11-20.
+  Both corrected (185 in Round 3's change, HANDOFF's line in Round 4's).
 
 ## Keeping this plan true
 

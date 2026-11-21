@@ -3,6 +3,7 @@
 import { useRef, useState, type ReactNode } from "react";
 import { Check, ChevronDown, ChevronRight, Heart, Minus, Plus, Search } from "lucide-react";
 import type { Base, ChangeState, Control } from "@/lib/game/start-gallery/index.js";
+import { Recommended } from "../../ui/recommended";
 import { Pictogram } from "./icons";
 import { useTitleStep } from "../../ui/title-card";
 import type { Cell } from "./model";
@@ -476,6 +477,14 @@ export function ControlView({ k, onSet }: { k: Control; onSet: (v: unknown) => v
             );
           })}
         </div>
+        {/* The one Recommended tag (ui/recommended.tsx) under the segment it marks, where the control names one (settings Round 4). */}
+        {k.rec !== undefined && (
+          <div aria-hidden className={`mt-1 grid gap-1 px-1 ${opts.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
+            {opts.map((o) => (
+              <span key={String(o[0])} className="text-center">{String(o[0]) === String(k.rec) && <Recommended />}</span>
+            ))}
+          </div>
+        )}
         {chosen?.[2] && <p className="mt-1.5 text-[13px] leading-snug text-muted-foreground">{chosen[2]}</p>}
       </div>
     );

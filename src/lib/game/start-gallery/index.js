@@ -1003,7 +1003,7 @@ const CHANGES = [
     off: (s) => ({ ...s, extras: { ...(s.extras || {}), waivers: { ...S.NO_WAIVERS } } }),
     controls: [
       // Settings Round 4: Manage this game's names for the feels (the stored values stay casual, balanced, competitive).
-      segment('feel', 'How it feels', null, S.WAIVER_FEELS.map((v) => [v, FEEL_NAMES[v] || v]), 'balanced', field('extras.waivers.feel', 'balanced')),
+      { ...segment('feel', 'How it feels', null, S.WAIVER_FEELS.map((v) => [v, FEEL_NAMES[v] || v]), 'balanced', field('extras.waivers.feel', 'balanced')), rec: 'balanced' },
       segment('order', 'Who goes first', null, [['rolling', 'Rolling'], ['leastPoints', 'Fewest points'], ['mostPoints', 'Most points']], 'rolling', field('extras.waivers.order', 'rolling'), true),
       segment('hours', 'Claims close', null, S.WAIVER_HOURS.map((h) => [h, `${h} h before`]), 24, field('extras.waivers.hours', 24), true),
     ],
@@ -1018,7 +1018,7 @@ const CHANGES = [
     ],
   },
   {
-    id: 'join', row: 'details', name: 'Who can join', line: 'Open, ask first, or nobody new', icon: 'door',
+    id: 'join', row: 'details', name: 'Who can join', line: 'Anyone on the couch, they ask first, or nobody new', icon: 'door',
     on: () => true,
     controls: [segment('join', 'Joining', null, [['open', 'Anyone on the couch'], ['ask', 'They ask first'], ['locked', 'Nobody new']], 'open', field('extras.join', 'open'))],
   },

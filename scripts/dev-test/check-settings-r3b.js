@@ -111,7 +111,7 @@ const brief = (x) => JSON.stringify(x)?.slice(0, 220);
     check(r.status === 200 && r.body.batch && s.settings.lockAtAir === true, "alex: no late moves (strict)", brief(r.body));
     r = await undo("alex", r.body.batch);
     s = await state(L.lineup);
-    check(r.status === 200 && !s.settings.lockAtAir, "Undo: late moves on the honour system again", brief(r.body));
+    check(r.status === 200 && !s.settings.lockAtAir, "Undo: late moves on the honor system again", brief(r.body));
     check((await patch("riley", { leagueId: L.lineup, pace: "strict" })).status === 403, "riley, a Helper, can't change late moves");
 
     // ---------- a Prediction Sheet's questions ----------

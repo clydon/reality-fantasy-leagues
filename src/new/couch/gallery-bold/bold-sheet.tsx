@@ -1790,7 +1790,7 @@ function StartsFrom({ o, start, input }: { o: WizardOptions; start: StartCtx; in
           <OptionCard
             data="late"
             title={`Include ${E} ${o.onAir.number} · on now`}
-            line={`Moves stay open past its start, on the honour system, until its results are in.`}
+            line={`Moves stay open past its start, on the honor system, until its results are in.`}
             chosen={start.late}
             onPick={() => {
               start.setCatchUp(null);

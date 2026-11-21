@@ -98,3 +98,22 @@ game's choices, the desk's choice cards, Who can fill in results and the draft r
 - **The classic screens' "Commish" tags and old waiver words:** classic only.
 - **The desk's research words** ("it waits in each couch's Backstage"): what happens to an unsure answer changed with
   results-settle, so the sentence needs the desk's own pass (Round 5), not a new name.
+
+## The check, its fixes, what's open
+
+One independent Impeccable `critique` of the built frames at 390: **29 / 40** (its full report is in the session, not saved). Its
+findings and what happened to each, in one batch:
+1. The waiver job still said "Replace when your team is short": now "Replace who's out when your team is short".
+2. Standard's line used the retired "wait for a window": "In between. Replacements come in set windows, with a swap now and then."
+3. Start a game's Who can join said "Open, ask first, or nobody new": now Manage this game's words. Its picture differs from
+   Manage's: left (the two pages' picture sets).
+4. "Fantasy league" (Start a game) and "Weekly Lineup" (How it plays): left, the wizard's naming (a base and the game it makes).
+5. Start a game's feel control had no Recommended tag: the tag sits under Standard (a control's `rec`).
+6. "Chosen" beside a switch drawn off in Your settings › Notifications: Round 1's design, left and listed.
+7. The bench rule tacked its episode on at the end: "From Episode 6, if a starter goes home…".
+8. "honour" beside "Customize": the app's words take US spelling (honor).
+9. The story's frames: a frame of Waivers turned off added. Who can join alone on its row: the grid's usual end, left.
+10. Commissioner beside "You run this": a role and a relation, left.
+
+The confirming look found the fixes in place. It also showed the face colours match within one run (the critique said so too); the
+3a note had compared two runs, whose accounts are new each time.

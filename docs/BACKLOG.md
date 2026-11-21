@@ -223,8 +223,8 @@ switch goes in the settings overhaul's Round 1 (its C4), or with this fix throug
 
 ### Small UI fixes (one Impeccable polish pass)
 
-**246. Two people on one couch can share a face colour.** In Manage this game's Who's playing on the zt_nd couch, alex and riley
-are both green (src/lib/people.ts picks a colour by account id, from six). Faces stay told apart by picture and name, but a row of
+**246. Two people on one couch can share a face colour.** In Manage this game's Who's playing on the zt_nd couch, two of the four
+share a colour in most runs (src/lib/people.ts picks a colour by account id, from six; the fixture's ids are new each run). Faces stay told apart by picture and name, but a row of
 plain initials reads as one person. Found in Settings Round 4's ripple check; for a colour pass (keep the hues, deal them per couch
 so nobody on a couch shares one). [S–M · UI]
 
