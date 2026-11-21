@@ -249,6 +249,33 @@ function round2(pool, fx, so, S, T, L, menu, sheet) {
   ];
 }
 
+/** Settings Round 3a (docs/design-round/settings-r3-spec.md): Manage this game, Games you run, Who's playing, Backstage retired. */
+function round3(pool, fx, S, L, menu) {
+  const manage = "[data-game-settings]";
+  const lineup = `/show/${S}/game/${L.lineup}`;
+  const gear = "[data-game-title] [data-game-manage]";
+  return [
+    // The doors
+    { id: "r3-game-gear-alex", home: "game", who: "alex", go: lineup, ready: "[data-game-page]", full: false, lens: "a game's bar, for whoever runs it: the gear (Manage this game) beside the ⋯" },
+    { id: "r3-game-menu-alex", home: "game", who: "alex", go: lineup, ready: "[data-game-page]", tap: "[data-game-title] [data-game-menu-open]", wait: "[data-game-menu]", full: false, lens: "a game's ⋯ for its Commissioner: Manage this game" },
+    { id: "r3-show-menu-alex", home: "show", who: "alex", go: `/show/${S}/tonight`, ready: "[data-tab]", tap: menu, wait: "[data-menu-main]", full: false, lens: "the show's ⋯: Games you run here, in Backstage's place" },
+    // Manage this game
+    { id: "r3-manage-alex", home: "game", who: "alex", go: lineup, ready: "[data-game-page]", tap: gear, wait: manage, lens: "Manage this game for alex, its Commissioner" },
+    { id: "r3-manage-riley", home: "game", who: "riley", go: lineup, ready: "[data-game-page]", tap: gear, wait: manage, lens: "Manage this game for riley, a Helper: the lock is hers, the rules read only" },
+    { id: "r3-team-alex", home: "game", who: "alex", go: `/show/${S}/game/${L.outlast}`, ready: "[data-game-page]", tap: gear, wait: '[data-setting-line="team"]', scroll: '[data-setting-line="team"]', full: false, lens: "Team size on Couch Cup, drafted: fixed, and it says why (before the draft it's a real control)" },
+    { id: "r3-people-alex", home: "game", who: "alex", go: lineup, ready: "[data-game-page]", tap: gear, wait: "[data-who-plays] [data-person]", scroll: "[data-who-plays]", full: false, lens: "Who's playing: one row a person, with their role in this game" },
+    { id: "r3-person-alex", home: "game", who: "alex", go: lineup, ready: "[data-game-page]", tap: [gear, '[data-person="sam"]'], wait: "[data-person-sheet]", full: false, lens: "a person's sheet: their role here, and Remove from this game" },
+    { id: "r3-remove-alex", home: "game", who: "alex", go: lineup, ready: "[data-game-page]", tap: [gear, '[data-person="sam"]', "[data-remove-from-game]"], wait: "text=/leaves/", full: false, lens: "Remove from this game: a hold saying their other games and the couch stay" },
+    { id: "r3-person-riley", home: "game", who: "riley", go: lineup, ready: "[data-game-page]", tap: [gear, '[data-person="sam"]'], wait: "[data-person-sheet]", full: false, lens: "the same sheet for a Helper: who sam is here, nothing to change" },
+    { id: "r3-season-rules-alex", home: "game", who: "alex", go: lineup, ready: "[data-game-page]", tap: gear, wait: "[data-freeze]", scroll: "[data-freeze]", full: false, lens: "This season's rules on this couch: the rulebook, and Freeze rules and joining" },
+    { id: "r3-rename-alex", home: "game", who: "alex", go: lineup, ready: "[data-game-page]", tap: [gear, '[data-setting-line="rename"] button'], wait: "[data-rename]", scroll: "[data-rename]", full: false, lens: "Rename this game" },
+    { id: "r3-stop-alex", home: "game", who: "alex", go: lineup, ready: "[data-game-page]", tap: [gear, "[data-end-toggle]"], wait: '[data-end="delete"]', scroll: "[data-end-games]", full: false, lens: "Stop this game, last: Archive or Delete" },
+    // Games you run (Backstage's address) and its pages
+    { id: "r3-games-alex", home: "run", who: "alex", go: `/show/${S}/backstage`, ready: "[data-games-you-run]", lens: "Games you run: the games alex runs here, each opening its Manage this game" },
+    { id: "r3-waivers-alex", home: "run", who: "alex", go: `/show/${S}/backstage/waivers?game=${L.lineup}`, ready: "main, h1, h2", lens: "Waivers, opened from Lineup League's Replacing people who leave: Start a game's words" },
+  ];
+}
+
 /** The site admin for the desk's frames: a zt_nd_ person, so new-fixture's down removes them with the rest. */
 async function deskAdmin(pool) {
   const { hashPassword } = await import("better-auth/crypto");
@@ -321,6 +348,7 @@ async function main() {
       { id: "desk-setup", home: "desk", who: DESK, go: `/desk/season/${S}/setup`, ready: "main, h1, h2", lens: "a season's Setup on the desk" },
       ...round1(pool, fx, S, T, menu, sheet),
       ...round2(pool, fx, so, S, T, L, menu, sheet),
+      ...round3(pool, fx, S, L, menu),
     ]);
     failed += r.failed;
     index.push(...r.shot);

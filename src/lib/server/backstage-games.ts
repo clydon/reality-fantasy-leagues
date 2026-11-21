@@ -87,12 +87,15 @@ async function seatOf(userId: string, leagueId: string): Promise<string | null> 
 
 // ---- Waivers ----
 
+// Start a game's words (settings Round 3a: one name per thing, the wizard's).
 const RULE_WORDS: Record<ReplaceRule, string> = {
-  always: "Replace right away",
-  whenShort: "Only when short",
-  windows: "Wait for a waiver window",
+  always: "Whenever one goes home",
+  whenShort: "When your team is short",
+  windows: "In set windows",
   never: "No replacements",
 };
+/** A waiver feel's name (Round 0's names, 2026-11-20): Relaxed · Standard · Strict. */
+export const FEEL_NAMES = { casual: "Relaxed", balanced: "Standard", competitive: "Strict" } as const;
 
 /** A feel's four lines (the mock's WV_FEEL_S), for a league's shape: what the feel would set. */
 function feelLines(state: LeagueState, feel: WaiverFeel): string[] | null {
@@ -191,7 +194,7 @@ function waiverAdmin(l: Loaded, me: string, mark: number | null, users: Map<stri
   const nameOf = (id: string) => s.players.find((p) => p.id === id)?.name ?? "someone";
   const rule = c.replaceRule;
   const w = c.waiverWindows;
-  const feelWord = c.waiverFeel[0].toUpperCase() + c.waiverFeel.slice(1);
+  const feelWord = FEEL_NAMES[c.waiverFeel as keyof typeof FEEL_NAMES] ?? c.waiverFeel;
   const recommended = W.isRecommended(s);
   // When they start: the phase by its name, and where it started only once you've seen it (`at` below).
   const starts = W.startsAt(view);

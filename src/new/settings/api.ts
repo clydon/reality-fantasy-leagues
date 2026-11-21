@@ -10,7 +10,7 @@ import type { PhoneRow } from "@/lib/server/phones";
 
 export type { PhoneRow, MuteFor };
 
-async function call<T>(url: string, method: "GET" | "PUT" | "POST" | "DELETE" = "GET", body?: unknown): Promise<T> {
+async function call<T>(url: string, method: "GET" | "PUT" | "POST" | "PATCH" | "DELETE" = "GET", body?: unknown): Promise<T> {
   const res = await fetch(url, body === undefined ? { method } : { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   const out = await res.json().catch(() => ({}));
   if (!res.ok) throw Object.assign(new Error(out.error || `Couldn't do that (${res.status})`), { status: res.status });
@@ -65,6 +65,20 @@ export function useCouchChat(couchId: string | null) {
 
 export const couchChatApi = {
   save: (couchId: string, chat: ChatMode | null) => call<{ chat: ChatMode | null }>(`/api/couches/${couchId}/chat-notify`, "PUT", { chat }),
+};
+
+/** Settings Round 3a's writes for Manage this game: rename a game (A13), take someone out of one game (A14). */
+export interface OutOfGame {
+  name: string;
+  games: string[];
+  drafted: boolean;
+  problem: string | null;
+  batch: string | null;
+}
+export const manageApi = {
+  rename: (leagueId: string, name: string) => call<unknown>(`/api/leagues/${encodeURIComponent(leagueId)}`, "PATCH", { name }),
+  removeFromGame: (seasonId: string, couchId: string, userId: string, leagueId: string, preview = false) =>
+    call<OutOfGame>(`/api/seasons/${encodeURIComponent(seasonId)}/backstage/members/${encodeURIComponent(userId)}/remove?couch=${encodeURIComponent(couchId)}`, "POST", { preview, league: leagueId }),
 };
 
 export const muteApi = {

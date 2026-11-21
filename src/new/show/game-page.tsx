@@ -3,7 +3,7 @@
 import { inShowWords } from "@/lib/game/show-words";
 import { useWithRoles } from "../sports/faces";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight, Clock, Heart, Hourglass, Minus, MoreHorizontal } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Clock, Heart, Hourglass, Minus, MoreHorizontal, Settings } from "lucide-react";
 import { LATE_SET, LateMark } from "./lineup-sheet";
 import { lockTime } from "../clock";
 import { useQueryClient } from "@tanstack/react-query";
@@ -79,7 +79,7 @@ function Loading({ onBack }: { onBack: () => void }) {
   );
 }
 
-function TopBar({ onBack, show, game, onMenu }: { onBack: () => void; show: string; game?: string; onMenu?: () => void }) {
+function TopBar({ onBack, show, game, onMenu, onManage }: { onBack: () => void; show: string; game?: string; onMenu?: () => void; onManage?: () => void }) {
   return (
     <div className="relative grid h-14 grid-cols-[auto_1fr_auto] items-center gap-1 px-2.5">
       <button type="button" onClick={onBack} data-game-back className="nd-press flex h-11 items-center gap-0.5 rounded-[3px] pl-1 pr-2 text-[15px] font-semibold">
@@ -91,9 +91,17 @@ function TopBar({ onBack, show, game, onMenu }: { onBack: () => void; show: stri
         {(game ?? show) && <b className="type-caption block truncate text-[20px] leading-[1.05]">{game ?? show}</b>}
       </span>
       {onMenu ? (
-        <button type="button" onClick={onMenu} aria-label="About this game" data-game-menu-open className="nd-press grid size-11 place-items-center rounded-[3px]">
-          <MoreHorizontal className="size-5" aria-hidden />
-        </button>
+        <span className="flex items-center">
+          {/* The gear (settings Round 3a): Manage this game, for whoever runs it; the ⋯ stays things about the game. */}
+          {onManage && (
+            <button type="button" onClick={onManage} aria-label="Manage this game" data-game-manage className="nd-press grid size-11 place-items-center rounded-[3px]">
+              <Settings className="size-5" aria-hidden />
+            </button>
+          )}
+          <button type="button" onClick={onMenu} aria-label="About this game" data-game-menu-open className="nd-press grid size-11 place-items-center rounded-[3px]">
+            <MoreHorizontal className="size-5" aria-hidden />
+          </button>
+        </span>
       ) : (
         <span className="size-11" />
       )}
@@ -257,19 +265,27 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
         <p className="mt-1.5 text-[13px] text-muted-foreground">{paced ? "Results for this game, at your own pace." : `One reveal for every game you play on ${show.header?.show.name ?? "this show"}.`}</p>
       </div>
     ) : null;
+  // Manage this game (settings Round 3a): the bar's gear, for whoever runs it.
+  const manage = show.couch && (g.yourRole === "commissioner" || g.yourRole === "admin") ? () => settingsPage.showWith({ game: g.leagueId, from: "game" }) : undefined;
   return (
     <div data-game-page={g.leagueId} data-game-main={m.main} data-game-phase={m.phase} className="pb-16">
       {/* The bar that stays: once the card's name has scrolled under the top, the game's name and the way back (the check's P2). */}
       <div className="sticky top-0 z-20 h-0" data-game-namebar={away ? "on" : "off"}>
         <div aria-hidden={!away} inert={!away} className={`bg-background/95 shadow-[0_1px_0_var(--border)] backdrop-blur transition-opacity duration-200 motion-reduce:transition-none ${away ? "opacity-100" : "pointer-events-none opacity-0"}`}>
-          <TopBar onBack={onBack} show={show.header?.show.name ?? ""} game={g.name} onMenu={() => setMenu(true)} />
+          <TopBar
+            onBack={onBack}
+            show={show.header?.show.name ?? ""}
+            game={g.name}
+            onMenu={() => setMenu(true)}
+            onManage={manage}
+          />
         </div>
       </div>
       <header className="relative overflow-hidden pb-3" data-game-title>
         <Backdrop art={art} colour={colour} />
         <div className="relative">
           {/* The bar's centre stays empty: the card under it names the game, once (b1-title-card-spec.md, "The header"). */}
-          <TopBar onBack={onBack} show="" onMenu={() => setMenu(true)} />
+          <TopBar onBack={onBack} show="" onMenu={() => setMenu(true)} onManage={manage} />
         </div>
         <GameTitleCard kicker={show.header ? kickerOf(show.header.show.name, show.header.seasonNumber) : ""} name={g.name} sentence={firstVisit && g.sentence ? inShowWords(g.sentence, show.words) : null} onAway={setAway} />
         {m.hero.stages && <Stages stages={m.hero.stages} seasonId={seasonId} />}
@@ -353,9 +369,9 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
           <Row title="How it plays" detail={`${m.rules.length} rules${m.chips.length ? ` · ${m.chips.join(", ").toLowerCase()}` : ""}`} onClick={() => (setMenu(false), drill.open({ kind: "rules" }))} />
           {wg.you && <Row title="Your sheet" detail="Week by week" onClick={() => (setMenu(false), drill.open({ kind: "person", playerId: wg.you!.playerId, episode: null }))} />}
           {/* Where you are left this menu in settings Round 2 (C19): it's the show's, under the show's gear. */}
-          {/* Round 4 (built in B4): the game's own settings, for whoever runs it. */}
+          {/* Manage this game (settings Round 3a; Round 4's settings page, grown), for whoever runs it: also the bar's gear. */}
           {show.couch && (g.yourRole === "commissioner" || g.yourRole === "admin") && (
-            <Row title="Game settings" detail={g.yourRole === "commissioner" ? "What you set, and what you can still change" : "This episode's lock, and how the game is set"} onClick={() => (setMenu(false), settingsPage.showWith({ game: g.leagueId, from: "game" }))} />
+            <Row title="Manage this game" detail={g.yourRole === "commissioner" ? "How it plays, who's playing, its name" : "This episode's lock, waivers and who's let in"} onClick={() => (setMenu(false), settingsPage.showWith({ game: g.leagueId, from: "game" }))} />
           )}
           {/* Leave just this game (settings Round 2, A11): last, quiet, held: the hold carries the red (the user's pick, 2026-11-21). */}
           {show.couch && g.yourRole && !g.solo && (

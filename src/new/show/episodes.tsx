@@ -481,6 +481,7 @@ export function EpisodeNight({ seasonId, show, e, open, flush = false }: { seaso
       talk={!show.solo && !!show.couch?.id && !show.readOnly}
       open={open}
       flush={flush}
+      runs={show.runs.length > 0 && !show.readOnly}
     />
   );
 }
@@ -514,6 +515,7 @@ function EpisodeBody({
   talk,
   open,
   flush,
+  runs = false,
 }: {
   seasonId: string;
   couchId: string | null;
@@ -525,6 +527,8 @@ function EpisodeBody({
   talk: boolean;
   open: (d: Door) => void;
   flush: boolean;
+  /** You run a game here: the runner's fix for who went home. */
+  runs?: boolean;
 }) {
   const out = e.out ?? [];
   const results = useEpisodeResults(seasonId, couchId, e.number);
@@ -554,6 +558,12 @@ function EpisodeBody({
         ))}
         {out.length === 0 && <p className="text-[15px] text-muted-foreground">Nobody went home this episode.</p>}
       </div>
+      {/* A runner's fix (settings Round 3a, C30): results settle on their own; whoever runs a game here can still correct one. */}
+      {runs && (
+        <NavLink href={`${paths.backstage(seasonId, "results")}?ep=${e.number}`} data-fix-results className="mt-2 inline-flex min-h-11 items-center text-[14px] font-semibold text-muted-foreground underline decoration-border underline-offset-4">
+          Something wrong? Fix who went home
+        </NavLink>
+      )}
       {(!!e.summary || (e.happened?.length ?? 0) > 0) && (
         <section className="mt-[26px]" data-ep-happened>
           <h2 className="type-caption mb-3 text-[24px]">What happened</h2>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftRight, Check, ChevronRight, CircleHelp, Clock, Settings, Users, Zap, type LucideIcon } from "lucide-react";
@@ -128,12 +129,14 @@ const FEEL_WORDS = {
   competitive: "Every loss costs you. Stay sharp.",
 } as const;
 const RULES: [WaiverAdminGame["settings"]["replaceRule"], string, string][] = [
-  ["always", "Replace right away", "After any episode"],
-  ["whenShort", "Only when short", "Once a team is down to its starters"],
-  ["windows", "Wait for a waiver window", "Out castaways sit until then"],
+  ["always", "Whenever one goes home", "After any episode"],
+  ["whenShort", "When your team is short", "Once a team is down to its starters"],
+  ["windows", "In set windows", "Out castaways sit until then"],
   ["never", "No replacements", "Out is out"],
 ];
-const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+// A feel's name: Round 0's (Relaxed · Standard · Strict), as Start a game will say it.
+const FEEL_NAME = { casual: "Relaxed", balanced: "Standard", competitive: "Strict" } as Record<string, string>;
+const cap = (s: string) => FEEL_NAME[s] ?? s.charAt(0).toUpperCase() + s.slice(1);
 
 function useAfter() {
   const client = useQueryClient();
@@ -143,7 +146,9 @@ function useAfter() {
 export function WaiversAdminPage({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const couchId = show.couch?.id ?? null;
   const data = useWaiversAdmin(seasonId, couchId);
-  const [pick, setPick] = useState<string | null>(null);
+  // Manage this game's Replacing people who leave opens this on its game (`?game=`, settings Round 3a).
+  const linked = useSearchParams().get("game");
+  const [pick, setPick] = useState<string | null>(linked);
   if (data.error) return <EmptyState icon={ArrowLeftRight} title="Waivers aren't yours to run here" line={(data.error as Error).message} />;
   if (!data.data || !couchId) return <div aria-busy className="mx-4 mt-6 h-64 animate-pulse rounded-[4px] bg-card" />;
   const games = data.data.games;
@@ -577,7 +582,7 @@ function SettingsSheet({
                     {on && <i className="size-2.5 rounded-full bg-background" />}
                   </i>
                   <b className="type-caption text-[18px]">{cap(f.key)}</b>
-                  {f.key === "balanced" && <span className={`type-caption ml-auto rounded-[2px] px-1.5 text-[11px] ${on ? "bg-background/15" : "bg-secondary"}`}>Suggested</span>}
+                  {f.key === "balanced" && <span className={`type-caption ml-auto rounded-[2px] px-1.5 text-[11px] ${on ? "bg-background/15" : "bg-secondary"}`}>Recommended</span>}
                 </span>
                 <small className={`mt-1 block pl-7 text-[13px] ${on ? "text-background/75" : "text-muted-foreground"}`}>{FEEL_WORDS[f.key]}</small>
                 {on && (
@@ -634,8 +639,8 @@ function SettingsSheet({
             <p className="type-caption mt-2 text-[14px] text-muted-foreground">Timing</p>
             {(
               [
-                ["Picks due", S.processHours === 24 ? "1 day before" : `${S.processHours} hours before`],
-                ["Who picks first", S.orderBy === "leastPoints" ? "Lowest score first" : S.orderBy === "mostPoints" ? "Highest score first" : "Rolling"],
+                ["Claims close", `${S.processHours} h before`],
+                ["Who goes first", S.orderBy === "leastPoints" ? "Fewest points" : S.orderBy === "mostPoints" ? "Most points" : "Rolling"],
                 ["Free agency", S.freeAgency ? "Until airtime" : "Off"],
               ] as const
             ).map(([k, v]) => (

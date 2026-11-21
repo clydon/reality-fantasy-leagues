@@ -247,20 +247,23 @@ export async function outPreview(here: Game[], userId: string): Promise<OutPrevi
   return { name: who[0]?.name ?? "someone", games: games.map((g) => g.name), drafted, problem };
 }
 
-/** Takes someone else out of every game here you're a Commissioner of (tier 3). `preview`: only what it would do. */
-export async function removeMember(user: SessionUser, seasonId: string, couchId: string | null, userId: string, preview: boolean) {
+/**
+ * Takes someone else out of every game here you're a Commissioner of, or of one (`leagueId`: Manage this game's Remove from this
+ * game, settings Round 3a's A14) (tier 3). `preview`: only what it would do.
+ */
+export async function removeMember(user: SessionUser, seasonId: string, couchId: string | null, userId: string, preview: boolean, leagueId: string | null = null) {
   if (userId === user.id) throw new HttpError(400, "To leave yourself, use Leave these games");
   const { here, admin } = await scope(user, seasonId, couchId);
   const theirs = await theirLeagues(userId, here.map((g) => g.leagueId));
-  const games = targets(here, admin, new Set(theirs.keys()), undefined);
-  if (!games.length) throw new HttpError(403, "Only a Commissioner of their games can take them out");
+  const games = targets(here, admin, new Set(theirs.keys()), leagueId ? [leagueId] : undefined);
+  if (!games.length) throw new HttpError(403, leagueId ? "Only this game's Commissioner can take someone out of it" : "Only a Commissioner of their games can take them out");
   const out = await outPreview(games, userId);
   if (preview || out.problem) {
     if (!preview && out.problem) throw new HttpError(409, out.problem);
     return { ...out, batch: null };
   }
   const batch = crypto.randomUUID();
-  for (const g of games) await takeOut(g.leagueId, userId, { actor: user.id, batch, text: `Took ${out.name} out of the games` });
+  for (const g of games) await takeOut(g.leagueId, userId, { actor: user.id, batch, text: leagueId ? `Took ${out.name} out of ${g.name}` : `Took ${out.name} out of the games` });
   return { ...out, batch };
 }
 

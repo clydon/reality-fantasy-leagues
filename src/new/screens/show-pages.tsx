@@ -1,40 +1,30 @@
 "use client";
 
-import { ArrowLeftRight, BellRing, CalendarClock, Check, ChevronRight, CircleQuestionMark, Eye, KeyRound, RotateCcw, SlidersHorizontal, Trophy, UserPlus, Users, X, type LucideIcon } from "lucide-react";
-import { useState, type ReactNode } from "react";
-import { airTime } from "../clock";
+import { Eye, KeyRound } from "lucide-react";
+import { type ReactNode } from "react";
 import { ChangesPage } from "../backstage/changes";
-import { MembersPage } from "../backstage/members";
+import { GameSettingsPage, SettingsList, useGameSettingsPage } from "../backstage/game-settings";
 import { ResultsPage } from "../backstage/results";
 import { RulesPage } from "../backstage/rules";
-import { SettingsPage } from "../backstage/settings";
+import { EndGames } from "../backstage/settings";
 import { WaiversAdminPage } from "../backstage/waivers";
-import { useQueryClient } from "@tanstack/react-query";
-import { couches, gameAdmin, useAfterCouch, useBackstage, useChanges, useRemindPreview, type Backstage, type Need, type RemindPreview } from "../data";
-import { openCouchSheet } from "../couch/couch-sheets";
-import { Avatar } from "../ui/bars";
-import { NavLink, useNav } from "../nav";
-import { BACKSTAGE_PAGES, paths, type BackstagePage } from "../routes";
-import { Btn, EmptyState, Row, SectionHead } from "../ui/parts";
-import { toast } from "../ui/toast";
+import { useBackstage, useGameSettings } from "../data";
+import { useNav } from "../nav";
+import { JobRow, RUNNER_JOBS } from "../manage/jobs";
+import { paths, type BackstagePage } from "../routes";
+import { EmptyState } from "../ui/parts";
 import { ShowBar } from "../ui/show-bar";
 import { isTabOf, useShow, type ShowData } from "./show-space";
 
-// Backstage, pushed over a show space: a route of its own, deeper than the show, so it pushes in from the right; back
-// returns to the tab you left. Steps 5 and 6a (mock backstage.js, guards.js): its home (Needs you, then its pages),
-// Results and Recent changes since step 5, Waivers, Scoring rules, Members & roles and Game settings since 6a. The other
-// pages pushed over a show have files of their own: the player's Waivers (show/waivers.tsx), and the draft room and the
-// blind draft (show/draft.tsx, step 7). Recent changes is the couch's to read, so players reach it too (the show's ⋯
-// menu).
+// What was Backstage (settings Round 3a retired it: docs/design-round/settings-r3-spec.md, "Retiring Backstage"). Its address
+// stays, so old links, pushes and the tour land somewhere true:
+// - its home, Members & roles and Game settings are **Games you run**: the games you run on this show, a row each with what
+//   needs you, each opening its Manage this game (game-settings.tsx), finished ones folded, and Bring a game back below;
+// - Recent changes is the couch's to read, as before;
+// - Results (a runner's fix, reached from an episode), Waivers (a game's week) and the rulebook (This season's rules) are pages a
+//   game's Manage this game opens, titled for what they are, their Back to Games you run.
 
-const PAGES = {
-  results: { title: "Results", icon: CircleQuestionMark, detail: "Who went home, and full scores for every game" },
-  waivers: { title: "Waivers", icon: ArrowLeftRight, detail: "Open a waiver window, and how waivers run" },
-  rules: { title: "Scoring rules", icon: Trophy, detail: "The rulebook these games follow, and each game's points" },
-  members: { title: "Members & roles", icon: Users, detail: "Who plays, and who runs each game" },
-  settings: { title: "Game settings", icon: SlidersHorizontal, detail: "Lineup size and who can join" },
-  history: { title: "Recent changes", icon: RotateCcw, detail: "Everything changed in these games, with undo" },
-} as const satisfies Record<BackstagePage, { title: string; icon: LucideIcon; detail: string }>;
+const TITLES = { results: "Results", waivers: "Waivers", rules: "This season's rules" } as const;
 
 export function BackstageScreen({ seasonId, page }: { seasonId: string; page?: BackstagePage }) {
   const show = useShow(seasonId);
@@ -53,21 +43,20 @@ export function BackstageScreen({ seasonId, page }: { seasonId: string; page?: B
       <div className="h-24 animate-pulse bg-card" aria-busy />
     );
   const toShow = { label: name.replace(/^The /, ""), to: paths.show(seasonId), accepts: isTabOf(seasonId) };
-  const toBackstage = { label: "Backstage", to: paths.backstage(seasonId) };
+  const toGames = { label: "Games you run", to: paths.backstage(seasonId) };
   const runThis = (
     <>
       <KeyRound className="size-3.5" aria-hidden />
-      You run this
+      You run these
     </>
   );
 
-  // Recent changes: everyone on the couch reads it; from Backstage for whoever runs a game, else from the show.
   if (page === "history") {
     return (
       <>
         {bar(
           "Recent changes",
-          runs ? toBackstage : toShow,
+          toShow,
           <>
             <Eye className="size-3.5" aria-hidden />
             Visible to the couch
@@ -80,259 +69,54 @@ export function BackstageScreen({ seasonId, page }: { seasonId: string; page?: B
   if (show.header && !runs) {
     return (
       <>
-        {bar("Backstage", toShow)}
-        <EmptyState
-          icon={KeyRound}
-          title="Backstage is for whoever runs a game"
-          line="Players never see it. Whoever runs a game here can hand it to you, or share it, in Members & roles."
-        />
+        {bar("Games you run", toShow)}
+        <EmptyState icon={KeyRound} title="You don't run a game here" line="Whoever runs a game can make you a Helper or a Commissioner, from its Who's playing." />
+        {/* Every game you ran here archived: still the way to bring one back. */}
+        {show.couch && <EndGames seasonId={seasonId} couchId={show.couch.id} />}
       </>
     );
   }
-  if (page) {
-    const Page = { results: ResultsPage, waivers: WaiversAdminPage, rules: RulesPage, members: MembersPage, settings: SettingsPage }[page];
+  if (page === "results" || page === "waivers" || page === "rules") {
+    const Page = { results: ResultsPage, waivers: WaiversAdminPage, rules: RulesPage }[page];
     return (
       <>
-        {bar(PAGES[page].title, toBackstage, runThis)}
+        {bar(TITLES[page], toGames, runThis)}
         <Page seasonId={seasonId} show={show} />
+        <GameSettingsPage seasonId={seasonId} show={show} />
       </>
     );
   }
   return (
     <>
-      {bar("Backstage", toShow, runThis)}
-      <BackstageHome seasonId={seasonId} show={show} />
+      {bar("Games you run", toShow, runThis)}
+      <GamesYouRun seasonId={seasonId} show={show} />
     </>
   );
 }
 
-function BackstageHome({ seasonId, show }: { seasonId: string; show: ShowData }) {
+/** Games you run here: what needs you, then the games (running, a night's, finished), each opening its Manage this game. */
+function GamesYouRun({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const couchId = show.couch?.id ?? null;
   const bs = useBackstage(seasonId, couchId, null, { enabled: show.runs.length > 0 });
-  const changes = useChanges(seasonId, couchId);
-  const name = show.header?.show.name ?? "Show";
-  const games = show.runs.length;
-  const needs = bs.data?.needs ?? [];
-  const latest = changes.data?.lines[0];
+  const data = useGameSettings(seasonId, couchId);
+  const one = useGameSettingsPage();
+  const jobs = (bs.data?.needs ?? []).filter((n) => RUNNER_JOBS.has(n.id));
+  if (!data.data || !couchId) return <div aria-busy className="mx-4 mt-6 h-64 animate-pulse rounded-[4px] bg-card" />;
   return (
-    <div className="pb-10">
-      <section className="mt-6">
-        <SectionHead title="Needs you" aside={bs.data ? (needs.length ? `${needs.length} ${needs.length === 1 ? "job" : "jobs"}` : "All clear") : undefined} />
-        <div className="px-4">
-          {!bs.data ? (
-            <div aria-busy className="h-[72px] animate-pulse rounded-[4px] bg-card" />
-          ) : needs.length ? (
-            <div className="flex flex-col">
-              {needs.map((n) => (
-                n.id === "request" ? (
-                  <RequestJob key={n.request!.id} couchId={couchId} need={n} />
-                ) : n.id === "invite" ? (
-                  <InviteJob key={`invite-${n.leagueId}`} couchId={couchId} need={n} />
-                ) : (
-                  <Job key={`${n.id}-${n.episode}-${n.leagueId ?? ""}`} seasonId={seasonId} need={n} games={games} />
-                )
-              ))}
-            </div>
-          ) : (
-            <AllClear data={bs.data} />
-          )}
-        </div>
-      </section>
-      <RemindSection seasonId={seasonId} couchId={couchId} enabled={games > 0} />
-      <section className="mt-8">
-        <SectionHead
-          title={show.header?.seasonNumber ? `${name.replace(/^The /, "")} ${show.header.seasonNumber}` : name}
-          aside={[show.couch?.name, games ? `${games} ${games === 1 ? "game" : "games"}` : null].filter(Boolean).join(" · ")}
-        />
-        <div className="flex flex-col px-4">
-          {BACKSTAGE_PAGES.map((key) => {
-            const p = PAGES[key];
-            const detail = key === "results" ? resultsLine(bs.data) : key === "history" && latest ? `${latest.who?.name ?? "On its own"} · ${latest.text}${latest.undone ? " · undone" : ""}` : p.detail;
-            return <Row key={key} href={paths.backstage(seasonId, key)} icon={p.icon} title={p.title} detail={detail} dot={key === "results" && needs.some((n) => RESULTS_NEEDS.has(n.id))} />;
-          })}
-        </div>
-      </section>
-      <p className="px-4 pt-8 text-sm leading-relaxed text-muted-foreground">
-        Backstage is only for people who run a game. Players never see it, though everyone on the couch can read Recent changes. Hand a game to someone
-        else, or share it, in Members &amp; roles.
-      </p>
-    </div>
-  );
-}
-
-/**
- * Reminders (backstage-remind.ts): how many people still have a move open in the games you run here, and one button that
- * pushes each of them once, listing their moves. The hourly job reminds everyone on its own a day and two hours before an
- * episode airs (db/reminders.js); this is for in between, and it says so. Someone reminded from here in the last few hours
- * isn't reminded from here again until they've passed.
- */
-function RemindSection({ seasonId, couchId, enabled }: { seasonId: string; couchId: string | null; enabled: boolean }) {
-  const preview = useRemindPreview(seasonId, couchId, enabled);
-  const client = useQueryClient();
-  const [busy, setBusy] = useState(false);
-  const data = preview.data;
-  const send = async () => {
-    if (!couchId) return;
-    setBusy(true);
-    try {
-      const r = await gameAdmin.remind(seasonId, couchId);
-      client.setQueryData(["new-design", "bs2", "remind", seasonId, couchId], r);
-      toast(r.sent ? `Reminded ${r.sent} ${r.sent === 1 ? "person" : "people"}` : "Everyone's been reminded already");
-    } catch (e) {
-      toast.quiet((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <section className="mt-8">
-      <SectionHead title="Reminders" aside={data ? (data.people ? `${data.people} ${data.people === 1 ? "person" : "people"}` : "All in") : undefined} />
-      <div className="px-4">
-        {!data ? (
-          <div aria-busy className="h-[72px] animate-pulse rounded-[4px] bg-card" />
-        ) : (
-          <div data-remind data-people={data.people} data-recent={data.recent} className="flex items-center gap-3 rounded-[4px] bg-card p-3.5">
-            <BellRing className={`size-[26px] flex-none ${data.people > data.recent ? "text-chyron-line" : "text-muted-foreground"}`} aria-hidden />
-            <span className="min-w-0 flex-1">
-              <b className="block text-[15px]">{remindTitle(data)}</b>
-              <small className="block text-[13px] text-muted-foreground">{remindLine(data)}</small>
-            </span>
-            <Btn tone={data.people > data.recent ? "must" : "optional"} className="h-11 px-3.5" disabled={busy || data.people <= data.recent} data-remind-send onClick={send}>
-              Remind them
-            </Btn>
+    <div data-games-you-run className="pb-12">
+      {jobs.length > 0 && (
+        <section data-runner-jobs className="mt-5 px-4">
+          <p className="type-caption pb-1 text-[13px] tracking-[0.05em] text-muted-foreground">Needs you</p>
+          <div className="rounded-[10px] bg-card px-3.5">
+            {jobs.map((n) => (
+              <JobRow key={`${n.id}-${n.leagueId ?? ""}-${n.request?.id ?? ""}`} seasonId={seasonId} couchId={couchId} need={n} />
+            ))}
           </div>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function remindTitle(d: RemindPreview): string {
-  if (!d.people) return "Everyone's moves are in";
-  return `${d.people} ${d.people === 1 ? "person still has" : "people still have"} a move to make`;
-}
-
-function remindLine(d: RemindPreview): string {
-  const airs = d.next?.airAt ? `Episode ${d.next.number} airs ${airTime(Date.parse(d.next.airAt))}` : null;
-  if (!d.people) return airs ? `${airs} · everyone hears on their own a day and two hours before` : "Nothing's open in the games you run";
-  if (d.recent >= d.people) return `All reminded from here in the last ${d.cooldownHours} hours · again once that's passed`;
-  const who = d.recent ? `${d.recent} reminded already` : "one push each, listing their moves";
-  return airs ? `${airs} · ${who}` : who;
-}
-
-/** The Results row's line: where the latest open episode stands, naming nobody. */
-function resultsLine(data: Backstage | undefined): string {
-  const ep = data?.episode;
-  if (!ep) return PAGES.results.detail;
-  // Results waiting on their sources settle on their own (docs/PLAN-results-settle.md): our bot's while its look is to come,
-  // else the desk's (Results' card says the same), never the couch's.
-  const checking = ep.settling;
-  const some = checking === 1 ? "a result" : `${checking} results`;
-  if (checking) return ep.tiebreakAt ? `Episode ${ep.number} · our bot is checking ${some} again` : `Episode ${ep.number} · ${some} being settled`;
-  if (ep.stage === "none") return `Episode ${ep.number} · who went home isn't in yet`;
-  if (ep.stage === "early") return `Episode ${ep.number} · who went home is in · full scores to come`;
-  return `Episode ${ep.number} · final scores in · copy and paste, free`;
-}
-
-const RESULTS_NEEDS = new Set<Need["id"]>(["quick", "full", "waiting", "question"]);
-
-/**
- * Someone asking to join a game you run (step 9; the mock's joinRulesBlock .req): their face, what they asked, Let in
- * (they then join on their own: where they start, their team) or decline, quietly.
- */
-function RequestJob({ couchId, need }: { couchId: string | null; need: Need }) {
-  const after = useAfterCouch();
-  const [busy, setBusy] = useState(false);
-  const r = need.request!;
-  const answer = async (letIn: boolean) => {
-    if (!couchId) return;
-    setBusy(true);
-    try {
-      await couches.answer(couchId, r.id, letIn);
-      await after();
-      toast(letIn ? `${r.name} can join now. They'll pick where they start.` : "Declined quietly");
-    } catch (e) {
-      toast.quiet((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <div data-job="request" data-request={r.name} className="flex min-h-[72px] items-center gap-3 border-b border-border py-2.5">
-      <Avatar id={r.userId} name={r.name} size={44} />
-      <span className="min-w-0 flex-1">
-        <b className="block text-[16px] leading-tight">{need.title}</b>
-        <small className="block text-[13px] text-muted-foreground">{need.detail}</small>
-      </span>
-      <Btn tone="must" className="h-11 px-3.5" disabled={busy} data-let-in onClick={() => answer(true)}>
-        Let in
-      </Btn>
-      <button type="button" aria-label={`Decline ${r.name}`} data-decline disabled={busy} onClick={() => answer(false)} className="grid size-11 flex-none place-items-center rounded-[3px] outline-1 -outline-offset-1 outline-input">
-        <X className="size-5" aria-hidden />
-      </button>
+        </section>
+      )}
+      <SettingsList seasonId={seasonId} couchId={couchId} games={data.data.games} show={show} onOpen={(id) => one.showWith({ game: id, from: "games" })} />
+      <GameSettingsPage seasonId={seasonId} show={show} />
+      <EndGames seasonId={seasonId} couchId={couchId} />
     </div>
   );
 }
-
-/** A game with nobody to play against yet (classic's "Invite players"): your code for the couch. */
-function InviteJob({ couchId, need }: { couchId: string | null; need: Need }) {
-  return (
-    <button
-      type="button"
-      data-job="invite"
-      onClick={() => couchId && openCouchSheet({ kind: "invite", couchId })}
-      className="nd-press flex min-h-[72px] w-full items-center gap-3 border-b border-border py-2.5 text-left"
-    >
-      <span className="grid size-14 flex-none place-items-center rounded-[3px] bg-chyron text-chyron-foreground">
-        <UserPlus className="size-6" aria-hidden />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="type-caption block text-[12px] tracking-[0.06em] text-muted-foreground">Setup</span>
-        <b className="block text-[16px] leading-tight">{need.title}</b>
-        <small className="block text-[13px] text-muted-foreground">{need.detail}</small>
-      </span>
-      <span className="text-[15px] font-bold text-chyron-line">Invite</span>
-      <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
-    </button>
-  );
-}
-
-/** A job (the mock's .job): the one yellow tag, what it is, and Check (a game's setup: Schedule, in its draft). */
-function Job({ seasonId, need, games }: { seasonId: string; need: Need; games: number }) {
-  const setup = need.id === "draft";
-  const Icon = setup ? CalendarClock : CircleQuestionMark;
-  return (
-    <NavLink
-      href={setup ? `${paths.showPage(seasonId, need.draft === "blind" ? "blind" : "draft")}?game=${need.leagueId}` : `${paths.backstage(seasonId, "results")}?ep=${need.episode}`}
-      data-job={need.id}
-      className="nd-press flex min-h-[72px] items-center gap-3 border-b border-border py-2.5"
-    >
-      <span className="grid size-14 flex-none place-items-center rounded-[3px] bg-chyron text-chyron-foreground">
-        <Icon className="size-6" aria-hidden />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="type-caption block text-[12px] tracking-[0.06em] text-muted-foreground">{setup ? "Setup" : games > 1 ? `All ${games} games` : "Your game"}</span>
-        <b className="block text-[16px] leading-tight">{need.title}</b>
-        <small className="block text-[13px] text-muted-foreground">{need.detail}</small>
-      </span>
-      <span className="text-[15px] font-bold text-chyron-line">{setup ? "Schedule" : "Check"}</span>
-      <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
-    </NavLink>
-  );
-}
-
-function AllClear({ data }: { data: Backstage }) {
-  const next = data.next;
-  return (
-    <div data-all-clear className="flex items-center gap-3 rounded-[4px] bg-card p-3.5">
-      <Check className="size-[26px] flex-none text-good" strokeWidth={2.6} aria-hidden />
-      <span>
-        <b className="block text-[15px]">You&apos;re all caught up</b>
-        <small className="text-[13px] text-muted-foreground">
-          {next?.airAt ? `Next: Episode ${next.number} airs ${airTime(Date.parse(next.airAt))}. Ask who went home once it has.` : "Nothing's waiting on you here."}
-        </small>
-      </span>
-    </div>
-  );
-}
-

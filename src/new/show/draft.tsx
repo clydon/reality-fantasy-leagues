@@ -1414,8 +1414,8 @@ function DraftSettings({ seasonId, show, game, open, onOpenChange }: { seasonId:
         )}
         {snake && (
           <>
-            {label("Pick timer")}
-            <div className="flex gap-[3px] rounded-[3px] bg-secondary p-[3px]" role="radiogroup" aria-label="Pick timer">
+            {label("A clock on each pick")}
+            <div className="flex gap-[3px] rounded-[3px] bg-secondary p-[3px]" role="radiogroup" aria-label="A clock on each pick">
               {(
                 [
                   [0, "Off"],
@@ -1429,7 +1429,7 @@ function DraftSettings({ seasonId, show, game, open, onOpenChange }: { seasonId:
                   role="radio"
                   aria-checked={game.timer === t}
                   data-timer={t}
-                  onClick={() => void write(game.leagueId, { action: "settings", timer: t }, t ? `Pick timer: ${l}` : "Pick timer off")}
+                  onClick={() => void write(game.leagueId, { action: "settings", timer: t }, t ? `A clock on each pick: ${l}` : "No clock on picks")}
                   className={`h-10 flex-1 rounded-[2px] text-sm font-bold ${game.timer === t ? "bg-foreground text-background" : "text-muted-foreground"}`}
                 >
                   {l}
@@ -1439,7 +1439,7 @@ function DraftSettings({ seasonId, show, game, open, onOpenChange }: { seasonId:
             <small className="mt-1.5 block text-[13px] text-muted-foreground">Off by default. A timer suits a competitive draft; a casual one goes at its own pace.</small>
             {game.timer > 0 && (
               <>
-                {label("When the timer runs out")}
+                {label("Someone away")}
                 {(
                   [
                     ["wait", "Wait for them", "Nobody gets picked for automatically (recommended)"],
