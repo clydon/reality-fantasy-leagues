@@ -1,7 +1,8 @@
 # Settings: the overhaul
 
 > **Status (2026-11-21): Round 3a built on branch settings-plan, with the user's two picks on its story** (keep the gear; the
-> waiver window's week on Manage this game now: built and checked). Waiting on the user's go to merge. Round 3 is split in two:
+> waiver window's week on Manage this game now: built and checked). Merged to master 2026-11-21 (fast-forward to 1ab47840), not
+> pushed: the push waits on the user. Round 3 is split in two:
 > 3a retires Backstage and gives each game Manage this game; 3b changes a game once it's under way. Not merged or pushed; no
 > migration. Detail: Round 3, below.
 >

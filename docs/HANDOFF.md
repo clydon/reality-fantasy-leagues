@@ -75,11 +75,13 @@ Newest first. The plan or archive section named holds the detail.
 
 ## In flight
 
-- **Settings overhaul, Round 3a, branch `settings-plan`** (lane rfl-settings, port 3018; 2026-11-21, from master ccf930d1; not
-  merged or pushed; no migration): Backstage retired; each game's Manage this game (a gear on its bar), Games you run, Who's
-  playing per game, rename, remove from one game, Start a game's words. Waits on the user's review of its story
-  (https://claude.ai/artifact/53oCgbQkJdW1e6RARGWP73: two choices). Detail:
-  PLAN-settings-overhaul.md, Round 3.
+- **Settings overhaul, Round 3a: merged to master, not pushed** (2026-11-21, fast-forward to 1ab47840; no migration):
+  Backstage retired; each game's Manage this game (a gear on its bar) with its waiver week, Replacing people who leave and Pick
+  for them in place (the user's picks on the story); Games you run, Who's playing per game, rename, remove from one game, Start a
+  game's words. Waits on the user's word to push (not on a Wednesday). After the push, run check-explorer-page's waivers step
+  (it needs UI Atlas on the main app). Stories: https://claude.ai/artifact/53oCgbQkJdW1e6RARGWP73 and
+  https://claude.ai/artifact/6CR3eNJ5sZ2uRXfJMRUtfN. Next is Round 3b, on a fresh branch. Detail: PLAN-settings-overhaul.md,
+  Round 3.
 - **Game preview, branch `preview`** (lane rfl-preview): 17 commits not on master, 55 commits behind it, about 11 conflict
   hunks (strip.tsx, game-week.tsx, your-move.ts, tonight.tsx). It has P0, the visual story, the bench's preview maker and
   Round 5 (four real-app fixes, among them the finale reveal ranking a stage that had ended). It waits on the user's review of
