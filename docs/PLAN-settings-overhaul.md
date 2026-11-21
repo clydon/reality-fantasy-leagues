@@ -1,6 +1,10 @@
 # Settings: the overhaul
 
-> **Status (2026-11-21): Round 2 merged and live** (pushed ce891ba2; migration 0448 on production, rehearsed first; the snapshot
+> **Status (2026-11-21): Round 3a built on branch settings-plan, waiting on the user's review of its story** (Round 3 split in
+> two: 3a retires Backstage and gives each game Manage this game; 3b changes a game once it's under way). Not merged or pushed; no
+> migration. Detail: Round 3, below.
+>
+> **Round 2 (2026-11-21): merged and live** (pushed ce891ba2; migration 0448 on production, rehearsed first; the snapshot
 > `pre-settings-r2-2026-11-21` keeps 7 days). The user took all three recommendations (leaving drawn quiet, three results choices,
 > no band without art; design-round/decisions.md). PFD 82 and Impeccable 33/40 after one batch of fixes (the bar: 80 and 32).
 > Story: https://claude.ai/artifact/YMCNuwKciTJuGD91Q9XYrd. Next is Round 3 (running a game): the sports lane's branch
@@ -464,6 +468,47 @@ fixed, both built** (decisions.md, 2026-11-20). Story: https://claude.ai/artifac
 - **Checks.** check-keep-up.js, check-new-couches.js, check-where-everyone.js, check-sports-couch.js.
 
 ### Round 3: running a game
+
+**Split in two (2026-11-21, the main session's call: about 4,000 lines of Backstage screens and a new feature).**
+
+**3a built 2026-11-21 (branch settings-plan); waiting on the user's review** of its story
+(https://claude.ai/artifact/53oCgbQkJdW1e6RARGWP73; two choices at its end). PFD 74 (bar 80) and Impeccable 32/40 (bar 32) after
+one batch of fixes.
+- **The design process:** Intent's spec [design-round/settings-r3-spec.md](design-round/settings-r3-spec.md); PFD's first views
+  [-first-view.md](design-round/settings-r3-first-view.md); Impeccable's brief [-shape.md](design-round/settings-r3-shape.md); the
+  check, the fixes and the choice [-check.md](design-round/settings-r3-check.md).
+- **Built:**
+  - **Manage this game** (Round 4's game settings page, grown; `?page=game-settings&game=`): its jobs (a join request, a draft to
+    set up, nobody to play yet, an open waiver window), this episode's lock, How it plays (team size a real control before the
+    draft, C40; Replacing people who leave as its rule, C32), Who's playing (per game, C35: roles game by game, Remove from this
+    game held, A14; computer players, C36), This season's rules on this couch (the rulebook, Freeze rules and joining, C37, and
+    Recent changes, C41), then This game: Rename (A13) and Stop (one Stop, C38). Doors: a gear on the game's bar and the game's ⋯
+    first row, for whoever runs it.
+  - **Games you run** at Backstage's address (C29): what needs you, the games (type and next date), Archived only to bring one
+    back; Results, Waivers and the rulebook are pages a game opens; Recent changes is the couch's as before. Members & roles and
+    the old Game settings list are gone (members.tsx deleted). The show's ⋯ row is Games you run here, with a dot while a job waits.
+  - **Results** (C27, C30): no runner jobs for them (the bot settles); a runner's fix is a link on each episode's page.
+    Remind them (C31): gone from the screen.
+  - **Words:** Helper; They ask first; Start a game's waiver words (Whenever one goes home · When your team is short · In set
+    windows; Relaxed · Standard · Strict; Claims close; Fewest points); the draft room's A clock on each pick and Someone away; no
+    "Add it in Backstage". Change lines say Helper (the desk's own words wait for Round 5).
+  - **Server:** rename trims and caps at 40; removeMember takes one game (`league`).
+- **Checks:** `npm test` 2523 of 2523; `scripts/dev-test/check-settings-r3.js` (new, 16 of 16); 16 browser checks moved to the new
+  homes (check-game-settings, -new-backstage, -new-backstage-ii, -backstage-remind, -new-computer-players, -new-show-menu,
+  -new-couches, -hold-touch, -new-start-game, -episode-lock, -new-draft, -new-settings, -new-shell, -own-pace-live, -phone-back,
+  -new-studio); every changed step passes.
+- **Left for 3b:** A15 (options after the start), A17 (the vote), typed undos (rule 6), A16's 164/165/166, Waivers' week in place on
+  the game, a runner's jobs on the strip (the lock on episode night, a join request; BACKLOG 157).
+- **Found in 3a, left:**
+  - check-episode-lock: after Override goes back to Auto, a new Episode 6 pick is still accepted (the API half; not this round's
+    screens; may be a real lock bug or older). Who takes it: the next session touching the lock (3b).
+  - check-own-pace-start, -phase-starts, -questions, -spans read each game's details from the old Game settings list, which stopped
+    showing them in Round 4 (2026-11-19): probably already broken; BACKLOG 70's stale-check work.
+  - A person's colour differs between Manage this game and Waivers (waivers.tsx passes `userId ?? playerId`): Round 4's ripple.
+  - The studio sweep measured Who's playing's "You" tag at 1.1:1 (likely a misreading of a small tag; the frames show it legible):
+    look again in Round 4's ripple.
+
+**The original scope:**
 - **Scope.**
   - Backstage's fate, carried out and renamed.
   - Manage this game: Round 4's page, grown.

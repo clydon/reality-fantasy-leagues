@@ -338,7 +338,7 @@ function GameSettingsBody({ seasonId, couchId, show, g, write, line, siblings }:
                   <b className="block text-[16px] leading-tight">Waivers are open</b>
                   <small className="block text-[13px] text-muted-foreground">{[window_.line, window_.due ? `due ${lockTime(Date.parse(window_.due))}` : null].filter(Boolean).join(" · ")}</small>
                 </span>
-                <span className="text-[15px] font-bold text-chyron-line">Open</span>
+                <span className="text-[15px] font-semibold">See picks</span>
                 <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
               </NavLink>
             )}
@@ -385,15 +385,19 @@ function GameSettingsBody({ seasonId, couchId, show, g, write, line, siblings }:
       <div className="rounded-[10px] bg-card px-3.5">
         <SettingLine id="rulebook" icon="props" label="The rulebook" value="What can happen in the show, and what each moment scores" href={paths.backstage(seasonId, "rules")} />
         <Freeze seasonId={seasonId} couchId={couchId} g={g} games={siblings} />
-        <SettingLine id="changes" icon="confidence" label="Recent changes" value={`Who changed what in ${siblings.length > 1 ? "these games" : "this game"}, with Undo`} href={paths.backstage(seasonId, "history")} />
+        <SettingLine id="changes" icon="confidence" label="Recent changes" value="Who changed what in the games here, with Undo" href={paths.backstage(seasonId, "history")} />
       </div>
 
       {/* This game: its name, then Stop, last, after a gap, drawn quiet; the hold carries the red (Round 2's pick, 2026-11-21). */}
-      <Label>This game</Label>
-      {g.commissioner && <Rename g={g} />}
-      <div className="-mx-4">
-        <EndGames seasonId={seasonId} couchId={couchId} only={g.leagueId} />
-      </div>
+      {g.commissioner && (
+        <>
+          <Label>This game</Label>
+          <Rename g={g} />
+          <div className="-mx-4">
+            <EndGames seasonId={seasonId} couchId={couchId} only={g.leagueId} />
+          </div>
+        </>
+      )}
       {g.commissioner && !g.span.over && <p className="mt-2 text-[13px] leading-snug text-muted-foreground">To end it after an {E.toLowerCase()} instead, change How long above.</p>}
     </div>
   );

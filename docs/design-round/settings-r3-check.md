@@ -9,8 +9,12 @@
 
 | Reviewer | Today (Backstage, game settings) | Built | After the fixes | Bar |
 | --- | --- | --- | --- | --- |
-| Perception-First Design (evaluate) | 52 | 68 | see the confirming look | 80 |
-| Impeccable (critique) | about 25 / 40 | 29 / 40 | see the confirming look | 32 |
+| Perception-First Design (evaluate) | 52 | 68 | **74** | 80 |
+| Impeccable (critique) | about 25 / 40 | 29 / 40 | **32 / 40** | 32 |
+
+The confirming look found one slip of the fixes, fixed with it (not a second pass): riley's page ended on an empty "This game"
+heading (Rename and Stop are the Commissioner's), and the waiver job's yellow "Open" read as a status ("See picks" now).
+Impeccable meets its bar. PFD is short of it, and what it still marks down is one piece, the second choice below.
 
 ## What both found, and the one batch of fixes
 
@@ -41,8 +45,13 @@
   noted for Round 4's ripple.
 - **Off-scale type sizes (12, 14, 17 px)** the detector flagged are the incumbent rows' (SettingLine, EndGames), not new.
 
-## A choice for the user
+## Choices for the user (the story: https://claude.ai/artifact/53oCgbQkJdW1e6RARGWP73)
 
+**2. The waiver window's week: on the game's page now, or in 3b.** PFD's leftover: the job and Replacing people who leave still
+open the separate Waivers page (a tab for the other game, its own settings). Moving the week onto the game (who's picked, Pick for
+them, Run now, the settings in place) closes most of what's left (PFD findings 1, 2 and 6). Recommended: now, before 3a merges.
+
+**1.
 **The game's gear runs the game; the show's gear is your own settings.** Both reviewers noticed the gear means "settings of this
 thing" on a game (for whoever runs it) and "your settings" on a show. Kept as built: Round 0 decided one gear on every bar, and a
 game's only settings are its runner's. The other way: a key for "you run this" on a game's bar, the gear only for your own.
