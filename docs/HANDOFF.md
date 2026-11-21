@@ -17,9 +17,14 @@ puts its build notes in its plan, not here.
 
 ---
 
-## Live (production = origin/master, c440bf5f, deployed 2026-11-20)
+## Live (production = origin/master, ce891ba2, deployed 2026-11-21)
 
 Newest first. The plan or archive section named holds the detail.
+- **Settings overhaul, Round 2** (2026-11-21, pushed ce891ba2; migration 0448, rehearsed on a copy of production; the snapshot
+  `pre-settings-r2-2026-11-21` keeps 7 days): a gear on every show's bar opens that show's settings for you (how far you've watched,
+  when a new episode airs, when results show here, notifications, hide it from your couch, leave or remove last and quiet); the ⋯
+  is things to do; Where you are with Undo; Leave this game; mute until the next episode; the hub names its couch (saved per
+  account); handing a couch on confirms. [PLAN-settings-overhaul.md](PLAN-settings-overhaul.md), Round 2.
 - **Settings overhaul, Round 1** (2026-11-20 at midnight, pushed c440bf5f; migration 0447, rehearsed on a copy of production; the
   snapshot `pre-settings-2026-11-20` keeps 7 days): Your settings as five groups with their values (the hub's gear opens it);
   notifications as one system (three kinds, invites always, Couch chat on every couch, a show's Mute, a couch's own chat, Your
@@ -64,12 +69,6 @@ Newest first. The plan or archive section named holds the detail.
 
 ## In flight
 
-- **Settings overhaul, Round 2, branch `settings-plan`** (lane rfl-settings, port 3018; 2026-11-21, from master ac4042f2; not merged
-  or pushed; migration 0448 to rehearse first): a gear on every show's bar opens that show's settings for you, the ⋯ is things to do,
-  Where you are with Undo, Leave this game, mute until the next episode, the hub names its couch (saved per account), the owner's
-  hand-off confirms. Checked: the unit suite, check-settings-r2.js (new), the story's 23 situations. Reviewed: the user took all three
-  recommendations (2026-11-21), applied; next, rehearse 0448, merge, and push on the user's go. Story:
-  https://claude.ai/artifact/YMCNuwKciTJuGD91Q9XYrd. Detail: PLAN-settings-overhaul.md, Round 2.
 - **Game preview, branch `preview`** (lane rfl-preview): 17 commits not on master, 55 commits behind it, about 11 conflict
   hunks (strip.tsx, game-week.tsx, your-move.ts, tonight.tsx). It has P0, the visual story, the bench's preview maker and
   Round 5 (four real-app fixes, among them the finale reveal ranking a stage that had ended). It waits on the user's review of

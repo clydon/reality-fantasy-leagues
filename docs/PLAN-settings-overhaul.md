@@ -1,9 +1,10 @@
 # Settings: the overhaul
 
-> **Status (2026-11-21): Round 2 built on branch settings-plan and reviewed:** the user took all three recommendations (leaving drawn
-> quiet, three results choices, no band without art; design-round/decisions.md), applied. PFD 82 and Impeccable 33/40 after one batch
-> of fixes (the bar: 80 and 32). Story: https://claude.ai/artifact/YMCNuwKciTJuGD91Q9XYrd. Not merged or pushed; migration 0448 to
-> rehearse first.
+> **Status (2026-11-21): Round 2 merged and live** (pushed ce891ba2; migration 0448 on production, rehearsed first; the snapshot
+> `pre-settings-r2-2026-11-21` keeps 7 days). The user took all three recommendations (leaving drawn quiet, three results choices,
+> no band without art; design-round/decisions.md). PFD 82 and Impeccable 33/40 after one batch of fixes (the bar: 80 and 32).
+> Story: https://claude.ai/artifact/YMCNuwKciTJuGD91Q9XYrd. Next is Round 3 (running a game), after the sports lane's branch
+> `sports-playoffs` merges: it edits Backstage's settings files.
 >
 > **Round 1 (2026-11-20): merged and live** (pushed c440bf5f, 2026-11-20 at midnight; migration 0447 on production, rehearsed first;
 > the snapshot `pre-settings-2026-11-20` keeps 7 days). PFD 82 and Impeccable 33/40 after one batch of fixes; the user took all four
@@ -415,7 +416,7 @@ fixed, both built** (decisions.md, 2026-11-20). Story: https://claude.ai/artifac
 
 ### Round 2: a show and a couch, for you
 
-**Built 2026-11-21 (branch settings-plan); waiting on the user's review** of its story
+**Merged and live 2026-11-21 (ce891ba2; migration 0448); the user's picks applied.** Its story:
 (https://claude.ai/artifact/YMCNuwKciTJuGD91Q9XYrd).
 - **The design process:** Intent's spec [design-round/settings-r2-spec.md](design-round/settings-r2-spec.md); PFD's first views
   [-first-view.md](design-round/settings-r2-first-view.md); Impeccable's brief [-shape.md](design-round/settings-r2-shape.md); the

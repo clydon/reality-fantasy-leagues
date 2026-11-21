@@ -25,7 +25,8 @@ The small and medium work is in [BACKLOG.md](BACKLOG.md); what's live and in fli
 6. **Settings, the overhaul** ([PLAN-settings-overhaul.md](PLAN-settings-overhaul.md)), a lane of its own (the user,
    2026-11-20): every settings place in the app cut, re-homed on what it's about, and renamed in plain words; Backstage retired
    or thinned and renamed; the desk's pass last. Round 0 (the map, the cuts and the shape, rendered; it builds nothing) can
-   start now. Round 3 (running a game) waits for the sports lane's 2.7, which edits Backstage's settings files.
+   start now. Rounds 1 and 2 are live (2026-11-20, 2026-11-21). Round 3 (running a game) waits for the sports lane's
+   `sports-playoffs` (2.7, 2.8), which edits Backstage's settings files.
 7. **Design rounds from the explorer's Designs needed:** answers that settle (BACKLOG 139), waivers (140), then a game in
    stages (141, after `preview` merges).
 8. **After the finale:** remove the classic app (step C, BACKLOG 45), then S3 (177) and R3 (178).
