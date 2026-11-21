@@ -1,6 +1,7 @@
 // Dev-only check: tier 3's hold to confirm (HoldSheet, src/new/ui/guards.tsx) pressed with a finger. The other checks press
 // [data-hold] with the mouse; this one sends real touch events (CDP, as check-sheet-swipe.js does) at a phone width, on
-// Backstage › Game settings › Delete a game, where a hold "did nothing" for the user (2026-10-28). Each try gets a fresh
+// a game's Manage this game › Stop this game › Delete (Backstage › Game settings › Delete a game until settings Round 3a moved
+// it to each game's own page), where a hold "did nothing" for the user (2026-10-28). Each try gets a fresh
 // new-fixture.js and its own browser, so a try that deletes doesn't change the next:
 //   1. a tap deletes nothing, and the sheet then says to keep it held down until the bar fills
 //   2. letting go early (0.8 s) deletes nothing, and says the same
@@ -71,12 +72,11 @@ const TRIES = [
               else window.__hold.push(type);
             }, true);
         });
-        await page.goto(`${BASE}/show/${fx.seasonId}/backstage/settings`, { waitUntil: "load" });
-        await page.locator("[data-end-games]").waitFor();
-        await page.locator("[data-end-toggle]").click();
-        await page.locator('[data-end="delete"]').click();
-        await page.locator('[data-end-pick="delete"]').waitFor();
-        await page.locator(`[data-end-pick="delete"] [data-end-game="${fx.leagues.lineup}"]`).click();
+        await page.goto(`${BASE}/show/${fx.seasonId}/backstage?page=game-settings&game=${fx.leagues.lineup}`, { waitUntil: "load" });
+        const end = page.locator(`[data-game-settings="${fx.leagues.lineup}"] [data-end-games]`);
+        await end.waitFor({ timeout: 30000 });
+        await end.locator("[data-end-toggle]").click();
+        await end.locator('[data-end="delete"]').click();
         await page.locator("[data-hold]:not([disabled])").waitFor();
         await page.waitForTimeout(600); // the sheet's rise
         const box = await page.locator("[data-hold]").boundingBox();

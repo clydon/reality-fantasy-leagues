@@ -530,7 +530,8 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const blind = drafts.filter((g) => g.kind === "blind");
   const lead = (list: DraftGame[]) => list.find((g) => g.phase === "live") ?? list.find((g) => g.phase === "waiting") ?? list[0];
   const name = show.header?.show.name ?? "This show";
-  const runNames = [...new Set(show.runs.map((g) => g.gameName))].join(" and ");
+  const runList = [...new Set(show.runs.map((g) => g.name))];
+  const runNames = runList.length < 3 ? runList.join(" and ") : `${runList.slice(0, -1).join(", ")} and ${runList[runList.length - 1]}`;
   const runCount = show.runs.length === 1 ? "1 game" : `${show.runs.length} games`;
   const subtitle = [show.header?.seasonNumber ? `Season ${show.header.seasonNumber}` : null, show.couch?.name].filter(Boolean).join(" · ");
   const canPlan = !!show.couch && !show.solo;

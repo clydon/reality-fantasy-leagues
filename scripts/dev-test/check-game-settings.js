@@ -1,9 +1,12 @@
 // Dev-only browser check of Round 4's Game settings (docs/PLAN-start-a-game-redo.md, B4; the design:
-// docs/design-round/round4-game-settings-spec.md) at a phone's width:
-//   new-fixture.js's couch: alex's list (a row each for the three games he runs, nothing open), a row opening that game's page (the
-//     title card, this episode's lock, the rules as lines, one opened at a time), the game's ⋯ menu opening it over the game (Back
-//     named for the game), a link opening a rule (&line=joining), a change saved with Undo on the toast; riley (a Game admin): one
-//     notice, the lines with nothing to open, the lock's action live.
+// docs/design-round/round4-game-settings-spec.md), each game's page called Manage this game since settings Round 3a
+// (docs/design-round/settings-r3-spec.md), at a phone's width:
+//   new-fixture.js's couch: alex's Games you run (Backstage's address; /backstage/settings lands there too: a row each for the three
+//     games he runs, nothing open), a row opening that game's Manage this game (the title card, this episode's lock, the rules as
+//     lines, one opened at a time; Who's playing, Freeze rules and joining, the rulebook and Recent changes lines, its name),
+//     renaming it with the toast's Undo, the game's ⋯ row "Manage this game" and the bar's gear opening it over the game (Back
+//     named for the game), a link opening a rule (&line=joining), a change saved with Undo on the toast; riley (a Helper): one
+//     notice, the lines with nothing to open, no rename, Freeze not hers, the lock's action live.
 //   short-games-fixture.js's busy season: Episode 20's games and the 57 finished folded; Archive all 57 in one tap, every one
 //     archived, and the toast's Undo bringing them all back.
 //   Nothing wider than the screen; no page errors.
@@ -57,6 +60,7 @@ async function main() {
     const L = fx.leagues;
     await as("alex", `/show/${S}/backstage/settings`, async (p) => {
       await p.locator("[data-settings-list]").waitFor({ timeout: 45000 });
+      check((await p.locator("[data-games-you-run] [data-settings-list]").count()) === 1, "alex · /backstage/settings lands on Games you run");
       check((await p.locator("[data-settings-list] [data-settings-row]").count()) === 3, "alex · a row for each of the three games he runs");
       check((await p.locator("[data-settings-list] [data-join], [data-settings-list] [data-settings=pace]").count()) === 0, "alex · nothing open on the list");
       check(!(await wide(p)), "alex · the list fits the screen");
@@ -71,14 +75,42 @@ async function main() {
       await p.locator('[data-setting-line="lineup"] button').click();
       await p.locator('[data-setting-line="lineup"] [data-settings="lineup"]').waitFor({ timeout: 10000 });
       check((await p.locator('[data-setting-line="pace"] [data-settings="pace"]').count()) === 0, "alex · one line open at a time");
+      // Round 3a's new parts of the page.
+      const page = p.locator(`[data-game-settings="${L.lineup}"]`);
+      check((await p.getByText("Manage this game", { exact: true }).count()) >= 1, "alex · the page is titled Manage this game");
+      check((await page.locator(`[data-who-plays="${L.lineup}"] [data-person]`).count()) === 4, "alex · Who's playing: the game's four people");
+      check((await page.locator("[data-freeze] [data-setting=freeze]").count()) === 1 && !(await page.locator("[data-freeze] [data-setting=freeze]").isDisabled()), "alex · Freeze rules and joining, his to switch");
+      check((await page.locator('[data-setting-line="rulebook"] a, [data-setting-line="changes"] a').count()) === 2, "alex · the rulebook and Recent changes, as links");
+      check(/Fixed: the draft has started/.test((await page.locator('[data-setting-line="team"]').innerText().catch(() => "")) || "") || (await page.locator('[data-setting-line="team"]').count()) === 0, "alex · Team size, fixed once the draft has started");
+      // Rename (A13): the Commissioner's, with the toast's Undo.
+      const was = (await pool.query("SELECT name FROM leagues WHERE id = $1", [L.lineup])).rows[0].name;
+      await page.locator('[data-setting-line="rename"] button').first().click();
+      await page.locator("[data-rename] input").fill("ZT Tuesday League");
+      await page.locator("[data-rename] button[type=submit]").click();
+      await p.getByText("Renamed ZT Tuesday League").first().waitFor({ timeout: 15000 });
+      const renamed = (await pool.query("SELECT name FROM leagues WHERE id = $1", [L.lineup])).rows[0].name;
+      check(renamed === "ZT Tuesday League", "alex · renamed, saved at once", renamed);
+      await p.locator("[role=status]").getByRole("button", { name: "Undo" }).click();
+      await p.getByText(`Back to ${was}`).first().waitFor({ timeout: 15000 }).catch(() => {});
+      check((await pool.query("SELECT name FROM leagues WHERE id = $1", [L.lineup])).rows[0].name === was, "alex · the toast's Undo puts the name back");
       check(!(await wide(p)), "alex · the game's page fits the screen");
     });
     await as("alex", `/show/${S}/game/${L.lineup}`, async (p) => {
       await p.locator("[data-game-page]").waitFor({ timeout: 45000 });
       await p.locator("[data-game-title] [data-game-menu-open]").click();
-      await p.locator('[data-game-menu] :text-is("Game settings")').click();
+      await p.locator('[data-game-menu] :text-is("Manage this game")').click();
       await p.locator(`[data-game-settings="${L.lineup}"]`).waitFor({ timeout: 20000 });
-      check(/Lineup League/.test(await p.locator("[data-pushed-back], button:has-text('Lineup League')").first().innerText().catch(() => "")), "alex · from the game's ⋯ menu, Back named for the game");
+      check(/Lineup League/.test(await p.locator("[data-pushed-back], button:has-text('Lineup League')").first().innerText().catch(() => "")), "alex · from the game's ⋯ menu (Manage this game), Back named for the game");
+    });
+    await as("alex", `/show/${S}/game/${L.lineup}`, async (p) => {
+      await p.locator("[data-game-page]").waitFor({ timeout: 45000 });
+      await p.locator("[data-game-title] [data-game-manage]").click();
+      await p.locator(`[data-game-settings="${L.lineup}"]`).waitFor({ timeout: 20000 });
+      check(true, "alex · the gear on the game's bar opens Manage this game");
+    });
+    await as("jordan", `/show/${S}/game/${L.lineup}`, async (p) => {
+      await p.locator("[data-game-page]").waitFor({ timeout: 45000 });
+      check((await p.locator("[data-game-manage]").count()) === 0, "jordan (a player) · no gear on the game's bar");
     });
     await as("alex", `/show/${S}/backstage/settings?page=game-settings&game=${L.outlast}&line=joining`, async (p) => {
       await p.locator('[data-settings-game="Outlast"] [data-join=locked]').waitFor({ timeout: 45000 });
@@ -93,10 +125,14 @@ async function main() {
     });
     await as("riley", `/show/${S}/backstage/settings?page=game-settings&game=${L.lineup}`, async (p) => {
       await p.locator(`[data-game-settings="${L.lineup}"]`).waitFor({ timeout: 45000 });
-      check(/Game admin/.test(await p.locator("[data-game-settings] [data-gallery-about]").innerText()), "riley · the title card says she's a Game admin, once");
+      check(/You help run this game/.test(await p.locator("[data-game-settings] [data-gallery-about]").innerText()), "riley · the title card says she helps run it (a Helper), once");
       check((await p.locator("[data-game-settings] [data-setting-line] button").count()) === 0, "riley · the rules have nothing to open");
       check((await p.getByText("Only the Commissioner changes this").count()) === 0, "riley · no refusal repeated on the lines");
       check((await p.locator("[data-game-settings] [data-settings-override]").count()) === 1, "riley · the lock's action is hers");
+      check((await p.locator('[data-game-settings] [data-setting-line="rename"]').count()) === 0, "riley · no rename (the Commissioner's)");
+      // A Helper reads Freeze as a value (no switch to tap), saying whose it is.
+      const freeze = p.locator("[data-game-settings] [data-freeze]");
+      check((await freeze.locator("[data-setting=freeze]:not([disabled])").count()) === 0 && /Freeze rules and joining/i.test(await freeze.innerText()), "riley · Freeze rules and joining isn't hers to switch", await freeze.innerText().catch(() => ""));
     });
     await fixture.down(pool);
 

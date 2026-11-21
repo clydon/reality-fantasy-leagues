@@ -22,7 +22,8 @@
 //     changes by whoever ran it, not by anyone else; gone for good after 30 days).
 //   In a real browser at --width (390 by default): the Games tab's Start a game (B1's gallery: Outlast's square, who Start tells,
 //   Start, its page, its table), the hub's foot (Pick the show, then a sport's TV listing in the gallery), the nudge's Start a game,
-//   a talk show's gallery from the Games tab, Make it a game's Done view, Backstage › Game settings' Archive (Undo) and Delete (hold), Recent
+//   a talk show's gallery from the Games tab, Make it a game's Done view, the game's Manage this game's Stop this game: Archive (Undo) and
+//   Delete (hold) (Backstage › Game settings' Archive or delete a game until settings Round 3a; each game stops from its own page now), Recent
 //   changes' restore, Commercial break's Start a game, the feed's line. Nothing wider than the screen; no page errors.
 //
 //   npm run dev                                                  (in another terminal)
@@ -406,25 +407,26 @@ function lateNight(shows) {
       await shot("start-series");
       await page.keyboard.press("Escape");
 
-      // Backstage › Game settings: archive (Undo), delete (hold), restore from Recent changes
-      await page.goto(`${BASE}/show/${sid}/backstage/settings`, { waitUntil: "load" });
-      await page.locator("[data-end-games]").waitFor();
-      await page.locator("[data-end-toggle]").click();
-      check((await page.locator('[data-end-toggle][aria-expanded="true"]').count()) === 1, "Archive or delete a game unfolds");
-      await page.locator('[data-end="delete"]').scrollIntoViewIfNeeded();
+      // The game's Manage this game (settings Round 3a): Stop this game: archive (Undo), delete (hold), restore from Recent changes.
+      // One game's page asks no "which game": each action is that game's.
+      await page.goto(`${BASE}/show/${sid}/backstage?page=game-settings&game=${started[0].id}`, { waitUntil: "load" });
+      const end = page.locator(`[data-game-settings="${started[0].id}"] [data-end-games]`);
+      await end.waitFor({ timeout: 30000 });
+      await end.locator("[data-end-toggle]").click();
+      check((await end.locator('[data-end-toggle][aria-expanded="true"]').count()) === 1, "Stop this game unfolds");
+      await end.locator('[data-end="delete"]').scrollIntoViewIfNeeded();
       await page.waitForTimeout(300);
       await shot("end-games");
-      await page.locator('[data-end="archive"]').click();
-      await page.locator('[data-end-pick="archive"]').waitFor();
-      await page.locator(`[data-end-pick="archive"] [data-end-game="${started[0].id}"]`).click();
+      await end.locator('[data-end="archive"]').click();
       await page.locator("text=Outlast archived").first().waitFor();
       check(!!(await league(started[0].id)).state.settings.archivedAt, "Archive: done at once, with Undo on the toast");
       await page.getByRole("button", { name: "Undo" }).click();
       await page.locator("text=Undone").first().waitFor();
       check(!(await league(started[0].id)).state.settings.archivedAt, "Undo brings it straight back");
-      await page.locator('[data-end="delete"]').click();
-      await page.locator('[data-end-pick="delete"]').waitFor();
-      await page.locator(`[data-end-pick="delete"] [data-end-game="${started[0].id}"]`).click();
+      // (Undo may redraw the page with Stop this game folded again.)
+      await end.waitFor({ timeout: 30000 });
+      if (!(await end.locator('[data-end="delete"]').isVisible().catch(() => false))) await end.locator("[data-end-toggle]").click();
+      await end.locator('[data-end="delete"]').click();
       await page.locator("[data-guard='3'] p", { hasText: "for this season" }).first().waitFor();
       check(/You lose your teams and places in Outlast for this season/.test(await page.locator("[data-guard='3']").innerText()) && /Archive it instead/.test(await page.locator("[data-guard='3']").innerText()), "Delete: the hold's sentence, archive offered first");
       await shot("delete-hold");

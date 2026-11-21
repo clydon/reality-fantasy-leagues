@@ -1,12 +1,13 @@
-// Dev-only check for Backstage's Remind everyone (src/lib/server/backstage-remind.ts, the home's Reminders card), against
+// Dev-only check for Remind everyone (src/lib/server/backstage-remind.ts; Backstage's Reminders card until settings Round 3a), against
 // the dev server, on new-fixture.js (three linked leagues on a zt Survivor 51, Episode 6 three days off, so lineups and
 // picks for it are still open):
 //   1. The API as alex (runs all three games): GET says who still has a move open (not alex), nobody reminded yet; POST
 //      pushes each of them once and records one reminder_log row per (person, game) with kind "manual"; a second POST
 //      sends nobody (the cooldown) and GET says they've all been reminded; a POST from before the cooldown's end stays
 //      at zero. Players (sam) are refused; someone off the couch (casey) gets 404.
-//   2. In a browser at --width as alex: Backstage's Reminders card counts the people and its button is yellow; after a
-//      tap the toast says how many, the card says they've been reminded and the button is off. No page errors.
+//   2. In a browser at --width as alex: Games you run (Backstage's address since settings Round 3a) has no Reminders card and
+//      no Remind them: the round took it off the screen (the route stays, so part 1 still proves it). No page errors.
+//      Dropped with the card: its count, its yellow button and the tap's toast.
 // Pushes go nowhere here (no push subscriptions on the fixture's accounts); the bell rows (notifications) are checked.
 // Screenshots go to <outDir>.
 //
@@ -87,25 +88,18 @@ function check(ok, what, detail = "") {
     r = await as.casey.call("GET", `/api/seasons/${sid}/backstage/remind${q}`);
     check(r.status === 403 || r.status === 404, "someone off the couch can't read it", `${r.status}`);
 
-    // ---- 2. the browser ----
+    // ---- 2. the browser: Remind them is off the screen (settings Round 3a), the route above still answers ----
     await pool.query("DELETE FROM reminder_log WHERE league_id = ANY($1::uuid[]) AND kind = 'manual'", [leagueIds]);
     const b = await open({ user: fixture.username("alex"), pass: fixture.PASSWORD, width, height: 844 });
     closers.push(b.close);
     const { page } = b;
     await page.goto(`${require("./browser").BASE}/show/${sid}/backstage`);
-    const card = page.locator("[data-remind]");
-    await card.waitFor({ timeout: 30000 });
-    check((await card.getAttribute("data-people")) === String(people) && (await card.getAttribute("data-recent")) === "0", "the card counts the people with a move open", `${await card.getAttribute("data-people")}/${await card.getAttribute("data-recent")}`);
-    const btn = page.locator("[data-remind-send]");
-    check(!(await btn.isDisabled()) && /bg-chyron/.test((await btn.getAttribute("class")) || ""), "Remind them is on, and yellow");
-    await page.screenshot({ path: path.join(out, "remind-before.png") });
-    await btn.click();
-    await page.waitForFunction((n) => document.querySelector("[data-remind]")?.getAttribute("data-recent") === String(n), people, { timeout: 15000 });
-    check(true, "after the tap, the card says they've been reminded");
-    check(await btn.isDisabled(), "Remind them is off until the cooldown passes");
-    const toastText = await page.locator("[role=status], [data-toast]").allInnerTexts().catch(() => []);
-    check(toastText.some((t) => new RegExp(`Reminded ${people}`).test(t)), "the toast says how many", toastText.join(" | "));
-    await page.screenshot({ path: path.join(out, "remind-after.png") });
+    await page.locator("[data-games-you-run] [data-settings-row]").first().waitFor({ timeout: 30000 });
+    check(
+      (await page.locator("[data-remind], [data-remind-send]").count()) === 0 && !/Remind them/.test(await page.evaluate(() => document.body.innerText)),
+      "Games you run: no Reminders card, no Remind them"
+    );
+    await page.screenshot({ path: path.join(out, "games-you-run.png") });
     check(!b.errors.length, "no page errors", b.errors.join(" | "));
   } finally {
     for (const c of closers) await c().catch(() => {});

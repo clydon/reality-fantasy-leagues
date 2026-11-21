@@ -168,7 +168,7 @@ export function WaiversAdminPage({ seasonId, show }: { seasonId: string; show: S
               className={`flex h-9 flex-none items-center gap-2 rounded-[2px] px-3 text-sm font-semibold ${x.leagueId === g.leagueId ? "bg-foreground text-background" : "bg-secondary"}`}
             >
               <i className="size-2.5 rounded-full" style={{ background: gameColour(x.gameName) }} aria-hidden />
-              {x.gameName}
+              {x.name}
             </button>
           ))}
         </div>

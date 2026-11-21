@@ -2,6 +2,7 @@
 
 import { Eye, KeyRound } from "lucide-react";
 import { type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
 import { ChangesPage } from "../backstage/changes";
 import { GameSettingsPage, SettingsList, useGameSettingsPage } from "../backstage/game-settings";
 import { ResultsPage } from "../backstage/results";
@@ -44,10 +45,17 @@ export function BackstageScreen({ seasonId, page }: { seasonId: string; page?: B
     );
   const toShow = { label: name.replace(/^The /, ""), to: paths.show(seasonId), accepts: isTabOf(seasonId) };
   const toGames = { label: "Games you run", to: paths.backstage(seasonId) };
+  const fromGame = !!useSearchParams().get("game");
   const runThis = (
     <>
       <KeyRound className="size-3.5" aria-hidden />
       You run these
+    </>
+  );
+  const runOne = (
+    <>
+      <KeyRound className="size-3.5" aria-hidden />
+      You run this
     </>
   );
 
@@ -71,16 +79,18 @@ export function BackstageScreen({ seasonId, page }: { seasonId: string; page?: B
       <>
         {bar("Games you run", toShow)}
         <EmptyState icon={KeyRound} title="You don't run a game here" line="Whoever runs a game can make you a Helper or a Commissioner, from its Who's playing." />
-        {/* Every game you ran here archived: still the way to bring one back. */}
-        {show.couch && <EndGames seasonId={seasonId} couchId={show.couch.id} />}
+        {/* Every game you ran here archived: still the way to bring one back (asked only then: a player's ask is refused). */}
+        {show.couch && show.games.some((g) => g.archived && g.yourRole === "commissioner") && <EndGames seasonId={seasonId} couchId={show.couch.id} restoreOnly />}
       </>
     );
   }
   if (page === "results" || page === "waivers" || page === "rules") {
     const Page = { results: ResultsPage, waivers: WaiversAdminPage, rules: RulesPage }[page];
+    // Opened from a game's Manage this game (`?game=`): Back says so, and history takes it there.
+    const back = fromGame ? { label: "Manage this game", to: paths.backstage(seasonId), accepts: () => true } : toGames;
     return (
       <>
-        {bar(TITLES[page], toGames, runThis)}
+        {bar(TITLES[page], back, fromGame ? <>{runOne}</> : runThis)}
         <Page seasonId={seasonId} show={show} />
         <GameSettingsPage seasonId={seasonId} show={show} />
       </>
@@ -116,7 +126,7 @@ function GamesYouRun({ seasonId, show }: { seasonId: string; show: ShowData }) {
       )}
       <SettingsList seasonId={seasonId} couchId={couchId} games={data.data.games} show={show} onOpen={(id) => one.showWith({ game: id, from: "games" })} />
       <GameSettingsPage seasonId={seasonId} show={show} />
-      <EndGames seasonId={seasonId} couchId={couchId} />
+      <EndGames seasonId={seasonId} couchId={couchId} restoreOnly />
     </div>
   );
 }

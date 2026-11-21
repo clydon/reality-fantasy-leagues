@@ -6,12 +6,12 @@
 //   2. As alex in a browser at --width: Episodes' waiver row, the Waivers page (Replace Carter, yellow Swap, the
 //      fallback line, picking order, the bottom bar), the picker with the Cast tab's controls (a pick, backups, Change,
 //      Clear), the claim in waiver_claims and never in what anyone else reads; How waivers work here.
-//   3. Backstage › Waivers: who's picked with no contents, Open a waiver window's presets, the feel on tap with the
+//   3. Waivers (/backstage/waivers, a page a game's Manage this game opens): who's picked with no contents, Open a waiver window's presets, the feel on tap with the
 //      toast's Undo, Fine-tune, Run now's tier-2 preview (nothing private in it), the last run with Undo.
 //   4. The run plays like an episode: Tonight's "Waivers ran" plate and its reveal, Episodes' row into its page, the
 //      Waivers page after the run, a shared game's swap through the picker, free agency.
 //   5. Game settings (starters with the bench following after the draft, Reset to recommended, who can join with Undo,
-//      the end-a-game Preview, a Game admin refused), Lock it down (step 15 part 4: competitive mode for all three games in
+//      the end-a-game Preview, a Game admin refused), Freeze rules and joining (was Lock it down; on each game's Manage this game since settings Round 3a: all three games in
 //      one batch with Undo, nobody new, the settings and the rules frozen and refused while it's on, Recent changes' Undo of a
 //      settings or points line from before refused too and said in the quiet toast, a Game admin refused),
 //      Scoring rules' read side (the rulebook, How it works, the points, Make it ours opens its sheet: check-new-ours.js
@@ -19,10 +19,13 @@
 //      team once it's drafted, and a change past the one set of limits is refused here and through classic's settings
 //      route, by the game spec's validator. With the game-specs flag on (scripts/game-specs-flag.js), the fixture's games
 //      carry their spec, and after every write the check makes, none has drifted from what its fields play.
-//   6. Members & roles: named as the games name them, a game's sheet (share it), a role for all three games with Undo,
-//      the last Commissioner refused (stepping down, leaving here and in classic), tier 3's hold (a tap does nothing, a
-//      hold removes, Recent changes restores for 30 days), and leaving from the show's settings page (behind its gear since
-//      settings Round 2: Leave all my games here).
+//   6. Who's playing, on a game's Manage this game (Members & roles until settings Round 3a; roles are per game now): named
+//      as the game names them, its Commissioner first, a person's sheet (make riley a Helper in Couch Cup, the toast's Undo),
+//      a role is one game's (jordan a Helper in Lineup League alone, one line in Recent changes, undone there), the last
+//      Commissioner refused (stepping down on your own sheet, with no Remove there; leaving here and in classic by the API),
+//      tier 3's Remove from this game (a tap does nothing, a hold takes sam out of Couch Cup alone, the seat kept, Recent
+//      changes restores for 30 days), and leaving from the show's settings page (behind its gear since settings Round 2:
+//      Leave all my games here).
 // Nothing wider than the screen; no page errors. Screenshots go to <outDir>.
 //
 //   npm run dev                                                  (in another terminal)
@@ -219,10 +222,10 @@ const first = (name) => name.split(" ")[0];
     await page.locator("[data-wv-week=quiet]").waitFor();
     check(true, "Weekly Lineup: nothing to do this week");
 
-    // ---- 3. Backstage › Waivers ----
+    // ---- 3. Waivers (Backstage › Waivers until settings Round 3a; now a page a game's Manage this game opens) ----
     await page.goto(`${BASE}/show/${sid}/backstage`);
-    await page.locator("text=Members & roles").first().waitFor({ timeout: 20000 });
-    check((await page.locator("[data-preview^=backstage]").count()) === 0, "Backstage's index: nothing Preview any more");
+    await page.locator("[data-games-you-run] [data-settings-row]").first().waitFor({ timeout: 20000 });
+    check((await page.locator("[data-preview^=backstage]").count()) === 0, "Games you run (Backstage's address): nothing Preview any more");
     await page.goto(`${BASE}/show/${sid}/backstage/waivers`);
     await page.locator("[data-bs-plate]").waitFor({ timeout: 20000 });
     check((await page.locator("[data-bs-plate]").getAttribute("data-bs-plate")) === "open" && (await page.locator("[data-claim]").count()) === 4, "Waivers: the week, and who's picked");
@@ -246,9 +249,10 @@ const first = (name) => name.split(" ")[0];
     await page.locator("[data-bs-settings]").click();
     await page.locator("[data-bs-feel-sheet]").waitFor();
     await page.locator("[data-feel=casual]").click();
-    check(/Waivers on Casual/.test(await toasted(/Waivers on Casual/)), "a feel applies on tap");
+    // Round 3a's words: the feels are Relaxed · Standard · Strict (casual's key reads Relaxed).
+    check(/Waivers on Relaxed/.test(await toasted(/Waivers on Relaxed/)), "a feel applies on tap (Relaxed)");
     let s = await state("lineup");
-    check(s.settings.waiverFeel === "casual" && s.settings.replenishOrderBy === "leastPoints" && s.settings.autoFill === true, "Casual: lowest score first, the fallback on", JSON.stringify({ f: s.settings.waiverFeel, o: s.settings.replenishOrderBy }));
+    check(s.settings.waiverFeel === "casual" && s.settings.replenishOrderBy === "leastPoints" && s.settings.autoFill === true, "Relaxed: fewest points first, the fallback on", JSON.stringify({ f: s.settings.waiverFeel, o: s.settings.replenishOrderBy }));
     await shot("bs-feel");
     await toastUndo();
     await page.waitForTimeout(1500);
@@ -386,22 +390,24 @@ const first = (name) => name.split(" ")[0];
     await fits("Game settings");
     await shot("settings");
 
-    // Lock it down (step 15 part 4): competitive mode, every game alex runs here at once (on the list, under the game's page).
-    await page.goto(`${BASE}/show/${sid}/backstage/settings`);
-    await page.locator("[data-lock-down]").waitFor({ timeout: 20000 });
-    check((await bs("riley", "settings", "PATCH", { lockDown: true })).status === 403, "Lock it down: a Game admin can't");
+    // Freeze rules and joining (Lock it down until settings Round 3a, C37; step 15 part 4): every game alex runs here at once,
+    // now a switch on each game's Manage this game (under This season's rules on this couch) rather than the Game settings list.
+    await gameSettings(L.lineup);
+    await page.locator("[data-freeze]").waitFor({ timeout: 20000 });
+    check((await bs("riley", "settings", "PATCH", { lockDown: true })).status === 403, "Freeze rules and joining: a Helper can't");
     check((await bs("alex", "settings", "PATCH", { lockDown: "yes" })).status === 400, "lockDown must be true or false");
-    const lockRow = page.locator("[data-lock-down]");
+    const lockRow = page.locator("[data-freeze]");
     await lockRow.scrollIntoViewIfNeeded();
-    check((await lockRow.getAttribute("data-lock-down")) === "off" && /No late joins, no catch-up, rules frozen for the season/.test(await lockRow.innerText()), "Competitive mode: Lock it down, off, saying what it does");
+    check((await lockRow.getAttribute("data-freeze")) === "off" && /No late joins, no catching up, and no rule changes for the season/.test(await lockRow.innerText()), "Manage this game: Freeze rules and joining, off, saying what it does");
     // A points change just before it (Reset to recommended above is the settings one), for Recent changes' Undo below.
     const pointsOf = async () => (await bs("alex", "rules")).body.games.find((g) => g.leagueId === L.lineup).points.flatMap((g) => g.items).filter((i) => typeof i.points === "number");
     const { id: moment, points: pts0 } = (await pointsOf())[0];
     const pointsNow = async () => (await pointsOf()).find((i) => i.id === moment)?.points;
     const ptsBatch = (await bs("alex", "rules", "POST", { action: "points", leagueId: L.lineup, points: { [moment]: pts0 + 1 } })).body?.batch;
     check(!!moment && !!ptsBatch, "a points change before the lock, with Undo", `${moment}: ${pts0} → ${pts0 + 1}`);
-    await lockRow.locator("[data-setting=lock-down]").click();
-    check(/Competitive mode on/.test(await toasted(/Competitive mode on/)), "on: Competitive mode on, with Undo");
+    await lockRow.locator("[data-setting=freeze]").click();
+    const frozeToast = await toasted(/[Ff]rozen for the season/);
+    check(/[Ff]rozen for the season/.test(frozeToast) && /Undo/.test(frozeToast), "on: Frozen for the season (every game you run here), with Undo", frozeToast);
     const locked = await Promise.all(["outlast", "lineup", "pool"].map(state));
     check(locked.every((x) => x.settings.lockedDown === true), "all three games locked down", locked.map((x) => x.settings.lockedDown).join());
     const { rows: lockLines } = await pool.query("SELECT DISTINCT batch, text FROM league_changes WHERE league_id = ANY($1::uuid[]) AND text LIKE 'Locked the game down%'", [[L.outlast, L.lineup, L.pool]]);
@@ -439,10 +445,12 @@ const first = (name) => name.split(" ")[0];
     await page.locator(`[data-undo="${ptsBatch}"]`).click();
     check(/Locked down for the season/.test(await toasted(/Locked down/)) && (await page.locator("[role=status] [data-toast]").getAttribute("data-toast")) === "quiet", "on the page: its Undo says why, in the quiet toast");
     await shot("history-locked-undo");
-    await page.goto(`${BASE}/show/${sid}/backstage/settings`);
-    await page.locator("[data-lock-down=on]").waitFor({ timeout: 20000 });
-    await page.locator("[data-lock-down] [data-setting=lock-down]").click();
-    check(/Back to casual/.test(await toasted(/Back to casual/)), "off again: Back to casual");
+    // Off from another game's Manage this game: the switch is every game's at once.
+    await gameSettings(L.pool);
+    await page.locator("[data-freeze=on]").waitFor({ timeout: 20000 });
+    await page.locator("[data-freeze] [data-setting=freeze]").click();
+    const openToast = await toasted(/open again/);
+    check(/Rules and joining open again/.test(openToast), "off again, from Pool Party's page: Rules and joining open again", openToast);
     check((await Promise.all(["outlast", "lineup", "pool"].map(state))).every((x) => !x.settings.lockedDown), "every game off lock down");
     await toastUndo();
     await page.waitForTimeout(1500);
@@ -468,57 +476,61 @@ const first = (name) => name.split(" ")[0];
     await fits("Scoring rules");
     await shot("rules");
 
-    // ---- 6. Members & roles ----
-    await page.goto(`${BASE}/show/${sid}/backstage/members`);
-    await page.locator("[data-member]").first().waitFor({ timeout: 20000 });
-    const names = await page.locator("[data-member]").evaluateAll((els) => els.map((e) => e.getAttribute("data-member")));
-    check(names.join() === "alex,riley,jordan,sam", "members named as the games name them, you first", names.join());
-    check(/Commissioner · all 3 games/.test(await page.locator('[data-member="alex"]').innerText()), "alex: Commissioner · all 3 games");
-    await fits("Members & roles");
-    await shot("members");
-    await page.locator('[data-runs="Outlast"]').click();
-    await page.locator("[data-game-sheet]").waitFor();
-    await page.locator('[data-game-sheet] [data-runner="riley"]').click();
-    check(/riley runs Outlast too/.test(await toasted(/runs Outlast/)), "a game's sheet: share it with riley");
-    check((await memberships("riley")).find((m) => m.league_id === L.outlast)?.role === "admin", "riley is a Game admin of Outlast");
+    // ---- 6. Who's playing (Members & roles until settings Round 3a: roles are per game now, C35, on each game's Manage this game) ----
+    // Gone with Members & roles: the couch-wide member list ("Commissioner · all 3 games"), a role for all three games at once and
+    // its sheet's Leave these games (leaving is the game's ⋯ and the show's gear since Round 2). What each proved now runs per game.
+    await gameSettings(L.outlast);
+    const who = page.locator(`[data-who-plays="${L.outlast}"]`);
+    await who.locator("[data-person]").first().waitFor({ timeout: 20000 });
+    const names = await who.locator("[data-person]").evaluateAll((els) => els.map((e) => e.getAttribute("data-person")));
+    check(names.join() === "alex,jordan,riley,sam", "Who's playing in Couch Cup: named as the game names them, its Commissioner first", names.join());
+    check((await who.locator('[data-person="alex"]').getAttribute("data-person-role")) === "commissioner" && /Commissioner/.test(await who.locator('[data-person="alex"]').innerText()), "alex: Commissioner");
+    await who.scrollIntoViewIfNeeded();
+    await fits("Who's playing");
+    await shot("who-plays");
+    // Share the game: riley a Helper in Couch Cup (only), with the toast's Undo.
+    await who.locator('[data-person="riley"]').click();
+    await page.locator('[data-person-sheet="riley"] [data-role=admin]').click();
+    check(/riley is a Helper in Couch Cup/.test(await toasted(/Helper in/)), "riley's sheet: a Helper in Couch Cup");
+    check((await memberships("riley")).find((m) => m.league_id === L.outlast)?.role === "admin", "riley is a Helper (admin) of Outlast");
     await toastUndo();
     await page.waitForTimeout(1500);
     check((await memberships("riley")).find((m) => m.league_id === L.outlast)?.role === "member", "and the toast's Undo takes it back");
-    await page.keyboard.press("Escape");
     await sheetGone();
-    await page.locator('[data-member-menu="jordan"]').click();
-    await page.locator("[data-member-sheet]").waitFor();
-    await page.locator("[data-member-sheet] [data-role=admin]").click();
-    check(/jordan is now a Game admin/.test(await toasted(/Game admin/)), "jordan's sheet: a Game admin");
-    check((await memberships("jordan")).every((m) => m.role === "admin"), "in all three games, one batch");
+    // A role is one game's: jordan a Helper in Lineup League alone, one line in Recent changes, undone from there.
+    await gameSettings(L.lineup);
+    await page.locator(`[data-who-plays="${L.lineup}"] [data-person="jordan"]`).click();
+    await page.locator('[data-person-sheet="jordan"] [data-role=admin]').click();
+    check(/jordan is a Helper in Lineup League/.test(await toasted(/Helper in/)), "jordan's sheet in Lineup League: a Helper");
+    const jm = await memberships("jordan");
+    check(jm.find((m) => m.league_id === L.lineup)?.role === "admin" && jm.filter((m) => m.league_id !== L.lineup).every((m) => m.role === "member"), "in Lineup League only: his other games keep him a player", JSON.stringify(jm.map((m) => m.role)));
     const roleLine = (await as.alex.call("GET", `/api/seasons/${sid}/changes${q}`)).body.lines[0];
-    check(roleLine.kind === "role" && roleLine.games.length === 3 && roleLine.undoable, "one line in Recent changes for the three games", JSON.stringify(roleLine));
+    check(roleLine.kind === "role" && roleLine.games.length === 1 && roleLine.undoable, "one line in Recent changes, for the one game", JSON.stringify(roleLine));
     await as.alex.call("POST", `/api/seasons/${sid}/changes/${roleLine.batch}/undo${q}`);
     check((await memberships("jordan")).every((m) => m.role === "member"), "undone from Recent changes");
     await sheetGone();
-    await page.reload();
-    await page.locator('[data-member-menu="alex"]').click();
-    await page.locator("[data-member-sheet]").waitFor();
-    check(/Make someone else Commissioner first/.test(await page.locator("[data-member-sheet] [data-role=member]").innerText()), "your own sheet: the last Commissioner can't step down");
+    // Your own sheet: the last Commissioner can't step down, and there's no Remove from this game on it.
+    await gameSettings(L.outlast);
+    await who.locator('[data-person="alex"]').click();
+    await page.locator('[data-person-sheet="alex"]').waitFor();
+    check(/Make someone else Commissioner first/.test(await page.locator('[data-person-sheet="alex"] [data-role=member]').innerText()), "your own sheet: the last Commissioner can't step down");
     // aria-disabled (it can't happen), but a tap still says why.
-    await page.locator("[data-member-sheet] [data-role=member]").click({ force: true });
+    await page.locator('[data-person-sheet="alex"] [data-role=member]').click({ force: true });
     check(/Every game needs a Commissioner/.test(await toasted(/Commissioner/)), "and tapping says so");
-    await page.locator("[data-member-sheet] [data-out]").click();
-    await page.locator("[data-guard-problem]").waitFor();
-    check((await page.locator("[data-hold]").count()) === 0 && /Hand Couch Cup to someone first/.test(await page.locator("[data-guard-problem]").innerText()), "Leave these games: refused before any hold");
-    await shot("leave-refused");
+    check((await page.locator('[data-person-sheet="alex"] [data-remove-from-game]').count()) === 0, "nobody takes themselves out from here");
+    await shot("own-sheet");
     await page.keyboard.press("Escape");
     await sheetGone();
     check((await as.alex.call("PUT", `/api/seasons/${sid}/backstage/members/${fx.users.alex}${q}`, { role: "member" })).status === 409, "the API refuses the last Commissioner stepping down (409)");
     check((await as.alex.call("POST", `/api/seasons/${sid}/leave${q}`, {})).status === 409, "and leaving (409)");
     check((await as.alex.call("POST", `/api/leagues/${L.outlast}/leave`, {})).status === 409, "and classic's leave (409)");
-    // Tier 3: a tap does nothing; a hold removes; Recent changes restores.
+    // Tier 3: Remove from this game: a tap does nothing; a hold takes sam out of Couch Cup alone; Recent changes restores.
     await page.reload();
-    await page.locator('[data-member-menu="sam"]').click();
-    await page.locator("[data-member-sheet] [data-out]").click();
+    await who.locator('[data-person="sam"]').click();
+    await page.locator('[data-person-sheet="sam"] [data-remove-from-game]').click();
     await page.locator("[data-hold]:not([disabled])").waitFor();
     const consequence = await page.locator("[data-guard='3']").innerText();
-    check(/sam leaves Couch Cup, Lineup League, Pool Party/.test(consequence) && /Their team and points stay in the standings/.test(consequence) && /Restorable for 30 days/.test(consequence), "tier 3 says what happens, and that it's restorable", consequence.replace(/\n/g, " | "));
+    check(/sam leaves Couch Cup\./.test(consequence) && /Their team and points stay in the standings/.test(consequence) && /Their other games and the couch stay/.test(consequence) && /Restorable for 30 days/.test(consequence), "tier 3 says what happens to this game alone, and that it's restorable", consequence.replace(/\n/g, " | "));
     await shot("hold");
     const hold = await page.locator("[data-hold]").boundingBox();
     await page.mouse.move(hold.x + hold.width / 2, hold.y + hold.height / 2);
@@ -532,11 +544,12 @@ const first = (name) => name.split(" ")[0];
     await shot("holding");
     await page.waitForTimeout(1100);
     await page.mouse.up();
-    check(/sam is out · restorable for 30 days/.test(await toasted(/is out/)), "a hold takes sam out");
-    check((await memberships("sam")).length === 0 && (await state("outlast")).players.find((p) => p.id === "demo_p_sam")?.disabled === true, "sam's memberships gone, the seat kept (disabled)");
+    check(/sam is out of Couch Cup · restorable for 30 days/.test(await toasted(/is out of/)), "a hold takes sam out of Couch Cup");
+    const samLeft = await memberships("sam");
+    check(samLeft.length === 2 && !samLeft.some((m) => m.league_id === L.outlast) && (await state("outlast")).players.find((p) => p.id === "demo_p_sam")?.disabled === true, "sam's Couch Cup membership gone, the seat kept (disabled), his other two games kept", JSON.stringify(samLeft.map((m) => m.league_id === L.outlast)));
     const outLine = (await as.alex.call("GET", `/api/seasons/${sid}/changes${q}`)).body.lines[0];
     const days = (Date.parse(outLine.undoUntil) - Date.now()) / 86400000;
-    check(outLine.tier === 3 && outLine.undoable && days > 29 && days <= 30, "Recent changes: tier 3, restorable for 30 days", `${outLine.text} · ${days.toFixed(1)} days`);
+    check(outLine.tier === 3 && outLine.undoable && days > 29 && days <= 30 && /out of Couch Cup/.test(outLine.text), "Recent changes: tier 3, restorable for 30 days", `${outLine.text} · ${days.toFixed(1)} days`);
     await sheetGone();
     await page.goto(`${BASE}/show/${sid}/backstage/history`);
     await page.locator(`[data-undo="${outLine.batch}"]`).click();

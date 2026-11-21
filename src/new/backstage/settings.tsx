@@ -460,7 +460,7 @@ export function HowLong({
 type EndAction = "archive" | "delete";
 
 /** The mock's "Archive or delete a game": two rows, each asking which game (when there's more than one of yours). */
-export function EndGames({ seasonId, couchId, only }: { seasonId: string; couchId: string; only?: string }) {
+export function EndGames({ seasonId, couchId, only, restoreOnly = false }: { seasonId: string; couchId: string; only?: string; restoreOnly?: boolean }) {
   const data = useEndGames(seasonId, couchId);
   const after = useAfter();
   const [asking, setAsking] = useState<EndAction | null>(null);
@@ -470,7 +470,8 @@ export function EndGames({ seasonId, couchId, only }: { seasonId: string; couchI
   const [hold, setHold] = useState<DeletePreview | null | false>(false);
   const [open, setOpen] = useState(false);
   // `only` (Round 4: a game's own settings): that game, its Stop named for it.
-  const mine = (data.data?.games ?? []).filter((g) => g.yours && (!only || g.leagueId === only));
+  // `restoreOnly` (Games you run, settings Round 3a): each game stops from its own page; this list only brings an archived one back.
+  const mine = (data.data?.games ?? []).filter((g) => g.yours && (!only || g.leagueId === only) && (!restoreOnly || g.archived));
   if (!mine.length) return null;
   const live = mine.filter((g) => !g.archived);
 
@@ -530,8 +531,8 @@ export function EndGames({ seasonId, couchId, only }: { seasonId: string; couchI
           onClick={() => setOpen(!open)}
           className="flex min-h-[56px] w-full items-center gap-3 px-3 text-left text-[15px] font-semibold"
         >
-          {only ? <Archive className="size-5 flex-none" aria-hidden /> : <KeyRound className="size-5 flex-none" aria-hidden />}
-          <span className="flex-1">{only && mine[0] ? `Archive or delete ${mine[0].name}` : "Archive or delete a game"}</span>
+          {only || restoreOnly ? <Archive className="size-5 flex-none" aria-hidden /> : <KeyRound className="size-5 flex-none" aria-hidden />}
+          <span className="flex-1">{only && mine[0] ? "Stop this game" : restoreOnly ? `Archived · ${mine.length}` : "Archive or delete a game"}</span>
           <ChevronRight className={`size-5 flex-none text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`} aria-hidden />
         </button>
         {open && (
@@ -545,13 +546,13 @@ export function EndGames({ seasonId, couchId, only }: { seasonId: string; couchI
                 </small>
               </span>
             </button>
-            <button type="button" data-end="delete" onClick={() => choose("delete")} className="nd-press flex min-h-[60px] w-full items-center gap-3 border-t border-border text-left">
+            {!restoreOnly && <button type="button" data-end="delete" onClick={() => choose("delete")} className="nd-press flex min-h-[60px] w-full items-center gap-3 border-t border-border text-left">
               <Trash2 className="size-5 flex-none text-live" aria-hidden />
               <span className="min-w-0 flex-1">
                 <b className="block text-[15px] font-semibold text-live">{only ? `Delete ${mine[0].name}` : "Delete a game"}</b>
                 <small className="block text-[13px] text-muted-foreground">Removes it for everyone. Restorable for 30 days</small>
               </span>
-            </button>
+            </button>}
           </div>
         )}
       </div>

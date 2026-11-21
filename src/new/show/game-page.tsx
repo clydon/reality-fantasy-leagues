@@ -366,13 +366,13 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
       <DrillSheets drill={drill} g={wg} wg={wg} runs={runs} show={show} seasonId={seasonId} rules={m.rules} />
       <Sheet open={menu} onOpenChange={setMenu} title={g.name} subtitle={[g.name !== m.title.name ? m.title.name : null, show.header?.show.name].filter(Boolean).join(" · ")}>
         <div className="pb-2" data-game-menu>
+          {/* Manage this game (settings Round 3a; Round 4's settings page, grown), for whoever runs it: also the bar's gear. */}
+          {show.couch && (g.yourRole === "commissioner" || g.yourRole === "admin") && (
+            <Row title="Manage this game" detail={g.yourRole === "commissioner" ? "How it plays, who's playing, its name" : "This episode's lock, waivers and join requests"} onClick={() => (setMenu(false), settingsPage.showWith({ game: g.leagueId, from: "game" }))} />
+          )}
           <Row title="How it plays" detail={`${m.rules.length} rules${m.chips.length ? ` · ${m.chips.join(", ").toLowerCase()}` : ""}`} onClick={() => (setMenu(false), drill.open({ kind: "rules" }))} />
           {wg.you && <Row title="Your sheet" detail="Week by week" onClick={() => (setMenu(false), drill.open({ kind: "person", playerId: wg.you!.playerId, episode: null }))} />}
           {/* Where you are left this menu in settings Round 2 (C19): it's the show's, under the show's gear. */}
-          {/* Manage this game (settings Round 3a; Round 4's settings page, grown), for whoever runs it: also the bar's gear. */}
-          {show.couch && (g.yourRole === "commissioner" || g.yourRole === "admin") && (
-            <Row title="Manage this game" detail={g.yourRole === "commissioner" ? "How it plays, who's playing, its name" : "This episode's lock, waivers and who's let in"} onClick={() => (setMenu(false), settingsPage.showWith({ game: g.leagueId, from: "game" }))} />
-          )}
           {/* Leave just this game (settings Round 2, A11): last, quiet, held: the hold carries the red (the user's pick, 2026-11-21). */}
           {show.couch && g.yourRole && !g.solo && (
             <button

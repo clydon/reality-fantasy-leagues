@@ -466,10 +466,9 @@ function check(ok, what, detail = "") {
       // Ask an AI: one link, Open in ChatGPT, and Copy the question for any other AI (C8: no Grok, no setting). Episode 6 has aired
       // (the season moved back five days).
       await pool.query("UPDATE show_seasons SET premiere_date = premiere_date - 5 WHERE id = $1", [sid]);
-      await pg.goto(`${BASE}/show/${sid}/backstage`, { waitUntil: "load" });
-      await pg.locator("[data-job=quick]").waitFor({ timeout: 30000 });
-      await pg.locator("[data-job=quick]").click();
-      await pg.locator("[data-ask=quick]").waitFor();
+      // Results at Episode 6 (Backstage's Needs you job until settings Round 3a; a runner reaches it from an episode now).
+      await pg.goto(`${BASE}/show/${sid}/backstage/results?ep=6`, { waitUntil: "load" });
+      await pg.locator("[data-ask=quick]").waitFor({ timeout: 30000 });
       await pg.locator("[data-ask=quick]").click();
       await pg.locator("[data-ask-ai=quick], [data-one-tap]").first().waitFor({ timeout: 20000 });
       if (await pg.locator("[data-one-tap]").count()) await pg.locator("[data-copy-paste]").click();

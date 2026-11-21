@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Check, ChevronDown, ChevronRight } from "lucide-react";
 import { lockTime } from "../clock";
 import { gameColour } from "../games";
-import { backstage, gameAdmin, gamesApi, useBackstage, useGameSettings, type GameSettings } from "../data";
+import { backstage, gameAdmin, gamesApi, useBackstage, useGameSettings, useWaiversAdmin, type GameSettings } from "../data";
 import { JobRow, RUNNER_JOBS } from "../manage/jobs";
 import { WhoIsPlaying } from "../manage/people";
 import { manageApi } from "../settings/api";
@@ -52,7 +52,7 @@ function notable(g: GameSettings, word: string): string {
   if (g.span.over) return [type, "It's over"].filter(Boolean).join(" · ");
   const at = g.lock?.airsAt ? lockTime(Date.parse(g.lock.airsAt)) : null;
   const lock = g.lock ? `${word} ${g.lock.episode}'s ${g.lock.what} ${g.lock.closed ? "locked" : at ? `lock ${at}` : "open"}` : null;
-  return [type, lock, paceWords(g), g.lockedDown ? "Locked down" : joinWords[g.joining.mode]].filter(Boolean).join(" · ");
+  return [type, lock ?? paceWords(g)].filter(Boolean).join(" · ");
 }
 
 // ---------- the list ----------
@@ -290,7 +290,7 @@ function PaceCards({ seasonId, couchId, g, can, why, word }: { seasonId: string;
 }
 
 /** One game's settings: the title card, this episode's lock, the rules as lines, Stop this game. */
-function GameSettingsBody({ seasonId, couchId, show, g, write, line }: { seasonId: string; couchId: string; show: ShowData; g: GameSettings; write: Write; line: string | null }) {
+function GameSettingsBody({ seasonId, couchId, show, g, write, line, siblings }: { seasonId: string; couchId: string; show: ShowData; g: GameSettings; write: Write; line: string | null; siblings: string[] }) {
   const [open, setOpen] = useState<string | null>(line);
   const toggle = (id: string) => setOpen(open === id ? null : id);
   const can = g.commissioner && !g.lockedDown && !g.span.over;
@@ -309,10 +309,12 @@ function GameSettingsBody({ seasonId, couchId, show, g, write, line }: { seasonI
     ? g.span.over
       ? "You ran this game. It's over: nothing left to change but archive or delete."
       : "You run this game. Each change saves at once, with Undo."
-    : "You help run this game: the lock, waivers and who's let in are yours. The Commissioner changes the rules.";
+    : "You help run this game: the lock, waivers and join requests are yours. The Commissioner changes the rules.";
   // Its jobs (Backstage's Needs you, this game's): someone asking to join, a draft to set up, nobody to play yet.
   const bs = useBackstage(seasonId, couchId, null);
   const jobs = (bs.data?.needs ?? []).filter((n) => RUNNER_JOBS.has(n.id) && n.leagueId === g.leagueId);
+  const waivers = useWaiversAdmin(seasonId, g.waivers ? couchId : null).data?.games.find((x) => x.leagueId === g.leagueId) ?? null;
+  const window_ = waivers?.period?.phase === "open" ? waivers.period : null;
   return (
     <div data-game-settings={g.leagueId} data-settings-game={g.gameName} data-settings-league={g.leagueId} className="px-4 pb-16 pt-2">
       <TitleCard name={g.name} kicker={kicker} art={art} aka={[]} sentence={role} />
@@ -321,12 +323,25 @@ function GameSettingsBody({ seasonId, couchId, show, g, write, line }: { seasonI
           <LockRow seasonId={seasonId} couchId={couchId} g={g} lock={g.lock} word={show.words.ep} />
         </div>
       )}
-      {jobs.length > 0 && (
+      {(jobs.length > 0 || window_) && (
         <section data-manage-jobs className="mt-3">
           <div className="rounded-[10px] bg-card px-3.5">
             {jobs.map((n) => (
               <JobRow key={`${n.id}-${n.request?.id ?? ""}`} seasonId={seasonId} couchId={couchId} need={n} />
             ))}
+            {window_ && (
+              <NavLink href={`${paths.backstage(seasonId, "waivers")}?game=${g.leagueId}`} data-job="waivers" className={`nd-press flex min-h-[72px] items-center gap-3 border-t border-border py-2.5 first:border-t-0 ${FOCUS}`}>
+                <span className="grid size-12 flex-none place-items-center rounded-[3px] bg-chyron text-chyron-foreground">
+                  <Pictogram id="swap" className="size-7" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <b className="block text-[16px] leading-tight">Waivers are open</b>
+                  <small className="block text-[13px] text-muted-foreground">{[window_.line, window_.due ? `due ${lockTime(Date.parse(window_.due))}` : null].filter(Boolean).join(" · ")}</small>
+                </span>
+                <span className="text-[15px] font-bold text-chyron-line">Open</span>
+                <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
+              </NavLink>
+            )}
           </div>
         </section>
       )}
@@ -357,28 +372,26 @@ function GameSettingsBody({ seasonId, couchId, show, g, write, line }: { seasonI
           <HowLong g={g} words={show.words} can={can} write={write} compact />
         </SettingLine>
         {/* One control for replacements (C32): the week's window and how waivers run are Waivers' page, this game's tab. */}
-        {g.waivers && <SettingLine id="waivers" icon="swap" label="Replacing people who leave" value={`When someone's out · ${g.waivers}`} href={`${paths.backstage(seasonId, "waivers")}?game=${g.leagueId}`} />}
+        {g.waivers && <SettingLine id="waivers" icon="swap" label="Replacing people who leave" value={g.waivers.replace(/^(Customized|Relaxed|Standard|Strict) · /, "")} href={`${paths.backstage(seasonId, "waivers")}?game=${g.leagueId}`} />}
       </div>
 
       <Label>Who&apos;s playing</Label>
       <WhoIsPlaying seasonId={seasonId} couchId={couchId} leagueId={g.leagueId} gameName={g.name} commissioner={g.commissioner} />
 
       <Label>This season&apos;s rules on this couch</Label>
-      <p className="-mt-0.5 pb-2 text-[13px] leading-snug text-muted-foreground">Shared by every game you run on {kicker || "this season"} here.</p>
+      <p className="-mt-0.5 pb-2 text-[13px] leading-snug text-muted-foreground">
+        Shared by {siblings.length > 1 ? listOf(siblings) : "every game"} on {kicker || "this season"} here.
+      </p>
       <div className="rounded-[10px] bg-card px-3.5">
-        <SettingLine id="rulebook" icon="sheet" label="The rulebook" value="What can happen in the show, and what each moment scores" href={paths.backstage(seasonId, "rules")} />
-        <Freeze seasonId={seasonId} couchId={couchId} g={g} />
+        <SettingLine id="rulebook" icon="props" label="The rulebook" value="What can happen in the show, and what each moment scores" href={paths.backstage(seasonId, "rules")} />
+        <Freeze seasonId={seasonId} couchId={couchId} g={g} games={siblings} />
+        <SettingLine id="changes" icon="confidence" label="Recent changes" value={`Who changed what in ${siblings.length > 1 ? "these games" : "this game"}, with Undo`} href={paths.backstage(seasonId, "history")} />
       </div>
 
-      <Label>Changes</Label>
-      <div className="rounded-[10px] bg-card px-3.5">
-        <SettingLine id="changes" icon="clock" label="Recent changes" value="Everything changed in these games, with Undo" href={paths.backstage(seasonId, "history")} />
-      </div>
-
+      {/* This game: its name, then Stop, last, after a gap, drawn quiet; the hold carries the red (Round 2's pick, 2026-11-21). */}
+      <Label>This game</Label>
       {g.commissioner && <Rename g={g} />}
-
-      {/* Stop this game: last, after a gap, drawn quiet; the hold carries the red (Round 2's pick, 2026-11-21). */}
-      <div className="-mx-4 mt-4">
+      <div className="-mx-4">
         <EndGames seasonId={seasonId} couchId={couchId} only={g.leagueId} />
       </div>
       {g.commissioner && !g.span.over && <p className="mt-2 text-[13px] leading-snug text-muted-foreground">To end it after an {E.toLowerCase()} instead, change How long above.</p>}
@@ -387,6 +400,10 @@ function GameSettingsBody({ seasonId, couchId, show, g, write, line }: { seasonI
 }
 
 /** A section's label on Manage this game: the same small caps as How it plays'. */
+function listOf(names: string[]): string {
+  return names.length < 2 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
 function Label({ children }: { children: ReactNode }) {
   return <p className="type-caption mt-7 pb-1 text-[13px] tracking-[0.05em] text-muted-foreground">{children}</p>;
 }
@@ -406,7 +423,7 @@ function TeamSize({ g, write }: { g: GameSettings; write: Write }) {
 }
 
 /** Freeze rules and joining (was Lock it down, C37): every game you run here, off by default. A Commissioner's, with Undo. */
-function Freeze({ seasonId, couchId, g }: { seasonId: string; couchId: string; g: GameSettings }) {
+function Freeze({ seasonId, couchId, g, games }: { seasonId: string; couchId: string; g: GameSettings; games: string[] }) {
   const after = useAfter();
   const [busy, setBusy] = useState(false);
   const set = async (to: boolean, undo = true) => {
@@ -415,13 +432,21 @@ function Freeze({ seasonId, couchId, g }: { seasonId: string; couchId: string; g
     try {
       const r = await gameAdmin.lockDown(seasonId, couchId, to);
       await after();
-      toast(to ? "Rules and joining frozen for the season" : "Rules and joining open again", undo && r.batch ? { undo: () => void set(!to, false) } : undefined);
+      const which = games.length > 1 ? listOf(games) : g.name;
+      toast(to ? `Frozen for the season: ${which}` : `Rules and joining open again: ${which}`, undo && r.batch ? { undo: () => void set(!to, false) } : undefined);
     } catch (e) {
       toast.quiet((e as Error).message);
     } finally {
       setBusy(false);
     }
   };
+  // A Helper reads it as a value, at full contrast, with whose it is (PFD R2: no dimmed rows).
+  if (!g.commissioner)
+    return (
+      <div data-freeze={g.lockedDown ? "on" : "off"} className="border-t border-border">
+        <SettingLine id="freeze" icon="none" label="Freeze rules and joining" value={g.lockedDown ? "On" : "Off"} fixed="The Commissioner's to change" />
+      </div>
+    );
   return (
     <div data-freeze={g.lockedDown ? "on" : "off"} className="border-t border-border">
       <SwitchRow
@@ -457,8 +482,8 @@ function Rename({ g }: { g: GameSettings }) {
     }
   };
   return (
-    <div className="mt-7 rounded-[10px] bg-card px-3.5">
-      <SettingLine id="rename" icon="sheet" label="Its name" value={g.name} open={open} onToggle={() => (setOpen(!open), setName(g.name))}>
+    <div className="rounded-[10px] bg-card px-3.5">
+      <SettingLine id="rename" icon="quote" label="Rename this game" value={g.name} open={open} onToggle={() => (setOpen(!open), setName(g.name))}>
         <form
           data-rename
           onSubmit={(e) => {
@@ -499,7 +524,16 @@ export function GameSettingsPage({ seasonId, show }: { seasonId: string; show: S
       {!data.data || !couchId ? (
         <div aria-busy className="mx-4 mt-4 h-64 animate-pulse rounded-[4px] bg-card" />
       ) : g ? (
-        <GameSettingsBody key={`${g.leagueId}:${params.get("line") ?? ""}`} seasonId={seasonId} couchId={couchId} show={show} g={g} write={write} line={params.get("line")} />
+        <GameSettingsBody
+          key={`${g.leagueId}:${params.get("line") ?? ""}`}
+          seasonId={seasonId}
+          couchId={couchId}
+          show={show}
+          g={g}
+          write={write}
+          line={params.get("line")}
+          siblings={(data.data?.games ?? []).filter((x) => !x.span.over && (g.commissioner ? x.commissioner : true)).map((x) => x.name)}
+        />
       ) : (
         <p className="px-4 pt-6 text-[15px] text-muted-foreground">Only whoever runs this game manages it.</p>
       )}

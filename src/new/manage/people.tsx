@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronRight } from "lucide-react";
+import { Check, ChevronRight } from "lucide-react";
 import { backstage, gameAdmin, useMembers, type LeagueRole, type Member } from "../data";
 import { ComputerPlayers } from "../backstage/computer-players";
 import { manageApi, type OutOfGame } from "../settings/api";
@@ -21,7 +21,7 @@ export const ROLE_WORDS: Record<LeagueRole, string> = { commissioner: "Commissio
 const ROLES: [LeagueRole, string][] = [
   ["commissioner", "Changes how it plays, and who runs it"],
   ["admin", "The lock, waivers, computer players and who's let in"],
-  ["member", "Plays"],
+  ["member", "Sets their own team; runs nothing"],
 ];
 
 function useAfter() {
@@ -51,13 +51,14 @@ export function WhoIsPlaying({ seasonId, couchId, leagueId, gameName, commission
   return (
     <div data-who-plays={leagueId}>
       <div className="rounded-[10px] bg-card px-3.5">
-        {people.map((m) => (
-          <button
+        {people.map((m) => {
+          const Tag = commissioner ? "button" : "div";
+          return (
+          <Tag
             key={m.userId}
-            type="button"
+            {...(commissioner ? { type: "button" as const, onClick: () => setPerson(m.userId) } : {})}
             data-person={m.name}
             data-person-role={m.roles[leagueId]}
-            onClick={() => setPerson(m.userId)}
             className="nd-press flex min-h-[60px] w-full items-center gap-3 border-t border-border py-2 text-left first:border-t-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             <Avatar id={m.userId} name={m.name} size={36} />
@@ -68,9 +69,10 @@ export function WhoIsPlaying({ seasonId, couchId, leagueId, gameName, commission
               </b>
               <small className="block text-[13px] text-muted-foreground">{ROLE_WORDS[m.roles[leagueId]]}</small>
             </span>
-            <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
-          </button>
-        ))}
+            {commissioner && <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />}
+          </Tag>
+          );
+        })}
       </div>
       {game && (
         <div className="-mx-4">
@@ -167,7 +169,10 @@ function PersonSheet({
                     onClick={() => (blocked ? toast.quiet("Every game needs a Commissioner. Make someone else one first.") : void set(k))}
                     className={`nd-press flex flex-col rounded-[4px] px-3 py-2.5 text-left ${on ? "bg-secondary outline-[1.5px] -outline-offset-[1.5px] outline-foreground" : blocked ? "border border-dashed border-edge" : "bg-secondary"}`}
                   >
-                    <b className={`text-[16px] font-semibold ${blocked ? "text-muted-foreground" : ""}`}>{ROLE_WORDS[k]}</b>
+                    <span className="flex items-center justify-between gap-2">
+                      <b className={`text-[16px] font-semibold ${blocked ? "text-muted-foreground" : ""}`}>{ROLE_WORDS[k]}</b>
+                      {on && <Check className="size-5 flex-none" strokeWidth={3} aria-hidden />}
+                    </span>
                     <span className="mt-0.5 text-[14px] leading-snug text-muted-foreground">{blocked ? "Make someone else Commissioner first, so the game always has one" : line}</span>
                   </button>
                 );
@@ -196,6 +201,7 @@ function PersonSheet({
           }
         }}
         title={`Remove ${member.name} from ${gameName}?`}
+        subtitle="Their seat stops playing"
         consequence={hold ? consequence(hold) : null}
         problem={hold ? hold.problem : null}
         cta={`remove ${member.name}`}

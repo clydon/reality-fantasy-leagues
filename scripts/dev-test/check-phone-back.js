@@ -2,7 +2,7 @@
 // the dev server, as new-fixture.js's alex. Each launch is a fresh tab with navigator.standalone set (the fallback iOS
 // reads, as check-last-page.js does) on a touch screen:
 //   - a browser tab keeps the browser's own back: nothing is put under its first page;
-//   - opened deep (Backstage › Results), back goes up a page at a time (Backstage, the show, the hub), then says
+//   - opened deep (Results, under Games you run: Backstage until settings Round 3a), back goes up a page at a time (Games you run, the show, the hub), then says
 //     "Press back again to exit" with nothing behind it (the next back closes the app), and says it again once that's
 //     gone; both before any tap and after one;
 //   - the trail you took comes first; a page pushed over the screen (?page=) closes to the screen under it; after a
@@ -159,8 +159,8 @@ async function tap(page) {
       check(w.index === 1 && w.entries === 2 && !w.tapped, "opened deep: an entry put under the first page", show(w));
       const esc = () => page.keyboard.press("Escape");
       for (const [to, label] of [
-        [`${S}/backstage`, "Results › Backstage"],
-        [`${S}/tonight`, "Backstage › the show"],
+        [`${S}/backstage`, "Results › Games you run"],
+        [`${S}/tonight`, "Games you run › the show"],
         ["/home", "the show › the hub"],
       ]) {
         await esc();
@@ -180,8 +180,8 @@ async function tap(page) {
       let w = await where(page);
       check(w.tapped && w.path === `${S}/backstage/results`, "a tap that goes nowhere", show(w));
       for (const [to, label] of [
-        [`${S}/backstage`, "Results › Backstage"],
-        [`${S}/tonight`, "Backstage › the show"],
+        [`${S}/backstage`, "Results › Games you run"],
+        [`${S}/tonight`, "Games you run › the show"],
         ["/home", "the show › the hub"],
       ]) {
         await page.goBack();
@@ -230,7 +230,7 @@ async function tap(page) {
       await page.goBack();
       const ok = await waitPath(page, `${S}/tonight`);
       const w = await where(page);
-      check(ok && w.index === 1 && !w.floor, "after a reload: back still goes up, Backstage › the show", show(w));
+      check(ok && w.index === 1 && !w.floor, "after a reload: back still goes up, Games you run › the show", show(w));
       await page.close();
     }
 

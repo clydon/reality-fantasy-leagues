@@ -117,7 +117,7 @@ export async function requireLeagueRole(
   ]);
   if (rows.length) {
     const role: LeagueMembership["role"] = isSuperAdmin ? "commissioner" : asPlayer ? "member" : rows[0].role;
-    if (!roleAtLeast(role, minRole)) throw new HttpError(403, minRole === "commissioner" ? "Commissioner only" : "Game admins only");
+    if (!roleAtLeast(role, minRole)) throw new HttpError(403, minRole === "commissioner" ? "Commissioner only" : "Only whoever runs this game");
     return { user, membership: { role, playerId: rows[0].player_id } };
   }
   if (isSuperAdmin) {

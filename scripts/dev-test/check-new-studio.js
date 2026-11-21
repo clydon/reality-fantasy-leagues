@@ -8,8 +8,8 @@
 //   the app's blocked (nothing hydrates) the page is still drawn in it: Studio's ground, no `dark` on <html>.
 //   Settings as alex at --width (390 by default): Appearance's three, Studio drawn at once and saved with Undo, Match phone
 //   following the phone as it changes (no reload), a reload keeping it, a second device catching up on its first visit.
-//   The sweep: every screen of the new design (signed out, the hub's two shapes, a show's five tabs and its pages, Backstage's
-//   pages, the draft room, Settings, the desk, a few sheets, the landing's guide reel scrolled to its end, a quiet toast) in Night
+//   The sweep: every screen of the new design (signed out, the hub's two shapes, a show's five tabs and its pages, Games you run
+//   and the pages under it (Backstage's until settings Round 3a), a game's Manage this game and a Who's playing sheet, the draft room, Settings, the desk, a few sheets, the landing's guide reel scrolled to its end, a quiet toast) in Night
 //   and in Studio, screenshotted, and audited from the pixels
 //   behind each piece of text: yellow as text, an icon, a border or an outline on a light ground fails (the yellow rule:
 //   chyron-line, amber on Studio), and so does text under 3:1 against what's behind it (4.5:1 is listed, not failed). Nothing
@@ -436,8 +436,9 @@ const AUDIT = async (shot) => {
         ["backstage-results", "alex", `/show/${sid}/backstage/results`],
         ["backstage-waivers", "alex", `/show/${sid}/backstage/waivers`],
         ["backstage-rules", "alex", `/show/${sid}/backstage/rules`],
-        ["backstage-members", "alex", `/show/${sid}/backstage/members`],
-        ["backstage-settings", "alex", `/show/${sid}/backstage/settings`],
+        // Members & roles and Game settings land on Games you run since settings Round 3a: a game's Manage this game instead.
+        ["manage-this-game", "alex", `/show/${sid}/backstage?page=game-settings&game=${fx.leagues.lineup}`],
+        ["who-plays-sheet", "alex", `/show/${sid}/backstage?page=game-settings&game=${fx.leagues.lineup}`, (pg) => tap(pg, pg.locator('[data-who-plays] [data-person="riley"]'))],
         ["backstage-history", "alex", `/show/${sid}/backstage/history`],
         ["traitors-tonight", "riley", `/show/${tsid}/tonight`],
         ["traitors-episodes", "riley", `/show/${tsid}/episodes`],
