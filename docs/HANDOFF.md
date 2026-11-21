@@ -17,9 +17,16 @@ puts its build notes in its plan, not here.
 
 ---
 
-## Live (production = origin/master, af417333, deployed 2026-11-21)
+## Live (production = origin/master, 03730f59, deployed 2026-11-21)
 
 Newest first. The plan or archive section named holds the detail.
+- **Settings overhaul, Round 4** (2026-11-21, pushed 03730f59; no migration, no scoring change): the words and the ripple. Start a
+  game and Manage this game use one set of words (Relaxed · Standard · Strict, Freeze rules and joining, Customize the rulebook,
+  Fewest points first); nothing points at Backstage (pushes, errors, the tab's title Games you run); one Recommended tag; every
+  confirm ends with Not now and Leave the pool is a hold; How it plays says when a new moment counts and that the bench fills an
+  empty slot (BACKLOG 243); Start a game's Waivers turns back on (it couldn't); Lineups hidden gone. Recent changes keeps its name
+  (the user's pick). Story: https://claude.ai/artifact/5mLdnBLiwQik8SiK3BifEz. [PLAN-settings-overhaul.md](PLAN-settings-overhaul.md),
+  Round 4.
 - **Settings overhaul, Round 3b** (2026-11-21, pushed af417333; no migration; compare-totals: no league moves; golden 7 seasons the
   same): changing a game once it's under way. The lock's states by effect (open to whoever hasn't watched, open to everyone, locked
   for everyone); real Undo for the lock, late moves, questions, the freeze and computer players; How long until a phase starts and
@@ -94,9 +101,6 @@ Newest first. The plan or archive section named holds the detail.
 
 ## In flight
 
-- **Settings overhaul, Round 4, branch `settings-r4`** (lane rfl-settings): the words and the ripple, with BACKLOG 243; no
-  migration. Built and checked; waits on the user's review of its story, then a merge and a push.
-  [PLAN-settings-overhaul.md](PLAN-settings-overhaul.md), Round 4.
 - **Game preview, branch `preview`** (lane rfl-preview): 17 commits not on master, 55 commits behind it, about 11 conflict
   hunks (strip.tsx, game-week.tsx, your-move.ts, tonight.tsx). It has P0, the visual story, the bench's preview maker and
   Round 5 (four real-app fixes, among them the finale reveal ranking a stage that had ended). It waits on the user's review of

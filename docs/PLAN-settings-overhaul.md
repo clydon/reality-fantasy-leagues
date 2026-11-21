@@ -1,7 +1,8 @@
 # Settings: the overhaul
 
-> **Status (2026-11-21): Round 4 built on branch settings-r4 (lane rfl-settings), waiting on the user's review of its story.** The
-> words and the ripple, with BACKLOG 243; no migration. Detail: Round 4, below, and design-round/settings-r4-spec.md. Round 3 is
+> **Status (2026-11-21): Round 4 live** (pushed 03730f59; no migration; the user took the recommendation on its story: Recent
+> changes keeps its name). Next is Round 5, the site admin's desk, when the user wants it. Detail: Round 4, below, and
+> design-round/settings-r4-spec.md. Round 3 is
 > live: 3a pushed 535e2ecf; 3b pushed af417333 (the user took all four recommendations on its story,
 > https://claude.ai/artifact/SCCquWVBtn7qhotipLmcyx; compare-totals: no league moves).
 >
@@ -633,7 +634,7 @@ what's open, [-check.md](design-round/settings-r3b-check.md).
 
 ### Round 4: the words and the ripple
 
-**Built 2026-11-21 (branch settings-r4); waiting on the user's review** of its story
+**Live 2026-11-21 (pushed 03730f59; the user took the recommendation: Recent changes keeps its name)**; its story
 (https://claude.ai/artifact/5mLdnBLiwQik8SiK3BifEz; one choice at its end). A words round, so Impeccable alone (DESIGN-PROCESS.md, "When
 not to use them"): `clarify` for the spec and glossary ([design-round/settings-r4-spec.md](design-round/settings-r4-spec.md)), one
 independent `critique` of the built frames (29/40), one batch of fixes, one confirming look. Frames: `.ui-atlas/stories/settings-r4/`
