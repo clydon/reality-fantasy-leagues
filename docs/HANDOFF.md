@@ -17,9 +17,16 @@ puts its build notes in its plan, not here.
 
 ---
 
-## Live (production = origin/master, f5fddc1c, deployed 2026-11-21)
+## Live (production = origin/master, af417333, deployed 2026-11-21)
 
 Newest first. The plan or archive section named holds the detail.
+- **Settings overhaul, Round 3b** (2026-11-21, pushed af417333; no migration; compare-totals: no league moves; golden 7 seasons the
+  same): changing a game once it's under way. The lock's states by effect (open to whoever hasn't watched, open to everyone, locked
+  for everyone); real Undo for the lock, late moves, questions, the freeze and computer players; How long until a phase starts and
+  waiver timing; when the show adds a moment mid-season, each game's rule (from the start, the next episode, or the players' vote;
+  Survivor and The Traitors default to the next episode); a runner sets a move someone forgot; an empty slot fills from the bench
+  (new games); runner jobs and votes as quiet lines under the strip. Story: https://claude.ai/artifact/SCCquWVBtn7qhotipLmcyx.
+  [PLAN-settings-overhaul.md](PLAN-settings-overhaul.md), Round 3.
 - **Tonight's night and the Games tab** (2026-11-21, pushed f5fddc1c; no migration; carries settings Round 3a, already on origin):
   Tonight is the night (each game you play a row led by its name and length, one-episode games first led by who won, opening to
   everyone's night; bingo and trivia as Last time's expander; a watcher sees no game's results), the Games tab is the way into games
@@ -87,9 +94,6 @@ Newest first. The plan or archive section named holds the detail.
 
 ## In flight
 
-- **Settings overhaul, Round 3b, branch `settings-r3b`** (lane rfl-settings, port 3018, from master 535e2ecf): changing a game
-  once it's under way (A15, A17's setting and vote, typed undos, the lock's three states, a runner's jobs on the strip, A16). Spec:
-  design-round/settings-r3b-spec.md. Still to run from 3a: check-explorer-page's waivers step (it needs UI Atlas on the main app).
 - **Game preview, branch `preview`** (lane rfl-preview): 17 commits not on master, 55 commits behind it, about 11 conflict
   hunks (strip.tsx, game-week.tsx, your-move.ts, tonight.tsx). It has P0, the visual story, the bench's preview maker and
   Round 5 (four real-app fixes, among them the finale reveal ranking a stage that had ended). It waits on the user's review of

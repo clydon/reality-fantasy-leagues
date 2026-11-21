@@ -6,7 +6,7 @@ and in flight is in [HANDOFF.md](HANDOFF.md).
 
 **How this file works**
 - **Numbers are permanent.** Code, tests and commits cite "BACKLOG 57", so a number never changes and is never reused. A new
-  item takes the next free number: **the next is 244.**
+  item takes the next free number: **the next is 245.**
 - **Closing an item:** delete it here and add one line under "Closed since the cleanup" at the end: the number, done or
   dropped, and the commit or the reason. Numbers closed in the cleanup itself are listed, with their full old text, in
   [archive/BACKLOG-2026-11-19.md](archive/BACKLOG-2026-11-19.md).
@@ -60,6 +60,10 @@ Survivor 51's finale path once on the desk. (PLAYTEST-REPORT findings 1, 8, 17, 
 Grouped so each group is about one session. Take them in any order.
 
 ### Fix the stale and flaky checks
+
+**244. Run the two checks settings Round 3a moved but never ran.** check-explorer-page.js's Waivers step and check-new-studio.js's
+list were moved to Manage this game in 3a (2026-11-21) but need UI Atlas on the main app, so they haven't run since. Run each once
+and fix what's stale. [S · checks]
 
 **224. The engine campaign's four standing failures (found 2026-11-19, on master f1488cf1 as on sports-phase0).** A 60-case
 campaign on generator proof-family-65 (`.ui-atlas/campaigns/sport-wip-60`, seed 139, depth 30; run for the sports plan's step

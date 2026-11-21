@@ -1,9 +1,8 @@
 # Settings: the overhaul
 
-> **Status (2026-11-21): Round 3a live** (pushed 535e2ecf, no migration). **Round 3b built on branch `settings-r3b`** (lane
-> rfl-settings; no migration), waiting on the user's review of its story (https://claude.ai/artifact/SCCquWVBtn7qhotipLmcyx; four
-> choices at its end). PFD 70 and Impeccable 28/40 before one batch of fixes (bars 80 and 32). Detail: Round 3, below, and
-> design-round/settings-r3b-check.md.
+> **Status (2026-11-21): Round 3 live.** 3a pushed 535e2ecf; **3b pushed af417333** (no migration; the user took all four
+> recommendations on its story, https://claude.ai/artifact/SCCquWVBtn7qhotipLmcyx; compare-totals: no league moves). Next is Round 4
+> (the words and the ripple), which also takes BACKLOG 243. Detail: Round 3, below, and design-round/settings-r3b-check.md.
 >
 > **Round 2 (2026-11-21): merged and live** (pushed ce891ba2; migration 0448 on production, rehearsed first; the snapshot
 > `pre-settings-r2-2026-11-21` keeps 7 days). The user took all three recommendations (leaving drawn quiet, three results choices,
@@ -398,7 +397,7 @@ fixed, both built** (decisions.md, 2026-11-20). Story: https://claude.ai/artifac
   and eslint on the changed files clean. Rehearsed on Neon (rehearse-settings-2026-11-20, ep-bold-field, from production,
   2026-11-20): 0447 applied, `[check] all good`, rulebooks backfilled, game specs PASS (10 of 10), and the rulebooks check's known
   15-line FAIL baseline (10 DIFFERS, 5 seasons). Waits on the user's go to push.
-- **3b built 2026-11-21 (branch settings-r3b), waiting on the user's review** of its story
+- **3b live 2026-11-21 (pushed af417333; the user took all four recommendations)**; its story
 (https://claude.ai/artifact/SCCquWVBtn7qhotipLmcyx). The design steps: [settings-r3b-spec.md](design-round/settings-r3b-spec.md),
 [-first-view.md](design-round/settings-r3b-first-view.md), [-shape.md](design-round/settings-r3b-shape.md), and the check, its fixes and
 what's open, [-check.md](design-round/settings-r3b-check.md).
@@ -482,7 +481,7 @@ what's open, [-check.md](design-round/settings-r3b-check.md).
   54 pass, its one left a GIF read (below). Their remaining failures are outside this round's screens (below, Found in Round 2).
 - **Left for later:** C23 (one way to follow a sport) and starting Watch it as if live from every finished game: the sports lane's
   files. C27 (Who can fill in results): with Backstage in Round 3. A10, A12: "not now".
-- **3b built 2026-11-21 (branch settings-r3b), waiting on the user's review** of its story
+- **3b live 2026-11-21 (pushed af417333; the user took all four recommendations)**; its story
 (https://claude.ai/artifact/SCCquWVBtn7qhotipLmcyx). The design steps: [settings-r3b-spec.md](design-round/settings-r3b-spec.md),
 [-first-view.md](design-round/settings-r3b-first-view.md), [-shape.md](design-round/settings-r3b-shape.md), and the check, its fixes and
 what's open, [-check.md](design-round/settings-r3b-check.md).
@@ -581,7 +580,7 @@ one batch of fixes.
   - The studio sweep measured Who's playing's "You" tag at 1.1:1 (likely a misreading of a small tag; the frames show it legible):
     look again in Round 4's ripple.
 
-**3b built 2026-11-21 (branch settings-r3b), waiting on the user's review** of its story
+**3b live 2026-11-21 (pushed af417333; the user took all four recommendations)**; its story
 (https://claude.ai/artifact/SCCquWVBtn7qhotipLmcyx). The design steps: [settings-r3b-spec.md](design-round/settings-r3b-spec.md),
 [-first-view.md](design-round/settings-r3b-first-view.md), [-shape.md](design-round/settings-r3b-shape.md), and the check, its fixes and
 what's open, [-check.md](design-round/settings-r3b-check.md).
