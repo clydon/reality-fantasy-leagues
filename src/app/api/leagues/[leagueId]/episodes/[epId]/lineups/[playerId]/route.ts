@@ -27,7 +27,8 @@ export const PUT = apiRoute(
     const naming = Object.prototype.hasOwnProperty.call(body, "captainId");
     const captainId = naming ? body.captainId ?? null : undefined;
     if (naming && captainId !== null && typeof captainId !== "string") throw new HttpError(400, "captainId is a castaway's id, or null");
-    if (membership.role !== "commissioner" && playerId !== membership.playerId) {
+    // Settings Round 3b (166): whoever runs the game, a Helper too, can set a lineup someone forgot; logged as theirs.
+    if (membership.role !== "commissioner" && membership.role !== "admin" && playerId !== membership.playerId) {
       throw new HttpError(403, "You can only set your own lineup");
     }
 

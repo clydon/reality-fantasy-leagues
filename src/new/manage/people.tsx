@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Check, ChevronRight } from "lucide-react";
-import { backstage, gameAdmin, useMembers, type LeagueRole, type Member, type WaiverAdminGame } from "../data";
+import { backstage, gameAdmin, moves, useMembers, type GameSettings, type LeagueRole, type Member, type WaiverAdminGame } from "../data";
+import { Face } from "../show/parts";
+import { Btn } from "../ui/parts";
 import { ComputerPlayers } from "../backstage/computer-players";
 import { ClaimFor } from "../backstage/waivers";
 import { airTime } from "../clock";
@@ -49,6 +51,8 @@ export function WhoIsPlaying({
   gameName,
   commissioner,
   waivers,
+  missing = null,
+  ep = "Ep",
 }: {
   seasonId: string;
   couchId: string;
@@ -57,10 +61,17 @@ export function WhoIsPlaying({
   commissioner: boolean;
   /** This game's waivers (Manage this game reads them once): an open window offers Pick for them on a person's sheet. */
   waivers?: WaiverAdminGame | null;
+  /** Settings Round 3b (166): who hasn't set this episode's lineup or pick, with their choices: a runner sets it from their sheet. */
+  missing?: GameSettings["missing"];
+  /** The show's word for an episode ("Ep"). */
+  ep?: string;
 }) {
   const data = useMembers(seasonId, couchId);
   const [person, setPerson] = useState<string | null>(null);
   const [helping, setHelping] = useState<{ playerId: string; name: string } | null>(null);
+  const [moving, setMoving] = useState<string | null>(null);
+  // Settings Round 3b (166): someone who hasn't set this episode's move, and it isn't you (your own is the strip's).
+  const missingFor = (m: Member) => (m.you ? null : (missing?.people.find((x) => x.userId === m.userId) ?? null));
   // Who can be picked for: the window's open, their picks aren't in, it isn't you, and you've seen the week's episode.
   const open = waivers?.period?.phase === "open" && !waivers.revealFirst ? waivers : null;
   const pickable = (m: Member) => {
@@ -77,7 +88,7 @@ export function WhoIsPlaying({
     <div data-who-plays={leagueId}>
       <div className="rounded-[10px] bg-card px-3.5">
         {people.map((m) => {
-          const door = commissioner || !!pickable(m);
+          const door = commissioner || !!pickable(m) || !!missingFor(m);
           const Tag = door ? "button" : "div";
           return (
           <Tag
@@ -93,7 +104,10 @@ export function WhoIsPlaying({
                 <span className="truncate">{m.name}</span>
                 {m.you && <span className="type-caption flex-none rounded-[2px] bg-foreground px-1.5 text-[12px] text-background">You</span>}
               </b>
-              <small className="block text-[13px] text-muted-foreground">{ROLE_WORDS[m.roles[leagueId]]}</small>
+              <small className="block text-[13px] text-muted-foreground">
+                {ROLE_WORDS[m.roles[leagueId]]}
+                {missingFor(m) && <span data-person-missing> · {missing!.kind === "lineup" ? `no lineup for ${ep} ${missing!.episode} yet` : `no pick for ${ep} ${missing!.episode} yet`}</span>}
+              </small>
             </span>
             {door && <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />}
           </Tag>
@@ -116,6 +130,11 @@ export function WhoIsPlaying({
           members={people}
           commissioner={commissioner}
           pickFor={pickable(chosen)}
+          moveFor={missingFor(chosen) && missing ? { kind: missing.kind, episode: missing.episode, ep } : null}
+          onMoveFor={() => {
+            setMoving(chosen.userId);
+            setPerson(null);
+          }}
           due={open?.period?.due ?? null}
           onPickFor={(who) => {
             setPerson(null);
@@ -124,6 +143,10 @@ export function WhoIsPlaying({
           onClose={() => setPerson(null)}
         />
       )}
+      {moving && missing && (() => {
+        const who = missing.people.find((x) => x.userId === moving);
+        return who ? <MoveFor key={who.playerId} leagueId={leagueId} missing={missing} who={who} ep={ep} onClose={() => setMoving(null)} /> : null;
+      })()}
       {open && <ClaimFor key={helping?.playerId ?? "none"} seasonId={seasonId} couchId={couchId} game={open} who={helping} onClose={() => setHelping(null)} />}
     </div>
   );
@@ -140,6 +163,8 @@ function PersonSheet({
   pickFor,
   due,
   onPickFor,
+  moveFor = null,
+  onMoveFor,
   onClose,
 }: {
   seasonId: string;
@@ -153,6 +178,9 @@ function PersonSheet({
   pickFor: { playerId: string; name: string } | null;
   due: string | null;
   onPickFor: (who: { playerId: string; name: string }) => void;
+  /** Settings Round 3b (166): this episode's lineup or pick they haven't set: Set it for them, first. */
+  moveFor?: { kind: "lineup" | "pick"; episode: number; ep: string } | null;
+  onMoveFor?: () => void;
   onClose: () => void;
 }) {
   const after = useAfter();
@@ -192,6 +220,17 @@ function PersonSheet({
     <>
       <Sheet open={hold === false} onOpenChange={(o) => !o && onClose()} title={member.name} subtitle={sub}>
         <div data-person-sheet={member.name} className="flex flex-col gap-2 pb-2">
+          {moveFor && (
+            <button type="button" data-person-move-for={member.name} onClick={() => onMoveFor?.()} className="nd-press flex min-h-[60px] items-center gap-3 rounded-[4px] bg-secondary px-3 py-2 text-left">
+              <span className="min-w-0 flex-1">
+                <b className="block text-[16px] font-semibold leading-tight">{moveFor.kind === "lineup" ? "Set their lineup" : "Make their pick"}</b>
+                <small className="block text-[13px] leading-snug text-muted-foreground">
+                  Nothing set for {moveFor.ep} {moveFor.episode} yet. It shows as set by you, and they can change it until the lock.
+                </small>
+              </span>
+              <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
+            </button>
+          )}
           {pickFor && (
             <button
               type="button"
@@ -238,7 +277,7 @@ function PersonSheet({
                 </button>
               )}
             </>
-          ) : pickFor ? null : (
+          ) : pickFor || moveFor ? null : (
             <p className="text-[15px] leading-snug">
               {member.you ? "You help run this game." : `${member.name} is ${role === "commissioner" ? "a Commissioner" : role === "admin" ? "a Helper" : "a player"} here.`} Only a Commissioner changes
               roles or takes someone out.
@@ -266,5 +305,58 @@ function PersonSheet({
         }}
       />
     </>
+  );
+}
+
+/**
+ * Set a move someone forgot (Settings Round 3b, A16's 166): their team as faces for a lineup (as many as start), or who they may
+ * pick for a pool, chosen here and sent as theirs (the lineup and pick routes take a runner's, logged "Set Joanna's lineup"). Only
+ * what's public: their team, who's still in. Their earlier moves aren't shown.
+ */
+function MoveFor({ leagueId, missing, who, ep, onClose }: { leagueId: string; missing: NonNullable<GameSettings["missing"]>; who: NonNullable<GameSettings["missing"]>["people"][number]; ep: string; onClose: () => void }) {
+  const after = useAfter();
+  const lineup = missing.kind === "lineup";
+  const need = Math.min(missing.starters, who.options.length);
+  const [chosen, setChosen] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const tap = (id: string) =>
+    setChosen((c) => (c.includes(id) ? c.filter((x) => x !== id) : lineup ? (c.length >= need ? c : [...c, id]) : [id]));
+  const send = async () => {
+    setBusy(true);
+    try {
+      if (lineup) await moves.lineup(leagueId, missing.epId, who.playerId, chosen);
+      else await moves.pick(leagueId, missing.epId, who.playerId, chosen[0]);
+      await after();
+      toast(`${lineup ? `Set ${who.name}'s lineup` : `Made ${who.name}'s pick`} for ${ep} ${missing.episode}`);
+      onClose();
+    } catch (e) {
+      toast.quiet((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const ready = lineup ? chosen.length === need : chosen.length === 1;
+  return (
+    <Sheet open onOpenChange={(o) => !o && onClose()} title={lineup ? `${who.name}'s lineup` : `${who.name}'s pick`} subtitle={`${ep} ${missing.episode} · ${lineup ? `${need} start` : "who survives"}`}>
+      <div data-move-for={who.name} className="flex flex-col gap-3 pb-2">
+        <p className="text-[14px] leading-snug text-muted-foreground">
+          {lineup ? `Choose ${need} of their team to start.` : "Choose who they think survives."} It goes in as theirs, and they can change it until the lock.
+        </p>
+        <div className="grid grid-cols-4 gap-2">
+          {who.options.map((o) => {
+            const on = chosen.includes(o.id);
+            return (
+              <button key={o.id} type="button" data-move-option={o.id} aria-pressed={on} onClick={() => tap(o.id)} className={`nd-press flex flex-col items-center gap-1 rounded-[4px] p-1.5 ${on ? "bg-secondary outline-[1.5px] -outline-offset-[1.5px] outline-foreground" : ""}`}>
+                <Face src={o.photo} name={o.name} className="h-[60px] w-[46px] rounded-[2px] text-[15px]" />
+                <span className="w-full truncate text-center text-[13px] font-semibold">{o.name.split(" ")[0]}</span>
+              </button>
+            );
+          })}
+        </div>
+        <Btn tone="must" wide disabled={!ready || busy} data-move-for-go onClick={() => void send()}>
+          {busy ? "Saving…" : lineup ? `Set ${who.name}'s lineup${ready ? "" : ` · ${chosen.length} of ${need}`}` : `Make ${who.name}'s pick`}
+        </Btn>
+      </div>
+    </Sheet>
   );
 }

@@ -576,6 +576,18 @@ export interface GameSettings {
    * asked once, and answers are in): by a Commissioner, unless it's locked down; `why` says what stops it. Null for any other game.
    */
   questions: { list: { id: string; ask: string; line: string; on: boolean; season: boolean }[]; editable: boolean; why: string | null } | null;
+  /**
+   * Settings Round 3b (A16's 166): the people who haven't set this episode's lineup or pick while it's open (before it airs), for
+   * whoever runs the game to set for them: each person's choices (their team for a lineup; who they may pick for a pool), read
+   * through what the runner has seen (null when they're behind it, or there's nothing open). Never anyone's move itself.
+   */
+  missing: {
+    episode: number;
+    epId: string;
+    kind: "lineup" | "pick";
+    starters: number;
+    people: { playerId: string; userId: string | null; name: string; options: { id: string; name: string; photo: string | null }[] }[];
+  } | null;
 }
 
 /** A Prediction Sheet's questions for Game settings: its own, then what else the show's moments can ask. */
@@ -819,6 +831,14 @@ export async function gameSettings(scope: BackstageScope): Promise<{ games: Game
         return Promise.all(loaded.map((l, i) => questionsOf(l, scope.seasonId, spanState(l.state, schedule, phases[i]).started, part)));
       })()
     : loaded.map(() => null);
+  // Settings Round 3b (166): who's who in each game, and how far the runner's seen, for the moves someone hasn't set.
+  const seen = await seenThrough(scope.user.id, scope.seasonId);
+  const members = new Map<string, Map<string, string>>();
+  const { rows: memberRows } = await pool.query<{ league_id: string; user_id: string; player_id: string | null }>(
+    "SELECT league_id, user_id, player_id FROM league_memberships WHERE league_id = ANY($1::uuid[])",
+    [loaded.map((l) => l.game.leagueId)]
+  );
+  for (const m of memberRows) if (m.player_id) (members.get(m.league_id) ?? members.set(m.league_id, new Map()).get(m.league_id)!).set(m.player_id, m.user_id);
   return {
     games: loaded.map((l, i) => {
       const s = l.state;
@@ -844,6 +864,7 @@ export async function gameSettings(scope: BackstageScope): Promise<{ games: Game
         span: spanState(s, schedule, phases[i], playoffs),
         lock: lockOf(s),
         questions: sheets[i],
+        missing: missingOf(s, seen, members.get(l.game.leagueId) ?? new Map()),
       };
     }),
   };
@@ -1157,4 +1178,29 @@ export async function scoringRules(scope: BackstageScope): Promise<ScoringRules>
     ours: await ourRules(scope),
     frozen: loaded.some((l) => StateLogic.GhostLogic.lockedDown(l.state)),
   };
+}
+
+/** Who hasn't set this episode's lineup or pick (GameSettings.missing): only before it airs, only people (not computer players or
+ *  empty seats), and only when the runner has seen what comes before it (their choices would say who's gone). */
+function missingOf(s: LeagueState, seen: number | null, users: Map<string, string>): GameSettings["missing"] {
+  const pieces = StateLogic.piecesOf(s);
+  const lineup = !!pieces.hasActiveRoster;
+  const pick = !lineup && !!pieces.hasWeeklyPicks;
+  if (!lineup && !pick) return null;
+  const ep = StateLogic.currentEpisode(s);
+  if (!ep || StateLogic.closedForPlay(ep) || StateLogic.episodeHasResults(ep)) return null;
+  if (seen !== null && seen !== Infinity && seen < ep.number - 1) return null;
+  const view = StateLogic.GhostLogic.viewFor(s, null, seen);
+  const faces = new Map(castOf(view).map((f) => [f.id, f]));
+  const face = (id: string) => ({ id, name: faces.get(id)?.name ?? view.castaways.find((c) => c.id === id)?.name ?? "?", photo: faces.get(id)?.photo ?? null });
+  const people = view.players
+    .filter((p) => !p.automated && !p.disabled && users.has(p.id) && !StateLogic.GhostLogic.movedFor(view, p.id, ep.id))
+    .map((p) => {
+      const options = lineup
+        ? view.castaways.filter((c) => c.status === "active" && (c.ownerIds ?? []).includes(p.id)).map((c) => face(c.id))
+        : ((StateLogic.PickEmLogic as unknown as { eligibility: (s: LeagueState, e: string, p: string) => { available: string[] } }).eligibility(view, ep.id, p.id).available).map(face);
+      return { playerId: p.id, userId: users.get(p.id) ?? null, name: p.name, options };
+    })
+    .filter((x) => x.options.length > 0);
+  return people.length ? { episode: ep.number, epId: ep.id, kind: lineup ? "lineup" : "pick", starters: lineup ? StateLogic.ActiveRosterLogic.activeSlots(s) : 1, people } : null;
 }

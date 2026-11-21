@@ -346,8 +346,16 @@ function GameSettingsBody({ seasonId, couchId, show, g, write, line, siblings }:
         )}
       </div>
 
-      <Label>Who&apos;s playing</Label>
-      <WhoIsPlaying seasonId={seasonId} couchId={couchId} leagueId={g.leagueId} gameName={g.name} commissioner={g.commissioner} waivers={waivers} />
+      <Label>
+        Who&apos;s playing
+        {/* Settings Round 3b (166): who hasn't set this episode's move, quiet (PFD R2: never colour); their sheet sets it. */}
+        {g.missing && (
+          <span data-missing-count className="ml-2 normal-case tracking-normal">
+            · {g.missing.people.length} {g.missing.people.length === 1 ? "hasn't" : "haven't"} set {g.missing.kind === "lineup" ? "a lineup" : "a pick"}
+          </span>
+        )}
+      </Label>
+      <WhoIsPlaying seasonId={seasonId} couchId={couchId} leagueId={g.leagueId} gameName={g.name} commissioner={g.commissioner} waivers={waivers} missing={g.missing} ep={show.words.ep} />
 
       <Label>This season&apos;s rules on this couch</Label>
       <p className="-mt-0.5 pb-2 text-[13px] leading-snug text-muted-foreground">

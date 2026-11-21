@@ -127,9 +127,25 @@
    "about": "Everyone picks a team of five castaways. Before each episode you choose three to play, and they score for what they do: winning immunity, finding an idol, surviving a vote.",
    "effort": "Choose who plays each episode",
    "len": "Season",
-   "ref": "preset weekly-lineup",
+   "ref": "preset weekly-lineup; BACKLOG 164 (Settings Round 3b): it starts with replacements on, whenever one goes home",
    "spec": {
-    "preset": "weekly-lineup"
+    "preset": "weekly-lineup",
+    "extras": {
+     "waivers": {
+      "feel": "balanced",
+      "replace": "always",
+      "short": null,
+      "windows": {
+       "schedule": "manual",
+       "every": 3,
+       "swaps": 0
+      },
+      "order": "rolling",
+      "hours": 24,
+      "freeAgency": true,
+      "autoFill": true
+     }
+    }
    }
   },
   {

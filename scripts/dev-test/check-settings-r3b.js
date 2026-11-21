@@ -50,6 +50,22 @@ const brief = (x) => JSON.stringify(x)?.slice(0, 220);
     await at(6, 2 * 24 * 3600_000);
     await at(7, 9 * 24 * 3600_000);
     let g = await settingsOf("riley", L.lineup);
+
+    // ---------- 166: a runner sets a move someone forgot (Pool Party: nobody's picked Episode 6 yet) ----------
+    const miss = (await settingsOf("alex", L.pool))?.missing;
+    const forgot = miss?.people?.find((p) => p.userId === fx.users.jordan) ?? miss?.people?.[0];
+    if (!forgot) check(false, "Pool Party lists who hasn't picked for Episode 6", brief(miss));
+    else {
+      check(miss.kind === "pick" && miss.episode === 6 && forgot.options.length > 0, `Manage lists ${forgot.name} without a pick, with who they may pick`, brief(forgot));
+      const pickFor = (who) => as[who].call("PUT", `/api/leagues/${L.pool}/episodes/${miss.epId}/picks`, { playerId: forgot.playerId, castawayId: forgot.options[0].id });
+      check((await pickFor("riley")).status === 403, "riley, who doesn't run Pool Party, can't make it for them");
+      const r0 = await pickFor("alex");
+      const left = (await settingsOf("alex", L.pool))?.missing;
+      check(r0.status === 200 && !(left?.people ?? []).some((p) => p.playerId === forgot.playerId), `alex makes ${forgot.name}'s pick, and they're off the list`, `${r0.status} ${brief(r0.body)}`);
+      const said = (await as.alex.call("GET", `/api/seasons/${S}/changes${q}`)).body.lines?.some((l) => new RegExp(`Made ${forgot.name}'s pick`).test(l.text));
+      check(!!said, "Recent changes says it was made for them", brief((await as.alex.call("GET", `/api/seasons/${S}/changes${q}`)).body.lines?.slice(0, 3)));
+    }
+
     check(g?.lock?.episode === 6 && g.lock.state === "auto" && !g.lock.aired && !g.lock.closed, "before it airs: Episode 6's lineups are the game's rule, open", brief(g?.lock));
     let r = await patch("riley", { leagueId: L.lineup, lock: "locked" });
     g = await settingsOf("riley", L.lineup);

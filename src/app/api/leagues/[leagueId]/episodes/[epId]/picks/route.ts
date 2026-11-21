@@ -26,7 +26,8 @@ export const PUT = apiRoute(async (req, { params }: { params: Promise<{ leagueId
   const ids = Array.isArray(body.castawayIds) && body.castawayIds.length && body.castawayIds.every((x) => typeof x === "string") ? (body.castawayIds as string[]) : null;
   const castawayId = ids ? ids[0] : body.castawayId;
   const opts = second === true ? { second: true } : ids ? { picks: ids } : undefined;
-  if (membership.role !== "commissioner" && playerId !== membership.playerId) {
+  // Settings Round 3b (166): whoever runs the game, a Helper too, can set a move someone forgot; logged as theirs.
+  if (membership.role !== "commissioner" && membership.role !== "admin" && playerId !== membership.playerId) {
     throw new HttpError(403, "You can only set your own pick");
   }
   if (!playerId || !castawayId) throw new HttpError(400, "playerId and castawayId (or castawayIds) required");
