@@ -1,7 +1,7 @@
 # Settings: the overhaul
 
-> **Status (2026-11-20): Planned; the cuts and adds approved** (the user took every recommendation, added A5, and C8 is under
-> discussion: "What you decided", below). Nothing built. Next is Round 0 (the map, the shape and the names, rendered), in a fresh
+> **Status (2026-11-20): Planned; the cuts and adds approved** (the user took every recommendation, added A5, and settled C8:
+> Grok goes too; "What you decided", below). Nothing built. Next is Round 0 (the map, the shape and the names, rendered), in a fresh
 > session. Every setting, where it lives and a verdict on each are in the audit:
 > [design-round/settings-audit.md](design-round/settings-audit.md). The proposals page the user answered on:
 > https://claude.ai/artifact/3VjAovJaVsBkfZcLEqoY4V.
@@ -189,8 +189,9 @@ The shapes can combine: for example, 1, with 3's questions at the top of You.
 Numbered so you can approve them by number ("yes to all" is fine). Each round's Intent spec confirms its own. The audit has every
 setting's reasoning.
 
-**Approved 2026-11-20**, all as proposed except C8, which is under discussion. The user's answer: "Settings proposals: yes to
-your recommendations, except yes to A5. Let's talk about C8." C1 and C29 still get pictures in Round 0 before they're built.
+**Approved 2026-11-20**, all as proposed. The user's answer: "Settings proposals: yes to your recommendations, except yes to A5.
+Let's talk about C8." C8 was then settled: drop the setting and Grok too, leaving one ChatGPT link (its row). C1 and C29 still get
+pictures in Round 0 before they're built.
 
 **You**
 
@@ -203,7 +204,7 @@ your recommendations, except yes to A5. Let's talk about C8." C1 and C29 still g
 | C5 | Lineup reminders | **Keep**, named for everything it covers (your draft turn and waivers too) |
 | C6 | What your couch sees: three levels and four switches | **Drop** the levels. **Keep** "how far I've watched", with the live preview. **Merge** "when I'm watching" into it. **Default** GIFs and reactions on (posting one is the choice) |
 | C7 | Settings' Your couches fold | **Drop** from Settings: the couch gets its own home, and the hub keeps its switcher |
-| C8 | Your AI for results | **Drop** as a setting: the Ask an AI sheet remembers your last choice. *Under discussion (2026-11-20).* |
+| C8 | Your AI for results | **Drop** the setting, and **drop Grok** (the user, 2026-11-20: "We've pretty consistently been using ChatGPT, so i think we should drop grok and just have the chatgpt link"). The Ask an AI sheet has one link, Open in ChatGPT, with "Copy the question" kept as the quiet fallback for any other AI. Its reach: the Settings fold (settings.tsx); the sheet's APPS and choice logic (ask-ai.tsx, data.ts `useAiChoice`); `chatLink`'s Grok branch (src/lib/ai-brief.ts); the profile route's `ai` (profile.ts `AI_CHOICES`); check-new-settings.js's AI cases. `user_settings.ai` is then unread: drop it with BACKLOG 199's tidy. Built in Round 1 |
 | C9 | How each game works | **Move** to each game's How it plays |
 | C10 | Back to the classic design | **Drop** with step C, after Dec 16 (BACKLOG 45) |
 | C11 | The full design (a link to the old mock) | **Drop** |
@@ -433,9 +434,9 @@ These went to the backlog's "Now" as 232–236. Any session can take them:
 
 ## What you decided (2026-11-20)
 
-You took every recommendation, added A5, and asked to talk about C8:
-1. **The cuts:** all of them, except C8, which is under discussion. C1 (the one results choice) and C29 (Backstage) are still shown
-   in Round 0 before they're built.
+You took every recommendation, added A5, and settled C8 after a talk:
+1. **The cuts:** all of them. C8 goes further than proposed: Grok goes too, so the Ask an AI sheet has one ChatGPT link plus
+   "Copy the question". C1 (the one results choice) and C29 (Backstage) are still shown in Round 0 before they're built.
 2. **Backstage:** A. Retire it, so each game has Manage this game.
 3. **The order:** You, then a show and a couch, then running a game, then the words, then the desk.
 4. **The adds:** as listed under "Missing settings to consider" (A5 added).
