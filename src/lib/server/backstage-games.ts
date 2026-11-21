@@ -33,6 +33,7 @@ import { questionChoices, questionLine } from "@/lib/game/question-choices";
 import { showWords } from "@/lib/game/show-words";
 import { finalName } from "@/lib/sports";
 import { regularEnd } from "./air-times";
+import { rescopePool } from "./sports/scope";
 import type { Question } from "@/lib/game/game-spec/index.js";
 
 // Backstage II (docs/PLAN-new-design.md step 6a): the game's own pages for whoever runs it. Waivers (the week running,
@@ -809,6 +810,7 @@ export async function settingsWrite(
       if (StateLogic.GhostLogic.lockedDown(s)) throw new HttpError(409, FROZEN);
       const drafted = StateLogic.DraftLogic.isStarted(s);
       const phases = spanned ? await leaguePhases(client, game.leagueId, scope.seasonId) : [];
+      const spanBefore = spanned ? spanState(s, schedule, phases) : null;
       for (const [k, v] of Object.entries(set)) {
         if (k === "allowLateJoiners") {
           refused(StateLogic.updateSettings(s, k, v !== false));
@@ -885,6 +887,14 @@ export async function settingsWrite(
             }
           }
         }
+      }
+      // Whose players it picks from follows How long (sports/scope.ts, the user's 2026-11-21): one game of a team's season made the
+      // rest of it picks from the team's players, and back. A pool its maker limited stays as it is.
+      if (spanBefore) {
+        const g = StateLogic.gameOf(s) as unknown as Record<string, unknown>;
+        const after = spanState(s, schedule, phases);
+        const next = await rescopePool(g, scope.seasonId, spanBefore, after);
+        if (next !== g) refused(StateLogic.setGame(s, next as never));
       }
     },
     (b, a) => {

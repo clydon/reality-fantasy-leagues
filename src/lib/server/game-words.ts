@@ -221,8 +221,9 @@ export async function packFor(user: SessionUser, seasonId: string, couchId: stri
   const sportIs = sport ? sportOf(sport.league) : null;
   const teamIdOf = new Map((sport?.teams ?? []).map((t) => [t.name.toLowerCase(), t.id]));
   // Only those a league on it has (a sport's league is made of its players with provider ids: make-game.ts).
+  // None yet (a team's season made just now, its players still filling): not counted, as a pool with nobody listed isn't.
   const poolOf = sportIs ? cast.filter((c) => c.linked).map((c) => ({ team: teamIdOf.get(String(c.tribe_name ?? "").toLowerCase()) ?? null, position: groupOf(sportIs, c.role as string | null) })) : null;
-  const ctx: SpecContext = { ...rules, show: label, ...(people ? { couch: people } : {}), ...(pack.cast.length ? { pool: pack.stillIn } : {}), ...(poolOf ? { poolOf } : {}), ...(sport?.teams.length ? { teamList: sport.teams } : {}) };
+  const ctx: SpecContext = { ...rules, show: label, ...(people ? { couch: people } : {}), ...(pack.cast.length ? { pool: pack.stillIn } : {}), ...(poolOf?.length ? { poolOf } : {}), ...(sport?.teams.length ? { teamList: sport.teams } : {}) };
   return { pack, ctx, kind, show: h.show.name, games: sport?.games ?? [] };
 }
 

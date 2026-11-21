@@ -286,11 +286,12 @@ async function up(opts = {}) {
       await world.settle();
       return errors;
     },
-    /** Wait for a fill the app started after an answer (fillLater: next-after-stub runs it on its own), up to two minutes. */
-    settle: async () => {
+    /** Wait for a fill the app started after an answer (fillLater: next-after-stub runs it on its own), up to two minutes: the slate's,
+     *  or another season's (`seasonId`: a team's season a start made). */
+    settle: async (seasonId = added.seasonId) => {
       for (let i = 0; i < 240; i++) {
-        const { rows } = await pool.query("SELECT asking_at FROM cast_fills WHERE season_id = $1", [added.seasonId]);
-        if (!rows[0]?.asking_at) return alignFill(pool, added.seasonId);
+        const { rows } = await pool.query("SELECT asking_at FROM cast_fills WHERE season_id = $1", [seasonId]);
+        if (!rows[0]?.asking_at) return alignFill(pool, seasonId);
         await new Promise((r) => setTimeout(r, 500));
       }
       throw new Error("a fill of the slate's people is still going after two minutes");

@@ -87,9 +87,12 @@ async function stampSportLocks(db: Pool | PoolClient, state: LeagueState, season
     delete ep.gameStarts;
     delete ep.holdingGames;
     delete (ep as { byeTeams?: string[] }).byeTeams;
+    delete (ep as { playingTeams?: string[] }).playingTeams;
   });
   // Step 1.5: a game scored by a sport's stats on a league's slate, each week's teams on a bye (sports/locks.ts byesOf).
   if (StateLogic.StatsLogic.on(state)) await stampByes(db, state, seasonId);
+  // A game asking questions: each episode's teams playing, so a question about one names only their players (AnswerLogic.faces).
+  if (StateLogic.AnswerLogic.questions(state).length) await stampPlaying(db, state, seasonId);
   // Step 2.6: a team sport's game at its own pace, the last episode its seats have watched by now at the latest.
   await stampPaceFloor(db, state, seasonId);
   const closes = Spec.gameOf(state.settings).closes;
@@ -136,6 +139,26 @@ async function stampByes(db: Pool | PoolClient, state: LeagueState, seasonId: st
   for (const ep of state.episodes) {
     const b = byes.get(ep.number);
     if (b) (ep as { byeTeams?: string[] }).byeTeams = b;
+  }
+}
+
+/** Each sports episode's teams playing (ep.playingTeams: their names, as the linked games name them and its people's groups are named),
+ *  for AnswerLogic.faces (the user, 2026-11-21: one game's players for one game's question); never saved (StatsLogic.stampedKeys).
+ *  A show's season links no games: nothing. One query. */
+async function stampPlaying(db: Pool | PoolClient, state: LeagueState, seasonId: string): Promise<void> {
+  const { rows } = await db.query("SELECT episode, teams FROM season_events WHERE season_id = $1 AND teams IS NOT NULL", [seasonId]);
+  if (!rows.length) return;
+  const by = new Map<number, Set<string>>();
+  for (const r of rows) {
+    const names = ((r.teams ?? []) as { name?: string | null }[]).map((t) => t?.name).filter((n): n is string => !!n);
+    if (!names.length) continue;
+    const s = by.get(r.episode as number) ?? new Set<string>();
+    names.forEach((n) => s.add(n));
+    by.set(r.episode as number, s);
+  }
+  for (const ep of state.episodes) {
+    const s = by.get(ep.number);
+    if (s) (ep as { playingTeams?: string[] }).playingTeams = [...s];
   }
 }
 

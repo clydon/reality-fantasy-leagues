@@ -4190,7 +4190,7 @@ class StatsLogic {
   // season's properties, read from the season's cast on every read, never saved.
   // Step 1.5 (docs/PLAN-sports-ready.md): a sport's player's injury (state.castInjuries, cast-props.ts) and each week's teams on a
   // bye (ep.byeTeams, air-times.ts), stamped per read too.
-  static stampedKeys(){ return [...STAMPED.episode, ...STAMPED.state, 'gameStarts', 'holdingGames', 'castProps', 'castPropDefs', 'castInjuries', 'castEligible', 'byeTeams', 'paceFloor', 'seasonLast']; }
+  static stampedKeys(){ return [...STAMPED.episode, ...STAMPED.state, 'gameStarts', 'holdingGames', 'castProps', 'castPropDefs', 'castInjuries', 'castEligible', 'byeTeams', 'playingTeams', 'paceFloor', 'seasonLast']; }
   // L3 part 2d: a game ranked by a sport's categories (Spec.categoryParts: head to head by each, by most, or roto), or null.
   static categories(state){
     const g = playedGame(state);
@@ -9296,7 +9296,19 @@ class AnswerLogic {
       return (state.tribes || []).filter(t => on.has(t.id)).map(t => ({ id: t.id, name: t.name, photoUrl: null }));
     }
     const team = q.from === 'team' && !q.each ? new Set(Core.ownedCastawayIds(state, opt.playerId)) : null;
-    return stillIn.filter(c => !team || team.has(c.id)).map(c => ({ id: c.id, name: c.name, photoUrl: c.photoUrl || null }));
+    // A sport's question about an episode names only someone whose team plays in it (the user, 2026-11-21: one game's players for one
+    // game's question; ep.playingTeams, the server's stamp: air-times.ts; none stamped, no limit). Never the game's pool (G3 part 3b:
+    // a question names anyone, as a game's top scorer may be outside who can be held).
+    const plays = !team && q.asked !== 'once' ? AnswerLogic.playingIn(state, opt.episode) : null;
+    const tribes = plays ? new Map((state.tribes || []).map(t => [t.id, String(t.name || '').toLowerCase()])) : null;
+    return stillIn.filter(c => (!team || team.has(c.id)) && (!plays || plays.has(tribes.get(c.tribeId))))
+      .map(c => ({ id: c.id, name: c.name, photoUrl: c.photoUrl || null }));
+  }
+  // The teams playing in a sport's episode (lowercased names, as its people's groups are named), or null: no episode, or none stamped.
+  static playingIn(state, episode){
+    if(!Number.isInteger(episode)) return null;
+    const ep = (state.episodes || []).find(e => e.number === episode);
+    return ep && Array.isArray(ep.playingTeams) && ep.playingTeams.length ? new Set(ep.playingTeams.map(n => String(n).toLowerCase())) : null;
   }
   // Whether the game asks anything by phase (A7: asked once a phase, or settled by where a phase starts): what the season sync
   // and the desk record phase starts and windows for (phase-starts.ts settleIn, StateLogic.settlePhases).

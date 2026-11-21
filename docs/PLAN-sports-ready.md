@@ -679,6 +679,33 @@ server.
      after an game" (BACKLOG 232). nfl-slate-fixture.js stamped a final with the database's clock, which a check past the real day
      left outside the finals' look-back (fixed in the fixture: a stamp made just now takes the process clock).
 
+**2.8 Whose players: a game's scope (the user, 2026-11-21; S, on branch sports-playoffs).** A sport's game is played on a whole
+   league, one team's season, a series or a rival's meetings, or one game, and the players it offers should be that scope's. Before
+   this, only a series and a rival's meetings (their own two-team seasons) were limited; a team's season offered every opponent's
+   roster too, and one game started from a team's sheet (on the team's season since Round 3) offered the whole team season's.
+   - *Decided:* **a team's season picks from that team's players only** (the user's pick of three, 2026-11-21: "a Bills game" is a
+     Bills fan's game). One game of it picks from the two teams playing. A series, a rival's meetings and a league's slate as they
+     were (both teams; the whole league). A question about one game (Pick a few) names only players whose teams play in it; a
+     question never follows the game's pool (G3 part 3b's rule stays: a game's top scorer may be outside who can be held). The
+     limit is the spec's own `pool.where.teams`, so our check counts the smaller pool (Best Ball for a couch of eight on one team's
+     74 is refused with "make it shared"), the game's words say it ("Buffalo Bills players only") and Game settings moves it with How
+     long. A pool the maker limited is never changed.
+   - *Built:* sports/scope.ts (`scopeTeams`, `scopePool` at every start in startFromSpec, `rescopePool` in
+     Game settings' settingsWrite when the end moves: one game made the season, and back); state-logic.js `AnswerLogic.faces` takes
+     the episode and `playingIn` (ep.playingTeams, stamped by air-times.ts `stampPlaying` for a game with questions, never saved),
+     answers.ts and bot-logic.js pass it; game-words.ts counts a pool with nobody listed yet as unknown (a team's season made by the
+     start fills its players after it).
+   - *Verified:* check-sports-scope.js (new, all pass) on nfl-slate-fixture.js: a draft on the Bills' season offers the 74 Bills of
+     1,214 and the bots draft only Bills; one Bills game the two teams' 157; Game settings to the season's end and back; Pick a few's
+     question for a game names its two teams' 157; a slate draft unlimited; the slate's weeks stamp their teams playing; Best Ball
+     refused for eight. tests/pool-filter.test.js (a question about one episode). The unit suite (2,521); check-sports-through-playoffs
+     (one FAIL once, unrelated and not reproduced: BACKLOG 233); tsc.
+   - *Left:* **the design round on how the scopes are offered** (DESIGN-PROCESS.md): the team page's four ways in and the sheet,
+     which says nothing about whose players are in it, and learns of a pool too small only at Start (the sheet's check runs without
+     the scope's limit). A team's season's question asked once ("who leads the team in rushing?") names anyone on the season, every
+     opponent's roster included.
+   - *Noticed, not fixed:* an NFL team's "players" are ESPN's roster, 74 for the Bills (the practice squad and reserve lists too).
+
 ### Phase 3. The gate: a real season, replayed (L, about 2–3 sessions)
 
 Record a whole NFL season (and a month of the NBA and of MLB) with record-espn-slate.js and the finals. Replay a 10–12 seat league

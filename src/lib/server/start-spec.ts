@@ -16,6 +16,7 @@ import { deleteLeague } from "./end-game";
 import { makeStages } from "./engine-lab";
 import { followLeagueProgress } from "./follows";
 import { fantasySeasonEnd, regularEnd } from "./air-times";
+import { scopePool } from "./sports/scope";
 import { asksToday, packFor } from "./game-words";
 import { refused } from "./game-writes";
 import { makeLeague } from "./new-game";
@@ -193,6 +194,9 @@ export async function startFromSpec(
   }
   // How it runs (docs/PLAN-own-pace-games.md, "Pace is the game's setting"): the sheet's choice, checked against this start.
   const pace = paceAsked(body.pace, opts, !!fromPhase);
+  // Whose players it picks from (the user, 2026-11-21: sports/scope.ts): on one team's season, that team's; one game of it, the two
+  // teams'. Before our check, so it counts the smaller pool.
+  if (!staged && typeof span.from === "number") await scopePool(spec, seasonId);
 
   // A window's swaps held to the team (the spec's check; step 2.5: a sport's "no limit" is the team's size, so a smaller team made
   // from its game, as a typed game or a check's may be, keeps its waivers).

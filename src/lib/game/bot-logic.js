@@ -949,7 +949,7 @@ function oneAnswer(state, pid, q, ep, room, staking, answered, ctx) {
     if (Spec.cardWaiting(q, ep, choice) || Spec.cardMoment(q, ep, choice) === null) return null;
     if (StateLogic.HostLogic.sitsOut(state, ep, pid)) return null;
   }
-  const faces = AL.faces(state, q, { playerId: pid });
+  const faces = AL.faces(state, q, { playerId: pid, episode: ep });
   const key = `${q.id}|${ep}`;
   const most = q.wager === undefined ? null : mostFor(state, q, key, room, staking);
   // A question whose faces come from the server's facts (each game, trivia, a side, a bracket): only with them (`ctx`).

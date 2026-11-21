@@ -465,6 +465,13 @@ settings ("Through Game 18", and the playoff weeks as numbers, not Wild Card or 
 games; they're weeks, named as the calendar names them. Game settings' foot also says "To end it after an game". Words, with
 step 4.0's pass. Found in step 2.7's screenshot story. [S · sports]
 
+**233. A held player of a team that's out scored in the Divisional Round, once.** check-sports-through-playoffs.js failed once
+(2026-11-21): in the season game through the final, Harrison Mevis (the Ravens' kicker in the recording; the Ravens aren't in the
+stand-in's Divisional Round) had a stat line in that week. He's in no playoff box score of the stand-in, so where the line came
+from is unknown. The bots' draft differs run to run, so it shows only when he's drafted; the next run passed. The path is the
+slate's season game, which the scope step (sports/scope.ts) doesn't touch. Draft him on purpose (a check's seat holding him), read
+episode 20's statLines and follow where his line comes from. Found while checking the scope step. [S · sports]
+
 ### Research and the desk
 
 **92. Backstage says "All clear" above "Results · Episode 8 · 5 waiting".** Needs you lists waiting results only for episodes
