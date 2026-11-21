@@ -1,8 +1,8 @@
 # Settings: the overhaul
 
-> **Status (2026-11-20): Round 1 built on branch settings-plan (lane rfl-settings), waiting on the user's review of its story.**
-> PFD 82 and Impeccable 33/40 after one batch of fixes (the bar: 80 and 32). The round's section below has what was built, what's
-> open and the four choices for the user. Not merged; migration 0447 not on production.
+> **Status (2026-11-20): Round 1 built on branch settings-plan (lane rfl-settings) and reviewed: the user took all four picks.**
+> PFD 82 and Impeccable 33/40 after one batch of fixes (the bar: 80 and 32). Next, before it merges: the browser halves of
+> check-new-settings, -notify and -sharing for the new screens. Not merged; migration 0447 not on production.
 >
 > **Round 0 (2026-11-20): done and decided.**
 > - **The cuts and adds:** approved. The user took every recommendation, added A5, and settled C8 (Grok goes too).
@@ -353,7 +353,8 @@ The round's original steps:
 
 ### Round 1: You, and notifications as one system
 
-**Built 2026-11-20 (branch settings-plan), waiting on the user's review.** Story: https://claude.ai/artifact/97sfST4Ut41ib5HUHJPpjH.
+**Built 2026-11-20 (branch settings-plan); reviewed the same day: the user took all four picks and asked for the sheet's ring
+fixed, both built** (decisions.md, 2026-11-20). Story: https://claude.ai/artifact/97sfST4Ut41ib5HUHJPpjH.
 - **The design process:** Intent's spec [design-round/settings-r1-spec.md](design-round/settings-r1-spec.md); PFD's first views
   [-first-view.md](design-round/settings-r1-first-view.md); Impeccable's brief [-shape.md](design-round/settings-r1-shape.md); the
   check, the fixes, what's open and the choices [-check.md](design-round/settings-r1-check.md).
@@ -403,6 +404,7 @@ The round's original steps:
     Watch it as if live, following a team.
   - This couch: its home, and the hub's switcher.
   - C14–C28; A6–A12 as picked.
+  - Mute's first choice: "Until the next episode" (the user's pick on Round 1's story, 2026-11-20), then the clock's three.
 - **Situations.**
   - The lenses: own pace, live, a sport whose scores show live, a story show, solo.
   - Behind, caught up, a finished season, a 30-episode season.

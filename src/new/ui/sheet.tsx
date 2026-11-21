@@ -67,6 +67,12 @@ export function Sheet({
         />
         <Dialog.Popup
           ref={popupRef}
+          initialFocus={(type) => {
+            if (type === "keyboard") return true;
+            const sheet = popupRef.current;
+            const now = typeof document === "undefined" ? null : document.activeElement;
+            return sheet && now instanceof HTMLElement && now !== sheet && sheet.contains(now) ? now : sheet;
+          }}
           {...swipe}
           data-keyboard={keyboard ? "" : undefined}
           className="nd-fixed-x fixed bottom-0 z-[81] flex max-h-[88dvh] flex-col rounded-t-[14px] bg-card text-foreground shadow-sheet outline-none transition-transform duration-[380ms] ease-[cubic-bezier(.16,1,.3,1)] motion-reduce:transition-none data-[ending-style]:translate-y-[105%] data-[starting-style]:translate-y-[105%]"

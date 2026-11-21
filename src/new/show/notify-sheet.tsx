@@ -158,17 +158,28 @@ export function ShowNotifySheet({ seasonId, open, onOpenChange }: { seasonId: st
         <h4 className="type-caption mb-0.5 mt-5 text-[19px]">Just this show</h4>
         <div>
           {data?.moments.map((m) => {
-            // Muted, everything but the reminders is quiet: those rows dim; the reminders still come, so theirs doesn't.
+            // Muted, everything but the reminders is quiet: those switches read Off and can't be changed until you unmute (the
+            // user's pick, 2026-11-20), as Notifications' do while nothing reaches you; the reminders still come, so theirs stays.
             const quietByMute = !!muted && m.id !== "lineup";
             return (
               <div key={m.id}>
                 <SwitchRow
                   data={`show-${m.id}`}
                   on={m.on && m.here}
-                  quiet={quietByMute}
+                  still={quietByMute}
                   disabled={!m.on}
                   title={m.title}
-                  line={!m.on ? "Off everywhere, in Your settings" : !m.here ? "Off for this show · it still lands in the bell" : quietByMute ? "Quiet while it's muted" : m.id === "lineup" && muted ? "Still comes while it's muted" : m.line}
+                  line={
+                    !m.on
+                      ? "Off everywhere, in Your settings"
+                      : !m.here
+                        ? "Off for this show · it still lands in the bell"
+                        : quietByMute
+                          ? "Quiet while it's muted · back when you unmute"
+                          : m.id === "lineup" && muted
+                            ? "Still comes while it's muted"
+                            : m.line
+                  }
                   onChange={(on) => set(m, on)}
                 />
               </div>

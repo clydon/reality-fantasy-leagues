@@ -31,7 +31,8 @@ The PFD reviewer put today's screens at about 55.
 
 ## Open (the confirming look still found these)
 
-1. **A bottom sheet's close button gets a focus ring when the sheet opens from a link** (the show's Notifications, opened by a push's button). The sheet is shared app-wide (ui/sheet.tsx); focusing its title instead changes every sheet, so it's left for a decision.
+1. ~~A bottom sheet's close button gets a focus ring when the sheet opens from a link.~~ **Fixed on the user's word (2026-11-20):**
+   the shared sheet (ui/sheet.tsx) focuses itself on open unless the keyboard opened it.
 2. **Show art is an empty dark square when a show has none** (the test shows have no art; researched shows often don't either). Impeccable's fix: a plate with the show's initials.
 3. **A muted show is "ZT Survivor" on Notifications and its season "ZT Survivor 51" on Your shows** (PFD): a mute covers every season, and the row there is a season. A wording question for Round 2's show page.
 4. **Mute's three buttons don't say when each would end** (Impeccable, minor).
@@ -39,6 +40,9 @@ The PFD reviewer put today's screens at about 55.
 6. **Unverified in frames:** the Undo toasts (they're in the checks, not the story); the push's own button (a phone draws it, not a page).
 
 ## Choices for the user (the rules didn't settle them)
+
+**Decided 2026-11-20: the user took all four picks** (decisions.md): Off on both; Not now as it is; "Until the next episode" in
+Round 2; quiet rows. Built the same day.
 
 1. **A quieted switch: drawn Off, or On and dimmed?** PFD wants the muted show's quieted kinds drawn Off, like Notifications' while nothing reaches you ("the knob is what people predict from"). Impeccable says Off beside "Chosen" says two things at once, and would put a static "Chosen" tag where the switch is, or keep it On and dimmed. Built: Off on Notifications (the plan's words), On-and-dimmed on a muted show.
 2. **What Not now on the plate does.** Today (Settings D): gone for good on this phone, and Notifications still says Off. Or: back after some days, which serves Joanna but nags Andrew.

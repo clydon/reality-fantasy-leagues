@@ -20,7 +20,6 @@ export function SwitchRow({
   data,
   disabled,
   still,
-  quiet,
 }: {
   on: boolean;
   title: string;
@@ -28,10 +27,8 @@ export function SwitchRow({
   onChange: (on: boolean) => void;
   data: string;
   disabled?: boolean;
-  /** It can't apply now (nothing reaches you): drawn off, read-only, words at full contrast. */
+  /** It can't apply now (nothing reaches you, or a mute holds it): drawn off, read-only, words at full contrast. */
   still?: boolean;
-  /** It applies, but something holds it quiet (a mute): only the switch dims. */
-  quiet?: boolean;
 }) {
   const shown = still ? false : on;
   return (
@@ -53,7 +50,7 @@ export function SwitchRow({
       </span>
       <span
         aria-hidden
-        className={`relative h-[30px] w-[52px] flex-none rounded-full transition-colors ${still || quiet ? "opacity-45" : ""} ${shown ? "bg-foreground" : "bg-secondary shadow-[inset_0_0_0_1px_var(--edge)]"}`}
+        className={`relative h-[30px] w-[52px] flex-none rounded-full transition-colors ${still ? "opacity-45" : ""} ${shown ? "bg-foreground" : "bg-secondary shadow-[inset_0_0_0_1px_var(--edge)]"}`}
       >
         <i className={`absolute top-[3px] size-6 rounded-full transition-[left] ${shown ? "left-[25px] bg-background" : "left-[3px] bg-muted-foreground"}`} />
       </span>

@@ -1523,3 +1523,17 @@
   - **Another grey-box pass.** Polish belongs to the built screens.
 - Rests on: docs/design-round/settings-r0-spec.md, -first-view.md, -shape.md, -names.md; scripts/dev-test/story-settings.js; the story
   https://claude.ai/artifact/UkbTP7G4f7uQhVqp32UMNm.
+
+## 2026-11-20 · Settings, Round 1: a switch that can't ring reads Off; Not now stays; mute by the next episode in Round 2; quiet rows
+- Decided by: the user, on Round 1's story ("Your picks on all four, and fix the sheet's ring too").
+- Why: the check's two reviewers split on the first, and the other three weren't settled by the rules (docs/design-round/settings-r1-check.md).
+- What:
+  - **A switch that can't ring right now reads Off,** read-only, its line saying why: on Notifications while no phone gets them
+    ("Chosen · comes once notifications are on"), and on a muted show's quieted kinds ("Quiet while it's muted · back when you
+    unmute"). Reminders stay On on a muted show: they still come.
+  - **Not now on the plate stays as Settings D has it:** gone on that phone for good; Notifications' row still says Off.
+  - **Mute gets "Until the next episode" as its first choice in Round 2,** with the show's own page (the clock's three stay).
+  - **Your settings stays quiet below your name:** no caption plate for the identity; the plate's yellow stays the page's one signal.
+  - **The shared sheet focuses itself when it opens,** not its Close button (the keyboard keeps the first control), so a sheet opened
+    from a link shows no yellow ring on Close.
+- Rests on: docs/design-round/settings-r1-spec.md, -first-view.md, -shape.md, -check.md; the story https://claude.ai/artifact/97sfST4Ut41ib5HUHJPpjH.
