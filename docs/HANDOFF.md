@@ -17,9 +17,14 @@ puts its build notes in its plan, not here.
 
 ---
 
-## Live (production = origin/master, d4e594cf, deployed 2026-11-20)
+## Live (production = origin/master, c440bf5f, deployed 2026-11-20)
 
 Newest first. The plan or archive section named holds the detail.
+- **Settings overhaul, Round 1** (2026-11-20 at midnight, pushed c440bf5f; migration 0447, rehearsed on a copy of production; the
+  snapshot `pre-settings-2026-11-20` keeps 7 days): Your settings as five groups with their values (the hub's gear opens it);
+  notifications as one system (three kinds, invites always, Couch chat on every couch, a show's Mute, a couch's own chat, Your
+  phones, Install the app); one When results show; Privacy as one switch; Grok and the AI setting gone; signing out turns this
+  phone's notifications off (BACKLOG 237). [PLAN-settings-overhaul.md](PLAN-settings-overhaul.md), Round 1.
 - **Sports Phase 2, steps 2.1 to 2.6** (2026-11-20, merged and pushed d4e594cf; migration 0311 on the build; light prep, the
   user's call: no sports games in production): each NFL player locks at his own game, fantasy playoffs end by Week 17 with a final,
   lineup slots for every team sport, IR places, waivers that run (weekly for the NFL, every game day for the NBA, NHL and MLB), and
@@ -58,16 +63,6 @@ Newest first. The plan or archive section named holds the detail.
   2026-11-09, rulebooks for every season, bingo, GIF reactions, the first-time tour) is in [PLANS.md](PLANS.md) under Done.
 
 ## In flight
-
-- **Settings overhaul, Round 1, branch `settings-plan`** (lane rfl-settings, port 3018): Your settings and notifications as one
-  system, built through the design process (PFD 82, Impeccable 33/40 after one batch of fixes). Reviewed 2026-11-20 on its story,
-  https://claude.ai/artifact/97sfST4Ut41ib5HUHJPpjH: the user took all four picks and the sheet's ring fix, both built
-  (decisions.md). The three checks' browser halves are rewritten for the new screens and pass whole. Merging with sports-playoffs
-  conflicts only in this file (data.ts merges by itself); this branch's BACKLOG 232 became 237, since sports took 232. Left before
-  the push: only the user's go. Ready in rfl-merge as `merge-settings` (a fast-forward of origin/master): `npm test` 2513 pass,
-  `next build` and eslint clean, and 0447 rehearsed on a fresh copy of production (rehearse-settings-2026-11-20, auto-deletes:
-  applied, check all good, game specs PASS, the rulebooks check's usual 15-line baseline). Take a `pre-` snapshot at push time. The branch also holds origin/master's
-  commits from 2026-11-20. [PLAN-settings-overhaul.md](PLAN-settings-overhaul.md), Round 1.
 
 - **Game preview, branch `preview`** (lane rfl-preview): 17 commits not on master, 55 commits behind it, about 11 conflict
   hunks (strip.tsx, game-week.tsx, your-move.ts, tonight.tsx). It has P0, the visual story, the bench's preview maker and

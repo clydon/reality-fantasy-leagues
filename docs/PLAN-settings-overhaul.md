@@ -1,8 +1,8 @@
 # Settings: the overhaul
 
-> **Status (2026-11-20): Round 1 built on branch settings-plan (lane rfl-settings) and reviewed: the user took all four picks.**
-> PFD 82 and Impeccable 33/40 after one batch of fixes (the bar: 80 and 32). Next, before it merges: the browser halves of
-> check-new-settings, -notify and -sharing for the new screens. Not merged; migration 0447 not on production.
+> **Status (2026-11-20): Round 1 merged and live (pushed c440bf5f, 2026-11-20 at midnight; migration 0447 on production,
+> rehearsed first; the snapshot `pre-settings-2026-11-20` keeps 7 days).** PFD 82 and Impeccable 33/40 after one batch of fixes
+> (the bar: 80 and 32); the user took all four picks. Next is Round 2, a show and a couch, for you.
 >
 > **Round 0 (2026-11-20): done and decided.**
 > - **The cuts and adds:** approved. The user took every recommendation, added A5, and settled C8 (Grok goes too).
