@@ -574,21 +574,37 @@ export function ArchivePage({ show, open, onClose }: { show: ShowData; open: boo
 // ---------- Tonight ----------
 
 /** Tonight's Your games, Round 3: under the season games' minis, the newest episode's results (the same rows), episodes waiting on
- *  your reveal as one line, and the next episode's games as one line each (the strip holds their moves). */
-export function TonightNights({ show, under = true }: { show: ShowData; under?: boolean }) {
+ *  your reveal as one line, and the next episode's games as one line each (the strip holds their moves). `part` "next" (Tonight's
+ *  night, 2026-11-21: docs/design-round/tonight-night-spec.md): only the waiting line and the next episode's games, as rows of the
+ *  next episode's block (its heading names the episode); the night's results are Your night's. */
+export function TonightNights({ show, under = true, part = "all" }: { show: ShowData; under?: boolean; part?: "all" | "next" }) {
   const seasonId = show.header?.seasonId ?? "";
   const couchId = show.couch?.id ?? null;
   const { nights, eps } = sortGames(show);
   const archive = useSeasonArchive(seasonId, couchId, null, !!seasonId);
   const page0 = archive.data?.pages[0];
   const newest = page0?.games.length ? Math.max(...page0.games.map((g) => g.ended)) : null;
-  const last = newest !== null ? (page0?.games ?? []).filter((g) => g.ended === newest && g.from === g.to) : [];
+  const last = newest !== null && part === "all" ? (page0?.games ?? []).filter((g) => g.ended === newest && g.from === g.to) : [];
   const waiting = eps.filter((n) => n <= show.latestAired && !nights.some((g) => g.from === n && !!g.sheet && g.sheet.of > 0 && g.sheet.answered < g.sheet.of));
   const n = eps.find((x) => !waiting.includes(x)) ?? null;
   const here = n === null ? [] : nights.filter((g) => g.from === n);
   const held = nights.filter((g) => waiting.includes(g.from as number)).length;
   const E = show.words.ep;
   if (!last.length && !here.length && !held) return null;
+  if (part === "next") {
+    return (
+      <div data-tonight-nights="next" className="flex flex-col border-t border-border">
+        {held > 0 && (
+          <p className="flex min-h-11 items-center border-t border-border text-[15px] text-muted-foreground" data-tonight-waiting>
+            {`${waiting.length === 1 ? `${E} ${waiting[0]}` : `${E}s ${waiting[0]} to ${waiting.at(-1)}`} · ${held} ${held === 1 ? "game" : "games"} waiting on your reveal`}
+          </p>
+        )}
+        {here.map((g) => (
+          <NightRow key={g.leagueId} show={show} g={g} move={null} />
+        ))}
+      </div>
+    );
+  }
   return (
     <div data-tonight-nights className={`flex flex-col gap-4 ${under ? "mt-2 border-t border-border pt-3" : ""}`}>
       {last.length > 0 && (

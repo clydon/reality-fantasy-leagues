@@ -400,6 +400,10 @@ export interface GameView extends GameRefIn {
   games?: { episode: number; games: WeekGame[] } | null;
   /** Step 2c: every player's points each week at this game's scoring (week-view.ts castWeeks); null before any results. */
   castWeeks?: { episodes: number[]; points: Record<string, number[]> } | null;
+  /** Tonight's night (docs/design-round/tonight-night-spec.md): each seat's place before the latest counted episode (`through`), by
+   *  player id, from the engine's own table at the mark before it; null before a second episode, or for a game the server ranks
+   *  outside its state (calls, bingo, a game of questions: Tonight works theirs out from `plays`). */
+  was?: Record<string, number> | null;
 }
 
 /** Whose user a seat is, for faces. */
@@ -522,7 +526,17 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
     locked: seat && pieces.hasActiveRoster ? lockedMatchup(view, me, matchups?.next, now) : null,
     castWeeks: seat ? castWeeks(view) : null,
     games: matchups && pieces.hasActiveRoster && !isPublic ? leagueWeek(view, everyone.map((r) => r.playerId), nextIn?.set ?? null, now) : null,
+    was: seat && !isPublic && !pieces.hasCalls && !pieces.hasBingo && !calls?.walk && !calls?.lines ? placesBefore(full, me, through, userOf) : null,
   };
+}
+
+/** Each seat's place at the mark before episode `n` (the reveal's "before", revealIn): the engine's table on that copy. Null when
+ *  nothing had counted before it. */
+function placesBefore(full: LeagueState, me: string, n: number, userOf: UserOf): Record<string, number> | null {
+  if (n < 2) return null;
+  const before = StateLogic.spanView(StateLogic.GhostLogic.viewFor(full, me, n - 1));
+  if (StateLogic.SpoilerLogic.latestWithResults(before) < 1) return null;
+  return Object.fromEntries(tableOf(before, me, userOf).map((r) => [r.playerId, r.place]));
 }
 
 /** The seats playing at their own pace's marks (the server's: own-pace-seats.ts paceMarks), and the clock (tests). */

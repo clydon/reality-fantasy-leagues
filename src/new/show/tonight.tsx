@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ChevronDown, ChevronRight, EyeOff, MessageCircle, Plus, Tv, Users } from "lucide-react";
-import { airTime, calm, justAired, lockTime, ticks } from "../clock";
+import { ChevronRight, EyeOff, MessageCircle, Plus, Tv, Users } from "lucide-react";
+import { airTime, calm, justAired, ticks } from "../clock";
 import { AskAiSheet, checkFull } from "../backstage/ask-ai";
-import { backstage, useAfterResults, useSeasonPolls, type GameView, type LineupWeek, type PasteResult } from "../data";
-import { gameInk, ordinal } from "../games";
+import { backstage, useAfterResults, useSeasonPolls, type GameView, type PasteResult } from "../data";
+import { ordinal } from "../games";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
 import { episodesOf, openWhere, type ShowData } from "../screens/show-space";
@@ -17,7 +17,7 @@ import { Avatar, useNow } from "../ui/bars";
 import { useFinalWhen } from "../final-words";
 import { Btn } from "../ui/parts";
 import { toast } from "../ui/toast";
-import { castName, faceIn, openMoves } from "./moves";
+import { openMoves } from "./moves";
 import { Block, Face } from "./parts";
 import { WaiversRanPlate } from "./waivers";
 import { useGameDrill, type Door } from "./game-sheets";
@@ -34,19 +34,17 @@ import { bingoEpisode as toBingo, BingoRow, openBingo, type BingoTarget } from "
 import { RemindRow } from "./remind";
 import { SeenItCard } from "./seen-it";
 import { useOpenWatch } from "./watch-along";
-import { yourMove } from "./your-move";
-import { totalWords } from "./game-sheets";
-import { ResultSquare } from "./game-week";
-import { oneGame, thisWeek, type WeekCard } from "./this-week";
 import { TonightNights } from "./whats-on";
-import { GAME_NAMES } from "@/lib/server/league-season";
+import { JoinRows, latestSeen, YourNight } from "./night";
 
 // Tonight (the design round's step 3: docs/design-round/step3-tonight-spec.md, its first view step3-tonight-first-view.md, its
 // look step3-tonight-shape.md). Where you are, the couch and the one watching action are the show bar's progress control
 // (progress.tsx); what's yours to set is the strip under it (strip.tsx), on every tab. The page under them: Last time (the last
 // episode you've watched: who left, the couch's GIFs, its talk and recap), or the wait for an episode's results in its place; then
 // Your games (one mini per game, an excerpt of its page's This week card, its lineup's points one tap open: data round 3's
-// ledger); then the next episode's plans (watch along, together, your bingo card); then the show's stats. Kept as they were this
+// ledger); then the next episode's plans (watch along, together, your bingo card); then the show's stats. Since 2026-11-21 Your
+// games is Your night (night.tsx: docs/design-round/tonight-night-spec.md): each game's last episode for you and everyone in it, the
+// night's quick games, the couch's bingo and trivia; the next episode's block gains its quick games and the couch's to join. Kept as they were this
 // round, above Last time: the own-pace plates and catch-up strips, the waivers-ran plate, the reminder ask, Fill it in, Seen it?,
 // a streaming season's drop, and a show you don't follow's Add to my shows.
 
@@ -70,7 +68,7 @@ export function Tonight({ seasonId, show }: { seasonId: string; show: ShowData }
       <OnTonight show={show} />
       <AfterEpisode show={show} />
       <LastTime seasonId={seasonId} show={show} open={drill.open} />
-      {playing && <YourGames seasonId={seasonId} show={show} open={drill.open} />}
+      <YourNight show={show} open={drill.open} />
       <NextEpisode seasonId={seasonId} show={show} />
       <StatsCard seasonId={seasonId} show={show} />
       {!playing && (!show.solo || !show.ready) && <PlayIt show={show} />}
@@ -285,14 +283,6 @@ function FillItIn({ seasonId, show }: { seasonId: string; show: ShowData }) {
 
 // ---------- Last time ----------
 
-/** The latest episode you've seen that has aired, on a show you follow or play: Last time is about it. */
-function latestSeen(show: ShowData): number | null {
-  const playing = show.games.some((g) => g.yourRole);
-  if (!show.header || (!show.following && !playing)) return null;
-  const n = Math.min(show.seenThrough ?? show.latestAired, show.latestAired);
-  return n >= 1 ? n : null;
-}
-
 /**
  * Last time · Ep N: the last episode you've watched, once it has aired. Who left (the show's own Out plate), the couch's GIFs
  * (yours first, or a dashed tile to add one), then its two doors: the talk about it, and its recap on Episodes. Each game's
@@ -345,238 +335,9 @@ function LastTime({ seasonId, show, open }: { seasonId: string; show: ShowData; 
   );
 }
 
-// ---------- Your games ----------
+// ---------- Your night (night.tsx) ----------
 
-/** Something has counted in this game, as far as you've seen: before its first episode everyone's level, so no place (round 5). */
-export const countedYet = (g: GameView) => g.from !== null && g.through >= g.from;
-
-/** The line under your place: points, your streak now, or who's still in. */
-export function yourLine(g: GameView): string {
-  const me = g.you;
-  if (!me) return "Not on the table yet";
-  if (!countedYet(g)) return g.draftSoon ? "No team yet" : g.from === null ? "Starts with its phase" : `Starts with Episode ${g.from}`;
-  if (g.gameType === "pickem") return `streak ${me.week ?? 0}`;
-  if (g.gameType === "weekly-calls") return `${me.total} ${me.total === 1 ? "call" : "calls"} right`;
-  // A line worth more than a point (step A9): its total is points.
-  if (g.gameType === "weekly-bingo") return g.linePoints && g.linePoints !== 1 ? `${me.total} pts` : `${me.total} ${me.total === 1 ? "line" : "lines"}`;
-  if (g.gameType === "questions") return `${me.total} ${me.total === 1 ? "pt" : "pts"}`;
-  if (g.gameType === "active-roster") return `${me.total} pts`;
-  const team = me.team.map((id) => g.cast.find((c) => c.id === id)).filter((c) => !!c);
-  // No team of its own: before its draft, or a game in stages (its teams are its stages'; its total is the overall).
-  if (!team.length) return g.draftSoon ? "No team yet" : `${me.total} ${me.total === 1 ? "pt" : "pts"}`;
-  return `${team.filter((c) => !c.knocked).length} of ${team.length} still in`;
-}
-
-/** Your place in a game: "1st", or "T2" for a tie. */
-export const placeOf = (g: GameView) => (!g.you || !countedYet(g) ? "—" : g.you.rank.startsWith("T") ? g.you.rank : ordinal(g.you.place));
-
-/** Each game you play here as a mini: an excerpt of its page's This week card, in the game's own measure (never a sum across
- *  games), the last result in a line, its lineup's points one tap open. A stage of a game in stages is its parent's. */
-function YourGames({ seasonId, show, open }: { seasonId: string; show: ShowData; open: (d: Door) => void }) {
-  if (!show.play) return <div aria-busy className="mx-4 mt-[26px] h-[150px] animate-pulse rounded-[4px] bg-card" />;
-  // Round 3: one-episode games aren't minis; finished ones are the archive's (TonightNights says the last).
-  const games = show.play.filter((g) => !g.stageOf && !oneGame(g) && !(g.over && g.to !== null));
-  if (!show.games.some((g) => g.yourRole)) return null;
-  const twin = (g: GameView) => games.filter((x) => x.gameType === g.gameType).length > 1;
-  return (
-    <Block title="Your games" aside={games.length > 1 ? `${games.length} on ${show.header ? showLabel(show) : "this show"}` : undefined}>
-      <div data-your-games className="flex flex-col">
-        {games.map((g) => (
-          <GameMini key={g.leagueId} seasonId={seasonId} show={show} g={g} open={open} name={twin(g) && g.name !== g.gameName ? g.name : (GAME_NAMES[g.gameName] ?? g.gameName)} />
-        ))}
-      </div>
-      <TonightNights show={show} under={games.length > 0} />
-    </Block>
-  );
-}
-
-function GameMini({ seasonId, show, g, name, open: openDoor }: { seasonId: string; show: ShowData; g: GameView; name: string; open: (d: Door) => void }) {
-  const [open, setOpen] = useState(false);
-  const when = (iso: string) => lockTime(Date.parse(iso));
-  const move = yourMove(g, { seasonId, episode: show.words.episode, when });
-  const w = thisWeek(g, {
-    words: show.words,
-    total: (r) => totalWords(g, r),
-    next: show.upNext ? { number: show.upNext.number, when: show.upNext.airAt ? when(show.upNext.airAt) : null } : null,
-    move: move ? { kind: move.kind, due: move.due } : null,
-    seen: show.seenThrough,
-    locked: g.locked ?? null,
-    reveal: show.episodes?.reveal ?? null,
-    aired: show.latestAired,
-  });
-  const href = paths.gamePage(seasonId, g.leagueId);
-  const seen = latestSeen(show);
-  const night = seen ? show.episodes?.episodes.find((e) => e.number === seen)?.lines?.find((l) => l.leagueId === g.leagueId) : undefined;
-  // The ledger: your lineup's last scored week as far as you've seen (Weekly Lineup, best ball).
-  const week: LineupWeek | undefined = g.you?.weeks.filter((x) => seen == null || x.episode <= seen).at(-1);
-  const ink = gameInk(g.gameName);
-  return (
-    <div data-game-mini={g.leagueId} data-mini-kind={w?.kind ?? "plain"} className="border-t border-border py-3 first:border-t-0 first:pt-0">
-      <NavLink href={href} data-game={g.leagueId} className="nd-press -mx-1 flex min-h-11 items-center gap-2 rounded-[3px] px-1">
-        {/* The game's colour as a dot, its name in muted ink: teal and gold mean a win and what's due, never a name. */}
-        <i className="size-2 flex-none rounded-full" style={{ background: ink }} aria-hidden />
-        <span className="type-caption min-w-0 flex-1 truncate text-[14px] tracking-[0.05em] text-muted-foreground">{name}</span>
-        <span className="flex-none text-[13px] font-semibold text-muted-foreground">Open</span>
-        <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
-      </NavLink>
-      <NavLink href={href} className="nd-press -mx-1 block rounded-[3px] px-1 py-1">
-        {w ? <MiniWeek g={g} w={w} /> : <MiniStanding g={g} />}
-      </NavLink>
-      {(w?.last || night) && (
-        <NavLink href={href} data-mini-last className="nd-press -mx-1 mt-1 flex min-h-11 items-center gap-2.5 rounded-[3px] px-1">
-          {w?.last && <ResultSquare r={w.last.result} />}
-          <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{w?.last ? w.last.line.replace(`${show.words.ep} ${w.last.episode} · `, "") : nightWords(night!)}</span>
-          <span className="flex-none text-[13px] text-muted-foreground">
-            {show.words.ep} {w?.last?.episode ?? seen}
-          </span>
-        </NavLink>
-      )}
-      {week && (week.started.length > 0 || week.bench.length > 0) && (
-        <>
-          <button
-            type="button"
-            data-mini-ledger={open ? "open" : "closed"}
-            aria-expanded={open}
-            onClick={() => setOpen(!open)}
-            className="mt-1 flex min-h-11 items-center gap-1.5 text-[14px] font-semibold text-muted-foreground"
-          >
-            Who scored · {show.words.ep} {week.episode}
-            <ChevronDown className={`size-4 transition-transform duration-200 ${open ? "rotate-180" : ""}`} aria-hidden />
-          </button>
-          {open && <Ledger g={g} week={week} open={openDoor} />}
-        </>
-      )}
-    </div>
-  );
-}
-
-/** Head to head (or your standing, or solo) as the page's This week card says it, at a glance's distance. */
-function MiniWeek({ g, w }: { g: GameView; w: WeekCard }) {
-  const [tag, ...rest] = w.label.split(" · ");
-  if (w.champion) {
-    return (
-      <span className="flex items-center gap-3">
-        <Avatar id={w.champion.userId ?? w.champion.playerId} name={w.champion.name} size={36} />
-        <span className="min-w-0">
-          <b className="type-caption block text-[24px] leading-none">{w.champion.name === "You" ? "You won it" : `${w.champion.name} won it`}</b>
-          <small className="mt-1 block text-[13px] text-muted-foreground">{w.state}</small>
-        </span>
-      </span>
-    );
-  }
-  if (w.kind === "matchup") {
-    return (
-      <span className="block">
-        {/* The episode only: its air time is the progress control's, said once. */}
-        <b className="type-caption block text-[14px] tracking-[0.05em]" data-mini-ep={rest.length ? rest.join(" · ") : undefined}>
-          {tag}
-        </b>
-        <span className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-          <MiniSide s={w.you} you />
-          <span className="type-num text-[17px] text-muted-foreground">{w.score ? `${w.score.you}–${w.score.them}` : "vs"}</span>
-          {w.them ? <MiniSide s={w.them} /> : <span className="justify-self-end text-[15px] font-semibold text-muted-foreground">{w.stand === "median" ? "The middle score" : "A bye"}</span>}
-        </span>
-        {w.state && <small className="mt-2 block text-[14px] leading-snug text-foreground/85">{w.state}</small>}
-      </span>
-    );
-  }
-  return <MiniStanding g={g} />;
-}
-
-function MiniSide({ s, you }: { s: WeekCard["you"]; you?: boolean }) {
-  return (
-    <span className={`flex min-w-0 items-center gap-2 ${you ? "" : "flex-row-reverse text-right"}`}>
-      <Avatar id={s.userId ?? s.playerId} name={s.name} size={32} />
-      <span className="min-w-0">
-        <b className="block truncate text-[16px] font-bold leading-tight">{you ? "You" : s.name}</b>
-        {s.record && <span className="type-num block text-[14px] leading-tight text-muted-foreground">{s.record}</span>}
-      </span>
-    </span>
-  );
-}
-
-/** Your place in the game's own measure, and the gap to whoever's ahead (or behind, from first). */
-function MiniStanding({ g }: { g: GameView }) {
-  const me = g.you;
-  const ahead = me ? g.table.filter((r) => r.place < me.place).at(-1) : undefined;
-  const behind = me ? g.table.find((r) => r.place > me.place) : undefined;
-  const points = g.gameType === "active-roster" || g.gameType === "questions";
-  const gap = me && points ? (ahead ? `${fmt(ahead.total - me.total)} behind ${ahead.name}` : behind ? `${fmt(me.total - behind.total)} ahead of ${behind.name}` : null) : null;
-  return (
-    <span className="flex items-baseline gap-3">
-      <b className="type-num text-[30px] leading-none">{placeOf(g)}</b>
-      <span className="min-w-0">
-        <span className="block truncate text-[15px] font-semibold">
-          {[g.players > 1 && me ? `of ${g.players}` : null, yourLine(g)].filter(Boolean).join(" · ")}
-        </span>
-        {gap && <small className="block truncate text-[14px] text-muted-foreground">{gap}</small>}
-      </span>
-    </span>
-  );
-}
-
-const fmt = (n: number) => String(Math.round(n * 10) / 10).replace("-", "−");
-
-/** An episode's line for a game as the episode read says it: a bare number is points ("6 pts"), anything else as it is. */
-const nightWords = (l: { big: string; line: string }) => {
-  const big = /^[−-]?\d+(\.\d+)?$/.test(l.big) ? `${l.big} ${l.big === "1" ? "pt" : "pts"}` : l.big;
-  return l.line ? `${big} · ${l.line}` : big;
-};
-
-/**
- * Who scored, data round 3's ledger: your starters for the week, each a face, a name, a bar on one points scale shared by every
- * row (a negative an outline left of zero) and the points; then the bench, faint, which didn't count.
- */
-function Ledger({ g, week, open }: { g: GameView; week: LineupWeek; open: (d: Door) => void }) {
-  const rows = [...week.started.map((s) => ({ ...s, bench: false })), ...week.bench.map((b) => ({ ...b, why: [] as string[], bench: true }))];
-  const hi = Math.max(0, ...rows.map((r) => r.points));
-  const lo = Math.min(0, ...rows.map((r) => r.points));
-  // One scale for every row, at least 4 points wide, so one bad week doesn't draw the widest bar of all.
-  const span = Math.max(4, hi - lo);
-  const zero = (-lo / span) * 100;
-  return (
-    <div data-ledger={week.episode} className="mt-1 flex flex-col">
-      {rows.map((r) => {
-        const c = faceIn(g, r.id);
-        const w = (Math.abs(r.points) / span) * 100;
-        return (
-          // Each castaway opens their sheet, in this game (the drill pass, 2026-11-17).
-          <button
-            key={`${r.bench ? "b" : "s"}-${r.id}`}
-            type="button"
-            data-ledger-row={r.bench ? "bench" : "starter"}
-            data-door-cast={c?.name}
-            onClick={() => open({ kind: "cast", id: r.id, game: g.leagueId })}
-            className={`nd-press flex min-h-12 w-full items-center gap-2.5 py-1 text-left ${r.bench ? "opacity-60" : ""}`}
-          >
-            <Face src={c?.photo ?? null} name={c?.name} className="size-9 flex-none rounded-[3px] text-sm" />
-            <span className="w-[92px] min-w-0 flex-none">
-              <b className="block truncate text-[15px] font-semibold leading-tight">{castName(c, g)}</b>
-              <small className="block truncate text-[13px] text-muted-foreground">{r.bench ? "Bench · didn't count" : (r.why[0] ?? "Started")}</small>
-            </span>
-            <span className="relative h-2.5 flex-1" aria-hidden>
-              <i className="absolute inset-y-0 w-px bg-border" style={{ left: `${zero}%` }} />
-              {r.points === 0 ? (
-                <i className="absolute top-1/2 size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted-foreground" style={{ left: `${zero}%` }} />
-              ) : (
-                <i
-                  className={`ledger-bar absolute inset-y-0 rounded-[2px] ${r.points < 0 ? "outline-1 -outline-offset-1 outline-foreground/70" : r.bench ? "bg-foreground/40" : "bg-foreground"}`}
-                  style={r.points < 0 ? { right: `${100 - zero}%`, width: `${w}%` } : { left: `${zero}%`, width: `${w}%` }}
-                />
-              )}
-            </span>
-            <b className="type-num w-10 flex-none text-right text-[17px]">{fmt(r.points)}</b>
-            <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
-          </button>
-        );
-      })}
-      <p className="mt-1 flex items-baseline justify-between border-t border-border pt-2 text-[14px]">
-        <span className="text-muted-foreground">Your lineup</span>
-        <b className="type-num text-[17px]">{fmt(week.started.reduce((a, s) => a + s.points, 0))}</b>
-      </p>
-    </div>
-  );
-}
+export { countedYet, placeOf, yourLine } from "./night";
 
 // ---------- the next episode ----------
 
@@ -658,6 +419,9 @@ function NextEpisode({ seasonId, show }: { seasonId: string; show: ShowData }) {
           </button>
         )}
         {bingo && <BingoRow target={bingoTarget(show, bingo)} title={bingo === up.number ? "Your bingo card" : undefined} />}
+        {/* Its quick games (tonight-night-spec.md block 5): yours with your move's state, then the couch's you could join. */}
+        <TonightNights show={show} part="next" />
+        <JoinRows show={show} ep={up.number} />
         {more && predictions.map((m) => <PredictionRow key={m.leagueId} title={m.text} line={`Closes at airtime · ${m.leagueName}`} />)}
         {more && call && <CallRow target={{ seasonId, couchId, episode: call, label: showLabel(show), solo: show.solo }} />}
         {more && finales.map((g) => <SheetRow key={g.leagueId} move={g.sheet!} target={{ seasonId, leagueId: g.leagueId, episode: null, game: g.name, finale: true }} />)}

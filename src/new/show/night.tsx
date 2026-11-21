@@ -1,0 +1,773 @@
+"use client";
+
+import { useEffect, useState, type ReactNode } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
+import { LINES } from "@/lib/game/bingo";
+import { kindOf } from "@/lib/game/spans";
+import { nightKind, type Square } from "@/lib/game/game-plays";
+import { GAME_NAMES } from "@/lib/server/league-season";
+import { useCouchGames, useEpisodeBingo, useSeasonArchive, useSeasonGame, useTrivia, type ArchivedGame, type GameView, type JoinGame, type LineupWeek, type TableRow } from "../data";
+import { gameInk, ordinal } from "../games";
+import { NavLink } from "../nav";
+import { paths } from "../routes";
+import type { ShowData } from "../screens/show-space";
+import { Avatar } from "../ui/bars";
+import { Btn } from "../ui/parts";
+import { JoinGameSheet } from "../couch/join-game";
+import { openBingo } from "./bingo";
+import { NightBadge, type Door } from "./game-sheets";
+import { EpisodeGames } from "./game-week";
+import { signed } from "./lineup-sheet";
+import { castName, faceIn, first } from "./moves";
+import { Block, Face } from "./parts";
+import { showLabel } from "./react";
+import { oneGame } from "./this-week";
+import { openTrivia } from "./trivia";
+
+// Tonight's night (docs/design-round/tonight-night-spec.md, -first-view.md, -shape.md): the last episode you've watched as it went
+// in each game you play, for you and for everyone in it. A card a season game, closed to your night (your place and how it moved,
+// what the episode did for you, your picks as faces wearing their results, one line of news about someone else), open in place to
+// everyone's night (five people at most: everyone, or the top five, or the top three, the one just ahead of you and you), its full
+// list the game's episode sheet. Then the night's quick games and the couch's bingo and trivia. Everything is at your own mark (the
+// games read is: GhostLogic.viewFor), so nothing past it shows. What changed plays once per episode as a card comes into view.
+
+/** Something has counted in this game, as far as you've seen: before its first episode everyone's level, so no place (round 5). */
+export const countedYet = (g: GameView) => g.from !== null && g.through >= g.from;
+
+/** The line under your place: points, your streak now, or who's still in. */
+export function yourLine(g: GameView): string {
+  const me = g.you;
+  if (!me) return "Not on the table yet";
+  if (!countedYet(g)) return g.draftSoon ? "No team yet" : g.from === null ? "Starts with its phase" : `Starts with Episode ${g.from}`;
+  if (g.gameType === "pickem") return `streak ${me.week ?? 0}`;
+  if (g.gameType === "weekly-calls") return `${me.total} ${me.total === 1 ? "call" : "calls"} right`;
+  // A line worth more than a point (step A9): its total is points.
+  if (g.gameType === "weekly-bingo") return g.linePoints && g.linePoints !== 1 ? `${me.total} pts` : `${me.total} ${me.total === 1 ? "line" : "lines"}`;
+  if (g.gameType === "questions") return `${me.total} ${me.total === 1 ? "pt" : "pts"}`;
+  if (g.gameType === "active-roster") return `${me.total} pts`;
+  const team = me.team.map((id) => g.cast.find((c) => c.id === id)).filter((c) => !!c);
+  // No team of its own: before its draft, or a game in stages (its teams are its stages'; its total is the overall).
+  if (!team.length) return g.draftSoon ? "No team yet" : `${me.total} ${me.total === 1 ? "pt" : "pts"}`;
+  return `${team.filter((c) => !c.knocked).length} of ${team.length} still in`;
+}
+
+/** Your place in a game: "1st", or "T2" for a tie. */
+export const placeOf = (g: GameView) => (!g.you || !countedYet(g) ? "—" : g.you.rank.startsWith("T") ? g.you.rank : ordinal(g.you.place));
+
+/** The latest episode you've seen that has aired, on a show you follow or play: Last time and the night are about it. */
+export function latestSeen(show: ShowData): number | null {
+  const playing = show.games.some((g) => g.yourRole);
+  if (!show.header || (!show.following && !playing)) return null;
+  const n = Math.min(show.seenThrough ?? show.latestAired, show.latestAired);
+  return n >= 1 ? n : null;
+}
+
+const fmt = (n: number) => String(Math.round(n * 10) / 10).replace("-", "−");
+const placeWord = (r: Pick<TableRow, "rank" | "place">) => (r.rank.startsWith("T") ? r.rank : ordinal(r.place));
+/** A one-episode game's name in plain words: its kind, without the episode it was named for ("Who survives? Ep 7" → "Who survives?"). */
+export const quickName = (name: string) => kindOf(name).replace(/[\s·]*\b(ep|episode)\s*\d+$/i, "");
+const sqAt = (g: GameView, playerId: string, n: number): Square | null => g.plays.rows[playerId]?.find((s) => s.episode === n) ?? null;
+
+// ---------- reading a game's night ----------
+
+/** How each seat moved over episode `n` (up positive), by player id: the engine's places before it (GameView.was), else, for a game
+ *  ranked by points the server counts (calls, bingo, answers), their totals before it ranked the same way. */
+function movesOf(g: GameView, n: number): Map<string, number> | null {
+  if (g.through !== n || !g.plays.episodes.includes(n) || (g.from !== null && n <= g.from)) return null;
+  const out = new Map<string, number>();
+  if (g.was) {
+    for (const r of g.table) if (g.was[r.playerId] !== undefined) out.set(r.playerId, g.was[r.playerId] - r.place);
+    return out.size ? out : null;
+  }
+  if (!["points", "won", "race"].includes(g.plays.kind) || g.plays.episodes.indexOf(n) < 1) return null;
+  const before = g.table.map((r) => {
+    const s = sqAt(g, r.playerId, n);
+    return { id: r.playerId, total: (s?.total ?? r.total) - (s?.points ?? 0) };
+  });
+  for (const r of g.table) {
+    const mine = before.find((b) => b.id === r.playerId)!.total;
+    out.set(r.playerId, before.filter((b) => b.total > mine).length + 1 - r.place);
+  }
+  return out;
+}
+
+/** A face on a card and what happened to them that night: a lineup's points, a pool's pick and how it went, a team's who left. */
+type PickOf = { id: string; points?: number; night?: ReturnType<typeof nightKind>; lost?: boolean };
+
+/** Someone's picks that night, in the game's own form. */
+function picksOf(g: GameView, r: TableRow, n: number, s: Square | null): PickOf[] {
+  const b = g.plays.blocks;
+  if (b.includes("lineup") || b.includes("counted")) {
+    const w = r.weeks.find((x) => x.episode === n);
+    return w ? w.started.map((x) => ({ id: x.id, points: x.points })) : [];
+  }
+  if ((b.includes("pick") || b.includes("picks")) && s?.pick) {
+    const night = nightKind(s.pick);
+    const out: PickOf[] = s.pick.id ? [{ id: s.pick.id, night: s.pick.correct === false ? "home" : night === "home" ? "stayed" : night }] : [];
+    if (s.pick.second && !s.pick.second.void) out.push({ id: s.pick.second.id, night: s.pick.second.correct === false ? "home" : s.pick.second.correct ? "stayed" : null });
+    return out;
+  }
+  if (b.includes("boots") || b.includes("team")) {
+    const held = s?.held ?? r.team;
+    const left = new Set(s?.left ?? []);
+    // Who left tonight first (the news), then who's still in; anyone gone before tonight is left off.
+    return [...held.filter((id) => left.has(id)).map((id) => ({ id, lost: true })), ...held.filter((id) => !left.has(id) && !faceIn(g, id)?.knocked).map((id) => ({ id }))];
+  }
+  return [];
+}
+
+type Tone = "good" | "out" | "plain";
+/** A tone's ink: teal for good news, live red for someone leaving (DESIGN.md's Red Is For Leaving), the foreground otherwise. */
+const ink = (t: Tone) => (t === "good" ? "text-good" : t === "out" ? "text-live" : "");
+
+/** What the night did for someone, in the game's own measure (points carry their unit), and its tone. `top`: the couch's most
+ *  points that episode, which reads teal. */
+function changeOf(g: GameView, s: Square | null, top: number | null = null): { text: string; unit?: string; tone: Tone } | null {
+  if (!s) return null;
+  const k = g.plays.kind;
+  if (k === "pick" && s.pick) {
+    const night = nightKind(s.pick);
+    if (night === null) return { text: "Waiting", tone: "plain" };
+    const words: Record<string, string> = { stayed: "Stayed", home: "Went home", missed: "Missed", forgiven: "Forgiven", bought: "Bought back", skipped: "Skipped" };
+    return { text: words[night], tone: night === "stayed" || night === "forgiven" ? "good" : night === "home" ? "out" : "plain" };
+  }
+  if (k === "result" && s.result) return { text: `${s.result.r} ${fmt(s.result.us)}–${s.result.them === null ? "" : fmt(s.result.them)}`, tone: s.result.r === "W" ? "good" : "plain" };
+  if (k === "won" && s.won) return { text: "Won it", tone: "good" };
+  if (s.held) return s.left?.length ? { text: `Lost ${s.left.length}`, tone: "out" } : { text: "All safe", tone: "good" };
+  if (s.points === null) return null;
+  return { text: signed(s.points), unit: Math.abs(s.points) === 1 ? "pt" : "pts", tone: top !== null && top > 0 && s.points === top ? "good" : "plain" };
+}
+
+/** The couch's most points in episode `n` among those it isn't waiting on (the episode sheet's "best"), or null. */
+function topOf(g: GameView, n: number, waiting: Set<string>): number | null {
+  const pts = g.table.filter((r) => !waiting.has(r.playerId)).map((r) => sqAt(g, r.playerId, n)?.points ?? null).filter((p): p is number => p !== null);
+  return pts.length ? Math.max(...pts) : null;
+}
+const waitingOn = (g: GameView, n: number) => new Set((g.waiting ?? []).filter((w) => w.episode === n).map((w) => w.playerId));
+
+/** The night's one piece of news about someone else (a pool's pick that went home, a team's loss, the couch's best night), with who. */
+function couchNews(g: GameView, n: number): { who: TableRow[]; words: string } | null {
+  if (g.solo === "public") return null;
+  const waiting = waitingOn(g, n);
+  const others = g.table.filter((r) => !r.you && !waiting.has(r.playerId));
+  const at = (r: TableRow) => sqAt(g, r.playerId, n);
+  const name = (r: TableRow) => first(r.name);
+  const pair = (rs: TableRow[]) => (rs.length === 1 ? name(rs[0]) : `${name(rs[0])} and ${name(rs[1])}`);
+  const home = others.filter((r) => {
+    const s = at(r);
+    return !!s?.pick && (s.pick.correct === false || nightKind(s.pick) === "home");
+  });
+  if (home.length) return { who: home, words: home.length > 2 ? `${home.length} picks went home` : `${pair(home)}'s ${home.length === 1 ? "pick" : "picks"} went home` };
+  const lost = others.filter((r) => (at(r)?.left ?? []).length > 0);
+  if (lost.length === 1) {
+    const gone = (at(lost[0])?.left ?? []).map((id) => first(castName(faceIn(g, id), g)));
+    return { who: lost, words: `${name(lost[0])} lost ${gone.length === 1 ? gone[0] : `${gone.length}`}` };
+  }
+  if (lost.length > 1) return { who: lost, words: `${lost.length} of the couch lost someone` };
+  const top = topOf(g, n, waiting);
+  const best = top !== null && top > 0 ? g.table.filter((r) => !waiting.has(r.playerId) && at(r)?.points === top) : [];
+  if (best.length && g.plays.kind !== "pick" && g.plays.kind !== "result") {
+    const pts = top;
+    const rest = best.filter((r) => !r.you);
+    const many = (rs: TableRow[]) => (rs.length <= 2 ? pair(rs) : `${name(rs[0])} and ${rs.length - 1} more`);
+    const who = rest.length === best.length ? `${many(best)} had the night` : !rest.length ? "Your night was the couch's best" : rest.length === 1 ? `You and ${name(rest[0])} had the night` : `You and ${rest.length} others had the night`;
+    return { who: best.filter((r) => !r.you).length ? best.filter((r) => !r.you) : best, words: pts != null ? `${who} · ${signed(pts)}` : who };
+  }
+  return null;
+}
+
+interface Night {
+  g: GameView;
+  n: number;
+  /** The game counted episode `n` (else the card is your standing alone). */
+  played: boolean;
+  moves: Map<string, number> | null;
+  news: boolean;
+}
+
+function nightOf(g: GameView, n: number): Night {
+  const played = g.through === n && g.plays.episodes.includes(n) && countedYet(g);
+  const moves = played ? movesOf(g, n) : null;
+  const me = g.you;
+  const s = me && played ? sqAt(g, me.playerId, n) : null;
+  const moved = me ? (moves?.get(me.playerId) ?? 0) : 0;
+  // News for you: a place moved, a pick that went home, someone of yours left, a week won, a matchup decided.
+  const news = played && (moved !== 0 || (!!s?.pick && nightKind(s.pick) !== "stayed") || (s?.left ?? []).length > 0 || !!s?.won || !!s?.result);
+  return { g, n, played, moves, news };
+}
+
+// ---------- the motion: what changed, once per episode ----------
+
+/** Whether a card's change still has to play for episode `n` (never under reduced motion), and the ref that plays it once it's at
+ *  least half in view; remembered on this device (`gys-night:<game>` = the episode played). */
+function useOnce(key: string, n: number, wants: boolean): [(el: HTMLDivElement | null) => void, "still" | "waiting" | "play"] {
+  const [el, setEl] = useState<HTMLDivElement | null>(null);
+  const [state, setState] = useState<"still" | "waiting" | "play">(() => {
+    if (!wants || typeof window === "undefined") return "still";
+    try {
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return "still";
+      return (Number(window.localStorage.getItem(`gys-night:${key}`)) || 0) >= n ? "still" : "waiting";
+    } catch {
+      return "still";
+    }
+  });
+  useEffect(() => {
+    if (state !== "waiting" || !el) return;
+    const io = new IntersectionObserver(
+      (es) => {
+        if (!es.some((e) => e.intersectionRatio >= 0.5)) return;
+        io.disconnect();
+        setState("play");
+        try {
+          window.localStorage.setItem(`gys-night:${key}`, String(n));
+        } catch {
+          // A private window: it plays again next time, nothing more.
+        }
+      },
+      { threshold: [0.5] }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [state, el, key, n]);
+  return [setEl, state];
+}
+
+/** A place as a broadcast number flip: the old one slides up and out as the new one rises in (only while `play`); `from` while it
+ *  waits to come into view. */
+function PlaceFlip({ from, to, state }: { from: string | null; to: string; state: "still" | "waiting" | "play" }) {
+  if (state === "still" || !from || from === to) return <>{to}</>;
+  if (state === "waiting") return <>{from}</>;
+  return (
+    <span className="relative inline-grid overflow-hidden align-bottom" aria-label={to}>
+      <span aria-hidden className="nn-flip-out col-start-1 row-start-1">
+        {from}
+      </span>
+      <span aria-hidden className="nn-flip-in col-start-1 row-start-1">
+        {to}
+      </span>
+    </span>
+  );
+}
+
+/** How a place moved: a teal caret up, a bone one down, a muted dash held; nothing when it can't be said. */
+function Moved({ by, small, motion }: { by: number | null | undefined; small?: boolean; motion?: boolean }) {
+  if (by === null || by === undefined) return null;
+  if (by === 0) return null;
+  const up = by > 0;
+  return (
+    <span data-moved={by} aria-label={`${up ? "up" : "down"} ${Math.abs(by)}`} className={`type-num inline-flex flex-none items-center gap-0.5 ${up ? "text-good" : "text-foreground"} ${small ? "text-[12px]" : "text-[17px]"} ${motion ? "nn-caret-in" : ""}`}>
+      <svg viewBox="0 0 10 8" aria-hidden className={`${small ? "size-2" : "size-2.5"} ${up ? "" : "rotate-180"}`}>
+        <path d="M5 0 10 8H0z" fill="currentColor" />
+      </svg>
+      {Math.abs(by)}
+    </span>
+  );
+}
+
+// ---------- faces ----------
+
+/** A pick's face wearing its result: points under a starter; a check or a cross on a pool's pick; a lost castaway greyed and crossed. */
+function PickFace({ g, p, size, onOpen, motion, named }: { g: GameView; p: PickOf; size: number; onOpen?: (id: string) => void; motion?: boolean; named?: boolean }) {
+  const c = faceIn(g, p.id);
+  const gone = p.lost || p.night === "home";
+  const badge = p.lost ? "home" : p.night && p.night !== "skipped" ? p.night : null;
+  const face = (
+    <span className="relative block flex-none" style={{ width: size, height: size }}>
+      <Face src={c?.photo ?? null} name={c?.name} className="block size-full rounded-[3px] text-xs" />
+      {gone && <i aria-hidden className={`absolute inset-0 rounded-[3px] bg-background/55 ${motion ? "nn-lost" : ""}`} />}
+      {badge && (
+        <span className={`absolute ${size >= 32 ? "-right-1 -top-1" : "-right-1.5 -top-1.5"} ${motion && gone ? "nn-cross-in" : ""}`}>
+          <NightBadge kind={badge} className={size >= 32 ? "size-4" : "size-3.5"} />
+        </span>
+      )}
+    </span>
+  );
+  const label = `${castName(c, g)}${p.points !== undefined ? `, ${signed(p.points)}` : gone ? ", went home" : p.night === "stayed" ? ", stayed" : ""}`;
+  const body = (
+    <>
+      {face}
+      {p.points !== undefined && <small className={`type-num mt-1 block text-center leading-none ${size >= 32 ? "text-[13px]" : "text-[11px]"} ${p.points > 0 ? "" : "text-muted-foreground"}`}>{signed(p.points)}</small>}
+      {named && p.points === undefined && <small className="mt-1 block max-w-16 truncate text-center text-[12px] leading-none text-muted-foreground">{first(castName(c, g))}</small>}
+    </>
+  );
+  return onOpen ? (
+    <button type="button" data-night-face={p.id} aria-label={label} onClick={() => onOpen(p.id)} className="nd-press flex flex-none flex-col items-center">
+      {body}
+    </button>
+  ) : (
+    <span role="img" aria-label={label} className="flex flex-none flex-col items-center">
+      {body}
+    </span>
+  );
+}
+
+/** A row of picks, capped: the first `max` and "+n". */
+function Picks({ g, picks, size, max, onOpen, motion, named }: { g: GameView; picks: PickOf[]; size: number; max: number; onOpen?: (id: string) => void; motion?: boolean; named?: boolean }) {
+  if (!picks.length) return null;
+  const shown = picks.slice(0, max);
+  return (
+    <span className="flex items-start gap-1.5">
+      {shown.map((p) => (
+        <PickFace key={p.id} g={g} p={p} size={size} onOpen={onOpen} motion={motion} named={named} />
+      ))}
+      {picks.length > max && (
+        <span className="type-num grid flex-none place-items-center text-[13px] text-muted-foreground" style={{ height: size }}>
+          +{picks.length - max}
+        </span>
+      )}
+    </span>
+  );
+}
+
+// ---------- the five rows ----------
+
+/** Everyone, or the top five, or the top three, the one just ahead of you and you, in the table's order ("gap" where places jump). */
+export function fiveOf(table: TableRow[]): (TableRow | "gap")[] {
+  if (table.length <= 5) return table;
+  const i = table.findIndex((r) => r.you);
+  if (i < 5) return table.slice(0, 5);
+  return [...table.slice(0, 3), ...(i - 1 > 3 ? (["gap"] as const) : []), table[i - 1], table[i]];
+}
+
+/** Everyone's night: a row each (place, how they moved, face, name, their picks, the night's change), you on the raised fill. */
+function Everyone({ g, n, open, mineAbove = false }: { g: GameView; n: number; open: (d: Door) => void; mineAbove?: boolean }) {
+  const moves = movesOf(g, n);
+  const top = topOf(g, n, waitingOn(g, n));
+  const rows = fiveOf(g.table);
+  const waiting = new Set((g.waiting ?? []).filter((w) => w.episode === n).map((w) => w.playerId));
+  const strangers = g.solo === "public";
+  return (
+    <div data-night-everyone={g.leagueId} className="flex flex-col">
+      {rows.map((r, i) =>
+        r === "gap" ? (
+          <span key={`gap-${i}`} aria-hidden className="flex h-6 items-center justify-center border-t border-border text-[13px] leading-none tracking-[0.3em] text-muted-foreground">
+            ···
+          </span>
+        ) : (
+          <EveryoneRow key={r.playerId} g={g} r={r} n={n} top={top} moved={moves?.get(r.playerId)} behind={waiting.has(r.playerId)} quiet={strangers && !r.you} bare={mineAbove && r.you} open={open} />
+        )
+      )}
+      {g.table.length > 5 && (
+        <button type="button" data-night-all={g.leagueId} onClick={() => open({ kind: "episode", episode: n, game: g.leagueId })} className="nd-press flex min-h-11 items-center gap-1 border-t border-border text-[14px] font-semibold">
+          See all {g.table.length}
+          <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function EveryoneRow({ g, r, n, top, moved, behind, quiet, bare, open }: { g: GameView; r: TableRow; n: number; top: number | null; moved: number | undefined; behind: boolean; quiet: boolean; bare: boolean; open: (d: Door) => void }) {
+  const s = sqAt(g, r.playerId, n);
+  const picks = quiet || behind || bare ? [] : picksOf(g, r, n, s);
+  const change = behind ? null : changeOf(g, s, top);
+  return (
+    <button
+      type="button"
+      data-night-row={r.playerId}
+      data-night-you={r.you || undefined}
+      disabled={quiet}
+      onClick={() => open({ kind: "person", playerId: r.playerId, episode: n, game: g.leagueId })}
+      className={`flex min-h-[52px] items-center gap-2 border-t py-1.5 text-left ${r.you ? "-mx-2.5 w-[calc(100%+20px)] rounded-[3px] border-transparent bg-secondary px-2.5" : "w-full border-border"}`}
+    >
+      <span className="type-num w-7 flex-none text-right text-[16px] text-muted-foreground">{r.rank}</span>
+      <span className="w-6 flex-none">
+        <Moved by={moved} small />
+      </span>
+      <Avatar id={r.userId ?? r.playerId} name={r.name} size={28} bot={r.bot} />
+      <span className="min-w-0 flex-1">
+        <b className="block truncate text-[15px] font-semibold leading-tight">{r.you ? "You" : r.name}</b>
+        {behind ? (
+          <small className="mt-0.5 block truncate text-[13px] text-muted-foreground">Hasn&apos;t watched Ep {n} yet</small>
+        ) : picks.length ? (
+          <span className="mt-1 block">
+            <Picks g={g} picks={picks} size={26} max={6} />
+          </span>
+        ) : null}
+      </span>
+      {change && <b className={`type-num flex-none text-right text-[17px] ${ink(change.tone)}`}>{change.text}</b>}
+    </button>
+  );
+}
+
+// ---------- a season game's card ----------
+
+/** One season game's night: closed, your night and one line about the couch; open, your ledger and everyone's night. */
+function NightCard({ night, name, show, early, open: openDoor }: { night: Night; name: string; show: ShowData; early: boolean; open: (d: Door) => void }) {
+  const { g, n, played } = night;
+  const [open, setOpen] = useState(false);
+  const seasonId = show.header?.seasonId ?? "";
+  const me = g.you;
+  const s = me && played ? sqAt(g, me.playerId, n) : null;
+  const moved = me && night.moves ? night.moves.get(me.playerId) : undefined;
+  const picks = me && played ? picksOf(g, me, n, s) : [];
+  const change = played ? changeOf(g, s, topOf(g, n, waitingOn(g, n))) : null;
+  const news = played ? couchNews(g, n) : null;
+  const week: LineupWeek | undefined = me && played ? me.weeks.find((w) => w.episode === n) : undefined;
+  const opens = played && g.table.length > 1;
+  const [attach, motion] = useOnce(g.leagueId, n, played && (!!moved || picks.some((p) => p.lost || p.night === "home") || !!week));
+  const playing = motion === "play";
+  const from = me && moved ? ordinal(me.place + moved) : null;
+  // A team game ranks by points (who's still in is its faces); head to head by its record; the rest in their own words.
+  const team = g.plays.blocks.includes("boots") || g.plays.blocks.includes("team");
+  const measure = g.plays.kind === "result" && me?.record ? `${me.record.wins}–${me.record.losses}${me.record.ties ? `–${me.record.ties}` : ""}` : team && me && countedYet(g) ? `${fmt(me.total)} pts` : yourLine(g);
+  const toggle = () => opens && setOpen((o) => !o);
+  return (
+    <div ref={attach} data-night-card={g.leagueId} data-night-news={night.news ? "yes" : "no"} data-night-open={open ? "open" : "closed"} className="border-t border-border pb-1.5 pt-2 first:border-t-0 first:pt-0">
+      <NavLink href={paths.gamePage(seasonId, g.leagueId)} data-game={g.leagueId} className="nd-press -mx-1 flex min-h-11 items-center gap-2 rounded-[3px] px-1">
+        <i className="size-2 flex-none rounded-full" style={{ background: gameInk(g.gameName) }} aria-hidden />
+        <span className="type-caption min-w-0 flex-1 truncate text-[14px] tracking-[0.05em]">{name}</span>
+        <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
+      </NavLink>
+      <button type="button" data-night-standing onClick={toggle} aria-expanded={opens ? open : undefined} disabled={!opens} className="flex min-h-11 w-full items-end gap-2 text-left disabled:cursor-default">
+        <b className="type-num text-[30px] leading-[0.9]" data-night-place>
+          <PlaceFlip from={from} to={placeOf(g)} state={motion} />
+        </b>
+        {(motion !== "waiting" || !moved) && <Moved by={moved} motion={playing} />}
+        <span className="min-w-0 flex-1 truncate pb-px text-[14px] text-muted-foreground">{[g.players > 1 && me && countedYet(g) ? `of ${g.players}` : null, measure].filter(Boolean).join(" · ")}</span>
+        {change && (
+          <span className="flex flex-none flex-col items-end pb-px">
+            <b data-night-change className={`type-num text-[22px] leading-none ${ink(change.tone)}`}>
+              {change.text}
+              {change.unit && <small className="ml-1 font-sans text-[13px] font-semibold text-muted-foreground">{change.unit}</small>}
+            </b>
+            {/* Early results (the final ones land at noon the next day): the night's numbers so far. */}
+            {early && <small className="mt-0.5 text-[12px] leading-none text-muted-foreground">so far</small>}
+          </span>
+        )}
+      </button>
+      {open && week ? (
+        <Ledger g={g} week={week} open={openDoor} grow={playing} />
+      ) : picks.length ? (
+        <div className="mt-0.5" data-night-picks>
+          <Picks g={g} picks={picks} size={36} max={5} motion={playing} named={g.plays.kind === "pick"} onOpen={(id) => openDoor({ kind: "cast", id, game: g.leagueId })} />
+        </div>
+      ) : null}
+      {opens && (
+        <button type="button" data-night-toggle onClick={toggle} aria-expanded={open} className="nd-press flex min-h-11 w-full items-center gap-2 text-left">
+          {news && news.who[0] && <Avatar id={news.who[0].userId ?? news.who[0].playerId} name={news.who[0].name} size={22} bot={news.who[0].bot} />}
+          <span className={`min-w-0 flex-1 truncate text-[14px] ${news ? "font-semibold" : "text-muted-foreground"}`} data-night-news-line>
+            {news ? news.words : "Everyone's night"}
+          </span>
+          <ChevronDown className={`size-4 flex-none text-muted-foreground transition-transform duration-200 ${open ? "rotate-180" : ""}`} aria-hidden />
+        </button>
+      )}
+      {open && (
+        <div data-night-well className="mt-1 rounded-[4px] bg-card px-2.5 pb-1 pt-1">
+          {g.plays.kind === "result" ? (
+            <EpisodeGames g={g} episode={n} onOpen={(pid) => openDoor({ kind: "matchup", playerId: pid, episode: n, game: g.leagueId })} />
+          ) : (
+            <Everyone g={g} n={n} open={openDoor} mineAbove />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Who scored, data round 3's ledger: your starters for the week, each a face, a name, a bar on one points scale shared by every
+ * row (a negative an outline left of zero) and the points; then the bench, faint, which didn't count. `grow`: the bars grow from
+ * zero, the card's change playing.
+ */
+export function Ledger({ g, week, open, grow }: { g: GameView; week: LineupWeek; open: (d: Door) => void; grow?: boolean }) {
+  const rows = [...week.started.map((s) => ({ ...s, bench: false })), ...week.bench.map((b) => ({ ...b, why: [] as string[], bench: true }))];
+  const hi = Math.max(0, ...rows.map((r) => r.points));
+  const lo = Math.min(0, ...rows.map((r) => r.points));
+  // One scale for every row, at least 4 points wide, so one bad week doesn't draw the widest bar of all.
+  const span = Math.max(4, hi - lo);
+  const zero = (-lo / span) * 100;
+  return (
+    <div data-ledger={week.episode} className="mt-1 flex flex-col">
+      {rows.map((r, i) => {
+        const c = faceIn(g, r.id);
+        const w = (Math.abs(r.points) / span) * 100;
+        return (
+          // Each castaway opens their sheet, in this game (the drill pass, 2026-11-17).
+          <button
+            key={`${r.bench ? "b" : "s"}-${r.id}`}
+            type="button"
+            data-ledger-row={r.bench ? "bench" : "starter"}
+            data-door-cast={c?.name}
+            onClick={() => open({ kind: "cast", id: r.id, game: g.leagueId })}
+            className={`nd-press flex min-h-12 w-full items-center gap-2.5 py-1 text-left ${r.bench ? "opacity-60" : ""}`}
+          >
+            <Face src={c?.photo ?? null} name={c?.name} className="size-9 flex-none rounded-[3px] text-sm" />
+            <span className="w-[92px] min-w-0 flex-none">
+              <b className="block truncate text-[15px] font-semibold leading-tight">{castName(c, g)}</b>
+              <small className="block truncate text-[13px] text-muted-foreground">{r.bench ? "Bench" : (r.why[0] ?? "Started")}</small>
+            </span>
+            <span className="relative h-2.5 flex-1" aria-hidden>
+              <i className="absolute inset-y-0 w-px bg-border" style={{ left: `${zero}%` }} />
+              {r.points === 0 ? (
+                <i className="absolute top-1/2 size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted-foreground" style={{ left: `${zero}%` }} />
+              ) : (
+                <i
+                  className={`ledger-bar absolute inset-y-0 rounded-[2px] ${grow ? (r.points < 0 ? "nn-bar-grow-left" : "nn-bar-grow") : ""} ${r.points < 0 ? "outline-1 -outline-offset-1 outline-foreground/70" : r.bench ? "bg-foreground/40" : "bg-foreground"}`}
+                  style={{ ...(r.points < 0 ? { right: `${100 - zero}%`, width: `${w}%` } : { left: `${zero}%`, width: `${w}%` }), ["--i" as string]: i }}
+                />
+              )}
+            </span>
+            <b className="type-num w-10 flex-none text-right text-[17px]">{fmt(r.points)}</b>
+            <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
+          </button>
+        );
+      })}
+      <p className="mt-1 flex items-baseline justify-between border-t border-border pt-2 text-[14px]">
+        <span className="text-muted-foreground">Your lineup</span>
+        <b className="type-num text-[17px]">{signed(week.started.reduce((a, s) => a + s.points, 0))}</b>
+      </p>
+    </div>
+  );
+}
+
+// ---------- the night's quick games ----------
+
+/** A quick game that played episode `n` (the archive's: a finished game isn't in the running read): who won, your place; open, its
+ *  everyone's night from its own read. */
+function QuickCard({ a, show, n, open: openDoor }: { a: ArchivedGame; show: ShowData; n: number; open: (d: Door) => void }) {
+  const [open, setOpen] = useState(false);
+  const seasonId = show.header?.seasonId ?? "";
+  const couchId = show.couch?.id ?? null;
+  const q = useSeasonGame(seasonId, couchId, a.leagueId, open);
+  const g = q.data?.games[0];
+  const won = !!a.you && a.you.place === 1 && !a.level && !a.nobody;
+  const opens = a.players > 1;
+  // Who won, in words beside your place (never "Tied" beside a "T1"): you alone, shared with whom, or whoever won.
+  const others = a.winners.filter((w) => !w.you).map((w) => first(w.name));
+  const words = a.nobody ? "Nobody scored" : a.level ? `All ${a.players} level` : a.winners.some((w) => w.you) ? (others.length ? `shared with ${others.length > 2 ? `${others[0]} and ${others.length - 1} more` : others.join(" and ")}` : "You won it") : `${others[0] ?? "Someone"}${others.length > 1 ? ` and ${others.length - 1} more` : ""} won`;
+  return (
+    <div data-night-quick={a.leagueId} data-night-open={open ? "open" : "closed"} className="border-t border-border pb-1.5 pt-2">
+      <NavLink href={paths.gamePage(seasonId, a.leagueId)} className="nd-press -mx-1 flex min-h-11 items-center gap-2 rounded-[3px] px-1">
+        <i className="size-2 flex-none rounded-full" style={{ background: gameInk(a.gameName) }} aria-hidden />
+        <span className="type-caption min-w-0 flex-1 truncate text-[14px] tracking-[0.05em]">{quickName(a.kind)}</span>
+        <small className="flex-none text-[13px] text-muted-foreground">Quick game</small>
+        <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
+      </NavLink>
+      <button type="button" data-night-quick-standing onClick={() => opens && setOpen(!open)} aria-expanded={opens ? open : undefined} disabled={!opens} className="flex min-h-11 w-full items-end gap-2 text-left disabled:cursor-default">
+        <b className={`type-num text-[30px] leading-[0.9] ${won ? "text-good" : ""}`}>{a.you ? placeWord(a.you) : "—"}</b>
+        <span className="min-w-0 flex-1 truncate pb-px text-[14px] text-muted-foreground">{[a.players > 1 && a.you ? `of ${a.players}` : null, words].filter(Boolean).join(" · ")}</span>
+        {a.you && !a.nobody && (
+          <b className="type-num flex-none pb-px text-[22px] leading-none">
+            {fmt(a.you.total)}
+            <small className="ml-1 font-sans text-[13px] font-semibold text-muted-foreground">{a.you.total === 1 ? "pt" : "pts"}</small>
+          </b>
+        )}
+      </button>
+      {opens && (
+        <button type="button" data-night-toggle onClick={() => setOpen(!open)} aria-expanded={open} className="nd-press flex min-h-11 w-full items-center gap-2 text-left">
+          <span className="min-w-0 flex-1 truncate text-[14px] text-muted-foreground">Everyone&apos;s night</span>
+          <ChevronDown className={`size-4 flex-none text-muted-foreground transition-transform duration-200 ${open ? "rotate-180" : ""}`} aria-hidden />
+        </button>
+      )}
+      {open && (
+        <div data-night-well className="mt-1 rounded-[4px] bg-card px-2.5 pb-1 pt-1">
+          {g ? <Everyone g={g} n={n} open={openDoor} /> : <div aria-busy className="h-24 animate-pulse" />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------- the couch's bingo and trivia ----------
+
+/** A bingo card as a glyph: three by three, ticked squares filled (the centre's free), a line that counts drawn through in teal. */
+function BingoGlyph({ grid, size = 26 }: { grid: { ticked: number[]; counts: number[] }; size?: number }) {
+  const at = (i: number) => ({ x: (i % 3) * 11 + 4, y: Math.floor(i / 3) * 11 + 4 });
+  return (
+    <svg viewBox="0 0 30 30" width={size} height={size} aria-hidden className="flex-none">
+      {Array.from({ length: 9 }, (_, i) => {
+        const on = i === 4 || grid.ticked.includes(i);
+        return <rect key={i} x={(i % 3) * 11} y={Math.floor(i / 3) * 11} width={8} height={8} rx={1} className={on ? "fill-foreground" : "fill-none stroke-muted-foreground"} strokeWidth={1} />;
+      })}
+      {grid.counts.map((l) => {
+        const [a, , c] = LINES[l];
+        return <line key={l} x1={at(a).x} y1={at(a).y} x2={at(c).x} y2={at(c).y} className="stroke-good" strokeWidth={3} strokeLinecap="round" />;
+      })}
+    </svg>
+  );
+}
+
+/** One extra's line: its name, the couch's results as small marks with names, what opens it. */
+function ExtraLine({ title, line, children, onOpen, data }: { title: string; line: string; children: ReactNode; onOpen: () => void; data: string }) {
+  return (
+    <button type="button" data-night-extra={data} onClick={onOpen} className="nd-press flex w-full items-center gap-3 border-t border-border py-2.5 text-left first:border-t-0">
+      <span className="min-w-0 flex-1">
+        <span className="flex items-baseline gap-2">
+          <b className="flex-none text-[15px] font-semibold">{title}</b>
+          <small className="min-w-0 truncate text-[13px] text-muted-foreground">{line}</small>
+        </span>
+        <span className="mt-2 flex items-end gap-3.5">{children}</span>
+      </span>
+      <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
+    </button>
+  );
+}
+
+/** The couch's bingo for episode `n` and this week's trivia, when anyone played them; nothing otherwise. `title`: as its own block. */
+export function NightExtras({ show, n, title }: { show: ShowData; n: number; title?: string }) {
+  const seasonId = show.header?.seasonId ?? null;
+  const couchId = show.couch?.id ?? null;
+  const bingo = useEpisodeBingo(seasonId, couchId, n, !!seasonId);
+  const trivia = useTrivia(seasonId, show.solo ? null : couchId, !!seasonId);
+  const b = bingo.data;
+  const t = trivia.data;
+  const cards = (b?.people ?? []).filter((p) => p.ticked > 0 && p.grid);
+  const scores = t ? [...(t.played ? [{ userId: "you", name: "You", score: t.played.score, of: t.played.of }] : []), ...t.couch] : [];
+  if (!cards.length && !scores.length) return null;
+  const firstLine = b?.first ? (cards.find((p) => p.userId === b.first?.userId)?.name ?? b.first.name) : null;
+  const bingoLine = firstLine ? `${first(firstLine)} got a line first` : `${cards.length} ${cards.length === 1 ? "card" : "cards"} played`;
+  const best = scores.length ? Math.max(...scores.map((x) => x.score)) : 0;
+  const top = scores.filter((x) => x.score === best);
+  const triviaLine = !t?.played ? "Play this week's round" : top.length === 1 ? `${top[0].userId === "you" ? "You" : first(top[0].name)} scored best` : `Tied on ${best}`;
+  const body = (
+    <div data-night-extras className="flex flex-col">
+      {cards.length > 0 && seasonId && (
+        <ExtraLine data="bingo" title="Bingo" line={bingoLine} onOpen={() => openBingo({ seasonId, couchId, episode: n, label: showLabel(show), solo: show.solo })}>
+          {cards.slice(0, 6).map((p) => (
+            <span key={p.userId} className="flex flex-col items-center gap-1">
+              <BingoGlyph grid={p.grid!} />
+              <small className="max-w-11 truncate text-[11px] leading-none text-muted-foreground">{first(p.name)}</small>
+            </span>
+          ))}
+        </ExtraLine>
+      )}
+      {scores.length > 0 && seasonId && (
+        <ExtraLine data="trivia" title="Trivia · this week" line={triviaLine} onOpen={() => openTrivia({ seasonId, couchId: show.solo ? null : couchId })}>
+          {scores.slice(0, 6).map((x) => (
+            <span key={x.userId} className="flex flex-col items-center gap-1">
+              <b className={`type-num text-[19px] leading-none ${x.score === best && best > 0 ? "text-good" : ""}`}>
+                {x.score}/{x.of}
+              </b>
+              <small className="max-w-11 truncate text-[11px] leading-none text-muted-foreground">{first(x.name)}</small>
+            </span>
+          ))}
+        </ExtraLine>
+      )}
+    </div>
+  );
+  return title ? <Block title={title}>{body}</Block> : <div className="mt-2 border-t border-border pt-1">{body}</div>;
+}
+
+// ---------- the section ----------
+
+/** Block 4: your night in each season game, the night's quick games, the couch's bingo and trivia. A show you only watch gets the
+ *  couch's bingo and trivia alone, never a game's results. */
+export function YourNight({ show, open }: { show: ShowData; open: (d: Door) => void }) {
+  const n = latestSeen(show);
+  const playing = show.games.some((g) => g.yourRole);
+  const [all, setAll] = useState(false);
+  const seasonId = show.header?.seasonId ?? "";
+  const couchId = show.couch?.id ?? null;
+  const archive = useSeasonArchive(seasonId, couchId, null, !!seasonId && playing);
+  const [quickAll, setQuickAll] = useState(false);
+  if (!n || !show.header) return null;
+  if (!playing) return show.readOnly ? null : <NightExtras show={show} n={n} title={`The couch's night · ${show.words.ep} ${n}`} />;
+  if (!show.play) return <div aria-busy className="mx-4 mt-[26px] h-[150px] animate-pulse rounded-[4px] bg-card" />;
+  // Round 3: one-episode games aren't season cards; finished ones are the archive's.
+  const games = show.play.filter((g) => !g.stageOf && !oneGame(g) && !(g.over && g.to !== null));
+  const twin = (g: GameView) => games.filter((x) => x.gameType === g.gameType).length > 1;
+  const nameOf = (g: GameView) => (g.solo === "public" ? "Everyone" : twin(g) && g.name !== g.gameName ? g.name : (GAME_NAMES[g.gameName] ?? g.gameName));
+  const nights = games.map((g) => nightOf(g, n));
+  const early = show.episodes?.episodes.find((e) => e.number === n)?.stage === "early";
+  // News for you first, the rest after, each in the games' own order.
+  const ordered = [...nights.filter((x) => x.news), ...nights.filter((x) => !x.news)];
+  const shown = all || ordered.length <= 3 ? ordered : ordered.slice(0, 3);
+  const folded = all ? [] : ordered.slice(3);
+  const quick = (archive.data?.pages[0]?.games ?? []).filter((a) => a.ended === n && a.from === a.to && !!a.you);
+  const quickShown = quickAll || quick.length <= 3 ? quick : [];
+  const firsts = quick.filter((a) => a.you && a.you.place === 1 && !a.level && !a.nobody).length;
+  return (
+    <Block title={`Your night · ${show.words.ep} ${n}`}>
+      <div data-your-night={n} className="flex flex-col">
+        {shown.map((x) => (
+          <NightCard key={x.g.leagueId} night={x} name={nameOf(x.g)} show={show} early={early} open={open} />
+        ))}
+        {folded.length > 0 && (
+          <button type="button" data-night-fold={folded.length} onClick={() => setAll(true)} className="nd-press flex min-h-[52px] w-full items-center gap-2.5 border-t border-border py-2 text-left">
+            <span className="min-w-0 flex-1">
+              <b className="block text-[15px] font-semibold">{folded.length} more {folded.length === 1 ? "game" : "games"}</b>
+              <span className="mt-1.5 flex flex-wrap gap-1.5">
+                {folded.map((x) => (
+                  <span key={x.g.leagueId} className="flex max-w-full items-center gap-1.5 rounded-[3px] bg-secondary px-1.5 py-0.5 text-[13px]">
+                    <i className="size-1.5 flex-none rounded-full" style={{ background: gameInk(x.g.gameName) }} aria-hidden />
+                    <b className="type-num flex-none text-[14px]">{placeOf(x.g)}</b>
+                    <span className="truncate text-muted-foreground">{nameOf(x.g)}</span>
+                  </span>
+                ))}
+              </span>
+            </span>
+            <ChevronDown className="size-4 flex-none text-muted-foreground" aria-hidden />
+          </button>
+        )}
+        {quickShown.map((a) => (
+          <QuickCard key={a.leagueId} a={a} show={show} n={n} open={open} />
+        ))}
+        {quick.length > 3 && !quickAll && (
+          <button type="button" data-night-quick-fold={quick.length} onClick={() => setQuickAll(true)} className="nd-press flex min-h-[52px] w-full items-center gap-2 border-t border-border text-left">
+            <b className="min-w-0 flex-1 truncate text-[15px] font-semibold">{`${show.words.ep} ${n}'s ${quick.length} quick games${firsts ? ` · you won ${firsts}` : ""}`}</b>
+            <ChevronDown className="size-4 flex-none text-muted-foreground" aria-hidden />
+          </button>
+        )}
+        <NightExtras show={show} n={n} />
+      </div>
+    </Block>
+  );
+}
+
+// ---------- the next episode's quick games you could join ----------
+
+/** In Next · Ep N+1: the couch's quick games for it that you're not in (who's in, when it locks, Join), at most two; someone who only
+ *  watches, with no quick game to join, gets one season game still open to them. */
+export function JoinRows({ show, ep }: { show: ShowData; ep: number }) {
+  const couchId = show.couch?.id ?? null;
+  const seasonId = show.header?.seasonId ?? null;
+  const playing = show.games.some((g) => g.yourRole);
+  const q = useCouchGames(couchId, !!couchId && !show.solo && !show.readOnly);
+  const [joining, setJoining] = useState<JoinGame | null>(null);
+  if (!couchId || !seasonId) return null;
+  const open = (q.data?.games ?? []).filter((g) => g.seasonId === seasonId && !g.ended && !g.you?.playing && (g.mode === "open" || (g.mode === "ask" && !!g.you?.letIn)));
+  const quick = open.filter((g) => g.span && g.span.from === g.span.to && g.span.from === ep);
+  const season = !playing && !quick.length ? open.filter((g) => !(g.span && g.span.from === g.span.to)).slice(0, 1) : [];
+  const rows = [...quick.slice(0, 2), ...season];
+  if (!rows.length) return null;
+  return (
+    <>
+      {rows.map((g) => {
+        const quickOne = !!g.span && g.span.from === g.span.to;
+        const who = g.faces.length ? `${g.faces.length} in` : "Be the first in";
+        const title = quickOne ? quickName(g.name) : (GAME_NAMES[g.gameName] ?? g.gameName);
+        return (
+          <div key={g.leagueId} data-join-row={g.leagueId} className="flex min-h-[60px] items-center gap-3 border-t border-border py-2">
+            <span className="flex w-5 flex-none justify-center">
+              <i className="size-2 rounded-full" style={{ background: gameInk(g.gameName) }} aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1">
+              <b className="block truncate text-[15px] font-semibold">{title}</b>
+              <small className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
+                <span className="flex flex-none items-center" aria-hidden>
+                  {g.faces.slice(0, 3).map((f, i) => (
+                    <span key={f.userId} className="rounded-[4px] ring-2 ring-background" style={{ marginLeft: i ? -5 : 0, zIndex: 3 - i }}>
+                      <Avatar id={f.userId} name={f.name} size={18} />
+                    </span>
+                  ))}
+                </span>
+                <span className="min-w-0 truncate">{[who, quickOne ? "pick before you watch" : `from ${show.words.ep} ${Math.max(g.latest + 1, 1)}`].join(" · ")}</span>
+              </small>
+            </span>
+            <Btn tone="optional" className="h-10 flex-none px-4" data-join-button onClick={() => setJoining(g)}>
+              Join
+            </Btn>
+          </div>
+        );
+      })}
+      {quick.length > 2 && (
+        <NavLink href={paths.show(seasonId, "games")} className="nd-press flex min-h-11 items-center gap-1 border-t border-border text-[14px] font-semibold text-muted-foreground">
+          {quick.length - 2} more on the Games tab
+          <ChevronRight className="size-4" aria-hidden />
+        </NavLink>
+      )}
+      <JoinGameSheet couchId={couchId} game={joining} onOpenChange={(o) => !o && setJoining(null)} />
+    </>
+  );
+}

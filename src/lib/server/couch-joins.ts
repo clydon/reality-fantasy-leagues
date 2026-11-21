@@ -300,6 +300,8 @@ export interface JoinGame {
   teamSize: number;
   /** Who runs it, who'd let you in. */
   runners: string[];
+  /** Everyone in it (a seat with an account), oldest seat first: Tonight's Join row shows them. */
+  faces: { userId: string; name: string }[];
   ended: boolean;
   /** A game over a span (step 6 of docs/PLAN-sports-data.md): its first and last episode; null to the season's end. */
   span: { from: number; to: number } | null;
@@ -335,7 +337,7 @@ async function couchGameList(viewer: SessionUser | null, couchId: string): Promi
   const [states, { rows: memberRows }, { rows: asks }, schedules] = await Promise.all([
     leagueStates(ids),
     pool.query(
-      `SELECT m.league_id, m.role, COALESCE(u.username, u.name) AS name FROM league_memberships m JOIN "user" u ON u.id = m.user_id
+      `SELECT m.league_id, m.role, m.user_id, COALESCE(u.username, u.name) AS name FROM league_memberships m JOIN "user" u ON u.id = m.user_id
         WHERE m.league_id = ANY($1::uuid[]) ORDER BY m.created_at`,
       [ids]
     ),
@@ -377,6 +379,8 @@ async function couchGameList(viewer: SessionUser | null, couchId: string): Promi
       players: s.players.filter((p) => !p.disabled && !G.isGhost(p)).length,
       teamSize: G.teamSize(s),
       runners: memberRows.filter((m) => m.league_id === g.leagueId && (m.role === "commissioner" || m.role === "admin")).map((m) => m.name as string),
+      // Tonight's Join row (docs/design-round/tonight-night-spec.md): who's in, as faces, oldest seat first.
+      faces: memberRows.filter((m) => m.league_id === g.leagueId).map((m) => ({ userId: m.user_id as string, name: m.name as string })),
       // An archived game (step 10 part 2b) takes nobody new, as a season that's over doesn't. A game scored outside its state
       // (Weekly Calls, Weekly Bingo: step 12) is over once its season's last episode has aired.
       ended: gameOver(s, g.seasonId ? schedules.get(g.seasonId) : undefined) || g.archived,

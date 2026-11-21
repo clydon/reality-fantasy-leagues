@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Check, ChevronLeft, KeyRound, Play, RotateCcw } from "lucide-react";
 import { couches, useAfterCouch, useJoinOptions, type CatchUpReveal, type GameView, type JoinGame } from "../data";
-import { spanName } from "@/lib/game/spans";
+import { kindOf, spanName } from "@/lib/game/spans";
 import { gameColour } from "../games";
 import { useNav } from "../nav";
 import { paths } from "../routes";
@@ -111,6 +111,10 @@ export function JoinGameRow({ couchId, g, strong, onJoin }: { couchId: string; g
   );
 }
 
+/** What a game to join is called: a one-episode game by its own name, without the episode it was named for (Tonight's Join row
+ *  says the same: night.tsx quickName); any other by its kind. */
+const joinName = (g: JoinGame) => (g.span && g.span.from === g.span.to ? kindOf(g.name).replace(/[\s·]*\b(ep|episode)\s*\d+$/i, "") : g.gameName);
+
 /** The episodes aired so far, in words: "Episode 1 has aired", "Episodes 1 to 4 have aired". */
 const airedWords = (n: number) => (n === 1 ? "Episode 1 has aired" : `Episodes 1 to ${n} have aired`);
 
@@ -146,7 +150,7 @@ export function JoinGameSheet({ couchId, game, onOpenChange }: { couchId: string
       const r = await couches.joinGame(couchId, game.leagueId, { start: s, team: picks });
       await after();
       openChange(false);
-      toast(r.catchingUp ? `You're in. Catch-up starts at Episode ${r.start}.` : `You're in ${game.gameName}.`);
+      toast(r.catchingUp ? `You're in. Catch-up starts at Episode ${r.start}.` : `You're in ${joinName(game)}.`);
       if (r.seasonId) nav.push(paths.show(r.seasonId));
     } catch (e) {
       toast.quiet((e as Error).message);
@@ -160,7 +164,7 @@ export function JoinGameSheet({ couchId, game, onOpenChange }: { couchId: string
     <Sheet
       open={!!game}
       onOpenChange={openChange}
-      title={picking ? "Pick your team" : `Join ${game?.gameName ?? ""}`}
+      title={picking ? "Pick your team" : game ? `Join ${joinName(game)}` : "Join"}
       subtitle={
         !game
           ? undefined
@@ -249,9 +253,9 @@ export function JoinGameSheet({ couchId, game, onOpenChange }: { couchId: string
         </div>
       ) : !o.starts ? (
         <div data-join-simple>
-          <p className="text-[15px] leading-snug">{game.teamSize ? "You'll draft with everyone when the draft starts." : "You're in from the next episode."}</p>
+          <p className="text-[15px] leading-snug">{game.teamSize ? "You'll draft with everyone when the draft starts." : game.span && game.span.from === game.span.to ? `It plays Episode ${game.span.from} only: make your pick before you watch it.` : "You're in from the next episode."}</p>
           <Btn tone="must" wide className="mt-4" data-join-confirm disabled={busy} onClick={() => join(null, [])}>
-            {busy ? "Joining…" : `Join ${game.gameName}`}
+            {busy ? "Joining…" : `Join ${joinName(game)}`}
           </Btn>
         </div>
       ) : (
