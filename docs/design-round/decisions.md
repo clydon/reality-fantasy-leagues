@@ -1490,3 +1490,36 @@
 - Why: C with Lock in was the pick; the started gate ("Have you started watching?") replaced the honour note in C, so it could no longer show.
 - Rejected: keeping the switch (two apps to keep right).
 - Rests on: src/new/show/strip-night.ts, strip.tsx, dock.tsx.
+
+## 2026-11-20 · The settings overhaul: every cut and addition approved, Backstage retired
+- Decided by: the user, on the proposals page ("Settings proposals: yes to your recommendations, except yes to A5. Let's talk about
+  C8."). Then C8: "We've pretty consistently been using ChatGPT, so i think we should drop grok and just have the chatgpt link".
+- Why: the audit found settings in about 25 places, filed by when they were built rather than by what they're about. Many no longer
+  earn a control, and things people expect are missing.
+- What:
+  - C1–C49 as proposed, with C8 going further: Grok and the AI setting go.
+  - Additions A3, A5–A9, A11, A13–A17 and A19–A20; A1–A2 wait on BACKLOG 185.
+  - Backstage retired, so each game has Manage this game.
+- Rests on: docs/PLAN-settings-overhaul.md; docs/design-round/settings-audit.md; https://claude.ai/artifact/3VjAovJaVsBkfZcLEqoY4V.
+
+## 2026-11-20 · Settings, Round 0: homes by subject, one gear on every bar, the four names
+- Decided by: the user, taking the recommendations on Round 0's story ("I agree shape 1 is probably best"; the gear; "Use all
+  four"). The reviewers had split on the first two.
+- Why: Shape 1 won or tied every situation's taps and passed all five of PFD's first-view requirements. Its weakest point was
+  getting in (four homes, four doors), and one gear fixes that.
+- What:
+  - **Homes:** every setting lives on its subject: Your settings, This show, This couch, This game.
+  - **Your settings' first view:** groups with their values, not questions, plus a "Your shows, couches and games" row that opens
+    each home.
+  - **The way in:** one gear on every bar opens that thing's own settings page. The ⋯ keeps only things to do.
+  - **Names:** Manage this game (a show's list: Games you run); Helper for the Game admin; waivers' presets Relaxed · Standard ·
+    Strict; Skip possible spoilers for Quiet nights.
+  - **Round 1's bar on the built screens:** PFD 80 or more, Impeccable 32 or more out of 40.
+- Rejected:
+  - **One Settings with tabs (Shape 2).** You choose a scope before any setting, and a show and a couch were told apart by one
+    word.
+  - **Questions first (Shape 3).** From inside a show or a game it still needs the doors. Questions can be added on top later if
+    people get lost.
+  - **Another grey-box pass.** Polish belongs to the built screens.
+- Rests on: docs/design-round/settings-r0-spec.md, -first-view.md, -shape.md, -names.md; scripts/dev-test/story-settings.js; the story
+  https://claude.ai/artifact/UkbTP7G4f7uQhVqp32UMNm.

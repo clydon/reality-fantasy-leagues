@@ -1,12 +1,14 @@
 # Settings: the overhaul
 
-> **Status (2026-11-20): Round 0 done; waiting on the user's two choices and four names.** The cuts and adds were approved (the
-> user took every recommendation, added A5, and settled C8: Grok goes too; "What you decided", below). Round 0's screenshot
-> story, https://claude.ai/artifact/UkbTP7G4f7uQhVqp32UMNm, asks two questions where the reviewers split, plus four names:
-> - **Your settings' first view:** groups or questions?
-> - **The way in:** today's doors, or one gear on every bar?
+> **Status (2026-11-20): Round 0 done and decided; Round 1 next, in a fresh session.**
+> - **The cuts and adds:** approved. The user took every recommendation, added A5, and settled C8 (Grok goes too).
+> - **Round 0's choices**, on its story https://claude.ai/artifact/UkbTP7G4f7uQhVqp32UMNm:
+>   - Shape 1, with Your settings' first view as groups;
+>   - one gear on every bar;
+>   - all four names.
+> - **Round 1's bar:** PFD 80 or more and Impeccable 32 or more out of 40.
 >
-> Nothing in the app is built yet. Every setting, where it lives and a verdict on each are in the audit:
+> "What you decided", below, and design-round/decisions.md have them. Nothing in the app is built yet. Every setting, where it lives and a verdict on each are in the audit:
 > [design-round/settings-audit.md](design-round/settings-audit.md). The proposals page the user answered on:
 > https://claude.ai/artifact/3VjAovJaVsBkfZcLEqoY4V. The lane: `rfl-settings` (port 3018, database rfl_settings, branch
 > settings-plan).
@@ -149,6 +151,9 @@ recommendation holds:
 | **This couch** | the couch's name, wherever it shows | who's on it; invite; this couch's chat notifications; what it sees about you; leave. For its owner: rename, a new code, hand it on |
 | **This game** | its ⋯, its card, Tonight's line, a change in the history | for a player: How it plays, your sheet, leave this game. For whoever runs it, everything about it: Round 4's page grown to take in who's playing and their roles, waivers, points, computer players, the draft's settings, the change history, and stopping the game |
 | **The site** | its own pass, last | |
+
+**Decided in Round 0 (2026-11-20): one gear on every bar** (the hub, a show, a couch, a game) opens that thing's own page above,
+replacing the doors in this table. The ⋯ keeps only things to do.
 
 **You** also gets a short **"Changed elsewhere"** list: every show, couch or game where you've changed something, each a link.
 "Where did I turn that off?" then has one answer.
@@ -343,8 +348,16 @@ The round's original steps:
 - **You decide:** the shape, Backstage's fate, the cuts (by number), the adds, the names and the order of the rounds.
 
 ### Round 1: You, and notifications as one system
-- **Scope.** The You home and "Changed elsewhere". Notifications everywhere they're set: on You, a show, a couch, a game, the push
-  itself and the bell. C1's "When results show" at the account level. C2–C13. A1–A5 as picked.
+- **Scope.**
+  - Your settings as Round 0 decided: groups with their values, plus "Your shows, couches and games". The hub's gear opens it.
+  - Notifications everywhere they're set: on You, a show, a couch, a game, the push itself and the bell. Each choice carries its
+    "what you'll still get" line, and the kinds read as off while this phone is.
+  - C1's "When results show" at the account level.
+  - C2–C13, and the additions A3 and A5.
+  - BACKLOG 232: signing out turns off this phone's notifications.
+  - Round 0's names throughout.
+- **The bar:** PFD 80 or more and Impeccable 32 or more out of 40, on the built screens. Both checks run once, with independent
+  reviewers, then one batch of fixes.
 - **Situations.** A player on one couch (alex), on two couches (alex and casey), solo, someone who only watches, a runner, the site
   admin. Notifications off, on, blocked, and an iPhone without the app installed. An account that only uses Google. Someone who
   follows a sport.
@@ -463,7 +476,15 @@ You took every recommendation, added A5, and settled C8 after a talk:
 2. **Backstage:** A. Retire it, so each game has Manage this game.
 3. **The order:** You, then a show and a couch, then running a game, then the words, then the desk.
 4. **The adds:** as listed under "Missing settings to consider" (A5 added).
-5. **The names:** Round 0 proposes them, and you pick.
+5. **The names:** Round 0 proposed them, and you took all four (below).
+
+**And on Round 0's story (2026-11-20):**
+- Shape 1, with Your settings' first view as groups.
+- One gear on every bar.
+- The names: Manage this game (Games you run); Helper; Relaxed · Standard · Strict; Skip possible spoilers.
+- Polish belongs to the built screens, not another grey-box pass, so Round 1 carries the bar.
+
+The record is design-round/decisions.md, 2026-11-20.
 
 ## Not in this plan
 

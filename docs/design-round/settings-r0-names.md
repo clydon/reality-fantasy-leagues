@@ -89,9 +89,9 @@
 - The show's TV-style headings (Previously on, Up next, On TV): these are content, not settings.
 - Commissioner, Waivers and Free agency: fantasy words the players know, each with a plain line where it first appears.
 
-## For the user to pick
+## Picked (the user, 2026-11-20: "Use all four")
 
-1. **Manage this game**, or another name for Backstage's replacement.
-2. **Helper**, or Co-commissioner, for the Game admin role (Round 3 settles it).
+1. **Manage this game** for Backstage's replacement, and **Games you run** for a show's list.
+2. **Helper** for the Game admin role.
 3. **Relaxed · Standard · Strict** for waivers' presets.
 4. **Skip possible spoilers** for Quiet nights.
