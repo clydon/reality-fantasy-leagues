@@ -157,6 +157,11 @@ const SITUATIONS = [
     fixture: { phase: "watched", moves: "set", pace: "live" },
     async shots(p, s) {
       await shoot(p, `${s}.top`, { what: "first view" });
+      // Last time: who left, the stat of the week, the couch's GIFs, its doors, Bingo and trivia.
+      if (!BEFORE) {
+        await scrollTo(p, "[data-last-time]");
+        await shoot(p, `${s}.lasttime`, { what: "Last time, with the stat of the week" });
+      }
       await scrollTo(p, SECTION);
       // How tall the section runs closed (its heading to the next block), for the story's before and after.
       const height = Math.round(await p.locator(SECTION).first().evaluate((el) => (el.closest("section") ?? el).getBoundingClientRect().height));

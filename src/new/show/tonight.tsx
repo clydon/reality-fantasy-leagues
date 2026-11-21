@@ -25,7 +25,7 @@ import { CatchUpSheet, CatchUpStrips } from "../couch/join-game";
 import { OwnPacePlates } from "./pace-plate";
 import { openPlan, PlanPlates } from "../couch/watch-plans";
 import { useOpenMorning } from "./reveal";
-import { StatsCard } from "./stats";
+import { StatOfTheWeek, StatsCard } from "./stats";
 import { EpisodeGifStrip, showLabel } from "./react";
 import { CallResultRow, CallRow } from "./calls";
 import { SheetResultRow, SheetRow } from "./questions";
@@ -312,6 +312,8 @@ function LastTime({ seasonId, show, open }: { seasonId: string; show: ShowData; 
           </button>
         ))}
         {show.ready && show.header.show.kind !== "sport" && e && e.out?.length === 0 && <p className="text-[15px] text-muted-foreground">Nobody left in {ep} {n}.</p>}
+        {/* The stat of the week: picked from this episode, so it's part of what happened (stats.tsx; the rest of Stats stays below). */}
+        <StatOfTheWeek seasonId={seasonId} show={show} />
         {/* The couch's GIFs for it, your slot first (react.tsx: the same strip ends each recap). */}
         {!show.readOnly && <EpisodeGifStrip target={target} ep={ep} />}
         <div className="grid grid-cols-2 gap-2">

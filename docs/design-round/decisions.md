@@ -1670,3 +1670,9 @@
 - Why: the rules settle the rest; those two touch approved components (the strip, Tonight's night).
 - Rejected: dropping the kind dot (Impeccable's advice; it's Tonight's row's grammar, so the due dot went instead, PFD's call on what's noticed first).
 - Rests on: docs/design-round/games-launcher-check.md; the story https://claude.ai/artifact/5D9STJ6R4jFVgtkKEdCdpx.
+
+## 2026-11-21 · The stat of the week sits in Last time, a step under who left
+- Decided by: the user ("we had a cool little section that included stat of the week. Should that be moved up?"; Claude's recommendation, taken)
+- What: the stat of the week's plate moves from the bottom Stats card into Last time, under who left and above the GIFs, its title a step under the Out plate's (18 px against 19) so who left leads; the two leader boards and All N stats stay at the bottom.
+- Why: it's picked from your latest episode (cast-stats.ts featured: a stat with a clear leader that moved in it), so it's what happened last time, for watchers and players alike.
+- Rejected: moving the whole Stats block up (it would push the games down for the boards' sake).

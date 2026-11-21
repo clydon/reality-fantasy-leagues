@@ -28,10 +28,10 @@ People:
 | --- | --- | --- | --- |
 | 1 | The show bar and progress control | as step 3 | none |
 | 2 | The strip | as step 3 | none |
-| 3 | **Last time · Ep N** | who left, the couch's GIFs, Discuss, Recap; then the Bingo and trivia expander | gains Bingo and trivia |
+| 3 | **Last time · Ep N** | who left, the stat of the week (picked from this episode), the couch's GIFs, Discuss, Recap; then the Bingo and trivia expander | gains the stat of the week, Bingo and trivia |
 | 4 | **Your night · Ep N** (players only) | one-episode games first, each led by who won; then the longer games, a row each | **new display** |
 | 5 | **Next · Ep N+1** | watch along, watch it together, your bingo card; **quick games for Ep N+1**: yours (their state) and the couch's you're not in (Join) | gains the quick games |
-| 6 | Stats | as step 3 | none |
+| 6 | Stats | two short leader boards and All N stats (the stat of the week moved to Last time) | loses the stat of the week |
 
 Block 4 is the night as it stands at your mark (`latestSeen`): the same episode Last time names. Waiting for results, early
 results and the morning update keep their place above it (AfterEpisode); with early results, block 4's numbers say "so far".

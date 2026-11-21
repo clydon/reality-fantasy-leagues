@@ -77,16 +77,44 @@ export function StatRows({ d, statKey, max = 3, onCast }: { d: SeasonStats; stat
   );
 }
 
-// ---------- Tonight's Stats card ----------
+// ---------- Tonight's stat of the week, and its Stats card ----------
 
+/**
+ * The stat of the week, in Tonight's Last time (the user, 2026-11-21: "should that be moved up?"): it's picked from your latest
+ * episode (cast-stats.ts featured: a stat with one clear leader that moved in it), so it's part of what happened last time, for
+ * everyone who follows the show. A plate: the leader's face, the stat, how many; it opens the stats page at that stat.
+ */
+export function StatOfTheWeek({ seasonId, show }: { seasonId: string; show: ShowData }) {
+  const { data: d } = useSeasonStats(seasonId, show.couch?.id ?? null);
+  const page = useStatsPage();
+  if (!d || !d.through || !d.featured.length) return null;
+  const lead = statOf(d, d.featured[0]);
+  const top = statBoard(d, lead.key)[0];
+  if (!top) return null;
+  return (
+        <button type="button" data-stat-week={lead.key} onClick={() => page.openAt(lead.key)} className="nd-press flex w-full items-center gap-3 rounded-[4px] bg-plate p-2.5 text-left text-plate-foreground">
+          <Face src={top.c.photo} name={top.c.first} className="size-14 flex-none rounded-[3px]" />
+          <span className="min-w-0">
+            <span className="type-caption inline-block bg-plate-foreground py-[3px] pl-1.5 pr-3 text-[11px] tracking-[0.06em] text-plate [clip-path:polygon(0_0,100%_0,calc(100%_-_7px)_100%,0_100%)]">
+              Stat of the week
+            </span>
+            {/* A step under who left's name (19 px): in Last time the Out plate leads. */}
+            <b className="type-caption mt-1 block text-[18px] leading-tight">{lead.name}</b>
+            <small className="block text-[13px] text-plate-muted">
+              {top.c.first} · {top.n} {unitFor(lead.unit, top.n)}
+            </small>
+          </span>
+        </button>
+  );
+}
+
+/** Tonight's Stats: two short boards (the stats after the week's, which Last time shows) and the way to every stat. */
 export function StatsCard({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const { data: d } = useSeasonStats(seasonId, show.couch?.id ?? null);
   const page = useStatsPage();
   const drill = useGameDrill(show);
   if (!d || !d.through || !d.featured.length) return null;
-  const [lead, ...rest] = d.featured.map((k) => statOf(d, k));
-  const top = statBoard(d, lead.key)[0];
-  const two = rest.slice(0, 2);
+  const two = d.featured.slice(1, 3).map((k) => statOf(d, k));
   const count = d.stats.length - 1;
   return (
     <section data-stats-card className="mx-4 mb-2 mt-[26px]">
@@ -94,22 +122,8 @@ export function StatsCard({ seasonId, show }: { seasonId: string; show: ShowData
         <h2 className="type-caption text-[24px]">Stats</h2>
         <span className="text-[13px] text-muted-foreground">Up to Episode {d.through} · no game needed</span>
       </div>
-      {top && (
-        <button type="button" data-stat-week={lead.key} onClick={() => page.openAt(lead.key)} className="nd-press flex w-full items-center gap-3 rounded-[4px] bg-plate p-2.5 text-left text-plate-foreground">
-          <Face src={top.c.photo} name={top.c.first} className="size-16 flex-none rounded-[3px]" />
-          <span className="min-w-0">
-            <span className="type-caption inline-block bg-plate-foreground py-[3px] pl-1.5 pr-3 text-[11px] tracking-[0.06em] text-plate [clip-path:polygon(0_0,100%_0,calc(100%_-_7px)_100%,0_100%)]">
-              Stat of the week
-            </span>
-            <b className="type-caption mt-1 block text-[20px] leading-tight">{lead.name}</b>
-            <small className="block text-[13px] text-plate-muted">
-              {top.c.first} · {top.n} {unitFor(lead.unit, top.n)}
-            </small>
-          </span>
-        </button>
-      )}
       {two.length > 0 && (
-        <div className="mt-3.5 grid grid-cols-2 gap-3.5">
+        <div className="grid grid-cols-2 gap-3.5">
           {two.map((s) => (
             <div key={s.key} className="min-w-0">
               <span className="type-caption mb-1 line-clamp-2 block min-h-[34px] text-[13px] leading-tight text-muted-foreground">{s.name}</span>
