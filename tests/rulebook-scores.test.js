@@ -38,7 +38,8 @@ test("the ladder keeps the four promises by construction, at every rarity, in ex
   // Top to bottom, strictly falling, the season's win on top; rarity's steps rising from 0.
   for (let i = 1; i < S.LADDER.length; i++) assert.ok(S.LADDER[i].points < S.LADDER[i - 1].points, S.LADDER[i].id);
   assert.equal(S.LADDER[0].id, "wonSeason");
-  assert.deepEqual(S.RARITY.map((r) => r.bump), [0, 0.5, 1]);
+  assert.deepEqual(S.RARITY.map((r) => r.bump), [0, 0.5, 1, 0]);
+  assert.deepEqual(S.RARITY.filter((r) => r.zero).map((r) => r.id), ["oneOff"], "the one-off twist scores nothing at all");
 });
 
 test("the question lists every moment with its id and worth, the ladder, rarity, the show's parts, and the season so far", () => {
@@ -47,7 +48,7 @@ test("the question lists every moment with its id and worth, the ladder, rarity,
   for (const m of momentsFor(blocks)) assert.ok(q.includes(`"${m.id}": ${m.label}`), m.id);
   assert.ok(q.includes("now 3 (5 when shared)"), "a split value, in words");
   for (const r of S.LADDER) assert.ok(q.includes(`${r.id}: ${r.points > 0 ? "+" : ""}${r.points}. ${r.test}`), r.id);
-  for (const r of S.RARITY) assert.ok(q.includes(`${r.id}: +${r.bump}. ${r.test}`), r.id);
+  for (const r of S.RARITY) assert.ok(q.includes(r.zero ? `${r.id}: 0 in all, whatever its rung. ${r.test}` : `${r.id}: +${r.bump}. ${r.test}`), r.id);
   assert.match(q, /perUnit: for a moment counted per amount/);
   assert.match(q, /Daily challenge \(segment "dailyChallenge"\)/);
   assert.match(q, /5 of 14 episodes have aired/);
@@ -112,6 +113,23 @@ test("the review takes each rung's points plus rarity on a positive one, keeps w
   assert.ok(r.changes >= 1);
   // The same answer again gives the same review: nothing random in it.
   assert.deepEqual(S.reviewScores(S.parseScoresAnswer(answer), blocks), r);
+});
+
+test("a one-off twist scores 0 whatever its rung, in both halves; a set point like the final keeps its bonus (the user, 2026-11-20)", () => {
+  const blocks = survivor();
+  const ids = momentsFor(blocks).map((m) => m.id);
+  const [first, second] = ids;
+  const answer = wrap({ schema: 1, scores: { ...allOn(blocks, "edge"), [first]: { rung: "earned", rarity: "oneOff", why: "a mutiny offer" }, [second]: { rung: "bigPlay", rarity: "onceOrTwice" } }, add: [{ id: "flippedCoin", label: "Won a coin flip", rung: "wonAlone", rarity: "oneOff", why: "a one-time twist", known: "thisSeason", counted: "yesNo" }] });
+  const r = S.reviewScores(S.parseScoresAnswer(answer), blocks);
+  const row = (id) => r.rows.find((x) => x.id === id);
+  assert.deepEqual([row(first).after, row(first).afterShared, row(first).rarity], [0, 0, "oneOff"], "earned, but a one-off: nothing in either half");
+  assert.equal(row(second).after, rung("bigPlay").points + 1, "the final's kind of moment keeps once-or-twice's step");
+  const coin = (r.added || []).find((a) => a.id === "flippedCoin");
+  assert.deepEqual([coin?.points, coin?.pointsShared, coin?.rarity], [0, 0, "oneOff"], "an added one-off joins at 0");
+  // The question says so.
+  const q = S.buildScoresPrompt({ show: "Survivor", blocks });
+  assert.match(q, /oneOff: 0 in all, whatever its rung/);
+  assert.match(q, /a mutiny, a coin flip/);
 });
 
 test("what's missing joins as custom moments with the rung's points; repeats, names and bad rungs are left out", () => {
