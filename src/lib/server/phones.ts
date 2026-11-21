@@ -4,7 +4,7 @@ import { isImpersonating, type Session } from "./auth-helpers";
 // Your phones (settings Round 1, A3; docs/design-round/settings-r1-spec.md): the phones and computers that get your notifications
 // (push_subscriptions, a row each, named from the browser that turned them on), the places you're signed in (Better Auth's
 // session rows, never one a site admin opened as you), turning one phone's notifications off, and signing out everywhere else,
-// which also stops every other phone's notifications (a signed-out phone mustn't keep getting your pushes: BACKLOG 232's rule).
+// which also stops every other phone's notifications (a signed-out phone mustn't keep getting your pushes: BACKLOG 237's rule).
 
 export interface PhoneRow {
   id: string;

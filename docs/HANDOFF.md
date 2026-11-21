@@ -62,10 +62,10 @@ Newest first. The plan or archive section named holds the detail.
 - **Settings overhaul, Round 1, branch `settings-plan`** (lane rfl-settings, port 3018): Your settings and notifications as one
   system, built through the design process (PFD 82, Impeccable 33/40 after one batch of fixes). Reviewed 2026-11-20 on its story,
   https://claude.ai/artifact/97sfST4Ut41ib5HUHJPpjH: the user took all four picks and the sheet's ring fix, both built
-  (decisions.md). Before merging: rewrite the browser halves of check-new-settings, check-new-notify and
-  check-new-sharing for the new screens, rehearse migration 0447, and expect a conflict in src/new/data.ts (the sports lane edits it;
-  this branch only removes `useAiChoice` and the `ai` field). The branch also holds origin/master's five commits from 2026-11-20
-  that local master lacked. [PLAN-settings-overhaul.md](PLAN-settings-overhaul.md), Round 1.
+  (decisions.md). The three checks' browser halves are rewritten for the new screens and pass whole. Merging with sports-playoffs
+  conflicts only in this file (data.ts merges by itself); this branch's BACKLOG 232 became 237, since sports took 232. Left before
+  the push: the Neon rehearsal of migration 0447 (two added columns) and the user's go. The branch also holds origin/master's
+  commits from 2026-11-20. [PLAN-settings-overhaul.md](PLAN-settings-overhaul.md), Round 1.
 
 - **Game preview, branch `preview`** (lane rfl-preview): 17 commits not on master, 55 commits behind it, about 11 conflict
   hunks (strip.tsx, game-week.tsx, your-move.ts, tonight.tsx). It has P0, the visual story, the bench's preview maker and

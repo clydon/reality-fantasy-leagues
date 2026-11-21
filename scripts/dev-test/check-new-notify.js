@@ -18,13 +18,18 @@
 //     planned (each reader's time zone) and called off (once its Undo has passed; an Undo inside it tells nobody), someone joining
 //     the couch, a flag settled on the desk, a BINGO called (a couch-mate's, never your own; once);
 //   - the bell: its count on the home read, its list, read when it opens, a row past 30 days gone when a new one is written.
-//   In a real browser at --width (390 by default), as alex: Settings' What we notify you about (this phone turned on through a
-//   stand-in PushManager, a test push reaching it, a moment off with Undo, Couch chat), the hub's bell (its dot, the list, opening
-//   reads it, a row opens its page), a show's Notifications in its ⋯ menu. Then the reminder ask (show/remind.tsx; check-new-show.js
-//   has the Fan Who Forgets' first save): with his other phone getting them a save doesn't ask; with none, on an iPhone in Safari
-//   (no PushManager) a save shows Add to Home Screen's three pictures, Got it leaves the row and its Turn on shows them again; opened
-//   from the Home Screen (standalone, a stand-in PushManager) the next save asks again, and Turn on subscribes that phone (a test
-//   push reaches it) and the row goes. Nothing wider than the screen; no page errors.
+//   In a real browser at --width (390 by default), as alex: Your settings' Notifications (settings Round 1: this phone turned on
+//   through a stand-in PushManager, a test push reaching it; three kinds and invites always; a kind off saying what's left, with
+//   Undo; Couch chat on every couch; with nothing reaching him the kinds read as off and Your settings has the plate, Turn on and
+//   Not now; Sign out's line), the hub's bell (its dot, the list, opening reads it, Notification settings at its foot, a row opens
+//   its page), a show's Notifications (Mute first: a day, a week, until I turn it back on; muted, all but the reminders read off;
+//   Undo, Unmute; listed on Your settings' Notifications as a link back; its chat off for the show alone), a couch's chat row from
+//   Your shows, couches and games (My default first; Never, with Undo; listed, and its link opens the couch). Then the reminder ask
+//   (show/remind.tsx; check-new-show.js has the Fan Who Forgets' first save): with his other phone getting them a save doesn't ask;
+//   with none, on an iPhone in Safari (no PushManager) a save shows Add to Home Screen's three pictures, Got it leaves the row and
+//   its Turn on shows them again, and Your settings' plate opens Install the app; opened from the Home Screen (standalone, a
+//   stand-in PushManager) the next save asks again, Turn on subscribes that phone (a test push reaches it) and the row goes; Sign
+//   out takes its subscription with it. Nothing wider than the screen; no page errors.
 //   Screenshots go to <outDir>.
 //
 //   npm run dev                                                  (in another terminal; .env.local's VAPID keys)
@@ -37,7 +42,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { Pool } = require("pg");
-const { open, api, BASE, openFold } = require("./browser");
+const { open, api, BASE } = require("./browser");
 const fixture = require("./new-fixture");
 const fakePush = require("./fake-push");
 
@@ -531,41 +536,44 @@ async function person(pool, who, role = null) {
       };
       const sheet = pg.locator("[role=dialog][data-open]");
 
-      // Settings: this phone and Couch chat in Quick settings, the moments in Which notifications (a fold under Everything
-      // else, since the 2026-10-31 redesign).
-      await pg.goto(`${BASE}/settings`, { waitUntil: "load" });
-      await openFold(pg, "notify");
-      await pg.locator("[data-settings-notify]").waitFor({ timeout: 30000 });
-      await pg.locator("[data-phone=off]").waitFor({ timeout: 15000 });
-      check((await pg.locator("[data-phone-plate]").count()) === 0, "his other phone gets them: this phone's a quiet row, no plate");
-      await pg.waitForTimeout(800);
+      // Your settings' Notifications (settings Round 1): this phone, What comes to your phones (three switches, invites always),
+      // Couch chat on every couch, then what's set on a show or a couch. His other phone gets them (the API half's subscription).
+      const muted = async () => (await pool.query("SELECT muted FROM notification_prefs WHERE user_id = $1", [U.alex])).rows[0]?.muted ?? {};
+      const notifyPage = async () => {
+        await pg.goto(`${BASE}/settings?page=notifications`, { waitUntil: "load" });
+        await pg.locator("[data-settings-notify]").waitFor({ timeout: 30000 });
+        await pg.locator("[data-settings-notify] [data-phone]:not([aria-busy])").waitFor({ timeout: 15000 });
+        await pg.waitForTimeout(600);
+      };
+      const groupValue = async () => (await pg.locator('[data-group="notifications"] [data-group-value]').innerText()).trim();
+      await notifyPage();
+      check((await pg.locator("[data-settings-notify] [data-phone=off]").count()) === 1, "this phone: Off");
+      check(/Your other phone gets them/.test(await pg.locator("[data-settings-notify] [data-phone]").innerText()), "its line: his other phone gets them");
       const switches = await pg.locator("[data-settings-notify] [data-setting]").evaluateAll((els) => els.map((e) => `${e.getAttribute("data-setting")}:${e.getAttribute("aria-checked")}`));
       check(
-        switches.join() === "moment-lineup:true,moment-early:true,moment-final:true,moment-invites:true,moment-couch:true,moment-backstage:true",
-        "the moments in the mock's order, then On the couch and (he runs games) Backstage, all on",
+        switches.join() === "moment-lineup:true,moment-results:true,moment-couch:true",
+        "three kinds, all on: Reminders before your moves lock, Results (one switch: C2), Your couch's activity (no Backstage: C4)",
         switches.join()
       );
-      check((await pg.locator("[data-choice=chat-quiet]").getAttribute("aria-checked")) === "true", "Couch chat: Quiet on episode nights");
-      check((await pg.locator("[data-preview]").count()) === 0, "no Preview left in it (part 4 made Appearance real)");
-      await pg.evaluate(() => {
-        const top = document.querySelector("[data-settings-notify]").parentElement.getBoundingClientRect().top;
-        window.scrollBy(0, top - 70);
-      });
-      await wide("Settings");
+      check(/Always on/.test(await pg.locator('[data-moment-fixed="invites"]').innerText()), "Invites and join requests: always on, said as a fact (C3)");
+      check((await pg.locator("[data-choice=chat-quiet]").getAttribute("aria-checked")) === "true", "Couch chat, on every couch: Skip possible spoilers");
+      check((await pg.locator("[data-notify-quiet]").count()) === 0, "his other phone gets them: no 'none of these reach you'");
+      check(/Mute a show from its ⋯ menu/.test(await pg.locator("[data-settings-elsewhere]").innerText()), "Set on a show or a couch: nothing yet, and where you'd set one");
+      await wide("Notifications");
       await shot("settings-notify");
-      await pg.locator("[data-settings-notify]").scrollIntoViewIfNeeded();
-      await pg.locator("[data-phone-toggle]").click();
+      await pg.locator("[data-settings-notify] [data-phone-toggle]").click();
       check(await toasted(/On for this phone/), "Turn on: this phone is subscribed");
-      await pg.locator("[data-phone=on]").waitFor({ timeout: 10000 });
+      await pg.locator("[data-settings-notify] [data-phone=on]").waitFor({ timeout: 10000 });
       const subRow = (await pool.query("SELECT user_id FROM push_subscriptions WHERE endpoint = $1", [phone.endpoint])).rows[0];
       check(subRow?.user_id === U.alex, "its subscription is his (the stand-in's endpoint)");
       push.clear();
       await as.alex.call("POST", "/api/me/push-test", {});
       await expect((rs) => rs.some((x) => x.who === "alex-phone"));
-      check(got("alex-phone").length === 1 && got("alex-phone")[0].url === "/settings", "a test push reaches this phone, opening Settings (he's on the new design)");
+      check(got("alex-phone").length === 1 && got("alex-phone")[0].url === "/settings", "a test push reaches this phone, opening Your settings (he's on the new design)");
       await shot("settings-phone-on");
       await pg.locator("[data-setting=moment-couch]").click();
-      check(await toasted(/On the couch: off/), "On the couch off: saved");
+      check(await toasted(/Your couch's activity: off\. They still land in the bell/), "Your couch's activity off: saved, saying what's left");
+      check(/Off · they still land in the bell/.test(await pg.locator("[data-setting=moment-couch]").innerText()), "its line turns into what he still gets");
       const offTypes = (await prefs("alex")).disabled;
       check(["gameStarted", "planned", "planOff", "poll", "newBet", "bingoLine"].every((t) => offTypes[t] === true), "its six types are off on his account", JSON.stringify(offTypes));
       await pg.locator("[role=status] button", { hasText: /undo/i }).click();
@@ -574,43 +582,49 @@ async function person(pool, who, role = null) {
       await pg.locator("[data-choice=chat-all]").click();
       check(await toasted(/Couch chat: Every message/), "Couch chat: Every message, saved");
       check((await prefs("alex")).chat === "all", "kept");
+      check((await pg.locator('[data-reset="chat"]').count()) === 1, "Reset to recommended, once it's changed");
       await pg.locator("[role=status] button", { hasText: /undo/i }).click();
       await pg.waitForFunction(() => document.querySelector("[data-choice=chat-quiet]")?.getAttribute("aria-checked") === "true", null, { timeout: 15000 }).catch(() => {});
-      check((await prefs("alex")).chat === null, "Undo: back to Quiet on episode nights");
-      await pg.locator("[data-phone-toggle]").click();
-      check(await toasted(/Off for this phone/), "Turn off: this phone only");
+      check([null, "quiet"].includes((await prefs("alex")).chat), "Undo: back to Skip possible spoilers");
+      await pg.locator("[data-settings-notify] [data-phone-toggle]").click();
+      check(await toasted(/Off on this phone\. Everything still lands in the bell/), "Turn off: this phone only, saying what's left");
       check((await pool.query("SELECT 1 FROM push_subscriptions WHERE endpoint = $1", [phone.endpoint])).rows.length === 0, "its subscription is gone; his other phone's stays");
-      // Nothing reaching him: with no phone of his on (this one off, his other one gone for a moment), the switches say so
-      // instead of reading as reminders that are coming (the 2026-10-26 critique's P0).
       check((await pg.locator("[data-notify-quiet]").count()) === 0, "his other phone still gets them: no 'none of these reach you'");
+
+      // Nothing reaching him (this phone off, his other one gone for a moment): the kinds read as off, and Your settings has the plate.
       const other = push.subscription("alex");
       await pool.query("DELETE FROM push_subscriptions WHERE endpoint = $1", [other.endpoint]);
-      await pg.reload({ waitUntil: "load" });
-      // Nothing reaches him: this phone is Quick settings' plate (the screen's one yellow), and the fold says so too.
-      await pg.locator("[data-phone-plate][data-phone=off]").waitFor({ timeout: 15000 });
-      check(/Nothing reaches you yet/i.test(await pg.locator("[data-phone-plate]").innerText()), "no phone of his on: this phone is a plate, Nothing reaches you yet, with Turn on");
-      check(/none reach you yet/.test(await pg.locator('[data-fold="notify"] [data-fold-value]').innerText()), "Which notifications says none reach him, shut");
-      await shot("settings-plate");
-      await openFold(pg, "notify");
+      await notifyPage();
       await pg.locator("[data-notify-quiet=off]").waitFor({ timeout: 15000 }).catch(() => {});
-      check(
-        /None of these reach you yet.*turn notifications on above/.test((await pg.locator("[data-notify-quiet]").textContent().catch(() => "")) || ""),
-        "no phone of his on: the switches say none of these reach him yet, and how they start"
-      );
-      await pg.locator("[data-notify-quiet]").scrollIntoViewIfNeeded().catch(() => {});
+      check(/None of these reach you until notifications are on/.test((await pg.locator("[data-notify-quiet]").textContent().catch(() => "")) || ""), "nothing reaches him: the kinds say none reach him until notifications are on");
+      const still = await pg.locator("[data-settings-notify] [data-setting]").evaluateAll((els) => els.map((e) => `${e.getAttribute("aria-checked")}:${e.hasAttribute("data-still")}`));
+      check(still.every((x) => x === "false:true"), "and read as off, still (they can't apply), each saying it's chosen", still.join());
+      check(/Chosen · comes once notifications are on/.test(await pg.locator("[data-setting=moment-results]").innerText()), "Results: Chosen · comes once notifications are on");
       await shot("settings-none-reach");
-      await pg.locator("[data-phone-toggle]").click();
-      await pg.locator("[data-phone=on]").waitFor({ timeout: 10000 });
-      await pg.waitForFunction(() => !document.querySelector("[data-notify-quiet]"), null, { timeout: 10000 }).catch(() => {});
-      check((await pg.locator("[data-notify-quiet]").count()) === 0 && (await pg.locator("[data-phone-plate]").count()) === 0, "turned on from the plate: the plate and the line go");
-      await pg.locator("[data-phone-toggle]").click();
+      await pg.goto(`${BASE}/settings`, { waitUntil: "load" });
+      await pg.locator("[data-phone-plate][data-phone=off]").waitFor({ timeout: 15000 });
+      check(/Notifications are off/i.test(await pg.locator("[data-phone-plate]").textContent()), "Your settings: the plate, Notifications are off, with Turn on");
+      await pg.waitForFunction(() => /Chosen/.test(document.querySelector('[data-group="notifications"] [data-group-value]')?.textContent || ""), null, { timeout: 10000 }).catch(() => {});
+      check((await groupValue()) === "Chosen: reminders, results, your couch", "Notifications' row says what's chosen (the plate says it's off)", await groupValue());
+      await shot("settings-plate");
+      await pg.locator("[data-phone-plate] [data-phone-toggle]").click();
+      await pg.locator("[data-phone-plate]").waitFor({ state: "detached", timeout: 10000 }).catch(() => {});
+      await pg.waitForFunction(() => /^On ·/.test(document.querySelector('[data-group="notifications"] [data-group-value]')?.textContent || ""), null, { timeout: 10000 }).catch(() => {});
+      check((await pg.locator("[data-phone-plate]").count()) === 0 && (await groupValue()) === "On · reminders, results, your couch", "turned on from the plate: the plate goes, and the row says On", await groupValue());
+      check(/Turns off notifications on this phone too/.test(await pg.locator("[data-sign-out]").innerText()), "Sign out says it turns this phone's notifications off too (BACKLOG 237)");
+      await notifyPage();
+      await pg.locator("[data-settings-notify] [data-phone-toggle]").click();
+      await pg.locator("[data-settings-notify] [data-phone=off]").waitFor({ timeout: 10000 });
+      await pg.goto(`${BASE}/settings`, { waitUntil: "load" });
       await pg.locator("[data-phone-plate][data-phone=off]").waitFor({ timeout: 10000 });
-      // Not now: his choice, on this device; the row says Off, and it stays that way.
+      // Not now: his choice, on this device; the plate goes, and the row says Off, still after a reload.
       await pg.locator("[data-phone-not-now]").click();
-      await pg.locator("[data-phone=off]:not([data-phone-plate])").waitFor({ timeout: 5000 });
+      await pg.locator("[data-phone-plate]").waitFor({ state: "detached", timeout: 5000 });
       await pg.reload({ waitUntil: "load" });
-      await pg.locator("[data-phone=off]").waitFor({ timeout: 15000 });
-      check((await pg.locator("[data-phone-plate]").count()) === 0, "Not now: a quiet Off row, still after a reload");
+      await pg.locator('[data-group="notifications"]').waitFor({ timeout: 15000 });
+      await pg.waitForFunction(() => /Off on this phone/.test(document.querySelector('[data-group="notifications"] [data-group-value]')?.textContent || ""), null, { timeout: 10000 }).catch(() => {});
+      check((await pg.locator("[data-phone-plate]").count()) === 0 && (await groupValue()) === "Off on this phone", "Not now: no plate, and Notifications' row says Off on this phone, still after a reload", await groupValue());
+      await shot("settings-not-now");
       await pool.query("INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, user_agent) VALUES ($1, $2, $3, $4, 'zt notify check')", [U.alex, other.endpoint, other.p256dh, other.auth]);
 
       // The hub's bell.
@@ -630,16 +644,23 @@ async function person(pool, who, role = null) {
       // The design round's step 8: New says it once (a heading, no per-row mark); what's due is the hub's plate, not a row here.
       check((await pg.locator('[data-notes-band="new"] [data-note]').count()) === unread, "New holds the new ones");
       check((await pg.locator("[data-notes-due]").count()) === 0, "no due row: the hub's plate says what's due");
+      check((await pg.locator("[data-notes-settings]").count()) === 1, "its foot: Notification settings");
       await wide("the bell");
       await shot("bell");
       await pg.waitForFunction(() => document.querySelector("[data-bell]")?.getAttribute("data-unread") === "0", null, { timeout: 15000 }).catch(() => {});
       check((await pg.locator("[data-bell]").getAttribute("data-unread")) === "0" && (await home("alex")).notes.unread === 0, "opening it reads them: the dot goes");
+      await pg.locator("[data-notes-settings]").click();
+      await pg.locator("[data-settings-notify]").waitFor({ timeout: 20000 }).catch(() => {});
+      check(new URL(pg.url()).pathname === "/settings" && new URL(pg.url()).searchParams.get("page") === "notifications", "Notification settings opens Your settings' Notifications", pg.url());
+      await pg.goto(`${BASE}/home?hub=focus`, { waitUntil: "load" });
+      await pg.locator("[data-bell]").click();
+      await pg.locator("[data-notes-sheet] [data-note]").first().waitFor({ timeout: 15000 });
       const first = pg.locator("[data-note]").filter({ hasText: "started a poll" }).first();
       await first.click();
       await pg.waitForURL((u) => u.pathname === `/show/${sid}/tonight`, { timeout: 20000 }).catch(() => {});
       check(new URL(pg.url()).pathname === `/show/${sid}/tonight`, "a row opens where it's about (the poll: the show's Tonight)", pg.url());
 
-      // A show's Notifications.
+      // A show's Notifications: Mute first (a day, a week, until I turn it back on), then Just this show.
       await pg.locator("button[aria-label^='Show menu']").first().waitFor({ timeout: 30000 });
       await pg.waitForTimeout(800);
       await pg.locator("button[aria-label^='Show menu']").first().click();
@@ -647,16 +668,92 @@ async function person(pool, who, role = null) {
       await pg.locator("[data-show-notify] [data-setting=show-lineup]").waitFor({ timeout: 15000 });
       await pg.waitForTimeout(500);
       const showSwitches = await pg.locator("[data-show-notify] [data-setting]").evaluateAll((els) => els.map((e) => e.getAttribute("data-setting")));
-      check(showSwitches.join() === "show-lineup,show-early,show-final,show-couch,show-backstage,show-chat", "its sheet: the show's six moments", showSwitches.join());
-      check(/Quiet on episode nights for every show, in Settings/.test(await pg.locator("[data-setting=show-chat]").innerText()), "its chat row says what Settings has it on");
+      check(showSwitches.join() === "show-lineup,show-results,show-couch,show-chat", "its sheet: the show's four kinds", showSwitches.join());
+      check((await pg.locator("[data-show-notify]").getAttribute("data-muted")) === "no" && /reminders before your moves lock still come/.test(await pg.locator("[data-mute]").innerText()), "Mute leads, not muted, saying reminders still come");
+      check(/Skip possible spoilers is your choice for every couch/.test(await pg.locator("[data-setting=show-chat]").innerText()), "its chat row says what Your settings has it on");
+      await wide("a show's Notifications");
+      await shot("show-notify");
+      await pg.locator("[data-mute]").click();
+      await pg.locator("[data-mute-choices]").waitFor();
+      const muteFor = await pg.locator("[data-mute-for]").evaluateAll((els) => els.map((e) => e.getAttribute("data-mute-for")));
+      check(muteFor.join() === "day,week,forever", "Mute's choices: a day, a week, until I turn it back on", muteFor.join());
+      await shot("show-mute");
+      await pg.locator('[data-mute-for="week"]').click();
+      check(await toasted(/ZT Survivor: muted until/), "a week: muted, saying until when");
+      await pg.waitForFunction(() => document.querySelector("[data-show-notify]")?.getAttribute("data-muted") === "yes", null, { timeout: 10000 }).catch(() => {});
+      const m1 = (await muted())[showId];
+      check(!!m1 && Math.abs(Date.parse(m1) - Date.now() - 7 * 86400000) < 3700000, "kept on his account, a week on", JSON.stringify(m1));
+      const mutedSw = await pg.locator("[data-show-notify] [data-setting]").evaluateAll((els) => els.map((e) => `${e.getAttribute("data-setting")}:${e.getAttribute("aria-checked")}:${e.hasAttribute("data-still")}`));
+      check(
+        mutedSw.join() === "show-lineup:true:false,show-results:false:true,show-couch:false:true,show-chat:false:true",
+        "muted: everything but the reminders reads off and can't be changed; the reminders still come",
+        mutedSw.join()
+      );
+      check(/Still comes while it's muted/.test(await pg.locator("[data-setting=show-lineup]").innerText()), "the reminders' line: still comes while it's muted");
+      await shot("show-muted");
+      await pg.locator("[role=status] button", { hasText: /undo/i }).click();
+      await pg.waitForFunction(() => document.querySelector("[data-show-notify]")?.getAttribute("data-muted") === "no", null, { timeout: 10000 }).catch(() => {});
+      check(!(await muted())[showId], "Undo: not muted");
+      await pg.locator("[data-mute]").click();
+      await pg.locator('[data-mute-for="forever"]').click();
+      await pg.locator("[data-unmute]").waitFor({ timeout: 10000 });
+      check((await muted())[showId] === "forever" && /Muted until you turn it back on/.test(await pg.locator("[data-show-mute]").innerText()), "until I turn it back on: Muted, with Unmute");
+      // Your settings' Notifications lists it, a link back to the show.
+      await pg.keyboard.press("Escape");
+      await notifyPage();
+      const ex = pg.locator('[data-exception-show="ZT Survivor"]');
+      await ex.waitFor({ timeout: 10000 }).catch(() => {});
+      check(/muted until you turn it back on/.test((await ex.innerText().catch(() => "")) || "") && (await ex.getAttribute("href").catch(() => "")) === `/show/${sid}/tonight?notify=1`, "Your settings' Notifications: the show, muted, a link to its Notifications (on its Tonight)", `${await ex.innerText().catch(() => "")} → ${await ex.getAttribute("href").catch(() => "")}`);
+      await shot("settings-elsewhere");
+      await ex.click();
+      await pg.locator("[data-show-notify]").waitFor({ timeout: 20000 });
+      await pg.locator("[data-unmute]").click();
+      check(await toasted(/ZT Survivor: unmuted/), "the link opens it; Unmute");
+      check(!(await muted())[showId], "kept: not muted");
       await pg.locator("[data-setting=show-chat]").click();
       check(await toasted(/Couch chat: off for ZT Survivor/), "chat off for ZT Survivor: saved");
       check(JSON.stringify((await prefs("alex")).shows[showId]) === '["chat"]', "kept for this show alone");
-      await wide("a show's Notifications");
-      await shot("show-notify");
       await pg.locator("[role=status] button", { hasText: /undo/i }).click();
       await pg.waitForFunction(() => document.querySelector("[data-setting=show-chat]")?.getAttribute("aria-checked") === "true", null, { timeout: 15000 }).catch(() => {});
       check(!(await prefs("alex")).shows[showId], "Undo: on again");
+      await pg.keyboard.press("Escape");
+
+      // A couch's chat chatRow (A9), on its page from the map: My default first, then the three.
+      const couchChat = async () => (await pool.query("SELECT chat_notify FROM couch_members WHERE couch_id = $1 AND user_id = $2", [fx.extraCouchId, U.alex])).rows[0].chat_notify;
+      await pg.goto(`${BASE}/settings?page=yours`, { waitUntil: "load" });
+      await pg.locator('[data-yours-couch="ZT Extra"]').waitFor({ timeout: 30000 });
+      await pg.locator('[data-yours-couch="ZT Extra"]').click();
+      const chatRow = pg.locator("[data-couch-chat]");
+      await chatRow.waitFor({ timeout: 15000 });
+      await pg.waitForFunction(() => /Your default|just this couch/.test(document.querySelector("[data-couch-chat]")?.textContent || ""), null, { timeout: 10000 }).catch(() => {});
+      check((await chatRow.getAttribute("data-couch-chat")) === "default" && /Your default · skip possible spoilers/.test(await chatRow.innerText()), "ZT Extra's chat row: Your default · skip possible spoilers", await chatRow.innerText());
+      await chatRow.locator("button").first().click();
+      await chatRow.locator('[data-choice="couch-chat-default"]').waitFor();
+      const chatChoices = await chatRow.locator("[data-choice]").evaluateAll((els) => els.map((e) => `${e.getAttribute("data-choice")}:${e.getAttribute("aria-checked")}`));
+      check(chatChoices.join() === "couch-chat-default:true,couch-chat-all:false,couch-chat-quiet:false,couch-chat-off:false", "opened: My default first and chosen, then the three", chatChoices.join());
+      await chatRow.scrollIntoViewIfNeeded();
+      await wide("a couch's chat chatRow");
+      await shot("couch-chat");
+      await chatRow.locator('[data-choice="couch-chat-off"]').click();
+      check(await toasted(/ZT Extra's chat: never/), "Never on ZT Extra: saved");
+      check((await couchChat()) === "off", "kept on his seat on that couch alone");
+      await pg.waitForFunction(() => document.querySelector("[data-couch-chat]")?.getAttribute("data-couch-chat") === "off", null, { timeout: 10000 }).catch(() => {});
+      check(/Never · just this couch/.test(await chatRow.innerText()), "its value: Never · just this couch");
+      await pg.locator("[role=status] button", { hasText: /undo/i }).click();
+      await pg.waitForFunction(() => document.querySelector("[data-couch-chat]")?.getAttribute("data-couch-chat") === "default", null, { timeout: 10000 }).catch(() => {});
+      check((await couchChat()) === null, "Undo: his default again");
+      await chatRow.locator('[data-choice="couch-chat-all"]').click();
+      await toasted(/ZT Extra's chat: every message/);
+      await pg.keyboard.press("Escape");
+      await notifyPage();
+      const exc = pg.locator('[data-exception-couch="ZT Extra"]');
+      await exc.waitFor({ timeout: 10000 }).catch(() => {});
+      check(/Couch · chat: every message/.test((await exc.innerText().catch(() => "")) || ""), "Your settings' Notifications lists it: ZT Extra, chat every message");
+      await exc.click();
+      await pg.waitForFunction(() => document.querySelector("[data-couch-chat]")?.getAttribute("data-couch-chat") === "all", null, { timeout: 15000 }).catch(() => {});
+      check((await pg.locator("[data-couch-chat]").getAttribute("data-couch-chat").catch(() => null)) === "all", "and opens the couch's page, where it's set");
+      await pool.query("UPDATE couch_members SET chat_notify = NULL WHERE couch_id = $1 AND user_id = $2", [fx.extraCouchId, U.alex]);
+      await pg.keyboard.press("Escape");
       // The reminder ask. His other phone gets them (it's back), so a save here doesn't ask.
       const changePick = async (p) => {
         // Your moves on the pick, by its address (show/dock.tsx reads ?moves=, as the hub's plate and a reminder's push open it;
@@ -731,19 +828,29 @@ async function person(pool, who, role = null) {
       check((await ask.getAttribute("data-remind-sheet").catch(() => null)) === "install", "the row's Turn on shows the pictures again");
       await ask.locator("[data-remind-later]").click();
       await ask.waitFor({ state: "hidden", timeout: 10000 });
-      // Settings in Safari on the iPhone: this phone says Add to Home Screen (the same three pictures on its plate when nothing
-      // reaches him), never a Turn on that can't work.
+      // Your settings in Safari on the iPhone: nothing reaches him, so the plate says Add it to your Home Screen, and Show me how
+      // opens Install the app on the iPhone's steps, never a Turn on that can't work.
       await ip.goto(`${BASE}/settings`, { waitUntil: "load" });
-      await ip.locator("[data-phone=install]").waitFor({ timeout: 15000 }).catch(() => {});
-      const ipPlate = (await ip.locator("[data-phone-plate]").count()) === 1;
+      await ip.locator("[data-phone-plate][data-phone=install]").waitFor({ timeout: 15000 }).catch(() => {});
       check(
-        (await ip.locator("[data-phone=install]").count()) === 1 &&
-          (await ip.locator("[data-phone-toggle]").count()) === 0 &&
-          (ipPlate ? (await ip.locator("[data-phone-plate] img[src*=add-to-home-screen]").count()) === 1 : /Add it to your Home Screen first/.test(await ip.locator("[data-phone=install]").innerText())),
-        `Settings on the iPhone in Safari: Add to Home Screen (${ipPlate ? "the plate, with the pictures" : "a row: another phone of his gets them"}), no Turn on`
+        (await ip.locator("[data-phone-plate][data-phone=install]").count()) === 1 &&
+          /Add it to your Home Screen/i.test((await ip.locator("[data-phone-plate]").textContent().catch(() => "")) || "") &&
+          (await ip.locator("[data-phone-toggle]").count()) === 0,
+        "Your settings on the iPhone in Safari: the plate, Add it to your Home Screen, no Turn on"
       );
       await ip.waitForTimeout(400);
       await ip.screenshot({ path: path.join(out, `${String(++n).padStart(2, "0")}-alex-settings-iphone.png`) });
+      await ip.locator("[data-phone-plate] [data-phone-install]").click();
+      const install = ip.locator("[data-install-sheet]");
+      await install.waitFor({ timeout: 10000 }).catch(() => {});
+      await ip.waitForFunction(() => document.querySelector("[data-install-sheet] img")?.complete, null, { timeout: 10000 }).catch(() => {});
+      check(
+        (await install.getAttribute("data-install-sheet").catch(() => null)) === "iphone" && /add-to-home-screen/.test((await install.locator("img").getAttribute("src").catch(() => "")) || ""),
+        "Show me how: Install the app, on the iPhone's steps, with the pictures"
+      );
+      await ip.waitForTimeout(400);
+      await ip.screenshot({ path: path.join(out, `${String(++n).padStart(2, "0")}-alex-install-iphone.png`) });
+      await ip.keyboard.press("Escape");
 
       // Opened from the Home Screen: notifications can work now, so the next save asks again, and Turn on turns this phone on.
       await ip.evaluate(() => localStorage.setItem("zt-installed", "1"));
@@ -761,11 +868,23 @@ async function person(pool, who, role = null) {
       await as.alex.call("POST", "/api/me/push-test", {});
       await expect((rs) => rs.some((x) => x.who === "alex-iphone"));
       check(got("alex-iphone").length === 1, "a test push reaches it");
+      await ip.goto(`${BASE}/settings?page=notifications`, { waitUntil: "load" });
+      await ip.locator("[data-settings-notify] [data-phone=on]").waitFor({ timeout: 15000 }).catch(() => {});
+      check((await ip.locator("[data-settings-notify] [data-phone=on]").count()) === 1 && (await ip.locator("[data-notify-quiet]").count()) === 0, "Notifications agrees: on for this phone, nothing about none reaching him");
+      // Signing out turns this phone's notifications off too (BACKLOG 237): its subscription goes; nobody else's.
       await ip.goto(`${BASE}/settings`, { waitUntil: "load" });
-      await ip.locator("[data-phone=on]").waitFor({ timeout: 15000 }).catch(() => {});
-      await openFold(ip, "notify");
-      check((await ip.locator("[data-phone=on]").count()) === 1 && (await ip.locator("[data-notify-quiet]").count()) === 0, "Settings agrees: on for this phone, nothing about none reaching him");
-      check(b2.errors.length === 0, "the iPhone: no page errors", b2.errors.join(" | "));
+      await ip.locator("[data-sign-out]").waitFor({ timeout: 15000 });
+      check(/Turns off notifications on this phone too/.test(await ip.locator("[data-sign-out]").innerText()), "Sign out says so");
+      const errorsBefore = b2.errors.length;
+      await ip.locator("[data-sign-out]").click();
+      await ip.waitForURL((u) => !u.pathname.startsWith("/settings"), { timeout: 20000 }).catch(() => {});
+      let gone = false;
+      for (const t = Date.now(); !gone && Date.now() - t < 10000; await new Promise((r) => setTimeout(r, 250))) {
+        gone = (await pool.query("SELECT 1 FROM push_subscriptions WHERE endpoint = $1", [iphone.endpoint])).rows.length === 0;
+      }
+      check(gone, "signed out: this iPhone's subscription is gone");
+      // Signed out, the page's last reads answer 401: only what came before counts.
+      check(b2.errors.slice(0, errorsBefore).length === 0, "the iPhone: no page errors", b2.errors.slice(0, errorsBefore).join(" | "));
     }
     void katId;
     void deskId;

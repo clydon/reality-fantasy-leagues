@@ -32,7 +32,7 @@ import { AccountPage, accountValue, AllowSheet, InstallSheet, PhonesPage } from 
 //   3. Five groups, each its name over its value, so most visits end here: Notifications, When results show, Privacy (not solo),
 //      Appearance (opens in place), and Your shows, couches and games (the map of what's set where).
 //   4. Account and help: Your account, Report a problem, Take the tour, Where art and data come from, Site admin, and Sign out
-//      last, in red (it turns this phone's notifications off too: BACKLOG 232).
+//      last, in red (it turns this phone's notifications off too: BACKLOG 237).
 // Each group is a page pushed over this one (`?page=`), so the phone's back gesture closes it and a link can open it directly.
 // Every change applies at once, with Undo in the toast; the few that Undo can't take back ask first, in place.
 

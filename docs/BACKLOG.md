@@ -6,7 +6,7 @@ and in flight is in [HANDOFF.md](HANDOFF.md).
 
 **How this file works**
 - **Numbers are permanent.** Code, tests and commits cite "BACKLOG 57", so a number never changes and is never reused. A new
-  item takes the next free number: **the next is 237.**
+  item takes the next free number: **the next is 238.**
 - **Closing an item:** delete it here and add one line under "Closed since the cleanup" at the end: the number, done or
   dropped, and the commit or the reason. Numbers closed in the cleanup itself are listed, with their full old text, in
   [archive/BACKLOG-2026-11-19.md](archive/BACKLOG-2026-11-19.md).
@@ -102,6 +102,9 @@ commit each:
   Episode 6 lineup as late" and "the reminders job would tell jordan once" (most likely since a full lineup carried in counts as
   set, 7cfb1bb5: give jordan a lineup a starter short), and its browser step's `[data-move='lineup-…']` selector (nothing renders
   it since Tonight's rebuild).
+- check-new-sharing.js (found by settings Round 1, which skips these rather than fails them): Severed's Who's watching (the
+  show's page lost `[data-whos-watching]` in the design round's step 3, d91c6807) and the hub rail's who-line
+  (`[data-rail-who]` is now a kind, not "riley Ep 6 · +1", since step 7). Decide what each should check now, or drop it.
 - check-new-tour (phase J), and run it once as a solo account: if the reveal step lights Up next with nothing to tap, light the
   made-up reveal's button or skip the step.
 - check-new-episode-games: talk-fixture.js dates its show by the database's UTC day, so part 2 fails in the evening, Eastern.
@@ -193,7 +196,7 @@ the first of a tie: use `leadWorthNaming` (couch-standings.ts:445), as By the nu
 and `AskSheet` if they're used), with check-tonight-up-next.js retired or repointed. tsc, eslint and the unit suite clean.
 [S · cleanup]
 
-**232. Signing out leaves this phone getting the account's notifications.** *Built in settings Round 1 (branch settings-plan, 2026-11-20): close at its merge.* `logOut` and `logOutTo` (src/lib/auth-client.ts)
+**237. Signing out leaves this phone getting the account's notifications.** *Built in settings Round 1 (branch settings-plan, 2026-11-20): close at its merge.* `logOut` and `logOutTo` (src/lib/auth-client.ts)
 end any acting hour and sign out, but never take this phone off `push_subscriptions`, though DELETE /api/me/push-subscriptions
 says signing out does. On a shared phone the next person gets the last one's pushes. Unsubscribe this phone's endpoint before
 the session goes (best effort), with a case in check-new-notify.js. Found by the settings audit (2026-11-20). [S · notifications]

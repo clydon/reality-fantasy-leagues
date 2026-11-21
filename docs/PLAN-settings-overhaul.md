@@ -369,19 +369,27 @@ fixed, both built** (decisions.md, 2026-11-20). Story: https://claude.ai/artifac
     its own chat choice (My default first). A push's Notification settings button (public/sw.js v4). The bell's foot links here.
   - C1: "Straight away" now means every show (guard.ts progressFrom). C6: one Privacy switch; GIFs and reactions show when posted.
     C7–C11 as decided; C8 removes Grok and the AI setting. A3 Your phones; A5 Install the app; Allow notifications for a blocked
-    browser. BACKLOG 232: signing out turns this phone's notifications off. Acting as someone can't change their phones or push.
+    browser. BACKLOG 237: signing out turns this phone's notifications off. Acting as someone can't change their phones or push.
   - Migration 0447: `notification_prefs.muted`, `couch_members.chat_notify`.
 - **Checks:** `npm test` (2513, all pass after updating the three tests the round changes); the API halves of check-new-settings,
-  check-new-notify and check-new-sharing pass, updated for the round. **Left:** their browser halves still drive the old Settings
-  (folds, Grok, the old show sheet) and are rewritten after the user's review, since the review may move things;
-  check-keep-up's Settings part is updated, but its where-sheet half was already stale (BACKLOG 70).
+  check-new-notify and check-new-sharing pass, updated for the round. After the review their browser halves were rewritten for
+  the new screens and all three pass whole (2026-11-20, port 3018): check-new-settings (Your settings' groups and values, the
+  plate, When results show's ask, pages by address and Back, the profile, the gear, Ask an AI's one link, the map and a couch's
+  page, Your account and phones), check-new-notify, 183 (Notifications, the plate and Not now, a show's Mute, listed exceptions,
+  a couch's chat row, the bell's foot, the iPhone's Install the app, Sign out taking this phone's subscription) and
+  check-new-sharing, 87 (Privacy's one switch, jordan's hidden show; Who's watching and the rail's who-line skip: stale since
+  earlier rounds, BACKLOG 70). check-keep-up's Settings part is updated, but its where-sheet half was already stale (BACKLOG 70).
+  Two old API lines were stale, not the code: a week's mute ends on the hour after, and alex's default colour can be the one the
+  check picks (it now picks one that isn't his).
+- **The merge:** a trial merge with sports-playoffs (step 2.7) conflicts only in HANDOFF.md; src/new/data.ts merges by itself.
+  Migration 0447 only adds two columns (sports' is 0312). Both branches had taken BACKLOG 232: this one's became 237.
 - **The original scope:**
   - Your settings as Round 0 decided: groups with their values, plus "Your shows, couches and games". The hub's gear opens it.
   - Notifications everywhere they're set: on You, a show, a couch, a game, the push itself and the bell. Each choice carries its
     "what you'll still get" line, and the kinds read as off while this phone is.
   - C1's "When results show" at the account level.
   - C2–C13, and the additions A3 and A5.
-  - BACKLOG 232: signing out turns off this phone's notifications.
+  - BACKLOG 237: signing out turns off this phone's notifications.
   - Round 0's names throughout.
 - **The bar:** PFD 80 or more and Impeccable 32 or more out of 40, on the built screens. Both checks run once, with independent
   reviewers, then one batch of fixes.
@@ -475,8 +483,8 @@ Each only if its round's design needs it:
 
 ## Fix now, apart from the redesign
 
-These went to the backlog's "Now" as 232–236. Any session can take them:
-- 232: signing out leaves the phone getting your notifications.
+These went to the backlog's "Now" as 233–237 (232 renumbered 237 at the merge: the sports lane took 232). Any session can take them:
+- 237: signing out leaves the phone getting your notifications.
 - 233: a Game admin can undo a Commissioner's settings and role changes.
 - 234: Game settings' Recommended is hard-coded.
 - 235: the results-to-fill-in push is moot.

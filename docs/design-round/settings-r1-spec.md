@@ -3,7 +3,7 @@
 > **Status (2026-11-20): Round 1, step 1 of the design process** (docs/DESIGN-PROCESS.md: Intent, then Perception-First Design,
 > then Impeccable). It specs the You home and every place a notification is set, on the structure Round 0 decided
 > ([settings-r0-spec.md](settings-r0-spec.md), Shape 1; [decisions.md](decisions.md), 2026-11-20) and with Round 0's names
-> ([settings-r0-names.md](settings-r0-names.md)). The cuts it carries out are the plan's C1–C13, with A3, A5 and BACKLOG 232
+> ([settings-r0-names.md](settings-r0-names.md)). The cuts it carries out are the plan's C1–C13, with A3, A5 and BACKLOG 237
 > ([PLAN-settings-overhaul.md](../PLAN-settings-overhaul.md)).
 
 ## The job
@@ -93,7 +93,7 @@ The title is **Your settings**. Back returns to wherever it opened from (the hub
 4. **Your account** (one row: "zt_nd_alex · 1 phone gets notifications"), opening its page.
 5. **Help:** Report a problem · Take the tour · Where art and data come from.
 6. **Site admin**, for a site admin.
-7. **Sign out**, in red, last. It also turns off this phone's notifications (BACKLOG 232), and says so in its line.
+7. **Sign out**, in red, last. It also turns off this phone's notifications (BACKLOG 237), and says so in its line.
 
 **Left out of the first view, and why:** every open control (chat's three choices, the switches): a visit that only checks a
 value shouldn't wade through controls; "Changed elsewhere" as its own list: each group's page and Your shows, couches and games
@@ -223,7 +223,7 @@ Turning this phone on or off has no Undo (the browser's own permission). Sign ou
 | Mute a show until a time, or for good (a `muted` column on notification_prefs) | A6, C16 |
 | Chat notifications per couch (a column on couch_members) | A9, C26 |
 | Your phones: list, turn one off, sign out everywhere else (push_subscriptions, Better Auth's sessions) | A3 |
-| Signing out turns this phone's notifications off | BACKLOG 232 |
+| Signing out turns this phone's notifications off | BACKLOG 237 |
 | A site admin acting as you can't change your notification settings or register their phone for your pushes (the profile route's rule, on the push, phones, mute and couch-chat routes) | Noticed in Round 0 |
 | The exceptions (muted shows, a show's kinds off, couch chat set per couch) in the profile read | the "set on a show or a couch" list |
 

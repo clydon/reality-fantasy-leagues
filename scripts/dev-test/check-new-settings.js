@@ -11,14 +11,16 @@
 //   - hiding scores is the guard's own setting (show_results_immediately): seenThrough null while off;
 //   - the couch: only whoever runs it renames it or hands it on (refused for anyone else, and for someone not on it), a
 //     new code retires your old one (it stops opening the couch) and leaves everyone else's.
-//   In a real browser at --width (390 by default), as alex: Settings as the 2026-10-31 redesign has it (Quick settings, then
-//   Everything else folded shut under rows saying what they're set to, then Help and account; 44px buttons; Hide scores off
-//   asks first: Keep them hidden, then Show scores with Undo), no Preview left (part 3 made What
-//   your couch sees real: check-new-sharing.js; part 4 Appearance: check-new-studio.js), the profile sheet (a colour with Undo, a picture shrunk in the browser and shown on every face of his, a taken name
-//   refused, a new one saved and shown at once), Hide scores with Undo, Your AI for results leading each Ask an AI sheet
-//   (Ask each time: both apps; I'll copy and paste: the copy first; Grok), the couch's sheet (Rename with Undo, a new code,
-//   Hand it on), How each game works, Report a problem (a row kept for us), Change password (a wrong one refused, then
-//   changed and changed back). As riley: alex's picture on his face in the couch's sheet, "Runs it" under him, no Rename.
+//   In a real browser at --width (390 by default), as alex: Your settings as settings Round 1 built it (you, the plate while
+//   nothing reaches him, five groups each with its value: Notifications, When results show, Privacy, Appearance in place, Your
+//   shows couches and games; then Account and help with Sign out last; no Your AI, How each game works, Quick settings or folds;
+//   44px targets); When results show (Straight away asks first: Keep them hidden, then Show them with Undo; Reset to recommended);
+//   a page by its address and closed by Back or the phone's back gesture; the profile sheet (a colour with Undo, a picture shrunk
+//   in the browser and shown on every face of his, a taken name refused, a new one saved and shown at once); the hub's gear and
+//   the picture's sheet (a Your settings row, no tour); Ask an AI's one ChatGPT link and Copy the question (C8); Your shows,
+//   couches and games (the map) opening the couch's page (its chat row, Rename with Undo, a new code, Hand it on); Your account
+//   (Change password: a wrong one refused, then changed and changed back; Your phones, its Back naming Your account); Report a
+//   problem (a row kept for us). As riley: the map's couch not his to run, alex's picture on his face, no Rename.
 //   Nothing wider than the screen; no page errors. Screenshots go to <outDir>.
 //
 //   npm run dev                                                  (in another terminal)
@@ -30,7 +32,7 @@ require("dotenv").config({ path: ".env.local", quiet: true });
 const fs = require("fs");
 const path = require("path");
 const { Pool } = require("pg");
-const { open, api, BASE, openFold } = require("./browser");
+const { open, api, BASE } = require("./browser");
 const fixture = require("./new-fixture");
 
 const DB = process.env.AUTH_DATABASE_URL || "";
@@ -135,7 +137,8 @@ function check(ok, what, detail = "") {
     const seasonNotify = (who, body) => as[who].call(body ? "PUT" : "GET", `/api/seasons/${sid}/notifications`, body);
     r = await seasonNotify("alex", { mute: "week" });
     const until = r.body.muted;
-    check(r.status === 200 && until && Math.abs(Date.parse(until) - Date.now() - 7 * 86400000) < 60000, "muted for a week, its end said", JSON.stringify(r.body.muted));
+    const late = Date.parse(until) - Date.now() - 7 * 86400000;
+    check(r.status === 200 && until && late > -60000 && late <= 3600000 && Date.parse(until) % 3600000 === 0, "muted for a week, its end said (on the hour after)", JSON.stringify(r.body.muted));
     check((await profile("alex")).notify.elsewhere.shows.some((x) => x.muted === until && x.seasonId), "Your settings lists it, with a season to open");
     check((await seasonNotify("alex", { mute: "month" })).status === 400, "a mute we don't offer: 400");
     r = await seasonNotify("alex", { mute: null });
@@ -276,7 +279,8 @@ function check(ok, what, detail = "") {
         const b = await open({ user: fixture.username(who), pass: PASSWORD, width, height: 844, motion: "off" });
         closers.push(b.close);
         await b.page.context().addInitScript(noBadge);
-        await b.page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: BASE });
+        // Notifications allowed but not turned on (a headless browser blocks them otherwise): this phone is Off, and nothing reaches him.
+        await b.page.context().grantPermissions(["clipboard-read", "clipboard-write", "notifications"], { origin: BASE });
         await b.page.emulateMedia({ reducedMotion: "reduce" });
         let favicon = 0;
         b.page.on("console", (m) => m.type() === "error" && m.location().url.endsWith("/favicon.ico") && favicon++);
@@ -304,89 +308,118 @@ function check(ok, what, detail = "") {
         return { b, pg, shot, wide, toasted, sheet, errors };
       };
 
-      // ---------- alex: Settings ----------
+      // ---------- alex: Your settings (settings Round 1) ----------
       const a = await browse("alex");
       const { pg } = a;
+      // A pushed page (?page=) is a role=dialog over Your settings; its Back is the first button in its bar.
+      const page = (title) => pg.locator("[role=dialog][aria-hidden=false]").filter({ has: pg.locator("h3", { hasText: new RegExp(`^${title}$`) }) });
+      const openGroup = async (id, ready) => {
+        await pg.locator(`[data-settings-groups] [data-group="${id}"], [data-settings-help] [data-group="${id}"], [data-settings-account] [data-group="${id}"]`).first().click();
+        await pg.locator(ready).waitFor({ timeout: 15000 });
+        await pg.waitForTimeout(600);
+      };
+      const backFrom = async (title) => {
+        await page(title).locator("button").first().click();
+        await pg.waitForFunction(() => !new URL(location.href).searchParams.get("page"), null, { timeout: 10000 }).catch(() => {});
+      };
       await pg.goto(`${BASE}/settings`, { waitUntil: "load" });
       await pg.locator("[data-me-card]").waitFor({ timeout: 30000 });
-      await pg.waitForFunction(() => /since ZT Survivor 51/.test(document.querySelector("[data-me-card]")?.textContent || ""), null, { timeout: 15000 });
+      await pg.locator("[data-settings-groups] [data-group]").first().waitFor({ timeout: 30000 });
+      await pg.waitForFunction(() => !/…/.test(document.querySelector("[data-settings-groups]")?.textContent || "…"), null, { timeout: 15000 }).catch(() => {});
       await pg.waitForTimeout(800);
-      const meLine = await pg.locator("[data-me-card]").innerText();
-      check(/zt_nd_alex/.test(meLine) && /On ZT Extra and ZT Survivor 51|On ZT Survivor 51 and ZT Extra/.test(meLine) && /since ZT Survivor 51/.test(meLine), "the me card: his name, his couches, since ZT Survivor 51", meLine);
-      // The 2026-10-31 redesign (option D): Quick settings, Everything else folded shut under rows saying what they're set to,
-      // Help and account.
-      const heads = await pg.locator("[data-settings] h2").allInnerTexts();
-      check(heads.map((x) => x.toLowerCase()).join("|") === "quick settings|everything else|help and account", "three sections: Quick settings, Everything else, Help and account", heads.join("|"));
-      const folds = await pg.locator("[data-fold]").evaluateAll((els) => els.map((e) => `${e.getAttribute("data-fold")}${e.hasAttribute("data-open") ? ":open" : ""}`));
+      const meLine = await pg.locator("[data-me-card]").textContent();
+      check(/zt_nd_alex/.test(meLine) && /On ZT Extra and ZT Survivor 51|On ZT Survivor 51 and ZT Extra/.test(meLine), "you: his name and his two couches", meLine);
+      check(/Your settings/.test(await pg.locator("header h1").first().textContent()), "the page is Your settings");
+      // Round 0's shape: five groups, each its name over its value, then Account and help.
+      const groups = await pg.locator("[data-settings-groups] [data-group], [data-settings-groups] [data-fold]").evaluateAll((els) => els.map((e) => e.getAttribute("data-group") || e.getAttribute("data-fold")));
+      check(groups.join("|") === "notifications|results|privacy|appearance|yours", "five groups: Notifications, When results show, Privacy, Appearance, Your shows couches and games", groups.join("|"));
+      const value = async (id) => (await pg.locator(`[data-group="${id}"] [data-group-value]`).innerText()).trim();
+      // Nothing reaches him (this phone off, no other phone of his): the plate says so, so the row says what's chosen instead.
+      check((await pg.locator("[data-phone-plate][data-phone=off]").count()) === 1, "nothing reaches him: the plate, Notifications are off");
+      check(/^Chosen: reminders, results, your couch$/.test(await value("notifications")), "Notifications: what's chosen (the plate says it's off)", await value("notifications"));
+      check((await value("results")) === "After you've watched", "When results show: After you've watched (no sports followed, so no sports half)", await value("results"));
+      check((await value("privacy")) === "Your couches see how far you've watched", "Privacy: the one switch's outcome", await value("privacy"));
+      check(/^(Same as my phone · (dark|light) now|Dark|Light)$/.test(await pg.locator('[data-fold="appearance"] [data-fold-value]').innerText()), "Appearance: its value, shut", await pg.locator('[data-fold="appearance"] [data-fold-value]').innerText());
+      check(/^\d+ shows? · 2 couches · \d+ games$/.test(await value("yours")), "Your shows, couches and games: how many of each", await value("yours"));
+      const help = await pg.locator("[data-settings-help]").innerText();
       check(
-        folds.filter((f) => f !== "auto").join("|") === "notify|sharing|couches|ai|account",
-        "the folds in order, every one shut (Which notifications, What your couch sees, Your couches, Your AI for one who runs games, Your account)",
-        folds.join("|")
+        /Your account/.test(help) && /Report a problem/.test(help) && /Take the tour/.test(help) && /Where art and data come from/.test(help) && /Sign out/.test(help) && !/Site admin/.test(help),
+        "Account and help: Your account, Report a problem, Take the tour, Where art and data come from, Sign out (no Site admin: he isn't one)",
+        help
       );
-      const quick = await pg.locator("[data-settings-quick] [data-phone], [data-settings-quick] [data-settings-chat], [data-settings-quick] [data-setting=hide-scores], [data-settings-quick] [data-settings-appearance]").count();
-      check(quick === 4, "Quick settings: this phone, Couch chat, Hide scores, Appearance", String(quick));
-      check(/\d of \d on|none reach you yet/.test(await pg.locator('[data-fold="notify"] [data-fold-value]').innerText()), "Which notifications says how many are on, shut");
-      check(/Everything · recommended/.test(await pg.locator('[data-fold="sharing"] [data-fold-value]').innerText()), "What your couch sees: Everything · recommended, shut");
-      check(/ChatGPT · for games you run/.test(await pg.locator('[data-fold="ai"] [data-fold-value]').innerText()), "Your AI: ChatGPT, shut");
-      const previews = await pg.locator("[data-preview]").evaluateAll((els) => els.map((e) => e.getAttribute("data-preview")));
-      check(previews.length === 0, "nothing is Preview any more (parts 2 to 4 made notifications, sharing and Appearance real)", previews.join());
-      check((await pg.locator("[data-setting=hide-scores]").getAttribute("aria-checked")) === "true", "Hide scores until I reveal is on");
-      const small = await pg.locator("[data-settings] button:visible").evaluateAll((els) =>
-        els.filter((e) => e.closest("[data-settings-quick], [data-me-card]")).map((e) => e.getBoundingClientRect()).filter((r) => r.height < 44).length
-      );
-      check(small === 0, "every button in the profile row and Quick settings is at least 44px tall", String(small));
-      await a.wide("Settings");
+      check(/zt_nd_alex · password, your phones/.test(await value("account")), "Your account: how he signs in", await value("account"));
+      const gone = await pg.locator("[data-settings]").innerText();
+      check(!/Grok|Your AI|How each game works|Quick settings|Everything else/.test(gone), "gone: Your AI (C8), How each game works (C9), Quick settings and the folds", gone.match(/Grok|Your AI|How each game works|Quick settings|Everything else/g)?.join());
+      check(!/Turns off notifications on this phone/.test(help), "Sign out says nothing about this phone while it's off");
+      const small = await pg.locator("[data-settings] button:visible, [data-settings] a:visible").evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).filter((r) => r.height < 44).length);
+      check(small === 0, "every button and link on Your settings is at least 44px tall", String(small));
+      await a.wide("Your settings");
       await a.shot("settings-top");
-      await openFold(pg, "ai");
-      await openFold(pg, "account");
-      check((await pg.locator("[data-choice=chatgpt]").getAttribute("aria-checked")) === "true", "ChatGPT is his AI (Recommended)");
-      check(!(await pg.locator("[data-settings-account]").innerText()).includes("Google"), "no Google row while it isn't set up");
-      check(/Back to the classic design/.test(await pg.locator("[data-settings-account]").innerText()), "the classic design is in Your account");
-      await pg.locator("[data-settings-ai]").scrollIntoViewIfNeeded();
-      await a.shot("settings-ai");
       await pg.locator("[data-sign-out]").scrollIntoViewIfNeeded();
       await a.shot("settings-end");
 
-      // Hide scores: off asks first (Undo can't unsee a result). Keep them hidden leaves it; Show scores saves, with Undo.
-      await pg.locator("[data-setting=hide-scores]").scrollIntoViewIfNeeded();
-      await pg.locator("[data-setting=hide-scores]").click();
-      await pg.locator("[data-hide-warn]").waitFor({ timeout: 5000 });
-      check(/Show scores straight away\?/.test(await pg.locator("[data-hide-warn]").innerText()) && (await immediate()) === false, "off asks first, and nothing's saved yet");
-      await a.shot("settings-hide-ask");
-      await pg.locator("[data-hide-keep]").click();
-      check((await pg.locator("[data-hide-warn]").count()) === 0 && (await pg.locator("[data-setting=hide-scores]").getAttribute("aria-checked")) === "true", "Keep them hidden: still on");
-      await pg.locator("[data-setting=hide-scores]").click();
-      await pg.locator("[data-hide-confirm]").click();
-      check(await a.toasted(/results show as soon as they're in/), "Show scores: the toast says what it means");
-      check((await immediate()) === true, "saved: he sees results straight away");
-      await pg.locator("[role=status] button", { hasText: /undo/i }).click();
-      await pg.waitForFunction(() => document.querySelector("[data-setting=hide-scores]")?.getAttribute("aria-checked") === "true", null, { timeout: 15000 });
-      check((await immediate()) === false, "Undo: scores hidden again");
+      // Appearance opens in place; nothing else does.
+      await pg.locator('[data-fold="appearance"] > button').click();
+      await pg.locator('[data-choice^="theme-"]').first().waitFor();
+      check((await pg.locator('[data-choice^="theme-"]').count()) === 3 && new URL(pg.url()).searchParams.get("page") === null, "Appearance: its three choices, in place");
+      await pg.locator('[data-fold="appearance"] > button').click();
 
-      // Your AI.
-      await pg.locator("[data-choice=ask]").click();
-      check(await a.toasted(/Saved: Ask each time/), "Ask each time: saved");
-      check((await pool.query("SELECT ai FROM user_settings WHERE user_id = $1", [A])).rows[0].ai === "ask", "kept on his account");
+      // When results show: Straight away asks first (Undo can't unsee a result); Keep them hidden leaves it; Show them saves, with Undo.
+      await openGroup("results", "[data-settings-results]");
+      check(new URL(pg.url()).searchParams.get("page") === "results", "a group is a page with its own address (?page=results)");
+      check((await pg.locator('[data-choice="hide-on"]').getAttribute("aria-checked")) === "true", "After you've watched is his (Recommended)");
+      check((await pg.locator("[data-settings-sports]").count()) === 0, "no Sports half: he follows no sport");
+      await a.wide("When results show");
+      await a.shot("results");
+      await pg.locator('[data-choice="hide-off"]').click();
+      await pg.locator("[data-hide-warn]").waitFor({ timeout: 5000 });
+      check(/Show results straight away\?/.test(await pg.locator("[data-hide-warn]").innerText()) && (await immediate()) === false, "Straight away asks first, and nothing's saved yet");
+      await a.shot("results-ask");
+      await pg.locator("[data-hide-keep]").click();
+      check((await pg.locator("[data-hide-warn]").count()) === 0 && (await pg.locator('[data-choice="hide-on"]').getAttribute("aria-checked")) === "true", "Keep them hidden: still After you've watched");
+      await pg.locator('[data-choice="hide-off"]').click();
+      await pg.locator("[data-hide-confirm]").click();
+      check(await a.toasted(/Results show straight away/), "Show them: the toast says what it means");
+      check((await immediate()) === true, "saved: he sees results straight away");
+      await pg.locator('[data-reset="hide"]').waitFor({ timeout: 10000 }).catch(() => {});
+      check((await pg.locator('[data-reset="hide"]').count()) === 1, "Reset to recommended, once it's changed");
+      await pg.locator("[role=status] button", { hasText: /undo/i }).click();
+      await pg.waitForFunction(() => document.querySelector('[data-choice="hide-on"]')?.getAttribute("aria-checked") === "true", null, { timeout: 15000 });
+      check((await immediate()) === false, "Undo: results wait again");
+      await backFrom("When results show");
+      check(new URL(pg.url()).searchParams.get("page") === null && (await pg.locator("[data-settings-results]").count()) === 0, "Back: Your settings again");
+
+      // Privacy, opened by its address; the phone's back gesture closes it.
+      await pg.goto(`${BASE}/settings`, { waitUntil: "load" });
+      await pg.locator("[data-settings-groups]").waitFor({ timeout: 30000 });
+      await openGroup("privacy", "[data-settings-sharing]");
+      await pg.goBack();
+      await pg.locator("[data-settings-sharing]").waitFor({ state: "detached", timeout: 10000 }).catch(() => {});
+      check((await pg.locator("[data-settings-sharing]").count()) === 0 && /\/settings$/.test(new URL(pg.url()).pathname), "the phone's Back closes a page, back on Your settings", pg.url());
 
       // The profile sheet.
       await pg.locator("[data-edit-profile]").click();
       await pg.locator("[data-profile-sheet]").waitFor();
       await pg.waitForTimeout(500);
       await a.shot("profile");
-      await pg.locator('[data-colour="#e86f9a"]').click();
+      // A colour that isn't already his (with none chosen, his id picks one, which can be any of them), then another for the picture.
+      const swatches = await pg.locator("[data-colour]").evaluateAll((els) => els.filter((e) => e.getAttribute("aria-checked") === "false").map((e) => e.getAttribute("data-colour")));
+      const [hex, hex2] = swatches;
+      const rgb = `rgb(${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)})`;
+      await pg.locator(`[data-colour="${hex}"]`).click();
       // The saved row first (under a batch's load the PUT can answer slowly), then the toast it answers with.
       let kept = false;
       for (const t = Date.now(); !kept && Date.now() - t < 30000; await new Promise((r) => setTimeout(r, 250))) {
-        kept = (await pool.query("SELECT colour FROM user_settings WHERE user_id = $1", [A])).rows[0]?.colour === "#e86f9a";
+        kept = (await pool.query("SELECT colour FROM user_settings WHERE user_id = $1", [A])).rows[0]?.colour === hex;
       }
-      check(kept, "Rose: kept on his account");
-      check(await a.toasted(/Saved: your colour/), "Rose: saved");
-      await pg.waitForFunction(() => getComputedStyle(document.querySelector("[data-me-card] [data-face]")).backgroundColor === "rgb(232, 111, 154)", null, { timeout: 15000 }).catch(() => {});
-      check((await pg.locator("[data-me-card] [data-face]").evaluate((e) => getComputedStyle(e).backgroundColor)) === "rgb(232, 111, 154)", "his face on the me card is Rose at once");
+      check(kept, `a colour (${hex}): kept on his account`);
+      check(await a.toasted(/Saved: your colour/), "the colour: saved");
+      await pg.waitForFunction((c) => getComputedStyle(document.querySelector("[data-me-card] [data-face]")).backgroundColor === c, rgb, { timeout: 15000 }).catch(() => {});
+      check((await pg.locator("[data-me-card] [data-face]").evaluate((e) => getComputedStyle(e).backgroundColor)) === rgb, "his face on the me card takes it at once");
       await pg.locator("[role=status] button", { hasText: /undo/i }).click();
-      await pg.waitForFunction(() => document.querySelector('[data-colour="#e86f9a"]')?.getAttribute("aria-checked") === "false", null, { timeout: 15000 }).catch(() => {});
+      await pg.waitForFunction((h) => document.querySelector(`[data-colour="${h}"]`)?.getAttribute("aria-checked") === "false", hex, { timeout: 15000 }).catch(() => {});
       check((await pool.query("SELECT colour FROM user_settings WHERE user_id = $1", [A])).rows[0].colour === null, "Undo: back to his id's colour");
-      await pg.locator('[data-colour="#8db85e"]').click();
+      await pg.locator(`[data-colour="${hex2}"]`).click();
       await a.toasted(/Saved: your colour/);
       await pg.locator("[data-picture-input]").setInputFiles(ART);
       check(await a.toasted(/Saved: your picture/), "a picture: chosen and saved");
@@ -404,59 +437,67 @@ function check(ok, what, detail = "") {
       await pg.locator("[data-profile-save]").click();
       check(await a.toasted(/your couch sees you as zt_nd_alexz/), "a new name: saved");
       await pg.waitForFunction(() => document.querySelector("[data-me-name]")?.textContent === "zt_nd_alexz", null, { timeout: 15000 }).catch(() => {});
-      check((await pg.locator("[data-me-name]").innerText()) === "zt_nd_alexz", "the me card says it at once");
+      check((await pg.locator("[data-me-name]").textContent()) === "zt_nd_alexz", "the me card says it at once");
       check((await seatNames(fx.leagues.outlast))[0] === "zt_nd_alexz", "his seats too");
       await a.wide("the profile sheet");
       await a.shot("profile-named");
       await pg.keyboard.press("Escape");
       await a.sheet.waitFor({ state: "hidden" }).catch(() => {});
 
-      // The hub: his face is his picture.
+      // The hub: his face is his picture; the gear opens Your settings; the picture's sheet keeps a quiet row, and no tour (C13).
       await pg.goto(`${BASE}/home?hub=focus`, { waitUntil: "load" });
       await pg.locator("header [data-face]").first().waitFor({ timeout: 30000 });
       await pg.waitForFunction(() => document.querySelector("header [data-face]")?.getAttribute("data-face") === "picture", null, { timeout: 15000 }).catch(() => {});
       check((await pg.locator("header [data-face]").first().getAttribute("data-face")) === "picture", "the hub's top: his picture");
       await pg.waitForTimeout(800);
       await a.shot("hub");
+      await pg.locator('[data-tour="you"]').click();
+      await a.sheet.waitFor({ timeout: 10000 });
+      await pg.waitForTimeout(500);
+      const youSheet = await a.sheet.innerText();
+      check(/Your settings/.test(youSheet) && !/Take the tour/.test(youSheet), "his picture's sheet: a Your settings row, no Take the tour", youSheet);
+      await pg.keyboard.press("Escape");
+      await a.sheet.waitFor({ state: "hidden" }).catch(() => {});
+      await pg.locator("[data-gear]").click();
+      await pg.waitForURL((u) => u.pathname === "/settings", { timeout: 20000 }).catch(() => {});
+      check(new URL(pg.url()).pathname === "/settings", "the hub's gear opens Your settings", pg.url());
 
-      // Ask an AI follows Your AI for results: Episode 6 has aired (the season moved back five days).
+      // Ask an AI: one link, Open in ChatGPT, and Copy the question for any other AI (C8: no Grok, no setting). Episode 6 has aired
+      // (the season moved back five days).
       await pool.query("UPDATE show_seasons SET premiere_date = premiere_date - 5 WHERE id = $1", [sid]);
-      const openAsk = async () => {
-        await pg.goto(`${BASE}/show/${sid}/backstage`, { waitUntil: "load" });
-        await pg.locator("[data-job=quick]").waitFor({ timeout: 30000 });
-        await pg.locator("[data-job=quick]").click();
-        await pg.locator("[data-ask=quick]").waitFor();
-        await pg.locator("[data-ask=quick]").click();
-        await pg.locator("[data-ask-ai=quick], [data-one-tap]").first().waitFor({ timeout: 20000 });
-        if (await pg.locator("[data-one-tap]").count()) await pg.locator("[data-copy-paste]").click();
-        await pg.locator("[data-ask-ai=quick]").waitFor();
-        await pg.locator("a[data-ai-open][href]").first().waitFor({ timeout: 20000 });
-      };
-      const bigLinks = () => pg.locator("[data-ask-ai] a[data-ai-open].bg-foreground").evaluateAll((els) => els.map((e) => e.getAttribute("data-ai-open")));
-      await openAsk();
-      check((await bigLinks()).join() === "chatgpt,grok", "Ask each time: ChatGPT and Grok side by side", (await bigLinks()).join());
-      await a.wide("Ask an AI (ask each time)");
-      await a.shot("ask-each-time");
-      await save("alex", { ai: "copy" });
-      await openAsk();
-      check((await bigLinks()).length === 0 && (await pg.locator("[data-ask-ai] button[data-ai-copy].bg-foreground").count()) === 1, "I'll copy and paste: the copy leads");
-      check((await pg.locator("[data-ask-ai] a[data-ai-open]").count()) === 2, "the two apps are the rows under it");
-      await a.shot("ask-copy");
-      await save("alex", { ai: "grok" });
-      await openAsk();
-      const grokHref = (await pg.locator("[data-ask-ai] a[data-ai-open].bg-foreground").getAttribute("href")) || "";
-      check((await bigLinks()).join() === "grok" && /grok\.com/.test(grokHref), "Grok: Open in Grok leads", (await bigLinks()).join());
+      await pg.goto(`${BASE}/show/${sid}/backstage`, { waitUntil: "load" });
+      await pg.locator("[data-job=quick]").waitFor({ timeout: 30000 });
+      await pg.locator("[data-job=quick]").click();
+      await pg.locator("[data-ask=quick]").waitFor();
+      await pg.locator("[data-ask=quick]").click();
+      await pg.locator("[data-ask-ai=quick], [data-one-tap]").first().waitFor({ timeout: 20000 });
+      if (await pg.locator("[data-one-tap]").count()) await pg.locator("[data-copy-paste]").click();
+      await pg.locator("[data-ask-ai=quick]").waitFor();
+      await pg.locator("a[data-ai-open][href]").first().waitFor({ timeout: 20000 });
+      const links = await pg.locator("[data-ask-ai] a[data-ai-open]").evaluateAll((els) => els.map((e) => `${e.getAttribute("data-ai-open")}:${e.getAttribute("href")}`));
+      check(links.length === 1 && /^chatgpt:https:\/\/chatgpt\.com/.test(links[0]), "Ask an AI: one link, Open in ChatGPT", links.join(" | "));
+      check(/Copy the question/.test(await pg.locator("[data-ask-ai] [data-ai-copy]").innerText()) && !/Grok/.test(await pg.locator("[data-ask-ai]").innerText()), "and Copy the question for any other AI; no Grok");
+      await a.wide("Ask an AI");
+      await a.shot("ask-ai");
       await pool.query("UPDATE show_seasons SET premiere_date = premiere_date + 5 WHERE id = $1", [sid]);
-      await save("alex", { ai: "chatgpt" });
 
-      // The couch's sheet: rename with Undo, a new code, Hand it on.
-      await pg.goto(`${BASE}/settings`, { waitUntil: "load" });
-      await openFold(pg, "couches");
-      await pg.locator('[data-settings-couch="ZT Survivor 51"]').waitFor({ timeout: 30000 });
-      await pg.locator('[data-settings-couch="ZT Survivor 51"]').click();
+      // Your shows, couches and games: the map; a couch opens its page (rename with Undo, a new code, Hand it on).
+      await pg.goto(`${BASE}/settings?page=yours`, { waitUntil: "load" });
+      await pg.locator("[data-settings-yours]").waitFor({ timeout: 30000 });
+      await pg.locator('[data-yours-couch="ZT Survivor 51"]').waitFor({ timeout: 30000 });
+      await pg.waitForTimeout(600);
+      const yourCouch = await pg.locator('[data-yours-couch="ZT Survivor 51"]').innerText();
+      check(/you run it/.test(yourCouch) && /chat: your default/.test(yourCouch), "the map: ZT Survivor 51, you run it, chat: your default", yourCouch);
+      check(/2 people/.test(await pg.locator('[data-yours-couch="ZT Extra"]').innerText()), "ZT Extra: him and casey");
+      check((await pg.locator(`[data-yours-show="${sid}"] [data-yours-game]`).count()) === 3, "ZT Survivor 51 lists his three games");
+      check(/You run it/.test(await pg.locator(`[data-yours-show="${sid}"] [data-yours-game]`).first().innerText()), "each says his part in it (You run it)");
+      await a.wide("Your shows, couches and games");
+      await a.shot("yours");
+      await pg.locator('[data-yours-couch="ZT Survivor 51"]').click();
       await pg.locator("[data-couch-details]").waitFor();
       await pg.waitForTimeout(600);
-      check(/Runs it/.test(await pg.locator(`[data-member="zt_nd_alexz"]`).innerText()), "the couch's sheet: Runs it under alex");
+      check(/Runs it/.test(await pg.locator(`[data-member="zt_nd_alexz"]`).innerText()), "the couch's page: Runs it under alex");
+      check((await a.sheet.locator('[data-couch-chat="default"]').count()) === 1, "and its own chat row, on his default");
       await a.shot("couch");
       const before = await pg.locator("[data-invite-code]").getAttribute("data-invite-code");
       await pg.locator("[data-new-code]").click();
@@ -476,10 +517,12 @@ function check(ok, what, detail = "") {
       check(await a.toasted(/Renamed: ZT Couch Council/), "renamed");
       check((await couchName()) === "ZT Couch Council", "saved for everyone");
       await pg.locator("[role=status] button", { hasText: /undo/i }).click();
-      await pg.waitForFunction(() => !!document.querySelector('[data-settings-couch="ZT Survivor 51"]'), null, { timeout: 15000 }).catch(() => {});
+      await pg.waitForFunction(() => !!document.querySelector('[data-yours-couch="ZT Survivor 51"]'), null, { timeout: 15000 }).catch(() => {});
       check((await couchName()) === "ZT Survivor 51", "Undo: its old name back");
-      await pg.locator('[data-settings-couch="ZT Survivor 51"]').click();
-      await pg.locator("[data-couch-details]").waitFor();
+      if (!(await pg.locator("[data-couch-details]").count())) {
+        await pg.locator('[data-yours-couch="ZT Survivor 51"]').click();
+        await pg.locator("[data-couch-details]").waitFor();
+      }
       await a.sheet.getByRole("button", { name: /Hand it on/ }).click();
       await pg.locator("[data-hand-on]").waitFor();
       await pg.locator('[data-hand-to="zt_nd_riley"]').click();
@@ -489,24 +532,25 @@ function check(ok, what, detail = "") {
       check((await roles())[A] === "owner", "closing without handing it on leaves it his");
       await a.sheet.waitFor({ state: "hidden" }).catch(() => {});
 
-      // Help and your account.
-      await openFold(pg, "account");
-      await pg.getByRole("button", { name: /How each game works/ }).click();
-      await pg.locator("[data-games-help]").waitFor();
-      check((await pg.locator("[data-game-help]").count()) === 6, "How each game works: the six season games (Prediction Sheet since 2026-10-30)");
-      await a.shot("games-help");
-      await pg.keyboard.press("Escape");
-      await a.sheet.waitFor({ state: "hidden" }).catch(() => {});
-      await pg.getByRole("button", { name: /Report a problem/ }).click();
-      await pg.locator("[data-report-sheet]").waitFor();
-      await pg.locator("[data-report-type=feature]").click();
-      await pg.locator("[data-report-text]").fill("zt settings check: an idea from the check");
-      await a.shot("report");
-      await pg.locator("[data-report-send]").click();
-      check(await a.toasted(/Sent/), "Report a problem: sent");
-      const rep = (await pool.query("SELECT type, route, username FROM issue_reports WHERE user_id = $1 AND message LIKE 'zt settings check%'", [A])).rows[0];
-      check(rep?.type === "feature" && rep.route === "/settings" && rep.username === "zt_nd_alexz", "kept for us: an idea, from /settings, by him", JSON.stringify(rep));
-      await pg.getByRole("button", { name: /Change password/ }).click();
+      // Your account: how he signs in, Change password (a wrong one refused, then changed and changed back), Your phones.
+      await pg.goto(`${BASE}/settings?page=account`, { waitUntil: "load" });
+      await pg.locator("[data-settings-account]").waitFor({ timeout: 30000 });
+      await pg.waitForTimeout(600);
+      const acct = await pg.locator("[data-settings-account]").innerText();
+      check(/zt_nd_alexz/.test(acct) && /Change password/.test(acct) && /Your phones/.test(acct) && /Install the app/.test(acct) && /Back to the classic design/.test(acct), "Your account: his name, Change password, Your phones, Install the app, the classic design", acct);
+      check(!/Google/.test(acct) || !!process.env.GOOGLE_CLIENT_ID, "no Google row while it isn't set up");
+      await a.wide("Your account");
+      await a.shot("account");
+      await pg.locator("[data-settings-account] [data-group=phones]").click();
+      await pg.locator("[data-settings-phones]").waitFor({ timeout: 15000 });
+      await pg.waitForTimeout(600);
+      check((await page("Your phones").locator("button").first().innerText()).includes("Your account"), "Your phones: its Back says Your account");
+      check(/signed in/i.test(await pg.locator("[data-settings-phones]").innerText()), "Your phones: where he's signed in", await pg.locator("[data-settings-phones]").innerText());
+      await a.shot("phones");
+      await backFrom("Your phones");
+      await pg.goto(`${BASE}/settings?page=account`, { waitUntil: "load" });
+      await pg.locator("[data-settings-account]").waitFor({ timeout: 30000 });
+      await pg.locator("[data-settings-account]").getByRole("button", { name: /Change password/ }).click();
       await pg.locator("[data-password-sheet]").waitFor();
       await pg.locator("#pw-current").fill("not-my-password");
       await pg.locator("#pw-next").fill("zt-pass-67890");
@@ -520,7 +564,8 @@ function check(ok, what, detail = "") {
       check(await a.toasted(/Password changed/), "changed");
       const changed = await fetch(BASE + "/api/auth/sign-in/username", { method: "POST", headers: { "content-type": "application/json", origin: BASE }, body: JSON.stringify({ username: "zt_nd_alexz", password: "zt-pass-67890" }) });
       check(changed.ok, "the new one signs him in");
-      await pg.getByRole("button", { name: /Change password/ }).click();
+      await a.sheet.waitFor({ state: "hidden" }).catch(() => {});
+      await pg.locator("[data-settings-account]").getByRole("button", { name: /Change password/ }).click();
       await pg.locator("#pw-current").fill("zt-pass-67890");
       await pg.locator("#pw-next").fill(PASSWORD);
       await pg.locator("#pw-again").fill(PASSWORD);
@@ -528,14 +573,27 @@ function check(ok, what, detail = "") {
       await a.sheet.waitFor({ state: "hidden" }).catch(() => {});
       const back = await fetch(BASE + "/api/auth/sign-in/username", { method: "POST", headers: { "content-type": "application/json", origin: BASE }, body: JSON.stringify({ username: "zt_nd_alexz", password: PASSWORD }) });
       check(back.ok, "and back: the old one signs him in again");
+
+      // Report a problem, from Account and help.
+      await pg.goto(`${BASE}/settings`, { waitUntil: "load" });
+      await pg.locator("[data-settings-help]").waitFor({ timeout: 30000 });
+      await pg.getByRole("button", { name: /Report a problem/ }).click();
+      await pg.locator("[data-report-sheet]").waitFor();
+      await pg.locator("[data-report-type=feature]").click();
+      await pg.locator("[data-report-text]").fill("zt settings check: an idea from the check");
+      await a.shot("report");
+      await pg.locator("[data-report-send]").click();
+      check(await a.toasted(/Sent/), "Report a problem: sent");
+      const rep = (await pool.query("SELECT type, route, username FROM issue_reports WHERE user_id = $1 AND message LIKE 'zt settings check%'", [A])).rows[0];
+      check(rep?.type === "feature" && rep.route === "/settings" && rep.username === "zt_nd_alexz", "kept for us: an idea, from /settings, by him", JSON.stringify(rep));
       check(a.errors().length === 0, "alex: no page errors", a.errors().join(" | "));
 
       // ---------- riley: alex's face on the couch ----------
       const rr = await browse("riley");
-      await rr.pg.goto(`${BASE}/settings`, { waitUntil: "load" });
-      await openFold(rr.pg, "couches");
-      await rr.pg.locator('[data-settings-couch="ZT Survivor 51"]').waitFor({ timeout: 30000 });
-      await rr.pg.locator('[data-settings-couch="ZT Survivor 51"]').click();
+      await rr.pg.goto(`${BASE}/settings?page=yours`, { waitUntil: "load" });
+      await rr.pg.locator('[data-yours-couch="ZT Survivor 51"]').waitFor({ timeout: 30000 });
+      check(!/you run it/.test(await rr.pg.locator('[data-yours-couch="ZT Survivor 51"]').innerText()), "riley's map: the couch, not his to run");
+      await rr.pg.locator('[data-yours-couch="ZT Survivor 51"]').click();
       await rr.pg.locator("[data-couch-details]").waitFor();
       const face = rr.pg.locator('[data-member="zt_nd_alexz"] [data-face]');
       await rr.pg.waitForFunction(() => document.querySelector('[data-member="zt_nd_alexz"] [data-face]')?.getAttribute("data-face") === "picture", null, { timeout: 15000 }).catch(() => {});

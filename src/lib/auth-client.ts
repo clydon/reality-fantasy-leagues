@@ -42,7 +42,7 @@ async function endAnyHour() {
   await fetch("/api/desk/acting?ifActing", { method: "DELETE" }).catch(() => {});
 }
 
-/** Signing out turns this phone's notifications off first (BACKLOG 232: a signed-out phone kept getting your pushes). Never holds
+/** Signing out turns this phone's notifications off first (BACKLOG 237: a signed-out phone kept getting your pushes). Never holds
  *  the sign-out up for long: a browser that won't answer gets two seconds. */
 async function phoneOff() {
   try {

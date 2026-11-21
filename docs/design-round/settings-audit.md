@@ -60,7 +60,7 @@ settings.tsx hasn't changed since 2026-11-09, so the Phase 0 census frame is tod
 | How each game works | a sheet of six fixed games in Survivor's words | | | | **Move** to each game's How it plays |
 | Report a problem | sends a report | | `reports` | | **Keep** |
 | Your account: Change password · Link Google · Back to the classic design · The full design | | | | | **Keep** the password and Google, with words that suit an account that only uses Google. **Drop** classic with step C (BACKLOG 45). **Drop** The full design (it opens the 2026-10-22 mock) |
-| Sign out | | | | at once | **Keep**, and make it turn off this phone's notifications: it doesn't ✓ (BACKLOG 232) |
+| Sign out | | | | at once | **Keep**, and make it turn off this phone's notifications: it doesn't ✓ (BACKLOG 237) |
 | Credits | | | | | **Keep** as a quiet link: TMDB and TVmaze require it |
 | Your profile: picture · name · colour | | | `user_pictures`; the username (also every seat and old chat); `user_settings.colour` | the picture at once with no Undo, and Remove doesn't ask; the name with Save; the colour with Undo | **Keep** behind Edit, and say the name is also how you sign in |
 
@@ -497,8 +497,8 @@ On TV) are content, not settings, and stay unless the user says otherwise.
 
 ## 6. Found along the way
 
-These go to the backlog to be fixed apart from the redesign (BACKLOG 232–236, "Now"):
-- 232: signing out leaves the phone getting your notifications ✓.
+These go to the backlog to be fixed apart from the redesign (BACKLOG 237–236, "Now"):
+- 237: signing out leaves the phone getting your notifications ✓.
 - 233: a Game admin can undo a Commissioner's changes ✓.
 - 234: Recommended is hard-coded ✓.
 - 235: the results-to-fill-in push is moot ✓.
