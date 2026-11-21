@@ -633,7 +633,8 @@ what's open, [-check.md](design-round/settings-r3b-check.md).
 
 ### Round 4: the words and the ripple
 
-**Built 2026-11-21 (branch settings-r4); waiting on the user's review.** A words round, so Impeccable alone (DESIGN-PROCESS.md, "When
+**Built 2026-11-21 (branch settings-r4); waiting on the user's review** of its story
+(https://claude.ai/artifact/5mLdnBLiwQik8SiK3BifEz; one choice at its end). A words round, so Impeccable alone (DESIGN-PROCESS.md, "When
 not to use them"): `clarify` for the spec and glossary ([design-round/settings-r4-spec.md](design-round/settings-r4-spec.md)), one
 independent `critique` of the built frames (29/40), one batch of fixes, one confirming look. Frames: `.ui-atlas/stories/settings-r4/`
 (story-settings.js `--only=^r4-`; before, after, and ripple for the shared parts' other homes).
