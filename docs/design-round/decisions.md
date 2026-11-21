@@ -1607,3 +1607,10 @@
 - Why: Tonight answers which game and how long first; your place is the game page's lead. One-episode games are the low-commitment way in, so they lead and say who won.
 - Rejected: a game's place as the row's big number (version 2); "quick game" as the group's name (the user's words are "one episode games").
 - Rests on: docs/design-round/tonight-night-spec.md; the story's version 3.
+
+## 2026-11-21 · Tonight has a row for every kind of game, and every engine change names the screens it reaches
+- Decided by: the user ("make sure there's a tonight one row designed for every game type ... if a new engine capability is added or modified, we need to have a record of all UI areas that need to be reviewed"); the registry and map by Claude
+- What: src/lib/game/night-rows.ts declares each of the 15 main blocks' Tonight row (faces, change, second line, place, open), a Record over MainBlock so a new block fails tsc, with tests/night-rows.test.js reading the grammar's list; night.tsx reads it. docs/UI-REVIEW-MAP.md lists every screen each kind of engine change reaches and which checks fail; AGENTS.md points every session to it.
+- Why: the row was generic past the three kinds the couch plays; a new capability would have fallen back silently.
+- Rejected: a design per game base (56 bases share 15 main blocks); relying on the gameplay coverage matrix alone (its ledger has never been used, and it doesn't fail anything).
+- Rests on: docs/UI-REVIEW-MAP.md; src/lib/game/night-rows.ts; the story's per-pattern frames.

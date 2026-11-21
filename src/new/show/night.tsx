@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { LINES } from "@/lib/game/bingo";
 import { kindOf } from "@/lib/game/spans";
+import { nightRowOf, type NightChange, type NightLine } from "@/lib/game/night-rows";
 import { nightKind, type Square } from "@/lib/game/game-plays";
 import { GAME_NAMES } from "@/lib/server/league-season";
 import { useCouchGames, useEpisodeBingo, useSeasonArchive, useSeasonGame, useTrivia, type ArchivedGame, type GameView, type JoinGame, type TableRow } from "../data";
@@ -137,6 +138,38 @@ function changeOf(g: GameView, s: Square | null, top: number | null = null): { t
   if (s.held) return s.left?.length ? { text: `Lost ${s.left.length}`, tone: "out" } : { text: "All safe", tone: "good" };
   if (s.points === null) return null;
   return { text: signed(s.points), unit: Math.abs(s.points) === 1 ? "pt" : "pts", tone: top !== null && top > 0 && s.points === top ? "good" : "plain" };
+}
+
+/** The night's change as a game's design says it (night-rows.ts NightChange); `changeOf` is the plain reading. */
+function changeFor(kind: NightChange, g: GameView, s: Square | null, n: number): ReturnType<typeof changeOf> {
+  const plain = changeOf(g, s, topOf(g, n, waitingOn(g, n)));
+  if (kind === "lives" && g.plays.lives) {
+    const before = g.plays.lives.after[n - 1] ?? g.plays.lives.of;
+    const after = g.plays.lives.after[n] ?? before;
+    const lost = before - after;
+    return lost > 0 ? { text: lost === 1 ? "Lost a life" : `Lost ${lost} lives`, tone: "out" } : { text: "No lives lost", tone: "good" };
+  }
+  if (kind === "week" && s?.won) return { text: "Won the week", tone: "good" };
+  if (kind === "lines" && plain?.unit && s?.points != null && (g.linePoints ?? 1) === 1) return { ...plain, unit: Math.abs(s.points) === 1 ? "line" : "lines" };
+  return plain;
+}
+
+/** The second line's words as a game's design says them (night-rows.ts NightLine), when nobody else's night is the news. */
+function lineFor(kind: NightLine, g: GameView, s: Square | null, n: number, total: string, stage: string | null = null): string {
+  const me = g.you;
+  if (!me) return total;
+  if (kind === "opponent" && s?.result) {
+    const who = s.result.against ? first(g.table.find((r) => r.playerId === s.result!.against)?.name ?? "them") : s.result.median ? "the middle score" : "a bye";
+    return `vs ${who} · ${total}`;
+  }
+  if (kind === "target" && g.plays.target !== null) return `${fmt(me.total)} of ${fmt(g.plays.target)} to win`;
+  if (kind === "lives" && g.plays.lives) return `${g.plays.lives.after[n] ?? g.plays.lives.of} of ${g.plays.lives.of} lives left`;
+  if (kind === "weeks" && g.weeksWon) {
+    const w = g.weeksWon[me.playerId] ?? 0;
+    return `${fmt(w)} ${w === 1 ? "week" : "weeks"} won · ${total}`;
+  }
+  if (kind === "stage" && stage) return `${stage} · ${total}`;
+  return total;
 }
 
 /** The couch's most points in episode `n` among those it isn't waiting on (the episode sheet's "best"), or null. */
@@ -469,8 +502,10 @@ function NightCard({ night, name, show, open: openDoor }: { night: Night; name: 
   const me = g.you;
   const s = me && played ? sqAt(g, me.playerId, n) : null;
   const moved = me && night.moves ? night.moves.get(me.playerId) : undefined;
-  const picks = me && played ? picksOf(g, me, n, s) : [];
-  const change = played ? changeOf(g, s, topOf(g, n, waitingOn(g, n))) : null;
+  // How this kind of game says its night (night-rows.ts: a design for every main block the grammar can give a spec).
+  const d = nightRowOf(g.page?.main);
+  const picks = d.faces === "plays" && me && played ? picksOf(g, me, n, s) : [];
+  const change = played ? changeFor(d.change, g, s, n) : null;
   const news = played ? couchNews(g, n) : null;
   const opens = played && g.table.length > 1;
   const [attach, motion] = useOnce(g.leagueId, n, played && (!!moved || picks.some((p) => p.lost || p.night === "home")));
@@ -479,7 +514,9 @@ function NightCard({ night, name, show, open: openDoor }: { night: Night; name: 
   // A team game ranks by points (who's still in is its faces); head to head by its record; the rest in their own words.
   const team = g.plays.blocks.includes("boots") || g.plays.blocks.includes("team");
   const measure = g.plays.kind === "result" && me?.record ? `${me.record.wins}–${me.record.losses}${me.record.ties ? `–${me.record.ties}` : ""}` : team && me && countedYet(g) ? `${fmt(me.total)} pts` : yourLine(g);
-  const line = news ? news.words : played ? measure : yourLine(g);
+  // A game in stages: the stage that played the episode (each stage is a game of its own in the read, its parent's `stageOf`).
+  const stage = d.line === "stage" ? ((show.play ?? []).find((x) => x.stageOf === g.leagueId && x.from !== null && x.from <= n && (x.to === null || x.to >= n))?.name ?? null) : null;
+  const line = news ? news.words : played ? lineFor(d.line, g, s, n, measure, stage) : yourLine(g);
   return (
     <Row
       attach={attach}
@@ -506,18 +543,19 @@ function NightCard({ night, name, show, open: openDoor }: { night: Night; name: 
               {change.unit && <small className="ml-0.5 font-sans text-[12px] font-semibold text-muted-foreground">{change.unit}</small>}
             </b>
           )}
-          {/* Your place, small, and how it moved. */}
-          <span className="flex items-center gap-1 whitespace-nowrap text-[12px] leading-none text-muted-foreground">
-            <b className="type-num text-[14px] font-normal text-foreground" data-night-place>
-              <PlaceFlip from={from} to={placeOf(g)} state={motion} />
-            </b>
-            {(motion !== "waiting" || !moved) && <Moved by={moved} small motion={playing} />}
-
-          </span>
+          {/* Your place, small, and how it moved (a co-op game has none: the couch wins or loses together). */}
+          {d.place && (
+            <span className="flex items-center gap-1 whitespace-nowrap text-[12px] leading-none text-muted-foreground">
+              <b className="type-num text-[14px] font-normal text-foreground" data-night-place>
+                <PlaceFlip from={from} to={placeOf(g)} state={motion} />
+              </b>
+              {(motion !== "waiting" || !moved) && <Moved by={moved} small motion={playing} />}
+            </span>
+          )}
         </>
       }
     >
-      {g.plays.kind === "result" ? (
+      {d.open === "matchups" && g.plays.kind === "result" ? (
         <EpisodeGames g={g} episode={n} onOpen={(pid) => openDoor({ kind: "matchup", playerId: pid, episode: n, game: g.leagueId })} />
       ) : (
         <Everyone g={g} n={n} open={openDoor} />
