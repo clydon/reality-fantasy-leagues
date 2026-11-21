@@ -1,10 +1,7 @@
 # Settings: the overhaul
 
-> **Status (2026-11-21): Round 3a built on branch settings-plan, with the user's two picks on its story** (keep the gear; the
-> waiver window's week on Manage this game now: built and checked). Merged to master 2026-11-21 (fast-forward to 1ab47840), not
-> pushed: the push waits on the user. Round 3 is split in two:
-> 3a retires Backstage and gives each game Manage this game; 3b changes a game once it's under way. Not merged or pushed; no
-> migration. Detail: Round 3, below.
+> **Status (2026-11-21): Round 3a live** (pushed 535e2ecf, no migration). Round 3b (changing a game once it's under way) is in
+> progress on branch `settings-r3b` in the lane rfl-settings; its spec is design-round/settings-r3b-spec.md. Detail: Round 3, below.
 >
 > **Round 2 (2026-11-21): merged and live** (pushed ce891ba2; migration 0448 on production, rehearsed first; the snapshot
 > `pre-settings-r2-2026-11-21` keeps 7 days). The user took all three recommendations (leaving drawn quiet, three results choices,

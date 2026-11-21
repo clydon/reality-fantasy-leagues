@@ -17,9 +17,13 @@ puts its build notes in its plan, not here.
 
 ---
 
-## Live (production = origin/master, 1484417a, deployed 2026-11-21)
+## Live (production = origin/master, 535e2ecf, deployed 2026-11-21)
 
 Newest first. The plan or archive section named holds the detail.
+- **Settings overhaul, Round 3a** (2026-11-21, pushed 535e2ecf; no migration): Backstage retired; each game's Manage this game (a
+  gear on its bar) with its jobs, its waiver week in place, Who's playing per game, rename, remove from one game and Stop; Games
+  you run on the show's ⋯. Stories: https://claude.ai/artifact/53oCgbQkJdW1e6RARGWP73 and
+  https://claude.ai/artifact/6CR3eNJ5sZ2uRXfJMRUtfN. [PLAN-settings-overhaul.md](PLAN-settings-overhaul.md), Round 3.
 - **Sports steps 2.7 and 2.8, with 2.8's design round** (2026-11-21, merged 1484417a; migration 0312, additive, applied by the build
   without a Neon rehearsal on the user's word; no sports games in production): a game through the playoffs ("Regular season" by
   default, or "Through the Super Bowl" on Start a game and in Game settings; a team's season takes its playoff games as they're
@@ -75,13 +79,9 @@ Newest first. The plan or archive section named holds the detail.
 
 ## In flight
 
-- **Settings overhaul, Round 3a: merged to master, not pushed** (2026-11-21, fast-forward to 1ab47840; no migration):
-  Backstage retired; each game's Manage this game (a gear on its bar) with its waiver week, Replacing people who leave and Pick
-  for them in place (the user's picks on the story); Games you run, Who's playing per game, rename, remove from one game, Start a
-  game's words. Waits on the user's word to push (not on a Wednesday). After the push, run check-explorer-page's waivers step
-  (it needs UI Atlas on the main app). Stories: https://claude.ai/artifact/53oCgbQkJdW1e6RARGWP73 and
-  https://claude.ai/artifact/6CR3eNJ5sZ2uRXfJMRUtfN. Next is Round 3b, on a fresh branch. Detail: PLAN-settings-overhaul.md,
-  Round 3.
+- **Settings overhaul, Round 3b, branch `settings-r3b`** (lane rfl-settings, port 3018, from master 535e2ecf): changing a game
+  once it's under way (A15, A17's setting and vote, typed undos, the lock's three states, a runner's jobs on the strip, A16). Spec:
+  design-round/settings-r3b-spec.md. Still to run from 3a: check-explorer-page's waivers step (it needs UI Atlas on the main app).
 - **Game preview, branch `preview`** (lane rfl-preview): 17 commits not on master, 55 commits behind it, about 11 conflict
   hunks (strip.tsx, game-week.tsx, your-move.ts, tonight.tsx). It has P0, the visual story, the bench's preview maker and
   Round 5 (four real-app fixes, among them the finale reveal ranking a stage that had ended). It waits on the user's review of
