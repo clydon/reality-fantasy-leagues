@@ -14,7 +14,7 @@ import { MAX_BENCH, MAX_STARTERS, MAX_TEAM } from "@/lib/game/game-spec/index.js
 import { inForceEdits, lineage, rulebookForLeague } from "@db/rulebooks.js";
 import { isSuperAdminUser } from "./auth-helpers";
 import type { BackstageScope } from "./backstage";
-import { plainChange, settingsSetChange, type ChangeSpec } from "./change-log";
+import { plainChange, settingsSetChange, type ChangeSpec, type EpisodeLockUndo, type LockFlags } from "./change-log";
 import { pool, withLeagueLock, HttpError } from "./db";
 import { refused } from "./game-writes";
 import { EVERYTHING, seenThrough } from "./guard";
@@ -551,7 +551,21 @@ export interface GameSettings {
    * The lock on its current episode's lineups or picks (a game with either; else null): closed at its start, unless whoever runs
    * it overrode that (state-logic.js closedForPlay). `why`: its start, by hand, or its results (which no override opens).
    */
-  lock: { episode: number; what: "lineups" | "picks"; closed: boolean; why: "air" | "hand" | "results" | null; overridden: boolean; airsAt: string | null } | null;
+  lock: {
+    episode: number;
+    what: "lineups" | "picks";
+    closed: boolean;
+    why: "air" | "hand" | "results" | null;
+    overridden: boolean;
+    airsAt: string | null;
+    /** Settings Round 3b (BACKLOG 157): the state by its effect. `auto` is the game's own rule (before airtime: open until it
+     *  airs; after: open to whoever hasn't watched where late moves are on, else locked); `locked` is locked by hand (early, or
+     *  for everyone after airtime); `open` is open to everyone past airtime. */
+    state: LockState;
+    aired: boolean;
+    /** Late moves on the honour system (pace live): after airtime Auto leaves it open to whoever hasn't watched. */
+    late: boolean;
+  } | null;
   /**
    * A Prediction Sheet's questions (step A4 part 2 of docs/PLAN-start-a-game-gpt.md): its own (on), then the rest the show's
    * moments can ask (question-choices.ts, off). `editable` until the game starts (its first episode's start locks the questions
@@ -590,33 +604,42 @@ async function sheetQuestions(s: LeagueState, leagueId: string, seasonId: string
  * the game's writer with the show's ctx (RosterLogic.setGame: data settles every question). A line in Recent changes; Undo is the
  * screen's (the earlier list sent back), since a set of questions can only be written with the show's ctx.
  */
-export async function questionsWrite(scope: BackstageScope, leagueId: unknown, ids: unknown): Promise<{ questions: string[] }> {
+export async function questionsWrite(scope: BackstageScope, leagueId: unknown, ids: unknown): Promise<{ questions: string[]; batch: string }> {
   if (!Array.isArray(ids) || !ids.every((x) => typeof x === "string")) throw new HttpError(400, "questions is a list of the questions' ids");
   const game = gameIn(scope, leagueId, { commissioner: true });
-  const schedule = (await seasonSchedules([scope.seasonId])).get(scope.seasonId);
   let text = "";
   let out: string[] = [];
+  let before: string[] = [];
+  const batch = crypto.randomUUID();
   await withLeagueLock(
     game.leagueId,
     async (s) => {
-      if (!StateLogic.getLeagueType(s).hasQuestions) throw new HttpError(409, "Only a Prediction Sheet has questions to change");
-      if (StateLogic.GhostLogic.lockedDown(s)) throw new HttpError(409, FROZEN);
-      if (spanState(s, schedule, []).started) throw new HttpError(409, "Its questions are set: the game has started, and answers are in");
-      const { own, offered, ctx } = await sheetQuestions(s, game.leagueId, scope.seasonId);
-      const toEnd = StateLogic.endEpisode(s) === null;
-      const all = [...own, ...offered.filter((c) => !own.some((q) => q.id === c.question.id) && (toEnd || !c.season)).map((c) => c.question)];
-      const want = new Set(ids as string[]);
-      const unknown = (ids as string[]).find((id) => !all.some((q) => q.id === id));
-      if (unknown) throw new HttpError(400, `"${unknown}" isn't one of its questions`);
-      const ask = all.filter((q) => want.has(q.id));
-      if (!ask.length) throw new HttpError(400, "A Prediction Sheet asks at least one question");
-      refused(StateLogic.setGame(s, { ...StateLogic.gameOf(s), ask }, { ctx }), 409);
-      out = ask.map((q) => q.id);
-      text = `Changed ${game.name}'s questions: ${ask.map((q) => q.ask).join(" · ")}`;
+      before = (StateLogic.gameOf(s)?.ask ?? []).map((q: { id: string }) => q.id);
+      out = await setQuestions(s, game.leagueId, scope.seasonId, ids as string[]);
+      text = `Changed ${game.name}'s questions: ${(StateLogic.gameOf(s)?.ask ?? []).map((q: { ask: string }) => q.ask).join(" · ")}`;
     },
-    () => plainChange(scope.user.id, "settings", text)
+    // Settings Round 3b: a typed Undo (rule 6), written back with the show's ctx (league-changes.ts undoBatch).
+    () => ({ ...plainChange(scope.user.id, "settings", text), batch, undo: { type: "questions", before, after: out } })
   );
-  return { questions: out };
+  return { questions: out, batch };
+}
+
+/** A Prediction Sheet's questions set to `ids` (questionsWrite and its Undo): refused once it's started, or while it's frozen. */
+export async function setQuestions(s: LeagueState, leagueId: string, seasonId: string, ids: string[]): Promise<string[]> {
+  const schedule = (await seasonSchedules([seasonId])).get(seasonId);
+  if (!StateLogic.getLeagueType(s).hasQuestions) throw new HttpError(409, "Only a Prediction Sheet has questions to change");
+  if (StateLogic.GhostLogic.lockedDown(s)) throw new HttpError(409, FROZEN);
+  if (spanState(s, schedule, []).started) throw new HttpError(409, "Its questions are set: the game has started, and answers are in");
+  const { own, offered, ctx } = await sheetQuestions(s, leagueId, seasonId);
+  const toEnd = StateLogic.endEpisode(s) === null;
+  const all = [...own, ...offered.filter((c) => !own.some((q) => q.id === c.question.id) && (toEnd || !c.season)).map((c) => c.question)];
+  const unknown = ids.find((id) => !all.some((q) => q.id === id));
+  if (unknown) throw new HttpError(400, `"${unknown}" isn't one of its questions`);
+  // In the order given (the screen sends its list's order), so an Undo puts them back exactly as they were.
+  const ask = [...new Set(ids)].map((id) => all.find((q) => q.id === id)!);
+  if (!ask.length) throw new HttpError(400, "A Prediction Sheet asks at least one question");
+  refused(StateLogic.setGame(s, { ...StateLogic.gameOf(s), ask }, { ctx }), 409);
+  return ask.map((q) => q.id);
 }
 
 /** A game's lock for Game settings (GameSettings.lock). */
@@ -634,18 +657,35 @@ function lockOf(s: LeagueState): GameSettings["lock"] {
     why: results ? "results" : !closed ? null : ep.lineupsLocked ? "hand" : "air",
     overridden: !!ep.openPastAir || !!ep.lineupsLocked,
     airsAt: ep.airsAt ?? null,
+    state: ep.lineupsLocked ? "locked" : ep.openPastAir ? "open" : "auto",
+    aired: StateLogic.hasAired(ep),
+    late: StateLogic.GhostLogic.pace(s) === "live",
   };
 }
 
+export type LockState = "auto" | "locked" | "open";
+const LOCK_STATES: readonly LockState[] = ["auto", "locked", "open"];
+
+/** The flags a lock state stores on its episode (`open` before airtime is just Auto: it's open until it airs). */
+function lockFlags(state: LockState, aired: boolean): LockFlags {
+  return { lineupsLocked: state === "locked", openPastAir: state === "open" && aired };
+}
+
 /**
- * Lock or unlock the current episode's lineups or picks by hand (whoever runs the game; tier 1, a line in Recent changes):
- * locking before its start closes it early (ep.lineupsLocked); unlocking after its start keeps it open past it
- * (ep.openPastAir), on the honour system; either way back undoes the override. Never once its results are in.
+ * The current episode's lineups or picks by hand (whoever runs the game; tier 1, a line in Recent changes, a typed Undo): a state
+ * by its effect (Settings Round 3b, BACKLOG 157). Before airtime: `auto` (open until it airs) or `locked` (early). After airtime:
+ * `auto` (the game's rule: open to whoever hasn't watched where late moves are on, else locked at airtime), `open` (to everyone,
+ * on the honour system: a couch that sat down late) or `locked` (for everyone, watched or not: GhostLogic.lateWindow closes on
+ * it). Never once its results are in. `true`/`false` still mean locked and the opposite of Auto (the old switch).
  */
-export async function lockWrite(scope: BackstageScope, leagueId: unknown, closed: unknown): Promise<{ closed: boolean }> {
-  if (typeof closed !== "boolean") throw new HttpError(400, "lock must be true or false");
+export async function lockWrite(scope: BackstageScope, leagueId: unknown, to: unknown): Promise<{ state: LockState; closed: boolean; batch: string }> {
   const game = gameIn(scope, leagueId);
+  if (typeof to !== "boolean" && !LOCK_STATES.includes(to as LockState)) throw new HttpError(400, "lock: auto, locked or open");
   let text = "";
+  let state: LockState = "auto";
+  let closed = false;
+  let undo: EpisodeLockUndo | null = null;
+  const batch = crypto.randomUUID();
   await withLeagueLock(
     game.leagueId,
     (s) => {
@@ -654,18 +694,40 @@ export async function lockWrite(scope: BackstageScope, leagueId: unknown, closed
       if (!lock || !ep) throw new HttpError(409, "This game has no lineups or picks to lock");
       if (lock.why === "results") throw new HttpError(409, `Episode ${ep.number}'s results are in: it stays locked`);
       const aired = StateLogic.hasAired(ep);
-      if (closed) {
-        delete ep.openPastAir;
-        ep.lineupsLocked = !aired;
-      } else {
-        ep.lineupsLocked = false;
-        if (aired) ep.openPastAir = true;
+      state = to === true ? "locked" : to === false ? (aired ? "open" : "auto") : (to as LockState);
+      if (state === "open" && !aired) state = "auto";
+      const before: LockFlags = { lineupsLocked: !!ep.lineupsLocked, openPastAir: !!ep.openPastAir };
+      const after = lockFlags(state, aired);
+      if (before.lineupsLocked === after.lineupsLocked && before.openPastAir === after.openPastAir) {
+        closed = !!lockOf(s)?.closed;
+        return;
       }
-      text = `${closed ? "Locked" : "Unlocked"} Episode ${ep.number}'s ${lock.what}${!closed && aired ? " past its start" : ""}`;
+      setLockFlags(ep, after);
+      closed = !!lockOf(s)?.closed;
+      undo = { type: "episodeLock", episodeId: ep.id, before, after };
+      const name = `Episode ${ep.number}'s ${lock.what}`;
+      text =
+        state === "locked"
+          ? aired
+            ? `Locked ${name} for everyone`
+            : `Locked ${name} early`
+          : state === "open"
+            ? `Opened ${name} to everyone past its start`
+            : aired
+              ? `Put ${name} back on the game's rule`
+              : `Opened ${name} until it airs`;
     },
-    () => plainChange(scope.user.id, "settings", text)
+    () => (undo ? { ...plainChange(scope.user.id, "settings", text), batch, undo } : null)
   );
-  return { closed };
+  return { state, closed, batch };
+}
+
+/** An episode's lock flags written (lockWrite, and its Undo). */
+export function setLockFlags(ep: { lineupsLocked?: boolean; openPastAir?: boolean }, f: LockFlags): void {
+  if (f.lineupsLocked) ep.lineupsLocked = true;
+  else delete ep.lineupsLocked;
+  if (f.openPastAir) ep.openPastAir = true;
+  else delete ep.openPastAir;
 }
 
 /**
@@ -674,9 +736,10 @@ export async function lockWrite(scope: BackstageScope, leagueId: unknown, closed
  * the game, or everything locks at airtime. Not while it's locked down, nor on a game at your own pace (it waits for each of you
  * already). A game in stages sets it once: its stages follow (stages.ts seatStage, after this write commits), so a stage refuses it.
  */
-export async function paceWrite(scope: BackstageScope, leagueId: unknown, mode: unknown): Promise<{ mode: "live" | "strict" }> {
+export async function paceWrite(scope: BackstageScope, leagueId: unknown, mode: unknown): Promise<{ mode: "live" | "strict"; batch: string }> {
   if (mode !== "live" && mode !== "strict") throw new HttpError(400, "pace: live or strict");
   const game = gameIn(scope, leagueId, { commissioner: true });
+  const batch = crypto.randomUUID();
   if (game.stageOf) throw new HttpError(409, "A stage follows its game: change it there");
   await withLeagueLock(
     game.leagueId,
@@ -685,9 +748,10 @@ export async function paceWrite(scope: BackstageScope, leagueId: unknown, mode: 
       const problem = StateLogic.GhostLogic.setPace(s, mode);
       if (problem) throw new HttpError(409, problem);
     },
-    () => plainChange(scope.user.id, "settings", mode === "live" ? "Moves stay open until you've watched, or the next episode airs" : "Moves lock at airtime")
+    // Settings Round 3b: pace is a setting (settings.lockAtAir), so its Undo is the typed settingsSet one (rule 6).
+    settingsSetChange(scope.user.id, mode === "live" ? "Moves stay open until you've watched, or the next episode airs" : "Moves lock at airtime", { batch })
   );
-  return { mode };
+  return { mode, batch };
 }
 
 /**

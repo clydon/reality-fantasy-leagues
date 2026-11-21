@@ -10,11 +10,13 @@ import { HoldSheet } from "../ui/guards";
 import { Btn, SectionHead } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
+import { useServerUndo } from "./settings";
 
 // Backstage › Members' computer players (src/lib/server/computer-players.ts): each game you run (Commissioner or Game admin)
 // that they play, its computer players and their level. Add one before the draft starts (or, with no draft, before its first
 // results); change a level any time; take one or all of them out any time but while the draft's open, behind a hold (tier 3:
-// their seats go, and after the draft their teams with them).
+// their seats go, and after the draft their teams with them). Settings Round 3b: each has the server's Undo (rule 6), on the toast
+// and in Recent changes; seats taken out come back for 30 days, with their teams while nobody else holds them.
 
 const LEVELS = Object.keys(LEVEL_WORDS) as BotLevel[];
 
@@ -33,6 +35,7 @@ export function ComputerPlayers({ seasonId, couchId, games }: { seasonId: string
   const [seat, setSeat] = useState<{ game: Game; bot: BotSeat } | null>(null);
   const [out, setOut] = useState<Out | null>(null);
   const after = useAfter();
+  const undo = useServerUndo(seasonId, couchId);
   if (!mine.length) return null;
   const many = mine.length > 1;
   const consequence = ({ game, bot }: Out) => {
@@ -40,9 +43,9 @@ export function ComputerPlayers({ seasonId, couchId, games }: { seasonId: string
     const who = n === 1 ? (bot ?? game.computer.bots[0]).name : n === 2 ? "Both computer players" : `All ${n} computer players`;
     const [it, its, leaves] = n === 1 ? ["it", "its", "leaves"] : ["they", "their", "leave"];
     if (game.gameType === "pickem")
-      return `${who} ${leaves} ${game.gameName} and ${its} picks with ${n === 1 ? "it" : "them"}. ${game.computer.add ? "This can't be undone." : "You can add more until its first results."}`;
+      return `${who} ${leaves} ${game.gameName} and ${its} picks with ${n === 1 ? "it" : "them"}. ${game.computer.add ? "" : "You can add more until its first results."}`.trim();
     if (game.computer.drafted)
-      return `${who} ${leaves} ${game.gameName} with ${its} ${n === 1 ? "team" : "teams"}: whoever ${it} drafted is free to pick up, and ${it} ${leaves} the standings. This can't be undone.`;
+      return `${who} ${leaves} ${game.gameName} with ${its} ${n === 1 ? "team" : "teams"}: whoever ${it} drafted is free to pick up, and ${it} ${leaves} the standings.`;
     return `${who} ${leaves} ${game.gameName}. Nothing's been drafted yet, so the ${n === 1 ? "seat just goes" : "seats just go"}, and you can add more until the draft starts.`;
   };
   return (
@@ -126,12 +129,12 @@ export function ComputerPlayers({ seasonId, couchId, games }: { seasonId: string
         consequence={out ? consequence(out) : null}
         problem={out?.game.computer.remove ?? null}
         cta={out?.bot ? `take out ${out.bot.name}` : "take them out"}
-        restore={null}
+        restore="Undo brings them back for 30 days, from This game's changes"
         onConfirm={async () => {
           if (!out) return;
           const r = await gameAdmin.bots(seasonId, couchId, out.game.leagueId, out.bot ? { action: "remove", playerId: out.bot.playerId } : { action: "remove", all: true });
           await after();
-          toast(r.names.length > 1 ? `${r.names.length} computer players are out of ${out.game.gameName}` : `${r.names[0]} is out of ${out.game.gameName}`);
+          toast(r.names.length > 1 ? `${r.names.length} computer players are out of ${out.game.gameName}` : `${r.names[0]} is out of ${out.game.gameName}`, undo(r.batch, r.names.length > 1 ? "They're back" : `${r.names[0]} is back`));
           setOut(null);
         }}
       />
@@ -161,6 +164,7 @@ function LevelChoice({ value, onChange, data }: { value: BotLevel; onChange: (l:
 
 function AddSheet({ seasonId, couchId, game, onClose }: { seasonId: string; couchId: string; game: Game; onClose: () => void }) {
   const after = useAfter();
+  const undo = useServerUndo(seasonId, couchId);
   const [level, setLevel] = useState<BotLevel>("normal");
   const [busy, setBusy] = useState(false);
   const add = async () => {
@@ -168,7 +172,7 @@ function AddSheet({ seasonId, couchId, game, onClose }: { seasonId: string; couc
     try {
       const r = await gameAdmin.bots(seasonId, couchId, game.leagueId, { action: "add", level });
       await after();
-      toast(`${r.names[0]} joined ${game.gameName}`);
+      toast(`${r.names[0]} joined ${game.gameName}`, undo(r.batch, `${r.names[0]} is out again`));
       onClose();
     } catch (e) {
       toast.quiet((e as Error).message);
@@ -191,12 +195,13 @@ function AddSheet({ seasonId, couchId, game, onClose }: { seasonId: string; couc
 
 function BotSheet({ seasonId, couchId, game, bot, onClose, onOut }: { seasonId: string; couchId: string; game: Game; bot: BotSeat; onClose: () => void; onOut: () => void }) {
   const after = useAfter();
+  const undo = useServerUndo(seasonId, couchId);
   const set = async (level: BotLevel) => {
     if (level === bot.level) return;
     try {
-      await gameAdmin.bots(seasonId, couchId, game.leagueId, { action: "level", playerId: bot.playerId, level });
+      const r = await gameAdmin.bots(seasonId, couchId, game.leagueId, { action: "level", playerId: bot.playerId, level });
       await after();
-      toast(`${bot.name} plays ${LEVEL_WORDS[level]} now`);
+      toast(`${bot.name} plays ${LEVEL_WORDS[level]} now`, undo(r.batch, `${bot.name} plays ${LEVEL_WORDS[bot.level]} again`));
       onClose();
     } catch (e) {
       toast.quiet((e as Error).message);

@@ -1,3 +1,4 @@
+import type { BotSeatSnapshot } from "@/lib/game/computer-players";
 import crypto from "crypto";
 import type { Pool, PoolClient } from "pg";
 import { resultsDiff, type ResultsUndo } from "@/lib/game/results-changes";
@@ -106,7 +107,37 @@ export interface GameUndo {
   commissioners: string[];
 }
 
-export type ChangeUndo = ResultsUndo | SettingsUndo | RoleUndo | SettingsSetUndo | WaiverRunUndo | MemberUndo | SubmissionUndo | RulingUndo | RulebookUndo | DraftPickUndo | GameUndo;
+/** Settings Round 3b (typed undos, rule 6): an episode's lock as it was (backstage-games.ts lockWrite). */
+export interface EpisodeLockUndo {
+  type: "episodeLock";
+  episodeId: string;
+  before: LockFlags;
+  after: LockFlags;
+}
+export interface LockFlags {
+  lineupsLocked: boolean;
+  openPastAir: boolean;
+}
+
+/** A Prediction Sheet's questions as they were (backstage-games.ts questionsWrite; written back with the show's ctx). */
+export interface QuestionsUndo {
+  type: "questions";
+  before: string[];
+  after: string[];
+}
+
+/** Computer players (computer-players.ts changeBots): one added (it goes), a level (back), or seats taken out (they come back, with
+ *  whoever they'd drafted while nobody else holds them). */
+export interface BotUndo {
+  type: "bot";
+  action: "add" | "level" | "remove";
+  playerId?: string;
+  before?: string;
+  after?: string;
+  seats?: BotSeatSnapshot[];
+}
+
+export type ChangeUndo = ResultsUndo | SettingsUndo | RoleUndo | SettingsSetUndo | WaiverRunUndo | MemberUndo | SubmissionUndo | RulingUndo | RulebookUndo | DraftPickUndo | GameUndo | EpisodeLockUndo | QuestionsUndo | BotUndo;
 
 export interface ChangeSpec {
   /** Who did it; null when it applied on its own. */

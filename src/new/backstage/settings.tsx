@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Archive, CalendarDays, Check, ChevronRight, KeyRound, Lock, LockOpen, RotateCcw, Trash2 } from "lucide-react";
 import { airTime } from "../clock";
-import { backstage, gameAdmin, gamesApi, useEndGames, type DeletePreview, type EndGame, type GameSettings } from "../data";
+import { backstage, gameAdmin, gamesApi, useEndGames, type DeletePreview, type EndGame, type GameSettings, type LockState } from "../data";
+import { Choice } from "../manage/choice";
 import { spanName } from "@/lib/game/spans";
 import { gameColour } from "../games";
 import type { ShowData } from "../screens/show-space";
@@ -28,6 +29,26 @@ import { Stepper } from "./waivers";
 export function useAfter() {
   const client = useQueryClient();
   return () => client.invalidateQueries({ queryKey: ["new-design"] });
+}
+
+/** The toast's Undo for a change the server logged with a typed undo (Settings Round 3b, rule 6): the same route as Recent changes'
+ *  Undo, so it works after a reload too. Null batch: nothing changed, so no Undo. */
+export function useServerUndo(seasonId: string, couchId: string | null) {
+  const after = useAfter();
+  return (batch: string | null | undefined, done = "Undone") =>
+    batch && couchId
+      ? {
+          undo: async () => {
+            try {
+              await backstage.undo(seasonId, couchId, batch);
+              await after();
+              toast(done);
+            } catch (e) {
+              toast.quiet((e as Error).message);
+            }
+          },
+        }
+      : undefined;
 }
 
 export const Dot = ({ on }: { on: boolean }) => (on ? <i data-changed className="ml-1.5 inline-block size-2 rounded-full bg-chyron-line align-middle" title="Changed from recommended" /> : null);
@@ -63,19 +84,20 @@ export function useSettingsWrite(seasonId: string, couchId: string | null) {
 /**
  * A Prediction Sheet's questions (step A4 part 2 of docs/PLAN-start-a-game-gpt.md): its own, then what else the show's moments can
  * ask, each with when it's asked and what it earns. A Commissioner switches them until the game starts (its first lock, when
- * answers are in), never while it's locked down; at least one stays on. Saved at once, with Undo on the toast (the list as it was,
- * sent back: a set of questions is only written with the show's ctx, so Recent changes keeps the line without an Undo of its own).
+ * answers are in), never while it's locked down; at least one stays on. Saved at once, with the server's Undo on the toast and in
+ * Recent changes (Settings Round 3b: the list as it was, written back with the show's ctx).
  */
 export function SheetQuestions({ seasonId, couchId, g, q }: { seasonId: string; couchId: string; g: GameSettings; q: NonNullable<GameSettings["questions"]> }) {
   const after = useAfter();
+  const undo = useServerUndo(seasonId, couchId);
   const [busy, setBusy] = useState(false);
   const on = q.list.filter((x) => x.on).map((x) => x.id);
-  const send = async (ids: string[], said: string, undo?: string[]) => {
+  const send = async (ids: string[], said: string) => {
     setBusy(true);
     try {
-      await gameAdmin.questions(seasonId, couchId, g.leagueId, ids);
+      const r = await gameAdmin.questions(seasonId, couchId, g.leagueId, ids);
       await after();
-      toast(said, undo ? { undo: () => void send(undo, "Undone") } : undefined);
+      toast(said, undo(r.batch));
     } catch (e) {
       toast.quiet((e as Error).message);
     } finally {
@@ -102,7 +124,7 @@ export function SheetQuestions({ seasonId, couchId, g, q }: { seasonId: string; 
           onClick={() => {
             if (x.on && on.length === 1) return toast.quiet("A Prediction Sheet asks at least one question");
             const ids = x.on ? on.filter((id) => id !== x.id) : [...on, x.id];
-            void send(ids, x.on ? `Took off "${x.ask}"` : `Added "${x.ask}"`, on);
+            void send(ids, x.on ? `Took off "${x.ask}"` : `Added "${x.ask}"`);
           }}
           className="mb-1.5 flex w-full items-center gap-3 rounded-[3px] bg-background p-2.5 text-left disabled:cursor-default"
         >
@@ -270,67 +292,89 @@ export function JoinControl({ g, can, write, compact }: { g: GameSettings; can: 
 }
 
 /**
- * The current episode's lineups or picks: the icon and label say locked or open; the switch is Auto (they lock at its start)
- * or Override (the opposite: open past the start, or locked early). backstage-games.ts lockWrite.
+ * This episode's lineups or picks (Settings Round 3b, BACKLOG 157): a line, value first, whose value is the state by its effect,
+ * opened in place to the states reachable now, each a chosen-with-a-tick card saying what it does to people. Before the episode airs:
+ * open until it does (the game's rule) or locked early; after: the game's rule (open to whoever hasn't watched, where late moves are
+ * on; locked at airtime where they aren't), open to everyone, or locked for everyone; once its results are in, locked for good, with
+ * nothing to choose. Each saves at once, with the server's Undo (backstage-games.ts lockWrite). The icon takes the lock's colour only
+ * when the state isn't the game's own rule, so a normal night reads calm (PFD R2).
  */
 export function LockRow({ seasonId, couchId, g, lock, word }: { seasonId: string; couchId: string; g: GameSettings; lock: NonNullable<GameSettings["lock"]>; word: string }) {
   const after = useAfter();
+  const undo = useServerUndo(seasonId, couchId);
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
   const ep = `${word} ${lock.episode}`;
   const at = lock.airsAt ? airTime(Date.parse(lock.airsAt)) : null;
   const final = lock.why === "results";
-  // A live game (When moves lock, below): the start locks it for whoever has watched; the rest have until they do, or the next one airs.
-  const late = g.pace.mode !== "strict";
-  const line = final
-    ? "Its results are in: locked for good"
-    : lock.overridden
-      ? lock.closed
-        ? "Override: locked before its start"
-        : "Override: open past its start, on the honour system"
-      : lock.closed
-        ? `Auto: locked at its start${at ? `, ${at}` : ""}${late ? ", still open to anyone who hasn't watched it" : ""}`
-        : `Auto: locks at its start${at ? `, ${at}` : ""}${late ? ", later for anyone who hasn't watched it" : ""}`;
-  const flip = async () => {
-    if (final || busy) return;
+  const what = lock.what;
+  const states = lockStates(lock, word, at);
+  const now = states.find((x) => x.state === lock.state) ?? states[0];
+  const value = final ? "Locked for good: its results are in" : now.title;
+  const set = async (state: LockState) => {
+    if (final || busy || state === lock.state) return;
     setBusy(true);
     try {
-      // An override is always the opposite of what Auto does, so flipping the state turns it on or off.
-      await gameAdmin.lock(seasonId, couchId, g.leagueId, !lock.closed);
+      const r = await gameAdmin.lock(seasonId, couchId, g.leagueId, state);
       await after();
-      toast(`${ep}'s ${lock.what} ${lock.closed ? "are open" : "are locked"}${lock.overridden ? " · back to Auto" : ""}`);
+      const said = states.find((x) => x.state === state)?.said ?? "saved";
+      toast(`${ep}'s ${what}: ${said}`, undo(r.batch, `${ep}'s ${what}: back as they were`));
     } catch (e) {
       toast.quiet((e as Error).message);
     } finally {
       setBusy(false);
     }
   };
+  const unusual = !final && lock.state !== "auto";
   const Icon = lock.closed ? Lock : LockOpen;
   return (
-    <div data-settings-lock={lock.closed ? "locked" : "open"} className={`mb-5 flex min-h-[64px] items-center gap-3 rounded-[4px] bg-card p-3 ${final ? "opacity-60" : ""}`}>
-      <span className={`grid size-11 flex-none place-items-center rounded-[3px] ${lock.closed ? "bg-secondary text-foreground" : "bg-good/15 text-good"}`}>
-        <Icon className="size-5" aria-hidden />
-      </span>
-      <span className="min-w-0 flex-1">
-        <b className="block text-[16px]">
-          {ep}&rsquo;s {lock.what}: {lock.closed ? "Locked" : "Open"}
-        </b>
-        <small className="block text-[13px] leading-snug text-muted-foreground">{line}</small>
-      </span>
-      {!final && (
-        <button
-          type="button"
-          data-settings-override={lock.overridden ? "on" : "off"}
-          disabled={busy}
-          onClick={flip}
-          className="nd-press grid min-h-11 flex-none place-items-center"
-        >
-          <span className="grid h-9 place-items-center whitespace-nowrap rounded-[3px] px-3 text-[14px] font-bold outline-[1.5px] -outline-offset-[1.5px] outline-input">
-            {lock.overridden ? "Back to Auto" : lock.closed ? "Open it again" : "Lock now"}
+    <div data-settings-lock={lock.closed ? "locked" : "open"} data-lock-state={final ? "final" : lock.state} className="mb-5 rounded-[10px] bg-card px-3.5">
+      <button
+        type="button"
+        aria-expanded={open}
+        disabled={final}
+        onClick={() => setOpen(!open)}
+        className="nd-press flex min-h-[64px] w-full items-center gap-3 py-2 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      >
+        <span className={`grid size-10 flex-none place-items-center rounded-[3px] ${unusual ? "bg-chyron-line/15 text-chyron-line" : "bg-secondary text-foreground"}`}>
+          <Icon className="size-5" aria-hidden />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="type-caption block text-[13px] tracking-[0.05em] text-muted-foreground">
+            {ep}&rsquo;s {what}
           </span>
-        </button>
+          <b className="block text-[16px] font-semibold leading-snug">{value}</b>
+          {!final && <small className="block text-[13px] leading-snug text-muted-foreground">{now.short}</small>}
+        </span>
+        {!final && <ChevronRight className={`size-5 flex-none text-muted-foreground transition-transform duration-200 ${open ? "rotate-90" : ""}`} aria-hidden />}
+      </button>
+      {open && !final && (
+        <div data-lock-choices className="flex flex-col gap-2 pb-3">
+          {states.map((x) => (
+            <Choice key={x.state} data={`lock-${x.state}`} title={x.title} line={x.line} tag={x.state === "auto" ? "The game's rule" : null} chosen={lock.state === x.state} onPick={() => void set(x.state)} />
+          ))}
+        </div>
       )}
     </div>
   );
+}
+
+/** The states a lock can take now, by their effect (BACKLOG 157): two before airtime, three after (two where late moves are off). */
+export function lockStates(lock: NonNullable<GameSettings["lock"]>, word: string, at: string | null): { state: LockState; title: string; line: string; short: string; said: string }[] {
+  const next = `the next ${word.toLowerCase() === "ep" ? "episode" : word.toLowerCase()}`;
+  if (!lock.aired)
+    return [
+      { state: "auto", title: at ? `Open until ${at}` : "Open until it airs", line: "Moves lock themselves when it starts.", short: "Locks itself when it airs", said: "open until it airs" },
+      { state: "locked", title: "Locked early", line: "Everyone's move is set now. Open it again any time before it airs.", short: "Nobody can change their move", said: "locked early" },
+    ];
+  const rule = lock.late
+    ? { state: "auto" as const, title: "Open to whoever hasn't watched", line: `Anyone who's watched is locked. The rest have until they watch, or ${next} airs.`, short: "Locked for anyone who's watched", said: "open to whoever hasn't watched" }
+    : { state: "auto" as const, title: "Locked at airtime", line: "This game has no late moves: everything locked when it aired.", short: "Locked when it aired", said: "locked at airtime" };
+  return [
+    rule,
+    { state: "open", title: "Open to everyone", line: "For a couch that sat down late: everyone can still move, on the honour system.", short: "Anyone can still move", said: "open to everyone" },
+    ...(lock.late ? [{ state: "locked" as const, title: "Locked for everyone", line: "Nobody moves now, watched or not.", short: "Nobody can change their move", said: "locked for everyone" }] : []),
+  ];
 }
 
 /**

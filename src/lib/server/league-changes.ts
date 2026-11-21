@@ -6,7 +6,8 @@ import type { ChangeUndo, GameUndo, MemberUndo, Tier } from "./change-log";
 import { isSuperAdminUser, type SessionUser } from "./auth-helpers";
 import { withdrawResults } from "./community-results";
 import { joinedLeague, requireCouch } from "./couches";
-import { anyLockedDown, FROZEN, FROZEN_FIELDS } from "./backstage-games";
+import { anyLockedDown, FROZEN, FROZEN_FIELDS, setLockFlags, setQuestions } from "./backstage-games";
+import { botsIn, removeProblem, restoreBots, restoreProblem } from "@/lib/game/computer-players";
 import { pool, withLeagueLock, HttpError } from "./db";
 import { deletedHere, restoreGame } from "./end-game";
 import { refused } from "./game-writes";
@@ -189,6 +190,9 @@ export async function undoBatch(user: SessionUser, seasonId: string, couchId: st
   // The rules are a Commissioner's (step 6b part 3): a Game admin runs results and waivers, not the rulebook.
   const commissioner = new Set(here.filter((g) => isSuperAdminUser(user) || g.yourRole === "commissioner").map((g) => g.leagueId));
   if (rows.some((r) => r.undo?.type === "rulebook" && !commissioner.has(r.league_id))) throw new HttpError(403, "Only a Commissioner changes the rules");
+  // A game's questions and late moves are its Commissioner's too (Settings Round 3b's typed undos; the lock and computer players are
+  // any runner's).
+  if (rows.some((r) => r.undo?.type === "questions" && !commissioner.has(r.league_id))) throw new HttpError(403, "Only a Commissioner changes this");
   // Lock it down (step 15 part 4) freezes the rules for the season, and an undo is a change to them too (Lock it down's own line
   // isn't: it's how it comes off). The couch's rulebook is frozen while any game here is locked, a setting while its own game is.
   const frozen = rows.filter((r) => freezes(r.undo!));
@@ -267,6 +271,33 @@ export async function undoBatch(user: SessionUser, seasonId: string, couchId: st
         const last = s.draftLog?.[s.draftLog.length - 1];
         if (!last || last.castawayId !== undo.castawayId || last.n !== undo.n || s.draftPicksMade !== undo.n) throw new HttpError(409, "Picks came after it: take those back first");
         StateLogic.undraft(s, undo.castawayId);
+      } else if (undo.type === "episodeLock") {
+        // Settings Round 3b (rule 6): the lock as it was, while that episode is still current and has no results.
+        const ep = s.episodes.find((e) => e.id === undo.episodeId);
+        if (!ep || StateLogic.currentEpisode(s)?.id !== ep.id) throw new HttpError(409, "That episode has moved on");
+        if (StateLogic.episodeHasResults(ep)) throw new HttpError(409, "Its results are in: it stays locked");
+        if (!!ep.lineupsLocked !== undo.after.lineupsLocked || !!ep.openPastAir !== undo.after.openPastAir) throw new HttpError(409, "The lock has changed since");
+        setLockFlags(ep, undo.before);
+      } else if (undo.type === "questions") {
+        const now = (StateLogic.gameOf(s)?.ask ?? []).map((q: { id: string }) => q.id);
+        if (now.join() !== undo.after.join()) throw new HttpError(409, "Its questions have changed since");
+        await setQuestions(s, r.league_id, seasonId, undo.before);
+      } else if (undo.type === "bot") {
+        if (undo.action === "add") {
+          const problem = removeProblem(s);
+          if (problem) throw new HttpError(409, problem);
+          if (!s.players.some((p) => p.id === undo.playerId)) throw new HttpError(409, "It's gone already");
+          StateLogic.removePlayer(s, undo.playerId!);
+        } else if (undo.action === "level") {
+          const bot = botsIn(s).find((p) => p.id === undo.playerId);
+          if (!bot) throw new HttpError(409, "It's gone already");
+          if (bot.botLevel !== undo.after) throw new HttpError(409, "Its level has changed since");
+          bot.botLevel = undo.before as typeof bot.botLevel;
+        } else {
+          const problem = restoreProblem(s, undo.seats ?? []);
+          if (problem) throw new HttpError(409, problem);
+          restoreBots(s, undo.seats ?? []);
+        }
       } else if (undo.type === "member") await restoreMember(s, client, r.league_id, undo);
       else if (undo.type === "rulebook") await undoRulebookChange(client, r.league_id, s, undo);
       await mark(client);

@@ -17,7 +17,7 @@ import type { BotLevel, PoolInfo, SoloSeason } from "@/lib/server/solo";
 import type { ChangeLine } from "@/lib/server/league-changes";
 import type { PreviewLine } from "@/lib/game/results-changes";
 import type { WaiverWeek } from "@/lib/game/waiver-view";
-import type { GameSettings, ScoringRules, WaiverAdminGame, WaiverAction } from "@/lib/server/backstage-games";
+import type { GameSettings, LockState, ScoringRules, WaiverAdminGame, WaiverAction } from "@/lib/server/backstage-games";
 import type { CouchMoments } from "@/lib/server/couch-answers";
 import type { ShowChange } from "@/lib/server/show-changes";
 import type { Members, OutPreview } from "@/lib/server/backstage-members";
@@ -74,7 +74,7 @@ export type { Correction } from "@/lib/server/rulings";
 export type { ChangeLine } from "@/lib/server/league-changes";
 export type { PreviewLine } from "@/lib/game/results-changes";
 export type { WaiverFace, WaiverMove, WaiverRunView, WaiverWeek } from "@/lib/game/waiver-view";
-export type { GameRules, GameSettings, ScoringRules, WaiverAdminGame } from "@/lib/server/backstage-games";
+export type { GameRules, GameSettings, LockState, ScoringRules, WaiverAdminGame } from "@/lib/server/backstage-games";
 export type { OurRules } from "@/lib/server/ours";
 export type { CouchMoments } from "@/lib/server/couch-answers";
 export type { ShowChange } from "@/lib/server/show-changes";
@@ -878,10 +878,11 @@ export const gameAdmin = {
     sendJson<{ batch: string | null }>(seasonUrl(seasonId, "/backstage/settings", { couch: couchId }), "PATCH", { leagueId, ...body }),
   /** A Prediction Sheet's questions (step A4 part 2 of docs/PLAN-start-a-game-gpt.md), until it starts: backstage-games.ts questionsWrite. */
   questions: (seasonId: string, couchId: string, leagueId: string, ids: string[]) =>
-    sendJson<{ questions: string[] }>(seasonUrl(seasonId, "/backstage/settings", { couch: couchId }), "PATCH", { leagueId, questions: ids }),
-  /** Its current episode's lineups or picks, locked or unlocked by hand (past its start too): backstage-games.ts lockWrite. */
-  lock: (seasonId: string, couchId: string, leagueId: string, closed: boolean) =>
-    sendJson<{ closed: boolean }>(seasonUrl(seasonId, "/backstage/settings", { couch: couchId }), "PATCH", { leagueId, lock: closed }),
+    sendJson<{ questions: string[]; batch: string }>(seasonUrl(seasonId, "/backstage/settings", { couch: couchId }), "PATCH", { leagueId, questions: ids }),
+  /** Its current episode's lineups or picks by hand, a state by its effect (Settings Round 3b, BACKLOG 157): backstage-games.ts
+   *  lockWrite. The batch is its typed Undo. */
+  lock: (seasonId: string, couchId: string, leagueId: string, state: LockState) =>
+    sendJson<{ state: LockState; closed: boolean; batch: string }>(seasonUrl(seasonId, "/backstage/settings", { couch: couchId }), "PATCH", { leagueId, lock: state }),
   /** Remind everyone (backstage-remind.ts): one push to each person with a move still open in a game you run here. */
   remind: (seasonId: string, couchId: string) => sendJson<RemindResult>(seasonUrl(seasonId, "/backstage/remind", { couch: couchId }), "POST", {}),
   /** Lock it down (step 15 part 4): competitive mode for every game you run here, one batch. */
@@ -891,14 +892,14 @@ export const gameAdmin = {
     sendJson<{ batch: string; games: number }>(seasonUrl(seasonId, `/backstage/members/${encodeURIComponent(userId)}`, { couch: couchId }), "PUT", { role, leagueIds }),
   /** The game's pace, live or strict (docs/PLAN-own-pace-games.md, "Pace is the game's setting"): backstage-games.ts paceWrite. */
   pace: (seasonId: string, couchId: string, leagueId: string, mode: "live" | "strict") =>
-    sendJson<{ mode: "live" | "strict" }>(seasonUrl(seasonId, "/backstage/settings", { couch: couchId }), "PATCH", { leagueId, pace: mode }),
+    sendJson<{ mode: "live" | "strict"; batch: string }>(seasonUrl(seasonId, "/backstage/settings", { couch: couchId }), "PATCH", { leagueId, pace: mode }),
   remove: (seasonId: string, couchId: string, userId: string, preview = false) =>
     sendJson<OutPreview & { batch: string | null }>(seasonUrl(seasonId, `/backstage/members/${encodeURIComponent(userId)}/remove`, { couch: couchId }), "POST", { preview }),
   leave: (seasonId: string, couchId: string, preview = false, league?: string) =>
     sendJson<OutPreview & { batch: string | null }>(seasonUrl(seasonId, "/leave", { couch: couchId, ...(league ? { league } : {}) }), "POST", { preview }),
   /** A game's computer players (computer-players.ts): add one, set one's level, take one or all of them out. */
   bots: (seasonId: string, couchId: string, leagueId: string, body: { action: "add"; level: BotLevel } | { action: "level"; playerId: string; level: BotLevel } | { action: "remove"; playerId?: string; all?: true }) =>
-    sendJson<{ names: string[] }>(seasonUrl(seasonId, "/backstage/computer", { couch: couchId }), "POST", { leagueId, ...body }),
+    sendJson<{ names: string[]; batch: string }>(seasonUrl(seasonId, "/backstage/computer", { couch: couchId }), "POST", { leagueId, ...body }),
 };
 
 // ---- Make it ours (step 6b part 3): Scoring rules' writes, each a Commissioner's, `preview` first where standings can move ----

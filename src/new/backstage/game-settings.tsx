@@ -20,7 +20,7 @@ import { toast } from "../ui/toast";
 import { TitleCard } from "../couch/gallery-bold/parts";
 import { Pictogram } from "../couch/gallery-bold/icons";
 import { kindOf, spanName } from "@/lib/game/spans";
-import { EndGames, HowLong, JoinControl, LineupControl, LockRow, SheetQuestions, useAfter, useSettingsWrite } from "./settings";
+import { EndGames, HowLong, JoinControl, LineupControl, LockRow, SheetQuestions, useAfter, useServerUndo, useSettingsWrite } from "./settings";
 
 // Settings Round 3a (docs/design-round/settings-r3-spec.md, -first-view.md, -shape.md) grew this page into **Manage this game**,
 // the one page a game's runner reaches from the game itself: its jobs, this episode's lock, How it plays, Who's playing, This
@@ -229,18 +229,19 @@ function SettingLine({
  *  the honour system until you've watched it or the next one airs, the recommended one, or none: everything locks when it airs). */
 function PaceCards({ seasonId, couchId, g, can, why, word }: { seasonId: string; couchId: string; g: GameSettings; can: boolean; why: string | null; word: string }) {
   const after = useAfter();
+  const undo = useServerUndo(seasonId, couchId);
   const [busy, setBusy] = useState(false);
   const ep = word.toLowerCase();
   const own = g.pace.mode === "own";
-  const set = async (mode: "live" | "strict", undoing = false) => {
-    if (busy || !can || (!undoing && g.pace.mode === mode)) return;
-    const was = g.pace.mode === "strict" ? "strict" : "live";
+  const set = async (mode: "live" | "strict") => {
+    if (busy || !can || g.pace.mode === mode) return;
     setBusy(true);
     try {
-      await gameAdmin.pace(seasonId, couchId, g.leagueId, mode);
+      const r = await gameAdmin.pace(seasonId, couchId, g.leagueId, mode);
       await after();
       const said = mode === "live" ? "late moves on the honour system" : "no late moves: everything locks when it airs";
-      toast(`${undoing ? "Back to" : "Saved"}: ${g.gameName} · ${said}`, undoing ? undefined : { undo: () => void set(was, true) });
+      // Settings Round 3b: the server's Undo (rule 6), not the old value sent back.
+      toast(`Saved: ${g.gameName} · ${said}`, undo(r.batch, `Back as it was: ${g.gameName}`));
     } catch (e) {
       toast.quiet((e as Error).message);
     } finally {
@@ -397,15 +398,17 @@ function TeamSize({ g, write }: { g: GameSettings; write: Write }) {
 /** Freeze rules and joining (was Lock it down, C37): every game you run here, off by default. A Commissioner's, with Undo. */
 function Freeze({ seasonId, couchId, g, games }: { seasonId: string; couchId: string; g: GameSettings; games: string[] }) {
   const after = useAfter();
+  const undo = useServerUndo(seasonId, couchId);
   const [busy, setBusy] = useState(false);
-  const set = async (to: boolean, undo = true) => {
+  const set = async (to: boolean) => {
     if (!g.commissioner) return toast.quiet("Only a Commissioner changes this");
     setBusy(true);
     try {
       const r = await gameAdmin.lockDown(seasonId, couchId, to);
       await after();
       const which = games.length > 1 ? listOf(games) : g.name;
-      toast(to ? `Frozen for the season: ${which}` : `Rules and joining open again: ${which}`, undo && r.batch ? { undo: () => void set(!to, false) } : undefined);
+      // Settings Round 3b: the batch's own Undo (it was a second write the other way).
+      toast(to ? `Frozen for the season: ${which}` : `Rules and joining open again: ${which}`, undo(r.batch, to ? "Unfrozen" : "Frozen again"));
     } catch (e) {
       toast.quiet((e as Error).message);
     } finally {

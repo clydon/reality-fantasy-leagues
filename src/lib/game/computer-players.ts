@@ -89,3 +89,56 @@ export function addBot(s: LeagueState, level: BotLevel): Seat {
   bot.botLevel = BOT_LEVEL[level];
   return bot;
 }
+
+// ---- Undo (Settings Round 3b, rule 6: src/lib/server/league-changes.ts undoBatch) ----
+
+export interface BotSeatSnapshot {
+  seat: Record<string, unknown>;
+  /** Where it sat in the players and the draft order. */
+  at: number;
+  order: number;
+  /** Who it held, and who else held each then (a shared game's other owners). */
+  owned: string[];
+  others?: Record<string, string[]>;
+}
+
+/** A computer player's seat as it is, before it's taken out: enough to bring it back. */
+export function botSnapshot(s: LeagueState, id: string): BotSeatSnapshot {
+  const at = s.players.findIndex((p) => p.id === id);
+  return {
+    seat: JSON.parse(JSON.stringify(s.players[at])),
+    at,
+    order: (s.draftOrder ?? []).indexOf(id),
+    owned: s.castaways.filter((c) => (c.ownerIds ?? []).includes(id)).map((c) => c.id),
+    others: Object.fromEntries(s.castaways.filter((c) => (c.ownerIds ?? []).includes(id)).map((c) => [c.id, (c.ownerIds ?? []).filter((o) => o !== id)])),
+  };
+}
+
+/** Why seats taken out can't come back now (the draft's open, a seat is back already, or someone they held has changed hands
+ *  since: picked up by another team), or null. */
+export function restoreProblem(s: LeagueState, seats: BotSeatSnapshot[]): string | null {
+  const open = removeProblem(s);
+  if (open) return open;
+  if (seats.some((x) => s.players.some((p) => p.id === (x.seat as { id: string }).id))) return "They're back in already";
+  if (botsIn(s).length + seats.length > MAX_BOTS) return `A game takes up to ${MAX_BOTS} computer players`;
+  const moved = seats.some((x) =>
+    x.owned.some((cid) => {
+      const now = [...(s.castaways.find((c) => c.id === cid)?.ownerIds ?? [])].sort().join();
+      return now !== [...(x.others?.[cid] ?? [])].sort().join();
+    })
+  );
+  return moved ? "Someone they'd drafted has changed hands since" : null;
+}
+
+/** Seats taken out come back where they sat, with whoever they held (restoreProblem first). */
+export function restoreBots(s: LeagueState, seats: BotSeatSnapshot[]): void {
+  for (const x of [...seats].sort((a, b) => a.at - b.at)) {
+    const seat = x.seat as unknown as LeagueState["players"][number];
+    s.players.splice(Math.min(Math.max(x.at, 0), s.players.length), 0, seat);
+    if (x.order >= 0 && s.draftOrder) s.draftOrder.splice(Math.min(x.order, s.draftOrder.length), 0, seat.id);
+    for (const cid of x.owned) {
+      const c = s.castaways.find((k) => k.id === cid);
+      if (c) c.ownerIds = [...new Set([...(c.ownerIds ?? []), seat.id])];
+    }
+  }
+}

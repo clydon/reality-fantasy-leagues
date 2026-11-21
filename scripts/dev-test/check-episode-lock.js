@@ -83,19 +83,20 @@ function check(ok, what, detail = "") {
     // ---------- Backstage › Settings ----------
     let g = await settingsOf("jordan", game);
     check(g?.lock?.episode === 6 && g.lock.what === "picks" && g.lock.closed === false && g.lock.overridden === true, "Settings: Episode 6's picks open, on Override", JSON.stringify(g?.lock));
-    r = await lock("jordan", game, true);
+    // Settings Round 3b (BACKLOG 157): after its start, locked means locked for everyone, watched or not.
+    r = await lock("jordan", game, "locked");
     g = await settingsOf("jordan", game);
-    check(r.status === 200 && g.lock.closed && !g.lock.overridden && g.lock.why === "air", "locked: back to Auto, closed at its start", JSON.stringify(g.lock));
+    check(r.status === 200 && g.lock.closed && g.lock.state === "locked" && g.lock.why === "hand", "locked for everyone, after its start", JSON.stringify(g.lock));
     await pick(still[1]);
     check((await picked()) === still[0], "and a new pick doesn't go in");
-    r = await lock("jordan", game, false);
+    r = await lock("jordan", game, "open");
     g = await settingsOf("jordan", game);
-    check(r.status === 200 && !g.lock.closed && g.lock.overridden, "unlocked again: Override", JSON.stringify(g.lock));
+    check(r.status === 200 && !g.lock.closed && g.lock.state === "open", "open to everyone again", JSON.stringify(g.lock));
     await pick(still[1]);
     check((await picked()) === still[1], "and the pick changes");
-    r = await lock("riley", game, true);
+    r = await lock("riley", game, "locked");
     check(r.status === 404 || r.status === 403, "riley, who doesn't run it, can't touch it", `${r.status}`);
-    const line = (await as.jordan.call("GET", `/api/seasons/${sid}/changes${q}`)).body.lines.find((l) => /Unlocked Episode 6's picks past its start/.test(l.text));
+    const line = (await as.jordan.call("GET", `/api/seasons/${sid}/changes${q}`)).body.lines.find((l) => /Opened Episode 6's picks to everyone past its start/.test(l.text));
     check(!!line, "Recent changes says so");
 
     // ---------- a game without Include it ----------
@@ -103,12 +104,12 @@ function check(ok, what, detail = "") {
     const plain = r.body.leagueId;
     g = await settingsOf("jordan", plain);
     check(r.body.from === 7 && g?.lock?.episode === 7 && !g.lock.closed && !g.lock.overridden, "without it: from 7, Auto, open until its start", JSON.stringify(g?.lock));
-    await lock("jordan", plain, true);
+    await lock("jordan", plain, "locked");
     g = await settingsOf("jordan", plain);
-    check(g.lock.closed && g.lock.overridden && g.lock.why === "hand", "Override locks it early", JSON.stringify(g.lock));
-    await lock("jordan", plain, false);
+    check(g.lock.closed && g.lock.state === "locked" && g.lock.why === "hand", "Locked early", JSON.stringify(g.lock));
+    await lock("jordan", plain, "auto");
     g = await settingsOf("jordan", plain);
-    check(!g.lock.closed && !g.lock.overridden, "Auto again opens it", JSON.stringify(g.lock));
+    check(!g.lock.closed && g.lock.state === "auto", "the game's rule again opens it", JSON.stringify(g.lock));
 
     // ---------- the browser ----------
     if (!apiOnly) {
@@ -148,14 +149,19 @@ function check(ok, what, detail = "") {
       check(true, "the gear on the game's bar opens its Manage this game");
       await page.locator("[data-settings-lock]").first().waitFor({ timeout: 15000 }).catch(() => {});
       const row = page.locator(`[data-settings-game] [data-settings-lock]`).first();
-      check((await page.locator('[data-settings-lock="open"] [data-settings-override="on"]').count()) >= 1, "Settings: an open lock on Override");
+      // Settings Round 3b (BACKLOG 157): the lock row's value is its state by effect; it opens in place to the states it can take.
+      check((await page.locator('[data-lock-state="open"]').count()) >= 1 && /Open to everyone/.test(await row.innerText()), "Manage: Episode 6's picks, open to everyone");
       await row.scrollIntoViewIfNeeded();
       await shot("settings-lock");
       await wide("Settings");
-      const sw = page.locator('[data-settings-lock="open"] [data-settings-override="on"]').first();
-      await sw.click();
-      await page.locator('[data-settings-lock="locked"] [data-settings-override="off"]').first().waitFor({ timeout: 8000 }).catch(() => {});
-      check((await page.locator('[data-settings-lock="locked"] [data-settings-override="off"]').count()) >= 1, "tapped: locked, Auto");
+      await row.locator("button[aria-expanded]").first().click();
+      await page.locator("[data-lock-choices]").waitFor({ timeout: 8000 });
+      const states = await page.locator("[data-lock-choices] [data-settings-choice]").evaluateAll((els) => els.map((e) => e.getAttribute("data-settings-choice")));
+      check(states.join() === "lock-auto,lock-open,lock-locked", "opened: the game's rule, open to everyone, locked for everyone", states.join());
+      await shot("settings-lock-open");
+      await page.locator('[data-settings-choice="lock-locked"]').click();
+      await page.locator('[data-lock-state="locked"]').first().waitFor({ timeout: 8000 }).catch(() => {});
+      check((await page.locator('[data-lock-state="locked"]').count()) >= 1, "tapped: locked for everyone");
       await page.waitForTimeout(400); // not b.settle(): its evaluate crashed the tab here (2026-10-27), the page itself fine
       await shot("settings-locked");
       check(errors.length === 0, "no page errors", errors.join(" | "));

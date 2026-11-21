@@ -1,9 +1,10 @@
+import crypto from "crypto";
 import StateLogic from "@/lib/game/state-logic.js";
-import { addBot, addProblem, botsIn, botsPlay, levelOf, removeProblem, BOT_LEVEL, LEVEL_WORDS, type BotLevel } from "@/lib/game/computer-players";
+import { addBot, addProblem, botSnapshot, botsIn, botsPlay, levelOf, removeProblem, BOT_LEVEL, LEVEL_WORDS, type BotLevel } from "@/lib/game/computer-players";
 import type { LeagueState } from "@/lib/game/types";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { dropBlindPicksForPlayer } from "./blind-draft";
-import { plainChange } from "./change-log";
+import { plainChange, type BotUndo } from "./change-log";
 import type { PoolClient } from "pg";
 import { withLeagueLock, HttpError } from "./db";
 import { stagesBegun } from "./stages";
@@ -11,7 +12,8 @@ import { couchGames } from "./league-changes";
 
 // Computer players in a couch's games (src/lib/game/computer-players.ts has the rules): Backstage › Members lists each game's,
 // and whoever runs it (Commissioner or Game admin) adds one, sets its level, or takes one or all of them out. Each change is a
-// line in Recent changes; taking them out is tier 3 (their seats go), with no Undo: add them again.
+// line in Recent changes, with a typed Undo (Settings Round 3b, rule 6): one added goes again, a level goes back, and seats taken out
+// (tier 3) come back for 30 days, with whoever they'd drafted while nobody else holds them.
 
 export interface BotSeat {
   playerId: string;
@@ -67,9 +69,11 @@ async function stagesProblem(s: LeagueState, client: PoolClient, leagueId: strin
   return (await stagesBegun(client, leagueId)) ? "The game's stages have begun: computer players join or go before they do" : null;
 }
 
-export async function changeBots(user: SessionUser, seasonId: string, couchId: string | null, body: BotAction): Promise<{ names: string[] }> {
+export async function changeBots(user: SessionUser, seasonId: string, couchId: string | null, body: BotAction): Promise<{ names: string[]; batch: string }> {
   const leagueId = await yours(user, seasonId, couchId, body.leagueId);
   const names: string[] = [];
+  const batch = crypto.randomUUID();
+  let undo: BotUndo | null = null;
   if (body.action === "add") {
     const level = isLevel(body.level) ? body.level : "normal";
     await withLeagueLock(
@@ -78,9 +82,11 @@ export async function changeBots(user: SessionUser, seasonId: string, couchId: s
         if (!botsPlay(s)) throw new HttpError(409, "Computer players don't play this game");
         const problem = addProblem(s) ?? (await stagesProblem(s, client, leagueId));
         if (problem) throw new HttpError(409, problem);
-        names.push(addBot(s, level).name);
+        const bot = addBot(s, level);
+        names.push(bot.name);
+        undo = { type: "bot", action: "add", playerId: bot.id };
       },
-      () => plainChange(user.id, "players", `Added a computer player, ${names[0]} (${LEVEL_WORDS[level]})`)
+      () => ({ ...plainChange(user.id, "players", `Added a computer player, ${names[0]} (${LEVEL_WORDS[level]})`), batch, undo })
     );
   } else if (body.action === "level") {
     if (!isLevel(body.level)) throw new HttpError(400, "level must be easy, normal or sharp");
@@ -90,10 +96,11 @@ export async function changeBots(user: SessionUser, seasonId: string, couchId: s
       (s) => {
         const bot = botsIn(s).find((p) => p.id === body.playerId);
         if (!bot) throw new HttpError(404, "That computer player isn't in this game");
+        undo = { type: "bot", action: "level", playerId: bot.id, before: bot.botLevel, after: BOT_LEVEL[level] };
         bot.botLevel = BOT_LEVEL[level];
         names.push(bot.name);
       },
-      () => plainChange(user.id, "players", `${names[0]} plays ${LEVEL_WORDS[level]} now`)
+      () => ({ ...plainChange(user.id, "players", `${names[0]} plays ${LEVEL_WORDS[level]} now`), batch, undo })
     );
   } else if (body.action === "remove") {
     await withLeagueLock(
@@ -103,6 +110,7 @@ export async function changeBots(user: SessionUser, seasonId: string, couchId: s
         if (problem) throw new HttpError(409, problem);
         const out = botsIn(s).filter((p) => body.all === true || p.id === body.playerId);
         if (!out.length) throw new HttpError(404, body.all === true ? "There are no computer players in this game" : "That computer player isn't in this game");
+        undo = { type: "bot", action: "remove", seats: out.map((bot) => botSnapshot(s, bot.id)) };
         for (const bot of out) {
           // As classic's DELETE: the seat, whoever it drafted (free again), and any blind lock-in it made.
           StateLogic.removePlayer(s, bot.id);
@@ -111,8 +119,13 @@ export async function changeBots(user: SessionUser, seasonId: string, couchId: s
           names.push(bot.name);
         }
       },
-      () => plainChange(user.id, "players", names.length > 1 ? `Took out the computer players (${names.join(", ")})` : `Took out ${names[0]}, a computer player`, 3)
+      () => ({
+        ...plainChange(user.id, "players", names.length > 1 ? `Took out the computer players (${names.join(", ")})` : `Took out ${names[0]}, a computer player`, 3),
+        batch,
+        undo,
+        undoUntil: new Date(Date.now() + 30 * 24 * 3600 * 1000),
+      })
     );
   } else throw new HttpError(400, "action must be add, level or remove");
-  return { names };
+  return { names, batch };
 }
