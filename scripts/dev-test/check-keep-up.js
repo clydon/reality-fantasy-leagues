@@ -183,7 +183,8 @@ function check(ok, what, detail = "") {
       const watchedRow = page.locator('[data-show-row="watched"]');
       // The air date comes with the episodes' read, a moment after the page.
       await page.waitForFunction(() => /· \w{3}, \w{3} \d+$/.test(document.querySelector('[data-show-row="watched"] [data-row-value]')?.textContent || ""), null, { timeout: 15_000 }).catch(() => {});
-      const watchedValue = await watchedRow.locator("[data-row-value]").innerText();
+      // A value's last two words are held together by a no-break space (the check's fix): read it with plain spaces.
+      const watchedValue = (await watchedRow.locator("[data-row-value]").innerText()).replace(/\u00a0/g, " ");
       check(/^Through Ep 3 · \w{3}, \w{3} \d+$/.test(watchedValue), "the show's settings page: Episodes you've watched, through Ep 3 with its air date", watchedValue);
       await shot("show-settings");
       await fits("the show's settings page");
@@ -194,7 +195,8 @@ function check(ok, what, detail = "") {
       check(/ZT Title 3/.test(row3) && /\w{3}, \w{3} \d+/.test(row3), "the ledger names each episode he's seen and when it aired", row3);
       check((await sheet.locator('[data-setting="where-live"]').count()) === 0, "no Keep me live switch: what happens as a new one airs is the show page's");
       const airsLine = await sheet.locator("[data-where-airs]").innerText().catch(() => "none");
-      check((await sheet.locator('[data-where-airs="ask"]').count()) === 1 && /Tonight asks if you've seen it/.test(airsLine) && /under the gear/.test(airsLine), "a line says what happens as a new one airs (he's on Ask), and where to change it", airsLine);
+      // Opened from the show's settings page, it doesn't point back there (the check's fix).
+      check((await sheet.locator('[data-where-airs="ask"]').count()) === 1 && /Tonight asks if you've seen it/.test(airsLine) && !/under the gear/.test(airsLine), "a line says what happens as a new one airs (he's on Ask), without pointing back to the page it opened from", airsLine);
       check((await sheet.locator("[data-where-up-to-date]").count()) === 0, "up to date: no I've watched them all to offer");
       await sheet.locator('[data-ledger-row="2"]').click();
       // The ledger's one shortcut sits above it: the list scrolls in its own frame under it.
@@ -245,9 +247,13 @@ function check(ok, what, detail = "") {
       await sheet.waitFor({ state: "hidden", timeout: 8000 }).catch(() => {});
       await fold.locator('[data-choice="keep-off"]').click();
       check(await until(async () => (await follow(fx.users.alex, tsid)).keep_up === "off"), "Nothing: he moves it himself");
+      // The page's toast comes once the show has been read again (the save awaits it): open the sheet after it, as a person would.
+      await page.locator("[role=status]").filter({ hasText: /you move it yourself/i }).waitFor({ timeout: 10_000 }).catch(() => {});
       // I've watched them all only moves the mark now (it used to turn Live on too).
       await watchedRow.click();
       await sheet.locator('[data-ledger-row="2"]').waitFor({ timeout: 15_000 });
+      // The show's read comes back after the save: the sheet may open on the last value a moment first.
+      await sheet.locator('[data-where-airs="off"]').waitFor({ timeout: 10_000 }).catch(() => {});
       check(/nothing changes here until you move it/.test(await sheet.locator('[data-where-airs="off"]').innerText().catch(() => "")), "Where you are: nothing changes as a new one airs until he moves it");
       await sheet.locator('[data-ledger-row="2"]').click();
       await sheet.locator("[data-where-up-to-date]").click();

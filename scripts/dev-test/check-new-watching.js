@@ -356,7 +356,13 @@ async function newcomer(pool, who, approved = true) {
       check((await nudge.getAttribute("data-nudge").catch(() => null)) === tsid && !(await follow(fx.users.alex, tsid))?.nudge_off_at, "Undo: the Traitors is suggested again");
       await page.locator("[data-nudge-no]").click();
       await page.waitForFunction((id) => document.querySelector("[data-nudge]")?.getAttribute("data-nudge") !== id, tsid, { timeout: 10000 }).catch(() => {});
-      check(!!(await follow(fx.users.alex, tsid))?.nudge_off_at, "Don't suggest it again: remembered");
+      // The card goes at once; the write lands a moment later.
+      let again = false;
+      for (let i = 0; i < 20 && !again; i++) {
+        again = !!(await follow(fx.users.alex, tsid))?.nudge_off_at;
+        if (!again) await page.waitForTimeout(500);
+      }
+      check(again, "Don't suggest it again: remembered");
       const nudge2 = await nudge.innerText().catch(() => "");
       check((await nudge.getAttribute("data-nudge").catch(() => null)) === ss.id && /You and zt_nd_riley both watch ZT Love Shack/.test(nudge2) && /Make it a game/.test(nudge2), "then the next: ZT Love Shack, not a game yet, so Make it a game", nudge2.replace(/\n/g, " | "));
       await page.locator("[data-nudge-go]").click();

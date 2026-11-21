@@ -438,8 +438,11 @@ fixed, both built** (decisions.md, 2026-11-20). Story: https://claude.ai/artifac
     show's new-episode choice as a link to its page, and on sports the games watched as if live, each with I've watched it (C24's list).
   - **Migration 0448:** `show_follows.results` (A7), `user_settings.hub_couch` (C25). The guard (guard.ts), due moves, the reveal
     mark (results-seen.ts), waiver pushes and the reminders (db/reminders.js) read a season's own results choice first.
-- **Checks:** `npm test` 2513 of 2513; `scripts/dev-test/check-settings-r2.js` (new: the server half, 16 of 16); the story's 23
-  situations (`story-settings.js --only=^r2-`). The browser checks that asserted the old ⋯ were updated (see the round's commit).
+- **Checks (2026-11-21, port 3018):** `npm test` 2513 of 2513; `scripts/dev-test/check-settings-r2.js` (new: the server half, 16
+  of 16); the story's 23 situations (`story-settings.js --only=^r2-`). The browser checks that asserted the old ⋯, Keep me live and
+  Hand it on were rewritten for the new homes, and pass whole: check-new-show-menu (48), check-new-settings (168), check-new-notify
+  (187), check-new-sharing (87), check-new-backstage-ii (147). check-keep-up's where-sheet half works again (BACKLOG 70's stale part):
+  54 pass, its one left a GIF read (below). Their remaining failures are outside this round's screens (below, Found in Round 2).
 - **Left for later:** C23 (one way to follow a sport) and starting Watch it as if live from every finished game: the sports lane's
   files. C27 (Who can fill in results): with Backstage in Round 3. A10, A12: "not now".
 - **The original scope:**
@@ -587,6 +590,11 @@ Left for their round:
     as someone is meant to make moves for them, so whether their spoiler and follow settings are theirs alone is a question for
     Round 5 (the desk), not changed here.
   - push-events.ts's league-only path (a league with no season) reads only the account's results choice: it has no season to ask.
+  - Failures in checks this round updated but whose cause is outside its screens: check-new-backstage stops at "Use Grok instead"
+    (Round 1 removed Grok); check-new-plans' Tonight plates and the guide's Watch along tag (4); check-new-couches' Who can join
+    Undo in Game settings (1); check-new-watching's two Add a show search rows (its own season's picker, and a finished season
+    listed twice); check-new-draft's and check-keep-up's "no page errors": the episode GIF read asks for an episode right after
+    the mark moved back past it (a harmless 403). Stale-check work for BACKLOG 70.
 - **Round 3:**
   - "Every N" waiver windows with no N.
   - "Set in the draft room" for a team size the room can't set.

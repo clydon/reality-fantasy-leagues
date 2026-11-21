@@ -121,13 +121,14 @@ const DOT = "[aria-label='Needs you']";
     // The foot line, last: where the settings went.
     const foot = sam.page.locator("[data-menu-main] [data-menu-gear-line]");
     const footText = (await foot.innerText().catch(() => "")).replace(/\s+/g, " ");
-    check(/^Notifications, how far you.ve watched and leaving are in your settings for this show, under/.test(footText), "the foot line says where the settings went", footText);
+    check(/^Your settings for this show Notifications, how far you.ve watched, leaving/.test(footText), "the last row says where the settings went: Your settings for this show", footText);
     check(await foot.evaluate((el) => !el.nextElementSibling).catch(() => false), "and it comes last");
     await sam.fits("the menu");
     await sam.shot("player-menu");
     await foot.click();
     await sam.page.locator(`[data-show-settings="${sid}"]`).waitFor({ timeout: 15_000 }).catch(() => {});
     check((await sam.page.locator(`[data-show-settings="${sid}"]`).isVisible().catch(() => false)) && new URL(sam.page.url()).searchParams.get("page") === "you", "the foot line opens the show's settings page", sam.page.url());
+    await sam.page.locator("[data-menu-main]").waitFor({ state: "detached", timeout: 8000 }).catch(() => {});
     check((await sam.page.locator("[data-menu-main]").count()) === 0, "and the menu closes");
 
     // The gear, beside the ⋯.
@@ -143,8 +144,8 @@ const DOT = "[aria-label='Needs you']";
     await pageRoot.waitFor({ timeout: 15_000 });
     check(new URL(sam.page.url()).searchParams.get("page") === "you", "the gear opens the show's settings page (?page=you)", sam.page.url());
     // A player's mark moves as he reveals each episode on Tonight (the air date comes with the episodes' read).
-    await sam.page.waitForFunction(() => /· \w{3}, \w{3} \d+ ·/.test(document.querySelector('[data-show-row="watched"] [data-row-value]')?.textContent || ""), null, { timeout: 15_000 }).catch(() => {});
-    const watched = await sam.page.locator('[data-show-row="watched"] [data-row-value]').innerText().catch(() => "");
+    await sam.page.waitForFunction(() => /· \w{3}, \w{3}\s\d+ ·/.test(document.querySelector('[data-show-row="watched"] [data-row-value]')?.textContent || ""), null, { timeout: 15_000 }).catch(() => {});
+    const watched = (await sam.page.locator('[data-show-row="watched"] [data-row-value]').innerText().catch(() => "")).replace(/\u00a0/g, " ");
     check(/^Through Ep 3( · \w{3}, \w{3} \d+)? · moves as you reveal$/.test(watched), "Episodes you've watched: through Ep 3, moving as he reveals", watched);
     check((await sam.page.locator('[data-fold="new-episode"]').count()) === 0, "no When a new episode airs: he plays it");
     check((await sam.page.locator('[data-fold="results-here"]').count()) === 1, "When results show here");
@@ -161,8 +162,9 @@ const DOT = "[aria-label='Needs you']";
     await sam.page.locator("[role=dialog][data-open]").first().waitFor({ state: "hidden", timeout: 8000 }).catch(() => {});
     // Notifications: what this show sends, once its read is back; then its sheet.
     await sam.page.waitForFunction(() => (document.querySelector('[data-show-row="notify"] [data-row-value]')?.textContent || "…") !== "…", null, { timeout: 15_000 }).catch(() => {});
-    const noteValue = await sam.page.locator('[data-show-row="notify"] [data-row-value]').innerText();
-    check(/^(On|On here · off on this phone)$/.test(noteValue), "Notifications says what this show sends (nothing muted or off here)", noteValue);
+    const noteValue = (await sam.page.locator('[data-show-row="notify"] [data-row-value]').innerText()).replace(/\u00a0/g, " ");
+    // The phone's fact first while nothing rings (the check's fix): "Off on this phone · this show's are on".
+    check(/^(On|(Off|Blocked) on this phone · this show's are on)$/.test(noteValue), "Notifications says what this show sends (nothing muted or off here), the phone first when nothing rings", noteValue);
     await sam.page.locator('[data-show-row="notify"]').click();
     await sam.page.locator("[data-show-notify] [data-setting]").first().waitFor({ timeout: 15_000 });
     await sam.page.waitForTimeout(500);
@@ -170,11 +172,12 @@ const DOT = "[aria-label='Needs you']";
     const blocks = await phoneBlock.count();
     const phoneAttr = blocks ? await phoneBlock.getAttribute("data-show-notify-phone") : null;
     check(
-      !blocks || (/off on this phone/.test(noteValue) && (phoneAttr !== "off" || (await sam.page.locator("[data-show-notify-on]").isVisible()))),
+      !blocks || (/(off|blocked) on this phone/i.test(noteValue) && (phoneAttr !== "off" || (await sam.page.locator("[data-show-notify-on]").isVisible()))),
       blocks ? "no phone of his gets them: the row said so, and its sheet leads with Turn on" : "its sheet has no Turn on to offer",
       `${noteValue} · ${phoneAttr}`
     );
-    check((await sam.page.locator("[data-show-notify] [data-setting]").count()) === 6, "and the show's six moments are as they were");
+    // A show's kinds since Round 1: reminders, results, your couch's activity and couch chat.
+    check((await sam.page.locator("[data-show-notify] [data-setting]").count()) === 4, "and the show's four kinds are as they were", String(await sam.page.locator("[data-show-notify] [data-setting]").count()));
     await sam.shot("notifications");
     await sam.page.keyboard.press("Escape");
     await sam.page.locator("[data-show-notify]").waitFor({ state: "hidden", timeout: 8000 }).catch(() => {});

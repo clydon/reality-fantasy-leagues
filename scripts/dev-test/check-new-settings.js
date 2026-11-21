@@ -531,7 +531,7 @@ function check(ok, what, detail = "") {
       // A sentence saying what moves, then the confirm: it changes who controls the couch, so there's no Undo.
       await pg.locator("[data-hand-on-next]").click();
       await pg.locator("[data-hand-on-ask]").waitFor();
-      check(/Make zt_nd_riley the owner of ZT Survivor 51\?/.test(await pg.locator("[data-hand-on-ask]").innerText()) && /Make zt_nd_riley the owner/.test(await pg.locator("[data-hand-on-go]").innerText()), "picking riley asks first: Keep it, or Make zt_nd_riley the owner", await pg.locator("[data-hand-on-ask]").innerText());
+      check(/Make zt_nd_riley the owner of ZT Survivor 51\?/.test(await pg.locator("[data-hand-on-ask]").innerText()) && /Make them the owner/.test(await pg.locator("[data-hand-on-go]").innerText()), "picking riley asks first: Keep it, or Make them the owner", await pg.locator("[data-hand-on-ask]").innerText());
       await a.wide("Make someone else the owner");
       await a.shot("hand-on");
       await pg.locator("[data-hand-on-keep]").click();
