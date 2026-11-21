@@ -1579,3 +1579,17 @@
   - **Backstage's Waivers page is gone.** Its old address lands on Games you run, and the API is unchanged.
 - Rejected: a key for "you run this" on a game's bar, with the gear only for your own settings; leaving the week for 3b.
 - Rests on: src/new/backstage/waivers.tsx (WaiverJob, WaiverRule), game-settings.tsx, manage/people.tsx, manage/choice.tsx.
+
+## 2026-11-21 · Settings, Round 3b: changing a game once it's under way, as built
+- Decided by: the user, on 3b's story (https://claude.ai/artifact/SCCquWVBtn7qhotipLmcyx): "Agree with your recs" (all four).
+- What:
+  1. **The players' vote on a moment added mid-season decides** (more than half; else the most votes when the next episode airs;
+     nobody voting keeps the default; a tie is the Commissioner's call). It doesn't advise.
+  2. **New points for a moment a game already had count from the start**, as today, and the players are told. Points kept by
+     episode stays a possible engine step, not planned.
+  3. **The default for a moment added mid-season reads the show's format:** Survivor's and The Traitors' from the next episode
+     (so Survivor 51's three games, for any moment added from now on); The Challenge's and a show's first season here from the
+     start. Nothing already scored moves.
+  4. **No Lock now on episode night's plate for runners:** the lock stays on Manage this game, two taps from the game's gear.
+- Rests on: docs/design-round/settings-r3b-spec.md, -first-view.md, -shape.md, -check.md; src/new/manage/moments.tsx,
+  src/lib/server/moment-votes.ts, db/rulebooks.js recordAddedMoments, state-logic.js momentFrom.
