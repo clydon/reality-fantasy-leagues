@@ -290,7 +290,8 @@ function GameSettingsBody({ seasonId, couchId, show, g, write, line, siblings }:
     : "You help run this game: the lock, waivers and join requests are yours. The Commissioner changes the rules.";
   // Its jobs (Backstage's Needs you, this game's): someone asking to join, a draft to set up, nobody to play yet.
   const bs = useBackstage(seasonId, couchId, null);
-  const jobs = (bs.data?.needs ?? []).filter((n) => RUNNER_JOBS.has(n.id) && n.leagueId === g.leagueId);
+  // An open window closing soon is the week's own job below (WaiverJob); a "teams are short" one is a job here (Settings Round 3b).
+  const jobs = (bs.data?.needs ?? []).filter((n) => RUNNER_JOBS.has(n.id) && n.leagueId === g.leagueId && !(n.id === "waivers" && n.waivers?.kind === "closing"));
   const waivers = useWaiversAdmin(seasonId, g.waivers ? couchId : null).data?.games.find((x) => x.leagueId === g.leagueId) ?? null;
   const window_ = waivers?.period?.phase === "open" ? waivers.period : null;
   return (

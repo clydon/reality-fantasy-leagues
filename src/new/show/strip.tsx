@@ -17,6 +17,7 @@ import { openSheet } from "./questions";
 import { catchingUpIn, hasPacePlate, movedIn } from "./pace-plate";
 import { showLabel } from "./react";
 import { dotColour, lockedInEpisode, nightGroups, nightLabel, useLockIn, windowEpisode, type NightGroup } from "./strip-night";
+import { RunnerLine } from "../manage/jobs";
 
 // The strip (the design round's step 3: docs/design-round/step3-tonight-spec.md, "Two parts every show tab shares"; Phase 0's
 // decision 2): the show's one statement of what's yours to set, under the show bar in the same place on every tab but Chat. It
@@ -185,7 +186,18 @@ export function stripState(show: ShowData): StripState | null {
   return { tone: "set", tag: `${ep} ${up.number}`, title: `All set for ${ep} ${up.number}`, line: done.length ? "Change anything until it airs" : null };
 }
 
+/** The strip, and under it a runner's job when there's one (Settings Round 3b: manage/jobs.tsx RunnerLine, quiet, never a second
+ *  yellow). */
 export function MovesStrip({ show, tab }: { show: ShowData; tab?: string }) {
+  return (
+    <>
+      <PlayerStrip show={show} tab={tab} />
+      <RunnerLine show={show} />
+    </>
+  );
+}
+
+function PlayerStrip({ show, tab }: { show: ShowData; tab?: string }) {
   const nav = useNav();
   const s = stripState(show);
   // The moment it's all set (the user's B3, 2026-11-15: "you're all set" as a moment, not a bar that vanishes): when the last due

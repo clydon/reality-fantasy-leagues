@@ -149,7 +149,7 @@ function askedWhen(at: string, now = Date.now()): string {
 }
 
 export interface Need {
-  id: "quick" | "full" | "waiting" | "question" | "draft" | "invite" | "request";
+  id: "quick" | "full" | "waiting" | "question" | "draft" | "invite" | "request" | "waivers";
   /** The episode it's about (0 for a game's setup: its draft, its players, someone asking to join). */
   episode: number;
   title: string;
@@ -159,6 +159,10 @@ export interface Need {
   draft?: DraftKind;
   /** Someone asking to join a game (step 9): Let in, or decline quietly. */
   request?: { id: string; userId: string; name: string };
+  /** Settings Round 3b (BACKLOG 157, a runner's jobs on the strip): a waiver window that's due. `closing`: one open whose claims
+   *  close within a day with people still to pick; `short`: a game whose windows open by hand, with teams short of people who left
+   *  (only losses you've seen). */
+  waivers?: { kind: "closing" | "short"; due: string | null; picked: number; of: number; short: number };
 }
 
 /** Full scores for an episode: who sent them and how far the sources agree ("filled in by riley · 2 sources agree"). */
@@ -358,6 +362,12 @@ export async function backstageRead(scope: BackstageScope, opts: { episode?: num
       leagueId: r.leagueId,
       request: { id: r.id, userId: r.userId, name: r.name },
     });
+  }
+  // Settings Round 3b: a waiver window that's due, for whoever runs the game (a Helper too), never past what they've seen.
+  for (const l of loaded) {
+    if (l.game.yourRole !== "commissioner" && l.game.yourRole !== "admin") continue;
+    const job = waiverJob(l.state, seen);
+    if (job) out.needs.push({ ...job, leagueId: l.game.leagueId, title: job.waivers.kind === "closing" ? `Waivers close in ${l.game.name}` : `${job.waivers.short} ${job.waivers.short === 1 ? "team is" : "teams are"} short in ${l.game.name}`, detail: job.waivers.kind === "closing" ? `${job.waivers.picked} of ${job.waivers.of} picked` : "Open a waiver window" });
   }
   if (coming && !coming.live) out.next = { number: coming.number, airAt: coming.airAt };
   else if (coming?.live) out.next = { number: coming.number + 1, airAt: schedule?.episodes.find((e) => e.number === coming.number + 1)?.airAt ?? null };
@@ -718,4 +728,27 @@ export async function applyChosen(scope: BackstageScope, n: number, items: Chose
   // A waiting quick check answered: It's right (its names), or Not right (who you entered instead).
   if (opts.wait) await closeWaits({ id: opts.wait.id, seasonId: scope.seasonId, couchId: scope.couchId }, opts.wait.right ? "right" : "not-right", scope.user.id);
   return { games: r.games, skipped: [], batch: r.batch };
+}
+
+/** A waiver window that's due in one game (backstageRead's runner jobs): an open one closing within a day with people still to pick,
+ *  or, where windows open by hand, teams short of someone who left. Read through what the runner has seen (no spoilers: a loss in an
+ *  episode they haven't watched isn't counted, and a window for one isn't shown). */
+function waiverJob(s: LeagueState, seen: number | null): { id: "waivers"; episode: number; waivers: NonNullable<Need["waivers"]> } | null {
+  const W = StateLogic.WaiverLogic;
+  if (!W.supported(s)) return null;
+  const view = StateLogic.GhostLogic.viewFor(s, null, seen);
+  const cur = W.current(view);
+  const people = W.rotation(view).filter((id: string) => !view.players.find((p) => p.id === id)?.automated);
+  if (cur && cur.phase === "open") {
+    if (seen !== null && cur.episode > seen) return null;
+    const due = cur.processAt ? Date.parse(cur.processAt) : null;
+    const owed = people.filter((id: string) => W.replacementsOwed(view, id, cur).count > 0);
+    const picked = owed.filter((id: string) => (cur.claimsIn ?? []).includes(id)).length;
+    if (due === null || due - Date.now() > 24 * 3600_000 || picked >= owed.length) return null;
+    return { id: "waivers", episode: cur.episode, waivers: { kind: "closing", due: cur.processAt ?? null, picked, of: owed.length, short: owed.length - picked } };
+  }
+  const c = W.config(view);
+  if (c.waiverWindows.schedule !== "manual") return null;
+  const short = people.filter((id: string) => W.replacementsOwed(view, id, { window: true } as unknown as Parameters<typeof W.replacementsOwed>[2]).count > 0).length;
+  return short ? { id: "waivers", episode: 0, waivers: { kind: "short", due: null, picked: 0, of: people.length, short } } : null;
 }
