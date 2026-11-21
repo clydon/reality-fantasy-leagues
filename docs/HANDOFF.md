@@ -65,8 +65,10 @@ Newest first. The plan or archive section named holds the detail.
   the unit suite, check-sports-through-playoffs.js (new) and every NFL fixture check. Waits on the user's review of its screenshot
   story (https://claude.ai/artifact/EFxQiodtwincGM5ggKZvin), then the rehearsal and the merge. Detail: PLAN-sports-ready.md 2.7.
   Step 2.8 on the same branch (2026-11-21, 6ae9cf47): a game's players are its scope's (a team's season, that team's only: the
-  user's pick; one game, its two teams; a game's question, that game's players). Next: the design round on how the scopes are
-  offered (the team page's ways in and the sheet: PLAN-sports-ready.md 2.8's Left), then the merge with 2.7.
+  user's pick; one game, its two teams; a game's question, that game's players). Its design round is built and approved the same
+  day (the team page's Start a game on rows; Start a game says whose players and catches a draft too big before Start: story
+  https://claude.ai/artifact/MzFTpBSjZpDdcpMnyrpsYJ, decisions.md 2026-11-21). Next: the 2.7 story's review if still open, migration
+  0312's rehearsal, then the merge of the branch.
 - **Game preview, branch `preview`** (lane rfl-preview): 17 commits not on master, 55 commits behind it, about 11 conflict
   hunks (strip.tsx, game-week.tsx, your-move.ts, tonight.tsx). It has P0, the visual story, the bench's preview maker and
   Round 5 (four real-app fixes, among them the finale reveal ranking a stage that had ended). It waits on the user's review of

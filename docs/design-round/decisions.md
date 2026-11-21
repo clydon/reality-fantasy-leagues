@@ -1490,3 +1490,15 @@
 - Why: C with Lock in was the pick; the started gate ("Have you started watching?") replaced the honour note in C, so it could no longer show.
 - Rejected: keeping the switch (two apps to keep right).
 - Rests on: src/new/show/strip-night.ts, strip.tsx, dock.tsx.
+
+## 2026-11-21 · A sport's game scope on the team's page: Start a game on's rows, each saying how many games and whose players
+- Decided by: the user, taking Claude's recommendation (the story: https://claude.ai/artifact/MzFTpBSjZpDdcpMnyrpsYJ)
+- Why: the team's four ways in looked like four kinds of thing, and Start a game… promised the season but opened on the next game. As one group of rows (The next game; Their season, "N games left · Bills players only"; a series; a picked rival's Every <rival> game) the scopes read as siblings under the one yellow, and Their season opens on the season.
+- Rejected: "The Bills' season" as the row's title (the team's name sits in its line, the title stays short); whose players on the yellow plate or Pick'em (they pick no players).
+- Rests on: src/new/sports/team.tsx; docs/design-round/sports-scope-spec.md, sports-scope-first-view.md, sports-scope-shape.md.
+
+## 2026-11-21 · A draft says whose players it draws from, and one too big for its scope is caught before Start with Make it shared
+- Decided by: the user, taking Claude's recommendation
+- Why: a team's season draws only that team's players (2.8), so the screen says it ("Draft from: Bills players only · 74", following How long) and our check counts the scoped pool. Shared (drafted blind) always fits and keeps the size the maker chose.
+- Rejected: "Draft N each" as the fix (changes the size; everyone's players stay their own, but it doesn't always fit a position-limited lineup either); the server's refusal after Start (the old way).
+- Rests on: src/new/couch/gallery-bold/whose.ts, bold-sheet.tsx (the Start bar's warning), leads.tsx; src/lib/server/start-spec.ts (`wizard.scope`).

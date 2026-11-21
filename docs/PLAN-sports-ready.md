@@ -705,6 +705,20 @@ server.
      the scope's limit). A team's season's question asked once ("who leads the team in rushing?") names anyone on the season, every
      opponent's roster included.
    - *Noticed, not fixed:* an NFL team's "players" are ESPN's roster, 74 for the Bills (the practice squad and reserve lists too).
+   - *The design round (2026-11-21, built; the user took both recommendations the same day: Make it shared, and the rows' names; decisions.md):* spec, first-view requirements and shape brief
+     in docs/design-round/sports-scope-{spec,first-view,shape}.md. The team's sheet: **Start a game on** rows (The next game; Their
+     season, "N games left · Bills players only", opening on the regular season: StartCtx `length: "season"`; a series' rows; a picked
+     rival's Every <rival> game under its chip), replacing the Start a game… card and the "Play every meeting" link. Start a game:
+     gallery-bold/whose.ts (the scope's teams for the span, the spec scoped as the server scopes it, the count from ctx.poolOf); the
+     wizard's page carries `scope` (start-spec.ts: a team's season's team, `filling` while its players are fetched; the sheet reads it
+     again every 3 s); the title card's marks and the draft card are the scope's (were the page's first two teams: HOU and BUF on the
+     Bills' season); "Draft from: Bills players only · 74" under the sentence, following How long; the base's "from the two teams"
+     says "from the Bills"; an exclusive draft too big for the scope is the Start bar's warning with Make it shared (blind), Start
+     held. Story: story-sports-scope.js (new; --prefix=before-|after-, the fixture at the real clock with its stand-in postseason),
+     published https://claude.ai/artifact/MzFTpBSjZpDdcpMnyrpsYJ. Checked: tsc, eslint on the changed files, the unit suite (2,521).
+     Noticed there: "Over the season: One game" on a
+     season-long draft, "Game-night draft" over a season, "An shared draft" (engine words), a one-game season's "Every game left · 1
+     game", two teams named in the page's order.
 
 ### Phase 3. The gate: a real season, replayed (L, about 2–3 sessions)
 

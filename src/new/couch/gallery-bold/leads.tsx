@@ -8,6 +8,7 @@ import { colourOf } from "@/lib/people";
 import type { Pack } from "@/lib/game/game-words/index.js";
 import { useRoster } from "../../data";
 import { nextGame, type Mark } from "./sport";
+import type { Whose } from "./whose";
 import { TeamMark } from "../../sports/parts";
 import { Avatar } from "../../ui/bars";
 import { Face } from "../../show/parts";
@@ -197,7 +198,7 @@ function Matchup({ x, marks, big = false }: { x: { sides: Side[] }; marks: Map<s
 
 /** A sport's lead pictures (the round's frame: a face per player doesn't scale, so lists and the schedule): the team's players, the
  *  next games to pick, the next game's line, a corner of the squares grid; the couch paired off as on a show. */
-function SportPicture({ cat, base, spec, input, gm, pack, marks }: { cat: string; base: Base; spec: Spec | null; input: Input; gm: GM; pack: Pack; marks: Map<string, Mark> }) {
+function SportPicture({ cat, base, spec, input, gm, pack, marks, whose }: { cat: string; base: Base; spec: Spec | null; input: Input; gm: GM; pack: Pack; marks: Map<string, Mark>; whose: Whose | null }) {
   const roster = useRoster(input.seasonId);
   const kind = spec ? gm.kindOf(spec) : null;
   const games = (pack.games ?? []).filter((g) => !g.started);
@@ -217,18 +218,20 @@ function SportPicture({ cat, base, spec, input, gm, pack, marks }: { cat: string
           ))}
         </div>
       );
-    // No headshots yet: the teams the players come from, by their marks, and the positions a draft fills.
+    // No headshots yet: the teams the players come from, by their marks, and the positions a draft fills. On a team's season, its
+    // scope's teams and their count (whose.ts), "getting them" while they're fetched, never the page's first two teams or "0 players".
     const pos = [...new Set((pack.cast ?? []).map((c) => c.role).filter((r): r is string => !!r))].slice(0, 5);
+    const count = whose ? whose.count : (pack.cast ?? []).length + (pack.castMore ?? 0);
     return (
       <div className="flex flex-wrap items-center gap-1.5" aria-hidden>
-        {(pack.teams ?? []).slice(0, 2).map((t) => {
+        {(whose?.teams ?? (pack.teams ?? []).slice(0, 2)).map((t) => {
           const m = markOf(t);
           return <TeamMark key={t.id} abbr={m.abbr} color={m.color} size="sm" />;
         })}
         {pos.map((p) => (
           <span key={p} className="type-caption rounded-[2px] bg-background px-2 py-[3px] text-[14px] tracking-[0.04em]">{p}</span>
         ))}
-        <span className="text-[14px] text-muted-foreground">{(pack.cast ?? []).length + (pack.castMore ?? 0)} players</span>
+        <span className="text-[14px] text-muted-foreground">{count === null || count === 0 ? "Getting the players…" : `${count} players`}</span>
       </div>
     );
   }
@@ -286,8 +289,8 @@ function SportPicture({ cat, base, spec, input, gm, pack, marks }: { cat: string
   return null;
 }
 
-export function LeadTile({ cat, base, spec, state, plain, line, input, gm, data, onOpen, pack, marks }: { cat: string; base: Base; spec: Spec | null; state: string; plain: string; line: string; input: Input; gm: GM; data: LeadData; onOpen: () => void; pack?: Pack | null; marks?: Map<string, Mark> }) {
-  const pic = pack ? <SportPicture cat={cat} base={base} spec={spec} input={input} gm={gm} pack={pack} marks={marks ?? new Map()} /> : picture(cat, base, spec, input, gm, data);
+export function LeadTile({ cat, base, spec, state, plain, line, input, gm, data, onOpen, pack, marks, whose = null }: { cat: string; base: Base; spec: Spec | null; state: string; plain: string; line: string; input: Input; gm: GM; data: LeadData; onOpen: () => void; pack?: Pack | null; marks?: Map<string, Mark>; whose?: Whose | null }) {
+  const pic = pack ? <SportPicture cat={cat} base={base} spec={spec} input={input} gm={gm} pack={pack} marks={marks ?? new Map()} whose={whose} /> : picture(cat, base, spec, input, gm, data);
   return (
     <button type="button" data-gallery-lead={base.id} onClick={onOpen} className={`nd-press col-span-2 flex min-h-[132px] w-full flex-col gap-2.5 rounded-[4px] bg-secondary p-3.5 text-left hover:brightness-110 ${FOCUS}`}>
       <span className="flex w-full items-start justify-between gap-3">

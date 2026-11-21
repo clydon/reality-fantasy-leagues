@@ -1496,6 +1496,9 @@ export function useWizardOptions(seasonId: string | null, couchId: string | null
     placeholderData: (prev) => prev,
     enabled: enabled && !!seasonId && !!couchId,
     staleTime: 0,
+    // A team's season just added fills its players after the add: read again until they're in, so the sheet can count them.
+    refetchInterval: (q) => (q.state.data?.wizard?.scope?.filling ? 3000 : false),
+    refetchIntervalInBackground: false,
   });
 }
 

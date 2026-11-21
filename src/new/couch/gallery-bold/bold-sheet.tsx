@@ -32,6 +32,7 @@ import { nextGame, sidesOf, sportIcon, sportStep, sportView, useTeamMarks, type 
 import { TeamMark, teamBg, teamInk } from "../../sports/parts";
 import { usualLen } from "./parts";
 import { LeadTile } from "./leads";
+import { picksPlayers, sayWhose, scoped, tooSmall, whoseOf, whosePossessive, whoseWords, type Whose } from "./whose";
 
 // Start a game (docs/PLAN-start-a-game-redo.md B1: the bold pass, Rounds 2b and 2c, approved 2026-11-18, built for every start). Every
 // game and change comes from the catalog (src/lib/game/start-gallery; a sport's from sports.js) on the season's own page, checked
@@ -195,8 +196,9 @@ export interface StartCtx {
   practice?: StartPractice;
   again: string | null;
   screen: "describe" | null;
-  /** "next": every game opens on just the next episode or game (a team's Next game). */
-  length: "next" | null;
+  /** "next": every game opens on just the next episode or game (a team's Next game); "season": on the season (a team's Their
+   *  season), where the game can run it. */
+  length: "next" | "season" | null;
 }
 
 export function BoldSheet({ open, onOpenChange, o, loading, error, couchId, start }: { open: boolean; onOpenChange: (o: boolean) => void; o: WizardOptions | undefined; loading: boolean; error: Error | null; couchId: string | null; start: StartCtx }) {
@@ -262,7 +264,7 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
   const art = showInfo?.artUrl ?? null;
   const flavor = sport ? `sport ${sport.league}` : `${showInfo?.kind ?? (input.sport ? "sport" : "competition")} ${input.label}`;
   const bases = sport ? sport.bases : gm.BASES;
-  const marks = useTeamMarks(sport);
+  const marks = useTeamMarks(sport, o.wizard?.scope?.team ?? null);
   const flavorKind = sport ? "sport" : showInfo?.kind ?? "competition";
   const [levels, setLevels] = useState<Level[]>(() => (start.screen === "describe" ? [{ k: "gallery" }, { k: "describe" }] : [{ k: "gallery" }]));
   const level = levels[levels.length - 1];
@@ -320,7 +322,7 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
     const pace: Pace = lock0.value === "strict" ? "live" : lock0.value;
     // The setup card's sentence goes with the game, so its page's card says what its maker read (b1-title-card-critique.md P1); a
     // game our AI or Run it back made says its own (the engine's), as its base's words may not fit it.
-    const about = g.from === "describe" || g.from === "again" ? null : fitWords(say(g.base.about, input.nouns), sizeFit(gm, g.base, g.spec)).split(/(?<=\.)\s+/)[0] || null;
+    const about = g.from === "describe" || g.from === "again" ? null : sayWhose(fitWords(say(g.base.about, input.nouns), sizeFit(gm, g.base, g.spec)), picksPlayers(g.spec) ? whoseOf(o, g.span) : null).split(/(?<=\.)\s+/)[0] || null;
     setBusy(true);
     try {
       const r = await wizardApi.start(input.seasonId, input.couch.id, {
@@ -361,7 +363,8 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
   /** Why Start can't go yet (the engine's own reason), or null. */
   const cantStart = (spec: Spec): string | null => {
     if (refreshing) return "Reading the season again…";
-    const v = gm.check(spec, pg);
+    // Counted as Start's server counts it: a team's season's game, from its scope's players (step 2.8).
+    const v = gm.check(scoped(spec, whoseOf(o, (spec.span as Span | undefined) ?? null)), pg);
     if (!v.ok) return v.problems[0] ? `Can't start yet: ${v.problems[0]}` : v.waits[0] ? `Not yet: ${v.waits[0]}` : "Can't start yet";
     if (input.ownPace && Array.isArray(spec.stages)) return "A game in stages can't be played at your own pace yet";
     return null;
@@ -388,7 +391,12 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
     // A team's Next game: every game it can be opens on just that one (one that can't run a single game keeps its own length).
     const oneSpec = start.length === "next" && from === "base" ? (spec ? withSpan(spec, one) : gm.baseSpec(b, one, pg)) : null;
     const next = oneSpec && gm.check(oneSpec, pg).ok ? one : null;
-    let sp: Span = next ?? span ?? (b.len === "1 episode" ? one : { from: input.from, to: null });
+    // A team's Their season (step 2.8's design round): every game that can run the season opens on it, though its own length (a
+    // sport's ready span too) is one game (the regular season below, where there's one).
+    const whole: Span = { from: input.from, to: null };
+    const wholeSpec = start.length === "season" && from === "base" ? (spec ? withSpan(spec, whole) : gm.baseSpec(b, whole, pg)) : null;
+    const season = wholeSpec && gm.check(scoped(wholeSpec, whoseOf(o, whole)), pg).ok ? whole : null;
+    let sp: Span = next ?? season ?? span ?? (b.len === "1 episode" ? one : { from: input.from, to: null });
     const s = spec ?? gm.baseSpec(b, sp, pg);
     if (!s) return;
     // Step 2.7: a season game on a sport's season that goes on into its playoffs opens on its regular season (the default), whatever
@@ -498,6 +506,7 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
         bases={bases}
         sport={sport}
         marks={marks}
+        whose={(span) => whoseOf(o, span)}
         flavorKind={flavorKind}
         saved={savedList}
         savedKeys={savedKeys}
@@ -539,6 +548,16 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
     const firstKind = gm.kindOf(Array.isArray(game.spec.stages) ? game.spec.stages[0].game : game.spec);
     const verb = firstKind === "draft" ? "picks" : firstKind === "pick" ? "pick" : firstKind === "card" ? "card" : "guesses";
     const lockLine = lockLineOf(input, lock.value, game.spec, firstLock ? ` · ${verb} by ${firstLock}` : "");
+    // Whose players (step 2.8's design round): our check counts the scope's pool, and an exclusive draft too big for it is said in the
+    // Start bar before the tap, with sharing as the fix (it always fits, and keeps the size chosen).
+    const whose = whoseOf(o, game.span);
+    const small = tooSmall(game.spec, whose, input.couch.members + (game.bots?.n ?? 0));
+    // Shared is drafted blind (the engine's own rule, as its "Can two of you have the same…" control writes it); an auction's budget goes.
+    const share = () => {
+      const { budget: _budget, ...get } = game.spec.get as Record<string, unknown>;
+      void _budget;
+      setGame({ ...game, spec: { ...game.spec, get: { ...get, own: "shared", order: "blind" } } as Spec });
+    };
     body = (
       <BaseBody
         gm={gm}
@@ -578,7 +597,9 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
       <StartBar
         line={lockLine}
         warn={
-          lock.costs
+          small && whose
+            ? { text: `${small.seats} of you × ${small.each} each is more than ${whosePossessive(whose)} ${small.pool} players.`, fix: { label: "Make it shared", onClick: share }, blocks: true }
+            : lock.costs
             ? {
                 text: `${lock.costs.name} is ${lock.costs.behind} behind ·`,
                 fix: lock.phased ? null : { label: PLAIN_LOCK.own.title, onClick: () => setGame({ ...game, pace: "own" }) },
@@ -588,7 +609,7 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
         label={`Start ${Object.keys(game.before).length || game.own.length ? "your " : ""}${game.name}`}
         tells={tellsLine(input, game.bots && !gm.botsFit(game.spec) ? game.bots : null)}
         asked={game.asked ? `Asked the couch · 0 of ${Math.max(1, input.couch.members - 1)} in so far` : null}
-        disabled={cantStart(game.spec)}
+        disabled={small ? null : cantStart(game.spec)}
         busy={busy}
         save={{ on: savedKeys.has(keyOf(game.base.id, game.spec)), onToggle: () => toggleSave(game) }}
         onStart={() => startGame(game)}
@@ -825,6 +846,8 @@ function GalleryBody(p: {
   bases: Base[];
   sport: SportView | null;
   marks: Map<string, Mark>;
+  /** Whose players a game on this span draws from (whose.ts), for a draft's card. */
+  whose: (span: Span | null) => Whose | null;
   flavorKind: string;
   saved: SavedRow[];
   savedKeys: Set<string>;
@@ -1012,6 +1035,7 @@ function GalleryBody(p: {
                     data={{ faces: stats.data ? faces : null }}
                     pack={p.sport?.pack ?? null}
                     marks={p.marks}
+                    whose={p.sport ? p.whose((leadSpecs.get(c.lead.id)?.span as Span | undefined) ?? null) : null}
                     onOpen={() => p.onBase(c.lead!)}
                   />
                 )}
@@ -1131,8 +1155,11 @@ function BaseBody(p: {
   const strip = input.sport ? { ...strip0, cells: strip0.cells.map((c) => (c.key === "finale" ? { ...c, top: "Last", under: c.under.replace(/^Ep /, "Game ") } : { ...c, under: c.under.replace(/^Ep /, "Game ").replace(/^aired$/, "played") })) } : strip0;
   // The words take the game's own draft size (fitted, changed or saved), and the fitted note shows only while it's still the size.
   const size = sizeFit(gm, game.base, game.spec);
-  const sentences = fitWords(say(game.base.about, input.nouns), size).split(/(?<=\.)\s+/).filter(Boolean);
-  const fitNote = game.fitted && size && game.fitted.to === size.to ? game.fitted : null;
+  // Whose players (step 2.8's design round): a sport's game that picks players says whose, and the base's "from the two teams" names
+  // the scope's team; the fitted note goes (it counts the page's whole pool, not the scope's).
+  const whose = p.sport && picksPlayers(game.spec) ? whoseOf(p.o, game.span) : null;
+  const sentences = sayWhose(fitWords(say(game.base.about, input.nouns), size), whose).split(/(?<=\.)\s+/).filter(Boolean);
+  const fitNote = !whose && game.fitted && size && game.fitted.to === size.to ? game.fitted : null;
   // Try it is offered only when the desk opens previews to you, with how many you have left this week under it (the flow spec's §1).
   const allowance = usePreviewAllowance();
   const kind = gm.kindOf(game.spec);
@@ -1199,7 +1226,7 @@ function BaseBody(p: {
         mark={
           p.sport ? (
             <span className="flex flex-none gap-1 pb-1">
-              {(p.sport.pack?.teams ?? []).slice(0, 2).map((t) => {
+              {(whoseOf(p.o, game.span)?.teams ?? (p.sport.pack?.teams ?? []).slice(0, 2)).map((t) => {
                 const m = p.marks.get(t.id);
                 return m ? <TeamMark key={t.id} abbr={m.abbr} color={m.color} /> : null;
               })}
@@ -1207,6 +1234,12 @@ function BaseBody(p: {
           ) : undefined
         }
       />
+      {whose && (
+        <p data-gallery-whose className="mt-2.5 text-[15px] leading-snug">
+          <b className="font-semibold">{(game.spec.get as { by?: string }).by === "pick" ? "Pick from:" : "Draft from:"}</b> {whoseWords(whose)}
+          <span className="text-muted-foreground"> · {whose.count === null ? "getting them…" : whose.count}</span>
+        </p>
+      )}
       <div data-gallery-effort className="mt-3 flex items-center gap-2">
         <EffortMark level={effortOf(game.base.effort)} />
         <p className="min-w-0 flex-1 text-[15px] leading-snug">
