@@ -1,5 +1,8 @@
 # Plan: sports in good shape, technically and in design
 
+> **Phase 2 (2.1 to 2.8) merged and live:** 2.1 to 2.6 on 2026-11-20 (d4e594cf); 2.7, 2.8 and 2.8's design round on 2026-11-21
+> (1484417a; migration 0312, additive, applied by the build without a rehearsal on the user's word). Next is 4.1, then Phase 3.
+>
 > **Status (2026-11-20): Active, Phase 0 and Phase 1 done but 1.1's screens, merged and live** (f1488cf1..ba8f3a8e, deployed
 > 2026-11-20; migrations 0308 to 0310 rehearsed on a copy of production first). Written from two audits on 2026-11-19: the
 > engine, data and operations, and every screen a sports fan touches.
@@ -602,7 +605,8 @@ server.
    ("Regular season", "Through the Super Bowl") by sport, through 4.0. Sports with the same shape: the NFL, NBA, NHL, MLB, MLS and
    college football. Checks: the NFL fixture's recording has Weeks 1-9 only, so a playoffs recording (record-espn-slate.js, the
    2026 postseason in January) or a stand-in season with a postseason.
-   **Started 2026-11-20 (branch sports-playoffs).**
+   **Started 2026-11-20 (branch sports-playoffs); merged and live 2026-11-21 (1484417a), its story's review taken as approved with the
+   user's go for the merge.**
    - *Decided (Claude's calls, reversible; the user's rule stands: the regular season by default):*
      - **One season holds both stages**, so Game settings can move a game across the line after it starts (a league's season is
        its season: a game can't move to another one). A league's slate gains a third stage, `full`: its regular season's episodes,
@@ -679,7 +683,7 @@ server.
      after an game" (BACKLOG 232). nfl-slate-fixture.js stamped a final with the database's clock, which a check past the real day
      left outside the finals' look-back (fixed in the fixture: a stamp made just now takes the process clock).
 
-**2.8 Whose players: a game's scope (the user, 2026-11-21; S, on branch sports-playoffs).** A sport's game is played on a whole
+**2.8 Whose players: a game's scope (the user, 2026-11-21; S; merged and live 2026-11-21, 1484417a).** A sport's game is played on a whole
    league, one team's season, a series or a rival's meetings, or one game, and the players it offers should be that scope's. Before
    this, only a series and a rival's meetings (their own two-team seasons) were limited; a team's season offered every opponent's
    roster too, and one game started from a team's sheet (on the team's season since Round 3) offered the whole team season's.

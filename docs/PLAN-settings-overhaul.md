@@ -3,8 +3,8 @@
 > **Status (2026-11-21): Round 2 merged and live** (pushed ce891ba2; migration 0448 on production, rehearsed first; the snapshot
 > `pre-settings-r2-2026-11-21` keeps 7 days). The user took all three recommendations (leaving drawn quiet, three results choices,
 > no band without art; design-round/decisions.md). PFD 82 and Impeccable 33/40 after one batch of fixes (the bar: 80 and 32).
-> Story: https://claude.ai/artifact/YMCNuwKciTJuGD91Q9XYrd. Next is Round 3 (running a game), after the sports lane's branch
-> `sports-playoffs` merges: it edits Backstage's settings files.
+> Story: https://claude.ai/artifact/YMCNuwKciTJuGD91Q9XYrd. Next is Round 3 (running a game): the sports lane's branch
+> `sports-playoffs` merged 2026-11-21 (1484417a), so it can start.
 >
 > **Round 1 (2026-11-20): merged and live** (pushed c440bf5f, 2026-11-20 at midnight; migration 0447 on production, rehearsed first;
 > the snapshot `pre-settings-2026-11-20` keeps 7 days). PFD 82 and Impeccable 33/40 after one batch of fixes; the user took all four

@@ -25,8 +25,8 @@ The small and medium work is in [BACKLOG.md](BACKLOG.md); what's live and in fli
 6. **Settings, the overhaul** ([PLAN-settings-overhaul.md](PLAN-settings-overhaul.md)), a lane of its own (the user,
    2026-11-20): every settings place in the app cut, re-homed on what it's about, and renamed in plain words; Backstage retired
    or thinned and renamed; the desk's pass last. Round 0 (the map, the cuts and the shape, rendered; it builds nothing) can
-   start now. Rounds 1 and 2 are live (2026-11-20, 2026-11-21). Round 3 (running a game) waits for the sports lane's
-   `sports-playoffs` (2.7, 2.8), which edits Backstage's settings files.
+   start now. Rounds 1 and 2 are live (2026-11-20, 2026-11-21). Round 3 (running a game) can start: the sports lane's
+   `sports-playoffs` (2.7, 2.8) is merged (1484417a, 2026-11-21).
 7. **Design rounds from the explorer's Designs needed:** answers that settle (BACKLOG 139), waivers (140), then a game in
    stages (141, after `preview` merges).
 8. **After the finale:** remove the classic app (step C, BACKLOG 45), then S3 (177) and R3 (178).
@@ -47,7 +47,7 @@ The gameplay explorer's own steps run alongside, when a step above needs them (t
 | [PLAN-start-a-game-redo.md](PLAN-start-a-game-redo.md) | Active | Rounds 1–5, B1–B4, E1, E2 and E3's first slice live 2026-11-19. Next: C8, the rest of E3, then E5–E10. |
 | [PLAN-game-preview.md](PLAN-game-preview.md) | Active, on branch `preview` | Round 5's review (BACKLOG 155), the rebase and merge, then P1 ("See it play" in Start a game), then A or B for the drill-ins. |
 | [PLAN-local-game-writer.md](PLAN-local-game-writer.md) | Active, on branch `writer` | Merge, and the user picks the way on (BACKLOG 156). |
-| [PLAN-sports-ready.md](PLAN-sports-ready.md) | Active (Phase 0 and Phase 1 done but 1.1's screens, merged and live 2026-11-20, ba8f3a8e) | Phase 2 under way on branch sports-phase2 (2.1 and 2.2 done 2026-11-20: the NFL's season locks at each player's game, its playoffs end by Week 17), and 4.1 (step 1.1's parts 1 to 3 done: finals within the hour, a week counted as it goes, live points during games), then Phase 2 (the user's calls 212–219 answered 2026-11-19; own pace for sports added as 2.6) and 4.1. 1.1's part 4, the live screens, is the design round's page 2. BACKLOG 175 still waits. |
+| [PLAN-sports-ready.md](PLAN-sports-ready.md) | Active (Phases 0 and 1 but 1.1's screens, and Phase 2's 2.1 to 2.8, merged and live: 2026-11-20 and 2026-11-21, 1484417a) | 4.1 (what the design round needs: each family's data in the game view, provisional and live points' small read, event sports reachable, fixtures), then Phase 3 (a real season replayed). 1.1's part 4, the live screens, is the design round's page 2. BACKLOG 175 still waits. |
 | [PLAN-GAMEPLAY-SCENARIO-EXPLORER.md](PLAN-GAMEPLAY-SCENARIO-EXPLORER.md) | Partly done | Its status table and "Next" list at the top; Designs needed (§6A); the design sweep (§6B). The working guide is [GAMEPLAY-EXPLORER.md](GAMEPLAY-EXPLORER.md). |
 | The design round ([DESIGN-PROCESS.md](DESIGN-PROCESS.md), [DESIGN-ROUND-PACKET.md](DESIGN-ROUND-PACKET.md), [design-round/](design-round/)) | Steps 2–9 live | Steps 10 (Sports in full, now PLAN-sports-ready.md's Phase 4), 11 (story shows) and 12 (the tour; its settings part is now PLAN-settings-overhaul.md) not started. decisions.md is the record; an index of the folder is BACKLOG 153. |
 | [PLAN-settings-overhaul.md](PLAN-settings-overhaul.md) | Round 0 decided; Round 1 (Your settings and notifications as one system) live 2026-11-20 (c440bf5f, migration 0447) | Round 2, a show and a couch for you, in the lane rfl-settings (port 3018), in a fresh session. Backstage is to be retired (each game gets Manage this game). The audit: [design-round/settings-audit.md](design-round/settings-audit.md). |
