@@ -97,6 +97,8 @@ commit each:
 - check-new-show.js: drop "the prediction is an extra this week" (Tonight removed that row on purpose, ff74e563), count yellow
   buttons rather than every `.bg-chyron`, and delete the dead rows behind `const more = false` in tonight.tsx.
 - check-start-a-game.js:161: expect a start from any aired episode to be taken (an own-pace start).
+- check-new-ours.js: "jordan's Episode 5: the corrections sit right above 'Something wrong in this episode?'" fails the same on
+  master's code (settings Round 4 ran it both ways, 2026-11-21); the episode page's order moved since the check was written.
 - check-new-shell.js: give the `zt-pt-survivor` fixture art the app serves.
 - check-new-hub (wait for `[data-stat-deck]` before reading the deck), check-new-way-in, check-new-stats, check-where-everyone,
   check-new-reveal, check-gif-reactions, check-game-page ("Close didn't shut them all"), check-group-slots (five old FAILs from

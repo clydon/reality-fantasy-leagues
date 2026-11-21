@@ -656,8 +656,10 @@ independent `critique` of the built frames (29/40), one batch of fixes, one conf
     and nobody changes the lineup, the first on the bench starts.").
   - **Start a game:** Lineups hidden is gone (it did nothing: the app hides others' lineups until the lock anyway). **A bug:** once
     Waivers was turned off it couldn't come back on, and showed the schema's rule as its reason (its window said every 1 episode).
-- **Checks:** `npm test` 2544 of 2544 (tests/settings-r4-words.test.js new); tsc clean; eslint at its known 4. Browser checks moved
-  to the new words (check-new-backstage-ii, -new-our-scores, -new-ours, -settings-r3b, notes-fixture) but not run this round.
+- **Checks:** `npm test` 2544 of 2544 (tests/settings-r4-words.test.js new); tsc clean; eslint at its known 4; `next build` in
+  rfl-merge. Browser checks at 390: check-new-backstage-ii, -new-our-scores, -settings-r3b, -new-solo and -game-settings all pass;
+  check-new-ours fails one line about the episode page's order, the same on master's code (BACKLOG 70). No scoring change, so no
+  compare-totals or golden; no migration, so no Neon rehearsal.
 - **The ripple, checked:** a face's colour is the same on Who's playing and the waiver week (3a's note compared two fixture runs,
   whose accounts are new each time); Who's playing's You tag is a bone tag with ink, legible (3a's 1.1:1 was a misreading); How
   long's Ends stays the native select (the phone's picker for a long list); the desk's cards and the moments choice re-rendered.
