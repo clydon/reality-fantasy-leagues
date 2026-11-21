@@ -383,6 +383,10 @@ fixed, both built** (decisions.md, 2026-11-20). Story: https://claude.ai/artifac
   check picks (it now picks one that isn't his).
 - **The merge:** a trial merge with sports-playoffs (step 2.7) conflicts only in HANDOFF.md; src/new/data.ts merges by itself.
   Migration 0447 only adds two columns (sports' is 0312). Both branches had taken BACKLOG 232: this one's became 237.
+  Built in rfl-merge as `merge-settings` (origin/master 0bc326dd + this branch, a fast-forward): `npm test` 2513 pass, `next build`
+  and eslint on the changed files clean. Rehearsed on Neon (rehearse-settings-2026-11-20, ep-bold-field, from production,
+  2026-11-20): 0447 applied, `[check] all good`, rulebooks backfilled, game specs PASS (10 of 10), and the rulebooks check's known
+  15-line FAIL baseline (10 DIFFERS, 5 seasons). Waits on the user's go to push.
 - **The original scope:**
   - Your settings as Round 0 decided: groups with their values, plus "Your shows, couches and games". The hub's gear opens it.
   - Notifications everywhere they're set: on You, a show, a couch, a game, the push itself and the bell. Each choice carries its

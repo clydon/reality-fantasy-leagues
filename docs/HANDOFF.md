@@ -64,7 +64,9 @@ Newest first. The plan or archive section named holds the detail.
   https://claude.ai/artifact/97sfST4Ut41ib5HUHJPpjH: the user took all four picks and the sheet's ring fix, both built
   (decisions.md). The three checks' browser halves are rewritten for the new screens and pass whole. Merging with sports-playoffs
   conflicts only in this file (data.ts merges by itself); this branch's BACKLOG 232 became 237, since sports took 232. Left before
-  the push: the Neon rehearsal of migration 0447 (two added columns) and the user's go. The branch also holds origin/master's
+  the push: only the user's go. Ready in rfl-merge as `merge-settings` (a fast-forward of origin/master): `npm test` 2513 pass,
+  `next build` and eslint clean, and 0447 rehearsed on a fresh copy of production (rehearse-settings-2026-11-20, auto-deletes:
+  applied, check all good, game specs PASS, the rulebooks check's usual 15-line baseline). Take a `pre-` snapshot at push time. The branch also holds origin/master's
   commits from 2026-11-20. [PLAN-settings-overhaul.md](PLAN-settings-overhaul.md), Round 1.
 
 - **Game preview, branch `preview`** (lane rfl-preview): 17 commits not on master, 55 commits behind it, about 11 conflict
