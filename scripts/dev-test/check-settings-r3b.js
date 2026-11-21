@@ -180,6 +180,18 @@ const brief = (x) => JSON.stringify(x)?.slice(0, 220);
       check(r.status === 200 && back.processHours === wv.settings.processHours && back.orderBy === wv.settings.orderBy && back.freeAgency === wv.settings.freeAgency, "Undo: the timing as it was", brief(back));
     }
 
+    // ---------- 165: an empty slot fills from the bench ----------
+    await at(6, 2 * 24 * 3600_000);
+    g = await settingsOf("alex", L.lineup);
+    check(g?.lineup?.fill === null, "Lineup League, made before 3b: an empty slot stays empty", brief(g?.lineup));
+    r = await patch("alex", { leagueId: L.lineup, set: { benchFill: true } });
+    g = await settingsOf("alex", L.lineup);
+    check(r.status === 200 && g.lineup.fill === 6, "alex turns it on: from Episode 6, the next still open", brief({ r: r.body, l: g.lineup }));
+    r = await undo("alex", r.body.batch);
+    g = await settingsOf("alex", L.lineup);
+    check(r.status === 200 && g.lineup.fill === null, "Undo: off again", brief(g.lineup));
+    check((await patch("alex", { leagueId: L.pool, set: { benchFill: true } })).status === 409, "a game with no lineups has no bench: 409");
+
     // ---------- A17: when the show adds a moment mid-season ----------
     // Lineup League on its season's rulebook (the local season isn't), then "Individual immunity win" recorded as gained now, the way
     // a rulebook sync records it (db/rulebooks.js recordAddedMoments, on the real database: the next episode to air, a vote's close).

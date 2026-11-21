@@ -319,8 +319,19 @@ function GameSettingsBody({ seasonId, couchId, show, g, write, line, siblings }:
           <PaceCards seasonId={seasonId} couchId={couchId} g={g} can={can} why={why} word={E} />
         </SettingLine>
         {L && (
-          <SettingLine id="lineup" icon="team" label="Who scores each week" value={`${L.starters} of your ${L.starters + L.bench} · ${L.bench} on the bench`} changed={L.starters !== L.rec.starters} fixed={frozen} open={open === "lineup"} onToggle={() => toggle("lineup")}>
+          <SettingLine id="lineup" icon="team" label="Who scores each week" value={`${L.starters} of your ${L.starters + L.bench} · ${L.bench} on the bench${L.fill !== null ? " · fills an empty slot" : ""}`} changed={L.starters !== L.rec.starters} fixed={frozen} open={open === "lineup"} onToggle={() => toggle("lineup")}>
             <LineupControl g={g} can={can} write={write} compact />
+            {/* Settings Round 3b (BACKLOG 165): an empty slot fills from the bench, from the next episode still open. */}
+            <div data-bench-fill={L.fill !== null ? "on" : "off"} className="pb-2">
+              <SwitchRow
+                data="bench-fill"
+                on={L.fill !== null}
+                disabled={!can}
+                title="Fill an empty slot from the bench"
+                line={L.fill !== null ? `When a starter goes home and nobody changes the lineup, the first on the bench starts. Since ${E} ${L.fill}.` : `When a starter goes home and nobody changes the lineup, the first on the bench starts. From the next ${E.toLowerCase()} on.`}
+                onChange={(to) => void write(g, { set: { benchFill: to }, text: `${g.name}: ${to ? "an empty slot fills from the bench" : "an empty slot stays empty"}` }, to ? "Saved: an empty slot fills from the bench" : "Saved: an empty slot stays empty")}
+              />
+            </div>
           </SettingLine>
         )}
         {g.team && (

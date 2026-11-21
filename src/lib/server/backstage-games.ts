@@ -510,7 +510,14 @@ export interface GameSettings {
   from: number | null;
   /** Weekly Lineup: who scores each week and the bench (the bench is set at the draft); `max`: the most each can be now (the
    *  game spec's limits, or the team once it's drafted). */
-  lineup: { starters: number; bench: number; rec: { starters: number; bench: number }; max: { starters: number; bench: number } } | null;
+  lineup: {
+    starters: number;
+    bench: number;
+    rec: { starters: number; bench: number };
+    max: { starters: number; bench: number };
+    /** Settings Round 3b (BACKLOG 165): an empty starting slot fills from the bench, from this episode on; null: off. */
+    fill: number | null;
+  } | null;
   /** Outlast: the team's size, set at the draft; `max`: the game spec's limit. */
   team: { size: number; rec: number; max: number } | null;
   /** Who can join (step 9): anyone on the couch (castaways on several teams: they catch up), ask me first, or nobody new.
@@ -818,7 +825,7 @@ export const FROZEN = "Locked down for the season: the rules are frozen. Turn of
 
 // What Game settings may change, and the limits (the bench and Outlast's team are set at the draft; a game's end only before
 // it's reached, its start only before it airs: an episode, or a phase of the season, step A3).
-const SETTING_FIELDS = ["activeSlots", "benchSlots", "teamSize", "allowLateJoiners", "joinMode", "endEpisode", "endPhase", "startEpisode", "startPhase", "newMoments"];
+const SETTING_FIELDS = ["activeSlots", "benchSlots", "teamSize", "allowLateJoiners", "joinMode", "endEpisode", "endPhase", "startEpisode", "startPhase", "newMoments", "benchFill"];
 
 /** The settings Lock it down freezes: Game settings' and the points (waivers stay the week's business). Undo asks too. */
 export const FROZEN_FIELDS = new Set([...SETTING_FIELDS, "eventPoints"]);
@@ -896,6 +903,7 @@ function lineupOf(s: LeagueState): NonNullable<GameSettings["lineup"]> {
     bench,
     rec: { starters: REC.activeSlots, bench: REC.benchSlots },
     max: { starters: Math.min(drafted ? starters + bench : Infinity, Math.max(MAX_STARTERS, starters)), bench: drafted ? bench : Math.max(MAX_BENCH, bench) },
+    fill: Number.isInteger(s.settings.benchFill) ? (s.settings.benchFill as number) : null,
   };
 }
 
@@ -970,6 +978,18 @@ export async function settingsWrite(
           if (typeof v !== "string" || !now.phases.some((p) => p.id === v)) throw new HttpError(400, "Pick a phase of the season still to come");
           refused(StateLogic.updateSettings(s, k, v));
           settleIn(s, phases, schedule);
+          continue;
+        }
+        // Settings Round 3b (BACKLOG 165): an empty starting slot fills from the bench. On from the next episode still open (never one
+        // already played or locked, so no standings move); off at once.
+        if (k === "benchFill") {
+          if (typeof v !== "boolean") throw new HttpError(400, "benchFill is true or false");
+          if (!StateLogic.piecesOf(s).hasActiveRoster) throw new HttpError(409, "Only a game with lineups has a bench to fill from");
+          if (!v) delete s.settings.benchFill;
+          else if (!Number.isInteger(s.settings.benchFill)) {
+            const cur = StateLogic.currentEpisode(s);
+            s.settings.benchFill = !cur ? 1 : StateLogic.closedForPlay(cur) || StateLogic.episodeHasResults(cur) ? cur.number + 1 : cur.number;
+          }
           continue;
         }
         // Settings Round 3b (A17): when the show adds a moment mid-season: from the start, from the next episode, or the players vote.

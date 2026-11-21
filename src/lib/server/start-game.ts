@@ -210,6 +210,9 @@ export function paceAsked(asked: unknown, opts: Pick<StartOptions, "ownPace">, p
 /** Sets a new game's pace as it's made (after its spec): from an episode still to air, at your own pace it's made and drafted as a
  *  live one is, and waits for people from its first results on (GhostLogic.paceTogether); strict locks at airtime. */
 export function applyPace(s: LeagueState, opts: Pick<StartOptions, "ownPace">, pace: PaceMode): void {
+  // Settings Round 3b (BACKLOG 165): a new game with lineups fills an empty starting slot from the bench, from its start (Manage this
+  // game turns it off). Made here because every new game passes through here as it's made; games made before keep theirs (off).
+  if (StateLogic.piecesOf(s).hasActiveRoster && s.settings.benchFill === undefined) s.settings.benchFill = 1;
   if (opts.ownPace) return;
   if (pace === "own") StateLogic.GhostLogic.paceTogether(s);
   else if (pace === "strict") {

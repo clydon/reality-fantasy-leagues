@@ -678,6 +678,8 @@ declare const StateLogic: {
     lineupFor(state: LeagueState, epId: string, playerId: string): string[];
     /** True when lineupFor is carrying an earlier episode's lineup rather than one set for this episode. */
     lineupIsCarried(state: LeagueState, epId: string, playerId: string): boolean;
+    /** Settings Round 3b (BACKLOG 165): the starters the bench filled for a seat this episode ([] when none, or set by hand). */
+    filledFor(state: LeagueState, epId: string, playerId: string): string[];
     isLineupLocked(state: LeagueState, epId: string, now?: number): boolean;
     validateLineup(state: LeagueState, epId: string, playerId: string, castawayIds: string[], now?: number): string | null;
     setLineup(state: LeagueState, epId: string, playerId: string, castawayIds: string[], now?: number): boolean;

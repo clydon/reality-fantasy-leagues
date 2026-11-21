@@ -4659,9 +4659,35 @@ class ActiveRosterLogic {
       .sort((a,b) => b.number - a.number)[0];
     if(!earlier) return [];
     const held = ActiveRosterLogic.heldFor(state, playerId, ep.number);
-    return (earlier.lineups[playerId] || [])
-      .filter(cid => ActiveRosterLogic.carriesInto(state, cid, playerId, ep.number, held))
-      .slice(0, ActiveRosterLogic.activeSlots(state) || undefined);
+    const slots = ActiveRosterLogic.activeSlots(state) || undefined;
+    const was = earlier.lineups[playerId] || [];
+    const kept = was.filter(cid => ActiveRosterLogic.carriesInto(state, cid, playerId, ep.number, held)).slice(0, slots);
+    return kept.concat(ActiveRosterLogic.benchFill(state, ep, playerId, held, kept, Math.min(was.length, slots === undefined ? Infinity : slots) - kept.length));
+  }
+  // Settings Round 3b (BACKLOG 165): an empty starting slot fills from the bench by itself, where the game says so
+  // (settings.benchFill: the first episode it does it in, from when it was turned on, so no week already played moves). Only the
+  // slots a starter left (gone home, let go, on IR) and the seat didn't fill by setting a lineup: the first on their bench in
+  // draft order, then whoever else they hold, still in. [] when it's off. `vacated`: how many slots the carried lineup lost.
+  static benchFill(state, ep, playerId, held, kept, vacated){
+    const from = state.settings && state.settings.benchFill;
+    if(!Number.isInteger(from) || ep.number < from || !(vacated > 0)) return [];
+    const order = new Map();
+    (state.draftLog || []).forEach((e, i) => { if(e.playerId === playerId && !order.has(e.castawayId)) order.set(e.castawayId, i); });
+    const bench = [...held]
+      .filter(cid => !kept.includes(cid) && ActiveRosterLogic.carriesInto(state, cid, playerId, ep.number, held))
+      .sort((a, b) => (order.has(a) ? order.get(a) : Infinity) - (order.has(b) ? order.get(b) : Infinity));
+    return bench.slice(0, vacated);
+  }
+  /** The starters the bench filled for a seat this episode (BACKLOG 165's "filled for you"): [] when none, or it was set by hand. */
+  static filledFor(state, epId, playerId){
+    const ep = state.episodes.find(e => e.id === epId);
+    if(!ep || (ep.lineups && Object.prototype.hasOwnProperty.call(ep.lineups, playerId))) return [];
+    const earlier = state.episodes
+      .filter(e => e.number < ep.number && e.lineups && Object.prototype.hasOwnProperty.call(e.lineups, playerId))
+      .sort((a,b) => b.number - a.number)[0];
+    if(!earlier) return [];
+    const was = new Set(earlier.lineups[playerId] || []);
+    return ActiveRosterLogic.carriedLineup(state, ep, playerId).filter(cid => !was.has(cid));
   }
   // Whether a starter from an earlier lineup carries into episode `number`: held by the seat for that episode (heldFor: let go
   // before it, they don't; let go after it, they still do), and not

@@ -380,6 +380,9 @@ export interface LeagueSettings {
   /** Settings Round 3b (A17): when the show adds a moment mid-season, it counts here from the start, from the next episode, or as the
    *  players vote (the next episode until they say otherwise). Left out: the show's default (db/rulebooks.js defaultNewMoments). */
   newMoments?: "start" | "next" | "vote";
+  /** Settings Round 3b (BACKLOG 165): an empty starting slot fills from the bench by itself, from this episode on (when it was turned
+   *  on; 1 for a game made with it). Left out: off. */
+  benchFill?: number;
   /** The moments this game's rules gained mid-season, each from the episode it counts in (StateLogic's momentFrom gates scoring). */
   momentsFrom?: Record<string, AddedMoment>;
   /** The first episode whose exits are replaced per holder (migration 0207, a game made before that rule; none: every exit). */
