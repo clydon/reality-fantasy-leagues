@@ -6,7 +6,6 @@ import { Check, ImagePlus, Trash2 } from "lucide-react";
 import { changePassword } from "@/lib/auth-client";
 import { colourOf, PALETTE, pictureUrl } from "@/lib/people";
 import { profileApi, useAfterProfile, useProfile, type Profile } from "../data";
-import { gameColour, HOW_EACH_GAME, type GameName } from "../games";
 import { useMe } from "../session";
 import { Btn, Chip } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
@@ -335,31 +334,6 @@ export function ReportSheet({ open, onOpenChange }: { open: boolean; onOpenChang
         <Btn tone="ink" wide data-report-send disabled={busy || !text.trim()} onClick={send}>
           {busy ? "Sending…" : "Send it"}
         </Btn>
-      </div>
-    </Sheet>
-  );
-}
-
-/** How each game works, in plain words (the mock's rulesSheet): every season game, a few lines each. */
-export function GamesSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="How each game works" subtitle="Each game's own rules are on its show's Games tab">
-      <div data-games-help className="flex flex-col gap-5">
-        {(Object.keys(HOW_EACH_GAME) as GameName[]).map((g) => (
-          <section key={g} data-game-help={g}>
-            <h3 className="flex items-center gap-2.5">
-              <i className="size-3 flex-none rounded-full" style={{ background: gameColour(g) }} aria-hidden />
-              <b className="type-caption text-[22px]">{g}</b>
-            </h3>
-            <ol className="mt-1.5 flex flex-col gap-1.5 pl-[22px]">
-              {HOW_EACH_GAME[g].map((line, i) => (
-                <li key={i} className="list-decimal text-[14px] leading-snug text-muted-foreground marker:text-foreground">
-                  {line}
-                </li>
-              ))}
-            </ol>
-          </section>
-        ))}
       </div>
     </Sheet>
   );

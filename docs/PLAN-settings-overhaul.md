@@ -1,6 +1,10 @@
 # Settings: the overhaul
 
-> **Status (2026-11-20): Round 0 done and decided; Round 1 next, in a fresh session.**
+> **Status (2026-11-20): Round 1 built on branch settings-plan (lane rfl-settings), waiting on the user's review of its story.**
+> PFD 82 and Impeccable 33/40 after one batch of fixes (the bar: 80 and 32). The round's section below has what was built, what's
+> open and the four choices for the user. Not merged; migration 0447 not on production.
+>
+> **Round 0 (2026-11-20): done and decided.**
 > - **The cuts and adds:** approved. The user took every recommendation, added A5, and settled C8 (Grok goes too).
 > - **Round 0's choices**, on its story https://claude.ai/artifact/UkbTP7G4f7uQhVqp32UMNm:
 >   - Shape 1, with Your settings' first view as groups;
@@ -348,7 +352,29 @@ The round's original steps:
 - **You decide:** the shape, Backstage's fate, the cuts (by number), the adds, the names and the order of the rounds.
 
 ### Round 1: You, and notifications as one system
-- **Scope.**
+
+**Built 2026-11-20 (branch settings-plan), waiting on the user's review.** Story: https://claude.ai/artifact/97sfST4Ut41ib5HUHJPpjH.
+- **The design process:** Intent's spec [design-round/settings-r1-spec.md](design-round/settings-r1-spec.md); PFD's first views
+  [-first-view.md](design-round/settings-r1-first-view.md); Impeccable's brief [-shape.md](design-round/settings-r1-shape.md); the
+  check, the fixes, what's open and the choices [-check.md](design-round/settings-r1-check.md).
+- **Built:**
+  - Your settings (/settings): you, the plate only while nothing reaches you, then five groups each with its value
+    (Notifications, When results show, Privacy, Appearance in place, Your shows couches and games), then Account and help, Site
+    admin and Sign out. Each group is a page (`?page=notifications|results|privacy|yours|account|phones`).
+  - The hub's gear opens it; your picture's sheet keeps a quiet Your settings row and lost Take the tour (C13).
+  - Notifications: this phone; the kinds as outcomes (C2 one Results switch, C3 invites always, C4 Backstage gone and its push
+    stopped, C5 renamed), read as off while nothing reaches you; Couch chat on every couch; what's set on a show or a couch, each a
+    link. A show's Notifications: Mute (a day, a week, until I turn it back on; reminders still come) and its kinds. A couch's page:
+    its own chat choice (My default first). A push's Notification settings button (public/sw.js v4). The bell's foot links here.
+  - C1: "Straight away" now means every show (guard.ts progressFrom). C6: one Privacy switch; GIFs and reactions show when posted.
+    C7–C11 as decided; C8 removes Grok and the AI setting. A3 Your phones; A5 Install the app; Allow notifications for a blocked
+    browser. BACKLOG 232: signing out turns this phone's notifications off. Acting as someone can't change their phones or push.
+  - Migration 0447: `notification_prefs.muted`, `couch_members.chat_notify`.
+- **Checks:** `npm test` (2513, all pass after updating the three tests the round changes); the API halves of check-new-settings,
+  check-new-notify and check-new-sharing pass, updated for the round. **Left:** their browser halves still drive the old Settings
+  (folds, Grok, the old show sheet) and are rewritten after the user's review, since the review may move things;
+  check-keep-up's Settings part is updated, but its where-sheet half was already stale (BACKLOG 70).
+- **The original scope:**
   - Your settings as Round 0 decided: groups with their values, plus "Your shows, couches and games". The hub's gear opens it.
   - Notifications everywhere they're set: on You, a show, a couch, a game, the push itself and the bell. Each choice carries its
     "what you'll still get" line, and the kinds read as off while this phone is.
@@ -497,12 +523,16 @@ The record is design-round/decisions.md, 2026-11-20.
 ## Noticed, not fixed
 
 Left for their round:
-- **Round 1:**
-  - "Your games are the same in both" (classic); "The bell keeps everything" (it doesn't keep chat).
-  - A notification switch reads On while any one of its push types is on.
-  - The profile route refuses changes while a site admin acts as you, but the follows, push and /api/me/settings routes don't: one
-    rule for all.
-  - The engine lab's pointer to Settings › Test couch (gone since 2026-10-31).
+- **Round 1:** all four done in Round 1 (the classic line and the bell's line rewritten; a switch reads on only while every
+  type is; the push, phones, mute and couch-chat routes refuse while acting as someone, the follows and /api/me/settings routes
+  left for Round 2; the lab's pointer gone).
+- **Found in Round 1, left:**
+  - check-keep-up.js's where-sheet half looks for `[data-following]`, gone since the one-episode-at-a-time rebuild (BACKLOG 70).
+  - check-new-notify expected one push for a settled flag; results-settle (live) also tells players their results changed. The
+    check now picks the flag's own push.
+  - `npx eslint src` has four errors in files Round 1 didn't touch (ui/use-sheet-swipe.ts, game/formats/format-timeline.js,
+    show/game-page.tsx, show/lineup-sheet.tsx).
+  - The hub picture sheet's "Your best show" draws a show with no art with its name twice (story-situations' OVERLAP), as before.
 - **Round 2:**
   - Where you are's Save has no Undo (the step 4 spec asked for one).
   - Leave the pool deletes for good behind a plain confirm.

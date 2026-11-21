@@ -40,7 +40,7 @@ export interface PushReader {
   ui: "classic" | "new";
   /** Their phone's time zone (user_settings.tz), else null: say a time in the season's own zone. */
   tz: string | null;
-  /** Couch chat: every message, quiet on episode nights, or never. */
+  /** Couch chat: every message, skip possible spoilers, or never (the chat's couch's own choice, when it has one). */
   chat: ChatMode;
 }
 
@@ -81,5 +81,5 @@ export function sendPush(
   userIds: (string | null | undefined)[],
   type: NotificationType,
   message: PushWords,
-  opts?: { ignorePrefs?: boolean; seasonId?: string | null; bell?: boolean }
+  opts?: { ignorePrefs?: boolean; seasonId?: string | null; couchId?: string | null; bell?: boolean }
 ): Promise<{ sent: number; removed: number; kept: number }>;

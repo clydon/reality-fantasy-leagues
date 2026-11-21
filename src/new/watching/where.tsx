@@ -300,7 +300,7 @@ export function WhereAsk({
       {canLive &&
         (keepUp === "auto" ? (
           <p data-where-auto className="mt-3 text-[13px] leading-normal text-muted-foreground">
-            Moves along by itself as each {(s.episodeWord ?? "Episode").toLowerCase()} airs. Change it in Settings, under Keeping you spoiler-free.
+            Moves along by itself as each {(s.episodeWord ?? "Episode").toLowerCase()} airs. Change it in Your settings › When results show.
           </p>
         ) : (
           <div className="mt-2">

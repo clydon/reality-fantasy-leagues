@@ -5,12 +5,12 @@ import { TriangleAlert } from "lucide-react";
 import { useAfterWatching, useHome, watching, type HomeShow, type KeepUp } from "../data";
 import { Btn } from "../ui/parts";
 import { toast } from "../ui/toast";
-import { SwitchRow } from "./controls";
+import { PageSection, SwitchRow } from "./controls";
 
-// Settings' Move along by itself (keep-up.ts, db/migrations/0141 show_follows.keep_up 'auto'), the fold Shows that move along by
-// themselves (the 2026-10-31 redesign): per
-// show you follow and don't play, where you are moves to each episode as it airs, without asking. It can spoil an episode you
-// watch late, so turning it on asks first, saying so. Off goes back to moving it yourself (Live, if it was, is the where sheet's).
+// Marked watched as it airs (keep-up.ts, db/migrations/0141 show_follows.keep_up 'auto'; on When results show since settings
+// Round 1, until Round 2 moves it to each show's page as "When a new episode airs", C15): per show you follow and don't play, the
+// episodes you've watched move on as each one airs, without asking. It can spoil an episode you watch late, so turning it on asks
+// first, saying so. Off goes back to marking them yourself (Live, if it was, is the where sheet's).
 
 export const plain = (s: HomeShow) => `${s.show.name.replace(/\s*\([^)]*\)\s*$/, "")}${s.seasonNumber ? ` ${s.seasonNumber}` : ""}`;
 
@@ -31,7 +31,7 @@ export function AutoSection() {
       await watching.follow(s.seasonId, { keepUp });
       await after();
       setAsking(null);
-      toast(keepUp === "auto" ? `${plain(s)} moves along by itself` : `${plain(s)} moves when you say`, {
+      toast(keepUp === "auto" ? `${plain(s)}: marked watched as each episode airs` : `${plain(s)}: you mark what you've watched`, {
         undo: async () => {
           await watching.follow(s.seasonId, { keepUp: undo });
           await after();
@@ -44,11 +44,8 @@ export function AutoSection() {
     }
   };
   return (
-    <div data-settings-auto>
-      <small className="block text-[13px] leading-snug text-muted-foreground">
-        Where you are moves to each episode as it airs, without asking. Only for shows you always watch the night they&rsquo;re on.
-      </small>
-      <div className="mt-1">
+    <PageSection data="settings-auto" title="Marked watched as it airs" line="Only for shows you always watch the night they're on. Shows you play move by your reveals.">
+      <div>
         {shows.map((s) => {
           const on = s.keepUp === "auto";
           return (
@@ -58,7 +55,7 @@ export function AutoSection() {
                 on={on}
                 disabled={busy}
                 title={plain(s)}
-                line={on ? "On: moves to each episode as it airs" : s.keepUp === "ask" ? "Live: asks when each one ends" : "Off: moves when you say"}
+                line={on ? "On · each episode counts as watched once it airs" : s.keepUp === "ask" ? "Asks when each one ends" : "Off · you mark what you've watched"}
                 onChange={(next) => (next ? setAsking(asking === s.seasonId ? null : s.seasonId) : set(s, "off", "auto"))}
               />
               {asking === s.seasonId && !on && (
@@ -67,7 +64,7 @@ export function AutoSection() {
                     <TriangleAlert className="mt-0.5 size-4 flex-none" aria-hidden />
                     <span>
                       <b className="font-semibold">This can spoil it.</b> Each episode&rsquo;s results, stats and the couch&rsquo;s chat show as soon as it airs, even
-                      the week you watch late. Live asks first instead.
+                      the week you watch late.
                     </span>
                   </p>
                   <div className="mt-3 flex gap-2">
@@ -84,6 +81,6 @@ export function AutoSection() {
           );
         })}
       </div>
-    </div>
+    </PageSection>
   );
 }

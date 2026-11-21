@@ -1,23 +1,24 @@
 "use client";
 
+import { Moon } from "lucide-react";
 import type { Theme } from "@/lib/appearance";
 import { profileApi, useAfterTheme, type Profile } from "../data";
 import { showTheme, themeNow, useNight, useTheme } from "../appearance";
 import { toast } from "../ui/toast";
-import { Segmented, SettingBlock } from "./controls";
+import { Choice, Fold } from "./controls";
 
-// Settings' Appearance (docs/PLAN-new-design.md step 15 part 4; in Quick settings since the 2026-10-31 redesign): Night ·
-// Studio · Match phone, each with the plain word under it (Dark, Light, Auto), per account. A tap draws it at once on this
-// phone (appearance.tsx: the cookie, the page, the bars) and saves it to the account, so your other phones follow on their
-// next visit; Undo puts the last one back.
+// Your settings' Appearance (docs/PLAN-new-design.md step 15 part 4; settings Round 1, C12): one row with its value, opening in
+// place to Dark · Light · Same as my phone (the looks are Night and Studio in DESIGN.md; on screen they're plain words: Round 0's
+// names). Per account: a tap draws it at once on this phone (appearance.tsx: the cookie, the page, the bars) and saves it, so your
+// other phones follow on their next visit; Undo puts the last one back.
 
-const THEMES: { id: Theme; title: string; sub: string; line: string }[] = [
-  { id: "night", title: "Night", sub: "Dark", line: "Dark, for the evening couch" },
-  { id: "studio", title: "Studio", sub: "Light", line: "Light, for daytime" },
-  { id: "phone", title: "Match phone", sub: "Auto", line: "Night or Studio, as your phone is set" },
+const THEMES: { id: Theme; title: string; line: string }[] = [
+  { id: "night", title: "Dark", line: "" },
+  { id: "studio", title: "Light", line: "" },
+  { id: "phone", title: "Same as my phone", line: "Dark or light, as your phone is set" },
 ];
 
-export function AppearanceSection({ p }: { p: Profile | undefined }) {
+export function AppearanceRow({ p, initial }: { p: Profile | undefined; initial?: boolean }) {
   const theme = useTheme();
   const night = useNight();
   const after = useAfterTheme();
@@ -29,7 +30,7 @@ export function AppearanceSection({ p }: { p: Profile | undefined }) {
     try {
       after(await profileApi.save({ theme: t }));
       const label = THEMES.find((x) => x.id === t)!.title;
-      toast(`Saved: ${label}`, undo ? { undo: () => pick(before, false) } : {});
+      toast(`Appearance: ${label}`, undo ? { undo: () => pick(before, false) } : {});
     } catch (e) {
       showTheme(before);
       toast.quiet((e as Error).message);
@@ -39,18 +40,14 @@ export function AppearanceSection({ p }: { p: Profile | undefined }) {
   const on = THEMES.find((x) => x.id === theme) ?? THEMES[0];
   return (
     <div data-settings-appearance data-theme-on={theme} className="border-t border-border first:border-t-0">
-      <SettingBlock
-        data="settings-look"
-        title="Appearance"
-        line={
-          <>
-            {on.line}
-            {theme === "phone" && ` · ${night ? "Night" : "Studio"} now`}. Every phone you sign in on follows it.
-          </>
-        }
-      >
-        <Segmented label="Appearance" options={THEMES} value={theme} onPick={(t) => pick(t)} attrs={(id) => ({ "data-theme-choice": id })} disabled={!p} />
-      </SettingBlock>
+      <Fold id="appearance" icon={Moon} title="Appearance" value={theme === "phone" ? `Same as my phone · ${night ? "dark" : "light"} now` : on.title} initial={initial}>
+        <div role="radiogroup" aria-label="Appearance" aria-disabled={!p || undefined} className="pl-[52px]">
+          {THEMES.map((t) => (
+            <Choice key={t.id} data={`theme-${t.id}`} on={theme === t.id} title={t.title} line={t.line} recommended={t.id === "night"} onPick={() => p && pick(t.id)} />
+          ))}
+        </div>
+        <small className="mt-1 block pl-[52px] text-[13px] leading-snug text-muted-foreground">Every phone you sign in on follows it.</small>
+      </Fold>
     </div>
   );
 }

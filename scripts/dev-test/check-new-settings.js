@@ -74,8 +74,8 @@ function check(ok, what, detail = "") {
     // ---------- your profile ----------
     let p = await profile("alex");
     check(
-      p.name === "zt_nd_alex" && p.colour === null && p.picture === null && p.ai === "chatgpt" && p.hideScores === true && p.since === "ZT Survivor 51",
-      "alex's profile: his name, no colour or picture chosen, ChatGPT, scores hidden, since ZT Survivor 51",
+      p.name === "zt_nd_alex" && p.colour === null && p.picture === null && !("ai" in p) && p.hideScores === true && p.since === "ZT Survivor 51",
+      "alex's profile: his name, no colour or picture chosen, no AI setting (settings Round 1, C8), scores hidden, since ZT Survivor 51",
       JSON.stringify(p)
     );
     check(p.account.username === "zt_nd_alex" && p.account.email === "zt_nd_alex@example.invalid" && p.account.password === true, "his account: signs in as zt_nd_alex, with a password and an email", JSON.stringify(p.account));
@@ -84,13 +84,13 @@ function check(ok, what, detail = "") {
 
     let r = await save("alex", { colour: "#123456" });
     check(r.status === 400, "a colour off the palette: 400", JSON.stringify(r.body));
-    r = await save("alex", { ai: "bard" });
-    check(r.status === 400, "an AI we don't open: 400");
+    r = await save("alex", { ai: "grok" });
+    check(r.status === 400, "Your AI for results is gone (C8): an AI alone is nothing to change, 400");
     check((await save("alex", {})).status === 400, "nothing to change: 400");
-    r = await save("alex", { colour: "#a76bb0", ai: "grok" });
-    check(r.status === 200 && r.body.colour === "#a76bb0" && r.body.ai === "grok", "Orchid and Grok, saved and answered", JSON.stringify(r.body));
-    const s = (await pool.query("SELECT colour, ai FROM user_settings WHERE user_id = $1", [A])).rows[0];
-    check(s.colour === "#a76bb0" && s.ai === "grok", "kept in user_settings");
+    r = await save("alex", { colour: "#a76bb0" });
+    check(r.status === 200 && r.body.colour === "#a76bb0", "Orchid, saved and answered", JSON.stringify(r.body));
+    const s = (await pool.query("SELECT colour FROM user_settings WHERE user_id = $1", [A])).rows[0];
+    check(s.colour === "#a76bb0", "kept in user_settings");
     let h = await home("alex");
     check(h.user.colour === "#a76bb0" && h.user.picture === null, "his own home read carries his colour", JSON.stringify(h.user));
     check(memberIn(await home("riley"), fx.couchId, A)?.colour === "#a76bb0", "riley's home: alex's face is Orchid");
@@ -107,6 +107,66 @@ function check(ok, what, detail = "") {
     check((await home("alex")).shows.find((x) => x.seasonId === sid)?.seenThrough === null, "so the guard lets everything out on the season he plays (seenThrough null)");
     r = await save("alex", { hideScores: true });
     check(r.body.hideScores === true && (await immediate()) === false && (await home("alex")).shows.find((x) => x.seasonId === sid)?.seenThrough === 5, "on again: back to Episode 5");
+    // Settings Round 1 (C1): Straight away means every show, one you only follow too (riley follows the Traitors, through Ep 2).
+    const traitors = async () => (await home("riley")).shows.find((x) => x.seasonId === fx.traitorsSeasonId)?.seenThrough;
+    check((await traitors()) === 2, "riley, waiting until she's watched: the Traitors she only follows goes by her mark (Ep 2)");
+    await save("riley", { hideScores: false });
+    check((await traitors()) === null, "Straight away: everything on the Traitors too, a show she doesn't play");
+    await save("riley", { hideScores: true });
+    check((await traitors()) === 2, "back to waiting: Ep 2 again");
+
+    // ---------- notifications (settings Round 1) ----------
+    p = await profile("alex");
+    check(
+      Object.keys(p.notify.moments).sort().join() === "couch,invites,lineup,results" && p.notify.moments.invites === true,
+      "the moments: reminders, results (one switch), your couch, and invites (always on)",
+      JSON.stringify(p.notify.moments)
+    );
+    check((await save("alex", { notify: { moment: "invites", on: false } })).status === 400, "invites have no switch: 400");
+    check((await save("alex", { notify: { moment: "backstage", on: false } })).status === 400, "Backstage's switch is gone (C4): 400");
+    r = await save("alex", { notify: { moment: "results", on: false } });
+    const disabled = (await pool.query("SELECT disabled FROM notification_prefs WHERE user_id = $1", [A])).rows[0].disabled;
+    check(r.body.notify.moments.results === false && disabled.episodeResults && disabled.finalScores, "Results off: early and final both off, one switch (C2)", JSON.stringify(disabled));
+    await pool.query("UPDATE notification_prefs SET disabled = '{\"episodeResults\": true}'::jsonb WHERE user_id = $1", [A]);
+    check((await profile("alex")).notify.moments.results === false, "a mix (classic turned one type off) reads as off, never a switch that lies");
+    r = await save("alex", { notify: { moment: "results", on: true } });
+    check(r.body.notify.moments.results === true && Object.keys((await pool.query("SELECT disabled FROM notification_prefs WHERE user_id = $1", [A])).rows[0].disabled).length === 0, "on again: every one of its types on");
+    // Mute a show (A6): a week, read back with its end; Undo puts it back as it was; unmute.
+    const seasonNotify = (who, body) => as[who].call(body ? "PUT" : "GET", `/api/seasons/${sid}/notifications`, body);
+    r = await seasonNotify("alex", { mute: "week" });
+    const until = r.body.muted;
+    check(r.status === 200 && until && Math.abs(Date.parse(until) - Date.now() - 7 * 86400000) < 60000, "muted for a week, its end said", JSON.stringify(r.body.muted));
+    check((await profile("alex")).notify.elsewhere.shows.some((x) => x.muted === until && x.seasonId), "Your settings lists it, with a season to open");
+    check((await seasonNotify("alex", { mute: "month" })).status === 400, "a mute we don't offer: 400");
+    r = await seasonNotify("alex", { mute: null });
+    check(r.body.muted === null && !(await profile("alex")).notify.elsewhere.shows.length, "unmuted: gone from the list");
+    r = await seasonNotify("alex", { muteUntil: until });
+    check(r.body.muted === until, "Undo: the mute exactly as it was");
+    await seasonNotify("alex", { mute: null });
+    // A couch's own chat (A9): only someone on it; null goes back to the account's.
+    const couchChat = (who, couchId, chat) => as[who].call(chat === undefined ? "GET" : "PUT", `/api/couches/${couchId}/chat-notify`, chat === undefined ? undefined : { chat });
+    check((await couchChat("alex", fx.extraCouchId)).body.chat === null, "ZT Extra's chat: his default to start");
+    check((await couchChat("alex", fx.extraCouchId, "off")).body.chat === "off" && (await profile("alex")).notify.elsewhere.couches.some((c) => c.couchId === fx.extraCouchId && c.chat === "off"), "Never, just on ZT Extra, and listed");
+    check((await couchChat("riley", fx.extraCouchId, "off")).status === 404, "riley isn't on ZT Extra: 404");
+    check((await couchChat("alex", fx.extraCouchId, "loud")).status === 400, "a choice we don't have: 400");
+    await couchChat("alex", fx.extraCouchId, null);
+    check(!(await profile("alex")).notify.elsewhere.couches.length, "his default again: off the list");
+    // Your phones (A3): what gets notifications and where he's signed in; turn one off; sign out everywhere else.
+    await pool.query(`INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, user_agent) VALUES ($1, 'http://127.0.0.1:9/zt-phones-1', 'k', 'a', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Version/18.0 Mobile Safari/604.1'), ($1, 'http://127.0.0.1:9/zt-phones-2', 'k', 'a', 'Mozilla/5.0 (Linux; Android 14; Pixel 8) Chrome/131.0 Mobile Safari/537.36')`, [A]);
+    let ph = (await as.alex.call("GET", `/api/me/phones?here=${encodeURIComponent("http://127.0.0.1:9/zt-phones-2")}`)).body;
+    check(ph.notify.length === 2 && ph.notify.find((x) => x.here)?.name === "Android phone · Chrome" && ph.notify.some((x) => x.name === "iPhone · Safari"), "two phones, named from their browsers, this one marked", JSON.stringify(ph.notify));
+    check(ph.signedIn.some((x) => x.here), "where he's signed in, here marked");
+    check((await as.riley.call("DELETE", "/api/me/phones", { id: ph.notify[0].id })).status === 200 && (await pool.query("SELECT count(*)::int AS n FROM push_subscriptions WHERE user_id = $1", [A])).rows[0].n === 2, "riley can't turn alex's phone off");
+    await as.alex.call("DELETE", "/api/me/phones", { id: ph.notify.find((x) => !x.here).id });
+    ph = (await as.alex.call("GET", "/api/me/phones")).body;
+    check(ph.notify.length === 1, "turned one off");
+    const other = await api({ user: fixture.username("alex"), pass: PASSWORD });
+    check((await other.call("GET", "/api/me/profile")).status === 200, "signed in a second time");
+    r = await as.alex.call("POST", "/api/me/phones", { signOutOthers: true, here: "http://127.0.0.1:9/zt-phones-2" });
+    check(r.status === 200 && r.body.signedOut >= 1 && (await other.call("GET", "/api/me/profile")).status === 401, "sign out everywhere else: the other sign-in is out", JSON.stringify(r.body));
+    check((await as.alex.call("GET", "/api/me/profile")).status === 200, "and this one stays in");
+    check((await pool.query("SELECT endpoint FROM push_subscriptions WHERE user_id = $1", [A])).rows.map((x) => x.endpoint).join() === "http://127.0.0.1:9/zt-phones-2", "this phone's notifications stay; every other phone's stop");
+    await pool.query("DELETE FROM push_subscriptions WHERE user_id = $1", [A]);
 
     // ---------- one name ----------
     r = await save("alex", { name: "zt" });

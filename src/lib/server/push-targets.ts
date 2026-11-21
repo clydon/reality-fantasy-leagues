@@ -56,12 +56,12 @@ export async function leagueName(leagueId: string): Promise<string> {
 export function notifyAfter(
   type: NotificationType,
   // `type`: the moment it turned out to be, when that's only known once resolved (final results before their time are early).
-  resolve: () => Promise<{ userIds: string[]; message: PushWords; seasonId?: string | null; bell?: boolean; type?: NotificationType } | null>
+  resolve: () => Promise<{ userIds: string[]; message: PushWords; seasonId?: string | null; couchId?: string | null; bell?: boolean; type?: NotificationType } | null>
 ): void {
   after(async () => {
     try {
       const target = await resolve();
-      if (target && target.userIds.length) await sendPush(pool, target.userIds, target.type ?? type, target.message, { seasonId: target.seasonId ?? null, bell: target.bell });
+      if (target && target.userIds.length) await sendPush(pool, target.userIds, target.type ?? type, target.message, { seasonId: target.seasonId ?? null, couchId: target.couchId ?? null, bell: target.bell });
     } catch (e) {
       console.error(`[push] ${type} notification failed:`, e);
     }

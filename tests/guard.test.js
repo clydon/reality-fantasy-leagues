@@ -34,13 +34,14 @@ test("seenThrough: the follow's mark, and 0 when nothing is known (fail closed)"
   assert.equal(await G.seenThrough("u2", "s1", db), 0, "someone else's follow is not yours");
 });
 
-test("seenThrough: spoiler protection off sees everything only where they play an ordinary seat", async () => {
-  // No league on this season: a follow alone goes by its mark, whatever the setting.
-  assert.equal(await G.seenThrough("u1", "s1", fakeDb({ follows: { "u1/s1": 2 }, immediate: { u1: true } })), 2);
+test("seenThrough: results straight away sees everything, except through a late joiner's own-pace seat", async () => {
+  // No league on this season: a follow alone sees everything too since settings Round 1 (C1): Straight away means every show.
+  assert.equal(await G.seenThrough("u1", "s1", fakeDb({ follows: { "u1/s1": 2 }, immediate: { u1: true } })), G.EVERYTHING);
   assert.equal(G.progressFrom(3, true, [{ lateJoiner: false }]), G.EVERYTHING, "an ordinary seat: everything, as classic shows it");
   assert.equal(G.progressFrom(3, true, [{ lateJoiner: true }]), 3, "a late joiner always goes by their mark");
   assert.equal(G.progressFrom(3, true, [{ lateJoiner: true }, { lateJoiner: false }]), G.EVERYTHING, "one ordinary seat is enough");
   assert.equal(G.progressFrom(3, false, [{ lateJoiner: false }]), 3, "protection on: the mark");
+  assert.equal(G.progressFrom(3, true, []), G.EVERYTHING, "a show only followed: straight away means every show (settings Round 1, C1)");
   for (const bad of [null, undefined, -1, 2.5, NaN]) assert.equal(G.progressFrom(bad, false, []), 0, `a mark of ${bad} is 0`);
 });
 
@@ -81,11 +82,13 @@ test("sharing: a show watched privately, not followed, or kept back by Where I a
   assert.deepEqual(G.visibleFollows("me", follows, sharing).map((f) => f.userId), ["me", "riley"], "kat's Just my games keeps what she watches back");
   assert.deepEqual(G.visibleFollows("me", follows, new Map()).map((f) => f.userId), ["me", "riley", "kat"], "nobody's settings: everything, the default");
   assert.equal(await G.shares("jordan", "jordan", { kind: "gifs", seasonId: "s1" }, fakeDb()), true, "your own, without asking the database");
-  // The SQL each kind asks: games need only an open follow; the four switches each ask their own column too.
+  // The SQL each kind asks: games need only an open follow; since settings Round 1 (C6) how far you've watched and when you're
+  // watching ask the one column (share_where), and GIFs and reactions need only an open follow too (posting is the choice).
   assert.doesNotMatch(G.sharesSql("play", "r.user_id", "r.season_id"), /user_settings/);
   for (const k of S.SHARE_SWITCHES) {
     const sql = G.sharesSql(k, "r.user_id", "r.season_id");
-    assert.ok(sql.includes(`share_${k} FROM user_settings us_ WHERE us_.user_id = r.user_id), true)`), k);
+    if (k === "where" || k === "now") assert.ok(sql.includes("share_where FROM user_settings us_ WHERE us_.user_id = r.user_id), true)"), k);
+    else assert.doesNotMatch(sql, /user_settings/, k);
     assert.match(sql, /sf_.following AND NOT sf_.private/, `${k}: never a show watched privately`);
   }
 });

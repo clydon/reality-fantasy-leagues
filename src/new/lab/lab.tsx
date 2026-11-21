@@ -194,7 +194,7 @@ export function EngineLab() {
                   </button>
                 </>
               ) : (
-                <p className="mt-1 text-muted-foreground">No test couch yet: make one in Settings › Test couch.</p>
+                <p className="mt-1 text-muted-foreground">No test couch yet.</p>
               )}
             </div>
           )}

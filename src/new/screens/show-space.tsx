@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { BookOpen, ChevronRight, Ellipsis, EyeOff, Eye, KeyRound, Bell, Lock, LogOut, RotateCcw, ShieldCheck, Tv, UserPlus, Users, X } from "lucide-react";
 import { airTime, calm, justAired, ticks } from "../clock";
 import { chatCouch, fill, gameAdmin, useFill, useAfterReveal, useAfterWatching, watching, useBackstage, useChatBadge, useCouchForSeason, useHome, useSeasonDraft, useSeasonEpisodes, useSeasonGames, useSpace, type Couch, type DraftGame, type GameRef, type GameView, type Need, type OutPreview, type SeasonEpisodes, type SeasonHeader, type Space } from "../data";
@@ -524,9 +524,20 @@ function reminderLine(phone: PhoneState, reaches: boolean | null): string {
  *  Everything else: Plan a watch along (Tonight offers it only until the next episode has a plan), the drafts, Recent changes,
  *  Watch privately, Remove from my shows and Leave. */
 function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
-  const [open, setOpen] = useState(false);
+  // A link can open the menu (`?menu=1`: Your settings' Your shows, couches and games) or this show's Notifications (`?notify=1`:
+  // a push's Notification settings button, Your settings' list of what's set on a show): settings Round 1. Read once, then the
+  // URL drops them, so back and a reload don't open them again.
+  const params = useSearchParams();
+  const [open, setOpen] = useState(() => params.get("menu") === "1");
   const [more, setMore] = useState(false);
-  const [notify, setNotify] = useState(false);
+  const [notify, setNotify] = useState(() => params.get("notify") === "1");
+  useEffect(() => {
+    if (!params.get("menu") && !params.get("notify")) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("menu");
+    url.searchParams.delete("notify");
+    window.history.replaceState(null, "", url);
+  }, [params]);
   const [leave, setLeave] = useState<OutPreview | null | false>(false);
   const nav = useNav();
   const me = useMe();

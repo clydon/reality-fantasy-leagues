@@ -1,75 +1,186 @@
 "use client";
 
+import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { BellOff, ChevronDown } from "lucide-react";
 import { notesApi, useShowNotify, type ShowNotify } from "../data";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
+import { muteApi, muteEnd, type MuteFor } from "../settings/api";
 import { SwitchRow } from "../settings/controls";
+import { useNow } from "../ui/bars";
 import { Btn } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { turnOn, useReach } from "./remind";
 
-// A show's Notifications, from its ⋯ menu (docs/PLAN-new-design.md step 15 part 2; the mock's show.js showMenu): each of the
-// show's moments on or off for this show alone (every season of it), over what Settings says for every show. A moment that's off
-// in Settings is off here too, and says so. Saves as it's tapped, with Undo. The bell keeps everything either way. Switches only
-// matter on a phone that gets them: while none of yours does (this phone off, or an iPhone not yet on the Home Screen), the sheet
-// leads with that, and Turn on, since a moment switched on for a phone that never rings is the "looks on but isn't" failure.
+// A show's Notifications, from its ⋯ menu (docs/PLAN-new-design.md step 15 part 2; settings Round 1, C16 and A6,
+// docs/design-round/settings-r1-spec.md): every season of the show.
+//   1. Mute the show, first, because it's the one move that quiets everything at once: for a day, a week or until you turn it back
+//      on. Under it, always, what you'll still get: reminders before your moves lock still come (a muted show never costs you a
+//      pick), and it all stays in the bell.
+//   2. Just this show: each kind off for this show alone, over what Your settings says for every show. A kind that's off
+//      everywhere says so, and links there.
+// Saves as it's tapped, with Undo. While nothing of yours rings (this phone off, or an iPhone not yet on the Home Screen), a line
+// says so, with Turn on, since a switch that's on for a phone that never rings is the "looks on but isn't" failure.
+
+const MUTES: { id: MuteFor; title: string }[] = [
+  { id: "day", title: "For a day" },
+  { id: "week", title: "For a week" },
+  { id: "forever", title: "Until I turn it back on" },
+];
 
 export function ShowNotifySheet({ seasonId, open, onOpenChange }: { seasonId: string; open: boolean; onOpenChange: (open: boolean) => void }) {
   const q = useShowNotify(seasonId, open);
   const qc = useQueryClient();
+  const now = useNow(false);
   const { phone, reaches } = useReach(open);
+  const [choosing, setChoosing] = useState(false);
   const data = q.data;
+  const key = ["new-design", "show-notify", seasonId];
+  const after = (d: ShowNotify) => {
+    qc.setQueryData(key, d);
+    void qc.invalidateQueries({ queryKey: ["new-design", "profile"] });
+  };
   const set = async (moment: ShowNotify["moments"][number], on: boolean, undo = true) => {
     try {
-      qc.setQueryData(["new-design", "show-notify", seasonId], await notesApi.show(seasonId, moment.id, on));
+      after(await notesApi.show(seasonId, moment.id, on));
       if (undo) toast(`${moment.title}: ${on ? "on" : "off"} for ${data?.show ?? "this show"}`, { undo: () => set(moment, !on, false) });
     } catch (e) {
       toast.quiet((e as Error).message);
     }
   };
+  const mute = async (m: MuteFor | null) => {
+    const was = data?.muted ?? null;
+    setChoosing(false);
+    try {
+      const d = await muteApi.mute(seasonId, m);
+      after(d);
+      toast(m ? `${d.show}: muted ${muteEnd(d.muted ?? "forever", now)}` : `${d.show}: unmuted`, {
+        undo: async () => {
+          try {
+            after(await muteApi.restore(seasonId, was));
+          } catch (e) {
+            toast.quiet((e as Error).message);
+          }
+        },
+      });
+    } catch (e) {
+      toast.quiet((e as Error).message);
+    }
+  };
+  const muted = data?.muted ?? null;
+  const show = data?.show ?? "this show";
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Notifications" subtitle={data ? `${data.show} · just this show` : "…"}>
-      <div data-show-notify>
+    <Sheet open={open} onOpenChange={onOpenChange} title="Notifications" subtitle={data ? `${data.show} · every season` : "…"}>
+      <div data-show-notify data-muted={muted ? "yes" : "no"}>
+        {/* Mute leads, on the same left edge as the kinds under it; its line says what you'll still get, muted or not. */}
+        <div data-show-mute className="border-b border-border">
+          {muted ? (
+            <div className="flex min-h-[64px] items-center gap-3 py-2">
+              <span className="grid size-10 flex-none place-items-center rounded-[3px] bg-foreground text-background">
+                <BellOff className="size-5" aria-hidden />
+              </span>
+              <span className="min-w-0 flex-1">
+                <b className="block text-[15px] font-semibold">Muted {muteEnd(muted, now)}</b>
+                <small className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">Reminders before your moves lock still come. Everything else waits in the bell.</small>
+              </span>
+              <button
+                type="button"
+                data-unmute
+                onClick={() => mute(null)}
+                className="nd-press h-11 flex-none rounded-[3px] bg-card px-3.5 text-sm font-semibold outline-1 -outline-offset-1 outline-edge"
+              >
+                Unmute
+              </button>
+            </div>
+          ) : (
+            <>
+              <button
+                type="button"
+                data-mute
+                aria-expanded={choosing}
+                disabled={!data}
+                onClick={() => setChoosing(!choosing)}
+                className="nd-press flex min-h-[64px] w-full items-center gap-3 py-2 text-left disabled:opacity-60"
+              >
+                <span className="grid size-10 flex-none place-items-center rounded-[3px] bg-secondary">
+                  <BellOff className="size-5" aria-hidden />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <b className="block text-[15px] font-semibold">Mute {show}</b>
+                  <small className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">
+                    Not muted. Muting quiets results, your couch&rsquo;s activity and chat; reminders before your moves lock still come.
+                  </small>
+                </span>
+                <ChevronDown className={`size-5 flex-none text-muted-foreground transition-transform duration-300 ${choosing ? "rotate-180" : ""}`} aria-hidden />
+              </button>
+              {choosing && (
+                <div data-mute-choices className="nd-unfold grid grid-cols-1 gap-1.5 pb-3 pl-[52px]">
+                  {MUTES.map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      data-mute-for={m.id}
+                      onClick={() => mute(m.id)}
+                      className="nd-press flex h-11 items-center rounded-[3px] bg-card px-3 text-left text-[15px] font-semibold outline-1 -outline-offset-1 outline-edge"
+                    >
+                      {m.title}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
         {/* Blocked is this phone's own fact, true whatever else of yours rings; off and install only matter while nothing does. */}
         {((reaches === false && (phone === "off" || phone === "install")) || phone === "blocked") && (
-          <div data-show-notify-phone={phone} className="mb-2 flex items-center gap-3 rounded-[3px] bg-secondary p-3">
+          <div data-show-notify-phone={phone} className="mt-3 flex items-center gap-3 rounded-[3px] bg-secondary p-3">
             <span className="min-w-0 flex-1">
               <b className="block text-[15px] font-semibold">{phone === "blocked" ? "Blocked on this phone" : "Off on this phone"}</b>
               <small className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">
                 {phone === "off"
-                  ? "Turn them on to hear when results are in and it's your move."
+                  ? "None of these reach you until you turn them on."
                   : phone === "install"
                     ? "On iPhone, notifications work once Game Your Show is on your Home Screen: Share, then Add to Home Screen."
-                    : "Your browser's settings block notifications from this site. Allow them there, then come back."}
+                    : "Your browser blocks notifications from this site. Allow them in its settings, then come back."}
               </small>
             </span>
             {phone === "off" && (
-              <Btn tone="ink" data-show-notify-on className="h-10 flex-none px-3.5 text-sm" onClick={() => turnOn(() => qc.invalidateQueries({ queryKey: ["new-design", "profile"] }))}>
+              <Btn tone="ink" data-show-notify-on className="h-11 flex-none px-3.5 text-sm" onClick={() => turnOn(() => qc.invalidateQueries({ queryKey: ["new-design", "profile"] }))}>
                 Turn on
               </Btn>
             )}
           </div>
         )}
-        {data?.moments.map((m) => (
-          <SwitchRow
-            key={m.id}
-            data={`show-${m.id}`}
-            on={m.on && m.here}
-            disabled={!m.on}
-            title={m.title}
-            line={m.on ? m.line : "Off for every show, in Settings"}
-            onChange={(on) => set(m, on)}
-          />
-        ))}
+
+        <h4 className="type-caption mb-0.5 mt-5 text-[19px]">Just this show</h4>
+        <div>
+          {data?.moments.map((m) => {
+            // Muted, everything but the reminders is quiet: those rows dim; the reminders still come, so theirs doesn't.
+            const quietByMute = !!muted && m.id !== "lineup";
+            return (
+              <div key={m.id}>
+                <SwitchRow
+                  data={`show-${m.id}`}
+                  on={m.on && m.here}
+                  quiet={quietByMute}
+                  disabled={!m.on}
+                  title={m.title}
+                  line={!m.on ? "Off everywhere, in Your settings" : !m.here ? "Off for this show · it still lands in the bell" : quietByMute ? "Quiet while it's muted" : m.id === "lineup" && muted ? "Still comes while it's muted" : m.line}
+                  onChange={(on) => set(m, on)}
+                />
+              </div>
+            );
+          })}
+        </div>
         {q.isError && <p className="py-6 text-center text-[14px] text-muted-foreground">Couldn&rsquo;t load them. Try again.</p>}
         <p className="mt-3 text-[13px] leading-snug text-muted-foreground">
-          Every show&rsquo;s, and how much of the couch chat reaches you, are in{" "}
-          <NavLink href={paths.settings} className="font-semibold text-foreground underline underline-offset-2" onClick={() => onOpenChange(false)}>
-            Settings
+          <NavLink href={`${paths.settings}?page=notifications`} className="font-semibold text-foreground underline underline-offset-2" onClick={() => onOpenChange(false)}>
+            Your settings for every show
           </NavLink>
-          . The bell on the hub keeps everything either way.
+          , and how much couch chat reaches you. The bell on the hub keeps everything but chat.
         </p>
       </div>
     </Sheet>

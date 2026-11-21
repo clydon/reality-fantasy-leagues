@@ -154,8 +154,8 @@ async function person(pool, who, role = null) {
     // ---------- your moments ----------
     let p = await profile("alex");
     check(
-      JSON.stringify(p.notify?.moments) === JSON.stringify({ lineup: true, early: true, final: true, invites: true, couch: true, backstage: true }) && p.notify.chat === "quiet" && p.notify.devices === 1,
-      "alex: every moment on, Couch chat on Quiet on episode nights (the recommended one), one device",
+      JSON.stringify(p.notify?.moments) === JSON.stringify({ lineup: true, results: true, couch: true, invites: true }) && p.notify.chat === "quiet" && p.notify.devices === 1,
+      "alex: every moment on (settings Round 1's four: Results one switch, invites always), Couch chat on Skip possible spoilers (the recommended one), one device",
       JSON.stringify(p.notify)
     );
     for (const [body, what] of [
@@ -180,7 +180,7 @@ async function person(pool, who, role = null) {
       listed.join()
     );
     await as.alex.call("PUT", "/api/me/notification-prefs", { enabled: { draftTurn: true } });
-    check((await profile("alex")).notify.moments.lineup === true, "classic turns one of its types back on: the moment reads on (it reaches him)");
+    check((await profile("alex")).notify.moments.lineup === false, "classic turns one of its types back on: a mix reads off (settings Round 1: a switch never says you'll hear what you won't)");
     r = await save("alex", { notify: { moment: "lineup", on: true } });
     check(Object.keys((await prefs("alex")).disabled).length === 0 && r.body.notify.moments.lineup === true, "on again: all four types on");
 
@@ -192,23 +192,23 @@ async function person(pool, who, role = null) {
     await as.riley.call("PUT", "/api/me/notification-prefs", { enabled: { chat: false } });
     check((await profile("riley")).notify.chat === "off", "classic's League chat off reads as Never");
     await as.riley.call("PUT", "/api/me/notification-prefs", { enabled: { chat: true } });
-    check((await profile("riley")).notify.chat === "quiet", "and back on: Quiet on episode nights");
+    check((await profile("riley")).notify.chat === "quiet", "and back on: Skip possible spoilers");
 
     // A show's own.
     let sn = (await as.sam.call("GET", `/api/seasons/${sid}/notifications`)).body;
     check(
-      sn.show === "ZT Survivor" && sn.moments.map((m) => m.id).join() === "lineup,early,final,couch,backstage,chat" && sn.moments.every((m) => m.on && m.here),
-      "a show's Notifications: its six moments, all on",
+      sn.show === "ZT Survivor" && sn.moments.map((m) => m.id).join() === "lineup,results,couch,chat" && sn.moments.every((m) => m.on && m.here) && sn.muted === null,
+      "a show's Notifications: its four moments, all on, not muted",
       JSON.stringify(sn).slice(0, 300)
     );
     check((await as.sam.call("PUT", `/api/seasons/${sid}/notifications`, { moment: "invites", on: false })).status === 400, "Invites aren't a show's to switch: 400");
     check((await as.sam.call("GET", `/api/seasons/00000000-0000-4000-8000-000000000000/notifications`)).status === 404, "a season that isn't: 404");
-    sn = (await as.sam.call("PUT", `/api/seasons/${sid}/notifications`, { moment: "early", on: false })).body;
+    sn = (await as.sam.call("PUT", `/api/seasons/${sid}/notifications`, { moment: "results", on: false })).body;
     pr = await prefs("sam");
-    check(sn.moments.find((m) => m.id === "early").here === false && JSON.stringify(pr.shows[showId]) === '["early"]', "sam: Early results off for ZT Survivor alone", JSON.stringify(pr.shows));
-    await save("jordan", { notify: { moment: "final", on: false } });
-    check((await as.jordan.call("GET", `/api/seasons/${sid}/notifications`)).body.moments.find((m) => m.id === "final").on === false, "a moment off in Settings is off on the show's sheet too");
-    await save("jordan", { notify: { moment: "final", on: true } });
+    check(sn.moments.find((m) => m.id === "results").here === false && JSON.stringify(pr.shows[showId]) === '["results"]', "sam: Results off for ZT Survivor alone", JSON.stringify(pr.shows));
+    await save("jordan", { notify: { moment: "results", on: false } });
+    check((await as.jordan.call("GET", `/api/seasons/${sid}/notifications`)).body.moments.find((m) => m.id === "results").on === false, "a moment off in Your settings is off on the show's sheet too");
+    await save("jordan", { notify: { moment: "results", on: true } });
 
     // ---------- the couch chat ----------
     // Episode 6 is three days off: alex, riley and jordan have seen everything that's aired; sam is on Episode 3, so anything
@@ -313,15 +313,16 @@ async function person(pool, who, role = null) {
     check(je[0]?.url === `/show/${sid}/tonight`, "on the new design: the show's Tonight");
     const wl = /Waivers process (.+)\.$/.exec(je[0]?.body || "");
     check(!wl || /P[DS]T$/.test(wl[1]), "a waiver line, if any, in jordan's own zone (Los Angeles)", je[0]?.body);
-    check(got("sam").length === 0 && got("alex").length === 0, "sam turned Early results off for the show; alex sent it: no push");
+    check(got("sam").length === 0 && got("alex").length === 0, "sam turned Results off for the show; alex sent it: no push");
     const bellE = (who) => notes(who, `results:${sid}:6`);
     check((await bellE("sam")).length === 1 && (await bellE("jordan")).length === 1 && (await bellE("riley")).length === 1 && (await bellE("alex")).length === 0, "the bell keeps one for each of them (sam's too), none for alex");
     const rileyRow = (await bellE("riley"))[0];
     check(rileyRow.spoils === 6 && rileyRow.safe?.title === "Ep 6 results are in" && rileyRow.link === `/show/${sid}/tonight`, "riley's names Episode 6, with its safe words beside it", JSON.stringify(rileyRow));
     check((await bellE("sam"))[0].title === "Ep 6 results are in", "sam's is worded for where he is");
 
-    // Final scores: riley switches classic's Final scores off first.
+    // Final scores: riley switches classic's Final scores off first; sam turns Results back on for the show.
     await as.riley.call("PUT", "/api/me/notification-prefs", { enabled: { finalScores: false } });
+    await as.sam.call("PUT", `/api/seasons/${sid}/notifications`, { moment: "results", on: true });
     push.clear();
     const fullQ = await as.alex.call("GET", `/api/seasons/${sid}/backstage/prompt${q}&episode=6&kind=full`);
     r = await as.alex.call("POST", `/api/seasons/${sid}/backstage/results${q}`, { episode: 6, kind: "full", answer: fullAnswer(fullQ.body.prompt) });
@@ -330,12 +331,12 @@ async function person(pool, who, role = null) {
     const jf = got("jordan");
     const sf = got("sam");
     check(jf.length === 1 && jf[0].title === "Ep 6 final results are in" && /Reveal when you've watched/.test(jf[0].body), "jordan: Final results are in (past its time: at once), once", JSON.stringify(jf));
-    check(sf.length === 1 && sf[0].title === "Ep 6 final results are in" && !JSON.stringify(sf).includes("Cristian"), "sam (final not switched off): Final results are in, no names", JSON.stringify(sf));
+    check(sf.length === 1 && sf[0].title === "Ep 6 final results are in" && !JSON.stringify(sf).includes("Cristian"), "sam (Results back on for the show): Final results are in, no names", JSON.stringify(sf));
     check(got("riley").length === 0 && (await notes("riley", `final:${sid}:6`)).length === 1, "riley switched it off in classic: no push, but his bell keeps it");
     // The bell, read back through the guard: riley hides scores again, on Episode 5.
     await save("riley", { hideScores: true });
     const rb = (await as.riley.call("GET", "/api/me/notifications")).body;
-    const early = rb.notes.find((n) => n.moment === "early");
+    const early = rb.notes.find((n) => n.moment === "results" && n.type === "episodeResults");
     check(early?.title === "Ep 6 results are in" && !JSON.stringify(rb).includes("Cristian"), "riley's bell now: the safe words, not who went home", JSON.stringify(early));
 
     // ---------- the couch's moments ----------
@@ -419,7 +420,9 @@ async function person(pool, who, role = null) {
     r = await as.desk.call("POST", `/api/desk/facts/${danny}`, { decide: "no" });
     check(r.status === 200 && r.body.status === "removed", "the desk decides it didn't happen", JSON.stringify(r.body).slice(0, 160));
     await expect((rs) => rs.some((x) => x.who === "jordan"));
-    const fl = got("jordan");
+    // The flag's own push; a correction after final results also tells the game's players their results changed (results
+    // settle, 2026-11-20), so jordan can hear that too.
+    const fl = got("jordan").filter((x) => x.tag?.startsWith("flag-"));
     check(
       fl.length === 1 && fl[0].title === "Ep 6: you were right" && fl[0].body === "ZT Survivor 51 · Danny Kilby · individual immunity: every game has it put right." && fl[0].url === `/show/${sid}/episodes`,
       "jordan hears how his flag went",

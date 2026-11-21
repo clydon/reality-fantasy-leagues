@@ -403,7 +403,7 @@ export function PersonPage({ id }: { id: string }) {
         <div className="border-b border-border">
           <DeskRow data="account" onClick={() => setSheet("account")} lead={<IconLead icon={Mail} />} title="Name and email" line={`${p.username ?? p.name} · ${p.email ?? "no email"}`} />
           {p.you ? (
-            <DeskRow data="password" href={paths.settings} lead={<IconLead icon={KeyRound} />} title="Password" line="Yours: change it in Settings" />
+            <DeskRow data="password" href={`${paths.settings}?page=account`} lead={<IconLead icon={KeyRound} />} title="Password" line="Yours: change it in Your settings › Your account" />
           ) : p.admin ? (
             <DeskRow data="password" lead={<IconLead icon={KeyRound} />} title="Password" line="Not another site admin's: theirs is changed in their Settings" />
           ) : (
@@ -700,7 +700,7 @@ function PasswordSheet({ open, onClose, p }: { open: boolean; onClose: () => voi
       <div data-password-sheet>
         {password ? (
           <>
-            <p className="text-[14px] leading-snug text-muted-foreground">Give it to {p.name} yourself, by text or in person. It isn&apos;t shown again; they can change it in Settings.</p>
+            <p className="text-[14px] leading-snug text-muted-foreground">Give it to {p.name} yourself, by text or in person. It isn&apos;t shown again; they can change it in Your settings.</p>
             <div className="mt-3 flex items-center gap-2.5 rounded-[3px] bg-plate py-2.5 pl-3.5 pr-2.5 text-plate-foreground shadow-plate">
               <b data-temp-password className="type-caption min-w-0 flex-1 text-[26px] tabular-nums tracking-[0.05em] [overflow-wrap:anywhere]">
                 {password}

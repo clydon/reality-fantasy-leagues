@@ -42,9 +42,21 @@ async function endAnyHour() {
   await fetch("/api/desk/acting?ifActing", { method: "DELETE" }).catch(() => {});
 }
 
+/** Signing out turns this phone's notifications off first (BACKLOG 232: a signed-out phone kept getting your pushes). Never holds
+ *  the sign-out up for long: a browser that won't answer gets two seconds. */
+async function phoneOff() {
+  try {
+    const { disablePushOnThisDevice } = await import("./push-client");
+    await Promise.race([disablePushOnThisDevice(), new Promise((r) => setTimeout(r, 2000))]);
+  } catch {
+    // ignored on purpose: signing out matters more
+  }
+}
+
 export async function logOut() {
   try {
     await endAnyHour();
+    await phoneOff();
     await signOut();
   } catch {
     // ignored on purpose -- see above
@@ -57,6 +69,7 @@ export async function logOut() {
 export async function logOutTo(to: string) {
   try {
     await endAnyHour();
+    await phoneOff();
     await signOut();
   } catch {
     // ignored on purpose, as logOut

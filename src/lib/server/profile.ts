@@ -14,8 +14,8 @@ import { sharingOf } from "./guard";
 import { googleOn } from "./way-in";
 import { readNotify, saveNotify, type NotifySettings } from "./notify-prefs";
 
-// Your profile and your account settings in the new design (docs/PLAN-new-design.md step 15 part 1; the mock's settings.js):
-// your name, colour and picture, Hide scores until I reveal, your AI for results, and what your account signs in with; and What
+// Your profile and your account settings in the new design (docs/PLAN-new-design.md step 15 part 1; the mock's settings.js;
+// settings Round 1): your name, colour and picture, When results show, and what your account signs in with; and What
 // your couch sees (step 15 part 3: the four switches, src/lib/sharing.ts, and what they let out of you, in your own words); and
 // Appearance (part 4: Night, Studio or Match phone, src/lib/appearance.ts, kept on each device as a cookie: appearance.ts).
 //
@@ -24,9 +24,6 @@ import { readNotify, saveNotify, type NotifySettings } from "./notify-prefs";
 // colour (src/lib/people.ts PALETTE) and your picture (user_pictures, migration 0135), which the couches' people carry on the
 // home read; the picture itself is read only through GET /api/people/[id]/picture, by someone on a couch with you.
 
-export type AiChoice = "chatgpt" | "grok" | "ask" | "copy";
-export const AI_CHOICES: AiChoice[] = ["chatgpt", "grok", "ask", "copy"];
-
 export interface Profile {
   /** The name your couch sees: your username (the account's name for an account with none). */
   name: string;
@@ -34,8 +31,6 @@ export interface Profile {
   colour: string | null;
   /** Your picture's version (when it was saved, ms), else null. */
   picture: number | null;
-  /** The AI the Ask an AI sheets open (null in the database: ChatGPT, the recommended one). */
-  ai: AiChoice;
   /** Results wait for you to reveal them (user_settings.show_results_immediately turned round). */
   hideScores: boolean;
   /** Sports scores too (user_settings.hide_sports_scores, U1's sports slice): a sports game that's begun says only when it started
@@ -65,7 +60,7 @@ export interface Profile {
 export async function readProfile(user: SessionUser): Promise<Profile> {
   const [{ rows }, { rows: first }, notify] = await Promise.all([
     pool.query(
-      `SELECT u.username, u.name, u.email, s.colour, s.ai, s.theme, COALESCE(s.show_results_immediately, false) AS immediate, COALESCE(s.hide_sports_scores, false) AS sports_hidden,
+      `SELECT u.username, u.name, u.email, s.colour, s.theme, COALESCE(s.show_results_immediately, false) AS immediate, COALESCE(s.hide_sports_scores, false) AS sports_hidden,
               (EXTRACT(EPOCH FROM p.updated_at) * 1000)::bigint AS picture,
               EXISTS (SELECT 1 FROM account a WHERE a."userId" = u.id AND a."providerId" = 'credential') AS password,
               EXISTS (SELECT 1 FROM account a WHERE a."userId" = u.id AND a."providerId" = 'google') AS google
@@ -88,7 +83,6 @@ export async function readProfile(user: SessionUser): Promise<Profile> {
     name,
     colour: paletteColour(r.colour),
     picture: r.picture == null ? null : Number(r.picture),
-    ai: AI_CHOICES.includes(r.ai) ? (r.ai as AiChoice) : "chatgpt",
     hideScores: !r.immediate,
     hideSportsScores: !!r.sports_hidden,
     theme: isTheme(r.theme) ? r.theme : DEFAULT_THEME,
@@ -133,9 +127,9 @@ async function sharingLines(userId: string, name: string): Promise<Record<ShareS
   const lines: Record<ShareSwitch, string> = {
     where: where
       ? where.count && where.seen >= where.count
-        ? `${name} finished ${where.label}`
-        : `${name} is up to Episode ${where.seen} of ${where.label}`
-      : `What ${name} watches, and how far ${name} is`,
+        ? `${name} has watched all of ${where.label}`
+        : `${name} has watched through Ep ${where.seen} of ${where.label}`
+      : `What ${name} watches, and how far ${name} has watched`,
     now: x.now ? `${name} is watching ${x.now} now` : `When ${name} is watching along`,
     gifs: gif ? `${name}'s GIF for ${gif.label} Episode ${gif.episode}` : `${name}'s episode GIFs`,
     reactions: reacted ? `${name} left ${reacted.n} ${reacted.n === 1 ? "reaction" : "reactions"} on ${reacted.label}` : `${name}'s watch along reactions`,
@@ -149,12 +143,13 @@ function mayChange(session: Session) {
 }
 
 /**
- * Your colour, AI, spoiler setting, a notification moment, What your couch sees or Appearance (PUT /api/me/profile). Only what's
- * sent changes; null colour goes back to the one your id picks. `sharing`: { preset } (all, games, min) or any of the four switches.
+ * Your colour, When results show, a notification moment, Privacy or Appearance (PUT /api/me/profile). Only what's sent changes;
+ * null colour goes back to the one your id picks. `sharing`: { where } (settings Round 1's one switch, which also sets When I'm
+ * watching: C6), or classic's { preset } and switches. Your AI for results went in Round 1 (C8).
  */
 export async function saveSettings(
   session: Session,
-  body: { colour?: unknown; ai?: unknown; hideScores?: unknown; hideSportsScores?: unknown; notify?: unknown; sharing?: unknown; theme?: unknown }
+  body: { colour?: unknown; hideScores?: unknown; hideSportsScores?: unknown; notify?: unknown; sharing?: unknown; theme?: unknown }
 ): Promise<void> {
   mayChange(session);
   if (body.notify !== undefined) {
@@ -168,11 +163,6 @@ export async function saveSettings(
     if (body.colour !== null && !isPaletteColour(body.colour)) throw new HttpError(400, "Pick one of the colours");
     args.push(body.colour);
     sets.push(`colour = $${args.length}`);
-  }
-  if ("ai" in body) {
-    if (!AI_CHOICES.includes(body.ai as AiChoice)) throw new HttpError(400, "ai must be chatgpt, grok, ask or copy");
-    args.push(body.ai);
-    sets.push(`ai = $${args.length}`);
   }
   if ("hideScores" in body) {
     if (typeof body.hideScores !== "boolean") throw new HttpError(400, "hideScores must be true or false");
@@ -192,6 +182,8 @@ export async function saveSettings(
   if ("sharing" in body) {
     const next = sharingFrom(body.sharing, (await sharingOf([session.user.id])).get(session.user.id)!);
     if (!next) throw new HttpError(400, "sharing: { preset: all, games or min } or any of where, now, gifs, reactions as true or false");
+    // One switch since Round 1 (C6): how far you've watched carries when you're watching with it.
+    if ("where" in (body.sharing as object)) next.now = next.where;
     for (const k of SHARE_SWITCHES) {
       args.push(next[k]);
       sets.push(`share_${k} = $${args.length}`);

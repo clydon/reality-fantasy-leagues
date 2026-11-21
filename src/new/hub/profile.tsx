@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, Compass, KeyRound, Medal, Settings, Star, Zap } from "lucide-react";
+import { ChevronRight, KeyRound, Medal, Settings, Star, Zap } from "lucide-react";
 import { couchLine, FaceStack, openCouchSheet } from "../couch/couch-sheets";
 import type { Couch, CouchHub } from "../data";
 import { useDesk, type Inbox } from "../desk/data";
@@ -9,7 +9,6 @@ import { NavLink } from "../nav";
 import { paths } from "../routes";
 import { useMe } from "../session";
 import { BackToAdminRow } from "../desk/view-as";
-import { askTour } from "../tour/store";
 import { usePushedPage } from "../ui/page";
 import { Row } from "../ui/parts";
 import { ShowArt } from "../ui/show-bar";
@@ -19,8 +18,9 @@ import { Sheet } from "../ui/sheet";
 // on 2026-10-23; it opens the couch switcher, step 9: couch-sheets.tsx), your numbers on this couch (step 8: titles, your Couch
 // points and place (since 2026-10-31; this year's once the couch has a year before it), seasons played, your best show,
 // predictions called, your best finish; couch-hub.ts, as far as you've seen),
-// Admin for site admins (the desk, step 6b part 2, with what needs them), then Take the tour (Home plays it as this closes:
-// tour/store.ts; the user, 2026-11-01) and Settings. (Step 12 part 1's Agree with the couch and taste twin went with Rate
+// Site admin for site admins (the desk, step 6b part 2, with what needs them), then a quiet Your settings row (the hub's gear is
+// its door since settings Round 1; this stays for anyone who learned the way in here). Take the tour moved to Your settings' Help
+// (C13: one place). (Step 12 part 1's Agree with the couch and taste twin went with Rate
 // it's stars on 2026-11-01.) (A site admin's test couch switches went 2026-10-31 with the test couch, the user's call.)
 
 /** Your numbers on the couch, or a line saying they fill in as it plays. Each row opens where it's compared (the drill pass,
@@ -142,33 +142,15 @@ export function ProfileSheet({ open, onOpenChange, me, couch, hub }: { open: boo
             <KeyRound className="size-[18px]" aria-hidden />
           </span>
           <span className="min-w-0 flex-1">
-            <b className="block text-[15px]">Admin</b>
-            <small className="block text-[13px] text-muted-foreground">{inbox.data ? (needs ? `${needs} need${needs === 1 ? "s" : ""} you` : "Nothing needs you") : "Inbox, Find and Settings"}</small>
+            <b className="block text-[15px]">Site admin</b>
+            <small className="block text-[13px] text-muted-foreground">{inbox.data ? (needs ? `${needs} need${needs === 1 ? "s" : ""} you` : "Nothing needs you") : "To do, search and the site's settings"}</small>
           </span>
           <ChevronRight className="size-5 text-muted-foreground" aria-hidden />
         </NavLink>
       )}
       {viewingAs && <BackToAdminRow as={viewingAs} />}
-      <div className="mt-3.5 grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          data-take-tour
-          onClick={() => {
-            onOpenChange(false);
-            askTour();
-          }}
-          className="nd-press flex h-[52px] items-center justify-center gap-2 rounded-[3px] bg-card text-[15px] font-bold outline-1 -outline-offset-1 outline-input"
-        >
-          <Compass className="size-5" aria-hidden />
-          Take the tour
-        </button>
-        <NavLink
-          href={paths.settings}
-          className="nd-press flex h-[52px] items-center justify-center gap-2 rounded-[3px] bg-card text-[15px] font-bold outline-1 -outline-offset-1 outline-input"
-        >
-          <Settings className="size-5" aria-hidden />
-          Settings
-        </NavLink>
+      <div className="mt-3.5 flex flex-col">
+        <Row icon={Settings} title="Your settings" detail="Notifications, when results show, privacy, your account" href={paths.settings} />
       </div>
     </Sheet>
   );

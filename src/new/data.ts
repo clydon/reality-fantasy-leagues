@@ -55,7 +55,7 @@ import type { TriviaCard, TriviaRound } from "@/lib/server/trivia";
 import type { OnNow, Reaction, SessionWrite, TogetherAnswer, WatchCard, WatchRead } from "@/lib/server/watch-along";
 import type { GifHit } from "@/lib/server/gifs";
 import type { Gif, TogetherChange, WatchMode } from "@/lib/game/watch-along";
-import type { AiChoice, Profile } from "@/lib/server/profile";
+import type { Profile } from "@/lib/server/profile";
 import type { SharePreset, Sharing } from "@/lib/sharing";
 import type { Note, ShowNotify } from "@/lib/server/notify-prefs";
 import type { ChatMode, MomentId } from "@/lib/moments";
@@ -112,7 +112,7 @@ export type { TriviaOption, TriviaQuestion } from "@/lib/game/trivia";
 export type { OnNow, Reaction, SessionWrite, Together, TogetherAnswer, WatchCard, WatchFace, WatchRead, WatchStatus } from "@/lib/server/watch-along";
 export type { GifHit } from "@/lib/server/gifs";
 export type { Gif, ReactKind, ReactionKind, TogetherChange, Watcher, WatchMode } from "@/lib/game/watch-along";
-export type { AiChoice, Profile } from "@/lib/server/profile";
+export type { Profile } from "@/lib/server/profile";
 export type { Face as PersonFace } from "@/lib/people";
 
 // The new design's reads (docs/PLAN-new-design.md steps 0b, 0c and 1): the home, a show space's frame, your games
@@ -1096,11 +1096,6 @@ export function useProfile(enabled = true) {
   return useQuery({ queryKey: PROFILE_KEY, queryFn: () => get<Profile>("/api/me/profile"), enabled, staleTime: 5 * 60_000 });
 }
 
-/** Your AI for results (Settings): what an Ask an AI sheet opens. ChatGPT until the profile's read. */
-export function useAiChoice(): AiChoice {
-  return useProfile().data?.ai ?? "chatgpt";
-}
-
 /** A face as the home read has it: you, or someone on one of your couches. Only watches the home that's been read. */
 export function usePerson(userId: string): PersonFace | null {
   const { data } = useQuery({ queryKey: HOME_KEY, queryFn: () => get<Home>(homeUrl()), enabled: false, select: (h: Home) => faceIn(h, userId) });
@@ -1140,7 +1135,6 @@ export const profileApi = {
   save: (body: {
     name?: string;
     colour?: string | null;
-    ai?: AiChoice;
     hideScores?: boolean;
     hideSportsScores?: boolean;
     notify?: { moment: MomentId; on: boolean } | { chat: ChatMode };

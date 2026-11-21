@@ -90,12 +90,10 @@ test("nothing when the lineup is full, too far out, already aired, or the league
 // The commissioner's results nudge (the morning after an episode airs with nothing recorded).
 const EP2_MORNING = Air.zonedToUtc("2026-10-01", "09:00", "America/New_York");
 
-test("results: the morning after it airs with nothing recorded, the commissioner gets one push", async () => {
+test("results: the morning after it airs with nothing recorded, no push to fill them in (results settle on their own: settings Round 1, C4)", async () => {
   const pool = fakePool(league());
-  assert.equal((await runReminders(pool, { now: new Date(EP2_MORNING.getTime() - HOUR) })).sent, 0);
-  assert.equal((await runReminders(pool, { now: new Date(EP2_MORNING.getTime() + HOUR) })).sent, 1);
-  assert.ok(pool.logged.has("u1|L1|2"), [...pool.logged].join(", "));
-  assert.equal((await runReminders(pool, { now: new Date(EP2_MORNING.getTime() + 2 * HOUR) })).sent, 0);
+  assert.equal((await runReminders(pool, { now: new Date(EP2_MORNING.getTime() + HOUR) })).sent, 0);
+  assert.ok(!pool.logged.has("u1|L1|2"), [...pool.logged].join(", "));
 });
 
 test("results: nothing once results are in, or once that day is over", async () => {

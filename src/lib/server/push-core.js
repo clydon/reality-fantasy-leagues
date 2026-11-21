@@ -17,7 +17,7 @@ const webpush = require("web-push");
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS on purpose, see above
 const http = require("http");
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS on purpose, see above
-const { chatMode, momentOf, NEW_ONLY, pushAllowed } = require("../moments.js");
+const { chatMode, momentOf, mutedNow, NEW_ONLY, pushAllowed } = require("../moments.js");
 
 // Every notification type, in the order classic's Account settings lists them. `id` is what's stored in
 // notification_prefs.disabled (db/migrations/0010) -- never rename one without migrating that. `sample` is what Account
@@ -97,15 +97,18 @@ function ensureConfigured() {
 
 /**
  * The people a notice is for, with what decides their words and whether it's pushed: the design they're on, their time zone
- * (kept from their phone), their switches, Couch chat's choice and what they've turned off for this season's show.
+ * (kept from their phone), their switches, Couch chat's choice (this couch's own, when `couchId` is the chat's couch and they've
+ * set one: settings Round 1, A9), what they've turned off for this season's show, and whether they've muted that show (A6).
  */
-async function readersOf(db, ids, seasonId) {
+async function readersOf(db, ids, seasonId, couchId) {
   const { rows } = await db.query(
     `SELECT u.id AS user_id, s.ui, s.tz, p.disabled, p.chat,
-            CASE WHEN $2::uuid IS NULL THEN NULL ELSE p.shows -> (SELECT show_id::text FROM show_seasons WHERE id = $2::uuid) END AS show_off
+            CASE WHEN $2::uuid IS NULL THEN NULL ELSE p.shows -> (SELECT show_id::text FROM show_seasons WHERE id = $2::uuid) END AS show_off,
+            CASE WHEN $2::uuid IS NULL THEN NULL ELSE p.muted ->> (SELECT show_id::text FROM show_seasons WHERE id = $2::uuid) END AS muted,
+            CASE WHEN $3::uuid IS NULL THEN NULL ELSE (SELECT cm.chat_notify FROM couch_members cm WHERE cm.couch_id = $3::uuid AND cm.user_id = u.id) END AS couch_chat
        FROM "user" u LEFT JOIN user_settings s ON s.user_id = u.id LEFT JOIN notification_prefs p ON p.user_id = u.id
       WHERE u.id = ANY($1::text[])`,
-    [ids, seasonId || null]
+    [ids, seasonId || null, couchId || null]
   );
   const byId = new Map(rows.map((r) => [r.user_id, r]));
   return ids
@@ -116,9 +119,10 @@ async function readersOf(db, ids, seasonId) {
         userId: id,
         ui: r.ui === "classic" ? "classic" : "new",
         tz: r.tz || null,
-        chat: chatMode(r.disabled, r.chat),
+        chat: r.couch_chat === "all" || r.couch_chat === "quiet" || r.couch_chat === "off" ? r.couch_chat : chatMode(r.disabled, r.chat),
         disabled: r.disabled || {},
         showOff: Array.isArray(r.show_off) ? r.show_off : [],
+        muted: mutedNow(r.muted),
       };
     });
 }
@@ -186,10 +190,19 @@ async function deliver(sub, payload, options) {
 // seasonId, spoils + safe (the episode the words give away, and the words for someone not past it: the bell reads rows back
 // through the guard), anyOf (any of these types on is enough to push) }.
 //
-// opts: { seasonId (whose show's switches apply), bell: false (push only: chat), ignorePrefs (the "send test notification"
-// button, which has to work even for someone who has switched every real type off; nothing kept) }.
+// opts: { seasonId (whose show's switches apply), couchId (a chat's couch, whose own chat choice applies), bell: false (push
+// only: chat), ignorePrefs (the "send test notification" button, which has to work even for someone who has switched every real
+// type off; nothing kept) }.
+//
+// Every push carries `settings`, where its Notification settings button (public/sw.js, on phones that show buttons) opens: a
+// show's push, that show's Notifications; anything else, Your settings' Notifications (settings Round 1).
 //
 // Resolves to { sent, removed, kept } for tests/logging; never rejects.
+/** Where a push's Notification settings button opens: the show's own Notifications, else Your settings' Notifications. */
+function settingsFor(seasonId) {
+  return seasonId ? `/show/${seasonId}/tonight?notify=1` : "/settings?page=notifications";
+}
+
 async function sendPush(pool, userIds, type, message, opts) {
   const o = opts || {};
   const result = { sent: 0, removed: 0, kept: 0 };
@@ -197,7 +210,7 @@ async function sendPush(pool, userIds, type, message, opts) {
     if (!TYPE_IDS.has(type)) throw new Error(`unknown notification type "${type}"`);
     const ids = [...new Set((userIds || []).filter(Boolean))];
     if (!ids.length) return result;
-    const readers = await readersOf(pool, ids, o.seasonId);
+    const readers = await readersOf(pool, ids, o.seasonId, o.couchId);
     const out = [];
     for (const reader of readers) {
       let words;
@@ -213,7 +226,7 @@ async function sendPush(pool, userIds, type, message, opts) {
         result.kept++;
       }
       if (!o.ignorePrefs) {
-        if (!pushAllowed(type, reader.disabled, reader.showOff, words.anyOf)) continue;
+        if (!pushAllowed(type, reader.disabled, reader.showOff, words.anyOf, { muted: reader.muted, chat: type === "chat" ? reader.chat : null })) continue;
         // Something only the new design can open isn't pushed to someone on classic (it's in their bell for later).
         if (NEW_ONLY.has(type) && reader.ui !== "new") continue;
       }
@@ -236,6 +249,7 @@ async function sendPush(pool, userIds, type, message, opts) {
           // The design they're on (step 15 part 2): the new design's page, or classic's.
           url: reader.ui === "new" ? words.next || "/home" : words.url || "/",
           tag: words.tag || type,
+          settings: reader.ui === "new" ? settingsFor(words.seasonId || o.seasonId) : null,
         });
         try {
           // A day is plenty: "it's your turn" delivered two days late is noise, not news.

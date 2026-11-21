@@ -195,7 +195,7 @@ export function ArtPage({ id }: { id: string }) {
           line={a.off ? "On: its name on a plain card everywhere" : "For a show whose art shouldn't be shown"}
           onChange={(off) => void go({ off })}
         />
-        <p className={NOTE}>TMDB&apos;s and TVmaze&apos;s are credited in Settings › Credits.</p>
+        <p className={NOTE}>TMDB&apos;s and TVmaze&apos;s are credited in Your settings › Where art and data come from.</p>
       </Section>
       <LatestHistory lines={s.history} emptyLine="Nothing changed here yet." />
       <ShowDeleteRow s={s} />

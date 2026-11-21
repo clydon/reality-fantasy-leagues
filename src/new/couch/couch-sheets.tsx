@@ -12,6 +12,7 @@ import { HoldSheet } from "../ui/guards";
 import { Btn, Row } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
+import { CouchChatRow } from "../settings/couch-chat";
 import { PersonSheet } from "./person-sheet";
 import { WhereSheet } from "./where-sheet";
 
@@ -324,6 +325,10 @@ function DetailsSheet({ couchId, onOpenChange }: { couchId: string | null; onOpe
               {renewing === "busy" ? "Making one…" : "Get a new code"}
             </button>
           )}
+          {/* A setting about you on this couch (settings Round 1, A9): with the couch's own facts, above leaving. */}
+          <div className="mt-4">
+            <CouchChatRow couchId={couch.id} couchName={couch.name} />
+          </div>
           {couch.seasons.length > 0 && (
             <>
               <p className="type-caption mb-2 mt-5 text-xs tracking-[0.06em] text-muted-foreground">Seasons together</p>

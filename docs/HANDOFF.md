@@ -59,6 +59,14 @@ Newest first. The plan or archive section named holds the detail.
 
 ## In flight
 
+- **Settings overhaul, Round 1, branch `settings-plan`** (lane rfl-settings, port 3018): Your settings and notifications as one
+  system, built through the design process (PFD 82, Impeccable 33/40 after one batch of fixes). It waits on the user's review of its
+  story, https://claude.ai/artifact/97sfST4Ut41ib5HUHJPpjH (four choices and the open items in
+  docs/design-round/settings-r1-check.md). Before merging: rewrite the browser halves of check-new-settings, check-new-notify and
+  check-new-sharing for the new screens, rehearse migration 0447, and expect a conflict in src/new/data.ts (the sports lane edits it;
+  this branch only removes `useAiChoice` and the `ai` field). The branch also holds origin/master's five commits from 2026-11-20
+  that local master lacked. [PLAN-settings-overhaul.md](PLAN-settings-overhaul.md), Round 1.
+
 - **Game preview, branch `preview`** (lane rfl-preview): 17 commits not on master, 55 commits behind it, about 11 conflict
   hunks (strip.tsx, game-week.tsx, your-move.ts, tonight.tsx). It has P0, the visual story, the bench's preview maker and
   Round 5 (four real-app fixes, among them the finale reveal ranking a stage that had ended). It waits on the user's review of

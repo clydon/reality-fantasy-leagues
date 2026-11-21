@@ -110,6 +110,8 @@ commit each:
 - the checks the wizard's B1–B4 left stale (the redo plan's merge note lists them), and the Atlas hub cases re-recorded on a zt
   account that exists.
 - a lock file in new-fixture.js `up`, so a second check says "another check is running".
+- check-keep-up.js's where-sheet half: `[data-following]` is gone since the one-episode-at-a-time rebuild (found by settings
+  Round 1, 2026-11-20; its Settings part is current).
 
 Done when each passes twice in a row on master, or its failure is filed here as a product bug. A check that can't be saved is
 deleted. [M · checks]
@@ -191,7 +193,7 @@ the first of a tie: use `leadWorthNaming` (couch-standings.ts:445), as By the nu
 and `AskSheet` if they're used), with check-tonight-up-next.js retired or repointed. tsc, eslint and the unit suite clean.
 [S · cleanup]
 
-**232. Signing out leaves this phone getting the account's notifications.** `logOut` and `logOutTo` (src/lib/auth-client.ts)
+**232. Signing out leaves this phone getting the account's notifications.** *Built in settings Round 1 (branch settings-plan, 2026-11-20): close at its merge.* `logOut` and `logOutTo` (src/lib/auth-client.ts)
 end any acting hour and sign out, but never take this phone off `push_subscriptions`, though DELETE /api/me/push-subscriptions
 says signing out does. On a shared phone the next person gets the last one's pushes. Unsubscribe this phone's endpoint before
 the session goes (best effort), with a case in check-new-notify.js. Found by the settings audit (2026-11-20). [S · notifications]
@@ -206,7 +208,7 @@ check-new-backstage-ii.js. [S · backstage]
 every game, so a game started on other numbers (Salary cap: 4 each, 2 start) shows Changed and Reset to recommended though
 nobody changed it. Read Recommended from the game's own base defaults. [S · backstage]
 
-**235. The results-to-fill-in push is moot.** db/reminders.js `remindResults` still tells a game's Commissioners, the morning
+**235. The results-to-fill-in push is moot.** *Built in settings Round 1 (branch settings-plan, 2026-11-20): close at its merge.* db/reminders.js `remindResults` still tells a game's Commissioners, the morning
 after, "Nothing's in yet. Copy the question into any AI chat, paste its answer back, then apply", though results settle on
 their own (PLAN-results-settle.md). Settings' "Backstage" notifications switch exists only for it (it shows to Game admins, who
 never get it), and its other type, `wikiReview`, is never sent (BACKLOG 24). Stop sending it where the bot runs the season. The
@@ -277,7 +279,7 @@ A visible change everywhere, so show the user a before/after at 390 in Night and
 - No text under 11 px in src/new (21 `text-[10px]`, among them Home's game chips at sections.tsx:786 and :793). Ties read "T1"
   on Stats as elsewhere. ShowArt's fallback fits the Episodes tile. Toasts sit clear of first run's Back.
 
-**236. Where you are points to a heading that doesn't exist.** where.tsx:303 says "Change it in Settings, under Keeping you
+**236. Where you are points to a heading that doesn't exist.** *Built in settings Round 1 (it now names Your settings › When results show): close at its merge.* where.tsx:303 says "Change it in Settings, under Keeping you
 spoiler-free"; the switch is "Shows that move along by themselves", under Everything else. Name the real place, or make the line
 open it. Words through Impeccable's clarify. Found by the settings audit (2026-11-20). [S · words]
 

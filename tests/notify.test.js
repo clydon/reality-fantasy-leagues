@@ -7,20 +7,21 @@ const assert = require("node:assert/strict");
 const M = require("../src/lib/moments.js");
 const core = require("../src/lib/server/push-core.js");
 
-test("every notification type belongs to exactly one moment, and every moment's types exist", () => {
+test("every notification type belongs to exactly one moment, or is retired; every moment's types exist", () => {
   const ids = core.NOTIFICATION_TYPES.map((t) => t.id);
-  for (const id of ids) assert.ok(M.momentOf(id), `${id} has a moment`);
+  for (const id of ids) assert.ok(M.momentOf(id) || M.RETIRED.has(id), `${id} has a moment`);
   const all = M.MOMENTS.flatMap((m) => m.types);
   assert.equal(new Set(all).size, all.length, "no type in two moments");
-  assert.deepEqual([...all].sort(), [...ids].sort());
+  assert.deepEqual([...all, ...M.RETIRED].sort(), [...ids].sort());
   for (const t of M.NEW_ONLY) assert.ok(ids.includes(t));
 });
 
-test("a moment is on while any of its types is; Couch chat's three choices", () => {
+test("a moment is on only while every one of its types is (settings Round 1); invites always; Couch chat's three choices", () => {
   assert.equal(M.momentOn("lineup", {}), true);
-  assert.equal(M.momentOn("lineup", { reminder: true }), true, "classic turned one type off: the moment still reaches you");
+  assert.equal(M.momentOn("lineup", { reminder: true }), false, "classic turned one type off: the switch says off, never a reminder that won't come");
   assert.equal(M.momentOn("lineup", { reminder: true, waiverReminder: true, draftTurn: true, waivers: true }), false);
-  assert.equal(M.momentOn("early", null), true);
+  assert.equal(M.momentOn("results", null), true);
+  assert.equal(M.momentOn("invites", { invite: true }), true, "invites have no switch: always on");
   assert.equal(M.chatMode({}, null), "quiet", "the recommended one by default");
   assert.equal(M.chatMode({}, "all"), "all");
   assert.equal(M.chatMode({ chat: true }, "all"), "off", "classic's chat switch off is Never");
@@ -34,6 +35,23 @@ test("a push needs its type on and its moment on for the show; results that arri
   assert.equal(M.pushAllowed("finalScores", { finalScores: true }, [], ["episodeResults", "finalScores"]), true, "early on is enough");
   assert.equal(M.pushAllowed("finalScores", { finalScores: true, episodeResults: true }, [], ["episodeResults", "finalScores"]), false);
   assert.equal(M.pushAllowed("finalScores", {}, ["early", "final"], ["episodeResults", "finalScores"]), false);
+  assert.equal(M.pushAllowed("episodeResults", {}, ["early"]), false, "a show's old Early results off reads as Results off");
+  assert.equal(M.pushAllowed("finalScores", {}, ["results"]), false);
+});
+
+test("invites always come; retired types never; a muted show keeps only the reminders; a couch's own chat choice", () => {
+  assert.equal(M.pushAllowed("invite", { invite: true }, []), true, "no switch can leave an invite stuck off");
+  assert.equal(M.pushAllowed("resultsDue", {}, []), false, "Backstage's results push went in Round 1 (C4)");
+  assert.equal(M.pushAllowed("episodeResults", {}, [], null, { muted: true }), false);
+  assert.equal(M.pushAllowed("chat", {}, [], null, { muted: true, chat: "all" }), false, "muted beats a couch's Every message");
+  assert.equal(M.pushAllowed("reminder", {}, [], null, { muted: true }), true, "a muted show never costs you a pick");
+  assert.equal(M.pushAllowed("chat", { chat: true }, [], null, { chat: "all" }), true, "a couch's Every message over the account's Never");
+  assert.equal(M.pushAllowed("chat", {}, [], null, { chat: "off" }), false, "a couch's Never over the account's choice");
+  assert.equal(M.pushAllowed("chat", {}, ["chat"], null, { chat: "all" }), false, "a show's own chat off still wins on that show");
+  assert.equal(M.mutedNow("forever"), true);
+  assert.equal(M.mutedNow(new Date(Date.now() + 60_000).toISOString()), true);
+  assert.equal(M.mutedNow(new Date(Date.now() - 60_000).toISOString()), false, "a mute that's run out is just ignored");
+  assert.equal(M.mutedNow(null), false);
 });
 
 // Just enough of pg's Pool for sendPush: readers, the bell and the devices.

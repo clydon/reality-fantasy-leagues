@@ -9,8 +9,8 @@
 //     clears Not yet; auto: the home read moves the mark to what's aired; refused on a season you play (409), and a bad value
 //     (400); off is always allowed; the bot clock's backstop (advanceAllAuto) moves another person's auto mark.
 //   In a real browser at --width (390 by default), as alex: Tonight's Seen it? card (Not yet, then Seen it, show me), the where
-//   sheet (each step names its episode and date, I'm up to date turns Live on, Keep me live), Settings' Move along by itself
-//   (the spoiler warning before it turns on). Nothing wider than the screen; no page errors. Screenshots go to <outDir>.
+//   sheet (each step names its episode and date, I'm up to date turns Live on, Keep me live), Your settings' When results show ›
+//   Marked watched as it airs (the spoiler warning before it turns on). Nothing wider than the screen; no page errors. Screenshots go to <outDir>.
 //
 //   npm run dev                                                  (in another terminal)
 //   node scripts/dev-test/check-keep-up.js <outDir> [--width=390] [--keep] [--api]
@@ -21,7 +21,7 @@ require("dotenv").config({ path: ".env.local", quiet: true });
 const fs = require("fs");
 const path = require("path");
 const { Pool } = require("pg");
-const { open, api, BASE, openFold } = require("./browser");
+const { open, api, BASE } = require("./browser");
 const fixture = require("./new-fixture");
 const fakeListings = require("./fake-listings");
 
@@ -171,16 +171,14 @@ function check(ok, what, detail = "") {
       const f3 = await follow(fx.users.alex, tsid);
       check(f3.seen_through === 3 && f3.keep_up === "ask", "saved: Episode 3, Live", JSON.stringify(f3));
 
-      // ---- Settings: Move along by itself ----
+      // ---- Your settings: Marked watched as it airs (on When results show since settings Round 1) ----
       await page.goto(`${BASE}/settings`);
-      // A fold under Everything else since the 2026-10-31 redesign: Shows that move along by themselves, shut, saying which.
-      await page.locator('[data-fold="auto"]').waitFor({ timeout: 30_000 });
-      check(/None: you move each one along/.test(await page.locator('[data-fold="auto"] [data-fold-value]').innerText()), "shut, its row says none move along by themselves yet");
-      await openFold(page, "auto");
+      await page.locator('[data-group="results"]').waitFor({ timeout: 30_000 });
+      await page.locator('[data-group="results"]').click();
       const auto = page.locator(`[data-auto-show="${tsid}"]`);
       await auto.waitFor({ timeout: 30_000 });
       check((await page.locator(`[data-settings-auto] [data-auto-show="${sid}"]`).count()) === 0, "a show he plays isn't offered");
-      check(/Live: asks/.test(await auto.innerText()), "the Traitors row says it's Live", await auto.innerText());
+      check(/Asks when each one ends/.test(await auto.innerText()), "the Traitors row says it asks (Live)", await auto.innerText());
       await auto.locator('[role="switch"]').click();
       await page.locator("[data-auto-warn]").waitFor({ timeout: 5000 });
       check(/This can spoil it/.test(await page.locator("[data-auto-warn]").innerText()) && (await follow(fx.users.alex, tsid)).keep_up === "ask", "turning it on warns first, and nothing's changed yet");
@@ -190,8 +188,7 @@ function check(ok, what, detail = "") {
       await page.locator("[data-auto-confirm]").click();
       await page.waitForFunction((sel) => document.querySelector(sel)?.getAttribute("data-on") === "on", `[data-setting="auto-${tsid}"]`, { timeout: 15_000 }).catch(() => {});
       check((await follow(fx.users.alex, tsid)).keep_up === "auto", "Turn it on: it moves along by itself");
-      await page.waitForFunction(() => !/None/.test(document.querySelector('[data-fold="auto"] [data-fold-value]')?.textContent || "None"), null, { timeout: 15_000 }).catch(() => {});
-      check(!/None/.test(await page.locator('[data-fold="auto"] [data-fold-value]').innerText()), "and its row names the show", await page.locator('[data-fold="auto"] [data-fold-value]').innerText());
+      check(/each episode counts as watched once it airs/.test(await auto.innerText()), "and its row says so", await auto.innerText());
       await page.goto(`${BASE}/show/${tsid}/tonight`);
       await page.locator("[data-following] button").first().click();
       await sheet.locator("[data-where-auto]").waitFor({ timeout: 15_000 }).catch(() => {});

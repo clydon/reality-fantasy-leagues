@@ -160,7 +160,7 @@ function NotesSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (open
       <div data-notes-sheet>
         {data && !list.length && (
           <p className="py-8 text-center text-[14px] leading-snug text-muted-foreground" data-notes-empty>
-            Nothing yet. Results, reminders and what the couch is up to land here.
+            Nothing yet. Reminders, results and your couch&rsquo;s activity land here.
           </p>
         )}
         <Band label="New" notes={fresh} now={now} fresh onGo={go} />
@@ -174,6 +174,15 @@ function NotesSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (open
           </p>
         )}
         <PhoneFoot open={open} />
+        {/* Where these are set (settings Round 1): the last line, quiet, so it never competes with the list. */}
+        <button
+          type="button"
+          data-notes-settings
+          onClick={() => go("/settings?page=notifications")}
+          className="mt-4 flex min-h-11 items-center text-[13px] font-semibold text-muted-foreground underline underline-offset-[3px]"
+        >
+          Notification settings
+        </button>
       </div>
     </Sheet>
   );

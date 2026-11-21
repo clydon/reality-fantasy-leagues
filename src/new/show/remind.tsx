@@ -241,7 +241,7 @@ export function RemindSheet({ show }: { show: ShowData }) {
         <button type="button" data-remind-later onClick={close} className="mt-1 h-11 w-full text-[15px] font-bold text-muted-foreground">
           Not now
         </button>
-        {!install && <p className="mt-1 text-center text-[13px] text-muted-foreground">Change what you hear anytime in Settings.</p>}
+        {!install && <p className="mt-1 text-center text-[13px] text-muted-foreground">Change what you hear any time in Your settings.</p>}
       </div>
     </Sheet>
   );

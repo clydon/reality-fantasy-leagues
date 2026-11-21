@@ -107,7 +107,7 @@ function check(ok, what, detail = "") {
     let p = await profile("alex");
     check(JSON.stringify(p.sharing?.on) === JSON.stringify({ where: true, now: true, gifs: true, reactions: true }), "alex shares everything by default (the recommended level)", JSON.stringify(p.sharing));
     check(
-      /^zt_nd_alex (is up to Episode \d+ of|finished) ZT /.test(p.sharing.lines.where) && /^zt_nd_alex is watching ZT .+ now$/.test(p.sharing.lines.now),
+      /^zt_nd_alex has watched (through Ep \d+ of|all of) ZT /.test(p.sharing.lines.where) && /^zt_nd_alex is watching ZT .+ now$/.test(p.sharing.lines.now),
       "what riley sees about him, from his own shows: where he is, that he's watching",
       JSON.stringify(p.sharing.lines)
     );
@@ -120,7 +120,9 @@ function check(ok, what, detail = "") {
     check(r.status === 200 && JSON.stringify(r.body.sharing.on) === JSON.stringify({ where: false, now: false, gifs: true, reactions: true }), "Just my games: where and now off", JSON.stringify(r.body.sharing));
     check(JSON.stringify(await row("alex")) === JSON.stringify({ share_where: false, share_now: false, share_gifs: true, share_reactions: true }), "kept in user_settings");
     r = await share("alex", { now: true });
-    check(r.body.sharing.on.now === true && r.body.sharing.on.where === false && r.body.sharing.on.gifs === true, "one switch over the level: When I'm watching back on, the rest as they were");
+    check(r.body.sharing.on.now === false && r.body.sharing.on.where === false && r.body.sharing.on.gifs === true, "When I'm watching goes by Where I am since settings Round 1 (C6): one switch");
+    r = await share("alex", { where: true });
+    check(r.body.sharing.on.where === true && r.body.sharing.on.now === true && (await row("alex")).share_now === true, "Your couches see how far you've watched: on, and when you're watching with it");
     r = await share("alex", { preset: "all" });
     check(Object.values(r.body.sharing.on).every(Boolean), "Everything again");
 
@@ -205,10 +207,9 @@ function check(ok, what, detail = "") {
     const onNow = async () => (await as.alex.call("GET", `/api/couches/${C}/now`)).body.now.map((w) => w.userId);
     const cardNow = async () => ((await as.alex.call("GET", `/api/seasons/${S.severed}/watch${q}`)).body.now ?? []).map((w) => w.userId);
     check((await onNow()).includes(U.riley) && (await cardNow()).includes(U.riley), "riley watching Severed along: on alex's On now and the Watch along card");
-    await share("riley", { now: false });
-    check(!(await onNow()).includes(U.riley) && !(await cardNow()).includes(U.riley), "When I'm watching off: on neither");
-    check(memberOf(await home("alex"), "riley").at[S.severed] === 6, "where she is still shows (that's Where I am's)");
-    await share("riley", { now: true });
+    await share("riley", { where: false });
+    check(!(await onNow()).includes(U.riley) && !(await cardNow()).includes(U.riley), "how far she's watched hidden: not on now either (one switch since Round 1)");
+    await share("riley", { where: true });
     await pool.query("DELETE FROM watch_sessions WHERE id = $1", [ws]);
 
     // ---------- My episode GIFs (React with a GIF, 0162; check-gif-reactions.js has the rest) ----------
@@ -223,7 +224,7 @@ function check(ok, what, detail = "") {
     check(v.people.some((x) => x.userId === U.riley) && !!v.mine && v.of === 4, "alex's read of Episode 4's GIFs: riley's beside his, 4 on the couch share the show", JSON.stringify(v).slice(0, 300));
     await share("riley", { gifs: false });
     v = await gifsOf("alex");
-    check(!v.people.some((x) => x.userId === U.riley) && v.of === 3, "My episode GIFs off: hers isn't in it, nor counted", JSON.stringify(v).slice(0, 300));
+    check(v.people.some((x) => x.userId === U.riley) && v.of === 4, "a GIF shows once posted, whatever an old switch says (posting is the choice: settings Round 1, C6)", JSON.stringify(v).slice(0, 300));
     check(!!(await gifsOf("riley")).mine, "she still sees her own");
     p = await profile("alex");
     check(p.sharing.lines.gifs === "zt_nd_alex's GIF for ZT Survivor 51 Episode 4", "alex's line for GIFs: his latest", p.sharing.lines.gifs);
@@ -237,7 +238,7 @@ function check(ok, what, detail = "") {
     check(w.reactions.some((x) => x.text === "SH riley at a minute") && w.count === 1 && w.people.some((x) => x.userId === U.riley), "alex's watch along of Episode 4: riley's reaction, counted", JSON.stringify({ count: w.count, people: w.people }));
     await share("riley", { reactions: false });
     w = await stream();
-    check(!w.reactions.some((x) => x.text === "SH riley at a minute") && w.count === 0 && !w.people.length, "My watch along reactions off: not in his stream, nor its count", JSON.stringify({ count: w.count }));
+    check(w.reactions.some((x) => x.text === "SH riley at a minute") && w.count === 1, "a reaction shows once posted, whatever an old switch says (C6)", JSON.stringify({ count: w.count }));
     check((await profile("riley")).sharing.lines.reactions === "zt_nd_riley left 1 reaction on ZT Survivor 51", "riley's own line for reactions");
     await share("riley", { reactions: true });
 

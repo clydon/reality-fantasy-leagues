@@ -25,13 +25,13 @@ export const EVERYTHING = Number.POSITIVE_INFINITY;
 type Queryable = { query: typeof pool.query };
 
 /**
- * How far someone can be told about, from their follow's mark and the classic account setting: someone who
- * sees results straight away (user_settings.show_results_immediately) sees everything on a season where they
- * play an ordinary seat, as classic shows it them. A late joiner always goes by their mark, whatever the
- * setting (results-seen.ts), and so does a season they only follow.
+ * How far someone can be told about, from their follow's mark and When results show (user_settings.show_results_immediately):
+ * someone who sees results straight away sees everything on a season, on one they play an ordinary seat in (as classic shows it
+ * them) and, since settings Round 1 (C1), on one they only follow too: "Straight away" says every show. A late joiner's own-pace
+ * seat always goes by its mark, whatever the setting (results-seen.ts), so a season whose every seat is one does too.
  */
 export function progressFrom(mark: number | null | undefined, immediate: boolean, seats: { lateJoiner: boolean }[]): number {
-  if (immediate && seats.some((s) => !s.lateJoiner)) return EVERYTHING;
+  if (immediate && (!seats.length || seats.some((s) => !s.lateJoiner))) return EVERYTHING;
   return Number.isInteger(mark) && (mark as number) > 0 ? (mark as number) : 0;
 }
 
@@ -158,7 +158,9 @@ export type ShareKind = "play" | ShareSwitch;
 export type Shareable = { kind: ShareKind; seasonId: string };
 
 /** SQL: `who` has this switch of What your couch sees on (someone with no settings row has all four on). */
-export const switchOn = (s: ShareSwitch, who: string) => `COALESCE((SELECT us_.share_${s} FROM user_settings us_ WHERE us_.user_id = ${who}), true)`;
+// Settings Round 1 (C6): When I'm watching goes by Where I am (one switch), and GIFs and reactions always show (posting is the choice).
+export const switchOn = (s: ShareSwitch, who: string) =>
+  s === "gifs" || s === "reactions" ? "true" : `COALESCE((SELECT us_.share_${s === "now" ? "where" : s} FROM user_settings us_ WHERE us_.user_id = ${who}), true)`;
 
 /** SQL: `who` follows `season` openly (never a show watched privately). */
 export const followsOpenly = (who: string, season: string) =>
@@ -185,6 +187,9 @@ export async function sharingOf(userIds: string[], db: Queryable = pool): Promis
     "SELECT user_id, share_where, share_now, share_gifs, share_reactions FROM user_settings WHERE user_id = ANY($1::text[])",
     [ids]
   );
-  for (const r of rows) out.set(r.user_id, { where: r.share_where, now: r.share_now, gifs: r.share_gifs, reactions: r.share_reactions });
+  // Settings Round 1 (C6): one switch, "Your couches see how far you've watched", covers when you're watching too (share_now is
+  // written with it, and read as it, so an old mix can't leave one without the other); GIFs and reactions show whenever you post
+  // one, since posting is the choice. A show watched privately still shows none of it.
+  for (const r of rows) out.set(r.user_id, { where: r.share_where, now: r.share_where, gifs: true, reactions: true });
   return out;
 }

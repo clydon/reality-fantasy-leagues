@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { Bot, ChevronLeft } from "lucide-react";
+import { Bot, ChevronLeft, Settings } from "lucide-react";
 import { isBotSeat } from "./bot-seats";
 import { colourOf, pictureUrl } from "@/lib/people";
 import { usePerson } from "../data";
-import { useNav } from "../nav";
+import { NavLink, useNav } from "../nav";
+import { paths } from "../routes";
 
 // The new design's top bars: the hub's (the wordmark, notifications, you) and a pushed page's (back, a centred
 // title, an action on the right). A show's own bar is show-bar.tsx.
@@ -90,13 +91,17 @@ export function Wordmark() {
   );
 }
 
-/** The hub's top: the wordmark, notifications (`bell`: the hub's NotesBell), and you (your profile: your couch, your numbers, Settings). */
+/** The hub's top: the wordmark, notifications (`bell`: the hub's NotesBell), the gear (Your settings: settings Round 0's "one gear
+ *  on every bar"), and you (your picture: your couch and your numbers). */
 export function TopBar({ me, onProfile, bell }: { me: { id: string; name: string }; onProfile: () => void; bell?: ReactNode }) {
   return (
     <header className="flex items-center justify-between px-4 pb-1 pt-[calc(14px+env(safe-area-inset-top,0px))]">
       <Wordmark />
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1">
         {bell}
+        <NavLink href={paths.settings} aria-label="Your settings" data-gear className="nd-press grid size-11 place-items-center rounded-[3px] hover:bg-card">
+          <Settings className="size-5" aria-hidden />
+        </NavLink>
         <button type="button" onClick={onProfile} aria-label="Your profile" data-tour="you" className="nd-press grid size-11 place-items-center rounded-[3px]">
           <Avatar id={me.id} name={me.name} />
         </button>

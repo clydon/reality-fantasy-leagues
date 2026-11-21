@@ -99,15 +99,15 @@ export function PersonSheet({ couchId, userId, back, onOpenChange }: { couchId: 
         <p className="mt-4 text-[13px] leading-snug text-muted-foreground">
           {you
             ? list.length
-              ? "Change what the couch sees in Settings, or watch a show privately from its ⋯ menu."
+              ? "Change what your couches see in Your settings › Privacy, or hide a show from its ⋯ menu."
               : "Add a show and the couch sees how far you are in it."
             : list.length
               ? `Only what ${name} shares. A show watched privately never shows here.`
               : `${name} hasn't shared a show with the couch yet.`}
         </p>
         {you && (
-          <NavLink href={paths.settings} className="mt-1 inline-flex h-11 items-center text-[15px] font-semibold underline underline-offset-[3px]">
-            What your couch sees
+          <NavLink href={`${paths.settings}?page=privacy`} className="mt-1 inline-flex h-11 items-center text-[15px] font-semibold underline underline-offset-[3px]">
+            Privacy
           </NavLink>
         )}
       </div>

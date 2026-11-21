@@ -12,7 +12,7 @@
 // when one is tapped -- see the push/notificationclick handlers at the bottom.
 //
 // Bump VERSION when this file's behaviour, offline.html or the precached icons change.
-const VERSION = "v3";
+const VERSION = "v4";
 const CACHE = `rfl-offline-${VERSION}`;
 const PRECACHE = ["/offline.html", "/icons/icon-192.png"];
 
@@ -39,7 +39,8 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(fetch(req).catch(() => caches.match("/offline.html")));
 });
 
-// Payload shape: { title, body, url, tag } -- see push-core.js's sendPush.
+// Payload shape: { title, body, url, tag, settings } -- see push-core.js's sendPush. `settings` (settings Round 1): where a
+// "Notification settings" button opens, on phones that show buttons on a notification (Android, computers; iPhone shows none).
 self.addEventListener("push", (event) => {
   let data = {};
   try {
@@ -57,7 +58,8 @@ self.addEventListener("push", (event) => {
       // one up-to-date alert, not five.
       tag: data.tag,
       renotify: !!data.tag,
-      data: { url: data.url || "/" },
+      actions: data.settings ? [{ action: "settings", title: "Notification settings" }] : [],
+      data: { url: data.url || "/", settings: data.settings || null },
     })
   );
 });
@@ -66,7 +68,9 @@ self.addEventListener("push", (event) => {
 // rather than opening a second copy of the app; open a fresh one only if none is running.
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const target = new URL((event.notification.data && event.notification.data.url) || "/", self.location.origin).href;
+  const d = event.notification.data || {};
+  // Its button opens where this kind of notification is set; a tap anywhere else opens what it's about.
+  const target = new URL((event.action === "settings" && d.settings) || d.url || "/", self.location.origin).href;
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
       for (const win of windows) {

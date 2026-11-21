@@ -1,4 +1,4 @@
-import { CHAT_CHOICES, chatMode, MOMENTS, momentOn, momentOf, type ChatMode, type MomentId } from "@/lib/moments";
+import { CHAT_CHOICES, chatMode, MOMENTS, momentOn, momentOf, mutedNow, showOffSet, type ChatMode, type MomentId } from "@/lib/moments";
 import { cardArtSql } from "./art-sql";
 import { pool, HttpError } from "./db";
 import { seenThroughAll } from "./guard";
@@ -9,28 +9,89 @@ import { seasonSchedules } from "./schedule";
 // notify you about", index.html notesSheet and show.js showMenu's Notifications):
 //   - Your moments (Settings): each of moments.js's on or off (its notification types in notification_prefs.disabled, the
 //     switches classic's Account settings has always written), and Couch chat's choice (notification_prefs.chat).
-//   - A show's own (its ⋯ menu): the moments turned off for that show alone (notification_prefs.shows).
+//   - A show's own (its ⋯ menu): the moments turned off for that show alone (notification_prefs.shows), and muting it, for a day,
+//     a week or until you turn it back on (notification_prefs.muted, settings Round 1: A6).
+//   - A couch's own chat choice (couch_members.chat_notify, A9), over your account's.
+//   - What you've set on a show or a couch, gathered for Your settings (`elsewhere`), so "where did I turn that off?" has one
+//     answer.
 //   - The bell: what's happened, kept per person (the `notifications` table push-core.js writes), read back through the guard,
 //     and when you last looked (user_settings.notes_read_at): its count rides on the home read, never polled.
 //   - Your time zone, kept from your phone (user_settings.tz), so a push says your time.
 
+/** A show where you've set something of its own: muted (until an ISO time, or "forever"), or some kinds off. */
+export interface ShowException {
+  showId: string;
+  /** "Survivor" (a show's notifications cover every season of it). */
+  show: string;
+  /** The season to open it on: the latest of it you follow, else null. */
+  seasonId: string | null;
+  muted: string | null;
+  off: MomentId[];
+}
+
+/** A couch whose chat you've set apart from your account's choice. */
+export interface CouchException {
+  couchId: string;
+  name: string;
+  chat: ChatMode;
+}
+
 export interface NotifySettings {
-  moments: Record<MomentId, boolean>;
+  moments: Record<Exclude<MomentId, "chat">, boolean>;
   chat: ChatMode;
   /** How many devices you've turned notifications on for (this one's own state is the browser's). */
   devices: number;
+  /** What you've set on a show or a couch (Your settings lists them, each a link). */
+  elsewhere: { shows: ShowException[]; couches: CouchException[] };
 }
 
-/** Your moments and Couch chat's choice (the profile read's `notify`). */
+const isChat = (x: unknown): x is ChatMode => x === "all" || x === "quiet" || x === "off";
+
+/** Your moments, Couch chat's choice and what you've set elsewhere (the profile read's `notify`). */
 export async function readNotify(userId: string): Promise<NotifySettings> {
-  const { rows } = await pool.query(
-    `SELECT p.disabled, p.chat, (SELECT count(*)::int FROM push_subscriptions s WHERE s.user_id = $1) AS devices
-       FROM (SELECT 1) one LEFT JOIN notification_prefs p ON p.user_id = $1`,
-    [userId]
-  );
+  const [{ rows }, { rows: couches }] = await Promise.all([
+    pool.query(
+      `SELECT p.disabled, p.chat, p.shows, p.muted, (SELECT count(*)::int FROM push_subscriptions s WHERE s.user_id = $1) AS devices
+         FROM (SELECT 1) one LEFT JOIN notification_prefs p ON p.user_id = $1`,
+      [userId]
+    ),
+    pool.query(
+      `SELECT c.id, c.name, cm.chat_notify FROM couch_members cm JOIN couches c ON c.id = cm.couch_id
+        WHERE cm.user_id = $1 AND cm.chat_notify IS NOT NULL ORDER BY c.name`,
+      [userId]
+    ),
+  ]);
   const disabled = (rows[0]?.disabled as Record<string, boolean> | null) ?? {};
-  const moments = Object.fromEntries(MOMENTS.filter((m) => m.id !== "chat").map((m) => [m.id, momentOn(m.id, disabled)])) as Record<MomentId, boolean>;
-  return { moments, chat: chatMode(disabled, rows[0]?.chat), devices: rows[0]?.devices ?? 0 };
+  const moments = Object.fromEntries(MOMENTS.filter((m) => m.id !== "chat").map((m) => [m.id, momentOn(m.id, disabled)])) as NotifySettings["moments"];
+  return {
+    moments,
+    chat: chatMode(disabled, rows[0]?.chat),
+    devices: rows[0]?.devices ?? 0,
+    elsewhere: {
+      shows: await showExceptions(userId, (rows[0]?.shows as Record<string, unknown> | null) ?? {}, (rows[0]?.muted as Record<string, string> | null) ?? {}),
+      couches: couches.filter((c) => isChat(c.chat_notify)).map((c) => ({ couchId: c.id, name: c.name, chat: c.chat_notify as ChatMode })),
+    },
+  };
+}
+
+/** The shows you've muted (still muted now) or turned kinds off for, named, each with the season of it you follow latest. */
+async function showExceptions(userId: string, shows: Record<string, unknown>, muted: Record<string, string>): Promise<ShowException[]> {
+  const ids = [...new Set([...Object.keys(shows), ...Object.keys(muted)])].filter(isUuid);
+  if (!ids.length) return [];
+  const { rows } = await pool.query(
+    `SELECT s.id, s.name,
+            (SELECT ss.id FROM show_follows f JOIN show_seasons ss ON ss.id = f.season_id
+              WHERE f.user_id = $1 AND f.following AND ss.show_id = s.id ORDER BY ss.premiere_date DESC NULLS LAST, ss.season_number DESC NULLS LAST LIMIT 1) AS season_id
+       FROM shows s WHERE s.id = ANY($2::uuid[]) ORDER BY s.name`,
+    [userId, ids]
+  );
+  return rows
+    .map((r) => {
+      const off = [...showOffSet(shows[r.id])].filter((m): m is MomentId => MOMENTS.some((x) => x.id === m && x.perShow));
+      const until = mutedNow(muted[r.id]) ? muted[r.id] : null;
+      return { showId: r.id as string, show: (r.name as string).replace(/\s*\([^)]*\)\s*$/, ""), seasonId: (r.season_id as string | null) ?? null, muted: until, off };
+    })
+    .filter((x) => x.muted || x.off.length);
 }
 
 /** Writes a set of types on or off in notification_prefs.disabled (stored inverted: only what's off is kept). */
@@ -51,7 +112,7 @@ export async function saveNotify(userId: string, body: { moment?: unknown; on?: 
     if (body.chat !== "off") await pool.query("UPDATE notification_prefs SET chat = $2, updated_at = now() WHERE user_id = $1", [userId, body.chat === "all" ? "all" : null]);
     return;
   }
-  const m = MOMENTS.find((x) => x.id === body.moment && x.id !== "chat");
+  const m = MOMENTS.find((x) => x.id === body.moment && x.id !== "chat" && !x.fixed);
   if (!m) throw new HttpError(400, "Which moment?");
   if (typeof body.on !== "boolean") throw new HttpError(400, "on must be true or false");
   await setTypes(userId, m.types, body.on);
@@ -61,8 +122,13 @@ export interface ShowNotify {
   showId: string;
   /** "Survivor": what the sheet is about (a show's switches cover every season of it). */
   show: string;
+  /** Muted until this ISO time, or "forever"; null when it isn't (or a mute has run out). */
+  muted: string | null;
   moments: { id: MomentId; title: string; line: string; on: boolean; here: boolean }[];
 }
+
+/** How long a mute lasts, from now. */
+export type MuteFor = "day" | "week" | "forever";
 
 async function showOf(seasonId: string): Promise<{ id: string; name: string }> {
   if (!isUuid(seasonId)) throw new HttpError(404, "Season not found");
@@ -77,20 +143,72 @@ async function showOf(seasonId: string): Promise<{ id: string; name: string }> {
  */
 export async function readShowNotify(userId: string, seasonId: string): Promise<ShowNotify> {
   const show = await showOf(seasonId);
-  const [notify, { rows }] = await Promise.all([readNotify(userId), pool.query("SELECT shows -> $2 AS off FROM notification_prefs WHERE user_id = $1", [userId, show.id])]);
-  const off = new Set<string>(Array.isArray(rows[0]?.off) ? rows[0].off : []);
+  const [notify, { rows }] = await Promise.all([
+    readNotify(userId),
+    pool.query("SELECT shows -> $2 AS off, muted ->> $2 AS muted FROM notification_prefs WHERE user_id = $1", [userId, show.id]),
+  ]);
+  const off = showOffSet(rows[0]?.off);
   return {
     showId: show.id,
     show: show.name,
+    muted: mutedNow(rows[0]?.muted) ? (rows[0].muted as string) : null,
     moments: MOMENTS.filter((m) => m.perShow).map((m) => ({
       id: m.id,
       title: m.title,
-      // Couch chat here is on or off; how much of it is yours everywhere (Settings' choice).
-      line: m.id === "chat" ? `${CHAT_CHOICES.find((c) => c.id === notify.chat)?.title ?? "Quiet on episode nights"} for every show, in Settings` : m.line,
-      on: m.id === "chat" ? notify.chat !== "off" : notify.moments[m.id],
+      // Couch chat here is on or off; how much of it is your account's choice (or a couch's own).
+      line: m.id === "chat" ? `${CHAT_CHOICES.find((c) => c.id === notify.chat)?.title ?? "Skip possible spoilers"} is your choice for every couch` : m.line,
+      on: m.id === "chat" ? notify.chat !== "off" : notify.moments[m.id as Exclude<MomentId, "chat">],
       here: !off.has(m.id),
     })),
   };
+}
+
+/** Mutes a show for a day, a week or until it's turned back on, or unmutes it (`null`) (PUT /api/seasons/[id]/notifications { mute }). */
+export async function muteShow(userId: string, seasonId: string, mute: unknown): Promise<ShowNotify> {
+  const show = await showOf(seasonId);
+  if (mute !== null && mute !== "day" && mute !== "week" && mute !== "forever") throw new HttpError(400, "mute must be day, week, forever or null");
+  // It ends on the hour after a day or a week from now: a minute is noise on a mute (settings Round 1's check).
+  const until = mute === "forever" ? "forever" : mute ? new Date(Math.ceil((Date.now() + (mute === "day" ? 1 : 7) * 86_400_000) / 3_600_000) * 3_600_000).toISOString() : null;
+  if (until) {
+    await pool.query(
+      `INSERT INTO notification_prefs (user_id, muted) VALUES ($1, jsonb_build_object($2::text, $3::text))
+       ON CONFLICT (user_id) DO UPDATE SET muted = notification_prefs.muted || jsonb_build_object($2::text, $3::text), updated_at = now()`,
+      [userId, show.id, until]
+    );
+  } else {
+    await pool.query("UPDATE notification_prefs SET muted = muted - $2, updated_at = now() WHERE user_id = $1", [userId, show.id]);
+  }
+  return readShowNotify(userId, seasonId);
+}
+
+/** Puts a mute back exactly as it was (Undo): an ISO end, "forever", or none. */
+export async function restoreMute(userId: string, seasonId: string, until: unknown): Promise<ShowNotify> {
+  const show = await showOf(seasonId);
+  if (until !== null && until !== "forever" && !(typeof until === "string" && Number.isFinite(Date.parse(until)))) throw new HttpError(400, "until must be a time, forever or null");
+  if (until === null) return muteShow(userId, seasonId, null);
+  await pool.query(
+    `INSERT INTO notification_prefs (user_id, muted) VALUES ($1, jsonb_build_object($2::text, $3::text))
+     ON CONFLICT (user_id) DO UPDATE SET muted = notification_prefs.muted || jsonb_build_object($2::text, $3::text), updated_at = now()`,
+    [userId, show.id, until]
+  );
+  return readShowNotify(userId, seasonId);
+}
+
+/** Your chat choice on one couch (null: your account's) (GET /api/couches/[id]/chat-notify). */
+export async function readCouchChat(userId: string, couchId: string): Promise<{ chat: ChatMode | null }> {
+  if (!isUuid(couchId)) throw new HttpError(404, "Couch not found");
+  const { rows } = await pool.query("SELECT chat_notify FROM couch_members WHERE couch_id = $1 AND user_id = $2", [couchId, userId]);
+  if (!rows.length) throw new HttpError(404, "Couch not found");
+  return { chat: isChat(rows[0].chat_notify) ? rows[0].chat_notify : null };
+}
+
+/** Sets your chat choice on one couch, or back to your account's (`null`) (PUT /api/couches/[id]/chat-notify { chat }). */
+export async function saveCouchChat(userId: string, couchId: string, chat: unknown): Promise<{ chat: ChatMode | null }> {
+  if (chat !== null && !isChat(chat)) throw new HttpError(400, "chat must be all, quiet, off or null");
+  if (!isUuid(couchId)) throw new HttpError(404, "Couch not found");
+  const { rowCount } = await pool.query("UPDATE couch_members SET chat_notify = $3 WHERE couch_id = $1 AND user_id = $2", [couchId, userId, chat]);
+  if (!rowCount) throw new HttpError(404, "Couch not found");
+  return { chat: chat as ChatMode | null };
 }
 
 /** One of a show's moments on or off for that show alone (PUT /api/seasons/[id]/notifications { moment, on }). */

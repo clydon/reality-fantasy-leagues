@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
-import { requireAuth } from "@/lib/server/auth-helpers";
+import { isImpersonating, requireAuthSession } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
 import { loopback } from "@/lib/server/push-core";
 
@@ -14,8 +14,15 @@ interface SubscriptionBody {
 // Upsert on endpoint, and re-point it at the current user: the same browser can be signed into a
 // different account later, and its pushes should follow whoever is signed in now -- not keep
 // delivering the previous person's notifications to the new one.
+// A site admin viewing as someone can't register their own phone for that person's pushes, or switch that person's off (settings
+// Round 1: the profile route's rule, on every route that changes your notifications).
+function mine(session: Awaited<ReturnType<typeof requireAuthSession>>) {
+  if (isImpersonating(session)) throw new HttpError(403, "You're viewing as someone. Their notifications are theirs to change.");
+  return session.user;
+}
+
 export const POST = apiRoute(async (req) => {
-  const user = await requireAuth(req);
+  const user = mine(await requireAuthSession(req));
   const body = (await req.json().catch(() => ({}))) as SubscriptionBody;
   const endpoint = body.endpoint;
   const p256dh = body.keys?.p256dh;
@@ -37,7 +44,7 @@ export const POST = apiRoute(async (req) => {
 // Unregister THIS device ("turn off on this device", or signing out). Only the caller's own row:
 // knowing an endpoint URL must not let one account switch off another's notifications.
 export const DELETE = apiRoute(async (req) => {
-  const user = await requireAuth(req);
+  const user = mine(await requireAuthSession(req));
   const { endpoint } = (await req.json().catch(() => ({}))) as { endpoint?: string };
   if (!endpoint) throw new HttpError(400, "endpoint required");
   await pool.query("DELETE FROM push_subscriptions WHERE endpoint=$1 AND user_id=$2", [endpoint, user.id]);

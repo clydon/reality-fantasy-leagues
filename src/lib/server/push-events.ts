@@ -331,8 +331,8 @@ interface ChatPosted {
  * linked-group chat), and since this step also a show the couch only watches and the people on the couch who follow the show
  * without playing (on the new design: classic's chat can't show them that conversation).
  *
- * Folded for someone (chat-fold.ts: past where they are) it says who wrote, never what; with Couch chat on Quiet on episode
- * nights (the recommended one) a folded message isn't pushed at all, and Never sends nothing. One notification per
+ * Folded for someone (chat-fold.ts: past where they are) it says who wrote, never what; with Couch chat on Skip possible
+ * spoilers (the recommended one) a folded message isn't pushed at all, and Never sends nothing; each couch can have its own. One notification per
  * conversation on a device, kept up to date. Never in the bell (the Chat tab has its own count).
  */
 export function notifyCouchChat(posted: ChatPosted) {
@@ -387,6 +387,8 @@ export function notifyCouchChat(posted: ChatPosted) {
     return {
       userIds,
       seasonId,
+      // The couch's own chat choice applies (settings Round 1, A9): reader.chat is it, when they've set one there.
+      couchId,
       bell: false,
       message: async (reader: PushReader): Promise<PushMessage | null> => {
         const inGames = leagueOf.get(reader.userId);
