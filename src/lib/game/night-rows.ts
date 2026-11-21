@@ -28,9 +28,10 @@ export type NightChange = "points" | "night" | "result" | "lives" | "week" | "li
  * - `target`: a race's distance ("12 of 20 to win");
  * - `lives`: the couch's lives left ("2 of 3 lives left");
  * - `weeks`: weeks won ("2 weeks won");
- * - `stage`: the stage that played and the overall ("Merge stage · 21 pts").
+ * - `stage`: the stage that played and the overall ("Merge stage · 21 pts");
+ * - `worth`: what your holdings are worth ("Worth 12.5").
  */
-export type NightLine = "total" | "opponent" | "target" | "lives" | "weeks" | "stage";
+export type NightLine = "total" | "opponent" | "target" | "lives" | "weeks" | "stage" | "worth";
 
 /** What opening the row shows: everyone's night (a row each), or the episode's matchups (head to head). */
 export type NightOpen = "everyone" | "matchups";
@@ -42,30 +43,34 @@ export interface NightRowDesign {
   /** Your place on the right under the change (a co-op game has none: the couch wins or loses together). */
   place: boolean;
   open: NightOpen;
-  /** Where its frames are (the story's frame ids, story-tonight-night.js), or null: designed, not yet seen on a real game. */
+  /** Where its frames are (story ids: `patterns/<main>` from story-tonight-patterns.js, the rest from story-tonight-night.js), or
+   *  null: designed, not yet seen on a real game (the three sports-only blocks, until the sports pass). */
   seen: string | null;
 }
 
 export const NIGHT_ROWS: Record<MainBlock, NightRowDesign> = {
   // How you win is the game's heart.
-  together: { faces: "plays", change: "lives", line: "lives", place: false, open: "everyone", seen: null },
-  race: { faces: "plays", change: "points", line: "target", place: true, open: "everyone", seen: null },
-  matchup: { faces: "plays", change: "result", line: "opponent", place: true, open: "matchups", seen: null },
+  together: { faces: "plays", change: "lives", line: "lives", place: false, open: "everyone", seen: "patterns/together.closed, patterns/together.open" },
+  race: { faces: "plays", change: "points", line: "target", place: true, open: "everyone", seen: "patterns/race.closed, patterns/race.open" },
+  matchup: { faces: "plays", change: "result", line: "opponent", place: true, open: "matchups", seen: "patterns/matchup.closed, patterns/matchup.open" },
+  // A sport's (the engine lab refuses categories on a show: nothing counts a sport's stats there).
   categories: { faces: "plays", change: "result", line: "opponent", place: true, open: "matchups", seen: null },
-  worth: { faces: "plays", change: "points", line: "total", place: true, open: "everyone", seen: null },
-  week: { faces: "plays", change: "week", line: "weeks", place: true, open: "everyone", seen: null },
+  worth: { faces: "plays", change: "points", line: "worth", place: true, open: "everyone", seen: "patterns/worth.closed, patterns/worth.open" },
+  week: { faces: "plays", change: "week", line: "weeks", place: true, open: "everyone", seen: "patterns/week.closed, patterns/week.open" },
   // What you hold.
+  // A sport's (squares settle on a game's two final scores, which a show's episode doesn't have).
   board: { faces: "none", change: "points", line: "total", place: true, open: "everyone", seen: null },
-  card: { faces: "none", change: "lines", line: "total", place: true, open: "everyone", seen: null },
-  objectives: { faces: "plays", change: "points", line: "total", place: true, open: "everyone", seen: null },
-  team: { faces: "plays", change: "points", line: "total", place: true, open: "everyone", seen: "week.open-lineup, week.open-boots, big.open" },
-  picks: { faces: "plays", change: "points", line: "total", place: true, open: "everyone", seen: null },
-  ladder: { faces: "plays", change: "night", line: "total", place: true, open: "everyone", seen: "week.open-pick, week.quick" },
+  card: { faces: "none", change: "lines", line: "total", place: true, open: "everyone", seen: "patterns/card.closed, patterns/card.open" },
+  objectives: { faces: "plays", change: "points", line: "total", place: true, open: "everyone", seen: "patterns/objectives.closed, patterns/objectives.open" },
+  team: { faces: "plays", change: "points", line: "total", place: true, open: "everyone", seen: "patterns/team.closed, patterns/team.open, week.open-boots, big.open" },
+  picks: { faces: "plays", change: "points", line: "total", place: true, open: "everyone", seen: "patterns/picks.closed, patterns/picks.open" },
+  ladder: { faces: "plays", change: "night", line: "total", place: true, open: "everyone", seen: "patterns/ladder.closed, patterns/ladder.open, week.quick" },
   // The questions.
+  // A sport's (one question per game of a slate: a show's episodes have no final score).
   slate: { faces: "none", change: "points", line: "total", place: true, open: "everyone", seen: null },
-  ballot: { faces: "none", change: "points", line: "total", place: true, open: "everyone", seen: null },
+  ballot: { faces: "none", change: "points", line: "total", place: true, open: "everyone", seen: "patterns/ballot.closed, patterns/ballot.open" },
   // A game made of games: the overall, the stage that played.
-  stages: { faces: "plays", change: "points", line: "stage", place: true, open: "everyone", seen: null },
+  stages: { faces: "plays", change: "points", line: "stage", place: true, open: "everyone", seen: "patterns/stages.closed, patterns/stages.open" },
 };
 
 /** A main block's design; an unknown one (a page from before a block existed) reads as a game of questions. */

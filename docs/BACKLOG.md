@@ -6,7 +6,7 @@ and in flight is in [HANDOFF.md](HANDOFF.md).
 
 **How this file works**
 - **Numbers are permanent.** Code, tests and commits cite "BACKLOG 57", so a number never changes and is never reused. A new
-  item takes the next free number: **the next is 238.**
+  item takes the next free number: **the next is 240.**
 - **Closing an item:** delete it here and add one line under "Closed since the cleanup" at the end: the number, done or
   dropped, and the commit or the reason. Numbers closed in the cleanup itself are listed, with their full old text, in
   [archive/BACKLOG-2026-11-19.md](archive/BACKLOG-2026-11-19.md).
@@ -318,6 +318,11 @@ everyone starts with the points of those already out. Done when each DN entry is
 
 ## Next: worth doing, about a session each
 
+- **238. A sports squares game passes the engine lab's check on a show.** Found by story-tonight-patterns.js (2026-11-21): a
+  board (squares) spec passes `specProblems` on ZT Survivor 51, but it settles on a game's two final scores, which a show's
+  episode doesn't have, so it could never pay out. Categories and slates are refused there; squares likely should be too. For the
+  engine session (Noticed, not fixed: branch tonight-night).
+
 ### Engine and rules
 
 **48. A team game with a cut ends at Episode 1 when nobody's on a team yet.** `Seq.lastLeft` counts "none left" as "one left",
@@ -557,6 +562,10 @@ plan the same in the stack table, the Limits table and Cost by size. [S · docs]
 ---
 
 ## Waiting on you
+
+- **239. "Quick game" or "one-episode game"?** Tonight's night groups them as "One-episode games" (the user's words, 2026-11-21);
+  the Join row and its sheet, and decisions.md's 2026-11-21 naming entry, still say "quick game". *Recommended: "one-episode game"
+  everywhere a person reads it, since it's what they called them.*
 
 Each one names the question and Claude's recommendation. "Yes to all the recommendations" is a fine answer; Claude records it
 and builds.

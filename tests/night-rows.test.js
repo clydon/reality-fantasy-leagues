@@ -21,7 +21,7 @@ test("every main block the grammar names has a Tonight row", () => {
 });
 
 test("each row says what its faces, change, line and open state are", () => {
-  const ok = { faces: ["plays", "none"], change: ["points", "night", "result", "lives", "week", "lines"], line: ["total", "opponent", "target", "lives", "weeks", "stage"], open: ["everyone", "matchups"] };
+  const ok = { faces: ["plays", "none"], change: ["points", "night", "result", "lives", "week", "lines"], line: ["total", "opponent", "target", "lives", "weeks", "stage", "worth"], open: ["everyone", "matchups"] };
   for (const [main, d] of Object.entries(NIGHT_ROWS)) {
     for (const [k, values] of Object.entries(ok)) assert.ok(values.includes(d[k]), `${main}.${k} is "${d[k]}"`);
     assert.equal(typeof d.place, "boolean", `${main}.place`);

@@ -884,7 +884,7 @@ export function WeekGames({ g, words, onOpen }: { g: GameView; words: ShowData["
 }
 
 /** That week's games (head to head), on an episode's sheet: each pairing and its score; each opens its matchup. */
-export function EpisodeGames({ g, episode, onOpen }: { g: GameView; episode: number; onOpen: (playerId: string) => void }) {
+export function EpisodeGames({ g, episode, onOpen, unit = "week" }: { g: GameView; episode: number; onOpen: (playerId: string) => void; unit?: string }) {
   if (g.plays.kind !== "result") return null;
   const seen = new Set<string>();
   const games: { a: TableRow; b: TableRow | null; us: number; them: number | null; r: "W" | "L" | "T"; median: boolean }[] = [];
@@ -900,7 +900,7 @@ export function EpisodeGames({ g, episode, onOpen }: { g: GameView; episode: num
   if (!games.length) return null;
   return (
     <section className="mb-3" data-episode-games>
-      <p className="type-caption mb-1 text-[14px] tracking-[0.04em] text-muted-foreground">That week&apos;s games</p>
+      <p className="type-caption mb-1 text-[14px] tracking-[0.04em] text-muted-foreground">That {unit}&apos;s games</p>
       {games.map((x) => (
         <button key={x.a.playerId} type="button" data-episode-game={x.a.playerId} onClick={() => onOpen(x.a.playerId)} className="nd-press grid min-h-12 w-full grid-cols-[1fr_auto_1fr_auto] items-center gap-2 border-t border-border py-1 text-left">
           <span className="flex min-w-0 items-center gap-1.5">
