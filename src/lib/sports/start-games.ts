@@ -50,7 +50,7 @@ export function perGame(spec: Record<string, unknown>): Record<string, unknown> 
 }
 
 /** The spec for one of a sport's standard games over episodes `from` to `to` of the season it starts on. */
-export function railSpec(spec: Record<string, unknown>, from: number, to: number): Record<string, unknown> {
+export function railSpec(spec: Record<string, unknown>, from: number, to: number | null): Record<string, unknown> {
   return { ...structuredClone(spec), span: { from, to } };
 }
 

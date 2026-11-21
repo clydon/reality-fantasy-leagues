@@ -13,9 +13,11 @@ import { useStartSport } from "./start";
 // A team's sheet (docs/PLAN-start-a-game-gpt.md U1's sports slice; U0's board "Find a team", the user's calls of 2026-11-08 and
 // 2026-11-09): you go to a team to start a game, and the game then lives on the couch. Its lower third and Follow (the couch's
 // faces who do); a game on now (only when it may be told); **Play the next game**, the one yellow (one tap: Pick'em on it, the
-// couch told after the 10-second Undo); Start a game… (the rest of the season, a run, a rival: start-sport.tsx); its rivals (the
-// couch's teams first, four, then All opponents · N), filtering what's below to their meetings; the series still to finish; Coming
-// up (five, then folded by month); Earlier, folded. A record, a form strip and every result go through Hide scores.
+// couch told after the 10-second Undo); **Start a game on** (step 2.8's design round, docs/design-round/sports-scope-spec.md): the
+// scopes as one group of rows, each saying how many games and, where it decides a draft, whose players (the next game; their season,
+// their players only; the series still to finish); its rivals (the couch's teams first, four, then All opponents · N), filtering
+// what's below to their meetings and adding Every <rival> game under them; Coming up (five, then folded by month); Earlier, folded.
+// A record, a form strip and every result go through Hide scores.
 
 export type StartWhen =
   | { kind: "next" }
@@ -101,7 +103,7 @@ export function TeamView({
     const rivals = [...opps.values()]
       .filter((o) => o.next)
       .sort((a, b) => +ours.has(b.id) - +ours.has(a.id) || (a.next!.at ?? "").localeCompare(b.next!.at ?? ""));
-    return { games, live, coming, past, rivals, ours, record: recordOf(games) };
+    return { games, live, coming, past, rivals, ours, left: games.filter((g) => !begun(g, now)).length, record: recordOf(games) };
   }, [s, against, couchTeams.data, league, now]);
 
   if (sched.isLoading) return <p className="mt-4 text-[14px] text-muted-foreground">Loading their season…</p>;
@@ -190,7 +192,26 @@ export function TeamView({
           No games coming up this season.
         </p>
       )}
-      {next && <MoreAction data="start" title="Start a game…" line="The rest of the season, a run of games, a rival" onClick={() => onStart(against ? { kind: "meetings", against } : { kind: "next" }, s.team.short)} />}
+      {next && (
+        <>
+          <SportsLabel>Start a game on</SportsLabel>
+          <div data-scopes>
+            <OpenRow data="scope-next" title="The next game" line={`${versus(next)} · a draft, squares or props`} onClick={() => onStart({ kind: "next" }, s.team.short)} />
+            <OpenRow
+              data="scope-season"
+              title="Their season"
+              line={`${view.left} ${view.left === 1 ? "game" : "games"} left · ${s.team.short} players only`}
+              onClick={() => onStart({ kind: "season" }, s.team.short)}
+            />
+            {s.series
+              .filter((x) => x.state === "coming" && x.games.length >= 2)
+              .slice(0, 4)
+              .map((x) => (
+                <OpenRow key={x.games.join()} data="series" title={x.name} line={`${x.games.length} games · both teams' players`} onClick={() => onStart({ kind: "games", games: x.games }, s.team.short)} />
+              ))}
+          </div>
+        </>
+      )}
 
       {view.rivals.length > 0 && (
         <>
@@ -219,25 +240,16 @@ export function TeamView({
             </button>
           )}
           {rival && (
-            <p className="mt-3 text-[13px] text-muted-foreground" data-against-note>
-              Just their games against the {rival.short}.{" "}
-              <button type="button" className="font-bold text-foreground underline underline-offset-[3px]" onClick={() => onStart({ kind: "meetings", against: rival.id }, s.team.short)}>
-                Play every meeting
-              </button>
-            </p>
+            // The rival's scope, under the chip that made it: their meetings, both teams' players (a matchup's own season).
+            <div className="mt-2" data-against-note>
+              <OpenRow
+                data="scope-rival"
+                title={`Every ${rival.short} game`}
+                line={`${view.coming.length} ${view.coming.length === 1 ? "game" : "games"} · ${rival.short} and ${s.team.short} players`}
+                onClick={() => onStart({ kind: "meetings", against: rival.id }, s.team.short)}
+              />
+            </div>
           )}
-        </>
-      )}
-
-      {!against && s.series.some((x) => x.state === "coming" && x.games.length >= 2) && (
-        <>
-          <SportsLabel>Series</SportsLabel>
-          {s.series
-            .filter((x) => x.state === "coming" && x.games.length >= 2)
-            .slice(0, 4)
-            .map((x) => (
-              <OpenRow key={x.games.join()} data="series" title={x.name} line={`${x.games.length} games · Play the series`} onClick={() => onStart({ kind: "games", games: x.games }, s.team.short)} />
-            ))}
         </>
       )}
 
@@ -327,7 +339,7 @@ export function GameView({ g, s, onStart, onStarted }: { g: Game; s: TeamSchedul
             line={`Pick'em on it, one tap · tells the couch`}
             onClick={() => void start({ league: s.league, team: s.team.id, games: [g.id], game: "pickem" }, onStarted)}
           />
-          <MoreAction data="game-start" title="Another game on it…" line="Squares, a draft or Pick a few" onClick={() => onStart({ kind: "games", games: [g.id] })} />
+          <MoreAction data="game-start" title="Another game on it…" line="Squares, a draft or Pick a few · both teams' players" onClick={() => onStart({ kind: "games", games: [g.id] })} />
         </>
       ) : (
         <p className="mt-4 text-[14px] text-muted-foreground">{sc.open && (g.state === "post" || g.final) ? "It's over." : "It's already on: picks closed at the start."}</p>

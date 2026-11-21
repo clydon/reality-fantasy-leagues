@@ -1,6 +1,6 @@
 import { allSports, sportOf, TeamSport } from "@/lib/sports";
 import { MAX_GAMES, MAX_SEASON, leagueName, matchupKey, matchupName, seasonKey } from "@/lib/sports/matchup";
-import type { Cadence, SlateStage } from "@/lib/sports/slate";
+import { isExhibition, type Cadence, type SlateStage } from "@/lib/sports/slate";
 import { FITS, findLeagues, findTeams, scheduleOf, seasonName, teamHit, teamScore, wordsOf, type LeagueHit, type MatchupHit, type ScheduleGame, type Series, type TeamHit, type TeamList } from "@/lib/sports/teams";
 import { NEW_SHOWS_A_DAY } from "../add-show";
 import { HttpError, pool } from "../db";
@@ -250,6 +250,13 @@ export function regularOf(team: string, games: SportsEvent[]): SportsEvent[] {
   return mine.some((g) => g.stage) ? mine.filter((g) => g.stage === "regular") : mine;
 }
 
+/** Step 2.7: a team's playoff games listed so far, in order, none called off nor an exhibition (a Pro Bowl's). */
+export function playoffsOf(team: string, games: SportsEvent[]): SportsEvent[] {
+  return games
+    .filter((g) => g.stage === "post" && g.competitors.some((c) => c.team?.id === team) && !(g.state === "post" && !g.final) && !isExhibition(g.note, g.name))
+    .sort((a, b) => (a.at ?? "").localeCompare(b.at ?? ""));
+}
+
 /** Games against `against`, none called off. */
 function meetingsOf(team: string, against: string, games: SportsEvent[]): SportsEvent[] {
   const ids = new Set(scheduleOf(team, games, { against }).games.filter((g) => !g.calledOff).map((g) => g.id));
@@ -371,8 +378,13 @@ export async function addGames(
   let picked: SportsEvent[];
   let key: string | undefined;
   let name: string;
+  // Step 2.7: a team's season's regular season ends with its last regular game; its playoff games follow as they're set.
+  let regularThrough: number | null = null;
   if (ask.whole === "season") {
     picked = regularOf(ask.team, games);
+    regularThrough = picked.length || null;
+    // Made once the playoffs are listed: theirs so far after it (team-season.ts adds the rest).
+    picked = [...picked, ...playoffsOf(ask.team, games)];
     if (picked.length > MAX_SEASON) throw new HttpError(400, `A season of more than ${MAX_SEASON} games`);
     if (year == null) throw new HttpError(404, "No season listed");
     key = seasonKey(p.id, ask.league, ask.team, year);
@@ -390,7 +402,7 @@ export async function addGames(
   const prefix = opts.prefix ?? "";
   const found = await pool.query("SELECT 1 FROM sports_matchups WHERE key = $1", [`${prefix}${key ?? matchupKey(p.id, ask.league, picked.map((g) => g.id))}`]);
   if (!found.rows.length && userId) await underCap(userId);
-  const m = await matchupSeason(p, ask.league, picked, { name, key, pastLines: false, userId, providers: opts.providers, now: opts.now, prefix, cast: opts.cast });
+  const m = await matchupSeason(p, ask.league, picked, { name, key, pastLines: false, userId, providers: opts.providers, now: opts.now, prefix, cast: opts.cast, regularThrough });
   if (userId) await setFollow(userId, m.seasonId, { following: true });
   return { seasonId: m.seasonId, made: m.made, name: m.name, games: m.games };
 }
@@ -409,7 +421,7 @@ export interface SlateAsk {
   slate: { stage?: SlateStage; cadence?: Cadence };
 }
 
-export type AddedSlate = Pick<Slate, "seasonId" | "made" | "name" | "league" | "stage" | "cadence" | "episodes" | "games">;
+export type AddedSlate = Pick<Slate, "seasonId" | "made" | "name" | "league" | "stage" | "cadence" | "episodes" | "games" | "regularThrough">;
 
 /**
  * Add a league's slate: made (or found: everyone who asks for the same league, season, stage and cadence shares one; slate.ts
@@ -422,7 +434,7 @@ export async function addSlate(userId: string | null, ask: SlateAsk, opts: { pro
   const slate = ask && typeof ask === "object" ? ask.slate : undefined;
   const league = ask && typeof ask === "object" ? leaguePath(ask.league) : null;
   if (!league || !slate || typeof slate !== "object" || Array.isArray(slate)) throw new HttpError(400, "Say which league: { league, slate: {} }");
-  if (slate.stage !== undefined && slate.stage !== "regular" && slate.stage !== "post") throw new HttpError(400, "stage is regular or post");
+  if (slate.stage !== undefined && slate.stage !== "regular" && slate.stage !== "post" && slate.stage !== "full") throw new HttpError(400, "stage is regular, post or full");
   if (slate.cadence !== undefined && slate.cadence !== "day" && slate.cadence !== "week" && slate.cadence !== "round") throw new HttpError(400, "cadence is day, week or round");
   const sport = sportOf(league);
   if (sport && !(sport instanceof TeamSport)) throw new HttpError(400, "Its season is an event an episode, not a slate");
@@ -446,6 +458,6 @@ export async function addSlate(userId: string | null, ask: SlateAsk, opts: { pro
   }
   if (!made) throw new HttpError(404, "No such league");
   if (userId) await setFollow(userId, made.seasonId, { following: true });
-  const { seasonId, name, stage, cadence, episodes, games } = made;
-  return { seasonId, made: made.made, name, league: made.league, stage, cadence, episodes, games };
+  const { seasonId, name, stage, cadence, episodes, games, regularThrough } = made;
+  return { seasonId, made: made.made, name, league: made.league, stage, cadence, episodes, games, regularThrough };
 }

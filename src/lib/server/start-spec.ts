@@ -15,7 +15,8 @@ import { HttpError, pool, withLeagueLock } from "./db";
 import { deleteLeague } from "./end-game";
 import { makeStages } from "./engine-lab";
 import { followLeagueProgress } from "./follows";
-import { fantasySeasonEnd } from "./air-times";
+import { fantasySeasonEnd, regularEnd } from "./air-times";
+import { scopePool, scopeTeams } from "./sports/scope";
 import { asksToday, packFor } from "./game-words";
 import { refused } from "./game-writes";
 import { makeLeague } from "./new-game";
@@ -57,6 +58,10 @@ export interface WizardPage {
   tells: number;
   /** G5: the season's made-for games, for the rail. */
   made: MadeGame[];
+  /** Step 2.8's design round, on a sport's season: `team`, a team's season's team (it picks from that team's players: sports/scope.ts),
+   *  else null (a league's slate, a matchup's own two teams); `filling` while its players are still being fetched (a season just added:
+   *  nobody to count yet, so the sheet reads it again). Null on a show. */
+  scope: { team: string | null; filling: boolean } | null;
 }
 
 export type WizardOptions = StartOptions & {
@@ -65,16 +70,20 @@ export type WizardOptions = StartOptions & {
   againSpec: Record<string, unknown> | null;
 };
 
+/** A team's season's team (scopeTeams over the whole season), else null; never a failure (a show's season has no matchup row). */
+const teamScopeOf = (seasonId: string) => scopeTeams(seasonId, null, null).catch(() => null);
+
 /** What can start, and (for a season set up) the page Start a game checks and words games on. */
 export async function wizardOptions(user: SessionUser, seasonId: string, couchId: string | null, now = new Date(), late = false, start: number | null = null, again: string | null = null): Promise<WizardOptions> {
   // `start`: an episode that's aired, to catch up from at your own pace (where you are, on a season still airing).
   const opts = await startOptions(user, seasonId, couchId, again, now, late, start);
   // An aired season at your own pace takes the wizard too (the user, 2026-11-09): it starts where the season's starts say.
   if (opts.blocked) return { ...opts, wizard: null, againSpec: null };
-  const [{ pack, ctx }, asks, tells, made] = await Promise.all([packFor(user, seasonId, opts.couch.id, now), asksToday(user), audience(user, opts.couch.id, seasonId), madeGames(seasonId)]);
+  const [{ pack, ctx }, asks, tells, made, teams] = await Promise.all([packFor(user, seasonId, opts.couch.id, now), asksToday(user), audience(user, opts.couch.id, seasonId), madeGames(seasonId), teamScopeOf(seasonId)]);
+  const scope = pack.kind === "sport" ? { team: teams && teams.length === 1 ? teams[0] : null, filling: !(Array.isArray(ctx.poolOf) && ctx.poolOf.length) } : null;
   const listed = Math.max(0, ...opts.starts.map((e) => e.number));
   const last = pack.episodes.total ?? (listed >= opts.from ? listed : null);
-  return { ...opts, wizard: { page: { ctx, pack }, last, asksLeft: asks.left, tells: tells.length, made }, againSpec: opts.again ? await againSpecOf(opts.again.leagueId, opts.again.questions) : null };
+  return { ...opts, wizard: { page: { ctx, pack }, last, asksLeft: asks.left, tells: tells.length, made, scope }, againSpec: opts.again ? await againSpecOf(opts.again.leagueId, opts.again.questions) : null };
 }
 
 /** Run it back's game as its rules: the league's spec (StateLogic.gameOf), its span left for the sheet to set on this season. */
@@ -139,7 +148,7 @@ export async function startFromSpec(
   user: SessionUser,
   seasonId: string,
   couchId: string | null,
-  body: { spec?: unknown; name?: unknown; typed?: unknown; tell?: unknown; bots?: unknown; level?: unknown; late?: unknown; made?: unknown; pace?: unknown },
+  body: { spec?: unknown; name?: unknown; typed?: unknown; tell?: unknown; bots?: unknown; level?: unknown; late?: unknown; made?: unknown; pace?: unknown; timing?: unknown },
   now = new Date(),
   o: { origin?: string; bot?: string } = {}
 ): Promise<SpecStarted> {
@@ -180,12 +189,22 @@ export async function startFromSpec(
   if (typeof span.to === "number" && typeof span.from === "number" && span.to < span.from) throw new HttpError(400, "It ends before it starts");
   // BACKLOG 226: a game scored by players' stats on the NFL's regular season, to the season's end, runs to the fantasy season's end
   // (Week 17, before Week 18's rested starters); a later week picked is kept.
-  if (!staged && span.to == null && typeof span.from === "number" && isObj(spec.score) && spec.score.by === "stats") {
-    const end = await fantasySeasonEnd(pool, seasonId);
+  // Step 2.7 (docs/PLAN-sports-ready.md; the user, 2026-11-20): on a season that goes on into its playoffs (a full slate, a team's
+  // season), a game to the season's end plays its regular season (a stats game's to the fantasy season's end), unless the maker asked
+  // for the final (`timing: "final"`: no end, so it runs on through the playoffs and ends with them). Started in the playoffs, it
+  // runs on through them either way.
+  const final = body.timing === "final";
+  if (!staged && span.to == null && typeof span.from === "number" && !final) {
+    const stats = isObj(spec.score) && spec.score.by === "stats";
+    const reg = await regularEnd(pool, seasonId);
+    const end = reg ? (stats ? reg.fantasy : reg.through) : stats ? await fantasySeasonEnd(pool, seasonId) : null;
     if (end !== null && end >= span.from) span.to = end;
   }
   // How it runs (docs/PLAN-own-pace-games.md, "Pace is the game's setting"): the sheet's choice, checked against this start.
   const pace = paceAsked(body.pace, opts, !!fromPhase);
+  // Whose players it picks from (the user, 2026-11-21: sports/scope.ts): on one team's season, that team's; one game of it, the two
+  // teams'. Before our check, so it counts the smaller pool.
+  if (!staged && typeof span.from === "number") await scopePool(spec, seasonId);
 
   // A window's swaps held to the team (the spec's check; step 2.5: a sport's "no limit" is the team's size, so a smaller team made
   // from its game, as a typed game or a check's may be, keeps its waivers).

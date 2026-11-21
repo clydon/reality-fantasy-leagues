@@ -324,11 +324,11 @@ function pairsOf(state: LeagueState, q: Question): { key: string; ids: [string, 
 /** Who a person answer can name, as the viewer sees it: who's still in (from your own team, yours); for a group answer (A6), the
  *  groups someone still in is on (after any swap you've seen, never one you haven't; `fg`, F3 part 2: on a season played in
  *  pairs, the format's state over time's groups going into the episode); for a question about each person, each of those still in. */
-function facesFor(view: LeagueState, q: Question, playerId: string, fg?: FormatGroups | null): QuestionFace[] {
+function facesFor(view: LeagueState, q: Question, playerId: string, fg?: FormatGroups | null, episode?: number | null): QuestionFace[] {
   // F3 part 2: on a season played in groups the league doesn't hold (pairs), the groups going into the lock, from the format's
   // state over time ("Ann & Bea"); none when that isn't sure, unless the question follows the people (carry-on). A14 part 2: the
   // engine's (AnswerLogic.faces), which the bot's calls are checked against too.
-  return StateLogic.AnswerLogic.faces(view, q, { playerId, groups: fg ?? null }).map((f) => ({ id: f.id, name: f.name, photo: publicMediaSrc(f.photoUrl) }));
+  return StateLogic.AnswerLogic.faces(view, q, { playerId, groups: fg ?? null, episode: episode ?? null }).map((f) => ({ id: f.id, name: f.name, photo: publicMediaSrc(f.photoUrl) }));
 }
 
 /** Why a group question on the timeline's groups (F3 part 2) has nothing to pick at an episode's lock, or null. */
@@ -633,7 +633,7 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
         q.answer === "side" && q.each !== "game" && !behind
           ? sideFaces(facts.games?.get(ep || (StateLogic.startEpisode(h.state) ?? 1)))
           : namesSomeone(q) && q.answer !== "pairs" && !behind
-            ? facesFor(view, q, me, facts.formatGroups?.get(ep))
+            ? facesFor(view, q, me, facts.formatGroups?.get(ep), ep)
             : null,
       draw: q.answer === "bracket" && !behind ? await drawView(view, h.state, q, ep || (StateLogic.startEpisode(h.state) ?? 1), facts) : null,
       offWhy: !behind ? (triviaOff ?? offWhy(q, facts.formatGroups?.get(ep))) : null,
@@ -788,7 +788,7 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
         : q.answer === "pairs"
           ? new Set(pairsOf(h.state, q).flatMap((p) => p.ids.map((id) => `${p.key}:${id}`)))
           : namesSomeone(q)
-            ? new Set(facesFor(view, q, h.playerId, r.facts.formatGroups?.get(ep)).map((f) => f.id))
+            ? new Set(facesFor(view, q, h.playerId, r.facts.formatGroups?.get(ep), ep).map((f) => f.id))
             : null;
       let most: number | undefined;
       if (Spec.drawsOnBank(q, bank)) {

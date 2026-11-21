@@ -148,7 +148,8 @@ function gamesFrom(state: LeagueState, data: SeasonRows, o: { mark?: number | nu
   const slate = slated.length > 0;
   // L8 part 1's engine items, part 2: a playoffs slate's every game as the series read it (its note and series length as linked).
   // An event linked to several episodes is one game, its last episode's row (keyed by its id: a later row replaces it).
-  const playoffs: Map<string, PlayoffGame> | null = slated[0]?.stage === "post" ? new Map() : null;
+  // Step 2.7: a full slate's too (its regular season's games name no round, so they're no series of it).
+  const playoffs: Map<string, PlayoffGame> | null = slated[0]?.stage === "post" || slated[0]?.stage === "full" ? new Map() : null;
   let row: { note: string | null; best_of: number | null; starts_at: Date | null } | null = null;
   const teamNames = new Map<string, string | null>();
   /** A game's facts: an episode's one, or one of a slate's episode's; with its listing, every episode's by event id (eachGame). */

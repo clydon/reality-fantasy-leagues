@@ -1,6 +1,8 @@
 {
   "sport": "football",
   "about": "Football's defaults, as data (docs/PLAN-start-a-game-gpt.md track L, L1): a sport's standard scoring, categories, lineup slots and locks, and the game specs a sport's Make it a game starts from instead of asking the bot. Stat keys are Football's (src/lib/sports/football.ts): players' and a team defense's in one table, since a key is unique in the sport (a quarterback's interceptions thrown are INT, a defender's DINT, a team defense's DSTINT). The team defense is one line per side (Yahoo's DEF: football.ts's defenseId), its points allowed in Yahoo's brackets (PA0 a shutout ... PA35). Slots take its positions or position groups (ESPN's roster says PK for a kicker). The specs are in the game spec's shape (A1's schema, on the engine branch); slots and categories aren't in that schema yet (L4 adds them), so they're kept beside it for the spec to read.",
+  "final": "the championship game",
+  "finalSource": "Step 2.7 (docs/PLAN-sports-ready.md): the final a game through the playoffs runs to, as people name it (\"Through the Super Bowl\"); words for 4.0's pass",
   "scoring": {
     "source": "Yahoo's default league scoring, half-PPR (help.yahoo.com/kb/SLN6489.html): offense, then kickers, then the team defense; 25 passing yards a point, 10 rushing or receiving yards a point, fractions kept",
     "points": {
@@ -101,7 +103,9 @@
     }
   },
   "leagues": {
+    "college-football": { "final": "the national championship" },
     "nfl": {
+      "final": "the Super Bowl",
       "playoffs": {
         "source": "Yahoo's and ESPN's fantasy seasons, playoffs and all, end at Week 17, the regular season's last week before Week 18's, when teams rest their starters (BACKLOG 214 and 226, the user's calls of 2026-11-19 and 11-20): a game scored by players' stats on the regular season ends there unless its maker says otherwise, and its playoffs end there whatever its span",
         "endsBefore": 1

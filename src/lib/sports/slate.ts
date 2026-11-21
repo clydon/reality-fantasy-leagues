@@ -14,8 +14,11 @@
 import * as Air from "@/lib/game/air-schedule.js";
 
 export type Cadence = "day" | "week" | "round";
-/** The stage of its season a slate is ("regular": a soccer league's whole season too; "post": the playoffs). */
-export type SlateStage = "regular" | "post";
+/** The stage of its season a slate is ("regular": a soccer league's whole season too; "post": the playoffs; "full": the regular
+ *  season and then its playoffs, one season, so a game's timing can cross the line: docs/PLAN-sports-ready.md step 2.7). */
+export type SlateStage = "regular" | "post" | "full";
+/** A stage as ESPN's calendar has one (a full slate is two of them). */
+export type CalendarSlateStage = Exclude<SlateStage, "full">;
 
 /** A stage of a league's season as ESPN's calendar bounds it (ISO instants). */
 export interface CalendarStage {
@@ -90,13 +93,27 @@ export function cadencesOf(calendar: Pick<LeagueCalendar, "weeks">, lock: "daily
 }
 
 /** A stage's word for ESPN's: soccer's own season (none) is its regular season. */
-export const slateStageOf = (s: CalendarStage): SlateStage | null => (s.stage === "post" ? "post" : s.stage === "regular" || s.stage === null ? "regular" : null);
+export const slateStageOf = (s: CalendarStage): CalendarSlateStage | null => (s.stage === "post" ? "post" : s.stage === "regular" || s.stage === null ? "regular" : null);
 
-/** The stage's bounds as days (ESPN's own dates), or null when the calendar hasn't got it. */
+/** The stage's bounds as days (ESPN's own dates), or null when the calendar hasn't got it. A full slate's: its regular season's
+ *  first day to its playoffs' last (`type` the regular season's), null unless the calendar lists both. */
 export function stageDays(calendar: LeagueCalendar, stage: SlateStage): { from: string; to: string; type: number } | null {
+  if (stage === "full") {
+    const r = stageDays(calendar, "regular");
+    const p = stageDays(calendar, "post");
+    return r && p ? { from: r.from, to: p.to, type: r.type } : null;
+  }
   const s = calendar.stages.find((x) => slateStageOf(x) === stage);
   return s ? { from: espnDay(s.from), to: espnDay(new Date(Date.parse(s.to) - 60_000).toISOString()), type: s.type } : null;
 }
+
+/** Whether the calendar lists both of a league's stages, so a full slate can be made of it (a soccer league's one season can't). */
+export const hasFull = (calendar: LeagueCalendar) => !!stageDays(calendar, "regular") && !!stageDays(calendar, "post");
+
+/** An exhibition, by its name or its week's (the Pro Bowl, an all-star game): never a slate's game or episode, in any stage. Its
+ *  teams aren't the league's (the AFC's and the NFC's), and nothing a game asks about it counts. */
+export const EXHIBITION = /\b(pro bowl|all[- ]stars?)\b/i;
+export const isExhibition = (...names: (string | null | undefined)[]) => names.some((n) => typeof n === "string" && EXHIBITION.test(n));
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -125,6 +142,19 @@ function tile<T extends { from: string; to: string }>(eps: T[]): T[] {
  * every cadence's windows when given; days and weeks come from the calendar alone, their games linked as they near.
  */
 export function slateEpisodes(calendar: LeagueCalendar, stage: SlateStage, cadence: Cadence, games: SlateGame[] = []): SlateEpisode[] {
+  if (stage === "full") {
+    // Step 2.7: the regular season's episodes, then the playoffs' after them, numbered on (a week's playoffs as the calendar lists
+    // them, a day's or a round's as their games are: they grow as they're listed, syncSlate), the windows tiling across the line.
+    const regular = slateEpisodes(calendar, "regular", cadence, games);
+    if (!regular.length) return [];
+    const post = slateEpisodes(calendar, "post", cadence, games).map((e, i) => ({ ...e, n: regular.length + i + 1 }));
+    // A day's or a round's label counts from its own stage's first (Round 1 of the playoffs is the slate's 31st): renamed by the
+    // slate's numbers, as a later one appended is (syncSlate). A week's calendar label ("Wild Card") is the calendar's own.
+    for (const e of post) if (!(cadence === "week" && calendar.weeks.length)) e.label = episodeLabel(cadence, e.n, cadence === "day" ? e.to : e.from);
+    const all = [...regular, ...post];
+    for (let i = regular.length; i < all.length; i++) all[i].from = addDays(all[i - 1].to, 1);
+    return all;
+  }
   const bounds = stageDays(calendar, stage);
   if (!bounds) return [];
   const inStage = (day: string) => day >= bounds.from && day <= bounds.to;
@@ -145,7 +175,8 @@ export function slateEpisodes(calendar: LeagueCalendar, stage: SlateStage, caden
     }
   } else if (cadence === "week" && calendar.weeks.length) {
     eps = calendar.weeks
-      .filter((w) => w.type === bounds.type)
+      // Step 2.7: an exhibition's week (a Pro Bowl's of its own) isn't one.
+      .filter((w) => w.type === bounds.type && !isExhibition(w.label))
       .map((w, i) => ({ n: i + 1, from: espnDay(w.from), to: espnDay(new Date(Date.parse(w.to) - 60_000).toISOString()), label: w.label, detail: w.detail, games: [] }));
   } else {
     const days = [...new Set([...calendar.days, ...played.map((g) => dayOf(g.at!))])].filter(inStage).sort();
@@ -182,6 +213,11 @@ export function episodeLabel(cadence: Cadence, n: number, from: string): string 
 export function episodeFor(eps: Pick<SlateEpisode, "n" | "from" | "to">[], day: string): number | null {
   for (const e of eps) if (day >= e.from && day <= e.to) return e.n;
   return null;
+}
+
+/** Where a full slate's regular season ends: its regular season's episodes, as slateEpisodes numbers them (null for another stage). */
+export function regularThrough(calendar: LeagueCalendar, stage: SlateStage, cadence: Cadence, games: SlateGame[] = []): number | null {
+  return stage === "full" ? slateEpisodes(calendar, "regular", cadence, games).length || null : null;
 }
 
 /** A slate's key: its league, season, stage and cadence, whoever asks ("espn:football/nfl:slate:2026:regular:week"). */

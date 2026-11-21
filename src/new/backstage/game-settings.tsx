@@ -291,7 +291,8 @@ function GameSettingsBody({ seasonId, couchId, show, g, write, line }: { seasonI
   const frozen: string | true | null = !g.commissioner ? true : why;
   const sp = g.span;
   const part = { singular: E.toLowerCase(), plural: show.words.episodes.toLowerCase() };
-  const length = sp.from === null ? `When ${sp.phase?.name ?? "its phase"} starts` : sp.to === null ? `${E} ${sp.from} to the season's end` : spanName(sp.from, sp.to, part);
+  // Step 2.7: a sport's season that goes on into its playoffs: no end is through its final.
+  const length = sp.from === null ? `When ${sp.phase?.name ?? "its phase"} starts` : sp.to === null ? (sp.playoffs ? `${E} ${sp.from} through ${sp.playoffs.final}` : `${E} ${sp.from} to the season's end`) : spanName(sp.from, sp.to, part);
   const L = g.lineup;
   const art = show.header?.show.backdropUrl ?? show.header?.show.artUrl ?? null;
   const kicker = show.header ? `${(show.header.show.name ?? "").replace(/^The /, "")}${show.header.seasonNumber ? ` · Season ${show.header.seasonNumber}` : ""}` : "";

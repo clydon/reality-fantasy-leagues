@@ -1,7 +1,7 @@
 import { easternDay } from "@/lib/game/tv-listings";
 import * as Air from "@/lib/game/air-schedule.js";
 import { leagueName } from "@/lib/sports/matchup";
-import { cadencesOf, dayOf, episodeFor, episodeLabel, mondayOf, monthsOf, seasonWords, spanWords, slateEpisodes, slateKey, slateName, slateStageOf, stageDays, ZONE, type Cadence, type LeagueCalendar, type SlateEpisode, type SlateGame, type SlateStage } from "@/lib/sports/slate";
+import { cadencesOf, dayOf, episodeFor, episodeLabel, hasFull, isExhibition, mondayOf, monthsOf, regularThrough, seasonWords, spanWords, slateEpisodes, slateKey, slateName, slateStageOf, stageDays, ZONE, type Cadence, type LeagueCalendar, type SlateEpisode, type SlateGame, type SlateStage } from "@/lib/sports/slate";
 import { TeamSport, sportOf } from "@/lib/sports";
 import { pool } from "../db";
 import { castFromEvents } from "./cast";
@@ -38,6 +38,8 @@ export interface Slate {
   episodes: number;
   /** Its games linked so far. */
   games: number;
+  /** A full slate's last regular-season episode (step 2.7), else null. */
+  regularThrough: number | null;
 }
 
 /** A slate that can't be made as asked (a cadence the league isn't cut by, a stage its calendar hasn't listed). */
@@ -53,13 +55,18 @@ export async function slateChoices(league: string, opts: { providers?: SportsPro
     if (!calendar) continue;
     const cadences = cadencesOf(calendar, sport.lock);
     const stages = (["regular", "post"] as SlateStage[]).filter((s) => calendar.stages.some((x) => slateStageOf(x) === s)).map((stage) => ({ stage, cadences }));
+    // Step 2.7: both, one season, when the calendar lists both (a soccer league's one season has no playoffs to go on to).
+    if (hasFull(calendar)) stages.push({ stage: "full", cadences });
     return { provider: p, calendar, stages };
   }
   return null;
 }
 
-/** The stage a slate is unless asked: the playoffs while the calendar's in them, else the regular season. */
+/** The stage a slate is unless asked: both, the regular season and its playoffs, whenever the calendar lists both (step 2.7: a game's
+ *  timing is its span on that one season, the regular season by default, so Game settings can carry it on through the playoffs);
+ *  else the playoffs while the calendar's in them, else the regular season. */
 function usualStage(calendar: LeagueCalendar): SlateStage {
+  if (hasFull(calendar)) return "full";
   const now = calendar.stages.find((s) => s.type === calendar.now);
   return now && slateStageOf(now) === "post" ? "post" : "regular";
 }
@@ -107,6 +114,7 @@ export async function makeSlate(opts: {
   const fixtures = cadence === "round" ? await fixturesOf(p, opts.league, calendar, stage) : [];
   const eps = slateEpisodes(calendar, stage, cadence, fixtures.map(slateGame));
   if (!eps.length) throw new SlateRefused("It has no games listed yet");
+  const through = regularThrough(calendar, stage, cadence, fixtures.map(slateGame));
   if (fixtures.length) await storeEvents(p.id, opts.league, fixtures);
   const named = calendar.leagueName ?? fixtures.map((e) => e.leagueName).find(Boolean) ?? null;
   const name = slateName(leagueName(opts.league, named), calendar, stage, cadence, choice.cadences[0]).slice(0, 120);
@@ -140,8 +148,8 @@ export async function makeSlate(opts: {
       new Date(Date.parse(`${eps[eps.length - 1].to}T12:00:00Z`) + 30 * 86_400_000),
     ]);
     const { rowCount } = await c.query(
-      `INSERT INTO sports_slates (season_id, provider, league, season, stage, cadence, windows, key, made_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (key) DO NOTHING`,
-      [seasonId, p.id, opts.league, calendar.season, stage, cadence, JSON.stringify(eps.map((e) => [e.from, e.to])), key, opts.userId ?? null]
+      `INSERT INTO sports_slates (season_id, provider, league, season, stage, cadence, windows, key, made_by, regular_through) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) ON CONFLICT (key) DO NOTHING`,
+      [seasonId, p.id, opts.league, calendar.season, stage, cadence, JSON.stringify(eps.map((e) => [e.from, e.to])), key, opts.userId ?? null, through]
     );
     if (!rowCount) {
       // Someone asked for the same slate a moment ago: theirs.
@@ -166,18 +174,18 @@ export async function makeSlate(opts: {
     }
   }
   if (opts.cast !== false) await fillLater(seasonId, () => castFromEvents(seasonId, { providers: opts.providers, held: true }), opts.userId ?? null);
-  return { seasonId, made: true, name, league: opts.league, stage, cadence, episodes: eps.length, games };
+  return { seasonId, made: true, name, league: opts.league, stage, cadence, episodes: eps.length, games, regularThrough: through };
 }
 
 /** The slate made for this key, as made (its games linked so far). */
 async function foundSlate(key: string): Promise<Slate | null> {
   const { rows } = await pool.query(
-    `SELECT x.season_id, x.league, x.stage, x.cadence, ss.name, ss.episode_count, (SELECT count(*)::int FROM season_events e WHERE e.season_id = x.season_id) AS games
+    `SELECT x.season_id, x.league, x.stage, x.cadence, x.regular_through, ss.name, ss.episode_count, (SELECT count(*)::int FROM season_events e WHERE e.season_id = x.season_id) AS games
        FROM sports_slates x JOIN show_seasons ss ON ss.id = x.season_id WHERE x.key = $1`,
     [key]
   );
   const r = rows[0];
-  return r ? { seasonId: r.season_id, made: false, name: r.name ?? "", league: r.league, stage: r.stage, cadence: r.cadence, episodes: r.episode_count, games: r.games } : null;
+  return r ? { seasonId: r.season_id, made: false, name: r.name ?? "", league: r.league, stage: r.stage, cadence: r.cadence, episodes: r.episode_count, games: r.games, regularThrough: r.regular_through ?? null } : null;
 }
 
 /** One of a league's slates: a stage cut one way, as it would be made (or as it was made). */
@@ -270,8 +278,12 @@ export async function leagueSlates(league: string, opts: { providers?: SportsPro
 }
 
 /** An event in the slate's stage (a soccer league's events say none: its whole season; so does the NBA's play-in, on days past its
- *  regular season's, so never one of its episodes). */
-const inStage = (e: SportsEvent, stage: SlateStage) => (e.stage ?? "regular") === stage;
+ *  regular season's, so never one of its episodes). A full slate's, either (step 2.7). An exhibition (the Pro Bowl, an all-star
+ *  game: its teams aren't the league's) in none. */
+const inStage = (e: SportsEvent, stage: SlateStage) => {
+  const s = e.stage ?? "regular";
+  return (stage === "full" ? s === "regular" || s === "post" : s === stage) && !isExhibition(e.note, e.name);
+};
 const teamsOf = (e: SportsEvent) => e.competitors.map((x) => x.team).filter((t): t is NonNullable<typeof t> => !!t);
 const slateGame = (e: SportsEvent): SlateGame => ({ id: e.id, at: e.at, teams: teamsOf(e).map((t) => t.id) });
 /** A link's note and series length as the provider lists them (season_events.note and best_of: a playoff's round and its series,
@@ -332,17 +344,22 @@ export interface SlateSync {
  */
 export async function syncSlate(seasonId: string, opts: { providers?: SportsProvider[]; now?: Date; days?: string[]; cast?: boolean } = {}): Promise<SlateSync> {
   const now = opts.now ?? new Date();
-  const { rows } = await pool.query("SELECT provider, league, stage, cadence, windows FROM sports_slates WHERE season_id = $1", [seasonId]);
+  const { rows } = await pool.query("SELECT provider, league, stage, cadence, windows, regular_through FROM sports_slates WHERE season_id = $1", [seasonId]);
   const slate = rows[0];
   if (!slate) throw new Error(`No slate ${seasonId}`);
   const p = (opts.providers ?? sportsProviders()).find((x) => x.id === slate.provider);
   const out: SlateSync = { linked: 0, added: 0, moved: 0, appended: 0, outside: 0 };
   if (!p) return out;
   const read = (slate.windows as [string, string][]).map(([from, to]) => ({ from, to }));
-  // Its days in the window (a regular season's to its last: the playoffs' days aren't its; the playoffs' on, listed as they go).
-  const days = (opts.days ?? daysBetween(easternDay(now, -BACK_DAYS), easternDay(now, AHEAD_DAYS))).filter((d) => d >= read[0].from && (slate.stage === "post" || d <= read[read.length - 1].to));
+  // Its days in the window (a regular season's to its last: the playoffs' days aren't its; the playoffs' on, listed as they go, and a
+  // full slate's, its playoffs being its last stage: step 2.7).
+  const grows = slate.stage === "post" || slate.stage === "full";
+  const days = (opts.days ?? daysBetween(easternDay(now, -BACK_DAYS), easternDay(now, AHEAD_DAYS))).filter((d) => d >= read[0].from && (grows || d <= read[read.length - 1].to));
+  // A full slate's days past its regular season take only playoff games (the NBA's play-in, which says no stage, is neither).
+  const regularTo = slate.stage === "full" && Number.isInteger(slate.regular_through) ? read[slate.regular_through - 1]?.to ?? null : null;
+  const fits = (e: SportsEvent, day: string) => inStage(e, slate.stage) && (regularTo === null || day <= regularTo || e.stage === "post");
   const events: SportsEvent[] = [];
-  for (const day of days) events.push(...(await p.eventsOn(slate.league, day)).filter((e) => inStage(e, slate.stage) && teamsOf(e).length >= 2 && e.at && dayOf(e.at) === day));
+  for (const day of days) events.push(...(await p.eventsOn(slate.league, day)).filter((e) => fits(e, day) && teamsOf(e).length >= 2 && e.at && dayOf(e.at) === day));
   const place: { episode: number; event: SportsEvent }[] = [];
   const c = await pool.connect();
   try {
@@ -356,7 +373,7 @@ export async function syncSlate(seasonId: string, opts: { providers?: SportsProv
     for (const e of events.sort((a, b) => (a.at ?? "").localeCompare(b.at ?? ""))) {
       const day = dayOf(e.at!);
       let n = episodeFor(windows, day);
-      if (n === null && slate.stage === "post" && day > windows[windows.length - 1].to) {
+      if (n === null && grows && day > windows[windows.length - 1].to) {
         // The playoffs, listed as they go: episodes after the last, to this day's (a week's to its Sunday). A regular season's
         // last episode reaches its stage's last day, so a game past it isn't its (the NBA's play-in).
         const last = windows[windows.length - 1];
