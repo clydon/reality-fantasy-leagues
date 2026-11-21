@@ -264,10 +264,13 @@ export async function removeMember(user: SessionUser, seasonId: string, couchId:
   return { ...out, batch };
 }
 
-/** You leave every game of the couch's on this season (tier 3); never as the last Commissioner. `preview`: only what it would do. */
-export async function leaveGames(user: SessionUser, seasonId: string, couchId: string | null, preview: boolean) {
+/**
+ * You leave every game of the couch's on this season, or one of them (`leagueId`: Leave this game, settings Round 2's A11) (tier 3);
+ * never as the last Commissioner. `preview`: only what it would do.
+ */
+export async function leaveGames(user: SessionUser, seasonId: string, couchId: string | null, preview: boolean, leagueId: string | null = null) {
   const { here } = await scope(user, seasonId, couchId);
-  const mine = here.filter((g) => g.yourRole);
+  const mine = here.filter((g) => g.yourRole && (!leagueId || g.leagueId === leagueId));
   if (!mine.length) throw new HttpError(404, "You're not in a game here");
   const out = await outPreview(mine, user.id);
   if (preview || out.problem) {
@@ -275,7 +278,7 @@ export async function leaveGames(user: SessionUser, seasonId: string, couchId: s
     return { ...out, batch: null };
   }
   const batch = crypto.randomUUID();
-  for (const g of mine) await takeOut(g.leagueId, user.id, { actor: user.id, batch, text: `${out.name} left the games` });
+  for (const g of mine) await takeOut(g.leagueId, user.id, { actor: user.id, batch, text: leagueId ? `${out.name} left ${g.name}` : `${out.name} left the games` });
   return { ...out, batch };
 }
 

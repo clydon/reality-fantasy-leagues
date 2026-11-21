@@ -11,7 +11,7 @@ import type { StartWhen } from "./team";
 // added as a season (/api/sports/add: made or found, shared, followed), then Start a game opens on that season, the same gallery and
 // screens as a show's (the user, 2026-11-18: "the sport create a game should at least feel and navigate just like the show"). What
 // was picked on the team's sheet says what's added and how long the game starts out: the next game (the rest of the season added, the
-// game set to just the next one), the rest of the season, a rival's meetings, or a run of games.
+// game set to just the next one), their season (every game that can run it opening on it), a rival's meetings, or a run of games.
 
 /** What a game starts on: a team's games (from its sheet), or a league's slate (its sheet). */
 export type SportTarget = { kind: "team"; league: string; team: string; teamName: string; when: StartWhen } | { kind: "slate"; league: string; leagueName: string };
@@ -38,7 +38,7 @@ export function SportStartHandoff({ target, onOpenChange, onBack }: { target: Sp
       (r) => {
         if (gone) return;
         onOpenChange(false);
-        openStartGame({ seasonId: r.seasonId, couchId, length: target.kind === "team" && target.when.kind === "next" ? "next" : null });
+        openStartGame({ seasonId: r.seasonId, couchId, length: target.kind === "team" && target.when.kind === "next" ? "next" : target.kind === "team" && target.when.kind === "season" ? "season" : null });
       },
       (e: Error) => !gone && setError(e.message)
     );

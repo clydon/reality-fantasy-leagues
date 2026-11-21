@@ -24,13 +24,42 @@ import { turnOn, useReach } from "./remind";
 // Saves as it's tapped, with Undo. While nothing of yours rings (this phone off, or an iPhone not yet on the Home Screen), a line
 // says so, with Turn on, since a switch that's on for a phone that never rings is the "looks on but isn't" failure.
 
+// Settings Round 2 (the user's pick on Round 1's story): "Until the next episode" first, closer to why people mute (tonight's
+// spoilers), while one is scheduled; then the clock's three. Each says when it would end.
 const MUTES: { id: MuteFor; title: string }[] = [
+  { id: "next", title: "Until the next episode" },
   { id: "day", title: "For a day" },
   { id: "week", title: "For a week" },
   { id: "forever", title: "Until I turn it back on" },
 ];
 
-export function ShowNotifySheet({ seasonId, open, onOpenChange }: { seasonId: string; open: boolean; onOpenChange: (open: boolean) => void }) {
+/** When a mute picked now would end, in Mute's words: "until Thu 8 PM". The day and the week end on the hour after, as the server does. */
+function muteWhen(id: MuteFor, now: number, nextAt: string | null): string {
+  if (id === "forever") return "";
+  if (id === "next") {
+    if (!nextAt) return "";
+    // The day and the time: the next episode is a moment, not a date (the check's finding).
+    const at = new Date(nextAt);
+    return `Until ${at.toLocaleDateString([], { weekday: "short" })} ${at.toLocaleTimeString([], { hour: "numeric", minute: at.getMinutes() ? "2-digit" : undefined })}`;
+  }
+  const end = new Date(Math.ceil((now + (id === "day" ? 1 : 7) * 86_400_000) / 3_600_000) * 3_600_000).toISOString();
+  return muteEnd(end, now).replace(/^until/, "Until");
+}
+
+export function ShowNotifySheet({
+  seasonId,
+  open,
+  onOpenChange,
+  nextAt = null,
+  finished = false,
+}: {
+  seasonId: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** When the season's next episode starts (Mute's "Until the next episode"); null when none is coming up. */
+  nextAt?: string | null;
+  finished?: boolean;
+}) {
   const q = useShowNotify(seasonId, open);
   const qc = useQueryClient();
   const now = useNow(false);
@@ -117,15 +146,16 @@ export function ShowNotifySheet({ seasonId, open, onOpenChange }: { seasonId: st
               </button>
               {choosing && (
                 <div data-mute-choices className="nd-unfold grid grid-cols-1 gap-1.5 pb-3 pl-[52px]">
-                  {MUTES.map((m) => (
+                  {MUTES.filter((m) => m.id !== "next" || (!!nextAt && !finished)).map((m) => (
                     <button
                       key={m.id}
                       type="button"
                       data-mute-for={m.id}
                       onClick={() => mute(m.id)}
-                      className="nd-press flex h-11 items-center rounded-[3px] bg-card px-3 text-left text-[15px] font-semibold outline-1 -outline-offset-1 outline-edge"
+                      className="nd-press flex min-h-[52px] items-center justify-between gap-3 rounded-[3px] bg-card px-3 py-1.5 text-left outline-1 -outline-offset-1 outline-edge"
                     >
-                      {m.title}
+                      <span className="text-[15px] font-semibold">{m.title}</span>
+                      <small className="text-right text-[12.5px] leading-tight text-muted-foreground">{muteWhen(m.id, now, nextAt)}</small>
                     </button>
                   ))}
                 </div>

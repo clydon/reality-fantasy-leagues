@@ -1,5 +1,8 @@
 # Plan: sports in good shape, technically and in design
 
+> **Phase 2 (2.1 to 2.8) merged and live:** 2.1 to 2.6 on 2026-11-20 (d4e594cf); 2.7, 2.8 and 2.8's design round on 2026-11-21
+> (1484417a; migration 0312, additive, applied by the build without a rehearsal on the user's word). Next is 4.1, then Phase 3.
+>
 > **Status (2026-11-20): Active, Phase 0 and Phase 1 done but 1.1's screens, merged and live** (f1488cf1..ba8f3a8e, deployed
 > 2026-11-20; migrations 0308 to 0310 rehearsed on a copy of production first). Written from two audits on 2026-11-19: the
 > engine, data and operations, and every screen a sports fan touches.
@@ -12,7 +15,8 @@
 > playoffs end by Week 17, and the default plays a final between the top two then: BACKLOG 226), 2.3 done (lineup slots for every
 > team sport, MLB's eligibility from ESPN's positions, computer players drafting and starting legal lineups), 2.4 and 2.5 done (IR,
 > waivers that run), 2.6 done (own pace for a sport: a team sport's seat never more than one game behind, by itself). 2.7 added: a game's timing on
-> through the playoffs, the maker's choice (the user, 2026-11-20).
+> through the playoffs, the maker's choice (the user, 2026-11-20); 2.7's parts (a) to (e) built and checked on branch sports-playoffs
+> (2026-11-20, not merged: migration 0312; the screenshot story waits on the user's review).
 > Next: the rest of Phase 2 (its calls answered 2026-11-19, own pace for sports added) and 4.1; 1.1's
 > part 4 (the screens, on a small live read) is the design round's page 2.
 > The user's calls 212–219 are answered ("Decisions", below); BACKLOG 175 still waits.
@@ -601,6 +605,124 @@ server.
    ("Regular season", "Through the Super Bowl") by sport, through 4.0. Sports with the same shape: the NFL, NBA, NHL, MLB, MLS and
    college football. Checks: the NFL fixture's recording has Weeks 1-9 only, so a playoffs recording (record-espn-slate.js, the
    2026 postseason in January) or a stand-in season with a postseason.
+   **Started 2026-11-20 (branch sports-playoffs); merged and live 2026-11-21 (1484417a), its story's review taken as approved with the
+   user's go for the merge.**
+   - *Decided (Claude's calls, reversible; the user's rule stands: the regular season by default):*
+     - **One season holds both stages**, so Game settings can move a game across the line after it starts (a league's season is
+       its season: a game can't move to another one). A league's slate gains a third stage, `full`: its regular season's episodes,
+       then its playoffs' (sports_slates.stage 'full', `regular_through` its last regular episode). A new league slate is `full`
+       whenever the league's calendar lists a postseason; `regular` and `post` slates stay as made (a game just for the playoffs is
+       still the `post` slate). A team's season keeps its regular season's games and takes its playoff games as they're set
+       (sports_matchups.regular_through), from the daily listings job.
+     - **The timing is the span's end.** "Regular season" is an explicit end, the regular season's last episode (the fantasy season's
+       for a stats game: Week 17); "Through the final" is no end (`to: null`), so a season that grows as its playoffs are listed
+       (a day's slate, a team's season) needs no number nobody knows yet. Every start on such a season (startFromSpec, the sports
+       route) turns a span with no end into the regular season's, unless the maker asked for the final (`timing: "final"`).
+     - **A season's end once it's known** (`state.seasonLast`, stamped, never saved): a sport's game with no end of its own ends
+       with its season, once that's over: the league's playoffs' final decided, a team out (a series or a game lost, the final won,
+       or, with no playoff game, a later round listed without them), or every game of a season of one stage played.
+     - **No exhibition on a slate.** A week or a game named as an exhibition (the Pro Bowl, an all-star game: slate.ts
+       `isExhibition`) is never a slate's, in any stage. (Not "a week that names no round": college football's postseason week is
+       "Bowls".)
+   - *Built (parts a to e; a9aa0159, 519db77f):* (b) `full` slates (lib/sports/slate.ts: the regular season's episodes, then the
+     playoffs', a calendar's weeks at once and a day's or a round's as they're listed, numbered on; `hasFull`, `regularThrough`;
+     server slate.ts: the usual stage, made with `regular_through`, synced past the regular season taking only playoff games, the NBA's
+     play-in left out; score.ts reads its playoffs as a bracket too); migration 0312. (c) team-season.ts `growTeamSeasons` in the daily
+     listings job: a team's season (find.ts addGames, its playoff games so far when made then) takes each playoff game of its team
+     listed in the job's window as a new episode, and is stamped `ended_at` once playoffs.ts `teamInPlayoffs` says the team's out or
+     champion (a series lost; the final won; in no series while a round is listed in full without it, so a bye is never out); until then
+     the matchups' status never completes it. (d) air-times.ts: `regularEnd` (the regular season's last episode and the fantasy
+     season's), `stampSeasonLast` (a game with no end of its own: its season's last episode once the playoffs' final is decided, the
+     team out, or the season completed), the regular season's playoffs cap (`playoffsBy`) only for a game ending in it, the fantasy
+     end from a full slate's regular season; state-logic.js `lastEpisode` reads `seasonLast` (never saved); startFromSpec and the
+     sports route turn no end into the regular season's unless `timing: "final"` (started in the playoffs, no end either way). (a) the
+     sheet's How long (model.ts `regularTo`, `lengthsOf`, `lengthId`): "Regular season" (its line "Through Week 17" for a stats game) and
+     "Through the Super Bowl" ("Playoffs included"), a season base opening on the regular season, Start sending `timing: "final"` for no
+     end; start-game.ts's options carry `sport.playoffs`; Game settings (backstage-games.ts `span.playoffs`, settings.tsx HowLong,
+     game-settings.tsx): no end is "Through the Super Bowl", the regular season's and the fantasy season's weeks say so, and moving the
+     end there carries a game across the line. (e) each sport's final in its defaults (`final`: the Super Bowl, the Finals, the World
+     Series, the Stanley Cup Final, MLS Cup, the national championship; `finalSource`), sports/index.ts `finalName`.
+     Found and fixed on the way: league-read.ts `readyLeague` decided whether to write (which makes the next episode) from the stored
+     state, where a sport's results never are (stamped on the read), so a game nobody wrote to (every seat a computer player, a
+     Pick'em nobody touched that week) never got its next week. It now asks again on a stamped copy once the latest episode has aired
+     with no results of its own.
+   - *Verified:* tests/sports-through-playoffs.test.js (the NFL's full slate of 22 and the NBA's growing one, the Premier League's
+     none, the Pro Bowl left out, where teams stand in ESPN's recorded 2026 NFL and NBA playoffs, the engine's end, head to head's
+     final at the game's end, the sheet's lengths); the unit suite (2,520); check-sports-through-playoffs.js (new, all pass) on
+     nfl-slate-fixture.js with nfl-postseason.js's stand-in postseason (the recording's Weeks 10 to 18 played as stand-ins, the 2025
+     bracket 53 weeks on, each round listed once the one before is over), from Week 15 through the Super Bowl with every seat a computer
+     player: the slate's 22 weeks named as ESPN's calendar names them; the season game's default ending with its final in Week 17 and
+     Pick'em's in Week 18; both through the final running on, linking each round as it's listed (6, 4, 2, 1), head to head's own final in
+     the Super Bowl's week, both over with it, every playoff week scored; 36 held players whose teams were out scoring nothing in the
+     Divisional Round, all still held, the 24 of teams still in scoring; the Bills' team season taking its Wild Card game and ending
+     after its loss at Denver (its last episode 19), the Seahawks' taking nothing in its bye week and its three games after, ended as
+     champion, the Dolphins' ending once the Divisional Round was listed in full; the Pro Bowl never linked. The NFL fixture's other
+     checks on the new default (its slate full since this step), every one passing: check-nfl-playoff-weeks (now on `world.regular`),
+     check-slate-pickem, check-sports-own-pace, check-stats-game, check-sports-week-in-progress, check-sports-live-points,
+     check-sports-waivers, check-sports-bot-lineups, check-sports-ir, check-sports-injuries-byes, check-sports-hourly,
+     check-sports-finals; check-slate (its own stand-in; updated: a league's usual slate is full, its regular-season cases ask for the
+     regular season); sport-gallery-check.js --all-leagues; check-sports-couch.js --api whole. tsc; eslint clean on the changed files.
+     The screenshot story at 390 (story-sports-timing.js; published: https://claude.ai/artifact/EFxQiodtwincGM5ggKZvin): the sheet's
+     How long before (a regular slate: "Every game left") and after ("Regular season" chosen, "Through Game 17"; "Through the Super
+     Bowl" picked, "Playoffs included"), Game settings before and after ("Game 11 through the Super Bowl", its Ends options). It found
+     one bug, fixed: the sheet opened a sport's season game on "Through the Super Bowl" (the sport's ready specs carry no end, and the
+     default skipped a base opened with a span).
+   - *Left:* the user's review of the story (the design process's pause). The words (4.0): "Regular season", "Through the Super
+     Bowl", "Playoffs included", the finals' names, Game settings' "· the regular season" and "· the fantasy season". A day's slate's
+     playoffs (the NBA's, the NHL's, MLB's by the day) and the NBA's by the week grow as they're listed (their calendars list no
+     playoff days ahead), checked only in unit tests on ESPN's recorded calendars: no stand-in daily world with a postseason yet;
+     and on such a growing season head to head through the final places its playoffs at the season's last episode as listed so far,
+     kept once its first round has results, so its final can come before the real one (BACKLOG 231). A team's season's playoff game
+     started from the team's sheet as one game gets its own matchup, as any game outside the regular season did (teamSeasonFor takes
+     only regular games). A team out of the playoffs reads as "on a bye" each week after (stampByes: right for the computer players'
+     lineups, wrong words on the lineup sheet: 4.2's page 1). A survival pool across the line and own pace through the playoffs
+     aren't checked. The explorer's headless worlds have no full slate. The real postseason recording (January 2027) for Phase 3.
+     Migration 0312 to rehearse on a copy of production before the merge.
+   - *Noticed, not fixed:* a league's weekly slate calls its episodes games on the sheet and in Game settings ("Game 12", "Through
+     Game 17"), and its playoff weeks are numbers there, not their names (4.0's words; BACKLOG 232). Game settings' foot says "To end it
+     after an game" (BACKLOG 232). nfl-slate-fixture.js stamped a final with the database's clock, which a check past the real day
+     left outside the finals' look-back (fixed in the fixture: a stamp made just now takes the process clock).
+
+**2.8 Whose players: a game's scope (the user, 2026-11-21; S; merged and live 2026-11-21, 1484417a).** A sport's game is played on a whole
+   league, one team's season, a series or a rival's meetings, or one game, and the players it offers should be that scope's. Before
+   this, only a series and a rival's meetings (their own two-team seasons) were limited; a team's season offered every opponent's
+   roster too, and one game started from a team's sheet (on the team's season since Round 3) offered the whole team season's.
+   - *Decided:* **a team's season picks from that team's players only** (the user's pick of three, 2026-11-21: "a Bills game" is a
+     Bills fan's game). One game of it picks from the two teams playing. A series, a rival's meetings and a league's slate as they
+     were (both teams; the whole league). A question about one game (Pick a few) names only players whose teams play in it; a
+     question never follows the game's pool (G3 part 3b's rule stays: a game's top scorer may be outside who can be held). The
+     limit is the spec's own `pool.where.teams`, so our check counts the smaller pool (Best Ball for a couch of eight on one team's
+     74 is refused with "make it shared"), the game's words say it ("Buffalo Bills players only") and Game settings moves it with How
+     long. A pool the maker limited is never changed.
+   - *Built:* sports/scope.ts (`scopeTeams`, `scopePool` at every start in startFromSpec, `rescopePool` in
+     Game settings' settingsWrite when the end moves: one game made the season, and back); state-logic.js `AnswerLogic.faces` takes
+     the episode and `playingIn` (ep.playingTeams, stamped by air-times.ts `stampPlaying` for a game with questions, never saved),
+     answers.ts and bot-logic.js pass it; game-words.ts counts a pool with nobody listed yet as unknown (a team's season made by the
+     start fills its players after it).
+   - *Verified:* check-sports-scope.js (new, all pass) on nfl-slate-fixture.js: a draft on the Bills' season offers the 74 Bills of
+     1,214 and the bots draft only Bills; one Bills game the two teams' 157; Game settings to the season's end and back; Pick a few's
+     question for a game names its two teams' 157; a slate draft unlimited; the slate's weeks stamp their teams playing; Best Ball
+     refused for eight. tests/pool-filter.test.js (a question about one episode). The unit suite (2,521); check-sports-through-playoffs
+     (one FAIL once, unrelated and not reproduced: BACKLOG 233); tsc.
+   - *Left:* **the design round on how the scopes are offered** (DESIGN-PROCESS.md): the team page's four ways in and the sheet,
+     which says nothing about whose players are in it, and learns of a pool too small only at Start (the sheet's check runs without
+     the scope's limit). A team's season's question asked once ("who leads the team in rushing?") names anyone on the season, every
+     opponent's roster included.
+   - *Noticed, not fixed:* an NFL team's "players" are ESPN's roster, 74 for the Bills (the practice squad and reserve lists too).
+   - *The design round (2026-11-21, built; the user took both recommendations the same day: Make it shared, and the rows' names; decisions.md):* spec, first-view requirements and shape brief
+     in docs/design-round/sports-scope-{spec,first-view,shape}.md. The team's sheet: **Start a game on** rows (The next game; Their
+     season, "N games left · Bills players only", opening on the regular season: StartCtx `length: "season"`; a series' rows; a picked
+     rival's Every <rival> game under its chip), replacing the Start a game… card and the "Play every meeting" link. Start a game:
+     gallery-bold/whose.ts (the scope's teams for the span, the spec scoped as the server scopes it, the count from ctx.poolOf); the
+     wizard's page carries `scope` (start-spec.ts: a team's season's team, `filling` while its players are fetched; the sheet reads it
+     again every 3 s); the title card's marks and the draft card are the scope's (were the page's first two teams: HOU and BUF on the
+     Bills' season); "Draft from: Bills players only · 74" under the sentence, following How long; the base's "from the two teams"
+     says "from the Bills"; an exclusive draft too big for the scope is the Start bar's warning with Make it shared (blind), Start
+     held. Story: story-sports-scope.js (new; --prefix=before-|after-, the fixture at the real clock with its stand-in postseason),
+     published https://claude.ai/artifact/MzFTpBSjZpDdcpMnyrpsYJ. Checked: tsc, eslint on the changed files, the unit suite (2,521).
+     Noticed there: "Over the season: One game" on a
+     season-long draft, "Game-night draft" over a season, "An shared draft" (engine words), a one-game season's "Every game left · 1
+     game", two teams named in the page's order.
 
 ### Phase 3. The gate: a real season, replayed (L, about 2–3 sessions)
 

@@ -33,8 +33,9 @@ export type StartTarget = {
   practice?: StartPractice;
   /** The sheet's view to open on (Describe's See it: "describe"). */
   screen?: "describe";
-  /** How long a game starts out: "next" for just the next episode or game (a team's Next game), else each game's own default. */
-  length?: "next" | null;
+  /** How long a game starts out: "next" for just the next episode or game (a team's Next game), "season" for the season where a game
+   *  can run it (a team's Their season), else each game's own default. */
+  length?: "next" | "season" | null;
 };
 
 type Store = { target: StartTarget | null; n: number };

@@ -437,7 +437,11 @@ function ScoreCard({
               >
                 Show the score
               </Btn>
-              <p className="text-[14px] leading-snug text-muted-foreground">Watching as if live keeps it saying &ldquo;Started&rdquo; everywhere, on every device, until you say you&rsquo;ve watched it.</p>
+              {/* Settings Round 2: what each one moves, in a line (Show the score moves your mark for the game's whole week). */}
+              <p className="text-[14px] leading-snug text-muted-foreground">
+                Watching as if live keeps it saying &ldquo;Started&rdquo; everywhere, on every device, until you say you&rsquo;ve watched it. Show the score shows it now and moves
+                how far you&rsquo;ve watched to its week, on every season you follow with it.
+              </p>
             </>
           )}
         </div>

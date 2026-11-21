@@ -52,7 +52,8 @@ const fact = (s) => console.log(`      ${s}`);
       const end = S.MatchupLogic.endsAt(st);
       return { st, parts, from, end, rounds: from === null ? [] : Array.from({ length: parts.playoffs.rounds }, (_, i) => from + i) };
     };
-    fact(`the slate: ${w.slate.name}, ${w.slate.episodes} weeks (${label(1)} to ${label(w.slate.episodes)}), its schedule's length stamped on a game as seasonEpisodes`);
+    // Step 2.7: the slate is the regular season and then the playoffs; the regular season's end is w.regular (18).
+    fact(`the slate: ${w.slate.name}, ${w.slate.episodes} weeks, its regular season ${label(1)} to ${label(w.regular)}, its schedule's length stamped on a game as seasonEpisodes`);
 
     // The default season game, as the sports route starts it.
     const d = await w.start("ann", { seasonId: w.seasonId, game: "season", tell: false });
@@ -64,7 +65,7 @@ const fact = (s) => console.log(`      ${s}`);
     // BACKLOG 226: a game scored by stats to the season's end (the wizard's "The rest of the season", span.to null) ends at Week 17;
     // one whose maker picks Week 18 keeps it. Season points: the same rules ranked by total.
     const points = { ...structuredClone(S.gameOf(def.st)), rank: { by: "total" } };
-    for (const [to, want] of [[null, LAST], [w.slate.episodes, w.slate.episodes]]) {
+    for (const [to, want] of [[null, LAST], [w.regular, w.regular]]) {
       const s = await startFromSpec(w.users.ann, w.seasonId, w.couchId, { spec: { ...structuredClone(points), span: { from: 1, to } }, name: `ZT Points ${to ?? "rest"}`, tell: false }, new Date());
       const st = await w.league(s.leagueId);
       const got = S.gameOf(st).span.to;
@@ -77,7 +78,7 @@ const fact = (s) => console.log(`      ${s}`);
     for (const [teams, from] of [[2, 1], [4, 1], [6, 1], [4, FROM]]) {
       const at = weeks.find((x) => x.n === from);
       if (from !== 1) w.advance(new Date(Date.parse(at.first) - 3600_000).toISOString());
-      const body = { spec: { ...structuredClone(spec), span: { from, to: w.slate.episodes }, rank: { ...spec.rank, playoffs: { teams } } }, name: `ZT Top ${teams}`, tell: false };
+      const body = { spec: { ...structuredClone(spec), span: { from, to: w.regular }, rank: { ...spec.rank, playoffs: { teams } } }, name: `ZT Top ${teams}`, tell: false };
       const s = await startFromSpec(w.users.ann, w.seasonId, w.couchId, body, new Date());
       const p = await placed(s.leagueId);
       ends.push(p.end);
@@ -85,10 +86,10 @@ const fact = (s) => console.log(`      ${s}`);
       fact(`Top ${teams}, from ${label(from)}: ${p.parts.playoffs.rounds} round${p.parts.playoffs.rounds === 1 ? "" : "s"}: ${what || "none placed"}; the regular season ${label(from)} to ${label(p.from - 1)}`);
       check(p.end !== null && p.end <= LAST, `Top ${teams} from ${label(from)}: the final by ${label(LAST)} (it's ${p.end === null ? "nowhere" : label(p.end)})`);
     }
-    const week18 = ends.every((e) => e === w.slate.episodes);
+    const week18 = ends.every((e) => e === w.regular);
     console.log(
       week18
-        ? `VERDICT (d): CONFIRMED: an NFL slate's playoffs end in ${label(w.slate.episodes)} (the default has none: the standings after ${label(w.slate.episodes)} decide it)`
+        ? `VERDICT (d): CONFIRMED: an NFL slate's playoffs end in ${label(w.regular)} (the default has none: the standings after ${label(w.regular)} decide it)`
         : ends.every((e) => e !== null && e <= LAST)
           ? `VERDICT (d): STRUCK: the playoffs end by ${label(LAST)}`
           : `VERDICT (d): MIXED: finals at ${ends.map(label).join(", ")}`

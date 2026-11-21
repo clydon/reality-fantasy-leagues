@@ -37,7 +37,7 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ seasonId
     seasonSchedules([seasonId]),
     seenThrough(user.id, seasonId),
     pool.query(
-      `SELECT following, private, COALESCE(keep_up, 'off') AS keep_up, not_yet,
+      `SELECT following, private, COALESCE(keep_up, 'off') AS keep_up, not_yet, results,
               EXISTS (SELECT 1 FROM league_memberships m JOIN leagues l ON l.id = m.league_id ${LEAGUE_SEASON_JOIN} WHERE m.user_id = $1 AND ss.id = $2) AS plays
          FROM (SELECT 1) one LEFT JOIN show_follows f ON f.user_id = $1 AND f.season_id = $2`,
       [user.id, seasonId]
@@ -75,6 +75,8 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ seasonId
       keepUp: follow[0]?.plays ? "off" : follow[0]?.keep_up,
       // "Not yet": Live's answer on a show you watch, the behind question's on one you play (behind-ask.tsx).
       notYet: follow[0]?.not_yet ?? null,
+      // When results show on this season, set on its settings page (settings Round 2, A7): "wait", "now", or null for your default.
+      results: (follow[0]?.results as "wait" | "now" | null) ?? null,
       seenIt:
         follow[0]?.plays || !Number.isFinite(seen)
           ? null

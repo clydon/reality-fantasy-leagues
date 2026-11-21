@@ -385,12 +385,14 @@ export function HowLong({
 }) {
   const part = { singular: words.episode.toLowerCase(), plural: words.episodes.toLowerCase() };
   const sp = g.span;
-  const say = (to: number | null) => (to === null ? "to the season's end" : `through ${words.episode} ${to}`);
+  // Step 2.7: a sport's season that goes on into its playoffs: no end is through its final, and its regular season's end says so.
+  const po = sp.playoffs;
+  const say = (to: number | null) => (to === null ? (po ? `through ${po.final}` : "to the season's end") : `through ${words.episode} ${to}${po && to === po.through ? ", the regular season" : ""}`);
   const now =
     sp.from === null
       ? `When ${sp.phase?.name ?? "its phase"} starts, ${say(sp.to)}`
       : sp.to === null
-        ? `${words.episode} ${sp.from} to the season's end`
+        ? po ? `${words.episode} ${sp.from} through ${po.final}` : `${words.episode} ${sp.from} to the season's end`
         : spanName(sp.from, sp.to, part);
   // A phase start (step A3), waiting or settled (its first episode still to come, or aired).
   const phaseLine = sp.phase ? (sp.from === null ? `Starts when ${sp.phase.name} starts` : `${sp.started ? "Started" : "Starts"} with ${sp.phase.name}, at ${words.episode} ${sp.from}`) : null;
@@ -468,10 +470,11 @@ export function HowLong({
               }}
               className="min-w-0 flex-1 truncate rounded-[3px] bg-card px-2.5 py-2 text-[15px] font-semibold"
             >
-              <option value="">At the season&rsquo;s end</option>
+              <option value="">{po ? `Through ${po.final}` : "At the season\u2019s end"}</option>
               {sp.ends.map((e) => (
                 <option key={e.number} value={e.number}>
                   Through {words.episode} {e.number}
+                  {po && e.number === po.through ? " · the regular season" : po && e.number === po.fantasy ? " · the fantasy season" : ""}
                 </option>
               ))}
             </select>

@@ -15,7 +15,7 @@
 //     round asks about it; refused on a season not over, another show's, one you play.
 //   In a real browser at --width (390 by default): as alex, Your settings' Privacy (settings Round 1, C6: its row's value, one
 //   switch, what riley sees about you, GIFs and picks always shown, off with Hidden lines and Undo, the row's value after); as
-//   jordan, Hidden from your couch (the Traitors, a link to it); Severed's
+//   jordan, Hidden from your couch (the Traitors, a link to its settings page); Severed's
 //   Who's watching ("Ep 6 of 10", "3 ahead", progress bars); the hub's rail ("· Ep") and The couch is watching (riley · Ep 2 on
 //   the Traitors); as casey, trivia's Seen an earlier season? (Seen it all, Yes, all 13). Nothing wider than the screen; no page
 //   errors. Screenshots go to <outDir>.
@@ -332,7 +332,7 @@ function check(ok, what, detail = "") {
       );
       const always = await sec.innerText();
       check(/Your GIFs and reactions/.test(always) && /Your picks/.test(always) && /Nothing here is a setting/.test(always), "Always shown: GIFs and reactions, and picks, as facts (C6)");
-      check(/Hide a show from the ⋯ menu on the show/.test(await sec.locator("[data-settings-hidden]").innerText()), "Hidden from your couch: none of his, and where you'd hide one");
+      check(/Hide a show from its settings, under the gear/.test(await sec.locator("[data-settings-hidden]").innerText()), "Hidden from your couch: none of his, and where you'd hide one");
       await a.wide("Privacy");
       await a.shot("privacy-on");
       await sec.locator('[data-setting="share-where"]').click();
@@ -411,7 +411,7 @@ function check(ok, what, detail = "") {
       await j.pg.goto(`${BASE}/settings?page=privacy`, { waitUntil: "load" });
       const hiddenRow = j.pg.locator(`[data-hidden-show="${tid}"]`);
       await hiddenRow.waitFor({ timeout: 30000 }).catch(() => {});
-      check((await hiddenRow.count()) === 1 && /ZT Traitors/.test(await hiddenRow.innerText()) && (await hiddenRow.getAttribute("href")) === `/show/${tid}/tonight`, "jordan's Privacy: the Traitors, hidden from her couch, a link to it", `${await hiddenRow.getAttribute("href").catch(() => "")}`);
+      check((await hiddenRow.count()) === 1 && /ZT Traitors/.test(await hiddenRow.innerText()) && (await hiddenRow.getAttribute("href")) === `/show/${tid}/tonight?page=you`, "jordan's Privacy: the Traitors, hidden from her couch, a link to its settings page (where Hide this show from my couch is, since settings Round 2)", `${await hiddenRow.getAttribute("href").catch(() => "")}`);
       await j.pg.locator("[data-settings-hidden]").scrollIntoViewIfNeeded();
       await j.wide("Privacy");
       await j.shot("privacy-hidden");

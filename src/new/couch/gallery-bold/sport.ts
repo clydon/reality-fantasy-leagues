@@ -113,8 +113,9 @@ export interface Mark {
 const lastWord = (name: string) => name.trim().split(/\s+/).pop() ?? name;
 /** The page's teams as the app's own marks (TeamMark: the city's code on the team's colour), from the team's schedule (ESPN's list);
  *  until it answers, each team's name. */
-export function useTeamMarks(sport: SportView | null): Map<string, Mark> {
-  const team = sport?.pack?.teams?.[0]?.id ?? null;
+export function useTeamMarks(sport: SportView | null, scopeTeam: string | null = null): Map<string, Mark> {
+  // A team's season reads its own team's schedule (every opponent's colours); else the page's first team's.
+  const team = scopeTeam ?? sport?.pack?.teams?.[0]?.id ?? null;
   const q = useTeamSchedule(sport?.league ?? null, team);
   return useMemo(() => {
     const m = new Map<string, Mark>();

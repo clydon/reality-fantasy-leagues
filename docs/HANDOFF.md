@@ -17,9 +17,20 @@ puts its build notes in its plan, not here.
 
 ---
 
-## Live (production = origin/master, c440bf5f, deployed 2026-11-20)
+## Live (production = origin/master, 1484417a, deployed 2026-11-21)
 
 Newest first. The plan or archive section named holds the detail.
+- **Sports steps 2.7 and 2.8, with 2.8's design round** (2026-11-21, merged 1484417a; migration 0312, additive, applied by the build
+  without a Neon rehearsal on the user's word; no sports games in production): a game through the playoffs ("Regular season" by
+  default, or "Through the Super Bowl" on Start a game and in Game settings; a team's season takes its playoff games as they're
+  listed); a game's players are its scope's (a team's season, that team's only; one game, its two teams); the team's page offers
+  the scopes as "Start a game on" rows, and Start a game says whose players a draft draws from and catches one too big before
+  Start ("Make it shared"). [PLAN-sports-ready.md](PLAN-sports-ready.md) 2.7 and 2.8.
+- **Settings overhaul, Round 2** (2026-11-21, pushed ce891ba2; migration 0448, rehearsed on a copy of production; the snapshot
+  `pre-settings-r2-2026-11-21` keeps 7 days): a gear on every show's bar opens that show's settings for you (how far you've watched,
+  when a new episode airs, when results show here, notifications, hide it from your couch, leave or remove last and quiet); the ⋯
+  is things to do; Where you are with Undo; Leave this game; mute until the next episode; the hub names its couch (saved per
+  account); handing a couch on confirms. [PLAN-settings-overhaul.md](PLAN-settings-overhaul.md), Round 2.
 - **Settings overhaul, Round 1** (2026-11-20 at midnight, pushed c440bf5f; migration 0447, rehearsed on a copy of production; the
   snapshot `pre-settings-2026-11-20` keeps 7 days): Your settings as five groups with their values (the hub's gear opens it);
   notifications as one system (three kinds, invites always, Couch chat on every couch, a show's Mute, a couch's own chat, Your
@@ -90,8 +101,8 @@ Newest first. The plan or archive section named holds the detail.
    Designs-needed words batch, and the production check-ups.
 4. **C8, the 2-on-1 head to head**, on a fresh branch from master (its seven answers are in decisions.md, 2026-11-19; who plays
    alone first is drawn at random), then the rest of the redo plan's E3.
-5. **Sports, a lane of its own:** [PLAN-sports-ready.md](PLAN-sports-ready.md): Phases 0 and 1 and Phase 2's 2.1 to 2.6 are live (above); next is
-   2.7 (a game through the playoffs) and 4.1, on a fresh branch from master. 1.1's part 4, the live screens, is the design round's page 2 and needs a small live
+5. **Sports, a lane of its own:** [PLAN-sports-ready.md](PLAN-sports-ready.md): Phases 0 and 1 and Phase 2 (2.1 to 2.8) are live (above); 2.7 and 2.8 too
+   (2026-11-21); next is 4.1, then Phase 3. 1.1's part 4, the live screens, is the design round's page 2 and needs a small live
    read (polling the whole games read would be ~100 MB a phone an NFL game). Its words pass (4.0) can go in any free session.
 6. The order after that is in [PLANS.md](PLANS.md).
 

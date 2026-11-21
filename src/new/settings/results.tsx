@@ -1,17 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { TriangleAlert } from "lucide-react";
-import type { Profile, profileApi } from "../data";
+import { ChevronRight, TriangleAlert, Tv } from "lucide-react";
+import { useHome, useSetRecording, useSportsRecordings, type Profile, type profileApi } from "../data";
+import { NavLink } from "../nav";
+import { paths } from "../routes";
 import { Btn } from "../ui/parts";
+import { toast } from "../ui/toast";
 import { Choice, PageSection, ResetLink } from "./controls";
-import { AutoSection } from "./keep-up";
+import { autoShows, plain } from "./keep-up";
 
 // When results show (settings Round 1, C1; docs/design-round/settings-r1-spec.md): one choice for shows and one for sports, in
 // place of Hide scores until I reveal and Sports scores too. "Straight away" now means every show, including ones you only follow
 // (guard.ts progressFrom), and asks first, since Undo can't unsee a result. A game's own-pace seat always goes by your reveals.
-// Under them, the shows you follow and don't play that can be marked watched as each episode airs (keep-up.tsx), until Round 2
-// moves that to each show's own page.
+// Under them (settings Round 2): the shows you follow and don't play, each with what happens there as a new episode airs, a link to
+// that show's own settings page, where it's set (C15); and on sports, the games you're watching as if live, each with I've watched it.
 
 type Save = (body: Parameters<typeof profileApi.save>[0], said: string, undo?: Parameters<typeof profileApi.save>[0]) => Promise<void>;
 
@@ -100,7 +103,71 @@ export function ResultsPage({ p, save, sports }: { p: Profile | undefined; save:
         </PageSection>
       )}
 
-      <AutoSection />
+      {sports && <RecordingsList />}
+      <ShowsList />
     </div>
+  );
+}
+
+const KEEP_WORDS = { ask: "asks if you've seen it", auto: "marked watched as it airs", off: "you move it yourself" } as const;
+
+/** The shows you follow and don't play, still airing: what happens there as a new episode airs, each opening its settings page. */
+function ShowsList() {
+  const { data: home } = useHome();
+  const shows = autoShows(home?.shows);
+  if (!shows.length) return null;
+  return (
+    <PageSection data="settings-airs" title="When a new episode airs" line="Set on each show's own page, under its gear. Shows you play move by your reveals.">
+      {shows.map((s) => (
+        <NavLink key={s.seasonId} data-airs-show={s.seasonId} href={`${paths.show(s.seasonId)}?page=you`} className="nd-press flex min-h-[60px] items-center gap-3 border-t border-border py-2 first:border-t-0">
+          <span className="min-w-0 flex-1">
+            <b className="block truncate text-[15px] font-semibold">{plain(s)}</b>
+            <small className="mt-0.5 block text-[13px] text-muted-foreground">New episodes: {KEEP_WORDS[s.keepUp ?? "off"]}</small>
+          </span>
+          <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
+        </NavLink>
+      ))}
+    </PageSection>
+  );
+}
+
+/** The sports games you're watching as if live (C24's list): each ends with I've watched it, as the hub's card does. */
+function RecordingsList() {
+  const list = useSportsRecordings().data?.recordings ?? [];
+  const set = useSetRecording();
+  if (!list.length) return null;
+  return (
+    <PageSection data="settings-recordings" title="Watching as if live" line="Their scores stay hidden on every phone of yours until you say you've watched.">
+      {list.map((r) => (
+        <div key={r.game} data-recording={r.game} className="flex min-h-[60px] items-center gap-3 border-t border-border py-2 first:border-t-0">
+          <span className="grid size-10 flex-none place-items-center rounded-[3px] bg-secondary">
+            <Tv className="size-5" aria-hidden />
+          </span>
+          <span className="min-w-0 flex-1">
+            <b className="block truncate text-[15px] font-semibold">{r.name ?? "A game you're holding"}</b>
+            {r.startsAt && (
+              <small className="mt-0.5 block text-[13px] text-muted-foreground">
+                Started {new Date(r.startsAt).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}
+              </small>
+            )}
+          </span>
+          <button
+            type="button"
+            data-recording-done
+            onClick={async () => {
+              try {
+                await set(r.game, r.league, false);
+                toast(`${r.name ?? "That game"}: its score shows now`, { undo: () => void set(r.game, r.league, true) });
+              } catch (e) {
+                toast.quiet((e as Error).message);
+              }
+            }}
+            className="nd-press h-11 flex-none rounded-[3px] bg-card px-3 text-[14px] font-semibold outline-1 -outline-offset-1 outline-edge"
+          >
+            I&rsquo;ve watched it
+          </button>
+        </div>
+      ))}
+    </PageSection>
   );
 }

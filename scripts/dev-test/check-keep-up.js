@@ -5,12 +5,18 @@
 //   API:
 //   - the where stepper's episodes (/api/seasons/[id]/aired): every aired one with its air time, titles only as far as you've
 //     seen, a sport's always; signed out, nobody's seen anything; a TV listing's (fake-listings.js) come with it;
-//   - Live: keepUp "ask" saved, the home and the space ask "Seen it?" about Episode 3, Not yet stops it, moving where you are
-//     clears Not yet; auto: the home read moves the mark to what's aired; refused on a season you play (409), and a bad value
-//     (400); off is always allowed; the bot clock's backstop (advanceAllAuto) moves another person's auto mark.
-//   In a real browser at --width (390 by default), as alex: Tonight's Seen it? card (Not yet, then Seen it, show me), the where
-//   sheet (each step names its episode and date, I'm up to date turns Live on, Keep me live), Your settings' When results show ›
-//   Marked watched as it airs (the spoiler warning before it turns on). Nothing wider than the screen; no page errors. Screenshots go to <outDir>.
+//   - Live: a new follow of a season still airing starts at Ask (settings Round 2: nothing sent, keep_up 'ask'), the home and
+//     the space ask "Seen it?" about Episode 3, Not yet stops it, moving where you are clears Not yet; auto: the home read moves
+//     the mark to what's aired; refused on a season you play (409), and a bad value (400); off is always allowed; the bot clock's
+//     backstop (advanceAllAuto) moves another person's auto mark;
+//   - this season's own When results show (settings Round 2, A7): results "now" and "wait" saved and read back as the space's
+//     you.results, null back to the account's, a bad value 400.
+//   In a real browser at --width (390 by default), as alex: Tonight's Seen it? card (Not yet, then Seen it, show me); the show's
+//   settings page (the gear's, ?page=you): Episodes you've watched opens Where you are (the ledger names each episode and when it
+//   aired, I've watched them all sits above it, no Keep me live, a line says what happens as a new one airs, Save says "Through Ep
+//   N on <show>" with Undo); When a new episode airs (Ask me first, Mark it watched asks before it turns on, Nothing; I've watched
+//   them all moves only the mark); Your settings' When results show lists the show with what it does as a new episode airs and
+//   opens its page (a show he plays isn't listed). Nothing wider than the screen; no page errors. Screenshots go to <outDir>.
 //
 //   npm run dev                                                  (in another terminal)
 //   node scripts/dev-test/check-keep-up.js <outDir> [--width=390] [--keep] [--api]
@@ -70,8 +76,9 @@ function check(ok, what, detail = "") {
     check(listing?.episodes?.length === 3 && listing.episodes.every((e) => e.airAt && e.title === null), "a TV listing's aired episodes come with it (a competition: no titles)", JSON.stringify(listing?.episodes));
 
     // ---- Live ----
-    const f1 = await alex.call("PUT", `/api/me/follows/${tsid}`, { following: true, seenThrough: 2, keepUp: "ask" });
-    check(f1.status === 200 && f1.body.keepUp === "ask" && f1.body.seenThrough === 2, "Live saved with where he is", JSON.stringify(f1.body));
+    // Nothing said about keeping up: a season still airing starts at Ask (the Recommended choice, so most never set it).
+    const f1 = await alex.call("PUT", `/api/me/follows/${tsid}`, { following: true, seenThrough: 2 });
+    check(f1.status === 200 && f1.body.keepUp === "ask" && f1.body.seenThrough === 2, "a new follow of a season still airing starts at Ask, with where he is", JSON.stringify(f1.body));
     const e1 = (await alex.call("GET", `/api/seasons/${tsid}/aired`)).body?.episodes ?? [];
     check(e1.map((e) => e.title).join() === "ZT Title 1,ZT Title 2,", "titles as far as he's seen", JSON.stringify(e1.map((e) => e.title)));
     await pool.query(`UPDATE shows SET kind = 'sport' WHERE slug = 'zt-nd-traitors'`);
@@ -97,6 +104,16 @@ function check(ok, what, detail = "") {
     check(played.status === 409, "refused on a season he plays", JSON.stringify(played));
     check((await alex.call("PUT", `/api/me/follows/${sid}`, { keepUp: "off" })).status === 200, "off is always allowed");
     check((await alex.call("PUT", `/api/me/follows/${tsid}`, { keepUp: "sometimes" })).status === 400, "a bad keepUp: 400");
+
+    // ---- this season's own When results show (the show's settings page; the guard reads it before the account's) ----
+    for (const results of ["now", "wait"]) {
+      const r = await alex.call("PUT", `/api/me/follows/${tsid}`, { results });
+      const you = (await alex.call("GET", `/api/seasons/${tsid}/space`)).body?.you;
+      check(r.status === 200 && r.body.results === results && you?.results === results, `results "${results}" saved, and the space reads it back`, JSON.stringify({ put: r.body, you: you?.results }));
+    }
+    const cleared = await alex.call("PUT", `/api/me/follows/${tsid}`, { results: null });
+    check(cleared.status === 200 && cleared.body.results === null && (await alex.call("GET", `/api/seasons/${tsid}/space`)).body?.you?.results === null, "null: back to the account's choice", JSON.stringify(cleared.body));
+    check((await alex.call("PUT", `/api/me/follows/${tsid}`, { results: "later" })).status === 400, "a bad results: 400");
     // The bot clock's backstop moves someone who hasn't opened the app.
     await pool.query(`UPDATE show_follows SET keep_up = 'auto' WHERE user_id = $1 AND season_id = $2`, [fx.users.riley, tsid]);
     const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "..", "src") } });
@@ -145,54 +162,123 @@ function check(ok, what, detail = "") {
       await card.waitFor({ state: "detached", timeout: 15_000 }).catch(() => {});
       check((await card.count()) === 0 && (await follow(fx.users.alex, tsid)).seen_through === 3, "Seen it, show me: he's on Episode 3");
 
-      // ---- the where sheet ----
-      await page.locator("[data-following] button").first().click();
+      // The toast's words (and its Undo), once one matching `re` is up.
+      const toasted = async (re) => {
+        await page.waitForFunction((src) => new RegExp(src).test(document.querySelector("[role=status]")?.textContent || ""), re.source, { timeout: 15_000 }).catch(() => {});
+        return ((await page.locator("[role=status]").textContent().catch(() => "")) || "").trim();
+      };
+      // A saved change reaches the database a moment after the tap.
+      const until = async (fn, ms = 10_000) => {
+        for (const end = Date.now() + ms; Date.now() < end; await page.waitForTimeout(250)) if (await fn()) return true;
+        return false;
+      };
+
+      // ---- the show's settings page: Episodes you've watched opens Where you are ----
+      // Where you are lives behind the gear since settings Round 2 (?page=you), its row saying how far he's watched, with the date.
+      const openSettings = async () => {
+        await page.goto(`${BASE}/show/${tsid}/tonight?page=you`);
+        await page.locator(`[data-show-settings="${tsid}"]`).waitFor({ timeout: 30_000 });
+      };
+      await openSettings();
+      const watchedRow = page.locator('[data-show-row="watched"]');
+      // The air date comes with the episodes' read, a moment after the page.
+      await page.waitForFunction(() => /· \w{3}, \w{3} \d+$/.test(document.querySelector('[data-show-row="watched"] [data-row-value]')?.textContent || ""), null, { timeout: 15_000 }).catch(() => {});
+      // A value's last two words are held together by a no-break space (the check's fix): read it with plain spaces.
+      const watchedValue = (await watchedRow.locator("[data-row-value]").innerText()).replace(/\u00a0/g, " ");
+      check(/^Through Ep 3 · \w{3}, \w{3} \d+$/.test(watchedValue), "the show's settings page: Episodes you've watched, through Ep 3 with its air date", watchedValue);
+      await shot("show-settings");
+      await fits("the show's settings page");
+      await watchedRow.click();
       await sheet.locator("[data-where-ask]").waitFor({ timeout: 15_000 });
-      await sheet.locator("[data-where-step]").waitFor({ timeout: 15_000 });
-      const step3 = await sheet.locator("[data-where-step]").innerText();
-      check(/^ZT Title 3 · \w{3}, \w{3} \d+$/.test(step3), "each step names its episode and when it aired", step3);
-      check((await sheet.locator('[data-setting="where-live"]').getAttribute("data-on")) === "on", "Keep me live is on (he's Live)");
-      await sheet.locator('[aria-label^="Earlier in"]').click();
-      const step2 = await sheet.locator("[data-where-step]").innerText();
-      check(/^ZT Title 2 · /.test(step2), "stepping back names Episode 2", step2);
-      await sheet.locator('[data-setting="where-live"]').click();
-      check((await sheet.locator('[data-setting="where-live"]').getAttribute("data-on")) === "off", "Keep me live switches off");
+      await sheet.locator('[data-ledger-row="3"]').waitFor({ timeout: 15_000 });
+      const row3 = (await sheet.locator('[data-ledger-row="3"]').innerText()).replace(/\n+/g, " | ");
+      check(/ZT Title 3/.test(row3) && /\w{3}, \w{3} \d+/.test(row3), "the ledger names each episode he's seen and when it aired", row3);
+      check((await sheet.locator('[data-setting="where-live"]').count()) === 0, "no Keep me live switch: what happens as a new one airs is the show page's");
+      const airsLine = await sheet.locator("[data-where-airs]").innerText().catch(() => "none");
+      // Opened from the show's settings page, it doesn't point back there (the check's fix).
+      check((await sheet.locator('[data-where-airs="ask"]').count()) === 1 && /Tonight asks if you've seen it/.test(airsLine) && !/under the gear/.test(airsLine), "a line says what happens as a new one airs (he's on Ask), without pointing back to the page it opened from", airsLine);
+      check((await sheet.locator("[data-where-up-to-date]").count()) === 0, "up to date: no I've watched them all to offer");
+      await sheet.locator('[data-ledger-row="2"]').click();
+      // The ledger's one shortcut sits above it: the list scrolls in its own frame under it.
+      const allBox = await sheet.locator("[data-where-up-to-date]").boundingBox();
+      const ledgerBox = await sheet.locator("[data-ledger]").boundingBox();
+      check(!!allBox && !!ledgerBox && allBox.y + allBox.height <= ledgerBox.y + 1, "stepping back to Ep 2: I've watched them all, above the ledger", JSON.stringify({ allBox, ledgerBox }));
       await shot("where-behind");
       await fits("the where sheet");
-      await sheet.locator("[data-where-up-to-date]").click();
-      check(
-        (await sheet.locator('[data-stepper] b').innerText()) === "3" && (await sheet.locator('[data-setting="where-live"]').getAttribute("data-on")) === "on",
-        "I'm up to date: the latest, and Live back on"
-      );
-      check((await sheet.locator("[data-where-up-to-date]").count()) === 0, "and it goes once you're up to date");
-      await shot("where-up-to-date");
       await sheet.locator("[data-where-save]").click();
-      await sheet.waitFor({ state: "hidden", timeout: 8000 }).catch(() => {});
+      const saved = await toasted(/Through Ep 2 on/);
+      check(/Through Ep 2 on ZT Traitors/.test(saved) && /Undo/.test(saved), "Save: \"Through Ep 2 on\" the show, with Undo", saved);
+      check(await until(async () => (await follow(fx.users.alex, tsid)).seen_through === 2), "saved on Ep 2");
+      await page.locator("[role=status]").getByRole("button", { name: "Undo" }).click();
+      await until(async () => (await follow(fx.users.alex, tsid)).seen_through === 3);
       const f3 = await follow(fx.users.alex, tsid);
-      check(f3.seen_through === 3 && f3.keep_up === "ask", "saved: Episode 3, Live", JSON.stringify(f3));
+      check(f3.seen_through === 3 && f3.keep_up === "ask", "Undo: back on Ep 3, still Ask", JSON.stringify(f3));
 
-      // ---- Your settings: Marked watched as it airs (on When results show since settings Round 1) ----
+      // ---- When a new episode airs (Your settings' switch until settings Round 2; each show's own page now) ----
+      await openSettings();
+      const fold = page.locator('[data-fold="new-episode"]');
+      await fold.waitFor({ timeout: 15_000 });
+      check(/^Ask me if I've seen it$/.test(await fold.locator("[data-fold-value]").innerText()), "When a new episode airs: Ask (where his new follow started)", await fold.locator("[data-fold-value]").innerText());
+      await fold.locator("button[aria-expanded]").click();
+      const askChoice = fold.locator('[data-choice="keep-ask"]');
+      await askChoice.waitFor({ timeout: 5000 });
+      check((await askChoice.getAttribute("aria-checked")) === "true" && /recommended/i.test(await askChoice.innerText()), "opened: Ask me is picked, and Recommended");
+      check((await fold.locator('[data-choice="keep-auto"]').count()) === 1 && (await fold.locator('[data-choice="keep-off"]').count()) === 1, "then Mark it watched and Nothing");
+      await fold.locator('[data-choice="keep-auto"]').click();
+      const ask = page.locator('[data-ask="auto"]');
+      await ask.waitFor({ timeout: 5000 });
+      check(/show as soon as it airs/.test(await ask.innerText()) && (await follow(fx.users.alex, tsid)).keep_up === "ask", "Mark it watched asks first (it can spoil the week he watches late), and nothing's changed yet", await ask.innerText());
+      await ask.scrollIntoViewIfNeeded();
+      await shot("new-episode-ask");
+      await fits("the show's settings page, asking");
+      await ask.locator("[data-ask-no]").click();
+      check((await ask.count()) === 0 && (await follow(fx.users.alex, tsid)).keep_up === "ask", "Keep it as it is: the ask goes, still Ask");
+      await fold.locator('[data-choice="keep-auto"]').click();
+      await ask.locator("[data-ask-yes]").click();
+      check(await until(async () => (await follow(fx.users.alex, tsid)).keep_up === "auto"), "Mark it watched: it moves along by itself");
+      check(/marked watched as each one airs/.test(await toasted(/marked watched/)), "and the toast says so");
+      await page.waitForFunction(() => /^Mark it watched$/.test(document.querySelector('[data-fold="new-episode"] [data-fold-value]')?.textContent || ""), null, { timeout: 10_000 }).catch(() => {});
+      check((await fold.locator("[data-fold-value]").innerText()) === "Mark it watched", "the row says so", await fold.locator("[data-fold-value]").innerText());
+      // Where you are says so too, with nothing about it to set there.
+      await watchedRow.click();
+      await sheet.locator('[data-where-airs="auto"]').waitFor({ timeout: 15_000 }).catch(() => {});
+      check(/counts as watched as it airs/.test(await sheet.locator("[data-where-airs]").innerText().catch(() => "")) && (await sheet.locator('[data-setting="where-live"]').count()) === 0, "Where you are says each new one counts as watched as it airs");
+      await page.keyboard.press("Escape");
+      await sheet.waitFor({ state: "hidden", timeout: 8000 }).catch(() => {});
+      await fold.locator('[data-choice="keep-off"]').click();
+      check(await until(async () => (await follow(fx.users.alex, tsid)).keep_up === "off"), "Nothing: he moves it himself");
+      // The page's toast comes once the show has been read again (the save awaits it): open the sheet after it, as a person would.
+      await page.locator("[role=status]").filter({ hasText: /you move it yourself/i }).waitFor({ timeout: 10_000 }).catch(() => {});
+      // I've watched them all only moves the mark now (it used to turn Live on too).
+      await watchedRow.click();
+      await sheet.locator('[data-ledger-row="2"]').waitFor({ timeout: 15_000 });
+      // The show's read comes back after the save: the sheet may open on the last value a moment first.
+      await sheet.locator('[data-where-airs="off"]').waitFor({ timeout: 10_000 }).catch(() => {});
+      check(/nothing changes here until you move it/.test(await sheet.locator('[data-where-airs="off"]').innerText().catch(() => "")), "Where you are: nothing changes as a new one airs until he moves it");
+      await sheet.locator('[data-ledger-row="2"]').click();
+      await sheet.locator("[data-where-up-to-date]").click();
+      check((await sheet.locator("[data-ledger-here]").getAttribute("data-ledger-here")) === "3" && (await sheet.locator("[data-where-up-to-date]").count()) === 0, "I've watched them all: the latest, and it goes");
+      await sheet.locator("[data-where-save]").click();
+      await toasted(/Through Ep 3 on/);
+      await sheet.waitFor({ state: "hidden", timeout: 8000 }).catch(() => {});
+      const f4 = await follow(fx.users.alex, tsid);
+      check(f4.seen_through === 3 && f4.keep_up === "off", "saved: only the mark moved; When a new episode airs is still Nothing", JSON.stringify(f4));
+
+      // ---- Your settings › When results show: the shows that move along, each a link to its own page ----
       await page.goto(`${BASE}/settings`);
       await page.locator('[data-group="results"]').waitFor({ timeout: 30_000 });
       await page.locator('[data-group="results"]').click();
-      const auto = page.locator(`[data-auto-show="${tsid}"]`);
-      await auto.waitFor({ timeout: 30_000 });
-      check((await page.locator(`[data-settings-auto] [data-auto-show="${sid}"]`).count()) === 0, "a show he plays isn't offered");
-      check(/Asks when each one ends/.test(await auto.innerText()), "the Traitors row says it asks (Live)", await auto.innerText());
-      await auto.locator('[role="switch"]').click();
-      await page.locator("[data-auto-warn]").waitFor({ timeout: 5000 });
-      check(/This can spoil it/.test(await page.locator("[data-auto-warn]").innerText()) && (await follow(fx.users.alex, tsid)).keep_up === "ask", "turning it on warns first, and nothing's changed yet");
-      await page.locator("[data-auto-warn]").scrollIntoViewIfNeeded();
-      await shot("settings-auto-warn");
-      await fits("Settings");
-      await page.locator("[data-auto-confirm]").click();
-      await page.waitForFunction((sel) => document.querySelector(sel)?.getAttribute("data-on") === "on", `[data-setting="auto-${tsid}"]`, { timeout: 15_000 }).catch(() => {});
-      check((await follow(fx.users.alex, tsid)).keep_up === "auto", "Turn it on: it moves along by itself");
-      check(/each episode counts as watched once it airs/.test(await auto.innerText()), "and its row says so", await auto.innerText());
-      await page.goto(`${BASE}/show/${tsid}/tonight`);
-      await page.locator("[data-following] button").first().click();
-      await sheet.locator("[data-where-auto]").waitFor({ timeout: 15_000 }).catch(() => {});
-      check((await sheet.locator("[data-where-auto]").count()) === 1 && (await sheet.locator('[data-setting="where-live"]').count()) === 0, "the where sheet says so instead of offering Live");
+      const airs = page.locator(`[data-settings-airs] [data-airs-show="${tsid}"]`);
+      await airs.waitFor({ timeout: 30_000 });
+      check((await page.locator(`[data-airs-show="${sid}"]`).count()) === 0, "a show he plays isn't listed (it moves by his reveals)");
+      check(/New episodes: you move it yourself/.test(await airs.innerText()), "the Traitors row says what it does as a new episode airs (Nothing, as just set)", (await airs.innerText()).replace(/\n+/g, " | "));
+      check((await page.locator("[data-settings-auto], [data-auto-show], [data-auto-warn]").count()) === 0, "no switches here any more: it's set on the show's own page");
+      await page.locator("[data-settings-airs]").scrollIntoViewIfNeeded();
+      await shot("settings-airs");
+      await fits("Settings › When results show");
+      await airs.click();
+      await page.locator(`[data-show-settings="${tsid}"]`).waitFor({ timeout: 20_000 }).catch(() => {});
+      check((await page.locator(`[data-show-settings="${tsid}"]`).isVisible().catch(() => false)) && new URL(page.url()).searchParams.get("page") === "you", "and it opens that show's settings page", page.url());
       check(!b.errors.length, "no page errors", b.errors.join(" | "));
     }
   } catch (e) {

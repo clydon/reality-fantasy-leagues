@@ -351,7 +351,7 @@ export function Exceptions({ p, home, onCouch }: { p: Profile | undefined; home:
     <PageSection
       data="settings-elsewhere"
       title="Set on a show or a couch"
-      line={shows.length || couches.length ? "Each applies there, over what's above." : "Mute a show from its ⋯ menu, or set a couch's chat on its page."}
+      line={shows.length || couches.length ? "Each applies there, over what's above." : "Mute a show from its settings, under the gear on the show, or set a couch's chat on its page."}
     >
       {shows.map((s) => {
         const season = home?.shows.find((x) => x.seasonId === s.seasonId);

@@ -14,7 +14,7 @@ import { plain } from "./keep-up";
 
 // Your shows, couches and games (settings Round 1; docs/design-round/settings-r1-spec.md): the map. Each couch, show and game
 // you're in, its name over what's set for you there, so "where did I turn that off?" is a glance, and each opens its own home: a
-// couch its page; a show its ⋯ menu (its settings for you, until Round 2 gives it a gear); a game its page. A show lists your
+// couch its page; a show its settings page (`?page=you`, under the gear on its bar: settings Round 2); a game its page. A show lists your
 // games on it, three at most, then "+N more" (a busy season has dozens: the memory "Many games, held height").
 
 const ROLE: Record<string, string> = { commissioner: "You run it", admin: "Helper", member: "Playing" };
@@ -103,7 +103,7 @@ export function YoursPage({ home, p }: { home: Home | undefined; p: Profile | un
           const games = s.games.filter((g) => !g.archived);
           return (
             <div key={s.seasonId} data-yours-show={s.seasonId} className="border-t border-border first:border-t-0">
-              <NavLink href={`${paths.show(s.seasonId)}?menu=1`} className="nd-press flex min-h-[64px] items-center gap-3 py-2">
+              <NavLink href={`${paths.show(s.seasonId)}?page=you`} className="nd-press flex min-h-[64px] items-center gap-3 py-2">
                 <span className="grid w-[60px] flex-none place-items-start">
                   <ShowArt seasonId={s.seasonId} artUrl={s.show.artUrl} name={plain(s)} bare className="size-10 rounded-[3px]" />
                 </span>

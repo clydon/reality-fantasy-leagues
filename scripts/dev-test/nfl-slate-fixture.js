@@ -11,19 +11,24 @@
 // What `up` makes (every row keyed so `down` finds it again):
 //   people   zt-nfl-ann, -bo, -cy, -di (usernames zt_nfl_*, password zt-pass-12345; up to 8 with `people`), on a couch "ZT NFL
 //            couch" that ann owns
-//   a slate  the league's regular season by week (find.ts addSlate, as POST /api/sports/start's { league, slate } adds it), followed
-//            by ann; its show is the league's (sports_league "espn:football/zt-nfl-slate"), its people filled from the teams'
-//            rosters (cast.ts castFromEvents, the function the slate's own fill runs) unless `cast: false`
+//   a slate  the league's season by week (find.ts addSlate, as POST /api/sports/start's { league, slate } adds it: since step 2.7 its
+//            regular season's 18 weeks then its playoffs' four, one season), followed by ann; its show is the league's (sports_league
+//            "espn:football/zt-nfl-slate"), its people filled from the teams' rosters (cast.ts castFromEvents, the function the slate's
+//            own fill runs) unless `cast: false`
 //   cache    the stand-in's answers under "zt-nfl-slate-standin:"
 // and `down` removes them, with any league started on the slate or by its people.
 //
 // As a module (each check owns the run):
 //   const fx = require("./nfl-slate-fixture");
-//   const world = await fx.up({ at, edit, cast, people });   // at: an ISO time in the recorded season; edit(input): change the recording
-//                                                    // before it's served (a signing, a trade, a final); cast: false leaves people
-//                                                    // for later; people: how many on the couch (4; up to 8)
+//   const world = await fx.up({ at, edit, cast, people, postseason });   // at: an ISO time in the recorded season; edit(input): change
+//                                                    // the recording before it's served (a signing, a trade, a final); cast: false
+//                                                    // leaves people for later; people: how many on the couch (4; up to 8);
+//                                                    // postseason: true plays the weeks still to play and adds a stand-in playoffs
+//                                                    // (nfl-postseason.js: the 2025 bracket in this season's playoff weeks, each
+//                                                    // round listed once the one before is over), as world.postseason
 //   world.espn (fake-espn's server: .events, .asked), world.providers, world.seasonId, world.slug, world.couchId,
 //   world.users.ann (a SessionUser), world.weeks (each regular-season week: { n, label, from, to, first, last, games }),
+//   world.regular (the slate's last regular-season episode: 18), world.playoffWeeks (each playoff week, numbered on from 19, as weeks),
 //   world.start(who, body) (start.ts startSport, the body POST /api/sports/start takes), world.league(id) (its stored state)
 //   world.advance(at) (the clock on, the stand-in answering as of then: games started by then as recorded, later ones still to
 //   play), world.daily() (the daily job's sports part now), await world.days(to) (the clock on a day at a time to `to`, the daily
@@ -93,7 +98,8 @@ function recording(file) {
  */
 function gamesAsOf(events, at) {
   const t = Date.parse(at);
-  return events.map((e) => {
+  // A game listed later (a playoff game once its round's teams are set: nfl-postseason.js) isn't listed before then.
+  return events.filter((e) => !e.listedAt || Date.parse(e.listedAt) <= t).map((e) => {
     const c = structuredClone(e);
     if (Date.parse(e.at) > t) {
       c.state = "pre";
@@ -116,12 +122,15 @@ function serveAsOf(espn, input, at) {
   if (cal) cal.now = new Date(at).toISOString();
 }
 
-/** Each regular-season week of the recording, with its games' first and last start. */
-function weeksOf(input) {
+/** Each regular-season week of the recording (`type` 3: its playoff weeks, numbered on after the regular season's, as a full slate
+ *  numbers them), with its games' first and last start. */
+function weeksOf(input, type = 2) {
   const cal = input.calendars[LEAGUE];
+  const regular = (cal.weeks ?? []).filter((w) => w.type === 2).length;
   return (cal.weeks ?? [])
-    .filter((w) => w.type === 2)
-    .map((w) => {
+    .filter((w) => w.type === type)
+    .map((w, i) => {
+      if (type !== 2) w = { ...w, value: regular + i + 1 };
       const games = input.events.filter((e) => e.league === LEAGUE && e.at >= w.from && e.at <= w.to).sort((a, b) => a.at.localeCompare(b.at));
       return { n: Number(w.value), label: w.label, from: w.from, to: w.to, first: games[0]?.at ?? null, last: games[games.length - 1]?.at ?? null, games };
     });
@@ -133,9 +142,13 @@ function weeksOf(input) {
  * and in production both are the same clock.
  */
 async function alignFill(pool, seasonId) {
-  // Only a stamp the database's clock made (later than the process clock: the recording is in the past), so a fill's time stays the
-  // moment it ran.
-  await pool.query("UPDATE cast_fills SET updated_at = $2 WHERE season_id = $1 AND asking_at IS NULL AND updated_at > $2::timestamptz + interval '1 minute'", [seasonId, new Date()]);
+  // Only a stamp the database's clock made (later than the process clock: the recording is in the past; or, the clock on past the
+  // real day, a stamp made by the database's now() just now), so a fill's time stays the moment it ran.
+  await pool.query(
+    `UPDATE cast_fills SET updated_at = $2 WHERE season_id = $1 AND asking_at IS NULL
+        AND (updated_at > $2::timestamptz + interval '1 minute' OR (updated_at > now() - interval '15 minutes' AND updated_at < $2::timestamptz - interval '1 minute'))`,
+    [seasonId, new Date()]
+  );
 }
 
 /** Every row of ours, gone. Returns how many. */
@@ -173,6 +186,7 @@ async function up(opts = {}) {
   if (gone) console.log(`(nfl-slate-fixture: removed ${gone} rows a run before left)`);
 
   const rec = recording(opts.file);
+  const postseason = opts.postseason ? require("./nfl-postseason").withPostseason(rec.input, LEAGUE) : null;
   if (opts.edit) opts.edit(rec.input);
   const at = opts.at ?? rec.recordedNow;
   clock.set(at);
@@ -205,7 +219,12 @@ async function up(opts = {}) {
   // The database stamps a final's time and a fill's with its own now() (matchup.ts storeEvents, cast_fills): the process clock's
   // here, as production's are the same clock.
   const aligned = async () => {
-    await pool.query("UPDATE sports_events SET final_at = $2 WHERE league = $1 AND final_at > $2::timestamptz + interval '1 minute'", [LEAGUE, new Date()]);
+    // (The clock on past the real day, a final the database just stamped is the process clock's too: the finals' look-back reads it.)
+    await pool.query(
+      `UPDATE sports_events SET final_at = $2 WHERE league = $1
+          AND (final_at > $2::timestamptz + interval '1 minute' OR (final_at > now() - interval '15 minutes' AND final_at < $2::timestamptz - interval '1 minute'))`,
+      [LEAGUE, new Date()]
+    );
     await alignFill(pool, added.seasonId);
   };
   const world = {
@@ -222,7 +241,10 @@ async function up(opts = {}) {
     /** The daily listings job's sports part, as it runs at the clock's moment (matchup.ts refreshSportsEvents: the slate's sync,
      *  each linked game's facts, then the finals' lines). */
     daily: async () => {
-      const out = await app("../../src/lib/server/sports/matchup.ts").refreshSportsEvents({ providers, now: new Date(), only: [added.seasonId] });
+      // The slate's season and any other of the league's (a team's season a check added: step 2.7's grow with it), never another's.
+      const { rows: mine } = await pool.query("SELECT ss.id FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE s.sports_league LIKE $1", [`%:${LEAGUE}`]);
+      const only = [...new Set([added.seasonId, ...mine.map((r) => r.id)])];
+      const out = await app("../../src/lib/server/sports/matchup.ts").refreshSportsEvents({ providers, now: new Date(), only });
       await aligned();
       return out;
     },
@@ -264,11 +286,12 @@ async function up(opts = {}) {
       await world.settle();
       return errors;
     },
-    /** Wait for a fill the app started after an answer (fillLater: next-after-stub runs it on its own), up to two minutes. */
-    settle: async () => {
+    /** Wait for a fill the app started after an answer (fillLater: next-after-stub runs it on its own), up to two minutes: the slate's,
+     *  or another season's (`seasonId`: a team's season a start made). */
+    settle: async (seasonId = added.seasonId) => {
       for (let i = 0; i < 240; i++) {
-        const { rows } = await pool.query("SELECT asking_at FROM cast_fills WHERE season_id = $1", [added.seasonId]);
-        if (!rows[0]?.asking_at) return alignFill(pool, added.seasonId);
+        const { rows } = await pool.query("SELECT asking_at FROM cast_fills WHERE season_id = $1", [seasonId]);
+        if (!rows[0]?.asking_at) return alignFill(pool, seasonId);
         await new Promise((r) => setTimeout(r, 500));
       }
       throw new Error("a fill of the slate's people is still going after two minutes");
@@ -288,6 +311,10 @@ async function up(opts = {}) {
     users,
     cast,
     weeks: weeksOf(rec.input),
+    /** Step 2.7: the slate's last regular-season episode (a full slate's playoffs come after it), and its playoff weeks. */
+    regular: added.regularThrough ?? added.episodes,
+    playoffWeeks: weeksOf(rec.input, 3),
+    postseason,
     /** Start one of the sport's games as `who`, with the body POST /api/sports/start takes (it's that route's own function). */
     start: (who, body) => startSport(users[who], couchId, body, { providers, now: new Date() }),
     /** A league's state as stored. */

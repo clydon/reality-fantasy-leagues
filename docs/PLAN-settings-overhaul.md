@@ -1,8 +1,14 @@
 # Settings: the overhaul
 
-> **Status (2026-11-20): Round 1 merged and live (pushed c440bf5f, 2026-11-20 at midnight; migration 0447 on production,
-> rehearsed first; the snapshot `pre-settings-2026-11-20` keeps 7 days).** PFD 82 and Impeccable 33/40 after one batch of fixes
-> (the bar: 80 and 32); the user took all four picks. Next is Round 2, a show and a couch, for you.
+> **Status (2026-11-21): Round 2 merged and live** (pushed ce891ba2; migration 0448 on production, rehearsed first; the snapshot
+> `pre-settings-r2-2026-11-21` keeps 7 days). The user took all three recommendations (leaving drawn quiet, three results choices,
+> no band without art; design-round/decisions.md). PFD 82 and Impeccable 33/40 after one batch of fixes (the bar: 80 and 32).
+> Story: https://claude.ai/artifact/YMCNuwKciTJuGD91Q9XYrd. Next is Round 3 (running a game): the sports lane's branch
+> `sports-playoffs` merged 2026-11-21 (1484417a), so it can start.
+>
+> **Round 1 (2026-11-20): merged and live** (pushed c440bf5f, 2026-11-20 at midnight; migration 0447 on production, rehearsed first;
+> the snapshot `pre-settings-2026-11-20` keeps 7 days). PFD 82 and Impeccable 33/40 after one batch of fixes; the user took all four
+> picks.
 >
 > **Round 0 (2026-11-20): done and decided.**
 > - **The cuts and adds:** approved. The user took every recommendation, added A5, and settled C8 (Grok goes too).
@@ -409,7 +415,39 @@ fixed, both built** (decisions.md, 2026-11-20). Story: https://claude.ai/artifac
 - **Checks.** check-new-settings.js, check-new-notify.js, check-new-sharing.js, check-keep-up.js.
 
 ### Round 2: a show and a couch, for you
-- **Scope.**
+
+**Merged and live 2026-11-21 (ce891ba2; migration 0448); the user's picks applied.** Its story:
+(https://claude.ai/artifact/YMCNuwKciTJuGD91Q9XYrd).
+- **The design process:** Intent's spec [design-round/settings-r2-spec.md](design-round/settings-r2-spec.md); PFD's first views
+  [-first-view.md](design-round/settings-r2-first-view.md); Impeccable's brief [-shape.md](design-round/settings-r2-shape.md); the
+  check, the fixes, what's open and the choices [-check.md](design-round/settings-r2-check.md).
+- **Built:**
+  - **A gear on every show's bar** opens "Your settings" for that show (`?page=you`, settings/show-page.tsx): Episodes you've watched
+    (its value with the air date), When a new episode airs (C15: Ask me, Recommended · Mark it watched, asking first · Nothing),
+    When results show here (A7: your default · after I've watched · straight away, asking first), Notifications (the Round 1 sheet),
+    Hide this show from my couch (C17; not solo), then Leave all my games here (held) or Remove from my shows (Undo), last.
+  - **The show's ⋯ is things to do only:** Backstage (until Round 3), the desk's row, Invite, Plan a watch along, How it works, the
+    drafts, Recent changes, and a last row to your settings for the show. Everything else's sheet is gone.
+  - **Where you are (C14):** titled Episodes you've watched; I've watched them all on top, moving only the mark; Keep me live gone;
+    Save with Undo; the list opens at your boundary (a 30-episode season); "Aired · not seen yet".
+  - **Mute:** Until the next episode first (the user's pick), each choice saying when it ends; mutes within the week read "until Tue 8 PM".
+  - **A game's ⋯:** Where you are gone (C19); Leave this game, held (A11).
+  - **The couch:** the hub names the couch it shows under the wordmark (C25), saved for your account; Your couches leads with the
+    current couch and its Couch settings; Make someone else the owner (was Hand it on) asks first (C28).
+  - **Add a show:** I'm up to date turns nothing else on; Keep me live gone (a new follow of an airing season starts at Ask); Hide it
+    from my couch while on one (A8). Look up all N stays on by default (C21: already).
+  - **The nudge (C22):** Don't suggest it, with Undo. **Show the score** says what it moves. **When results show** lists each followed
+    show's new-episode choice as a link to its page, and on sports the games watched as if live, each with I've watched it (C24's list).
+  - **Migration 0448:** `show_follows.results` (A7), `user_settings.hub_couch` (C25). The guard (guard.ts), due moves, the reveal
+    mark (results-seen.ts), waiver pushes and the reminders (db/reminders.js) read a season's own results choice first.
+- **Checks (2026-11-21, port 3018):** `npm test` 2513 of 2513; `scripts/dev-test/check-settings-r2.js` (new: the server half, 16
+  of 16); the story's 23 situations (`story-settings.js --only=^r2-`). The browser checks that asserted the old ⋯, Keep me live and
+  Hand it on were rewritten for the new homes, and pass whole: check-new-show-menu (48), check-new-settings (168), check-new-notify
+  (187), check-new-sharing (87), check-new-backstage-ii (147). check-keep-up's where-sheet half works again (BACKLOG 70's stale part):
+  54 pass, its one left a GIF read (below). Their remaining failures are outside this round's screens (below, Found in Round 2).
+- **Left for later:** C23 (one way to follow a sport) and starting Watch it as if live from every finished game: the sports lane's
+  files. C27 (Who can fill in results): with Backstage in Round 3. A10, A12: "not now".
+- **The original scope:**
   - This show: its ⋯, the episodes you've watched, "When a new episode airs".
   - Add a show's "where are you" step.
   - Sports: Show the score (say what it moves: today it moves your mark for the whole week, on every season with that game ✓),
@@ -547,11 +585,18 @@ Left for their round:
   - `npx eslint src` has four errors in files Round 1 didn't touch (ui/use-sheet-swipe.ts, game/formats/format-timeline.js,
     show/game-page.tsx, show/lineup-sheet.tsx).
   - The hub picture sheet's "Your best show" draws a show with no art with its name twice (story-situations' OVERLAP), as before.
-- **Round 2:**
-  - Where you are's Save has no Undo (the step 4 spec asked for one).
-  - Leave the pool deletes for good behind a plain confirm.
-  - "Watch privately… under Everything else" (sharing.tsx:71), when it's often in the menu itself.
-  - Watch privately offered with no couch.
+- **Round 2:** Where you are's Undo, Watch privately's pointer and offering it with no couch: done in Round 2. Left: Leave the pool
+  deletes for good behind a plain confirm (the solo pool's page, not touched this round).
+- **Found in Round 2, left:**
+  - The follows route and /api/me/settings still accept writes while acting as someone (Round 1 noted it for this round); acting
+    as someone is meant to make moves for them, so whether their spoiler and follow settings are theirs alone is a question for
+    Round 5 (the desk), not changed here.
+  - push-events.ts's league-only path (a league with no season) reads only the account's results choice: it has no season to ask.
+  - Failures in checks this round updated but whose cause is outside its screens: check-new-backstage stops at "Use Grok instead"
+    (Round 1 removed Grok); check-new-plans' Tonight plates and the guide's Watch along tag (4); check-new-couches' Who can join
+    Undo in Game settings (1); check-new-watching's two Add a show search rows (its own season's picker, and a finished season
+    listed twice); check-new-draft's and check-keep-up's "no page errors": the episode GIF read asks for an episode right after
+    the mark moved back past it (a harmless 403). Stale-check work for BACKLOG 70.
 - **Round 3:**
   - "Every N" waiver windows with no N.
   - "Set in the draft room" for a team size the room can't set.

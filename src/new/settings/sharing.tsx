@@ -73,10 +73,10 @@ export function PrivacyPage({ p, save, viewer, hidden }: { p: Profile | undefine
       <PageSection
         data="settings-hidden"
         title="Hidden from your couch"
-        line={hidden.length ? "Nobody on your couches sees anything of these." : "Hide a show from the ⋯ menu on the show."}
+        line={hidden.length ? "Nobody on your couches sees anything of these." : "Hide a show from its settings, under the gear on the show."}
       >
         {hidden.map((s) => (
-          <NavLink key={s.seasonId} data-hidden-show={s.seasonId} href={paths.show(s.seasonId)} className="nd-press flex min-h-[56px] items-center gap-3 border-t border-border py-2 first:border-t-0">
+          <NavLink key={s.seasonId} data-hidden-show={s.seasonId} href={`${paths.show(s.seasonId)}?page=you`} className="nd-press flex min-h-[56px] items-center gap-3 border-t border-border py-2 first:border-t-0">
             <span className="min-w-0 flex-1">
               <b className="block truncate text-[15px] font-semibold">{plain(s)}</b>
               <small className="block text-[13px] text-muted-foreground">Hidden from your couch</small>

@@ -181,3 +181,28 @@ export function playoffsStart(games: PlayoffGame[]): string | null {
   const inIt = new Set((isBracket(all) ? all : []).flatMap((s) => s.games));
   return games.filter((g) => inIt.has(g.id) && g.at).map((g) => g.at as string).sort()[0] ?? null;
 }
+
+/** Step 2.7 (docs/PLAN-sports-ready.md): whether a league's playoffs are over, their final's series won. */
+export function playoffsOver(games: PlayoffGame[]): boolean {
+  return seriesOf(games).some((s) => s.fromFinal === 1 && !!s.winner);
+}
+
+/**
+ * Step 2.7: where a team stands in its league's playoffs, from the playoff games listed so far (its own, and the league's near now):
+ * "champion" (it won the final), "out" (it lost a series, a game of none; or it's in no series while a later round is listed in
+ * full without it: the NFL's Divisional Round's four, the NBA's first round's eight, so a bye is never taken for out), "in" (a
+ * series of its being played or won, the final still to come), or "none" (no series of its listed, nothing yet says it's out: before
+ * the playoffs, or on a bye).
+ */
+export function teamInPlayoffs(team: string, games: PlayoffGame[]): "champion" | "out" | "in" | "none" {
+  const series = seriesOf(games);
+  const mine = series.filter((s) => s.sides.includes(team)).sort((a, b) => a.fromFinal - b.fromFinal);
+  if (mine.some((s) => s.winner && s.winner !== team)) return "out";
+  if (mine.some((s) => s.fromFinal === 1 && s.winner === team)) return "champion";
+  if (mine.length) return series.some((s) => s.fromFinal === 1 && s.winner) ? "out" : "in";
+  // In no series: out once the playoffs are over, or once a round is listed in full (as many series as it holds) without them.
+  if (series.some((s) => s.fromFinal === 1 && s.winner)) return "out";
+  const count = new Map<number, number>();
+  for (const s of series) count.set(s.fromFinal, (count.get(s.fromFinal) ?? 0) + 1);
+  return [...count].some(([fromFinal, n]) => n >= 2 ** (fromFinal - 1)) ? "out" : "none";
+}

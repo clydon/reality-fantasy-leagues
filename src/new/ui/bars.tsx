@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { Bot, ChevronLeft, Settings } from "lucide-react";
+import { Bot, ChevronDown, ChevronLeft, Settings } from "lucide-react";
 import { isBotSeat } from "./bot-seats";
 import { colourOf, pictureUrl } from "@/lib/people";
 import { usePerson } from "../data";
@@ -93,10 +93,28 @@ export function Wordmark() {
 
 /** The hub's top: the wordmark, notifications (`bell`: the hub's NotesBell), the gear (Your settings: settings Round 0's "one gear
  *  on every bar"), and you (your picture: your couch and your numbers). */
-export function TopBar({ me, onProfile, bell }: { me: { id: string; name: string }; onProfile: () => void; bell?: ReactNode }) {
+/** `couch`: the couch the hub shows, named under the wordmark (settings Round 2, C25): a tap opens Your couches. None solo. */
+export function TopBar({ me, onProfile, bell, couch }: { me: { id: string; name: string }; onProfile: () => void; bell?: ReactNode; couch?: { name: string; onClick: () => void } | null }) {
   return (
     <header className="flex items-center justify-between px-4 pb-1 pt-[calc(14px+env(safe-area-inset-top,0px))]">
-      <Wordmark />
+      {couch ? (
+        <div className="min-w-0">
+          <Wordmark />
+          {/* A place, not a headline: muted, small, its tap target the full 44 px (the hub's Up next stays the first thing seen). */}
+          <button
+            type="button"
+            data-hub-couch={couch.name}
+            onClick={couch.onClick}
+            aria-label={`${couch.name}: your couches`}
+            className="relative -mb-1 flex h-7 max-w-[210px] items-center gap-0.5 text-[13px] font-semibold text-muted-foreground before:absolute before:inset-x-0 before:-inset-y-2 before:content-['']"
+          >
+            <span className="truncate">{couch.name}</span>
+            <ChevronDown className="size-4 flex-none" aria-hidden />
+          </button>
+        </div>
+      ) : (
+        <Wordmark />
+      )}
       <div className="flex items-center gap-1">
         {bell}
         <NavLink href={paths.settings} aria-label="Your settings" data-gear className="nd-press grid size-11 place-items-center rounded-[3px] hover:bg-card">

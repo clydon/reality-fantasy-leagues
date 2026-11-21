@@ -22,6 +22,11 @@
 //              reaches you, on, another phone gets them, blocked, an iPhone in Safari), solo, the site admin; its pages
 //              (Notifications, When results show, Privacy, Your shows couches and games, Your account, Your phones, Install the
 //              app); a show's Notifications (mute, muted); a couch's chat row; the hub's gear and the bell's foot
+//   r2-*       settings Round 2, as built (docs/design-round/settings-r2-spec.md): the show bar's gear; a show's settings page for a
+//              player, a follower, someone behind, solo and a finished season, with When a new episode airs and When results show
+//              here opened and their asks; the ⋯ after (a runner, a player); Where you are from the page (a follower, a player);
+//              Mute with Until the next episode; a game's ⋯ and Leave this game's hold; the hub's couch name, Your couches, a
+//              couch's sheet and Make someone else the owner's confirm; When results show's list of shows
 // A situation can set this phone up (`init`: stand-ins for the browser's PushManager and permission, never a real push service),
 // put rows in first and take them out after (`db`, `undo`: zt_nd_ people only), and scroll a part into view before the frame
 // (`scroll`).
@@ -206,6 +211,44 @@ function round1(pool, fx, S, T, menu, sheet) {
   ];
 }
 
+/** Round 2's situations (r2-*): a show's settings for you, the ⋯ after, Where you are, leaving one game, the hub's couch. */
+function round2(pool, fx, so, S, T, L, menu, sheet) {
+  const page = "[data-show-settings]";
+  // r2-show-page-muted-jordan mutes Survivor through the real sheet (Until the next episode); this takes it off after.
+  const unmuteJordan = () => pool.query("UPDATE notification_prefs SET muted = '{}'::jsonb WHERE user_id = $1", [fx.users.jordan]);
+  return [
+    // The show's bar and its settings page
+    { id: "r2-show-gear-jordan", home: "show", who: "jordan", go: `/show/${S}/tonight`, ready: "[data-show-gear]", full: false, lens: "the show's bar: the gear beside the ⋯ (Round 0's one gear on every bar)" },
+    { id: "r2-show-page-jordan", home: "show", who: "jordan", go: `/show/${S}/tonight`, ready: "[data-show-gear]", tap: "[data-show-gear]", wait: page, lens: "a show's settings for jordan, who plays it: the mark moves as he reveals; Leave all my games here last" },
+    { id: "r2-show-page-riley", home: "show", who: "riley", go: `/show/${T}/tonight`, ready: "[data-show-gear]", tap: "[data-show-gear]", wait: page, lens: "riley only follows The Traitors: When a new episode airs, and Remove from my shows last" },
+    { id: "r2-show-page-sam", home: "show", who: "sam", go: `/show/${S}/tonight?page=you`, ready: page, full: false, lens: "sam plays Survivor two episodes behind (opened by its address, as Your settings' map links it)" },
+    { id: "r2-show-page-solo", home: "show", who: "zt_so_alex", go: `/show/${so.seasonId}/tonight?page=you`, ready: page, full: false, lens: "solo, on no couch: no Hide this show from my couch" },
+    { id: "r2-show-page-finished", home: "show", who: "zt_so_alex", go: `/show/${so.finishedSeasonId}/tonight?page=you`, ready: page, full: false, lens: "a finished season: no When a new episode airs, All N watched" },
+    { id: "r2-show-page-muted-jordan", home: "show", who: "jordan", go: `/show/${S}/tonight?page=you`, ready: page, tap: ['[data-show-row="notify"]', "[data-mute]", '[data-mute-for="next"]', '[role="dialog"] [aria-label="Close"]'], undo: unmuteJordan, full: false, lens: "jordan muted Survivor until its next episode: the row says when it ends, on every season" },
+    { id: "r2-new-episode-riley", home: "show", who: "riley", go: `/show/${T}/tonight?page=you`, ready: page, tap: '[data-fold="new-episode"] button', full: false, lens: "When a new episode airs, opened: Ask me (Recommended) · Mark it watched · Nothing" },
+    { id: "r2-new-episode-ask-riley", home: "show", who: "riley", go: `/show/${T}/tonight?page=you`, ready: page, tap: ['[data-fold="new-episode"] button', '[data-choice="keep-auto"]'], wait: '[data-ask="auto"]', full: false, lens: "Mark it watched asks first: it can spoil the week you watch late" },
+    { id: "r2-results-here-riley", home: "show", who: "riley", go: `/show/${T}/tonight?page=you`, ready: page, tap: ['[data-fold="results-here"] button', '[data-choice="results-now"]'], wait: '[data-ask="now"]', scroll: '[data-ask="now"]', full: false, lens: "When results show here, opened: Straight away asks first (Undo can't unsee)" },
+    // The ⋯ after
+    { id: "r2-show-menu-alex", home: "show", who: "alex", go: `/show/${S}/tonight`, ready: "[data-tab]", tap: menu, wait: "[data-menu-main]", full: false, lens: "the ⋯ for alex, who runs the games: things to do, and the line saying where his settings went" },
+    { id: "r2-show-menu-jordan", home: "show", who: "jordan", go: `/show/${S}/tonight`, ready: "[data-tab]", tap: menu, wait: "[data-menu-main]", full: false, lens: "the ⋯ for jordan, a player: no Everything else any more" },
+    // Where you are, from the page
+    { id: "r2-where-riley", home: "show", who: "riley", go: `/show/${T}/tonight?page=you`, ready: page, tap: '[data-show-row="watched"]', wait: "[data-where-ask]", full: false, lens: "Where you are on a show riley follows: I've watched them all on top, no Keep me live, Save" },
+    { id: "r2-where-sam", home: "show", who: "sam", go: `/show/${S}/tonight?page=you`, ready: page, tap: '[data-show-row="watched"]', wait: "[data-where-plays]", full: false, lens: "Where you are on a show sam plays: the fixed ledger and its one Reveal, as before" },
+    // Mute, by the next episode
+    { id: "r2-mute-jordan", home: "show", who: "jordan", go: `/show/${S}/tonight?page=you`, ready: page, tap: ['[data-show-row="notify"]', "[data-mute]"], wait: "[data-mute-choices]", full: false, lens: "Mute: Until the next episode first, each choice saying when it ends" },
+    // A game's ⋯ and leaving it
+    { id: "r2-game-menu-jordan", home: "game", who: "jordan", go: `/show/${S}/game/${L.lineup}`, ready: "[data-game-page]", tap: "[data-game-title] [data-game-menu-open]", wait: "[data-game-menu]", full: false, lens: "a game's ⋯: Where you are gone (it's the show's), Leave this game last" },
+    { id: "r2-leave-game-jordan", home: "game", who: "jordan", go: `/show/${S}/game/${L.lineup}`, ready: "[data-game-page]", tap: ["[data-game-title] [data-game-menu-open]", "[data-leave-game]"], wait: "text=/You leave/", full: false, lens: "Leave this game: a hold, saying the other games and the couch stay" },
+    // The hub's couch
+    { id: "r2-hub-alex", home: "couch", who: "alex", go: "/home", ready: "[data-hub-couch]", full: false, lens: "the hub names the couch it shows, under the wordmark" },
+    { id: "r2-couches-alex", home: "couch", who: "alex", go: "/home", ready: "[data-hub-couch]", tap: "[data-hub-couch]", wait: "[data-couch-switcher]", full: false, lens: "Your couches: the one shown first with Couch settings; the other switches" },
+    { id: "r2-couch-alex", home: "couch", who: "alex", go: "/home", ready: "[data-hub-couch]", tap: ["[data-hub-couch]", "[data-couch-settings]"], wait: "[data-couch-details]", full: false, lens: "a couch's sheet, as its owner" },
+    { id: "r2-handon-alex", home: "couch", who: "alex", go: "/home", ready: "[data-hub-couch]", tap: ["[data-hub-couch]", "[data-couch-settings]", { text: "Make someone else the owner" }, "[data-hand-to]", "[data-hand-on-next]"], wait: "[data-hand-on-ask]", full: false, lens: "Make someone else the owner: a sentence, then the confirm" },
+    // Your settings' side of it
+    { id: "r2-results-riley", home: "you", who: "riley", go: "/settings?page=results", ready: "[data-settings-results]", lens: "When results show: each followed show's new-episode choice, a link to its page" },
+  ];
+}
+
 /** The site admin for the desk's frames: a zt_nd_ person, so new-fixture's down removes them with the rest. */
 async function deskAdmin(pool) {
   const { hashPassword } = await import("better-auth/crypto");
@@ -230,7 +273,7 @@ async function main() {
   const index = [];
   try {
     const fx = await fixture.up(pool);
-    await solo.up(pool);
+    const so = await solo.up(pool);
     const deskId = await deskAdmin(pool);
     // Everyone on the new design (a fixture person can start on classic).
     await pool.query(`INSERT INTO user_settings (user_id, ui) SELECT unnest($1::text[]), 'new' ON CONFLICT (user_id) DO UPDATE SET ui = 'new'`, [[...Object.values(fx.users), deskId]]);
@@ -277,6 +320,7 @@ async function main() {
       { id: "desk-settings", home: "desk", who: DESK, go: "/desk/settings", ready: "main, h1, h2", lens: "the desk's Settings tab" },
       { id: "desk-setup", home: "desk", who: DESK, go: `/desk/season/${S}/setup`, ready: "main, h1, h2", lens: "a season's Setup on the desk" },
       ...round1(pool, fx, S, T, menu, sheet),
+      ...round2(pool, fx, so, S, T, L, menu, sheet),
     ]);
     failed += r.failed;
     index.push(...r.shot);

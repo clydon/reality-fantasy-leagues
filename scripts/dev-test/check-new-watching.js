@@ -12,16 +12,20 @@
 //     (no show, a bad listing, the listings down for a new show; a known one still follows), ten new shows a day, a day-old
 //     listing season read again (never over research's own row);
 //   - the catalog has every show now (not only the curated ones), first run's wall only the curated; follows: the nudge's
-//     Not now (only on a show you follow), where you are on a season you play refused; first run saves a listing and a
+//     Don't suggest it (only on a show you follow), where you are on a season you play refused; first run saves a listing and a
 //     name (a waiting account only the listing);
 //   - the home's couch shows (what the couch watches that you don't; never a private follow) and the space's you.plays.
+//   A new follow of a season still airing starts at Ask (keep_up 'ask', settings Round 2); Don't suggest it's Undo (nudgeOff false)
+//   brings the nudge back.
 //   In a real browser at --width (390 by default), as alex: The couch is watching (not on your list first; Add to my shows
-//   asks where you are and stays on the hub), the "you both watch" nudge (the most people first, Not now, then the next),
-//   Add a show (suggestions, the listings as you type, a listing's where you are and its season picker, Add as a new show, already on your list),
-//   a show with no game (Not a game yet, the spoiler chip, Who's watching without anyone private, Make it a game's
-//   plate (check-new-make-it.js takes it from there), the ⋯ menu's Everything else: Watch privately and Remove from my shows; Where you are is the chip's Change), a show you don't follow (who watches
-//   it, Add to my shows); then a newcomer's first run picking a listing and a name. Nothing wider than the screen; no page
-//   errors. Screenshots go to <outDir>.
+//   asks where you are on the episode ledger and stays on the hub), the "you both watch" nudge (the most people first, Don't
+//   suggest it with its Undo, then the next), Add a show (suggestions, the listings as you type, a listing's where you are with
+//   I'm up to date under the row, no Keep me live, Hide it from my couch while he's on one, and its season picker, Add as a new
+//   show, already on your list), a show with no game (Not a game yet, Who's watching without anyone private, Make it a game's
+//   plate (check-new-make-it.js takes it from there); its ⋯ holds no settings rows; behind the gear, its settings page: Episodes
+//   you've watched, Hide this show from my couch (Watch privately until settings Round 2), Where you are moved back ("Through Ep 1
+//   on <show>"), and Remove from my shows last, with Undo), a show you don't follow (who watches it, Add to my shows); then a
+//   newcomer's first run picking a listing and a name. Nothing wider than the screen; no page errors. Screenshots go to <outDir>.
 //
 //   npm run dev                                                  (in another terminal)
 //   node scripts/dev-test/check-new-watching.js <outDir> [--width=390] [--keep] [--api]
@@ -143,6 +147,8 @@ async function newcomer(pool, who, approved = true) {
     check(eps.length === 8 && eps.every((e) => e.source === "listing" && e.runtime_min === 60 && e.air_at) && eps[0].title === "Night 1", "every episode's air time as a 'listing' row; the special left out", `${eps.length}`);
     const f1 = await follow(fx.users.alex, ss.id);
     check(f1?.following === true && f1.private === false && f1.seen_through === 3, "alex follows it openly, through Episode 3", JSON.stringify(f1));
+    // Nothing said about keeping up: a season still airing starts at Ask (settings Round 2's Recommended "When a new episode airs").
+    check(f1?.keep_up === "ask", "and at Ask: Tonight asks \"Seen it?\" as each new one ends", JSON.stringify(f1?.keep_up));
     const a2 = await as.riley.call("POST", "/api/me/shows", { listing: 990001 });
     check(a2.status === 200 && a2.body.made === false && a2.body.seasonId === ss.id && a2.body.seenThrough === 0, "riley adds it too: the same show and season, not made twice", JSON.stringify(a2.body));
     check((await pool.query("SELECT count(*)::int AS n FROM shows WHERE tvmaze_id = 990001")).rows[0].n === 1, "one show for its listing");
@@ -227,14 +233,17 @@ async function newcomer(pool, who, approved = true) {
     const shackRow = cat.find((s) => s.seasonId === ss.id);
     check(shackRow?.ready === false && shackRow.curated === false && shackRow.wall === false && shackRow.tvmazeId === 990001 && shackRow.network === "ZT Network", "the catalog has every show now (ZT Love Shack: not a game yet, not on first run's wall)", JSON.stringify(shackRow));
     check(cat.filter((s) => s.wall).every((s) => s.curated && s.ready), "first run's wall: only curated shows set up as games");
-    check((await as.alex.call("PUT", `/api/me/follows/${tsid}`, { nudgeOff: true })).status === 404, "Not now on a show you don't follow: nothing (404), never a follow");
+    check((await as.alex.call("PUT", `/api/me/follows/${tsid}`, { nudgeOff: true })).status === 404, "Don't suggest it on a show you don't follow: nothing (404), never a follow");
     check(!(await follow(fx.users.alex, tsid)), "alex still doesn't follow the Traitors");
     const nn = await as.alex.call("PUT", `/api/me/follows/${ss.id}`, { nudgeOff: true });
     const nf = await follow(fx.users.alex, ss.id);
-    check(nn.status === 200 && !!nf.nudge_off_at && nf.following && nf.seen_through === 3, "Not now on a show you follow: remembered, the follow as it was", JSON.stringify(nf));
+    check(nn.status === 200 && !!nf.nudge_off_at && nf.following && nf.seen_through === 3, "Don't suggest it on a show you follow: remembered, the follow as it was", JSON.stringify(nf));
     const h1 = (await as.alex.call("GET", "/api/me/home")).body;
     check(h1.shows.find((s) => s.seasonId === ss.id)?.nudgeOff === true && h1.shows.find((s) => s.seasonId === sid)?.nudgeOff === false, "the home says which nudge was answered");
-    await pool.query("UPDATE show_follows SET nudge_off_at = NULL WHERE user_id = $1 AND season_id = $2", [fx.users.alex, ss.id]);
+    // Its toast's Undo sends nudgeOff false: the suggestion comes back, the follow as it was.
+    const undone = await as.alex.call("PUT", `/api/me/follows/${ss.id}`, { nudgeOff: false });
+    const uf = await follow(fx.users.alex, ss.id);
+    check(undone.status === 200 && uf.nudge_off_at === null && uf.following && uf.seen_through === 3, "Undo (nudgeOff false): suggested again, the follow as it was", JSON.stringify(uf));
     check((await as.alex.call("PUT", `/api/me/follows/${sid}`, { seenThrough: 2 })).status === 409, "where you are on a season you play: refused (409)");
     const sp1 = (await as.alex.call("GET", `/api/seasons/${sid}/space?couch=${fx.couchId}`)).body;
     const sp2 = (await as.alex.call("GET", `/api/seasons/${tsid}/space?couch=${fx.couchId}`)).body;
@@ -315,9 +324,11 @@ async function newcomer(pool, who, approved = true) {
       await shot("couch-watching", page);
       await page.locator('[data-watch-add="ZT Traitors 5"]').click();
       await sheet(page).locator("[data-where-ask]").waitFor();
-      check(/Haven't started/.test(await sheet(page).locator("[data-where-line]").innerText()), "Add to my shows asks where you are, from Haven't started");
-      await sheet(page).getByRole("button", { name: "Later in ZT Traitors 5" }).click();
-      await sheet(page).getByRole("button", { name: "Later in ZT Traitors 5" }).click();
+      // Where you are is the episode ledger (the design round's step 4), from not started.
+      await sheet(page).locator('[data-ledger-row="2"]').waitFor({ timeout: 15000 });
+      check((await sheet(page).locator('[data-ledger-here="0"]').count()) === 1, "Add to my shows asks where you are, from not started");
+      check((await sheet(page).locator('[data-setting="where-live"]').count()) === 0, "no Keep me live switch (When a new episode airs is the show page's, Ask to start)");
+      await sheet(page).locator('[data-ledger-row="2"]').click();
       await shot("where-sheet", page);
       await sheet(page).locator("[data-where-save]").click();
       check(/ZT Traitors 5 added to your shows/.test(await toasted(/added to your shows/, page)), "added, with a toast", await toasted(/added/, page));
@@ -333,10 +344,25 @@ async function newcomer(pool, who, approved = true) {
       check((await nudge.getAttribute("data-nudge")) === tsid && /You, zt_nd_(riley|sam) and zt_nd_(riley|sam) all watch ZT Traitors/.test(nudge1) && /Start a game/.test(nudge1), "the nudge: the Traitors first (riley and sam watch it too)", nudge1.replace(/\n/g, " | "));
       await scrollTo(page, "[data-nudge]");
       await shot("nudge", page);
+      // It lasts, so it says so (settings Round 2): Don't suggest it, and its toast's Undo brings the suggestion back.
+      check(/Don.t suggest it/.test(await page.locator("[data-nudge-no]").innerText()), "the nudge's no reads Don't suggest it", await page.locator("[data-nudge-no]").innerText());
       await page.locator("[data-nudge-no]").click();
-      check(/won't ask about this one again/.test(await toasted(/ask about this one/, page)), "Not now: we won't ask again");
+      const noToast = await toasted(/We won't suggest/, page);
+      check(/We won't suggest ZT Traitors again/.test(noToast) && /Undo/.test(noToast), "Don't suggest it: \"We won't suggest ZT Traitors again\", with Undo", noToast);
       await page.waitForFunction((id) => document.querySelector("[data-nudge]")?.getAttribute("data-nudge") !== id, tsid, { timeout: 10000 }).catch(() => {});
       check(!!(await follow(fx.users.alex, tsid))?.nudge_off_at, "remembered");
+      await page.locator("[role=status]").getByRole("button", { name: "Undo" }).click();
+      await page.waitForFunction((id) => document.querySelector("[data-nudge]")?.getAttribute("data-nudge") === id, tsid, { timeout: 10000 }).catch(() => {});
+      check((await nudge.getAttribute("data-nudge").catch(() => null)) === tsid && !(await follow(fx.users.alex, tsid))?.nudge_off_at, "Undo: the Traitors is suggested again");
+      await page.locator("[data-nudge-no]").click();
+      await page.waitForFunction((id) => document.querySelector("[data-nudge]")?.getAttribute("data-nudge") !== id, tsid, { timeout: 10000 }).catch(() => {});
+      // The card goes at once; the write lands a moment later.
+      let again = false;
+      for (let i = 0; i < 20 && !again; i++) {
+        again = !!(await follow(fx.users.alex, tsid))?.nudge_off_at;
+        if (!again) await page.waitForTimeout(500);
+      }
+      check(again, "Don't suggest it again: remembered");
       const nudge2 = await nudge.innerText().catch(() => "");
       check((await nudge.getAttribute("data-nudge").catch(() => null)) === ss.id && /You and zt_nd_riley both watch ZT Love Shack/.test(nudge2) && /Make it a game/.test(nudge2), "then the next: ZT Love Shack, not a game yet, so Make it a game", nudge2.replace(/\n/g, " | "));
       await page.locator("[data-nudge-go]").click();
@@ -410,6 +436,16 @@ async function newcomer(pool, who, approved = true) {
       await sheet(page).locator("[data-where-season-pick]").selectOption("1");
       await sheet(page).locator("[data-where='ZT Late Bloomer 1']").waitFor({ timeout: 15000 });
       check((await sheet(page).locator("[data-stepper]").count()) === 1, "and back to the listing's own");
+      // Add a show's step (settings Round 2): I'm up to date under the row, no Keep me live, and while he's on a couch, Hide it
+      // from my couch.
+      const upBox = await sheet(page).locator("[data-where-up-to-date]").boundingBox();
+      const rowBox = await sheet(page).locator("[data-where='ZT Late Bloomer 1']").boundingBox();
+      check(!!upBox && !!rowBox && upBox.y >= rowBox.y + rowBox.height - 1, "I'm up to date sits under the row", JSON.stringify({ upBox, rowBox }));
+      check((await sheet(page).locator('[data-setting="where-live"]').count()) === 0, "no Keep me live switch");
+      const hide = sheet(page).locator('[data-setting="where-private"]');
+      check((await hide.count()) === 1 && /Hide it from my couch/.test(await hide.innerText()) && (await hide.getAttribute("data-on")) === "off", "on a couch: Hide it from my couch, off");
+      await hide.click();
+      check((await hide.getAttribute("data-on")) === "on", "it switches on (saved with the add)");
       for (let i = 0; i < 3; i++) await sheet(page).getByRole("button", { name: /^Later in/ }).click();
       check(
         /Caught up through Episode 3/.test(await sheet(page).locator("[data-where-line]").innerText()) && (await sheet(page).getByRole("button", { name: /^Later in/ }).isDisabled()),
@@ -423,58 +459,64 @@ async function newcomer(pool, who, approved = true) {
       await sheetGone(page);
       const bloom = await showOf(990006);
       const bloomSeason = bloom ? (await pool.query("SELECT id FROM show_seasons WHERE show_id = $1", [bloom.id])).rows[0] : null;
-      check(!!bloomSeason && (await follow(fx.users.alex, bloomSeason.id))?.seen_through === 3, "made, followed through Episode 3");
+      const bloomFollow = bloomSeason ? await follow(fx.users.alex, bloomSeason.id) : null;
+      check(bloomFollow?.seen_through === 3 && bloomFollow.private === true, "made, followed through Episode 3, hidden from his couch", JSON.stringify(bloomFollow));
       const posters = await page.locator("[data-add-show-poster]").evaluate((el) => [...el.parentElement.children].length);
       check(posters >= 6, "his shelf has the new shows", `${posters}`);
 
       // ---- a show with no game ----
       await page.goto(`${BASE}/show/${ss.id}/tonight`);
-      await page.locator("[data-following]").waitFor({ timeout: 30_000 });
+      await page.locator("[data-couch-line]").waitFor({ timeout: 30_000 });
       // The couch line and Who's watching fill in once the space's read (who's on the couch) is back.
       await page.waitForFunction(() => /on the couch watch/.test(document.querySelector("[data-couch-line]")?.textContent || ""), null, { timeout: 15000 }).catch(() => {});
       await page.locator("[data-whos-watching] [data-watcher]").nth(1).waitFor({ timeout: 15000 }).catch(() => {});
       const line = await page.locator("[data-couch-line]").innerText();
       check(/2 on the couch watch/.test(line) && /Not a game yet/i.test(line), "the couch line: who watches it, Not a game yet", line);
-      check(/you're up to Ep 3/.test(await page.locator("[data-following]").innerText()), "the spoiler chip: he's on Episode 3");
       const watchers = await page.locator("[data-whos-watching] [data-watcher]").evaluateAll((els) => els.map((e) => e.getAttribute("data-watcher")));
       check(watchers.join() === "zt_nd_alex,zt_nd_riley", "Who's watching: him, then riley (never how far)", watchers.join());
       check((await page.locator('[data-play-it="make"] [data-make-it]').count()) === 1, "Make it a game (real since step 10 part 2a)");
       await fits("a show with no game", page);
       await shot("no-game-tonight", page);
+      // The ⋯ is things to do (settings Round 2): the settings rows are behind the gear.
       await page.getByRole("button", { name: /^Show menu/ }).click();
-      await sheet(page).getByRole("button", { name: /^Everything else/ }).waitFor();
+      await sheet(page).locator("[data-menu-main]").waitFor();
       check((await sheet(page).getByText("How it works").count()) === 0, "no How it works for a show that isn't a game");
       check((await sheet(page).getByText("Add to my shows").count()) === 0 && (await sheet(page).getByText("Make it a game").count()) === 0, "and no Add to my shows or Make it a game: Tonight's card and plate carry them");
+      const settingsRows = await sheet(page).getByRole("button", { name: /^(Everything else|Watch privately|Remove from my shows|Where you are|Notifications\b(?!,))/ }).count();
+      check(settingsRows === 0 && (await sheet(page).locator("[data-menu-gear-line]").count()) === 1, "and no settings rows (Everything else, Watch privately, Remove, Where you are): the foot line points to the gear");
       await shot("menu", page);
-      // Watch privately is rarely wanted, so it's one tap down.
-      await sheet(page).getByRole("button", { name: /^Everything else/ }).click();
-      await sheet(page).getByText("Watch privately").waitFor();
-      await shot("menu-else", page);
-      await sheet(page).getByText("Watch privately").click();
-      check(/Watching privately/.test(await toasted(/privately/, page)), "Watch privately: on");
-      await page.locator("[data-private-line]").waitFor();
+      // The show's settings page, from the foot line.
+      await sheet(page).locator("[data-menu-gear-line]").click();
+      const showPage = page.locator(`[data-show-settings="${ss.id}"]`);
+      await showPage.waitFor({ timeout: 15000 });
+      check(/^Through Ep 3/.test(await page.locator('[data-show-row="watched"] [data-row-value]').innerText()), "its settings page: Episodes you've watched, through Ep 3");
+      check(/^Ask me if I've seen it$/.test(await page.locator('[data-fold="new-episode"] [data-fold-value]').innerText().catch(() => "")), "When a new episode airs: Ask, where his new follow started");
+      check((await page.locator("[data-show-remove]").count()) === 1 && (await page.locator("[data-show-leave]").count()) === 0, "a show he follows and doesn't play: Remove from my shows (no games to leave)");
+      await fits("a show's settings page", page);
+      await shot("show-settings", page);
+      // Hide this show from my couch (Watch privately, in the ⋯, until settings Round 2).
+      const privSwitch = page.locator('[data-setting="private"]');
+      check((await privSwitch.getAttribute("aria-checked")) === "false" && /Hide this show from my couch/.test(await privSwitch.innerText()), "Hide this show from my couch, off");
+      await privSwitch.click();
+      check(/hidden from your couch/.test(await toasted(/hidden from your couch/, page)), "Hide this show from my couch: on");
+      await page.waitForFunction(() => document.querySelector('[data-setting="private"]')?.getAttribute("aria-checked") === "true", null, { timeout: 10000 }).catch(() => {});
       check((await follow(fx.users.alex, ss.id))?.private === true, "the follow is private");
       const rileySpace = (await as.riley.call("GET", `/api/seasons/${ss.id}/space?couch=${fx.couchId}`)).body;
       check(rileySpace.people.find((p) => p.name === "zt_nd_alex")?.watching === false, "riley no longer sees him watch it");
       await shot("private", page);
-      await page.getByRole("button", { name: /^Show menu/ }).click();
-      await sheet(page).getByRole("button", { name: /^Everything else/ }).click();
-      await sheet(page).getByText("Watch privately").click();
-      await toasted(/can see you watch it again/, page);
+      await privSwitch.click();
+      await toasted(/your couch sees it again/, page);
+      await page.waitForFunction(() => document.querySelector('[data-setting="private"]')?.getAttribute("aria-checked") === "false", null, { timeout: 10000 }).catch(() => {});
       check((await follow(fx.users.alex, ss.id))?.private === false, "and off again");
-      // Where you are is the spoiler chip's Change on Tonight, not a menu row.
-      await page.getByRole("button", { name: /^Show menu/ }).click();
-      await sheet(page).getByRole("button", { name: /^Everything else/ }).waitFor();
-      check((await sheet(page).getByRole("button", { name: /^Where you are/ }).count()) === 0, "the ⋯ menu has no Where you are row: the chip's Change is it");
-      await page.keyboard.press("Escape");
-      await page.locator("[data-following]").getByRole("button", { name: /Change/ }).click();
-      await sheet(page).locator("[data-where-ask]").waitFor();
-      await sheet(page).getByRole("button", { name: "Earlier in ZT Love Shack 1" }).click();
-      await sheet(page).getByRole("button", { name: "Earlier in ZT Love Shack 1" }).click();
+      // Episodes you've watched opens Where you are, on the episode ledger.
+      await page.locator('[data-show-row="watched"]').click();
+      await sheet(page).locator('[data-ledger-row="1"]').waitFor({ timeout: 15000 });
+      await sheet(page).locator('[data-ledger-row="1"]').click();
       await sheet(page).locator("[data-where-save]").click();
-      check(/Saved · you're up to Episode 1/.test(await toasted(/Saved/, page)), "where you are, moved back to Episode 1");
-      await page.waitForFunction(() => /you're up to Ep 1/.test(document.querySelector("[data-following]")?.textContent || ""), null, { timeout: 10000 }).catch(() => {});
-      check(/you're up to Ep 1/.test(await page.locator("[data-following]").innerText()), "the chip follows");
+      const movedBack = await toasted(/Through Ep 1 on/, page);
+      check(/Through Ep 1 on ZT Love Shack/.test(movedBack) && /Undo/.test(movedBack), "where you are, moved back to Episode 1 (\"Through Ep 1 on\" the show, with Undo)", movedBack);
+      await page.waitForFunction(() => /^Through Ep 1/.test(document.querySelector('[data-show-row="watched"] [data-row-value]')?.textContent || ""), null, { timeout: 10000 }).catch(() => {});
+      check(/^Through Ep 1/.test(await page.locator('[data-show-row="watched"] [data-row-value]').innerText()), "the row follows");
       await page.goto(`${BASE}/show/${ss.id}/episodes`);
       await page.locator("[data-ep-aired]").first().waitFor({ timeout: 30_000 });
       const aired = await page.locator("[data-ep-aired]").evaluateAll((els) => els.map((e) => `${e.getAttribute("data-ep-aired")}:${e.getAttribute("data-watched")}`));
@@ -489,12 +531,12 @@ async function newcomer(pool, who, approved = true) {
         await fits(`the ${tab} tab of a show with no game`, page);
         await shot(`no-game-${tab}`, page);
       }
-      await page.goto(`${BASE}/show/${ss.id}/tonight`);
-      await page.locator("[data-following]").waitFor({ timeout: 30_000 });
-      await page.getByRole("button", { name: /^Show menu/ }).click();
-      await sheet(page).getByRole("button", { name: /^Everything else/ }).click();
-      await sheet(page).getByText("Remove from my shows").click();
-      check(/removed from your shows/.test(await toasted(/removed/, page)), "Remove from my shows");
+      // Remove from my shows: last on the settings page, with Undo.
+      await page.goto(`${BASE}/show/${ss.id}/tonight?page=you`);
+      await page.locator(`[data-show-settings="${ss.id}"] [data-show-remove]`).waitFor({ timeout: 30_000 });
+      await page.locator("[data-show-remove]").click();
+      const removed = await toasted(/removed from your shows/, page);
+      check(/ZT Love Shack removed from your shows/.test(removed) && /Undo/.test(removed), "Remove from my shows: a toast with Undo", removed);
       await page.waitForURL("**/home", { timeout: 15000 }).catch(() => {});
       const fr2 = await follow(fx.users.alex, ss.id);
       check(new URL(page.url()).pathname === "/home" && fr2.following === false && fr2.seen_through === 1, "back to the hub; where he was is kept", JSON.stringify(fr2));
@@ -508,8 +550,8 @@ async function newcomer(pool, who, approved = true) {
       await sheet(page).locator("[data-where-ask]").waitFor();
       await sheet(page).locator("[data-where-save]").click();
       await toasted(/added to your shows/, page);
-      await page.locator("[data-following]").waitFor({ timeout: 10000 });
-      check((await follow(fx.users.alex, ukSeason.id))?.following === true, "Add to my shows from the show: followed, the chip in its place");
+      await page.locator("[data-follow-card]").waitFor({ state: "detached", timeout: 10000 }).catch(() => {});
+      check((await follow(fx.users.alex, ukSeason.id))?.following === true && (await page.locator("[data-follow-card]").count()) === 0, "Add to my shows from the show: followed, the Add card gone");
       const alexErrors = A.errors.filter((e) => !/Failed to load resource/.test(e));
       check(!alexErrors.length, "no page errors (alex)", alexErrors.join(" | "));
       await A.close();

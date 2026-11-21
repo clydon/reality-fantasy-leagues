@@ -387,7 +387,7 @@ export function SaveHeart({ on, onToggle }: { on: boolean; onToggle: () => void 
   );
 }
 
-export function StartBar({ line, label, tells, asked, onStart, onAsk, disabled, busy, save, warn }: { line: string; label: string; tells: string; asked: string | null; onStart: () => void; onAsk?: (() => void) | null; disabled?: string | null; busy?: boolean; save?: { on: boolean; onToggle: () => void }; warn?: { text: string; fix: { label: string; onClick: () => void } | null } | null }) {
+export function StartBar({ line, label, tells, asked, onStart, onAsk, disabled, busy, save, warn }: { line: string; label: string; tells: string; asked: string | null; onStart: () => void; onAsk?: (() => void) | null; disabled?: string | null; busy?: boolean; save?: { on: boolean; onToggle: () => void }; warn?: { text: string; fix: { label: string; onClick: () => void } | null; blocks?: boolean } | null }) {
   return (
     <div data-gallery-startbar>
       <p className={`truncate text-center text-[14px] text-muted-foreground ${warn && !disabled ? "mb-0.5" : "mb-2"}`} data-gallery-stretch>
@@ -405,7 +405,7 @@ export function StartBar({ line, label, tells, asked, onStart, onAsk, disabled, 
       )}
       <div className="flex gap-2">
         {save && <SaveHeart on={save.on} onToggle={save.onToggle} />}
-        <button type="button" data-gallery-start onClick={onStart} disabled={!!disabled || busy} className="nd-press type-caption flex h-[52px] min-w-0 flex-1 items-center justify-center rounded-[3px] bg-chyron px-4 text-[20px] text-chyron-foreground hover:brightness-110 disabled:bg-secondary disabled:text-muted-foreground">
+        <button type="button" data-gallery-start onClick={onStart} disabled={!!disabled || busy || !!warn?.blocks} className="nd-press type-caption flex h-[52px] min-w-0 flex-1 items-center justify-center rounded-[3px] bg-chyron px-4 text-[20px] text-chyron-foreground hover:brightness-110 disabled:bg-secondary disabled:text-muted-foreground">
           <span className="truncate">{busy ? "Starting…" : label}</span>
         </button>
       </div>

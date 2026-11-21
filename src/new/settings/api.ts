@@ -74,7 +74,7 @@ export const muteApi = {
   restore: (seasonId: string, until: string | null) => call<ShowNotify>(`/api/seasons/${seasonId}/notifications`, "PUT", { muteUntil: until }),
 };
 
-/** A mute's end by distance: "until 10 PM" today, "until tomorrow 10 PM", "until Thu, Nov 27" further off, "until you turn it back
+/** A mute's end by distance: "until 10 PM" today, "until tomorrow 10 PM", "until Thu 8 PM" within the week, "until Thu, Nov 27" further off, "until you turn it back
  *  on" for good. `now`: the page's clock (ui/bars useNow), never read here, so a render stays pure. */
 export function muteEnd(until: string, now: number): string {
   if (until === "forever") return "until you turn it back on";
@@ -84,5 +84,7 @@ export function muteEnd(until: string, now: number): string {
   const time = at.toLocaleTimeString([], { hour: "numeric", minute: at.getMinutes() ? "2-digit" : undefined });
   if (days <= 0) return `until ${time}`;
   if (days === 1) return `until tomorrow ${time}`;
+  // Within the week, the day and the time: a mute until the next episode ends at a moment, not on a date (settings Round 2's check).
+  if (days < 7) return `until ${at.toLocaleDateString([], { weekday: "short" })} ${time}`;
   return `until ${at.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}`;
 }

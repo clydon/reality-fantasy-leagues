@@ -3,6 +3,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { useCouchHub, useCurrentCouch, useHome, type Couch, type CouchHub, type Home } from "../data";
+import { openCouchSheet } from "../couch/couch-sheets";
 import { CouchPages, MoreOnTheCouch } from "../hub/couch-pages";
 import { GuidePage, OnTvRow } from "../hub/guide";
 import { ProfileSheet } from "../hub/profile";
@@ -50,7 +51,7 @@ export function HomeScreen() {
   const newCouch = asked === "new" || (asked !== "grow" && (!couch || couch.games.length === 0));
   return (
     <div className="pb-[110px]" data-hub={home ? shape : undefined}>
-      <TopBar me={me} onProfile={() => setProfile(true)} bell={<NotesBell />} />
+      <TopBar me={me} onProfile={() => setProfile(true)} bell={<NotesBell />} couch={couch ? { name: couch.name, onClick: () => openCouchSheet({ kind: "switch" }) } : null} />
       {error ? (
         <EmptyState title="Couldn't load your couch" line={error.message} action={<Btn wide onClick={() => refetch()}>Try again</Btn>} />
       ) : (

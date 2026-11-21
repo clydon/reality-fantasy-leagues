@@ -67,7 +67,14 @@ export async function readyLeague(leagueId: string, state: LeagueState, o: { liv
       console.error(`[league-read] couldn't tell whether computer players have something due in ${leagueId}:`, e);
       return false;
     });
-  if (!StateLogic.ensureNextEpisode(structuredClone(state)) && !Bots.hasWork(state) && !waiverStepDue && !drawDue && !auctionDue && !keepersDue && !squaresDue && !paceDue && !(await botsWaiting())) return stampCastProps(await stampStats(state, o));
+  // A sport's game whose latest episode's results arrive with no write (its finals, stamped on the read: stampStats): its next episode
+  // is made once they're in, as a write's would be (withLeagueLock stamps them first). Before this a game nobody wrote to (every seat a
+  // computer player, a Pick'em nobody touched that week) never got its next week (step 2.7's check found it). Asked only once the
+  // latest has aired with no results of its own.
+  const latest = state.episodes.reduce<LeagueState["episodes"][number] | null>((a, e) => (!a || e.number > a.number ? e : a), null);
+  const nextDue = async () =>
+    !!latest && !StateLogic.episodeHasResults(latest) && StateLogic.hasAired(latest) && StateLogic.ensureNextEpisode(await stampStats(structuredClone(state)));
+  if (!StateLogic.ensureNextEpisode(structuredClone(state)) && !Bots.hasWork(state) && !waiverStepDue && !drawDue && !auctionDue && !keepersDue && !squaresDue && !paceDue && !(await botsWaiting()) && !(await nextDue())) return stampCastProps(await stampStats(state, o));
   const before = draftTurn(state);
   const next = await withLeagueLock(leagueId, () => {});
   if (draftTurn(next) !== before) notifyDraftTurn(leagueId, next, null);

@@ -738,22 +738,34 @@ export function BothWatch({ home, couch }: { home: Home; couch: Couch | null }) 
                 Make it a game
               </NavLink>
             )}
+            {/* Settings Round 2 (C22): it lasts, so it says so, and Undo brings the suggestion back. */}
             <Btn
               className="h-11"
               data-nudge-no
               onClick={async () => {
-                setGone(n.show.seasonId);
+                const id = n.show.seasonId;
+                setGone(id);
                 try {
-                  await watching.follow(n.show.seasonId, { nudgeOff: true });
+                  await watching.follow(id, { nudgeOff: true });
                   await refresh();
-                  toast("Got it. We won't ask about this one again");
+                  toast(`We won't suggest ${name} again`, {
+                    undo: async () => {
+                      try {
+                        await watching.follow(id, { nudgeOff: false });
+                        await refresh();
+                        setGone(null);
+                      } catch (e) {
+                        toast.quiet((e as Error).message);
+                      }
+                    },
+                  });
                 } catch (e) {
                   setGone(null);
                   toast.quiet((e as Error).message);
                 }
               }}
             >
-              Not now
+              Don&rsquo;t suggest it
             </Btn>
           </div>
         </div>

@@ -185,6 +185,19 @@ test("waivers, a replacement owed and a pool's pick offer only the pool; a perso
   assert.equal(S.AnswerLogic.faces(q, top).length, 12);
 });
 
+test("a question about one episode names only the players whose teams play in it (the user, 2026-11-21); asked once, anyone", () => {
+  const top = { id: "top", ask: "Who scores the most?", answer: "person", points: 1, asked: "each", settle: { by: "stat", stat: "G", take: "most" } };
+  const s = league({ spec: 1, span: { from: 1, to: 2 }, pool: { of: "cast", where: null }, get: { by: "none" }, score: { by: "answers" }, rank: { by: "total" }, ask: [top] });
+  // The server's stamp (air-times.ts stampPlaying): Episode 1 is Arsenal v Liverpool; Episode 2 has none stamped.
+  s.episodes[0].playingTeams = ["Arsenal", "liverpool"];
+  const names = (ep) => S.AnswerLogic.faces(s, top, { episode: ep }).map((f) => f.name.replace(/ \d$/, ""));
+  assert.deepEqual([...new Set(names(1))].sort(), ["Arsenal", "Liverpool"]);
+  assert.equal(names(1).length, 8);
+  assert.equal(names(2).length, 12, "none stamped: no limit");
+  assert.equal(S.AnswerLogic.faces(s, top).length, 12, "no episode: no limit");
+  assert.equal(S.AnswerLogic.faces(s, { ...top, asked: "once" }, { episode: 1 }).length, 12, "a question asked once is about the season");
+});
+
 test("the words: the sentence and the short form say who it picks from; our check reads a team's name and a position's label", () => {
   const d = G.describeSpec(w055(), SOCCER);
   assert.match(d.sentence, /everyone drafts 3, forwards only/);

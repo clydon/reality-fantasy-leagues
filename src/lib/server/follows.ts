@@ -69,6 +69,8 @@ export interface FollowChange {
   keepUp?: unknown;
   /** Live's "Not yet": the episode you haven't seen, so it isn't asked about again until a newer one ends. */
   notYet?: unknown;
+  /** When results show on this season (settings Round 2, A7): "wait", "now", or null for your account's choice (guard.ts). */
+  results?: unknown;
 }
 
 export interface Follow {
@@ -77,9 +79,10 @@ export interface Follow {
   private: boolean;
   keepUp: KeepUp;
   notYet: number | null;
+  results: "wait" | "now" | null;
 }
 
-const RETURNING = `RETURNING seen_through AS "seenThrough", following, private, keep_up AS "keepUp", not_yet AS "notYet"`;
+const RETURNING = `RETURNING seen_through AS "seenThrough", following, private, keep_up AS "keepUp", not_yet AS "notYet", results`;
 
 /** Does this person play a game on this season? (Then where they are moves with their games' reveals.) */
 async function playsSeason(userId: string, seasonId: string): Promise<boolean> {
@@ -97,7 +100,7 @@ async function playsSeason(userId: string, seasonId: string): Promise<boolean> {
  * where it comes from your games' reveals.
  */
 export async function setFollow(userId: string, seasonId: string, change: FollowChange) {
-  const { rows: season } = await pool.query("SELECT id, episode_count FROM show_seasons WHERE id = $1", [seasonId]);
+  const { rows: season } = await pool.query("SELECT id, episode_count, status FROM show_seasons WHERE id = $1", [seasonId]);
   if (!season.length) throw new HttpError(404, "Season not found");
   const fields: Record<string, boolean | number> = {};
   for (const key of ["following", "private"] as const) {
@@ -112,7 +115,17 @@ export async function setFollow(userId: string, seasonId: string, change: Follow
     if (typeof change.nudgeOff !== "boolean") throw new HttpError(400, "nudgeOff must be true or false");
     set.nudge_off_at = change.nudgeOff ? "now()" : "NULL";
   }
-  const values: Record<string, string | number> = {};
+  const values: Record<string, string | number | null> = {};
+  if (change.results !== undefined) {
+    if (change.results !== null && change.results !== "wait" && change.results !== "now") throw new HttpError(400, "results must be wait, now or null");
+    values.results = change.results as "wait" | "now" | null;
+  }
+  // A new follow of a season still airing starts at Ask (settings Round 2: the Recommended "When a new episode airs", so most people
+  // never set it): Tonight asks "Seen it?" as each one ends. An existing follow keeps its choice; a season you play ignores it.
+  if (change.following === true && change.keepUp === undefined && season[0].status !== "completed") {
+    set.keep_up = "'ask'";
+    onUpdate.keep_up = "show_follows.keep_up";
+  }
   if (change.keepUp !== undefined) {
     if (!KEEP_UPS.includes(change.keepUp as KeepUp)) throw new HttpError(400, `keepUp must be one of ${KEEP_UPS.join(", ")}`);
     if (change.keepUp !== "off" && (await playsSeason(userId, seasonId))) throw new HttpError(409, "You play this season: where you are moves with your games' reveals.");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { Face } from "../show/parts";
 import { seasonChoiceLine, type SeasonChoice } from "@/lib/game/listing";
@@ -14,8 +14,8 @@ import { whereCap, whereLabel } from "../way-in";
 // from Haven't started to what's aired, never past it (the guard shows nothing after it: guard.ts). A season you play has
 // none: where you are moves as you reveal each episode.
 // Each step says which episode it is: when it aired, and its title once you've seen it (a sport's always: its titles are the
-// matchups). I'm up to date jumps to the latest and turns on Live (keep-up.ts): when each new episode ends, Tonight asks
-// "Seen it?", so nothing opens until you say.
+// matchups). I'm up to date (I've watched them all, on the ledger) jumps to the latest and turns nothing else on (settings Round 2,
+// C14): what happens when a new episode airs is the show's settings page's ("When a new episode airs"), with Ask the default.
 // `pick` (Add a show): which season, when the show's listing has more than one (the user, 2026-11-05: Below Deck came up as
 // its 13th, with no way to an earlier one): a picker under the row, each season with its name or when it aired; the row,
 // the stepper and the rest are the season picked, read from its listing while the picker says so.
@@ -117,6 +117,14 @@ export function EpisodeLedger({
   const ep = s.epWord ?? "Ep";
   const aired = s.aired ?? 0;
   const rows = Array.from({ length: Math.max(0, aired - from + 1) }, (_, i) => from + i);
+  // It opens at your boundary, not at Ep 1: on a 30-episode season "You're here" would start out of sight (settings Round 2's PFD).
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = box.current;
+    const mark = el?.querySelector<HTMLElement>("[data-ledger-here]");
+    if (el && mark) el.scrollTop = Math.max(0, mark.offsetTop - el.offsetTop - el.clientHeight / 2);
+    // Once, as it opens: moving the boundary afterwards shouldn't pull the list about.
+  }, []);
   const toAir = s.total && s.total > aired ? s.total - aired : 0;
   const here = (
     <div data-ledger-here={seen} className="flex items-center gap-2 py-1.5" aria-hidden>
@@ -126,7 +134,7 @@ export function EpisodeLedger({
     </div>
   );
   return (
-    <div data-ledger className="max-h-[46dvh] overflow-y-auto overscroll-contain pr-0.5">
+    <div ref={box} data-ledger className="relative max-h-[46dvh] overflow-y-auto overscroll-contain pr-0.5">
       {seen === from - 1 && here}
       {rows.map((n) => {
         const e = episodes?.find((x) => x.number === n);
@@ -157,7 +165,7 @@ export function EpisodeLedger({
                   {title ?? (out.length ? `${out.map((c) => c.name.split(" ")[0]).join(" and ")} out` : (dayOf(e?.airAt) ?? `${s.episodeWord ?? "Episode"} ${n}`))}
                 </b>
                 <small className="block text-[12.5px] text-muted-foreground">
-                  {[title || out.length ? dayOf(e?.airAt) : null, waiting ? "Results in · hidden" : isSeen ? "Seen" : "Out, not seen"].filter(Boolean).join(" · ")}
+                  {[title || out.length ? dayOf(e?.airAt) : null, waiting ? "Results in · hidden" : isSeen ? "Seen" : "Aired · not seen yet"].filter(Boolean).join(" · ")}
                 </small>
               </span>
               {!fixed && (
@@ -189,9 +197,10 @@ export function EpisodeLedger({
 }
 
 /**
- * Asking where someone is before a show goes on their list, or moving it: the row, I'm up to date, Live, a line on what it
- * does, and the one button. `plays`: they play it, so there's nothing to set here. `keepUp`: how it keeps up now (a show set to
- * move along by itself says so instead of offering Live).
+ * Asking where someone is before a show goes on their list, or moving it: the row (or the ledger), I'm up to date, a line on what
+ * happens as new episodes air, and the one button. `plays`: they play it, so there's nothing to set here. `keepUp`: how it keeps up
+ * now (said in the line; set on the show's settings page since settings Round 2). `couch`: Add a show offers Hide it from my couch
+ * (A8) while you're on one; `onSave`'s second answer is that switch.
  */
 export function WhereAsk({
   s,
@@ -206,6 +215,8 @@ export function WhereAsk({
   onSave,
   ledger,
   onReveal,
+  couch,
+  fromSettings,
 }: {
   s: WhereSeason;
   start: number;
@@ -220,8 +231,12 @@ export function WhereAsk({
   /** Add a show's: this season's on your list already (the user, 2026-11-05: the row still opens, so another season can be
    *  picked here); nothing to set, and no save until a different one is. */
   onList?: boolean;
-  /** `episodes`: look up the ones that are out (on unless switched off). */
-  onSave: (seen: number, live: boolean, episodes: boolean) => void;
+  /** Add a show's, on a couch: offer Hide it from my couch (settings Round 2, A8). */
+  couch?: boolean;
+  /** Opened from the show's settings page: its line doesn't point back there. */
+  fromSettings?: boolean;
+  /** `priv`: hide it from your couch; `episodes`: look up the ones that are out (on unless switched off). */
+  onSave: (seen: number, priv: boolean, episodes: boolean) => void;
   /** Where you are on a show's page (step 4): the season as the episode ledger, not the stepper; on a season you play, the ledger
    *  fixed with its one action (`onReveal`). */
   ledger?: boolean;
@@ -229,12 +244,13 @@ export function WhereAsk({
 }) {
   const cap = whereCap(s.aired);
   const [seen, setSeen] = useState(Math.min(start, cap));
-  const [live, setLive] = useState(keepUp === "ask");
+  const [priv, setPriv] = useState(false);
   const [lookAll, setLookAll] = useState(true);
   const read = useAiredEpisodes((!plays || ledger) && !s.episodes && isUuid(s.seasonId) && s.aired !== 0 ? s.seasonId : null);
   const episodes = s.episodes ?? read.data?.episodes;
-  // Live is for a season still on: a finished one has nothing new to ask about.
+  // What happens as new episodes air is for a season still on: a finished one has nothing new.
   const canLive = s.status !== "completed";
+  const word = (s.episodeWord ?? "Episode").toLowerCase();
   if (plays && ledger) {
     const ep = s.epWord ?? "Ep";
     return (
@@ -280,43 +296,42 @@ export function WhereAsk({
   }
   return (
     <div data-where-ask aria-busy={reading || undefined}>
+      {/* The ledger's one shortcut sits above it (settings Round 2's PFD R3): the list scrolls in its own frame under it. */}
+      {ledger && !!s.aired && seen < cap && (
+        <Btn wide className="mb-2" data-where-up-to-date onClick={() => setSeen(cap)}>
+          I&rsquo;ve watched them all
+        </Btn>
+      )}
       <div className={reading ? "pointer-events-none opacity-40 transition-opacity" : "transition-opacity"}>
         {ledger && s.aired ? <EpisodeLedger s={s} seen={seen} named={start} episodes={episodes} onChange={setSeen} /> : <WhereRow s={s} seen={seen} onChange={setSeen} episodes={episodes} />}
       </div>
       {pick && pick.seasons.length > 1 && <SeasonPicker pick={pick} />}
-      {s.aired !== 0 && s.aired != null && seen < cap && (
-        <Btn
-          wide
-          className="mt-2"
-          data-where-up-to-date
-          onClick={() => {
-            setSeen(cap);
-            if (canLive && keepUp !== "auto") setLive(true);
-          }}
-        >
+      {!ledger && s.aired !== 0 && s.aired != null && seen < cap && (
+        <Btn wide className="mt-2" data-where-up-to-date onClick={() => setSeen(cap)}>
           I&rsquo;m up to date
         </Btn>
       )}
-      {canLive &&
-        (keepUp === "auto" ? (
-          <p data-where-auto className="mt-3 text-[13px] leading-normal text-muted-foreground">
-            Moves along by itself as each {(s.episodeWord ?? "Episode").toLowerCase()} airs. Change it in Your settings › When results show.
-          </p>
-        ) : (
-          <div className="mt-2">
-            <SwitchRow
-              data="where-live"
-              on={live}
-              title="Keep me live"
-              line={
-                live
-                  ? `When each new ${(s.episodeWord ?? "Episode").toLowerCase()} ends, Tonight asks if you've seen it. Nothing opens until you say`
-                  : "Off: you move where you are yourself"
-              }
-              onChange={setLive}
-            />
-          </div>
-        ))}
+      {canLive && (
+        <p data-where-airs={keepUp} className="mt-3 text-[13px] leading-normal text-muted-foreground">
+          {keepUp === "auto"
+            ? `Each new ${word} counts as watched as it airs.`
+            : keepUp === "off" && ledger
+              ? `When a new ${word} airs, nothing changes here until you move it.`
+              : `When a new ${word} airs, Tonight asks if you've seen it.`}
+          {fromSettings ? null : " Change it in the show's settings, under the gear."}
+        </p>
+      )}
+      {couch && (
+        <div className="mt-2">
+          <SwitchRow
+            data="where-private"
+            on={priv}
+            title="Hide it from my couch"
+            line={priv ? "Only you see it. Chat and the games still work" : "Your couch sees you watch it and how far you are"}
+            onChange={setPriv}
+          />
+        </div>
+      )}
       {/* The user (2026-11-01): with several out, you should be asked to get them all, not one at a time as you watch. */}
       {lookUp && !!s.aired && (
         <div className="mt-2">
@@ -331,7 +346,7 @@ export function WhereAsk({
       )}
       <p className="mt-2 text-[13px] leading-normal text-muted-foreground">Nothing past where you are shows: results, stats, the couch&rsquo;s chat. Change it any time.</p>
       {/* On a show's page, Save holds the yellow only once it would change something (step 4's check: no "due" colour on a no-op). */}
-      <Btn tone={ledger && seen === start && live === (keepUp === "ask") ? "optional" : "must"} wide className="mt-4" data-where-save disabled={busy || reading} onClick={() => onSave(seen, canLive && keepUp !== "auto" && live, !!lookUp && lookAll)}>
+      <Btn tone={ledger && seen === start ? "optional" : "must"} wide className="mt-4" data-where-save disabled={busy || reading} onClick={() => onSave(seen, !!couch && priv, !!lookUp && lookAll)}>
         {busy ? "Saving…" : ledger ? `${cta} · ${seen > 0 ? `through ${s.epWord ?? "Ep"} ${seen}` : "not started"}` : cta}
       </Btn>
     </div>

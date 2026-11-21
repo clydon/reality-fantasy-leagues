@@ -1,7 +1,7 @@
 import { after } from "next/server";
 import Bots from "@/lib/game/bot-logic.js";
 import StateLogic from "@/lib/game/state-logic.js";
-import { paceBy } from "@/lib/sports";
+import { finalName, paceBy } from "@/lib/sports";
 import { addBot, MAX_BOTS, type BotLevel } from "@/lib/game/computer-players";
 import { gameLine, gamesFor, noFitLine } from "@/lib/game/formats/rulebook-fits.js";
 import type { GameFit, SeasonGameKey } from "@/lib/game/formats/rulebook-fits";
@@ -28,6 +28,7 @@ import { copyOf } from "./ours";
 import { leaguePhases, phasesFrom, scheduleOf, seasonBlocks, settleIn } from "./phase-starts";
 import { notifyGameStarted } from "./push-events";
 import { latestAired, seasonSchedules, type SeasonSchedule } from "./schedule";
+import { regularEnd } from "./air-times";
 import { followsOf, games, seasonHeaders, type Game } from "./show-space";
 
 // Start a game that fits (docs/PLAN-new-design.md step 10 part 2b; the mock's rulebook.js newGameW, rbGameLine, RB_FITS and
@@ -95,6 +96,17 @@ export interface StartQuestion {
   season: boolean;
 }
 
+/**
+ * Step 2.7 (docs/PLAN-sports-ready.md): a sport's season that goes on into its playoffs, for How long: `through` its regular season's
+ * last episode, `fantasy` where a game scored by players' stats ends by default (the NFL's Week 17), `final` its final as people name
+ * it ("the Super Bowl"). A game started to the season's end plays the regular season unless the start says `timing: "final"`.
+ */
+export interface SportPlayoffs {
+  through: number;
+  fantasy: number;
+  final: string;
+}
+
 export interface StartOptions {
   seasonId: string;
   /** "Survivor 51". */
@@ -139,7 +151,7 @@ export interface StartOptions {
   blocked: string | null;
   /** A sport's league season (a matchup's or a slate's, made from the provider's games): its league path ("football/nfl"). Its
    *  rules are the sport's own defaults, so it needn't be made a game first (U1's sports slice: start-sport.ts). */
-  sport: { league: string } | null;
+  sport: { league: string; playoffs: SportPlayoffs | null } | null;
   /** A game at your own pace (docs/PLAN-own-pace-games.md): the starts on what's aired. `here`: where you are plus one (null once
    *  you've seen everything aired), `top` Episode 1, `aired` the latest aired. Null while nothing has aired. */
   pace: { here: number | null; top: number; aired: number } | null;
@@ -304,6 +316,10 @@ export async function startOptions(
   ]);
   // "espn:football/nfl": the provider's league path after its id.
   const sportLeague = typeof leagueRows[0]?.sports_league === "string" ? (leagueRows[0].sports_league as string).replace(/^[a-z]+:/, "") : null;
+  // Step 2.7: a sport's season that goes on into its playoffs (a full slate, a team's season): where its regular season ends, for the
+  // sheet's How long (the regular season, the default, or through the final).
+  const reg = sportLeague ? await regularEnd(pool, seasonId) : null;
+  const sportPlayoffs: SportPlayoffs | null = reg && sportLeague ? { ...reg, final: finalName(sportLeague) } : null;
   const h = headers.get(seasonId);
   if (!h) throw new HttpError(404, "Season not found");
   const schedule = schedules.get(seasonId);
@@ -457,7 +473,7 @@ export async function startOptions(
     questions: asks.map((c) => ({ id: c.question.id, ask: c.question.ask, line: c.line, on: c.on, season: c.season })),
     watchers,
     blocked,
-    sport: sportLeague ? { league: sportLeague } : null,
+    sport: sportLeague ? { league: sportLeague, playoffs: sportPlayoffs } : null,
     pace,
     ownPace,
     runs: ownPace

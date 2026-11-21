@@ -149,8 +149,10 @@ async function finalResults(pool, season, leagues, now, opts) {
       const { rows: told } = await pool.query("SELECT key FROM notifications WHERE user_id = $1 AND key = ANY($2::text[])", [reader.userId, [R, F]]);
       if (told.some((t) => t.key === F)) return null;
       const { rows: m } = await pool.query(
+        // When results show: the season's own choice (settings Round 2, A7), else the account's.
         `SELECT (SELECT seen_through FROM show_follows WHERE user_id = $1 AND season_id = $2) AS mark,
-                COALESCE((SELECT show_results_immediately FROM user_settings WHERE user_id = $1), false) AS immediate`,
+                COALESCE((SELECT results = 'now' FROM show_follows WHERE user_id = $1 AND season_id = $2 AND results IS NOT NULL),
+                         (SELECT show_results_immediately FROM user_settings WHERE user_id = $1), false) AS immediate`,
         [reader.userId, season.id]
       );
       const sees = !!m[0]?.immediate || (Number.isInteger(m[0]?.mark) && m[0].mark >= n);
@@ -188,7 +190,7 @@ async function remindLate(pool, league, seasons, now, opts, queue = null) {
     if (at) ep.airsAt = at.toISOString();
   }
   const { rows: members } = await pool.query(
-    `SELECT m.user_id, m.player_id, f.seen_through, f.keep_up, COALESCE(us.show_results_immediately, false) AS immediate
+    `SELECT m.user_id, m.player_id, f.seen_through, f.keep_up, COALESCE(CASE WHEN f.results IS NOT NULL THEN f.results = 'now' END, us.show_results_immediately, false) AS immediate
        FROM league_memberships m
        LEFT JOIN show_follows f ON f.user_id = m.user_id AND f.season_id = $2
        LEFT JOIN user_settings us ON us.user_id = m.user_id
