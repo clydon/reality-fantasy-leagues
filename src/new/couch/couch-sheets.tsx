@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, ChevronRight, Copy, Crown, KeyRound, LogOut, PenLine, Plus, RefreshCw, Share2, Users } from "lucide-react";
+import { Check, ChevronRight, Copy, Crown, KeyRound, LogOut, PenLine, Plus, RefreshCw, Share2 } from "lucide-react";
 import { couches, setCouch, useAfterCouch, useCurrentCouch, useHome, useInviteCode, type Couch, type LeaveCouch } from "../data";
 import { useMe } from "../session";
 import { useNav } from "../nav";
@@ -130,37 +130,59 @@ function SwitchSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: 
   const nav = useNav();
   const list = home?.couches ?? [];
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Your couches" subtitle="The hub shows one couch at a time">
+    <Sheet open={open} onOpenChange={onOpenChange} title="Your couches" subtitle={list.length > 1 ? "The hub shows one at a time, on every phone of yours" : undefined}>
+      {/* The couch shown first, as a card with its settings (settings Round 2); the others switch with a tap; start and join last. */}
       <div className="flex flex-col" data-couch-switcher>
-        {list.map((c) => {
-          const on = c.id === couch?.id;
-          return (
+        {couch && (
+          <div data-couch={couch.name} aria-current className="rounded-[4px] bg-secondary p-3">
+            <div className="flex items-center gap-3">
+              <FaceStack people={couch.members} />
+              <span className="min-w-0 flex-1">
+                <b className="block truncate text-[16px] font-semibold">{couch.name}</b>
+                <small className="block truncate text-[13px] text-muted-foreground">
+                  {couch.members.length} {couch.members.length === 1 ? "person" : "people"}
+                  {couch.yourRole === "owner" ? " · you own it" : ""}
+                </small>
+              </span>
+              {list.length > 1 && <Check className="size-5 flex-none" aria-label="On the hub now" />}
+            </div>
+            <button
+              type="button"
+              data-couch-settings
+              onClick={() => openCouchSheet({ kind: "details", couchId: couch.id })}
+              className="nd-press mt-2 flex h-11 w-full items-center justify-between rounded-[3px] bg-card px-3 text-[15px] font-semibold outline-1 -outline-offset-1 outline-edge"
+            >
+              Couch settings
+              <ChevronRight className="size-5 text-muted-foreground" aria-hidden />
+            </button>
+          </div>
+        )}
+        {list.length > 1 && <p className="type-caption mb-0.5 mt-4 text-xs tracking-[0.06em] text-muted-foreground">Switch the hub to</p>}
+        {list
+          .filter((c) => c.id !== couch?.id)
+          .map((c) => (
             <button
               key={c.id}
               type="button"
               data-couch={c.name}
-              aria-current={on || undefined}
               onClick={() => {
                 closeCouchSheet();
-                if (on) return;
                 setCouch(c.id);
                 toast(`Switched to ${c.name}`);
                 nav.push(paths.home);
               }}
-              className={`nd-press flex min-h-[64px] items-center gap-3 rounded-[3px] px-2.5 text-left ${on ? "bg-secondary" : ""}`}
+              className="nd-press flex min-h-[64px] items-center gap-3 border-b border-border px-1 text-left"
             >
               <FaceStack people={c.members} />
               <span className="min-w-0 flex-1">
                 <b className="block truncate text-[16px] font-semibold">{c.name}</b>
                 <small className="block truncate text-[13px] text-muted-foreground">{couchLine(c)}</small>
               </span>
-              {on ? <Check className="size-5 flex-none" aria-label="On it now" /> : <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />}
+              <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
             </button>
-          );
-        })}
+          ))}
       </div>
       <div className="mt-2 flex flex-col">
-        {couch && <Row icon={Users} title={`${couch.name} details`} detail="Who's on it, your invite code, seasons together" onClick={() => openCouchSheet({ kind: "details", couchId: couch.id })} />}
         <Row icon={KeyRound} title="Join a couch" detail="Got a code from a friend? Pull up a seat" onClick={() => openCouchSheet({ kind: "join" })} />
       </div>
       <Btn wide className="mt-3" data-new-couch onClick={() => openCouchSheet({ kind: "new" })}>
@@ -354,7 +376,7 @@ function DetailsSheet({ couchId, onOpenChange }: { couchId: string | null; onOpe
               <>
                 <Row icon={PenLine} title="Rename the couch" detail={`It's ${couch.name} for everyone on it`} onClick={() => openCouchSheet({ kind: "rename", couchId: couch.id })} />
                 {couch.members.length > 1 && (
-                  <Row icon={Crown} title="Hand it on" detail="Someone else runs the couch: its name, and handing it on" onClick={() => openCouchSheet({ kind: "handOn", couchId: couch.id })} />
+                  <Row icon={Crown} title="Make someone else the owner" detail="They rename it, make new codes and can hand it on" onClick={() => openCouchSheet({ kind: "handOn", couchId: couch.id })} />
                 )}
               </>
             )}
@@ -653,6 +675,9 @@ function HandOnSheet({ couchId, onOpenChange }: { couchId: string | null; onOpen
   const after = useAfterCouch();
   const [to, setTo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Settings Round 2 (C28): a sentence saying what moves, then the confirm (it changes who controls the couch, so no Undo: the new
+  // owner can hand it back).
+  const [asking, setAsking] = useState(false);
   const others = couch?.members.filter((m) => m.userId !== me.id) ?? [];
   const pick = others.find((m) => m.userId === to) ?? null;
   const hand = async () => {
@@ -662,7 +687,7 @@ function HandOnSheet({ couchId, onOpenChange }: { couchId: string | null; onOpen
       await couches.handOn(couch.id, pick.userId);
       await after();
       closeCouchSheet();
-      toast(`${pick.name} runs ${couch.name} now`);
+      toast(`${pick.name} is the owner of ${couch.name} now`);
     } catch (e) {
       toast.quiet((e as Error).message);
     } finally {
@@ -670,7 +695,7 @@ function HandOnSheet({ couchId, onOpenChange }: { couchId: string | null; onOpen
     }
   };
   return (
-    <Sheet open={!!couchId && !!couch} onOpenChange={onOpenChange} title="Hand it on" subtitle="Who runs the couch next">
+    <Sheet open={!!couchId && !!couch} onOpenChange={onOpenChange} title="Make someone else the owner" subtitle={couch ? `Who owns ${couch.name} next` : undefined}>
       <div data-hand-on className="flex flex-col">
         <div role="radiogroup" aria-label="Who runs it next">
           {others.map((m) => (
@@ -680,7 +705,7 @@ function HandOnSheet({ couchId, onOpenChange }: { couchId: string | null; onOpen
               role="radio"
               aria-checked={to === m.userId}
               data-hand-to={m.name}
-              onClick={() => setTo(m.userId)}
+              onClick={() => (setTo(m.userId), setAsking(false))}
               className="nd-press flex min-h-[60px] w-full items-center gap-3 border-t border-border py-2 text-left first:border-t-0"
             >
               <Avatar id={m.userId} name={m.name} size={36} />
@@ -691,12 +716,35 @@ function HandOnSheet({ couchId, onOpenChange }: { couchId: string | null; onOpen
             </button>
           ))}
         </div>
-        <p className="mt-3 text-[13px] leading-snug text-muted-foreground">
-          They can rename the couch and hand it on again. You stay on it, and nothing changes in its games: whoever runs each game still does.
-        </p>
-        <Btn tone="ink" wide className="mt-3" data-hand-on-go disabled={!pick || busy} onClick={hand}>
-          {busy ? "Handing it on…" : pick ? `Hand it to ${pick.name}` : "Pick someone"}
-        </Btn>
+        {asking && pick && couch ? (
+          <div data-hand-on-ask className="mt-3 rounded-[3px] bg-background p-3 text-[14px] leading-snug">
+            <b className="font-semibold">Make {pick.name} the owner of {couch.name}?</b> {pick.name} can rename it, make new codes and hand it on. You stay on the
+            couch, and whoever runs each game still does.
+            <div className="mt-3 flex gap-2">
+              <Btn tone="ink" className="h-12 flex-1" data-hand-on-keep onClick={() => setAsking(false)}>
+                Keep it
+              </Btn>
+              <button
+                type="button"
+                data-hand-on-go
+                disabled={busy}
+                onClick={hand}
+                className="nd-press flex h-12 flex-1 items-center justify-center rounded-[3px] bg-card px-2 text-center text-[15px] font-bold leading-tight outline-1 -outline-offset-1 outline-edge disabled:opacity-60"
+              >
+                {busy ? "Making them owner…" : "Make them the owner"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <p className="mt-3 text-[13px] leading-snug text-muted-foreground">
+              The owner renames the couch, makes new codes and can hand it on. You stay on it, and nothing changes in its games.
+            </p>
+            <Btn tone="ink" wide className="mt-3" data-hand-on-next disabled={!pick} onClick={() => setAsking(true)}>
+              {pick ? `Make ${pick.name} the owner` : "Pick someone"}
+            </Btn>
+          </>
+        )}
       </div>
     </Sheet>
   );

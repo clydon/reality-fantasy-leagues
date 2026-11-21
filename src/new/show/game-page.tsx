@@ -7,10 +7,11 @@ import { ChevronDown, ChevronLeft, ChevronRight, Clock, Heart, Hourglass, Minus,
 import { LATE_SET, LateMark } from "./lineup-sheet";
 import { lockTime } from "../clock";
 import { useQueryClient } from "@tanstack/react-query";
-import { chooseTwist, couches, setGroupSlot, useAfterCouch, useGameQuestions, useLeagueRoles, useLeagueTwist, useSeasonDraft, useSeasonGame, useSeasonWaivers, type GameView, type LeagueTwist } from "../data";
+import { chooseTwist, couches, gameAdmin, setGroupSlot, useAfterCouch, useAfterReveal, type OutPreview, useGameQuestions, useLeagueRoles, useLeagueTwist, useSeasonDraft, useSeasonGame, useSeasonWaivers, type GameView, type LeagueTwist } from "../data";
 import { NavLink, useNav } from "../nav";
 import { paths } from "../routes";
-import { isTabOf, openWhere, useShow, type ShowData } from "../screens/show-space";
+import { isTabOf, useShow, type ShowData } from "../screens/show-space";
+import { HoldSheet } from "../ui/guards";
 import { colourOf } from "../tune-in";
 import { Avatar } from "../ui/bars";
 import { Btn, EmptyState, Row } from "../ui/parts";
@@ -162,6 +163,8 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
   // Every name, square, episode and face is a door (game-sheets.tsx): each a sheet over the last, the path back on top.
   const drill = useDrill();
   const [menu, setMenu] = useState(false);
+  const [leaving, setLeaving] = useState<OutPreview | null | false>(false);
+  const afterReveal = useAfterReveal();
   // The card's name scrolled under the top: the bar that stays names the game.
   const [away, setAway] = useState(false);
   const art = show.header?.show.backdropUrl ?? show.header?.show.artUrl ?? null;
@@ -345,19 +348,59 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
       {/* Your moves (dock.tsx), as the show's tabs have it: the move opens it on this game. */}
       {show.header && <MovesSheet show={show} seasonId={seasonId} />}
       <DrillSheets drill={drill} g={wg} wg={wg} runs={runs} show={show} seasonId={seasonId} rules={m.rules} />
-      <Sheet open={menu} onOpenChange={setMenu} title={m.title.name} subtitle={show.header?.show.name}>
+      <Sheet open={menu} onOpenChange={setMenu} title={g.name} subtitle={[g.name !== m.title.name ? m.title.name : null, show.header?.show.name].filter(Boolean).join(" · ")}>
         <div className="pb-2" data-game-menu>
           <Row title="How it plays" detail={`${m.rules.length} rules${m.chips.length ? ` · ${m.chips.join(", ").toLowerCase()}` : ""}`} onClick={() => (setMenu(false), drill.open({ kind: "rules" }))} />
           {wg.you && <Row title="Your sheet" detail="Week by week" onClick={() => (setMenu(false), drill.open({ kind: "person", playerId: wg.you!.playerId, episode: null }))} />}
-          {show.header && !g.solo && (
-            <Row title="Where you are" detail={show.seenThrough ? `Through ${show.words.ep} ${show.seenThrough}: nothing past it shows here` : "Results show as they come"} onClick={() => (setMenu(false), openWhere(show))} />
-          )}
+          {/* Where you are left this menu in settings Round 2 (C19): it's the show's, under the show's gear. */}
           {/* Round 4 (built in B4): the game's own settings, for whoever runs it. */}
           {show.couch && (g.yourRole === "commissioner" || g.yourRole === "admin") && (
             <Row title="Game settings" detail={g.yourRole === "commissioner" ? "What you set, and what you can still change" : "This episode's lock, and how the game is set"} onClick={() => (setMenu(false), settingsPage.showWith({ game: g.leagueId, from: "game" }))} />
           )}
+          {/* Leave just this game (settings Round 2, A11): red, last, held. */}
+          {show.couch && g.yourRole && !g.solo && (
+            <button
+              type="button"
+              data-leave-game
+              onClick={async () => {
+                setMenu(false);
+                setLeaving(null);
+                try {
+                  setLeaving(await gameAdmin.leave(seasonId, show.couch!.id, true, g.leagueId));
+                } catch (e) {
+                  setLeaving(false);
+                  toast.quiet((e as Error).message);
+                }
+              }}
+              className="nd-press mt-1 flex min-h-[60px] w-full items-center gap-3 border-t border-border py-2 text-left"
+            >
+              <span className="min-w-0 flex-1">
+                <b className="block text-[15px] font-semibold text-live">Leave this game</b>
+                <small className="mt-0.5 block text-[13px] text-muted-foreground">Your other games here and the couch stay</small>
+              </span>
+            </button>
+          )}
         </div>
       </Sheet>
+      {/* Tier 3: hard to undo, so a hold; never as its last Commissioner. */}
+      <HoldSheet
+        open={leaving !== false}
+        onOpenChange={(o) => !o && setLeaving(false)}
+        title={`Leave ${g.name}?`}
+        consequence={
+          leaving
+            ? `You leave ${g.name}. ${leaving.drafted ? "Your team and points stay in the standings, but nobody plays it." : "Nothing's been drafted yet, so your seat just goes."} Your other games here and the couch stay. Whoever runs it can bring you back.`
+            : null
+        }
+        problem={leaving ? leaving.problem : null}
+        cta="leave"
+        onConfirm={async () => {
+          await gameAdmin.leave(seasonId, show.couch!.id, false, g.leagueId);
+          await afterReveal();
+          toast(`You've left ${g.name}`);
+          nav.push(paths.show(seasonId, "games"));
+        }}
+      />
       {show.couch && <GameSettingsPage seasonId={seasonId} show={show} />}
     </div>
   );

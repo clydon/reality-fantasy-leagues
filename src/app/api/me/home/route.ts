@@ -62,7 +62,7 @@ export const GET = apiRoute(async (req) => {
     // whether you've seen the first-time tour (docs/PLAN-first-time-tour.md, 0158). And whether you share Where I am (0137), so
     // your own person sheet says what the couch really sees of you (couch/person-sheet.tsx).
     pool.query(
-      `SELECT s.colour, s.theme, s.tour_seen_at IS NOT NULL AS tour_seen, COALESCE(s.share_where, true) AS share_where,
+      `SELECT s.colour, s.theme, s.tour_seen_at IS NOT NULL AS tour_seen, COALESCE(s.share_where, true) AS share_where, s.hub_couch,
               (EXTRACT(EPOCH FROM p.updated_at) * 1000)::bigint AS picture
          FROM "user" u LEFT JOIN user_settings s ON s.user_id = u.id LEFT JOIN user_pictures p ON p.user_id = u.id WHERE u.id = $1`,
       [user.id]
@@ -201,6 +201,8 @@ export const GET = apiRoute(async (req) => {
       // A check's browser says gys_tour=off (scripts/dev-test/browser.js): Home as it is, as if the tour were seen.
       tourSeen: !!face.rows[0]?.tour_seen || /(?:^|;\s*)gys_tour=off(?:;|$)/.test(req.headers.get("cookie") ?? ""),
       shareWhere: face.rows[0]?.share_where !== false,
+      // Which couch the hub shows, for your account (settings Round 2, C25): a new phone opens on it.
+      hubCouch: (face.rows[0]?.hub_couch as string | null) ?? null,
     },
     couches: couchRows.map((c) => ({
       id: c.id,

@@ -6,14 +6,19 @@ import { HttpError, pool } from "@/lib/server/db";
 export interface Recording {
   game: string;
   league: string;
+  /** The game's name and start, from the sports data when it has them (When results show's list, settings Round 2): never a score. */
+  name?: string | null;
+  startsAt?: string | null;
 }
 
 export async function recordingsOf(userId: string): Promise<Recording[]> {
-  const { rows } = await pool.query<{ game_id: string; league: string }>(
-    "SELECT game_id, league FROM sports_recordings WHERE user_id = $1 ORDER BY created_at DESC LIMIT 200",
+  const { rows } = await pool.query<{ game_id: string; league: string; name: string | null; starts_at: Date | null }>(
+    `SELECT r.game_id, r.league, e.name, e.starts_at FROM sports_recordings r
+       LEFT JOIN LATERAL (SELECT name, starts_at FROM sports_events WHERE league = r.league AND event_id = r.game_id LIMIT 1) e ON true
+      WHERE r.user_id = $1 ORDER BY r.created_at DESC LIMIT 200`,
     [userId]
   );
-  return rows.map((r) => ({ game: r.game_id, league: r.league }));
+  return rows.map((r) => ({ game: r.game_id, league: r.league, name: r.name, startsAt: r.starts_at ? r.starts_at.toISOString() : null }));
 }
 
 /** Start or stop watching a game as if live; answers the list as it now stands. */

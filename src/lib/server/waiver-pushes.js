@@ -103,8 +103,13 @@ async function leagueName(db, leagueId) {
  */
 async function members(db, leagueId, state) {
   const { rows } = await db.query(
-    `SELECT m.user_id, m.player_id, m.results_seen_through, COALESCE(us.show_results_immediately, false) AS immediate, us.tz
-       FROM league_memberships m LEFT JOIN user_settings us ON us.user_id = m.user_id
+    // When results show: the season's own choice (settings Round 2, A7), else the account's (guard.ts MEMBER_IMMEDIATE_SQL).
+    `SELECT m.user_id, m.player_id, m.results_seen_through, us.tz,
+            COALESCE((SELECT f.results = 'now' FROM show_follows f
+                JOIN shows rs ON rs.slug = l.state->'settings'->>'showId'
+                JOIN show_seasons rss ON rss.show_id = rs.id AND rss.season_number::text = l.state->'settings'->>'wikiSeason'
+               WHERE f.user_id = m.user_id AND f.season_id = rss.id AND f.results IS NOT NULL), us.show_results_immediately, false) AS immediate
+       FROM league_memberships m JOIN leagues l ON l.id = m.league_id LEFT JOIN user_settings us ON us.user_id = m.user_id
       WHERE m.league_id=$1 AND m.player_id IS NOT NULL`,
     [leagueId]
   );

@@ -10,5 +10,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ seasonI
   const { seasonId } = await params;
   const user = await requireAuth(req);
   const body = (await req.json().catch(() => ({}))) as { preview?: unknown };
-  return NextResponse.json(await leaveGames(user, seasonId, new URL(req.url).searchParams.get("couch"), body.preview === true));
+  // `?league=<id>`: just that game (Leave this game, settings Round 2's A11).
+  const q = new URL(req.url).searchParams;
+  return NextResponse.json(await leaveGames(user, seasonId, q.get("couch"), body.preview === true, q.get("league")));
 });

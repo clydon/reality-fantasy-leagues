@@ -127,8 +127,8 @@ export interface ShowNotify {
   moments: { id: MomentId; title: string; line: string; on: boolean; here: boolean }[];
 }
 
-/** How long a mute lasts, from now. */
-export type MuteFor = "day" | "week" | "forever";
+/** How long a mute lasts, from now: "next" until the season's next episode starts (settings Round 2, the user's pick). */
+export type MuteFor = "next" | "day" | "week" | "forever";
 
 async function showOf(seasonId: string): Promise<{ id: string; name: string }> {
   if (!isUuid(seasonId)) throw new HttpError(404, "Season not found");
@@ -166,9 +166,14 @@ export async function readShowNotify(userId: string, seasonId: string): Promise<
 /** Mutes a show for a day, a week or until it's turned back on, or unmutes it (`null`) (PUT /api/seasons/[id]/notifications { mute }). */
 export async function muteShow(userId: string, seasonId: string, mute: unknown): Promise<ShowNotify> {
   const show = await showOf(seasonId);
-  if (mute !== null && mute !== "day" && mute !== "week" && mute !== "forever") throw new HttpError(400, "mute must be day, week, forever or null");
-  // It ends on the hour after a day or a week from now: a minute is noise on a mute (settings Round 1's check).
-  const until = mute === "forever" ? "forever" : mute ? new Date(Math.ceil((Date.now() + (mute === "day" ? 1 : 7) * 86_400_000) / 3_600_000) * 3_600_000).toISOString() : null;
+  if (mute !== null && mute !== "next" && mute !== "day" && mute !== "week" && mute !== "forever") throw new HttpError(400, "mute must be next, day, week, forever or null");
+  // It ends on the hour after a day or a week from now: a minute is noise on a mute (settings Round 1's check). Until the next
+  // episode: when it starts (the one on now doesn't count: muting during it means the one after).
+  let until: string | null;
+  if (mute === "next") {
+    until = await nextEpisodeStart(seasonId);
+    if (!until) throw new HttpError(409, "There's no next episode scheduled");
+  } else until = mute === "forever" ? "forever" : mute ? new Date(Math.ceil((Date.now() + (mute === "day" ? 1 : 7) * 86_400_000) / 3_600_000) * 3_600_000).toISOString() : null;
   if (until) {
     await pool.query(
       `INSERT INTO notification_prefs (user_id, muted) VALUES ($1, jsonb_build_object($2::text, $3::text))
@@ -179,6 +184,14 @@ export async function muteShow(userId: string, seasonId: string, mute: unknown):
     await pool.query("UPDATE notification_prefs SET muted = muted - $2, updated_at = now() WHERE user_id = $1", [userId, show.id]);
   }
   return readShowNotify(userId, seasonId);
+}
+
+/** When this season's next episode starts (the first that hasn't begun), or null when none is scheduled. */
+export async function nextEpisodeStart(seasonId: string, now = new Date()): Promise<string | null> {
+  const schedule = (await seasonSchedules([seasonId], now)).get(seasonId);
+  if (schedule?.release === "binge") return null;
+  const ep = (schedule?.episodes ?? []).find((e) => e.airAt && Date.parse(e.airAt) > now.getTime());
+  return ep?.airAt ? new Date(ep.airAt).toISOString() : null;
 }
 
 /** Puts a mute back exactly as it was (Undo): an ISO end, "forever", or none. */

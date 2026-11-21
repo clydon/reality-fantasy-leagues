@@ -5,7 +5,8 @@
 // riley is on classic, everyone else on the new design; jordan's phone is in Los Angeles, riley's in London, sam's says nothing.
 //   API:
 //   - your moments (a moment is its classic types; classic's Account settings agrees and doesn't list the new design's own),
-//     Couch chat's three choices, a show's own switches, your time zone kept from the home read and classic's /api/me;
+//     Couch chat's three choices, a show's own switches, a show's mute until its next episode (settings Round 2: it ends when
+//     that starts; 409 with none scheduled), your time zone kept from the home read and classic's /api/me;
 //   - the couch chat in both designs: each reader's words as the chat would show them (folded: who, never what; Quiet on episode
 //     nights: nothing; Never: nothing), classic's link for riley and the new design's for the rest, a show the couch only watches
 //     reaching who follows it on the new design, a show's chat switched off;
@@ -22,7 +23,8 @@
 //   through a stand-in PushManager, a test push reaching it; three kinds and invites always; a kind off saying what's left, with
 //   Undo; Couch chat on every couch; with nothing reaching him the kinds read as off and Your settings has the plate, Turn on and
 //   Not now; Sign out's line), the hub's bell (its dot, the list, opening reads it, Notification settings at its foot, a row opens
-//   its page), a show's Notifications (Mute first: a day, a week, until I turn it back on; muted, all but the reminders read off;
+//   its page), a show's Notifications from its settings page behind the gear (Mute first: until the next episode, saying when,
+//   then a day, a week, until I turn it back on; muted, all but the reminders read off;
 //   Undo, Unmute; listed on Your settings' Notifications as a link back; its chat off for the show alone), a couch's chat row from
 //   Your shows, couches and games (My default first; Never, with Undo; listed, and its link opens the couch). Then the reminder ask
 //   (show/remind.tsx; check-new-show.js has the Fan Who Forgets' first save): with his other phone getting them a save doesn't ask;
@@ -208,6 +210,18 @@ async function person(pool, who, role = null) {
     );
     check((await as.sam.call("PUT", `/api/seasons/${sid}/notifications`, { moment: "invites", on: false })).status === 400, "Invites aren't a show's to switch: 400");
     check((await as.sam.call("GET", `/api/seasons/00000000-0000-4000-8000-000000000000/notifications`)).status === 404, "a season that isn't: 404");
+    // Mute until the next episode (settings Round 2): it ends when the next one starts (Episode 6, three days off), not on a clock.
+    const mn = await as.sam.call("PUT", `/api/seasons/${sid}/notifications`, { mute: "next" });
+    const ep6 = (await as.sam.call("GET", `/api/seasons/${sid}/space`)).body?.upNext?.airAt ?? null;
+    check(mn.status === 200 && typeof mn.body.muted === "string" && Date.parse(mn.body.muted) > Date.now() && (!ep6 || Math.abs(Date.parse(mn.body.muted) - Date.parse(ep6)) < 60_000), "mute: next, until the next episode starts", JSON.stringify({ muted: mn.body.muted, ep6 }));
+    await as.sam.call("PUT", `/api/seasons/${sid}/notifications`, { mute: null });
+    // With no next episode scheduled (the Traitors cut to the three that have aired), there's nothing to mute until: 409.
+    const trCount = (await pool.query("SELECT episode_count FROM show_seasons WHERE id = $1", [fx.traitorsSeasonId])).rows[0].episode_count;
+    await pool.query("UPDATE show_seasons SET episode_count = 3 WHERE id = $1", [fx.traitorsSeasonId]);
+    const none = await as.riley.call("PUT", `/api/seasons/${fx.traitorsSeasonId}/notifications`, { mute: "next" });
+    await pool.query("UPDATE show_seasons SET episode_count = $2 WHERE id = $1", [fx.traitorsSeasonId, trCount]);
+    check(none.status === 409, "mute: next with no next episode scheduled: 409", JSON.stringify(none.body));
+    check((await as.sam.call("PUT", `/api/seasons/${sid}/notifications`, { mute: "fortnight" })).status === 400, "a mute that isn't one: 400");
     sn = (await as.sam.call("PUT", `/api/seasons/${sid}/notifications`, { moment: "results", on: false })).body;
     pr = await prefs("sam");
     check(sn.moments.find((m) => m.id === "results").here === false && JSON.stringify(pr.shows[showId]) === '["results"]', "sam: Results off for ZT Survivor alone", JSON.stringify(pr.shows));
@@ -558,7 +572,7 @@ async function person(pool, who, role = null) {
       check(/Always on/.test(await pg.locator('[data-moment-fixed="invites"]').innerText()), "Invites and join requests: always on, said as a fact (C3)");
       check((await pg.locator("[data-choice=chat-quiet]").getAttribute("aria-checked")) === "true", "Couch chat, on every couch: Skip possible spoilers");
       check((await pg.locator("[data-notify-quiet]").count()) === 0, "his other phone gets them: no 'none of these reach you'");
-      check(/Mute a show from its ⋯ menu/.test(await pg.locator("[data-settings-elsewhere]").innerText()), "Set on a show or a couch: nothing yet, and where you'd set one");
+      check(/Mute a show from its settings, under the gear/.test(await pg.locator("[data-settings-elsewhere]").innerText()), "Set on a show or a couch: nothing yet, and where you'd set one");
       await wide("Notifications");
       await shot("settings-notify");
       await pg.locator("[data-settings-notify] [data-phone-toggle]").click();
@@ -660,11 +674,12 @@ async function person(pool, who, role = null) {
       await pg.waitForURL((u) => u.pathname === `/show/${sid}/tonight`, { timeout: 20000 }).catch(() => {});
       check(new URL(pg.url()).pathname === `/show/${sid}/tonight`, "a row opens where it's about (the poll: the show's Tonight)", pg.url());
 
-      // A show's Notifications: Mute first (a day, a week, until I turn it back on), then Just this show.
-      await pg.locator("button[aria-label^='Show menu']").first().waitFor({ timeout: 30000 });
+      // A show's Notifications: Mute first (until the next episode, a day, a week, until I turn it back on), then Just this show.
+      // It's behind the show's gear since settings Round 2 (its settings page's Notifications row), not in the ⋯.
+      await pg.locator("[data-show-gear]").waitFor({ timeout: 30000 });
       await pg.waitForTimeout(800);
-      await pg.locator("button[aria-label^='Show menu']").first().click();
-      await sheet.getByRole("button", { name: /^Notifications/ }).click();
+      await pg.locator("[data-show-gear]").click();
+      await pg.locator(`[data-show-settings="${sid}"] [data-show-row="notify"]`).click();
       await pg.locator("[data-show-notify] [data-setting=show-lineup]").waitFor({ timeout: 15000 });
       await pg.waitForTimeout(500);
       const showSwitches = await pg.locator("[data-show-notify] [data-setting]").evaluateAll((els) => els.map((e) => e.getAttribute("data-setting")));
@@ -676,7 +691,10 @@ async function person(pool, who, role = null) {
       await pg.locator("[data-mute]").click();
       await pg.locator("[data-mute-choices]").waitFor();
       const muteFor = await pg.locator("[data-mute-for]").evaluateAll((els) => els.map((e) => e.getAttribute("data-mute-for")));
-      check(muteFor.join() === "day,week,forever", "Mute's choices: a day, a week, until I turn it back on", muteFor.join());
+      check(muteFor.join() === "next,day,week,forever", "Mute's choices: until the next episode first (one's scheduled), then a day, a week, until I turn it back on", muteFor.join());
+      // Each choice says when it would end: the next episode is a moment, its day and time.
+      const nextWhen = await pg.locator('[data-mute-for="next"] small').innerText().catch(() => "");
+      check(/^Until the next episode/.test(await pg.locator('[data-mute-for="next"]').innerText()) && /^Until \w{3} \d/.test(nextWhen), "each choice says when it would end (Until the next episode: its day and time)", nextWhen);
       await shot("show-mute");
       await pg.locator('[data-mute-for="week"]').click();
       check(await toasted(/ZT Survivor: muted until/), "a week: muted, saying until when");

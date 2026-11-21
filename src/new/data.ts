@@ -262,7 +262,7 @@ export interface CouchShow extends SeasonHeader {
 export interface Home {
   /** You: your face, and your Appearance (step 15 part 4); whether you've seen the first-time tour (docs/PLAN-first-time-tour.md);
    *  whether you share Where I am (What your couch sees), for your own person sheet. */
-  user: { id: string; name: string; colour: string | null; picture: number | null; theme: Theme; tourSeen?: boolean; shareWhere?: boolean };
+  user: { id: string; name: string; colour: string | null; picture: number | null; theme: Theme; tourSeen?: boolean; shareWhere?: boolean; hubCouch?: string | null };
   couches: Couch[];
   shows: HomeShow[];
   /** The couches' shows you don't follow (step 10: The couch is watching); who watches each is in the couches' members. */
@@ -280,7 +280,7 @@ export interface Home {
 
 export interface Space extends SeasonHeader {
   couchId: string | null;
-  you: { following: boolean; private: boolean; seenThrough: number | null; plays?: boolean; keepUp?: KeepUp; seenIt?: number | null; notYet?: number | null };
+  you: { following: boolean; private: boolean; seenThrough: number | null; plays?: boolean; keepUp?: KeepUp; seenIt?: number | null; notYet?: number | null; results?: "wait" | "now" | null };
   schedule: { release: string; dropAt: string | null; airTz: string; upNext: UpNext | null; latestAired: number } | null;
   games: GameRef[];
   /** `seen`: how far they are, where they share it (step 15 part 3's Where I am); never yours here (that's `you`). */
@@ -894,7 +894,8 @@ export const gameAdmin = {
     sendJson<{ mode: "live" | "strict" }>(seasonUrl(seasonId, "/backstage/settings", { couch: couchId }), "PATCH", { leagueId, pace: mode }),
   remove: (seasonId: string, couchId: string, userId: string, preview = false) =>
     sendJson<OutPreview & { batch: string | null }>(seasonUrl(seasonId, `/backstage/members/${encodeURIComponent(userId)}/remove`, { couch: couchId }), "POST", { preview }),
-  leave: (seasonId: string, couchId: string, preview = false) => sendJson<OutPreview & { batch: string | null }>(seasonUrl(seasonId, "/leave", { couch: couchId }), "POST", { preview }),
+  leave: (seasonId: string, couchId: string, preview = false, league?: string) =>
+    sendJson<OutPreview & { batch: string | null }>(seasonUrl(seasonId, "/leave", { couch: couchId, ...(league ? { league } : {}) }), "POST", { preview }),
   /** A game's computer players (computer-players.ts): add one, set one's level, take one or all of them out. */
   bots: (seasonId: string, couchId: string, leagueId: string, body: { action: "add"; level: BotLevel } | { action: "level"; playerId: string; level: BotLevel } | { action: "remove"; playerId?: string; all?: true }) =>
     sendJson<{ names: string[] }>(seasonUrl(seasonId, "/backstage/computer", { couch: couchId }), "POST", { leagueId, ...body }),
@@ -974,7 +975,8 @@ export const answerShowChange = (seasonId: string, couchId: string, episode: num
   post<{ change: ShowChange | null }>(seasonUrl(seasonId, `/show-changes/${episode}`, { couch: couchId }), { isNew });
 
 // ---- which couch you're looking at: one hub shows one couch at a time (site-mock-decisions) ----
-// Per device for now (step 9 brings the couch switcher); a stale id just falls back to the first couch.
+// Kept for your account since settings Round 2 (C25: user_settings.hub_couch, the home read's user.hubCouch), so a new phone opens on
+// it; the phone keeps its own copy too. A couch picked on this visit wins until the home is read again; a stale id falls back.
 
 const COUCH_KEY = "gys.couch";
 const couchListeners = new Set<() => void>();
@@ -987,12 +989,17 @@ function readCouch(): string | null {
   }
 }
 
+let pickedThisVisit = false;
+
 export function setCouch(id: string) {
   try {
     localStorage.setItem(COUCH_KEY, id);
   } catch {
     /* not remembered: the first couch it is */
   }
+  pickedThisVisit = true;
+  // For your account too (best effort: refused while acting as someone, and a phone offline keeps its own).
+  void fetch("/api/me/profile", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ hubCouch: id }) }).catch(() => {});
   couchListeners.forEach((l) => l());
 }
 
@@ -1012,11 +1019,12 @@ function busiest(couches: Couch[]): Couch | null {
   return [...couches].sort((a, b) => b.games.length - a.games.length || b.members.length - a.members.length)[0] ?? null;
 }
 
-/** The couch the hub shows: the one you picked on this device, else the busiest. */
+/** The couch the hub shows: the one picked on this visit, else your account's, else this phone's, else the busiest. */
 export function useCurrentCouch(home: Home | undefined): Couch | null {
   const stored = useStoredCouch();
   if (!home?.couches.length) return null;
-  return home.couches.find((c) => c.id === stored) ?? busiest(home.couches);
+  const want = pickedThisVisit ? stored : (home.user.hubCouch ?? stored);
+  return home.couches.find((c) => c.id === want) ?? home.couches.find((c) => c.id === stored) ?? busiest(home.couches);
 }
 
 /** The couch a show space opens with: the current couch if it plays this show, else one that does. */
@@ -1264,10 +1272,10 @@ export function useListingSeason(tvmazeId: number | null, season: number | null 
 
 export const watching = {
   /** Add a show from its listing (its season on now, or `season` by number) or by name, at where you are. */
-  add: (body: ({ listing: number; season?: number } | { name: string }) & { seenThrough?: number; live?: boolean }) => post<AddedShow>("/api/me/shows", body),
+  add: (body: ({ listing: number; season?: number } | { name: string }) & { seenThrough?: number; live?: boolean; private?: boolean }) => post<AddedShow>("/api/me/shows", body),
   /** Follow (or stop following) a season here, watch it privately, say where you are, answer the nudge, or how it keeps up. */
-  follow: (seasonId: string, change: { following?: boolean; private?: boolean; seenThrough?: number; nudgeOff?: boolean; keepUp?: KeepUp; notYet?: number }) =>
-    sendJson<{ seenThrough: number; following: boolean; private: boolean; keepUp: KeepUp; notYet: number | null }>(`/api/me/follows/${seasonId}`, "PUT", change),
+  follow: (seasonId: string, change: { following?: boolean; private?: boolean; seenThrough?: number; nudgeOff?: boolean; keepUp?: KeepUp; notYet?: number; results?: "wait" | "now" | null }) =>
+    sendJson<{ seenThrough: number; following: boolean; private: boolean; keepUp: KeepUp; notYet: number | null; results: "wait" | "now" | null }>(`/api/me/follows/${seasonId}`, "PUT", change),
 };
 
 export type { KeepUp } from "@/lib/server/keep-up";
@@ -2031,7 +2039,7 @@ export function useSportRail(league: string | null, count: number, slate = false
 export function useSportsRecordings(enabled = true) {
   return useQuery({
     queryKey: ["new-design", "sports-recordings"],
-    queryFn: () => get<{ recordings: { game: string; league: string }[] }>("/api/sports/recordings"),
+    queryFn: () => get<{ recordings: { game: string; league: string; name?: string | null; startsAt?: string | null }[] }>("/api/sports/recordings"),
     staleTime: 60_000,
     enabled,
   });

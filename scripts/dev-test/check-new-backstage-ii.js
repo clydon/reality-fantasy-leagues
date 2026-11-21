@@ -21,7 +21,8 @@
 //      carry their spec, and after every write the check makes, none has drifted from what its fields play.
 //   6. Members & roles: named as the games name them, a game's sheet (share it), a role for all three games with Undo,
 //      the last Commissioner refused (stepping down, leaving here and in classic), tier 3's hold (a tap does nothing, a
-//      hold removes, Recent changes restores for 30 days), and leaving from the show's ⋯ menu.
+//      hold removes, Recent changes restores for 30 days), and leaving from the show's settings page (behind its gear since
+//      settings Round 2: Leave all my games here).
 // Nothing wider than the screen; no page errors. Screenshots go to <outDir>.
 //
 //   npm run dev                                                  (in another terminal)
@@ -544,15 +545,14 @@ const first = (name) => name.split(" ")[0];
     check(back.length === 3 && back.every((m) => m.role === "member" && m.results_seen_through === 3) && (await state("outlast")).players.find((p) => p.id === "demo_p_sam")?.name === "sam", "restored from Recent changes: memberships, marks and the seat");
     await shot("restored");
 
-    // Leaving from the show's ⋯ menu, as jordan.
+    // Leaving from the show's settings page (the gear's; the ⋯ held it until settings Round 2), as jordan.
     const j = await open({ user: fixture.username("jordan"), pass: fixture.PASSWORD, width, height: 844 });
     closers.push(j.close);
     await j.page.goto(`${BASE}/show/${sid}/tonight`);
-    await j.page.getByRole("button", { name: /Show menu/ }).click();
-    await j.page.locator("[data-menu-main]").getByRole("button", { name: /^Everything else/ }).click();
-    await j.page.locator("[data-menu-else]").getByText("Leave these games").click();
+    await j.page.locator("[data-show-gear]").click();
+    await j.page.locator(`[data-show-settings="${sid}"] [data-show-leave]`).click();
     await j.page.locator("[data-hold]:not([disabled])").waitFor({ timeout: 15000 });
-    check(/You leave Couch Cup, Lineup League, Pool Party/.test(await j.page.locator("[data-guard='3']").innerText()), "the ⋯ menu: Leave these games, on a hold");
+    check(/You leave Couch Cup, Lineup League, Pool Party/.test(await j.page.locator("[data-guard='3']").innerText()), "the show's settings page: Leave all my games here, on a hold");
     await shot("jordan-leave", j.page);
     const jb = await j.page.locator("[data-hold]").boundingBox();
     await j.page.mouse.move(jb.x + jb.width / 2, jb.y + jb.height / 2);

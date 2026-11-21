@@ -18,9 +18,10 @@
 //   a page by its address and closed by Back or the phone's back gesture; the profile sheet (a colour with Undo, a picture shrunk
 //   in the browser and shown on every face of his, a taken name refused, a new one saved and shown at once); the hub's gear and
 //   the picture's sheet (a Your settings row, no tour); Ask an AI's one ChatGPT link and Copy the question (C8); Your shows,
-//   couches and games (the map) opening the couch's page (its chat row, Rename with Undo, a new code, Hand it on); Your account
-//   (Change password: a wrong one refused, then changed and changed back; Your phones, its Back naming Your account); Report a
-//   problem (a row kept for us). As riley: the map's couch not his to run, alex's picture on his face, no Rename.
+//   couches and games (the map) opening the couch's page (its chat row, Rename with Undo, a new code, Make someone else the
+//   owner: its confirm, then Keep it); Your account (Change password: a wrong one refused, then changed and changed back; Your
+//   phones, its Back naming Your account); Report a problem (a row kept for us). As riley: the map's couch not his to run,
+//   alex's picture on his face, no Rename or Make someone else the owner.
 //   Nothing wider than the screen; no page errors. Screenshots go to <outDir>.
 //
 //   npm run dev                                                  (in another terminal)
@@ -481,7 +482,7 @@ function check(ok, what, detail = "") {
       await a.shot("ask-ai");
       await pool.query("UPDATE show_seasons SET premiere_date = premiere_date + 5 WHERE id = $1", [sid]);
 
-      // Your shows, couches and games: the map; a couch opens its page (rename with Undo, a new code, Hand it on).
+      // Your shows, couches and games: the map; a couch opens its page (rename with Undo, a new code, Make someone else the owner).
       await pg.goto(`${BASE}/settings?page=yours`, { waitUntil: "load" });
       await pg.locator("[data-settings-yours]").waitFor({ timeout: 30000 });
       await pg.locator('[data-yours-couch="ZT Survivor 51"]').waitFor({ timeout: 30000 });
@@ -523,13 +524,20 @@ function check(ok, what, detail = "") {
         await pg.locator('[data-yours-couch="ZT Survivor 51"]').click();
         await pg.locator("[data-couch-details]").waitFor();
       }
-      await a.sheet.getByRole("button", { name: /Hand it on/ }).click();
+      await a.sheet.getByRole("button", { name: /Make someone else the owner/ }).click();
       await pg.locator("[data-hand-on]").waitFor();
+      check((await a.sheet.getByText("Make someone else the owner").count()) >= 1, "the owner's row is Make someone else the owner (Hand it on until settings Round 2), its sheet titled the same");
       await pg.locator('[data-hand-to="zt_nd_riley"]').click();
-      await a.wide("Hand it on");
+      // A sentence saying what moves, then the confirm: it changes who controls the couch, so there's no Undo.
+      await pg.locator("[data-hand-on-next]").click();
+      await pg.locator("[data-hand-on-ask]").waitFor();
+      check(/Make zt_nd_riley the owner of ZT Survivor 51\?/.test(await pg.locator("[data-hand-on-ask]").innerText()) && /Make zt_nd_riley the owner/.test(await pg.locator("[data-hand-on-go]").innerText()), "picking riley asks first: Keep it, or Make zt_nd_riley the owner", await pg.locator("[data-hand-on-ask]").innerText());
+      await a.wide("Make someone else the owner");
       await a.shot("hand-on");
+      await pg.locator("[data-hand-on-keep]").click();
+      check((await pg.locator("[data-hand-on-ask]").count()) === 0 && (await roles())[A] === "owner", "Keep it: the ask goes, the couch still his");
       await pg.keyboard.press("Escape");
-      check((await roles())[A] === "owner", "closing without handing it on leaves it his");
+      check((await roles())[A] === "owner", "closing without making someone else the owner leaves it his");
       await a.sheet.waitFor({ state: "hidden" }).catch(() => {});
 
       // Your account: how he signs in, Change password (a wrong one refused, then changed and changed back), Your phones.
@@ -600,7 +608,7 @@ function check(ok, what, detail = "") {
       check((await face.getAttribute("data-face")) === "picture", "riley sees alex's picture on his face");
       await rr.pg.waitForFunction(() => { const i = document.querySelector('[data-member="zt_nd_alexz"] img'); return i && i.complete && i.naturalWidth > 0; }, null, { timeout: 15000 }).catch(() => {});
       check((await rr.pg.locator('[data-member="zt_nd_alexz"] img').evaluate((i) => i.naturalWidth)) === 256, "and it loads for him");
-      check((await rr.sheet.getByRole("button", { name: /Rename the couch|Hand it on/ }).count()) === 0, "riley doesn't run it: no Rename or Hand it on");
+      check((await rr.sheet.getByRole("button", { name: /Rename the couch|Make someone else the owner/ }).count()) === 0, "riley doesn't run it: no Rename or Make someone else the owner");
       check((await rr.pg.locator("[data-new-code]").count()) === 1, "but he can get a new code of his own");
       await rr.wide("the couch's sheet");
       await rr.shot("couch");

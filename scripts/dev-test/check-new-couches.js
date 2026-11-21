@@ -15,8 +15,12 @@
 //   - the couch chat lets kat in (seen by the games, folded by her mark); Recent changes has every join;
 //   - start a couch (a name, its owner, refused nameless or too long); leave one (the last Commissioner can't; kat can:
 //     out of its games, restorable); taking jordan out of the games in Backstage keeps him on the couch.
-//   In a real browser at --width (390 by default): alex's profile couch line and the switcher (switching couches and
-//   back), a couch's details (members, code, seasons, leaving it guarded), starting a couch (Get the couch going with its
+//   - which couch the hub shows, kept for the account (PUT /api/me/profile { hubCouch }, read back as home.user.hubCouch; a
+//     couch you're not on 403, not a couch 400).
+//   In a real browser at --width (390 by default): the hub's header naming its couch (opening Your couches), alex's profile
+//   couch line and the switcher (the hub's couch first as a card with Couch settings, no "details" row; switching couches,
+//   saved to his account too, and back), Couch settings (members, code, seasons, Make someone else the owner, leaving it
+//   guarded), starting a couch (Get the couch going with its
 //   code), joining one with the code boxes (to its invite page); kat's invite page (Join the couch, then each game's
 //   button), joining Weekly Lineup live with a team, Tonight's catch-up strip and a catch-up reveal, Commercial break's
 //   Join a game; alex's Backstage request (Let in), Game settings' Who can join, Members' Invite, the show's ⋯ Invite a friend,
@@ -219,6 +223,14 @@ async function newcomer(pool, who) {
     const jordanVia = (await pool.query("SELECT via FROM couch_members WHERE couch_id = $1 AND user_id = $2", [couch, fx.users.jordan])).rows[0]?.via;
     check(jordanOut.status === 200 && jordanVia === "couch", "taking jordan out of the games keeps him on the couch", `${jordanOut.status} ${JSON.stringify(jordanOut.body).slice(0, 150)} via=${jordanVia}`);
 
+    // ---- which couch the hub shows, kept for the account (settings Round 2: a new phone opens on it) ----
+    const hc = await as.alex.call("PUT", "/api/me/profile", { hubCouch: fx.extraCouchId });
+    check(hc.status === 200 && (await as.alex.call("GET", "/api/me/home")).body.user?.hubCouch === fx.extraCouchId, "alex's hub couch saved to his account, read back as home.user.hubCouch", JSON.stringify(hc.body).slice(0, 200));
+    check((await as.riley.call("PUT", "/api/me/profile", { hubCouch: fx.extraCouchId })).status === 403, "a couch you're not on: refused (403)");
+    check((await as.alex.call("PUT", "/api/me/profile", { hubCouch: "not-a-couch" })).status === 400, "not a couch: 400");
+    // Back on the couch the browser half starts from.
+    await as.alex.call("PUT", "/api/me/profile", { hubCouch: couch });
+
     if (!apiOnly) {
       const lee = await newcomer(pool, "lee");
       await pool.query(`INSERT INTO user_settings (user_id, ui) VALUES ($1, 'new') ON CONFLICT (user_id) DO UPDATE SET ui = 'new'`, [lee]);
@@ -269,42 +281,61 @@ async function newcomer(pool, who) {
         await p.mouse.up();
       };
 
-      // ---- alex: the couch line, the switcher, a couch's details ----
+      // ---- alex: the hub's couch name, the switcher, a couch's settings ----
       const A = await session("zt_nd_alex");
       close = A.close;
       const page = A.page;
       await page.goto(`${BASE}/home`);
       await page.locator("[data-hub]").waitFor({ timeout: 30_000 });
+      // The hub says which couch it shows, under the wordmark (settings Round 2), and opens Your couches.
+      const hubCouch = page.locator('[data-hub-couch="ZT Survivor 51"]');
+      await hubCouch.waitFor({ timeout: 15_000 }).catch(() => {});
+      check((await hubCouch.count()) === 1, "the hub's header names the couch it shows: ZT Survivor 51");
+      await hubCouch.click();
+      await page.locator("[data-couch-switcher]").waitFor();
+      check(true, "and it opens Your couches");
+      await page.keyboard.press("Escape");
+      await sheetGone(page);
+      // The profile's couch line still opens it too.
       await page.getByRole("button", { name: "Your profile" }).click();
       await page.locator("[data-couch-line]").waitFor();
       check(/ZT Survivor 51/.test(await page.locator("[data-couch-line]").innerText()) && /5 people/.test(await page.locator("[data-couch-line]").innerText()), "the profile's couch line: its name, its show and its people", await page.locator("[data-couch-line]").innerText());
       await shot("profile", page);
       await page.locator("[data-couch-line]").click();
       await page.locator("[data-couch-switcher]").waitFor();
-      const rows = await page.locator("[data-couch-switcher] [data-couch]").evaluateAll((els) => els.map((e) => `${e.getAttribute("data-couch")}${e.getAttribute("aria-current") ? "*" : ""}`));
-      check(rows.includes("ZT Survivor 51*") && rows.includes("ZT Extra"), "the switcher: alex's couches, the hub's ticked", rows.join());
+      // The one shown first, as a card with Couch settings; the others are rows that switch.
+      const rows = await page.locator("[data-couch-switcher] [data-couch]").evaluateAll((els) => els.map((e) => `${e.getAttribute("data-couch")}${e.hasAttribute("aria-current") ? "*" : ""}`));
+      check(rows[0] === "ZT Survivor 51*" && rows.includes("ZT Extra"), "the switcher: the hub's couch first, marked current, then his others", rows.join());
+      check((await page.locator('[data-couch-switcher] [data-couch="ZT Survivor 51"] [data-couch-settings]').count()) === 1, "the current couch's card has Couch settings");
+      check((await sheet(page).getByText("ZT Survivor 51 details").count()) === 0, "no \"details\" row any more");
       await fits("the switcher", page);
       await shot("switcher", page);
       await page.locator('[data-couch-switcher] [data-couch="ZT Extra"]').click();
       check(/Switched to ZT Extra/.test(await toasted(/Switched/, page)), "tapping one switches the hub to it");
       check((await page.evaluate(() => localStorage.getItem("gys.couch"))) === fx.extraCouchId, "remembered on this device");
+      // And on his account, so a new phone opens on it (PUT /api/me/profile { hubCouch }, read back as home.user.hubCouch).
+      let saved = null;
+      for (let i = 0; i < 20 && saved !== fx.extraCouchId; i++, await page.waitForTimeout(250)) saved = (await as.alex.call("GET", "/api/me/home")).body.user?.hubCouch ?? null;
+      check(saved === fx.extraCouchId, "and on his account (home.user.hubCouch)", String(saved));
       await sheetGone(page);
+      await page.locator('[data-hub-couch="ZT Extra"]').waitFor({ timeout: 10_000 }).catch(() => {});
+      check((await page.locator('[data-hub-couch="ZT Extra"]').count()) === 1, "the hub's header follows the switch");
       await page.getByRole("button", { name: "Your profile" }).click();
       check(/ZT Extra/.test(await page.locator("[data-couch-line]").innerText()), "the profile follows the switch");
       await page.locator("[data-couch-line]").click();
       await page.locator('[data-couch-switcher] [data-couch="ZT Survivor 51"]').click();
       await toasted(/Switched to ZT Survivor 51/, page);
       await sheetGone(page);
-      await page.getByRole("button", { name: "Your profile" }).click();
-      await page.locator("[data-couch-line]").click();
-      await sheet(page).getByText("ZT Survivor 51 details").click();
+      await page.locator('[data-hub-couch="ZT Survivor 51"]').click();
+      await page.locator("[data-couch-switcher] [data-couch-settings]").click();
       await page.locator("[data-couch-details]").waitFor();
       await page.locator(`[data-invite-code="${code}"]`).waitFor({ timeout: 10_000 }).catch(() => {});
       const members = await page.locator("[data-couch-details] [data-member]").evaluateAll((els) => els.map((e) => e.getAttribute("data-member")));
-      check(members.length === 5 && members.includes("zt_nd_kat") && members.includes("zt_nd_jordan"), "its details: everyone on it (kat joined, jordan stayed)", members.join());
+      check(members.length === 5 && members.includes("zt_nd_kat") && members.includes("zt_nd_jordan"), "Couch settings: everyone on it (kat joined, jordan stayed)", members.join());
       check((await page.locator("[data-couch-details] [data-invite-code]").getAttribute("data-invite-code")) === code, "alex's code on the plate");
       check(/ZT Survivor 51/i.test(await page.locator("[data-couch-details] ol").innerText()), "seasons together");
-      await fits("a couch's details", page);
+      check((await sheet(page).getByText("Make someone else the owner").count()) === 1 && (await sheet(page).getByText(/^Hand it on$/).count()) === 0, "the owner's row: Make someone else the owner (not Hand it on)");
+      await fits("a couch's settings", page);
       await shot("details", page);
       await page.locator("[data-couch-details] [data-invite-code] button").click();
       check(/Invite code copied/.test(await toasted(/copied/, page)) && (await page.evaluate(() => navigator.clipboard.readText())) === code, "Copy puts the code on the clipboard");

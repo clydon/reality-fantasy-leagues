@@ -40,9 +40,28 @@ export function progressFrom(mark: number | null | undefined, immediate: boolean
  * its own line, Sports scores too (hide_sports_scores, off by default: sports are live; U1's sports slice, 2026-11-09).
  */
 const IMMEDIATE_SQL = (user: string, season: string) =>
-  `CASE WHEN (SELECT sh.kind FROM show_seasons x JOIN shows sh ON sh.id = x.show_id WHERE x.id = ${season}) = 'sport'
+  // The season's own choice first (settings Round 2, A7: show_follows.results, set on the show's settings page), then the account's.
+  `CASE WHEN (SELECT results FROM show_follows WHERE user_id = ${user} AND season_id = ${season}) IS NOT NULL
+        THEN (SELECT results = 'now' FROM show_follows WHERE user_id = ${user} AND season_id = ${season})
+        WHEN (SELECT sh.kind FROM show_seasons x JOIN shows sh ON sh.id = x.show_id WHERE x.id = ${season}) = 'sport'
         THEN NOT COALESCE((SELECT hide_sports_scores FROM user_settings WHERE user_id = ${user}), false)
         ELSE COALESCE((SELECT show_results_immediately FROM user_settings WHERE user_id = ${user}), false) END`;
+
+/** Whether results on this season show straight away for this person (the season's own choice, else the account's). */
+export async function immediateOn(userId: string, seasonId: string, db: Queryable = pool): Promise<boolean> {
+  const { rows } = await db.query(`SELECT ${IMMEDIATE_SQL("$1", "$2")} AS immediate`, [userId, seasonId]);
+  return !!rows[0]?.immediate;
+}
+
+/**
+ * The same choice from inside a league query (the pushes and reminders that read a member's row): `m` is league_memberships, `l`
+ * its league and `us` user_settings. The season's own choice first (a league with no season has none), then the account's. Kept
+ * word for word in db/reminders.js and waiver-pushes.js, which are CommonJS.
+ */
+export const MEMBER_IMMEDIATE_SQL = `COALESCE((SELECT f.results = 'now' FROM show_follows f
+    JOIN shows rs ON rs.slug = l.state->'settings'->>'showId'
+    JOIN show_seasons rss ON rss.show_id = rs.id AND rss.season_number::text = l.state->'settings'->>'wikiSeason'
+   WHERE f.user_id = m.user_id AND f.season_id = rss.id AND f.results IS NOT NULL), us.show_results_immediately, false)`;
 
 /** The furthest episode this person has revealed in their games at their own pace on a season (seats catching up), else null. */
 async function paceMark(userId: string, seasonId: string, db: Queryable): Promise<number | null> {

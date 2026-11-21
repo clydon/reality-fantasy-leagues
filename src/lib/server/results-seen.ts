@@ -2,6 +2,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueState } from "@/lib/game/types";
 import { pool } from "./db";
 import { followLeagueProgress } from "./follows";
+import { MEMBER_IMMEDIATE_SQL } from "./guard";
 
 // Spoiler protection's server half (db/migrations/0034): each member's "seen results through
 // episode N" mark. The client trims anything later out of what it displays
@@ -29,7 +30,13 @@ export async function resultsSeenThrough(userId: string, leagueId: string, state
   // chosen where to start, that's nothing at all.
   const late = StateLogic.GhostLogic.lateJoinOf(state, rows[0].player_id);
   if (late) return late.startEpisode === null ? 0 : rows[0].results_seen_through ?? late.startEpisode - 1;
-  if (await showsResultsImmediately(userId)) return null;
+  // Results straight away on this league's season (its own choice, settings Round 2's A7), else the account's.
+  const { rows: imm } = await pool.query(
+    `SELECT ${MEMBER_IMMEDIATE_SQL} AS immediate FROM league_memberships m JOIN leagues l ON l.id = m.league_id
+       LEFT JOIN user_settings us ON us.user_id = m.user_id WHERE m.league_id = $1 AND m.user_id = $2`,
+    [leagueId, userId]
+  );
+  if (imm[0]?.immediate) return null;
   if (rows[0].results_seen_through !== null) return rows[0].results_seen_through;
   const latest = StateLogic.SpoilerLogic.latestWithResults(state);
   await pool.query("UPDATE league_memberships SET results_seen_through=$3 WHERE league_id=$1 AND user_id=$2", [leagueId, userId, latest]);

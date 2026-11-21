@@ -149,7 +149,7 @@ function mayChange(session: Session) {
  */
 export async function saveSettings(
   session: Session,
-  body: { colour?: unknown; hideScores?: unknown; hideSportsScores?: unknown; notify?: unknown; sharing?: unknown; theme?: unknown }
+  body: { colour?: unknown; hideScores?: unknown; hideSportsScores?: unknown; notify?: unknown; sharing?: unknown; theme?: unknown; hubCouch?: unknown }
 ): Promise<void> {
   mayChange(session);
   if (body.notify !== undefined) {
@@ -173,6 +173,15 @@ export async function saveSettings(
     if (typeof body.hideSportsScores !== "boolean") throw new HttpError(400, "hideSportsScores must be true or false");
     args.push(body.hideSportsScores);
     sets.push(`hide_sports_scores = $${args.length}`);
+  }
+  if ("hubCouch" in body) {
+    // Which couch the hub shows (settings Round 2, C25): one you're on.
+    const id = body.hubCouch;
+    if (typeof id !== "string" || !/^[0-9a-f-]{36}$/i.test(id)) throw new HttpError(400, "hubCouch must be a couch");
+    const { rows } = await pool.query("SELECT 1 FROM couch_members WHERE couch_id = $1 AND user_id = $2", [id, session.user.id]);
+    if (!rows.length) throw new HttpError(403, "You're not on that couch");
+    args.push(id);
+    sets.push(`hub_couch = $${args.length}`);
   }
   if ("theme" in body) {
     if (!isTheme(body.theme)) throw new HttpError(400, "theme must be night, studio or phone");

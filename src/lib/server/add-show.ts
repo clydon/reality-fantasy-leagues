@@ -221,7 +221,7 @@ async function seasonByName(showId: string): Promise<string> {
   return made[0].id as string;
 }
 
-async function followAt(userId: string, seasonId: string, seen: number | undefined, follow = true, live = false): Promise<AddedShow> {
+async function followAt(userId: string, seasonId: string, seen: number | undefined, follow = true, live = false, priv = false): Promise<AddedShow> {
   const now = new Date();
   const [schedules, { rows }] = await Promise.all([
     seasonSchedules([seasonId], now),
@@ -234,11 +234,11 @@ async function followAt(userId: string, seasonId: string, seen: number | undefin
   const want = Number.isInteger(seen) && (seen as number) > 0 ? Math.min(seen as number, aired) : 0;
   let mark = want;
   if (follow) try {
-    mark = (await setFollow(userId, seasonId, { following: true, seenThrough: want, ...(live ? { keepUp: "ask" } : {}) })).seenThrough;
+    mark = (await setFollow(userId, seasonId, { following: true, seenThrough: want, ...(live ? { keepUp: "ask" } : {}), ...(priv ? { private: true } : {}) })).seenThrough;
   } catch (e) {
     // You play it: where you are moves with your games' reveals, so it's only followed.
     if (!(e instanceof HttpError) || e.status !== 409) throw e;
-    mark = (await setFollow(userId, seasonId, { following: true })).seenThrough;
+    mark = (await setFollow(userId, seasonId, { following: true, ...(priv ? { private: true } : {}) })).seenThrough;
   }
   const r = rows[0];
   // As people say it: "The Traitors", not "The Traitors (US)" (way-in.ts plainShow).
@@ -248,14 +248,14 @@ async function followAt(userId: string, seasonId: string, seen: number | undefin
 
 /**
  * Add a show to your shows (POST /api/me/shows): `{ listing: <TVmaze id> }` or `{ name }`, with where you are
- * (`seenThrough`, capped at what's aired) and `live` (Live, keep-up.ts); `season` (a number) for one of the listing's seasons
+ * (`seenThrough`, capped at what's aired), `live` (Live, keep-up.ts) and `private` (hidden from your couch); `season` (a number) for one of the listing's seasons
  * other than the one it would follow (Where are you's picker; the user, 2026-11-05). Returns the season it follows. The desk's
  * New show flow (step 10 part 3) makes a show the same way without following it or counting it against a day's new shows
  * (`follow: false, cap: false`).
  */
 export async function addShow(
   userId: string,
-  body: { listing?: unknown; name?: unknown; seenThrough?: unknown; live?: unknown; season?: unknown },
+  body: { listing?: unknown; name?: unknown; seenThrough?: unknown; live?: unknown; season?: unknown; private?: unknown },
   base: string,
   now = new Date(),
   opts: { follow?: boolean; cap?: boolean } = {}
@@ -265,6 +265,8 @@ export async function addShow(
   const seen = Number.isInteger(body.seenThrough) ? (body.seenThrough as number) : undefined;
   // Live (keep-up.ts): Tonight asks "Seen it?" as each new episode ends.
   const live = body.live === true;
+  // Added privately (settings Round 2, A8): hidden from your couch from the start.
+  const priv = body.private === true;
   if (body.listing !== undefined) {
     const id = body.listing;
     if (!Number.isInteger(id) || (id as number) < 1) throw new HttpError(400, "Which show? (a TV listing's id)");
@@ -284,7 +286,7 @@ export async function addShow(
         [id, number]
       );
       if (!rows.length) throw new HttpError(503, "TV listings aren't answering. Try again in a minute.");
-      return followAt(userId, rows[0].id, seen, follow, live);
+      return followAt(userId, rows[0].id, seen, follow, live, priv);
     }
     if (!found) throw new HttpError(404, "That show isn't in the TV listings");
     const hit = hitOf(found.show);
@@ -312,7 +314,7 @@ export async function addShow(
     // A sport's season just made or read again: its games linked to the sports data's, and its people from them, after the answer
     // (sports/season.ts). A check's stand-in listings never reach the real ESPN (the daily job links it otherwise).
     if (hit.kind === "sport" && (!here || stale) && isTvmaze(base)) linkLater(seasonId);
-    return { ...(await followAt(userId, seasonId, seen, follow, live)), made };
+    return { ...(await followAt(userId, seasonId, seen, follow, live, priv)), made };
   }
   if (typeof body.name === "string") {
     const name = body.name.trim().replace(/\s+/g, " ");
@@ -321,7 +323,7 @@ export async function addShow(
     const key = nameParts(name);
     const match = rows.filter((s) => sameShow(s.name, { name, country: key.country })).sort((a, b) => Number(b.curated) - Number(a.curated))[0];
     const showId = match?.id ?? (await makeShow(pool, userId, name, null, cap));
-    return { ...(await followAt(userId, await seasonByName(showId), seen, follow, live)), made: !match };
+    return { ...(await followAt(userId, await seasonByName(showId), seen, follow, live, priv)), made: !match };
   }
   throw new HttpError(400, "Which show? A TV listing or a name");
 }

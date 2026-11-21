@@ -2,7 +2,7 @@ import { actionItems, type ActionItem } from "@/lib/game/action-items.js";
 import { commissionerItems, type CommissionerItem } from "@/lib/game/commissioner-items";
 import { pool } from "./db";
 import { stampAirTimes } from "./air-times";
-import { showsResultsImmediately } from "./results-seen";
+import { MEMBER_IMMEDIATE_SQL } from "./guard";
 import { leagueStates } from "./league-states";
 import { watchMark } from "./own-pace-seats";
 import StateLogic from "@/lib/game/state-logic.js";
@@ -18,10 +18,10 @@ export type LeagueJob = CommissionerItem & { leagueId: string; leagueName: strin
  * in My Leagues order (alphabetical); items within a league keep actionItems' urgency order.
  */
 export async function dueMoves(userId: string): Promise<{ items: LeagueMove[]; commish: LeagueJob[] }> {
-  const immediate = await showsResultsImmediately(userId);
+  // When results show, per league: its season's own choice (settings Round 2, A7), else the account's.
   const { rows: memberships } = await pool.query(
-    `SELECT l.id, l.name, m.player_id, m.role, m.results_seen_through FROM league_memberships m
-     JOIN leagues l ON l.id = m.league_id WHERE m.user_id=$1
+    `SELECT l.id, l.name, m.player_id, m.role, m.results_seen_through, ${MEMBER_IMMEDIATE_SQL} AS immediate FROM league_memberships m
+     JOIN leagues l ON l.id = m.league_id LEFT JOIN user_settings us ON us.user_id = m.user_id WHERE m.user_id=$1
      ORDER BY l.name`,
     [userId]
   );
@@ -43,7 +43,7 @@ export async function dueMoves(userId: string): Promise<{ items: LeagueMove[]; c
       const late = r.state.players?.find((p: { id: string }) => p.id === r.player_id)?.lateJoin;
       const seen = late
         ? (r.results_seen_through ?? (Number.isInteger(late.startEpisode) ? late.startEpisode - 1 : null))
-        : immediate
+        : r.immediate
           ? null
           : (r.results_seen_through ?? 0);
       let own = actionItems(r.state, r.player_id, seen, { commissioner: r.role === "commissioner" });
