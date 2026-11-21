@@ -6,7 +6,11 @@
 //     lines, one opened at a time; Who's playing, Freeze rules and joining, the rulebook and Recent changes lines, its name),
 //     renaming it with the toast's Undo, the game's ⋯ row "Manage this game" and the bar's gear opening it over the game (Back
 //     named for the game), a link opening a rule (&line=joining), a change saved with Undo on the toast; riley (a Helper): one
-//     notice, the lines with nothing to open, no rename, Freeze not hers, the lock's action live.
+//     notice, the lines with nothing to open but Replacing people who leave (the week is hers; how waivers work reads as a
+//     value), no rename, Freeze not hers, the lock's action live.
+//   The waiver week on Manage this game (settings Round 3a's pick, no Waivers page of its own): Outlast's open week as a job
+//     that opens in place (who's picked, Pick for them, Run now), Replacing people who leave's value naming how windows come
+//     and opening in place to the week and the feel, and Pick for them on sam's sheet in Who's playing.
 //   short-games-fixture.js's busy season: Episode 20's games and the 57 finished folded; Archive all 57 in one tap, every one
 //     archived, and the toast's Undo bringing them all back.
 //   Nothing wider than the screen; no page errors.
@@ -126,13 +130,36 @@ async function main() {
     await as("riley", `/show/${S}/backstage/settings?page=game-settings&game=${L.lineup}`, async (p) => {
       await p.locator(`[data-game-settings="${L.lineup}"]`).waitFor({ timeout: 45000 });
       check(/You help run this game/.test(await p.locator("[data-game-settings] [data-gallery-about]").innerText()), "riley · the title card says she helps run it (a Helper), once");
-      check((await p.locator("[data-game-settings] [data-setting-line] button").count()) === 0, "riley · the rules have nothing to open");
+      check((await p.locator("[data-game-settings] [data-setting-line]:not([data-setting-line=waivers]) button").count()) === 0, "riley · the rules have nothing to open but the waivers");
+      await p.locator("[data-setting-line=waivers] > button").click();
+      await p.locator("[data-waiver-rule]").waitFor({ timeout: 20000 });
+      check((await p.locator("[data-waiver-rule] [data-bs-feel-read]").count()) === 1 && (await p.locator("[data-waiver-rule] [data-feel]").count()) === 0, "riley · how waivers work reads as a value, the Commissioner's");
+      await p.locator("[data-setting-line=waivers] > button").click();
       check((await p.getByText("Only the Commissioner changes this").count()) === 0, "riley · no refusal repeated on the lines");
       check((await p.locator("[data-game-settings] [data-settings-override]").count()) === 1, "riley · the lock's action is hers");
       check((await p.locator('[data-game-settings] [data-setting-line="rename"]').count()) === 0, "riley · no rename (the Commissioner's)");
       // A Helper reads Freeze as a value (no switch to tap), saying whose it is.
       const freeze = p.locator("[data-game-settings] [data-freeze]");
       check((await freeze.locator("[data-setting=freeze]:not([disabled])").count()) === 0 && /Freeze rules and joining/i.test(await freeze.innerText()), "riley · Freeze rules and joining isn't hers to switch", await freeze.innerText().catch(() => ""));
+    });
+    await as("alex", `/show/${S}/backstage/settings?page=game-settings&game=${L.outlast}`, async (p) => {
+      await p.locator(`[data-game-settings="${L.outlast}"] [data-job=waivers]`).waitFor({ timeout: 45000 });
+      check(/have picks in/.test(await p.locator("[data-job=waivers]").innerText()), "alex · Outlast's open week is a job on Manage this game, with how many picks are in");
+      await p.locator("[data-job=waivers] [data-job-toggle]").click();
+      await p.locator("[data-waiver-week]").waitFor({ timeout: 10000 });
+      check((await p.locator("[data-waiver-week] [data-claim]").count()) >= 2 && (await p.locator("[data-waiver-week] [data-bs-run]").count()) === 1, "alex · it opens in place: who's picked and Run now");
+      check((await p.locator("[data-waiver-week] [data-claim-for-open]").count()) >= 1, "alex · Pick for them beside someone with no picks in");
+      check(!(await wide(p)), "alex · the week fits the screen");
+      const value = await p.locator("[data-setting-line=waivers] > button").innerText();
+      check(/every \d+ episodes|a window every episode|you open windows/.test(value), "alex · Replacing people who leave says how windows come", value.replace(/\n/g, " | "));
+      await p.locator("[data-setting-line=waivers] > button").click();
+      await p.locator("[data-waiver-rule] [data-bs-feel-sheet]").waitFor({ timeout: 10000 });
+      check((await p.locator("[data-waiver-rule] [data-feel]").count()) === 3, "alex · it opens in place to the three feels");
+      check(!(await wide(p)), "alex · Replacing people who leave, opened, fits the screen");
+      await p.locator('[data-who-plays] [data-person="sam"]').click();
+      await p.locator('[data-person-pick-for="sam"]').click({ timeout: 10000 });
+      await p.locator("[role=dialog][data-open] [data-claim-for]").waitFor({ timeout: 10000 });
+      check(true, "alex · Pick for them on sam's sheet in Who's playing opens his pick");
     });
     await fixture.down(pool);
 

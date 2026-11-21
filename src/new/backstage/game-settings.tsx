@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
-import { Check, ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { lockTime } from "../clock";
 import { gameColour } from "../games";
 import { backstage, gameAdmin, gamesApi, useBackstage, useGameSettings, useWaiversAdmin, type GameSettings } from "../data";
@@ -10,7 +10,8 @@ import { JobRow, RUNNER_JOBS } from "../manage/jobs";
 import { WhoIsPlaying } from "../manage/people";
 import { manageApi } from "../settings/api";
 import { SwitchRow } from "../settings/controls";
-import { Stepper } from "./waivers";
+import { Stepper, WaiverJob, WaiverRule, waiverRuleValue } from "./waivers";
+import { Choice } from "../manage/choice";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
 import type { ShowData } from "../screens/show-space";
@@ -224,31 +225,6 @@ function SettingLine({
   );
 }
 
-/** A choice in a game's settings: chosen in bone with a tick (the chyron stays for what's due), or set aside with why. */
-function Choice({ data, title, line, why, tag, chosen, onPick }: { data: string; title: string; line: string; why?: string | null; tag?: string | null; chosen: boolean; onPick?: () => void }) {
-  const off = !chosen && !!why;
-  return (
-    <button
-      type="button"
-      data-settings-choice={data}
-      aria-pressed={chosen}
-      aria-disabled={off || !onPick}
-      onClick={() => !off && onPick?.()}
-      className={`nd-press flex w-full flex-col rounded-[4px] px-3 py-2.5 text-left ${FOCUS} ${chosen ? "bg-secondary outline-[1.5px] -outline-offset-[1.5px] outline-foreground" : off ? "border border-dashed border-edge" : "bg-secondary"}`}
-    >
-      <span className="flex items-start justify-between gap-2">
-        <b className={`text-[16px] font-semibold leading-tight ${off ? "text-muted-foreground" : ""}`}>{title}</b>
-        <span className="flex flex-none items-center gap-1.5 pt-0.5">
-          {tag && <span className="type-caption text-[12px] tracking-[0.05em] text-muted-foreground">{tag}</span>}
-          {chosen && <Check className="size-5" strokeWidth={3} aria-hidden />}
-        </span>
-      </span>
-      <span className="mt-1 text-[14px] leading-snug text-muted-foreground">{line}</span>
-      {off && <span className="mt-1 text-[13px] font-semibold leading-snug">{why}</span>}
-    </button>
-  );
-}
-
 /** How moves lock: Start a game's two ways. At your own pace is chosen when a game starts; Together still chooses its late moves (on
  *  the honour system until you've watched it or the next one airs, the recommended one, or none: everything locks when it airs). */
 function PaceCards({ seasonId, couchId, g, can, why, word }: { seasonId: string; couchId: string; g: GameSettings; can: boolean; why: string | null; word: string }) {
@@ -329,19 +305,7 @@ function GameSettingsBody({ seasonId, couchId, show, g, write, line, siblings }:
             {jobs.map((n) => (
               <JobRow key={`${n.id}-${n.request?.id ?? ""}`} seasonId={seasonId} couchId={couchId} need={n} />
             ))}
-            {window_ && (
-              <NavLink href={`${paths.backstage(seasonId, "waivers")}?game=${g.leagueId}`} data-job="waivers" className={`nd-press flex min-h-[72px] items-center gap-3 border-t border-border py-2.5 first:border-t-0 ${FOCUS}`}>
-                <span className="grid size-12 flex-none place-items-center rounded-[3px] bg-chyron text-chyron-foreground">
-                  <Pictogram id="swap" className="size-7" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <b className="block text-[16px] leading-tight">Waivers are open</b>
-                  <small className="block text-[13px] text-muted-foreground">{[window_.line, window_.due ? `due ${lockTime(Date.parse(window_.due))}` : null].filter(Boolean).join(" · ")}</small>
-                </span>
-                <span className="text-[15px] font-semibold">See picks</span>
-                <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
-              </NavLink>
-            )}
+            {window_ && waivers && <WaiverJob seasonId={seasonId} couchId={couchId} g={waivers} />}
           </div>
         </section>
       )}
@@ -371,12 +335,16 @@ function GameSettingsBody({ seasonId, couchId, show, g, write, line, siblings }:
         <SettingLine id="length" icon="halves" label="How long" value={length} fixed={sp.over ? "It's over" : frozen} open={open === "length"} onToggle={() => toggle("length")}>
           <HowLong g={g} words={show.words} can={can} write={write} compact />
         </SettingLine>
-        {/* One control for replacements (C32): the week's window and how waivers run are Waivers' page, this game's tab. */}
-        {g.waivers && <SettingLine id="waivers" icon="swap" label="Replacing people who leave" value={g.waivers.replace(/^(Customized|Relaxed|Standard|Strict) · /, "")} href={`${paths.backstage(seasonId, "waivers")}?game=${g.leagueId}`} />}
+        {/* One control for replacements (C32), opened in place (Round 3a, the user's pick): the week, then how waivers run. */}
+        {g.waivers && (
+          <SettingLine id="waivers" icon="swap" label="Replacing people who leave" value={waivers ? waiverRuleValue(waivers) : g.waivers} open={open === "waivers"} onToggle={() => toggle("waivers")}>
+            {waivers ? <WaiverRule seasonId={seasonId} couchId={couchId} g={waivers} /> : <div aria-busy className="mb-2 h-24 animate-pulse rounded-[3px] bg-secondary" />}
+          </SettingLine>
+        )}
       </div>
 
       <Label>Who&apos;s playing</Label>
-      <WhoIsPlaying seasonId={seasonId} couchId={couchId} leagueId={g.leagueId} gameName={g.name} commissioner={g.commissioner} />
+      <WhoIsPlaying seasonId={seasonId} couchId={couchId} leagueId={g.leagueId} gameName={g.name} commissioner={g.commissioner} waivers={waivers} />
 
       <Label>This season&apos;s rules on this couch</Label>
       <p className="-mt-0.5 pb-2 text-[13px] leading-snug text-muted-foreground">

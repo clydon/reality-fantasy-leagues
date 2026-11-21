@@ -272,7 +272,14 @@ function round3(pool, fx, S, L, menu) {
     { id: "r3-stop-alex", home: "game", who: "alex", go: lineup, ready: "[data-game-page]", tap: [gear, "[data-end-toggle]"], wait: '[data-end="delete"]', scroll: "[data-end-games]", full: false, lens: "Stop this game, last: Archive or Delete" },
     // Games you run (Backstage's address) and its pages
     { id: "r3-games-alex", home: "run", who: "alex", go: `/show/${S}/backstage`, ready: "[data-games-you-run]", lens: "Games you run: the games alex runs here, each opening its Manage this game" },
-    { id: "r3-waivers-alex", home: "run", who: "alex", go: `/show/${S}/backstage/waivers?game=${L.lineup}`, ready: "main, h1, h2", lens: "Waivers, opened from Lineup League's Replacing people who leave: Start a game's words" },
+    { id: "r3-waivers-alex", home: "run", who: "alex", go: `/show/${S}/backstage/waivers?game=${L.lineup}`, ready: "main, h1, h2", lens: "Waivers, opened from Lineup League's Replacing people who leave: Start a game's words (since the user's pick, the old address lands on Games you run)" },
+    // The waiver week on the game (the user's pick on 3a's story, 2026-11-21): the job and Replacing people who leave open in place.
+    { id: "r3w-week-alex", home: "game", who: "alex", go: lineup, ready: "[data-game-page]", tap: [gear, "[data-job=waivers] [data-job-toggle]"], wait: "[data-waiver-week]", scroll: "[data-manage-jobs]", full: false, lens: "the open week's job, opened in place: who's picked, Pick for them, Run now" },
+    { id: "r3w-rule-alex", home: "game", who: "alex", go: lineup, ready: "[data-game-page]", tap: [gear, '[data-setting-line="waivers"] > button'], wait: "[data-waiver-rule]", scroll: '[data-setting-line="waivers"]', lens: "Replacing people who leave, opened in place: this week, the last run, how waivers work (the feel), what players see" },
+    { id: "r3w-fine-alex", home: "game", who: "alex", go: lineup, ready: "[data-game-page]", tap: [gear, '[data-setting-line="waivers"] > button', "[data-fine]"], wait: "[data-fine-body]", scroll: "[data-fine]", full: false, lens: "Fine-tune, in place: when they're replaced, the windows, the swaps, the timing" },
+    { id: "r3w-rule-riley", home: "game", who: "riley", go: lineup, ready: "[data-game-page]", tap: [gear, '[data-setting-line="waivers"] > button'], wait: "[data-waiver-rule]", scroll: '[data-setting-line="waivers"]', full: false, lens: "the same line for riley, a Helper: the week is hers, how waivers work reads as a value" },
+    { id: "r3w-person-alex", home: "game", who: "alex", go: lineup, ready: "[data-game-page]", tap: [gear, '[data-person="sam"]'], wait: "[data-person-sheet]", full: false, lens: "sam's sheet while the window's open: Pick for them first, then his role" },
+    { id: "r3w-person-riley", home: "game", who: "riley", go: lineup, ready: "[data-game-page]", tap: [gear, '[data-person="sam"]'], wait: "[data-person-sheet]", full: false, lens: "sam's sheet for riley, a Helper: Pick for them is hers" },
   ];
 }
 

@@ -1,7 +1,7 @@
 // Dev-only check for the draft room and the blind draft (docs/PLAN-new-design.md step 7), against the dev server, on
 // draft-fixture.js (a couch about to draft: Outlast's turn-based draft in the mock's order riley, alex, jordan, sam, and
-// Weekly Lineup's blind draft, 4 each), then on new-fixture.js for Waivers' Pick for them (/backstage/waivers, a page a game's
-// Manage this game opens since settings Round 3a retired Backstage):
+// Weekly Lineup's blind draft, 4 each), then on new-fixture.js for Waivers' Pick for them (on a person's sheet in a game's
+// Manage this game › Who's playing while a window is open, since settings Round 3a's pick):
 //   1. Before the start: both drafts and their roles, the cast by tribe, an unchanged draft answering only its version,
 //      Backstage's "Schedule the … draft" jobs (a Commissioner's, not a Game admin's), who may start it, a start time
 //      with Undo, a time that's passed refused, a new order before the first pick, your queue (nobody else's).
@@ -339,9 +339,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     check((await bsw("sam", { action: "claimView", playerId: jordanSeat })).status >= 403, "a player can't");
     const cb = await open({ user: newFixture.username("alex"), pass: newFixture.PASSWORD, width, height: 844 });
     closers.push(cb.close);
-    await cb.page.goto(`${BASE}/show/${nf.seasonId}/backstage/waivers`, { waitUntil: "networkidle" });
-    const open_ = cb.page.locator('[data-claim-for-open="sam"]');
-    check(await open_.waitFor({ timeout: 10000 }).then(() => true, () => false), "Backstage › Waivers: Pick for them beside sam (no picks yet)");
+    await cb.page.goto(`${BASE}/show/${nf.seasonId}/backstage/settings?page=game-settings&game=${nf.leagues.outlast}`, { waitUntil: "networkidle" });
+    await cb.page.locator('[data-who-plays] [data-person="sam"]').click({ timeout: 20000 });
+    const open_ = cb.page.locator('[data-person-pick-for="sam"]');
+    check(await open_.waitFor({ timeout: 10000 }).then(() => true, () => false), "Manage this game › Who's playing › sam: Pick for them (no picks yet)");
     await open_.click();
     const cs = cb.page.locator("[role=dialog][data-open] [data-claim-for]");
     await cs.locator("[data-claim-add]").first().waitFor();

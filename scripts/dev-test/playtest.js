@@ -278,7 +278,8 @@ function favourites(ids, { ratings, lists = [], listOrder = [] }) {
 // What a move costs in taps on a phone, counted from Tonight's card on the new design's screens: the moves sheet
 // (src/new/show/dock.tsx: open it, tap each one to start or bench, Save; Save with nothing changed just closes it), the
 // pool's grid (open, tap a face, Save), the waivers page (waivers.tsx: open it, then per spot Swap, tap who comes in, save),
-// and Backstage › Waivers › Open a waiver window (backstage/waivers.tsx: Backstage, Waivers, Open a waiver window, a preset,
+// and Open a waiver window (backstage/waivers.tsx, on the game's Manage this game since settings Round 3a: the gear, Replacing
+// people who leave, Open a waiver window, a preset,
 // Open window). Accepting held results (--results=accepted, backstage/results.tsx): Backstage and Show me (review), It's
 // right and the sheet's Apply on a quick check that waits (confirm), a tick per waiting result, then Apply and the sheet's
 // Apply (confirm). Revealing the episode (the spoiler-safe reveal) comes before any of it and isn't counted.

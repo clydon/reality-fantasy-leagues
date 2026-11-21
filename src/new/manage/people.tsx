@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Check, ChevronRight } from "lucide-react";
-import { backstage, gameAdmin, useMembers, type LeagueRole, type Member } from "../data";
+import { backstage, gameAdmin, useMembers, type LeagueRole, type Member, type WaiverAdminGame } from "../data";
 import { ComputerPlayers } from "../backstage/computer-players";
+import { ClaimFor } from "../backstage/waivers";
+import { airTime } from "../clock";
 import { manageApi, type OutOfGame } from "../settings/api";
 import { Avatar } from "../ui/bars";
 import { HoldSheet } from "../ui/guards";
@@ -15,7 +17,8 @@ import { toast } from "../ui/toast";
 // Manage this game, a row each with their role, and a sheet that shows only what's yours to change: a Commissioner sets their
 // role in this game (C35: roles are per game now) and takes them out of this game alone (A14, held, restorable for 30 days);
 // a Helper sees who's in. Computer players are this game's (C36). Invite and Leave aren't here: they're the couch's and the
-// game's ⋯'s.
+// game's ⋯'s. While a waiver window is open, someone with no picks in gets Pick for them on their sheet, for a Helper too (the
+// check's finding 6): a Helper's row is a door only then, since otherwise her sheet would hold nothing of hers.
 
 export const ROLE_WORDS: Record<LeagueRole, string> = { commissioner: "Commissioner", admin: "Helper", member: "Player" };
 const ROLES: [LeagueRole, string][] = [
@@ -39,9 +42,31 @@ async function undo(seasonId: string, couchId: string, batch: string, after: () 
   }
 }
 
-export function WhoIsPlaying({ seasonId, couchId, leagueId, gameName, commissioner }: { seasonId: string; couchId: string; leagueId: string; gameName: string; commissioner: boolean }) {
+export function WhoIsPlaying({
+  seasonId,
+  couchId,
+  leagueId,
+  gameName,
+  commissioner,
+  waivers,
+}: {
+  seasonId: string;
+  couchId: string;
+  leagueId: string;
+  gameName: string;
+  commissioner: boolean;
+  /** This game's waivers (Manage this game reads them once): an open window offers Pick for them on a person's sheet. */
+  waivers?: WaiverAdminGame | null;
+}) {
   const data = useMembers(seasonId, couchId);
   const [person, setPerson] = useState<string | null>(null);
+  const [helping, setHelping] = useState<{ playerId: string; name: string } | null>(null);
+  // Who can be picked for: the window's open, their picks aren't in, it isn't you, and you've seen the week's episode.
+  const open = waivers?.period?.phase === "open" && !waivers.revealFirst ? waivers : null;
+  const pickable = (m: Member) => {
+    const c = open?.claims.find((x) => x.userId === m.userId);
+    return c && !c.in && !c.you ? { playerId: c.playerId, name: c.name } : null;
+  };
   if (!data.data) return <div aria-busy className="h-40 animate-pulse rounded-[10px] bg-card" />;
   const game = data.data.games.find((g) => g.leagueId === leagueId);
   // Runners first (Commissioners, then Helpers), then players, each by name: who runs it is what people look for here.
@@ -52,11 +77,12 @@ export function WhoIsPlaying({ seasonId, couchId, leagueId, gameName, commission
     <div data-who-plays={leagueId}>
       <div className="rounded-[10px] bg-card px-3.5">
         {people.map((m) => {
-          const Tag = commissioner ? "button" : "div";
+          const door = commissioner || !!pickable(m);
+          const Tag = door ? "button" : "div";
           return (
           <Tag
             key={m.userId}
-            {...(commissioner ? { type: "button" as const, onClick: () => setPerson(m.userId) } : {})}
+            {...(door ? { type: "button" as const, onClick: () => setPerson(m.userId) } : {})}
             data-person={m.name}
             data-person-role={m.roles[leagueId]}
             className="nd-press flex min-h-[60px] w-full items-center gap-3 border-t border-border py-2 text-left first:border-t-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
@@ -69,7 +95,7 @@ export function WhoIsPlaying({ seasonId, couchId, leagueId, gameName, commission
               </b>
               <small className="block text-[13px] text-muted-foreground">{ROLE_WORDS[m.roles[leagueId]]}</small>
             </span>
-            {commissioner && <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />}
+            {door && <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />}
           </Tag>
           );
         })}
@@ -89,9 +115,16 @@ export function WhoIsPlaying({ seasonId, couchId, leagueId, gameName, commission
           member={chosen}
           members={people}
           commissioner={commissioner}
+          pickFor={pickable(chosen)}
+          due={open?.period?.due ?? null}
+          onPickFor={(who) => {
+            setPerson(null);
+            setHelping(who);
+          }}
           onClose={() => setPerson(null)}
         />
       )}
+      {open && <ClaimFor key={helping?.playerId ?? "none"} seasonId={seasonId} couchId={couchId} game={open} who={helping} onClose={() => setHelping(null)} />}
     </div>
   );
 }
@@ -104,6 +137,9 @@ function PersonSheet({
   member,
   members,
   commissioner,
+  pickFor,
+  due,
+  onPickFor,
   onClose,
 }: {
   seasonId: string;
@@ -113,6 +149,10 @@ function PersonSheet({
   member: Member;
   members: Member[];
   commissioner: boolean;
+  /** Their seat in an open waiver window with no picks in: Pick for them, first. */
+  pickFor: { playerId: string; name: string } | null;
+  due: string | null;
+  onPickFor: (who: { playerId: string; name: string }) => void;
   onClose: () => void;
 }) {
   const after = useAfter();
@@ -152,6 +192,20 @@ function PersonSheet({
     <>
       <Sheet open={hold === false} onOpenChange={(o) => !o && onClose()} title={member.name} subtitle={sub}>
         <div data-person-sheet={member.name} className="flex flex-col gap-2 pb-2">
+          {pickFor && (
+            <button
+              type="button"
+              data-person-pick-for={member.name}
+              onClick={() => onPickFor(pickFor)}
+              className={`nd-press flex min-h-[60px] items-center gap-3 rounded-[4px] bg-secondary px-3 py-2 text-left ${commissioner ? "mb-3" : ""}`}
+            >
+              <span className="min-w-0 flex-1">
+                <b className="block text-[16px] font-semibold leading-tight">Pick for them</b>
+                <small className="block text-[13px] leading-snug text-muted-foreground">No waiver picks in yet{due ? ` · due ${airTime(Date.parse(due))}` : ""}. You won&apos;t see what they picked.</small>
+              </span>
+              <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
+            </button>
+          )}
           {commissioner ? (
             <>
               <p className="type-caption text-[13px] tracking-[0.05em] text-muted-foreground">Their role in this game</p>
@@ -184,7 +238,7 @@ function PersonSheet({
                 </button>
               )}
             </>
-          ) : (
+          ) : pickFor ? null : (
             <p className="text-[15px] leading-snug">
               {member.you ? "You help run this game." : `${member.name} is ${role === "commissioner" ? "a Commissioner" : role === "admin" ? "a Helper" : "a player"} here.`} Only a Commissioner changes
               roles or takes someone out.

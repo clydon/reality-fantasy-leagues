@@ -1560,3 +1560,22 @@
 - Why: a team's season draws only that team's players (2.8), so the screen says it ("Draft from: Bills players only · 74", following How long) and our check counts the scoped pool. Shared (drafted blind) always fits and keeps the size the maker chose.
 - Rejected: "Draft N each" as the fix (changes the size; everyone's players stay their own, but it doesn't always fit a position-limited lineup either); the server's refusal after Start (the old way).
 - Rests on: src/new/couch/gallery-bold/whose.ts, bold-sheet.tsx (the Start bar's warning), leads.tsx; src/lib/server/start-spec.ts (`wizard.scope`).
+
+## 2026-11-21 · Settings, Round 3a: the gear stays; the waiver window's week moves onto Manage this game now
+- Decided by: the user, on 3a's story (https://claude.ai/artifact/53oCgbQkJdW1e6RARGWP73): "keep the gear; move the waiver window's
+  week onto Manage this game now".
+- Why: the rules didn't settle either (docs/design-round/settings-r3-check.md). The gear: Round 0 chose one gear on every bar, and a
+  game's only settings are its runner's. The week: PFD's leftover (findings 1, 2 and 6) was that the job and Replacing people who
+  leave both left for a Waivers page sorted by game, with its own settings.
+- What:
+  - **The gear** on a game's bar opens Manage this game for whoever runs it, as built. No separate key.
+  - **The open week is a job that opens in place** on the game's Manage this game: who's picked (never what), Pick for them, Run
+    now, and the window's Change or Turn it off.
+  - **Replacing people who leave opens in place** like the page's other lines: this week (Open a waiver window), the last run with
+    Undo, how waivers work (the feel and Fine-tune, the Commissioner's; a Helper reads it as a value), and What players see. Its
+    value names how windows come ("When your team is short · every 3 episodes").
+  - **Pick for them is on a person's sheet** in Who's playing while a window is open, for a Helper too. A Helper's row is a door
+    only then.
+  - **Backstage's Waivers page is gone.** Its old address lands on Games you run, and the API is unchanged.
+- Rejected: a key for "you run this" on a game's bar, with the gear only for your own settings; leaving the week for 3b.
+- Rests on: src/new/backstage/waivers.tsx (WaiverJob, WaiverRule), game-settings.tsx, manage/people.tsx, manage/choice.tsx.

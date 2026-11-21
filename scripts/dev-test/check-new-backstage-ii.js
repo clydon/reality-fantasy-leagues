@@ -6,8 +6,10 @@
 //   2. As alex in a browser at --width: Episodes' waiver row, the Waivers page (Replace Carter, yellow Swap, the
 //      fallback line, picking order, the bottom bar), the picker with the Cast tab's controls (a pick, backups, Change,
 //      Clear), the claim in waiver_claims and never in what anyone else reads; How waivers work here.
-//   3. Waivers (/backstage/waivers, a page a game's Manage this game opens): who's picked with no contents, Open a waiver window's presets, the feel on tap with the
-//      toast's Undo, Fine-tune, Run now's tier-2 preview (nothing private in it), the last run with Undo.
+//   3. Waivers, on each game's Manage this game (a Backstage page until settings Round 3a's pick): the open week as a job that
+//      opens in place (who's picked with no contents, Pick for them, Run now), Open a waiver window's presets, Replacing people
+//      who leave opened in place (the feel on tap with the toast's Undo, Fine-tune, the last run with Undo), Run now's tier-2
+//      preview (nothing private in it).
 //   4. The run plays like an episode: Tonight's "Waivers ran" plate and its reveal, Episodes' row into its page, the
 //      Waivers page after the run, a shared game's swap through the picker, free agency.
 //   5. Game settings (starters with the bench following after the draft, Reset to recommended, who can join with Undo,
@@ -222,18 +224,34 @@ const first = (name) => name.split(" ")[0];
     await page.locator("[data-wv-week=quiet]").waitFor();
     check(true, "Weekly Lineup: nothing to do this week");
 
-    // ---- 3. Waivers (Backstage › Waivers until settings Round 3a; now a page a game's Manage this game opens) ----
+    // ---- 3. Waivers (Backstage › Waivers until settings Round 3a; now on each game's Manage this game, in place) ----
     await page.goto(`${BASE}/show/${sid}/backstage`);
     await page.locator("[data-games-you-run] [data-settings-row]").first().waitFor({ timeout: 20000 });
     check((await page.locator("[data-preview^=backstage]").count()) === 0, "Games you run (Backstage's address): nothing Preview any more");
-    await page.goto(`${BASE}/show/${sid}/backstage/waivers`);
-    await page.locator("[data-bs-plate]").waitFor({ timeout: 20000 });
-    check((await page.locator("[data-bs-plate]").getAttribute("data-bs-plate")) === "open" && (await page.locator("[data-claim]").count()) === 4, "Waivers: the week, and who's picked");
+    // A game's Manage this game, and its open week's job opened in place.
+    const manage = async (league) => {
+      await page.goto(`${BASE}/show/${sid}/backstage/settings?page=game-settings&game=${league}`);
+      await page.locator(`[data-game-settings="${league}"]`).waitFor({ timeout: 20000 });
+    };
+    const openWeek = async () => {
+      await page.locator("[data-job=waivers] [data-job-toggle]").click();
+      await page.locator("[data-waiver-week]").waitFor();
+    };
+    const openRule = async () => {
+      await page.locator("[data-setting-line=waivers] > button").click();
+      await page.locator("[data-waiver-rule]").waitFor();
+    };
+    await manage(L.outlast);
+    await page.locator("[data-job=waivers]").waitFor({ timeout: 20000 });
+    check(/1 of 4 have picks in/.test(await page.locator("[data-job=waivers]").innerText()), "Manage this game: the open week is a job, with how many picks are in");
+    await openWeek();
+    check((await page.locator("[data-claim]").count()) === 4, "Waivers: the week, and who's picked, in place");
     check(/Picks in/.test(await page.locator('[data-claim="alex"]').innerText()) && /No picks yet/.test(await page.locator('[data-claim="jordan"]').innerText()), "who has picks in, and who hasn't");
     check(!(await text()).includes(firstName), "never what they picked");
-    await fits("Backstage › Waivers");
+    await fits("Manage this game › the week");
     await shot("bs-waivers");
-    await page.locator('[data-bs-game="Weekly Lineup"]').click();
+    await manage(L.lineup);
+    await openWeek();
     await page.locator("[data-bs-change]").click();
     await page.locator("[data-bs-window]").waitFor();
     check((await page.locator("[data-preset]").count()) === 3, "Open a waiver window: three presets");
@@ -245,8 +263,8 @@ const first = (name) => name.split(" ")[0];
     await sheetGone();
     const lineupAdmin = async () => (await bs("alex", "waivers")).body.games.find((g) => g.leagueId === L.lineup);
     check((await lineupAdmin()).period?.window && (await lineupAdmin()).period.swaps === 1, "the window is open: 1 swap each");
-    // The feel, on tap, with the toast's Undo.
-    await page.locator("[data-bs-settings]").click();
+    // The feel, on tap, with the toast's Undo: Replacing people who leave, opened in place.
+    await openRule();
     await page.locator("[data-bs-feel-sheet]").waitFor();
     await page.locator("[data-feel=casual]").click();
     // Round 3a's words: the feels are Relaxed · Standard · Strict (casual's key reads Relaxed).
@@ -267,13 +285,11 @@ const first = (name) => name.split(" ")[0];
     check(fineLine.text === "Changed how waivers work" && fineLine.undoable, "it's in Recent changes with Undo", JSON.stringify(fineLine));
     await as.alex.call("POST", `/api/seasons/${sid}/changes/${fineLine.batch}/undo${q}`);
     check((await state("lineup")).settings.autoFill === true, "and undone from there");
-    await page.keyboard.press("Escape");
-    await sheetGone();
     check((await bs("riley", "waivers", "POST", { leagueId: L.lineup, action: "feel", feel: "casual" })).status === 403, "a Game admin can't change how waivers work");
     check((await bs("riley", "waivers")).body.games?.map((g) => g.leagueId).join() === L.lineup, "riley (Game admin of Weekly Lineup) runs only its waivers");
     // Run now: tier 2, with nothing private in it.
-    await page.reload();
-    await page.locator('[data-bs-game="Outlast"]').click();
+    await manage(L.outlast);
+    await openWeek();
     await page.locator("[data-bs-run]").click();
     await page.locator("[data-run-preview]").waitFor();
     const preview = await page.locator("[data-guard='2']").innerText();
@@ -287,8 +303,11 @@ const first = (name) => name.split(" ")[0];
     check(ori.ownerIds.includes(alexOut) && !s.castaways.find((c) => c.id === carter.id).ownerIds.includes(alexOut), `alex got ${firstName} for Carter`);
     const runLine = (await as.alex.call("GET", `/api/seasons/${sid}/changes${q}`)).body.lines[0];
     check(/^Ran waivers: \d+ moves?$/.test(runLine.text) && runLine.tier === 2 && runLine.undoable, "Recent changes: the run, tier 2, with Undo", runLine.text);
+    await page.locator("[data-job=waivers]").waitFor({ state: "detached" });
+    check(true, "the week's job goes once it's run");
+    await openRule();
     await page.locator("[data-bs-undo-run]").waitFor();
-    check((await page.locator("section", { hasText: "Last run" }).innerText()).includes(`alex got ${firstName}`), "Last run: who got whom");
+    check((await page.locator("[data-last-run]").innerText()).includes(`alex got ${firstName}`), "Last run: who got whom, in Replacing people who leave");
     await shot("bs-ran");
 
     // ---- 4. the run plays like an episode ----

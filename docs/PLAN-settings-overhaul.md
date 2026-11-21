@@ -1,7 +1,8 @@
 # Settings: the overhaul
 
-> **Status (2026-11-21): Round 3a built on branch settings-plan, waiting on the user's review of its story** (Round 3 split in
-> two: 3a retires Backstage and gives each game Manage this game; 3b changes a game once it's under way). Not merged or pushed; no
+> **Status (2026-11-21): Round 3a built on branch settings-plan, with the user's two picks on its story** (keep the gear; the
+> waiver window's week on Manage this game now: built and checked). Waiting on the user's go to merge. Round 3 is split in two:
+> 3a retires Backstage and gives each game Manage this game; 3b changes a game once it's under way. Not merged or pushed; no
 > migration. Detail: Round 3, below.
 >
 > **Round 2 (2026-11-21): merged and live** (pushed ce891ba2; migration 0448 on production, rehearsed first; the snapshot
@@ -497,8 +498,19 @@ one batch of fixes.
   homes (check-game-settings, -new-backstage, -new-backstage-ii, -backstage-remind, -new-computer-players, -new-show-menu,
   -new-couches, -hold-touch, -new-start-game, -episode-lock, -new-draft, -new-settings, -new-shell, -own-pace-live, -phone-back,
   -new-studio); every changed step passes.
-- **Left for 3b:** A15 (options after the start), A17 (the vote), typed undos (rule 6), A16's 164/165/166, Waivers' week in place on
-  the game, a runner's jobs on the strip (the lock on episode night, a join request; BACKLOG 157).
+- **The user's picks on the story (2026-11-21), built:** keep the gear; the waiver week moves onto Manage this game now. The open
+  week is a job that opens in place (who's picked, Pick for them, Run now, Change or Turn it off). Replacing people who leave opens
+  in place (this week, the last run with Undo, the feel and Fine-tune, What players see), and its value says how windows come.
+  Pick for them is on a person's sheet while a window is open, for a Helper too. Backstage's Waivers page is gone; its address
+  lands on Games you run. Detail: design-round/settings-r3-check.md, "The user's picks, built"; decisions.md.
+  - **Checks:** `npm test` 2523 of 2523; tsc clean; eslint shows only its four known errors.
+  - **Browser checks:** check-game-settings (new waiver-week steps), check-new-backstage-ii (its Waivers part moved to Manage this
+    game) and check-waiver-start all pass at 390. check-explorer-page's Waivers step and check-new-studio's list are moved but not
+    run: the explorer needs UI Atlas on the main app.
+  - **Not passing, not this change:** check-new-draft fails in its draft-room half ("Schedule the … draft" job words; the ticker
+    after Start), before its moved Pick for them step. check-game-settings now covers Pick for them.
+- **Left for 3b:** A15 (options after the start), A17 (the vote), typed undos (rule 6), A16's 164/165/166, a runner's jobs on the
+  strip (the lock on episode night, a join request, a waiver window that's due; BACKLOG 157).
 - **Found in 3a, left:**
   - check-episode-lock: after Override goes back to Auto, a new Episode 6 pick is still accepted (the API half; not this round's
     screens; may be a real lock bug or older). Who takes it: the next session touching the lock (3b).

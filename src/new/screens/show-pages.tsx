@@ -8,7 +8,6 @@ import { GameSettingsPage, SettingsList, useGameSettingsPage } from "../backstag
 import { ResultsPage } from "../backstage/results";
 import { RulesPage } from "../backstage/rules";
 import { EndGames } from "../backstage/settings";
-import { WaiversAdminPage } from "../backstage/waivers";
 import { useBackstage, useGameSettings } from "../data";
 import { useNav } from "../nav";
 import { JobRow, RUNNER_JOBS } from "../manage/jobs";
@@ -22,10 +21,12 @@ import { isTabOf, useShow, type ShowData } from "./show-space";
 // - its home, Members & roles and Game settings are **Games you run**: the games you run on this show, a row each with what
 //   needs you, each opening its Manage this game (game-settings.tsx), finished ones folded, and Bring a game back below;
 // - Recent changes is the couch's to read, as before;
-// - Results (a runner's fix, reached from an episode), Waivers (a game's week) and the rulebook (This season's rules) are pages a
-//   game's Manage this game opens, titled for what they are, their Back to Games you run.
+// - Results (a runner's fix, reached from an episode) and the rulebook (This season's rules) are pages a game's Manage this game
+//   opens, titled for what they are, their Back to Games you run;
+// - Waivers is Games you run too: a game's week and how its waivers work live on its Manage this game (the user's pick on 3a's
+//   story, 2026-11-21), so an old /backstage/waivers link lands on the list of games.
 
-const TITLES = { results: "Results", waivers: "Waivers", rules: "This season's rules" } as const;
+const TITLES = { results: "Results", rules: "This season's rules" } as const;
 
 export function BackstageScreen({ seasonId, page }: { seasonId: string; page?: BackstagePage }) {
   const show = useShow(seasonId);
@@ -84,8 +85,8 @@ export function BackstageScreen({ seasonId, page }: { seasonId: string; page?: B
       </>
     );
   }
-  if (page === "results" || page === "waivers" || page === "rules") {
-    const Page = { results: ResultsPage, waivers: WaiversAdminPage, rules: RulesPage }[page];
+  if (page === "results" || page === "rules") {
+    const Page = { results: ResultsPage, rules: RulesPage }[page];
     // Opened from a game's Manage this game (`?game=`): Back says so, and history takes it there.
     const back = fromGame ? { label: "Manage this game", to: paths.backstage(seasonId), accepts: () => true } : toGames;
     return (

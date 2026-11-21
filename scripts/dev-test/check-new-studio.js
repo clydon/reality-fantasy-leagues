@@ -434,7 +434,7 @@ const AUDIT = async (shot) => {
         ["waivers", "alex", `/show/${sid}/waivers`],
         ["backstage", "alex", `/show/${sid}/backstage`],
         ["backstage-results", "alex", `/show/${sid}/backstage/results`],
-        ["backstage-waivers", "alex", `/show/${sid}/backstage/waivers`],
+        // Waivers live on each game's Manage this game since settings Round 3a's pick (no page of their own).
         ["backstage-rules", "alex", `/show/${sid}/backstage/rules`],
         // Members & roles and Game settings land on Games you run since settings Round 3a: a game's Manage this game instead.
         ["manage-this-game", "alex", `/show/${sid}/backstage?page=game-settings&game=${fx.leagues.lineup}`],

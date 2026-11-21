@@ -54,3 +54,22 @@ them, Run now, the settings in place) closes most of what's left (PFD findings 1
 **1. The game's gear runs the game; the show's gear is your own settings.** Both reviewers noticed the gear means "settings of this
 thing" on a game (for whoever runs it) and "your settings" on a show. Kept as built: Round 0 decided one gear on every bar, and a
 game's only settings are its runner's. The other way: a key for "you run this" on a game's bar, the gear only for your own.
+
+## The user's picks, built (2026-11-21)
+
+The user kept the gear (choice 1, as built) and moved the week now (choice 2). Recorded in decisions.md.
+- **Built:**
+  - The open week is a job on Manage this game that opens in place: who's picked, Pick for them, Run now, and Change or Turn it off.
+  - Replacing people who leave opens in place: this week (Open a waiver window), the last run with Undo, the feel and Fine-tune (a
+    Helper reads them as a value), and What players see. Its value says how windows come ("every 3 episodes").
+  - Pick for them is on a person's sheet while a window is open, for a Helper too.
+  - Backstage's Waivers page is gone. Its old address lands on Games you run.
+  - The waiver choices use the page's own chosen-with-a-tick card (`manage/choice.tsx`, shared with How moves lock).
+- **What it closes:** PFD's finding 1 (both doors left for a page sorted by game), the rest of 2 ("every 3 episodes" now on the
+  line), and 6 (Pick for them on the sheet). No second review was run: the change is PFD's own smallest fix, and the one bounded
+  look at the frames (`.ui-atlas/stories/settings-r3/after-week/`) found nothing to fix.
+- **Still open, noticed:**
+  - Games you run and the show's ⋯ still don't show that waivers are due (PFD 4's rest). Left for 3b's runner's jobs on the strip,
+    BACKLOG 157.
+  - Couch Cup's job says what the window allows ("Replace who's out"), while its line says the rule ("Whenever one goes home"):
+    two facts, not one fact named twice. Kept.
