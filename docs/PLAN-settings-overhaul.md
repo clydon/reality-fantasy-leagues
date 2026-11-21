@@ -1,10 +1,15 @@
 # Settings: the overhaul
 
-> **Status (2026-11-20): Planned; the cuts and adds approved** (the user took every recommendation, added A5, and settled C8:
-> Grok goes too; "What you decided", below). Nothing built. Next is Round 0 (the map, the shape and the names, rendered), in a fresh
-> session. Every setting, where it lives and a verdict on each are in the audit:
+> **Status (2026-11-20): Round 0 done; waiting on the user's two choices and four names.** The cuts and adds were approved (the
+> user took every recommendation, added A5, and settled C8: Grok goes too; "What you decided", below). Round 0's screenshot
+> story, https://claude.ai/artifact/UkbTP7G4f7uQhVqp32UMNm, asks two questions where the reviewers split, plus four names:
+> - **Your settings' first view:** groups or questions?
+> - **The way in:** today's doors, or one gear on every bar?
+>
+> Nothing in the app is built yet. Every setting, where it lives and a verdict on each are in the audit:
 > [design-round/settings-audit.md](design-round/settings-audit.md). The proposals page the user answered on:
-> https://claude.ai/artifact/3VjAovJaVsBkfZcLEqoY4V.
+> https://claude.ai/artifact/3VjAovJaVsBkfZcLEqoY4V. The lane: `rfl-settings` (port 3018, database rfl_settings, branch
+> settings-plan).
 
 ## What you asked (2026-11-20)
 
@@ -308,6 +313,24 @@ the app running with fixtures, so it gets a lane of its own (scripts/lane.js). R
 Backstage's settings files (src/new/backstage/settings.tsx, game-settings.tsx, src/lib/server/backstage-games.ts).
 
 ### Round 0: the map, the cuts and the shape (no build)
+
+**Done 2026-11-20.** Story: https://claude.ai/artifact/UkbTP7G4f7uQhVqp32UMNm.
+- **What it made:**
+  - Intent's structure: [design-round/settings-r0-spec.md](design-round/settings-r0-spec.md).
+  - PFD's first views: [design-round/settings-r0-first-view.md](design-round/settings-r0-first-view.md). Its new finding: a
+    "what you'll still get" line under every notification choice.
+  - Impeccable's brief: [design-round/settings-r0-shape.md](design-round/settings-r0-shape.md).
+  - The names: [design-round/settings-r0-names.md](design-round/settings-r0-names.md).
+  - The capture: `scripts/dev-test/story-settings.js`, 31 situations.
+  - 12 grey boxes (`.ui-atlas/stories/settings-r0/`, local).
+- **The check:**
+  - PFD scored today 48, Shape 1 69, Shape 2 59, Shape 3 70.
+  - Impeccable scored Shape 1 28/40, Shape 2 25, Shape 3 27.
+  - One batch of fixes followed.
+- **The reviewers split** on Your settings' first view (Impeccable: groups; PFD: questions) and on the way in (the structure's doors
+  against PFD's one gear on every bar). Both go to the user as named choices, with my recommendations: groups, and the gear.
+
+The round's original steps:
 - **Render today.** Every surface in the audit, at 390, in each role and situation below, as the "before" frames. Extend
   census-app.js's settings set, or write story-settings.js after story-game-settings.js.
 - **The system map.** Every setting by subject, home, name and verdict (from the audit). Plus the shared parts: the settings row,
