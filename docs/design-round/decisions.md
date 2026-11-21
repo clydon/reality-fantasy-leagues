@@ -1698,3 +1698,8 @@
 - Why: it's what the user called them.
 - Supersedes: "A one-episode game is called a quick game" (2026-11-21).
 - Rests on: BACKLOG 239.
+
+## 2026-11-21 · The Games tab as the way into games approved, with Tonight's night; both merge together
+- Decided by: the user ("Approve continue here", on the story's version 2)
+- What: the Games tab as built on branch tonight-night through 29b5fd30 (the next episode's one-episode games first, your longer games a row each, longer games to join, Start, your record; the strip's pick words; Tonight's next rows in this tab's form), merged to master with Tonight's night (approved as version 5).
+- Rests on: the story https://claude.ai/artifact/5D9STJ6R4jFVgtkKEdCdpx (version 2); docs/design-round/games-launcher-*.md.
