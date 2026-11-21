@@ -20,6 +20,8 @@
 const S = { ...require('../game-spec/schema.js'), ...require('../game-spec/answers.js') };
 const { describeSpec } = require('../game-spec/describe.js');
 const R = require('../game-spec/roll.js');
+/** A waiver feel's name, as Manage this game says it (settings Round 0's names; backstage-games.ts FEEL_NAMES). */
+const FEEL_NAMES = { casual: 'Relaxed', balanced: 'Standard', competitive: 'Strict' };
 const DATA = require('./bases.json');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
@@ -997,10 +999,11 @@ const CHANGES = [
     id: 'waivers', row: 'details', kinds: ['draft'], name: 'Waivers', line: 'Swaps for someone free during the season', icon: 'swap',
     fits: (s) => fitsOr(S.waiversFit(s), 'Waivers need castaways who come free'),
     on: (s) => isObj(s.extras) && isObj(s.extras.waivers) && !(s.extras.waivers.replace === 'never' && s.extras.waivers.windows && s.extras.waivers.windows.swaps === 0),
-    apply: (s) => ({ ...s, extras: { ...(s.extras || {}), waivers: { ...S.NO_WAIVERS, replace: 'whenShort', windows: { schedule: 'everyEpisode', every: 1, swaps: 1 } } } }),
+    apply: (s) => ({ ...s, extras: { ...(s.extras || {}), waivers: { ...S.NO_WAIVERS, replace: 'whenShort', windows: { ...S.NO_WAIVERS.windows, schedule: 'everyEpisode', swaps: 1 } } } }),
     off: (s) => ({ ...s, extras: { ...(s.extras || {}), waivers: { ...S.NO_WAIVERS } } }),
     controls: [
-      segment('feel', 'How it feels', null, S.WAIVER_FEELS.map((v) => [v, v[0].toUpperCase() + v.slice(1)]), 'balanced', field('extras.waivers.feel', 'balanced')),
+      // Settings Round 4: Manage this game's names for the feels (the stored values stay casual, balanced, competitive).
+      segment('feel', 'How it feels', null, S.WAIVER_FEELS.map((v) => [v, FEEL_NAMES[v] || v]), 'balanced', field('extras.waivers.feel', 'balanced')),
       segment('order', 'Who goes first', null, [['rolling', 'Rolling'], ['leastPoints', 'Fewest points'], ['mostPoints', 'Most points']], 'rolling', field('extras.waivers.order', 'rolling'), true),
       segment('hours', 'Claims close', null, S.WAIVER_HOURS.map((h) => [h, `${h} h before`]), 24, field('extras.waivers.hours', 24), true),
     ],
@@ -1019,7 +1022,8 @@ const CHANGES = [
     on: () => true,
     controls: [segment('join', 'Joining', null, [['open', 'Anyone on the couch'], ['ask', 'They ask first'], ['locked', 'Nobody new']], 'open', field('extras.join', 'open'))],
   },
-  { id: 'hidden', row: 'details', kinds: ['draft'], name: 'Lineups hidden', line: 'Nobody sees who you play until it locks', icon: 'eye', fits: (s) => fitsOr(isDraft(s) && isObj(s.count) && s.count.start, 'This goes with choosing who plays'), on: (s) => !!(s.extras && s.extras.hideStarters), apply: (s) => pathSet(clone(s), 'extras.hideStarters', true), off: (s) => pathSet(clone(s), 'extras.hideStarters', false) },
+  // Lineups hidden went in Settings Round 4: the app hides others' lineups until the lock whatever extras.hideStarters says, so the
+  // control did nothing (settings rule 2). A game made with it keeps the field.
 ];
 
 /** Whether a game has a bet on it: a stake, a bank, a pot, a lone right answer, a parlay, a ticket, a rollover, or side bets. */

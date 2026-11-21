@@ -22,6 +22,9 @@
 //              reaches you, on, another phone gets them, blocked, an iPhone in Safari), solo, the site admin; its pages
 //              (Notifications, When results show, Privacy, Your shows couches and games, Your account, Your phones, Install the
 //              app); a show's Notifications (mute, muted); a couch's chat row; the hub's gear and the bell's foot
+//   r4-*       settings Round 4, the words and the ripple (docs/design-round/settings-r4-spec.md): Start a game's details and waiver
+//              feels, the one Recommended tag (Manage this game, Your settings), the rulebook's Customize, the pool's Leave as a
+//              hold, a hold's Not now, How it plays with 3b's two rules, and a face's colour on Who's playing and on waivers
 //   r3b-*      settings Round 3b, as built (docs/design-round/settings-r3b-spec.md): the lock's states, How it plays' new lines, a
 //              moment gained with the players' vote, someone who hasn't picked, a runner's job under the strip
 //   r2-*       settings Round 2, as built (docs/design-round/settings-r2-spec.md): the show bar's gear; a show's settings page for a
@@ -343,6 +346,42 @@ function round3b(pool, fx, S, L, menu) {
   ];
 }
 
+/**
+ * Settings Round 4 (docs/design-round/settings-r4-spec.md): the words and the ripple. Start a game's details and its waiver feels
+ * (the running game's words), the one Recommended tag where Manage this game and Your settings mark it, the confirms' one way out
+ * (Not now) and the pool's Leave as a hold, the rulebook's Customize, How it plays saying 3b's two rules, and a face's colour.
+ */
+function round4(pool, fx, so, S, L) {
+  const lineup = `/show/${S}/game/${L.lineup}`;
+  const gear = "[data-game-title] [data-game-manage]";
+  const start = "[data-start-row], [data-play-start]";
+  const fantasy = '[data-gallery-base="fantasy"], [data-gallery-lead="fantasy"]';
+  // Lineup League with 3b's two rules set, so How it plays has both to say (the bench fills; a new moment counts from the next episode).
+  // On the show's rulebook (as 3b's frames put it), since a game with rules of its own gains no moments.
+  const rules = async () => {
+    await require("../../db/rulebooks.js").syncLeagueRow(pool, L.lineup, { on: true });
+    await pool.query(`UPDATE leagues SET state = jsonb_set(jsonb_set(state, '{settings,benchFill}', '6'::jsonb), '{settings,newMoments}', '"next"'::jsonb) WHERE id = $1`, [L.lineup]);
+  };
+  const unrules = () => pool.query("UPDATE leagues SET state = state #- '{settings,benchFill}' #- '{settings,newMoments}' WHERE id = $1", [L.lineup]);
+  return [
+    { id: "r4-details-alex", home: "start", who: "alex", go: `/show/${S}/games`, ready: start, tap: [start, fantasy, '[data-gallery-row="details"]'], wait: '[data-gallery-choice="waivers"]', full: false, lens: "Start a game › Fantasy league › The details: the running game's names (Lineups hidden gone: the app hides lineups until the lock anyway)" },
+    // Waivers is on and open to start with (the first on is the one whose controls show): a tap turns it off.
+    { id: "r4-feel-alex", home: "start", who: "alex", go: `/show/${S}/games`, ready: start, tap: [start, fantasy, '[data-gallery-row="details"]'], wait: "[data-gallery-controls]", scroll: "[data-gallery-controls]", full: false, lens: "Start a game's Waivers: How it feels as Relaxed · Standard · Strict, as Manage this game says it" },
+    { id: "r4-waivers-again-alex", home: "start", who: "alex", go: `/show/${S}/games`, ready: start, tap: [start, fantasy, '[data-gallery-row="details"]', '[data-gallery-choice="waivers"]', '[data-gallery-choice="waivers"]'], wait: '[data-gallery-choice="waivers"]', full: false, lens: "Waivers turned off, then tapped again: it comes back on (it couldn't, and showed the schema's rule as its reason)" },
+    { id: "r4-late-alex", home: "game", who: "alex", go: lineup, ready: "[data-game-page]", tap: [gear, '[data-setting-line="pace"] > button'], wait: '[data-settings-choice="late-honour"]', scroll: '[data-setting-line="pace"]', full: false, lens: "Manage this game › How moves lock: the one Recommended tag on a choice" },
+    { id: "r4-join-alex", home: "game", who: "alex", go: lineup, ready: "[data-game-page]", tap: [gear, '[data-setting-line="joining"] > button'], wait: '[data-setting-line="joining"][data-setting-open="yes"]', scroll: '[data-setting-line="joining"]', full: false, lens: "Who can join, opened: the same tag" },
+    { id: "r4-feel-manage-alex", home: "game", who: "alex", go: lineup, ready: "[data-game-page]", tap: [gear, '[data-setting-line="waivers"] > button'], wait: '[data-feel="balanced"]', scroll: '[data-feel="casual"]', full: false, lens: "Replacing people who leave: the feels, Standard recommended" },
+    { id: "r4-chat-jordan", home: "you", who: "jordan", go: "/settings?page=notifications", ready: "[data-settings-notify]", wait: '[data-choice^="chat-"]', scroll: '[data-choice^="chat-"]', full: false, lens: "Your settings › Notifications › Couch chat: the same tag in Your settings" },
+    { id: "r4-rules-alex", home: "run", who: "alex", go: `/show/${S}/backstage/rules?game=${L.lineup}`, ready: "[data-rulebook]", full: false, lens: "This season's rules: Customize the rulebook (was Make it ours)" },
+    { id: "r4-customize-alex", home: "run", who: "alex", go: `/show/${S}/backstage/rules?game=${L.lineup}`, ready: "[data-rulebook]", tap: "[data-make-ours]", wait: "[data-ours-sheet]", full: false, lens: "Customize the rulebook?: what changes, and Not now" },
+    { id: "r4-leave-pool-solo", home: "show", who: "zt_so_alex", go: `/show/${so.seasonId}/games?page=pool`, ready: "[data-pool-page]", tap: ["[data-pool-join]", "[data-pool-leave]"], wait: '[role="dialog"]', full: false, lens: "Leave the pool: a hold, saying the picks, calls and streak go for good" },
+    { id: "r4-howplays-alex", home: "game", who: "alex", db: rules, undo: unrules, go: lineup, ready: "[data-game-page]", tap: ["[data-game-title] [data-game-menu-open]", '[data-game-menu] :text-is("How it plays")'], wait: '[role="dialog"]', lens: "How it plays on Lineup League: the bench fills an empty slot; a moment the show adds counts from the next episode (BACKLOG 243)" },
+    { id: "r4-remove-alex", home: "game", who: "alex", go: lineup, ready: "[data-game-page]", tap: [gear, '[data-person="sam"]', "[data-remove-from-game]"], wait: "text=/leaves/", full: false, lens: "a hold sheet's way out: Not now (the guard sheet's says it too now)" },
+    { id: "r4-people-alex", home: "game", who: "alex", go: lineup, ready: "[data-game-page]", tap: gear, wait: "[data-who-plays] [data-person]", scroll: "[data-who-plays]", full: false, lens: "Who's playing: each face's colour, and the You tag" },
+    { id: "r4-waivers-alex", home: "game", who: "alex", go: lineup, ready: "[data-game-page]", tap: [gear, "[data-job=waivers] [data-job-toggle]"], wait: "[data-waiver-week]", scroll: "[data-waiver-week]", full: false, lens: "the open waiver week: the same faces in the same colours as Who's playing" },
+  ];
+}
+
 /** The site admin for the desk's frames: a zt_nd_ person, so new-fixture's down removes them with the rest. */
 async function deskAdmin(pool) {
   const { hashPassword } = await import("better-auth/crypto");
@@ -417,6 +456,7 @@ async function main() {
       ...round2(pool, fx, so, S, T, L, menu, sheet),
       ...round3(pool, fx, S, L, menu),
       ...round3b(pool, fx, S, L, menu),
+      ...round4(pool, fx, so, S, L),
     ]);
     failed += r.failed;
     index.push(...r.shot);

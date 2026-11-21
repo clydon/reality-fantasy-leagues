@@ -50,7 +50,7 @@ function rowsFor(who, s, words = "after") {
   if (who === "alex") {
     // notifyCouchJoined, notifyJoinRequest (alex runs the games).
     out.push([who, "couchJoined", 5 * D, "casey joined ZT Survivor 51", "Say hi, and ask them what they're watching.", "/home"]);
-    out.push([who, "joinRequest", 40, "kat asked to join Lineup League", "Let them in or not, from Backstage.", `/show/${s}/backstage`]);
+    out.push([who, "joinRequest", 40, "kat asked to join Lineup League", "Let them in, or not, on Manage this game.", `/show/${s}/backstage`]);
   }
   return out;
 }

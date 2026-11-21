@@ -84,7 +84,7 @@ function Body({ c, episode, seasonName }: { c: ShowChange; episode: number; seas
       <>
         <b className="block text-[15px] leading-snug">It&apos;s in the rulebook now</b>
         <small className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">
-          {c.added?.summary ? `${plain(c.added.summary)}. ` : ""}From Episode {c.added?.from ?? episode}, for every couch on {seasonName}. A couch with its own rulebook is asked first, in Scoring rules.
+          {c.added?.summary ? `${plain(c.added.summary)}. ` : ""}From Episode {c.added?.from ?? episode}, for every couch on {seasonName}. A couch with its own rulebook is asked first, in This season&apos;s rules.
         </small>
       </>
     );

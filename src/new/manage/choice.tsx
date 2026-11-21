@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { Check } from "lucide-react";
+import { Recommended } from "../ui/recommended";
 
 const FOCUS = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
 
@@ -14,6 +15,7 @@ export function Choice({
   line,
   why,
   tag,
+  recommended,
   chosen,
   onPick,
   dataset,
@@ -24,6 +26,8 @@ export function Choice({
   line: string;
   why?: string | null;
   tag?: string | null;
+  /** The one Recommended tag (ui/recommended.tsx). */
+  recommended?: boolean;
   chosen: boolean;
   onPick?: () => void;
   dataset?: Record<string, string>;
@@ -43,6 +47,7 @@ export function Choice({
       <span className="flex items-start justify-between gap-2">
         <b className={`text-[16px] font-semibold leading-tight ${off ? "text-muted-foreground" : ""}`}>{title}</b>
         <span className="flex flex-none items-center gap-1.5 pt-0.5">
+          {recommended && <Recommended />}
           {tag && <span className="type-caption text-[12px] tracking-[0.05em] text-muted-foreground">{tag}</span>}
           {chosen && <Check className="size-5" strokeWidth={3} aria-hidden />}
         </span>

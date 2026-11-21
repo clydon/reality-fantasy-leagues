@@ -65,7 +65,7 @@ export async function backstageScope(user: SessionUser, seasonId: string, couchI
   if (!rows.length) throw new HttpError(404, "Season not found");
   const { here, runs } = await couchGames(user, seasonId, couchId);
   const games = here.filter((g) => runs.has(g.leagueId) && (opts.archived || !g.archived));
-  if (!games.length) throw new HttpError(403, "Backstage is for whoever runs a game here");
+  if (!games.length) throw new HttpError(403, "Only whoever runs a game here can open this");
   return { user, seasonId, couchId, games, resultsBy: rows[0].results_by };
 }
 

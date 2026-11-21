@@ -258,7 +258,7 @@ function PaceCards({ seasonId, couchId, g, can, why, word }: { seasonId: string;
         <div className="mt-2" data-settings="late">
           <p className="type-caption pb-1.5 text-[13px] tracking-[0.05em] text-muted-foreground">Late moves</p>
           <div className="flex flex-col gap-2">
-            <Choice data="late-honour" title="On the honour system" tag="Recommended" line={`Open after the ${ep} airs until you've watched it, or the next one airs.`} chosen={g.pace.mode === "live"} why={can ? null : why} onPick={() => void set("live")} />
+            <Choice data="late-honour" title="On the honour system" recommended line={`Open after the ${ep} airs until you've watched it, or the next one airs.`} chosen={g.pace.mode === "live"} why={can ? null : why} onPick={() => void set("live")} />
             <Choice data="late-none" title="None" line={`Everything locks when the ${ep} airs.`} chosen={g.pace.mode === "strict"} why={can ? null : why} onPick={() => void set("strict")} />
           </div>
         </div>
@@ -274,7 +274,7 @@ function GameSettingsBody({ seasonId, couchId, show, g, write, line, siblings }:
   const can = g.commissioner && !g.lockedDown && !g.span.over;
   const E = show.words.episode;
   // Why a line can't change: a Game admin's lines keep their own detail (the title card says why, once); a Commissioner's say why.
-  const why = g.lockedDown ? "Locked down for the season" : g.span.over ? "It's over" : null;
+  const why = g.lockedDown ? "Frozen for the season" : g.span.over ? "It's over" : null;
   const frozen: string | true | null = !g.commissioner ? true : why;
   const sp = g.span;
   const part = { singular: E.toLowerCase(), plural: show.words.episodes.toLowerCase() };

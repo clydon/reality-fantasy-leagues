@@ -743,7 +743,7 @@ function OpenWeek({ seasonId, show, week }: { seasonId: string; show: ShowData; 
 /** Picking order (exclusive games: in a shared one nobody can take anyone from you): one line of faces, you marked, its rule. */
 function Order({ week, due }: { week: WaiverWeek; due: string | null }) {
   if (week.shared || !week.order.length) return null;
-  const rule = week.orderBy === "leastPoints" ? "Lowest score picks first" : week.orderBy === "mostPoints" ? "Highest score picks first" : "Picking order rolls each week";
+  const rule = week.orderBy === "leastPoints" ? "Fewest points picks first" : week.orderBy === "mostPoints" ? "Most points picks first" : "Picking order rolls each week";
   return (
     <section data-wv-order className="mt-[22px] px-4">
       <SectionHead title="Picking order" flush />

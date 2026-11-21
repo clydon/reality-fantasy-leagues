@@ -4,7 +4,8 @@ import { isUuid } from "@/lib/server/auth-helpers";
 import { isBackstagePage } from "@/new/routes";
 import { BackstageScreen } from "@/new/screens/show-pages";
 
-export const metadata: Metadata = { title: "Backstage" };
+// Games you run (settings Round 3a retired Backstage; its address stays, so old links land here).
+export const metadata: Metadata = { title: "Games you run" };
 
 // Backstage, and each of its pages one level deeper.
 export default async function BackstageRoute({ params }: PageProps<"/show/[seasonId]/backstage/[[...page]]">) {

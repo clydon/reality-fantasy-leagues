@@ -6,7 +6,7 @@ and in flight is in [HANDOFF.md](HANDOFF.md).
 
 **How this file works**
 - **Numbers are permanent.** Code, tests and commits cite "BACKLOG 57", so a number never changes and is never reused. A new
-  item takes the next free number: **the next is 245.**
+  item takes the next free number: **the next is 247.**
 - **Closing an item:** delete it here and add one line under "Closed since the cleanup" at the end: the number, done or
   dropped, and the commit or the reason. Numbers closed in the cleanup itself are listed, with their full old text, in
   [archive/BACKLOG-2026-11-19.md](archive/BACKLOG-2026-11-19.md).
@@ -223,15 +223,15 @@ switch goes in the settings overhaul's Round 1 (its C4), or with this fix throug
 
 ### Small UI fixes (one Impeccable polish pass)
 
+**246. Two people on one couch can share a face colour.** In Manage this game's Who's playing on the zt_nd couch, alex and riley
+are both green (src/lib/people.ts picks a colour by account id, from six). Faces stay told apart by picture and name, but a row of
+plain initials reads as one person. Found in Settings Round 4's ripple check; for a colour pass (keep the hues, deal them per couch
+so nobody on a couch shares one). [S–M · UI]
+
 **238. Say "filled for you" where the bench filled a slot.** Settings Round 3b's 165 fills an empty starting slot from the bench
 (`ActiveRosterLogic.filledFor` names who), but neither the reveal nor the person's lineup says so yet: the spec's "the reveal and
 the person's lineup say 'filled for you'". A line in the reveal's lineup beat and a tag on the lineup sheet's face, through
 Impeccable. Found in 3b's check; the next session on the reveal or the lineup sheet takes it. [S · UI]
-
-**243. How it plays says neither of Settings Round 3b's two rules.** A game's How it plays (describe.js, game-words) doesn't say
-when a moment the show adds mid-season counts (settings.newMoments, and a moment's own "counts from Ep N") or that an empty slot
-fills from the bench (settings.benchFill). Players read the rules there (docs/UI-REVIEW-MAP.md, "How it plays (words)"). One line
-each, in the show's words. The next words pass (Round 4's sweep) takes it. [S · words]
 
 **228. A sport's lineup sheet puts the best guard in "G", not "PG".** The sheet's tidying (SlotLogic.assignment) puts an earlier
 starter in the narrower slot, judged by how many values a slot lists: the NBA's G slot takes one ("guards", a position group) and
@@ -337,7 +337,8 @@ everyone starts with the points of those already out. Done when each DN entry is
 
 ## Next: worth doing, about a session each
 
-- **238. A sports squares game passes the engine lab's check on a show.** Found by story-tonight-patterns.js (2026-11-21): a
+- **245. A sports squares game passes the engine lab's check on a show.** (Numbered 238 until 2026-11-21, a number another item
+  also had.) Found by story-tonight-patterns.js (2026-11-21): a
   board (squares) spec passes `specProblems` on ZT Survivor 51, but it settles on a game's two final scores, which a show's
   episode doesn't have, so it could never pay out. Categories and slates are refused there; squares likely should be too. For the
   engine session (Noticed, not fixed: branch tonight-night).
@@ -832,6 +833,8 @@ longer depends on the wiki.)
 ## Closed since the cleanup
 
 One line each: the number, done or dropped, and the commit or the reason.
+- **243** done (Settings Round 4, branch settings-r4, 2026-11-21): How it plays says when a moment the show adds mid-season counts
+  (the game's choice, else the show's default) and that an empty slot fills from the bench; tests/settings-r4-words.test.js.
 - **157, 164, 165, 166, 230** done (Settings Round 3b, branch settings-r3b, 2026-11-21; the user took every recommendation on its story):
   the lock's three states; a Fantasy league starts with replacements on; an empty slot fills from the bench (new games; a switch
   on older ones); a runner sets a move someone forgot; a new moment mid-season counts by the game's rule or its players' vote.

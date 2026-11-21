@@ -131,7 +131,7 @@ are 155 (preview), 156 (writer), 52, 158–159 and 94.
   Migrations are rehearsed on a Neon branch first (the deploy rehearsal routine).
 - **Open production items:** the look-ups in BACKLOG 124 (bingo squares on Survivor 51's schedule, the bot VM's queue, Vercel
   storage, Neon's numbers, Below Deck 13's cast, The Traitors 5's groups); the Neon password (183); the image server's key
-  (107); the listings backstop (184). Google sign-in and the tie-break run stay off (185).
+  (107); the listings backstop (184). Google sign-in stays off (185); the desk's tie-break run has been on since 2026-11-20.
 - **Who uses it:** one couch. The user (Conor) is the site admin. Their friends play Survivor 51's three real games, and
   production's other leagues don't matter (the memory "Only three real leagues"). Judge the UX by the archetypes in
   docs/ARCHETYPES.md: Joanna forgets, Andrew drives by, Conor tinkers. Most use is on phones, so design and check at 390 first.

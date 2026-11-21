@@ -58,7 +58,7 @@ export function NewMoments({ seasonId, couchId, g, ep }: { seasonId: string; cou
           data={`moments-${k}`}
           title={RULES[k].title}
           line={RULES[k].line(ep)}
-          tag={k === m.rec ? "Recommended" : null}
+          recommended={k === m.rec}
           chosen={m.rule === k}
           why={can ? null : g.commissioner ? (g.lockedDown ? "Frozen for the season" : "It's over") : "The Commissioner's to change"}
           onPick={() => void set(k)}

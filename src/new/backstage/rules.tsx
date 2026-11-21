@@ -14,8 +14,8 @@ import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { Stepper } from "./waivers";
 
-// Backstage › Scoring rules (the mock's backstage.js bsRules with rulebook.js's rbBsHead, docs/PLAN-new-design.md steps 6a
-// and 6b part 3): which rulebook these games follow, or the couch's own copy (Make it ours: choose what counts, add moments
+// This season's rules (Backstage › Scoring rules until settings Round 3a; the mock's backstage.js bsRules with rulebook.js's rbBsHead, docs/PLAN-new-design.md steps 6a
+// and 6b part 3): which rulebook these games follow, or the couch's own copy (Customize the rulebook, Make it ours until settings Round 4: choose what counts, add moments
 // the couch answers, the show's changes asked first, Follow it again), How it works, and each game's points as it counts
 // them, which a Commissioner can change (the season is scored again). Anything that can move standings is previewed
 // first; every change has its Undo on the toast and in Recent changes.
@@ -31,14 +31,14 @@ export function RulesPage({ seasonId, show }: { seasonId: string; show: ShowData
   const [sheet, setSheet] = useState<"ours" | "follow" | "counts" | "add" | "scores" | "scoresPaste" | null>(null);
   // What scores on the couch's copy (stage two): research's answer, as far as you've seen; polls while our bot asks.
   const scores = useOurScores(seasonId, couchId, !!data.data?.ours.copy && data.data.ours.canChange && !frozenOf(data.data));
-  if (data.error) return <EmptyState icon={Trophy} title="Scoring rules aren't yours to see here" line={(data.error as Error).message} />;
+  if (data.error) return <EmptyState icon={Trophy} title="This season's rules aren't yours to see here" line={(data.error as Error).message} />;
   if (!data.data || !couchId) return <div aria-busy className="mx-4 mt-6 h-64 animate-pulse rounded-[4px] bg-card" />;
   const { rulebook, games, frozen } = data.data;
-  // Locked down (step 15 part 4: Game settings' Lock it down): the rules are frozen for the season, so nothing here changes.
+  // Frozen (Manage this game's Freeze rules and joining): the rules stay as they are for the season, so nothing here changes.
   const ours = frozen ? { ...data.data.ours, canChange: false } : data.data.ours;
   const copy = ours.copy;
   const may = (open: () => void) => () =>
-    frozen ? toast.quiet("Locked down for the season: the rules are frozen") : data.data.ours.canChange ? open() : toast.quiet("Only a Commissioner changes the rules");
+    frozen ? toast.quiet("Frozen for the season: the rules don't change") : data.data.ours.canChange ? open() : toast.quiet("Only a Commissioner changes the rules");
 
   /** A change made: its toast, with Undo through Recent changes. */
   const done = async (batch: string | null | undefined, said: string) => {
@@ -61,7 +61,7 @@ export function RulesPage({ seasonId, show }: { seasonId: string; show: ShowData
     <div className="pb-12">
       {frozen && (
         <div className="mx-4 mt-6" data-rules-frozen>
-          <CaptionPlate tag="Locked" tone="quiet" wrap title="Frozen for the season" subtitle="Lock it down is on in Game settings: nothing here changes until it's off." />
+          <CaptionPlate tag="Locked" tone="quiet" wrap title="Frozen for the season" subtitle="Freeze rules and joining is on, on Manage this game: nothing here changes until it's off." />
         </div>
       )}
       <section className="mt-6 px-4">
@@ -89,7 +89,7 @@ export function RulesPage({ seasonId, show }: { seasonId: string; show: ShowData
             </Btn>
           ) : (
             <Btn data-make-ours onClick={may(() => setSheet("ours"))}>
-              Make it ours
+              Customize
             </Btn>
           )}
         </div>
@@ -197,7 +197,7 @@ const frozenOf = (d: { frozen: boolean }) => d.frozen;
 function OursSheet({ seasonId, couchId, name, onClose, done }: { seasonId: string; couchId: string; name: string; onClose: () => void; done: Done }) {
   const [busy, setBusy] = useState(false);
   return (
-    <Sheet open onOpenChange={(o) => !o && onClose()} title="Make it ours?" subtitle={`${name}'s rulebook, copied for this couch`}>
+    <Sheet open onOpenChange={(o) => !o && onClose()} title="Customize the rulebook?" subtitle={`${name}'s rulebook, copied for this couch`}>
       <ul data-ours-sheet className="flex flex-col gap-3">
         {(
           [
@@ -227,14 +227,18 @@ function OursSheet({ seasonId, couchId, name, onClose, done }: { seasonId: strin
           try {
             const r = await ourRules.make(seasonId, couchId);
             onClose();
-            await done(r.batch, "It's yours now · undo from Recent changes");
+            await done(r.batch, "The rulebook is your couch's now · undo from Recent changes");
           } catch (e) {
             toast.quiet((e as Error).message);
             setBusy(false);
           }
         }}
       >
-        Make it ours
+        Customize the rulebook
+      </Btn>
+      {/* Every confirm's way out (settings Round 4, the guards' one pattern). */}
+      <Btn wide className="mt-2" onClick={onClose}>
+        Not now
       </Btn>
     </Sheet>
   );

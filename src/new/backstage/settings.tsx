@@ -10,6 +10,7 @@ import { spanName } from "@/lib/game/spans";
 import { gameColour } from "../games";
 import type { ShowData } from "../screens/show-space";
 import { HoldSheet } from "../ui/guards";
+import { Recommended } from "../ui/recommended";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { Stepper } from "./waivers";
@@ -224,7 +225,7 @@ export function JoinControl({ g, can, write, compact }: { g: GameSettings; can: 
         <button
           type="button"
           data-reset="joining"
-          onClick={() => write(g, { reset: "joining" }, `Back to recommended: ${g.joining.rec === "open" ? "anyone on the couch can join" : "ask me first"}`)}
+          onClick={() => write(g, { reset: "joining" }, `Back to recommended: ${g.joining.rec === "open" ? "anyone on the couch can join" : "they ask first"}`)}
           className="text-[14px] font-bold"
         >
           Reset to recommended
@@ -248,7 +249,7 @@ export function JoinControl({ g, can, write, compact }: { g: GameSettings; can: 
       <>
     <small className="mb-2 block text-[13px] text-muted-foreground">
       {g.lockedDown
-        ? "Locked down for the season: nobody new joins or catches up."
+        ? "Frozen for the season: nobody new joins or catches up."
         : g.gameType === "pickem" || g.questions
           ? "There are no teams, so new players can jump in."
           : g.joining.rec === "open"
@@ -279,7 +280,7 @@ export function JoinControl({ g, can, write, compact }: { g: GameSettings; can: 
         <span>
           <b className="block text-[15px]">
             {t}
-            {mode === g.joining.rec && <em className="type-caption ml-2 rounded-[2px] bg-secondary px-1.5 text-[11px] not-italic">Recommended</em>}
+            {mode === g.joining.rec && <Recommended className="ml-2" />}
           </b>
           <small className="text-[13px] text-muted-foreground">{d}</small>
         </span>

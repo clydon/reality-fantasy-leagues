@@ -1,15 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Bot, Check, CircleQuestionMark, Shield, Users, X } from "lucide-react";
+import { Bot, Check, CircleQuestionMark, Shield, Users } from "lucide-react";
 import { airTime } from "../clock";
 import { moves, solo, useAfterSolo, usePool, type GameView, type PoolInfo } from "../data";
 import { ordinal } from "../games";
 import type { ShowData } from "../screens/show-space";
 import { Avatar } from "../ui/bars";
 import { PushedPage, usePushedPage } from "../ui/page";
+import { HoldSheet } from "../ui/guards";
 import { Btn } from "../ui/parts";
-import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { faceIn, first } from "./moves";
 import { Block, Face } from "./parts";
@@ -347,29 +347,24 @@ function Tiles(props: { g: GameView; ids: string[]; chosen: string | null; busy:
   );
 }
 
+/** Leave the pool: your seat goes for good (solo.ts leavePool), so it's the hold (settings rule 6, hard to undo), with nothing to
+ *  restore. Settings Round 4: it was a plain button whose "go with you" could read as keeping them. */
 function LeaveSheet({ open, onOpenChange, label, seasonId }: { open: boolean; onOpenChange: (o: boolean) => void; label: string; seasonId: string }) {
   const after = useAfterSolo();
-  const [busy, setBusy] = useState(false);
-  async function leave() {
-    setBusy(true);
-    try {
-      await solo.leave(seasonId);
-      onOpenChange(false);
-      await after();
-      toast(`You left the ${label} pool`);
-    } catch (e) {
-      toast.quiet(e instanceof Error ? e.message : "Couldn't leave");
-    } finally {
-      setBusy(false);
-    }
-  }
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Leave the pool?" subtitle={`${label} · Everyone`}>
-      <p className="mt-2 text-[15px] leading-snug">Your picks, calls and streak go with you. You can join again, from the next episode.</p>
-      <Btn wide className="mt-4" disabled={busy} onClick={leave} data-pool-leave-confirm>
-        <X className="size-4" aria-hidden />
-        Leave the pool
-      </Btn>
-    </Sheet>
+    <HoldSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Leave the pool?"
+      subtitle={`${label} · Everyone`}
+      consequence="Your picks, calls and streak are deleted for good. You can join again from the next episode, starting over."
+      cta="leave the pool"
+      restore={null}
+      onConfirm={async () => {
+        await solo.leave(seasonId);
+        await after();
+        toast(`You left the ${label} pool`);
+      }}
+    />
   );
 }

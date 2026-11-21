@@ -6,6 +6,7 @@ import { backstage, useAfterResults, type Backstage, type Correction, type Previ
 import { Block } from "../show/parts";
 import { GuardSheet } from "../ui/guards";
 import { Btn, Row } from "../ui/parts";
+import { Recommended } from "../ui/recommended";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 
@@ -73,7 +74,7 @@ export function FillState({ seasonId, couchId, data }: { seasonId: string; couch
       <Sheet open={choosing} onOpenChange={setChoosing} title="Who can fill in results?" subtitle={`One paste covers every game here${runners > 1 ? ` (${runners})` : ""}`}>
         <div className="flex flex-col gap-2">
           {[
-            [true, "Anyone on the couch", "Whoever's up first pastes the AI's answer. Recommended"],
+            [true, "Anyone on the couch", "Whoever's up first pastes the AI's answer."],
             [false, "Only people who run games", "The quick check, the full scores and anything that waits stay yours"],
           ].map(([v, t, d]) => (
             <button
@@ -84,7 +85,10 @@ export function FillState({ seasonId, couchId, data }: { seasonId: string; couch
               onClick={() => set(v as boolean)}
               className={`nd-press rounded-[3px] p-3.5 text-left ${data.fill.anyone === v ? "outline-2 -outline-offset-2 outline-foreground" : "bg-background"}`}
             >
-              <b className="block text-[16px]">{t}</b>
+              <b className="block text-[16px]">
+                {t}
+                {v === true && <Recommended className="ml-2" />}
+              </b>
               <small className="text-[13px] text-muted-foreground">{d}</small>
             </button>
           ))}

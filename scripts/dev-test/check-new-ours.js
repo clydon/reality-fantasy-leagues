@@ -149,7 +149,7 @@ const REAL_LEAGUES = "SELECT slug, md5(state::text) AS h FROM leagues WHERE slug
     await a.page.locator("[data-ours-sheet]").waitFor();
     await shot(a.page, "make-it-ours");
     await a.page.locator("[data-ours-confirm]").click();
-    check(/It's yours now/.test(await toasted(a.page, /It's yours now/)), "Make it ours: It's yours now");
+    check(/your couch's now/.test(await toasted(a.page, /your couch's now/)), "Customize the rulebook: the rulebook is your couch's now");
     await a.page.locator("[data-rulebook][data-ours='yes']").waitFor({ timeout: 20000 });
     const copy = (await pool.query("SELECT id, owner_kind, status, provenance, compiled_source FROM rulebooks WHERE provenance->>'ours' = 'true' AND provenance->>'couchId' = $1", [fx.couchId])).rows;
     check(copy.length === 1 && copy[0].owner_kind === "league" && copy[0].status === "in_force" && copy[0].compiled_source === "blocks", "one copy for the couch, compiled from its blocks", JSON.stringify(copy));

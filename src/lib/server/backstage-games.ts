@@ -120,7 +120,7 @@ function feelLines(state: LeagueState, feel: WaiverFeel): string[] | null {
         : w.schedule === "everyEpisode"
           ? `${w.swaps} optional swap${w.swaps === 1 ? "" : "s"} every episode.`
           : `${w.swaps} optional swap${w.swaps === 1 ? "" : "s"} every ${w.every} episodes.`;
-  return [out, swaps, "Lowest score picks first.", s.autoFill ? "Forget to pick? You get the most points left." : "Forget to pick? The spot stays empty."];
+  return [out, swaps, "Fewest points picks first.", s.autoFill ? "Forget to pick? You get the most points left." : "Forget to pick? The spot stays empty."];
 }
 
 export interface WaiverAdminGame {
@@ -821,7 +821,7 @@ function spanState(s: LeagueState, schedule: SeasonSchedule | undefined, phases:
 }
 
 /** A game locked down (step 15 part 4): its rules don't change for the season. */
-export const FROZEN = "Locked down for the season: the rules are frozen. Turn off Lock it down in Game settings first.";
+export const FROZEN = "Frozen for the season: the rules don't change. Turn off Freeze rules and joining on Manage this game first.";
 
 // What Game settings may change, and the limits (the bench and Outlast's team are set at the draft; a game's end only before
 // it's reached, its start only before it airs: an episode, or a phase of the season, step A3).

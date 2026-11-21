@@ -51,7 +51,7 @@ export async function ourScores(scope: BackstageScope, origin: string | null = n
 /** The question, for Ask an AI's chat links and its copy. */
 export async function ourScoresPrompt(scope: BackstageScope): Promise<{ prompt: string; task: string }> {
   const { copy } = await copyFor(scope);
-  if (!copy) throw new HttpError(409, "Make it ours first");
+  if (!copy) throw new HttpError(409, "Customize the rulebook first");
   const q = await rulebookPrompt(copy.id, "scores");
   return { prompt: q.prompt, task: q.task };
 }
@@ -64,7 +64,7 @@ function mustChange(canChange: boolean) {
 export async function askOurScores(scope: BackstageScope, o: { bot?: string; origin: string }): Promise<{ text: string; waits: string | null }> {
   const { copy, canChange } = await copyFor(scope);
   mustChange(canChange);
-  if (!copy) throw new HttpError(409, "Make it ours first");
+  if (!copy) throw new HttpError(409, "Customize the rulebook first");
   if (!(await canUseAskBot(scope.user))) throw new HttpError(403, "Our bot isn't yours to ask here. Ask an AI yourself and paste its answer.");
   return queueRulebook(scope.user, copy.id, "scores", null, o);
 }
@@ -73,7 +73,7 @@ export async function askOurScores(scope: BackstageScope, o: { bot?: string; ori
 export async function pasteOurScores(scope: BackstageScope, raw: unknown): Promise<OurScores> {
   const { copy, canChange } = await copyFor(scope);
   mustChange(canChange);
-  if (!copy) throw new HttpError(409, "Make it ours first");
+  if (!copy) throw new HttpError(409, "Customize the rulebook first");
   await stagePaste(scope.user, copy.id, "scores", raw);
   return ourScores(scope);
 }
@@ -92,7 +92,7 @@ export async function settleOurScores(
 ): Promise<{ lines: PreviewLine[] } | { batch: string | null; saved: number; declined: number }> {
   const { copy, canChange } = await copyFor(scope);
   mustChange(canChange);
-  if (!copy) throw new HttpError(409, "Make it ours first");
+  if (!copy) throw new HttpError(409, "Customize the rulebook first");
   const a = (await researchFor(copy.id, scope.user)).scores.answer;
   if (!a || a.id !== String(body.answer)) throw new HttpError(404, "That answer isn't waiting");
   if (!a.blocks) throw new HttpError(400, a.problems[0] ?? "That answer can't be used");
@@ -185,7 +185,7 @@ export async function settleOurScores(
 export async function putAwayOurScores(scope: BackstageScope, answer: unknown): Promise<OurScores> {
   const { copy, canChange } = await copyFor(scope);
   mustChange(canChange);
-  if (!copy) throw new HttpError(409, "Make it ours first");
+  if (!copy) throw new HttpError(409, "Customize the rulebook first");
   const a = (await researchFor(copy.id, scope.user)).scores.answer;
   if (!a || a.id !== String(answer)) throw new HttpError(404, "That answer isn't waiting");
   const ids = [...(a.rows ?? []).filter((r) => r.changed).map((r) => r.id), ...(a.added ?? []).map((m) => m.id)];

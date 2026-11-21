@@ -593,13 +593,13 @@ test("describeSpec: the sentence for each game, and the details nobody asked abo
 
   const details = (spec) => Object.fromEntries(G.describeSpec(spec, ctx).details.map((d) => [d.id, [d.value, d.recommended]]));
   assert.deepEqual(details(G.PRESETS["weekly-lineup"]), {
-    draft: ["In private, revealed at once · No pick timer · no time set", true],
+    draft: ["In private, revealed at once · No clock on a pick · no time set", true],
     join: ["Anyone on the couch", true],
     waivers: ["No replacements · no windows unless you open one", true],
     bets: ["On, 1 point each", true],
     finale: ["Off", true],
-    hideStarters: ["Shown as they're set", true],
-    lockedDown: ["No", true],
+    // Settings Round 4: no Starters detail (the app hides others' lineups until the lock whatever it says); the freeze in Manage's words.
+    lockedDown: ["Off", true],
     seats: ["One each", true],
   });
   const tuned = clone(G.PRESETS.outlast);
@@ -607,16 +607,16 @@ test("describeSpec: the sentence for each game, and the details nobody asked abo
   const d = details(tuned);
   assert.deepEqual(d.join, ["Nobody new", false]);
   assert.deepEqual(d.bets, ["Off", false]);
-  assert.deepEqual(d.draft, ["Snake: everyone takes turns · 2 minutes a pick, then from their queue · no time set", false]);
-  assert.deepEqual(d.waivers, ["Replace right away · a window every 3 episodes, one swap", false]);
+  assert.deepEqual(d.draft, ["Snake: everyone takes turns · A clock on each pick: 2 min; someone away: use their list · no time set", false]);
+  assert.deepEqual(d.waivers, ["Whenever one goes home · a window every 3 episodes, one swap", false]);
   // The same values in another order are still what we'd recommend.
   const reordered = clone(G.PRESETS.outlast);
   reordered.extras.draft = { away: "wait", timer: 0, at: null };
   assert.deepEqual(details(reordered).draft[1], true);
-  // Locked down closes joining, whatever Who can join says.
+  // Frozen (Freeze rules and joining) closes joining, whatever Who can join says.
   const locked = clone(G.PRESETS["weekly-lineup"]);
   locked.extras.lockedDown = true;
-  assert.deepEqual(details(locked).join, ["Nobody new while it's locked down", true]);
+  assert.deepEqual(details(locked).join, ["Nobody new while it's frozen", true]);
   // A game with no preset starts with no side bets: they're graded by whoever runs it, not by data.
   assert.equal(G.fullSpec(EXAMPLES[1].spec).extras.bets, null);
   // The preset's name only while it plays the preset's game.

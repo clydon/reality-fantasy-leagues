@@ -180,7 +180,7 @@ export function waiverHow(view: LeagueState, phases?: { id: string; name: string
     out: answers.out,
     swap: answers.swap,
     // Simple waivers' words for the standings orders; rolling keeps classic's.
-    order: shared ? answers.order : by === "leastPoints" ? "Lowest score picks first." : by === "mostPoints" ? "Highest score picks first." : answers.order,
+    order: shared ? answers.order : by === "leastPoints" ? "Fewest points picks first." : by === "mostPoints" ? "Most points picks first." : answers.order,
     lanes: lanesOf(view, Math.max(0, StateLogic.SpoilerLogic.latestWithResults(view))),
     starts: ahead ? `Waivers start when ${names?.[ahead] ?? phaseWord(ahead)} starts` : null,
   };

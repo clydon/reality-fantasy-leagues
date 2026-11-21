@@ -13,6 +13,7 @@ import { paths } from "../routes";
 import { isTabOf, useShow, type ShowData } from "../screens/show-space";
 import { Avatar, useNow } from "../ui/bars";
 import { Btn, BtnLink, EmptyState } from "../ui/parts";
+import { Recommended } from "../ui/recommended";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { first } from "./moves";
@@ -1436,14 +1437,14 @@ function DraftSettings({ seasonId, show, game, open, onOpenChange }: { seasonId:
                 </button>
               ))}
             </div>
-            <small className="mt-1.5 block text-[13px] text-muted-foreground">Off by default. A timer suits a competitive draft; a casual one goes at its own pace.</small>
+            <small className="mt-1.5 block text-[13px] text-muted-foreground">Off by default. A clock keeps a draft moving; without one, everyone takes the time they need.</small>
             {game.timer > 0 && (
               <>
                 {label("Someone away")}
                 {(
                   [
-                    ["wait", "Wait for them", "Nobody gets picked for automatically (recommended)"],
-                    ["queue", "Pick from their queue", "The first castaway they starred who's still free"],
+                    ["wait", "Wait for them", "Nobody gets picked for automatically"],
+                    ["queue", "Use their list", "The first castaway they starred who's still free"],
                   ] as const
                 ).map(([k, t, d]) => (
                   <button
@@ -1455,7 +1456,10 @@ function DraftSettings({ seasonId, show, game, open, onOpenChange }: { seasonId:
                     className={`mb-2 flex w-full items-center gap-3 rounded-[3px] p-3 text-left ${game.away === k ? "bg-foreground text-background" : "bg-secondary"}`}
                   >
                     <span className="min-w-0 flex-1">
-                      <b className="block text-[15px]">{t}</b>
+                      <b className="block text-[15px]">
+                        {t}
+                        {k === "wait" && <Recommended className="ml-2" onFill={game.away === k} />}
+                      </b>
                       <small className={`block text-[13px] ${game.away === k ? "opacity-75" : "text-muted-foreground"}`}>{d}</small>
                     </span>
                     {game.away === k && <Check className="size-5 flex-none" aria-hidden />}

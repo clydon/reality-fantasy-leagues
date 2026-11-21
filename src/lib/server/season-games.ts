@@ -16,6 +16,7 @@ import { paceMarks, type MarkMemo } from "./own-pace-seats";
 import type { ReadOnly } from "./read-only";
 import { games, type Game } from "./show-space";
 import { kindOf } from "@/lib/game/spans";
+import { defaultNewMoments } from "@db/rulebooks.js";
 
 // Your games on a season, for the new design's show space (docs/PLAN-new-design.md step 1; GET
 // /api/seasons/[id]/games): each one's moves, table, rules and cast as you may see them (game-view.ts), from your
@@ -482,6 +483,17 @@ export async function couchOthers(user: SessionUser, seasonId: string, couchId: 
   return { games: out };
 }
 
+/** A season's default for a moment its show adds mid-season (db/rulebooks.js defaultNewMoments: its format, its seasons here), read
+ *  once a season for ten minutes: every game's view on a busy season asks it. */
+const NEW_MOMENTS = new Map<string, { at: number; rule: Promise<"start" | "next"> }>();
+function showNewMoments(seasonId: string): Promise<"start" | "next"> {
+  const had = NEW_MOMENTS.get(seasonId);
+  if (had && Date.now() - had.at < 600_000) return had.rule;
+  const rule = (defaultNewMoments(pool, seasonId) as Promise<"start" | "next">).catch(() => "next" as const);
+  NEW_MOMENTS.set(seasonId, { at: Date.now(), rule });
+  return rule;
+}
+
 /** One of your games as you may see it, with the calls or bingo cards it reads (step 12: a pool's Who goes home?, Weekly Calls,
  *  Weekly Bingo), or a game of questions' answers (step A4). */
 export async function viewWithCalls(user: SessionUser, seasonId: string, h: GameHere, memo?: MarkMemo): Promise<GameView> {
@@ -500,7 +512,9 @@ export async function viewWithCalls(user: SessionUser, seasonId: string, h: Game
   // Anyone playing it at their own pace (docs/PLAN-own-pace-games.md): their marks, for whoever the couch is waiting on; a game over
   // for you too (someone else's late move can still change it: lateWaiting). Each account's read once across a read (memo, E2).
   const marks = await paceMarks(h.game.leagueId, h.state, undefined, memo).catch(() => new Map<string, number>());
-  const view = gameView(h.ref, h.state, h.readOnly ? null : h.playerId, h.mark, h.userOf, calls ?? undefined, { marks });
+  // How it plays says when a moment the show adds counts (BACKLOG 243): the game's choice, else the show's default.
+  const ref = h.state.settings.rulebook && !h.state.settings.newMoments ? { ...h.ref, newMoments: await showNewMoments(seasonId) } : h.ref;
+  const view = gameView(ref, h.state, h.readOnly ? null : h.playerId, h.mark, h.userOf, calls ?? undefined, { marks });
   // A game at your own pace: where the others are, for its plate and its reveal button, and the season's last episode
   // (docs/PLAN-own-pace-games.md).
   if (!h.readOnly && StateLogic.GhostLogic.ownPace(h.state)) {

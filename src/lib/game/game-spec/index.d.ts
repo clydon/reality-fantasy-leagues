@@ -662,6 +662,8 @@ export interface DraftAcross {
 export interface SpecContext {
   /** "Survivor 51", "the Red Sox–Yankees series". */
   show?: string;
+  /** Settings Round 4 (BACKLOG 243): a running game's rules kept in its settings, for How it plays (game-rules.ts runningOf). */
+  running?: { benchFill?: number; newMoments?: "start" | "next" | "vote" };
   /** What the show calls one of its people, lower case ("castaway"), and many ("castaways"). */
   castaway?: string;
   castaways?: string;

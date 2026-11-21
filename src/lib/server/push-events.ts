@@ -453,13 +453,16 @@ export function notifyLateJoinerStarted(leagueId: string, name: string, startEpi
         title: "A late joiner started",
         body: `${name} is playing ${ls.leagueName} from episode ${startEpisode}, out of sight until you add them.`,
         url: link("/setup/players", leagueId),
-        next: ls.seasonId ? `/show/${ls.seasonId}/backstage/members` : "/home",
+        next: ls.seasonId ? manageNext(ls.seasonId, leagueId) : "/home",
         tag: `joined-${leagueId}`,
         seasonId: ls.seasonId,
       },
     };
   });
 }
+
+/** A game's Manage this game (src/new/manage/jobs.tsx manageHref, which a server module can't import): over Games you run. */
+const manageNext = (seasonId: string, leagueId: string) => `/show/${seasonId}/backstage?page=game-settings&game=${leagueId}&from=games`;
 
 /** Invited to a league: reaches the invitee only if the identifier matches an existing account. */
 // One push however many leagues it's for: inviting someone to every linked league sends a single "invited you to A, B and C",
@@ -486,8 +489,8 @@ export function notifyInvite(leagueIds: string | string[], identifier: string, i
 }
 
 /**
- * Someone on the couch asked to join a game whose Who can join is "Ask me first" (step 9): whoever runs it hears, with a link to
- * the show's Backstage, where the request waits in Needs you (classic: the game's players).
+ * Someone on the couch asked to join a game whose Who can join is "They ask first" (step 9): whoever runs it hears, with a link to
+ * that game's Manage this game, where the request waits among its jobs (classic: the game's players).
  */
 export function notifyJoinRequest(leagueId: string, seasonId: string | null, name: string, gameName: string) {
   notifyAfter("memberJoined", async () => {
@@ -498,9 +501,9 @@ export function notifyJoinRequest(leagueId: string, seasonId: string | null, nam
       seasonId,
       message: {
         title: `${name} asked to join ${gameName}`,
-        body: "Let them in or not, from Backstage.",
+        body: "Let them in, or not, on Manage this game.",
         url: link("/setup/players", leagueId),
-        next: seasonId ? `/show/${seasonId}/backstage` : "/home",
+        next: seasonId ? manageNext(seasonId, leagueId) : "/home",
         tag: `join-request-${leagueId}`,
         seasonId,
       },
@@ -526,7 +529,7 @@ export function notifyLetIn(leagueId: string, seasonId: string | null, userId: s
 
 /**
  * The desk handed someone games nobody else would run (docs/PLAN-desk-parity.md step 1, Hand on): they hear they're the
- * Commissioner now, with a link to the first game's Backstage. One notice for all of them, under Invites and join requests.
+ * Commissioner now, with a link to Games you run on its show. One notice for all of them, under Invites and join requests.
  */
 export function notifyHandedOn(o: { userId: string; leagueIds: string[]; games: string; key: string }) {
   if (!o.leagueIds.length) return;
@@ -538,7 +541,8 @@ export function notifyHandedOn(o: { userId: string; leagueIds: string[]; games: 
       seasonId: ls.seasonId,
       message: {
         title: `You run ${o.games} now`,
-        body: `You're ${many ? "their" : "its"} Commissioner: results, waivers, rules and roles are yours.`,
+        // Results settle by themselves (docs/PLAN-results-settle.md), so they aren't the runner's to list.
+        body: `You're ${many ? "their" : "its"} Commissioner: ${many ? "their" : "its"} rules, waivers and who plays are yours.`,
         url: link("/", o.leagueIds[0]),
         next: ls.seasonId ? `/show/${ls.seasonId}/backstage` : "/home",
         tag: `handed-${o.key}`,

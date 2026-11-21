@@ -59,7 +59,7 @@ async function scope(user: SessionUser, seasonId: string, couchId: string | null
 
 export async function membersFor(user: SessionUser, seasonId: string, couchId: string | null): Promise<Members> {
   const { here, runs, admin } = await scope(user, seasonId, couchId);
-  if (!runs.size) throw new HttpError(403, "Backstage is for whoever runs a game here");
+  if (!runs.size) throw new HttpError(403, "Only whoever runs a game here can open this");
   const ids = here.map((g) => g.leagueId);
   const [{ rows }, states] = await Promise.all([
     pool.query(

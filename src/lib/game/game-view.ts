@@ -283,6 +283,9 @@ export interface GameRefIn {
   stageOf?: string | null;
   /** Who runs it: its Commissioners' seats (show-space.ts games), for "Waiting for Riley to start the draft". */
   runnerIds?: string[];
+  /** When a moment the show adds mid-season counts, if the game hasn't chosen: the show's default (season-games.ts reads it), for
+   *  How it plays (BACKLOG 243). */
+  newMoments?: "start" | "next";
 }
 
 /** A public pool's table: the top ten, you and whoever's either side of you (it can hold hundreds). */
@@ -490,7 +493,7 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
     table,
     you: table.find((r) => r.you) ?? null,
     players: everyone.length,
-    rules: gameRules(view),
+    rules: gameRules(view, undefined, game.newMoments),
     page: compileGame(StateLogic.gameOf(view) as unknown as Record<string, unknown>),
     ...gameWords(view),
     weeksWon: StateLogic.gameOf(view).rank.by === "weeks" ? Object.fromEntries(StateLogic.computeScores(view).map((r) => [r.playerId, r.weeks?.won ?? 0])) : null,

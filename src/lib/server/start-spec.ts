@@ -365,8 +365,8 @@ export async function undoStart(user: SessionUser, seasonId: string, leagueId: u
   );
   const r = rows[0];
   if (!r) throw new HttpError(404, "That game isn't yours to take back");
-  if (now.getTime() - new Date(r.created_at).getTime() > UNDO_MS) throw new HttpError(409, "Too late to undo: delete it from Backstage instead");
-  if (r.others > 0) throw new HttpError(409, "Someone's joined it already: delete it from Backstage instead");
+  if (now.getTime() - new Date(r.created_at).getTime() > UNDO_MS) throw new HttpError(409, "Too late to undo: delete it on Manage this game instead");
+  if (r.others > 0) throw new HttpError(409, "Someone's joined it already: delete it on Manage this game instead");
   const starter = (user as { username?: string | null }).username || user.name;
   await deleteLeague(user, { leagueId, gameName: r.name as string, couchId: (r.couch_id as string | null) ?? null, seasonId, text: `${starter} took back ${r.name} just after starting it` });
   return { undone: true };

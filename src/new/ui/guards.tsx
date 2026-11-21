@@ -104,8 +104,9 @@ export function GuardSheet({
       >
         {busy ? "Applying…" : cta}
       </Btn>
+      {/* "Not now", as the hold sheet's: every confirm's way out (settings Round 4). "Not yet" is Tonight's answer to "Seen it?". */}
       <Btn wide className="mt-2" onClick={() => onOpenChange(false)}>
-        Not yet
+        Not now
       </Btn>
     </Sheet>
   );

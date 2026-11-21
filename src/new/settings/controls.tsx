@@ -2,6 +2,7 @@
 
 import { useId, useState, type ReactNode } from "react";
 import { ChevronDown, ChevronRight, type LucideIcon } from "lucide-react";
+import { Recommended } from "../ui/recommended";
 
 // Settings' controls (step 15 part 1; the 2026-10-31 redesign, .impeccable/mocks/settings/ option D; settings Round 1), shared
 // with a show's Notifications sheet and a couch's chat row: a group's row (its name over its value, opening its page), a switch
@@ -76,9 +77,8 @@ export function Choice({ on, title, line, recommended, onPick, data }: { on: boo
   );
 }
 
-export const Recommended = ({ className = "" }: { className?: string }) => (
-  <em className={`type-caption rounded-[2px] bg-secondary px-1.5 text-[11px] not-italic ${className}`}>Recommended</em>
-);
+// The one tag (ui/recommended.tsx, settings Round 4), still importable from here.
+export { Recommended };
 
 /** Two or three choices side by side (Appearance, Couch chat): the chosen one in bone. `sub`: a word under each title.
  *  `attrs` gives each its data attribute (what the checks find). */

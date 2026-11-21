@@ -549,7 +549,7 @@ function WaiverSettings({ seasonId, couchId, g, onUndo }: { seasonId: string; co
             data={`feel-${f.key}`}
             dataset={{ "data-feel": f.key }}
             title={cap(f.key)}
-            tag={f.key === "balanced" ? "Recommended" : null}
+            recommended={f.key === "balanced"}
             line={FEEL_WORDS[f.key]}
             chosen={on}
             onPick={() => write({ action: "feel", feel: f.key }, `Waivers on ${cap(f.key)} · the couch sees it in How it works`)}

@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Minus, Plus, Trash2 } from "lucide-react";
 import { airTime } from "../clock";
 import { NavLink, useNav } from "../nav";
 import { Btn, Chip } from "../ui/parts";
+import { Recommended } from "../ui/recommended";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { deskSend, useAfterDesk, type DeskLine, type PersonRow } from "./data";
@@ -325,7 +326,7 @@ export function ChoiceCard({ on, title, line, recommended, onClick, attrs, dim }
     <button type="button" {...attrs} aria-pressed={on} aria-disabled={dim || undefined} onClick={onClick} className={`nd-press rounded-[3px] p-3.5 text-left ${on ? "outline-2 -outline-offset-2 outline-foreground" : "bg-background"} ${dim ? "opacity-55" : ""}`}>
       <b className="block text-[16px]">
         {title}
-        {recommended && <i className="type-caption ml-1.5 inline-block rounded-[2px] bg-secondary px-1.5 pb-0.5 pt-[3px] align-[2px] text-[11px] not-italic leading-none tracking-[0.06em]">Recommended</i>}
+        {recommended && <Recommended className="ml-1.5" />}
       </b>
       {line && <small className="text-[13px] leading-snug text-muted-foreground">{line}</small>}
     </button>

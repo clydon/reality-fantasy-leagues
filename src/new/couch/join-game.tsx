@@ -29,7 +29,7 @@ export function joinLine(g: JoinGame): string {
 function whoJoins(g: JoinGame): string {
   const runner = g.runners[0] ?? "whoever runs it";
   if (g.you?.playing) return "You're in it.";
-  if (g.mode === "locked" && g.lockedDown) return `Locked down for the season${g.runners[0] ? ` by ${g.runners[0]}` : ""} (competitive).`;
+  if (g.mode === "locked" && g.lockedDown) return `Frozen for the season${g.runners[0] ? ` by ${g.runners[0]}` : ""}: nobody new joins.`;
   // Its own teams at its own pace (BACKLOG 68; StateLogic.GhostLogic.joinMode, sync point 1): open until its draft starts, then
   // nobody new. That's the game's rule, not whoever runs it closing it, so it says why.
   const ownTeams = g.ownPace && !g.shared && g.teamSize > 0;

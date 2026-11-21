@@ -616,7 +616,7 @@ export async function removeSeat(user: SessionUser, leagueId: string, playerId: 
   await withLeagueLock(leagueId, async (s, client) => {
     const seat = players(s).find((p) => p.id === playerId);
     if (!seat || seat.disabled) throw new HttpError(409, "That seat isn't in the game now");
-    if (seat.automated) throw new HttpError(409, "That's a computer player's seat: Backstage › Members takes them out");
+    if (seat.automated) throw new HttpError(409, "That's a computer player's seat: Manage this game › Who's playing takes them out");
     const { rows } = await client.query("SELECT 1 FROM league_memberships WHERE league_id = $1 AND player_id = $2 FOR UPDATE", [leagueId, playerId]);
     if (rows.length) throw new HttpError(409, "Someone's signed in to that seat now");
     name = seat.name;

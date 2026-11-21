@@ -71,7 +71,25 @@ function wordsOf(ctx) {
     untilChange: typeof c.untilChange === 'string' && c.untilChange ? c.untilChange : c.untilChange === true,
     // G3 part 3b (part 3a's Noticed): a stage of a game in stages, whose end is the stage's, not the finale.
     stage: c.stage === true,
+    // Settings Round 4 (BACKLOG 243): a running game's own rules that live outside its spec (league settings, Round 3b), for How it
+    // plays: benchFill, the first episode an empty starting slot fills from the bench; newMoments, when a moment the show adds
+    // mid-season counts (the game's choice, else the show's default, which the caller reads).
+    running: isObj(c.running) ? c.running : null,
   };
+}
+/** Settings Round 4 (BACKLOG 243): a running game's bench rule in How it plays, in Manage this game's words. */
+function benchRule(s, w) {
+  const from = w.running && w.running.benchFill;
+  if (!isNum(from)) return [];
+  return [`When a starter goes home and nobody changes the lineup, the first on the bench starts.${from > 1 ? ` From ${w.Part} ${from} on.` : ''}`];
+}
+/** Settings Round 4 (BACKLOG 243): when a moment the show adds mid-season counts here (Round 3b, A17), for a game scored by moments. */
+function newMomentsRule(s, w) {
+  const rule = w.running && w.running.newMoments;
+  if (s.score.by !== 'moments' || !rule) return [];
+  if (rule === 'start') return [`If the show adds a moment mid-season, it counts from the start: the ${w.parts} already played count it too.`];
+  if (rule === 'vote') return [`If the show adds a moment mid-season, you vote on whether it counts from the start or only from the next ${w.part}. Until you decide, it's the next ${w.part}.`];
+  return [`If the show adds a moment mid-season, it counts from the next ${w.part} on.`];
 }
 /** G3 part 3b (part 3a's Noticed): when the most wins: by the finale, the end of a game that stops before it, or a stage's end. */
 const byEnd = (s, w) => (w.stage ? 'by the end of the stage' : isObj(s.span) && isNum(s.span.to) ? `by ${w.Part} ${s.span.to}` : isObj(s.span) && isObj(s.span.to) ? 'by the end of the game' : 'by the finale');
@@ -1423,6 +1441,7 @@ function rulesOf(s, w) {
     if (count === 'best') rules.push(wholeTeam(s) ? `Each ${w.part}, all ${say(s.count.best)} count: no lineups to set.` : `Each ${w.part}, your best ${say(s.count.best)} count, whoever they are: no lineups to set.`);
     if (count === 'all' && s.score.by !== 'place') rules.push('Everyone you draft scores.');
     if (s.score.by === 'moments') rules.push(w.groups.length ? `Points come from what happens: ${listOf(w.groups)}.` : `Points come from what happens in each ${w.part}.`);
+    rules.push(...newMomentsRule(s, w));
     if (s.score.by === 'stats' && statScoreWords(s.score, w)) rules.push(`Points come from their stats: ${statScoreWords(s.score, w)}.`);
     if (s.score.by === 'moments') {
       const times = timesRules(s.score, w);
@@ -1434,7 +1453,7 @@ function rulesOf(s, w) {
     if (joinedSaid.length && s.score.by === 'moments') rules.push(...joinedSaid, joinedHow(s.score));
     // A14 part 3: a bounty (an Outlast's after how a place scores, below).
     if (s.score.by === 'moments') rules.push(...bountyRules(s, w), ...rolesRules(s, w), ...twistRules(s, w));
-    if (count === 'start') rules.push(lockRule('Lineups', s, w));
+    if (count === 'start') rules.push(lockRule('Lineups', s, w), ...benchRule(s, w));
     rules.push(...groupSlotRules(s, w));
     if (s.score.by === 'place' && s.score.reverse === true) {
       rules.push(`Each ${w.castaway} earns 1 point, plus 1 for everyone who outlasts them.`);
@@ -1484,6 +1503,7 @@ function rulesOf(s, w) {
     const n = s.get.each;
     rules.push(`No draft. Before each ${w.part}, pick ${n === 1 ? `one ${w.castaway}` : `${say(n)} ${w.castaways}`} still in: ${n === 1 ? 'they score' : 'each scores'} what they do in it.`);
     rules.push(...countRules(s.score, w, cardOf(s)));
+    rules.push(...newMomentsRule(s, w));
     rules.push(...timesRules(s.score, w));
     // A14 part 5: the top scorer's twist.
     rules.push(...twistRules(s, w));
@@ -1620,7 +1640,8 @@ function rulesOf(s, w) {
   return rules;
 }
 
-const REPLACE_WORDS = { always: 'Replace right away', whenShort: 'Replace only when short', windows: 'Replacements wait for a window', never: 'No replacements' };
+// Settings Round 4: Start a game's and Manage this game's words for when a replacement comes (settings-r4-spec.md, the glossary).
+const REPLACE_WORDS = { always: 'Whenever one goes home', whenShort: 'When your team is short', windows: 'In set windows', never: 'No replacements' };
 const JOIN_WORDS = { open: 'Anyone on the couch', ask: 'They ask first', locked: 'Nobody new' };
 
 /** The details nobody asked about: what each is, and whether it's what we'd recommend (the preset's, or the defaults). */
@@ -1633,16 +1654,16 @@ function detailsOf(s, w) {
     const d = e.draft;
     out.push({ id: 'draft', label: 'The draft', recommended: rec('draft'), value: [
       s.get.order === 'draw' ? `At random, out of ${s.get.own === 'shared' ? 'a hat each' : 'one hat'}` : s.get.order === 'auction' ? 'An auction: sealed bids, settled at once' : s.get.own === 'shared' ? 'In private, revealed at once' : 'Snake: everyone takes turns',
-      d.timer ? `${d.timer === 60 ? '60 seconds' : '2 minutes'} a pick, then ${d.away === 'queue' ? 'from their queue' : 'it waits'}` : 'No pick timer',
+      d.timer ? `A clock on each pick: ${d.timer / 60} min; someone away: ${d.away === 'queue' ? 'use their list' : 'wait for them'}` : 'No clock on a pick',
       d.at ? `at ${d.at}` : 'no time set',
       // A12 part 1: a draft that opens at its game's start.
       ...(d.opens === 'start' ? [`opens once the ${w.part} before it is in`] : []),
     ].join(' · ') });
   }
   const sharedJoin = s.get.by !== 'draft' || s.get.own === 'shared';
-  // Locked down closes joining whatever Who can join says (GhostLogic.allowed), and leaves that as it was for after.
+  // Frozen (Freeze rules and joining) closes joining whatever Who can join says (GhostLogic.allowed), and leaves that as it was for after.
   const join = own(JOIN_WORDS, e.join) || JOIN_WORDS[sharedJoin ? 'open' : 'ask'];
-  out.push({ id: 'join', label: 'Who can join', recommended: e.join === null, value: e.lockedDown ? "Nobody new while it's locked down" : join });
+  out.push({ id: 'join', label: 'Who can join', recommended: e.join === null, value: e.lockedDown ? "Nobody new while it's frozen" : join });
   if (isObj(e.waivers) && isObj(e.waivers.windows)) {
     const win = e.waivers.windows;
     // Step 2.5: waivers every game day (claims each morning, the window's swaps the week's). The words are 4.0's to finish.
@@ -1653,7 +1674,7 @@ function detailsOf(s, w) {
     const from = isObj(e.waivers.from) ? `From when ${phaseWord(e.waivers.from.phase, w)} starts: ` : '';
     // C4: whom a shared replacement or swap brings in.
     const moves = sharedMoves(s);
-    out.push({ id: 'waivers', label: 'Waivers', recommended: rec('waivers'), value: `${from}${(own(REPLACE_WORDS, e.waivers.replace) || 'Replacements as set').replace(/^./, (c) => (from ? c.toLowerCase() : c))} · ${windows}${moves ? ` ·${sharedMovesPhrase(moves).slice(1)}` : ''}` });
+    out.push({ id: 'waivers', label: 'Replacing people who leave', recommended: rec('waivers'), value: `${from}${(own(REPLACE_WORDS, e.waivers.replace) || 'Replacements as set').replace(/^./, (c) => (from ? c.toLowerCase() : c))} · ${windows}${moves ? ` ·${sharedMovesPhrase(moves).slice(1)}` : ''}` });
   }
   // Side bets and finale predictions go with a draft: nothing else scores them.
   if (betsFit(s)) out.push({ id: 'bets', label: 'Side bets', recommended: rec('bets'), value: isObj(e.bets) ? `On, ${pointsWord(e.bets.points)} each` : 'Off' });
@@ -1664,8 +1685,8 @@ function detailsOf(s, w) {
     out.push({ id: 'finale', label: 'Finale predictions', recommended: sameValue(f ? s.ask.slice(0, 2) : [], presetAsk), value: f ? `Top 3: ${pointsWord(f.top3)} each, the winner: ${pointsWord(f.winner)}${f.from === 'own' ? ', from your own team' : ''}` : 'Off' });
   }
   if (s.get.by === 'pick') out.push({ id: 'calls', label: 'Who goes home?', recommended: rec('calls'), value: e.calls ? `A call every ${w.part}, beside the pick` : 'Off' });
-  if (countKind(s.count) === 'start') out.push({ id: 'hideStarters', label: 'Starters', recommended: rec('hideStarters'), value: e.hideStarters ? 'Hidden until the lock' : "Shown as they're set" });
-  out.push({ id: 'lockedDown', label: 'Locked down', recommended: rec('lockedDown'), value: e.lockedDown ? 'Nobody new, and the rules stay as they are' : 'No' });
+  // (Starters shown or hidden went in Settings Round 4: the app hides others' lineups until the lock whatever extras.hideStarters says.)
+  out.push({ id: 'lockedDown', label: 'Freeze rules and joining', recommended: rec('lockedDown'), value: e.lockedDown ? 'Frozen: nobody new, and the rules stay as they are' : 'Off' });
   // A10 part 4b: a team two people share (never beside a call or a bingo card: each person's own).
   if (!(s.score.by === 'lines' || callsAsk(s.ask) || e.calls === true)) {
     const people = seatPeople(s);
@@ -1689,7 +1710,7 @@ function placesWords(o) {
 /**
  * A game in stages in words (A12 part 1): "A game in two stages for Survivor 51: Before the merge, a Weekly Lineup ...; then
  * After the merge, an Outlast .... Overall, each stage's points add up.", How it works the overall then each stage's sentence and
- * rules, the details its own (who can join, locked down).
+ * rules, the details its own (who can join, the freeze).
  */
 function describeStages(s, ctx) {
   const w = wordsOf(ctx);
@@ -1771,8 +1792,8 @@ function describeStages(s, ctx) {
   if (ch.ok === 'vote' && (moved || stages.some((st) => stageSide(st)))) parts.push({ text: `${/\.$/.test(overall) ? '' : '.'} You vote on each new stage.`, at: 'extras' });
   const e = isObj(s.extras) ? s.extras : {};
   const details = [
-    { id: 'join', label: 'Who can join', recommended: e.join === null, value: e.lockedDown ? "Nobody new while it's locked down" : own(JOIN_WORDS, e.join) || JOIN_WORDS.open },
-    { id: 'lockedDown', label: 'Locked down', recommended: e.lockedDown !== true, value: e.lockedDown ? 'Nobody new, and the rules stay as they are' : 'No' },
+    { id: 'join', label: 'Who can join', recommended: e.join === null, value: e.lockedDown ? "Nobody new while it's frozen" : own(JOIN_WORDS, e.join) || JOIN_WORDS.open },
+    { id: 'lockedDown', label: 'Freeze rules and joining', recommended: e.lockedDown !== true, value: e.lockedDown ? 'Frozen: nobody new, and the rules stay as they are' : 'Off' },
   ];
   return { name: null, sentence: parts.map((p) => p.text).join(''), parts, rules, details, short: stagesShort(s, ctx) };
 }

@@ -118,7 +118,7 @@ test("shared ownership: no picking order; How it works says who picks first", ()
   assert.deepEqual(w.order, []);
   assert.match(w.how.order, /everyone can have the same/i);
   const ex = waiverHow(league());
-  assert.equal(ex.order, "Lowest score picks first.");
+  assert.equal(ex.order, "Fewest points picks first.");
   assert.equal(ex.lanes.episodes.length, ex.lanes.replace.length);
   assert.ok(ex.lanes.replace.every(Boolean), "replace right away: every episode");
 });

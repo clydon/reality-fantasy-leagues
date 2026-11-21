@@ -370,7 +370,7 @@ export function SeasonDeleteRow({ id, del, showId }: { id: string; del: SeasonDe
           ))}
         </div>
         {del.games.length > 6 && <p className={NOTE}>And {del.games.length - 6} more.</p>}
-        <p className={NOTE}>Ended games count too. A game is deleted from its Backstage until the desk gives games pages of their own.</p>
+        <p className={NOTE}>Ended games count too. A game is deleted on its own Manage this game until the desk gives games pages of their own.</p>
       </Sheet>
       <HoldSheet
         open={open && !blocked}

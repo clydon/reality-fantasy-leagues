@@ -84,7 +84,7 @@ async function main() {
     let s = await state();
     check(s.copy === false && s.canChange === true && s.answer === null, "no copy yet: the state says so", JSON.stringify(s));
     let r = await post({ action: "ask" });
-    check(r.status === 409 && /Make it ours first/.test(r.body.error), "Ask our bot without a copy: Make it ours first", JSON.stringify(r.body));
+    check(r.status === 409 && /Customize the rulebook first/.test(r.body.error), "Ask our bot without a copy: Customize the rulebook first", JSON.stringify(r.body));
     check((await state("riley")).canChange === false && (await post({ action: "paste", answer: "{}" }, "riley")).status === 403, "riley (a Game admin) can't change the rules");
     check((await as.jordan.call("GET", P)).status === 403, "jordan (a player) has no Scoring rules");
 

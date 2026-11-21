@@ -436,10 +436,10 @@ const first = (name) => name.split(" ")[0];
     // Round 4: a frozen rule is a line that says why, with nothing to open.
     await gameSettings(L.outlast);
     await page.locator('[data-setting-line="joining"]').waitFor({ timeout: 20000 });
-    check(/Locked down for the season/.test(await page.locator('[data-setting-line="joining"]').innerText()) && (await page.locator('[data-setting-line="joining"] button').count()) === 0, "Who can join says so, and can't be changed");
+    check(/Frozen for the season/.test(await page.locator('[data-setting-line="joining"]').innerText()) && (await page.locator('[data-setting-line="joining"] button').count()) === 0, "Who can join says so, and can't be changed");
     await gameSettings(L.lineup);
     await page.locator('[data-setting-line="lineup"]').waitFor({ timeout: 20000 });
-    check(/Locked down for the season/.test(await page.locator('[data-setting-line="lineup"]').innerText()) && (await page.locator('[data-setting-line="lineup"] button').count()) === 0, "the lineup's size is frozen");
+    check(/Frozen for the season/.test(await page.locator('[data-setting-line="lineup"]').innerText()) && (await page.locator('[data-setting-line="lineup"] button').count()) === 0, "the lineup's size is frozen");
     check((await bs("alex", "settings", "PATCH", { leagueId: L.lineup, set: { activeSlots: 4 } })).status === 409, "a settings change is refused (409)");
     check((await bs("alex", "rules", "POST", { action: "ours" })).status === 409, "and Make it ours (409)");
     check((await bs("alex", "rules", "POST", { action: "points", leagueId: L.lineup, points: { immunity: 3 } })).status === 409, "and the points (409)");
@@ -448,7 +448,7 @@ const first = (name) => name.split(" ")[0];
     await page.locator("[data-rules-frozen]").waitFor({ timeout: 20000 });
     check(/Frozen for the season/i.test(await page.locator("[data-rules-frozen]").innerText()), "Scoring rules: frozen for the season");
     await page.locator("[data-make-ours]").click();
-    check(/Locked down for the season/.test(await toasted(/Locked down/)), "Make it ours says why it can't");
+    check(/Frozen for the season/.test(await toasted(/Frozen/)), "Customize says why it can't");
     check((await page.locator("[role=status] [data-toast]").getAttribute("data-toast")) === "quiet", "in the quiet toast (no tick: it isn't done)");
     await shot("rules-frozen");
     // Recent changes' Undo is a change too: a settings or points line from before the lock is refused while it's on (Lock it down's own
@@ -456,13 +456,13 @@ const first = (name) => name.split(" ")[0];
     const undoLine = (batch) => as.alex.call("POST", `/api/seasons/${sid}/changes/${batch}/undo${q}`);
     const resetBatch = (await pool.query("SELECT batch FROM league_changes WHERE league_id = $1 AND text = 'Set the game back to recommended' AND undone_at IS NULL ORDER BY created_at DESC LIMIT 1", [L.lineup])).rows[0]?.batch;
     const refusedReset = await undoLine(resetBatch);
-    check(refusedReset.status === 409 && /Locked down for the season/.test(refusedReset.body?.error ?? ""), "Undo of Reset to recommended is refused while locked down (409)", `${refusedReset.status} ${refusedReset.body?.error}`);
+    check(refusedReset.status === 409 && /Frozen for the season/.test(refusedReset.body?.error ?? ""), "Undo of Reset to recommended is refused while locked down (409)", `${refusedReset.status} ${refusedReset.body?.error}`);
     check((await state("lineup")).settings.activeSlots === 3, "and 3 still score each week");
     const refusedPts = await undoLine(ptsBatch);
     check(refusedPts.status === 409 && (await pointsNow()) === pts0 + 1, "so is Undo of the points change, and the points stay", `${refusedPts.status}`);
     await page.goto(`${BASE}/show/${sid}/backstage/history`);
     await page.locator(`[data-undo="${ptsBatch}"]`).click();
-    check(/Locked down for the season/.test(await toasted(/Locked down/)) && (await page.locator("[role=status] [data-toast]").getAttribute("data-toast")) === "quiet", "on the page: its Undo says why, in the quiet toast");
+    check(/Frozen for the season/.test(await toasted(/Frozen/)) && (await page.locator("[role=status] [data-toast]").getAttribute("data-toast")) === "quiet", "on the page: its Undo says why, in the quiet toast");
     await shot("history-locked-undo");
     // Off from another game's Manage this game: the switch is every game's at once.
     await gameSettings(L.pool);
