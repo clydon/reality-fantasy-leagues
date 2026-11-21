@@ -36,23 +36,32 @@ People:
 Block 4 is the night as it stands at your mark (`latestSeen`): the same episode Last time names. Waiting for results, early
 results and the morning update keep their place above it (AfterEpisode); with early results, block 4's numbers say "so far".
 
-### A season game's row, closed (the glance)
+### The section's two groups
 
-One row a game, about 64 px (the user, 2026-11-21: the cards "take up WAY too much vertical real estate"). Closed, it answers "how
-did my night go?" in the game's own measure, and shows the couch in one line.
+The night in two groups, the shortest games first (the user, 2026-11-21: "more on the game name and length, so shorter and one
+episode games are first"): **One-episode games** (the quick games that played the episode, then the couch's bingo and trivia), each
+led by who won it; then **Longer games**, soonest to end first (a game to the season's end last). With only one group, no labels.
+"So far" sits once on the section's heading while results are early.
+
+### A longer game's row, closed (the glance)
+
+One row a game, about 64 px, led by the game, not your place (the user, 2026-11-21: too much emphasis on the place).
 
 | Part | Holds |
 | --- | --- |
-| Left | Your place now (the one big number), and under it how it moved this episode and of how many ("▼2 of 4"; nothing when it held) |
-| Middle | The game's name; under it your picks as small faces wearing their result (a check, a cross and grey; up to four), then the night's news about someone else ("riley lost Cristian"), or your total when there's none |
-| Right | The night's change in the game's own measure ("−3 pts", "Went home" in live red, "All safe" in teal), "so far" while results are early |
+| First line | The game's name in caps (the row's biggest words) and its length: "Season · 7 left", "Eps 4–9 · 3 left" |
+| Second line | Your picks as small faces wearing their result (a check, a cross and grey; up to four), then the night's news about someone else ("riley lost Cristian"), or your total |
+| Right | The night's change in the game's own measure ("−3 pts", "Went home" in live red, "All safe" in teal), and your place small under it, with how it moved ("3rd ▼2") |
+
+### A one-episode game's row, closed
+
+Led by who won it: the game's name on the first line, the winners' faces and "You won" (teal), "riley won", "3 tied for 1st" on the
+right; your place and points small on the second line ("You T1 of 4 · 1 pt"). Bingo's row: who got a line first, everyone's card as
+a small three-by-three beside their face. Trivia's: who scored best, everyone's score beside their face.
 
 The whole row opens everyone's night in place. Each fact is said once.
 
-**The news, which:** someone's pick went home (a pool), else someone lost a castaway (a team game), else whoever had the couch's most
-points that episode ("Ada +2 had the night"), else your total.
-
-### A season game's row, open
+### A row, open
 
 | Part | Holds | Opens |
 | --- | --- | --- |

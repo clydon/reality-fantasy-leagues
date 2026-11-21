@@ -1600,3 +1600,10 @@
 - Why: a card of about 185 px a game ran the section past a screen for three games; the glance needs a row, the detail is on demand.
 - Rejected: trimming the cards' spacing (still a screen for three games); keeping the ledger in the open state (about 280 px more, and your detail is on your sheet).
 - Rests on: docs/design-round/tonight-night-spec.md; the story's version 2.
+
+## 2026-11-21 · Tonight's rows are led by the game; one-episode games first, each led by who won
+- Decided by: the user ("too much emphasis on the place you're within the game. There should be more on the game name and length (so shorter and one episode games are first) ... a one episode game should maybe have its own subsection and show the winner"); the form by Claude through Impeccable
+- What: the section in two groups, "One-episode games" (each led by who won it, with the couch's bingo and trivia led by who got a line first and who scored best) then "Longer games" soonest to end first; a longer game's row leads with its name in caps and its length ("Season · 7 left", "Eps 4–9 · 3 left"), the night's change on the right with your place small under it; "So far" once on the heading.
+- Why: Tonight answers which game and how long first; your place is the game page's lead. One-episode games are the low-commitment way in, so they lead and say who won.
+- Rejected: a game's place as the row's big number (version 2); "quick game" as the group's name (the user's words are "one episode games").
+- Rests on: docs/design-round/tonight-night-spec.md; the story's version 3.

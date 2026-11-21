@@ -178,7 +178,7 @@ const SITUATIONS = [
       await p.locator("[data-night-quick] [data-night-everyone]").first().waitFor({ timeout: 20000 }).catch(() => {});
       await p.waitForTimeout(500);
       await shoot(p, `${s}.quick`, { what: "the night's quick game, opened" });
-      await scrollTo(p, "[data-night-extras]");
+      await scrollTo(p, "[data-night-extra]");
       await shoot(p, `${s}.extras`, { what: "the couch's bingo and trivia" });
       await scrollTo(p, "[data-next-episode]");
       await shoot(p, `${s}.next`, { what: "the next episode's block: its quick games, the Join row" });

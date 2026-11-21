@@ -67,7 +67,7 @@ Newest first. The plan or archive section named holds the detail.
 - **Tonight's night, branch `tonight-night`** (worktree rfl-reveal, port 3016, DB rfl_reveal; 2026-11-21, from master ac4042f2; not
   merged or pushed; no migration): Tonight's games section as each game's last episode for you and everyone in it (closed: your
   night; open: five people, See all), the night's quick games, the couch's bingo and trivia, the next episode's Join row for a quick
-  game you're not in; a watcher sees no game's results. Version 2 (the user: too tall): one row a game, about 64 px, opening in place. Server: `GameView.was`, `JoinGame.faces`, `BingoPerson.grid`. Made
+  game you're not in; a watcher sees no game's results. Version 3 (the user: too tall; too much on your place): one row a game led by its name and length, one-episode games first led by who won, then the longer games soonest to end first. Server: `GameView.was`, `JoinGame.faces`, `BingoPerson.grid`. Made
   through Intent, PFD and Impeccable; checked once (PFD 63, Impeccable 26/40), one batch fixed. Waits on the user's review of its
   story (https://claude.ai/artifact/1y8nHXhkub2XuSiMwwWykp) and its two choices; then the Games tab as the way into games.
   docs/design-round/tonight-night-*.md; frames: `node scripts/dev-test/story-tonight-night.js`.
