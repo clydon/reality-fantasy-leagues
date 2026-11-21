@@ -278,7 +278,8 @@ function GameSettingsBody({ seasonId, couchId, show, g, write, line, siblings }:
   const sp = g.span;
   const part = { singular: E.toLowerCase(), plural: show.words.episodes.toLowerCase() };
   // Step 2.7: a sport's season that goes on into its playoffs: no end is through its final.
-  const length = sp.from === null ? `When ${sp.phase?.name ?? "its phase"} starts` : sp.to === null ? (sp.playoffs ? `${E} ${sp.from} through ${sp.playoffs.final}` : `${E} ${sp.from} to the season's end`) : spanName(sp.from, sp.to, part);
+  // Settings Round 3b (A15): a game that ends at a phase says so ("till Merged"), not the season's end (3a's noticed bug).
+  const length = sp.from === null ? `When ${sp.phase?.name ?? "its phase"} starts` : sp.endPhase ? `${E} ${sp.from} till ${sp.endPhase.name}${sp.to !== null ? ` · through ${E} ${sp.to}` : ""}` : sp.to === null ? (sp.playoffs ? `${E} ${sp.from} through ${sp.playoffs.final}` : `${E} ${sp.from} to the season's end`) : spanName(sp.from, sp.to, part);
   const L = g.lineup;
   const art = show.header?.show.backdropUrl ?? show.header?.show.artUrl ?? null;
   const kicker = show.header ? `${(show.header.show.name ?? "").replace(/^The /, "")}${show.header.seasonNumber ? ` · Season ${show.header.seasonNumber}` : ""}` : "";

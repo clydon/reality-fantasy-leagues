@@ -597,25 +597,49 @@ function WaiverSettings({ seasonId, couchId, g, onUndo }: { seasonId: string; co
             atMin={S.windows.swaps <= 0}
             atMax={S.windows.swaps >= S.roster}
           />
+          {/* Settings Round 3b (A15): the timing is real now, safe to change while the game runs: each takes effect from the next
+              window (free agency at once), and says so. */}
           <p className="mt-2 text-[14px] font-semibold">Timing</p>
-          {(
-            [
-              ["Claims close", `${S.processHours} h before`],
-              ["Who goes first", S.orderBy === "leastPoints" ? "Fewest points" : S.orderBy === "mostPoints" ? "Most points" : "Rolling"],
-              ["Free agency", S.freeAgency ? "Until airtime" : "Off"],
-            ] as const
-          ).map(([k, v]) => (
-            <div key={k} className="flex items-center justify-between rounded-[3px] bg-secondary p-2.5 text-[15px]">
-              <b>{k}</b>
-              <span className="text-muted-foreground">{v}</span>
+          <p className="-mt-1 text-[13px] leading-snug text-muted-foreground">From the next window on. A window already open keeps its times.</p>
+          <Stepper
+            title="Claims close"
+            line="Before it airs"
+            value={`${S.processHours} h`}
+            onStep={(d) => {
+              const i = HOURS.indexOf(S.processHours);
+              const next = HOURS[Math.max(0, Math.min(HOURS.length - 1, (i < 0 ? HOURS.indexOf(24) : i) + d))];
+              if (next !== S.processHours) set("waiverProcessHours", next);
+            }}
+            atMin={S.processHours <= HOURS[0]}
+            atMax={S.processHours >= HOURS[HOURS.length - 1]}
+          />
+          <div className="rounded-[3px] bg-background p-2.5">
+            <b className="block text-[15px]">Who goes first</b>
+            <small className="text-[13px] text-muted-foreground">When two teams claim the same one</small>
+            <div className="mt-2 grid grid-cols-3 gap-1" role="group" aria-label="Who goes first">
+              {(
+                [
+                  ["leastPoints", "Fewest points"],
+                  ["mostPoints", "Most points"],
+                  ["rolling", "Rolling"],
+                ] as const
+              ).map(([k, l]) => (
+                <button key={k} type="button" data-order={k} aria-pressed={S.orderBy === k} onClick={() => S.orderBy !== k && set("replenishOrderBy", k)} className={seg(S.orderBy === k)}>
+                  {l}
+                </button>
+              ))}
             </div>
-          ))}
+          </div>
+          <Toggle on={S.freeAgency} onClick={() => set("freeAgencyEnabled", !S.freeAgency)} title="Free agency" line={S.freeAgency ? "After the claims, anyone left is free to take until airtime" : "Off: only claims, in the windows"} />
           <Toggle on={S.autoFill} onClick={() => set("autoFill", !S.autoFill)} title="Fallback pick" line="Forget to pick? They get whoever's free with the most points." />
         </div>
       )}
     </div>
   );
 }
+/** Claims close this many hours before an episode airs (Settings Round 3b: Fine-tune's timing, real). */
+const HOURS = [6, 12, 24, 48];
+
 function Toggle({ on, onClick, title, line, disabled }: { on: boolean; onClick: () => void; title: string; line: string; disabled?: boolean }) {
   return (
     <button type="button" aria-pressed={on} disabled={disabled} onClick={onClick} className="flex items-center gap-3 rounded-[3px] bg-secondary p-2.5 text-left">

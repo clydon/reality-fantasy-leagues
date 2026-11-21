@@ -546,6 +546,10 @@ export interface GameSettings {
      *  (`fantasy` a stats game's default end) and its final's name, so How long can say "Through the Super Bowl" (no end) and the
      *  regular season's; else null. */
     playoffs: { through: number; fantasy: number; final: string } | null;
+    /** Settings Round 3b (A15): an end at a phase ("until the merge starts", A12 part 1's endPhase), and the phases it could end
+     *  at now: the season's phases still to come, after where it starts, until it's over. */
+    endPhase: { id: string; name: string } | null;
+    endPhases: { id: string; name: string; at: number | null }[];
   };
   /**
    * The lock on its current episode's lineups or picks (a game with either; else null): closed at its start, unless whoever runs
@@ -775,7 +779,15 @@ function spanState(s: LeagueState, schedule: SeasonSchedule | undefined, phases:
   const id = StateLogic.startPhase(s);
   const phase = id ? { id, name: phases.find((p) => p.id === id)?.name ?? id } : null;
   const later = started || over ? [] : phases.filter((p) => !p.first && (p.from === null || p.from > gone)).map((p) => ({ id: p.id, name: p.name, at: p.from }));
-  return { from, to: end, over, ends, started, starts, phase, phases: later, playoffs };
+  const endId = StateLogic.endPhase(s);
+  const endPhase = endId ? { id: endId, name: phases.find((p) => p.id === endId)?.name ?? endId } : null;
+  const startAt = id ? phases.findIndex((p) => p.id === id) : -1;
+  const endPhases = over
+    ? []
+    : phases
+        .filter((p, i) => !p.first && p.id !== id && i > startAt && (p.from === null || (p.from > gone && (from === null || p.from > from))))
+        .map((p) => ({ id: p.id, name: p.name, at: p.from }));
+  return { from, to: end, over, ends, started, starts, phase, phases: later, playoffs, endPhase, endPhases };
 }
 
 /** A game locked down (step 15 part 4): its rules don't change for the season. */
@@ -783,7 +795,7 @@ export const FROZEN = "Locked down for the season: the rules are frozen. Turn of
 
 // What Game settings may change, and the limits (the bench and Outlast's team are set at the draft; a game's end only before
 // it's reached, its start only before it airs: an episode, or a phase of the season, step A3).
-const SETTING_FIELDS = ["activeSlots", "benchSlots", "teamSize", "allowLateJoiners", "joinMode", "endEpisode", "startEpisode", "startPhase"];
+const SETTING_FIELDS = ["activeSlots", "benchSlots", "teamSize", "allowLateJoiners", "joinMode", "endEpisode", "endPhase", "startEpisode", "startPhase"];
 
 /** The settings Lock it down freezes: Game settings' and the points (waivers stay the week's business). Undo asks too. */
 export const FROZEN_FIELDS = new Set([...SETTING_FIELDS, "eventPoints"]);
@@ -867,7 +879,7 @@ export async function settingsWrite(
           ? { joinMode: "recommended" }
           : (body.set ?? {});
   if (!Object.keys(set).length || Object.keys(set).some((k) => !SETTING_FIELDS.includes(k))) throw new HttpError(400, `set may change ${SETTING_FIELDS.join(", ")}`);
-  const spanned = "endEpisode" in set || "startEpisode" in set || "startPhase" in set;
+  const spanned = "endEpisode" in set || "endPhase" in set || "startEpisode" in set || "startPhase" in set;
   const schedule = spanned ? (await seasonSchedules([scope.seasonId])).get(scope.seasonId) : undefined;
   const batch = crypto.randomUUID();
   let changed = false;
@@ -889,7 +901,20 @@ export async function settingsWrite(
           const now = spanState(s, schedule, phases);
           if (now.over) throw new HttpError(409, "It's over: its last episode is in");
           if (v !== null && !now.ends.some((e) => e.number === v)) throw new HttpError(400, "Pick an episode still to come, from where it starts");
+          // An episode (or the season's end) in place of a phase end (Settings Round 3b).
+          if (StateLogic.endPhase(s)) refused(StateLogic.updateSettings(s, "endPhase", undefined));
           refused(StateLogic.updateSettings(s, k, v));
+          continue;
+        }
+        // Or until a phase of the season still to come starts (Settings Round 3b, A15; A12 part 1's endPhase): its last episode is
+        // the one before that phase's first, settled now when that's known (phase-starts.ts settleIn), else when it is.
+        if (k === "endPhase") {
+          const now = spanState(s, schedule, phases);
+          if (now.over) throw new HttpError(409, "It's over: its last episode is in");
+          if (typeof v !== "string" || !now.endPhases.some((p) => p.id === v)) throw new HttpError(400, "Pick a phase of the season still to come, after where it starts");
+          refused(StateLogic.updateSettings(s, "endEpisode", null));
+          refused(StateLogic.updateSettings(s, k, v));
+          settleIn(s, phases, schedule);
           continue;
         }
         // Where it starts (step A3 of docs/PLAN-start-a-game-gpt.md): only before its first episode airs, and only to an episode

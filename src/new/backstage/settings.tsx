@@ -402,12 +402,16 @@ export function HowLong({
   // Step 2.7: a sport's season that goes on into its playoffs: no end is through its final, and its regular season's end says so.
   const po = sp.playoffs;
   const say = (to: number | null) => (to === null ? (po ? `through ${po.final}` : "to the season's end") : `through ${words.episode} ${to}${po && to === po.through ? ", the regular season" : ""}`);
+  // Settings Round 3b (A15): an end at a phase reads as one ("until Merged starts"), its last episode once that's known.
+  const until = sp.endPhase ? `until ${sp.endPhase.name} starts${sp.to !== null ? ` (through ${words.episode} ${sp.to})` : ""}` : null;
   const now =
     sp.from === null
-      ? `When ${sp.phase?.name ?? "its phase"} starts, ${say(sp.to)}`
-      : sp.to === null
-        ? po ? `${words.episode} ${sp.from} through ${po.final}` : `${words.episode} ${sp.from} to the season's end`
-        : spanName(sp.from, sp.to, part);
+      ? `When ${sp.phase?.name ?? "its phase"} starts, ${until ?? say(sp.to)}`
+      : until
+        ? `${words.episode} ${sp.from} ${until}`
+        : sp.to === null
+          ? po ? `${words.episode} ${sp.from} through ${po.final}` : `${words.episode} ${sp.from} to the season's end`
+          : spanName(sp.from, sp.to, part);
   // A phase start (step A3), waiting or settled (its first episode still to come, or aired).
   const phaseLine = sp.phase ? (sp.from === null ? `Starts when ${sp.phase.name} starts` : `${sp.started ? "Started" : "Starts"} with ${sp.phase.name}, at ${words.episode} ${sp.from}`) : null;
   const open = can && !sp.over;
@@ -477,14 +481,26 @@ export function HowLong({
             <span className="flex-none text-[14px] text-muted-foreground">Ends</span>
             <select
               data-span-end
-              value={sp.to === null ? "" : String(sp.to)}
+              value={sp.endPhase ? `phase:${sp.endPhase.id}` : sp.to === null ? "" : String(sp.to)}
               onChange={(e) => {
-                const to = e.target.value ? Number(e.target.value) : null;
+                const v = e.target.value;
+                const p = v.startsWith("phase:") ? [...(sp.endPhase ? [sp.endPhase] : []), ...sp.endPhases].find((x) => x.id === v.slice(6)) : undefined;
+                if (p) {
+                  void write(g, { set: { endPhase: p.id }, text: `Changed how long ${g.gameName} runs: until ${p.name} starts` }, `${g.gameName} runs until ${p.name} starts`);
+                  return;
+                }
+                const to = v ? Number(v) : null;
                 void write(g, { set: { endEpisode: to }, text: `Changed how long ${g.gameName} runs: ${say(to)}` }, `${g.gameName} runs ${say(to)}`);
               }}
               className="min-w-0 flex-1 truncate rounded-[3px] bg-card px-2.5 py-2 text-[15px] font-semibold"
             >
               <option value="">{po ? `Through ${po.final}` : "At the season\u2019s end"}</option>
+              {sp.endPhase && !sp.endPhases.some((p) => p.id === sp.endPhase?.id) && <option value={`phase:${sp.endPhase.id}`}>Until {sp.endPhase.name} starts</option>}
+              {sp.endPhases.map((p) => (
+                <option key={`phase:${p.id}`} value={`phase:${p.id}`}>
+                  Until {p.name} starts{p.at !== null ? ` · after ${words.episode} ${p.at - 1}` : ""}
+                </option>
+              ))}
               {sp.ends.map((e) => (
                 <option key={e.number} value={e.number}>
                   Through {words.episode} {e.number}

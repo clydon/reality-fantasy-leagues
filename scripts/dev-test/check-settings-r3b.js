@@ -137,6 +137,33 @@ const brief = (x) => JSON.stringify(x)?.slice(0, 220);
     const back = await botsIn();
     check(r.status === 200 && back.length === 1 && back[0].id === bot.id, "Undo brings the same seat back", brief(r.body));
 
+    // ---------- A15: How long until a phase starts ----------
+    g = await settingsOf("alex", L.lineup);
+    const endAt = g?.span?.endPhases?.[0];
+    if (!endAt) check(false, "Lineup League can end at a phase still to come", brief(g?.span));
+    else {
+      r = await patch("alex", { leagueId: L.lineup, set: { endPhase: endAt.id } });
+      g = await settingsOf("alex", L.lineup);
+      check(r.status === 200 && g.span.endPhase?.id === endAt.id, `alex: it ends when ${endAt.name} starts`, brief({ r: r.body, span: g.span }));
+      r = await undo("alex", r.body.batch);
+      g = await settingsOf("alex", L.lineup);
+      check(r.status === 200 && !g.span.endPhase && g.span.to === null, "Undo: to the season's end again", brief(g.span));
+      check((await patch("alex", { leagueId: L.lineup, set: { endPhase: "nope" } })).status === 400, "a phase that isn't one: 400");
+    }
+
+    // ---------- A15: waiver timing ----------
+    const wv = (await as.alex.call("GET", `/api/seasons/${S}/backstage/waivers${q}`)).body.games?.find((x) => x.settings);
+    if (!wv) check(false, "a game here runs waivers", "");
+    else {
+      const hours = wv.settings.processHours === 12 ? 6 : 12;
+      r = await as.alex.call("POST", `/api/seasons/${S}/backstage/waivers${q}`, { leagueId: wv.leagueId, action: "set", set: { waiverProcessHours: hours, replenishOrderBy: "mostPoints", freeAgencyEnabled: false } });
+      const after = (await as.alex.call("GET", `/api/seasons/${S}/backstage/waivers${q}`)).body.games.find((x) => x.leagueId === wv.leagueId).settings;
+      check(r.status === 200 && after.processHours === hours && after.orderBy === "mostPoints" && after.freeAgency === false, `waiver timing: claims close ${hours} h before, most points first, no free agency`, brief({ r: r.body, after }));
+      r = await undo("alex", r.body.batch);
+      const back = (await as.alex.call("GET", `/api/seasons/${S}/backstage/waivers${q}`)).body.games.find((x) => x.leagueId === wv.leagueId).settings;
+      check(r.status === 200 && back.processHours === wv.settings.processHours && back.orderBy === wv.settings.orderBy && back.freeAgency === wv.settings.freeAgency, "Undo: the timing as it was", brief(back));
+    }
+
     // ---------- Freeze rules and joining ----------
     r = await patch("alex", { lockDown: true });
     s = await state(L.lineup);
