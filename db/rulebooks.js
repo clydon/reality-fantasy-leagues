@@ -867,11 +867,23 @@ function momentIdsOf(rulebook) {
   }
 }
 
-/** A show's first season here, or not: a new show's first rulebook is a guess, so what it gains counts from the start. */
+/**
+ * When a show's rules gain a moment mid-season, from the start or the next episode by default (Settings Round 3b, A17): a format the
+ * app knows season to season (Survivor's, The Traitors') counts it from the next episode; one whose seasons differ (The Challenge)
+ * or a show in its first season here, whose first rulebook is a guess, from the start.
+ */
 async function defaultNewMoments(db, seasonId) {
   if (!seasonId) return "next";
-  const r = await one(db, "SELECT count(*)::int AS n FROM show_seasons WHERE show_id = (SELECT show_id FROM show_seasons WHERE id = $1)", [seasonId]);
-  return r && r.n <= 1 ? "start" : "next";
+  const r = await one(
+    db,
+    `SELECT s.format, (SELECT count(*)::int FROM show_seasons x WHERE x.show_id = s.id) AS n
+       FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1`,
+    [seasonId]
+  );
+  if (!r) return "next";
+  if (r.format === "survivor" || r.format === "traitors") return "next";
+  if (r.format === "challenge") return "start";
+  return r.n <= 1 ? "start" : "next";
 }
 
 /**

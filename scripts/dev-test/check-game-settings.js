@@ -136,7 +136,8 @@ async function main() {
       check((await p.locator("[data-waiver-rule] [data-bs-feel-read]").count()) === 1 && (await p.locator("[data-waiver-rule] [data-feel]").count()) === 0, "riley · how waivers work reads as a value, the Commissioner's");
       await p.locator("[data-setting-line=waivers] > button").click();
       check((await p.getByText("Only the Commissioner changes this").count()) === 0, "riley · no refusal repeated on the lines");
-      check((await p.locator("[data-game-settings] [data-settings-override]").count()) === 1, "riley · the lock's action is hers");
+      // Settings Round 3b: the lock is a line whose states open in place (BACKLOG 157), a Helper's to change.
+      check((await p.locator("[data-game-settings] [data-settings-lock] > button:not([disabled])").count()) === 1, "riley · the lock's action is hers");
       check((await p.locator('[data-game-settings] [data-setting-line="rename"]').count()) === 0, "riley · no rename (the Commissioner's)");
       // A Helper reads Freeze as a value (no switch to tap), saying whose it is.
       const freeze = p.locator("[data-game-settings] [data-freeze]");

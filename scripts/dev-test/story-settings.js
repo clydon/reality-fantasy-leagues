@@ -22,6 +22,8 @@
 //              reaches you, on, another phone gets them, blocked, an iPhone in Safari), solo, the site admin; its pages
 //              (Notifications, When results show, Privacy, Your shows couches and games, Your account, Your phones, Install the
 //              app); a show's Notifications (mute, muted); a couch's chat row; the hub's gear and the bell's foot
+//   r3b-*      settings Round 3b, as built (docs/design-round/settings-r3b-spec.md): the lock's states, How it plays' new lines, a
+//              moment gained with the players' vote, someone who hasn't picked, a runner's job under the strip
 //   r2-*       settings Round 2, as built (docs/design-round/settings-r2-spec.md): the show bar's gear; a show's settings page for a
 //              player, a follower, someone behind, solo and a finished season, with When a new episode airs and When results show
 //              here opened and their asks; the ⋯ after (a runner, a player); Where you are from the page (a follower, a player);
@@ -283,6 +285,64 @@ function round3(pool, fx, S, L, menu) {
   ];
 }
 
+/**
+ * Settings Round 3b (docs/design-round/settings-r3b-spec.md): changing a game once it's under way. The lock's states (before airtime,
+ * after, locked for everyone), How it plays' new lines (an end at a phase, waiver timing, when the show adds a moment, an empty slot
+ * filled from the bench), a moment gained with the players' vote (Manage's line, the strip's line, the vote sheet), someone who
+ * hasn't picked (Who's playing, their sheet, the pick made for them), and a runner's job under the strip.
+ */
+function round3b(pool, fx, S, L, menu) {
+  const manage = "[data-game-settings]";
+  const lineup = `/show/${S}/game/${L.lineup}`;
+  const poolGame = `/show/${S}/game/${L.pool}`;
+  const gear = "[data-game-title] [data-game-manage]";
+  const lockRow = "[data-settings-lock] > button";
+  const at = (n, ms) =>
+    pool.query("INSERT INTO season_episodes (season_id, number, air_at) VALUES ($1, $2, $3) ON CONFLICT (season_id, number) DO UPDATE SET air_at = EXCLUDED.air_at", [S, n, new Date(Date.now() + ms)]);
+  const beforeAir = () => at(6, 2 * 24 * 3600_000);
+  const aired = () => at(6, -3600_000);
+  // The lock as the game's rule again (after the frame that locks it for everyone).
+  const unlock = async () => {
+    await beforeAir();
+    await pool.query("UPDATE leagues SET state = jsonb_set(state, '{episodes}', (SELECT jsonb_agg(e - 'lineupsLocked' - 'openPastAir') FROM jsonb_array_elements(state->'episodes') e)) WHERE id = $1", [L.lineup]);
+  };
+  // A moment Lineup League gained this week, the players voting: its rulebook on, "Won the Immunity challenge" recorded from Ep 6.
+  const R = require("../../db/rulebooks.js");
+  const gained = async () => {
+    await beforeAir();
+    await R.syncLeagueRow(pool, L.lineup, { on: true });
+    const st = (await pool.query("SELECT state FROM leagues WHERE id = $1", [L.lineup])).rows[0].state;
+    st.settings.newMoments = "vote";
+    const ids = R.momentIdsOf(st.settings.rulebook) ?? [];
+    await R.recordAddedMoments(pool, S, st.settings, ids.filter((x) => x !== "individualImmunity"));
+    await pool.query("UPDATE leagues SET state = jsonb_set(jsonb_set(state, '{settings,momentsFrom}', $2::jsonb), '{settings,newMoments}', '\"vote\"'::jsonb) WHERE id = $1", [L.lineup, JSON.stringify(st.settings.momentsFrom ?? {})]);
+    await pool.query("DELETE FROM stage_change_votes WHERE league_id = $1", [L.lineup]);
+    await pool.query("INSERT INTO stage_change_votes (league_id, change_key, player_id, vote, user_id) SELECT $1, 'moment:individualImmunity', player_id, 'start', user_id FROM league_memberships WHERE league_id = $1 AND user_id = $2", [L.lineup, fx.users.riley]);
+  };
+  const request = () => pool.query("INSERT INTO game_join_requests (league_id, user_id) VALUES ($1, $2)", [L.lineup, fx.users.casey]);
+  const unrequest = () => pool.query("DELETE FROM game_join_requests WHERE league_id = $1 AND user_id = $2", [L.lineup, fx.users.casey]);
+  return [
+    // The lock (BACKLOG 157)
+    { id: "r3b-lock-before-riley", home: "game", who: "riley", db: beforeAir, go: lineup, ready: "[data-game-page]", tap: [gear, lockRow], wait: "[data-lock-choices]", full: false, lens: "riley, a Helper, two days before Ep 6: the lock's value is its state; opened, the two it can take" },
+    { id: "r3b-lock-after-riley", home: "game", who: "riley", db: aired, go: lineup, ready: "[data-game-page]", tap: [gear, lockRow], wait: "[data-lock-choices]", full: false, lens: "an hour after Ep 6 aired: the game's rule (open to whoever hasn't watched), open to everyone, locked for everyone" },
+    { id: "r3b-lock-locked-riley", home: "game", who: "riley", db: aired, go: lineup, ready: "[data-game-page]", tap: [gear, lockRow, '[data-settings-choice="lock-locked"]'], wait: '[data-lock-state="locked"]', full: false, undo: unlock, lens: "riley locks it for everyone: the row turns the lock colour, the toast has Undo (the server's)" },
+    // How it plays' new lines
+    { id: "r3b-howplays-alex", home: "game", who: "alex", db: gained, go: lineup, ready: "[data-game-page]", tap: gear, wait: manage, scroll: '[data-setting-line="joining"]', full: false, lens: "How it plays, scrolled: Who scores each week (fills an empty slot), How long, Replacing people who leave, When the show adds a moment" },
+    { id: "r3b-moments-alex", home: "game", who: "alex", db: gained, go: lineup, ready: "[data-game-page]", tap: [gear, '[data-setting-line="moments"] > button'], wait: '[data-settings="moments"]', scroll: '[data-setting-line="moments"]', lens: "When the show adds a moment, opened: the three choices, and the moment gained this week with its vote standing and the Commissioner's call" },
+    { id: "r3b-length-alex", home: "game", who: "alex", db: beforeAir, go: lineup, ready: "[data-game-page]", tap: [gear, '[data-setting-line="length"] > button'], wait: "[data-span-end]", scroll: '[data-setting-line="length"]', full: false, lens: "How long, opened: Ends offers Until Merged starts beside an episode" },
+    { id: "r3b-timing-alex", home: "game", who: "alex", db: beforeAir, go: lineup, ready: "[data-game-page]", tap: [gear, '[data-setting-line="waivers"] > button', "[data-fine]"], wait: "[data-fine-body]", scroll: "[data-order]", full: false, lens: "Fine-tune's timing, real: claims close, who goes first, free agency, from the next window" },
+    { id: "r3b-fill-alex", home: "game", who: "alex", db: beforeAir, go: lineup, ready: "[data-game-page]", tap: [gear, '[data-setting-line="lineup"] > button'], wait: "[data-bench-fill]", scroll: '[data-setting-line="lineup"]', full: false, lens: "Who scores each week, opened: Fill an empty slot from the bench (off for a game made before; from the next episode when on)" },
+    // Someone who hasn't picked (166)
+    { id: "r3b-missing-alex", home: "game", who: "alex", db: beforeAir, go: poolGame, ready: "[data-game-page]", tap: gear, wait: "[data-who-plays] [data-person]", scroll: "[data-who-plays]", full: false, lens: "Pool Party's Who's playing: '3 haven't set a pick', and each row says so" },
+    { id: "r3b-missing-sheet-alex", home: "game", who: "alex", db: beforeAir, go: poolGame, ready: "[data-game-page]", tap: [gear, '[data-person="jordan"]'], wait: "[data-person-sheet]", full: false, lens: "jordan's sheet: Make their pick first, then his role" },
+    { id: "r3b-move-for-alex", home: "game", who: "alex", db: beforeAir, go: poolGame, ready: "[data-game-page]", tap: [gear, '[data-person="jordan"]', "[data-person-move-for]"], wait: "[data-move-for]", full: false, lens: "the pick, made for jordan: who he may pick, faces; it goes in as his" },
+    // The strip: a vote, a runner's job
+    { id: "r3b-strip-vote-jordan", home: "show", who: "jordan", db: gained, go: `/show/${S}/tonight`, ready: "[data-tab]", wait: "[data-moment-vote-line]", full: false, lens: "Tonight for jordan: his strip, and under it the vote, quiet" },
+    { id: "r3b-vote-jordan", home: "show", who: "jordan", db: gained, go: `/show/${S}/tonight`, ready: "[data-moment-vote-line]", tap: "[data-moment-vote-line] button", wait: "[data-moment-vote]", full: false, lens: "the vote: two equal answers, what each does to the standings, 'for now' named, nobody voting keeps it" },
+    { id: "r3b-strip-runner-alex", home: "show", who: "alex", db: async () => (await beforeAir(), await request()), undo: unrequest, go: `/show/${S}/tonight`, ready: "[data-tab]", wait: "[data-runner-line]", full: false, lens: "Tonight for alex, who plays and runs: his own move in the plate, the runner's job a quiet line under it" },
+  ];
+}
+
 /** The site admin for the desk's frames: a zt_nd_ person, so new-fixture's down removes them with the rest. */
 async function deskAdmin(pool) {
   const { hashPassword } = await import("better-auth/crypto");
@@ -356,6 +416,7 @@ async function main() {
       ...round1(pool, fx, S, T, menu, sheet),
       ...round2(pool, fx, so, S, T, L, menu, sheet),
       ...round3(pool, fx, S, L, menu),
+      ...round3b(pool, fx, S, L, menu),
     ]);
     failed += r.failed;
     index.push(...r.shot);

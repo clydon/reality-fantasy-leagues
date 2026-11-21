@@ -296,8 +296,8 @@ export function JoinControl({ g, can, write, compact }: { g: GameSettings; can: 
  * opened in place to the states reachable now, each a chosen-with-a-tick card saying what it does to people. Before the episode airs:
  * open until it does (the game's rule) or locked early; after: the game's rule (open to whoever hasn't watched, where late moves are
  * on; locked at airtime where they aren't), open to everyone, or locked for everyone; once its results are in, locked for good, with
- * nothing to choose. Each saves at once, with the server's Undo (backstage-games.ts lockWrite). The icon takes the lock's colour only
- * when the state isn't the game's own rule, so a normal night reads calm (PFD R2).
+ * nothing to choose. Each saves at once, with the server's Undo (backstage-games.ts lockWrite). A state that isn't the game's own rule
+ * carries a quiet "By hand" tag, so a normal night reads calm and nothing competes with the yellow (PFD R2).
  */
 export function LockRow({ seasonId, couchId, g, lock, word }: { seasonId: string; couchId: string; g: GameSettings; lock: NonNullable<GameSettings["lock"]>; word: string }) {
   const after = useAfter();
@@ -336,12 +336,16 @@ export function LockRow({ seasonId, couchId, g, lock, word }: { seasonId: string
         onClick={() => setOpen(!open)}
         className="nd-press flex min-h-[64px] w-full items-center gap-3 py-2 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
-        <span className={`grid size-10 flex-none place-items-center rounded-[3px] ${unusual ? "bg-chyron-line/15 text-chyron-line" : "bg-secondary text-foreground"}`}>
+        <span className="grid size-10 flex-none place-items-center rounded-[3px] bg-secondary text-foreground">
           <Icon className="size-5" aria-hidden />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="type-caption block text-[13px] tracking-[0.05em] text-muted-foreground">
-            {ep}&rsquo;s {what}
+          {/* Changed by hand, named with the page's quiet tag (the check's fix: a tint here read as the house yellow). */}
+          <span className="flex items-center gap-2">
+            <span className="type-caption text-[13px] tracking-[0.05em] text-muted-foreground">
+              {ep}&rsquo;s {what}
+            </span>
+            {unusual && <em data-lock-by-hand className="type-caption rounded-[2px] bg-quiet-tag px-1.5 text-[11px] not-italic tracking-[0.05em] text-quiet-tag-foreground">By hand</em>}
           </span>
           <b className="block text-[16px] font-semibold leading-snug">{value}</b>
           {!final && <small className="block text-[13px] leading-snug text-muted-foreground">{now.short}</small>}

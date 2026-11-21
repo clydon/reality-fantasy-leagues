@@ -149,14 +149,15 @@ export function RunnerLine({ show }: { show: ShowData }) {
   if (!jobs.length) return null;
   const job = jobs[0];
   const game = show.games.find((g) => g.leagueId === job.leagueId);
-  const words = job.id === "waivers" ? waiverJobWords(job) : { title: job.title, detail: job.detail };
+  // The game is the caption's: the title is the job alone (the check's fix: one name for the game, never two).
+  const words = job.id === "waivers" ? waiverJobWords(job) : { title: job.request ? `${job.request.name} asked to join` : job.title, detail: job.detail };
   const more = jobs.length - 1;
   return (
     <section className="px-3 pt-1.5" data-runner-line={job.id}>
       <NavLink href={manageHref(seasonId, job.leagueId!, job.id === "waivers" ? "waivers" : undefined)} className="nd-press flex min-h-12 items-center gap-2.5 rounded-[3px] bg-card px-3 py-1.5 outline-1 -outline-offset-1 outline-border">
         <span className="min-w-0 flex-1">
           <span className="type-caption block truncate text-[12px] tracking-[0.05em] text-muted-foreground">You run {game?.name ?? "this game"}{more > 0 ? ` · +${more} more` : ""}</span>
-          <b className="block truncate text-[15px] font-semibold leading-snug">{words.title}</b>
+          <b className="block text-pretty text-[15px] font-semibold leading-snug">{words.title}</b>
         </span>
         <span className="flex flex-none items-center gap-0.5 text-[14px] font-bold">
           {job.id === "request" ? "Let in" : job.waivers?.kind === "closing" ? "See picks" : "Open"}

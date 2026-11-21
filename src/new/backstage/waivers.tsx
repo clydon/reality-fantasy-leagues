@@ -613,23 +613,17 @@ function WaiverSettings({ seasonId, couchId, g, onUndo }: { seasonId: string; co
             atMin={S.processHours <= HOURS[0]}
             atMax={S.processHours >= HOURS[HOURS.length - 1]}
           />
-          <div className="rounded-[3px] bg-background p-2.5">
-            <b className="block text-[15px]">Who goes first</b>
-            <small className="text-[13px] text-muted-foreground">When two teams claim the same one</small>
-            <div className="mt-2 grid grid-cols-3 gap-1" role="group" aria-label="Who goes first">
-              {(
-                [
-                  ["leastPoints", "Fewest points"],
-                  ["mostPoints", "Most points"],
-                  ["rolling", "Rolling"],
-                ] as const
-              ).map(([k, l]) => (
-                <button key={k} type="button" data-order={k} aria-pressed={S.orderBy === k} onClick={() => S.orderBy !== k && set("replenishOrderBy", k)} className={seg(S.orderBy === k)}>
-                  {l}
-                </button>
-              ))}
-            </div>
-          </div>
+          {/* The round's tick cards for a pick of one from a few (the check's fix: PFD R3). */}
+          <p className="mt-1 text-[14px] font-semibold">Who goes first, when two claim the same one</p>
+          {(
+            [
+              ["leastPoints", "Fewest points", "The team that's behind gets first pick"],
+              ["mostPoints", "Most points", "The leader gets first pick"],
+              ["rolling", "Rolling", "Whoever got one last goes to the back"],
+            ] as const
+          ).map(([k, t, d]) => (
+            <Choice key={k} data={`order-${k}`} dataset={{ "data-order": k }} title={t} line={d} chosen={S.orderBy === k} onPick={() => S.orderBy !== k && set("replenishOrderBy", k)} />
+          ))}
           <Toggle on={S.freeAgency} onClick={() => set("freeAgencyEnabled", !S.freeAgency)} title="Free agency" line={S.freeAgency ? "After the claims, anyone left is free to take until airtime" : "Off: only claims, in the windows"} />
           <Toggle on={S.autoFill} onClick={() => set("autoFill", !S.autoFill)} title="Fallback pick" line="Forget to pick? They get whoever's free with the most points." />
         </div>

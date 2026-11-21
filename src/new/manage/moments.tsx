@@ -6,7 +6,6 @@ import { airTime } from "../clock";
 import { gameAdmin, momentVotes, useMomentVotes, type GameSettings, type OpenVote } from "../data";
 import { useAfter, useServerUndo } from "../backstage/settings";
 import type { ShowData } from "../screens/show-space";
-import { Btn } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { Choice } from "./choice";
@@ -65,6 +64,10 @@ export function NewMoments({ seasonId, couchId, g, ep }: { seasonId: string; cou
           onPick={() => void set(k)}
         />
       ))}
+      {/* The check's fix: Recommended says why (the show's first season here, or a format it knows). */}
+      <p data-moments-why className="text-[13px] leading-snug text-muted-foreground">
+        Recommended {m.rec === "start" ? "from the start: this show's rules are still settling (its first season here, or its seasons differ)" : "from the next episode: the app knows this show's format season to season"}.
+      </p>
       {m.added.length > 0 && (
         <div data-moments-added className="mt-2">
           <p className="type-caption pb-1.5 text-[13px] tracking-[0.05em] text-muted-foreground">New this season</p>
@@ -79,7 +82,9 @@ export function NewMoments({ seasonId, couchId, g, ep }: { seasonId: string; cou
               : a.tally
                 ? ` · ${a.tally.start + a.tally.next} of ${a.tally.of} voted${a.tally.tie ? ", tied: your call" : ""}`
                 : "";
-            const open = !a.settled && g.commissioner && can;
+            // The Commissioner's call (the check's fix): only where it's theirs, a tie in the vote or a moment the game's rule placed;
+            // never over an open vote, which the players settle.
+            const open = !a.settled && g.commissioner && can && (a.rule === "next" || !!a.tally?.tie);
             return (
               <div key={a.id} data-moment-added={a.id} className="border-t border-border py-2.5 first:border-t-0">
                 <b className="block text-[15px] font-semibold leading-snug">
@@ -90,13 +95,10 @@ export function NewMoments({ seasonId, couchId, g, ep }: { seasonId: string; cou
                   {how}
                 </small>
                 {open && (
-                  <div className="mt-2 grid grid-cols-2 gap-1.5">
-                    <button type="button" data-moment-decide="start" disabled={busy} onClick={() => void decide(a.id, "start", a.name, a.from)} className="nd-press h-10 rounded-[3px] bg-secondary text-[14px] font-bold">
-                      From the start
-                    </button>
-                    <button type="button" data-moment-decide="next" disabled={busy} onClick={() => void decide(a.id, "next", a.name, a.from)} className="nd-press h-10 rounded-[3px] bg-secondary text-[14px] font-bold">
-                      From {ep} {a.from}
-                    </button>
+                  <div data-moment-call className="mt-2 flex flex-col gap-1.5">
+                    <p className="text-[13px] font-semibold">{a.tally?.tie ? "The vote tied. Your call:" : "Your call, if the couch wants it different:"}</p>
+                    <Choice data="moment-start" dataset={{ "data-moment-decide": "start" }} title="Count it from the start" line={`Scores it in the ${ep}s already played too.`} chosen={false} onPick={() => !busy && void decide(a.id, "start", a.name, a.from)} />
+                    <Choice data="moment-next" dataset={{ "data-moment-decide": "next" }} title={`Keep it from ${ep} ${a.from}`} line="Nothing already played changes." chosen={false} onPick={() => !busy && void decide(a.id, "next", a.name, a.from)} />
                   </div>
                 )}
               </div>
@@ -110,7 +112,7 @@ export function NewMoments({ seasonId, couchId, g, ep }: { seasonId: string; cou
 
 const RULES = {
   start: { title: "Count it from the start", line: () => "Every episode is scored again with it. Suits a new show, whose first rules are a guess.", said: "count from the start", value: "From the start" },
-  next: { title: "From the next episode", line: (ep: string) => `${ep}s already played keep their points: nobody could plan for it. Suits a format you know.`, said: "count from the next episode", value: "From the next episode" },
+  next: { title: "From the next episode", line: (ep: string) => `${ep}s already played keep their points. Suits a format you know.`, said: "count from the next episode", value: "From the next episode" },
   vote: { title: "Let the players vote", line: () => "From the next episode for now; the players vote until it airs, and the Commissioner breaks a tie.", said: "go to the players' vote", value: "The players vote" },
 } as const;
 
@@ -137,9 +139,11 @@ export function MomentVoteLine({ show }: { show: ShowData }) {
           <span className="min-w-0 flex-1">
             <span className="type-caption block truncate text-[12px] tracking-[0.05em] text-muted-foreground">
               {v.mine ? "You voted" : "Vote"} · {v.gameName}
+              {v.closes ? ` · by ${airTime(Date.parse(v.closes))}` : ""}
               {votes.length > 1 ? ` · +${votes.length - 1} more` : ""}
             </span>
-            <b className="block truncate text-[15px] font-semibold leading-snug">Count &ldquo;{v.name}&rdquo; from the start?</b>
+            {/* Never cut (the check's fix): the question leads, and a long name takes a second line. */}
+            <b className="block text-pretty text-[15px] font-semibold leading-snug">From the start? &ldquo;{v.name}&rdquo;</b>
           </span>
           <span className="flex flex-none items-center gap-0.5 text-[14px] font-bold">
             {v.mine ? "See it" : "Vote"}
@@ -182,15 +186,16 @@ export function MomentVoteSheet({ seasonId, couchId, v, ep, onClose }: { seasonI
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()} title={`“${v.name}” is new`} subtitle={`${pts(v.points)} in ${v.gameName} · the show added it this season`}>
       <div data-moment-vote={v.id} className="flex flex-col gap-2 pb-2">
-        <p className="text-[15px] leading-snug">Should it count in {ep}s already played? Nobody could have planned for it.</p>
+        <p className="text-[15px] leading-snug">Should it count in the {ep}s already played, or only from {ep} {v.from} on?</p>
         <Choice data="vote-start" title="From the start" line={startLine} chosen={v.mine === "start"} onPick={() => !busy && void vote("start")} />
         <Choice data="vote-next" title={`From ${ep} ${v.from}`} line={`Nothing already played changes. It counts from ${ep} ${v.from} on.`} chosen={v.mine === "next"} onPick={() => !busy && void vote("next")} />
         <p className="text-[13px] leading-snug text-muted-foreground" data-vote-standing>
           For now it counts from {ep} {v.from}. {v.voted} of {v.of} voted{v.closes ? `; the vote closes ${airTime(Date.parse(v.closes))}` : ""}. More than half decides it; nobody voting keeps {ep} {v.from}.
         </p>
-        <Btn wide onClick={onClose}>
+        {/* Quiet (the check's fix): leaving isn't an answer, so it's never the heaviest thing here. */}
+        <button type="button" onClick={onClose} className="mt-1 min-h-11 text-[15px] font-semibold text-muted-foreground">
           {v.mine ? "Done" : "Not now"}
-        </Btn>
+        </button>
       </div>
     </Sheet>
   );

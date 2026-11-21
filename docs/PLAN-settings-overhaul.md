@@ -1,7 +1,9 @@
 # Settings: the overhaul
 
-> **Status (2026-11-21): Round 3a live** (pushed 535e2ecf, no migration). Round 3b (changing a game once it's under way) is in
-> progress on branch `settings-r3b` in the lane rfl-settings; its spec is design-round/settings-r3b-spec.md. Detail: Round 3, below.
+> **Status (2026-11-21): Round 3a live** (pushed 535e2ecf, no migration). **Round 3b built on branch `settings-r3b`** (lane
+> rfl-settings; no migration), waiting on the user's review of its story (https://claude.ai/artifact/SCCquWVBtn7qhotipLmcyx; four
+> choices at its end). PFD 70 and Impeccable 28/40 before one batch of fixes (bars 80 and 32). Detail: Round 3, below, and
+> design-round/settings-r3b-check.md.
 >
 > **Round 2 (2026-11-21): merged and live** (pushed ce891ba2; migration 0448 on production, rehearsed first; the snapshot
 > `pre-settings-r2-2026-11-21` keeps 7 days). The user took all three recommendations (leaving drawn quiet, three results choices,
@@ -396,7 +398,37 @@ fixed, both built** (decisions.md, 2026-11-20). Story: https://claude.ai/artifac
   and eslint on the changed files clean. Rehearsed on Neon (rehearse-settings-2026-11-20, ep-bold-field, from production,
   2026-11-20): 0447 applied, `[check] all good`, rulebooks backfilled, game specs PASS (10 of 10), and the rulebooks check's known
   15-line FAIL baseline (10 DIFFERS, 5 seasons). Waits on the user's go to push.
-- **The original scope:**
+- **3b built 2026-11-21 (branch settings-r3b), waiting on the user's review** of its story
+(https://claude.ai/artifact/SCCquWVBtn7qhotipLmcyx). The design steps: [settings-r3b-spec.md](design-round/settings-r3b-spec.md),
+[-first-view.md](design-round/settings-r3b-first-view.md), [-shape.md](design-round/settings-r3b-shape.md), and the check, its fixes and
+what's open, [-check.md](design-round/settings-r3b-check.md).
+- **Built:**
+  - **The lock's states (157):** a line whose value is its state by effect, opened in place: before airtime open until it airs /
+    locked early; after, the game's rule / open to everyone / locked for everyone (new: `lineupsLocked` after airtime, which
+    GhostLogic.lateWindow honours). lockWrite takes `auto | locked | open`.
+  - **Typed undos (rule 6):** EpisodeLockUndo, QuestionsUndo (`questionList`), BotUndo; pace through settingsSet; the freeze's
+    toast uses its batch. Computer players taken out come back for 30 days.
+  - **A15:** How long until a phase starts (`endPhase`, settled by settleIn); waiver timing real (claims close 6-48 h, who goes
+    first, free agency). Others' lineups left out (the new app hides them until the lock whatever the setting says).
+  - **A17:** `settings.newMoments` (start / next / vote; default by the show's format) and `settings.momentsFrom`, recorded on
+    every rulebook sync (db/rulebooks.js recordAddedMoments) and read by ActiveRosterLogic.pointsFor (momentFrom). The vote:
+    moment-votes.ts over stage_change_votes (`moment:<id>`), its route, the strip's quiet line and a sheet; the Commissioner's
+    call (momentWrite) on a tie or a moment the rule placed. Only moments added from now on carry an entry.
+  - **A16:** 164 (the Fantasy league base starts with replacements on); 165 (`settings.benchFill`, the first episode it fills
+    from; on for new games, off for older ones; ActiveRosterLogic.benchFill/filledFor); 166 (GameSettings.missing, Make their
+    pick / Set their lineup on a person's sheet; the lineup and pick routes take a Helper's).
+  - **A runner's jobs on the strip:** backstageRead's `waivers` job (closing within a day, or teams short where windows open by
+    hand, through what the runner has seen); RunnerLine under the strip.
+- **Checks:** `npm test` 2530 of 2530; tests/moments-from.test.js and tests/bench-fill.test.js (new); scripts/dev-test/
+  check-settings-r3b.js (new, 51 checks); check-episode-lock and check-game-settings moved to the lock's states (all pass);
+  story-settings.js `--only=^r3b-` (14 frames). tsc clean; eslint at its known 4 errors.
+- **Before shipping:** compare-totals on a fresh backup (scoring changed: momentFrom and benchFill, both inert without their
+  settings) and the long checks once.
+- **Open, noticed:** "filled for you" isn't said on the reveal or the lineup yet; the night plate's Lock now for runners isn't
+  built (choice 4 on the story); a moment's points changed mid-season still count from the start (choice 2); How long's Ends is
+  still a native select (Round 4's ripple).
+
+**The original scope:**
   - Your settings as Round 0 decided: groups with their values, plus "Your shows, couches and games". The hub's gear opens it.
   - Notifications everywhere they're set: on You, a show, a couch, a game, the push itself and the bell. Each choice carries its
     "what you'll still get" line, and the kinds read as off while this phone is.
@@ -450,7 +482,37 @@ fixed, both built** (decisions.md, 2026-11-20). Story: https://claude.ai/artifac
   54 pass, its one left a GIF read (below). Their remaining failures are outside this round's screens (below, Found in Round 2).
 - **Left for later:** C23 (one way to follow a sport) and starting Watch it as if live from every finished game: the sports lane's
   files. C27 (Who can fill in results): with Backstage in Round 3. A10, A12: "not now".
-- **The original scope:**
+- **3b built 2026-11-21 (branch settings-r3b), waiting on the user's review** of its story
+(https://claude.ai/artifact/SCCquWVBtn7qhotipLmcyx). The design steps: [settings-r3b-spec.md](design-round/settings-r3b-spec.md),
+[-first-view.md](design-round/settings-r3b-first-view.md), [-shape.md](design-round/settings-r3b-shape.md), and the check, its fixes and
+what's open, [-check.md](design-round/settings-r3b-check.md).
+- **Built:**
+  - **The lock's states (157):** a line whose value is its state by effect, opened in place: before airtime open until it airs /
+    locked early; after, the game's rule / open to everyone / locked for everyone (new: `lineupsLocked` after airtime, which
+    GhostLogic.lateWindow honours). lockWrite takes `auto | locked | open`.
+  - **Typed undos (rule 6):** EpisodeLockUndo, QuestionsUndo (`questionList`), BotUndo; pace through settingsSet; the freeze's
+    toast uses its batch. Computer players taken out come back for 30 days.
+  - **A15:** How long until a phase starts (`endPhase`, settled by settleIn); waiver timing real (claims close 6-48 h, who goes
+    first, free agency). Others' lineups left out (the new app hides them until the lock whatever the setting says).
+  - **A17:** `settings.newMoments` (start / next / vote; default by the show's format) and `settings.momentsFrom`, recorded on
+    every rulebook sync (db/rulebooks.js recordAddedMoments) and read by ActiveRosterLogic.pointsFor (momentFrom). The vote:
+    moment-votes.ts over stage_change_votes (`moment:<id>`), its route, the strip's quiet line and a sheet; the Commissioner's
+    call (momentWrite) on a tie or a moment the rule placed. Only moments added from now on carry an entry.
+  - **A16:** 164 (the Fantasy league base starts with replacements on); 165 (`settings.benchFill`, the first episode it fills
+    from; on for new games, off for older ones; ActiveRosterLogic.benchFill/filledFor); 166 (GameSettings.missing, Make their
+    pick / Set their lineup on a person's sheet; the lineup and pick routes take a Helper's).
+  - **A runner's jobs on the strip:** backstageRead's `waivers` job (closing within a day, or teams short where windows open by
+    hand, through what the runner has seen); RunnerLine under the strip.
+- **Checks:** `npm test` 2530 of 2530; tests/moments-from.test.js and tests/bench-fill.test.js (new); scripts/dev-test/
+  check-settings-r3b.js (new, 51 checks); check-episode-lock and check-game-settings moved to the lock's states (all pass);
+  story-settings.js `--only=^r3b-` (14 frames). tsc clean; eslint at its known 4 errors.
+- **Before shipping:** compare-totals on a fresh backup (scoring changed: momentFrom and benchFill, both inert without their
+  settings) and the long checks once.
+- **Open, noticed:** "filled for you" isn't said on the reveal or the lineup yet; the night plate's Lock now for runners isn't
+  built (choice 4 on the story); a moment's points changed mid-season still count from the start (choice 2); How long's Ends is
+  still a native select (Round 4's ripple).
+
+**The original scope:**
   - This show: its ⋯, the episodes you've watched, "When a new episode airs".
   - Add a show's "where are you" step.
   - Sports: Show the score (say what it moves: today it moves your mark for the whole week, on every season with that game ✓),
@@ -518,6 +580,36 @@ one batch of fixes.
   - A person's colour differs between Manage this game and Waivers (waivers.tsx passes `userId ?? playerId`): Round 4's ripple.
   - The studio sweep measured Who's playing's "You" tag at 1.1:1 (likely a misreading of a small tag; the frames show it legible):
     look again in Round 4's ripple.
+
+**3b built 2026-11-21 (branch settings-r3b), waiting on the user's review** of its story
+(https://claude.ai/artifact/SCCquWVBtn7qhotipLmcyx). The design steps: [settings-r3b-spec.md](design-round/settings-r3b-spec.md),
+[-first-view.md](design-round/settings-r3b-first-view.md), [-shape.md](design-round/settings-r3b-shape.md), and the check, its fixes and
+what's open, [-check.md](design-round/settings-r3b-check.md).
+- **Built:**
+  - **The lock's states (157):** a line whose value is its state by effect, opened in place: before airtime open until it airs /
+    locked early; after, the game's rule / open to everyone / locked for everyone (new: `lineupsLocked` after airtime, which
+    GhostLogic.lateWindow honours). lockWrite takes `auto | locked | open`.
+  - **Typed undos (rule 6):** EpisodeLockUndo, QuestionsUndo (`questionList`), BotUndo; pace through settingsSet; the freeze's
+    toast uses its batch. Computer players taken out come back for 30 days.
+  - **A15:** How long until a phase starts (`endPhase`, settled by settleIn); waiver timing real (claims close 6-48 h, who goes
+    first, free agency). Others' lineups left out (the new app hides them until the lock whatever the setting says).
+  - **A17:** `settings.newMoments` (start / next / vote; default by the show's format) and `settings.momentsFrom`, recorded on
+    every rulebook sync (db/rulebooks.js recordAddedMoments) and read by ActiveRosterLogic.pointsFor (momentFrom). The vote:
+    moment-votes.ts over stage_change_votes (`moment:<id>`), its route, the strip's quiet line and a sheet; the Commissioner's
+    call (momentWrite) on a tie or a moment the rule placed. Only moments added from now on carry an entry.
+  - **A16:** 164 (the Fantasy league base starts with replacements on); 165 (`settings.benchFill`, the first episode it fills
+    from; on for new games, off for older ones; ActiveRosterLogic.benchFill/filledFor); 166 (GameSettings.missing, Make their
+    pick / Set their lineup on a person's sheet; the lineup and pick routes take a Helper's).
+  - **A runner's jobs on the strip:** backstageRead's `waivers` job (closing within a day, or teams short where windows open by
+    hand, through what the runner has seen); RunnerLine under the strip.
+- **Checks:** `npm test` 2530 of 2530; tests/moments-from.test.js and tests/bench-fill.test.js (new); scripts/dev-test/
+  check-settings-r3b.js (new, 51 checks); check-episode-lock and check-game-settings moved to the lock's states (all pass);
+  story-settings.js `--only=^r3b-` (14 frames). tsc clean; eslint at its known 4 errors.
+- **Before shipping:** compare-totals on a fresh backup (scoring changed: momentFrom and benchFill, both inert without their
+  settings) and the long checks once.
+- **Open, noticed:** "filled for you" isn't said on the reveal or the lineup yet; the night plate's Lock now for runners isn't
+  built (choice 4 on the story); a moment's points changed mid-season still count from the start (choice 2); How long's Ends is
+  still a native select (Round 4's ripple).
 
 **The original scope:**
 - **Scope.**

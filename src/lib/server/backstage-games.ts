@@ -885,7 +885,7 @@ export async function gameSettings(scope: BackstageScope): Promise<{ games: Game
         span: spanState(s, schedule, phases[i], playoffs),
         lock: lockOf(s),
         questions: sheets[i],
-        missing: missingOf(s, seen, members.get(l.game.leagueId) ?? new Map()),
+        missing: missingOf(s, seen, members.get(l.game.leagueId) ?? new Map(), scope.user.id),
         moments: momentsOf(s, rec, tallies[i]),
       };
     }),
@@ -1225,7 +1225,7 @@ export async function scoringRules(scope: BackstageScope): Promise<ScoringRules>
 
 /** Who hasn't set this episode's lineup or pick (GameSettings.missing): only before it airs, only people (not computer players or
  *  empty seats), and only when the runner has seen what comes before it (their choices would say who's gone). */
-function missingOf(s: LeagueState, seen: number | null, users: Map<string, string>): GameSettings["missing"] {
+function missingOf(s: LeagueState, seen: number | null, users: Map<string, string>, me: string): GameSettings["missing"] {
   const pieces = StateLogic.piecesOf(s);
   const lineup = !!pieces.hasActiveRoster;
   const pick = !lineup && !!pieces.hasWeeklyPicks;
@@ -1237,7 +1237,8 @@ function missingOf(s: LeagueState, seen: number | null, users: Map<string, strin
   const faces = new Map(castOf(view).map((f) => [f.id, f]));
   const face = (id: string) => ({ id, name: faces.get(id)?.name ?? view.castaways.find((c) => c.id === id)?.name ?? "?", photo: faces.get(id)?.photo ?? null });
   const people = view.players
-    .filter((p) => !p.automated && !p.disabled && users.has(p.id) && !StateLogic.GhostLogic.movedFor(view, p.id, ep.id))
+    // Not the runner's own: that's their strip's move (the check's fix: the count matched the rows).
+    .filter((p) => !p.automated && !p.disabled && users.has(p.id) && users.get(p.id) !== me && !StateLogic.GhostLogic.movedFor(view, p.id, ep.id))
     .map((p) => {
       const options = lineup
         ? view.castaways.filter((c) => c.status === "active" && (c.ownerIds ?? []).includes(p.id)).map((c) => face(c.id))
