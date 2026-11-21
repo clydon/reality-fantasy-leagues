@@ -276,7 +276,7 @@ export function seatMoveOf(userId: string, actorPlayerId: string | null, playerI
   return Object.assign(() => null, { seatMove: { userId, playerId, ...move } });
 }
 
-const ROLE_WORDS: Record<string, string> = { commissioner: "a Commissioner", admin: "a Game admin", member: "a player" };
+const ROLE_WORDS: Record<string, string> = { commissioner: "a Commissioner", admin: "a Helper", member: "a player" };
 
 /** A role change (tier 1), written inside setLeagueRole's transaction, with Undo that hands the old role back. */
 export async function roleChange(client: PoolClient, leagueId: string, actorId: string, userId: string, before: string, after: string, batch?: string): Promise<void> {

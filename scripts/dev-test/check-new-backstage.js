@@ -1,8 +1,10 @@
 // Dev-only check for Backstage I (docs/PLAN-new-design.md step 5), against the dev server, on new-fixture.js (three
 // linked leagues on a zt Survivor 51, results through Episode 5; the season is moved back five days here so Episode 6
 // has aired with nothing in):
-//   1. In a browser at --width as alex (runs all three games): the show's ⋯ menu has Backstage's dot; Backstage's
-//      Needs you asks who went home in Episode 6; Results' quick check through the Ask an AI sheet (the ChatGPT link to
+//   1. In a browser at --width as alex (runs all three games): the show's ⋯ menu has Games you run here with no dot, and
+//      Games you run (Backstage's address since settings Round 3a) lists the three games with no results job (who went home
+//      isn't a runner's job now: the bot settles); Episode 5's page has the runner's Fix who went home link to Results;
+//      Results at Episode 6: its quick check through the Ask an AI sheet (the ChatGPT link to
 //      a parked question, Another AI? Copy the question, the paste and its check) applies on its own to all three
 //      games (early results) and shows no name until Show me; Undo from Recent changes takes it off again; entering who
 //      went home yourself goes through the tier-2 preview; the full results' paste applies every result, the
@@ -13,7 +15,7 @@
 //      who went home; undo goes newest first (a later change to the episode first) and puts each league's stage back.
 //   3. Classic's writes log too: a settings change and a role change (tier 1) undone from Recent changes, and who
 //      went home entered in classic with its undo; a player's own lineup isn't logged.
-//   4. Players: sam's Backstage says it's for whoever runs a game; his Recent changes has no Undo; riley's ⋯ menu has
+//   4. Players: sam's Games you run says he doesn't run a game here; his Recent changes has no Undo; riley's ⋯ menu has
 //      Recent changes. Nothing wider than the screen; no page errors.
 // Screenshots go to <outDir>.
 //
@@ -167,24 +169,29 @@ function fullAnswer(prompt) {
       if (await page.locator("[data-one-tap]").count()) await page.locator("[data-copy-paste]").click();
     };
 
+    // Settings Round 3a retired Backstage: its address is Games you run, and who went home is no runner's job any more (the bot
+    // settles every season, C30), so no dot for it and no job; a runner's fix is the episode page's link to Results.
     await page.goto(`${BASE}/show/${sid}/tonight`);
-    await page.locator("[data-menu-dot]").waitFor({ timeout: 20000 });
-    check(true, "the ⋯ menu carries Backstage's dot");
     await page.getByRole("button", { name: /Show menu/ }).click();
-    await sheet.getByText("Who went home in Episode 6?").waitFor();
+    await sheet.locator("[data-menu-main]").getByText("Games you run here").waitFor({ timeout: 20000 });
+    check((await page.locator("[data-menu-dot]").count()) === 0, "the ⋯ menu: Games you run here, and no dot for who went home (not a runner's job now)");
     await shot("menu");
     // Recent changes sits in the menu itself (settings Round 2: the ⋯ is things to do, with no Everything else).
     await sheet.locator("[data-menu-main]").getByText("Recent changes").waitFor();
-    check(true, "the ⋯ menu: Backstage's plate says what needs you, and Recent changes is in it");
+    check(true, "the ⋯ menu: Recent changes is in it");
     await page.goto(`${BASE}/show/${sid}/backstage`);
-    await page.locator("[data-job=quick]").waitFor();
-    check((await page.locator("[data-job]").count()) === 1, "Backstage › Needs you: one job");
-    await fits("Backstage");
+    await page.locator("[data-games-you-run] [data-settings-row]").first().waitFor({ timeout: 20000 });
+    check((await page.locator("[data-runner-jobs]").count()) === 0 && (await page.locator("[data-games-you-run] [data-settings-row]").count()) === 3, "Games you run: the three games, and no results job");
+    await fits("Games you run");
     await shot("backstage");
 
-    await page.locator("[data-job=quick]").click();
+    // The runner's fix: Episode 5's page links to Results at Episode 5 (alex has seen it; Episode 6 isn't revealed yet).
+    await page.goto(`${BASE}/show/${sid}/episodes?page=ep5`);
+    await page.locator("[data-fix-results]").waitFor({ timeout: 20000 });
+    check(/\/backstage\/results\?ep=5$/.test((await page.locator("[data-fix-results]").getAttribute("href")) || ""), "Episode 5's page: Something wrong? Fix who went home, to Results at Episode 5");
+    await page.goto(`${BASE}/show/${sid}/backstage/results?ep=6`);
     await page.locator("[data-quick=ask]").waitFor();
-    check(page.url().includes("/backstage/results?ep=6"), "the job opens Results at Episode 6");
+    check(true, "Results opens at Episode 6");
     await shot("results-ask");
     await page.locator("[data-ask=quick]").click();
     await copyAndPaste("quick");
@@ -278,8 +285,8 @@ function fullAnswer(prompt) {
     check(bs4.body.episode.waiting === 0 && bs4.body.episode.stage === "final" && !bs4.body.needs.length, "nothing waits; Needs you is clear");
     await shot("results-final");
     await page.goto(`${BASE}/show/${sid}/backstage`);
-    await page.locator("[data-all-clear]").waitFor();
-    check((await page.locator("[data-menu-dot]").count()) === 0, "all caught up, and no dot");
+    await page.locator("[data-games-you-run] [data-settings-row]").first().waitFor({ timeout: 20000 });
+    check((await page.locator("[data-runner-jobs]").count()) === 0 && (await page.locator("[data-menu-dot]").count()) === 0, "Games you run: nothing needs you, and no dot");
     await shot("backstage-clear");
 
     // ---- 2c. undo goes newest first ----
@@ -315,7 +322,7 @@ function fullAnswer(prompt) {
     const settingsLine = samView.body.lines.find((l) => l.kind === "settings");
     const roleLine = samView.body.lines.find((l) => l.kind === "role");
     check(settingsLine && /settings/.test(settingsLine.text) && !settingsLine.undoable, "sam reads the settings change, with nothing to undo");
-    check(roleLine && roleLine.text === "Made zt_nd_riley a Game admin", "a role change reads as one", roleLine?.text);
+    check(roleLine && roleLine.text === "Made zt_nd_riley a Helper", "a role change reads as one", roleLine?.text);
     check(samView.body.lines.every((l) => !l.undoable), "a player can undo nothing");
     const alexView = await as.alex.call("GET", `/api/seasons/${sid}/changes${q}`);
     for (const kind of ["settings", "role"]) {
@@ -346,8 +353,8 @@ function fullAnswer(prompt) {
     const s = await open({ user: fixture.username("sam"), pass: fixture.PASSWORD, width, height: 844 });
     closers.push(s.close);
     await s.page.goto(`${BASE}/show/${sid}/backstage`);
-    await s.page.getByText("Backstage is for whoever runs a game").waitFor();
-    check(true, "sam's Backstage: it's for whoever runs a game");
+    await s.page.getByText("You don't run a game here").waitFor();
+    check(true, "sam's Games you run: you don't run a game here");
     await s.page.goto(`${BASE}/show/${sid}/backstage/history`);
     await s.page.locator("[data-change]").first().waitFor();
     check((await s.page.locator("[data-undo]").count()) === 0, "sam's Recent changes: no Undo");

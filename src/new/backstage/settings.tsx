@@ -2,19 +2,16 @@
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Archive, CalendarDays, Check, ChevronRight, KeyRound, Lock, LockOpen, RotateCcw, SlidersHorizontal, Trash2 } from "lucide-react";
+import { Archive, CalendarDays, Check, ChevronRight, KeyRound, Lock, LockOpen, RotateCcw, Trash2 } from "lucide-react";
 import { airTime } from "../clock";
-import { backstage, gameAdmin, gamesApi, useEndGames, useGameSettings, type DeletePreview, type EndGame, type GameSettings } from "../data";
+import { backstage, gameAdmin, gamesApi, useEndGames, type DeletePreview, type EndGame, type GameSettings } from "../data";
 import { spanName } from "@/lib/game/spans";
 import { gameColour } from "../games";
 import type { ShowData } from "../screens/show-space";
-import { SwitchRow } from "../settings/controls";
 import { HoldSheet } from "../ui/guards";
-import { EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { Stepper } from "./waivers";
-import { GameSettingsPage, SettingsList, useGameSettingsPage } from "./game-settings";
 
 // Backstage › Game settings (the mock's settings.js bsSettings, docs/PLAN-new-design.md step 6a): organised by the question
 // people have, in plain words, each choice saying what it does, Recommended marked, a dot on anything changed from it and
@@ -61,33 +58,6 @@ export function useSettingsWrite(seasonId: string, couchId: string | null) {
       toast.quiet((e as Error).message);
     }
   };
-}
-
-export function SettingsPage({ seasonId, show }: { seasonId: string; show: ShowData }) {
-  const couchId = show.couch?.id ?? null;
-  const data = useGameSettings(seasonId, couchId);
-  const one = useGameSettingsPage();
-  if (data.error)
-    return (
-      <>
-        <EmptyState icon={SlidersHorizontal} title="Settings aren't yours to see here" line={(data.error as Error).message} />
-        {/* Every game you run here archived (Archive all, B4): still the way to bring one back. */}
-        {couchId && <EndGames seasonId={seasonId} couchId={couchId} />}
-      </>
-    );
-  if (!data.data || !couchId) return <div aria-busy className="mx-4 mt-6 h-64 animate-pulse rounded-[4px] bg-card" />;
-
-  return (
-    <div className="pb-12">
-      {/* Round 4 (docs/design-round/round4-game-settings-spec.md, built in B4): the games you run here, a row each; each game's
-          settings its own page (game-settings.tsx). */}
-      <SettingsList seasonId={seasonId} couchId={couchId} games={data.data.games} show={show} onOpen={(id) => one.showWith({ game: id })} />
-      <GameSettingsPage seasonId={seasonId} show={show} />
-      <LockDown seasonId={seasonId} couchId={couchId} games={data.data.games} />
-      <EndGames seasonId={seasonId} couchId={couchId} />
-      {!data.data.games.some((g) => g.commissioner) && <p className="px-4 pt-6 text-[14px] text-muted-foreground">Only a Commissioner changes these.</p>}
-    </div>
-  );
 }
 
 /**
@@ -266,7 +236,7 @@ export function JoinControl({ g, can, write, compact }: { g: GameSettings; can: 
     {(
       [
         ["open", "Anyone on the couch", "They can catch up on missed episodes", "Let anyone on the couch join"],
-        ["ask", "Ask me first", "You get a request to let them in", "Asks new players to ask first"],
+        ["ask", "They ask first", "You get a request to let them in", "Asks new players to ask first"],
         ["locked", "Nobody new", "The game is full for the season", "Closed the game to new players"],
       ] as const
     )
@@ -485,51 +455,12 @@ export function HowLong({
   );
 }
 
-// ---------- competitive mode (step 15 part 4) ----------
-
-/**
- * The mock's "Competitive mode": Lock it down, for every game you run here at once (on when they all are). A Commissioner's,
- * with Undo; anyone else who runs a game here sees it as it stands.
- */
-function LockDown({ seasonId, couchId, games }: { seasonId: string; couchId: string; games: GameSettings[] }) {
-  const after = useAfter();
-  const [busy, setBusy] = useState(false);
-  const mine = games.filter((g) => g.commissioner);
-  const on = mine.length ? mine.every((g) => g.lockedDown) : games.some((g) => g.lockedDown);
-  const set = async (to: boolean, undo = true) => {
-    if (!mine.length) return toast.quiet("Only a Commissioner changes this");
-    setBusy(true);
-    try {
-      const r = await gameAdmin.lockDown(seasonId, couchId, to);
-      await after();
-      toast(to ? "Competitive mode on" : "Back to casual", undo && r.batch ? { undo: () => set(!to, false) } : {});
-    } catch (e) {
-      toast.quiet((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <section className="mt-8 px-4" data-lock-down={on ? "on" : "off"}>
-      <h3 className="type-caption mb-1 text-[15px] tracking-[0.04em] text-muted-foreground">Competitive mode</h3>
-      <SwitchRow
-        data="lock-down"
-        on={on}
-        disabled={busy || !mine.length}
-        title={on ? "Locked down" : "Lock it down"}
-        line="No late joins, no catch-up, rules frozen for the season. Off is best for most groups."
-        onChange={(to) => set(to)}
-      />
-    </section>
-  );
-}
-
 // ---------- archive or delete a game (step 10 part 2b) ----------
 
 type EndAction = "archive" | "delete";
 
 /** The mock's "Archive or delete a game": two rows, each asking which game (when there's more than one of yours). */
-export function EndGames({ seasonId, couchId, only }: { seasonId: string; couchId: string; only?: string }) {
+export function EndGames({ seasonId, couchId, only, restoreOnly = false }: { seasonId: string; couchId: string; only?: string; restoreOnly?: boolean }) {
   const data = useEndGames(seasonId, couchId);
   const after = useAfter();
   const [asking, setAsking] = useState<EndAction | null>(null);
@@ -539,7 +470,8 @@ export function EndGames({ seasonId, couchId, only }: { seasonId: string; couchI
   const [hold, setHold] = useState<DeletePreview | null | false>(false);
   const [open, setOpen] = useState(false);
   // `only` (Round 4: a game's own settings): that game, its Stop named for it.
-  const mine = (data.data?.games ?? []).filter((g) => g.yours && (!only || g.leagueId === only));
+  // `restoreOnly` (Games you run, settings Round 3a): each game stops from its own page; this list only brings an archived one back.
+  const mine = (data.data?.games ?? []).filter((g) => g.yours && (!only || g.leagueId === only) && (!restoreOnly || g.archived));
   if (!mine.length) return null;
   const live = mine.filter((g) => !g.archived);
 
@@ -599,8 +531,8 @@ export function EndGames({ seasonId, couchId, only }: { seasonId: string; couchI
           onClick={() => setOpen(!open)}
           className="flex min-h-[56px] w-full items-center gap-3 px-3 text-left text-[15px] font-semibold"
         >
-          {only ? <Archive className="size-5 flex-none" aria-hidden /> : <KeyRound className="size-5 flex-none" aria-hidden />}
-          <span className="flex-1">{only && mine[0] ? `Archive or delete ${mine[0].name}` : "Archive or delete a game"}</span>
+          {only || restoreOnly ? <Archive className="size-5 flex-none" aria-hidden /> : <KeyRound className="size-5 flex-none" aria-hidden />}
+          <span className="flex-1">{only && mine[0] ? "Stop this game" : restoreOnly ? `Archived · ${mine.length}` : "Archive or delete a game"}</span>
           <ChevronRight className={`size-5 flex-none text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`} aria-hidden />
         </button>
         {open && (
@@ -614,13 +546,13 @@ export function EndGames({ seasonId, couchId, only }: { seasonId: string; couchI
                 </small>
               </span>
             </button>
-            <button type="button" data-end="delete" onClick={() => choose("delete")} className="nd-press flex min-h-[60px] w-full items-center gap-3 border-t border-border text-left">
+            {!restoreOnly && <button type="button" data-end="delete" onClick={() => choose("delete")} className="nd-press flex min-h-[60px] w-full items-center gap-3 border-t border-border text-left">
               <Trash2 className="size-5 flex-none text-live" aria-hidden />
               <span className="min-w-0 flex-1">
                 <b className="block text-[15px] font-semibold text-live">{only ? `Delete ${mine[0].name}` : "Delete a game"}</b>
                 <small className="block text-[13px] text-muted-foreground">Removes it for everyone. Restorable for 30 days</small>
               </span>
-            </button>
+            </button>}
           </div>
         )}
       </div>

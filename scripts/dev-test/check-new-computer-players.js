@@ -4,13 +4,14 @@
 //   API:
 //   - Start a game offers computer players on a competition's drafts and Survival Pool; jordan starts Outlast with two Sharp
 //     ones (named after nobody there, into the draft order, a line in Recent changes); refusals: six, or a level that isn't one;
-//   - Backstage › Members: jordan's game lists its computer players; jordan adds an Easy one and makes it Normal; riley, who
+//   - Members (the backstage/members read, under Who's playing since settings Round 3a): jordan's game lists its computer players; jordan adds an Easy one and makes it Normal; riley, who
 //     doesn't run it, is refused; riley as the lineup game's Game admin adds one there (and takes it out);
 //   - the draft: once it's open no one joins or leaves; the bots draft as their turns come; once it's done jordan takes them
 //     all out: their teams are free again and the draft stays done;
 //   - the practice couch is retired (its route answers 404).
 //   In a real browser at --width (390 by default), as jordan: the Games tab with no practice card, Start a game's Computer players
-//   (how many, then how sharp), Backstage › Members' Computer players with a bot's sheet. Nothing wider than the screen; no
+//   (how many, then how sharp), the new pool's Manage this game › Who's playing's Computer players (per game since settings
+//   Round 3a; Backstage › Members is gone) with a bot's sheet, Add, and Take them out's hold. Nothing wider than the screen; no
 //   page errors. Screenshots in <outDir>.
 //
 //   npm run dev                                                  (in another terminal)
@@ -178,20 +179,21 @@ function check(ok, what, detail = "") {
       await wide("Start a game");
       await page.keyboard.press("Escape");
 
-      await page.goto(`${BASE}/show/${sid}/backstage/members`, { waitUntil: "load" });
-      await page.locator("[data-computer-players]").waitFor({ timeout: 15000 }).catch(() => {});
-      check((await page.locator("[data-computer-players] [data-bot]").count()) === 1, "Backstage › Members: the pool's computer player");
+      // Computer players are each game's now (settings Round 3a, C36): the pool's Manage this game, under Who's playing.
+      const pool2 = r.body.leagueId;
+      await page.goto(`${BASE}/show/${sid}/backstage?page=game-settings&game=${pool2}`, { waitUntil: "load" });
+      await page.locator(`[data-who-plays="${pool2}"] [data-computer-players]`).waitFor({ timeout: 30000 }).catch(() => {});
+      check((await page.locator(`[data-who-plays="${pool2}"] [data-computer-players] [data-bot]`).count()) === 1, "Manage this game › Who's playing: the pool's computer player");
       check((await page.locator("[data-bot-add]").count()) >= 1, "Add a computer player");
       await page.locator("[data-computer-players]").scrollIntoViewIfNeeded();
       await shot("members-bots");
-      await wide("Members");
+      await wide("Manage this game");
       await page.locator("[data-bot-menu]").first().click();
       await page.locator("[data-bot-sheet]").waitFor();
       await b.settle();
       await shot("bot-sheet");
       await page.locator('[data-bot-level="sharp"]').click();
       await page.locator("[data-bot-sheet]").waitFor({ state: "detached", timeout: 8000 }).catch(() => {});
-      const pool2 = r.body.leagueId;
       check(botsOf(await state(pool2))[0]?.botLevel === "sharp", "its sheet makes it Sharp");
       await page.locator("[data-bot-add]").first().click();
       await page.locator("[data-bot-add-sheet]").waitFor();
@@ -199,7 +201,6 @@ function check(ok, what, detail = "") {
       await page.locator("[data-bot-add-sheet]").waitFor({ state: "detached", timeout: 8000 }).catch(() => {});
       await page.waitForTimeout(800);
       check(botsOf(await state(pool2)).length === 2, "Add it: a second one joins");
-      check((await page.locator('[data-bots-game="Outlast"]').count()) === 0, "a drafted game with none, that can't take one, isn't listed");
       await page.locator("[data-bots-out]").first().click();
       await page.locator('[data-guard="3"]').waitFor();
       await b.settle();
@@ -214,6 +215,10 @@ function check(ok, what, detail = "") {
       await page.mouse.up();
       await page.locator('[data-guard="3"]').waitFor({ state: "detached", timeout: 8000 }).catch(() => {});
       check(botsOf(await state(pool2)).length === 0, "held: they're out");
+      // A drafted game with none, that can't take one, shows no Computer players (jordan's Outlast above, on its own page now).
+      await page.goto(`${BASE}/show/${sid}/backstage?page=game-settings&game=${game}`, { waitUntil: "load" });
+      await page.locator(`[data-who-plays="${game}"] [data-person]`).first().waitFor({ timeout: 30000 }).catch(() => {});
+      check((await page.locator(`[data-who-plays="${game}"] [data-person]`).count()) >= 1 && (await page.locator("[data-computer-players]").count()) === 0, "a drafted game with none, that can't take one, has no Computer players");
       check(errors.length === 0, "no page errors", errors.join(" | "));
     }
   } catch (e) {

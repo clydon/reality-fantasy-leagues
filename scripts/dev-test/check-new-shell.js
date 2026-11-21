@@ -4,7 +4,8 @@
 //   - opting in: classic's More › "Try the new design" lands on /home (on a desktop width: the setting, then "/");
 //     "/" goes to /home from then on, by the cookie, and through AuthGate on a device without it;
 //   - the hub's show card tunes into the show (the Tune in bumper, since 2026-10-30), the tabs slide
-//     sideways with the show bar and tab bar still, Backstage and its pages push in and pop back, How it works
+//     sideways with the show bar and tab bar still, Games you run (Backstage's address since settings Round 3a) and the
+//     pages a game's Manage this game opens (This season's rules) push in and pop back, How it works
 //     is a page pushed over the show that the back gesture closes, the hub's bell opens Notifications, the guard
 //     chip says where you are, first run steps forward;
 //   - every navigation is a view transition of the right kind (html[data-nav], and the CSS animations that ran);
@@ -209,27 +210,42 @@ function recordTransitions() {
     await page.waitForURL(`**/show/${sid}/tonight`);
     await moved("Cast → Tonight", "right", "nd-showbar");
 
-    // ---- the menu, Backstage and its pages ----
+    // ---- the menu, Games you run and a page under it ----
+    // (settings Round 3a: Backstage's index of pages is gone; Games you run lists the games, each opening its Manage this game,
+    // whose links push the pages that are left: here This season's rules.)
+    const at = (p) => (u) => u.pathname === p;
     await page.getByRole("button", { name: "Show menu" }).click();
-    await page.getByRole("dialog").getByText("Backstage").waitFor();
+    await page.getByRole("dialog").getByText("Games you run here").waitFor();
     await snap("show-menu");
-    await page.getByRole("dialog").getByText("Backstage").click();
-    await page.waitForURL(`**/show/${sid}/backstage`);
-    await moved("show → Backstage", "push");
-    check(await page.getByText("You run this").isVisible(), "Backstage knows alex runs these games");
+    await page.getByRole("dialog").getByText("Games you run here").click();
+    await page.waitForURL(at(`/show/${sid}/backstage`));
+    await moved("show → Games you run", "push");
+    check(await page.getByText("You run these").isVisible(), "Games you run knows alex runs these games");
     await snap("backstage");
-    await page.getByRole("link", { name: /Results/ }).click();
-    await page.waitForURL(`**/show/${sid}/backstage/results`);
-    await moved("Backstage → Results", "push");
-    await snap("backstage-results");
+    await page.locator(`[data-settings-row="${fx.leagues.lineup}"]`).click();
+    await page.locator(`[data-game-settings="${fx.leagues.lineup}"] [data-setting-line="rulebook"] a`).waitFor({ timeout: 20_000 });
+    await snap("manage-this-game");
+    await page.evaluate(() => (window.__vt.length = 0));
+    await page.locator(`[data-game-settings="${fx.leagues.lineup}"] [data-setting-line="rulebook"] a`).click();
+    await page.waitForURL(at(`/show/${sid}/backstage/rules`));
+    await moved("Manage this game → This season's rules", "push");
+    await snap("backstage-rules");
     const before = await page.evaluate(() => history.length);
-    await page.getByRole("button", { name: "Backstage" }).click();
-    await page.waitForURL(`**/show/${sid}/backstage`);
-    await moved("Results → Backstage (back)", "pop", desktop ? "nd-nudge-out-r" : "nd-to-right");
+    // Its back says where it goes: Games you run, or Manage this game when the page knows the game (?game=).
+    await page.getByRole("button", { name: /^(Games you run|Manage this game)$/ }).first().click();
+    await page.waitForURL(at(`/show/${sid}/backstage`));
+    await moved("This season's rules → Games you run (back)", "pop", desktop ? "nd-nudge-out-r" : "nd-to-right");
     check((await page.evaluate(() => history.length)) === before, "back is the browser's back (no new history entry)");
+    // Back lands where it left: Manage this game still open over Games you run; the browser's back closes it.
+    if (new URL(page.url()).searchParams.get("page")) {
+      await page.goBack();
+      await page.waitForFunction(() => !new URLSearchParams(location.search).get("page"), null, { timeout: 15_000 }).catch(() => {});
+      await page.waitForTimeout(600);
+      await page.evaluate(() => (window.__vt.length = 0));
+    }
     await page.getByRole("button", { name: "ZT Survivor" }).click();
     await page.waitForURL(`**/show/${sid}/tonight`);
-    await moved("Backstage → show (back)", "pop");
+    await moved("Games you run → show (back)", "pop");
 
     // ---- How it works: pushed over the show, closed by the back gesture ----
     await page.getByRole("button", { name: "Show menu" }).click();

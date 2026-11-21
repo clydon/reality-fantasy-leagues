@@ -18,7 +18,7 @@ export function draftSoonWords(soon: DraftSoon, runs: boolean, when: (iso: strin
   if (soon.late && runs) return { title: `Move the draft before ${ep} ${soon.late}`, line: `It's set for ${when(soon.at!)}, after it airs`, due: true, backstage: false };
   if (soon.at) return { title: `The draft starts ${when(soon.at)}`, line: runs ? "It starts by itself" : "You pick your team then", due: false, backstage: false };
   if (soon.waits) return { title: soon.waits, line: "Nothing to do till then", due: false, backstage: false };
-  if (runs && soon.needs) return { title: soon.needs === "players" ? "The draft needs one more person" : "The draft needs its cast", line: soon.needs === "players" ? "Invite someone in Backstage" : "Add it in Backstage", due: false, backstage: true };
+  if (runs && soon.needs) return { title: soon.needs === "players" ? "The draft needs one more person" : "The draft needs its cast", line: soon.needs === "players" ? "Invite someone to the couch" : "It comes in when the show announces it", due: false, backstage: true };
   if (runs) return { title: "Start the draft", line: "Nobody can pick until you do", due: soon.startDue, backstage: false };
   return { title: `Waiting for ${soon.runBy ?? "whoever runs the game"} to start the draft`, line: "You pick your team when it starts", due: false, backstage: false };
 }

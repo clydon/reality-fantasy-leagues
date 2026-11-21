@@ -3,15 +3,17 @@
 //   - sam (plays three games, runs none): the ⋯ is one sheet of things to do: Invite a friend, Plan a watch along, How it works,
 //     his drafts (no dot: they're done; check-new-draft.js has the dot on his turn) and Recent changes, then the foot line saying
 //     where the settings went, which opens the show's settings page. Nothing the tabs already carry is repeated (no Start a game,
-//     Make it a game or Add to my shows row); no Backstage, no Admin; and no settings rows any more: no Notifications, Where you
+//     Make it a game or Add to my shows row); no Games you run here, no Admin; and no settings rows any more: no Notifications, Where you
 //     are, Watch privately, Leave or Remove, and no Everything else sheet;
 //   - the gear (left of the ⋯, "Your settings for this show") opens the show's settings page (?page=you): Episodes you've watched
 //     says where he is and that it moves as he reveals, and opens where he is, read-only for a player; no When a new episode airs
 //     (he plays it); When results show here; Notifications says what this show sends and opens its sheet (the six moments, and
 //     Turn on first while no phone of his gets them: never tapped here, the permission prompt isn't ours to answer); Hide this show
 //     from my couch, off; and last, Leave all my games here, which opens its hold (a preview: nothing is left), never Remove;
-//   - alex (runs them): Backstage is a plate naming the job while something needs him (the fixture leaves Episode 6 open), with
-//     the dot on ⋯, and it opens Backstage; a show he doesn't play or follow (the fixture's Traitors): Plan a watch along and the
+//   - alex (runs them): Games you run here (Backstage until settings Round 3a: a Row, its plate gone) leads the menu, naming the
+//     job with a dot while something needs him (sam, taken out of Outlast, asks to join it again: who went home is no runner's
+//     job any more), with the dot on ⋯, and it opens Games you run; a show he doesn't play or follow (the fixture's Traitors):
+//     Plan a watch along and the
 //     foot line, none of what its Tonight carries, and its settings page offers no Leave or Remove;
 //   - an admin (jordan, given the admin role): This season in Admin, to the desk's season page; not on sam's or alex's menu;
 //   - nothing wider than the screen at --width; no page errors.
@@ -113,7 +115,7 @@ const DOT = "[aria-label='Needs you']";
     check((await sam.page.locator("[data-menu-else]").count()) === 0, "and no Everything else sheet to open");
     check((await sam.page.locator("[data-guard-card]").count()) === 0, "no spoiler card any more");
     check(FROM_THE_TABS.every((re) => !has(samRows, re)), "nothing the tabs already carry: no Start a game, Make it a game or Add to my shows row", samRows.join(" | "));
-    check(!has(samRows, /^Backstage/) && !has(samRows, /This season in Admin/) && (await sam.page.locator("[data-backstage-plate]").count()) === 0, "a player: no Backstage, no Admin");
+    check(!has(samRows, /^Backstage/) && !has(samRows, /^Games you run here/) && !has(samRows, /This season in Admin/), "a player: no Games you run here, no Admin");
     // His drafts are read as the menu opens, and they're done: the row is there with nothing waiting on it.
     const draftRow = sam.page.locator("[data-menu-main] a").filter({ hasText: /^(Draft room|Blind draft)/ }).first();
     await draftRow.waitFor({ timeout: 15_000 }).catch(() => {});
@@ -192,28 +194,35 @@ const DOT = "[aria-label='Needs you']";
     check((await pool.query("SELECT count(*)::int AS n FROM league_memberships WHERE user_id = $1", [fx.users.sam])).rows[0].n >= 3, "and sam is still in his games");
 
     // ---- alex: runs the games ----
-    // Episode 6 aired two days ago with nothing in (the fixture has it three days off): Backstage has a job for him.
-    await pool.query("UPDATE show_seasons SET premiere_date = premiere_date - 5 WHERE id = $1", [sid]);
+    // A runner's job for him (settings Round 3a: who went home isn't one any more, the bot settles): sam, out of Outlast, asks to
+    // join it again.
+    const { api } = require("./browser");
+    const alexApi = await api({ user: fixture.username("alex"), pass: fixture.PASSWORD });
+    const samApi = await api({ user: fixture.username("sam"), pass: fixture.PASSWORD });
+    const outOf = await alexApi.call("POST", `/api/seasons/${sid}/backstage/members/${fx.users.sam}/remove?couch=${fx.couchId}`, { league: fx.leagues.outlast });
+    const asked = await samApi.call("POST", `/api/couches/${fx.couchId}/games/${fx.leagues.outlast}`, { action: "ask" });
+    check(outOf.status === 200 && asked.status === 200, "sam, out of Outlast, asks to join it again (a job for alex)", `${outOf.status} ${asked.status} ${JSON.stringify(asked.body).slice(0, 120)}`);
     const alex = await as("alex");
     await alex.page.goto(`${alex.BASE}/show/${sid}/tonight`);
     await alex.page.locator("[data-menu-dot]").waitFor({ timeout: 60_000 });
     await alex.menu(sid);
-    // Backstage's needs arrive after the page does; the dot and the plate come together.
-    const plate = alex.page.locator("[data-backstage-plate]");
-    await plate.waitFor({ timeout: 60_000 }).catch(() => {});
-    check((await alex.page.locator("[data-menu-dot]").count()) === 1, "alex: the ⋯ carries Backstage's dot");
-    check(await plate.isVisible(), "Backstage is a plate while something needs him");
-    // (innerText is the plate's caps: the condensed caption type sets the case in CSS.)
-    check(/backstage/i.test(await plate.innerText()) && /who went home in episode 6\?/i.test(await plate.innerText()), "naming the job (Episode 6's who went home)", (await plate.innerText()).replace(/\n+/g, " | "));
+    // The needs arrive after the page does; the dot on the row comes with them.
+    const plate = alex.page.locator("[data-menu-main] a").filter({ hasText: /^Games you run here/ }).first();
+    await plate.locator(DOT).waitFor({ timeout: 60_000 }).catch(() => {});
+    check((await alex.page.locator("[data-menu-dot]").count()) === 1, "alex: the ⋯ carries the dot while a game he runs needs him");
+    check((await plate.count()) === 1 && (await plate.locator(DOT).count()) === 1, "Games you run here, with a dot while something needs him");
+    check(/zt_nd_sam asked to join Outlast/i.test(await plate.innerText()), "naming the job (sam asked to join Outlast)", (await plate.innerText()).replace(/\n+/g, " | "));
     const alexRows = await alex.rows();
-    check(!has(alexRows, /^Backstage\s*You run/), "and no second Backstage row repeats it", alexRows.join(" | "));
+    check(alexRows.findIndex((r) => /^Games you run here/.test(r)) === 0 && !has(alexRows, /^Backstage/), "first in the menu, and no Backstage row", alexRows.join(" | "));
     check(has(alexRows, /^Invite a friend/) && (await alex.page.locator("[data-menu-main] [data-menu-gear-line]").count()) === 1, "the things to do follow it, and the foot line");
     check(SETTINGS_ROWS.every((re) => !has(alexRows, re)), "no settings rows for him either", alexRows.join(" | "));
     await alex.fits("the menu");
     await alex.shot("commissioner");
-    await plate.getByText("Backstage").first().click();
+    await plate.click();
     await alex.page.waitForURL((u) => u.pathname === `/show/${sid}/backstage`, { timeout: 20_000 }).catch(() => {});
-    check(new URL(alex.page.url()).pathname === `/show/${sid}/backstage`, "the plate opens Backstage", alex.page.url());
+    check(new URL(alex.page.url()).pathname === `/show/${sid}/backstage`, "the row opens Games you run", alex.page.url());
+    await alex.page.locator('[data-runner-jobs] [data-request="zt_nd_sam"]').waitFor({ timeout: 30_000 }).catch(() => {});
+    check((await alex.page.locator('[data-runner-jobs] [data-request="zt_nd_sam"]').count()) === 1, "Games you run: Needs you has sam's request");
     // A show he doesn't play or follow.
     await alex.menu(fx.traitorsSeasonId);
     const trRows = await alex.rows();

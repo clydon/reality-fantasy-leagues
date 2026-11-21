@@ -922,14 +922,19 @@ const sportsFile = path.join(out, 'sports-definition.json');
       assert.equal(moved, 'accepted', 'the clock moved an hour on');
       const text = () => app.locator('body').evaluate(el => el.innerText.replace(/\s+/g, ' ').slice(0, 3000)).catch(() => '');
       const serverState = () => p.evaluate(() => fetch('/__atlas/bench/runtime/state?id=' + window.__GAMEPLAY_EXPLORER_PAGE__.sides.a.id).then(r => r.json()));
-      // Backstage › Waivers: the show's own page, /show/<season>/backstage/waivers. The explorer page looks at the run every 2.5 s
-      // and loads the game's page again whenever it has moved on, so each write is followed by going back there, once it has.
+      // The game's waivers on its Manage this game (Backstage › Waivers until settings Round 3a's pick): the open week is a job
+      // that opens in place (who's picked, Pick for them, Run now, Turn it off); otherwise Replacing people who leave opens in
+      // place (Open a waiver window, the last run's Undo). The explorer page looks at the run every 2.5 s and loads the game's page
+      // again whenever it has moved on, so each write is followed by going back there, once it has.
       const backstage = async plate => {
         const rev = (await serverState()).revision;
         await p.waitForFunction(r => window.__GAMEPLAY_EXPLORER_PAGE__.sides.a.state.revision === r, rev, { timeout: 30000 }); await p.waitForTimeout(400);
         await app.locator('[data-game-page]').waitFor({ timeout: 30000 });
-        const frame = await (await p.locator('#device-a iframe').elementHandle()).contentFrame(); await frame.evaluate(() => { location.assign(location.pathname.replace(/(\/show\/[^/]+)\/.*$/, '$1/backstage/waivers') + location.search); });
-        await app.locator('[data-bs-plate="' + plate + '"]').waitFor({ timeout: 30000 }); await p.waitForTimeout(600);
+        const league = await app.locator('[data-game-page]').getAttribute('data-game-page');
+        const frame = await (await p.locator('#device-a iframe').elementHandle()).contentFrame(); await frame.evaluate((league) => { const q = new URLSearchParams(location.search); q.set('page', 'game-settings'); q.set('game', league); location.assign(location.pathname.replace(/(\/show\/[^/]+)\/.*$/, '$1/backstage/settings') + '?' + q); }, league);
+        if (plate === 'open') { await app.locator('[data-job=waivers] [data-job-toggle]').click({ timeout: 30000 }); await app.locator('[data-waiver-week]').waitFor({ timeout: 30000 }); }
+        else { await app.locator('[data-setting-line=waivers] > button').click({ timeout: 30000 }); await app.locator('[data-waiver-rule][data-bs-plate="' + plate + '"]').waitFor({ timeout: 30000 }); }
+        await p.waitForTimeout(600);
       };
       // Each write on the screen reaches the runtime as its action, taken, with the server and the runtime agreeing after it.
       const did = async (type, tap) => {

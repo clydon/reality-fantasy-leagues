@@ -70,7 +70,7 @@ const replaceButtons = (page) => page.getByRole("link", { name: "Replace", exact
     const sw = kim.page.getByRole("switch", { name: /Replace everyone who's out/ });
     check((await sw.count()) === 1, "the sheet has Replace everyone who's out");
     check((await sw.getAttribute("aria-checked")) === "false", "...off: the rule decides");
-    check(/Replace if short/i.test(await kim.page.getByRole("dialog").innerText()), "preview: Replace if short");
+    check(/Replace when your team is short/i.test(await kim.page.getByRole("dialog").innerText()), "preview: Replace when your team is short");
     await kim.page.screenshot({ path: `${out}/2-kim-sheet.png` });
     await sw.click();
     await kim.page.waitForTimeout(300);

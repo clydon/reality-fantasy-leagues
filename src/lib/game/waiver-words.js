@@ -12,13 +12,13 @@ function swapPhrase(n, roster) {
 }
 
 /** "Replace who's out · Swap up to 2": what a waiver window allows, with no names. Under "Only when
- *  short", unless the window replaces everyone, only a team that's short replaces: "Replace if short". */
+ *  short", unless the window replaces everyone, only a team that's short replaces: "Replace when your team is short" (Start a game's words, settings Round 3a). */
 function windowLine(state, period) {
   const W = StateLogic.WaiverLogic;
   const R = StateLogic.rosterSize(state);
   const replaces = W.windowReplaces(state, period);
   const capped = W.replaceRule(state) === "whenShort" && period.replace !== true;
-  const replace = !replaces ? "" : capped ? "Replace if short" : "Replace who's out";
+  const replace = !replaces ? "" : capped ? "Replace when your team is short" : "Replace who's out";
   return [replace, swapPhrase(period.swaps || 0, R)].filter(Boolean).join(" · ");
 }
 

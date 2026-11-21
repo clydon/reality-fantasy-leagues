@@ -2,10 +2,16 @@
 
 import { useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
-import { Check, ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { lockTime } from "../clock";
 import { gameColour } from "../games";
-import { backstage, gameAdmin, gamesApi, useGameSettings, type GameSettings } from "../data";
+import { backstage, gameAdmin, gamesApi, useBackstage, useGameSettings, useWaiversAdmin, type GameSettings } from "../data";
+import { JobRow, RUNNER_JOBS } from "../manage/jobs";
+import { WhoIsPlaying } from "../manage/people";
+import { manageApi } from "../settings/api";
+import { SwitchRow } from "../settings/controls";
+import { Stepper, WaiverJob, WaiverRule, waiverRuleValue } from "./waivers";
+import { Choice } from "../manage/choice";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
 import type { ShowData } from "../screens/show-space";
@@ -16,6 +22,10 @@ import { Pictogram } from "../couch/gallery-bold/icons";
 import { kindOf, spanName } from "@/lib/game/spans";
 import { EndGames, HowLong, JoinControl, LineupControl, LockRow, SheetQuestions, useAfter, useSettingsWrite } from "./settings";
 
+// Settings Round 3a (docs/design-round/settings-r3-spec.md, -first-view.md, -shape.md) grew this page into **Manage this game**,
+// the one page a game's runner reaches from the game itself: its jobs, this episode's lock, How it plays, Who's playing, This
+// season's rules on this couch, rename, and Stop this game. Backstage is retired (Games you run lists these pages).
+//
 // Round 4: changing a game later (docs/design-round/round4-game-settings-spec.md, -first-view.md, -shape.md; approved 2026-11-19
 // and built in B4). Backstage › Game settings is a list of the games you run here, a row each; each game's settings are its own
 // page, pushed over the game (its ⋯ menu) or over Backstage: the title card Start a game made, this episode's lock, then the rules as
@@ -30,7 +40,7 @@ export function useGameSettingsPage() {
   return usePushedPage("game-settings", ["game", "from", "line"]);
 }
 
-const joinWords = { open: "Anyone on the couch", ask: "Ask me first", locked: "Nobody new" } as const;
+const joinWords = { open: "Anyone on the couch", ask: "They ask first", locked: "Nobody new" } as const;
 const paceWords = (g: GameSettings) => (g.pace.mode === "own" ? "At your own pace" : "Together");
 const oneEpisode = (g: GameSettings) => g.span.from !== null && g.span.to !== null && g.span.from === g.span.to;
 const changedIn = (g: GameSettings) => (!g.joining.fixed && g.joining.mode !== g.joining.rec) || (!!g.lineup && (g.lineup.starters !== g.lineup.rec.starters || (!g.draftStarted && g.lineup.bench !== g.lineup.rec.bench)));
@@ -43,7 +53,7 @@ function notable(g: GameSettings, word: string): string {
   if (g.span.over) return [type, "It's over"].filter(Boolean).join(" · ");
   const at = g.lock?.airsAt ? lockTime(Date.parse(g.lock.airsAt)) : null;
   const lock = g.lock ? `${word} ${g.lock.episode}'s ${g.lock.what} ${g.lock.closed ? "locked" : at ? `lock ${at}` : "open"}` : null;
-  return [type, lock, paceWords(g), g.lockedDown ? "Locked down" : joinWords[g.joining.mode]].filter(Boolean).join(" · ");
+  return [type, lock ?? paceWords(g)].filter(Boolean).join(" · ");
 }
 
 // ---------- the list ----------
@@ -215,31 +225,6 @@ function SettingLine({
   );
 }
 
-/** A choice in a game's settings: chosen in bone with a tick (the chyron stays for what's due), or set aside with why. */
-function Choice({ data, title, line, why, tag, chosen, onPick }: { data: string; title: string; line: string; why?: string | null; tag?: string | null; chosen: boolean; onPick?: () => void }) {
-  const off = !chosen && !!why;
-  return (
-    <button
-      type="button"
-      data-settings-choice={data}
-      aria-pressed={chosen}
-      aria-disabled={off || !onPick}
-      onClick={() => !off && onPick?.()}
-      className={`nd-press flex w-full flex-col rounded-[4px] px-3 py-2.5 text-left ${FOCUS} ${chosen ? "bg-secondary outline-[1.5px] -outline-offset-[1.5px] outline-foreground" : off ? "border border-dashed border-edge" : "bg-secondary"}`}
-    >
-      <span className="flex items-start justify-between gap-2">
-        <b className={`text-[16px] font-semibold leading-tight ${off ? "text-muted-foreground" : ""}`}>{title}</b>
-        <span className="flex flex-none items-center gap-1.5 pt-0.5">
-          {tag && <span className="type-caption text-[12px] tracking-[0.05em] text-muted-foreground">{tag}</span>}
-          {chosen && <Check className="size-5" strokeWidth={3} aria-hidden />}
-        </span>
-      </span>
-      <span className="mt-1 text-[14px] leading-snug text-muted-foreground">{line}</span>
-      {off && <span className="mt-1 text-[13px] font-semibold leading-snug">{why}</span>}
-    </button>
-  );
-}
-
 /** How moves lock: Start a game's two ways. At your own pace is chosen when a game starts; Together still chooses its late moves (on
  *  the honour system until you've watched it or the next one airs, the recommended one, or none: everything locks when it airs). */
 function PaceCards({ seasonId, couchId, g, can, why, word }: { seasonId: string; couchId: string; g: GameSettings; can: boolean; why: string | null; word: string }) {
@@ -281,7 +266,7 @@ function PaceCards({ seasonId, couchId, g, can, why, word }: { seasonId: string;
 }
 
 /** One game's settings: the title card, this episode's lock, the rules as lines, Stop this game. */
-function GameSettingsBody({ seasonId, couchId, show, g, write, line }: { seasonId: string; couchId: string; show: ShowData; g: GameSettings; write: Write; line: string | null }) {
+function GameSettingsBody({ seasonId, couchId, show, g, write, line, siblings }: { seasonId: string; couchId: string; show: ShowData; g: GameSettings; write: Write; line: string | null; siblings: string[] }) {
   const [open, setOpen] = useState<string | null>(line);
   const toggle = (id: string) => setOpen(open === id ? null : id);
   const can = g.commissioner && !g.lockedDown && !g.span.over;
@@ -296,7 +281,16 @@ function GameSettingsBody({ seasonId, couchId, show, g, write, line }: { seasonI
   const L = g.lineup;
   const art = show.header?.show.backdropUrl ?? show.header?.show.artUrl ?? null;
   const kicker = show.header ? `${(show.header.show.name ?? "").replace(/^The /, "")}${show.header.seasonNumber ? ` · Season ${show.header.seasonNumber}` : ""}` : "";
-  const role = g.commissioner ? (g.span.over ? "You ran this game. It's over: nothing left to change but archive or delete." : "You run this game. Each change saves at once, with Undo.") : "Game admin: you open or close this episode's lock. The Commissioner changes the rest.";
+  const role = g.commissioner
+    ? g.span.over
+      ? "You ran this game. It's over: nothing left to change but archive or delete."
+      : "You run this game. Each change saves at once, with Undo."
+    : "You help run this game: the lock, waivers and join requests are yours. The Commissioner changes the rules.";
+  // Its jobs (Backstage's Needs you, this game's): someone asking to join, a draft to set up, nobody to play yet.
+  const bs = useBackstage(seasonId, couchId, null);
+  const jobs = (bs.data?.needs ?? []).filter((n) => RUNNER_JOBS.has(n.id) && n.leagueId === g.leagueId);
+  const waivers = useWaiversAdmin(seasonId, g.waivers ? couchId : null).data?.games.find((x) => x.leagueId === g.leagueId) ?? null;
+  const window_ = waivers?.period?.phase === "open" ? waivers.period : null;
   return (
     <div data-game-settings={g.leagueId} data-settings-game={g.gameName} data-settings-league={g.leagueId} className="px-4 pb-16 pt-2">
       <TitleCard name={g.name} kicker={kicker} art={art} aka={[]} sentence={role} />
@@ -305,7 +299,17 @@ function GameSettingsBody({ seasonId, couchId, show, g, write, line }: { seasonI
           <LockRow seasonId={seasonId} couchId={couchId} g={g} lock={g.lock} word={show.words.ep} />
         </div>
       )}
-      <p className="type-caption mt-5 pb-1 text-[13px] tracking-[0.05em] text-muted-foreground">The rules</p>
+      {(jobs.length > 0 || window_) && (
+        <section data-manage-jobs className="mt-3">
+          <div className="rounded-[10px] bg-card px-3.5">
+            {jobs.map((n) => (
+              <JobRow key={`${n.id}-${n.request?.id ?? ""}`} seasonId={seasonId} couchId={couchId} need={n} />
+            ))}
+            {window_ && waivers && <WaiverJob seasonId={seasonId} couchId={couchId} g={waivers} />}
+          </div>
+        </section>
+      )}
+      <Label>How it plays</Label>
       <div className="rounded-[10px] bg-card px-3.5">
         <SettingLine id="pace" icon="clock" label="How moves lock" value={g.pace.mode === "own" ? "At your own pace · moves lock as you each watch" : `Together · ${g.pace.mode === "strict" ? "no late moves" : "late moves on the honour system"}`} fixed={g.pace.mode === "own" ? "Chosen when the game started" : frozen} open={open === "pace"} onToggle={() => toggle("pace")}>
           <PaceCards seasonId={seasonId} couchId={couchId} g={g} can={can} why={why} word={E} />
@@ -315,7 +319,11 @@ function GameSettingsBody({ seasonId, couchId, show, g, write, line }: { seasonI
             <LineupControl g={g} can={can} write={write} compact />
           </SettingLine>
         )}
-        {g.team && <SettingLine id="team" icon="teams" label="Team size" value={`${g.team.size} each`} fixed={g.draftStarted ? "Set at the draft" : "Set in the draft room, before it starts"} />}
+        {g.team && (
+          <SettingLine id="team" icon="teams" label="Team size" value={`${g.team.size} each`} changed={g.team.size !== g.team.rec} fixed={g.draftStarted ? "Fixed: the draft has started" : frozen} open={open === "team"} onToggle={() => toggle("team")}>
+            <TeamSize g={g} write={write} />
+          </SettingLine>
+        )}
         {g.questions && (
           <SettingLine id="questions" icon="sheet" label="The questions" value={`${g.questions.list.filter((x) => x.on).length} on · ${g.questions.list.filter((x) => x.on).map((x) => x.ask).slice(0, 2).join(", ")}`} fixed={frozen ?? (g.questions.editable ? null : (g.questions.why ?? "Answers are in"))} open={open === "questions"} onToggle={() => toggle("questions")}>
             <SheetQuestions seasonId={seasonId} couchId={couchId} g={g} q={g.questions} />
@@ -327,12 +335,147 @@ function GameSettingsBody({ seasonId, couchId, show, g, write, line }: { seasonI
         <SettingLine id="length" icon="halves" label="How long" value={length} fixed={sp.over ? "It's over" : frozen} open={open === "length"} onToggle={() => toggle("length")}>
           <HowLong g={g} words={show.words} can={can} write={write} compact />
         </SettingLine>
-        {g.waivers && <SettingLine id="waivers" icon="swap" label="Replacing people who leave" value={`When someone's out · ${g.waivers}`} fixed={frozen} href={paths.backstage(seasonId, "waivers")} />}
+        {/* One control for replacements (C32), opened in place (Round 3a, the user's pick): the week, then how waivers run. */}
+        {g.waivers && (
+          <SettingLine id="waivers" icon="swap" label="Replacing people who leave" value={waivers ? waiverRuleValue(waivers) : g.waivers} open={open === "waivers"} onToggle={() => toggle("waivers")}>
+            {waivers ? <WaiverRule seasonId={seasonId} couchId={couchId} g={waivers} /> : <div aria-busy className="mb-2 h-24 animate-pulse rounded-[3px] bg-secondary" />}
+          </SettingLine>
+        )}
       </div>
-      <div className="-mx-4">
-        <EndGames seasonId={seasonId} couchId={couchId} only={g.leagueId} />
+
+      <Label>Who&apos;s playing</Label>
+      <WhoIsPlaying seasonId={seasonId} couchId={couchId} leagueId={g.leagueId} gameName={g.name} commissioner={g.commissioner} waivers={waivers} />
+
+      <Label>This season&apos;s rules on this couch</Label>
+      <p className="-mt-0.5 pb-2 text-[13px] leading-snug text-muted-foreground">
+        Shared by {siblings.length > 1 ? listOf(siblings) : "every game"} on {kicker || "this season"} here.
+      </p>
+      <div className="rounded-[10px] bg-card px-3.5">
+        <SettingLine id="rulebook" icon="props" label="The rulebook" value="What can happen in the show, and what each moment scores" href={paths.backstage(seasonId, "rules")} />
+        <Freeze seasonId={seasonId} couchId={couchId} g={g} games={siblings} />
+        <SettingLine id="changes" icon="confidence" label="Recent changes" value="Who changed what in the games here, with Undo" href={paths.backstage(seasonId, "history")} />
       </div>
+
+      {/* This game: its name, then Stop, last, after a gap, drawn quiet; the hold carries the red (Round 2's pick, 2026-11-21). */}
+      {g.commissioner && (
+        <>
+          <Label>This game</Label>
+          <Rename g={g} />
+          <div className="-mx-4">
+            <EndGames seasonId={seasonId} couchId={couchId} only={g.leagueId} />
+          </div>
+        </>
+      )}
       {g.commissioner && !g.span.over && <p className="mt-2 text-[13px] leading-snug text-muted-foreground">To end it after an {E.toLowerCase()} instead, change How long above.</p>}
+    </div>
+  );
+}
+
+/** A section's label on Manage this game: the same small caps as How it plays'. */
+function listOf(names: string[]): string {
+  return names.length < 2 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
+function Label({ children }: { children: ReactNode }) {
+  return <p className="type-caption mt-7 pb-1 text-[13px] tracking-[0.05em] text-muted-foreground">{children}</p>;
+}
+
+/** Team size, a real control until the draft starts (C40): the server takes it (settingsWrite's teamSize). */
+function TeamSize({ g, write }: { g: GameSettings; write: Write }) {
+  const t = g.team!;
+  const step = (d: number) => {
+    const n = Math.min(t.max, Math.max(1, t.size + d));
+    if (n !== t.size) void write(g, { set: { teamSize: n } }, `Saved: ${g.name} · teams of ${n}`);
+  };
+  return (
+    <div data-settings="team" className="pb-2">
+      <Stepper title="Each team" line={t.size === t.rec ? "Recommended" : `Recommended: ${t.rec}`} value={String(t.size)} onStep={step} atMin={t.size <= 1} atMax={t.size >= t.max} disabled={!g.commissioner} />
+    </div>
+  );
+}
+
+/** Freeze rules and joining (was Lock it down, C37): every game you run here, off by default. A Commissioner's, with Undo. */
+function Freeze({ seasonId, couchId, g, games }: { seasonId: string; couchId: string; g: GameSettings; games: string[] }) {
+  const after = useAfter();
+  const [busy, setBusy] = useState(false);
+  const set = async (to: boolean, undo = true) => {
+    if (!g.commissioner) return toast.quiet("Only a Commissioner changes this");
+    setBusy(true);
+    try {
+      const r = await gameAdmin.lockDown(seasonId, couchId, to);
+      await after();
+      const which = games.length > 1 ? listOf(games) : g.name;
+      toast(to ? `Frozen for the season: ${which}` : `Rules and joining open again: ${which}`, undo && r.batch ? { undo: () => void set(!to, false) } : undefined);
+    } catch (e) {
+      toast.quiet((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  // A Helper reads it as a value, at full contrast, with whose it is (PFD R2: no dimmed rows).
+  if (!g.commissioner)
+    return (
+      <div data-freeze={g.lockedDown ? "on" : "off"} className="border-t border-border">
+        <SettingLine id="freeze" icon="none" label="Freeze rules and joining" value={g.lockedDown ? "On" : "Off"} fixed="The Commissioner's to change" />
+      </div>
+    );
+  return (
+    <div data-freeze={g.lockedDown ? "on" : "off"} className="border-t border-border">
+      <SwitchRow
+        data="freeze"
+        on={g.lockedDown}
+        disabled={busy || !g.commissioner}
+        title="Freeze rules and joining"
+        line="No late joins, no catching up, and no rule changes for the season. Off suits most couches."
+        onChange={(to) => void set(to)}
+      />
+    </div>
+  );
+}
+
+/** Rename this game (A13): the Commissioner's; saved with Undo and a line in Recent changes. */
+function Rename({ g }: { g: GameSettings }) {
+  const after = useAfter();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(g.name);
+  const [busy, setBusy] = useState(false);
+  const clean = name.trim().replace(/\s+/g, " ");
+  const save = async (to: string, from: string, undoing = false) => {
+    setBusy(true);
+    try {
+      await manageApi.rename(g.leagueId, to);
+      await after();
+      setOpen(false);
+      toast(undoing ? `Back to ${to}` : `Renamed ${to}`, undoing ? undefined : { undo: () => void save(from, to, true) });
+    } catch (e) {
+      toast.quiet((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="rounded-[10px] bg-card px-3.5">
+      <SettingLine id="rename" icon="quote" label="Rename this game" value={g.name} open={open} onToggle={() => (setOpen(!open), setName(g.name))}>
+        <form
+          data-rename
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (clean && clean !== g.name && !busy) void save(clean, g.name);
+          }}
+          className="flex items-center gap-2 pb-2"
+        >
+          <input
+            aria-label="The game's name"
+            value={name}
+            maxLength={40}
+            onChange={(e) => setName(e.target.value)}
+            className="h-11 min-w-0 flex-1 rounded-[3px] bg-secondary px-3 text-[16px] outline-1 -outline-offset-1 outline-input focus-visible:outline-2 focus-visible:outline-ring"
+          />
+          <button type="submit" disabled={busy || !clean || clean === g.name} className="h-11 rounded-[3px] bg-foreground px-4 text-[15px] font-bold text-background disabled:opacity-40">
+            Save
+          </button>
+        </form>
+      </SettingLine>
     </div>
   );
 }
@@ -346,15 +489,25 @@ export function GameSettingsPage({ seasonId, show }: { seasonId: string; show: S
   const data = useGameSettings(seasonId, couchId, page.open);
   const write = useSettingsWrite(seasonId, couchId);
   const g = data.data?.games.find((x) => x.leagueId === id) ?? null;
-  const fromGame = params.get("from") === "game";
+  const from = params.get("from");
+  const back = from === "game" ? (g?.name ?? "Back") : from === "games" ? "Games you run" : (show.header?.show.name ?? "Back").replace(/^The /, "");
   return (
-    <PushedPage open={page.open} onClose={page.close} title="Game settings" back={fromGame ? (g?.name ?? "Back") : "Game settings"}>
+    <PushedPage open={page.open} onClose={page.close} title="Manage this game" back={back}>
       {!data.data || !couchId ? (
         <div aria-busy className="mx-4 mt-4 h-64 animate-pulse rounded-[4px] bg-card" />
       ) : g ? (
-        <GameSettingsBody key={`${g.leagueId}:${params.get("line") ?? ""}`} seasonId={seasonId} couchId={couchId} show={show} g={g} write={write} line={params.get("line")} />
+        <GameSettingsBody
+          key={`${g.leagueId}:${params.get("line") ?? ""}`}
+          seasonId={seasonId}
+          couchId={couchId}
+          show={show}
+          g={g}
+          write={write}
+          line={params.get("line")}
+          siblings={(data.data?.games ?? []).filter((x) => !x.span.over && (g.commissioner ? x.commissioner : true)).map((x) => x.name)}
+        />
       ) : (
-        <p className="px-4 pt-6 text-[15px] text-muted-foreground">This game&apos;s settings aren&apos;t yours to see here.</p>
+        <p className="px-4 pt-6 text-[15px] text-muted-foreground">Only whoever runs this game manages it.</p>
       )}
     </PushedPage>
   );

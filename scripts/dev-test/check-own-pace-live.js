@@ -1,5 +1,6 @@
 // Dev-only check of a live game's pace (docs/PLAN-own-pace-games.md, "Pace is the game's setting", the user's decisions 2026-11-13;
-// it was one person's switch on Backstage › Members, 2026-11-09): Backstage › Game settings' "When moves lock", a Commissioner's,
+// it was one person's switch on Backstage › Members, 2026-11-09): Manage this game's "How moves lock" (Backstage › Game settings until
+// settings Round 3a), a Commissioner's,
 // per game, for everyone in it. Live (the default): a seat's moves for an aired episode stay open until they've watched it or the
 // next one airs, then score as if on time; the couch's quiet marker ("Set after it aired, before they watched"); head to head's
 // "Waiting on jordan's lineup"; their due move the yellow with the reason. Strict: everything locks at airtime. On new-fixture.js's
@@ -17,8 +18,8 @@
 //     start, nothing set: jordan's Episode 6 answer is taken after airtime and riley's (watched) is refused.
 //   - Head to head's records leave the waiting matchup out until it's set; Call it's Episode 6 calls are open to jordan (riley's are
 //     closed); the reminders job's after-airtime push (db/reminders.js remindLate, a dry run) goes to jordan once, until it's set.
-//   - Screens at `--width` (390 by default): alex's Game settings with "When moves lock" (strict, then the tile tapped: live, the
-//     toast), the Members sheet for jordan without the old switch, jordan's Tonight with the late card and, opened from it, Your
+//   - Screens at `--width` (390 by default): alex's Manage this game with "How moves lock" (strict, then the tile tapped: live, the
+//     toast), jordan's sheet in its Who's playing (Members & roles went in Round 3a) without the old switch, jordan's Tonight with the late card and, opened from it, Your
 //     moves with the honour note ("Episode 6 has aired · still open because you haven't watched it · Seen it already? Leave this as
 //     it is"), sam's game page waiting on jordan, then after jordan sets it the grid's marker and its foot, and jordan's week in
 //     the person sheet. Last, the honest way out: jordan taps "I've watched it" there, the reveal opens, their mark moves to 6, the
@@ -233,7 +234,7 @@ function check(ok, label, detail) {
       await a.page.goto(`${a.BASE}/show/${sid}/backstage/settings?page=game-settings&game=${L}&line=pace`);
       const block = a.page.locator(`[data-settings-league='${L}'] [data-settings='pace']`);
       await block.waitFor();
-      check((await block.getAttribute("data-pace")) === "strict" && (await block.locator("[data-settings-choice='late-none']").getAttribute("aria-pressed")) === "true", "alex's Game settings: How moves lock, Together, no late moves");
+      check((await block.getAttribute("data-pace")) === "strict" && (await block.locator("[data-settings-choice='late-none']").getAttribute("aria-pressed")) === "true", "alex's Manage this game: How moves lock, Together, no late moves");
       await block.scrollIntoViewIfNeeded();
       await shot(a.page, "settings-pace-strict");
       await block.locator("[data-settings-choice='late-honour']").click();
@@ -246,10 +247,10 @@ function check(ok, label, detail) {
       check(!!box && box.x >= 0 && box.x + box.width <= width, "  it fits the width", box);
       const scrolls = await a.page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
       check(!scrolls, "  nothing scrolls sideways");
-      await a.page.goto(`${a.BASE}/show/${sid}/backstage/members`);
-      await a.page.locator("[data-member-menu$='jordan']").click();
-      await a.page.locator("[data-member-sheet]").waitFor();
-      check((await a.page.locator("[data-own-pace]").count()) === 0, "the Members sheet for jordan has no switch of its own any more");
+      // jordan's sheet in the game's Who's playing (Members & roles until settings Round 3a): no switch of his own.
+      await a.page.locator(`[data-who-plays='${L}'] [data-person$='jordan']`).click();
+      await a.page.locator("[data-person-sheet$='jordan']").waitFor();
+      check((await a.page.locator("[data-own-pace]").count()) === 0, "jordan's sheet in Who's playing has no switch of its own any more");
       await shot(a.page, "members-sheet");
     } finally {
       await a.close();

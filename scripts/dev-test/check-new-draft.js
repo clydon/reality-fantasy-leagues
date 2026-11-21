@@ -1,10 +1,11 @@
 // Dev-only check for the draft room and the blind draft (docs/PLAN-new-design.md step 7), against the dev server, on
 // draft-fixture.js (a couch about to draft: Outlast's turn-based draft in the mock's order riley, alex, jordan, sam, and
-// Weekly Lineup's blind draft, 4 each), then on new-fixture.js for Backstage › Waivers' Pick for them:
+// Weekly Lineup's blind draft, 4 each), then on new-fixture.js for Waivers' Pick for them (on a person's sheet in a game's
+// Manage this game › Who's playing while a window is open, since settings Round 3a's pick):
 //   1. Before the start: both drafts and their roles, the cast by tribe, an unchanged draft answering only its version,
 //      Backstage's "Schedule the … draft" jobs (a Commissioner's, not a Game admin's), who may start it, a start time
 //      with Undo, a time that's passed refused, a new order before the first pick, your queue (nobody else's).
-//   2. As alex in a browser at --width: the order and Start, a star that queues someone, Draft settings, Start, then
+//   2. As alex in a browser at --width: the order and Start, a star that queues someone, Draft settings (A clock on each pick), Start, then
 //      Pick for riley (the for-bar, the bar's "For riley", the toast's Undo, the line in Recent changes), riley picking for
 //      himself, alex up four seconds later (the room polls), Tonight's "Your turn to draft" into the room, the queue
 //      (taken by riley, Draft from it), and the ⋯ menu's Draft room and Blind draft rows, in the menu itself since settings
@@ -140,6 +141,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const sheet = page.locator("[role=dialog][data-open]");
     await sheet.locator("[data-draft-sheet]").waitFor();
     check((await sheet.locator("[data-timer]").count()) === 3 && (await sheet.locator("input[type=datetime-local]").count()) === 1, "Draft settings: the start time and the pick timer (Off, 2 min, 60 sec)");
+    // Settings Round 3a's words: the pick timer is "A clock on each pick" (and its follow-up "Someone away", shown once one is set).
+    check((await sheet.getByRole("radiogroup", { name: "A clock on each pick" }).count()) === 1 && (await sheet.getByText("Pick timer").count()) === 0, "Draft settings: the timer is called A clock on each pick");
     await shot(page, "02-draft-settings");
     await page.keyboard.press("Escape");
     await sheet.waitFor({ state: "hidden" });
@@ -336,9 +339,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     check((await bsw("sam", { action: "claimView", playerId: jordanSeat })).status >= 403, "a player can't");
     const cb = await open({ user: newFixture.username("alex"), pass: newFixture.PASSWORD, width, height: 844 });
     closers.push(cb.close);
-    await cb.page.goto(`${BASE}/show/${nf.seasonId}/backstage/waivers`, { waitUntil: "networkidle" });
-    const open_ = cb.page.locator('[data-claim-for-open="sam"]');
-    check(await open_.waitFor({ timeout: 10000 }).then(() => true, () => false), "Backstage › Waivers: Pick for them beside sam (no picks yet)");
+    await cb.page.goto(`${BASE}/show/${nf.seasonId}/backstage/settings?page=game-settings&game=${nf.leagues.outlast}`, { waitUntil: "networkidle" });
+    await cb.page.locator('[data-who-plays] [data-person="sam"]').click({ timeout: 20000 });
+    const open_ = cb.page.locator('[data-person-pick-for="sam"]');
+    check(await open_.waitFor({ timeout: 10000 }).then(() => true, () => false), "Manage this game › Who's playing › sam: Pick for them (no picks yet)");
     await open_.click();
     const cs = cb.page.locator("[role=dialog][data-open] [data-claim-for]");
     await cs.locator("[data-claim-add]").first().waitFor();

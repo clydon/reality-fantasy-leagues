@@ -1561,6 +1561,25 @@
 - Rejected: "Draft N each" as the fix (changes the size; everyone's players stay their own, but it doesn't always fit a position-limited lineup either); the server's refusal after Start (the old way).
 - Rests on: src/new/couch/gallery-bold/whose.ts, bold-sheet.tsx (the Start bar's warning), leads.tsx; src/lib/server/start-spec.ts (`wizard.scope`).
 
+## 2026-11-21 · Settings, Round 3a: the gear stays; the waiver window's week moves onto Manage this game now
+- Decided by: the user, on 3a's story (https://claude.ai/artifact/53oCgbQkJdW1e6RARGWP73): "keep the gear; move the waiver window's
+  week onto Manage this game now".
+- Why: the rules didn't settle either (docs/design-round/settings-r3-check.md). The gear: Round 0 chose one gear on every bar, and a
+  game's only settings are its runner's. The week: PFD's leftover (findings 1, 2 and 6) was that the job and Replacing people who
+  leave both left for a Waivers page sorted by game, with its own settings.
+- What:
+  - **The gear** on a game's bar opens Manage this game for whoever runs it, as built. No separate key.
+  - **The open week is a job that opens in place** on the game's Manage this game: who's picked (never what), Pick for them, Run
+    now, and the window's Change or Turn it off.
+  - **Replacing people who leave opens in place** like the page's other lines: this week (Open a waiver window), the last run with
+    Undo, how waivers work (the feel and Fine-tune, the Commissioner's; a Helper reads it as a value), and What players see. Its
+    value names how windows come ("When your team is short · every 3 episodes").
+  - **Pick for them is on a person's sheet** in Who's playing while a window is open, for a Helper too. A Helper's row is a door
+    only then.
+  - **Backstage's Waivers page is gone.** Its old address lands on Games you run, and the API is unchanged.
+- Rejected: a key for "you run this" on a game's bar, with the gear only for your own settings; leaving the week for 3b.
+- Rests on: src/new/backstage/waivers.tsx (WaiverJob, WaiverRule), game-settings.tsx, manage/people.tsx, manage/choice.tsx.
+
 ## 2026-11-21 · Tonight is the night, the Games tab is what you can play, a game's page is the season
 - Decided by: the user ("Tonight is essentially a what happened last time tab"; "maybe this calls for the games tab to be more of a game launcher"), with Claude's split by time, which the user took ("Start")
 - What: Tonight's games section shows the last episode for everyone in each game you play (a card a game, closed to your night, open to everyone's); someone who only watches sees no game's results there, only the couch's quick games for the next episode (or a season game open to join) to Join; the Games tab becomes the way into games (quick games first, your season games one line each, games to join, start one, your record) and loses its leaderboards and Last picks; the full season stays on each game's page.

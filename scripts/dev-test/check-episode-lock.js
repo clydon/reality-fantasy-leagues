@@ -1,15 +1,15 @@
-// Dev-only check for an episode's lock (state-logic.js closedForPlay; Backstage › Settings' Auto / Override, Start a game's
+// Dev-only check for an episode's lock (state-logic.js closedForPlay; Manage this game's Auto / Override, Start a game's
 // Include it; 2026-10-27), against the dev server, on new-fixture.js's couch (alex, riley, jordan, sam on ZT Survivor 51),
 // with Episode 6 moved to have started an hour ago.
 //   API:
 //   - Start a game knows Episode 6 is on (onAir) and starts at 7; asked with late, from 6;
 //   - jordan starts Survival Pool including Episode 6: it starts there, open past its start, and jordan's pick for 6 goes in;
-//   - Backstage › Settings: Episode 6's picks open on Override; jordan locks them (Auto again: closed at its start) and a pick is
+//   - the backstage settings route: Episode 6's picks open on Override; jordan locks them (Auto again: closed at its start) and a pick is
 //     refused; unlocks them again (Override); riley, who doesn't run it, is refused;
 //   - a game without Include it starts at 7: Auto, open until its start; Override locks it early, Auto again opens it.
 //   In a real browser at --width (390 by default), as jordan: Start a game's Include it switch (the sheet from Episode 6), and
-//   Backstage › Settings' lock row (icon, label, the Auto / Override switch, tapped). Nothing wider than the screen; no page
-//   errors. Screenshots in <outDir>.
+//   the lock row on the game's Manage this game (Backstage › Settings until settings Round 3a), opened by the gear on the game's
+//   bar (icon, label, the Auto / Override switch, tapped). Nothing wider than the screen; no page errors. Screenshots in <outDir>.
 //
 //   npm run dev                                                  (in another terminal)
 //   node scripts/dev-test/check-episode-lock.js <outDir> [--width=390] [--keep] [--api]
@@ -140,8 +140,12 @@ function check(ok, what, detail = "") {
       await wide("Start a game");
       await page.keyboard.press("Escape");
 
-      // Round 4 (B4): each game's settings are its own page; a link opens the Override game's (its lock row first).
-      await page.goto(`${BASE}/show/${sid}/backstage/settings?page=game-settings&game=${game}`, { waitUntil: "load" });
+      // Round 4 (B4): each game's settings are its own page, Manage this game since settings Round 3a: the gear on the game's
+      // bar opens the Override game's (its lock row first).
+      await page.goto(`${BASE}/show/${sid}/game/${game}`, { waitUntil: "load" });
+      await page.locator("[data-game-title] [data-game-manage]").click({ timeout: 30000 });
+      await page.locator(`[data-game-settings="${game}"]`).waitFor({ timeout: 20000 });
+      check(true, "the gear on the game's bar opens its Manage this game");
       await page.locator("[data-settings-lock]").first().waitFor({ timeout: 15000 }).catch(() => {});
       const row = page.locator(`[data-settings-game] [data-settings-lock]`).first();
       check((await page.locator('[data-settings-lock="open"] [data-settings-override="on"]').count()) >= 1, "Settings: an open lock on Override");

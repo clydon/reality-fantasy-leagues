@@ -3,9 +3,10 @@
 // (ZT Survivor 51: results through Episode 5; Survivor's rulebook: Tribes, then Merged). Its Outlast is set up as the couch's real
 // one is: no replacements, windows only when the Commissioner opens one, nothing open. Added here: the desk's own admin
 // (zt_nd_desk, site role admin, on no couch, as check-phase-starts.js makes one).
-//   - Backstage › Waivers › Waivers settings, as alex (Commissioner): When they start, From the start or When Merged starts (never
-//     Tribes, the first phase); choosing Merged saves it (Recent changes "Waivers start when Merged starts"), the plate says
-//     waivers start when Merged starts, and nothing opens while nobody knows when that is.
+//   - Outlast's Manage this game › Replacing people who leave, opened in place (Backstage › Waivers until settings Round 3a's
+//     pick), as alex (Commissioner): When they start, From the start or When Merged starts (never Tribes, the first phase);
+//     choosing Merged saves it (Recent changes "Waivers start when Merged starts"), This week says waivers start when Merged
+//     starts, the line's value says so, and nothing opens while nobody knows when that is.
 //   - The players' Waivers page, Outlast: Nothing to do this week, "Waivers start when Merged starts"; How waivers work says
 //     they stay on your team until then, then a window to replace everyone who's out.
 //   - The desk confirms Merged began in Episode 5 (its results are in): the season's settle records it and the waiver clock
@@ -98,18 +99,19 @@ function check(ok, what, detail = "") {
       const wide = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       check(wide <= 0, `${where}: nothing wider than the screen`, `${wide}px over`);
     };
-    await page.goto(`${BASE}/show/${sid}/backstage/waivers`, { waitUntil: "networkidle" });
-    const pick = page.locator('[data-bs-game="Outlast"]');
-    if (await pick.count()) await pick.click();
-    await page.locator("[data-bs-settings]").waitFor({ timeout: 30_000 });
-    await page.locator("[data-bs-settings]").click();
+    const manage = async () => {
+      await page.goto(`${BASE}/show/${sid}/backstage/settings?page=game-settings&game=${L.outlast}`, { waitUntil: "networkidle" });
+      await page.locator("[data-setting-line=waivers] > button").click({ timeout: 30_000 });
+      await page.locator("[data-waiver-rule]").waitFor({ timeout: 10_000 });
+    };
+    await manage();
     const starts = page.locator("[data-bs-start]");
     await starts.waitFor({ timeout: 10_000 });
     await page.waitForTimeout(500);
     check((await starts.locator("[data-start]").evaluateAll((els) => els.map((e) => e.dataset.start).join())) === "start,merged", "the sheet: From the start, When Merged starts", await starts.innerText());
     check((await starts.locator('[data-start="start"]').getAttribute("aria-pressed")) === "true", "From the start is on");
     await shot("settings-from-the-start");
-    await fits("Waivers settings");
+    await fits("Replacing people who leave, opened");
     await starts.locator('[data-start="merged"]').click();
     await page.waitForFunction(() => document.querySelector('[data-start="merged"]')?.getAttribute("aria-pressed") === "true", null, { timeout: 10_000 });
     await page.waitForTimeout(400);
@@ -120,11 +122,10 @@ function check(ok, what, detail = "") {
     check(s1.midSeason.waivers.periods.length === 0, "nothing opens while nobody knows when Merged starts");
     const change = (await pool.query("SELECT text FROM league_changes WHERE league_id = $1 ORDER BY created_at DESC LIMIT 1", [L.outlast])).rows[0]?.text ?? "";
     check(change === "Waivers start when Merged starts", "Recent changes: Waivers start when Merged starts", change);
-    await page.keyboard.press("Escape");
     await page.waitForTimeout(500);
-    const plate = await page.locator("[data-bs-plate]").innerText();
-    check(/Waivers start when Merged starts, then a window to replace everyone who's out/.test(plate), "the plate: waivers start when Merged starts", plate.replace(/\n/g, " | "));
-    check(/Starts with Merged/.test(await page.locator("[data-bs-settings]").innerText()), "Waivers settings' line: Starts with Merged");
+    const plate = await page.locator("[data-waiver-rule]").innerText();
+    check(/Waivers start when Merged starts, then a window to replace everyone who's out/.test(plate), "This week: waivers start when Merged starts", plate.replace(/\n/g, " | "));
+    check(/starts with Merged/.test(await page.locator("[data-setting-line=waivers] > button").innerText()), "Replacing people who leave's value: starts with Merged");
     await shot("backstage-waiting");
 
     // ---- the players' Waivers page ----
@@ -132,7 +133,7 @@ function check(ok, what, detail = "") {
     const quiet = page.locator('[data-wv-week="quiet"]');
     await quiet.waitFor({ timeout: 30_000 });
     await page.waitForTimeout(500);
-    check(/Waivers start when Merged starts\. Your team plays as it is till then\./.test(await quiet.innerText()), "Waivers: nothing to do, Waivers start when Merged starts", (await quiet.innerText()).replace(/\n/g, " | "));
+    check(/Waivers start when Merged starts\. Your team plays as it is till then/.test(await quiet.innerText()), "Waivers: nothing to do, Waivers start when Merged starts", (await quiet.innerText()).replace(/\n/g, " | "));
     const how = (await weekOf("alex")).how;
     check(/^They stay on your team until Merged starts\. After its first episode, a waiver window lets you replace everyone who's out\. After that, out is out\.$/.test(how.out), "How it works: until Merged starts, then a window to replace everyone", how.out);
     check(how.lanes.replace.every((on) => !on), "When moves happen: nothing yet");
@@ -157,9 +158,7 @@ function check(ok, what, detail = "") {
     await fits("Waivers, the merge's window");
 
     // ---- back to From the start ----
-    await page.goto(`${BASE}/show/${sid}/backstage/waivers`, { waitUntil: "networkidle" });
-    if (await pick.count()) await pick.click();
-    await page.locator("[data-bs-settings]").click();
+    await manage();
     await starts.waitFor({ timeout: 10_000 });
     check(/Episode 5 opens a window/.test(await starts.locator('[data-start="merged"]').innerText()), "once it's known: Episode 5 opens a window", await starts.locator('[data-start="merged"]').innerText());
     await starts.locator('[data-start="start"]').click();

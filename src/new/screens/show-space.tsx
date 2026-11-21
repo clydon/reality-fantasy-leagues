@@ -31,7 +31,8 @@ import { Avatar, useNow } from "../ui/bars";
 import { Loaded } from "../ui/loaded";
 import { toast } from "../ui/toast";
 import { usePushedPage } from "../ui/page";
-import { CaptionPlate, EmptyState, GuardChip, Row } from "../ui/parts";
+import { EmptyState, GuardChip, Row } from "../ui/parts";
+import { RUNNER_JOBS } from "../manage/jobs";
 import { Sheet } from "../ui/sheet";
 import { ShowBar, TabBar } from "../ui/show-bar";
 import { openCouchSheet } from "../couch/couch-sheets";
@@ -468,11 +469,12 @@ function WhereLine({ known, quiet, pace, couchId, seasonId }: { known: Where[]; 
   );
 }
 
-/** What needs whoever runs a game here (Backstage's results jobs, step 5): a dot on the ⋯ menu and its Backstage row. */
+/** What needs whoever runs a game here (a runner's jobs: settings Round 3a dropped the results jobs, which the bot settles): a dot
+ *  on the ⋯ menu and its Games you run row. */
 function useBackstageNeeds(seasonId: string, show: ShowData): Need[] {
   const runs = show.runs.length > 0;
   const bs = useBackstage(seasonId, show.couch?.id ?? null, null, { enabled: runs });
-  return runs ? (bs.data?.needs ?? []) : [];
+  return runs ? (bs.data?.needs ?? []).filter((n) => RUNNER_JOBS.has(n.id)) : [];
 }
 
 /** A draft's line on the ⋯ menu: where it stands for you. */
@@ -498,7 +500,7 @@ function draftNeedsYou(g: DraftGame | undefined): boolean {
 
 /** The show's ⋯ menu: things to do (settings Round 2, docs/design-round/settings-r2-spec.md). Settings about you on this show are
  *  under the gear beside it (settings/show-page.tsx), and the menu's foot says so once, for anyone whose habit still lands here.
- *  Up top, for whoever runs a game, Backstage (a plate while something needs them; Round 3 replaces it) and, for a site admin, this
+ *  Up top, for whoever runs a game, Games you run here (settings Round 3a: Backstage retired) and, for a site admin, this
  *  season in Admin. Then Invite a friend, Plan a watch along, How it works, the drafts and Recent changes. What a show offers is on
  *  its tabs already (Start a game, Make it a game, Add to my shows), so it isn't repeated here. */
 function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
@@ -518,7 +520,6 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
     url.searchParams.delete("notify");
     window.history.replaceState(null, "", url);
   }, [params]);
-  const nav = useNav();
   const me = useMe();
   const how = usePushedPage("how-it-works");
   const needs = useBackstageNeeds(seasonId, show);
@@ -529,7 +530,9 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const blind = drafts.filter((g) => g.kind === "blind");
   const lead = (list: DraftGame[]) => list.find((g) => g.phase === "live") ?? list.find((g) => g.phase === "waiting") ?? list[0];
   const name = show.header?.show.name ?? "This show";
-  const runNames = [...new Set(show.runs.map((g) => g.gameName))].join(" and ");
+  const runList = [...new Set(show.runs.map((g) => g.name))];
+  const runNames = runList.length < 3 ? runList.join(" and ") : `${runList.slice(0, -1).join(", ")} and ${runList[runList.length - 1]}`;
+  const runCount = show.runs.length === 1 ? "1 game" : `${show.runs.length} games`;
   const subtitle = [show.header?.seasonNumber ? `Season ${show.header.seasonNumber}` : null, show.couch?.name].filter(Boolean).join(" · ");
   const canPlan = !!show.couch && !show.solo;
   const canHistory = !!show.couch && show.games.length > 0;
@@ -541,7 +544,7 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
         <button type="button" aria-label="Your settings for this show" data-show-gear onClick={() => settings.show()} className="grid size-11 place-items-center rounded-[3px] text-white">
           <Settings className="size-5" aria-hidden />
         </button>
-        <button type="button" aria-label={needs.length ? "Show menu: Backstage needs you" : "Show menu"} onClick={() => setOpen(true)} className="relative grid size-11 place-items-center rounded-[3px] text-white">
+        <button type="button" aria-label={needs.length ? "Show menu: a game you run needs you" : "Show menu"} onClick={() => setOpen(true)} className="relative grid size-11 place-items-center rounded-[3px] text-white">
           <Ellipsis className="size-5" aria-hidden />
           {needs.length > 0 && <i data-menu-dot className="absolute right-1.5 top-2 size-2.5 rounded-full bg-chyron ring-2 ring-[rgba(16,14,21,.9)]" aria-hidden />}
         </button>
@@ -550,22 +553,17 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
         {/* A row that goes somewhere leaves the sheet open: the show's frame (and the sheet with it) slides away with
             the screen. Closing it first would cut the move short (Base UI closes synchronously). */}
         <div className="flex flex-col" data-menu-main>
-          {show.runs.length > 0 &&
-            (needs.length > 0 ? (
-              <div data-backstage-plate className="mb-2">
-                <CaptionPlate
-                  tag="Backstage"
-                  size="sm"
-                  wrap
-                  title={needs[0].title}
-                  subtitle={needs.length > 1 ? `And ${needs.length - 1} more waiting` : undefined}
-                  action="Open"
-                  onClick={() => nav.push(paths.backstage(seasonId))}
-                />
-              </div>
-            ) : (
-              <Row href={paths.backstage(seasonId)} icon={KeyRound} iconClass="bg-foreground text-background" title="Backstage" detail={`You run ${runNames}`} />
-            ))}
+          {/* Games you run here (settings Round 3a: Backstage retired): an index of your games, each opening its Manage this game. */}
+          {show.runs.length > 0 && (
+            <Row
+              href={paths.backstage(seasonId)}
+              icon={KeyRound}
+              iconClass="bg-foreground text-background"
+              title="Games you run here"
+              detail={needs.length ? `${needs[0].title}${needs.length > 1 ? ` · ${needs.length - 1} more` : ""}` : `${runCount} · ${runNames}`}
+              dot={needs.length > 0}
+            />
+          )}
           {me.isSuperAdmin && (
             <Row href={paths.deskItem("season", seasonId)} icon={Tv} iconClass="bg-foreground text-background" title="This season in Admin" detail="Cast, episodes and rules" />
           )}

@@ -7,14 +7,14 @@
 //   - joining the couch with a code (typed loosely), again (already on it); a couch-only member is on it in its own right;
 //   - who can join, per game: Weekly Lineup and Survival Pool open (shared / no teams), Outlast ask (exclusive); Game
 //     settings' three ways (an exclusive game can't be open; locked refuses a join; Reset to recommended);
-//   - Ask me first: joining without asking is refused, ask, withdraw, ask again; the request in Backstage's Needs you for
+//   - They ask first (Ask me first until settings Round 3a): joining without asking is refused, ask, withdraw, ask again; the request in Needs you for
 //     whoever runs it; a player can't answer it; Let in (a line in Recent changes); joining after, live from Episode 6
 //     with a team of free agents only (refused with someone owned), seen by the game at once, your mark left where it was;
 //   - Survival Pool, catching up from Episode 1: the game view says "Episode 1 of 5", the season's reveal leaves it out,
 //     a pick for Episode 1 through the classic route, the catch-up reveal (one episode, its beats), Episode 2 next;
 //   - the couch chat lets kat in (seen by the games, folded by her mark); Recent changes has every join;
 //   - start a couch (a name, its owner, refused nameless or too long); leave one (the last Commissioner can't; kat can:
-//     out of its games, restorable); taking jordan out of the games in Backstage keeps him on the couch.
+//     out of its games, restorable); taking jordan out of the games (the backstage members route) keeps him on the couch.
 //   - which couch the hub shows, kept for the account (PUT /api/me/profile { hubCouch }, read back as home.user.hubCouch; a
 //     couch you're not on 403, not a couch 400).
 //   In a real browser at --width (390 by default): the hub's header naming its couch (opening Your couches), alex's profile
@@ -23,7 +23,8 @@
 //   guarded), starting a couch (Get the couch going with its
 //   code), joining one with the code boxes (to its invite page); kat's invite page (Join the couch, then each game's
 //   button), joining Weekly Lineup live with a team, Tonight's catch-up strip and a catch-up reveal, Commercial break's
-//   Join a game; alex's Backstage request (Let in), Game settings' Who can join, Members' Invite, the show's ⋯ Invite a friend,
+//   Join a game; alex's request in Games you run's Needs you (Let in), Manage this game's Who can join, the show's ⋯ Invite a friend
+//   (Members' Invite went with Members & roles in settings Round 3a: inviting is the couch's, so the ⋯'s is the one now),
 //   Settings' couches; the invite page signed out. Nothing wider than the screen; no page errors.
 // Screenshots go to <outDir>.
 //
@@ -381,12 +382,12 @@ async function newcomer(pool, who) {
       check((await pool.query("SELECT via FROM couch_members cm JOIN couches c ON c.id = cm.couch_id WHERE c.name = 'ZT Watch Club' AND cm.user_id = $1", [fx.users.alex])).rows[0]?.via === "couch", "alex is on it");
       await shot("joined-watch-club", page);
 
-      // ---- alex's Backstage: a request, Who can join, Invite ----
+      // ---- alex's Games you run (Backstage's address since settings Round 3a): a request, Who can join, Invite ----
       await page.evaluate((id) => localStorage.setItem("gys.couch", id), couch);
       await page.goto(`${BASE}/show/${sid}/backstage`);
-      await page.locator('[data-request="zt_nd_jordan"]').waitFor({ timeout: 30_000 });
-      check(/zt_nd_jordan asked to join Outlast/.test(await page.locator('[data-request="zt_nd_jordan"]').innerText()), "Backstage's Needs you: jordan asked to join Outlast");
-      await fits("Backstage", page);
+      await page.locator('[data-runner-jobs] [data-request="zt_nd_jordan"]').waitFor({ timeout: 30_000 });
+      check(/zt_nd_jordan asked to join Outlast/.test(await page.locator('[data-request="zt_nd_jordan"]').innerText()), "Games you run's Needs you: jordan asked to join Outlast");
+      await fits("Games you run", page);
       await shot("backstage-request", page);
       await page.locator('[data-request="zt_nd_jordan"] [data-let-in]').click();
       check(/zt_nd_jordan can join now/.test(await toasted(/can join now/, page)), "Let in");
@@ -402,16 +403,11 @@ async function newcomer(pool, who) {
       check(outlastModes.join() === "ask,locked" && lineupModes.join() === "open,ask,locked", "Who can join: Outlast ask or nobody new; Weekly Lineup any of three", `${outlastModes} / ${lineupModes}`);
       await shot("who-can-join", page);
       await page.locator('[data-settings-game="Weekly Lineup"] [data-join="ask"]').click();
-      check(/Ask me first/.test(await toasted(/Ask me first/, page)) && (await state("lineup")).settings.joinMode === "ask", "Weekly Lineup: Ask me first, saved at once");
+      check(/They ask first/.test(await toasted(/They ask first/, page)) && (await state("lineup")).settings.joinMode === "ask", "Weekly Lineup: They ask first, saved at once");
       await page.locator("[role=status]").getByRole("button", { name: "Undo" }).click();
       await page.waitForTimeout(1500);
       check((await state("lineup")).settings.joinMode === "open", "and Undo opens it again", (await state("lineup")).settings.joinMode);
-      await page.goto(`${BASE}/show/${sid}/backstage/members`);
-      await page.locator("[data-members-invite]").click();
-      await sheet(page).locator(`[data-invite-code="${code}"]`).waitFor({ timeout: 10_000 });
-      check(true, "Members & roles: Invite opens alex's code");
-      await page.keyboard.press("Escape");
-      await sheetGone(page);
+      // Members & roles' Invite is gone (settings Round 3a: Who's playing has no Invite; it's the couch's): the ⋯'s below is it.
       await page.goto(`${BASE}/show/${sid}/tonight`);
       await page.getByRole("button", { name: /Show menu/ }).click();
       await sheet(page).getByText("Invite a friend").click();
