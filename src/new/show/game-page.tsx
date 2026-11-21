@@ -357,7 +357,7 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
           {show.couch && (g.yourRole === "commissioner" || g.yourRole === "admin") && (
             <Row title="Game settings" detail={g.yourRole === "commissioner" ? "What you set, and what you can still change" : "This episode's lock, and how the game is set"} onClick={() => (setMenu(false), settingsPage.showWith({ game: g.leagueId, from: "game" }))} />
           )}
-          {/* Leave just this game (settings Round 2, A11): red, last, held. */}
+          {/* Leave just this game (settings Round 2, A11): last, quiet, held: the hold carries the red (the user's pick, 2026-11-21). */}
           {show.couch && g.yourRole && !g.solo && (
             <button
               type="button"
@@ -375,7 +375,7 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
               className="nd-press mt-1 flex min-h-[60px] w-full items-center gap-3 border-t border-border py-2 text-left"
             >
               <span className="min-w-0 flex-1">
-                <b className="block text-[15px] font-semibold text-live">Leave this game</b>
+                <b className="block text-[15px] font-semibold">Leave this game</b>
                 <small className="mt-0.5 block text-[13px] text-muted-foreground">Your other games here and the couch stay</small>
               </span>
             </button>

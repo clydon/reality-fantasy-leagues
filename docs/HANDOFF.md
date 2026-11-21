@@ -67,8 +67,9 @@ Newest first. The plan or archive section named holds the detail.
 - **Settings overhaul, Round 2, branch `settings-plan`** (lane rfl-settings, port 3018; 2026-11-21, from master ac4042f2; not merged
   or pushed; migration 0448 to rehearse first): a gear on every show's bar opens that show's settings for you, the ⋯ is things to do,
   Where you are with Undo, Leave this game, mute until the next episode, the hub names its couch (saved per account), the owner's
-  hand-off confirms. Checked: the unit suite, check-settings-r2.js (new), the story's 23 situations. Waits on the user's review of its
-  story (https://claude.ai/artifact/YMCNuwKciTJuGD91Q9XYrd: three choices at its end). Detail: PLAN-settings-overhaul.md, Round 2.
+  hand-off confirms. Checked: the unit suite, check-settings-r2.js (new), the story's 23 situations. Reviewed: the user took all three
+  recommendations (2026-11-21), applied; next, rehearse 0448, merge, and push on the user's go. Story:
+  https://claude.ai/artifact/YMCNuwKciTJuGD91Q9XYrd. Detail: PLAN-settings-overhaul.md, Round 2.
 - **Game preview, branch `preview`** (lane rfl-preview): 17 commits not on master, 55 commits behind it, about 11 conflict
   hunks (strip.tsx, game-week.tsx, your-move.ts, tonight.tsx). It has P0, the visual story, the bench's preview maker and
   Round 5 (four real-app fixes, among them the finale reveal ranking a stage that had ended). It waits on the user's review of

@@ -322,7 +322,7 @@ export function ShowSettingsPage({ seasonId, show }: { seasonId: string; show: S
             )}
           </div>
 
-          {/* Leaving comes last, in red, after a gap: never in the first view (PFD R2). */}
+          {/* Leaving comes last, after a gap, drawn quiet: the hold or the Undo carries the red (the user's pick, 2026-11-21). */}
           {(show.plays && show.couch) || (!show.plays && show.following) ? (
             <div className="mt-8 px-4">
               {show.plays && show.couch ? (
@@ -340,11 +340,11 @@ export function ShowSettingsPage({ seasonId, show }: { seasonId: string; show: S
                   }}
                   className="nd-press flex min-h-[60px] w-full items-center gap-3 border-y border-border py-2 text-left"
                 >
-                  <span className="grid size-10 flex-none place-items-center rounded-[3px] bg-secondary text-live">
+                  <span className="grid size-10 flex-none place-items-center rounded-[3px] bg-secondary text-muted-foreground">
                     <LogOut className="size-5" aria-hidden />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <b className="block text-[15px] font-semibold text-live">Leave all my games here</b>
+                    <b className="block text-[15px] font-semibold">Leave all my games here</b>
                     <small className="mt-0.5 block text-[13px] text-muted-foreground">To leave just one, use that game&rsquo;s ⋯</small>
                   </span>
                 </button>
@@ -374,11 +374,11 @@ export function ShowSettingsPage({ seasonId, show }: { seasonId: string; show: S
                   }}
                   className="nd-press flex min-h-[60px] w-full items-center gap-3 border-y border-border py-2 text-left"
                 >
-                  <span className="grid size-10 flex-none place-items-center rounded-[3px] bg-secondary text-live">
+                  <span className="grid size-10 flex-none place-items-center rounded-[3px] bg-secondary text-muted-foreground">
                     <X className="size-5" aria-hidden />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <b className="block text-[15px] font-semibold text-live">Remove from my shows</b>
+                    <b className="block text-[15px] font-semibold">Remove from my shows</b>
                     <small className="mt-0.5 block text-[13px] text-muted-foreground">How far you&rsquo;ve watched is kept if you add it again</small>
                   </span>
                 </button>

@@ -1537,3 +1537,15 @@
   - **The shared sheet focuses itself when it opens,** not its Close button (the keyboard keeps the first control), so a sheet opened
     from a link shows no yellow ring on Close.
 - Rests on: docs/design-round/settings-r1-spec.md, -first-view.md, -shape.md, -check.md; the story https://claude.ai/artifact/97sfST4Ut41ib5HUHJPpjH.
+
+## 2026-11-21 · Settings, Round 2: leaving drawn quiet; three results choices; no art, no band
+- Decided by: the user, on Round 2's story ("I'll go with your recs").
+- Why: the rules didn't settle these three (docs/design-round/settings-r2-check.md): PFD wants no red in the first view, and a short
+  page puts the last row there.
+- What:
+  - **Leave all my games here, Remove from my shows and a game's Leave this game are drawn quiet,** still last after a gap: a plain
+    label and a muted icon. The hold (or the Undo's toast) carries the red, so red means only the dangerous step.
+  - **When results show here keeps three choices** (your default, after I've watched, straight away), so a choice pinned on one show
+    survives a later change of the default. It sits in a fold most people never open.
+  - **A show with no art gets no band:** just its name, at 44 px. No initials plate.
+- Rests on: docs/design-round/settings-r2-spec.md, -first-view.md, -shape.md, -check.md; the story https://claude.ai/artifact/YMCNuwKciTJuGD91Q9XYrd.

@@ -1,8 +1,9 @@
 # Settings: the overhaul
 
-> **Status (2026-11-21): Round 2 built on branch settings-plan, waiting on the user's review of its story**
-> (https://claude.ai/artifact/YMCNuwKciTJuGD91Q9XYrd; three named choices at its end). PFD 82 and Impeccable 33/40 after one batch of
-> fixes (the bar: 80 and 32). Not merged or pushed; migration 0448 to rehearse first.
+> **Status (2026-11-21): Round 2 built on branch settings-plan and reviewed:** the user took all three recommendations (leaving drawn
+> quiet, three results choices, no band without art; design-round/decisions.md), applied. PFD 82 and Impeccable 33/40 after one batch
+> of fixes (the bar: 80 and 32). Story: https://claude.ai/artifact/YMCNuwKciTJuGD91Q9XYrd. Not merged or pushed; migration 0448 to
+> rehearse first.
 >
 > **Round 1 (2026-11-20): merged and live** (pushed c440bf5f, 2026-11-20 at midnight; migration 0447 on production, rehearsed first;
 > the snapshot `pre-settings-2026-11-20` keeps 7 days). PFD 82 and Impeccable 33/40 after one batch of fixes; the user took all four
