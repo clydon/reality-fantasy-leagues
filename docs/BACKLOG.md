@@ -6,7 +6,7 @@ and in flight is in [HANDOFF.md](HANDOFF.md).
 
 **How this file works**
 - **Numbers are permanent.** Code, tests and commits cite "BACKLOG 57", so a number never changes and is never reused. A new
-  item takes the next free number: **the next is 238.**
+  item takes the next free number: **the next is 239.**
 - **Closing an item:** delete it here and add one line under "Closed since the cleanup" at the end: the number, done or
   dropped, and the commit or the reason. Numbers closed in the cleanup itself are listed, with their full old text, in
   [archive/BACKLOG-2026-11-19.md](archive/BACKLOG-2026-11-19.md).
@@ -219,6 +219,11 @@ switch goes in the settings overhaul's Round 1 (its C4), or with this fix throug
 
 ### Small UI fixes (one Impeccable polish pass)
 
+**238. Say "filled for you" where the bench filled a slot.** Settings Round 3b's 165 fills an empty starting slot from the bench
+(`ActiveRosterLogic.filledFor` names who), but neither the reveal nor the person's lineup says so yet: the spec's "the reveal and
+the person's lineup say 'filled for you'". A line in the reveal's lineup beat and a tag on the lineup sheet's face, through
+Impeccable. Found in 3b's check; the next session on the reveal or the lineup sheet takes it. [S · UI]
+
 **228. A sport's lineup sheet puts the best guard in "G", not "PG".** The sheet's tidying (SlotLogic.assignment) puts an earlier
 starter in the narrower slot, judged by how many values a slot lists: the NBA's G slot takes one ("guards", a position group) and
 PG takes two ("PG", "G"), so G reads narrowest. The lineup is legal either way; it only reads oddly. And since ESPN's NBA rosters
@@ -376,20 +381,6 @@ verdict, saying "Settles when Joanna reaches Episode 3", until every human seat 
 **132. "Pick from one tribe" still shows as Coming.** The engine can't limit a pool to one group as it stood at the game's start.
 Build `pool.where.group` in PoolLogic (read through `viewThrough`, so a later swap doesn't change who was eligible), describe it,
 and turn the gallery's option on. [M · engine]
-
-**230. New moments mid-season: whose call, and from when (the user, 2026-11-20).** On 2026-11-05/06, after Episode 7, Survivor 51's
-rulebook gained moments the season started without (Mutinied to another tribe +5, Gave away an advantage -0.5, among others)
-and had moments rescored, as a desk "Fixed a mistake", so they counted back to Episode 1. The Nov 16 catch-up and the second
-looks of 2026-11-20 filled them in (Carter's Episode 3 mutiny: +5 to two seats). A correction to a moment in the rules all
-along (Cristian's Episode 8 idol, +8) is plainly right. A new moment, or new points, counted backwards is the contestable
-one: nobody could set a lineup for it. The proposal, a game setting "When the show gets a new moment" (or a moment's points
-change): **count it from the start**, **count it from the next episode**, or **the players vote** (the game's maker breaks a
-tie). Default by how settled the format is: a brand-new show, or one whose seasons differ (The Challenge), counts from the
-start; a known format from the next episode. Under the user's "let the AI settle" (2026-11-20) nothing waits: the default applies while a vote
-runs (until the next episode, say), and the players are told either way. The desk keeps its own two (Fixed a mistake, from the
-premiere; The show changed from Episode N); this is the game's say on top. Open for the user: the defaults by show, whether
-a vote binds or advises, and whether a rescore counts as new. Through the design process (the notice, the vote, the
-setting). [M–L · engine + design]
 
 ### Game page, Tonight and the reveal
 
@@ -593,9 +584,6 @@ and builds.
 - **52. The top scorer's twist at your own pace.** The first seat to play chooses before the others have played the deciding
   episode. Always play the fallback in an own-pace game, or wait until every seat has played? *Recommended: always the
   fallback. It's what the code's own comment intends, and it adds no waiting state.*
-- **157. Backstage's lock row: three named states.** For an episode that has started: open to whoever hasn't watched (the
-  game's rule), open to everyone, or locked for everyone (which stores `ep.lineupsLocked`). The row also says when someone has
-  locked themselves in. *Recommended: yes.*
 - **158. Episode night's two open questions.** Q3: on a night with one live game and one strict, does the strip speak for the
   open game and leave the locked one to its tab? *Recommended: yes.* Q4: past four season games, does each Games tab card shrink
   to your place, the gap and the move, with the leaderboard a tap away? *Recommended: yes when a couch reaches five; measure
@@ -617,13 +605,6 @@ and builds.
   archive's `RecordRow`, a dead end today) opens later, as a door to the games you both played.*
 - **163. Finished games on a castaway's sheet.** Since B3 the sheet and the Cast tab show only running games. *Recommended: an
   "Earlier games" fold that reads the archive a page at a time.*
-- **164. A drafted Weekly Lineup starts with replacements on.** Today the presets start with none (schema.js `NO_WAIVERS`).
-  *Recommended: yes, "Whenever one goes home". Joanna won't find Backstage, and classic did this.*
-- **165. An empty starting slot fills from the bench by itself.** When a starter goes home and the seat doesn't change their
-  lineup. *Recommended: yes, as a game setting that starts on (the bench in draft order, then anyone still in), and the reveal
-  says "filled for you".*
-- **166. Whoever runs a game can set a missing move for someone.** A lineup or a pool pick, from Backstage › Members, as waivers'
-  Pick for them does. *Recommended: yes for a Game admin, logged in Recent changes, never showing their picks back.*
 - **1. Where a late joiner starts in an Outlast.** They draft only from who's still in, so they skip everyone else's early
   losses, and the new design shows a join at once. *Recommended: on the game's lowest score at their start episode, then scoring
   normally. Measure the effect first with a late seat in the explorer's Outlast case.*
@@ -832,6 +813,10 @@ longer depends on the wiki.)
 ## Closed since the cleanup
 
 One line each: the number, done or dropped, and the commit or the reason.
+- **157, 164, 165, 166, 230** done (Settings Round 3b, branch settings-r3b, 2026-11-21; the user took every recommendation on its story):
+  the lock's three states; a Fantasy league starts with replacements on; an empty slot fills from the bench (new games; a switch
+  on older ones); a runner sets a move someone forgot; a new moment mid-season counts by the game's rule or its players' vote.
+  PLAN-settings-overhaul.md Round 3, design-round/decisions.md 2026-11-21.
 - **198** dropped (2026-11-20): nothing's left to tick in Backstage since results settle on their own (PLAN-results-settle.md);
   the settings plan's C43.
 - **226** answered (the user, 2026-11-20, "i agree with your rec"): the NFL's default season game plays a final between the top two in

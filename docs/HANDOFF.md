@@ -108,7 +108,7 @@ Newest first. The plan or archive section named holds the detail.
 6. The order after that is in [PLANS.md](PLANS.md).
 
 **Waiting on the user:** BACKLOG's "Waiting on you" section, with a recommendation on each. The ones that unblock ready work
-are 155 (preview), 156 (writer), 52, 157–159 and 94.
+are 155 (preview), 156 (writer), 52, 158–159 and 94.
 
 ## Production
 
