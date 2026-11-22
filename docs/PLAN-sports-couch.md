@@ -1,6 +1,7 @@
 # Plan: sports on the couch (the hub's scores strip, a league's page, playing as a couch, lines)
 
-> **Status (2026-11-22): Settled, not started.** The user's calls are in; start at step A1. Lines are Phase D, detailed in
+> **Status (2026-11-22): A1 approved as built (the user, 2026-11-22) and committed in the `sports-couch` lane (not merged);
+> A2 (the league card) built there next, waiting on the user's review of its story.** The user's calls are in. Lines are Phase D, detailed in
 > [PLAN-sports-lines.md](PLAN-sports-lines.md). March Madness (E1) is dated: working by Fri 2027-02-26.
 
 ## Read first
@@ -74,6 +75,46 @@ the build session runs Impeccable's build and critique on it, then the check and
   Scoreboard's move; no words over words (story-situations.js's rule).
 - **Later, by sport (A1b):** baseball's inning, outs and bases; hockey's power play; soccer's minute and red cards; each its own
   situation read, as its season starts (MLB by Opening Day).
+
+**A1's build notes (2026-11-22, lane `sports-couch`, port 3019; not merged).** Story: https://claude.ai/artifact/YBP1Xv93MfsfJSQXiY7VLq.
+**Approved as built** (the user, 2026-11-22), the build's calls standing: hidden games say "Started", a final asks before showing
+its score, and records in the score slot, the possession triangle and "LAC by 3" stay as the brief has them (BACKLOG 253 b,
+decided; docs/design-round/decisions.md).
+- **Where:** `src/new/hub/scores-strip.tsx` (the strip, the scorebug, the ask sheet moved from the Scoreboard, the tile's sheet of
+  every game by league), after `OnTvRow` in `Middle` and in `SoloHub`. The Scoreboard and ScoreCard are gone from bands.tsx;
+  `useTeamsToday` and `SportsMini` from guide.tsx, and On TV's reel also drops a sport season's own cards (a game you play was
+  there twice).
+- **Which games:** `src/lib/sports/strip.ts` (pure; tests/sports-strip.test.js): your teams' games and the games you play; live,
+  then just finished, then today's by kickoff, then each team's (or season's) next only when it has nothing on the strip yet. A
+  rivalry is your team's game with a couch face on the other side; the couch's other teams' games left. A hidden game that has
+  begun is one bucket, "started", sorted by kickoff with the live ones, so its place gives nothing away. Finals leave after 36 hours,
+  or once seen on an earlier visit (`noteSeen`/`seenBefore` in sports/scores.tsx: this phone's localStorage; watching a game live
+  on the strip counts as seeing it). A team with nothing left this week (a bye) makes the strip read the week after.
+- **Data:** ESPN's scoreboard now gives each side's record (`Competitor.record`), the networks and the live clock
+  (`SportsEvent.networks`, `.clock`; espn.ts); `WeekGame` carries `record`, `network`, `line` (words: matchup.ts `lineWords`, "LAC by
+  3", never the book) and `clock`. The line is read from the scoreboard's odds, the same source `sports_events.odds` is filled from.
+  `src/lib/sports/situation.ts` reads where a game stands from its summary (score, period, clock, football's possession and down);
+  `LiveGame.situation` keeps it (live.ts). Tested on eight answers of the recorded Patriots–Lions game
+  (tests/fixtures/espn-situations/nfl-401873053.json; tests/sports-situation.test.js).
+- **New reads** (HOSTING.md, "The hub's scores strip"): `GET /api/sports/now?league=&event=` (~200 bytes, through the live route's
+  poller, edge-kept 15 s; polled every 15 s per live game only for someone shown it live) and `GET /api/sports/mine` (your games by
+  ESPN id with your pick: three small reads, src/lib/server/sports/mine.ts). No migration, no engine change.
+- **Decided in the build:** hidden says "Started" and its time, never the clock or FINAL, and the tile drops its live count (the
+  2026-11-09 rule over the brief); a final asks first even with hiding off (the 2026-11-15 rule), its sheet saying "You haven't seen
+  how it ended"; the bug is 208 × 72 with a 66 px status column (the line needed the room); the tile carries "N due" while any move
+  is due, and its chevron says it opens every game.
+- **The check (once):** PFD evaluate and Impeccable critique on the frames; one batch fixed: the Show/Watching chip covered the
+  faces (now an icon in the score slot, the status column saying Started or Watching), no focus ring (inset rings on the tile and
+  bugs), fragments at the swiped end (a spacer lets the last bug snap flush), a later day lost AM/PM, the tile had no tap cue, live
+  red text under 4.5:1 (the words now foreground, the dot red), 10.5 px text (12 px floor), the slab's edge invisible on Studio
+  (from the foreground now), the faces missing from the spoken label, a game with no time. Kept from the brief: records in the score
+  slot, the possession triangle, the line in words (BACKLOG 253 b).
+- **Checks:** `scripts/dev-test/story-hub-sports.js` shoots every state (`--only=`, `--before` for the old code on another port,
+  Studio, solo, overlaps); check-sports-couch.js checks the week's new fields, the small live read, your games, and the strip on the
+  hub (88 px after On TV, no Scoreboard, hidden says Started and asks, shown is live with its ball and down); check-new-hub.js checks
+  no strip without teams. Both checks fail later on steps that fail on master too (BACKLOG 252). fake-espn.js events take `records`,
+  `network` and `clock` (with a summary of a game on). tsc and `npm test` pass; ESLint's only errors are master's (game-page.tsx,
+  lineup-sheet.tsx `Date.now` in render).
 
 **A2. The league card in Your shows** (S–M). 72 px, among the show bands, sorted by its next game like shows by their next
 episode; the league, the week, the couch's teams as marks, one muted line of what the couch has going (never what the strip

@@ -1766,3 +1766,12 @@
   Recommended tag, Not now on every confirm, Leave the pool as a hold, Lineups hidden gone from Start a game, How it plays saying
   Round 3b's two rules). **Recent changes keeps its name** (Round 3's shape had assumed "Changes in these games").
 - Rests on: docs/design-round/settings-r4-spec.md (its glossary and the check).
+
+## 2026-11-22 · The hub's scores strip (sports-couch A1) approved as built
+- Decided by: the user ("A1 is approved as built"), on the story https://claude.ai/artifact/YBP1Xv93MfsfJSQXiY7VLq.
+- What: the scores strip under the guide bar as built in the sports-couch lane (88 px, the Scores tile, scorebugs that swipe, the
+  Scoreboard and On TV's sports cards gone), with the build's calls standing: a hidden game that has begun says "Started" and its
+  time (never the clock, FINAL or a live count); a final asks before showing its score, even with hiding off; before kickoff the
+  records sit in the score slot, possession is the small triangle, and the line reads "LAC by 3".
+- Rejected: the check's suggestions (records beside the abbreviation, a ball glyph, "LAC −3"): BACKLOG 253 (b), closed.
+- Rests on: docs/design-round/hub-scorebug-shape.md; docs/PLAN-sports-couch.md, A1's build notes.

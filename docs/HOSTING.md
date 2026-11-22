@@ -3,7 +3,8 @@
 **Keep this current.** Update it in the same commit as any change that adds or changes polling, a scheduled
 job, stored data, or a service, and whenever usage is checked (date the numbers). It exists so that, when a
 free plan stops being enough, choosing the cheapest fit is arithmetic, not research. Last updated
-**2026-11-15** (live games asked by the app, not the phone: Live games), and before that **2026-10-28** (Cost by size; live
+**2026-11-22** (the hub's scores strip: its small live read, your games and the week after a bye, under "The hub's scores
+strip"), and before that **2026-11-15** (live games asked by the app, not the phone: Live games), and before that **2026-10-28** (Cost by size; live
 games' polling from phones, L2 on the `sports` branch; a live soccer match measured, L5 part 1).
 
 ## The stack
@@ -258,6 +259,23 @@ phone it depends on the screens (part 4, not built):** the whole games read is ~
 all of it the season's ~2,500 people, so polled every 15 s for a game it would be ~100 MB a phone; a game's table and matchups alone
 are ~0.5 KB gzipped (~0.3 MB a phone a game). Part 4 polls a small live read, never the whole read (measured by
 `scripts/dev-test/check-sports-live-points.js`).
+**The hub's scores strip (docs/PLAN-sports-couch.md A1, 2026-11-22, the `sports-couch` lane; not live)** asks ESPN nothing new:
+- **The week, as before**: the hub's Scoreboard read `/api/sports/week` from yesterday; the strip reads the same, and **the week
+  after** too (`?from=` six days on) only when one of your teams has no game left in the first (a bye week's next game), once a hub
+  load (React Query, 2 minutes). The same route and day scoreboards the guide's Sports reads (cached a day's scoreboard an hour
+  before, 3 minutes live), the edge keeping each week 5 minutes, so it's at most a league's day scoreboards an hour more, for
+  everyone. Each game now carries its sides' records, its network and the line in words, read from the same scoreboard answer.
+- **Your games** (`GET /api/sports/mine`, signed in): the games you play (your games' seasons' linked events, two days back to
+  eight on) with your pick on each; three small indexed Neon reads (memberships, linked events, answers) once a hub load, ~0.5 KB.
+  Nothing polled.
+- **A small live read** (`GET /api/sports/now?league=&event=`): where a live game stands (the score, the period and clock,
+  football's possession and down and distance: `src/lib/sports/situation.ts`), ~200 bytes, asked every 15 s per live game on the
+  strip while the hub is visible, only for someone shown it live (never hiding scores, never watching it as if live), stopping at
+  the final. It reads the game's summary through the live route's own poller (`liveAnswer` in `live-proxy.ts`): the same one ESPN
+  ask a game every 10 s an instance that a game's live screen makes, whoever reads; the edge keeps each answer 15 s (`s-maxage=15`),
+  so a couch watching one game costs one invocation per 15 s per edge region, not one per phone. Nothing in Neon. A phone with two
+  live games on the strip gets ~0.1 MB an NFL game (the whole summary would be ~100 MB).
+- The On TV row no longer reads the couch's teams' games (its sports cards moved to the strip).
 wakes nothing new: it runs inside the same daily listings job. It refills each sports season with a game near now once a day (at
 most 10 seasons a run: a roster call per linked team, cached a day and shared by a league's seasons, so about 32 calls a day for
 the NFL however many seasons follow it), so signings, trades and each player's injury arrive (the same roster calls; `season_cast.injury`,

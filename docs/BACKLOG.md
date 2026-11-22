@@ -6,7 +6,7 @@ and in flight is in [HANDOFF.md](HANDOFF.md).
 
 **How this file works**
 - **Numbers are permanent.** Code, tests and commits cite "BACKLOG 57", so a number never changes and is never reused. A new
-  item takes the next free number: **the next is 251.**
+  item takes the next free number: **the next is 254.**
 - **Closing an item:** delete it here and add one line under "Closed since the cleanup" at the end: the number, done or
   dropped, and the commit or the reason. Numbers closed in the cleanup itself are listed, with their full old text, in
   [archive/BACKLOG-2026-11-19.md](archive/BACKLOG-2026-11-19.md).
@@ -64,6 +64,12 @@ them as a doubt for whoever runs it and never score them above the winner (the r
 Grouped so each group is about one session. Take them in any order.
 
 ### Fix the stale and flaky checks
+
+**252. Three steps that fail on master too (found 2026-11-22 in the sports-couch lane, run on master 5cff5288's own code).**
+check-sports-couch.js's browser half stops at "Start a game…" from a team's sheet (`[data-gallery=gallery]` never shows in 30 s,
+check-sports-couch.js after "Show the score lets that game's score out"), so the steps after it don't run. check-new-hub.js fails
+"On now is real: riley is watching ZT Survivor, Episode 4" and then a 30 s `locator.textContent` timeout. Find what moved and fix
+the checks (or the screens). [S · checks]
 
 **244. Run the two checks settings Round 3a moved but never ran.** check-explorer-page.js's Waivers step and check-new-studio.js's
 list were moved to Manage this game in 3a (2026-11-21) but need UI Atlas on the main app, so they haven't run since. Run each once
@@ -478,6 +484,14 @@ rewrite one that disagrees. Make a season's library by itself after its setup re
 desk's button. Then a sport's season. Done when a newly set-up season has a library without a tap. [M · wizard]
 
 ### Sports
+
+**253. The scores strip's leftovers (A1, PLAN-sports-couch.md; the sports-couch lane, 2026-11-22).** (a) Games you play
+(`/api/sports/mine`) are your sports seasons' linked games from two days back to two weeks on: a slate Pick'em's later games show
+as each becomes the season's next. (b) **Decided** (the user, 2026-11-22, approving A1 as built): records stay in the score
+slot, possession stays the small triangle, and the line stays "LAC by 3" (the check had suggested otherwise). (c) The
+guide's Sports has words over words (an avatar's letter over "Cowboys, 2026 season"), already on master. (d) Up next still names
+a sports game you play while the strip shows it too (by design for now: Up next is your next move). (e) A1b: baseball's inning,
+outs and bases, hockey's power play, soccer's minute and red cards, each as its season starts. [S–M · sports]
 
 **222. A game the daily job misses for three days is never read again.** The daily job reads a linked game only from three days
 back (matchup.ts `refreshSportsEvents`), so a game whose day the job skipped for three days (the bot VM down over a long

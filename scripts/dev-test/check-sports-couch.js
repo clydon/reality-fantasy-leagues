@@ -62,8 +62,8 @@ const TEAMS = [
 const EVENTS = [
   { league: FB, id: "93101", at: at(-14 * D), home: "9301", away: "9303", state: "post", score: [24, 17] },
   { league: FB, id: "93102", at: at(-7 * D), home: "9304", away: "9301", state: "post", score: [20, 10] },
-  { league: FB, id: "93103", at: at(-1 * H), home: "9304", away: "9301", state: "in", score: [10, 14] },
-  { league: FB, id: "93104", at: at(2 * D), home: "9301", away: "9302", state: "pre", odds: { details: "ZPHI -3.5", overUnder: 44.5, spread: -3.5 } },
+  { league: FB, id: "93103", at: at(-1 * H), home: "9304", away: "9301", state: "in", score: [10, 14], records: ["5-5", "7-3"], network: "FOX", clock: { period: 3, display: "6:41", detail: "6:41 - 3rd", possession: "9301", down: "2nd & 7" } },
+  { league: FB, id: "93104", at: at(2 * D), home: "9301", away: "9302", state: "pre", records: ["7-3", "6-4"], network: "CBS", odds: { details: "ZPHI -3.5", overUnder: 44.5, spread: -3.5 } },
   { league: FB, id: "93105", at: at(9 * D), home: "9303", away: "9301", state: "pre" },
   { league: FB, id: "93106", at: at(16 * D), home: "9301", away: "9304", state: "pre" },
   { league: FB, id: "93107", at: at(23 * D), home: "9302", away: "9301", state: "pre" },
@@ -154,6 +154,14 @@ async function apiChecks(pool, me, couch, started) {
   const wk = await me.call("GET", `/api/sports/week?also=${FB},${BB}`);
   const games = (wk.body.days ?? []).flatMap((d) => d.games);
   check(games.some((g) => g.id === "93103" && g.state === "in") && games.some((g) => g.id === "94101"), "the guide's week has the game on now and tomorrow's", games.map((g) => g.id));
+  // The scores strip's data (docs/PLAN-sports-couch.md A1): each side's record, the network and the line in words (never the book's
+  // name), the clock of a game on; and the small live read of a game on, football's ball and down.
+  const g4 = games.find((g) => g.id === "93104");
+  const g3 = games.find((g) => g.id === "93103");
+  check(g4?.network === "CBS" && g4.line === "ZPHI by 3.5" && g4.sides.map((s) => s.record).join() === "6-4,7-3" && !JSON.stringify(g4).includes("ZT Book"), "the week's game: records, network, the line in words, no book", g4);
+  check(g3?.clock?.period === 3 && g3.clock.display === "6:41" && g3.line === null, "a game on: its period and clock, no line", g3?.clock);
+  const nowRead = await me.call("GET", `/api/sports/now?league=${FB}&event=93103`);
+  check(nowRead.status === 200 && nowRead.body.possession === "9301" && nowRead.body.down === "2nd & 7" && nowRead.body.scores?.["9301"] === 14 && JSON.stringify(nowRead.body).length < 600, "the small live read: score, ball and down, small", nowRead.body);
 
   const rail = await me.call("GET", `/api/sports/start?league=${FB}&count=1`);
   check(rail.body.games?.[0]?.id === "pickem" && rail.body.games.every((g) => !g.why), "the rail: Pick'em first, every game fitting one game", rail.body.games?.map((g) => [g.id, g.why]));
@@ -163,6 +171,9 @@ async function apiChecks(pool, me, couch, started) {
   // an archive and a record), that game only.
   const p = await me.call("POST", `/api/sports/start?couch=${couch}`, { league: FB, team: "9301", games: ["93104"], game: "pickem", tell: false });
   const nextEp = p.body.seasonId ? (await pool.query("SELECT episode FROM season_events WHERE season_id = $1 AND event_id = '93104'", [p.body.seasonId])).rows[0]?.episode : null;
+  // The strip's games you play (/api/sports/mine): that one game, by its id, no pick yet.
+  const mine = await me.call("GET", "/api/sports/mine");
+  check(mine.status === 200 && mine.body.games?.some((x) => x.event === "93104" && x.seasonId === p.body.seasonId && x.pick === null) && !mine.body.games.some((x) => x.event === "93105"), "your games: the Pick'em's one game, no pick yet, not its season's others", mine.body);
   check(p.status === 200 && p.body.leagueId && Number.isInteger(nextEp) && p.body.from === nextEp && p.body.to === nextEp && /season/i.test(p.body.season ?? ""), `Play the next game starts Pick'em on that one game, on the Eagles' season (its Game ${nextEp})`, p.body);
   // Its game as the engine reads it (gameOf: the spec, from the league's settings).
   const StateLogic = require("../../src/lib/game/state-logic.js");
@@ -272,6 +283,8 @@ async function browserChecks(pool, headers, couch) {
   console.log(`— browser at ${width}`);
   await pool.query("INSERT INTO user_settings (user_id) SELECT id FROM \"user\" WHERE username = $1 ON CONFLICT (user_id) DO NOTHING", [fixture.username("alex")]);
   await pool.query("UPDATE user_settings SET hide_sports_scores = true WHERE user_id = (SELECT id FROM \"user\" WHERE username = $1)", [fixture.username("alex")]);
+  // Alex follows the Eagles (the API half does too; --browser alone starts here).
+  await (await signIn({ user: fixture.username("alex"), pass: fixture.PASSWORD, headers })).call("POST", "/api/sports/follow", { league: FB, team: "9301", follow: true });
   const { page, errors, close } = await open({ user: fixture.username("alex"), pass: fixture.PASSWORD, width, headers });
   const shot = (name) => page.screenshot({ path: path.join(outDir, `${name}-${width}.png`), fullPage: false });
   const wide = async (what) => {
@@ -279,6 +292,44 @@ async function browserChecks(pool, headers, couch) {
     check(w[0] <= w[1], `${what}: nothing wider than the screen`, w);
   };
   try {
+    // The hub's scores strip (docs/PLAN-sports-couch.md A1): right after On TV, its height; the Scoreboard gone from Your shows and
+    // the sports cards from On TV, so a game is on the hub once; scores hidden, the game on says only Started, no numbers.
+    await page.goto(BASE + "/home", { waitUntil: "load" });
+    await page.locator("[data-scores-strip]").waitFor({ timeout: 30_000 });
+    await page.waitForTimeout(1500);
+    const hub = await page.evaluate(() => {
+      const s = document.querySelector("[data-scores-strip]");
+      const tv = document.querySelector("[data-on-tv]");
+      const bug = s?.querySelector('[data-bug="93103"]');
+      return {
+        strip: s?.getBoundingClientRect().height,
+        tv: tv?.getBoundingClientRect().height,
+        after: !!tv && tv.nextElementSibling === s,
+        scoreboard: document.querySelectorAll("[data-scoreboard], [data-score-card]").length,
+        tvSports: document.querySelectorAll('[data-on-tv] [data-guide-card^="sport:"]').length,
+        bucket: bug?.getAttribute("data-bucket"),
+        words: bug?.textContent ?? "",
+      };
+    });
+    check(hub.strip === 88 && hub.tv === 88 && hub.after, "the scores strip: right after On TV, at its height (88 px)", hub);
+    check(hub.scoreboard === 0 && hub.tvSports === 0, "no Scoreboard in Your shows, no sports cards in On TV", hub);
+    check(hub.bucket === "started" && /Started/.test(hub.words) && !/14|10|6:41|Q3/.test(hub.words), "scores hidden: the game on says Started, no score, clock or quarter", hub.words);
+    await wide("the hub with the strip");
+    await shot("0-hub-strip-hidden");
+    await page.click('[data-bug="93103"]');
+    check(await page.locator('[data-score-ask="93103"]').isVisible({ timeout: 5000 }).catch(() => false), "a hidden game's bug asks before anything shows");
+    await page.keyboard.press("Escape");
+    // Scores shown: the strip's game on is live, its score, quarter, clock, the ball and the down from the small live read.
+    await pool.query("UPDATE user_settings SET hide_sports_scores = false WHERE user_id = (SELECT id FROM \"user\" WHERE username = $1)", [fixture.username("alex")]);
+    await page.goto(BASE + "/home", { waitUntil: "load" });
+    await page.locator('[data-bug="93103"][data-bucket="live"]').waitFor({ timeout: 30_000 });
+    await page.locator('[data-bug="93103"] [data-bug-ball]').waitFor({ timeout: 20_000 }).catch(() => {});
+    const liveBug = await page.getAttribute('[data-bug="93103"]', "aria-label");
+    check(/14 to 10/.test(liveBug) && /third quarter, 6:41/.test(liveBug) && /Eagles' ball, 2nd and 7/.test(liveBug) && (await page.locator('[data-scores-strip] [data-bug-live]').count()) === 1 && /1 live/.test(await page.textContent("[data-scores-open]")), "scores shown: the game on is live, with its score, clock, ball and down", liveBug);
+    await shot("10-hub-strip-live");
+    // Seen live on the strip counts as shown for the visit (scores.tsx noteSeen): forget it, so the sheet below starts hidden.
+    await page.evaluate(() => sessionStorage.removeItem("gys-shown-scores"));
+    await pool.query("UPDATE user_settings SET hide_sports_scores = true WHERE user_id = (SELECT id FROM \"user\" WHERE username = $1)", [fixture.username("alex")]);
     // The guide is its own page over the hub now (?page=guide), its Add a show in its header.
     await page.goto(BASE + "/home?page=guide", { waitUntil: "networkidle" });
     await page.evaluate(() => document.querySelector("[data-guide-add]")?.scrollIntoView());

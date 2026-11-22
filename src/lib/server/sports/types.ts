@@ -62,6 +62,8 @@ export interface Competitor {
   winner: boolean | null;
   /** Where they finished, for a field (a race's order). */
   place: number | null;
+  /** Their season's record as the scoreboard has it ("6-2", "5-3-1"), when it says; an answer cached before has none. */
+  record?: string | null;
 }
 
 /** A league as the provider names it: in full ("English Premier League", "National Basketball Association") and as people say
@@ -134,6 +136,10 @@ export interface SportsEvent {
   /** Its league as the provider names it, when its answer says (ESPN's scoreboard, and a soccer team's schedule); an answer
    *  cached before L5 has none. */
   leagueName?: LeagueName | null;
+  /** Who shows it, national first ("FOX"), as the scoreboard lists them; an answer cached before has none. */
+  networks?: string[];
+  /** While it's on: its period and clock as the scoreboard had them (minutes old: the scores strip's live read is fresher). */
+  clock?: { period: number | null; display: string | null; detail: string | null; half: boolean } | null;
 }
 
 /** A player on a team's roster (players only: a provider's coaches and staff are left out). */

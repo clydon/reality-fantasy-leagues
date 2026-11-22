@@ -1973,6 +1973,8 @@ import type { LeagueSlates } from "@/lib/server/sports/slate";
 import type { FoundTeams, TeamSchedule } from "@/lib/server/sports/find";
 import type { SportsWeek } from "@/lib/server/sports/week";
 import type { CouchTeam, FollowedTeam } from "@/lib/server/sports/team-follows";
+import type { MyGame } from "@/lib/server/sports/mine";
+import type { Situation } from "@/lib/sports/situation";
 import type { RailGame } from "@/lib/sports/start-games";
 import type { SportStarted } from "@/lib/server/sports/start";
 
@@ -2049,6 +2051,43 @@ export function useSportsRecordings(enabled = true) {
     queryFn: () => get<{ recordings: { game: string; league: string; name?: string | null; startsAt?: string | null }[] }>("/api/sports/recordings"),
     staleTime: 60_000,
     enabled,
+  });
+}
+
+/** The teams you follow, in the order you followed them (the solo hub's scores strip: no couch to read them from). */
+export function useYourTeams(enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "your-teams"],
+    queryFn: () => get<{ teams: FollowedTeam[] }>("/api/sports/follow"),
+    staleTime: 60_000,
+    enabled,
+  });
+}
+
+/** The games you play, by their provider's ids, with your pick on each (the hub's scores strip: /api/sports/mine). */
+export function useMySportsGames(enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "my-sports-games"],
+    queryFn: () => get<{ games: MyGame[] }>("/api/sports/mine"),
+    staleTime: 60_000,
+    enabled,
+  });
+}
+
+/**
+ * Where a live game stands now (/api/sports/now: the score, the clock, football's ball and down), asked every 15 s while `on` and
+ * the screen is visible (React Query pauses its interval in a hidden tab), until the game's over. Only for a game you may be shown
+ * live: the strip never passes `on` for a hidden one.
+ */
+export function useLiveNow(league: string, event: string, on: boolean) {
+  return useQuery({
+    queryKey: ["new-design", "sports-now", league, event],
+    queryFn: () => get<Situation & { asOf: string }>(`/api/sports/now?league=${encodeURIComponent(league)}&event=${encodeURIComponent(event)}`),
+    enabled: on,
+    refetchInterval: (q) => (q.state.data?.status === "post" ? false : 15_000),
+    refetchIntervalInBackground: false,
+    staleTime: 10_000,
+    retry: 1,
   });
 }
 

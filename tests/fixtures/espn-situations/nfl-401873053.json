@@ -1,0 +1,557 @@
+[
+ {
+  "_frame": "1794756293223",
+  "header": {
+   "id": "401873053",
+   "competitions": [
+    {
+     "date": "2026-11-15T14:30Z",
+     "status": {
+      "displayClock": "11:23",
+      "period": 2,
+      "type": {
+       "id": "2",
+       "name": "STATUS_IN_PROGRESS",
+       "state": "in",
+       "completed": false,
+       "description": "In Progress",
+       "detail": "11:23 - 2nd Quarter",
+       "shortDetail": "11:23 - 2nd",
+       "statusPrimary": "11:23",
+       "statusSecondary": "2nd"
+      },
+      "isTBDFlex": false,
+      "displayPeriod": "2nd"
+     },
+     "competitors": [
+      {
+       "id": "8",
+       "homeAway": "home",
+       "score": "14",
+       "possession": true,
+       "team": {
+        "id": "8",
+        "abbreviation": "DET",
+        "displayName": "Detroit Lions"
+       }
+      },
+      {
+       "id": "17",
+       "homeAway": "away",
+       "score": "3",
+       "possession": false,
+       "team": {
+        "id": "17",
+        "abbreviation": "NE",
+        "displayName": "New England Patriots"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "drives": {
+   "current": {
+    "team": {
+     "id": "17"
+    },
+    "plays": [
+     {
+      "id": "4018730531219",
+      "end": {
+       "down": 1,
+       "distance": 10,
+       "shortDownDistanceText": "1st & 10",
+       "downDistanceText": "1st & 10 at DET 30",
+       "team": {
+        "id": "8"
+       }
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "_frame": "1794756897300",
+  "header": {
+   "id": "401873053",
+   "competitions": [
+    {
+     "date": "2026-11-15T14:30Z",
+     "status": {
+      "displayClock": "7:06",
+      "period": 2,
+      "type": {
+       "id": "2",
+       "name": "STATUS_IN_PROGRESS",
+       "state": "in",
+       "completed": false,
+       "description": "In Progress",
+       "detail": "7:06 - 2nd Quarter",
+       "shortDetail": "7:06 - 2nd",
+       "statusPrimary": "7:06",
+       "statusSecondary": "2nd"
+      },
+      "isTBDFlex": false,
+      "displayPeriod": "2nd"
+     },
+     "competitors": [
+      {
+       "id": "8",
+       "homeAway": "home",
+       "score": "14",
+       "possession": true,
+       "team": {
+        "id": "8",
+        "abbreviation": "DET",
+        "displayName": "Detroit Lions"
+       }
+      },
+      {
+       "id": "17",
+       "homeAway": "away",
+       "score": "3",
+       "possession": false,
+       "team": {
+        "id": "17",
+        "abbreviation": "NE",
+        "displayName": "New England Patriots"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "drives": {
+   "current": {
+    "team": {
+     "id": "8"
+    },
+    "plays": [
+     {
+      "id": "4018730531450",
+      "end": {
+       "down": 2,
+       "distance": 6,
+       "shortDownDistanceText": "2nd & 6",
+       "downDistanceText": "2nd & 6 at DET 47",
+       "team": {
+        "id": "8"
+       }
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "_frame": "1794758107280",
+  "header": {
+   "id": "401873053",
+   "competitions": [
+    {
+     "date": "2026-11-15T14:30Z",
+     "status": {
+      "displayClock": "2:00",
+      "period": 2,
+      "type": {
+       "id": "2",
+       "name": "STATUS_IN_PROGRESS",
+       "state": "in",
+       "completed": false,
+       "description": "In Progress",
+       "detail": "2:00 - 2nd Quarter",
+       "shortDetail": "2:00 - 2nd",
+       "statusPrimary": "2:00",
+       "statusSecondary": "2nd"
+      },
+      "isTBDFlex": false,
+      "displayPeriod": "2nd"
+     },
+     "competitors": [
+      {
+       "id": "8",
+       "homeAway": "home",
+       "score": "21",
+       "possession": false,
+       "team": {
+        "id": "8",
+        "abbreviation": "DET",
+        "displayName": "Detroit Lions"
+       }
+      },
+      {
+       "id": "17",
+       "homeAway": "away",
+       "score": "3",
+       "possession": true,
+       "team": {
+        "id": "17",
+        "abbreviation": "NE",
+        "displayName": "New England Patriots"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "drives": {
+   "current": {
+    "team": {
+     "id": "17"
+    },
+    "plays": [
+     {
+      "id": "4018730531918",
+      "end": {
+       "down": 2,
+       "distance": 7,
+       "shortDownDistanceText": "2nd & 7",
+       "downDistanceText": "2nd & 7 at NE 43",
+       "team": {
+        "id": "17"
+       }
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "_frame": "1794759316140",
+  "header": {
+   "id": "401873053",
+   "competitions": [
+    {
+     "date": "2026-11-15T14:30Z",
+     "status": {
+      "displayClock": "0:00",
+      "period": 2,
+      "type": {
+       "id": "23",
+       "name": "STATUS_HALFTIME",
+       "state": "in",
+       "completed": false,
+       "description": "Halftime",
+       "detail": "Halftime",
+       "shortDetail": "Halftime",
+       "statusPrimary": "Halftime"
+      },
+      "isTBDFlex": false,
+      "displayPeriod": "2nd"
+     },
+     "competitors": [
+      {
+       "id": "8",
+       "homeAway": "home",
+       "score": "21",
+       "possession": false,
+       "team": {
+        "id": "8",
+        "abbreviation": "DET",
+        "displayName": "Detroit Lions"
+       }
+      },
+      {
+       "id": "17",
+       "homeAway": "away",
+       "score": "3",
+       "possession": false,
+       "team": {
+        "id": "17",
+        "abbreviation": "NE",
+        "displayName": "New England Patriots"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "drives": {
+   "current": {
+    "team": {
+     "id": "17"
+    },
+    "plays": [
+     {
+      "id": "4018730532286",
+      "end": {
+       "down": 1,
+       "distance": 11,
+       "team": {
+        "id": "17"
+       }
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "_frame": "1794760222430",
+  "header": {
+   "id": "401873053",
+   "competitions": [
+    {
+     "date": "2026-11-15T14:30Z",
+     "status": {
+      "displayClock": "11:46",
+      "period": 3,
+      "type": {
+       "id": "2",
+       "name": "STATUS_IN_PROGRESS",
+       "state": "in",
+       "completed": false,
+       "description": "In Progress",
+       "detail": "11:46 - 3rd Quarter",
+       "shortDetail": "11:46 - 3rd",
+       "statusPrimary": "11:46",
+       "statusSecondary": "3rd"
+      },
+      "isTBDFlex": false,
+      "displayPeriod": "3rd"
+     },
+     "competitors": [
+      {
+       "id": "8",
+       "homeAway": "home",
+       "score": "21",
+       "possession": true,
+       "team": {
+        "id": "8",
+        "abbreviation": "DET",
+        "displayName": "Detroit Lions"
+       }
+      },
+      {
+       "id": "17",
+       "homeAway": "away",
+       "score": "3",
+       "possession": false,
+       "team": {
+        "id": "17",
+        "abbreviation": "NE",
+        "displayName": "New England Patriots"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "drives": {
+   "current": {
+    "team": {
+     "id": "17"
+    },
+    "plays": [
+     {
+      "id": "4018730532526",
+      "end": {
+       "down": 1,
+       "distance": 10,
+       "shortDownDistanceText": "1st & 10",
+       "downDistanceText": "1st & 10 at DET 47",
+       "team": {
+        "id": "8"
+       }
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "_frame": "1794761733713",
+  "header": {
+   "id": "401873053",
+   "competitions": [
+    {
+     "date": "2026-11-15T14:30Z",
+     "status": {
+      "displayClock": "2:21",
+      "period": 3,
+      "type": {
+       "id": "2",
+       "name": "STATUS_IN_PROGRESS",
+       "state": "in",
+       "completed": false,
+       "description": "In Progress",
+       "detail": "2:21 - 3rd Quarter",
+       "shortDetail": "2:21 - 3rd",
+       "statusPrimary": "2:21",
+       "statusSecondary": "3rd"
+      },
+      "isTBDFlex": false,
+      "displayPeriod": "3rd"
+     },
+     "competitors": [
+      {
+       "id": "8",
+       "homeAway": "home",
+       "score": "28",
+       "possession": false,
+       "team": {
+        "id": "8",
+        "abbreviation": "DET",
+        "displayName": "Detroit Lions"
+       }
+      },
+      {
+       "id": "17",
+       "homeAway": "away",
+       "score": "3",
+       "possession": true,
+       "team": {
+        "id": "17",
+        "abbreviation": "NE",
+        "displayName": "New England Patriots"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "drives": {
+   "current": {
+    "team": {
+     "id": "17"
+    },
+    "plays": [
+     {
+      "id": "4018730533144",
+      "end": {
+       "down": 3,
+       "distance": 3,
+       "shortDownDistanceText": "3rd & 3",
+       "downDistanceText": "3rd & 3 at NE 32",
+       "team": {
+        "id": "17"
+       }
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "_frame": "1794763548276",
+  "header": {
+   "id": "401873053",
+   "competitions": [
+    {
+     "date": "2026-11-15T14:30Z",
+     "status": {
+      "displayClock": "6:22",
+      "period": 4,
+      "type": {
+       "id": "2",
+       "name": "STATUS_IN_PROGRESS",
+       "state": "in",
+       "completed": false,
+       "description": "In Progress",
+       "detail": "6:22 - 4th Quarter",
+       "shortDetail": "6:22 - 4th",
+       "statusPrimary": "6:22",
+       "statusSecondary": "4th"
+      },
+      "isTBDFlex": false,
+      "displayPeriod": "4th"
+     },
+     "competitors": [
+      {
+       "id": "8",
+       "homeAway": "home",
+       "score": "35",
+       "possession": true,
+       "team": {
+        "id": "8",
+        "abbreviation": "DET",
+        "displayName": "Detroit Lions"
+       }
+      },
+      {
+       "id": "17",
+       "homeAway": "away",
+       "score": "10",
+       "possession": false,
+       "team": {
+        "id": "17",
+        "abbreviation": "NE",
+        "displayName": "New England Patriots"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "drives": {
+   "current": {
+    "team": {
+     "id": "8"
+    },
+    "plays": [
+     {
+      "id": "4018730533951",
+      "end": {
+       "down": 3,
+       "distance": 9,
+       "shortDownDistanceText": "3rd & 9",
+       "downDistanceText": "3rd & 9 at DET 22",
+       "team": {
+        "id": "8"
+       }
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "_frame": "1794764273627",
+  "header": {
+   "id": "401873053",
+   "competitions": [
+    {
+     "date": "2026-11-15T14:30Z",
+     "status": {
+      "type": {
+       "id": "3",
+       "name": "STATUS_FINAL",
+       "state": "post",
+       "completed": true,
+       "description": "Final",
+       "detail": "Final",
+       "shortDetail": "Final"
+      },
+      "isTBDFlex": false
+     },
+     "competitors": [
+      {
+       "id": "8",
+       "homeAway": "home",
+       "score": "35",
+       "possession": false,
+       "team": {
+        "id": "8",
+        "abbreviation": "DET",
+        "displayName": "Detroit Lions"
+       }
+      },
+      {
+       "id": "17",
+       "homeAway": "away",
+       "score": "10",
+       "possession": false,
+       "team": {
+        "id": "17",
+        "abbreviation": "NE",
+        "displayName": "New England Patriots"
+       }
+      }
+     ]
+    }
+   ]
+  }
+ }
+]

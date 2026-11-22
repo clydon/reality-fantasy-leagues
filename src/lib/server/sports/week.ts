@@ -1,5 +1,5 @@
 import { easternDay } from "@/lib/game/tv-listings";
-import { leagueName } from "@/lib/sports/matchup";
+import { leagueName, lineWords } from "@/lib/sports/matchup";
 import { shortOf } from "@/lib/sports/teams";
 import { teamLeagues } from "./find";
 import { sportsProviders } from "./index";
@@ -20,6 +20,8 @@ export interface WeekSide {
   home: boolean | null;
   score: string | null;
   winner: boolean | null;
+  /** Its season's record as the scoreboard had it ("6-2"); a score, so the phone hides it as one (Sports scores too). */
+  record: string | null;
 }
 
 export interface WeekGame {
@@ -33,6 +35,12 @@ export interface WeekGame {
   note: string | null;
   /** Away first, home second, as a guide reads "Eagles at Cowboys". */
   sides: WeekSide[];
+  /** Who shows it ("FOX"), the first national network the scoreboard lists. */
+  network: string | null;
+  /** The line in words before it starts ("LAC by 3": matchup.ts lineWords), never the book's name. */
+  line: string | null;
+  /** While it's on, its period and clock as the scoreboard had them (minutes old: the strip asks /api/sports/now for fresher). */
+  clock: { period: number | null; display: string | null; detail: string | null; half: boolean } | null;
 }
 
 export interface SportsWeek {
@@ -59,6 +67,7 @@ function sideOf(c: SportsEvent["competitors"][number]): WeekSide | null {
     home: c.home,
     score: c.score,
     winner: c.winner,
+    record: c.record ?? null,
   };
 }
 
@@ -76,6 +85,9 @@ function gameOf(e: SportsEvent): WeekGame | null {
     called: e.called ?? (e.state === "post" && !e.final ? "postponed" : null),
     note: e.note,
     sides,
+    network: e.networks?.[0] ?? null,
+    line: e.state === "pre" ? lineWords(e.odds?.details) : null,
+    clock: e.state === "in" ? (e.clock ?? null) : null,
   };
 }
 

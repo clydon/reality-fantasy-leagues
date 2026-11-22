@@ -30,6 +30,10 @@
 //   //             season? (ESPN's year for it; the year it starts in, UTC, unless said), off? (called off: over, not completed),
 //   //             odds?: { details: "ZPH -2.5", overUnder: 237.5, spread: -2.5, provider? } (on the scoreboard while "pre"),
 //   //             bestOf? (a playoff series' most games: the scoreboard's series.totalCompetitions, as ESPN's 2026 playoffs list it),
+//             records?: [home, away] (each side's season record, "6-2": the scoreboard's competitors[].records[0].summary),
+//             network? ("FOX": the scoreboard's broadcasts[].names), clock?: { period, display: "6:41", detail?: "6:41 - 3rd",
+//             possession?: teamId, down?: "2nd & 7" } (a game on: the scoreboard's status, and a summary with football's
+//             possession and down and distance even without a box: the scores strip's live read, /api/sports/now),
 //   //             box?: { [teamId]: { labels: ["D", "G"], rows: [{ id, name, position, stats: ["21", "2"] }] }
 //   //                            or { tables: [{ name: "batting", labels, rows }, { name: "pitching", labels, rows }] } } }]
 //   //          or a field's event (a race): [{ league, id, at, name, state, field: [{ id, name, headshot? }] }] (its order the place)
@@ -88,9 +92,21 @@ async function start(opts = {}) {
   };
   /** A game's line as ESPN writes it (a scoreboard's odds[], a summary's pickcenter[]). */
   const line = (o) => ({ provider: { name: o.provider || "ZT Book", displayName: o.provider || "ZT Book" }, details: o.details, overUnder: o.overUnder, spread: o.spread });
+  /** Its status as ESPN writes it: a game on with its period and clock (`clock`), a final as Final. */
+  const statusOf = (e) => ({
+    ...(e.clock ? { period: e.clock.period, displayClock: e.clock.display } : {}),
+    type: {
+      state: e.state,
+      completed: e.state === "post" && !e.off,
+      name: e.state === "in" ? (e.clock?.half ? "STATUS_HALFTIME" : "STATUS_IN_PROGRESS") : e.state === "post" ? "STATUS_FINAL" : "STATUS_SCHEDULED",
+      shortDetail: e.state === "in" ? (e.clock?.half ? "Halftime" : e.clock?.detail ?? null) : e.state === "post" ? "Final" : null,
+    },
+  });
+  /** Each side's record, as a scoreboard lists it (records[0] the season's). */
+  const recordOf = (e, i) => (e.records?.[i] ? { records: [{ name: "overall", type: "total", summary: e.records[i] }] } : {});
   /** An event as a scoreboard lists it; a game still to play with its line (ESPN drops it once it starts). */
   const rawEvent = (e) => {
-    const status = { type: { state: e.state, completed: e.state === "post" && !e.off } };
+    const status = statusOf(e);
     if (e.field) {
       const competitors = e.field.map((p, i) => ({ order: i + 1, athlete: { id: p.id, displayName: p.name, ...(p.headshot ? { headshot: { href: p.headshot } } : {}) } }));
       return { id: e.id, date: e.at, name: e.name, shortName: e.name, season: seasonOf(e), status, competitions: [{ id: e.id, date: e.at, status, competitors }] };
@@ -112,9 +128,10 @@ async function start(opts = {}) {
           notes: e.note ? [{ headline: e.note }] : [],
           ...(e.bestOf ? { series: { type: "playoff", title: "Playoff Series", totalCompetitions: e.bestOf } } : {}),
           competitors: [
-            { homeAway: "home", team: rawTeam(home), score: e.score ? String(e.score[0]) : "0", winner: e.state === "post" && e.score ? e.score[0] > e.score[1] : undefined },
-            { homeAway: "away", team: rawTeam(away), score: e.score ? String(e.score[1]) : "0", winner: e.state === "post" && e.score ? e.score[1] > e.score[0] : undefined },
+            { homeAway: "home", team: rawTeam(home), score: e.score ? String(e.score[0]) : "0", winner: e.state === "post" && e.score ? e.score[0] > e.score[1] : undefined, ...recordOf(e, 0) },
+            { homeAway: "away", team: rawTeam(away), score: e.score ? String(e.score[1]) : "0", winner: e.state === "post" && e.score ? e.score[1] > e.score[0] : undefined, ...recordOf(e, 1) },
           ],
+          ...(e.network ? { broadcasts: [{ market: "national", names: [e.network] }] } : {}),
           ...(e.odds && e.state === "pre" ? { odds: [line(e.odds)] } : {}),
         },
       ],
@@ -204,9 +221,15 @@ async function start(opts = {}) {
         return res.end(JSON.stringify(body));
       }
       const e = espn.events.find((x) => x.league === `${m[1]}/${m[2]}` && x.id === u.searchParams.get("event"));
-      if (!e || !e.box) return send(404, { code: 404 });
-      const status = { type: { state: e.state, completed: e.state === "post" && !e.off } };
-      const side = (id, homeAway, score) => ({ homeAway, team: rawTeam(teamOf(id)), score: score == null ? "0" : String(score) });
+      if (!e || (!e.box && !e.clock)) return send(404, { code: 404 });
+      const status = statusOf(e);
+      const side = (id, homeAway, score) => ({ homeAway, team: rawTeam(teamOf(id)), score: score == null ? "0" : String(score), ...(e.clock && "possession" in e.clock ? { possession: e.clock.possession === id } : {}) });
+      if (!e.box) {
+        // A game on, without its box: the header (score, status, who has the ball) and the current drive's last play (football's
+        // down and distance: its end, as ESPN writes it).
+        const drive = e.clock.down ? { current: { team: rawTeam(teamOf(e.clock.possession)), plays: [{ id: `${e.id}1`, end: { shortDownDistanceText: e.clock.down, downDistanceText: `${e.clock.down} at midfield`, team: { id: e.clock.possession } } }] } } : null;
+        return send(200, { header: { id: e.id, season: seasonOf(e), competitions: [{ date: e.at, status, competitors: [side(e.home, "home", e.score?.[0]), side(e.away, "away", e.score?.[1])] }] }, ...(drive ? { drives: drive } : {}) });
+      }
       // A table's name where ESPN puts it: football's as `name` ("passing", "rushing": what football.ts's final reads; the recorded
       // NFL season's box scores, espn-snapshot.js), baseball's as `type` ("batting", "pitching").
       const named = m[1] === "football" ? "name" : "type";

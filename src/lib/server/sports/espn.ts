@@ -49,7 +49,10 @@ interface RawAthlete {
   positions?: { abbreviation?: string }[];
 }
 interface RawStatus {
-  type?: { state?: string; completed?: boolean; name?: string };
+  type?: { state?: string; completed?: boolean; name?: string; shortDetail?: string };
+  /** A game on: its period and clock ("6:41"). */
+  period?: number;
+  displayClock?: string;
 }
 interface RawCompetitor {
   homeAway?: string;
@@ -58,6 +61,8 @@ interface RawCompetitor {
   score?: string | number | { displayValue?: string };
   winner?: boolean;
   order?: number;
+  /** A scoreboard's: each side's records, the season's first ({ type: "total", summary: "6-2" }). */
+  records?: { type?: string; summary?: string }[];
 }
 interface RawCompetition {
   id?: string | number;
@@ -70,6 +75,8 @@ interface RawCompetition {
   series?: { type?: string; totalCompetitions?: number };
   /** The line, on a scoreboard before the game. */
   odds?: RawOdds[];
+  /** Who shows it (a scoreboard's): national first, as ESPN lists them ({ market: "national", names: ["FOX"] }). */
+  broadcasts?: { market?: string; names?: string[] }[];
 }
 /** A sportsbook's line: a scoreboard's `odds[]`, a summary's `pickcenter[]` (read by matchup.ts's readOdds). */
 type RawOdds = EspnOdds;
@@ -187,7 +194,21 @@ function readCompetitor(c: RawCompetitor): Competitor {
     score,
     winner: typeof c.winner === "boolean" ? c.winner : null,
     place: Number.isInteger(c.order) ? (c.order as number) : null,
+    record: str((c.records ?? []).find((r) => r.type === "total")?.summary ?? c.records?.[0]?.summary),
   };
+}
+
+/** Who shows a game, national first (a scoreboard's broadcasts): ["FOX"]; a local one only when there's no national. */
+function networksOf(c: RawCompetition | undefined): string[] {
+  const all = c?.broadcasts ?? [];
+  const national = all.filter((b) => b.market === "national");
+  return [...new Set((national.length ? national : all).flatMap((b) => b.names ?? []).map((n) => n.trim()).filter(Boolean))];
+}
+
+/** A game on, its period and clock as the scoreboard has them (ESPN's status), or null. */
+function clockOfStatus(s: RawStatus | undefined): SportsEvent["clock"] {
+  if (s?.type?.state !== "in") return null;
+  return { period: Number.isInteger(s.period) ? (s.period as number) : null, display: str(s.displayClock), detail: str(s.type?.shortDetail), half: s.type?.name === "STATUS_HALFTIME" };
 }
 
 /** A sportsbook's line (src/lib/sports/matchup.ts, shared with the phone's poller). */
@@ -235,6 +256,8 @@ export function readScoreboard(league: string, raw: { events?: RawEvent[]; leagu
       competitors: comps.length === 1 ? (comps[0].competitors ?? []).map(readCompetitor) : [],
       parts,
       odds: readOdds(comps[0]?.odds?.[0]),
+      networks: networksOf(comps[0]),
+      clock: clockOfStatus(e.status ?? comps[0]?.status),
       leagueName: (e.league && (!e.league.slug || e.league.slug === slug) ? named(e.league) : null) ?? board,
     });
   }
