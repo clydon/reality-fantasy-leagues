@@ -28,8 +28,8 @@ the after-airtime reminder go only to people who hadn't watched? Count the `remi
 Episodes 9 and 10, and read the push as someone who never asked for it would. A production read, so ask first. Write down what
 was seen. (Takes in the old 65.) [S · tonight]
 
-**116. The finale through research: the winner and the places.** *Before Dec 16.* **Built on branch `finale-research`
-(165f8cf8); the user OK'd the research words 2026-11-22; push it after Ep 10, then Survivor 51's finale path once on the desk.** A night's places by
+**116. The finale through research: the winner and the places.** *Before Dec 16.* **Live 2026-11-22 (645c1303, the
+user's OK of the research words); what's left: Survivor 51's finale path once on the desk, before Dec 16.** A night's places by
 how each finished (decision-apply.ts finishRank: knocked out, the endgame exits in the format's order, the winner last); a finale
 that scores nothing goes final once a full answer is in; and the checklist says on any show with a winner: leftTheGame "At the
 finale the winner and every finalist leave the game too: 'yes' for each of them.", exitMethod "At the finale the winner's is

@@ -17,9 +17,12 @@ puts its build notes in its plan, not here.
 
 ---
 
-## Live (production = origin/master, 41f75a16+, deployed 2026-11-22)
+## Live (production = origin/master, 645c1303+, deployed 2026-11-22)
 
 Newest first. The plan or archive section named holds the detail.
+- **The finale through research** (2026-11-22, 645c1303; no migration; compare-totals and a night's places: no league moves):
+  a night's places by how each finished, a finale that scores nothing goes final, and research is told the finale's winner
+  and finalists leave (BACKLOG 116; proven on the tapes).
 - **The pool's finale rule** (2026-11-22; no migration; compare-totals: no league moves): How it plays says only the winner
   survives the finale, and the finale's pick asks "Who wins?" (BACKLOG 115).
 - **Before Ep 10** (2026-11-22, pushed 5fb4babe; no migration): sign-in shares the app's guarded database pool and skips
@@ -119,10 +122,8 @@ Newest first. The plan or archive section named holds the detail.
 
 1. **Before Ep 10 (Wed 2026-11-25):** nothing left (247 checked: production's VM bot answers with ChatGPT). Nothing merges on
    the Wednesday.
-2. **Thu 2026-11-26, after Ep 10:** BACKLOG 110 (watch the night), then merge and push 116 (branch `finale-research`, 165f8cf8,
-   proven on the tapes; the user OK'd its research words 2026-11-22 and chose to push it after Ep 10, so the night runs on the
-   known prompt; rebase onto master, the gates, then the push), then Survivor 51's finale path once on the desk. 248 (finding 21)
-   is what's left of it.
+2. **Thu 2026-11-26, after Ep 10:** BACKLOG 110 (watch the night). **Before the finale (Wed 2026-12-16):** walk Survivor 51's
+   finale path once on the desk (what's left of 116); 248 (finding 21) is the rest of the finale's work.
 3. **The quick sessions** in BACKLOG's "Now": the stale checks, the small engine fixes, the UI polish pass, the
    Designs-needed words batch, and the production check-ups.
 4. **C8, the 2-on-1 head to head**, on a fresh branch from master (its seven answers are in decisions.md, 2026-11-19; who plays
