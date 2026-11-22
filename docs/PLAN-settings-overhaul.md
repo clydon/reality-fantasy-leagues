@@ -1,5 +1,9 @@
 # Settings: the overhaul
 
+> **Round 5's Round 0 (2026-11-22): the site admin's desk, widened to the whole desk at the user's ask; waiting on the user.** Story:
+> https://claude.ai/artifact/2stMjgq4FtKJZCtNebU82B. Papers: design-round/desk-r0-audit.md, -spec, -first-view, -shape, -check. Recommended
+> Shape 2 (a rail of kinds); twelve choices for the user.
+>
 > **Status (2026-11-21): Round 4 live** (pushed 03730f59; no migration; the user took the recommendation on its story: Recent
 > changes keeps its name). Next is Round 5, the site admin's desk, when the user wants it. Detail: Round 4, below, and
 > design-round/settings-r4-spec.md. Round 3 is

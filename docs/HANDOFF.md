@@ -108,6 +108,9 @@ Newest first. The plan or archive section named holds the detail.
 
 ## In flight
 
+- **The site admin's desk, Round 0** (2026-11-22, on master as docs): audit, structure, first views, grey boxes and the check;
+  story https://claude.ai/artifact/2stMjgq4FtKJZCtNebU82B. Waits on the user's shape and twelve choices; Round 1 builds it. The
+  frames: `node scripts/dev-test/story-settings.js --only="^desk-r0-"` (and --width=1280 --height=900).
 - **Game preview, branch `preview`** (lane rfl-preview): 17 commits not on master, 55 commits behind it, about 11 conflict
   hunks (strip.tsx, game-week.tsx, your-move.ts, tonight.tsx). It has P0, the visual story, the bench's preview maker and
   Round 5 (four real-app fixes, among them the finale reveal ranking a stage that had ended). It waits on the user's review of

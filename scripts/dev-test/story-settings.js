@@ -104,6 +104,12 @@ async function shoot(list) {
       await sleep(1500);
       let skipped = false;
       for (const t of x.tap ? (Array.isArray(x.tap) ? x.tap : [x.tap]) : []) {
+        // { fill: <selector>, text }: type into a field (the desk's Find) rather than tap.
+        if (t && typeof t === "object" && t.fill) {
+          await b.page.locator(t.fill).first().fill(t.text).catch(() => console.log(`(no ${t.fill} to fill in ${x.id})`));
+          await sleep(1500);
+          continue;
+        }
         const el = target(b.page, t);
         if (!(await el.count())) {
           console.log(`(skip ${x.id}: no ${typeof t === "string" ? t : t.text})`);
@@ -383,6 +389,53 @@ function round4(pool, fx, so, S, L) {
   ];
 }
 
+/**
+ * The desk's Round 0 (the site admin's pass, after settings Round 4): every desk surface as today's "before", on the zt_nd couch's
+ * own season, show, couch, game, person and castaway where a page is about one thing. Lists and tabs show whatever the local
+ * database holds (a copy of production's: the frames stay local and in a private story, never committed). Shoot it at a phone's
+ * width and again wide (--width=1280 --height=900 --out=…/wide): the desk is used mostly at a desk and must still work at 390.
+ */
+async function deskR0(pool, fx, S, L) {
+  const one = async (sql, args) => (await pool.query(sql, args)).rows[0] || {};
+  const { show_id: show } = await one("SELECT show_id FROM show_seasons WHERE id = $1", [S]);
+  const { id: castaway } = await one("SELECT id FROM season_cast WHERE season_id = $1 ORDER BY sort_order, name LIMIT 1", [S]).catch(() => ({}));
+  const { id: rulebook } = await one("SELECT id FROM rulebooks WHERE season_id = $1 OR (owner_kind = 'library' AND name LIKE 'ZT %') ORDER BY season_id IS NULL LIMIT 1", [S]);
+  const { id: report } = await one("SELECT id FROM issue_reports ORDER BY created_at DESC LIMIT 1").catch(() => ({}));
+  const page = "h1, h2";
+  const d = (id, go, lens, extra = {}) => ({ id: `desk-r0-${id}`, home: "desk", who: DESK, go, ready: page, lens, ...extra });
+  return [
+    d("home", "/desk", "the desk's home: what needs you"),
+    d("find", "/desk/find", "Find: search everything"),
+    d("find-term", "/desk/find", "Find with a term typed", { tap: { fill: "input", text: "zt" }, full: false }),
+    d("settings", "/desk/settings", "the desk's Settings tab"),
+    d("library", "/desk/library", "the library: rulebooks and starting points"),
+    d("people", "/desk/people", "every person"),
+    d("people-waiting", "/desk/people?f=waiting", "people waiting to be let in"),
+    d("couches", "/desk/couches", "every couch"),
+    d("games", "/desk/games", "every game"),
+    d("shows", "/desk/shows", "every show"),
+    d("reports", "/desk/reports", "reports people sent"),
+    d("new", "/desk/new", "add a show"),
+    d("lab", "/desk/lab", "the lab"),
+    d("person", `/desk/person/${fx.users.alex}`, "a person (alex, who runs the couch's games)"),
+    d("couch", `/desk/couch/${fx.couchId}`, "a couch (the zt_nd couch)"),
+    d("game", `/desk/game/${L.lineup}`, "a game (the couch's Weekly Lineup)"),
+    d("show", `/desk/show/${show}`, "a show (ZT Survivor)"),
+    d("show-sites", `/desk/show/${show}/sites`, "a show's research sites"),
+    d("show-art", `/desk/show/${show}/art`, "a show's art"),
+    d("season", `/desk/season/${S}`, "a season (ZT Survivor 51)"),
+    d("season-setup", `/desk/season/${S}/setup`, "a season's Setup"),
+    d("season-research", `/desk/season/${S}/research`, "a season's Research and the bot"),
+    d("season-bingo", `/desk/season/${S}/bingo`, "a season's Bingo bank"),
+    d("season-cast", `/desk/season/${S}/cast`, "a season's Cast"),
+    d("episode", `/desk/season/${S}/e/5`, "an episode (Episode 5, results in)"),
+    d("episode-next", `/desk/season/${S}/e/6`, "an episode still to air (Episode 6)"),
+    ...(castaway ? [d("castaway", `/desk/season/${S}/c/${castaway}`, "a castaway")] : []),
+    ...(rulebook ? [d("rulebook", `/desk/rulebook/${rulebook}`, "a rulebook")] : []),
+    ...(report ? [d("report", `/desk/report/${report}`, "a report")] : []),
+  ];
+}
+
 /** The site admin for the desk's frames: a zt_nd_ person, so new-fixture's down removes them with the rest. */
 async function deskAdmin(pool) {
   const { hashPassword } = await import("better-auth/crypto");
@@ -458,6 +511,7 @@ async function main() {
       ...round3(pool, fx, S, L, menu),
       ...round3b(pool, fx, S, L, menu),
       ...round4(pool, fx, so, S, L),
+      ...(await deskR0(pool, fx, S, L)),
     ]);
     failed += r.failed;
     index.push(...r.shot);
