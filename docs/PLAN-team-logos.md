@@ -4,6 +4,10 @@
 > content model. The site never supplies a team, league or show logo; a person on a couch may upload one, and **only that
 > couch sees it** (option A of A/B/C: not just the uploader, never the whole site). Terms with a takedown policy come first.
 > Not legal advice: a lawyer reads the Terms before the app charges money.
+>
+> **2026-11-22, later:** the user: carry on with everything as if the Terms were complete and final (no address, phone or DMCA
+> filing for now; the emails stand). **L0 done** on branch `team-logos` (lane `logos`, `../rfl-logos`, port 3020; 4d67f120).
+> Next: one design round for L3, L4 and L5 together (below, "Next").
 
 ## Why this shape
 
@@ -40,6 +44,17 @@ grep of `src/new` shows).
   (`espn.ts` 163-177, through ESPN's resizer). That isn't a logo question: they're ESPN's (or its photographers') photos, and
   players' likenesses. Same family of risk, a separate call. Options: keep as is (common among small fan apps; takedown if
   asked), move to Wikipedia/Commons photos with credits (the research doc's chain, fewer faces), or initials on the team's colour.
+
+**Done 2026-11-22 (4d67f120).** As built: `src/lib/sports/team-badge.ts` (`teamBadgeSrc`, the TeamMark as a ~600-byte SVG
+data: URL, with its faint white inner edge; `LEAGUE_LOGO`, ESPN's logo addresses); `teamBg`/`teamInk` moved there (parts.tsx
+re-exports them). `logo` is gone from `Team`, `ListedTeam`, `TeamHit`, `WeekSide` and `FollowedTeam`. A defense's picture is the
+badge; `saveCast` replaces a stored ESPN logo, an empty photo or an older badge with it and counts it (`pictured`), which brings
+the season's games in line (`intoGames`). Migration 0449 clears `team_follows.logo`, blanks `logo` inside `sports_cache` in
+place, and clears ESPN logos from `season_cast.photo_url` and games' states (initials until the daily refresh gives the badge).
+The bench's defenses take the badge too (`sports-roster.cjs`). Checks: `check-nfl-defenses.js` (badges 32 of 32; a season
+filled with ESPN's logos, 32 in its game, has none after its next fill), `check-find-game.js`, `check-sports-new-players.js`,
+`npm test` (2,557, `tests/team-badge.test.js` new). Seen at 390 on the draft's DEF list: 32 badges, no ESPN logo. The
+separate check script planned above wasn't needed: `check-nfl-defenses.js` carries it.
 
 ### L1. Terms (draft done 2026-11-22)
 
@@ -106,6 +121,24 @@ gameyourshow.com domain", on request), never given. The user reads it.
 - A desk control fits the admin direction (complete control, phone first). It joins the desk's Round 1 work
   (docs/design-round/admin-r1-*), not a separate admin.
 - Later, if wanted: links (the server fetches once, with SSRF guards, then it's an upload).
+
+## Next: one design round for L3, L4 and L5
+
+Read docs/DESIGN-PROCESS.md and docs/DESIGN-ROUND-PACKET.md first. Intent, then Perception-First Design, then Impeccable,
+once each, then one check and one batch of fixes; phone first at 390; real renders on this lane's server; a captioned
+before/after screenshot story published as an Artifact; then pause for the user. The surfaces:
+
+1. **The Terms page** (`/terms`) and its links (landing footer, sign-in and making an account, Settings › Help beside
+   Credits), with the landing disclaimer's sports line. Words from legal/TERMS-draft.md as written.
+2. **A couch's team pictures:** where a person sets one (a team in the couch's games; their own fantasy team's seat), what the
+   upload sheet says ("Only your couch sees this. Use a picture you have the right to use."), who set it, removing it, and
+   every place it then shows inside the couch (rows, the game page, the draft, the reveal), with TeamMark as the fallback.
+3. **The desk's takedown:** find a picture (by couch, team or who set it), remove it with a reason, the uploader told, the
+   notices log, a strike that takes away uploads. It joins the desk's Round 1 shape (design-round/admin-r1-*).
+
+The open calls go to the user as named choices in the story, never decided silently: who on a couch can set a picture; the
+hub and the scores strip (two couches, two Chiefs pictures: the recommendation is our TeamMark outside a couch); an age tick
+at sign-up. Athletes' ESPN headshots (L0's open question) stay out of this round unless the user answers it.
 
 ## Order
 
