@@ -17,9 +17,14 @@ puts its build notes in its plan, not here.
 
 ---
 
-## Live (production = origin/master, 645c1303+, deployed 2026-11-22)
+## Live (production = origin/master, 56127b49+, deployed 2026-11-22)
 
 Newest first. The plan or archive section named holds the detail.
+- **Sports on the couch, A1-A3 and B1** (2026-11-22, merged and pushed 56127b49; migrations 0313 and 0314, rehearsed on a copy of
+  production; the snapshot `pre-sports-couch-2026-11-22` keeps 7 days): the hub's scores strip under the guide bar, the league card in
+  Your shows, following a league (your team per league), and a league's page with This week, Scores, Games, Standings (ESPN's
+  standings, a new read) and Chat (the couch's room, a thread per game). Stories and notes: [PLAN-sports-couch.md](PLAN-sports-couch.md);
+  leftovers BACKLOG 254. BACKLOG 254 (k): Hide sports scores reads as on until it's known.
 - **The finale through research** (2026-11-22, 645c1303; no migration; compare-totals and a night's places: no league moves):
   a night's places by how each finished, a finale that scores nothing goes final, and research is told the finale's winner
   and finalists leave (BACKLOG 116; proven on the tapes).
@@ -107,41 +112,6 @@ Newest first. The plan or archive section named holds the detail.
   2026-11-09, rulebooks for every season, bingo, GIF reactions, the first-time tour) is in [PLANS.md](PLANS.md) under Done.
 
 ## In flight
-
-- **Sports on the couch, A1: the hub's scores strip** (2026-11-22, lane `sports-couch` at ../rfl-sports-couch, port 3019; not
-  merged; no migration): your games under the guide bar at its height, the Scoreboard and On TV's sports cards gone, two small new
-  reads. Story: https://claude.ai/artifact/YBP1Xv93MfsfJSQXiY7VLq. Notes: [PLAN-sports-couch.md](PLAN-sports-couch.md) A1.
-  **Approved as built** (the user, 2026-11-22) and committed in the lane (2c82aa29).
-- **Sports on the couch, A2: the league card in Your shows** (2026-11-22, the same lane; not merged; no migration): each league you
-  follow a team in or play in, a 72 px card among the show bands by its next game; one small new read (a league's week). Story:
-  https://claude.ai/artifact/XixM9yKB4CeHeANg5zcZg9. Notes: [PLAN-sports-couch.md](PLAN-sports-couch.md) A2; leftovers BACKLOG 254.
-  **Approved as built** (the user, 2026-11-22) and committed in the lane.
-- **Sports on the couch, A3: following a league** (2026-11-22, the same lane; not merged; **migration 0313, run only on the
-  lane's local database**): Follow on search's league row and at the top of the league's sheet, a league's card with no team
-  needed, your team per league on the team's sheet. Story: https://claude.ai/artifact/FJGQbCjxmyTgSqkEKWmtd3. Notes: [PLAN-sports-couch.md](PLAN-sports-couch.md) A3;
-  leftovers BACKLOG 254 (g)–(i). **Approved as built** (the user, 2026-11-22) and committed in the lane; production only on their word.
-- **Sports on the couch, B1 session 1: a league's page and its This week** (2026-11-22, the same lane; not merged; no migration):
-  the league card opens `/league/<sport>/<code>/week` (the couch's rivalry, its teams by record, rivalries this season, your games);
-  Scores and Games carry the old sheet's parts; one new read (`/api/sports/league/teams`). Story:
-  https://claude.ai/artifact/Nksn54s8dmHHRPYMxuJJ9c. Notes: [PLAN-sports-couch.md](PLAN-sports-couch.md) B1. **Approved as built** (the
-  user, 2026-11-22, the four recommendations: decisions.md) and committed in the lane.
-- **Sports on the couch, B1 session 2: Scores** (2026-11-22, the same lane; not merged; no migration): a sticky
-  switcher (football's weeks, a daily sport's game days) over the couch's games and every other game by day, each the shared game
-  row (A1's scorebug, moved to sports/scorebug.tsx); the week read of one league; BACKLOG 254 (j) fixed; a hidden live score's leak
-  fixed. Story: https://claude.ai/artifact/SChZpFJzYWthMNrxmr5Whm. Notes: [PLAN-sports-couch.md](PLAN-sports-couch.md) B1 session 2. **Approved as built** (the user, 2026-11-22, taking the three recommendations) and committed in the lane.
-- **Sports on the couch, B1 session 3: Games** (2026-11-22, the same lane; not merged; no migration): your games
-  here, with the couch (games to join, this week's and the season's starts), rivals (a Start on each rivalry game to come), your
-  team (its season); no start offered on no couch. Story: https://claude.ai/artifact/4ncmkRanywVoPbH6N7pTjh. Notes: [PLAN-sports-couch.md](PLAN-sports-couch.md) B1 session 3. **Approved as built**
-  (the user, 2026-11-22, both recommendations: solo sports play waits for C4) and committed in the lane.
-- **Sports on the couch, B1 session 4: Standings, with BACKLOG 254 (k)** (2026-11-22, the same lane; not merged; no migration; **one new
-  ESPN read**, the league's standings, in HOSTING.md): the fourth tab, by division or conference, the couch's teams marked, held as one for
-  anyone hiding sports scores; (k): Hide sports scores reads as on until it's known. Story: https://claude.ai/artifact/9ydPz541VZbpKE5u8sZXvY.
-  Notes: [PLAN-sports-couch.md](PLAN-sports-couch.md) B1 session 4. **The four recommendations taken** on the user's "Continue" (decisions.md) and committed in the lane.
-- **Sports on the couch, B1 session 5: Chat** (2026-11-22, the same lane; not merged; **migration 0314, run only on the lane's local
-  database**; no new external read): the couch's room about a league with a thread per real game, folded for anyone hiding scores,
-  the fifth tab with its unread count; a push per message. Story: https://claude.ai/artifact/9mPL5VhwWxUYVyfXzEs8yi. Notes:
-  [PLAN-sports-couch.md](PLAN-sports-couch.md) B1 session 5. **Approved as built** (the user, 2026-11-22, the three recommendations) and committed in the lane. **Next there: the lane's merge**,
-  its own step (rebase onto master, rehearse 0313 and 0314 on a Neon branch, push only on the user's word, never on a Wednesday).
 
 - **A castaway opened from a week opens on that week, BACKLOG 251** (2026-11-22, approved, committed on master, not pushed; no
   migration): the castaway sheet leads with the week a door hands it; one name per moment everywhere (moment-names.ts); the

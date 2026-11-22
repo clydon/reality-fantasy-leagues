@@ -1,8 +1,8 @@
 # Plan: sports on the couch (the hub's scores strip, a league's page, playing as a couch, lines)
 
-> **Status (2026-11-22): A1 and A2 approved as built (the user, 2026-11-22) and committed in the `sports-couch` lane (not
-> merged). A3 (following a league) approved as built too (the user, 2026-11-22) and committed in the lane. B1's first session (the page and This week) approved as built (the user, 2026-11-22) and
-> committed in the lane. B1's Scores tab (session 2) approved as built (the user, 2026-11-22) and committed in the lane. B1's Games tab (session 3) approved as built (the user, 2026-11-22) and committed in the lane. B1's Standings (session 4, with BACKLOG 254 k) committed in the lane, the story's four recommendations taken on the user's "Continue". B1's Chat (session 5, migration 0314 on the lane's database only) approved as built (the user, 2026-11-22, taking the three recommendations) and committed in the lane. B1 is complete; next is the lane's merge, its own step.** The user's calls are in. Lines are Phase D, detailed in
+> **Status (2026-11-22): A1-A3 and B1 (This week, Scores, Games, Standings, Chat) merged and live (56127b49, pushed 2026-11-22;
+> migrations 0313 and 0314 rehearsed on a copy of production, the snapshot `pre-sports-couch-2026-11-22` keeps 7 days). Next:
+> BACKLOG 254's leftovers, then B2, B3 and B4 apart (How the sessions go from here).** The user's calls are in. Lines are Phase D, detailed in
 > [PLAN-sports-lines.md](PLAN-sports-lines.md). March Madness (E1) is dated: working by Fri 2027-02-26.
 
 ## Read first
