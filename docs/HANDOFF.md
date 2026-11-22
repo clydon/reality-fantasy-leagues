@@ -17,9 +17,11 @@ puts its build notes in its plan, not here.
 
 ---
 
-## Live (production = origin/master, 5fb4babe, deployed 2026-11-22)
+## Live (production = origin/master, 41f75a16+, deployed 2026-11-22)
 
 Newest first. The plan or archive section named holds the detail.
+- **The pool's finale rule** (2026-11-22; no migration; compare-totals: no league moves): How it plays says only the winner
+  survives the finale, and the finale's pick asks "Who wins?" (BACKLOG 115).
 - **Before Ep 10** (2026-11-22, pushed 5fb4babe; no migration): sign-in shares the app's guarded database pool and skips
   Better Auth's cold-start schema check (BACKLOG 39); Not yet's save is sent so it outlives the page (111).
 - **Settings overhaul, Round 4** (2026-11-21, pushed 03730f59; no migration, no scoring change): the words and the ripple. Start a
@@ -115,11 +117,12 @@ Newest first. The plan or archive section named holds the detail.
 
 ## Next
 
-1. **Before Ep 10 (Wed 2026-11-25):** BACKLOG 247 (the bot's ChatGPT route fails; check production falls back to Codex).
-   Nothing merges on the Wednesday.
-2. **Before the finale (Wed 2026-12-16):** BACKLOG 115 built on branch `pool-finale` (8d009b5b; the user OKs its words), 116 built
-   on branch `finale-research` (165f8cf8; proven on the tapes; the user OKs the research words, then Survivor 51's finale path
-   on the desk). 248 (finding 21) is what's left of it.
+1. **Before Ep 10 (Wed 2026-11-25):** nothing left (247 checked: production's VM bot answers with ChatGPT). Nothing merges on
+   the Wednesday.
+2. **Thu 2026-11-26, after Ep 10:** BACKLOG 110 (watch the night), then merge and push 116 (branch `finale-research`, 165f8cf8,
+   proven on the tapes; the user OK'd its research words 2026-11-22 and chose to push it after Ep 10, so the night runs on the
+   known prompt; rebase onto master, the gates, then the push), then Survivor 51's finale path once on the desk. 248 (finding 21)
+   is what's left of it.
 3. **The quick sessions** in BACKLOG's "Now": the stale checks, the small engine fixes, the UI polish pass, the
    Designs-needed words batch, and the production check-ups.
 4. **C8, the 2-on-1 head to head**, on a fresh branch from master (its seven answers are in decisions.md, 2026-11-19; who plays

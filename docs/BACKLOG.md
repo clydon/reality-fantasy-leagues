@@ -28,13 +28,8 @@ the after-airtime reminder go only to people who hadn't watched? Count the `remi
 Episodes 9 and 10, and read the push as someone who never asked for it would. A production read, so ask first. Write down what
 was seen. (Takes in the old 65.) [S · tonight]
 
-**115. Tell Survival Pool players the finale rule.** *Before Dec 16.* "Only the winner survives the finale" has been live since
-2026-10-31, but no pool's How it plays says so. Add one line in describe.js for a survival game whose span reaches the finale,
-and show it on the finale's pick. Proposed words: "In the finale only the winner survives, so pick who you think wins." The
-words go through impeccable's clarify and need the user's OK. Done with tests/describe updated. [S · game page]
-
 **116. The finale through research: the winner and the places.** *Before Dec 16.* **Built on branch `finale-research`
-(165f8cf8); waits on the user's OK of the research words, then Survivor 51's finale path once on the desk.** A night's places by
+(165f8cf8); the user OK'd the research words 2026-11-22; push it after Ep 10, then Survivor 51's finale path once on the desk.** A night's places by
 how each finished (decision-apply.ts finishRank: knocked out, the endgame exits in the format's order, the winner last); a finale
 that scores nothing goes final once a full answer is in; and the checklist says on any show with a winner: leftTheGame "At the
 finale the winner and every finalist leave the game too: 'yes' for each of them.", exitMethod "At the finale the winner's is
@@ -46,11 +41,10 @@ the Traitors' with the old words too: ChatGPT's web page gave the wrong answers 
 words are a belt not yet proven where they matter. Production's 2026-11-21 backup: no league's places would move. Finding 21
 moved to 248. [M · research]
 
-**247. The bot's ChatGPT route fails: "no thinking effort 'Instant' on offer".** *Before Ep 10.* Asking the local bot
-(llm-browser-api, 127.0.0.1:8765) with ChatGPT on 2026-11-22 failed in 21 s with that message, and its health showed no ChatGPT
-success since it started; Codex answered. ChatGPT's web page seems to have dropped the mode the bot picks. Check the production
-bot's last ChatGPT and Codex successes and that research falls back to Codex on its own before Wednesday; the fix is the bot's
-(its own repo). [S · hosting]
+**247. The PC bot's ChatGPT route fails: "no thinking effort 'Instant' on offer".** Asking the bot on this PC (llm-browser-api,
+127.0.0.1:8765, production's fallback) with ChatGPT on 2026-11-22 failed in 21 s with that message; its Codex answered. ChatGPT's
+web page there seems to have dropped the mode the bot picks. Production's first bot (the VM) answered with ChatGPT at 01:08 the
+same night, so episode nights aren't at risk while the VM is up. The fix is the bot's (its own repo). [S · hosting]
 
 **248. Someone the results never removed outranks the crowned winner.** PLAYTEST-REPORT finding 21, left from 116: once a
 winner is crowned, anyone research never filed an exit for (held, missed) is still in, so Outlast scores them above the winner
@@ -872,3 +866,5 @@ One line each: the number, done or dropped, and the commit or the reason.
   Riley's part picks in the pane in view, and the follow write is sent with keepalive so a Not yet survives the app closing.
 - **39** done (cb3e9091, live 5fb4babe): sign-in shares the app's guarded pool and the schema check is off. Live look 2026-11-22:
   after 13 idle minutes the first auth request answered 200 in 1.7 s, no "Could not validate" line, no 500. pg's sslmode warning is the user's.
+- **115** done (41f75a16): How it plays says "In the finale only the winner survives, so pick who you think wins." for a pool
+  that stays in to the finale on a show with a winner, and the finale's pick asks "Who wins?" in the same words (the user's OK).
