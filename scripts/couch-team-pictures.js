@@ -5,6 +5,7 @@
 //
 //   node scripts/couch-team-pictures.js --couch <couch id> --by <username> --league football/nfl[,basketball/nba,...] [--dry-run] [--out <dir>]
 //   node scripts/couch-team-pictures.js --couch <couch id> --remove        takes away every picture this script set on that couch
+//   --couch only: the database's one couch (refused, listing them, when there are more); --by owner: that couch's owner
 //
 // For each team in each league: ESPN's team list (its default logo and its colour; the app's own reader drops logos on purpose),
 // the logo downloaded once, composed into a finished 256 by 256 square (compose(), the plan's "Composition": the white caption
@@ -64,11 +65,16 @@ async function espnTeams(league) {
 }
 
 async function main() {
-  const couch = arg("couch");
-  if (!couch || !/^[0-9a-f-]{36}$/i.test(couch)) throw new Error("say the couch: --couch <couch id>");
+  let couch = arg("couch");
+  if (!couch || (couch !== "only" && !/^[0-9a-f-]{36}$/i.test(couch))) throw new Error("say the couch: --couch <couch id> (or --couch only)");
   const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
   const { pool } = jiti("../src/lib/server/db.ts");
   try {
+    if (couch === "only") {
+      const { rows: all } = await pool.query("SELECT c.id, c.name, count(m.user_id)::int AS members FROM couches c LEFT JOIN couch_members m ON m.couch_id = c.id GROUP BY c.id ORDER BY c.created_at");
+      if (all.length !== 1) throw new Error(`--couch only needs exactly one couch; there are ${all.length}: ${all.map((c) => `"${c.name}" (${c.members} members) ${c.id}`).join("; ")}`);
+      couch = all[0].id;
+    }
     const { rows: couches } = await pool.query("SELECT name FROM couches WHERE id = $1", [couch]);
     if (!couches[0]) throw new Error(`no couch ${couch}`);
     if (flag("remove")) {
@@ -80,7 +86,9 @@ async function main() {
     const leagues = (arg("league") ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
     if (!by || !leagues.length) throw new Error("say who and which leagues: --by <username> --league football/nfl[,...]");
     const { rows: who } = await pool.query(
-      `SELECT u.id FROM "user" u JOIN couch_members m ON m.user_id = u.id AND m.couch_id = $2 WHERE lower(u.username) = lower($1)`,
+      by === "owner"
+        ? `SELECT m.user_id AS id FROM couch_members m WHERE m.couch_id = $2 AND m.role = 'owner' AND $1 = 'owner' ORDER BY m.joined_at NULLS LAST LIMIT 1`
+        : `SELECT u.id FROM "user" u JOIN couch_members m ON m.user_id = u.id AND m.couch_id = $2 WHERE lower(u.username) = lower($1)`,
       [by, couch]
     );
     if (!who[0]) throw new Error(`${by} isn't on that couch`);
