@@ -60,3 +60,28 @@ export async function myGames(userId: string): Promise<MyGame[]> {
   }
   return [...out.values()];
 }
+
+/** A sports season a game of yours or of your couches' is on, and its league ("football/nfl"). */
+export interface SportSeason {
+  seasonId: string;
+  league: string;
+}
+
+/**
+ * The sports seasons your games and your couches' games are on, each with its league (docs/PLAN-sports-couch.md A2: a league's card
+ * in Your shows says what the couch has going in that league, so it needs to know which of the couch's games are in it). One small
+ * read: your memberships and your couches' games, joined to their seasons' shows.
+ */
+export async function mySportSeasons(userId: string): Promise<SportSeason[]> {
+  const { rows } = await pool.query(
+    `SELECT DISTINCT ss.id AS season_id, s.sports_league
+       FROM leagues l
+       ${LEAGUE_SEASON_JOIN}
+      WHERE l.deleted_at IS NULL AND l.state->'settings'->>'archivedAt' IS NULL AND s.kind = 'sport' AND s.sports_league IS NOT NULL
+        AND (l.id IN (SELECT league_id FROM league_memberships WHERE user_id = $1)
+             OR l.couch_id IN (SELECT couch_id FROM couch_members WHERE user_id = $1))`,
+    [userId]
+  );
+  // shows.sports_league is the provider's tag ("espn:football/nfl"): the league is its path.
+  return rows.map((r) => ({ seasonId: r.season_id as string, league: String(r.sports_league).replace(/^[a-z]+:/, "") }));
+}

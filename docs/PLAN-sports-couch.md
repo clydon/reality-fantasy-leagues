@@ -1,7 +1,7 @@
 # Plan: sports on the couch (the hub's scores strip, a league's page, playing as a couch, lines)
 
-> **Status (2026-11-22): A1 approved as built (the user, 2026-11-22) and committed in the `sports-couch` lane (not merged);
-> A2 (the league card) built there next, waiting on the user's review of its story.** The user's calls are in. Lines are Phase D, detailed in
+> **Status (2026-11-22): A1 and A2 approved as built (the user, 2026-11-22) and committed in the `sports-couch` lane (not
+> merged). A3 (following a league) is next, in a fresh session.** The user's calls are in. Lines are Phase D, detailed in
 > [PLAN-sports-lines.md](PLAN-sports-lines.md). March Madness (E1) is dated: working by Fri 2027-02-26.
 
 ## Read first
@@ -119,6 +119,43 @@ decided; docs/design-round/decisions.md).
 **A2. The league card in Your shows** (S–M). 72 px, among the show bands, sorted by its next game like shows by their next
 episode; the league, the week, the couch's teams as marks, one muted line of what the couch has going (never what the strip
 already says); off-season, one line. Until B1 lands, a tap opens today's league sheet (`openSports({ kind: "league" })`).
+
+**A2's build notes (2026-11-22, lane `sports-couch`, port 3019; not merged).** Story: https://claude.ai/artifact/XixM9yKB4CeHeANg5zcZg9.
+**Approved as built** (the user, 2026-11-22), the build's calls standing (docs/design-round/decisions.md).
+The check: [design-round/hub-league-card-check.md](design-round/hub-league-card-check.md).
+- **Where:** `src/new/hub/league-cards.tsx` (`useLeagueCards`, `LeagueCard`). In `ShowBands` (bands.tsx) the cards sort among the
+  show bands by next game against next episode (a stable sort: shows first on a tie, an off-season card last); the rows wait for
+  the cards' reads so nothing jumps. The solo hub's Your shows is a poster shelf that swipes, so its cards sit above it
+  (sections.tsx `YourShows`), and a sports season a card holds leaves the posters, as it left the bands.
+- **Which leagues:** each league with a team you follow (the couch's teams read, or your own follows solo), and each league a game
+  of yours is in. The marks are the couch's teams there (yours first, ringed; four, then "+N"; `TeamMark` size `xs`, 26 px, its
+  edge from the foreground).
+- **The line, the first that holds:** your games there (one: its name and your place, else how many play; several: how many and
+  your best); the couch's games you're not in; who leads the couch's teams by record (never for anyone hiding scores, and never
+  while one of their games from the last 36 hours is unseen or on: a record carries the latest result); who follows them (two or
+  more); "No games on the couch yet" (solo: "No games yet"). The due dot is any move of yours due in a game there.
+- **Its place:** the next start of a game of the couch's teams or a game you play there (else the league's next), by the clock
+  alone (a game counts until 3.5 hours after its start), never a game's state, so it gives nothing away to someone hiding scores.
+- **The week:** `GET /api/sports/league/now?league=` (src/lib/sports/league-now.ts `nowOf`, pure, tests/sports-league-now.test.js;
+  the server's `leagueNow` reads the league's calendar slate.ts already caches a day): football's own week ("Week 12", "Wild Card"),
+  a daily sport's Monday-to-Sunday week, "Playoffs" for a daily sport's playoffs, nothing for a soccer league (its season instead);
+  off-season with the day it's back when ESPN lists the next season. `/api/sports/mine` also returns `seasons` (each sport season of
+  your games and your couches', with its league). HOSTING.md: "The league card in Your shows". No migration, no engine change.
+- **The tap:** today's league sheet (`openSports({ kind: "league" })`), which now leads with **Your games** in that league (the due
+  move in its own words, opening the move); while a move is due, Play this week's games steps down to an outline (the One Chyron
+  Rule). B1's This week replaces this.
+- **The check (once):** PFD evaluate (71: the due dot's scent and the line's words) and Impeccable critique (dual-agent: 20/32;
+  the reflow, the chevron, touching rings, a navy mark at 1.02:1, a long league name overflowing); one batch fixed (see the check
+  doc). Kept from the brief: the week as quiet caps, the off-season line's words, A1's focus ring.
+- **Checks:** check-sports-couch.js (the league-now reads, `mine`'s seasons, the card on the hub at 72 px among the bands with its
+  week and your ringed mark, no score or red, the off-season line at 48 px, the tap opening the sheet with your games first);
+  its world gains a stand-in baseball league in its off-season and calendars around now (`calendarsAround`, `MB`). Its A1 step
+  "scores hidden… no score" no longer mistakes a kickoff time ("10:01 AM") for the score. story-hub-sports.js shoots
+  `<world>-cards` and each card at twice the size for every world, `many-league` (the tap), a new `one` world (one league, the
+  record line), and the solo world on solo-fixture.js's zt_so_alex (BACKLOG 254 f). tsc and `npm test` pass (2,573); ESLint's
+  errors are master's (game-page.tsx, lineup-sheet.tsx, use-sheet-swipe.ts, format-timeline.js). The check still stops at
+  BACKLOG 252's Start a game step, as on master.
+- **Leftovers:** BACKLOG 254.
 
 **A3. Follow a league** (S, a migration). A league follow (a `league_follows` table, or a league-wide row beside `team_follows`:
 decide in the step) from search's league card and the league's page; "my team" per league.

@@ -5,7 +5,7 @@
 // faces standing there, someone away (behind, and not on since the latest aired: the home read's `away`) faded with a dotted trail
 // to the latest episode; finished seasons (for the whole couch) folded at the foot. Sports left for the scores strip under the
 // guide bar (docs/PLAN-sports-couch.md A1: hub/scores-strip.tsx), with the Scoreboard's ask (Show the score, or Watch it as if
-// live).
+// live); each league you follow through a team, or play in, is a quieter card among the bands (A2: hub/league-cards.tsx).
 
 import { useState } from "react";
 import { Plus } from "lucide-react";
@@ -22,6 +22,7 @@ import { openWatching } from "../watching/sheets";
 import { showWords } from "@/lib/game/show-words";
 import { usePracticeShows } from "../tour/practice-shows";
 import { FinishedFold, finishedFor, GamesMark, shelfOrder, showOfMove } from "./sections";
+import { LeagueCard, useLeagueCards } from "./league-cards";
 
 const nameOf = (s: { show: { name: string }; seasonNumber: number | null }) => `${plainName(s.show.name)}${s.seasonNumber ? ` ${s.seasonNumber}` : ""}`;
 const epOf = (s: HomeShow) => {
@@ -52,16 +53,26 @@ export function ShowBands({ home, couch, hub }: { home: Home; couch: Couch | nul
   const finished = shelfOrder(mine.filter((s) => finishedFor(home, couch, hub, s)));
   const [open, setOpen] = useState(false);
   const due = new Set(home.moves.map((m) => showOfMove(home, m)?.seasonId).filter(Boolean));
+  // A league is one card among the bands (docs/PLAN-sports-couch.md A2: hub/league-cards.tsx), in its place by its next game as a
+  // show is by its next episode (a stable sort: ties keep the shelf's order, the leagues after the shows). The bands wait for the
+  // cards' few small reads, so everything lands once, in its place, rather than the bands jumping as a card slots in (the check).
+  const cards = useLeagueCards(home, couch, hub);
+  const airAt = (s: HomeShow) => (s.upNext?.airAt ? Date.parse(s.upNext.airAt) : Infinity);
+  const rows = !cards
+    ? []
+    : [
+        ...shows.filter((s) => s.show.kind !== "sport").map((s) => ({ key: s.seasonId, at: airAt(s), show: s, card: null })),
+        ...cards.map((c) => ({ key: `league:${c.league}`, at: c.at, show: null, card: c })),
+      ].sort((a, b) => a.at - b.at);
   return (
     <section className="mt-7" data-look="bands" data-your-shows>
       <SectionHead title="Your shows" aside={couch ? "Where everyone is" : undefined} />
       <div className="flex flex-col gap-2.5 px-4">
-        {/* TV shows as bands; a sport's games are on the scores strip under the guide bar (hub/scores-strip.tsx). */}
-        {shows
-          .filter((s) => s.show.kind !== "sport")
-          .map((s) => (
-            <ShowBand key={s.seasonId} home={home} couch={couch} show={s} due={due.has(s.seasonId)} hub={hub} />
-          ))}
+        {/* TV shows as bands, each league a card among them; a sport's games themselves are on the scores strip under the guide bar
+            (hub/scores-strip.tsx). */}
+        {rows.map((r) =>
+          r.show ? <ShowBand key={r.key} home={home} couch={couch} show={r.show} due={due.has(r.show.seasonId)} hub={hub} /> : <LeagueCard key={r.key} card={r.card!} />
+        )}
         <button
           type="button"
           data-add-show-poster

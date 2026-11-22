@@ -111,7 +111,11 @@ Newest first. The plan or archive section named holds the detail.
 - **Sports on the couch, A1: the hub's scores strip** (2026-11-22, lane `sports-couch` at ../rfl-sports-couch, port 3019; not
   merged; no migration): your games under the guide bar at its height, the Scoreboard and On TV's sports cards gone, two small new
   reads. Story: https://claude.ai/artifact/YBP1Xv93MfsfJSQXiY7VLq. Notes: [PLAN-sports-couch.md](PLAN-sports-couch.md) A1.
-  **Approved as built** (the user, 2026-11-22) and committed in the lane. A2 (the league card in Your shows) is next there.
+  **Approved as built** (the user, 2026-11-22) and committed in the lane (2c82aa29).
+- **Sports on the couch, A2: the league card in Your shows** (2026-11-22, the same lane; not merged; no migration): each league you
+  follow a team in or play in, a 72 px card among the show bands by its next game; one small new read (a league's week). Story:
+  https://claude.ai/artifact/XixM9yKB4CeHeANg5zcZg9. Notes: [PLAN-sports-couch.md](PLAN-sports-couch.md) A2; leftovers BACKLOG 254.
+  **Approved as built** (the user, 2026-11-22) and committed in the lane. Next there: A3 (following a league), a fresh session.
 
 - **A castaway opened from a week opens on that week, BACKLOG 251** (2026-11-22, approved, committed on master, not pushed; no
   migration): the castaway sheet leads with the week a door hands it; one name per moment everywhere (moment-names.ts); the

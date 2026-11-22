@@ -1,9 +1,11 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { useSportsWeek, useTeamSchedule } from "../data";
+import { useHome, useMySportsGames, useSportsWeek, useTeamSchedule } from "../data";
+import { useNav } from "../nav";
+import { paths } from "../routes";
 import { Sheet } from "../ui/sheet";
-import { MoreAction, PlayPlate, SportsLabel, WeekRow } from "./parts";
+import { MoreAction, OpenRow, PlayPlate, SportsLabel, WeekRow } from "./parts";
 import { begun, useNow } from "./scores";
 import { useStartSport } from "./start";
 import { SportStartHandoff, type SportTarget } from "./start-handoff";
@@ -90,20 +92,59 @@ export function LeagueView({ league, leagueName, onStarted }: { league: string; 
   const week = useSportsWeek(null, [league]);
   const { start, busy } = useStartSport();
   const now = useNow();
+  const nav = useNav();
   const days = (week.data?.days ?? []).map((d) => ({ ...d, games: d.games.filter((g) => g.league === league) })).filter((d) => d.games.length);
   const left = days.flatMap((d) => d.games).filter((g) => !begun(g, now)).length;
+  // Your games in this league first (docs/PLAN-sports-couch.md A2's check: the league card's due dot opens this sheet, so the move
+  // it promised is here, the move's own words in chyron-line and its tap the move's own door). B1's This week replaces this.
+  const home = useHome().data;
+  const seasons = useMySportsGames(true).data?.seasons;
+  const here = new Set((seasons ?? []).filter((s) => s.league === league).map((s) => s.seasonId));
+  const yours = (home?.shows ?? []).filter((s) => here.has(s.seasonId)).flatMap((s) => s.games.filter((g) => !g.archived).map((g) => ({ g, seasonId: s.seasonId })));
+  const moveOf = (leagueId: string) => home?.moves.find((m) => m.leagueId === leagueId) ?? null;
+  const due = yours.some(({ g }) => moveOf(g.leagueId));
+  const go = (href: string) => {
+    onStarted?.();
+    nav.push(href, { channel: true });
+  };
   return (
     <div data-league-view={league}>
-      <p className="text-[14px] leading-snug text-muted-foreground">A week&rsquo;s games make one episode: pick&rsquo;em on every game, or a season-long league.</p>
-      {left > 0 && (
-        <PlayPlate
-          data="week"
-          disabled={busy}
-          title="Play this week's games"
-          line={`Pick'em on every game still to come · ${left} ${left === 1 ? "game" : "games"} · tells the couch`}
-          onClick={() => void start({ league, slate: {}, game: "pickem", only: true }, onStarted)}
-        />
+      {yours.length > 0 && (
+        <div data-league-yours className="mb-4">
+          <SportsLabel>Your games</SportsLabel>
+          {yours.map(({ g, seasonId }) => {
+            const m = moveOf(g.leagueId);
+            return (
+              <OpenRow
+                key={g.leagueId}
+                data={`yours-${g.leagueId}`}
+                title={g.name}
+                line={m ? <span className="font-semibold text-chyron-line">{m.text}</span> : "Open the game"}
+                onClick={() => go(m?.href ?? paths.show(seasonId))}
+              />
+            );
+          })}
+        </div>
       )}
+      <p className="text-[14px] leading-snug text-muted-foreground">A week&rsquo;s games make one episode: pick&rsquo;em on every game, or a season-long league.</p>
+      {/* The one yellow is your move while one is due (the One Chyron Rule): starting another game steps down to an outline. */}
+      {left > 0 &&
+        (due ? (
+          <MoreAction
+            data="week"
+            title="Play this week's games"
+            line={`Pick'em on every game still to come · ${left} ${left === 1 ? "game" : "games"}`}
+            onClick={() => void start({ league, slate: {}, game: "pickem", only: true }, onStarted)}
+          />
+        ) : (
+          <PlayPlate
+            data="week"
+            disabled={busy}
+            title="Play this week's games"
+            line={`Pick'em on every game still to come · ${left} ${left === 1 ? "game" : "games"} · tells the couch`}
+            onClick={() => void start({ league, slate: {}, game: "pickem", only: true }, onStarted)}
+          />
+        ))}
       <MoreAction
         data="league-season"
         title="Play the season, week by week"

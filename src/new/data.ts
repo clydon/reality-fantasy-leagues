@@ -1973,7 +1973,8 @@ import type { LeagueSlates } from "@/lib/server/sports/slate";
 import type { FoundTeams, TeamSchedule } from "@/lib/server/sports/find";
 import type { SportsWeek } from "@/lib/server/sports/week";
 import type { CouchTeam, FollowedTeam } from "@/lib/server/sports/team-follows";
-import type { MyGame } from "@/lib/server/sports/mine";
+import type { MyGame, SportSeason } from "@/lib/server/sports/mine";
+import type { LeagueNow } from "@/lib/sports/league-now";
 import type { Situation } from "@/lib/sports/situation";
 import type { RailGame } from "@/lib/sports/start-games";
 import type { SportStarted } from "@/lib/server/sports/start";
@@ -2064,13 +2065,27 @@ export function useYourTeams(enabled = true) {
   });
 }
 
-/** The games you play, by their provider's ids, with your pick on each (the hub's scores strip: /api/sports/mine). */
+/** The games you play, by their provider's ids, with your pick on each (the hub's scores strip: /api/sports/mine), and the sports
+ *  seasons your games and your couches' are on, with their leagues (the league cards in Your shows). */
 export function useMySportsGames(enabled = true) {
   return useQuery({
     queryKey: ["new-design", "my-sports-games"],
-    queryFn: () => get<{ games: MyGame[] }>("/api/sports/mine"),
+    queryFn: () => get<{ games: MyGame[]; seasons: SportSeason[] }>("/api/sports/mine"),
     staleTime: 60_000,
     enabled,
+  });
+}
+
+/** Where a league's season is today (/api/sports/league/now: its week, or the off-season and when it's back), for its card in Your
+ *  shows. The same for everyone and kept ten minutes at the edge; a league's calendar changes once a day. */
+export function useLeaguesNow(leagues: string[]) {
+  return useQueries({
+    queries: leagues.map((league) => ({
+      queryKey: ["new-design", "league-now", league],
+      queryFn: () => get<LeagueNow>(`/api/sports/league/now?league=${encodeURIComponent(league)}`),
+      staleTime: 30 * 60_000,
+      retry: 1,
+    })),
   });
 }
 

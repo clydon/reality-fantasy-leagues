@@ -276,6 +276,20 @@ are ~0.5 KB gzipped (~0.3 MB a phone a game). Part 4 polls a small live read, ne
   so a couch watching one game costs one invocation per 15 s per edge region, not one per phone. Nothing in Neon. A phone with two
   live games on the strip gets ~0.1 MB an NFL game (the whole summary would be ~100 MB).
 - The On TV row no longer reads the couch's teams' games (its sports cards moved to the strip).
+
+**The league card in Your shows (docs/PLAN-sports-couch.md A2, 2026-11-22, the `sports-couch` lane; not live)** asks ESPN nothing
+new either:
+- **A league's now** (`GET /api/sports/league/now?league=`, open signed out): its week ("Week 12"), or the off-season and when
+  it's back, ~250 bytes, from the league's calendar that a slate already reads (the bare scoreboard and the core's season types,
+  4-5 calls a league, **cached a day** in `sports_cache`, ~10 KB a league). The hub asks it once a hub load for each league you
+  follow a team in or play in (React Query keeps it 30 minutes); the edge keeps each league's answer ten minutes for everyone
+  (`s-maxage=600`), so it's at most one invocation per league per ten minutes per edge region, and ESPN at most once a league a
+  day. Nothing polled.
+- **Your games** (`/api/sports/mine`, above) also returns the sports seasons your games and your couches' games are on, each with
+  its league: one more small indexed Neon read (memberships and couch games joined to their seasons' shows), ~0.1 KB a season.
+- **The week** it reads is the strip's own (the same query, so no second call unless you play in a league none of your teams is
+  in and none of its games is near); a league whose teams have nothing left in it
+  reads the week after, the strip's later read.
 wakes nothing new: it runs inside the same daily listings job. It refills each sports season with a game near now once a day (at
 most 10 seasons a run: a roster call per linked team, cached a day and shared by a league's seasons, so about 32 calls a day for
 the NFL however many seasons follow it), so signings, trades and each player's injury arrive (the same roster calls; `season_cast.injury`,

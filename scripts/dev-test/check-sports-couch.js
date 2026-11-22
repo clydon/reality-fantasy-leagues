@@ -78,6 +78,31 @@ const LEAGUE_NAMES = [
   { league: BB, name: "ZT Couch Basketball", short: "ZTCB" },
 ];
 
+// The league card's own (docs/PLAN-sports-couch.md A2): a stand-in baseball league in its off-season, apart from LEAGUES so the
+// scripts that read them see the two they always have; cleanup takes its rows too.
+const MB = "baseball/zt-scm";
+const MB_TEAMS = [{ id: "9501", name: "ZT Yankees", short: "Yankees", location: "ZT Bronx", abbreviation: "ZNYY", league: MB, color: "0c2340", roster: roster("95010", ["P", "C", "SS", "CF"]) }];
+const MB_NAME = { league: MB, name: "ZT Couch Baseball", short: "ZTCM" };
+
+/**
+ * The stand-in's calendars around `now`, for the league card's week (A2): football's weeks with Week 12 holding today (ESPN's own
+ * labels, the playoffs' named), basketball's game days from five weeks back (its Monday-to-Sunday weeks), and baseball in its
+ * off-season with next season listed (as ESPN's bare scoreboard rolls over), back in about four months.
+ */
+function calendarsAround(t = now) {
+  const day = (ms) => `${new Date(ms).toLocaleDateString("en-CA", { timeZone: "America/New_York" })}T08:00Z`;
+  const w12 = t - 3 * D;
+  const week = (i) => ({ from: day(w12 + (i - 12) * 7 * D), to: day(w12 + (i - 11) * 7 * D) });
+  const POST = ["Wild Card", "Divisional Round", "Conference Championship", "Super Bowl"];
+  const weeks = [...Array.from({ length: 18 }, (_, i) => ({ type: 2, label: `Week ${i + 1}`, ...week(i + 1) })), ...POST.map((label, i) => ({ type: 3, label, ...week(19 + i) }))];
+  const bbDays = Array.from({ length: 25 }, (_, i) => day(t - 35 * D + i * 2 * D).slice(0, 10));
+  return {
+    [FB]: { season: 2026, label: "2026", now: 2, weeks, stages: [{ type: 2, name: "Regular Season", from: weeks[0].from, to: weeks[17].to }, { type: 3, name: "Postseason", from: weeks[18].from, to: weeks[21].to }] },
+    [BB]: { season: 2027, label: "2026-27", now: 2, days: bbDays, stages: [{ type: 2, name: "Regular Season", from: day(t - 35 * D), to: day(t + 140 * D) }, { type: 3, name: "Postseason", from: day(t + 150 * D), to: day(t + 210 * D) }] },
+    [MB]: { season: 2027, label: "2027", now: 4, days: [], stages: [{ type: 2, name: "Regular Season", from: day(t + 123 * D), to: day(t + 310 * D) }, { type: 3, name: "Postseason", from: day(t + 312 * D), to: day(t + 345 * D) }] },
+  };
+}
+
 let failures = 0;
 function check(ok, what, detail = "") {
   console.log(`${ok ? "PASS" : "FAIL"}  ${what}${!ok && detail ? `  (${typeof detail === "string" ? detail : JSON.stringify(detail).slice(0, 300)})` : ""}`);
@@ -86,17 +111,18 @@ function check(ok, what, detail = "") {
 
 /** Every row of ours: the leagues' shows (their seasons, episodes, follows and games go with them), events, links, follows, cache. */
 async function cleanup(pool) {
-  const like = LEAGUES.map((l) => `%:${l}`);
+  const LEAGUES_ = [...LEAGUES, MB];
+  const like = LEAGUES_.map((l) => `%:${l}`);
   const { rows: shows } = await pool.query("SELECT id, slug FROM shows WHERE sports_league LIKE ANY($1::text[])", [like]);
   const slugs = shows.map((s) => s.slug);
   if (slugs.length) {
     await pool.query("DELETE FROM leagues WHERE state->'settings'->>'showId' = ANY($1::text[])", [slugs]);
-    await pool.query("DELETE FROM season_events WHERE league = ANY($1::text[])", [LEAGUES]);
+    await pool.query("DELETE FROM season_events WHERE league = ANY($1::text[])", [LEAGUES_]);
     await pool.query("DELETE FROM shows WHERE id = ANY($1::uuid[])", [shows.map((s) => s.id)]);
   }
-  await pool.query("DELETE FROM sports_events WHERE league = ANY($1::text[])", [LEAGUES]);
-  await pool.query("DELETE FROM team_follows WHERE league = ANY($1::text[])", [LEAGUES]);
-  await pool.query("DELETE FROM sports_recordings WHERE league = ANY($1::text[])", [LEAGUES]);
+  await pool.query("DELETE FROM sports_events WHERE league = ANY($1::text[])", [LEAGUES_]);
+  await pool.query("DELETE FROM team_follows WHERE league = ANY($1::text[])", [LEAGUES_]);
+  await pool.query("DELETE FROM sports_recordings WHERE league = ANY($1::text[])", [LEAGUES_]);
   await pool.query("DELETE FROM sports_cache WHERE key LIKE 'zt-standin:%'");
   await pool.query("UPDATE user_settings SET hide_sports_scores = false WHERE user_id IN (SELECT id FROM \"user\" WHERE username LIKE 'zt_nd_%')");
 }
@@ -105,12 +131,12 @@ async function main() {
   const pool = new Pool({ connectionString: DB });
   await cleanup(pool);
   const fx = await fixture.up(pool);
-  const espn = await fakeEspn.start({ teams: TEAMS, leagues: LEAGUE_NAMES, events: EVENTS });
+  const espn = await fakeEspn.start({ teams: [...TEAMS, ...MB_TEAMS], leagues: [...LEAGUE_NAMES, MB_NAME], events: EVENTS, calendars: calendarsAround() });
   const headers = { "x-gys-sports": espn.url };
   // The league shows a first add would make (find.ts reads the lists of any league a show's been made for).
   const { pool: appPool } = jiti("../../src/lib/server/db.ts");
   const { leagueShow } = jiti("../../src/lib/server/sports/matchup.ts");
-  for (const l of LEAGUE_NAMES) await leagueShow(appPool, "espn", l.league, "", null, { name: l.name, short: l.short });
+  for (const l of [...LEAGUE_NAMES, MB_NAME]) await leagueShow(appPool, "espn", l.league, "", null, { name: l.name, short: l.short });
   const alex = fixture.username("alex");
   const me = await signIn({ user: alex, pass: fixture.PASSWORD, headers });
   const couch = fx.couchId;
@@ -163,6 +189,15 @@ async function apiChecks(pool, me, couch, started) {
   const nowRead = await me.call("GET", `/api/sports/now?league=${FB}&event=93103`);
   check(nowRead.status === 200 && nowRead.body.possession === "9301" && nowRead.body.down === "2nd & 7" && nowRead.body.scores?.["9301"] === 14 && JSON.stringify(nowRead.body).length < 600, "the small live read: score, ball and down, small", nowRead.body);
 
+  // Where a league's season is today, for its card in Your shows (A2: league-now.ts): football's own week, a daily sport's
+  // Monday-to-Sunday one, the off-season with when it's back; edge-kept, the same for everyone.
+  const [fbNow, bbNow, mbNow] = await Promise.all([FB, BB, MB].map((l) => me.call("GET", `/api/sports/league/now?league=${l}`)));
+  check(fbNow.status === 200 && fbNow.body.on && fbNow.body.stage === "regular" && fbNow.body.week === "Week 12" && fbNow.body.leagueName === "ZTCF", "a league's now: football's own week", fbNow.body);
+  check(bbNow.status === 200 && bbNow.body.on && /^Week \d+$/.test(bbNow.body.week ?? "") && bbNow.body.season === "2026-27", "a league's now: a daily sport's week and its season", bbNow.body);
+  check(mbNow.status === 200 && !mbNow.body.on && mbNow.body.week === null && /^\d{4}-\d{2}-\d{2}$/.test(mbNow.body.back ?? ""), "a league's now: the off-season, and when it's back", mbNow.body);
+  const fbRaw = await me.raw("GET", `/api/sports/league/now?league=${FB}`);
+  check(/public, s-maxage=600/.test(fbRaw.headers.get("cache-control") ?? ""), "a league's now is the same for everyone, kept at the edge", fbRaw.headers.get("cache-control"));
+
   const rail = await me.call("GET", `/api/sports/start?league=${FB}&count=1`);
   check(rail.body.games?.[0]?.id === "pickem" && rail.body.games.every((g) => !g.why), "the rail: Pick'em first, every game fitting one game", rail.body.games?.map((g) => [g.id, g.why]));
   check(rail.body.games?.some((g) => g.id === "squares"), "squares on a football game");
@@ -174,6 +209,8 @@ async function apiChecks(pool, me, couch, started) {
   // The strip's games you play (/api/sports/mine): that one game, by its id, no pick yet.
   const mine = await me.call("GET", "/api/sports/mine");
   check(mine.status === 200 && mine.body.games?.some((x) => x.event === "93104" && x.seasonId === p.body.seasonId && x.pick === null) && !mine.body.games.some((x) => x.event === "93105"), "your games: the Pick'em's one game, no pick yet, not its season's others", mine.body);
+  // The league card's (A2): which league each sports season of a game of yours or your couch's is in.
+  check(!!p.body.seasonId && mine.body.seasons?.some((x) => x.seasonId === p.body.seasonId && x.league === FB), "your games: their seasons, each with its league", mine.body.seasons);
   check(p.status === 200 && p.body.leagueId && Number.isInteger(nextEp) && p.body.from === nextEp && p.body.to === nextEp && /season/i.test(p.body.season ?? ""), `Play the next game starts Pick'em on that one game, on the Eagles' season (its Game ${nextEp})`, p.body);
   // Its game as the engine reads it (gameOf: the spec, from the league's settings).
   const StateLogic = require("../../src/lib/game/state-logic.js");
@@ -285,6 +322,8 @@ async function browserChecks(pool, headers, couch) {
   await pool.query("UPDATE user_settings SET hide_sports_scores = true WHERE user_id = (SELECT id FROM \"user\" WHERE username = $1)", [fixture.username("alex")]);
   // Alex follows the Eagles (the API half does too; --browser alone starts here).
   await (await signIn({ user: fixture.username("alex"), pass: fixture.PASSWORD, headers })).call("POST", "/api/sports/follow", { league: FB, team: "9301", follow: true });
+  // And the Yankees, in their off-season (the league card's one line, A2).
+  await (await signIn({ user: fixture.username("alex"), pass: fixture.PASSWORD, headers })).call("POST", "/api/sports/follow", { league: MB, team: "9501", follow: true });
   const { page, errors, close } = await open({ user: fixture.username("alex"), pass: fixture.PASSWORD, width, headers });
   const shot = (name) => page.screenshot({ path: path.join(outDir, `${name}-${width}.png`), fullPage: false });
   const wide = async (what) => {
@@ -313,7 +352,7 @@ async function browserChecks(pool, headers, couch) {
     });
     check(hub.strip === 88 && hub.tv === 88 && hub.after, "the scores strip: right after On TV, at its height (88 px)", hub);
     check(hub.scoreboard === 0 && hub.tvSports === 0, "no Scoreboard in Your shows, no sports cards in On TV", hub);
-    check(hub.bucket === "started" && /Started/.test(hub.words) && !/14|10|6:41|Q3/.test(hub.words), "scores hidden: the game on says Started, no score, clock or quarter", hub.words);
+    check(hub.bucket === "started" && /Started/.test(hub.words) && !/\b14\b|\b10\b(?!:\d)|6:41|Q3/.test(hub.words), "scores hidden: the game on says Started, no score, clock or quarter", hub.words);
     await wide("the hub with the strip");
     await shot("0-hub-strip-hidden");
     await page.click('[data-bug="93103"]');
@@ -327,6 +366,38 @@ async function browserChecks(pool, headers, couch) {
     const liveBug = await page.getAttribute('[data-bug="93103"]', "aria-label");
     check(/14 to 10/.test(liveBug) && /third quarter, 6:41/.test(liveBug) && /Eagles' ball, 2nd and 7/.test(liveBug) && (await page.locator('[data-scores-strip] [data-bug-live]').count()) === 1 && /1 live/.test(await page.textContent("[data-scores-open]")), "scores shown: the game on is live, with its score, clock, ball and down", liveBug);
     await shot("10-hub-strip-live");
+    // The league card in Your shows (A2): among the bands, 72 px, the league, its week, the couch's teams as marks (the Eagles
+    // yours, ringed), one line; never a live score or red. The Yankees' league in its off-season, one 48 px line. A tap opens the
+    // league's sheet.
+    await page.locator(`[data-your-shows] [data-league-card="${FB}"]`).waitFor({ timeout: 20_000 });
+    const cards = await page.evaluate(([fb, mb]) => {
+      const c = document.querySelector(`[data-your-shows] [data-league-card="${fb}"]`);
+      const off = document.querySelector(`[data-your-shows] [data-league-card="${mb}"]`);
+      return {
+        h: c?.getBoundingClientRect().height,
+        words: c?.textContent ?? "",
+        you: !!c?.querySelector('[data-league-mark="you"]'),
+        red: !!c?.querySelector('[class*="bg-live"], [class*="text-live"]'),
+        offH: off?.getBoundingClientRect().height,
+        offOn: off?.hasAttribute("data-league-off"),
+        offWords: off?.textContent ?? "",
+        among: !!c?.closest("[data-your-shows]")?.querySelector("[data-band]"),
+      };
+    }, [FB, MB]);
+    check(cards.h === 72 && /ZTCF/.test(cards.words) && /Week 12/.test(cards.words) && cards.you && !cards.red && !/14|6:41/.test(cards.words), "the league card: 72 px, its league and week, your team's mark, no score, no red", cards);
+    check(cards.among, "the league card sits among the show bands");
+    check(cards.offH === 48 && cards.offOn && /Off-season/.test(cards.offWords) && /Yankees/.test(cards.offWords) && /back /.test(cards.offWords), "off-season: one 48 px line with the team and when it's back", cards);
+    await page.locator(`[data-league-card="${FB}"]`).click();
+    check(await page.locator(`[data-league-view="${FB}"]`).isVisible({ timeout: 8000 }).catch(() => false), "a tap opens the league's sheet");
+    // It leads with your games in the league (the API half started Squares on the Eagles' season), above starting another.
+    const lead = await page.evaluate(() => {
+      const v = document.querySelector("[data-league-view]");
+      const y = v?.querySelector("[data-league-yours]");
+      const w = v?.querySelector('[data-more="week"], [data-play-plate="week"], [data-plate="week"]');
+      return { rows: y?.querySelectorAll("[data-open-row]").length ?? 0, first: !!y && (!w || !!(y.compareDocumentPosition(w) & Node.DOCUMENT_POSITION_FOLLOWING)) };
+    });
+    check(only !== null || (lead.rows > 0 && lead.first), "the league's sheet leads with your games in it", lead);
+    await page.keyboard.press("Escape");
     // Seen live on the strip counts as shown for the visit (scores.tsx noteSeen): forget it, so the sheet below starts hidden.
     await page.evaluate(() => sessionStorage.removeItem("gys-shown-scores"));
     await pool.query("UPDATE user_settings SET hide_sports_scores = true WHERE user_id = (SELECT id FROM \"user\" WHERE username = $1)", [fixture.username("alex")]);
@@ -427,7 +498,7 @@ async function browserChecks(pool, headers, couch) {
 }
 
 // Its stand-in world is shared with scripts/dev-test/story-hub-sports.js (the design round's step 7: a live game day on the hub).
-module.exports = { TEAMS, EVENTS, LEAGUE_NAMES, LEAGUES, FB, BB, cleanup };
+module.exports = { TEAMS, EVENTS, LEAGUE_NAMES, LEAGUES, FB, BB, MB, MB_TEAMS, MB_NAME, calendarsAround, cleanup };
 
 if (require.main === module)
   main().catch((e) => {

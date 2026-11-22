@@ -1775,3 +1775,16 @@
   records sit in the score slot, possession is the small triangle, and the line reads "LAC by 3".
 - Rejected: the check's suggestions (records beside the abbreviation, a ball glyph, "LAC −3"): BACKLOG 253 (b), closed.
 - Rests on: docs/design-round/hub-scorebug-shape.md; docs/PLAN-sports-couch.md, A1's build notes.
+
+## 2026-11-22 · The league card in Your shows (sports-couch A2) approved as built
+- Decided by: the user ("Approve"), on the story https://claude.ai/artifact/XixM9yKB4CeHeANg5zcZg9.
+- What: each league you follow a team in or play in is a 72 px card among the show bands, placed by its next game (the clock
+  alone); the league, its week, the couch's teams as marks (yours ringed), one muted line (your games and place, else the couch's
+  games, else who leads by record, never for anyone hiding scores or while a recent game is unseen, else who follows them);
+  off-season one 48 px line; no chevron; the solo hub's cards above its poster shelf. Until B1, a tap opens today's league sheet,
+  which now leads with your games in that league (the due move in its own words) and steps Play this week's games down to an
+  outline while a move is due.
+- Rejected: the critique's quiet caption tag for the week (the brief's "a smidge subtler"); a mark instead of the team's name on
+  the off-season line (the brief's example); DESIGN.md's chyron focus ring over the strip's (A1's) inset ring.
+- Rests on: docs/design-round/hub-scorebug-shape.md; docs/design-round/hub-league-card-check.md; docs/PLAN-sports-couch.md, A2's
+  build notes; BACKLOG 254.
