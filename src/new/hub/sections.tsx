@@ -38,6 +38,7 @@ import { Btn, SectionHead } from "../ui/parts";
 import { ShowArt } from "../ui/show-bar";
 import { toast } from "../ui/toast";
 import { NoSignal } from "../show/getting-ready";
+import { LeagueCard, useLeagueCards } from "./league-cards";
 import { openWatching } from "../watching/sheets";
 import { useOpenTogether } from "../show/watch-along";
 import { usePracticeShows } from "../tour/practice-shows";
@@ -634,7 +635,11 @@ export function YourShows({ home, hub, couch = null }: { home: Home; hub: CouchH
   const [openFinished, setOpenFinished] = useState(false);
   // The first-time tour's demo shows (tour/practice-shows.ts), on the shelf while it shows where shows you add go.
   const practice = usePracticeShows();
-  const all = practice.length ? [...home.shows, ...practice] : home.shows;
+  // Each league you follow through a team, or play in, is a card under the shelf (docs/PLAN-sports-couch.md A2), and a sports
+  // season it holds leaves the posters, as it does the bands.
+  const cards = useLeagueCards(home, couch, hub) ?? [];
+  const carded = new Set(cards.flatMap((c) => c.seasons));
+  const all = (practice.length ? [...home.shows, ...practice] : home.shows).filter((s) => !carded.has(s.seasonId));
   // Finished for the whole couch folds away at the foot (the design round's step 7, the user's rule).
   const shows = all.filter((s) => !finishedFor(home, couch, hub, s));
   const finished = all.filter((s) => finishedFor(home, couch, hub, s));
@@ -642,6 +647,13 @@ export function YourShows({ home, hub, couch = null }: { home: Home; hub: CouchH
   return (
     <section className="mt-8" data-your-shows>
       <SectionHead title="Your shows" />
+      {cards.length > 0 && (
+        <div data-league-cards className="mb-3 flex flex-col gap-2.5 px-4">
+          {[...cards].sort((a, b) => a.at - b.at).map((c) => (
+            <LeagueCard key={c.league} card={c} />
+          ))}
+        </div>
+      )}
       <div className="flex gap-3 overflow-x-auto px-4 pb-[18px] pt-1 [scroll-snap-type:x_mandatory] [scrollbar-width:none]">
         {shelfOrder(shows).map((s) => (
           <Poster key={s.seasonId} show={s} due={due.has(s.seasonId)} places={(hub?.games ?? []).filter((p) => p.seasonId === s.seasonId)} />

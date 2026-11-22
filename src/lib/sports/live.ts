@@ -13,6 +13,7 @@
 // scripts/dev-test/check-live-clock.js; a browser's, check-espn-browser.js; a test's virtual time, tests/sports-live.test.js).
 import { stateOn, type GameClock, type Moment } from "./clock";
 import { readOdds, type EspnOdds, type Odds } from "./matchup";
+import { situationOf, type Situation } from "./situation";
 import { headerTeams, isFinal, msOf, str, type BoxPerson, type BoxTeam, type EspnSummary, type GameState, type Play, type TeamSport } from "./sport";
 
 /** ESPN's site API (the app's live route asks it: live-proxy.ts). */
@@ -273,6 +274,9 @@ export class LiveGame extends Poller {
   /** The sportsbook's line as of the last answer (ESPN's pickcenter), and the last one read before the game began. */
   line: Odds | null = null;
   lineAtStart: Odds | null = null;
+  /** Where the game stands as of the last answer (situation.ts: the score, the clock, football's possession and down and
+   *  distance): the game's now, for someone watching live, never anyone's own clock. */
+  situation: Situation | null = null;
 
   private readonly base: string;
   private readonly onChange?: (game: LiveGame) => void;
@@ -360,6 +364,7 @@ export class LiveGame extends Poller {
     const line = readOdds((summary as EspnSummary & { pickcenter?: EspnOdds[] }).pickcenter?.[0]);
     if (line) this.line = line;
     if (status === "pre" && line) this.lineAtStart = line;
+    this.situation = situationOf(summary);
     this.asOf = this.now();
     return status !== wasStatus || this.final !== wasFinal || plays.length !== was.length || plays[plays.length - 1]?.id !== was[was.length - 1]?.id;
   }

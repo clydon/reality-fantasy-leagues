@@ -3,7 +3,9 @@
 **Keep this current.** Update it in the same commit as any change that adds or changes polling, a scheduled
 job, stored data, or a service, and whenever usage is checked (date the numbers). It exists so that, when a
 free plan stops being enough, choosing the cheapest fit is arithmetic, not research. Last updated
-**2026-11-15** (live games asked by the app, not the phone: Live games), and before that **2026-10-28** (Cost by size; live
+**2026-11-22** (a league's Chat: a room polled as the show's chat is, migration 0314, under "A league's page, Chat"; a league's
+Standings: one new ESPN read, under "A league's page, Standings"; the hub's scores strip: its small
+live read, your games and the week after a bye, under "The hub's scores strip"), and before that **2026-11-15** (live games asked by the app, not the phone: Live games), and before that **2026-10-28** (Cost by size; live
 games' polling from phones, L2 on the `sports` branch; a live soccer match measured, L5 part 1).
 
 ## The stack
@@ -258,6 +260,82 @@ phone it depends on the screens (part 4, not built):** the whole games read is ~
 all of it the season's ~2,500 people, so polled every 15 s for a game it would be ~100 MB a phone; a game's table and matchups alone
 are ~0.5 KB gzipped (~0.3 MB a phone a game). Part 4 polls a small live read, never the whole read (measured by
 `scripts/dev-test/check-sports-live-points.js`).
+**The hub's scores strip (docs/PLAN-sports-couch.md A1, 2026-11-22, the `sports-couch` lane; not live)** asks ESPN nothing new:
+- **The week, as before**: the hub's Scoreboard read `/api/sports/week` from yesterday; the strip reads the same, and **the week
+  after** too (`?from=` six days on) only when one of your teams has no game left in the first (a bye week's next game), once a hub
+  load (React Query, 2 minutes). The same route and day scoreboards the guide's Sports reads (cached a day's scoreboard an hour
+  before, 3 minutes live), the edge keeping each week 5 minutes, so it's at most a league's day scoreboards an hour more, for
+  everyone. Each game now carries its sides' records, its network and the line in words, read from the same scoreboard answer.
+- **Your games** (`GET /api/sports/mine`, signed in): the games you play (your games' seasons' linked events, two days back to
+  eight on) with your pick on each; three small indexed Neon reads (memberships, linked events, answers) once a hub load, ~0.5 KB.
+  Nothing polled.
+- **A small live read** (`GET /api/sports/now?league=&event=`): where a live game stands (the score, the period and clock,
+  football's possession and down and distance: `src/lib/sports/situation.ts`), ~200 bytes, asked every 15 s per live game on the
+  strip while the hub is visible, only for someone shown it live (never hiding scores, never watching it as if live), stopping at
+  the final. It reads the game's summary through the live route's own poller (`liveAnswer` in `live-proxy.ts`): the same one ESPN
+  ask a game every 10 s an instance that a game's live screen makes, whoever reads; the edge keeps each answer 15 s (`s-maxage=15`),
+  so a couch watching one game costs one invocation per 15 s per edge region, not one per phone. Nothing in Neon. A phone with two
+  live games on the strip gets ~0.1 MB an NFL game (the whole summary would be ~100 MB).
+- The On TV row no longer reads the couch's teams' games (its sports cards moved to the strip).
+
+**A league's page, This week (docs/PLAN-sports-couch.md B1, 2026-11-22, the `sports-couch` lane; not live)** asks ESPN nothing
+new: it reads the team schedules a team's sheet already reads.
+- **The couch's table** (`GET /api/sports/league/teams?league=&teams=`, open signed out, at most 16 teams): each team's record,
+  last five and meetings with the others, ~0.3 KB a team. One schedule read a team (two or three when its season's other stage is
+  asked), each **cached in `sports_cache`** as a team's schedule is (3 minutes while it plays, an hour on its game day, else 12
+  hours). Asked once a visit to a league's This week (React Query keeps it 5 minutes); the edge keeps each team set's answer ten
+  minutes for everyone (`s-maxage=600`). A couch's set is the same for its members, so it's about one invocation per couch per
+  league per ten minutes while someone looks. Nothing polled.
+- **The week** is the guide's week read from the league's own first day (league-now now answers its `from` and `to`); no new call.
+
+**A league's page, Scores (docs/PLAN-sports-couch.md B1 session 2, 2026-11-22, the `sports-couch` lane; not live)** asks ESPN
+nothing new and asks it less than before:
+- **One league's week** (`GET /api/sports/week?from=&also=<league>&only=1&to=`): the week read of that league alone, not every pro
+  league's (7 day scoreboards at most, 14 for a calendar week with a gap, each **cached in `sports_cache`** as the guide's are:
+  three minutes while a game's on, an hour before, 30 days once over). A league's This week moved to it too. Any week of the
+  season can be asked (the switcher), so a past week costs at most 7 cached day reads the first time anyone looks. The edge keeps
+  a week with a game on a minute (`s-maxage=60`), else five.
+- **The switcher** is league-now's answer, a little longer (`weeks` for football, `days` for a daily sport: ~3 KB at most); no new
+  call.
+- **A live row** asks the small live read (`/api/sports/now`, A1's) every 15 s only while it's on screen and shown live, so a
+  Sunday afternoon's list polls the five or six rows you can see, not every game on.
+
+**A league's page, Standings (docs/PLAN-sports-couch.md B1 session 4, 2026-11-22, the `sports-couch` lane; not live)** asks ESPN
+**one new kind of call**, its standings (`site.api.espn.com/apis/v2/sports/<league>/standings?level=3`, verified 2026-11-22: free,
+no key, the same unofficial host as the rest):
+- **The table** (`GET /api/sports/league/standings?league=`, open signed out, the same for everyone): each group and each team's
+  line, read into our shape (`readStandings`, espn.ts: a few numbers a team), ~9 KB a pro league (the NFL's 32 teams; ESPN's raw
+  answer is 160 KB, 9 KB gzipped), ~4 KB a soccer table, ~40 KB a college sport (ESPN's raw is 2.6 MB for college football, 6 MB for
+  men's college basketball). **Cached in `sports_cache`** 15 minutes (a final moves it), an hour for a league of more than 100
+  teams; the edge keeps each league's answer five minutes for everyone (`s-maxage=300`). So ESPN is asked at most four times an hour
+  a league, and only while someone looks; one cache row a league (~9 KB). The teams' colours come from the league's team list,
+  already cached a week. Asked once a visit to a league's Standings (React Query keeps it five minutes). Nothing polled.
+
+**A league's page, Chat (docs/PLAN-sports-couch.md B1 session 5, 2026-11-22, the `sports-couch` lane; not live)** asks ESPN
+nothing; it's Neon only, as the show's Chat is:
+- **The room** (`/api/sports/league/chat?league=&couch=`, signed in, couch members): rows in `chat_messages` (migration 0314: a
+  room's are keyed by couch and league, a thread's carry the game's id, start and name, ~100 bytes more than a show chat's message)
+  and `league_chat_reads` (one small row a person a couch a league). **Polled every 5 s while the tab is open**, as the show's Chat:
+  each poll sends the version it has and an unchanged room answers 32 characters (an md5 worked out in the database over one
+  indexed range, `idx_chat_messages_league_room`). The tab's badge reads every 30 s while any of the league's tabs is open.
+  So per person with the tab open: one tiny indexed read every 5 s, the same as a show's Chat (Neon's compute while someone
+  chats, not a new always-on cost).
+- **Pushes:** one per message to the couch's members who follow the league (league_follows), through the push sender already in
+  use; nothing scheduled. No new external call.
+
+**The league card in Your shows (docs/PLAN-sports-couch.md A2, 2026-11-22, the `sports-couch` lane; not live)** asks ESPN nothing
+new either:
+- **A league's now** (`GET /api/sports/league/now?league=`, open signed out): its week ("Week 12"), or the off-season and when
+  it's back, ~250 bytes, from the league's calendar that a slate already reads (the bare scoreboard and the core's season types,
+  4-5 calls a league, **cached a day** in `sports_cache`, ~10 KB a league). The hub asks it once a hub load for each league you
+  follow a team in or play in (React Query keeps it 30 minutes); the edge keeps each league's answer ten minutes for everyone
+  (`s-maxage=600`), so it's at most one invocation per league per ten minutes per edge region, and ESPN at most once a league a
+  day. Nothing polled.
+- **Your games** (`/api/sports/mine`, above) also returns the sports seasons your games and your couches' games are on, each with
+  its league: one more small indexed Neon read (memberships and couch games joined to their seasons' shows), ~0.1 KB a season.
+- **The week** it reads is the strip's own (the same query, so no second call unless you play in a league none of your teams is
+  in and none of its games is near); a league whose teams have nothing left in it
+  reads the week after, the strip's later read.
 wakes nothing new: it runs inside the same daily listings job. It refills each sports season with a game near now once a day (at
 most 10 seasons a run: a roster call per linked team, cached a day and shared by a league's seasons, so about 32 calls a day for
 the NFL however many seasons follow it), so signings, trades and each player's injury arrive (the same roster calls; `season_cast.injury`,

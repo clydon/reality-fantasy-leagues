@@ -10,6 +10,7 @@ import type { SeasonEpisodes, SeasonReveal } from "@/lib/server/season-episodes"
 import type { ArchivedGame, SeasonRecord } from "@/lib/server/season-games";
 import type { SeasonStats } from "@/lib/server/season-stats";
 import type { ChatLine, CouchChat } from "@/lib/server/couch-chat";
+import type { RoomChat, RoomLine } from "@/lib/server/league-chat";
 import type { Backstage, Chosen, PasteResult } from "@/lib/server/backstage";
 import type { EpisodeResults } from "@/lib/server/episode-results";
 import type { CatalogSeason } from "@/lib/server/way-in";
@@ -68,6 +69,7 @@ export type { EpisodeRow, SeasonEpisodes, SeasonReveal } from "@/lib/server/seas
 export type { CastStat, Pattern, StatDef } from "@/lib/game/cast-stats";
 export type { SeasonStats } from "@/lib/server/season-stats";
 export type { ChatLine, CouchChat } from "@/lib/server/couch-chat";
+export type { RoomChat, RoomLine } from "@/lib/server/league-chat";
 export type { Backstage, BackstageEpisode, Chosen, Face, FillLine, Need, PasteResult, ResultRow, Shown } from "@/lib/server/backstage";
 export type { EpisodeResult, EpisodeResults } from "@/lib/server/episode-results";
 export type { Correction } from "@/lib/server/rulings";
@@ -450,6 +452,77 @@ export async function postToCouch(seasonId: string, couchId: string, text: strin
 }
 
 export type ChatRead = CouchChat | { out: true };
+
+// ---- a league's room (GET/POST /api/sports/league/chat?league=&couch=, league-chat.ts; docs/PLAN-sports-couch.md B1 session 5) ----
+
+const roomUrl = (league: string, couchId: string, rest = "", query: Record<string, string> = {}) =>
+  `/api/sports/league/chat${rest}?${new URLSearchParams({ league, couch: couchId, ...query })}`;
+
+/** A league's room, polled every 5 s while it's on screen (a `v` each time: an unchanged room keeps what's here). `since`: once
+ *  you've read back, everything from the message the first window started at. */
+export function useLeagueRoom(league: string, couchId: string | null, since: Pick<RoomLine, "id" | "at"> | null = null) {
+  const client = useQueryClient();
+  const key = ["new-design", "room", league, couchId, since?.id ?? null] as const;
+  return useQuery({
+    queryKey: key,
+    queryFn: async (): Promise<RoomChat> => {
+      const have = client.getQueryData<RoomChat>(key);
+      const query: Record<string, string> = {};
+      if (since) Object.assign(query, { since: since.id, at: since.at });
+      if (have?.v) query.v = have.v;
+      const body = await get<RoomChat | { unchanged: true; v: string }>(roomUrl(league, couchId as string, "", query));
+      return "unchanged" in body && have ? have : (body as RoomChat);
+    },
+    enabled: !!couchId,
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: false,
+  });
+}
+
+/** The league's Chat tab badge: how many messages you haven't read (every 30 s). */
+export function useRoomBadge(league: string, couchId: string | null) {
+  return useQuery({
+    queryKey: ["new-design", "room-badge", league, couchId],
+    queryFn: () => get<{ unread: number }>(roomUrl(league, couchId as string, "/unread")),
+    enabled: !!couchId,
+    staleTime: 20_000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+  });
+}
+
+/** The 100 before a message of the room (Earlier messages), on a tap; never polled. */
+export function roomEarlier(league: string, couchId: string, before: Pick<RoomLine, "id" | "at">) {
+  return get<{ messages: RoomLine[]; more: boolean }>(roomUrl(league, couchId, "", { before: before.id, at: before.at }));
+}
+
+/** A thread a message goes to: the game, its start and its words for the push. */
+export type RoomThread = { event: string; eventAt: string | null; eventName: string };
+
+/** What you can do in a league's room; each refreshes it (the badge, for a read). The show chat's sheet takes these. */
+export function useRoomActions(league: string, couchId: string | null) {
+  const client = useQueryClient();
+  const refresh = () => client.invalidateQueries({ queryKey: ["new-design", "room", league, couchId] });
+  const at = (id: string, rest = "") => roomUrl(league, couchId as string, `/${encodeURIComponent(id)}${rest}`);
+  return {
+    async post(text: string, gif?: GifHit, thread?: RoomThread | null) {
+      const body = {
+        ...(gif ? { gif: { id: gif.id, url: gif.url, w: gif.w, h: gif.h, title: gif.title } } : { text }),
+        ...(thread ? { event: thread.event, eventAt: thread.eventAt, eventName: thread.eventName } : {}),
+      };
+      const line = (await chatSend<{ message: RoomLine }>(roomUrl(league, couchId as string), "POST", body)).message;
+      await refresh();
+      return line;
+    },
+    react: (id: string, emoji: string) => chatSend(at(id, "/react"), "POST", { emoji }).then(refresh),
+    edit: (id: string, text: string) => chatSend(at(id), "PATCH", { text }).then(refresh),
+    remove: (id: string) => chatSend(at(id), "DELETE").then(refresh),
+    async read(upTo: string) {
+      await chatSend(roomUrl(league, couchId as string, "/read"), "POST", { at: upTo });
+      client.setQueriesData<{ unread: number }>({ queryKey: ["new-design", "room-badge", league, couchId] }, (d) => (d ? { ...d, unread: 0 } : d));
+    },
+  };
+}
 
 /**
  * The couch's chat about this show, folded past where you are (unfolded through `unfold` once you've asked), polled
@@ -1965,14 +2038,19 @@ export const togetherApi = {
 
 export type { FoundTeams, TeamSchedule } from "@/lib/server/sports/find";
 export type { SportsWeek, WeekGame, WeekSide } from "@/lib/server/sports/week";
-export type { CouchTeam, FollowedTeam } from "@/lib/server/sports/team-follows";
+export type { CouchLeague, CouchTeam, FollowedTeam, YourFollows } from "@/lib/server/sports/team-follows";
 export type { RailGame } from "@/lib/sports/start-games";
 export type { SportStarted } from "@/lib/server/sports/start";
 export type { LeagueSlates } from "@/lib/server/sports/slate";
 import type { LeagueSlates } from "@/lib/server/sports/slate";
 import type { FoundTeams, TeamSchedule } from "@/lib/server/sports/find";
 import type { SportsWeek } from "@/lib/server/sports/week";
-import type { CouchTeam, FollowedTeam } from "@/lib/server/sports/team-follows";
+import type { CouchLeague, CouchTeam, YourFollows } from "@/lib/server/sports/team-follows";
+import type { MyGame, SportSeason } from "@/lib/server/sports/mine";
+import type { LeagueNow } from "@/lib/sports/league-now";
+import type { TeamForm } from "@/lib/sports/couch-table";
+import type { Standings } from "@/lib/sports/standings";
+import type { Situation } from "@/lib/sports/situation";
 import type { RailGame } from "@/lib/sports/start-games";
 import type { SportStarted } from "@/lib/server/sports/start";
 
@@ -2010,22 +2088,26 @@ export function useLeagueSlates(league: string | null) {
 }
 
 /** A week of games from `from` (a day in the East), the pro leagues and `also`'s. */
-export function useSportsWeek(from: string | null, also: string[] = [], enabled = true) {
+export function useSportsWeek(from: string | null, also: string[] = [], enabled = true, one: { only?: boolean; to?: string | null } = {}) {
   const extra = [...new Set(also)].sort().join(",");
+  // `only`: just `also`'s leagues, to `to` (a league's page's week, docs/PLAN-sports-couch.md B1).
+  const only = !!one.only && !!extra;
+  const to = only ? (one.to ?? null) : null;
   return useQuery({
-    queryKey: ["new-design", "sports-week", from, extra],
-    queryFn: () => get<SportsWeek>(`/api/sports/week?${from ? `from=${from}&` : ""}${extra ? `also=${encodeURIComponent(extra)}` : ""}`),
+    queryKey: ["new-design", "sports-week", from, extra, only, to],
+    queryFn: () =>
+      get<SportsWeek>(`/api/sports/week?${from ? `from=${from}&` : ""}${extra ? `also=${encodeURIComponent(extra)}` : ""}${only ? `&only=1${to ? `&to=${to}` : ""}` : ""}`),
     enabled,
     staleTime: 2 * 60_000,
     placeholderData: keepPreviousData,
   });
 }
 
-/** The couch's teams: those anyone on it follows, and those in the games it plays. */
+/** The couch's teams (those anyone on it follows, and those in the games it plays) and its leagues (those anyone on it follows). */
 export function useCouchTeams(couchId: string | null) {
   return useQuery({
     queryKey: ["new-design", "couch-teams", couchId],
-    queryFn: () => get<{ teams: CouchTeam[] }>(`/api/sports/couch?couch=${couchId}`),
+    queryFn: () => get<{ teams: CouchTeam[]; leagues: CouchLeague[] }>(`/api/sports/couch?couch=${couchId}`),
     enabled: !!couchId,
     staleTime: 60_000,
   });
@@ -2052,6 +2134,81 @@ export function useSportsRecordings(enabled = true) {
   });
 }
 
+/** The teams you follow, in the order you followed them (the solo hub's scores strip: no couch to read them from), each saying
+ *  whether it's your team in its league, and the leagues you follow (a league's Follow; its card in Your shows). */
+export function useYourTeams(enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "your-teams"],
+    queryFn: () => get<YourFollows>("/api/sports/follow"),
+    staleTime: 60_000,
+    enabled,
+  });
+}
+
+/** The games you play, by their provider's ids, with your pick on each (the hub's scores strip: /api/sports/mine), and the sports
+ *  seasons your games and your couches' are on, with their leagues (the league cards in Your shows). */
+export function useMySportsGames(enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "my-sports-games"],
+    queryFn: () => get<{ games: MyGame[]; seasons: SportSeason[] }>("/api/sports/mine"),
+    staleTime: 60_000,
+    enabled,
+  });
+}
+
+/** Where a league's season is today (/api/sports/league/now: its week, or the off-season and when it's back), for its card in Your
+ *  shows. The same for everyone and kept ten minutes at the edge; a league's calendar changes once a day. */
+export function useLeaguesNow(leagues: string[]) {
+  return useQueries({
+    queries: leagues.map((league) => ({
+      queryKey: ["new-design", "league-now", league],
+      queryFn: () => get<LeagueNow>(`/api/sports/league/now?league=${encodeURIComponent(league)}`),
+      staleTime: 30 * 60_000,
+      retry: 1,
+    })),
+  });
+}
+
+/** The couch's table in a league (/api/sports/league/teams: each team's record, last five and meetings with the others; a league's
+ *  This week, docs/PLAN-sports-couch.md B1). The same for everyone and kept ten minutes at the edge; results, so the page hides them. */
+/** A league's standings (the Standings tab: /api/sports/league/standings), the same for everyone; null when the provider has none. */
+export function useLeagueStandings(league: string, enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "league-standings", league],
+    queryFn: () => get<{ standings: Standings | null }>(`/api/sports/league/standings?league=${encodeURIComponent(league)}`),
+    enabled,
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useLeagueTeams(league: string, teams: string[], enabled = true) {
+  const ids = [...new Set(teams)].sort().join(",");
+  return useQuery({
+    queryKey: ["new-design", "league-teams", league, ids],
+    queryFn: () => get<{ teams: TeamForm[] }>(`/api/sports/league/teams?league=${encodeURIComponent(league)}&teams=${encodeURIComponent(ids)}`),
+    enabled: enabled && !!ids,
+    staleTime: 5 * 60_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * Where a live game stands now (/api/sports/now: the score, the clock, football's ball and down), asked every 15 s while `on` and
+ * the screen is visible (React Query pauses its interval in a hidden tab), until the game's over. Only for a game you may be shown
+ * live: the strip never passes `on` for a hidden one.
+ */
+export function useLiveNow(league: string, event: string, on: boolean) {
+  return useQuery({
+    queryKey: ["new-design", "sports-now", league, event],
+    queryFn: () => get<Situation & { asOf: string }>(`/api/sports/now?league=${encodeURIComponent(league)}&event=${encodeURIComponent(event)}`),
+    enabled: on,
+    refetchInterval: (q) => (q.state.data?.status === "post" ? false : 15_000),
+    refetchIntervalInBackground: false,
+    staleTime: 10_000,
+    retry: 1,
+  });
+}
+
 /** Start (on) or stop (off: you've watched it) watching a game as if live, the list kept in the cache as the server answers it. */
 export function useSetRecording() {
   const qc = useQueryClient();
@@ -2069,8 +2226,12 @@ export function useSetRecording() {
 }
 
 export const sportsApi = {
-  /** Follow or stop following a team; answers your teams. */
-  follow: (league: string, team: string, follow: boolean) => sendJson<{ teams: FollowedTeam[] }>("/api/sports/follow", "POST", { league, team, follow }),
+  /** Follow or stop following a team (following one follows its league); answers what you follow. */
+  follow: (league: string, team: string, follow: boolean) => sendJson<YourFollows>("/api/sports/follow", "POST", { league, team, follow }),
+  /** Follow or stop following a league, no team needed (its teams stay as they are); answers what you follow. */
+  followLeague: (league: string, follow: boolean) => sendJson<YourFollows>("/api/sports/follow", "POST", { league, follow }),
+  /** Make a team you follow your team in its league; answers what you follow. */
+  myTeam: (league: string, team: string) => sendJson<YourFollows>("/api/sports/follow", "POST", { league, team, myTeam: true }),
   /** Add a team's games (or its season, or their meetings with `against`): made or found, and followed. */
   add: (body: { league: string; team: string; games?: string[]; whole?: "season" | "meetings"; against?: string }) =>
     sendJson<{ seasonId: string; made: boolean; name: string; games: string[] }>("/api/sports/add", "POST", body),

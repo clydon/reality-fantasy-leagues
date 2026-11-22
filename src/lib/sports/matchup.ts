@@ -56,6 +56,21 @@ export function readOdds(o: EspnOdds | undefined): Odds | null {
 }
 
 /**
+ * A line in words, as the scores strip says it under a game still to come (docs/PLAN-sports-couch.md A1): the favourite and the
+ * points they give, "LAC by 3" (the book's "LAC -3"), or "Even" for a pick'em line. Never the book's name, never American odds
+ * (the user, 2026-11-22: points, never money). Null when the line names no favourite (an over/under alone).
+ */
+export function lineWords(details: string | null | undefined): string | null {
+  const d = (details ?? "").trim();
+  if (!d) return null;
+  if (/^(even|pk|pick|pick'?em)$/i.test(d)) return "Even";
+  const m = /^([A-Za-z][A-Za-z0-9.&' -]{0,24}?)\s+-(\d+(?:\.\d+)?)$/.exec(d);
+  if (!m) return null;
+  const by = Number(m[2]);
+  return by === 0 ? "Even" : `${m[1]} by ${m[2].replace(/\.0+$/, "")}`;
+}
+
+/**
  * Which games, from one team's schedule:
  * - `games`: these, by the provider's ids;
  * - `opener`: its first game of the regular season (at home, with `home`: "the 76ers home opener");

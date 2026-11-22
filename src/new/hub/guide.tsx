@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { ArrowRight, EyeOff, Gamepad2, Plus, UserPlus } from "lucide-react";
 import { episodeLine, eveningAt, guideWeek, nextUpAfter, type GuideCard, type GuideDay, type GuidePlan, type GuideShow } from "@/lib/game/guide";
 import { alsoOn, hitOfListing, listingLine, type AlsoOnDay, type AlsoOnItem } from "@/lib/game/tv-listings";
-import { guide as guideApi, useCouchTeams, useListingsWeek, useOnNow, useSetGuideHidden, useSportsWeek, type Couch, type CouchShow, type HiddenShow, type Home, type WeekGame } from "../data";
+import { guide as guideApi, useListingsWeek, useOnNow, useSetGuideHidden, type Couch, type CouchShow, type HiddenShow, type Home } from "../data";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
 import { airTime, timeOf } from "../clock";
@@ -22,8 +22,7 @@ import { usePracticeShows } from "../tour/practice-shows";
 import { ListingsCredit } from "../watching/search";
 import { openWatching } from "../watching/sheets";
 import { SportsGuide } from "../sports/guide";
-import { clockOf, useGameScore, useHideSports } from "../sports/scores";
-import { TeamMark } from "../sports/parts";
+import { useHideSports } from "../sports/scores";
 import { namesOf, showOfMove } from "./sections";
 import { StreamingRail } from "./streaming";
 
@@ -653,59 +652,13 @@ function MiniCard({ c, offset, now, along, onOpen }: { c: GuideCard; offset: num
   );
 }
 
-/** The couch's teams' games today, not over, on now first (read only when the couch follows or plays a team). */
-function useTeamsToday(couchId: string | null, now: number): WeekGame[] {
-  const teams = useCouchTeams(couchId).data?.teams ?? [];
-  const leagues = [...new Set(teams.map((t) => t.league))];
-  const week = useSportsWeek(null, leagues, teams.length > 0).data;
-  if (!teams.length || !week) return [];
-  const ours = new Set(teams.map((t) => `${t.league}|${t.id}`));
-  const today = new Date(now).toLocaleDateString("en-CA");
-  return (week.days.find((d) => d.day === today)?.games ?? [])
-    .filter((g) => g.sides.some((x) => ours.has(`${g.league}|${x.id}`)) && g.state !== "post" && !g.final)
-    .sort((a, b) => Number(b.state === "in") - Number(a.state === "in"));
-}
-
-/** A couch team's game in On TV's crawl: its two marks and the score once begun, or "Started" while scores are hidden, or the time. */
-function SportsMini({ g, onOpen }: { g: WeekGame; onOpen: () => void }) {
-  const s = useGameScore(g);
-  const live = s.started && s.open && g.state === "in";
-  const [a, h] = g.sides;
-  const chip = live ? "On now" : s.started ? "Started" : g.at ? clockOf(g.at).replace(":00", "") : "Today";
-  return (
-    <button
-      type="button"
-      data-guide-card={`sport:${g.id}`}
-      data-live={live || undefined}
-      onClick={onOpen}
-      aria-label={`${a.short} at ${h.short}, ${s.started ? (s.open && a.score != null ? `${a.score} to ${h.score}, ${s.when}` : s.when) : g.at ? clockOf(g.at) : "today"}. Opens the guide's sports`}
-      className="relative flex h-[72px] w-[124px] flex-none flex-col justify-between overflow-hidden rounded-[3px] bg-secondary px-2 pb-1.5 pt-1.5 text-left active:scale-[.97]"
-    >
-      <span className={`flex items-center gap-1 self-start rounded-[2px] px-1.5 py-[2px] text-[13px] font-extrabold ${live ? "bg-live text-live-foreground" : "bg-[rgba(10,8,14,.72)] text-white"}`}>
-        {live && <i className="size-1.5 animate-pulse rounded-full bg-current motion-reduce:animate-none" aria-hidden />}
-        {chip}
-      </span>
-      <span className="flex items-center gap-1.5">
-        <TeamMark abbr={a.abbreviation ?? a.short.slice(0, 3)} color={a.color} size="sm" className="!size-[26px] !text-[10px]" />
-        {s.started && s.open && a.score != null ? (
-          <span className="type-num flex-1 text-center text-[17px] leading-none tabular-nums">
-            {a.score}–{h.score}
-          </span>
-        ) : (
-          <span className="flex-1 text-center text-[13px] font-semibold text-muted-foreground">at</span>
-        )}
-        <TeamMark abbr={h.abbreviation ?? h.short.slice(0, 3)} color={h.color} size="sm" className="!size-[26px] !text-[10px]" />
-      </span>
-    </button>
-  );
-}
-
 /**
  * On TV (Phase 0's decision 7, the design round's step 7): the hub's door to the guide, a channel bug and a crawl, the Lower
  * Third's own form. The bug ("On TV", a live dot while something's on, "Guide") opens the guide on today; the row is this week's
  * cards in miniature, from what's on now or next, still (the motion is the guide's: the user, 2026-11-15), swiped by hand; a
  * card opens its show (the user, 2026-11-19). The first-time tour lights it (`data-guide`).
- * On a game day the couch's teams' games today lead the crawl (the sports check), each opening the guide on Sports.
+ * Sports games aren't here: they're on the scores strip right under it (docs/PLAN-sports-couch.md A1: hub/scores-strip.tsx), so a
+ * game is on the hub once.
  */
 export function OnTvRow({ home: read, couch }: { home: Home; couch: Couch | null }) {
   const page = usePushedPage("guide", ["day"]);
@@ -714,9 +667,10 @@ export function OnTvRow({ home: read, couch }: { home: Home; couch: Couch | null
   const reel = useRef<HTMLDivElement>(null);
   const { home, now, week, quietSports } = useGuideWeek(read, couch);
   const along = useOnNow(couch?.id ?? null).data?.now ?? [];
-  const cards = week.flatMap((d) => cardsOf(d).filter((c) => d.offset > 0 || c.endsAt > now).map((c) => ({ c, offset: d.offset })));
-  const games = useTeamsToday(couch?.id ?? null, now);
-  const live = cards.some(({ c }) => c.live && !(quietSports.has(c.seasonId) && c.at < now)) || games.some((g) => g.state === "in");
+  // A sport's games are on the scores strip under this row (hub/scores-strip.tsx): a game is on the hub once.
+  const sport = new Set([...home.shows, ...(home.couchShows ?? [])].filter((s) => s.show.kind === "sport").map((s) => s.seasonId));
+  const cards = week.flatMap((d) => cardsOf(d).filter((c) => (d.offset > 0 || c.endsAt > now) && !sport.has(c.seasonId)).map((c) => ({ c, offset: d.offset })));
+  const live = cards.some(({ c }) => c.live && !(quietSports.has(c.seasonId) && c.at < now));
   return (
     <HiddenSports.Provider value={quietSports}>
       <section data-guide data-on-tv={cards.length} className="mx-4 mt-3 flex h-[88px] items-stretch overflow-hidden rounded-[4px] bg-card">
@@ -738,23 +692,12 @@ export function OnTvRow({ home: read, couch }: { home: Home; couch: Couch | null
             <ArrowRight className="size-3.5" aria-hidden />
           </span>
         </button>
-        {cards.length || games.length ? (
+        {cards.length ? (
           <div
             ref={reel}
             data-guide-reel
             className="-ml-2 flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pl-3 pr-6 [scrollbar-width:none] [mask-image:linear-gradient(90deg,transparent,#000_12px,#000_calc(100%_-_28px),transparent)]"
           >
-            {games.map((g) => (
-              <span key={g.id} data-guide-day={0} className="contents">
-                <SportsMini
-                  g={g}
-                  onOpen={() => {
-                    setOnTv("sports");
-                    page.showWith({ day: "0" });
-                  }}
-                />
-              </span>
-            ))}
             {cards.map(({ c, offset }) => (
               <span key={c.key} data-guide-day={offset} className="contents">
                 <MiniCard

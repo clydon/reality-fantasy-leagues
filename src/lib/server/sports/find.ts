@@ -63,6 +63,15 @@ export async function listedTeam(league: string, team: string, opts: { providers
   return list && t ? teamHit(list, t, 100) : null;
 }
 
+/** A league someone may follow (docs/PLAN-sports-couch.md A3): a team sport's whose list the provider has, named as the list names
+ *  it; null otherwise (an event sport's tour, a league nobody lists, or the provider not answering). */
+export async function listedLeague(league: string, opts: { providers?: SportsProvider[] } = {}): Promise<{ league: string; leagueName: string } | null> {
+  if (!(sportOf(league) instanceof TeamSport)) return null;
+  const p = (opts.providers ?? sportsProviders())[0];
+  const list = p ? await listOf(p, league) : null;
+  return list ? { league, leagueName: leagueName(league, list.name) } : null;
+}
+
 /** The lists, read once a few minutes in a warm server (they're kept a week; a search reads them all). */
 let memo: { key: string; at: number; lists: TeamList[] } | null = null;
 const MEMO_MS = 10 * 60_000;

@@ -26,6 +26,7 @@ function read(): Set<string> {
 
 /** Show this game's score for the visit (and tell the server, for the seasons you follow with it). */
 export function showScore(id: string, league?: string) {
+  noteSeen(id);
   const s = new Set(read());
   s.add(id);
   shown = s;
@@ -36,6 +37,49 @@ export function showScore(id: string, league?: string) {
   }
   listeners.forEach((l) => l());
   if (league) void fetch("/api/sports/shown", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ league, event: id }) }).catch(() => {});
+}
+
+// The games you've seen on an earlier visit (docs/PLAN-sports-couch.md A1: a final stays on the hub's scores strip until you've
+// seen it): this phone's, kept a few days. A per-phone convenience, so localStorage: lost, a final shows again for its 36 hours.
+const SEEN = "gys-seen-games";
+const SEEN_KEEP_MS = 4 * 86_400_000;
+let seenAtLoad: Set<string> | null = null;
+
+function seenStore(): Record<string, number> {
+  try {
+    return JSON.parse(localStorage.getItem(SEEN) ?? "{}") as Record<string, number>;
+  } catch {
+    return {};
+  }
+}
+
+/** You've seen this game's score (shown it, or watched it live on the strip): for this visit, and so a later visit drops its final. */
+export function noteSeen(id: string) {
+  const s = new Set(read());
+  if (!s.has(id)) {
+    s.add(id);
+    shown = s;
+    try {
+      sessionStorage.setItem(KEY, JSON.stringify([...s]));
+    } catch {
+      /* private mode: kept in memory for the visit */
+    }
+    listeners.forEach((l) => l());
+  }
+  try {
+    const now = Date.now();
+    const kept = Object.fromEntries(Object.entries(seenStore()).filter(([, at]) => now - at < SEEN_KEEP_MS));
+    if (!kept[id]) localStorage.setItem(SEEN, JSON.stringify({ ...kept, [id]: now }));
+  } catch {
+    /* storage off: a final shows again next visit, for its 36 hours */
+  }
+}
+
+/** Whether you saw this game on an earlier visit (seen, and not shown again this one): the strip is done with its final. */
+export function seenBefore(id: string): boolean {
+  if (typeof window === "undefined") return false;
+  seenAtLoad ??= new Set(Object.keys(seenStore()));
+  return seenAtLoad.has(id) && !read().has(id);
 }
 
 const subscribe = (l: () => void) => {
@@ -54,9 +98,19 @@ export function useNow(): number {
   return now;
 }
 
-/** Whether you hide sports scores (Settings' Sports scores too; off by default). */
+/** Whether you hide sports scores (Settings' Sports scores too; off by default). Hidden until the profile read answers: reading it
+ *  as off for that moment drew a result someone hides on every sports screen (the hub's strip, the team sheet, a league's page;
+ *  BACKLOG 254 k), so the safe side is the default and a shown result arrives a moment later. A failed read falls back to off. */
 export function useHideSports(): boolean {
-  return !!useProfile().data?.hideSportsScores;
+  const p = useProfile();
+  return p.isFetched ? !!p.data?.hideSportsScores : true;
+}
+
+/** Whether Hide sports scores is known yet (the profile read has answered, or failed). Until then a screen can't tell whether to
+ *  hide, so it must neither show a result nor count one as seen (a live row's "watching it here is seeing it" would otherwise mark
+ *  a hidden game seen in the moment before the setting arrives: the Scores tab's check, 2026-11-22). */
+export function useHideSportsKnown(): boolean {
+  return useProfile().isFetched;
 }
 
 /** The games shown this visit. */

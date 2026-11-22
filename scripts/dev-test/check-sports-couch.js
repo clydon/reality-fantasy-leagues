@@ -18,6 +18,21 @@
 //   up), Start a game… (the team's games added, the gallery on them, Squares on just the next game, Every game left), Squares
 //   started and its page; the guide's Sports (the
 //   couch's team first, other games by league); Settings' Sports scores too. Nothing wider than the screen, no page errors.
+//   Following a league (docs/PLAN-sports-couch.md A3): the API's league follows and your team per league (leagueFollowChecks), and
+//   on screen the league sheet's follow row, search's league row with Follow, a league followed alone getting its card, Unfollow
+//   on its sheet, and Make them your team on a second team's sheet (leagueFollowBrowser).
+//   A league's page (docs/PLAN-sports-couch.md B1): league-now's week dates and the couch's table read (leaguePageChecks); on screen
+//   the league card opening the page, This week's table with your team's row and your games after it, the Scores tab, the bar's
+//   Follow, and a league followed alone getting its page (leagueFollowBrowser). story-league-page.js shoots its situations.
+//   Its Scores tab (B1 session 2): league-now's weeks and game days, the week read of one league alone and a longer week
+//   (leaguePageChecks); on screen the switcher on this week, the game on now as a full-width scorebug with its score, the week
+//   before (its final), and This week back. Its Games tab (B1 session 3): the couch's starts, your team's season (handing off to Start
+//   a game), no results. Its Standings tab (B1 session 4): the standings read (one group, in the league's order, records agreeing
+//   with the couch's table; a league with none: null), and on screen the tab with your team's row raised, its record, a row opening
+//   its splits and the team's sheet from there, and the whole table held for someone hiding sports scores. Its Chat tab (B1 session 5,
+//   migration 0314): the room's API (post to the room and to a game's thread, another member reading both with the thread's game and
+//   start, the badge and the read mark, react, edit and delete as the author, someone off the couch refused), and on screen the room,
+//   the thread chip, and for someone hiding sports scores the thread's talk since kickoff folded until Show the score.
 //
 //   npm run dev -- -p 3004   (the sports lane; BASE=http://localhost:3004)
 //   node scripts/dev-test/check-sports-couch.js <outDir> [--width=390] [--keep] [--api | --browser]
@@ -62,8 +77,8 @@ const TEAMS = [
 const EVENTS = [
   { league: FB, id: "93101", at: at(-14 * D), home: "9301", away: "9303", state: "post", score: [24, 17] },
   { league: FB, id: "93102", at: at(-7 * D), home: "9304", away: "9301", state: "post", score: [20, 10] },
-  { league: FB, id: "93103", at: at(-1 * H), home: "9304", away: "9301", state: "in", score: [10, 14] },
-  { league: FB, id: "93104", at: at(2 * D), home: "9301", away: "9302", state: "pre", odds: { details: "ZPHI -3.5", overUnder: 44.5, spread: -3.5 } },
+  { league: FB, id: "93103", at: at(-1 * H), home: "9304", away: "9301", state: "in", score: [10, 14], records: ["5-5", "7-3"], network: "FOX", clock: { period: 3, display: "6:41", detail: "6:41 - 3rd", possession: "9301", down: "2nd & 7" } },
+  { league: FB, id: "93104", at: at(2 * D), home: "9301", away: "9302", state: "pre", records: ["7-3", "6-4"], network: "CBS", odds: { details: "ZPHI -3.5", overUnder: 44.5, spread: -3.5 } },
   { league: FB, id: "93105", at: at(9 * D), home: "9303", away: "9301", state: "pre" },
   { league: FB, id: "93106", at: at(16 * D), home: "9301", away: "9304", state: "pre" },
   { league: FB, id: "93107", at: at(23 * D), home: "9302", away: "9301", state: "pre" },
@@ -78,6 +93,33 @@ const LEAGUE_NAMES = [
   { league: BB, name: "ZT Couch Basketball", short: "ZTCB" },
 ];
 
+// The league card's own (docs/PLAN-sports-couch.md A2): a stand-in baseball league in its off-season, apart from LEAGUES so the
+// scripts that read them see the two they always have; cleanup takes its rows too.
+const MB = "baseball/zt-scm";
+const MB_TEAMS = [{ id: "9501", name: "ZT Yankees", short: "Yankees", location: "ZT Bronx", abbreviation: "ZNYY", league: MB, color: "0c2340", roster: roster("95010", ["P", "C", "SS", "CF"]) }];
+const MB_NAME = { league: MB, name: "ZT Couch Baseball", short: "ZTCM" };
+// The stand-in's football table (B1's Standings): one conference of one division, each line counted from the finals above.
+const STANDINGS = { [FB]: { season: "2026", groups: [{ id: "zt-e", name: "ZTC East", abbreviation: "EAST", parent: { id: "zt-c", name: "ZTC Conference", abbreviation: "ZTC" }, teams: ["9304", "9303", "9302", "9301"] }] } };
+
+/**
+ * The stand-in's calendars around `now`, for the league card's week (A2): football's weeks with Week 12 holding today (ESPN's own
+ * labels, the playoffs' named), basketball's game days from five weeks back (its Monday-to-Sunday weeks), and baseball in its
+ * off-season with next season listed (as ESPN's bare scoreboard rolls over), back in about four months.
+ */
+function calendarsAround(t = now) {
+  const day = (ms) => `${new Date(ms).toLocaleDateString("en-CA", { timeZone: "America/New_York" })}T08:00Z`;
+  const w12 = t - 3 * D;
+  const week = (i) => ({ from: day(w12 + (i - 12) * 7 * D), to: day(w12 + (i - 11) * 7 * D) });
+  const POST = ["Wild Card", "Divisional Round", "Conference Championship", "Super Bowl"];
+  const weeks = [...Array.from({ length: 18 }, (_, i) => ({ type: 2, label: `Week ${i + 1}`, ...week(i + 1) })), ...POST.map((label, i) => ({ type: 3, label, ...week(19 + i) }))];
+  const bbDays = Array.from({ length: 25 }, (_, i) => day(t - 35 * D + i * 2 * D).slice(0, 10));
+  return {
+    [FB]: { season: 2026, label: "2026", now: 2, weeks, stages: [{ type: 2, name: "Regular Season", from: weeks[0].from, to: weeks[17].to }, { type: 3, name: "Postseason", from: weeks[18].from, to: weeks[21].to }] },
+    [BB]: { season: 2027, label: "2026-27", now: 2, days: bbDays, stages: [{ type: 2, name: "Regular Season", from: day(t - 35 * D), to: day(t + 140 * D) }, { type: 3, name: "Postseason", from: day(t + 150 * D), to: day(t + 210 * D) }] },
+    [MB]: { season: 2027, label: "2027", now: 4, days: [], stages: [{ type: 2, name: "Regular Season", from: day(t + 123 * D), to: day(t + 310 * D) }, { type: 3, name: "Postseason", from: day(t + 312 * D), to: day(t + 345 * D) }] },
+  };
+}
+
 let failures = 0;
 function check(ok, what, detail = "") {
   console.log(`${ok ? "PASS" : "FAIL"}  ${what}${!ok && detail ? `  (${typeof detail === "string" ? detail : JSON.stringify(detail).slice(0, 300)})` : ""}`);
@@ -86,17 +128,21 @@ function check(ok, what, detail = "") {
 
 /** Every row of ours: the leagues' shows (their seasons, episodes, follows and games go with them), events, links, follows, cache. */
 async function cleanup(pool) {
-  const like = LEAGUES.map((l) => `%:${l}`);
+  const LEAGUES_ = [...LEAGUES, MB];
+  const like = LEAGUES_.map((l) => `%:${l}`);
   const { rows: shows } = await pool.query("SELECT id, slug FROM shows WHERE sports_league LIKE ANY($1::text[])", [like]);
   const slugs = shows.map((s) => s.slug);
   if (slugs.length) {
     await pool.query("DELETE FROM leagues WHERE state->'settings'->>'showId' = ANY($1::text[])", [slugs]);
-    await pool.query("DELETE FROM season_events WHERE league = ANY($1::text[])", [LEAGUES]);
+    await pool.query("DELETE FROM season_events WHERE league = ANY($1::text[])", [LEAGUES_]);
     await pool.query("DELETE FROM shows WHERE id = ANY($1::uuid[])", [shows.map((s) => s.id)]);
   }
-  await pool.query("DELETE FROM sports_events WHERE league = ANY($1::text[])", [LEAGUES]);
-  await pool.query("DELETE FROM team_follows WHERE league = ANY($1::text[])", [LEAGUES]);
-  await pool.query("DELETE FROM sports_recordings WHERE league = ANY($1::text[])", [LEAGUES]);
+  await pool.query("DELETE FROM sports_events WHERE league = ANY($1::text[])", [LEAGUES_]);
+  await pool.query("DELETE FROM team_follows WHERE league = ANY($1::text[])", [LEAGUES_]);
+  await pool.query("DELETE FROM league_follows WHERE league = ANY($1::text[])", [LEAGUES_]);
+  await pool.query("DELETE FROM sports_recordings WHERE league = ANY($1::text[])", [LEAGUES_]);
+  await pool.query("DELETE FROM chat_messages WHERE sports_league = ANY($1::text[])", [LEAGUES_]);
+  await pool.query("DELETE FROM league_chat_reads WHERE league = ANY($1::text[])", [LEAGUES_]);
   await pool.query("DELETE FROM sports_cache WHERE key LIKE 'zt-standin:%'");
   await pool.query("UPDATE user_settings SET hide_sports_scores = false WHERE user_id IN (SELECT id FROM \"user\" WHERE username LIKE 'zt_nd_%')");
 }
@@ -105,12 +151,12 @@ async function main() {
   const pool = new Pool({ connectionString: DB });
   await cleanup(pool);
   const fx = await fixture.up(pool);
-  const espn = await fakeEspn.start({ teams: TEAMS, leagues: LEAGUE_NAMES, events: EVENTS });
+  const espn = await fakeEspn.start({ teams: [...TEAMS, ...MB_TEAMS], leagues: [...LEAGUE_NAMES, MB_NAME], events: EVENTS, calendars: calendarsAround(), standings: STANDINGS });
   const headers = { "x-gys-sports": espn.url };
   // The league shows a first add would make (find.ts reads the lists of any league a show's been made for).
   const { pool: appPool } = jiti("../../src/lib/server/db.ts");
   const { leagueShow } = jiti("../../src/lib/server/sports/matchup.ts");
-  for (const l of LEAGUE_NAMES) await leagueShow(appPool, "espn", l.league, "", null, { name: l.name, short: l.short });
+  for (const l of [...LEAGUE_NAMES, MB_NAME]) await leagueShow(appPool, "espn", l.league, "", null, { name: l.name, short: l.short });
   const alex = fixture.username("alex");
   const me = await signIn({ user: alex, pass: fixture.PASSWORD, headers });
   const couch = fx.couchId;
@@ -129,6 +175,111 @@ async function main() {
   }
   console.log(failures ? `\n${failures} FAILED` : "\nALL PASS");
   process.exit(failures ? 1 : 0);
+}
+
+/**
+ * Following a league (docs/PLAN-sports-couch.md A3; team-follows.ts): following a team follows its league and makes it your team
+ * there; a second team isn't, until you make it; your team passes on when it's unfollowed; a league follows alone (no team), and
+ * unfollowing one leaves its teams followed; the couch's read names who follows each league; a league nobody lists, or an event
+ * sport's, is a 404. Leaves alex following the Eagles and their league, as the checks after it expect.
+ */
+async function leagueFollowChecks(me, couch) {
+  const mine = async () => (await me.call("GET", "/api/sports/follow")).body;
+  let f = await mine();
+  check(f.leagues?.includes(FB) && f.teams?.find((t) => t.id === "9301")?.myTeam === true, "following a team follows its league, and it's your team there", f);
+  await me.call("POST", "/api/sports/follow", { league: FB, team: "9302", follow: true });
+  f = await mine();
+  check(f.teams?.find((t) => t.id === "9302")?.myTeam === false && f.teams.find((t) => t.id === "9301")?.myTeam, "a second team in the league isn't your team", f.teams);
+  const made = await me.call("POST", "/api/sports/follow", { league: FB, team: "9302", myTeam: true });
+  check(made.status === 200 && made.body.teams?.filter((t) => t.league === FB && t.myTeam).map((t) => t.id).join() === "9302", "Make them your team: one your team a league", made.body);
+  const notFollowed = await me.call("POST", "/api/sports/follow", { league: FB, team: "9303", myTeam: true });
+  check(notFollowed.status === 409, "a team you don't follow can't be your team", notFollowed.status);
+  await me.call("POST", "/api/sports/follow", { league: FB, team: "9302", follow: false });
+  f = await mine();
+  check(f.teams?.find((t) => t.id === "9301")?.myTeam === true, "unfollowing your team passes it to the next you followed there", f.teams);
+  // A league alone: no team, then off again.
+  const lf = await me.call("POST", "/api/sports/follow", { league: BB, follow: true });
+  check(lf.status === 200 && lf.body.leagues?.includes(BB) && !lf.body.teams?.some((t) => t.league === BB), "a league follows alone, no team needed", lf.body);
+  const ctl = await me.call("GET", `/api/sports/couch?couch=${couch}`);
+  const bbFans = ctl.body.leagues?.find((l) => l.league === BB);
+  check(bbFans?.you && bbFans.followers.length === 1, "the couch's read names who follows each league", ctl.body.leagues);
+  check(ctl.body.teams?.[0]?.id === "9301" && ctl.body.teams[0].myTeam, "the couch's teams: yours first, saying it's your team", ctl.body.teams?.[0]);
+  await me.call("POST", "/api/sports/follow", { league: BB, follow: false });
+  const off = await me.call("POST", "/api/sports/follow", { league: FB, follow: false });
+  check(!off.body.leagues?.includes(FB) && off.body.teams?.some((t) => t.id === "9301"), "unfollowing a league leaves its teams followed", off.body);
+  await me.call("POST", "/api/sports/follow", { league: FB, follow: true });
+  const golf = await me.call("POST", "/api/sports/follow", { league: "golf/pga", follow: true });
+  const nobody = await me.call("POST", "/api/sports/follow", { league: "football/zt-nobody", follow: true });
+  check(golf.status === 404 && nobody.status === 404, "an event sport's league, or one nobody lists, can't be followed", [golf.status, nobody.status]);
+  const bad = await me.call("POST", "/api/sports/follow", { league: FB, follow: "yes" });
+  check(bad.status === 400, "a follow says yes or no", bad.status);
+}
+
+/**
+ * A league's page (docs/PLAN-sports-couch.md B1): league-now says its week's first and last day, and the couch's table read answers
+ * each team's record and last five from its schedule (the Eagles beat the Giants two weeks back and lost at the Jets last week) and
+ * the meetings among the teams asked, away first with the winner; a read with no teams, or too many, is refused.
+ */
+async function leaguePageChecks(me) {
+  const ln = (await me.call("GET", `/api/sports/league/now?league=${FB}`)).body;
+  const day = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  check(ln.week === "Week 12" && ln.from && ln.to && ln.from <= day && day <= ln.to, "league-now: the week's first and last day hold today", ln);
+  const t = await me.call("GET", `/api/sports/league/teams?league=${FB}&teams=9301,9303,9304`);
+  const e = t.body.teams?.find((x) => x.id === "9301");
+  check(t.status === 200 && e?.w === 1 && e.l === 1 && e.t === 0 && e.form.map((f) => `${f.id}${f.result}`).join() === "93101W,93102L", "the couch's table: the Eagles 1-1, their last two in order", e);
+  const m = e?.meetings?.find((x) => x.id === "93101");
+  check(m?.away === "9303" && m.home === "9301" && m.score?.join() === "17,24" && m.winner === "9301" && e.meetings.some((x) => x.id === "93105" && !x.final), "meetings among the teams asked: away first, the winner, the ones to come", e?.meetings);
+  const none = await me.call("GET", `/api/sports/league/teams?league=${FB}&teams=`);
+  const many = await me.call("GET", `/api/sports/league/teams?league=${FB}&teams=${Array.from({ length: 17 }, (_, i) => 9000 + i).join(",")}`);
+  check(none.status === 400 && many.status === 400, "the table read asks for some teams, at most 16", [none.status, many.status]);
+  // Scores (B1 session 2): the switcher's weeks and game days, and a week of one league alone, up to 14 days.
+  check(ln.weeks?.some((w) => w.label === "Week 12" && w.from === ln.from) && ln.weeks.at(-1)?.label === "Super Bowl" && ln.days?.length === 0, "league-now: football's every week, now's among them", ln.weeks?.map((w) => w.label));
+  const bn = (await me.call("GET", `/api/sports/league/now?league=${BB}`)).body;
+  check(bn.weeks?.length === 0 && bn.days?.length > 0, "league-now: a daily sport's game days", bn.days?.length);
+  const to = new Date(Date.parse(`${ln.from}T12:00:00Z`) + 9 * 86_400_000).toISOString().slice(0, 10);
+  const one = await me.call("GET", `/api/sports/week?from=${ln.from}&also=${FB}&only=1&to=${to}`);
+  const leagues = new Set((one.body.days ?? []).flatMap((d) => d.games.map((g) => g.league)));
+  check(one.status === 200 && one.body.days?.length === 10 && [...leagues].every((l) => l === FB) && leagues.size === 1, "the week read of one league alone, ten days asked", { days: one.body.days?.length, leagues: [...leagues] });
+  // Standings (B1 session 4): the league's table, its teams in the league's order (the stand-in lists them unordered), each
+  // team's record as the couch's table counts it, our colours on them; a league with no table: null.
+  const st = await me.call("GET", `/api/sports/league/standings?league=${FB}`);
+  const g = st.body.standings?.groups?.[0];
+  const eagles = g?.entries?.find((x) => x.team === "9301");
+  check(st.status === 200 && st.body.standings.parents.length === 1 && g?.entries.length === 4 && eagles?.record === `${e?.w}-${e?.l}` && eagles.color === "004c54" && eagles.seed != null, "the standings read: one division, the Eagles' record as the couch's table has it, their colour", { g: g?.entries?.map((x) => [x.short, x.record, x.seed]) });
+  const nb = await me.call("GET", `/api/sports/league/standings?league=${BB}`);
+  check(nb.status === 200 && nb.body.standings === null, "a league with no table: null", nb.body);
+}
+
+/** A league's room (B1 session 5; league-chat.ts): leaves one room message and one thread message from Riley, for the browser. */
+async function roomChecks(me, couch) {
+  const url = (rest = "") => `/api/sports/league/chat${rest}?league=${encodeURIComponent(FB)}&couch=${couch}`;
+  const riley = await signIn({ user: fixture.username("riley"), pass: fixture.PASSWORD, headers: me.headers });
+  const live = EVENTS.find((e) => e.id === "93103");
+  const room = await me.call("POST", url(), { text: "ZT room: Sunday's here" });
+  const said = await riley.call("POST", url(), { text: "ZT thread: what a catch", event: live.id, eventAt: live.at, eventName: "Eagles at Jets" });
+  check(room.status === 200 && room.body.message?.event === null && said.status === 200 && said.body.message?.event === "93103" && said.body.message.eventName === "Eagles at Jets", "the room: a message to the room and one in a game's thread", [room.status, said.status, said.body.message?.event]);
+  const got = (await me.call("GET", url())).body;
+  const t = got.messages?.find((m) => m.id === said.body.message?.id);
+  check(got.messages?.length >= 2 && t?.eventAt && Date.parse(t.eventAt) === Date.parse(live.at) && got.you?.canPost, "another member reads both, the thread's game and its start with it", { n: got.messages?.length, t });
+  const again = await me.call("GET", url() + `&v=${got.v}`);
+  check(again.body.unchanged === true, "an unchanged room answers its version alone (the 5-second poll)");
+  const unread = (await me.call("GET", url("/unread"))).body.unread;
+  await me.call("POST", url("/read"), { at: t?.at });
+  const after = (await me.call("GET", url("/unread"))).body.unread;
+  check(unread >= 1 && after === 0, "the badge counts Riley's message, and reading clears it", [unread, after]);
+  const react = await me.call("POST", url(`/${said.body.message.id}/react`), { emoji: "🔥" });
+  const reacted = (await me.call("GET", url())).body.messages.find((m) => m.id === said.body.message.id);
+  // Someone else's (Sam's try at Riley's): refused. The couch's owner (alex here) may change anyone's, as in the show's Chat.
+  const sam = await signIn({ user: fixture.username("sam"), pass: fixture.PASSWORD });
+  const edit = await sam.call("PATCH", url(`/${said.body.message.id}`), { text: "not mine" });
+  const mine = await me.call("PATCH", url(`/${room.body.message.id}`), { text: "ZT room: Sunday's here!" });
+  check(react.status === 200 && reacted?.reactions?.["🔥"]?.count === 1 && edit.status === 403 && mine.status === 200, "react; edit your own, not someone else's", [react.status, edit.status, mine.status]);
+  const extra = await me.call("POST", url(), { text: "ZT delete me" });
+  const del = await me.call("DELETE", url(`/${extra.body.message.id}`));
+  check(del.status === 200 && !(await me.call("GET", url())).body.messages.some((m) => m.id === extra.body.message.id), "delete your own");
+  const casey = await signIn({ user: fixture.username("casey"), pass: fixture.PASSWORD, headers: me.headers }).catch(() => null);
+  const off = casey ? await casey.call("GET", `/api/sports/league/chat?league=${encodeURIComponent(FB)}&couch=00000000-0000-4000-8000-000000000000`) : { status: 404 };
+  check(off.status === 404 || off.status === 403, "a couch you're not on: refused", off.status);
 }
 
 async function apiChecks(pool, me, couch, started) {
@@ -150,10 +301,30 @@ async function apiChecks(pool, me, couch, started) {
   check(bad.status === 404, "following a team the list doesn't have is a 404", bad.status);
   const ct = await me.call("GET", `/api/sports/couch?couch=${couch}`);
   check(ct.body.teams?.[0]?.id === "9301" && ct.body.teams[0].you && ct.body.teams[0].followers.length === 1, "the couch's teams: yours first, with who follows", ct.body);
+  await leagueFollowChecks(me, couch);
+  await leaguePageChecks(me);
+  await roomChecks(me, couch);
 
   const wk = await me.call("GET", `/api/sports/week?also=${FB},${BB}`);
   const games = (wk.body.days ?? []).flatMap((d) => d.games);
   check(games.some((g) => g.id === "93103" && g.state === "in") && games.some((g) => g.id === "94101"), "the guide's week has the game on now and tomorrow's", games.map((g) => g.id));
+  // The scores strip's data (docs/PLAN-sports-couch.md A1): each side's record, the network and the line in words (never the book's
+  // name), the clock of a game on; and the small live read of a game on, football's ball and down.
+  const g4 = games.find((g) => g.id === "93104");
+  const g3 = games.find((g) => g.id === "93103");
+  check(g4?.network === "CBS" && g4.line === "ZPHI by 3.5" && g4.sides.map((s) => s.record).join() === "6-4,7-3" && !JSON.stringify(g4).includes("ZT Book"), "the week's game: records, network, the line in words, no book", g4);
+  check(g3?.clock?.period === 3 && g3.clock.display === "6:41" && g3.line === null, "a game on: its period and clock, no line", g3?.clock);
+  const nowRead = await me.call("GET", `/api/sports/now?league=${FB}&event=93103`);
+  check(nowRead.status === 200 && nowRead.body.possession === "9301" && nowRead.body.down === "2nd & 7" && nowRead.body.scores?.["9301"] === 14 && JSON.stringify(nowRead.body).length < 600, "the small live read: score, ball and down, small", nowRead.body);
+
+  // Where a league's season is today, for its card in Your shows (A2: league-now.ts): football's own week, a daily sport's
+  // Monday-to-Sunday one, the off-season with when it's back; edge-kept, the same for everyone.
+  const [fbNow, bbNow, mbNow] = await Promise.all([FB, BB, MB].map((l) => me.call("GET", `/api/sports/league/now?league=${l}`)));
+  check(fbNow.status === 200 && fbNow.body.on && fbNow.body.stage === "regular" && fbNow.body.week === "Week 12" && fbNow.body.leagueName === "ZTCF", "a league's now: football's own week", fbNow.body);
+  check(bbNow.status === 200 && bbNow.body.on && /^Week \d+$/.test(bbNow.body.week ?? "") && bbNow.body.season === "2026-27", "a league's now: a daily sport's week and its season", bbNow.body);
+  check(mbNow.status === 200 && !mbNow.body.on && mbNow.body.week === null && /^\d{4}-\d{2}-\d{2}$/.test(mbNow.body.back ?? ""), "a league's now: the off-season, and when it's back", mbNow.body);
+  const fbRaw = await me.raw("GET", `/api/sports/league/now?league=${FB}`);
+  check(/public, s-maxage=600/.test(fbRaw.headers.get("cache-control") ?? ""), "a league's now is the same for everyone, kept at the edge", fbRaw.headers.get("cache-control"));
 
   const rail = await me.call("GET", `/api/sports/start?league=${FB}&count=1`);
   check(rail.body.games?.[0]?.id === "pickem" && rail.body.games.every((g) => !g.why), "the rail: Pick'em first, every game fitting one game", rail.body.games?.map((g) => [g.id, g.why]));
@@ -163,6 +334,11 @@ async function apiChecks(pool, me, couch, started) {
   // an archive and a record), that game only.
   const p = await me.call("POST", `/api/sports/start?couch=${couch}`, { league: FB, team: "9301", games: ["93104"], game: "pickem", tell: false });
   const nextEp = p.body.seasonId ? (await pool.query("SELECT episode FROM season_events WHERE season_id = $1 AND event_id = '93104'", [p.body.seasonId])).rows[0]?.episode : null;
+  // The strip's games you play (/api/sports/mine): that one game, by its id, no pick yet.
+  const mine = await me.call("GET", "/api/sports/mine");
+  check(mine.status === 200 && mine.body.games?.some((x) => x.event === "93104" && x.seasonId === p.body.seasonId && x.pick === null) && !mine.body.games.some((x) => x.event === "93105"), "your games: the Pick'em's one game, no pick yet, not its season's others", mine.body);
+  // The league card's (A2): which league each sports season of a game of yours or your couch's is in.
+  check(!!p.body.seasonId && mine.body.seasons?.some((x) => x.seasonId === p.body.seasonId && x.league === FB), "your games: their seasons, each with its league", mine.body.seasons);
   check(p.status === 200 && p.body.leagueId && Number.isInteger(nextEp) && p.body.from === nextEp && p.body.to === nextEp && /season/i.test(p.body.season ?? ""), `Play the next game starts Pick'em on that one game, on the Eagles' season (its Game ${nextEp})`, p.body);
   // Its game as the engine reads it (gameOf: the spec, from the league's settings).
   const StateLogic = require("../../src/lib/game/state-logic.js");
@@ -268,10 +444,92 @@ async function apiChecks(pool, me, couch, started) {
   }
 }
 
+/**
+ * Following a league on screen (A3), from the NFL-like league's sheet the card just opened: its follow row first (Following, the
+ * line naming the Eagles as why, never the yellow); then Add a show's search for the basketball league: Follow on its row puts it
+ * on your shows (its card in Your shows), and the league's sheet says so; Unfollow there takes it off. Then your team: alex follows
+ * the Cowboys too, whose sheet offers Make them your team, and once made says "Your ZTCF team". Leaves alex as it found them (the
+ * Eagles, their league, no Cowboys, no basketball league).
+ */
+async function leagueFollowBrowser(page, shot, wide, headers) {
+  const me = await signIn({ user: fixture.username("alex"), pass: fixture.PASSWORD, headers });
+  // The league's page (B1) keeps its Follow in its bar, as a show's bar does: Following, never yellow.
+  const row = await page.evaluate(() => {
+    const t = document.querySelector('[data-league-bar] [data-follow-toggle="league-bar"]');
+    return { pressed: t?.getAttribute("aria-pressed"), yellow: !!t && /bg-chyron|bg-primary/.test(t.className) };
+  });
+  check(row.pressed === "true" && !row.yellow, "the league's page: Following in its bar, never yellow", row);
+  await shot("7-league-follow-row");
+
+  // Search: the basketball league's row, Follow in the chevron's slot.
+  await page.goto(BASE + "/home?page=guide", { waitUntil: "networkidle" });
+  await page.evaluate(() => document.querySelector("[data-guide-add]")?.scrollIntoView());
+  await page.click("[data-guide-add]");
+  await page.fill("[data-add-input]", "zt couch basketball");
+  const lrow = page.locator(`[data-league-row="${BB}"]`);
+  const found = await lrow.waitFor({ timeout: 15000 }).then(() => true, () => false);
+  check(found, "search finds the league, its row with Follow");
+  if (found) {
+    const r = await lrow.evaluate((el) => ({ chevron: !!el.querySelector("svg.lucide-chevron-right"), toggle: el.querySelector("[data-follow-toggle]")?.textContent, nested: !!el.querySelector("button button") }));
+    check(!r.chevron && r.toggle === "Follow" && !r.nested, "the league's row: Follow where the chevron was, its own button", r);
+    await wide("search with a league's Follow");
+    await lrow.locator("[data-follow-toggle]").click();
+    await page.waitForFunction((bb) => document.querySelector(`[data-league-row="${bb}"] [data-follow-toggle]`)?.getAttribute("aria-pressed") === "true", BB, { timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(600);
+    check((await me.call("GET", "/api/sports/follow")).body.leagues?.includes(BB), "Follow on the row follows the league");
+    await shot("8-search-league-following");
+    // Its card in Your shows, no team needed.
+    await page.goto(BASE + "/home", { waitUntil: "load" });
+    const card = await page.locator(`[data-your-shows] [data-league-card="${BB}"]`).waitFor({ timeout: 20000 }).then(() => true, () => false);
+    check(card, "a league followed alone has its card in Your shows");
+    if (card) {
+      await page.locator(`[data-league-card="${BB}"]`).click();
+      const bar = `[data-league-bar="${BB}"] [data-follow-toggle]`;
+      await page.locator(`${bar}[aria-pressed="true"]`).waitFor({ timeout: 15000 }).catch(() => {});
+      check((await page.getAttribute(bar, "aria-pressed").catch(() => null)) === "true", "its page opens, Following in its bar");
+      const empty = await page.locator("[data-couch-table-empty]").waitFor({ timeout: 15000 }).then(() => true, () => false);
+      check(empty, "no team followed there: This week says nobody on the couch follows one");
+      await page.click(bar);
+      await page.locator(`${bar}[aria-pressed="false"]`).waitFor({ timeout: 8000 }).catch(() => {});
+      await page.waitForTimeout(400);
+      check(!(await me.call("GET", "/api/sports/follow")).body.leagues?.includes(BB), "Unfollow in the page's bar stops following the league");
+      await shot("9-league-unfollowed");
+    }
+  }
+  await me.call("POST", "/api/sports/follow", { league: BB, follow: false });
+
+  // Your team: a second team in the league offers Make them your team; made, it says so.
+  await me.call("POST", "/api/sports/follow", { league: FB, team: "9302", follow: true });
+  await page.goto(BASE + "/home?page=guide", { waitUntil: "networkidle" });
+  await page.evaluate(() => document.querySelector("[data-guide-add]")?.scrollIntoView());
+  await page.click("[data-guide-add]");
+  await page.fill("[data-add-input]", "zt cowboys");
+  await page.waitForSelector('[data-hit-kind="team"]', { timeout: 15000 });
+  await page.click('[data-hit-kind="team"][data-hit="ZT Cowboys"]');
+  const make = await page.locator("[data-make-my-team]").waitFor({ timeout: 15000 }).then(() => true, () => false);
+  check(make, "a second team you follow in a league offers Make them your team");
+  await shot("10-team-make-mine");
+  if (make) {
+    await page.click("[data-make-my-team]");
+    await page.locator("[data-team-follow][data-my-team]").waitFor({ timeout: 8000 }).catch(() => {});
+    const line = await page.textContent("[data-team-follow-line]");
+    check(/^Your ZTCF team/.test(line) && !(await page.$("[data-make-my-team]")), "made, the sheet says it's your team", line);
+    check((await me.call("GET", "/api/sports/follow")).body.teams?.find((t) => t.id === "9302")?.myTeam === true, "the Cowboys are your team in the league");
+    await shot("11-team-is-mine");
+  }
+  await page.keyboard.press("Escape");
+  await me.call("POST", "/api/sports/follow", { league: FB, team: "9302", follow: false });
+  await me.call("POST", "/api/sports/follow", { league: FB, follow: true });
+}
+
 async function browserChecks(pool, headers, couch) {
   console.log(`— browser at ${width}`);
   await pool.query("INSERT INTO user_settings (user_id) SELECT id FROM \"user\" WHERE username = $1 ON CONFLICT (user_id) DO NOTHING", [fixture.username("alex")]);
   await pool.query("UPDATE user_settings SET hide_sports_scores = true WHERE user_id = (SELECT id FROM \"user\" WHERE username = $1)", [fixture.username("alex")]);
+  // Alex follows the Eagles (the API half does too; --browser alone starts here).
+  await (await signIn({ user: fixture.username("alex"), pass: fixture.PASSWORD, headers })).call("POST", "/api/sports/follow", { league: FB, team: "9301", follow: true });
+  // And the Yankees, in their off-season (the league card's one line, A2).
+  await (await signIn({ user: fixture.username("alex"), pass: fixture.PASSWORD, headers })).call("POST", "/api/sports/follow", { league: MB, team: "9501", follow: true });
   const { page, errors, close } = await open({ user: fixture.username("alex"), pass: fixture.PASSWORD, width, headers });
   const shot = (name) => page.screenshot({ path: path.join(outDir, `${name}-${width}.png`), fullPage: false });
   const wide = async (what) => {
@@ -279,8 +537,182 @@ async function browserChecks(pool, headers, couch) {
     check(w[0] <= w[1], `${what}: nothing wider than the screen`, w);
   };
   try {
-    // The guide is its own page over the hub now (?page=guide), its Add a show in its header.
-    await page.goto(BASE + "/home?page=guide", { waitUntil: "networkidle" });
+    // The hub's scores strip (docs/PLAN-sports-couch.md A1): right after On TV, its height; the Scoreboard gone from Your shows and
+    // the sports cards from On TV, so a game is on the hub once; scores hidden, the game on says only Started, no numbers.
+    await page.goto(BASE + "/home", { waitUntil: "load" });
+    await page.locator("[data-scores-strip]").waitFor({ timeout: 30_000 });
+    await page.waitForTimeout(1500);
+    const hub = await page.evaluate(() => {
+      const s = document.querySelector("[data-scores-strip]");
+      const tv = document.querySelector("[data-on-tv]");
+      const bug = s?.querySelector('[data-bug="93103"]');
+      return {
+        strip: s?.getBoundingClientRect().height,
+        tv: tv?.getBoundingClientRect().height,
+        after: !!tv && tv.nextElementSibling === s,
+        scoreboard: document.querySelectorAll("[data-scoreboard], [data-score-card]").length,
+        tvSports: document.querySelectorAll('[data-on-tv] [data-guide-card^="sport:"]').length,
+        bucket: bug?.getAttribute("data-bucket"),
+        words: bug?.textContent ?? "",
+      };
+    });
+    check(hub.strip === 88 && hub.tv === 88 && hub.after, "the scores strip: right after On TV, at its height (88 px)", hub);
+    check(hub.scoreboard === 0 && hub.tvSports === 0, "no Scoreboard in Your shows, no sports cards in On TV", hub);
+    // A kickoff's minutes ("Started 2:10 PM") are never the score: neither number counts next to a colon.
+    check(hub.bucket === "started" && /Started/.test(hub.words) && !/(?<!:)\b14\b(?!:\d)|(?<!:)\b10\b(?!:\d)|6:41|Q3/.test(hub.words), "scores hidden: the game on says Started, no score, clock or quarter", hub.words);
+    await wide("the hub with the strip");
+    await shot("0-hub-strip-hidden");
+    await page.click('[data-bug="93103"]');
+    check(await page.locator('[data-score-ask="93103"]').isVisible({ timeout: 5000 }).catch(() => false), "a hidden game's bug asks before anything shows");
+    await page.keyboard.press("Escape");
+    // BACKLOG 254 (k): until the profile read answers, Hide sports scores isn't known, and every sports screen holds results. The
+    // profile held back (up to 8 s): the strip's game on still says Started, and a league's page shows no record.
+    let release = () => {};
+    const held = new Promise((r) => (release = r));
+    const hold = async (route) => {
+      await Promise.race([held, new Promise((r) => setTimeout(r, 8000))]);
+      await route.continue().catch(() => {});
+    };
+    await page.route("**/api/me/profile", hold);
+    try {
+      await page.goto(BASE + "/home", { waitUntil: "load" });
+      await page.locator('[data-bug="93103"]').waitFor({ timeout: 8000 });
+      const early = await page.evaluate(() => {
+        const bug = document.querySelector('[data-bug="93103"]');
+        return { bucket: bug?.getAttribute("data-bucket"), label: bug?.getAttribute("aria-label") ?? "", words: bug?.textContent ?? "" };
+      });
+      check(early.bucket === "started" && !/14 to 10|third quarter/.test(early.label), "before the profile answers: the strip's game on says Started, no score", early);
+      await page.goto(BASE + `/league/${FB}/week`, { waitUntil: "load" });
+      await page.locator("[data-couch-table]").waitFor({ timeout: 8000 });
+      const table = (await page.textContent("[data-couch-table]")) ?? "";
+      check(!/\b\d{1,2}[–-]\d{1,2}\b/.test(table), "before the profile answers: a league's table shows no record", table.slice(0, 160));
+    } finally {
+      release();
+      await page.unroute("**/api/me/profile", hold);
+    }
+    // Scores shown: the strip's game on is live, its score, quarter, clock, the ball and the down from the small live read.
+    await pool.query("UPDATE user_settings SET hide_sports_scores = false WHERE user_id = (SELECT id FROM \"user\" WHERE username = $1)", [fixture.username("alex")]);
+    await page.goto(BASE + "/home", { waitUntil: "load" });
+    await page.locator('[data-bug="93103"][data-bucket="live"]').waitFor({ timeout: 30_000 });
+    await page.locator('[data-bug="93103"] [data-bug-ball]').waitFor({ timeout: 20_000 }).catch(() => {});
+    const liveBug = await page.getAttribute('[data-bug="93103"]', "aria-label");
+    check(/14 to 10/.test(liveBug) && /third quarter, 6:41/.test(liveBug) && /Eagles' ball, 2nd and 7/.test(liveBug) && (await page.locator('[data-scores-strip] [data-bug-live]').count()) === 1 && /1 live/.test(await page.textContent("[data-scores-open]")), "scores shown: the game on is live, with its score, clock, ball and down", liveBug);
+    await shot("10-hub-strip-live");
+    // The league card in Your shows (A2): among the bands, 72 px, the league, its week, the couch's teams as marks (the Eagles
+    // yours, ringed), one line; never a live score or red. The Yankees' league in its off-season, one 48 px line. A tap opens the
+    // league's sheet.
+    await page.locator(`[data-your-shows] [data-league-card="${FB}"]`).waitFor({ timeout: 20_000 });
+    const cards = await page.evaluate(([fb, mb]) => {
+      const c = document.querySelector(`[data-your-shows] [data-league-card="${fb}"]`);
+      const off = document.querySelector(`[data-your-shows] [data-league-card="${mb}"]`);
+      return {
+        h: c?.getBoundingClientRect().height,
+        words: c?.textContent ?? "",
+        you: !!c?.querySelector('[data-league-mark="you"]'),
+        red: !!c?.querySelector('[class*="bg-live"], [class*="text-live"]'),
+        offH: off?.getBoundingClientRect().height,
+        offOn: off?.hasAttribute("data-league-off"),
+        offWords: off?.textContent ?? "",
+        among: !!c?.closest("[data-your-shows]")?.querySelector("[data-band]"),
+      };
+    }, [FB, MB]);
+    check(cards.h === 72 && /ZTCF/.test(cards.words) && /Week 12/.test(cards.words) && cards.you && !cards.red && !/14|6:41/.test(cards.words), "the league card: 72 px, its league and week, your team's mark, no score, no red", cards);
+    check(cards.among, "the league card sits among the show bands");
+    check(cards.offH === 48 && cards.offOn && /Off-season/.test(cards.offWords) && /Yankees/.test(cards.offWords) && /back /.test(cards.offWords), "off-season: one 48 px line with the team and when it's back", cards);
+    // B1: the tap opens the league's page on This week: the couch's table with your team's row, your games in the league after the
+    // table (the API half started Squares on the Eagles' season), then starting another.
+    await page.locator(`[data-league-card="${FB}"]`).click();
+    const paged = await page.locator(`[data-league-bar="${FB}"]`).waitFor({ timeout: 15000 }).then(() => true, () => false);
+    check(paged && page.url().endsWith(`/league/${FB}/week`), "a tap opens the league's page on This week", page.url());
+    await page.locator('[data-couch-team="9301"]').waitFor({ timeout: 20000 }).catch(() => {});
+    const lead = await page.evaluate(() => {
+      const t = document.querySelector("[data-couch-table]");
+      const y = document.querySelector("[data-league-yours]");
+      const w = document.querySelector("[data-league-start]");
+      const after = (a, b) => !!a && !!b && !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+      return { mine: !!document.querySelector('[data-couch-team="9301"][data-yours]'), rows: y?.querySelectorAll("[data-open-row]").length ?? 0, order: after(t, y) && after(y, w) };
+    });
+    check(lead.mine && (only !== null || (lead.rows > 0 && lead.order)), "This week: your team's row, then your games in the league, then starting one", lead);
+    await wide("the league's page");
+    await shot("6b-league-page");
+    await page.click('nav[aria-label="League"] a[href$="/scores"]');
+    check(await page.locator("[data-scores-switcher]").waitFor({ timeout: 15000 }).then(() => true, () => false), "its Scores tab: the week switcher");
+    await page.locator('[data-league-scores] [data-bug="93103"]').waitFor({ timeout: 15000 }).catch(() => {});
+    const sc = await page.evaluate(() => {
+      const chosen = document.querySelector('[data-step][aria-pressed="true"]');
+      const bug = document.querySelector('[data-league-scores] [data-bug="93103"]');
+      return { now: chosen?.hasAttribute("data-now"), bucket: bug?.getAttribute("data-bucket"), h: bug ? Math.round(bug.getBoundingClientRect().height) : 0, w: bug ? Math.round(bug.getBoundingClientRect().width) : 0, label: bug?.getAttribute("aria-label") ?? "" };
+    });
+    check(sc.now && sc.bucket === "live" && sc.h === 72 && sc.w > 300 && /14 to 10/.test(sc.label), "Scores opens on this week, the game on now a full-width scorebug with its score", sc);
+    const prev = await page.evaluate(() => {
+      const all = [...document.querySelectorAll("[data-step]")];
+      const i = all.findIndex((e) => e.hasAttribute("data-now"));
+      all[i - 1]?.click();
+      return all[i - 1]?.getAttribute("data-step");
+    });
+    const last = await page.locator('[data-league-scores] [data-bug="93102"]').waitFor({ timeout: 15000 }).then(() => page.locator('[data-league-scores] [data-bug="93102"]').getAttribute("data-bucket"), () => null);
+    check(!!prev && last === "final", "the week before: its final", { prev, last });
+    await page.click("[data-scores-now]");
+    check(await page.locator('[data-step][aria-pressed="true"][data-now]').waitFor({ timeout: 5000 }).then(() => true, () => false), "This week takes it back to now");
+    // Games (B1 session 3): your games here, the couch's starts, your team's season; its Start a game hands off.
+    await page.click('nav[aria-label="League"] a[href$="/games"]');
+    await page.locator("[data-league-games-tab]").waitFor({ timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(2500);
+    const gt = await page.evaluate(() => ({
+      couch: !!document.querySelector("[data-games-couch] [data-league-start]"),
+      team: !!document.querySelector('[data-games-team-season="9301"]'),
+      results: /d+[–-]d+/.test(document.querySelector("[data-league-games-tab]")?.textContent ?? ""),
+    }));
+    check(gt.couch && gt.team && !gt.results, "its Games tab: the couch's starts, your team's season, no results", gt);
+    await page.click('[data-games-team-season="9301"]');
+    check(await page.locator("[data-sport-handoff]").waitFor({ timeout: 10000 }).then(() => true, () => false), "a team's season row hands off to Start a game");
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(800);
+    // Standings (B1 session 4): the table, your team's row raised with its record; a row opens its splits, and the team's sheet.
+    await page.click('nav[aria-label="League"] a[href$="/standings"]');
+    const rowAt = page.locator('[data-standing-row="9301"]');
+    const drawn = await rowAt.waitFor({ timeout: 15000 }).then(() => true, () => false);
+    const sr = drawn ? await page.evaluate(() => {
+      const r = document.querySelector('[data-standing-row="9301"]');
+      return { yours: r?.hasAttribute("data-yours"), label: r?.getAttribute("aria-label") ?? "", h: r?.getBoundingClientRect().height, rows: document.querySelectorAll("[data-standing-row]").length };
+    }) : null;
+    check(!!sr && sr.yours && /W-L \d+-\d+/.test(sr.label) && sr.rows === 4 && sr.h >= 44 && sr.h <= 64, "its Standings tab: four rows, the Eagles yours with their record (faces on the line under the name)", sr);
+    await wide("the Standings tab");
+    await shot("standings");
+    await rowAt.click();
+    check(await page.locator('[data-standings-splits="9301"]').waitFor({ timeout: 5000 }).then(() => true, () => false), "a row opens its splits in place");
+    await page.click('[data-standings-team="9301"]');
+    check(await page.locator("[data-team-view]").waitFor({ timeout: 10000 }).then(() => true, () => false), "Open the Eagles: the team's sheet");
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(800);
+    // Chat (B1 session 5): the room, its thread chip for the game on now; then hidden (below) folds the thread's talk.
+    await page.click('nav[aria-label="League"] a[href$="/chat"]');
+    const roomUp = await page.locator("[data-league-chat] [data-msg]").first().waitFor({ timeout: 15000 }).then(() => true, () => false);
+    const roomSeen = roomUp ? await page.evaluate(() => ({ text: document.querySelector("[data-league-chat]")?.textContent ?? "", chip: !!document.querySelector('[data-threads] [data-thread="93103"]'), about: document.querySelector("[data-about]")?.getAttribute("data-about") })) : null;
+    check(!!roomSeen && /Sunday's here/.test(roomSeen.text) && /what a catch/.test(roomSeen.text) && roomSeen.chip && roomSeen.about === "93103", "its Chat tab: the room, the thread's chip, About the game on now over the composer", roomSeen);
+    await wide("the Chat tab");
+    await shot("chat");
+    await leagueFollowBrowser(page, shot, wide, headers);
+    // Seen live on the strip counts as shown for the visit (scores.tsx noteSeen): forget it, so the sheet below starts hidden.
+    await page.evaluate(() => sessionStorage.removeItem("gys-shown-scores"));
+    await pool.query("UPDATE user_settings SET hide_sports_scores = true WHERE user_id = (SELECT id FROM \"user\" WHERE username = $1)", [fixture.username("alex")]);
+    // Standings hidden: one Show over the whole table, no row and no record drawn.
+    await page.goto(BASE + `/league/${FB}/standings`, { waitUntil: "load" });
+    const tableHeld = await page.locator("[data-standings-hidden]").waitFor({ timeout: 15000 }).then(() => true, () => false);
+    check(tableHeld && (await page.locator("[data-standing-row]").count()) === 0 && !/\b\d+-\d+\b/.test((await page.textContent("[data-league-tab]")) ?? ""), "scores hidden: the Standings tab holds the whole table behind one Show");
+    // Chat hidden: Riley's talk in the game's thread since kickoff is one fold; Show the score lets it out.
+    await page.goto(BASE + `/league/${FB}/chat`, { waitUntil: "load" });
+    const folded = await page.locator('[data-room-fold="93103"]').waitFor({ timeout: 15000 }).then(() => true, () => false);
+    check(folded && !/what a catch/.test((await page.textContent("[data-league-chat]")) ?? "") && /Sunday's here/.test((await page.textContent("[data-league-chat]")) ?? ""), "scores hidden: the thread's talk since kickoff folded, the room's shown");
+    if (folded) {
+      await page.click("[data-room-fold-show]");
+      check(await page.getByText("what a catch").waitFor({ timeout: 5000 }).then(() => true, () => false), "Show the score unfolds the thread's talk");
+      await page.evaluate(() => sessionStorage.removeItem("gys-shown-scores"));
+    }
+    // The guide is its own page over the hub now (?page=guide), its Add a show in its header. Waits for its button, not for the
+    // network to go quiet: here the hub's sports reads stay open past 30 s in this browser (on A2's code too; BACKLOG 254 g).
+    await page.goto(BASE + "/home?page=guide", { waitUntil: "load" });
+    await page.locator("[data-guide-add]").first().waitFor({ timeout: 30000 });
     await page.evaluate(() => document.querySelector("[data-guide-add]")?.scrollIntoView());
     await page.click("[data-guide-add]");
     await page.fill("[data-add-input]", "zt eagles");
@@ -376,7 +808,7 @@ async function browserChecks(pool, headers, couch) {
 }
 
 // Its stand-in world is shared with scripts/dev-test/story-hub-sports.js (the design round's step 7: a live game day on the hub).
-module.exports = { TEAMS, EVENTS, LEAGUE_NAMES, LEAGUES, FB, BB, cleanup };
+module.exports = { STANDINGS, TEAMS, EVENTS, LEAGUE_NAMES, LEAGUES, FB, BB, MB, MB_TEAMS, MB_NAME, calendarsAround, cleanup };
 
 if (require.main === module)
   main().catch((e) => {

@@ -6,7 +6,7 @@ and in flight is in [HANDOFF.md](HANDOFF.md).
 
 **How this file works**
 - **Numbers are permanent.** Code, tests and commits cite "BACKLOG 57", so a number never changes and is never reused. A new
-  item takes the next free number: **the next is 251.**
+  item takes the next free number: **the next is 254.**
 - **Closing an item:** delete it here and add one line under "Closed since the cleanup" at the end: the number, done or
   dropped, and the commit or the reason. Numbers closed in the cleanup itself are listed, with their full old text, in
   [archive/BACKLOG-2026-11-19.md](archive/BACKLOG-2026-11-19.md).
@@ -64,6 +64,12 @@ them as a doubt for whoever runs it and never score them above the winner (the r
 Grouped so each group is about one session. Take them in any order.
 
 ### Fix the stale and flaky checks
+
+**252. Three steps that fail on master too (found 2026-11-22 in the sports-couch lane, run on master 5cff5288's own code).**
+check-sports-couch.js's browser half stops at "Start a game…" from a team's sheet (`[data-gallery=gallery]` never shows in 30 s,
+check-sports-couch.js after "Show the score lets that game's score out"), so the steps after it don't run. check-new-hub.js fails
+"On now is real: riley is watching ZT Survivor, Episode 4" and then a 30 s `locator.textContent` timeout. Find what moved and fix
+the checks (or the screens). [S · checks]
 
 **244. Run the two checks settings Round 3a moved but never ran.** check-explorer-page.js's Waivers step and check-new-studio.js's
 list were moved to Manage this game in 3a (2026-11-21) but need UI Atlas on the main app, so they haven't run since. Run each once
@@ -478,6 +484,51 @@ rewrite one that disagrees. Make a season's library by itself after its setup re
 desk's button. Then a sport's season. Done when a newly set-up season has a library without a tap. [M · wizard]
 
 ### Sports
+
+**253. The scores strip's leftovers (A1, PLAN-sports-couch.md; the sports-couch lane, 2026-11-22).** (a) Games you play
+(`/api/sports/mine`) are your sports seasons' linked games from two days back to two weeks on: a slate Pick'em's later games show
+as each becomes the season's next. (b) **Decided** (the user, 2026-11-22, approving A1 as built): records stay in the score
+slot, possession stays the small triangle, and the line stays "LAC by 3" (the check had suggested otherwise). (c) The
+guide's Sports has words over words (an avatar's letter over "Cowboys, 2026 season"), already on master. (d) Up next still names
+a sports game you play while the strip shows it too (by design for now: Up next is your next move). (e) A1b: baseball's inning,
+outs and bases, hockey's power play, soccer's minute and red cards, each as its season starts. [S–M · sports]
+
+**254. The league card's and the league follow's leftovers (A2 and A3, PLAN-sports-couch.md; the sports-couch lane, 2026-11-22).** (a) A sports Pick'em is
+named "Predictions · Game 1" (the engine's spec family and its span: describe.js), on the league card, the Games tab and the
+feed alike; "Pick'em" (and the game it's on) would read better: name it in its own step, every surface at once. (b) A soccer
+league's card shows its season ("2026-27"), not a round: a round needs every fixture (league-now.ts). (c) **Done in A3:** a
+league followed for itself has its card (league_follows). (d) The league sheet
+an off-season card opens says only "No games this week": B1's page. (e) **Decided** (the user, 2026-11-22, approving A2 as
+built): the week stays quiet caps, not the caption tag the critique suggested. (f) Noticed: story-hub-sports.js's "solo" world was never the solo hub (the home read puts a game's
+player back on the couch); A1's story frame was the couch hub. Fixed in the script (solo-fixture.js's zt_so_alex); A1's approved
+design is unchanged. (g) Noticed in A3: in check-sports-couch.js's browser, once the run reaches the guide step, the hub's sports
+reads (`/api/sports/week`, `/api/sports/league/now`, `/api/listings/week`) stay open past 30 s, on A2's code too, though each
+answers in under 200 ms when asked alone against the same stand-in; the check now waits for the guide's button instead of a quiet
+network. Find what holds them (the dev server's ESPN fetches for the check's stand-in, most likely). (h) Your team (A3) changes
+only order and words so far: the couch's table by team and rivalries (B1, C1) are what will use it, with each follower's
+`myTeam` already in the couch's read. (i) **Decided** (the user, 2026-11-22, at A3's review): Following stays the quiet fill with a
+check everywhere, the team sheet's toggle too. (j) **B1 session 1's open look items** (league-page-check.md; the user, 2026-11-22: with
+B1's next tab): the move strip breaks as "Fill in your sheet / · 1 question"; off-season leaves an empty "Play" heading on This week;
+the season rivalries' overlapped xs marks cut four-letter codes. **Done in B1 session 2** (not merged): the move alone on its line,
+its count first on the small line; no Play heading over nothing; the marks side by side. (d) is answered by B1's page (Off-season in
+its bar and rows). (k) Noticed in B1 session 2: before the profile read answers, Hide sports scores reads as off, so a sports screen
+can show a hidden result for a moment (the hub's strip, the team sheet). Scores waits for the setting and the shared scorebug no
+longer marks a game seen before it (the leak that kept it shown, fixed); the flash elsewhere is open: hold results until
+`useHideSportsKnown` on every sports screen. **Done in B1 session 4** (not merged): `useHideSports` reads as on until the
+profile answers, so every sports screen holds results by itself; check-sports-couch.js holds the profile back and finds no score. (l) The ask sheet's explanation ("moves how far you've watched to its week, on every
+season you follow with it") reads hard (both reviewers in B1 session 2's check): one short line per choice, on the strip and Scores
+alike. (m) The shared game row on the guide's Sports and a team's schedule (round 1's R3: one row everywhere): the guide in its own
+review, the schedule with B2's team page. (n) **Decided** (the user, 2026-11-22, approving B1 session 2): no Play on Scores' rows; a row opens its
+game, and B4's sheet holds Play. (o) Noticed in B1 session 3 (the Games tab's check, both reviewers): the couch's join sheet speaks
+a show's words on a sports game ("It plays Episode 12 only: make your pick before you watch it"); a sports game's join sheet in
+its own words (the week or game it covers, when picks lock). (q) After the lane's merge (the user, 2026-11-22, B1 Chat's review): a chat count on each game row (Scores, the hub's strip)
+that opens the game's thread in the league's room. (r) The same: the room's latest line on This week (round 2's item 5).
+(s) **Decided** (the same review): a fantasy game's own chat and the room's thread for the real game stay apart; watch a real
+Sunday, then decide whether a game's chat shows inside the room (tagged by its games, as linked leagues share one chat).
+(p) Solo sports play (C4): a sports start needs a couch today, so
+a solo player's Games tab offers Start a couch · Join one and nothing to start. **Decided** (the user, 2026-11-22): wait for
+C4; nothing interim that C4 would make obsolete.
+[S · sports]
 
 **222. A game the daily job misses for three days is never read again.** The daily job reads a linked game only from three days
 back (matchup.ts `refreshSportsEvents`), so a game whose day the job skipped for three days (the bot VM down over a long

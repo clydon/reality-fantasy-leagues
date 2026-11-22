@@ -415,7 +415,7 @@ async function feedFor(
   const ids = list.map((g) => g.leagueId);
   const { rows: said } = await pool.query(
     `SELECT id, league_id, season_id, user_id, author_name, type, text, gif, created_at, ${AUTHOR_SEEN} FROM chat_messages
-      WHERE (league_id = ANY($1::uuid[]) OR (league_id IS NULL AND couch_id = $2)) AND type IN ('message', 'reveal') AND ${REVEAL_SHARED("$3")}
+      WHERE (league_id = ANY($1::uuid[]) OR (league_id IS NULL AND couch_id = $2 AND sports_league IS NULL)) AND type IN ('message', 'reveal') AND ${REVEAL_SHARED("$3")}
       ORDER BY created_at DESC LIMIT 40`,
     [ids, couchId, user.id]
   );

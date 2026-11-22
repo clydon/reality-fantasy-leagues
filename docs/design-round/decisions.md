@@ -1766,3 +1766,93 @@
   Recommended tag, Not now on every confirm, Leave the pool as a hold, Lineups hidden gone from Start a game, How it plays saying
   Round 3b's two rules). **Recent changes keeps its name** (Round 3's shape had assumed "Changes in these games").
 - Rests on: docs/design-round/settings-r4-spec.md (its glossary and the check).
+
+## 2026-11-22 · The hub's scores strip (sports-couch A1) approved as built
+- Decided by: the user ("A1 is approved as built"), on the story https://claude.ai/artifact/YBP1Xv93MfsfJSQXiY7VLq.
+- What: the scores strip under the guide bar as built in the sports-couch lane (88 px, the Scores tile, scorebugs that swipe, the
+  Scoreboard and On TV's sports cards gone), with the build's calls standing: a hidden game that has begun says "Started" and its
+  time (never the clock, FINAL or a live count); a final asks before showing its score, even with hiding off; before kickoff the
+  records sit in the score slot, possession is the small triangle, and the line reads "LAC by 3".
+- Rejected: the check's suggestions (records beside the abbreviation, a ball glyph, "LAC −3"): BACKLOG 253 (b), closed.
+- Rests on: docs/design-round/hub-scorebug-shape.md; docs/PLAN-sports-couch.md, A1's build notes.
+
+## 2026-11-22 · The league card in Your shows (sports-couch A2) approved as built
+- Decided by: the user ("Approve"), on the story https://claude.ai/artifact/XixM9yKB4CeHeANg5zcZg9.
+- What: each league you follow a team in or play in is a 72 px card among the show bands, placed by its next game (the clock
+  alone); the league, its week, the couch's teams as marks (yours ringed), one muted line (your games and place, else the couch's
+  games, else who leads by record, never for anyone hiding scores or while a recent game is unseen, else who follows them);
+  off-season one 48 px line; no chevron; the solo hub's cards above its poster shelf. Until B1, a tap opens today's league sheet,
+  which now leads with your games in that league (the due move in its own words) and steps Play this week's games down to an
+  outline while a move is due.
+- Rejected: the critique's quiet caption tag for the week (the brief's "a smidge subtler"); a mark instead of the team's name on
+  the off-season line (the brief's example); DESIGN.md's chyron focus ring over the strip's (A1's) inset ring.
+- Rests on: docs/design-round/hub-scorebug-shape.md; docs/design-round/hub-league-card-check.md; docs/PLAN-sports-couch.md, A2's
+  build notes; BACKLOG 254.
+
+## 2026-11-22 · A league follow is its own table, and your team a flag on the team follow (sports-couch A3)
+- Decided by: the build session (the step's to decide, PLAN-sports-couch.md A3), pending the user's review.
+- What: `league_follows` (user, league) answers "is this league on my shows"; following a team follows its league; unfollowing a
+  league leaves its teams followed; your team in a league is `team_follows.my_team` (one a league: the first followed, changeable
+  on the team's sheet). Migration 0313 carries existing team follows over, so no card moves.
+- Rejected: a league-wide row in `team_follows` (its key and columns are a team's, and every reader would have to skip it);
+  your team on `league_follows` (it would be lost with an unfollowed league while the teams stay followed).
+- Rests on: docs/design-round/league-follow-spec.md; docs/PLAN-sports-couch.md, A3's build notes.
+
+## 2026-11-22 · Following is a quiet fill with a check, everywhere (sports-couch A3)
+- Decided by: the user ("I'll go with your recommendation"), on A3's story https://claude.ai/artifact/FJGQbCjxmyTgSqkEKWmtd3.
+- What: the follow toggle's on state is a raised panel fill with a check and the foreground's text, one width either way; Follow an
+  outline. One look on search's league row, the league's sheet and the team's sheet (which had a filled white pill).
+- Rejected: the white pill everywhere (the check: the loudest thing on a sheet after the yellow, against R2's "quieter than a due move").
+- Rests on: docs/design-round/league-follow-check.md.
+
+## 2026-11-22 · A league's page and its This week (sports-couch B1, session 1)
+- Decided by: the user ("I'll take your recs"), on B1's story https://claude.ai/artifact/Nksn54s8dmHHRPYMxuJJ9c; approved as built.
+- What: (1) Standings and Chat join the league's tab bar only when each is built (three tabs now, five by B1's end). (2) The page
+  follows the sports pages' score rule (results show unless you hide sports scores; Show records shows them all for the visit), not
+  the hub's 36-hour ask. (3) A3's follow line on the league sheet goes with the sheet; the page keeps only Follow in its bar.
+  (4) The three open look items go in with B1's next tab (BACKLOG 254 j).
+- Also settled in the check, by the process's rules: Play this week's games never yellow on This week (Play the season on Games
+  only); one reveal (Show records), not a Show the score on the rivalry too; a hidden old game still says "Started" (2026-11-09).
+- Rests on: docs/design-round/league-page-spec.md, -first-view.md, -shape.md, -check.md; docs/PLAN-sports-couch.md, B1's build notes.
+
+## 2026-11-22 · A league's Scores tab (sports-couch B1, session 2)
+- Decided by: the user ("Approve, take recs"), on B1 session 2's story https://claude.ai/artifact/SChZpFJzYWthMNrxmr5Whm; approved as built.
+- What: (1) No Play button on Scores' rows: a row opens its game, whose sheet holds Start a game on it (B4 makes it the Play sheet).
+  (2) Show scores for the chosen week stays beside each row's eye, and asks first. (3) A daily sport's switcher is a scroller of its
+  season's game days, not the spec's Monday-to-Sunday seven with arrows (38 px chips).
+- Also settled in the check, by the process's rules: the chosen chip's rule in ink, not yellow (one yellow a view); the bar keeps the
+  league's now on every tab; the strip's eye box, possession triangle and faces kept (A1's approved bug).
+- Rests on: docs/design-round/league-scores-spec.md, -first-view.md, -shape.md, -check.md; docs/PLAN-sports-couch.md, B1 session 2.
+
+## 2026-11-22 · A league's Games tab (sports-couch B1, session 3)
+- Decided by: the user ("I'll go with your calls on the recs. I don't want to build anything now that would be obsolete soon"), on
+  B1 session 3's story https://claude.ai/artifact/4ncmkRanywVoPbH6N7pTjh; approved as built.
+- What: (1) Solo sports play waits for C4: no interim sports game with computer players on no couch (it would be obsolete once C4
+  designs the lone fan); meanwhile a solo player's Games offers Start a couch · Join one and nothing that can't be done. (2) The
+  group is "Your team", not round 2's "On your own": every start is on the couch.
+- Also settled in the check, by the process's rules: starts are quiet rows on Games unless this week's is the plate; a rival's
+  Start is a quiet text button; the focus ring, the marks' 11 px letters and the folds stay as the app has them elsewhere.
+- Rests on: docs/design-round/league-games-spec.md, -first-view.md, -shape.md, -check.md; docs/PLAN-sports-couch.md, B1 session 3.
+
+## 2026-11-22 · A league's Standings tab, with BACKLOG 254 (k) (sports-couch B1, session 4)
+- Decided by: Claude, on the user's "Continue" after B1 session 4's story https://claude.ai/artifact/9ydPz541VZbpKE5u8sZXvY, read as
+  taking the four recommendations (as at the earlier tabs' reviews); open to the user's change.
+- What: (1) The couch's faces go on the line under a team's name, so the name has its line (a face beside it cut it to "Cow…").
+  (2) No playoff line we keep ourselves: seeds in Conference and ESPN's In and Out carry it. (3) Basketball opens on Conference,
+  every other league on Division. (4) The chosen view: Studio's ink fill, Night's raised panel with an ink outline (the white fill
+  was the tab's loudest thing).
+- Also settled in the check, by the process's rules: every division leader says so by conference; each sport's deciding number in
+  ink; rows carry a chevron; the whole tab held as one behind Show the standings for anyone hiding sports scores or watching one
+  of its games as if live; 254 (k): Hide sports scores reads as on until it's known.
+- Rests on: docs/design-round/league-standings-spec.md, -first-view.md, -shape.md, -check.md; docs/PLAN-sports-couch.md, B1 session 4.
+
+## 2026-11-22 · A league's Chat (sports-couch B1, session 5)
+- Decided by: the user ("Let's finish here quickly using your recs in each question"), on B1 session 5's story
+  https://claude.ai/artifact/9mPL5VhwWxUYVyfXzEs8yi; approved as built.
+- What: (1) Two places to talk about one game stay as they are (a fantasy game's own chat, and the room's thread for the real game);
+  watch a real Sunday before merging them (BACKLOG 254 s). (2) A game row's chat count and This week's room line are follow-ups
+  after the lane's merge (BACKLOG 254 q, r). (3) The lane's merge is its own step: rebase onto master, rehearse 0313 and 0314 on a
+  Neon branch, push only on the user's word, never on a Wednesday.
+- Also settled in the check, by the process's rules: a hidden game is "on" by the clock alone (the leak); the game tag is words, not
+  a control; the chosen chip in ink; the fold compact; the couch hub's feed leaves room rows out.
+- Rests on: docs/design-round/league-chat-spec.md, -first-view.md, -shape.md, -check.md; docs/PLAN-sports-couch.md, B1 session 5.
