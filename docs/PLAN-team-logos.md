@@ -146,8 +146,14 @@ screens, because it needs only the store and the display:
 - **Checks:** `scripts/dev-test/check-couch-pictures.js` (14: the composition, who sees one, versions, the hub couch wins,
   refusals, taken away; made-up pictures only). Seen at 390 on the NFL test couch's draft: the Chiefs D/ST shows the couch's
   (made-up) picture, the other 31 their badges.
-- **To go live:** merge and push (migrations 0449 and 0450), then run the script against production for the user's couch:
-  the user says which couch and leagues, and okays the production write.
+- **LIVE 2026-11-22** (master 2a105157, merged over the sports-couch merge 56127b49; migrations 0449 and 0450 rehearsed on
+  `rehearse-logos-2026-11-22`, rollback snapshot `pre-logos-2026-11-22`): then the load ran once against production (the
+  user's okay: "only one couch live", all leagues): 124 pictures into its one couch, NFL 32, NBA 30, MLB 30, NHL 32, set by
+  its owner (`.session-loop/load-team-pictures.ps1`, `--couch only --by owner`).
+- **Where they show today:** a team defense's picture in that couch's games, once the daily roster refresh has given the
+  defenses their badge (migration 0449 cleared ESPN's logos to initials). **Next, small:** `TeamMark` takes the team's key
+  and draws the couch's picture in its square, so the hub's scores strip, the league cards, a league's page and its games
+  show them too (every call site has the league and the team's id); through impeccable, seen at 390.
 
 ## Next: one design round for L3, L4 and L5
 
