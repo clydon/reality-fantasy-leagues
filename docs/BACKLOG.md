@@ -6,7 +6,7 @@ and in flight is in [HANDOFF.md](HANDOFF.md).
 
 **How this file works**
 - **Numbers are permanent.** Code, tests and commits cite "BACKLOG 57", so a number never changes and is never reused. A new
-  item takes the next free number: **the next is 249.**
+  item takes the next free number: **the next is 250.**
 - **Closing an item:** delete it here and add one line under "Closed since the cleanup" at the end: the number, done or
   dropped, and the commit or the reason. Numbers closed in the cleanup itself are listed, with their full old text, in
   [archive/BACKLOG-2026-11-19.md](archive/BACKLOG-2026-11-19.md).
@@ -215,12 +215,6 @@ check-new-backstage-ii.js. [S · backstage]
 every game, so a game started on other numbers (Salary cap: 4 each, 2 start) shows Changed and Reset to recommended though
 nobody changed it. Read Recommended from the game's own base defaults. [S · backstage]
 
-**235. The results-to-fill-in push is moot.** *Built in settings Round 1 (branch settings-plan, 2026-11-20): close at its merge.* db/reminders.js `remindResults` still tells a game's Commissioners, the morning
-after, "Nothing's in yet. Copy the question into any AI chat, paste its answer back, then apply", though results settle on
-their own (PLAN-results-settle.md). Settings' "Backstage" notifications switch exists only for it (it shows to Game admins, who
-never get it), and its other type, `wikiReview`, is never sent (BACKLOG 24). Stop sending it where the bot runs the season. The
-switch goes in the settings overhaul's Round 1 (its C4), or with this fix through Impeccable alone. [S · notifications]
-
 ### Small UI fixes (one Impeccable polish pass)
 
 **246. Two people on one couch can share a face colour.** In Manage this game's Who's playing on the zt_nd couch, two of the four
@@ -295,10 +289,6 @@ A visible change everywhere, so show the user a before/after at 390 in Night and
 - Your shows' poster says "Fri" for an episode weeks away (sections.tsx:471): past six days, show the date.
 - No text under 11 px in src/new (21 `text-[10px]`, among them Home's game chips at sections.tsx:786 and :793). Ties read "T1"
   on Stats as elsewhere. ShowArt's fallback fits the Episodes tile. Toasts sit clear of first run's Back.
-
-**236. Where you are points to a heading that doesn't exist.** *Built in settings Round 1 (it now names Your settings › When results show): close at its merge.* where.tsx:303 says "Change it in Settings, under Keeping you
-spoiler-free"; the switch is "Shows that move along by themselves", under Everything else. Name the real place, or make the line
-open it. Words through Impeccable's clarify. Found by the settings audit (2026-11-20). [S · words]
 
 ### The Designs-needed words batch
 
@@ -589,6 +579,16 @@ plan the same in the stack table, the Limits table and Cost by size. [S · docs]
 
 ## Waiting on you
 
+**249. A game's people vote on a change to its settings** (the user, 2026-11-20; first filed as 231 on branch results-settle,
+whose number master had already used, so it never reached this list). A general control, not a one-off: when a running game's
+settings would change (its scoring, waivers, its span, anything a maker can change mid-season), its players can be asked: a short
+vote with the change, what it does to the table, and a deadline. Majority carries; the maker breaks a tie; the change's default
+holds until the vote ends, and everyone is told the outcome. Settings Round 3b built the first case only (a new moment
+mid-season: moment-votes.ts over stage_change_votes); this widens it, on the couch's polls rather than a second vote system.
+**Open for you:** which changes ask by default, whether a vote binds or advises, and who may start one. Recommended: only
+scoring and span changes ask by default; the vote binds; only the maker starts one. Through the design process. [M–L · engine +
+design]
+
 Each one names the question and Claude's recommendation. "Yes to all the recommendations" is a fine answer; Claude records it
 and builds.
 
@@ -868,3 +868,5 @@ One line each: the number, done or dropped, and the commit or the reason.
   after 13 idle minutes the first auth request answered 200 in 1.7 s, no "Could not validate" line, no 500. pg's sslmode warning is the user's.
 - **115** done (41f75a16): How it plays says "In the finale only the winner survives, so pick who you think wins." for a pool
   that stays in to the finale on a show with a winner, and the finale's pick asks "Who wins?" in the same words (the user's OK).
+- **235** done (d8417cc7, settings Round 1): the results-to-fill-in push stops at its source.
+- **236** done (settings Round 1): Where you are names the real place; the old heading's words are gone.
