@@ -414,6 +414,67 @@ export function notifyCouchChat(posted: ChatPosted) {
   });
 }
 
+/** A message in a league's room (league-chat.ts), in its game's thread when `event` names one ("Eagles at Jets": `eventName`). */
+interface LeagueChatPosted {
+  messageId: string;
+  authorId: string;
+  authorName: string;
+  text: string;
+  couchId: string;
+  league: string;
+  event: string | null;
+  eventName: string | null;
+}
+
+/**
+ * A message in a league's room (docs/PLAN-sports-couch.md B1 session 5): the couch's members who follow the league (league_follows:
+ * a team followed follows its league too), not its author. A thread's message holds its words back from anyone hiding sports
+ * scores or watching that game as if live ("Riley wrote in Eagles at Jets"), and with Couch chat on Skip possible spoilers it
+ * isn't pushed to them at all. One notification per room on a device; never in the bell (the tab has its count). The new design
+ * only: classic has no league room.
+ */
+export function notifyLeagueChat(posted: LeagueChatPosted) {
+  notifyAfter("chat", async () => {
+    const [{ rows: members }, { rows: couch }] = await Promise.all([
+      pool.query(
+        `SELECT cm.user_id, COALESCE(us.hide_sports_scores, false) AS hides,
+                EXISTS (SELECT 1 FROM sports_recordings r WHERE r.user_id = cm.user_id AND r.game_id = $3) AS recording
+           FROM couch_members cm
+           JOIN league_follows lf ON lf.user_id = cm.user_id AND lf.league = $2
+           LEFT JOIN user_settings us ON us.user_id = cm.user_id
+          WHERE cm.couch_id = $1`,
+        [posted.couchId, posted.league, posted.event ?? ""]
+      ),
+      pool.query("SELECT name FROM couches WHERE id = $1", [posted.couchId]),
+    ]);
+    const held = new Set(members.filter((m) => posted.event && (m.hides || m.recording)).map((m) => m.user_id as string));
+    const userIds = members.map((m) => m.user_id as string).filter((id) => id !== posted.authorId);
+    if (!userIds.length) return null;
+    const leagueWord = posted.league.split("/").pop()!.toUpperCase();
+    const title = [leagueWord, couch[0]?.name].filter(Boolean).join(" · ");
+    const next = `/league/${posted.league}/chat${posted.event ? `?thread=${encodeURIComponent(posted.event)}` : ""}`;
+    return {
+      userIds,
+      couchId: posted.couchId,
+      bell: false,
+      message: async (reader: PushReader): Promise<PushMessage | null> => {
+        if (reader.ui !== "new") return null;
+        const hold = held.has(reader.userId);
+        if (hold && reader.chat === "quiet") return null;
+        return {
+          title,
+          body: hold
+            ? `${posted.authorName} wrote in ${posted.eventName ?? "a game's thread"}. Show the score to read it.`
+            : truncate(`${posted.authorName}${posted.eventName ? ` in ${posted.eventName}` : ""}: ${posted.text}`),
+          url: next,
+          next,
+          tag: `chat-${posted.couchId}-${posted.league}`,
+        };
+      },
+    };
+  });
+}
+
 // ---------- joining ----------
 
 /** Someone joined (or came back to) a league: everyone already in it, not the person joining. */

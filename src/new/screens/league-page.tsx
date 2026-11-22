@@ -4,15 +4,15 @@
 // own page, reached from the league's card in Your shows and search's league row, with its tabs under a bar of its own. This week
 // is the couch in the league this week, in the first-view order PFD set: your due move (the one yellow), this week's rivalry, the
 // couch's teams ranked by record; then rivalries this season, your games, and the rest of the league one row into Scores. Scores,
-// Games and Standings are their own files (league-scores.tsx, league-games.tsx, league-standings.tsx); Chat joins when it's built.
+// Games, Standings and Chat are their own files (league-scores.tsx, league-games.tsx, league-standings.tsx, league-chat.tsx).
 //
 // Every result on it (a record, a form tick, a score, a rivalry's winner, the table's order) goes through Hide sports scores: with it
 // on, none shows, the table is ordered yours first then by fans, and Show records shows them all for the visit (showScore).
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { CalendarDays, ChevronLeft, ChevronRight, Eye, ListOrdered, Swords, TableProperties, Trophy, type LucideIcon } from "lucide-react";
-import { useCouchTeams, useCurrentCouch, useHome, useLeaguesNow, useLeagueTeams, useYourTeams, type WeekGame } from "../data";
+import { CalendarDays, ChevronLeft, ChevronRight, Eye, ListOrdered, MessageCircle, Swords, TableProperties, Trophy, type LucideIcon } from "lucide-react";
+import { useCouchTeams, useCurrentCouch, useHome, useLeaguesNow, useLeagueTeams, useRoomBadge, useYourTeams, type WeekGame } from "../data";
 import { NavLink, useNav } from "../nav";
 import { isLeagueTab, LEAGUE_TABS, paths, type LeagueTab } from "../routes";
 import { Avatar, Faces } from "../ui/bars";
@@ -25,12 +25,14 @@ import type { LeagueNow } from "@/lib/sports/league-now";
 import { LeagueScores } from "./league-scores";
 import { LeagueGames } from "./league-games";
 import { LeagueStandings } from "./league-standings";
+import { LeagueChat } from "./league-chat";
 
 const TABS: Record<LeagueTab, { label: string; icon: LucideIcon }> = {
   week: { label: "This week", icon: CalendarDays },
   scores: { label: "Scores", icon: ListOrdered },
   games: { label: "Games", icon: Trophy },
   standings: { label: "Standings", icon: TableProperties },
+  chat: { label: "Chat", icon: MessageCircle },
 };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -106,6 +108,9 @@ export function LeagueFrame({ league, children }: { league: string; children: Re
 function LeagueTabBar({ league, current }: { league: string; current: LeagueTab }) {
   const i = LEAGUE_TABS.indexOf(current);
   const n = LEAGUE_TABS.length;
+  // The room's unread count on its tab (every 30 s; the open room reads itself, and reading it clears this).
+  const couch = useCurrentCouch(useHome().data);
+  const unread = useRoomBadge(league, current === "chat" ? null : (couch?.id ?? null)).data?.unread ?? 0;
   return (
     <nav
       aria-label="League"
@@ -125,6 +130,11 @@ function LeagueTabBar({ league, current }: { league: string; current: LeagueTab 
           >
             <Icon className={`size-5 transition-transform duration-[350ms] ease-[cubic-bezier(.34,1.45,.64,1)] ${on ? "-translate-y-0.5 text-chyron-line" : ""}`} aria-hidden />
             <span>{label}</span>
+            {t === "chat" && !on && unread > 0 && (
+              <span data-room-badge className="absolute left-[calc(50%+5px)] top-[7px] grid h-[18px] min-w-[18px] place-items-center rounded-[9px] bg-live px-[5px] text-[11px] font-extrabold text-live-foreground">
+                {unread}
+              </span>
+            )}
           </NavLink>
         );
       })}
@@ -145,6 +155,7 @@ export function LeagueTabScreen({ league, tab }: { league: string; tab: LeagueTa
       {tab === "scores" && <LeagueScores league={league} name={name} lnow={now} loading={loading} />}
       {tab === "games" && <LeagueGames league={league} name={name} lnow={now} />}
       {tab === "standings" && <LeagueStandings league={league} name={name} lnow={now} />}
+      {tab === "chat" && <LeagueChat league={league} name={name} lnow={now} />}
     </div>
   );
 }

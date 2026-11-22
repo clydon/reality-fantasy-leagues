@@ -34,6 +34,11 @@
 // game"), with alex, Riley, Sam and Jordan following real teams for the shoot (unfollowed after): real-nfl, real-nfl-conf, real-nba,
 // real-nhl, real-mlb (its season over: final, clinched and out), real-epl (one table, its places key). --only=standings shoots just
 // these; --only=real only the real ones.
+// Chat (B1 session 5; docs/design-round/league-chat-spec.md): the room seeded through its real routes by the couch (the room's talk,
+// and talk in the game on now's thread): gameday-chat (All, the threads row, the About chip), gameday-chat-thread (the game on now's
+// thread), gameday-chat-badge (This week with the Chat tab's unread count), hidden-chat (Hide sports scores: the thread's talk since
+// kickoff folded) and hidden-chat-shown (Show the score), none-chat (nobody has said anything), studio-chat, solo-chat (no couch).
+// --only=chat shoots just these. Each world's room is cleared after (its zt- league's rows).
 // Each frame: a .jpg at --width × --height, the page's words in a .txt, and words that sit on other words as OVERLAP lines (kept in
 // overlaps.json). Prints the first view's groups in order, the rivalry's and the table's words, and the page's width.
 //
@@ -61,7 +66,7 @@ const opt = (k, d) => args.find((a) => a.startsWith(`--${k}=`))?.slice(k.length 
 const has = (k) => args.includes(`--${k}`);
 const OUT = path.resolve(opt("out", ".ui-atlas/stories/league-page/after"));
 // --only=scores or --only=games: that tab's frames in every world and nothing else.
-const TAB = ["scores", "games", "standings", "real"].includes(opt("only", "")) ? opt("only") : null;
+const TAB = ["scores", "games", "standings", "real", "chat"].includes(opt("only", "")) ? opt("only") : null;
 const W = Number(opt("width", 390)), H = Number(opt("height", 844));
 const ONLY = opt("only", "") && !TAB ? opt("only").split(",") : null;
 const { FB, BB, MB } = world;
@@ -289,6 +294,31 @@ async function main() {
     const gm = !TAB || TAB === "games";
     const gamesAt = (league = FB) => ({ path: `/league/${league}/games`, wait: "[data-league-games-tab]" });
     const st = !TAB || TAB === "standings";
+    const ch = !TAB || TAB === "chat";
+    const chatAt = (league = FB) => ({ path: `/league/${league}/chat`, wait: "[data-league-chat], [data-league-chat-solo], [data-league-chat-loading]" });
+    const settleChat = async (pg) => {
+      await pg.locator("[data-league-chat], [data-league-chat-solo]").first().waitFor({ timeout: 20000 }).catch(() => {});
+      await pg.waitForTimeout(1800);
+    };
+    // The room's talk, posted by the couch through the real route: two in the room, three in the game on now's thread (after its
+    // kickoff), one of them alex's own; then a reaction.
+    const seedRoom = async (name) => {
+      const live = eventsFor(name).find((e) => e.state === "in" && e.home === J);
+      const thread = live ? { event: live.id, eventAt: live.at, eventName: "Eagles at Jets" } : {};
+      const say = async (who, text, inThread) => {
+        const me = await call(who);
+        const r = await me.call("POST", `/api/sports/league/chat?league=${encodeURIComponent(FB)}&couch=${couch}`, { text, ...(inThread ? thread : {}) });
+        if (r.status !== 200) console.log(`[chat] not posted (${r.status} ${JSON.stringify(r.body).slice(0, 160)})`);
+        return r.body.message;
+      };
+      await say("jordan", "Giants at home today. Cowboys fans, I'm sorry in advance.");
+      await say("sam", "Bold talk from a 5-3-1 team");
+      const m = await say("riley", "That catch on third down was unreal", true);
+      await say("sam", "Refs are asleep", true);
+      await say("alex", "Fly Eagles fly", true);
+      if (m) await (await call("jordan")).call("POST", `/api/sports/league/chat/${m.id}/react?league=${encodeURIComponent(FB)}&couch=${couch}`, { emoji: "🔥" });
+    };
+    const clearRoom = () => pool.query("DELETE FROM chat_messages WHERE sports_league = $1", [FB]).then(() => pool.query("DELETE FROM league_chat_reads WHERE league = $1", [FB]));
     const standingsAt = (league = FB) => ({ path: `/league/${league}/standings`, wait: "[data-standings], [data-standings-failed], [data-standings-none]" });
     const settleStandings = async (pg) => {
       await pg.locator("[data-standing-row], [data-standings-hidden], [data-standings-failed], [data-standings-none]").first().waitFor({ timeout: 20000 }).catch(() => {});
@@ -343,7 +373,24 @@ async function main() {
         }, { ...gamesAt(), sheet: true });
       }
     }
-    if (run("gameday") && st && TAB !== "real") {
+    if (run("gameday") && ch && TAB === "chat") {
+      await clearRoom();
+      await seedRoom("gameday");
+      await shoot("gameday-chat", settleChat, chatAt());
+      await shoot("gameday-chat-thread", async (pg) => {
+        await settleChat(pg);
+        await pg.locator('[data-threads] [data-thread]:not([data-thread="all"])').first().click();
+        await pg.waitForTimeout(1200);
+      }, chatAt());
+      // Something new since alex last read the room: the tab's count.
+      await (await call("riley")).call("POST", `/api/sports/league/chat?league=${encodeURIComponent(FB)}&couch=${couch}`, { text: "Who's watching the late game?" });
+      await shoot("gameday-chat-badge", async (pg) => {
+        await pg.locator("[data-room-badge]").waitFor({ timeout: 35000 }).catch(() => {});
+        await pg.waitForTimeout(600);
+      }, { wait: "[data-this-week]" });
+      await clearRoom();
+    }
+    if (run("gameday") && st && TAB !== "real" && TAB !== "chat") {
       await shoot("gameday-standings", settleStandings, { ...standingsAt(), full: true });
       await shoot("gameday-standings-conf", view("parent"), { ...standingsAt(), full: true });
       await shoot("gameday-standings-open", openRow(E), standingsAt());
@@ -422,7 +469,18 @@ async function main() {
           await pg.waitForTimeout(1500);
         });
       }
-      if (st && TAB !== "real") {
+      if (ch && TAB === "chat") {
+        await clearRoom();
+        await seedRoom("hidden");
+        await shoot("hidden-chat", settleChat, chatAt());
+        await shoot("hidden-chat-shown", async (pg) => {
+          await settleChat(pg);
+          await pg.locator("[data-room-fold-show]").first().click();
+          await pg.waitForTimeout(1500);
+        }, chatAt());
+        await clearRoom();
+      }
+      if (st && TAB !== "real" && TAB !== "chat") {
         await shoot("hidden-standings", settleStandings, standingsAt());
         await shoot("hidden-standings-shown", async (pg) => {
           await settleStandings(pg);
@@ -462,7 +520,11 @@ async function main() {
       if (tw) await shoot("none");
       if (sc) await shoot("none-scores", settle, scoresAt());
       if (gm) await shoot("none-games", settleGames, gamesAt());
-      if (st && TAB !== "real") await shoot("none-standings", settleStandings, { ...standingsAt(), full: true });
+      if (st && TAB !== "real" && TAB !== "chat") await shoot("none-standings", settleStandings, { ...standingsAt(), full: true });
+      if (ch && TAB === "chat") {
+        await clearRoom();
+        await shoot("none-chat", settleChat, chatAt());
+      }
     }
     if (run("daily")) {
       await setWorld("daily", [["alex", BB, "9401"], ["riley", BB, "9402"]]);
@@ -487,7 +549,13 @@ async function main() {
       if (tw) await shoot("studio", null, { full: true });
       if (sc) await shoot("studio-scores", settle, scoresAt());
       if (gm) await shoot("studio-games", settleGames, gamesAt());
-      if (st && TAB !== "real") await shoot("studio-standings", settleStandings, standingsAt());
+      if (st && TAB !== "real" && TAB !== "chat") await shoot("studio-standings", settleStandings, standingsAt());
+      if (ch && TAB === "chat") {
+        await clearRoom();
+        await seedRoom("studio");
+        await shoot("studio-chat", settleChat, chatAt());
+        await clearRoom();
+      }
       await setting(pool, alex, "theme", "night");
     }
     if (run("solo")) {
@@ -503,10 +571,11 @@ async function main() {
         await shoot("solo-games", settleGames, { ...gamesAt(), user: so, pass: soloFx.PASSWORD });
         await shoot("solo-week", null, { user: so, pass: soloFx.PASSWORD, full: true });
       }
-      if (st && TAB !== "real") await shoot("solo-standings", settleStandings, { ...standingsAt(), user: so, pass: soloFx.PASSWORD });
+      if (st && TAB !== "real" && TAB !== "chat") await shoot("solo-standings", settleStandings, { ...standingsAt(), user: so, pass: soloFx.PASSWORD });
+      if (ch && TAB === "chat") await shoot("solo-chat", settleChat, { ...chatAt(), user: so, pass: soloFx.PASSWORD });
     }
     // Real ESPN tables (asked by the dev server itself: no stand-in header), the couch following real teams for the shoot.
-    if (TAB === "real" || TAB === "standings" || (!TAB && (!ONLY || ONLY.includes("real")))) {
+    if (TAB !== "chat" && (TAB === "real" || TAB === "standings" || (!TAB && (!ONLY || ONLY.includes("real"))))) {
       await setWorld("real", []);
       const real = (who) => signIn({ user: fixture.username(who), pass: fixture.PASSWORD, headers: {} });
       try {

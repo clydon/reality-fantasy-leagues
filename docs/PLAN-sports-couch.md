@@ -2,7 +2,7 @@
 
 > **Status (2026-11-22): A1 and A2 approved as built (the user, 2026-11-22) and committed in the `sports-couch` lane (not
 > merged). A3 (following a league) approved as built too (the user, 2026-11-22) and committed in the lane. B1's first session (the page and This week) approved as built (the user, 2026-11-22) and
-> committed in the lane. B1's Scores tab (session 2) approved as built (the user, 2026-11-22) and committed in the lane. B1's Games tab (session 3) approved as built (the user, 2026-11-22) and committed in the lane. B1's Standings (session 4, with BACKLOG 254 k) committed in the lane, the story's four recommendations taken on the user's "Continue"; Chat is next.** The user's calls are in. Lines are Phase D, detailed in
+> committed in the lane. B1's Scores tab (session 2) approved as built (the user, 2026-11-22) and committed in the lane. B1's Games tab (session 3) approved as built (the user, 2026-11-22) and committed in the lane. B1's Standings (session 4, with BACKLOG 254 k) committed in the lane, the story's four recommendations taken on the user's "Continue". B1's Chat (session 5, migration 0314 on the lane's database only) approved as built (the user, 2026-11-22, taking the three recommendations) and committed in the lane. B1 is complete; next is the lane's merge, its own step.** The user's calls are in. Lines are Phase D, detailed in
 > [PLAN-sports-lines.md](PLAN-sports-lines.md). March Madness (E1) is dated: working by Fri 2027-02-26.
 
 ## Read first
@@ -304,6 +304,28 @@ migration; one new ESPN read).** Story: https://claude.ai/artifact/9ydPz541VZbpK
   whole table held while hiding). tsc clean; `npm test` 2,588 pass; ESLint clean on the changed files.
 - **Left open:** the longest names still cut ("Comman…"); a soccer place's words under a long name; the team sheet's "A team"
   title (B2).
+
+**B1's build notes, session 5: Chat (2026-11-22, lane `sports-couch`, port 3019; not merged; **migration 0314, run only on the
+lane's local database**; no new external read).** Story: https://claude.ai/artifact/9mPL5VhwWxUYVyfXzEs8yi. **Approved as built** (the user, 2026-11-22, taking the three recommendations: decisions.md). The design:
+[league-chat-spec.md](design-round/league-chat-spec.md) (Intent), `-first-view.md` (PFD), `-shape.md` (Impeccable), `-check.md`.
+- **The room:** one per couch per league, a message about one real game carrying it (its thread). Migration 0314 (additive):
+  `chat_messages.sports_league` (with `couch_id`; season and league_id null), `sports_event`, `sports_event_at`,
+  `sports_event_name`; the place check admits a room; `league_chat_reads` for the badge. `src/lib/server/league-chat.ts` (scope,
+  read with a `v` fingerprint, earlier, post, read mark, unread); reactions, edits and deletes are chat.ts's. Routes under
+  `/api/sports/league/chat` (`?league=&couch=`; `[messageId]`, `/react`, `/read`, `/unread`). A push to the couch's members who
+  follow the league (`notifyLeagueChat`, push-events.ts), a thread's words held back from anyone hiding scores or watching that
+  game as if live. The couch hub's feed leaves room rows out (no season to fold by). HOSTING.md: "A league's page, Chat".
+- **The tab:** `src/new/screens/league-chat.tsx`, the fifth (`LEAGUE_TABS`), its unread count on the tab. The show Chat's message,
+  composer and sheet reused (show/chat.tsx exports them; `Line` takes a `tag`, `Composer` an `above`). The threads row (All and up
+  to three games, live first, "+N"; the chosen in ink; a hidden game "· Started"); a run's game where the talk turns to it; for a
+  hider, the thread's talk since kickoff one compact fold per game with Show the score (showScore); the About chip over the
+  composer while a couch game is on (×, "+ About" back), the placeholder naming where it goes; a short stream by the composer;
+  solo: "Chat is for a couch" with Start a couch · Join one. A hidden game is "on" by the clock alone (the check's leak).
+- **Checks:** story-league-page.js `--only=chat` (seeded through the real routes); check-sports-couch.js `roomChecks` (API) and
+  the browser's Chat steps (the room, the thread's chip and About; hidden: the fold, Show the score). tsc clean; `npm test` 2,588
+  pass; ESLint clean on the changed files.
+- **Leftovers:** BACKLOG 254 (q)–(s): a game row's chat count and This week's room line after the merge; two places to talk about
+  one game, decided to stay apart until a real Sunday's been watched.
 
 **B2. A team's page** (M): a full page instead of today's sheet (src/new/sports/team.tsx): the live or next game, Up next with
 Play, the schedule by month with results and the bye, Month view for daily sports with series, homestands and trips grouped,

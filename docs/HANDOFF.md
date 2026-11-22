@@ -136,7 +136,12 @@ Newest first. The plan or archive section named holds the detail.
 - **Sports on the couch, B1 session 4: Standings, with BACKLOG 254 (k)** (2026-11-22, the same lane; not merged; no migration; **one new
   ESPN read**, the league's standings, in HOSTING.md): the fourth tab, by division or conference, the couch's teams marked, held as one for
   anyone hiding sports scores; (k): Hide sports scores reads as on until it's known. Story: https://claude.ai/artifact/9ydPz541VZbpKE5u8sZXvY.
-  Notes: [PLAN-sports-couch.md](PLAN-sports-couch.md) B1 session 4. **The four recommendations taken** on the user's "Continue" (decisions.md) and committed in the lane. Next there: B1's Chat.
+  Notes: [PLAN-sports-couch.md](PLAN-sports-couch.md) B1 session 4. **The four recommendations taken** on the user's "Continue" (decisions.md) and committed in the lane.
+- **Sports on the couch, B1 session 5: Chat** (2026-11-22, the same lane; not merged; **migration 0314, run only on the lane's local
+  database**; no new external read): the couch's room about a league with a thread per real game, folded for anyone hiding scores,
+  the fifth tab with its unread count; a push per message. Story: https://claude.ai/artifact/9mPL5VhwWxUYVyfXzEs8yi. Notes:
+  [PLAN-sports-couch.md](PLAN-sports-couch.md) B1 session 5. **Approved as built** (the user, 2026-11-22, the three recommendations) and committed in the lane. **Next there: the lane's merge**,
+  its own step (rebase onto master, rehearse 0313 and 0314 on a Neon branch, push only on the user's word, never on a Wednesday).
 
 - **A castaway opened from a week opens on that week, BACKLOG 251** (2026-11-22, approved, committed on master, not pushed; no
   migration): the castaway sheet leads with the week a door hands it; one name per moment everywhere (moment-names.ts); the

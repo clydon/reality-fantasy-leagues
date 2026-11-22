@@ -1845,3 +1845,14 @@
   ink; rows carry a chevron; the whole tab held as one behind Show the standings for anyone hiding sports scores or watching one
   of its games as if live; 254 (k): Hide sports scores reads as on until it's known.
 - Rests on: docs/design-round/league-standings-spec.md, -first-view.md, -shape.md, -check.md; docs/PLAN-sports-couch.md, B1 session 4.
+
+## 2026-11-22 · A league's Chat (sports-couch B1, session 5)
+- Decided by: the user ("Let's finish here quickly using your recs in each question"), on B1 session 5's story
+  https://claude.ai/artifact/9mPL5VhwWxUYVyfXzEs8yi; approved as built.
+- What: (1) Two places to talk about one game stay as they are (a fantasy game's own chat, and the room's thread for the real game);
+  watch a real Sunday before merging them (BACKLOG 254 s). (2) A game row's chat count and This week's room line are follow-ups
+  after the lane's merge (BACKLOG 254 q, r). (3) The lane's merge is its own step: rebase onto master, rehearse 0313 and 0314 on a
+  Neon branch, push only on the user's word, never on a Wednesday.
+- Also settled in the check, by the process's rules: a hidden game is "on" by the clock alone (the leak); the game tag is words, not
+  a control; the chosen chip in ink; the fold compact; the couch hub's feed leaves room rows out.
+- Rests on: docs/design-round/league-chat-spec.md, -first-view.md, -shape.md, -check.md; docs/PLAN-sports-couch.md, B1 session 5.

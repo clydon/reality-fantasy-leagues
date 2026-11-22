@@ -3,7 +3,8 @@
 **Keep this current.** Update it in the same commit as any change that adds or changes polling, a scheduled
 job, stored data, or a service, and whenever usage is checked (date the numbers). It exists so that, when a
 free plan stops being enough, choosing the cheapest fit is arithmetic, not research. Last updated
-**2026-11-22** (a league's Standings: one new ESPN read, under "A league's page, Standings"; the hub's scores strip: its small
+**2026-11-22** (a league's Chat: a room polled as the show's chat is, migration 0314, under "A league's page, Chat"; a league's
+Standings: one new ESPN read, under "A league's page, Standings"; the hub's scores strip: its small
 live read, your games and the week after a bye, under "The hub's scores strip"), and before that **2026-11-15** (live games asked by the app, not the phone: Live games), and before that **2026-10-28** (Cost by size; live
 games' polling from phones, L2 on the `sports` branch; a live soccer match measured, L5 part 1).
 
@@ -309,6 +310,18 @@ no key, the same unofficial host as the rest):
   teams; the edge keeps each league's answer five minutes for everyone (`s-maxage=300`). So ESPN is asked at most four times an hour
   a league, and only while someone looks; one cache row a league (~9 KB). The teams' colours come from the league's team list,
   already cached a week. Asked once a visit to a league's Standings (React Query keeps it five minutes). Nothing polled.
+
+**A league's page, Chat (docs/PLAN-sports-couch.md B1 session 5, 2026-11-22, the `sports-couch` lane; not live)** asks ESPN
+nothing; it's Neon only, as the show's Chat is:
+- **The room** (`/api/sports/league/chat?league=&couch=`, signed in, couch members): rows in `chat_messages` (migration 0314: a
+  room's are keyed by couch and league, a thread's carry the game's id, start and name, ~100 bytes more than a show chat's message)
+  and `league_chat_reads` (one small row a person a couch a league). **Polled every 5 s while the tab is open**, as the show's Chat:
+  each poll sends the version it has and an unchanged room answers 32 characters (an md5 worked out in the database over one
+  indexed range, `idx_chat_messages_league_room`). The tab's badge reads every 30 s while any of the league's tabs is open.
+  So per person with the tab open: one tiny indexed read every 5 s, the same as a show's Chat (Neon's compute while someone
+  chats, not a new always-on cost).
+- **Pushes:** one per message to the couch's members who follow the league (league_follows), through the push sender already in
+  use; nothing scheduled. No new external call.
 
 **The league card in Your shows (docs/PLAN-sports-couch.md A2, 2026-11-22, the `sports-couch` lane; not live)** asks ESPN nothing
 new either:

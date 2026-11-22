@@ -29,7 +29,10 @@
 //   before (its final), and This week back. Its Games tab (B1 session 3): the couch's starts, your team's season (handing off to Start
 //   a game), no results. Its Standings tab (B1 session 4): the standings read (one group, in the league's order, records agreeing
 //   with the couch's table; a league with none: null), and on screen the tab with your team's row raised, its record, a row opening
-//   its splits and the team's sheet from there, and the whole table held for someone hiding sports scores.
+//   its splits and the team's sheet from there, and the whole table held for someone hiding sports scores. Its Chat tab (B1 session 5,
+//   migration 0314): the room's API (post to the room and to a game's thread, another member reading both with the thread's game and
+//   start, the badge and the read mark, react, edit and delete as the author, someone off the couch refused), and on screen the room,
+//   the thread chip, and for someone hiding sports scores the thread's talk since kickoff folded until Show the score.
 //
 //   npm run dev -- -p 3004   (the sports lane; BASE=http://localhost:3004)
 //   node scripts/dev-test/check-sports-couch.js <outDir> [--width=390] [--keep] [--api | --browser]
@@ -138,6 +141,8 @@ async function cleanup(pool) {
   await pool.query("DELETE FROM team_follows WHERE league = ANY($1::text[])", [LEAGUES_]);
   await pool.query("DELETE FROM league_follows WHERE league = ANY($1::text[])", [LEAGUES_]);
   await pool.query("DELETE FROM sports_recordings WHERE league = ANY($1::text[])", [LEAGUES_]);
+  await pool.query("DELETE FROM chat_messages WHERE sports_league = ANY($1::text[])", [LEAGUES_]);
+  await pool.query("DELETE FROM league_chat_reads WHERE league = ANY($1::text[])", [LEAGUES_]);
   await pool.query("DELETE FROM sports_cache WHERE key LIKE 'zt-standin:%'");
   await pool.query("UPDATE user_settings SET hide_sports_scores = false WHERE user_id IN (SELECT id FROM \"user\" WHERE username LIKE 'zt_nd_%')");
 }
@@ -245,6 +250,38 @@ async function leaguePageChecks(me) {
   check(nb.status === 200 && nb.body.standings === null, "a league with no table: null", nb.body);
 }
 
+/** A league's room (B1 session 5; league-chat.ts): leaves one room message and one thread message from Riley, for the browser. */
+async function roomChecks(me, couch) {
+  const url = (rest = "") => `/api/sports/league/chat${rest}?league=${encodeURIComponent(FB)}&couch=${couch}`;
+  const riley = await signIn({ user: fixture.username("riley"), pass: fixture.PASSWORD, headers: me.headers });
+  const live = EVENTS.find((e) => e.id === "93103");
+  const room = await me.call("POST", url(), { text: "ZT room: Sunday's here" });
+  const said = await riley.call("POST", url(), { text: "ZT thread: what a catch", event: live.id, eventAt: live.at, eventName: "Eagles at Jets" });
+  check(room.status === 200 && room.body.message?.event === null && said.status === 200 && said.body.message?.event === "93103" && said.body.message.eventName === "Eagles at Jets", "the room: a message to the room and one in a game's thread", [room.status, said.status, said.body.message?.event]);
+  const got = (await me.call("GET", url())).body;
+  const t = got.messages?.find((m) => m.id === said.body.message?.id);
+  check(got.messages?.length >= 2 && t?.eventAt && Date.parse(t.eventAt) === Date.parse(live.at) && got.you?.canPost, "another member reads both, the thread's game and its start with it", { n: got.messages?.length, t });
+  const again = await me.call("GET", url() + `&v=${got.v}`);
+  check(again.body.unchanged === true, "an unchanged room answers its version alone (the 5-second poll)");
+  const unread = (await me.call("GET", url("/unread"))).body.unread;
+  await me.call("POST", url("/read"), { at: t?.at });
+  const after = (await me.call("GET", url("/unread"))).body.unread;
+  check(unread >= 1 && after === 0, "the badge counts Riley's message, and reading clears it", [unread, after]);
+  const react = await me.call("POST", url(`/${said.body.message.id}/react`), { emoji: "🔥" });
+  const reacted = (await me.call("GET", url())).body.messages.find((m) => m.id === said.body.message.id);
+  // Someone else's (Sam's try at Riley's): refused. The couch's owner (alex here) may change anyone's, as in the show's Chat.
+  const sam = await signIn({ user: fixture.username("sam"), pass: fixture.PASSWORD });
+  const edit = await sam.call("PATCH", url(`/${said.body.message.id}`), { text: "not mine" });
+  const mine = await me.call("PATCH", url(`/${room.body.message.id}`), { text: "ZT room: Sunday's here!" });
+  check(react.status === 200 && reacted?.reactions?.["🔥"]?.count === 1 && edit.status === 403 && mine.status === 200, "react; edit your own, not someone else's", [react.status, edit.status, mine.status]);
+  const extra = await me.call("POST", url(), { text: "ZT delete me" });
+  const del = await me.call("DELETE", url(`/${extra.body.message.id}`));
+  check(del.status === 200 && !(await me.call("GET", url())).body.messages.some((m) => m.id === extra.body.message.id), "delete your own");
+  const casey = await signIn({ user: fixture.username("casey"), pass: fixture.PASSWORD, headers: me.headers }).catch(() => null);
+  const off = casey ? await casey.call("GET", `/api/sports/league/chat?league=${encodeURIComponent(FB)}&couch=00000000-0000-4000-8000-000000000000`) : { status: 404 };
+  check(off.status === 404 || off.status === 403, "a couch you're not on: refused", off.status);
+}
+
 async function apiChecks(pool, me, couch, started) {
   console.log("— API");
   const s1 = await me.call("GET", `/api/sports/search?q=${encodeURIComponent("zt eagles")}`);
@@ -266,6 +303,7 @@ async function apiChecks(pool, me, couch, started) {
   check(ct.body.teams?.[0]?.id === "9301" && ct.body.teams[0].you && ct.body.teams[0].followers.length === 1, "the couch's teams: yours first, with who follows", ct.body);
   await leagueFollowChecks(me, couch);
   await leaguePageChecks(me);
+  await roomChecks(me, couch);
 
   const wk = await me.call("GET", `/api/sports/week?also=${FB},${BB}`);
   const games = (wk.body.days ?? []).flatMap((d) => d.games);
@@ -638,7 +676,7 @@ async function browserChecks(pool, headers, couch) {
       const r = document.querySelector('[data-standing-row="9301"]');
       return { yours: r?.hasAttribute("data-yours"), label: r?.getAttribute("aria-label") ?? "", h: r?.getBoundingClientRect().height, rows: document.querySelectorAll("[data-standing-row]").length };
     }) : null;
-    check(!!sr && sr.yours && /W-L \d+-\d+/.test(sr.label) && sr.rows === 4 && sr.h >= 44 && sr.h <= 52, "its Standings tab: four rows, the Eagles yours with their record, one line each", sr);
+    check(!!sr && sr.yours && /W-L \d+-\d+/.test(sr.label) && sr.rows === 4 && sr.h >= 44 && sr.h <= 64, "its Standings tab: four rows, the Eagles yours with their record (faces on the line under the name)", sr);
     await wide("the Standings tab");
     await shot("standings");
     await rowAt.click();
@@ -647,6 +685,13 @@ async function browserChecks(pool, headers, couch) {
     check(await page.locator("[data-team-view]").waitFor({ timeout: 10000 }).then(() => true, () => false), "Open the Eagles: the team's sheet");
     await page.keyboard.press("Escape");
     await page.waitForTimeout(800);
+    // Chat (B1 session 5): the room, its thread chip for the game on now; then hidden (below) folds the thread's talk.
+    await page.click('nav[aria-label="League"] a[href$="/chat"]');
+    const roomUp = await page.locator("[data-league-chat] [data-msg]").first().waitFor({ timeout: 15000 }).then(() => true, () => false);
+    const roomSeen = roomUp ? await page.evaluate(() => ({ text: document.querySelector("[data-league-chat]")?.textContent ?? "", chip: !!document.querySelector('[data-threads] [data-thread="93103"]'), about: document.querySelector("[data-about]")?.getAttribute("data-about") })) : null;
+    check(!!roomSeen && /Sunday's here/.test(roomSeen.text) && /what a catch/.test(roomSeen.text) && roomSeen.chip && roomSeen.about === "93103", "its Chat tab: the room, the thread's chip, About the game on now over the composer", roomSeen);
+    await wide("the Chat tab");
+    await shot("chat");
     await leagueFollowBrowser(page, shot, wide, headers);
     // Seen live on the strip counts as shown for the visit (scores.tsx noteSeen): forget it, so the sheet below starts hidden.
     await page.evaluate(() => sessionStorage.removeItem("gys-shown-scores"));
@@ -655,6 +700,15 @@ async function browserChecks(pool, headers, couch) {
     await page.goto(BASE + `/league/${FB}/standings`, { waitUntil: "load" });
     const tableHeld = await page.locator("[data-standings-hidden]").waitFor({ timeout: 15000 }).then(() => true, () => false);
     check(tableHeld && (await page.locator("[data-standing-row]").count()) === 0 && !/\b\d+-\d+\b/.test((await page.textContent("[data-league-tab]")) ?? ""), "scores hidden: the Standings tab holds the whole table behind one Show");
+    // Chat hidden: Riley's talk in the game's thread since kickoff is one fold; Show the score lets it out.
+    await page.goto(BASE + `/league/${FB}/chat`, { waitUntil: "load" });
+    const folded = await page.locator('[data-room-fold="93103"]').waitFor({ timeout: 15000 }).then(() => true, () => false);
+    check(folded && !/what a catch/.test((await page.textContent("[data-league-chat]")) ?? "") && /Sunday's here/.test((await page.textContent("[data-league-chat]")) ?? ""), "scores hidden: the thread's talk since kickoff folded, the room's shown");
+    if (folded) {
+      await page.click("[data-room-fold-show]");
+      check(await page.getByText("what a catch").waitFor({ timeout: 5000 }).then(() => true, () => false), "Show the score unfolds the thread's talk");
+      await page.evaluate(() => sessionStorage.removeItem("gys-shown-scores"));
+    }
     // The guide is its own page over the hub now (?page=guide), its Add a show in its header. Waits for its button, not for the
     // network to go quiet: here the hub's sports reads stay open past 30 s in this browser (on A2's code too; BACKLOG 254 g).
     await page.goto(BASE + "/home?page=guide", { waitUntil: "load" });

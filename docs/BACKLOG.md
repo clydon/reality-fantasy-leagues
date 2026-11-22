@@ -521,7 +521,11 @@ alike. (m) The shared game row on the guide's Sports and a team's schedule (roun
 review, the schedule with B2's team page. (n) **Decided** (the user, 2026-11-22, approving B1 session 2): no Play on Scores' rows; a row opens its
 game, and B4's sheet holds Play. (o) Noticed in B1 session 3 (the Games tab's check, both reviewers): the couch's join sheet speaks
 a show's words on a sports game ("It plays Episode 12 only: make your pick before you watch it"); a sports game's join sheet in
-its own words (the week or game it covers, when picks lock). (p) Solo sports play (C4): a sports start needs a couch today, so
+its own words (the week or game it covers, when picks lock). (q) After the lane's merge (the user, 2026-11-22, B1 Chat's review): a chat count on each game row (Scores, the hub's strip)
+that opens the game's thread in the league's room. (r) The same: the room's latest line on This week (round 2's item 5).
+(s) **Decided** (the same review): a fantasy game's own chat and the room's thread for the real game stay apart; watch a real
+Sunday, then decide whether a game's chat shows inside the room (tagged by its games, as linked leagues share one chat).
+(p) Solo sports play (C4): a sports start needs a couch today, so
 a solo player's Games tab offers Start a couch · Join one and nothing to start. **Decided** (the user, 2026-11-22): wait for
 C4; nothing interim that C4 would make obsolete.
 [S · sports]

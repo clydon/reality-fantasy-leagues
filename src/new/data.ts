@@ -10,6 +10,7 @@ import type { SeasonEpisodes, SeasonReveal } from "@/lib/server/season-episodes"
 import type { ArchivedGame, SeasonRecord } from "@/lib/server/season-games";
 import type { SeasonStats } from "@/lib/server/season-stats";
 import type { ChatLine, CouchChat } from "@/lib/server/couch-chat";
+import type { RoomChat, RoomLine } from "@/lib/server/league-chat";
 import type { Backstage, Chosen, PasteResult } from "@/lib/server/backstage";
 import type { EpisodeResults } from "@/lib/server/episode-results";
 import type { CatalogSeason } from "@/lib/server/way-in";
@@ -68,6 +69,7 @@ export type { EpisodeRow, SeasonEpisodes, SeasonReveal } from "@/lib/server/seas
 export type { CastStat, Pattern, StatDef } from "@/lib/game/cast-stats";
 export type { SeasonStats } from "@/lib/server/season-stats";
 export type { ChatLine, CouchChat } from "@/lib/server/couch-chat";
+export type { RoomChat, RoomLine } from "@/lib/server/league-chat";
 export type { Backstage, BackstageEpisode, Chosen, Face, FillLine, Need, PasteResult, ResultRow, Shown } from "@/lib/server/backstage";
 export type { EpisodeResult, EpisodeResults } from "@/lib/server/episode-results";
 export type { Correction } from "@/lib/server/rulings";
@@ -450,6 +452,77 @@ export async function postToCouch(seasonId: string, couchId: string, text: strin
 }
 
 export type ChatRead = CouchChat | { out: true };
+
+// ---- a league's room (GET/POST /api/sports/league/chat?league=&couch=, league-chat.ts; docs/PLAN-sports-couch.md B1 session 5) ----
+
+const roomUrl = (league: string, couchId: string, rest = "", query: Record<string, string> = {}) =>
+  `/api/sports/league/chat${rest}?${new URLSearchParams({ league, couch: couchId, ...query })}`;
+
+/** A league's room, polled every 5 s while it's on screen (a `v` each time: an unchanged room keeps what's here). `since`: once
+ *  you've read back, everything from the message the first window started at. */
+export function useLeagueRoom(league: string, couchId: string | null, since: Pick<RoomLine, "id" | "at"> | null = null) {
+  const client = useQueryClient();
+  const key = ["new-design", "room", league, couchId, since?.id ?? null] as const;
+  return useQuery({
+    queryKey: key,
+    queryFn: async (): Promise<RoomChat> => {
+      const have = client.getQueryData<RoomChat>(key);
+      const query: Record<string, string> = {};
+      if (since) Object.assign(query, { since: since.id, at: since.at });
+      if (have?.v) query.v = have.v;
+      const body = await get<RoomChat | { unchanged: true; v: string }>(roomUrl(league, couchId as string, "", query));
+      return "unchanged" in body && have ? have : (body as RoomChat);
+    },
+    enabled: !!couchId,
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: false,
+  });
+}
+
+/** The league's Chat tab badge: how many messages you haven't read (every 30 s). */
+export function useRoomBadge(league: string, couchId: string | null) {
+  return useQuery({
+    queryKey: ["new-design", "room-badge", league, couchId],
+    queryFn: () => get<{ unread: number }>(roomUrl(league, couchId as string, "/unread")),
+    enabled: !!couchId,
+    staleTime: 20_000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+  });
+}
+
+/** The 100 before a message of the room (Earlier messages), on a tap; never polled. */
+export function roomEarlier(league: string, couchId: string, before: Pick<RoomLine, "id" | "at">) {
+  return get<{ messages: RoomLine[]; more: boolean }>(roomUrl(league, couchId, "", { before: before.id, at: before.at }));
+}
+
+/** A thread a message goes to: the game, its start and its words for the push. */
+export type RoomThread = { event: string; eventAt: string | null; eventName: string };
+
+/** What you can do in a league's room; each refreshes it (the badge, for a read). The show chat's sheet takes these. */
+export function useRoomActions(league: string, couchId: string | null) {
+  const client = useQueryClient();
+  const refresh = () => client.invalidateQueries({ queryKey: ["new-design", "room", league, couchId] });
+  const at = (id: string, rest = "") => roomUrl(league, couchId as string, `/${encodeURIComponent(id)}${rest}`);
+  return {
+    async post(text: string, gif?: GifHit, thread?: RoomThread | null) {
+      const body = {
+        ...(gif ? { gif: { id: gif.id, url: gif.url, w: gif.w, h: gif.h, title: gif.title } } : { text }),
+        ...(thread ? { event: thread.event, eventAt: thread.eventAt, eventName: thread.eventName } : {}),
+      };
+      const line = (await chatSend<{ message: RoomLine }>(roomUrl(league, couchId as string), "POST", body)).message;
+      await refresh();
+      return line;
+    },
+    react: (id: string, emoji: string) => chatSend(at(id, "/react"), "POST", { emoji }).then(refresh),
+    edit: (id: string, text: string) => chatSend(at(id), "PATCH", { text }).then(refresh),
+    remove: (id: string) => chatSend(at(id), "DELETE").then(refresh),
+    async read(upTo: string) {
+      await chatSend(roomUrl(league, couchId as string, "/read"), "POST", { at: upTo });
+      client.setQueriesData<{ unread: number }>({ queryKey: ["new-design", "room-badge", league, couchId] }, (d) => (d ? { ...d, unread: 0 } : d));
+    },
+  };
+}
 
 /**
  * The couch's chat about this show, folded past where you are (unfolded through `unfold` once you've asked), polled

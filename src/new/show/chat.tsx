@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { Theme } from "emoji-picker-react";
 import { ChevronRight, Eye, MessageCircle, Plus, Send } from "lucide-react";
 import { openCouchSheet } from "../couch/couch-sheets";
@@ -34,10 +34,10 @@ const RUN_MS = 10 * 60_000;
 // "Show them", per couch and show, for this visit: through the episode that was latest when you tapped.
 const unfolds = new Map<string, number>();
 
-const timeOf = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-const dayKey = (iso: string) => new Date(iso).toDateString();
+export const timeOf = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+export const dayKey = (iso: string) => new Date(iso).toDateString();
 
-function dayLabel(iso: string) {
+export function dayLabel(iso: string) {
   const d = new Date(iso);
   const today = new Date();
   const yesterday = new Date(today);
@@ -50,7 +50,7 @@ function dayLabel(iso: string) {
 /** "riley revealed episode 5" as the design says it: "riley revealed Episode 5". */
 const revealWords = (text: string) => text.replace(/\b(episodes?)(?= \d)/i, (w) => w[0].toUpperCase() + w.slice(1).toLowerCase());
 
-const names = (list: string[]) => (list.length <= 2 ? list.join(" and ") : `${list.slice(0, -1).join(", ")} and ${list[list.length - 1]}`);
+export const names = (list: string[]) => (list.length <= 2 ? list.join(" and ") : `${list.slice(0, -1).join(", ")} and ${list[list.length - 1]}`);
 
 type Item =
   | { kind: "day"; key: string; label: string }
@@ -327,8 +327,11 @@ export function Chat({ seasonId, show }: { seasonId: string; show: ShowData }) {
   );
 }
 
-/** One message, or a reveal line. */
-function Line({ item, me, couchId = null, onOpen, onReact }: { item: Extract<Item, { kind: "line" }>; me: string; couchId?: string | null; onOpen: () => void; onReact: (emoji: string) => void }) {
+/** A run's place in the stream (a league's room builds its own: screens/league-chat.tsx). */
+export type LineItem = { m: ChatLine; starts: boolean; ends: boolean };
+
+/** One message, or a reveal line. `tag`: what the run is about, on its name line (a league room's game thread: "Eagles at Jets"). */
+export function Line({ item, me, couchId = null, onOpen, onReact, tag }: { item: LineItem; me: string; couchId?: string | null; onOpen: () => void; onReact: (emoji: string) => void; tag?: ReactNode }) {
   const { m, starts, ends } = item;
   if (m.type === "reveal") {
     return (
@@ -343,6 +346,8 @@ function Line({ item, me, couchId = null, onOpen, onReact }: { item: Extract<Ite
   // The face sits beside the run's last bubble; reactions go under the bubble, clear of it.
   return (
     <div data-msg={m.id} className={`${starts ? "mt-2.5" : "mt-1"} ${ends ? "mb-0.5" : ""}`}>
+      {/* Your own run's tag sits above it, at your side (your bubbles carry no name line). */}
+      {mine && starts && tag && <div className="mb-1 flex justify-end text-[11px] font-bold text-muted-foreground">{tag}</div>}
       <div className={`flex items-end gap-2 ${mine ? "justify-end" : ""}`}>
         {/* Someone's face opens them on the couch: where they're up to, their games (the drill pass, 2026-11-17). */}
         {!mine &&
@@ -369,6 +374,7 @@ function Line({ item, me, couchId = null, onOpen, onReact }: { item: Extract<Ite
           {!mine && starts && (
             <small className={`mb-0.5 flex items-baseline gap-1.5 text-[11px] font-bold text-muted-foreground ${m.gif ? "px-1 pt-0.5" : ""}`}>
               {m.name}
+              {tag}
               <time dateTime={m.at} className="font-medium">
                 {timeOf(m.at)}
               </time>
@@ -457,8 +463,9 @@ function Fold({
   );
 }
 
-/** The field above the tab bar, lifted over the keyboard while you type. Enter sends; Shift+Enter is a new line. */
-function Composer({ placeholder, onSend, onGif }: { placeholder: string; onSend: (text: string) => Promise<void>; onGif?: () => void }) {
+/** The field above the tab bar, lifted over the keyboard while you type. Enter sends; Shift+Enter is a new line. `above`: a line over
+ *  the field (a league room's About chip: where the message goes). */
+export function Composer({ placeholder, onSend, onGif, above }: { placeholder: string; onSend: (text: string) => Promise<void>; onGif?: () => void; above?: ReactNode }) {
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const field = useRef<HTMLTextAreaElement>(null);
@@ -516,9 +523,11 @@ function Composer({ placeholder, onSend, onGif }: { placeholder: string; onSend:
           e.preventDefault();
           send();
         }}
-        className="nd-fixed-x fixed z-[25] flex items-end gap-2 border-t border-border bg-background/95 px-4 pb-4 pt-2.5 backdrop-blur-md"
+        className="nd-fixed-x fixed z-[25] border-t border-border bg-background/95 px-4 pb-4 pt-2.5 backdrop-blur-md"
         style={{ bottom: lift ? lift : "calc(66px + env(safe-area-inset-bottom, 0px))" }}
       >
+        {above}
+        <div className="flex items-end gap-2">
         {onGif && (
           <button type="button" data-chat-gif-button aria-label="Send a GIF" onClick={onGif} className="type-caption grid h-[46px] w-11 flex-none place-items-center rounded-[3px] bg-secondary text-[15px]">
             GIF
@@ -544,6 +553,7 @@ function Composer({ placeholder, onSend, onGif }: { placeholder: string; onSend:
         <button type="submit" aria-label="Send" disabled={!draft.trim() || busy} className="grid size-[46px] flex-none place-items-center rounded-[3px] bg-secondary disabled:text-muted-foreground">
           <Send className="size-5" aria-hidden />
         </button>
+        </div>
       </form>
     </>
   );
@@ -551,7 +561,7 @@ function Composer({ placeholder, onSend, onGif }: { placeholder: string; onSend:
 
 /** A message's sheet: quick reactions (any emoji behind +), Copy, and Edit and Delete for yours (or anyone's, for
  *  whoever runs a game here). A reveal line's has only Remove, for them. */
-function MessageSheet({ m, chat, onClose, actions }: { m: ChatLine | null; chat: CouchChat; onClose: () => void; actions: ReturnType<typeof useChatActions> }) {
+export function MessageSheet({ m, chat, onClose, actions }: { m: ChatLine | null; chat: { you: Pick<CouchChat["you"], "userId" | "moderator"> }; onClose: () => void; actions: Pick<ReturnType<typeof useChatActions>, "react" | "edit" | "remove"> }) {
   const [picker, setPicker] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const night = useNight();

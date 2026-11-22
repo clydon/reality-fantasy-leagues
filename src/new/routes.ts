@@ -46,9 +46,8 @@ export function isShowTab(v: string): v is ShowTab {
   return (SHOW_TABS as readonly string[]).includes(v);
 }
 
-/** A league's page's tabs, in order (docs/PLAN-sports-couch.md B1: This week, Scores, Games, Standings; Chat joins when it's
- *  built). /league/<sport>/<code>/<tab>, the league as its provider names it ("football/nfl"). */
-export const LEAGUE_TABS = ["week", "scores", "games", "standings"] as const;
+/** A league's page's tabs, in order (docs/PLAN-sports-couch.md B1: This week, Scores, Games, Standings, Chat). /league/<sport>/<code>/<tab>, the league as its provider names it ("football/nfl"). */
+export const LEAGUE_TABS = ["week", "scores", "games", "standings", "chat"] as const;
 export type LeagueTab = (typeof LEAGUE_TABS)[number];
 
 export function isLeagueTab(v: string): v is LeagueTab {
