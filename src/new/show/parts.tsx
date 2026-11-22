@@ -3,6 +3,7 @@
 import type { ComponentProps, ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { SectionHead } from "../ui/parts";
+import { isTeamBadge, TeamPicture } from "../ui/team-pictures";
 
 // Small pieces the show space's tabs share (the mock's .blk, the cast's faces, an icon box).
 
@@ -25,9 +26,12 @@ export function Face({ src, name, out, className = "", ...props }: { src: string
       </span>
     );
   }
+  const cls = `object-cover object-[center_20%] ${out ? "grayscale" : ""} ${className}`;
+  // Our badge for a team: your couch's picture for it when there is one (team-pictures.tsx).
+  if (isTeamBadge(src)) return <TeamPicture src={src} {...props} className={cls} />;
   return (
     // eslint-disable-next-line @next/next/no-img-element -- cast photos come from anywhere a show's cast was imported from
-    <img src={src} alt="" {...props} className={`object-cover object-[center_20%] ${out ? "grayscale" : ""} ${className}`} />
+    <img src={src} alt="" {...props} className={cls} />
   );
 }
 

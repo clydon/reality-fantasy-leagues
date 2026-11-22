@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import type { Castaway } from "@/lib/game/types";
 import { castawayPhotoSrc, initials } from "@/lib/game/selectors";
 import { cn } from "cn";
+import { isTeamBadge, TeamPicture } from "@/new/ui/team-pictures";
 
 // A castaway's photo, falling back to their initials. Direct translation of the live app's own
 // pattern, which is the same expression repeated at every avatar site:
@@ -43,7 +44,10 @@ export function CastawayAvatar({
 
   const photo = (
     <div className={cn("overflow-hidden", className, canZoom && "cursor-zoom-in")}>
-      {hasPhoto ? (
+      {hasPhoto && isTeamBadge(src) ? (
+        // Our badge for a team: your couch's picture for it when there is one (src/new/ui/team-pictures.tsx).
+        <TeamPicture src={src!} className="h-full w-full object-cover" onError={() => setFailed(true)} />
+      ) : hasPhoto ? (
         // eslint-disable-next-line @next/next/no-img-element -- see the note above on next/image
         <img src={src!} alt="" className="h-full w-full object-cover" onError={() => setFailed(true)} />
       ) : (

@@ -110,8 +110,8 @@ export async function rosterFromEvents(links: LinkedEvent[], providers: SportsPr
   // colour, from the league's teams (cached a week). Never the league's logo (docs/PLAN-team-logos.md L0).
   const badges = new Map<string, Promise<Map<string, string>>>();
   const badgeOf = (p: SportsProvider, t: { league: string; id: string; name: string }) => {
-    if (!badges.has(t.league)) badges.set(t.league, p.teams(t.league).then((l) => new Map((l?.teams ?? []).map((x) => [x.id, teamBadgeSrc(x.abbreviation, x.color, x.name)] as const)), () => new Map()));
-    return badges.get(t.league)!.then((m) => m.get(t.id) ?? teamBadgeSrc(null, null, t.name));
+    if (!badges.has(t.league)) badges.set(t.league, p.teams(t.league).then((l) => new Map((l?.teams ?? []).map((x) => [x.id, teamBadgeSrc(x.abbreviation, x.color, x.name, `team:${t.league}:${x.id}`)] as const)), () => new Map()));
+    return badges.get(t.league)!.then((m) => m.get(t.id) ?? teamBadgeSrc(null, null, t.name, `team:${t.league}:${t.id}`));
   };
   const sides = async (p: SportsProvider, t: { league: string; id: string; name: string }) => {
     const sport = sportOf(t.league);

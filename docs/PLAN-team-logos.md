@@ -122,6 +122,33 @@ gameyourshow.com domain", on request), never given. The user reads it.
   (docs/design-round/admin-r1-*), not a separate admin.
 - Later, if wanted: links (the server fetches once, with SSRF guards, then it's an upload).
 
+## L4's store and L6, your couch's one-off load (built 2026-11-22, the user: "sooner than later")
+
+The user's end goal (2026-11-22): a one-time load of team logos into their own couch, by hand, soon. Built ahead of the upload
+screens, because it needs only the store and the display:
+
+- **The store:** migration 0450 `couch_pictures` (couch, key `team:<league>:<team id>`, a finished square, version, set_by,
+  source `upload` | `load`); `src/lib/server/couch-pictures.ts` (set, remove, a member's read, `yourTeamPictures`); routes
+  `GET /api/couches/[couchId]/pictures?key=&v=` (members only, private, immutable by version) and `GET /api/me/team-pictures`.
+- **Which picture you see** across two couches: the one the hub shows, else the newest (the design round confirms it).
+- **The display:** our badge carries its team's key (`teamBadgeSrc`'s `team`, `badgeTeamOf`); `src/new/ui/team-pictures.tsx`
+  swaps in your couch's picture, drawn by `Face`, `CastawayAvatar` and the roster's rows only for a badge, so a long list asks
+  nothing extra. **Not yet:** `TeamMark` (the hub's bands, the guide, the couch's sheets) still draws the badge only: those
+  places know a team's id but not always its league; the design round's hub call settles it.
+- **Composition** (impeccable, 2026-11-22; the design system's Tags Not Fills rule): the white caption plate, the logo contained
+  in a box inset 10% top, left and right and 18% at the bottom, the team's colour on the badge's cut corner as the plate's
+  angled tag. Logos read on white (Chiefs red, Bears navy, Raiders black and silver all checked); the tag keeps the badge's
+  silhouette. One fix batch from the check: the padding trimmed from 12%/20% so logos read at 36-44 px.
+- **L6, the one-off:** `scripts/couch-team-pictures.js --couch <id> --by <username> --league football/nfl[,...]`
+  (`--dry-run`, `--out <dir>`, `--remove`): ESPN's team list for each league (its default logo and colour), each logo fetched
+  once, composed, saved into that couch only as set by that member (source `load`). ~7.5 KB a picture: the NFL's 32 are
+  ~240 KB. Never for anyone else's couch; the pictures it makes are never committed.
+- **Checks:** `scripts/dev-test/check-couch-pictures.js` (14: the composition, who sees one, versions, the hub couch wins,
+  refusals, taken away; made-up pictures only). Seen at 390 on the NFL test couch's draft: the Chiefs D/ST shows the couch's
+  (made-up) picture, the other 31 their badges.
+- **To go live:** merge and push (migrations 0449 and 0450), then run the script against production for the user's couch:
+  the user says which couch and leagues, and okays the production write.
+
 ## Next: one design round for L3, L4 and L5
 
 Read docs/DESIGN-PROCESS.md and docs/DESIGN-ROUND-PACKET.md first. Intent, then Perception-First Design, then Impeccable,
@@ -146,6 +173,15 @@ L0 first: it's a correctness fix and needs no design. L1 is done. L2 is the user
 live once both addresses receive mail. L4 and L5 ship together after it. L4 and L5 ship together: no uploads without the takedown button.
 
 ## Noticed, not fixed
+
+- **The badge's letters are a system face** (Arial Narrow inside the SVG: a data: image can't load Archivo). The craft floor
+  wants the app's own face: outline Archivo's capitals and digits into paths at build time (the brand logo is outlined the same
+  way). Small; anyone. (impeccable's craft floor, 2026-11-22.)
+- **The safety step** (the user's question, 2026-11-22: "nothing against the Terms, or CSAM"): before any member upload ships,
+  and retrofitted to profile pictures, which have no server check today: server re-encode and metadata strip, pending until a
+  nudity/violence classifier passes (zero tolerance for sexual content), Cloudflare's CSAM Scanning Tool on a proxied picture
+  host, a report button that hides at once, a written NCMEC procedure and registration, and a zero-tolerance line in the Terms.
+  Proposed to the user; not yet answered. Links, if ever: fetched once and stored like an upload, never drawn from their host.
 
 - ESPN athlete headshots are hotlinked (L0's open question, the user's).
 - No Privacy Policy and no age check (L2.3, L3: the user's).

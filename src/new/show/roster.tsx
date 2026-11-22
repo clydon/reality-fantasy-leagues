@@ -10,6 +10,7 @@ import { toast } from "../ui/toast";
 import { PasteSheet } from "./recaps";
 import { useGameDrill } from "./game-sheets";
 import { openSports } from "../sports/sheets";
+import { isTeamBadge, TeamPicture } from "../ui/team-pictures";
 
 // A sport's Players tab (rosters.ts, db/migrations/0144): who's playing, by team, each with what they play. TV listings only list a
 // sport's broadcasters, so a sport nobody's made a game of gets its players from the sports data (0149, sports/cast.ts: its linked
@@ -151,7 +152,10 @@ export function Roster({ seasonId, show }: { seasonId: string; show: ShowData })
           </div>
           {g.people.map((p) => (
             <button key={p.name} type="button" data-roster-person={p.name} onClick={() => drill.open({ kind: "cast", name: p.name })} className="nd-press flex min-h-[60px] w-full items-center gap-3 border-t border-border py-2 text-left">
-              {p.photoUrl ? (
+              {p.photoUrl && isTeamBadge(p.photoUrl) ? (
+                // Our badge for a team (its defense): your couch's picture for it when there is one.
+                <TeamPicture src={p.photoUrl} data-roster-photo className="size-11 flex-none rounded-[3px] bg-secondary object-cover object-top" loading="lazy" />
+              ) : p.photoUrl ? (
                 // The sports data's headshot, or a Wikimedia Commons thumbnail (both credited in Settings, Credits).
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={p.photoUrl} alt="" data-roster-photo className="size-11 flex-none rounded-[3px] bg-secondary object-cover object-top" loading="lazy" />
