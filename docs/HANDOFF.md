@@ -108,9 +108,9 @@ Newest first. The plan or archive section named holds the detail.
 
 ## In flight
 
-- **The site admin's desk, Round 0** (2026-11-22, on master as docs): audit, structure, first views, grey boxes and the check;
-  story https://claude.ai/artifact/2stMjgq4FtKJZCtNebU82B. Waits on the user's shape and twelve choices; Round 1 builds it. The
-  frames: `node scripts/dev-test/story-settings.js --only="^desk-r0-"` (and --width=1280 --height=900).
+- **Admin, the full audit** (2026-11-22, on master as docs): phone first (the user uses admin on a phone more often than not).
+  docs/design-round/admin-audit.md and https://claude.ai/artifact/6ijx8Nziw3NVn6fzCbhMoA. Waits on the user's 18 decisions and the four fix-now items (BACKLOG 250 the
+  Back loop first); then three design rounds. Round 0's wide-screen shapes are replaced.
 - **Game preview, branch `preview`** (lane rfl-preview): 17 commits not on master, 55 commits behind it, about 11 conflict
   hunks (strip.tsx, game-week.tsx, your-move.ts, tonight.tsx). It has P0, the visual story, the bench's preview maker and
   Round 5 (four real-app fixes, among them the finale reveal ranking a stage that had ended). It waits on the user's review of

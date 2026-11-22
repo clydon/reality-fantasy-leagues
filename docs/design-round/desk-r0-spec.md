@@ -1,5 +1,7 @@
 # The site admin's desk, Round 0: where everything lives (Intent's spec)
 
+> **Replaced (2026-11-22):** admin is phone-first; its organization is in [admin-audit.md](admin-audit.md). Kept as history.
+>
 > **Status (2026-11-22): Round 0, for the user's decision.** Built on [desk-r0-audit.md](desk-r0-audit.md) (27 screens, D1–D151,
 > M1–M14). The settings plan's Round 5 ([PLAN-settings-overhaul.md](../PLAN-settings-overhaul.md)) widened to the whole desk, at the
 > user's request (2026-11-22: "a pass on the admin… the same treatment"). No visuals here: Impeccable draws the shapes after

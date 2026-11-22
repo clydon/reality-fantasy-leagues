@@ -1,5 +1,7 @@
 # The site admin's desk, Round 0: what's noticed first (Perception-First Design, Mode 2)
 
+> **Replaced (2026-11-22):** admin is phone-first; see [admin-audit.md](admin-audit.md). R1–R5 still hold, apart from width.
+>
 > **Status (2026-11-22): Round 0.** Derived from [desk-r0-spec.md](desk-r0-spec.md) (Intent's structure, which owns what's on each
 > page) and [desk-r0-audit.md](desk-r0-audit.md) (today). This owns what comes first and how much at once. Where it disagrees with
 > the spec, it says so as advice.

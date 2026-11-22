@@ -6,7 +6,7 @@ and in flight is in [HANDOFF.md](HANDOFF.md).
 
 **How this file works**
 - **Numbers are permanent.** Code, tests and commits cite "BACKLOG 57", so a number never changes and is never reused. A new
-  item takes the next free number: **the next is 250.**
+  item takes the next free number: **the next is 251.**
 - **Closing an item:** delete it here and add one line under "Closed since the cleanup" at the end: the number, done or
   dropped, and the commit or the reason. Numbers closed in the cleanup itself are listed, with their full old text, in
   [archive/BACKLOG-2026-11-19.md](archive/BACKLOG-2026-11-19.md).
@@ -21,6 +21,12 @@ and in flight is in [HANDOFF.md](HANDOFF.md).
 ## Dated
 
 Survivor 51's Ep 10 airs Wed 2026-11-25. Its finale is Wed 2026-12-16.
+
+**250. Admin's Back loops from a page opened from outside admin.** Open a season's admin page from a show's ⋯ ("This season in
+Admin") or from a link, and the header's Back bounces between the season and its show for ever (the first page has no page
+before it, so Back goes up and replaces it; the parent then treats it as the page before: src/new/desk/trail.ts useDeskTrail,
+src/new/nav.tsx). An installed iPhone app has no system Back to escape. Found by the admin audit (admin-audit-tasks.md, worst 1),
+confirmed 2026-11-22 by scripts/dev-test/check-admin-back.js, which fails today and is the test. Live in production. [S · admin]
 
 **110. Watch Ep 10's night, the first with episode night.** *Thu 2026-11-26.* Look C, Lock in and carried lineups went live
 2026-11-19 (7cfb1bb5). The morning after, check production: did anyone hit a refused move after Lock in, did Undo work, and did
