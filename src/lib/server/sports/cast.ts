@@ -5,6 +5,7 @@ import { applyApprovedCastToLeagues, approveSportCast, seasonCastRows } from "..
 import { fillCastPhotos } from "../show-art";
 import { sportsProviders } from "./index";
 import { SportsUnavailable, type Injury, type Person, type SportsProvider } from "./types";
+import { LEAGUE_LOGO, teamBadgeSrc } from "@/lib/sports/team-badge";
 
 // A sport's cast from its linked games (docs/PLAN-sports-data.md step 3; db/migrations/0149): the teams in a season's season_events
 // give its people, each team's players from the provider (players only: a provider's coaches and staff are apart), each with the
@@ -39,7 +40,8 @@ export interface CastPerson {
   ids: Record<string, string>;
   /** The episode whose box score brought them in (a team with no roster); null from a roster or a field. */
   from: number | null;
-  /** A team's own person (its defense: TeamSport.teamPeople), its picture the team's logo: no headshot to look for. */
+  /** A team's own person (its defense: TeamSport.teamPeople), its picture our badge for the team (team-badge.ts; never the
+   *  league's logo, docs/PLAN-team-logos.md L0): no headshot to look for. */
   side?: true;
   /** Their injury as their roster says it now (step 1.5); left out for anyone not from a roster (a box score's, a field's). */
   injury?: Injury | null;
@@ -104,18 +106,19 @@ export async function rosterFromEvents(links: LinkedEvent[], providers: SportsPr
   };
   const teams: { provider: string; league: string; id: string; name: string }[] = [];
   for (const l of links) for (const t of l.teams ?? []) if (!teams.some((x) => x.provider === l.provider && x.id === t.id)) teams.push({ provider: l.provider, league: l.league, id: t.id, name: t.name });
-  // A team's own people (its defense: step 1.3), after its roster's, its picture its logo (the league's teams, cached a week).
-  const logos = new Map<string, Promise<Map<string, string | null>>>();
-  const logoOf = (p: SportsProvider, league: string, team: string) => {
-    if (!logos.has(league)) logos.set(league, p.teams(league).then((l) => new Map((l?.teams ?? []).map((x) => [x.id, x.logo] as const)), () => new Map()));
-    return logos.get(league)!.then((m) => m.get(team) ?? null);
+  // A team's own people (its defense: step 1.3), after its roster's, their picture our badge for the team: its abbreviation on its
+  // colour, from the league's teams (cached a week). Never the league's logo (docs/PLAN-team-logos.md L0).
+  const badges = new Map<string, Promise<Map<string, string>>>();
+  const badgeOf = (p: SportsProvider, t: { league: string; id: string; name: string }) => {
+    if (!badges.has(t.league)) badges.set(t.league, p.teams(t.league).then((l) => new Map((l?.teams ?? []).map((x) => [x.id, teamBadgeSrc(x.abbreviation, x.color, x.name)] as const)), () => new Map()));
+    return badges.get(t.league)!.then((m) => m.get(t.id) ?? teamBadgeSrc(null, null, t.name));
   };
   const sides = async (p: SportsProvider, t: { league: string; id: string; name: string }) => {
     const sport = sportOf(t.league);
     const own = sport instanceof TeamSport ? sport.teamPeople(t) : [];
     if (!own.length) return;
-    const logo = await logoOf(p, t.league, t.id);
-    add(t.name, p.id, own.map((x) => ({ id: x.id, name: x.name, position: x.position, headshot: logo })), null, true);
+    const badge = await badgeOf(p, t);
+    add(t.name, p.id, own.map((x) => ({ id: x.id, name: x.name, position: x.position, headshot: badge })), null, true);
   };
   for (const t of teams) {
     const p = providers.find((x) => x.id === t.provider);
@@ -192,21 +195,22 @@ export async function releaseFill(seasonId: string, message: string | null, fill
  * reads their row); only while it's still castable. Then the season's people approved (BACKLOG 220). Returns who it added, how
  * many moved team, and whether it approved them just now.
  */
-async function saveCast(seasonId: string, groups: CastGroup[]): Promise<{ added: CastPerson[]; moved: number; approved: boolean }> {
+async function saveCast(seasonId: string, groups: CastGroup[]): Promise<{ added: CastPerson[]; moved: number; approved: boolean; pictured: number }> {
   const c = await pool.connect();
   try {
     await c.query("BEGIN");
     await c.query("SELECT id FROM show_seasons WHERE id = $1 FOR UPDATE", [seasonId]);
     if (!(await castable(seasonId, c)).ok) {
       await c.query("ROLLBACK");
-      return { added: [], moved: 0, approved: false };
+      return { added: [], moved: 0, approved: false, pictured: 0 };
     }
-    const { rows } = await c.query("SELECT id, lower(name) AS name, role, tribe_name, injury, eligible, provider_ids, sort_order FROM season_cast WHERE season_id = $1", [seasonId]);
+    const { rows } = await c.query("SELECT id, lower(name) AS name, role, tribe_name, photo_url, injury, eligible, provider_ids, sort_order FROM season_cast WHERE season_id = $1", [seasonId]);
     const names = new Set(rows.map((r) => r.name as string));
     const ids = new Map(rows.flatMap((r) => Object.entries((r.provider_ids ?? {}) as Record<string, string>).map(([k, v]) => [`${k}:${v}`, r] as const)));
     let order = rows.reduce((m, r) => Math.max(m, (r.sort_order as number) ?? 0), -1) + 1;
     const added: CastPerson[] = [];
     let moved = 0;
+    let pictured = 0;
     for (const g of groups) {
       for (const p of g.people) {
         const had = Object.entries(p.ids).map(([k, v]) => ids.get(`${k}:${v}`)).find(Boolean);
@@ -216,6 +220,12 @@ async function saveCast(seasonId: string, groups: CastGroup[]): Promise<{ added:
           const traded = g.name !== FIELD && had.tribe_name !== team;
           if ((role && had.role !== role) || traded) await c.query("UPDATE season_cast SET role = COALESCE($2, role), tribe_name = $3 WHERE id = $1", [had.id, role, traded ? team : had.tribe_name]);
           if (traded) moved++;
+          // A team's own people take our badge as theirs (docs/PLAN-team-logos.md L0): a season filled before it had the league's
+          // logo in their place. A hand-set photo stays, unless it's one of ESPN's team logos.
+          if (p.side && p.photoUrl && had.photo_url !== p.photoUrl && (!had.photo_url || had.photo_url.startsWith("data:image/svg+xml") || LEAGUE_LOGO.test(had.photo_url))) {
+            await c.query("UPDATE season_cast SET photo_url = $2 WHERE id = $1", [had.id, p.photoUrl]);
+            pictured++;
+          }
           // Their injury as the roster says it now (step 1.5): set, changed or cleared (only for someone a roster lists).
           if (p.injury !== undefined && JSON.stringify(had.injury ?? null) !== JSON.stringify(p.injury)) await c.query("UPDATE season_cast SET injury = $2::jsonb WHERE id = $1", [had.id, p.injury ? JSON.stringify(p.injury) : null]);
           // The other positions they fill (step 2.3), as the roster lists them now: set, changed or cleared.
@@ -236,7 +246,7 @@ async function saveCast(seasonId: string, groups: CastGroup[]): Promise<{ added:
     }
     const approved = await approveSportCast(c, seasonId);
     await c.query("COMMIT");
-    return { added, moved, approved };
+    return { added, moved, approved, pictured };
   } catch (e) {
     await c.query("ROLLBACK").catch(() => {});
     throw e;
@@ -310,10 +320,10 @@ export async function castFromEvents(seasonId: string, opts: { providers?: Sport
     const links: LinkedEvent[] = rows.map((r) => ({ episode: r.episode, provider: r.provider, league: r.league, eventId: r.event_id, part: r.part, startsAt: r.starts_at ? (r.starts_at as Date).toISOString() : null, teams: r.teams }));
     if (links.length) {
       const { groups, waiting } = await rosterFromEvents(links, opts.providers ?? sportsProviders(), now);
-      const { added, moved, approved } = await saveCast(seasonId, groups);
+      const { added, moved, approved, pictured } = await saveCast(seasonId, groups);
       out = { filled: added.length, waiting, message: null, ...(moved ? { moved } : {}) };
       // Everyone new, into every game on the season (one failing is that game's alone: applyApprovedCastToLeagues).
-      if (added.length || moved || approved) await intoGames(seasonId).catch((e) => console.error("[sports] cast into games", seasonId, e));
+      if (added.length || moved || approved || pictured) await intoGames(seasonId).catch((e) => console.error("[sports] cast into games", seasonId, e));
       const bare = added.filter((p) => !p.photoUrl && !p.side).map((p) => p.name);
       if (bare.length) await fillCastPhotos(seasonId, undefined, { roster: true, only: bare }).catch((e) => console.error("[sports] photos", seasonId, e));
     }

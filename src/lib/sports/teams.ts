@@ -14,7 +14,6 @@ export interface ListedTeam {
   name: string;
   also?: string[];
   abbreviation?: string | null;
-  logo?: string | null;
   color?: string | null;
 }
 
@@ -34,7 +33,6 @@ export interface TeamHit {
   /** As people say it ("Eagles", "76ers"). */
   short: string;
   abbreviation: string | null;
-  logo: string | null;
   /** ESPN's hex colour, without the #. */
   color: string | null;
   /** A college league's (its slug says so): pro teams come first. */
@@ -111,7 +109,6 @@ export function teamHit(list: TeamList, t: ListedTeam, score: number): TeamHit {
     name: t.name,
     short: shortOf(t),
     abbreviation: t.abbreviation ?? null,
-    logo: t.logo ?? null,
     color: t.color ?? null,
     college: isCollege(list.league),
     score,

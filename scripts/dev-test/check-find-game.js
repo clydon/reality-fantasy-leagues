@@ -5,7 +5,7 @@
 // The stand-in has a ZT soccer league (soccer/zt-find: soccer reads every league, so its games have the sport's runtime) where ZT
 // United (9101) has a season of 35 games: 20 played, then 15 to come, the first two a series against ZT City (9102) on consecutive
 // days; and a cup (soccer/zt-find-cup) the search doesn't read lists of, where ZT Wanderers (9201) play. It checks:
-//   a search: ZT United by its name (its logo and colour from its league's list, its next game), two teams as one matchup with
+//   a search: ZT United by its name (its colour from its league's list, never its logo, its next game), two teams as one matchup with
 //   their next meeting, ZT Wanderers through ESPN's own search when no list has them, the cup searched by its list once a matchup's
 //   made there; a league's list kept a week in the cache;
 //   a team's schedule: its 36 games (one called off, in no add), the series still to come, its season as one to add (more than
@@ -94,7 +94,7 @@ async function down() {
     const start = espn.asked.length;
     const found = await searchTeams("zt united", { ...opts, leagues: [LEAGUE] });
     const u = found.teams[0];
-    check(u?.id === united.id && u.league === LEAGUE && u.leagueName === "ZT League" && u.logo === united.logo && u.color === "c8102e" && u.score === 100, "a team by its name, its logo and colour from its league's list", JSON.stringify(u));
+    check(u?.id === united.id && u.league === LEAGUE && u.leagueName === "ZT League" && !("logo" in u) && u.color === "c8102e" && u.score === 100, "a team by its name, its colour from its league's list, and never the league's logo though the list has one (PLAN-team-logos.md L0)", JSON.stringify(u));
     check(u?.next?.id === "zt-f21" && u.next.opponent?.id === city.id && u.next.home === true, "with its next game", JSON.stringify(u?.next));
     check(found.matchup === null, "one team's name is no matchup");
     const both = await searchTeams("zt city zt united", { ...opts, leagues: [LEAGUE] });

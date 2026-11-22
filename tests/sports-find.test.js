@@ -26,13 +26,13 @@ const lists = LEAGUES.map(([league, file]) => readTeams(league, require(`./fixtu
 const find = (q) => findTeams(lists, q);
 const names = (hits) => hits.map((t) => `${t.name} (${t.leagueName})`);
 
-test("a league's team list: every active team with its names, logo and colour, and the league's names", () => {
+test("a league's team list: every active team with its names and colour (never its logo), and the league's names", () => {
   const nfl = lists[0];
   assert.equal(nfl.league, "football/nfl");
   assert.deepEqual(nfl.name, { name: "National Football League", short: "NFL" });
   assert.equal(nfl.teams.length, 32);
   const phi = nfl.teams.find((t) => t.id === "21");
-  assert.deepEqual(phi, { id: "21", name: "Philadelphia Eagles", also: ["Eagles", "Philadelphia"], abbreviation: "PHI", logo: "https://a.espncdn.com/i/teamlogos/nfl/500/phi.png", color: "06424d" });
+  assert.deepEqual(phi, { id: "21", name: "Philadelphia Eagles", also: ["Eagles", "Philadelphia"], abbreviation: "PHI", color: "06424d" });
   assert.deepEqual(lists.map((l) => l.teams.length), [32, 30, 30, 32, 762, 362]);
   // An inactive team is left out; an answer with no league is none.
   const one = readTeams("x/y", { sports: [{ leagues: [{ name: "Y", teams: [{ team: { id: "1", displayName: "A", isActive: false } }, { team: { id: "2", displayName: "B" } }] }] }] });

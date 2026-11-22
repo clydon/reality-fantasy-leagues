@@ -33,7 +33,6 @@ export interface Team {
   /** The names it also goes by, as the provider gives them ("Rays", "Tampa Bay"); never an abbreviation. */
   also: string[];
   abbreviation: string | null;
-  logo: string | null;
   /** Its colour as the provider gives it (ESPN's hex, without the #), when a team list said it (L7). */
   color?: string | null;
 }

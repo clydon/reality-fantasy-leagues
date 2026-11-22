@@ -156,7 +156,7 @@ export function stageOf(s: { type?: number; slug?: string } | undefined): Season
 export function readTeam(t: RawTeam): Team {
   const name = str(t.displayName) ?? str(t.name) ?? "";
   const also = [t.shortDisplayName, t.nickname, t.name, t.location].map(str).filter((x): x is string => !!x && x.length >= 3 && x.toLowerCase() !== name.toLowerCase());
-  return { id: idOf(t.id), name, also: [...new Set(also)], abbreviation: str(t.abbreviation), logo: str(t.logo) ?? str(t.logos?.[0]?.href) };
+  return { id: idOf(t.id), name, also: [...new Set(also)], abbreviation: str(t.abbreviation) };
 }
 
 /**

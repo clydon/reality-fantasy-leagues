@@ -15,7 +15,6 @@ export interface WeekSide {
   name: string;
   short: string;
   abbreviation: string | null;
-  logo: string | null;
   color: string | null;
   home: boolean | null;
   score: string | null;
@@ -54,7 +53,6 @@ function sideOf(c: SportsEvent["competitors"][number]): WeekSide | null {
     name: c.team.name,
     short: shortOf(c.team),
     abbreviation: c.team.abbreviation,
-    logo: c.team.logo,
     color: c.team.color ?? null,
     home: c.home,
     score: c.score,
@@ -115,8 +113,8 @@ export async function sportsWeek(opts: { from?: string | null; also?: string[]; 
   for (const d of out.days) {
     for (const g of d.games)
       for (const s of g.sides) {
-        const t = s.color && s.logo ? null : lists.get(g.league)?.teams.find((x) => x.id === s.id);
-        if (t) Object.assign(s, { color: s.color ?? t.color ?? null, logo: s.logo ?? t.logo ?? null });
+        const t = s.color ? null : lists.get(g.league)?.teams.find((x) => x.id === s.id);
+        if (t) s.color = t.color ?? null;
       }
     d.games.sort((a, b) => (a.at ?? "").localeCompare(b.at ?? "") || a.league.localeCompare(b.league));
   }

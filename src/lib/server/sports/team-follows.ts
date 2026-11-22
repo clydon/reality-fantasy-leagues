@@ -14,7 +14,6 @@ export interface FollowedTeam {
   name: string;
   short: string;
   abbreviation: string | null;
-  logo: string | null;
   color: string | null;
 }
 
@@ -29,7 +28,6 @@ const rowOf = (r: Record<string, unknown>): FollowedTeam => ({
   name: r.name as string,
   short: r.short as string,
   abbreviation: (r.abbreviation as string | null) ?? null,
-  logo: (r.logo as string | null) ?? null,
   color: (r.color as string | null) ?? null,
 });
 
@@ -52,10 +50,11 @@ export async function setTeamFollow(userId: string, ask: { league?: unknown; tea
   if (!t) throw new HttpError(404, "No such team");
   const color = t.color && /^[0-9a-fA-F]{6}$/.test(t.color) ? t.color : null;
   await pool.query(
-    `INSERT INTO team_follows (user_id, league, team_id, name, short, abbreviation, logo, color) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    // No logo (docs/PLAN-team-logos.md L0: the app never keeps or draws a league's logos; the column stays, always null).
+    `INSERT INTO team_follows (user_id, league, team_id, name, short, abbreviation, color) VALUES ($1, $2, $3, $4, $5, $6, $7)
      ON CONFLICT (user_id, league, team_id) DO UPDATE SET name = EXCLUDED.name, short = EXCLUDED.short, abbreviation = EXCLUDED.abbreviation,
-       logo = EXCLUDED.logo, color = EXCLUDED.color`,
-    [userId, league, team, t.name.slice(0, 120), (t.short || t.name).slice(0, 80), t.abbreviation?.slice(0, 12) ?? null, t.logo && t.logo.length <= 500 ? t.logo : null, color]
+       logo = NULL, color = EXCLUDED.color`,
+    [userId, league, team, t.name.slice(0, 120), (t.short || t.name).slice(0, 80), t.abbreviation?.slice(0, 12) ?? null, color]
   );
   return yourTeams(userId);
 }

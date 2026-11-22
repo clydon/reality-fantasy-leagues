@@ -18,6 +18,8 @@
 // players stay in, marked by `status`, as a real draft pool keeps them.
 const fs = require('fs');
 const path = require('path');
+// A team defense's picture is the app's badge for its team, never the league's logo (docs/PLAN-team-logos.md L0).
+const { teamBadgeSrc } = require('jiti')(__filename, { alias: { '@': path.resolve(__dirname, '../../../src') } })('../../../src/lib/sports/team-badge.ts');
 
 const DIR = path.resolve(__dirname, '../../../.ui-atlas/fixtures/espn');
 // The bench's real-size NFL pool (runtime-sports.cjs REAL.football): 344, its defenses and kickers one a team.
@@ -87,7 +89,7 @@ function pool(snap, { shares, practiceSquad = false } = {}) {
     }
     if (want.DEF) {
       const m = made['def:' + t.id] || { games: 0, value: 0 };
-      (byRole.DEF ||= []).push({ id: 'def:' + t.id, name: t.name + ' D/ST', role: 'DEF', position: 'Team defense', team: t.id, teamName: t.name, teamAbbr: t.abbreviation, headshot: t.logo, photoUrl: t.logo, status: 'active', games: m.games, value: m.value });
+      (byRole.DEF ||= []).push({ id: 'def:' + t.id, name: t.name + ' D/ST', role: 'DEF', position: 'Team defense', team: t.id, teamName: t.name, teamAbbr: t.abbreviation, headshot: teamBadgeSrc(t.abbreviation, t.color, t.name), photoUrl: teamBadgeSrc(t.abbreviation, t.color, t.name), status: 'active', games: m.games, value: m.value });
     }
   }
   const athletes = [];

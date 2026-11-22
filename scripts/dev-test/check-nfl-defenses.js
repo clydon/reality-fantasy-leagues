@@ -45,15 +45,19 @@ const fact = (s) => console.log(`      ${s}`);
   try {
     const { readyLeague } = fx.app("../../src/lib/server/league-read.ts");
     const StateLogic = fx.app("../../src/lib/game/state-logic.js");
+    const { LEAGUE_LOGO } = fx.app("../../src/lib/sports/team-badge.ts");
     const isDefense = (r) => /^def:/.test(r.provider_ids?.espn ?? "") || r.role === "DEF" || /team defense/i.test(r.role ?? "") || /D\/ST$/.test(r.name);
 
     // The week played, its finals kept as production keeps them (and the people of every team its games link by then).
     const errors = await w.days(new Date(Date.parse(week.last) + 8 * 3600_000).toISOString());
-    const { rows: people } = await w.pool.query("SELECT name, tribe_name, role, provider_ids FROM season_cast WHERE season_id = $1", [w.seasonId]);
+    const { rows: people } = await w.pool.query("SELECT name, tribe_name, role, provider_ids, photo_url FROM season_cast WHERE season_id = $1", [w.seasonId]);
     const teams = new Set(people.map((p) => p.tribe_name));
     const defenses = people.filter(isDefense);
     fact(`the slate's people: ${people.length} on ${teams.size} teams, ${[...new Set(people.map((p) => p.role))].length} positions (${[...new Set(people.map((p) => p.role))].slice(0, 6).join(", ")}...)`);
     check(defenses.length === TEAMS && new Set(defenses.map((d) => d.tribe_name)).size === TEAMS, `the slate's people hold all ${TEAMS} team defenses (${defenses.length})`, defenses.slice(0, 3));
+    // (PLAN-team-logos.md L0) a defense's picture is our badge for its team, never the league's logo.
+    const badged = defenses.filter((d) => (d.photo_url ?? "").startsWith("data:image/svg+xml")).length;
+    check(defenses.length > 0 && badged === defenses.length && !people.some((p) => LEAGUE_LOGO.test(p.photo_url ?? "")), `(L0) every defense's picture is our badge (${badged} of ${defenses.length}), no one's an ESPN logo`, defenses[0]?.photo_url?.slice(0, 80));
     const { rows: finals } = await w.pool.query(
       `SELECT f.event_id, f.teams, f.people, f.lines FROM season_events e JOIN sports_events f ON f.provider = e.provider AND f.league = e.league AND f.event_id = e.event_id
         WHERE e.season_id = $1 AND e.episode = $2 AND f.final AND f.lines IS NOT NULL`,
@@ -117,10 +121,18 @@ const fact = (s) => console.log(`      ${s}`);
       [w.seasonId, JSON.stringify(named)]
     );
     const qbsNamed = (await w.pool.query("SELECT count(*)::int AS n FROM season_cast WHERE season_id = $1 AND role = 'Quarterback'", [w.seasonId])).rows[0].n;
+    // (L0) and filled before the badge: its defenses' pictures ESPN's team logos again, in the season's people and in the game.
+    const espnLogo = "https://a.espncdn.com/i/teamlogos/nfl/500/zt.png";
+    await w.pool.query("UPDATE season_cast SET photo_url = $2 WHERE season_id = $1 AND role = 'DEF'", [w.seasonId, espnLogo]);
+    await w.pool.query(`UPDATE leagues SET state = regexp_replace(state::text, '"photoUrl": "data:image/svg[^"]*"', '"photoUrl": "${espnLogo}"', 'g')::jsonb WHERE id = $1`, [started.leagueId]);
+    const inGameBefore = (await w.league(started.leagueId)).castaways.filter((c) => LEAGUE_LOGO.test(c.photoUrl ?? "")).length;
     await fx.app("../../src/lib/server/sports/cast.ts").castFromEvents(w.seasonId, { providers: w.providers });
     const { rows: roles } = await w.pool.query("SELECT count(*) FILTER (WHERE role = 'QB')::int AS qb, count(*) FILTER (WHERE role = 'Quarterback')::int AS named FROM season_cast WHERE season_id = $1", [w.seasonId]);
     fact(`with ESPN's names put back: ${qbsNamed} "Quarterback"; after the next fill: ${roles[0].qb} QB, ${roles[0].named} still named`);
     check(qbsNamed > 0 && roles[0].qb === qbsNamed && roles[0].named === 0, "(BACKLOG 221) a season filled before the fix has the abbreviations again after its next fill");
+    const logosLeft = (await w.pool.query("SELECT count(*)::int AS n FROM season_cast WHERE season_id = $1 AND photo_url ~* 'teamlogos'", [w.seasonId])).rows[0].n;
+    const inGame = (await w.league(started.leagueId)).castaways.filter((c) => LEAGUE_LOGO.test(c.photoUrl ?? "")).length;
+    check(inGameBefore === TEAMS && logosLeft === 0 && inGame === 0, `(L0) a season filled with ESPN's logos (${inGameBefore} in its game) has our badges after its next fill, in its people (${logosLeft} logos left) and in its game (${inGame})`);
     console.log(
       defenses.length === 0
         ? "VERDICT (a): CONFIRMED: an NFL slate has no team defenses: the finals' D/ST lines belong to nobody and the DEF slot has nobody to fill it"

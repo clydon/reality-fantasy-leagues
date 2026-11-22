@@ -35,7 +35,7 @@ const G1 = {
 };
 
 test("a team: its full name, the other names it goes by, never an abbreviation", () => {
-  assert.deepEqual(readTeam(RAYS), { id: "30", name: "Tampa Bay Rays", also: ["Rays", "Tampa Bay"], abbreviation: "TB", logo: RAYS.logo });
+  assert.deepEqual(readTeam(RAYS), { id: "30", name: "Tampa Bay Rays", also: ["Rays", "Tampa Bay"], abbreviation: "TB" }); // never its logo (PLAN-team-logos.md L0), though ESPN gives one
   // AFL's Fremantle is its own location; soccer's teams often have one name.
   assert.deepEqual(readTeam({ id: 1, displayName: "Fremantle", name: "Dockers", location: "Fremantle" }).also, ["Dockers"]);
 });

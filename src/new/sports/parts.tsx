@@ -10,22 +10,9 @@ import { clockOf, dayOf, ShowScore, useGameScore, type GameMoment } from "./scor
 // a dark plate under it), the one yellow plate (Play the next game: a move), an outlined action with its line, and a game's row.
 // A game's state, score and result only ever come through scores.tsx's useGameScore.
 
-const INK = "#121018";
-
-/** White or ink on a team's colour, whichever reads better (the worst on ESPN's colours 4.35:1). */
-export function teamInk(hex: string | null | undefined): string {
-  if (!hex || !/^[0-9a-f]{6}$/i.test(hex)) return "#fff";
-  const ch = (i: number) => {
-    const c = parseInt(hex.slice(i, i + 2), 16) / 255;
-    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-  };
-  const l = 0.2126 * ch(0) + 0.7152 * ch(2) + 0.0722 * ch(4);
-  const onWhite = 1.05 / (l + 0.05);
-  const onInk = (l + 0.05) / 0.0573;
-  return onWhite >= onInk ? "#fff" : INK;
-}
-
-export const teamBg = (hex: string | null | undefined) => (hex && /^[0-9a-f]{6}$/i.test(hex) ? `#${hex}` : "#4a4558");
+// The colour rules live in src/lib/sports/team-badge.ts, shared with the server's picture of a team's own people (a defense).
+export { teamBg, teamInk } from "@/lib/sports/team-badge";
+import { teamBg, teamInk } from "@/lib/sports/team-badge";
 
 /** A team's mark: its abbreviation on its colour. */
 export function TeamMark({ abbr, color, size = "md", className = "" }: { abbr: string | null | undefined; color: string | null | undefined; size?: "sm" | "md" | "lg"; className?: string }) {
