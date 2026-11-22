@@ -507,7 +507,10 @@ answers in under 200 ms when asked alone against the same stand-in; the check no
 network. Find what holds them (the dev server's ESPN fetches for the check's stand-in, most likely). (h) Your team (A3) changes
 only order and words so far: the couch's table by team and rivalries (B1, C1) are what will use it, with each follower's
 `myTeam` already in the couch's read. (i) **Decided** (the user, 2026-11-22, at A3's review): Following stays the quiet fill with a
-check everywhere, the team sheet's toggle too. [S · sports]
+check everywhere, the team sheet's toggle too. (j) **B1 session 1's open look items** (league-page-check.md; the user, 2026-11-22: with
+B1's next tab): the move strip breaks as "Fill in your sheet / · 1 question"; off-season leaves an empty "Play" heading on This week;
+the season rivalries' overlapped xs marks cut four-letter codes. (d) is answered by B1's page (Off-season in its bar and rows).
+[S · sports]
 
 **222. A game the daily job misses for three days is never read again.** The daily job reads a linked game only from three days
 back (matchup.ts `refreshSportsEvents`), so a game whose day the job skipped for three days (the bot VM down over a long

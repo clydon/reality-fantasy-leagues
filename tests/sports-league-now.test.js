@@ -57,6 +57,15 @@ test("the days between the regular season and the playoffs are still on", () => 
   assert.equal(n.back, null);
 });
 
+test("a week's days, for a league's page to read (B1): football's as the calendar cuts it, a daily sport's Monday to Sunday", () => {
+  const n = nowOf("football/nfl", nfl, "week", "2026-11-22");
+  assert.deepEqual([n.from, n.to], ["2026-11-17", "2026-11-23"]);
+  const b = nowOf("basketball/nba", nba, "week", "2026-11-22");
+  assert.deepEqual([b.from, b.to], ["2026-11-16", "2026-11-22"]);
+  const off = nowOf("basketball/nba", nba, "week", "2026-09-30");
+  assert.deepEqual([off.from, off.to], [null, null]);
+});
+
 test("off-season: not on, no week, and when it's back when the calendar lists it", () => {
   const before = nowOf("basketball/nba", nba, "week", "2026-09-30");
   assert.deepEqual([before.on, before.stage, before.week, before.back], [false, null, null, "2026-10-20"]);

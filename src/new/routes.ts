@@ -32,7 +32,7 @@
 export const UI_COOKIE = "gys_ui";
 
 /** The paths the new design owns. AuthGate (classic's shell) leaves these alone. */
-export const NEW_DESIGN_PREFIXES = ["/home", "/show", "/settings", "/start", "/join", "/desk", "/welcome", "/signin"] as const;
+export const NEW_DESIGN_PREFIXES = ["/home", "/show", "/league", "/settings", "/start", "/join", "/desk", "/welcome", "/signin"] as const;
 
 export function isNewDesignRoute(pathname: string): boolean {
   return NEW_DESIGN_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
@@ -44,6 +44,15 @@ export type ShowTab = (typeof SHOW_TABS)[number];
 
 export function isShowTab(v: string): v is ShowTab {
   return (SHOW_TABS as readonly string[]).includes(v);
+}
+
+/** A league's page's tabs, in order (docs/PLAN-sports-couch.md B1: This week, Scores, Games; Standings and Chat join as they're
+ *  built, a session a tab). /league/<sport>/<code>/<tab>, the league as its provider names it ("football/nfl"). */
+export const LEAGUE_TABS = ["week", "scores", "games"] as const;
+export type LeagueTab = (typeof LEAGUE_TABS)[number];
+
+export function isLeagueTab(v: string): v is LeagueTab {
+  return (LEAGUE_TABS as readonly string[]).includes(v);
 }
 
 /** Pages pushed over a show space, each a route of its own. */
@@ -67,6 +76,8 @@ export const paths = {
   signin: (next?: string) => (next ? `/signin?next=${encodeURIComponent(next)}` : "/signin"),
   settings: "/settings",
   show: (seasonId: string, tab: ShowTab = "tonight") => `/show/${seasonId}/${tab}`,
+  /** A league's page (B1), on one of its tabs: `league` as its provider names it ("football/nfl"). */
+  league: (league: string, tab: LeagueTab = "week") => `/league/${league}/${tab}`,
   /** The Games tab at one game's table, on an episode (Weekly Lineup's view of it): a game's line on Tonight or an episode page. */
   game: (seasonId: string, leagueId: string, ep?: number | null) => `/show/${seasonId}/games?game=${encodeURIComponent(leagueId)}${ep ? `&ep=${ep}` : ""}`,
   /** The show's Tonight with its watch along open (step 13): your next episode, or `ep`; a planned night's, together (`plan`). */
@@ -167,6 +178,7 @@ export function depthOf(href: string): number {
     case "show":
       if ((SHOW_PAGES as readonly string[]).includes(p[2])) return p[3] && p[2] !== "game" ? 3 : 2;
       return 1;
+    case "league":
     case "settings":
     case "start":
     case "join":
@@ -194,6 +206,9 @@ export function upFrom(href: string, { signedIn = true }: { signedIn?: boolean }
     case "home":
     case "welcome":
       return null;
+    // A league's tabs are all up to the hub, as a show's are.
+    case "league":
+      return paths.home;
     case "signin":
       return paths.welcome;
     case "start": {
@@ -243,6 +258,12 @@ export function navKind(from: string, to: string, opts: { channel?: boolean; red
   if (a[0] === "show" && b[0] === "show" && a[1] === b[1] && da === 1 && db === 1) {
     const i = SHOW_TABS.indexOf((a[2] ?? "tonight") as ShowTab);
     const j = SHOW_TABS.indexOf((b[2] ?? "tonight") as ShowTab);
+    return i === j ? "fade" : j > i ? "left" : "right";
+  }
+  // Two tabs of the same league (/league/<sport>/<code>/<tab>): sideways by tab order, as a show's.
+  if (a[0] === "league" && b[0] === "league" && a[1] === b[1] && a[2] === b[2]) {
+    const i = LEAGUE_TABS.indexOf((a[3] ?? "week") as LeagueTab);
+    const j = LEAGUE_TABS.indexOf((b[3] ?? "week") as LeagueTab);
     return i === j ? "fade" : j > i ? "left" : "right";
   }
   // First run: forward and back through its steps.

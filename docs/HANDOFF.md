@@ -119,7 +119,12 @@ Newest first. The plan or archive section named holds the detail.
 - **Sports on the couch, A3: following a league** (2026-11-22, the same lane; not merged; **migration 0313, run only on the
   lane's local database**): Follow on search's league row and at the top of the league's sheet, a league's card with no team
   needed, your team per league on the team's sheet. Story: https://claude.ai/artifact/FJGQbCjxmyTgSqkEKWmtd3. Notes: [PLAN-sports-couch.md](PLAN-sports-couch.md) A3;
-  leftovers BACKLOG 254 (g)–(i). **Approved as built** (the user, 2026-11-22) and committed in the lane; production only on their word. Next there: B1.
+  leftovers BACKLOG 254 (g)–(i). **Approved as built** (the user, 2026-11-22) and committed in the lane; production only on their word.
+- **Sports on the couch, B1 session 1: a league's page and its This week** (2026-11-22, the same lane; not merged; no migration):
+  the league card opens `/league/<sport>/<code>/week` (the couch's rivalry, its teams by record, rivalries this season, your games);
+  Scores and Games carry the old sheet's parts; one new read (`/api/sports/league/teams`). Story:
+  https://claude.ai/artifact/Nksn54s8dmHHRPYMxuJJ9c. Notes: [PLAN-sports-couch.md](PLAN-sports-couch.md) B1. **Approved as built** (the
+  user, 2026-11-22, the four recommendations: decisions.md) and committed in the lane. Next there: B1's Scores tab, with BACKLOG 254 (j).
 
 - **A castaway opened from a week opens on that week, BACKLOG 251** (2026-11-22, approved, committed on master, not pushed; no
   migration): the castaway sheet leads with the week a door hands it; one name per moment everywhere (moment-names.ts); the

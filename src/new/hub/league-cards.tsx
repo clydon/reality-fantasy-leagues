@@ -6,8 +6,8 @@
 // card never repeats what the strip says (a game's time, score or due move). It says the league, its week, the couch's teams as
 // marks (yours first, ringed as your face is on a band) and one muted line of what the couch has going in it: your games and your
 // place, else the couch's games, else whose team leads the couch's by record (never for anyone hiding scores: a record is a
-// result), else who follows them. Off-season it's one quiet line. A tap opens the league's sheet (sports/sheets.tsx; its page is
-// B1's).
+// result), else who follows them. Off-season it's one quiet line. A tap opens the league's page (B1:
+// screens/league-page.tsx).
 //
 // Its order reads only the clock, never a game's state, so where a card sits gives nothing away to someone hiding scores.
 
@@ -17,7 +17,8 @@ import { ordinal } from "../games";
 import { TeamMark } from "../sports/parts";
 import { begun, seenBefore, useHideSports, useNow, useShownScores } from "../sports/scores";
 import { FRESH_MS } from "@/lib/sports/strip";
-import { openSports } from "../sports/sheets";
+import { useNav } from "../nav";
+import { paths } from "../routes";
 import type { LeagueNow } from "@/lib/sports/league-now";
 
 const HR = 3600_000;
@@ -162,7 +163,9 @@ export function useLeagueCards(home: Home, couch: Couch | null, hub: CouchHub | 
 /** One league's card (72 px; off-season, one 48 px line). */
 export function LeagueCard({ card }: { card: LeagueCardData }) {
   const { league, name, now, teams, line, due, solo } = card;
-  const open = () => openSports({ kind: "league", league, leagueName: name });
+  const nav = useNav();
+  // Its page (docs/PLAN-sports-couch.md B1), on This week.
+  const open = () => nav.push(paths.league(league));
   const yoursFirst = teams.filter((t) => t.you).map((t) => t.short);
   const others = teams.filter((t) => !t.you).map((t) => t.short);
   const teamWords = teams.length ? `${solo ? "Your teams" : "The couch's teams"}: ${[...yoursFirst.map((t) => (solo ? t : `${t}, yours`)), ...others].join("; ")}.` : null;

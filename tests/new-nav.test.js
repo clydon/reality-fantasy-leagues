@@ -32,6 +32,21 @@ test("a show's tabs slide by tab order; the same tab is a crossfade", () => {
   assert.equal(R.navKind(`${S}/cast`, "/show/other/cast"), "fade");
 });
 
+test("a league's page (sports-couch B1): its own path, depth 1, its tabs sideways, up to the hub, a push from it", () => {
+  const L = "/league/football/nfl";
+  assert.ok(R.isNewDesignRoute(`${L}/week`));
+  assert.equal(R.paths.league("football/nfl"), `${L}/week`);
+  assert.equal(R.paths.league("basketball/nba", "scores"), "/league/basketball/nba/scores");
+  assert.equal(R.depthOf(`${L}/week`), 1);
+  assert.equal(R.navKind(`${L}/week`, `${L}/scores`), "left");
+  assert.equal(R.navKind(`${L}/games`, `${L}/week`), "right");
+  // Another league's tab is a crossfade at the same depth, not a slide.
+  assert.equal(R.navKind(`${L}/week`, "/league/basketball/nba/scores"), "fade");
+  assert.equal(R.navKind("/home", `${L}/week`), "push");
+  assert.equal(R.upFrom(`${L}/scores`), "/home");
+  assert.ok(R.isLeagueTab("week") && !R.isLeagueTab("tonight"));
+});
+
 test("deeper pushes, shallower pops; first run by its steps", () => {
   assert.equal(R.navKind(`${S}/tonight`, `${S}/backstage`), "push");
   assert.equal(R.navKind(`${S}/backstage`, `${S}/backstage/results`), "push");

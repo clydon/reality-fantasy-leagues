@@ -21,6 +21,9 @@
 //   Following a league (docs/PLAN-sports-couch.md A3): the API's league follows and your team per league (leagueFollowChecks), and
 //   on screen the league sheet's follow row, search's league row with Follow, a league followed alone getting its card, Unfollow
 //   on its sheet, and Make them your team on a second team's sheet (leagueFollowBrowser).
+//   A league's page (docs/PLAN-sports-couch.md B1): league-now's week dates and the couch's table read (leaguePageChecks); on screen
+//   the league card opening the page, This week's table with your team's row and your games after it, the Scores tab, the bar's
+//   Follow, and a league followed alone getting its page (leagueFollowBrowser). story-league-page.js shoots its situations.
 //
 //   npm run dev -- -p 3004   (the sports lane; BASE=http://localhost:3004)
 //   node scripts/dev-test/check-sports-couch.js <outDir> [--width=390] [--keep] [--api | --browser]
@@ -199,6 +202,25 @@ async function leagueFollowChecks(me, couch) {
   check(bad.status === 400, "a follow says yes or no", bad.status);
 }
 
+/**
+ * A league's page (docs/PLAN-sports-couch.md B1): league-now says its week's first and last day, and the couch's table read answers
+ * each team's record and last five from its schedule (the Eagles beat the Giants two weeks back and lost at the Jets last week) and
+ * the meetings among the teams asked, away first with the winner; a read with no teams, or too many, is refused.
+ */
+async function leaguePageChecks(me) {
+  const ln = (await me.call("GET", `/api/sports/league/now?league=${FB}`)).body;
+  const day = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  check(ln.week === "Week 12" && ln.from && ln.to && ln.from <= day && day <= ln.to, "league-now: the week's first and last day hold today", ln);
+  const t = await me.call("GET", `/api/sports/league/teams?league=${FB}&teams=9301,9303,9304`);
+  const e = t.body.teams?.find((x) => x.id === "9301");
+  check(t.status === 200 && e?.w === 1 && e.l === 1 && e.t === 0 && e.form.map((f) => `${f.id}${f.result}`).join() === "93101W,93102L", "the couch's table: the Eagles 1-1, their last two in order", e);
+  const m = e?.meetings?.find((x) => x.id === "93101");
+  check(m?.away === "9303" && m.home === "9301" && m.score?.join() === "17,24" && m.winner === "9301" && e.meetings.some((x) => x.id === "93105" && !x.final), "meetings among the teams asked: away first, the winner, the ones to come", e?.meetings);
+  const none = await me.call("GET", `/api/sports/league/teams?league=${FB}&teams=`);
+  const many = await me.call("GET", `/api/sports/league/teams?league=${FB}&teams=${Array.from({ length: 17 }, (_, i) => 9000 + i).join(",")}`);
+  check(none.status === 400 && many.status === 400, "the table read asks for some teams, at most 16", [none.status, many.status]);
+}
+
 async function apiChecks(pool, me, couch, started) {
   console.log("— API");
   const s1 = await me.call("GET", `/api/sports/search?q=${encodeURIComponent("zt eagles")}`);
@@ -219,6 +241,7 @@ async function apiChecks(pool, me, couch, started) {
   const ct = await me.call("GET", `/api/sports/couch?couch=${couch}`);
   check(ct.body.teams?.[0]?.id === "9301" && ct.body.teams[0].you && ct.body.teams[0].followers.length === 1, "the couch's teams: yours first, with who follows", ct.body);
   await leagueFollowChecks(me, couch);
+  await leaguePageChecks(me);
 
   const wk = await me.call("GET", `/api/sports/week?also=${FB},${BB}`);
   const games = (wk.body.days ?? []).flatMap((d) => d.games);
@@ -368,24 +391,13 @@ async function apiChecks(pool, me, couch, started) {
  */
 async function leagueFollowBrowser(page, shot, wide, headers) {
   const me = await signIn({ user: fixture.username("alex"), pass: fixture.PASSWORD, headers });
+  // The league's page (B1) keeps its Follow in its bar, as a show's bar does: Following, never yellow.
   const row = await page.evaluate(() => {
-    const v = document.querySelector("[data-league-view]");
-    const r = v?.querySelector("[data-league-follow]");
-    const y = v?.querySelector("[data-league-yours]");
-    const t = r?.querySelector("[data-follow-toggle]");
-    return {
-      on: r?.getAttribute("data-league-follow"),
-      line: r?.querySelector("[data-league-follow-line]")?.textContent ?? "",
-      pressed: t?.getAttribute("aria-pressed"),
-      yellow: !!t && /bg-chyron|bg-primary/.test(t.className),
-      first: !!r && (!y || !!(r.compareDocumentPosition(y) & Node.DOCUMENT_POSITION_FOLLOWING)),
-      h: r?.getBoundingClientRect().height,
-    };
+    const t = document.querySelector('[data-league-bar] [data-follow-toggle="league-bar"]');
+    return { pressed: t?.getAttribute("aria-pressed"), yellow: !!t && /bg-chyron|bg-primary/.test(t.className) };
   });
-  check(row.on === "on" && row.pressed === "true" && /On your shows · you follow the Eagles/.test(row.line) && !row.yellow, "the league's sheet: Following, the line naming why (the Eagles), never yellow", row);
-  check(row.first && row.h <= 52, "the follow row comes first, one row", row);
+  check(row.pressed === "true" && !row.yellow, "the league's page: Following in its bar, never yellow", row);
   await shot("7-league-follow-row");
-  await page.keyboard.press("Escape");
 
   // Search: the basketball league's row, Follow in the chevron's slot.
   await page.goto(BASE + "/home?page=guide", { waitUntil: "networkidle" });
@@ -410,15 +422,16 @@ async function leagueFollowBrowser(page, shot, wide, headers) {
     check(card, "a league followed alone has its card in Your shows");
     if (card) {
       await page.locator(`[data-league-card="${BB}"]`).click();
-      await page.locator(`[data-league-view="${BB}"] [data-league-follow="on"]`).waitFor({ timeout: 8000 }).catch(() => {});
-      const line = await page.textContent(`[data-league-view="${BB}"] [data-league-follow-line]`).catch(() => "");
-      check(/^On your shows/.test(line ?? ""), "its sheet says it's on your shows", line);
-      await page.locator(`[data-league-view="${BB}"] [data-follow-toggle]`).click();
-      await page.locator(`[data-league-view="${BB}"] [data-league-follow="off"]`).waitFor({ timeout: 8000 }).catch(() => {});
+      const bar = `[data-league-bar="${BB}"] [data-follow-toggle]`;
+      await page.locator(`${bar}[aria-pressed="true"]`).waitFor({ timeout: 15000 }).catch(() => {});
+      check((await page.getAttribute(bar, "aria-pressed").catch(() => null)) === "true", "its page opens, Following in its bar");
+      const empty = await page.locator("[data-couch-table-empty]").waitFor({ timeout: 15000 }).then(() => true, () => false);
+      check(empty, "no team followed there: This week says nobody on the couch follows one");
+      await page.click(bar);
+      await page.locator(`${bar}[aria-pressed="false"]`).waitFor({ timeout: 8000 }).catch(() => {});
       await page.waitForTimeout(400);
-      check(!(await me.call("GET", "/api/sports/follow")).body.leagues?.includes(BB), "Unfollow on the sheet stops following the league");
+      check(!(await me.call("GET", "/api/sports/follow")).body.leagues?.includes(BB), "Unfollow in the page's bar stops following the league");
       await shot("9-league-unfollowed");
-      await page.keyboard.press("Escape");
     }
   }
   await me.call("POST", "/api/sports/follow", { league: BB, follow: false });
@@ -518,18 +531,25 @@ async function browserChecks(pool, headers, couch) {
     check(cards.h === 72 && /ZTCF/.test(cards.words) && /Week 12/.test(cards.words) && cards.you && !cards.red && !/14|6:41/.test(cards.words), "the league card: 72 px, its league and week, your team's mark, no score, no red", cards);
     check(cards.among, "the league card sits among the show bands");
     check(cards.offH === 48 && cards.offOn && /Off-season/.test(cards.offWords) && /Yankees/.test(cards.offWords) && /back /.test(cards.offWords), "off-season: one 48 px line with the team and when it's back", cards);
+    // B1: the tap opens the league's page on This week: the couch's table with your team's row, your games in the league after the
+    // table (the API half started Squares on the Eagles' season), then starting another.
     await page.locator(`[data-league-card="${FB}"]`).click();
-    check(await page.locator(`[data-league-view="${FB}"]`).isVisible({ timeout: 8000 }).catch(() => false), "a tap opens the league's sheet");
-    // It leads with your games in the league (the API half started Squares on the Eagles' season), above starting another.
+    const paged = await page.locator(`[data-league-bar="${FB}"]`).waitFor({ timeout: 15000 }).then(() => true, () => false);
+    check(paged && page.url().endsWith(`/league/${FB}/week`), "a tap opens the league's page on This week", page.url());
+    await page.locator('[data-couch-team="9301"]').waitFor({ timeout: 20000 }).catch(() => {});
     const lead = await page.evaluate(() => {
-      const v = document.querySelector("[data-league-view]");
-      const y = v?.querySelector("[data-league-yours]");
-      const w = v?.querySelector('[data-more="week"], [data-play-plate="week"], [data-plate="week"]');
-      return { rows: y?.querySelectorAll("[data-open-row]").length ?? 0, first: !!y && (!w || !!(y.compareDocumentPosition(w) & Node.DOCUMENT_POSITION_FOLLOWING)) };
+      const t = document.querySelector("[data-couch-table]");
+      const y = document.querySelector("[data-league-yours]");
+      const w = document.querySelector("[data-league-start]");
+      const after = (a, b) => !!a && !!b && !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+      return { mine: !!document.querySelector('[data-couch-team="9301"][data-yours]'), rows: y?.querySelectorAll("[data-open-row]").length ?? 0, order: after(t, y) && after(y, w) };
     });
-    check(only !== null || (lead.rows > 0 && lead.first), "the league's sheet leads with your games in it", lead);
+    check(lead.mine && (only !== null || (lead.rows > 0 && lead.order)), "This week: your team's row, then your games in the league, then starting one", lead);
+    await wide("the league's page");
+    await shot("6b-league-page");
+    await page.click('nav[aria-label="League"] a[href$="/scores"]');
+    check(await page.locator("[data-league-days]").waitFor({ timeout: 15000 }).then(() => true, () => false), "its Scores tab: the week by day");
     await leagueFollowBrowser(page, shot, wide, headers);
-    await page.keyboard.press("Escape");
     // Seen live on the strip counts as shown for the visit (scores.tsx noteSeen): forget it, so the sheet below starts hidden.
     await page.evaluate(() => sessionStorage.removeItem("gys-shown-scores"));
     await pool.query("UPDATE user_settings SET hide_sports_scores = true WHERE user_id = (SELECT id FROM \"user\" WHERE username = $1)", [fixture.username("alex")]);

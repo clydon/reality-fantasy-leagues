@@ -1,8 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { useCouchTeams, useCurrentCouch, useHome, useMySportsGames, useSportsWeek, useTeamSchedule } from "../data";
-import { FollowFaces, FollowToggle, theLeague, useLeagueFollow } from "./follow";
+import { useHome, useMySportsGames, useSportsWeek, useTeamSchedule } from "../data";
 import { useNav } from "../nav";
 import { paths } from "../routes";
 import { Sheet } from "../ui/sheet";
@@ -13,20 +12,20 @@ import { SportStartHandoff, type SportTarget } from "./start-handoff";
 import { GameView, TeamView, type StartWhen } from "./team";
 
 // The sports sheets (docs/PLAN-start-a-game-gpt.md U1's sports slice): a team's (a sheet, as the user decided 2026-11-08), one of
-// its games, a league's week, and Start a game on any of them, opened from anywhere (the guide's Sports, a search's row, a sport's
-// season) with openSports. Add a show draws a team as a step of its own sheet instead (watching/sheets.tsx), on the same TeamView.
+// its games, and Start a game on any of them, opened from anywhere (the guide's Sports, a search's row, a sport's season) with
+// openSports. Add a show draws a team as a step of its own sheet instead (watching/sheets.tsx), on the same TeamView. A league has
+// a page of its own (docs/PLAN-sports-couch.md B1: src/new/screens/league-page.tsx), built from the league's parts below.
 
 export type SportsView =
   | { kind: "team"; league: string; team: string }
   | { kind: "game"; league: string; team: string; game: string }
-  | { kind: "league"; league: string; leagueName: string }
   | { kind: "start"; target: SportTarget; back?: SportsView };
 
 let current: { view: SportsView | null; n: number } = { view: null, n: 0 };
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
 
-/** Open a team's sheet, a game's, a league's week, or Start a game on one; null closes them. */
+/** Open a team's sheet, a game's, or Start a game on one; null closes them. */
 export function openSports(view: SportsView | null) {
   current = { view, n: current.n + (view ? 1 : 0) };
   emit();
@@ -54,7 +53,7 @@ export function SportsSheets() {
         key={`sports-${n}`}
         open={!!browse}
         onOpenChange={close}
-        title={browse?.kind === "league" ? browse.leagueName : browse?.kind === "game" ? "A game" : "A team"}
+        title={browse?.kind === "game" ? "A game" : "A team"}
         back={browse?.kind === "game" ? { label: "Back to the team", onClick: () => openSports({ kind: "team", league: browse.league, team: browse.team }) } : undefined}
       >
         {browse?.kind === "team" && (
@@ -67,7 +66,6 @@ export function SportsSheets() {
           />
         )}
         {browse?.kind === "game" && <GameFromSchedule league={browse.league} team={browse.team} game={browse.game} />}
-        {browse?.kind === "league" && <LeagueView league={browse.league} leagueName={browse.leagueName} onStarted={() => openSports(null)} />}
       </Sheet>
       <SportStartHandoff
         key={`sports-start-${n}`}
@@ -87,136 +85,101 @@ function GameFromSchedule({ league, team, game }: { league: string; team: string
   return <GameView g={g} s={s} onStarted={() => openSports(null)} onStart={(when) => openSports(startOn(league, team, s.team.short, when, { kind: "game", league, team, game }))} />;
 }
 
-/** "Riley", "Riley and Sam", "Riley, Sam and 2 more". */
-const namesOf = (who: string[]) => (who.length <= 2 ? who.join(" and ") : `${who.slice(0, 2).join(", ")} and ${who.length - 2} more`);
-
-/**
- * A league's follow row, first on its sheet (docs/PLAN-sports-couch.md A3; docs/design-round/league-follow-spec.md): the couch's
- * faces who follow it (yours first), one line, the toggle. The line names why it's on your shows when you didn't follow it here
- * (a team you follow there, a game of yours there: the first-view check's R4), the first that holds.
- */
-function LeagueFollowRow({ league, leagueName, playsHere }: { league: string; leagueName: string; playsHere: boolean }) {
-  const { data: home } = useHome();
-  const couch = useCurrentCouch(home);
-  const couchQ = useCouchTeams(couch?.id ?? null);
-  const f = useLeagueFollow(league, leagueName, { playsHere });
-  const me = home?.user;
-  const fans = couch ? (couchQ.data?.leagues.find((l) => l.league === league)?.followers ?? []) : f.on && me ? [{ id: me.id, name: me.name }] : [];
-  // As it is on screen now (the toggle answers at once): you in or out of the faces with it.
-  const others = fans.filter((x) => x.id !== me?.id);
-  const faces = f.on && me ? [{ id: me.id, name: me.name }, ...others] : others;
-  const mine = f.teamsHere.find((t) => t.myTeam) ?? f.teamsHere[0];
-  const line = f.on
-    ? f.teamsHere.length > 1
-      ? `On your shows · your team, the ${mine.short}`
-      : f.teamsHere.length === 1
-        ? `On your shows · you follow the ${mine.short}`
-        : others.length
-          ? `On your shows · ${others.length > 2 ? `you and ${others.length} others` : `you and ${namesOf(others.map((x) => x.name))}`} follow it`
-          : "On your shows"
-    : playsHere
-      ? "Your game here keeps it on your shows"
-      : others.length
-        ? `${namesOf(others.map((x) => x.name))} ${others.length === 1 ? "follows" : "follow"} it`
-        : "Follow it to keep it on your shows";
-  return (
-    <div className="mb-3 flex min-h-11 items-center gap-2" data-league-follow={f.on ? "on" : "off"}>
-      <FollowFaces who={faces} />
-      {/* Two lines at most, never cut at the cause (the check: "your team, th…" lost the very words R4 asks for). */}
-      <span data-league-follow-line className="line-clamp-2 min-w-0 flex-1 text-[13px] leading-snug text-muted-foreground">
-        {f.ready ? line : ""}
-      </span>
-      <FollowToggle on={f.on} disabled={!f.ready || f.busy} onClick={() => void f.toggle()} label={theLeague(leagueName)} data="league-sheet" />
-    </div>
-  );
-}
-
-/** A league's week (U0's board: "a league opens This week and Next week, each row a game"): Play this week's games (Pick'em on every
- *  game still to come, one tap), and the season week by week (Start a game on its slate). */
-export function LeagueView({ league, leagueName, onStarted }: { league: string; leagueName: string; onStarted?: () => void }) {
-  const week = useSportsWeek(null, [league]);
-  const { start, busy } = useStartSport();
-  const now = useNow();
-  const nav = useNav();
-  const days = (week.data?.days ?? []).map((d) => ({ ...d, games: d.games.filter((g) => g.league === league) })).filter((d) => d.games.length);
-  const left = days.flatMap((d) => d.games).filter((g) => !begun(g, now)).length;
-  // Your games in this league first (docs/PLAN-sports-couch.md A2's check: the league card's due dot opens this sheet, so the move
-  // it promised is here, the move's own words in chyron-line and its tap the move's own door). B1's This week replaces this.
+/** Your games in a league (each game of yours on one of its sports seasons) and the move due in each: a league's page's This week
+ *  and Games (docs/PLAN-sports-couch.md B1). */
+export function useLeagueGames(league: string) {
   const home = useHome().data;
   const seasons = useMySportsGames(true).data?.seasons;
   const here = new Set((seasons ?? []).filter((s) => s.league === league).map((s) => s.seasonId));
   const yours = (home?.shows ?? []).filter((s) => here.has(s.seasonId)).flatMap((s) => s.games.filter((g) => !g.archived).map((g) => ({ g, seasonId: s.seasonId })));
   const moveOf = (leagueId: string) => home?.moves.find((m) => m.leagueId === leagueId) ?? null;
-  const due = yours.some(({ g }) => moveOf(g.leagueId));
-  const go = (href: string) => {
-    onStarted?.();
-    nav.push(href, { channel: true });
-  };
+  const moves = yours.map(({ g }) => moveOf(g.leagueId)).filter((m): m is NonNullable<typeof m> => !!m);
+  return { yours, moveOf, moves, due: moves.length > 0, ready: !!home && !!seasons };
+}
+
+/** Your games in a league, each its due move in its own words (chyron-line) or Open the game, the move's own door. */
+export function LeagueGameRows({ league, quiet }: { league: string; quiet?: boolean }) {
+  const { yours, moveOf } = useLeagueGames(league);
+  const nav = useNav();
+  if (!yours.length) return null;
   return (
-    <div data-league-view={league}>
-      <LeagueFollowRow league={league} leagueName={leagueName} playsHere={yours.length > 0} />
-      {yours.length > 0 && (
-        <div data-league-yours className="mb-4">
-          <SportsLabel>Your games</SportsLabel>
-          {yours.map(({ g, seasonId }) => {
-            const m = moveOf(g.leagueId);
-            return (
-              <OpenRow
-                key={g.leagueId}
-                data={`yours-${g.leagueId}`}
-                title={g.name}
-                line={m ? <span className="font-semibold text-chyron-line">{m.text}</span> : "Open the game"}
-                onClick={() => go(m?.href ?? paths.show(seasonId))}
-              />
-            );
-          })}
-        </div>
-      )}
-      <p className="text-[14px] leading-snug text-muted-foreground">A week&rsquo;s games make one episode: pick&rsquo;em on every game, or a season-long league.</p>
-      {/* The one yellow is your move while one is due (the One Chyron Rule): starting another game steps down to an outline. */}
+    <div data-league-yours>
+      {yours.map(({ g, seasonId }) => {
+        const m = moveOf(g.leagueId);
+        return (
+          <OpenRow
+            key={g.leagueId}
+            data={`yours-${g.leagueId}`}
+            title={g.name}
+            // `quiet`: a page whose strip already says the move (This week) keeps it muted here, said once in yellow.
+            line={m ? <span className={quiet ? "font-semibold" : "font-semibold text-chyron-line"}>{m.text}</span> : "Open the game"}
+            onClick={() => nav.push(m?.href ?? paths.show(seasonId), { channel: true })}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+/** The week's games still to come in a league (`from`: the week's first day in the East; else from today). */
+export function useLeagueWeek(league: string, from: string | null = null, to: string | null = null) {
+  const week = useSportsWeek(from, [league]);
+  const days = (week.data?.days ?? [])
+    .filter((d) => !to || d.day <= to)
+    .map((d) => ({ ...d, games: d.games.filter((g) => g.league === league) }))
+    .filter((d) => d.games.length);
+  return { days, games: days.flatMap((d) => d.games), loading: week.isLoading, error: week.isError, refetch: week.refetch };
+}
+
+/**
+ * Starting a game on a league (U0's board: "a league opens This week and Next week"): Play this week's games (Pick'em on every game
+ * still to come, one tap) and the season week by week. The one yellow only while nothing of yours is due (the One Chyron Rule).
+ */
+export function LeagueStart({ league, leagueName, from, to, quiet }: { league: string; leagueName: string; from?: string | null; to?: string | null; quiet?: boolean }) {
+  const { games } = useLeagueWeek(league, from ?? null, to ?? null);
+  const { due } = useLeagueGames(league);
+  const home = useHome().data;
+  const solo = !home?.couches?.length;
+  const { start, busy } = useStartSport();
+  const now = useNow();
+  const left = games.filter((g) => !begun(g, now)).length;
+  const play = () => void start({ league, slate: {}, game: "pickem", only: true });
+  return (
+    <div data-league-start>
+      {/* `quiet` (This week): never the yellow there, and only this week's; the season is the Games tab's. */}
       {left > 0 &&
-        (due ? (
-          <MoreAction
-            data="week"
-            title="Play this week's games"
-            line={`Pick'em on every game still to come · ${left} ${left === 1 ? "game" : "games"}`}
-            onClick={() => void start({ league, slate: {}, game: "pickem", only: true }, onStarted)}
-          />
+        (due || quiet ? (
+          <MoreAction data="week" title="Play this week's games" line={`Pick'em on every game still to come · ${left} ${left === 1 ? "game" : "games"}`} onClick={play} />
         ) : (
-          <PlayPlate
-            data="week"
-            disabled={busy}
-            title="Play this week's games"
-            line={`Pick'em on every game still to come · ${left} ${left === 1 ? "game" : "games"} · tells the couch`}
-            onClick={() => void start({ league, slate: {}, game: "pickem", only: true }, onStarted)}
-          />
+          <PlayPlate data="week" disabled={busy} title="Play this week's games" line={`Pick'em on every game still to come · ${left} ${left === 1 ? "game" : "games"}${solo ? "" : " · tells the couch"}`} onClick={play} />
         ))}
+      {!quiet && (
       <MoreAction
         data="league-season"
         title="Play the season, week by week"
         line="A season-long league, or pick'em every week"
-        onClick={() => {
-          onStarted?.();
-          openSports({ kind: "start", target: { kind: "slate", league, leagueName }, back: { kind: "league", league, leagueName } });
-        }}
+        onClick={() => openSports({ kind: "start", target: { kind: "slate", league, leagueName } })}
       />
-      {week.isLoading && <p className="mt-4 text-[14px] text-muted-foreground">Loading this week&rsquo;s games…</p>}
+      )}
+    </div>
+  );
+}
+
+/** A league's week, day by day, each game the guide's row (a tap: the home side's sheet). */
+export function LeagueDays({ league, leagueName, from, to }: { league: string; leagueName: string; from?: string | null; to?: string | null }) {
+  const { days, loading } = useLeagueWeek(league, from ?? null, to ?? null);
+  return (
+    <div data-league-days>
+      {loading && <p className="mt-4 text-[14px] text-muted-foreground">Loading this week&rsquo;s games…</p>}
       {days.map((d) => (
         <div key={d.day}>
           <SportsLabel>{new Date(`${d.day}T12:00:00`).toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}</SportsLabel>
           {d.games.map((g) => (
-            <WeekRow
-              key={g.id}
-              g={g}
-              onClick={() => {
-                onStarted?.();
-                openSports({ kind: "team", league, team: g.sides[1].id });
-              }}
-            />
+            <WeekRow key={g.id} g={g} onClick={() => openSports({ kind: "team", league, team: g.sides[1].id })} />
           ))}
         </div>
       ))}
-      {!week.isLoading && !days.length && <p className="mt-4 text-[14px] text-muted-foreground">No {leagueName} games this week.</p>}
+      {!loading && !days.length && <p className="mt-4 text-[14px] text-muted-foreground">No {leagueName} games this week.</p>}
     </div>
   );
 }

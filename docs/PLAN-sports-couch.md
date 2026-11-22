@@ -1,7 +1,8 @@
 # Plan: sports on the couch (the hub's scores strip, a league's page, playing as a couch, lines)
 
 > **Status (2026-11-22): A1 and A2 approved as built (the user, 2026-11-22) and committed in the `sports-couch` lane (not
-> merged). A3 (following a league) approved as built too (the user, 2026-11-22) and committed in the lane. B1 (a league's page) is next.** The user's calls are in. Lines are Phase D, detailed in
+> merged). A3 (following a league) approved as built too (the user, 2026-11-22) and committed in the lane. B1's first session (the page and This week) approved as built (the user, 2026-11-22) and
+> committed in the lane; B1's Scores tab is next.** The user's calls are in. Lines are Phase D, detailed in
 > [PLAN-sports-lines.md](PLAN-sports-lines.md). March Madness (E1) is dated: working by Fri 2027-02-26.
 
 ## Read first
@@ -196,6 +197,33 @@ https://claude.ai/artifact/FJGQbCjxmyTgSqkEKWmtd3. The design: [league-follow-sp
 rivalries this season, your games, the room, the rest of the league), **Scores** (a week or day switcher, the shared game row),
 **Games** (with the couch, rivals, on your own), **Standings** (ESPN's standings: a new read), **Chat** (the league's room and a
 thread per game: chat is per season today). Records for the table come from the scoreboard's records or the standings read.
+
+**B1's build notes, session 1: the page and This week (2026-11-22, lane `sports-couch`, port 3019; not merged; no migration).**
+Story: https://claude.ai/artifact/Nksn54s8dmHHRPYMxuJJ9c. **Approved as built** (the user, 2026-11-22, taking the four recommendations: decisions.md). The design:
+[league-page-spec.md](design-round/league-page-spec.md) (Intent), `-first-view.md` (PFD), `-shape.md` (Impeccable), `-check.md`.
+- **Where:** `/league/<sport>/<code>/<tab>` (routes.ts `paths.league`, `LEAGUE_TABS`, depth 1, up to the hub, tabs sideways;
+  src/app/(new)/(in)/league/); `src/new/screens/league-page.tsx` (`LeagueFrame`: the bar without art, Home, the name, its week and
+  season or Off-season, A3's Follow; the tab bar; `LeagueTabScreen`). The league card, search's league row and Add's league pick open
+  it; the sheet's `league` kind and `LeagueView` are gone (A3's follow line with them: the bar keeps the toggle). sheets.tsx keeps
+  the parts: `useLeagueGames`, `LeagueGameRows`, `useLeagueWeek`, `LeagueStart`, `LeagueDays`.
+- **Tabs now:** This week, Scores (the week by day, the sheet's list), Games (your games, Play this week's games, Play the season).
+  Standings and Chat join when built (the user's call 1 in the story).
+- **This week:** your due move (the show strip's plate, the one yellow); this week's rivalry (two couch members' teams meeting, fans
+  differing: on now, else next, else just played; opens the game; Start a game on it before kickoff); the couch's teams (solo: yours)
+  ranked by record, a tie counting half, each row its fans' faces, last five, and this week's game ("Rivalry, above" for the
+  rivalry's two, Bye, Off-season); rivalries this season (each fan's record, next two and last two, All N); your games here (the
+  move muted) and Play this week's games outlined; the rest of the week, one row into Scores. Hide sports scores: no number, the
+  table yours first then by fans, one Show records (every result on the page through `showScore`).
+- **Data:** league-now answers its week's `from` and `to` (a daily sport's plain Monday to Sunday; tests/sports-league-now.test.js);
+  `GET /api/sports/league/teams?league=&teams=` (league-teams.ts; at most 16 teams; edge ten minutes): each team's record, last five
+  and meetings among them from the schedules a team's sheet reads; `src/lib/sports/couch-table.ts` ranks them and finds the
+  rivalries (pure; tests/sports-couch-table.test.js). HOSTING.md: "A league's page, This week".
+- **Checks:** `scripts/dev-test/story-league-page.js` (worlds: gameday, midweek, hidden, lone, none, solo, daily, off, studio; a
+  season of finals behind Week 12 on the stand-in); check-sports-couch.js `leaguePageChecks` (API) and the card → page → Scores →
+  bar Follow steps (browser), all passing; the run still stops at BACKLOG 252's Start a game step, as on master. tsc clean, `npm
+  test` 2,580 pass, ESLint clean on the changed files.
+- **Open:** the check doc's three (the move's "· 1 question" break, off-season's empty Play heading, xs marks cutting 4-letter codes).
+- **Next sessions:** Scores (a week or day switcher, the shared game row), Games, Standings (a new read), Chat (a league room).
 
 **B2. A team's page** (M): a full page instead of today's sheet (src/new/sports/team.tsx): the live or next game, Up next with
 Play, the schedule by month with results and the bye, Month view for daily sports with series, homestands and trips grouped,

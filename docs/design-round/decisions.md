@@ -1804,3 +1804,13 @@
   outline. One look on search's league row, the league's sheet and the team's sheet (which had a filled white pill).
 - Rejected: the white pill everywhere (the check: the loudest thing on a sheet after the yellow, against R2's "quieter than a due move").
 - Rests on: docs/design-round/league-follow-check.md.
+
+## 2026-11-22 · A league's page and its This week (sports-couch B1, session 1)
+- Decided by: the user ("I'll take your recs"), on B1's story https://claude.ai/artifact/Nksn54s8dmHHRPYMxuJJ9c; approved as built.
+- What: (1) Standings and Chat join the league's tab bar only when each is built (three tabs now, five by B1's end). (2) The page
+  follows the sports pages' score rule (results show unless you hide sports scores; Show records shows them all for the visit), not
+  the hub's 36-hour ask. (3) A3's follow line on the league sheet goes with the sheet; the page keeps only Follow in its bar.
+  (4) The three open look items go in with B1's next tab (BACKLOG 254 j).
+- Also settled in the check, by the process's rules: Play this week's games never yellow on This week (Play the season on Games
+  only); one reveal (Show records), not a Show the score on the rivalry too; a hidden old game still says "Started" (2026-11-09).
+- Rests on: docs/design-round/league-page-spec.md, -first-view.md, -shape.md, -check.md; docs/PLAN-sports-couch.md, B1's build notes.

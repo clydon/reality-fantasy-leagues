@@ -1975,6 +1975,7 @@ import type { SportsWeek } from "@/lib/server/sports/week";
 import type { CouchLeague, CouchTeam, YourFollows } from "@/lib/server/sports/team-follows";
 import type { MyGame, SportSeason } from "@/lib/server/sports/mine";
 import type { LeagueNow } from "@/lib/sports/league-now";
+import type { TeamForm } from "@/lib/sports/couch-table";
 import type { Situation } from "@/lib/sports/situation";
 import type { RailGame } from "@/lib/sports/start-games";
 import type { SportStarted } from "@/lib/server/sports/start";
@@ -2087,6 +2088,19 @@ export function useLeaguesNow(leagues: string[]) {
       staleTime: 30 * 60_000,
       retry: 1,
     })),
+  });
+}
+
+/** The couch's table in a league (/api/sports/league/teams: each team's record, last five and meetings with the others; a league's
+ *  This week, docs/PLAN-sports-couch.md B1). The same for everyone and kept ten minutes at the edge; results, so the page hides them. */
+export function useLeagueTeams(league: string, teams: string[], enabled = true) {
+  const ids = [...new Set(teams)].sort().join(",");
+  return useQuery({
+    queryKey: ["new-design", "league-teams", league, ids],
+    queryFn: () => get<{ teams: TeamForm[] }>(`/api/sports/league/teams?league=${encodeURIComponent(league)}&teams=${encodeURIComponent(ids)}`),
+    enabled: enabled && !!ids,
+    staleTime: 5 * 60_000,
+    placeholderData: keepPreviousData,
   });
 }
 

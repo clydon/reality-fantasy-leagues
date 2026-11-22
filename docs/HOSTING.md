@@ -277,6 +277,16 @@ are ~0.5 KB gzipped (~0.3 MB a phone a game). Part 4 polls a small live read, ne
   live games on the strip gets ~0.1 MB an NFL game (the whole summary would be ~100 MB).
 - The On TV row no longer reads the couch's teams' games (its sports cards moved to the strip).
 
+**A league's page, This week (docs/PLAN-sports-couch.md B1, 2026-11-22, the `sports-couch` lane; not live)** asks ESPN nothing
+new: it reads the team schedules a team's sheet already reads.
+- **The couch's table** (`GET /api/sports/league/teams?league=&teams=`, open signed out, at most 16 teams): each team's record,
+  last five and meetings with the others, ~0.3 KB a team. One schedule read a team (two or three when its season's other stage is
+  asked), each **cached in `sports_cache`** as a team's schedule is (3 minutes while it plays, an hour on its game day, else 12
+  hours). Asked once a visit to a league's This week (React Query keeps it 5 minutes); the edge keeps each team set's answer ten
+  minutes for everyone (`s-maxage=600`). A couch's set is the same for its members, so it's about one invocation per couch per
+  league per ten minutes while someone looks. Nothing polled.
+- **The week** is the guide's week read from the league's own first day (league-now now answers its `from` and `to`); no new call.
+
 **The league card in Your shows (docs/PLAN-sports-couch.md A2, 2026-11-22, the `sports-couch` lane; not live)** asks ESPN nothing
 new either:
 - **A league's now** (`GET /api/sports/league/now?league=`, open signed out): its week ("Week 12"), or the off-season and when
