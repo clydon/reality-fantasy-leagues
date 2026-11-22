@@ -313,6 +313,14 @@ it waits on nothing above.
 
 A1 → A2 → A3 with B1 → B2, B3, B4 → C1–C6 → D2–D6. D1 can go any time. E1 runs in parallel and must land by its date.
 
+**How the sessions go from here** (Claude's call, the user's ask, 2026-11-22). Steps share a prompt when nothing decided at one
+review could change the other; they stay apart when that review shapes the next, or when a step adds a migration, a new external
+read, an engine change or anything production. One full design round fills most of a session: two fit, a third runs thin.
+1. **B1 Standings + BACKLOG 254 (k)** (one prompt: (k) is small and won't go stale).
+2. **B1 Chat** alone (a league room: chat is per season today, likely a migration).
+3. **Merge the lane** after B1, its own prompt, on the user's word (migration 0313; master moves on meanwhile).
+4. **B2** and **B4** apart (each M, each redesigning a sheet in use); **B3** alone.
+
 ## Not in this plan
 
 Live points during a game (PLAN-sports-ready Phase 5); the pages inside a game (its Phase 4); event sports' own pages and bugs
