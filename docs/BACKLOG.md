@@ -22,13 +22,6 @@ and in flight is in [HANDOFF.md](HANDOFF.md).
 
 Survivor 51's Ep 10 airs Wed 2026-11-25. Its finale is Wed 2026-12-16.
 
-**39. The sign-in database pool can crash a server instance.** *Before Ep 10.* **Built on branch before-ep10 (cb3e9091), waits on its push:** sign-in shares the app's guarded pool (src/lib/server/pool.ts) and the schema check is off; checked locally by dropping idle connections mid-session. What's left is the live look after the push. Better Auth's pool (src/lib/auth.ts:7) has
-no `on("error")` handler, so an idle connection Neon drops can take the process down. The app's own pool got that guard in
-1905e7d2 after the same crash. Give Better Auth the app's guarded pool (or add the handler), and set
-`advanced.database.validateSchema: false` to stop the cold-start schema check. Done when a deploy's live look shows no
-"[Better Auth] Could not validate" line and no first-load 500. Adding `sslmode=verify-full` to the connection strings in Vercel
-and GitHub, which quiets pg's warning, is the user's. [S · hosting]
-
 **110. Watch Ep 10's night, the first with episode night.** *Thu 2026-11-26.* Look C, Lock in and carried lineups went live
 2026-11-19 (7cfb1bb5). The morning after, check production: did anyone hit a refused move after Lock in, did Undo work, and did
 the after-airtime reminder go only to people who hadn't watched? Count the `reminder_log` rows with window `'late'` for
@@ -861,3 +854,5 @@ One line each: the number, done or dropped, and the commit or the reason.
   check-nfl-defenses.js's BACKLOG 221 lines.
 - **111** done (cb3e9091): the save was sound; the check reloaded before a cold route's save answered. The check waits for it,
   Riley's part picks in the pane in view, and the follow write is sent with keepalive so a Not yet survives the app closing.
+- **39** done (cb3e9091, live 5fb4babe): sign-in shares the app's guarded pool and the schema check is off. Live look 2026-11-22:
+  after 13 idle minutes the first auth request answered 200 in 1.7 s, no "Could not validate" line, no 500. pg's sslmode warning is the user's.

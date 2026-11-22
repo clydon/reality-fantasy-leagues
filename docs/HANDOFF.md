@@ -17,9 +17,11 @@ puts its build notes in its plan, not here.
 
 ---
 
-## Live (production = origin/master, 03730f59, deployed 2026-11-21)
+## Live (production = origin/master, 5fb4babe, deployed 2026-11-22)
 
 Newest first. The plan or archive section named holds the detail.
+- **Before Ep 10** (2026-11-22, pushed 5fb4babe; no migration): sign-in shares the app's guarded database pool and skips
+  Better Auth's cold-start schema check (BACKLOG 39); Not yet's save is sent so it outlives the page (111).
 - **Settings overhaul, Round 4** (2026-11-21, pushed 03730f59; no migration, no scoring change): the words and the ripple. Start a
   game and Manage this game use one set of words (Relaxed · Standard · Strict, Freeze rules and joining, Customize the rulebook,
   Fewest points first); nothing points at Backstage (pushes, errors, the tab's title Games you run); one Recommended tag; every
@@ -113,11 +115,10 @@ Newest first. The plan or archive section named holds the detail.
 
 ## Next
 
-1. **Before Ep 10 (Wed 2026-11-25):** push branch `before-ep10` (BACKLOG 39 built, 111 closed; no migration, no scoring change)
-   when the user says, then 39's live look: no "[Better Auth] Could not validate" line, no first-load 500. Nothing merges on the
-   Wednesday.
-2. **Before the finale (Wed 2026-12-16):** BACKLOG 115 (tell pool players the finale rule; the user OKs the words) and 116 (the
-   finale through research).
+1. **Before Ep 10 (Wed 2026-11-25):** nothing left; nothing merges on the Wednesday.
+2. **Before the finale (Wed 2026-12-16):** BACKLOG 115 built on branch `pool-finale` (8d009b5b; the user OKs its words), 116 built
+   on branch `finale-research` (165f8cf8; the user OKs the research words; the bot's re-ask of the four taped finales, then
+   blind.js, then Survivor 51's finale path on the desk).
 3. **The quick sessions** in BACKLOG's "Now": the stale checks, the small engine fixes, the UI polish pass, the
    Designs-needed words batch, and the production check-ups.
 4. **C8, the 2-on-1 head to head**, on a fresh branch from master (its seven answers are in decisions.md, 2026-11-19; who plays
