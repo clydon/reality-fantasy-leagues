@@ -34,3 +34,10 @@ export function TeamPicture({ src, ...props }: { src: string } & Omit<ComponentP
   // eslint-disable-next-line @next/next/no-img-element -- a data: badge or a couch's own picture, both already the size shown
   return <img src={(key && pictures[key]) || src} alt="" {...props} />;
 }
+
+/** Your couch's picture for a team by its key (team-badge.ts teamKeyOf), or null: for a mark that isn't a photo (TeamMark, the
+ *  scorebug's slab). */
+export function useTeamPicture(key: string | null | undefined): string | null {
+  const pictures = useTeamPictures();
+  return (key && pictures[key]) || null;
+}

@@ -21,6 +21,7 @@ import { FRESH_MS } from "@/lib/sports/strip";
 import { useNav } from "../nav";
 import { paths } from "../routes";
 import type { LeagueNow } from "@/lib/sports/league-now";
+import { teamKeyOf } from "@/lib/sports/team-badge";
 
 const HR = 3600_000;
 /** A game this long after its start may still be on: the card's next game is the earliest that may be (by the clock alone). */
@@ -212,7 +213,7 @@ export function LeagueCard({ card }: { card: LeagueCardData }) {
         <span className="ml-auto flex flex-none items-center gap-1.5" aria-hidden>
           {shown.map((t) => (
             <span key={t.id} data-league-mark={t.you ? "you" : t.short} className={t.you ? "rounded-[2px] outline-[1.5px] outline-offset-1 outline-foreground" : ""}>
-              <TeamMark abbr={t.abbreviation ?? t.short} color={t.color} size="xs" />
+              <TeamMark abbr={t.abbreviation ?? t.short} color={t.color} size="xs" team={teamKeyOf(t.league, t.id)} />
             </span>
           ))}
           {more > 0 && <span className="type-num text-[13px] font-bold text-muted-foreground">+{more}</span>}

@@ -46,6 +46,7 @@ import { showWords } from "@/lib/game/show-words";
 import { moveCard } from "../show/moves";
 import { TeamMark } from "../sports/parts";
 import { useSportsDay } from "./sports-day";
+import { teamKeyOf } from "@/lib/sports/team-badge";
 
 // The hub's sections (the mock's index.html hub, refine.js wireHub, hubplus.js, watching.js, fresh.js), in the order
 // screens/home.tsx lays them out. Real (step 8): the status line and Up next (results to reveal first, then what's due,
@@ -332,10 +333,10 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
         {game ? (
           <h2 className="type-caption mt-auto text-[26px] [text-shadow:0_2px_20px_rgba(0,0,0,.5)]">
             <NavLink href={href} channel data-upnext-open className="flex min-w-0 items-center gap-2 after:absolute after:inset-0">
-              <TeamMark abbr={game.sides[0].abbreviation ?? game.sides[0].short.slice(0, 3)} color={game.sides[0].color} size="sm" />
+              <TeamMark abbr={game.sides[0].abbreviation ?? game.sides[0].short.slice(0, 3)} color={game.sides[0].color} size="sm" team={teamKeyOf(game.league, game.sides[0].id)} />
               <span className="truncate">{game.sides[0].short}</span>
               <span className="flex-none text-[17px] text-white/65">at</span>
-              <TeamMark abbr={game.sides[1].abbreviation ?? game.sides[1].short.slice(0, 3)} color={game.sides[1].color} size="sm" />
+              <TeamMark abbr={game.sides[1].abbreviation ?? game.sides[1].short.slice(0, 3)} color={game.sides[1].color} size="sm" team={teamKeyOf(game.league, game.sides[1].id)} />
               <span className="truncate">{game.sides[1].short}</span>
               <ChevronRight className="size-6 flex-none" strokeWidth={3} aria-hidden />
             </NavLink>

@@ -26,6 +26,7 @@ import { LeagueScores } from "./league-scores";
 import { LeagueGames } from "./league-games";
 import { LeagueStandings } from "./league-standings";
 import { LeagueChat } from "./league-chat";
+import { teamKeyOf } from "@/lib/sports/team-badge";
 
 const TABS: Record<LeagueTab, { label: string; icon: LucideIcon }> = {
   week: { label: "This week", icon: CalendarDays },
@@ -349,7 +350,7 @@ function RivalryCard({ r, g, teams, forms, hidden, league, meId }: { r: Rivalry;
         className="nd-press -mx-1.5 mt-1.5 flex w-[calc(100%+12px)] flex-col gap-2 rounded-[3px] px-1.5 py-1 text-left focus-visible:outline-2 focus-visible:outline-foreground"
       >
         {([r.away, r.home] as const).map((id, i) => (
-          <RivalrySide key={id} t={team(id)} fan={r.fans[i]} name={who(r.fans[i])} form={forms.get(id)} side={sideOf(id)} open={open} started={s.started} lost={!!winner && winner !== id} />
+          <RivalrySide key={id} league={league} t={team(id)} fan={r.fans[i]} name={who(r.fans[i])} form={forms.get(id)} side={sideOf(id)} open={open} started={s.started} lost={!!winner && winner !== id} />
         ))}
       </button>
       {!s.started && (
@@ -367,11 +368,11 @@ function RivalryCard({ r, g, teams, forms, hidden, league, meId }: { r: Rivalry;
 }
 
 /** One side of the rivalry: the team's mark and name, its fan's face and name under it with the record, the score at the right. */
-function RivalrySide({ t, fan, name, form, side, open, started, lost }: { t: Team | undefined; fan: Fan; name: string; started: boolean; form: TeamForm | undefined; side: WeekGame["sides"][number] | undefined; open: boolean; lost: boolean }) {
+function RivalrySide({ league, t, fan, name, form, side, open, started, lost }: { league: string; t: Team | undefined; fan: Fan; name: string; started: boolean; form: TeamForm | undefined; side: WeekGame["sides"][number] | undefined; open: boolean; lost: boolean }) {
   const record = open && form ? recordWords(form) : null;
   return (
     <div className={`flex min-h-[48px] items-center gap-3 ${lost ? "text-muted-foreground" : ""}`} data-rivalry-side={t?.id}>
-      <TeamMark abbr={t?.abbreviation ?? t?.short.slice(0, 3)} color={t?.color} size="sm" />
+      <TeamMark abbr={t?.abbreviation ?? t?.short.slice(0, 3)} color={t?.color} size="sm" team={t && teamKeyOf(league, t.id)} />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[16px] font-bold leading-tight">{t?.short}</span>
         <span className="mt-1 flex min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground">
@@ -491,7 +492,7 @@ function TeamRow({ t, place, ranked, leader, form, week, weekFailed, rivalry, so
       >
         {/* The leader's place in bold foreground, never yellow: yellow is yours or now, and the leader may not be yours (the check). */}
         {ranked && <span className={`type-num text-center text-[15px] ${leader ? "font-bold text-foreground" : "text-muted-foreground"}`}>{place ?? ""}</span>}
-        <TeamMark abbr={t.abbreviation ?? t.short.slice(0, 3)} color={t.color} size="sm" />
+        <TeamMark abbr={t.abbreviation ?? t.short.slice(0, 3)} color={t.color} size="sm" team={teamKeyOf(league, t.id)} />
         <span className="flex min-w-0 items-center gap-2">
           <span className="truncate text-[16px] font-bold">{t.short}</span>
           {!solo && <Faces marks={t.followers.map((f) => ({ userId: f.id, name: f.name, you: f.id === meId }))} size={20} max={3} ground={yours ? "var(--secondary)" : "var(--background)"} />}
@@ -580,8 +581,8 @@ function SeasonRivalryRow({ r, teams, hidden, who, league }: { r: Rivalry; teams
       <span className="w-[74px] flex-none text-[13px] font-bold">{r.at ? dayOf(r.at) : "To be set"}</span>
       {/* Side by side, not overlapped: the overlap cut a four-letter code's last letter (BACKLOG 254 j). */}
       <span className="flex flex-none gap-1">
-        <TeamMark abbr={a?.abbreviation ?? a?.short.slice(0, 3)} color={a?.color} size="xs" />
-        <TeamMark abbr={b?.abbreviation ?? b?.short.slice(0, 3)} color={b?.color} size="xs" />
+        <TeamMark abbr={a?.abbreviation ?? a?.short.slice(0, 3)} color={a?.color} size="xs" team={a && teamKeyOf(league, a.id)} />
+        <TeamMark abbr={b?.abbreviation ?? b?.short.slice(0, 3)} color={b?.color} size="xs" team={b && teamKeyOf(league, b.id)} />
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[15px] font-semibold">

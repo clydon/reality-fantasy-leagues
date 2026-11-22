@@ -9,6 +9,7 @@ import { FollowFaces, FollowToggle, theLeague } from "./follow";
 import { GameRow, MoreAction, OpenRow, PlayPlate, SportsLabel, TeamMark, TeamPlate, type TeamGame } from "./parts";
 import { begun, clockOf, dayOf, ShowScore, useGameScore, useHideSports, useNow } from "./scores";
 import { useStartSport } from "./start";
+import { teamKeyOf } from "@/lib/sports/team-badge";
 
 // A team's sheet (docs/PLAN-start-a-game-gpt.md U1's sports slice; U0's board "Find a team", the user's calls of 2026-11-08 and
 // 2026-11-09): you go to a team to start a game, and the game then lives on the couch. Its lower third and Follow (the couch's
@@ -348,9 +349,9 @@ export function GameView({ g, s, onStart, onStarted }: { g: Game; s: TeamSchedul
   return (
     <div data-game-view={g.id}>
       <div className="flex items-center gap-3">
-        <TeamMark abbr={away?.abbreviation ?? away?.short.slice(0, 3)} color={(away as { color?: string | null } | null)?.color} size="lg" />
+        <TeamMark abbr={away?.abbreviation ?? away?.short.slice(0, 3)} color={(away as { color?: string | null } | null)?.color} size="lg" team={away && teamKeyOf(s.league, away.id)} />
         <span className="type-caption text-[18px] text-muted-foreground">at</span>
-        <TeamMark abbr={homeSide?.abbreviation ?? homeSide?.short.slice(0, 3)} color={(homeSide as { color?: string | null } | null)?.color} size="lg" />
+        <TeamMark abbr={homeSide?.abbreviation ?? homeSide?.short.slice(0, 3)} color={(homeSide as { color?: string | null } | null)?.color} size="lg" team={homeSide && teamKeyOf(s.league, homeSide.id)} />
       </div>
       <h2 className="type-caption mt-3 text-[28px]">{title}</h2>
       <p className="mt-1 text-[14px] text-muted-foreground">

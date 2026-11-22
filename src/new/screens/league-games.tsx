@@ -20,6 +20,7 @@ import { LeagueStart, openSports, startOn, useLeagueGames } from "../sports/shee
 import { useTableTeams, type Team } from "./league-page";
 import { rivalriesOf, type Fan, type Rivalry } from "@/lib/sports/couch-table";
 import type { LeagueNow } from "@/lib/sports/league-now";
+import { teamKeyOf } from "@/lib/sports/team-badge";
 
 const RIVALS_SHOWN = 3;
 const JOIN_SHOWN = 4;
@@ -197,8 +198,8 @@ function RivalRow({ r, teams, meId, league }: { r: Rivalry; teams: Team[]; meId:
   return (
     <div data-games-rival={r.id} className="flex min-h-[60px] items-center gap-3 border-b border-border py-1.5">
       <span className="flex flex-none gap-1">
-        <TeamMark abbr={a?.abbreviation ?? a?.short.slice(0, 3)} color={a?.color} size="xs" />
-        <TeamMark abbr={b?.abbreviation ?? b?.short.slice(0, 3)} color={b?.color} size="xs" />
+        <TeamMark abbr={a?.abbreviation ?? a?.short.slice(0, 3)} color={a?.color} size="xs" team={a && teamKeyOf(league, a.id)} />
+        <TeamMark abbr={b?.abbreviation ?? b?.short.slice(0, 3)} color={b?.color} size="xs" team={b && teamKeyOf(league, b.id)} />
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[15px] font-semibold">
@@ -255,7 +256,7 @@ function YourTeam({ league, teams, meId }: { league: string; teams: Team[]; meId
             onClick={() => openSports(startOn(league, t.id, t.short, { kind: "season" }))}
             className="nd-press flex min-h-[60px] w-full items-center gap-3 border-b border-border py-2 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-foreground"
           >
-            <TeamMark abbr={t.abbreviation ?? t.short.slice(0, 3)} color={t.color} size="sm" />
+            <TeamMark abbr={t.abbreviation ?? t.short.slice(0, 3)} color={t.color} size="sm" team={teamKeyOf(league, t.id)} />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[16px] font-semibold">{`Every ${t.short} game`}</span>
               <span className="mt-[3px] block truncate text-[13px] text-muted-foreground">The rest of the season · Pick&rsquo;em on its games, or a draft of its players</span>

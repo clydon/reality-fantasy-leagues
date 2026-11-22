@@ -8,6 +8,7 @@ import { openWatching } from "../watching/sheets";
 import { TeamMark, WeekRow } from "./parts";
 import { clockOf, useGameScore, useHideSports } from "./scores";
 import { openSports } from "./sheets";
+import { teamKeyOf } from "@/lib/sports/team-badge";
 
 // The guide's Sports (docs/PLAN-start-a-game-gpt.md U1's sports slice; U0's board "The guide's Sports"): this week's real games,
 // a day a column as the guide's reel is, each day leading with the couch's teams' games as cards (its two marks, the faces of who
@@ -144,7 +145,7 @@ function GameCard({ g, ours }: { g: WeekGame; ours: Map<string, CouchTeam> }) {
     const t = ours.get(`${g.league}|${side.id}`);
     return (
       <span className="flex min-h-7 items-center gap-2">
-        <TeamMark abbr={side.abbreviation ?? side.short.slice(0, 3)} color={side.color} size="sm" />
+        <TeamMark abbr={side.abbreviation ?? side.short.slice(0, 3)} color={side.color} size="sm" team={teamKeyOf(g.league, side.id)} />
         <span className="flex min-w-0">
           {(t?.followers ?? []).slice(0, 3).map((f) => (
             <span key={f.id} className="-mr-1.5 rounded-full shadow-[0_0_0_2px_var(--card)]">

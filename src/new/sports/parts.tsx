@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 import { clockOf, dayOf, ShowScore, useGameScore, type GameMoment } from "./scores";
+import { useTeamPicture } from "../ui/team-pictures";
 
 // The sports screens' parts (docs/PLAN-start-a-game-gpt.md U1's sports slice; U0's boards "Find a team", "The guide's Sports",
 // "Start a game on a team"): a team's mark (its colour, its abbreviation in white or ink by contrast: Tags Not Fills keeps a
@@ -13,9 +14,26 @@ import { clockOf, dayOf, ShowScore, useGameScore, type GameMoment } from "./scor
 // The colour rules live in src/lib/sports/team-badge.ts, shared with the server's picture of a team's own people (a defense).
 export { teamBg, teamInk } from "@/lib/sports/team-badge";
 import { teamBg, teamInk } from "@/lib/sports/team-badge";
+import { teamKeyOf } from "@/lib/sports/team-badge";
 
 /** A team's mark: its abbreviation on its colour. */
-export function TeamMark({ abbr, color, size = "md", className = "" }: { abbr: string | null | undefined; color: string | null | undefined; size?: "xs" | "sm" | "md" | "lg"; className?: string }) {
+export function TeamMark(props: { abbr: string | null | undefined; color: string | null | undefined; size?: "xs" | "sm" | "md" | "lg"; className?: string; team?: string | null }) {
+  // With its key (team-badge.ts teamKeyOf), your couch's picture for the team shows in its place when there is one
+  // (docs/PLAN-team-logos.md; src/new/ui/team-pictures.tsx). Only then does it ask, so a mark without a key stays as plain as before.
+  return props.team ? <TeamMarkOrPicture {...props} team={props.team} /> : <OwnMark {...props} />;
+}
+
+const PICTURE_SIZE = { xs: "size-[26px] rounded-[3px]", sm: "size-[30px] rounded-[4px]", md: "size-10 rounded-[6px]", lg: "size-16 rounded-[10px]" } as const;
+
+function TeamMarkOrPicture({ team, size = "md", className = "", ...rest }: Parameters<typeof TeamMark>[0] & { team: string }) {
+  const picture = useTeamPicture(team);
+  if (!picture) return <OwnMark {...rest} size={size} className={className} />;
+  // The couch's finished square (the logo on the white plate, the team's colour on its cut corner): no clip, it carries its own.
+  // eslint-disable-next-line @next/next/no-img-element -- a couch's own picture, already the size shown
+  return <img src={picture} alt="" aria-hidden className={`flex-none object-cover ${PICTURE_SIZE[size]} ${className}`} />;
+}
+
+function OwnMark({ abbr, color, size = "md", className = "" }: { abbr: string | null | undefined; color: string | null | undefined; size?: "xs" | "sm" | "md" | "lg"; className?: string }) {
   const s = size === "xs" ? "size-[26px] rounded-[3px] text-[11px] !shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--foreground)_32%,transparent)]" : size === "sm" ? "size-[30px] rounded-[4px] text-[11px]" : size === "lg" ? "size-16 rounded-[10px] text-[22px]" : "size-10 rounded-[6px] text-[14px]";
   return (
     <span
@@ -120,7 +138,7 @@ export function GameRow({ g, league, onClick }: { g: TeamGame; league: string; o
           <span className="text-[13px] font-bold">{g.at ? dayOf(g.at) : "To be set"}</span>
           <span className="text-[12px] text-muted-foreground">{s.started && !s.open ? s.when : s.started ? s.when : g.at ? clockOf(g.at) : ""}</span>
         </span>
-        <TeamMark abbr={g.opponent?.abbreviation ?? g.opponent?.short.slice(0, 3)} color={g.opponent?.color} size="sm" />
+        <TeamMark abbr={g.opponent?.abbreviation ?? g.opponent?.short.slice(0, 3)} color={g.opponent?.color} size="sm" team={g.opponent && teamKeyOf(league, g.opponent.id)} />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[16px] font-semibold">
             {g.home === false ? "at" : "vs"} {g.opponent?.short ?? "To be decided"}
@@ -150,8 +168,8 @@ export function WeekRow({ g, onClick, showLeague }: { g: WeekRowGame; onClick: (
     <div className="flex items-center border-b border-border" data-week-game={g.id}>
       <button type="button" onClick={onClick} className="nd-press flex min-h-[58px] min-w-0 flex-1 items-center gap-2.5 py-1.5 text-left">
         <span className="flex flex-none items-center gap-1">
-          <TeamMark abbr={a.abbreviation ?? a.short.slice(0, 3)} color={a.color} size="sm" />
-          <TeamMark abbr={b.abbreviation ?? b.short.slice(0, 3)} color={b.color} size="sm" />
+          <TeamMark abbr={a.abbreviation ?? a.short.slice(0, 3)} color={a.color} size="sm" team={teamKeyOf(g.league, a.id)} />
+          <TeamMark abbr={b.abbreviation ?? b.short.slice(0, 3)} color={b.color} size="sm" team={teamKeyOf(g.league, b.id)} />
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[15px] font-semibold">

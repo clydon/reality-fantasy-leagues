@@ -6,6 +6,7 @@ import { useSportsSearch, type FoundTeams } from "../data";
 import { FollowToggle, theLeague, useLeagueFollow } from "./follow";
 import { TeamMark } from "./parts";
 import { begun, clockOf, dayOf } from "./scores";
+import { teamKeyOf } from "@/lib/sports/team-badge";
 
 // The search box finds teams and leagues too (docs/PLAN-start-a-game-gpt.md, "U0's first round": Shows · Teams · Leagues; U0's
 // board "Find a team"): a matchup when the words name two teams ("eagles cowboys", in any order), each team with its next game,
@@ -64,8 +65,8 @@ export function SportsResults({ data, onPick }: { data: FoundTeams | undefined; 
           data="matchup"
           start={
             <span className="flex flex-none -space-x-2">
-              <TeamMark abbr={m.teams[0].abbreviation ?? m.teams[0].short.slice(0, 3)} color={m.teams[0].color} />
-              <TeamMark abbr={m.teams[1].abbreviation ?? m.teams[1].short.slice(0, 3)} color={m.teams[1].color} />
+              <TeamMark abbr={m.teams[0].abbreviation ?? m.teams[0].short.slice(0, 3)} color={m.teams[0].color} team={teamKeyOf(m.league, m.teams[0].id)} />
+              <TeamMark abbr={m.teams[1].abbreviation ?? m.teams[1].short.slice(0, 3)} color={m.teams[1].color} team={teamKeyOf(m.league, m.teams[1].id)} />
             </span>
           }
           title={`${m.teams[0].short} v ${m.teams[1].short}`}
@@ -77,7 +78,7 @@ export function SportsResults({ data, onPick }: { data: FoundTeams | undefined; 
         <Row
           key={`${t.league}/${t.id}`}
           data="team"
-          start={<TeamMark abbr={t.abbreviation ?? t.short.slice(0, 3)} color={t.color} />}
+          start={<TeamMark abbr={t.abbreviation ?? t.short.slice(0, 3)} color={t.color} team={teamKeyOf(t.league, t.id)} />}
           title={t.name}
           sub={`${t.leagueName ?? t.league} · ${nextLine(t.next)}`}
           onClick={() => onPick({ kind: "team", league: t.league, team: t.id, name: t.short })}

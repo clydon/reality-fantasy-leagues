@@ -19,6 +19,7 @@ import { openSports, useLeagueWeek } from "../sports/sheets";
 import { columnsOf, couchFirst, defaultView, notesOf, splitsOf, viewOf, viewWords, type Column, type ShownGroup, type Standings, type View } from "@/lib/sports/standings";
 import type { LeagueNow } from "@/lib/sports/league-now";
 import { useTableTeams, type Team } from "./league-page";
+import { teamKeyOf } from "@/lib/sports/team-badge";
 
 const VIEW_KEY = (league: string) => `gys-standings-view:${league}`;
 const shownKey = (league: string) => `standings:${league}`;
@@ -282,7 +283,7 @@ function Row(p: {
           {p.notes && (e.note ? <Swatch color={e.note.color} /> : <i className="size-2 flex-none" aria-hidden />)}
           {place ?? ""}
         </span>
-        <TeamMark abbr={e.abbreviation ?? e.short.slice(0, 3)} color={e.color} size="sm" />
+        <TeamMark abbr={e.abbreviation ?? e.short.slice(0, 3)} color={e.color} size="sm" team={teamKeyOf(p.league, e.team)} />
         {/* The name alone on its line (the user's call on the story: a face beside it cut it to "Cow…"); the couch's faces and what
             qualifies the team on the line under it. */}
         <span className="min-w-0 py-1">

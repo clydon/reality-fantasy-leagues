@@ -47,3 +47,6 @@ export function badgeTeamOf(src: string | null | undefined): string | null {
 
 /** An ESPN team logo's address (a.espncdn.com/i/teamlogos/…, and its resizer's ?img=/i/teamlogos/…): never kept or drawn. */
 export const LEAGUE_LOGO = /espncdn\.com\/.*teamlogos\//i;
+
+/** A team's key ("team:<league>:<id>"), as a couch's picture for it is kept (src/lib/server/couch-pictures.ts teamKey). */
+export const teamKeyOf = (league: string, id: string) => `team:${league}:${id}`;

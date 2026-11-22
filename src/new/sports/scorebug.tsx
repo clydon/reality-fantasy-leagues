@@ -20,6 +20,8 @@ import { teamBg } from "./parts";
 import { clockOf, dayOf, noteSeen, showScore, useGameScore, useHideSports, useHideSportsKnown, useShownScores } from "./scores";
 import { openSports } from "./sheets";
 import type { StripBucket } from "@/lib/sports/strip";
+import { teamKeyOf } from "@/lib/sports/team-badge";
+import { useTeamPicture } from "../ui/team-pictures";
 
 export type Fan = { id: string; name: string };
 export type Played = { seasonId: string; episode: number; leagueId: string; pick: string | null };
@@ -79,6 +81,16 @@ const downWords = (d: string) => d.replace("&", "and");
  * says Final alone. `finalsOpen`: a final shows its score unless hidden (the sports pages' rule: B1's decision 2); without it, a
  * final asks first (the hub's: A1). `pollOnScreen`: a live game asks for its clock only while on screen (a list of many).
  */
+/** A side's tag on the bug: the team's colour as a slab (a tag, never a fill; its edge from the foreground so a pale colour holds on
+ *  Studio too), or your couch's picture for the team in its place, a 22 px square that carries the colour on its own cut corner
+ *  (docs/PLAN-team-logos.md). */
+function TeamSlab({ team, color }: { team: string; color: string | null | undefined }) {
+  const picture = useTeamPicture(team);
+  // eslint-disable-next-line @next/next/no-img-element -- a couch's own picture, already the size shown
+  if (picture) return <img src={picture} alt="" aria-hidden data-bug-picture className="size-[22px] flex-none rounded-[3px] object-cover" />;
+  return <i aria-hidden className="h-[22px] w-1 flex-none rounded-r-[2px] shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--foreground)_22%,transparent)]" style={{ background: teamBg(color) }} />;
+}
+
 export function Scorebug({
   bug,
   meId,
@@ -230,12 +242,7 @@ export function Scorebug({
     const down_ = nums && lead !== -1 && lead !== i;
     return (
       <span key={x.id} className="flex h-7 min-w-0 items-center gap-[7px]">
-        {/* The team's colour as a slab (a tag, never a fill), its edge from the foreground so a pale colour holds on Studio too. */}
-        <i
-          aria-hidden
-          className="h-[22px] w-1 flex-none rounded-r-[2px] shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--foreground)_22%,transparent)]"
-          style={{ background: teamBg(x.color) }}
-        />
+        <TeamSlab team={teamKeyOf(g.league, x.id)} color={x.color} />
         <b
           data-bug-pick={pick === x.id || undefined}
           className={`type-caption min-w-0 truncate pb-0.5 text-[18px] leading-none tracking-[0.03em] ${pick === x.id ? "shadow-[inset_0_-2px_0_var(--chyron-line)]" : ""} ${down_ ? "text-muted-foreground" : ""}`}
