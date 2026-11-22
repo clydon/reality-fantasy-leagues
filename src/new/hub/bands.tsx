@@ -53,17 +53,23 @@ export function ShowBands({ home, couch, hub }: { home: Home; couch: Couch | nul
   const finished = shelfOrder(mine.filter((s) => finishedFor(home, couch, hub, s)));
   const [open, setOpen] = useState(false);
   const due = new Set(home.moves.map((m) => showOfMove(home, m)?.seasonId).filter(Boolean));
-  // A league is one card among the bands (docs/PLAN-sports-couch.md A2: hub/league-cards.tsx), in its place by its next game as a
-  // show is by its next episode (a stable sort: ties keep the shelf's order, the leagues after the shows). The bands wait for the
+  // TV shows first, by their next episode (a stable sort: ties keep the shelf's order); then sports, a card a league
+  // (docs/PLAN-sports-couch.md A2: hub/league-cards.tsx), by the league's name, its teams by name inside (the user, 2026-11-22:
+  // "sports last, then sorted by league, then alphabetical on team name"). The bands wait for the
   // cards' few small reads, so everything lands once, in its place, rather than the bands jumping as a card slots in (the check).
   const cards = useLeagueCards(home, couch, hub);
   const airAt = (s: HomeShow) => (s.upNext?.airAt ? Date.parse(s.upNext.airAt) : Infinity);
   const rows = !cards
     ? []
     : [
-        ...shows.filter((s) => s.show.kind !== "sport").map((s) => ({ key: s.seasonId, at: airAt(s), show: s, card: null })),
-        ...cards.map((c) => ({ key: `league:${c.league}`, at: c.at, show: null, card: c })),
-      ].sort((a, b) => a.at - b.at);
+        ...shows
+          .filter((s) => s.show.kind !== "sport")
+          .map((s) => ({ key: s.seasonId, at: airAt(s), show: s, card: null }))
+          .sort((a, b) => a.at - b.at),
+        ...[...cards]
+          .sort((a, b) => a.name.localeCompare(b.name) || a.league.localeCompare(b.league))
+          .map((c) => ({ key: `league:${c.league}`, at: c.at, show: null, card: c })),
+      ];
   return (
     <section className="mt-7" data-look="bands" data-your-shows>
       <SectionHead title="Your shows" aside={couch ? "Where everyone is" : undefined} />

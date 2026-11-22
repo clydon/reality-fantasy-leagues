@@ -1,10 +1,11 @@
 "use client";
 
 // The league card in Your shows (docs/PLAN-sports-couch.md A2; the shape: docs/design-round/hub-scorebug-shape.md, "The league
-// card in Your shows"): a league you follow (alone, or by following a team in it: A3), or play a game in, is one 72 px card among the show bands, sorted by
-// its next game the way a show sorts by its next episode. No art, no live score, no red: live is the scores strip's job, and this
+// card in Your shows"): a league you follow (alone, or by following a team in it: A3), or play a game in, is one 72 px card in Your
+// shows, after every show, by the league's name (the user, 2026-11-22: "sports last, then sorted by league, then alphabetical on
+// team name"). No art, no live score, no red: live is the scores strip's job, and this
 // card never repeats what the strip says (a game's time, score or due move). It says the league, its week, the couch's teams as
-// marks (yours first, ringed as your face is on a band) and one muted line of what the couch has going in it: your games and your
+// marks (by team name, yours ringed as your face is on a band) and one muted line of what the couch has going in it: your games and your
 // place, else the couch's games, else whose team leads the couch's by record (never for anyone hiding scores: a record is a
 // result), else who follows them. Off-season it's one quiet line. A tap opens the league's page (B1:
 // screens/league-page.tsx).
@@ -36,7 +37,7 @@ export interface LeagueCardData {
   /** Its sports seasons a game of yours or the couch's is on (they leave the posters for the card). */
   seasons: string[];
   now: LeagueNow | null;
-  /** The couch's teams in it (yours alone, solo), yours first. */
+  /** The couch's teams in it (yours alone, solo), by team name. */
   teams: CouchTeam[];
   line: string | null;
   due: boolean;
@@ -102,8 +103,8 @@ export function useLeagueCards(home: Home, couch: Couch | null, hub: CouchHub | 
   return leagues.map((league, i): LeagueCardData => {
     const nowOf = nows[i]?.data ?? null;
     const mine = teams.filter((t) => t.league === league);
-    // Yours first, your team in the league first among them (A3), then the most followed.
-    const ranked = [...mine].sort((a, b) => +b.you - +a.you || +(b.you && b.myTeam) - +(a.you && a.myTeam) || b.followers.length - a.followers.length || a.short.localeCompare(b.short));
+    // By team name (the user, 2026-11-22: alphabetical on team name; yours stay ringed).
+    const ranked = [...mine].sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
     const leagueGames = games.filter((g) => g.league === league);
     const name = nowOf?.leagueName ?? leagueGames[0]?.leagueName ?? league.split("/").pop()!.toUpperCase();
     const seasonIds = new Set([...leagueOf].filter(([, l]) => l === league).map(([id]) => id));
