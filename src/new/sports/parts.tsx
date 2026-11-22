@@ -15,8 +15,8 @@ export { teamBg, teamInk } from "@/lib/sports/team-badge";
 import { teamBg, teamInk } from "@/lib/sports/team-badge";
 
 /** A team's mark: its abbreviation on its colour. */
-export function TeamMark({ abbr, color, size = "md", className = "" }: { abbr: string | null | undefined; color: string | null | undefined; size?: "sm" | "md" | "lg"; className?: string }) {
-  const s = size === "sm" ? "size-[30px] rounded-[4px] text-[11px]" : size === "lg" ? "size-16 rounded-[10px] text-[22px]" : "size-10 rounded-[6px] text-[14px]";
+export function TeamMark({ abbr, color, size = "md", className = "" }: { abbr: string | null | undefined; color: string | null | undefined; size?: "xs" | "sm" | "md" | "lg"; className?: string }) {
+  const s = size === "xs" ? "size-[26px] rounded-[3px] text-[11px] !shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--foreground)_32%,transparent)]" : size === "sm" ? "size-[30px] rounded-[4px] text-[11px]" : size === "lg" ? "size-16 rounded-[10px] text-[22px]" : "size-10 rounded-[6px] text-[14px]";
   return (
     <span
       aria-hidden

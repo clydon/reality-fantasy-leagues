@@ -1,6 +1,8 @@
 # Plan: sports on the couch (the hub's scores strip, a league's page, playing as a couch, lines)
 
-> **Status (2026-11-22): Settled, not started.** The user's calls are in; start at step A1. Lines are Phase D, detailed in
+> **Status (2026-11-22): A1 and A2 approved as built (the user, 2026-11-22) and committed in the `sports-couch` lane (not
+> merged). A3 (following a league) approved as built too (the user, 2026-11-22) and committed in the lane. B1's first session (the page and This week) approved as built (the user, 2026-11-22) and
+> committed in the lane. B1's Scores tab (session 2) approved as built (the user, 2026-11-22) and committed in the lane. B1's Games tab (session 3) approved as built (the user, 2026-11-22) and committed in the lane. B1's Standings (session 4, with BACKLOG 254 k) committed in the lane, the story's four recommendations taken on the user's "Continue". B1's Chat (session 5, migration 0314 on the lane's database only) approved as built (the user, 2026-11-22, taking the three recommendations) and committed in the lane. B1 is complete; next is the lane's merge, its own step.** The user's calls are in. Lines are Phase D, detailed in
 > [PLAN-sports-lines.md](PLAN-sports-lines.md). March Madness (E1) is dated: working by Fri 2027-02-26.
 
 ## Read first
@@ -75,12 +77,119 @@ the build session runs Impeccable's build and critique on it, then the check and
 - **Later, by sport (A1b):** baseball's inning, outs and bases; hockey's power play; soccer's minute and red cards; each its own
   situation read, as its season starts (MLB by Opening Day).
 
+**A1's build notes (2026-11-22, lane `sports-couch`, port 3019; not merged).** Story: https://claude.ai/artifact/YBP1Xv93MfsfJSQXiY7VLq.
+**Approved as built** (the user, 2026-11-22), the build's calls standing: hidden games say "Started", a final asks before showing
+its score, and records in the score slot, the possession triangle and "LAC by 3" stay as the brief has them (BACKLOG 253 b,
+decided; docs/design-round/decisions.md).
+- **Where:** `src/new/hub/scores-strip.tsx` (the strip, the scorebug, the ask sheet moved from the Scoreboard, the tile's sheet of
+  every game by league), after `OnTvRow` in `Middle` and in `SoloHub`. The Scoreboard and ScoreCard are gone from bands.tsx;
+  `useTeamsToday` and `SportsMini` from guide.tsx, and On TV's reel also drops a sport season's own cards (a game you play was
+  there twice).
+- **Which games:** `src/lib/sports/strip.ts` (pure; tests/sports-strip.test.js): your teams' games and the games you play; live,
+  then just finished, then today's by kickoff, then each team's (or season's) next only when it has nothing on the strip yet. A
+  rivalry is your team's game with a couch face on the other side; the couch's other teams' games left. A hidden game that has
+  begun is one bucket, "started", sorted by kickoff with the live ones, so its place gives nothing away. Finals leave after 36 hours,
+  or once seen on an earlier visit (`noteSeen`/`seenBefore` in sports/scores.tsx: this phone's localStorage; watching a game live
+  on the strip counts as seeing it). A team with nothing left this week (a bye) makes the strip read the week after.
+- **Data:** ESPN's scoreboard now gives each side's record (`Competitor.record`), the networks and the live clock
+  (`SportsEvent.networks`, `.clock`; espn.ts); `WeekGame` carries `record`, `network`, `line` (words: matchup.ts `lineWords`, "LAC by
+  3", never the book) and `clock`. The line is read from the scoreboard's odds, the same source `sports_events.odds` is filled from.
+  `src/lib/sports/situation.ts` reads where a game stands from its summary (score, period, clock, football's possession and down);
+  `LiveGame.situation` keeps it (live.ts). Tested on eight answers of the recorded Patriots–Lions game
+  (tests/fixtures/espn-situations/nfl-401873053.json; tests/sports-situation.test.js).
+- **New reads** (HOSTING.md, "The hub's scores strip"): `GET /api/sports/now?league=&event=` (~200 bytes, through the live route's
+  poller, edge-kept 15 s; polled every 15 s per live game only for someone shown it live) and `GET /api/sports/mine` (your games by
+  ESPN id with your pick: three small reads, src/lib/server/sports/mine.ts). No migration, no engine change.
+- **Decided in the build:** hidden says "Started" and its time, never the clock or FINAL, and the tile drops its live count (the
+  2026-11-09 rule over the brief); a final asks first even with hiding off (the 2026-11-15 rule), its sheet saying "You haven't seen
+  how it ended"; the bug is 208 × 72 with a 66 px status column (the line needed the room); the tile carries "N due" while any move
+  is due, and its chevron says it opens every game.
+- **The check (once):** PFD evaluate and Impeccable critique on the frames; one batch fixed: the Show/Watching chip covered the
+  faces (now an icon in the score slot, the status column saying Started or Watching), no focus ring (inset rings on the tile and
+  bugs), fragments at the swiped end (a spacer lets the last bug snap flush), a later day lost AM/PM, the tile had no tap cue, live
+  red text under 4.5:1 (the words now foreground, the dot red), 10.5 px text (12 px floor), the slab's edge invisible on Studio
+  (from the foreground now), the faces missing from the spoken label, a game with no time. Kept from the brief: records in the score
+  slot, the possession triangle, the line in words (BACKLOG 253 b).
+- **Checks:** `scripts/dev-test/story-hub-sports.js` shoots every state (`--only=`, `--before` for the old code on another port,
+  Studio, solo, overlaps); check-sports-couch.js checks the week's new fields, the small live read, your games, and the strip on the
+  hub (88 px after On TV, no Scoreboard, hidden says Started and asks, shown is live with its ball and down); check-new-hub.js checks
+  no strip without teams. Both checks fail later on steps that fail on master too (BACKLOG 252). fake-espn.js events take `records`,
+  `network` and `clock` (with a summary of a game on). tsc and `npm test` pass; ESLint's only errors are master's (game-page.tsx,
+  lineup-sheet.tsx `Date.now` in render).
+
 **A2. The league card in Your shows** (S–M). 72 px, among the show bands, sorted by its next game like shows by their next
 episode; the league, the week, the couch's teams as marks, one muted line of what the couch has going (never what the strip
 already says); off-season, one line. Until B1 lands, a tap opens today's league sheet (`openSports({ kind: "league" })`).
 
+**A2's build notes (2026-11-22, lane `sports-couch`, port 3019; not merged).** Story: https://claude.ai/artifact/XixM9yKB4CeHeANg5zcZg9.
+**Approved as built** (the user, 2026-11-22), the build's calls standing (docs/design-round/decisions.md).
+The check: [design-round/hub-league-card-check.md](design-round/hub-league-card-check.md).
+- **Where:** `src/new/hub/league-cards.tsx` (`useLeagueCards`, `LeagueCard`). In `ShowBands` (bands.tsx) the cards sort among the
+  show bands by next game against next episode (a stable sort: shows first on a tie, an off-season card last); the rows wait for
+  the cards' reads so nothing jumps. The solo hub's Your shows is a poster shelf that swipes, so its cards sit above it
+  (sections.tsx `YourShows`), and a sports season a card holds leaves the posters, as it left the bands.
+- **Which leagues:** each league with a team you follow (the couch's teams read, or your own follows solo), and each league a game
+  of yours is in. The marks are the couch's teams there (yours first, ringed; four, then "+N"; `TeamMark` size `xs`, 26 px, its
+  edge from the foreground).
+- **The line, the first that holds:** your games there (one: its name and your place, else how many play; several: how many and
+  your best); the couch's games you're not in; who leads the couch's teams by record (never for anyone hiding scores, and never
+  while one of their games from the last 36 hours is unseen or on: a record carries the latest result); who follows them (two or
+  more); "No games on the couch yet" (solo: "No games yet"). The due dot is any move of yours due in a game there.
+- **Its place:** the next start of a game of the couch's teams or a game you play there (else the league's next), by the clock
+  alone (a game counts until 3.5 hours after its start), never a game's state, so it gives nothing away to someone hiding scores.
+- **The week:** `GET /api/sports/league/now?league=` (src/lib/sports/league-now.ts `nowOf`, pure, tests/sports-league-now.test.js;
+  the server's `leagueNow` reads the league's calendar slate.ts already caches a day): football's own week ("Week 12", "Wild Card"),
+  a daily sport's Monday-to-Sunday week, "Playoffs" for a daily sport's playoffs, nothing for a soccer league (its season instead);
+  off-season with the day it's back when ESPN lists the next season. `/api/sports/mine` also returns `seasons` (each sport season of
+  your games and your couches', with its league). HOSTING.md: "The league card in Your shows". No migration, no engine change.
+- **The tap:** today's league sheet (`openSports({ kind: "league" })`), which now leads with **Your games** in that league (the due
+  move in its own words, opening the move); while a move is due, Play this week's games steps down to an outline (the One Chyron
+  Rule). B1's This week replaces this.
+- **The check (once):** PFD evaluate (71: the due dot's scent and the line's words) and Impeccable critique (dual-agent: 20/32;
+  the reflow, the chevron, touching rings, a navy mark at 1.02:1, a long league name overflowing); one batch fixed (see the check
+  doc). Kept from the brief: the week as quiet caps, the off-season line's words, A1's focus ring.
+- **Checks:** check-sports-couch.js (the league-now reads, `mine`'s seasons, the card on the hub at 72 px among the bands with its
+  week and your ringed mark, no score or red, the off-season line at 48 px, the tap opening the sheet with your games first);
+  its world gains a stand-in baseball league in its off-season and calendars around now (`calendarsAround`, `MB`). Its A1 step
+  "scores hidden… no score" no longer mistakes a kickoff time ("10:01 AM") for the score. story-hub-sports.js shoots
+  `<world>-cards` and each card at twice the size for every world, `many-league` (the tap), a new `one` world (one league, the
+  record line), and the solo world on solo-fixture.js's zt_so_alex (BACKLOG 254 f). tsc and `npm test` pass (2,573); ESLint's
+  errors are master's (game-page.tsx, lineup-sheet.tsx, use-sheet-swipe.ts, format-timeline.js). The check still stops at
+  BACKLOG 252's Start a game step, as on master.
+- **Leftovers:** BACKLOG 254.
+
 **A3. Follow a league** (S, a migration). A league follow (a `league_follows` table, or a league-wide row beside `team_follows`:
 decide in the step) from search's league card and the league's page; "my team" per league.
+
+**A3's build notes (2026-11-22, lane `sports-couch`, port 3019; not merged).** **Approved as built** (the user, 2026-11-22), Following's quiet look kept everywhere (BACKLOG 254 i). Story:
+https://claude.ai/artifact/FJGQbCjxmyTgSqkEKWmtd3. The design: [league-follow-spec.md](design-round/league-follow-spec.md) (Intent), `-first-view.md` (PFD), `-shape.md`
+(Impeccable), `-check.md` (the check and its one batch).
+- **Decided in the step: a `league_follows` table** (migration 0313, hand-written, additive; **run only on the lane's local
+  database**), not a league-wide row in `team_follows`: that table's key and its name, short and colour are a team's, and every
+  reader of it (the couch's teams, the strip, the guide, the cards) takes its rows as teams. **Your team** is `team_follows.my_team`
+  (a partial unique index: one a league). The migration carries every league someone follows a team in over as a league follow
+  and makes each person's first team there theirs, so no card moves.
+- **The rules** (team-follows.ts): following a team follows its league and, if none is, makes it your team there; unfollowing your
+  team passes it to the next you followed there; a league follows alone (a team sport's that its provider lists: `listedLeague`,
+  find.ts; else 404); unfollowing a league takes its card off and leaves its teams followed; a game you play keeps its league's
+  card either way. `GET /api/sports/follow` answers `{ teams (each with myTeam), leagues }`; POST `{ league, follow }` a league,
+  `{ league, team, follow }` a team, `{ league, team, myTeam: true }` your team (409 unless followed). `/api/sports/couch` adds
+  `leagues` (who on the couch follows each) and each follower's `myTeam`. No new external read (HOSTING.md unchanged).
+- **The screens:** `FollowToggle`, `FollowFaces` and `useLeagueFollow` (src/new/sports/follow.tsx, one toggle everywhere); search's
+  league row with Follow in the chevron's slot (search.tsx `LeagueRow`); the league sheet's follow row first, its line naming why
+  it's on your shows (sheets.tsx `LeagueFollowRow`); the team sheet's "Your NFL team" and "Make the Lions your team" only with two
+  or more teams followed in the league (team.tsx); the league cards from your league follows and your games (league-cards.tsx),
+  your team first among yours, "Followed by" counting the league's own followers.
+- **The check (once):** PFD 73 (L3 58: the sheet's line cut at its cause; "them" ambiguous); Impeccable dual-agent 26/36, 19
+  advisory font-size findings (3 carried over into this change). One batch: the line wraps to two lines; "Make the Lions your
+  team" with a focus ring; Following a quiet fill with a check, one width either way (the team sheet's too); one voice for the
+  toasts. Kept: no chevron on the search row (PFD's R1), "Follow" for a league, 14 px on the toggle.
+- **Checks:** check-sports-couch.js `leagueFollowChecks` (API: 11) and `leagueFollowBrowser` (390: 12), all passing; the run
+  still stops at BACKLOG 252's Start a game step, as on master. Its guide step waits for the guide's button, not a quiet network
+  (BACKLOG 254 g). story-hub-sports.js's `follow` world (and `--before`). tsc clean, `npm test` 2,573 pass, ESLint clean on the
+  changed files.
+- **Noticed and fixed:** on no couch, the team sheet never showed Following (it read followers from the couch only).
+- **Leftovers:** BACKLOG 254 (g)–(i).
 
 ### Phase B: the league's page and finding sports (round 1, with round 2's This week)
 
@@ -88,6 +197,135 @@ decide in the step) from search's league card and the league's page; "my team" p
 rivalries this season, your games, the room, the rest of the league), **Scores** (a week or day switcher, the shared game row),
 **Games** (with the couch, rivals, on your own), **Standings** (ESPN's standings: a new read), **Chat** (the league's room and a
 thread per game: chat is per season today). Records for the table come from the scoreboard's records or the standings read.
+
+**B1's build notes, session 1: the page and This week (2026-11-22, lane `sports-couch`, port 3019; not merged; no migration).**
+Story: https://claude.ai/artifact/Nksn54s8dmHHRPYMxuJJ9c. **Approved as built** (the user, 2026-11-22, taking the four recommendations: decisions.md). The design:
+[league-page-spec.md](design-round/league-page-spec.md) (Intent), `-first-view.md` (PFD), `-shape.md` (Impeccable), `-check.md`.
+- **Where:** `/league/<sport>/<code>/<tab>` (routes.ts `paths.league`, `LEAGUE_TABS`, depth 1, up to the hub, tabs sideways;
+  src/app/(new)/(in)/league/); `src/new/screens/league-page.tsx` (`LeagueFrame`: the bar without art, Home, the name, its week and
+  season or Off-season, A3's Follow; the tab bar; `LeagueTabScreen`). The league card, search's league row and Add's league pick open
+  it; the sheet's `league` kind and `LeagueView` are gone (A3's follow line with them: the bar keeps the toggle). sheets.tsx keeps
+  the parts: `useLeagueGames`, `LeagueGameRows`, `useLeagueWeek`, `LeagueStart`, `LeagueDays`.
+- **Tabs now:** This week, Scores (the week by day, the sheet's list), Games (your games, Play this week's games, Play the season).
+  Standings and Chat join when built (the user's call 1 in the story).
+- **This week:** your due move (the show strip's plate, the one yellow); this week's rivalry (two couch members' teams meeting, fans
+  differing: on now, else next, else just played; opens the game; Start a game on it before kickoff); the couch's teams (solo: yours)
+  ranked by record, a tie counting half, each row its fans' faces, last five, and this week's game ("Rivalry, above" for the
+  rivalry's two, Bye, Off-season); rivalries this season (each fan's record, next two and last two, All N); your games here (the
+  move muted) and Play this week's games outlined; the rest of the week, one row into Scores. Hide sports scores: no number, the
+  table yours first then by fans, one Show records (every result on the page through `showScore`).
+- **Data:** league-now answers its week's `from` and `to` (a daily sport's plain Monday to Sunday; tests/sports-league-now.test.js);
+  `GET /api/sports/league/teams?league=&teams=` (league-teams.ts; at most 16 teams; edge ten minutes): each team's record, last five
+  and meetings among them from the schedules a team's sheet reads; `src/lib/sports/couch-table.ts` ranks them and finds the
+  rivalries (pure; tests/sports-couch-table.test.js). HOSTING.md: "A league's page, This week".
+- **Checks:** `scripts/dev-test/story-league-page.js` (worlds: gameday, midweek, hidden, lone, none, solo, daily, off, studio; a
+  season of finals behind Week 12 on the stand-in); check-sports-couch.js `leaguePageChecks` (API) and the card → page → Scores →
+  bar Follow steps (browser), all passing; the run still stops at BACKLOG 252's Start a game step, as on master. tsc clean, `npm
+  test` 2,580 pass, ESLint clean on the changed files.
+- **Open:** the check doc's three (the move's "· 1 question" break, off-season's empty Play heading, xs marks cutting 4-letter codes).
+- **Next sessions:** Scores (a week or day switcher, the shared game row), Games, Standings (a new read), Chat (a league room).
+
+**B1's build notes, session 2: Scores (2026-11-22, lane `sports-couch`, port 3019; not merged; no migration).** Story: https://claude.ai/artifact/SChZpFJzYWthMNrxmr5Whm. **Approved as built** (the user, 2026-11-22, taking the three
+recommendations: decisions.md). The design: [league-scores-spec.md](design-round/league-scores-spec.md) (Intent), `-first-view.md` (PFD), `-shape.md`
+(Impeccable), `-check.md` (the check and its one batch). BACKLOG 254 (j) fixed first.
+- **Where:** `src/new/screens/league-scores.tsx` (`LeagueScores`: the switcher, then the list); the shared game row is A1's scorebug,
+  moved to `src/new/sports/scorebug.tsx` (`Scorebug`, `AskSheet`, `bugStateOf`) and drawn by the hub's strip and Scores alike: full
+  width (`wide`) it names the teams, its status column 78 px; `grouped` (under a day heading) says only the time; `finalsOpen` shows
+  a final's score unless hidden (B1's decision 2); `pollOnScreen` asks a live row's clock only while it's on screen. LeagueFrame
+  measures its bar into `--league-bar` so the switcher sticks under it.
+- **The switcher:** football's every week and playoff week (chips: "Week 12" over its dates, now's "This week"), a daily sport's (and
+  soccer's) game days (chips: weekday over date, "Today"); opens on now with the chip before it showing; the chosen chip's rule in
+  the foreground (one yellow a view); away from now, "This week ›" (or "Today ›") pinned at its end. A daily sport's chips are its
+  game days, not the spec's Monday-to-Sunday seven with arrows (38 px chips): the user's call in the story.
+- **The list:** the couch's games first (solo: your teams'; a game you play too), each saying its day when it isn't under one; then
+  every other game a day at a time; kickoff order everywhere. Hiding: Started and the eye per row (A1's ask), and one Show scores
+  for the chosen week that asks first (Show all N or Keep hiding). Empty, failed, off-season and loading states.
+- **Data:** league-now answers `weeks` (football) and `days` (a daily sport's game days) (tests/sports-league-now.test.js); the week
+  read takes `only=1` (that league alone) and `to` (up to 14 days), and This week moved to it; a week with a game on is edge-kept a
+  minute. HOSTING.md: "A league's page, Scores". No migration, no engine change.
+- **Found and fixed in the build:** a live game's score could leak to someone hiding scores (the profile read's moment; the
+  scorebug no longer marks a game seen before the setting is known: `useHideSportsKnown`, scores.tsx; the hub's strip too).
+- **Checks:** story-league-page.js shoots Scores in every world (`--only=scores`; a fuller Sunday of stand-in teams; a daily
+  calendar of every day); check-sports-couch.js's leaguePageChecks (league-now's weeks and days, the one-league week read) and the
+  browser's Scores steps (opens on now, the live bug at full width with its score, the week before's final, This week back).
+  tsc clean; `npm test` 2,580 of 2,581 (the one, gameplay-matrix's gates test, a timing flake under load: passes alone); ESLint
+  clean on the changed files.
+- **Leftovers:** BACKLOG 254 (k)–(n).
+
+**B1's build notes, session 3: Games (2026-11-22, lane `sports-couch`, port 3019; not merged; no migration).** Story: https://claude.ai/artifact/4ncmkRanywVoPbH6N7pTjh. **Approved as built** (the user, 2026-11-22, taking both
+recommendations: decisions.md). The design: [league-games-spec.md](design-round/league-games-spec.md) (Intent), `-first-view.md` (PFD), `-shape.md`
+(Impeccable), `-check.md` (the check and its one batch).
+- **Where:** `src/new/screens/league-games.tsx` (`LeagueGames`), round 2's groups: **Your games here** (the show launcher's
+  `LaunchRow`, due first, the move in chyron line, else "All set"; faces from the couch's games read), **With the couch** (its games
+  here to join with the show's Join button and sheet, four and a fold; then Play this week's games, the plate while nothing of
+  yours is due, and Play the season, as quiet rows otherwise: `LeagueStart rows`), **Rivals** (the couch's rivalry games still to
+  come, yours first, "You vs Riley · Sun 1:00 PM", a quiet Start on that one game; a pair's every meeting a line under it:
+  `StartWhen` meetings), **Your team** (each team you follow here, your team first: "Every Eagles game", Start a game on its season).
+  "Your team", not round 2's "On your own": every start is on the couch (the user's call, 2026-11-22).
+- **Solo:** a sports start needs a couch today, so `LeagueStart` draws nothing without one (This week's dead-end start went too)
+  and Games says so, with Start a couch · Join one. Solo sports play waits for C4 (the user, 2026-11-22: nothing interim that C4 would make obsolete).
+- **Data:** no new read: home, the couch's games read, `/api/sports/mine`'s seasons (which couch games are this league's), the
+  couch's table read for meetings. No migration, no engine change; HOSTING.md unchanged.
+- **Checks:** story-league-page.js `--only=games` (Riley's Pick'em to join in the gameday world; every world's Games; solo's This
+  week); check-sports-couch.js's browser Games steps (the couch's starts, your team's season handing off, no results), passing.
+  Fixed in that check: A1's "scores hidden" step read a kickoff's minutes ("Started 2:10 PM") as the score 10, failing only at
+  some times of day; the app was right. tsc clean; ESLint clean on the changed files.
+- **Leftovers:** BACKLOG 254 (o)–(p).
+
+**B1's build notes, session 4: Standings, with BACKLOG 254 (k) (2026-11-22, lane `sports-couch`, port 3019; not merged; no
+migration; one new ESPN read).** Story: https://claude.ai/artifact/9ydPz541VZbpKE5u8sZXvY. **The four recommendations taken** on the user's "Continue" (decisions.md; open to change): the faces under the name, no playoff line of our own, basketball on Conference, Night's chosen view outlined. The design:
+[league-standings-spec.md](design-round/league-standings-spec.md) (Intent), `-first-view.md` (PFD), `-shape.md` (Impeccable),
+`-check.md` (the check and its one batch).
+- **254 (k) first:** `useHideSports` (sports/scores.tsx) reads as on until the profile answers, so every sports screen holds a result
+  by itself (the hub's strip, the team sheet, a league's page); check-sports-couch.js holds the profile back eight seconds and finds
+  no score on the strip and no record on a league's table meanwhile.
+- **Where:** `src/new/screens/league-standings.tsx` (`LeagueStandings`), the fourth tab (`LEAGUE_TABS`, routes.ts; This week ·
+  Scores · Games · Standings). `src/lib/sports/standings.ts` (pure; tests/sports-standings.test.js on trimmed real answers in
+  tests/fixtures/espn-standings/): the shape, each sport's columns (its vocabulary: the numbers are ESPN's), a group in the
+  league's own order (by seed: ESPN lists a division unordered; soccer by rank), the two views and their words (Division ·
+  Conference, MLB's League; basketball opens on Conference), games behind by conference counted from its leader, the couch's
+  groups first (yours, then by fans; nothing inside a group moves), soccer's places key.
+- **The tab:** the switch (two-level leagues only; the chosen one inverted; kept per league for the visit), then each group: its
+  name, column heads ("Div", "Seed" or "#", then the sport's), one-line rows (place, mark, name, up to two faces, the numbers, a
+  chevron) with what qualifies a team on a line under its name (by conference "1st East" for each division leader; In or Out where
+  ESPN marks a clinch; a soccer place's name on its first row). Your team's row raised. A row opens its splits in place (home,
+  road, division, conference, last ten, points for and against, streak: whichever the sport has) and "Open the Eagles ›" (the
+  team's sheet). Switching to Conference brings your row into view. Out of season: "Final standings · 2026". Under the table:
+  soccer's key, "From ESPN · as of 4:15 PM".
+- **Held as one:** the whole tab is results, so Hide sports scores (or a game in the league watched as if live, named) shows only
+  the first group's name and one outlined Show the standings (Show anyway), a key of its own in showScore's set that moves no
+  season's mark; before the setting is known, the skeleton.
+- **Data:** `GET /api/sports/league/standings?league=` (route; league-standings.ts joins the teams' colours from the league's team
+  list); the provider's `standings(league)` (types.ts; espn.ts `readStandings` on `apis/v2/sports/<league>/standings?level=3`),
+  cached 15 minutes (an hour past 100 teams: cache.ts). HOSTING.md: "A league's page, Standings". No migration, no engine change.
+- **Checks:** story-league-page.js `--only=standings` (the stand-in's worlds; its table counted from its own finals: fake-espn.js
+  `standings`) and the real tables (`--only=real`: the couch following real teams for the shoot, unfollowed after);
+  check-sports-couch.js's standings read (API) and the tab on screen (your row and record, a row's splits, the team's sheet, the
+  whole table held while hiding). tsc clean; `npm test` 2,588 pass; ESLint clean on the changed files.
+- **Left open:** the longest names still cut ("Comman…"); a soccer place's words under a long name; the team sheet's "A team"
+  title (B2).
+
+**B1's build notes, session 5: Chat (2026-11-22, lane `sports-couch`, port 3019; not merged; **migration 0314, run only on the
+lane's local database**; no new external read).** Story: https://claude.ai/artifact/9mPL5VhwWxUYVyfXzEs8yi. **Approved as built** (the user, 2026-11-22, taking the three recommendations: decisions.md). The design:
+[league-chat-spec.md](design-round/league-chat-spec.md) (Intent), `-first-view.md` (PFD), `-shape.md` (Impeccable), `-check.md`.
+- **The room:** one per couch per league, a message about one real game carrying it (its thread). Migration 0314 (additive):
+  `chat_messages.sports_league` (with `couch_id`; season and league_id null), `sports_event`, `sports_event_at`,
+  `sports_event_name`; the place check admits a room; `league_chat_reads` for the badge. `src/lib/server/league-chat.ts` (scope,
+  read with a `v` fingerprint, earlier, post, read mark, unread); reactions, edits and deletes are chat.ts's. Routes under
+  `/api/sports/league/chat` (`?league=&couch=`; `[messageId]`, `/react`, `/read`, `/unread`). A push to the couch's members who
+  follow the league (`notifyLeagueChat`, push-events.ts), a thread's words held back from anyone hiding scores or watching that
+  game as if live. The couch hub's feed leaves room rows out (no season to fold by). HOSTING.md: "A league's page, Chat".
+- **The tab:** `src/new/screens/league-chat.tsx`, the fifth (`LEAGUE_TABS`), its unread count on the tab. The show Chat's message,
+  composer and sheet reused (show/chat.tsx exports them; `Line` takes a `tag`, `Composer` an `above`). The threads row (All and up
+  to three games, live first, "+N"; the chosen in ink; a hidden game "· Started"); a run's game where the talk turns to it; for a
+  hider, the thread's talk since kickoff one compact fold per game with Show the score (showScore); the About chip over the
+  composer while a couch game is on (×, "+ About" back), the placeholder naming where it goes; a short stream by the composer;
+  solo: "Chat is for a couch" with Start a couch · Join one. A hidden game is "on" by the clock alone (the check's leak).
+- **Checks:** story-league-page.js `--only=chat` (seeded through the real routes); check-sports-couch.js `roomChecks` (API) and
+  the browser's Chat steps (the room, the thread's chip and About; hidden: the fold, Show the score). tsc clean; `npm test` 2,588
+  pass; ESLint clean on the changed files.
+- **Leftovers:** BACKLOG 254 (q)–(s): a game row's chat count and This week's room line after the merge; two places to talk about
+  one game, decided to stay apart until a real Sunday's been watched.
 
 **B2. A team's page** (M): a full page instead of today's sheet (src/new/sports/team.tsx): the live or next game, Up next with
 Play, the schedule by month with results and the bye, Month view for daily sports with series, homestands and trips grouped,
@@ -129,6 +367,14 @@ it waits on nothing above.
 ## Order
 
 A1 → A2 → A3 with B1 → B2, B3, B4 → C1–C6 → D2–D6. D1 can go any time. E1 runs in parallel and must land by its date.
+
+**How the sessions go from here** (Claude's call, the user's ask, 2026-11-22). Steps share a prompt when nothing decided at one
+review could change the other; they stay apart when that review shapes the next, or when a step adds a migration, a new external
+read, an engine change or anything production. One full design round fills most of a session: two fit, a third runs thin.
+1. **B1 Standings + BACKLOG 254 (k)** (one prompt: (k) is small and won't go stale).
+2. **B1 Chat** alone (a league room: chat is per season today, likely a migration).
+3. **Merge the lane** after B1, its own prompt, on the user's word (migration 0313; master moves on meanwhile).
+4. **B2** and **B4** apart (each M, each redesigning a sheet in use); **B3** alone.
 
 ## Not in this plan
 

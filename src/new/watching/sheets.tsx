@@ -19,6 +19,7 @@ import {
 } from "../data";
 import { keepToPath, PracticeFinish, PracticeNote, PracticeStrip, said, useNudge, type PracticePath } from "../tour/practice";
 import { paths } from "../routes";
+import { useNav } from "../nav";
 import { CallSheet, useFillPaste, useFillSync } from "../show/getting-ready";
 import { Btn, BtnLink } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
@@ -26,7 +27,7 @@ import { toast } from "../ui/toast";
 import { useReducedMotion } from "../welcome/hooks";
 import { AddNewBlock, ListingsCredit, SearchNote, SearchRows, SuggestionCard, seasonLine, useShowSearch, type SearchRow } from "./search";
 import { SportsResults, useTeamSearch, type TeamPick } from "../sports/search";
-import { LeagueView, openSports, startOn } from "../sports/sheets";
+import { openSports, startOn } from "../sports/sheets";
 import { TeamView } from "../sports/team";
 import { WhereAsk, type SeasonPick, type WhereSeason } from "./where";
 import { episodeWordFromTitles } from "@/lib/game/show-words";
@@ -255,6 +256,7 @@ const READ = 1700;
 
 function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practice?: AddPractice; onOpenChange: (o: boolean) => void }) {
   const { data: home } = useHome();
+  const nav = useNav();
   const reduce = useReducedMotion();
   const couch = useCurrentCouch(home);
   // Read once Add a show opens, not on every page it's mounted on (step 11, from Noticed).
@@ -275,7 +277,15 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
   const search = useShowSearch(q, catalog, mine, watchers);
   // Teams and leagues beside the shows (not in the tour's practice, which types a show).
   const teams = useTeamSearch(practice ? "" : q);
-  const pickTeam = (p: TeamPick) => setStep(p.kind === "team" ? { kind: "team", league: p.league, team: p.team, name: p.name, against: p.against } : p);
+  // A league opens its own page (docs/PLAN-sports-couch.md B1), leaving Add behind; a team is a step here.
+  const pickTeam = (p: TeamPick) => {
+    if (p.kind === "league") {
+      onOpenChange(false);
+      nav.push(paths.league(p.league));
+      return;
+    }
+    setStep({ kind: "team", league: p.league, team: p.team, name: p.name, against: p.against });
+  };
   // Not for the tour's practice: the name's typed in for you, and a phone's keyboard coming up would only cover it.
   useEffect(() => {
     if (!open || step || practice) return;
@@ -620,7 +630,6 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
             onStarted={() => onOpenChange(false)}
           />
         )}
-        {step?.kind === "league" && <LeagueView league={step.league} leagueName={step.leagueName} onStarted={() => onOpenChange(false)} />}
         {step?.kind === "season" && (
           <CatalogWhere
             s={step.s}

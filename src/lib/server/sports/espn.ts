@@ -2,6 +2,7 @@ import { readOdds, type EspnOdds } from "@/lib/sports/matchup";
 // One copy of the sports' classes (the index's): `instanceof` reads them alike wherever they're imported from.
 import { FieldSport, LiveEvent, TeamSport, feedOf, idOf, sportOf, storedCard, storedField, storedGame, str, type BoutAnswer, type BoutSport, type EspnSummary, type EventFeed, type FieldAnswer, type Play, type StoredCard, type StoredField } from "@/lib/sports";
 import type { CalendarStage, CalendarWeek, LeagueCalendar } from "@/lib/sports/slate";
+import type { StandingEntry, StandingGroup, Standings, StatKey } from "@/lib/sports/standings";
 import { SportsUnavailable, type LeagueName, type LeagueTeams, type BoxScore, type Called, type Competitor, type EventState, type Found, type Injury, type League, type Person, type RosterPlayer, type SeasonLine, type SeasonStage, type SportsEvent, type SportsProvider, type StatTable, type Team } from "./types";
 
 // ESPN (docs/PLAN-sports-data.md, docs/HOSTING.md): free, no key, but unofficial and undocumented, with no stated rate limit or
@@ -49,7 +50,10 @@ interface RawAthlete {
   positions?: { abbreviation?: string }[];
 }
 interface RawStatus {
-  type?: { state?: string; completed?: boolean; name?: string };
+  type?: { state?: string; completed?: boolean; name?: string; shortDetail?: string };
+  /** A game on: its period and clock ("6:41"). */
+  period?: number;
+  displayClock?: string;
 }
 interface RawCompetitor {
   homeAway?: string;
@@ -58,6 +62,8 @@ interface RawCompetitor {
   score?: string | number | { displayValue?: string };
   winner?: boolean;
   order?: number;
+  /** A scoreboard's: each side's records, the season's first ({ type: "total", summary: "6-2" }). */
+  records?: { type?: string; summary?: string }[];
 }
 interface RawCompetition {
   id?: string | number;
@@ -70,6 +76,8 @@ interface RawCompetition {
   series?: { type?: string; totalCompetitions?: number };
   /** The line, on a scoreboard before the game. */
   odds?: RawOdds[];
+  /** Who shows it (a scoreboard's): national first, as ESPN lists them ({ market: "national", names: ["FOX"] }). */
+  broadcasts?: { market?: string; names?: string[] }[];
 }
 /** A sportsbook's line: a scoreboard's `odds[]`, a summary's `pickcenter[]` (read by matchup.ts's readOdds). */
 type RawOdds = EspnOdds;
@@ -187,7 +195,21 @@ function readCompetitor(c: RawCompetitor): Competitor {
     score,
     winner: typeof c.winner === "boolean" ? c.winner : null,
     place: Number.isInteger(c.order) ? (c.order as number) : null,
+    record: str((c.records ?? []).find((r) => r.type === "total")?.summary ?? c.records?.[0]?.summary),
   };
+}
+
+/** Who shows a game, national first (a scoreboard's broadcasts): ["FOX"]; a local one only when there's no national. */
+function networksOf(c: RawCompetition | undefined): string[] {
+  const all = c?.broadcasts ?? [];
+  const national = all.filter((b) => b.market === "national");
+  return [...new Set((national.length ? national : all).flatMap((b) => b.names ?? []).map((n) => n.trim()).filter(Boolean))];
+}
+
+/** A game on, its period and clock as the scoreboard has them (ESPN's status), or null. */
+function clockOfStatus(s: RawStatus | undefined): SportsEvent["clock"] {
+  if (s?.type?.state !== "in") return null;
+  return { period: Number.isInteger(s.period) ? (s.period as number) : null, display: str(s.displayClock), detail: str(s.type?.shortDetail), half: s.type?.name === "STATUS_HALFTIME" };
 }
 
 /** A sportsbook's line (src/lib/sports/matchup.ts, shared with the phone's poller). */
@@ -235,6 +257,8 @@ export function readScoreboard(league: string, raw: { events?: RawEvent[]; leagu
       competitors: comps.length === 1 ? (comps[0].competitors ?? []).map(readCompetitor) : [],
       parts,
       odds: readOdds(comps[0]?.odds?.[0]),
+      networks: networksOf(comps[0]),
+      clock: clockOfStatus(e.status ?? comps[0]?.status),
       leagueName: (e.league && (!e.league.slug || e.league.slug === slug) ? named(e.league) : null) ?? board,
     });
   }
@@ -426,6 +450,110 @@ export function readSeasonStats(raw: { categories?: { name?: string; displayName
   return out.length ? out : null;
 }
 
+/* A league's standings (the Standings tab): ESPN's `apis/v2` table, groups nested as the league nests them. */
+interface RawStat {
+  name?: string;
+  type?: string;
+  value?: number;
+  displayValue?: string;
+  summary?: string;
+}
+interface RawStandingNode {
+  id?: string | number;
+  name?: string;
+  abbreviation?: string;
+  children?: RawStandingNode[];
+  standings?: { seasonDisplayName?: string; entries?: { team?: RawTeam; stats?: RawStat[]; note?: { description?: string; color?: string } }[] };
+}
+
+/** Our keys for the numbers the tab can draw, each from the first of ESPN's names or types that the entry has. */
+const STAND_KEYS: [StatKey, string[]][] = [
+  ["pct", ["winPercent", "winpercent"]],
+  ["gb", ["gamesBehind", "gamesbehind"]],
+  ["pts", ["points"]],
+  ["gp", ["gamesPlayed", "gamesplayed"]],
+  ["diff", ["pointDifferential", "pointdifferential"]],
+  ["streak", ["streak"]],
+  ["l10", ["lasttengames"]],
+  ["home", ["home", "homerecord"]],
+  ["road", ["road", "awayrecord"]],
+  ["div", ["vsdiv", "divisionrecord", "vsdivision"]],
+  ["conf", ["vsconf"]],
+  ["pf", ["pointsFor", "pointsfor"]],
+  ["pa", ["pointsAgainst", "pointsagainst"]],
+];
+
+/**
+ * ESPN's standings (`/apis/v2/sports/<league>/standings?level=3`) read into the tab's shape: every node with entries a group, its
+ * parent the node above it unless that's the league itself (a league of one level has none), and only the numbers the tab draws
+ * (the answer is 0.1-6 MB raw; this is a few KB). Null for a league ESPN has no table for.
+ */
+export function readStandings(league: string, raw: RawStandingNode | null, asOf = new Date().toISOString()): Standings | null {
+  if (!raw) return null;
+  const groups: StandingGroup[] = [];
+  const parents = new Map<string, { id: string; name: string; short: string | null }>();
+  let season: string | null = null;
+  const walk = (n: RawStandingNode, up: RawStandingNode | null) => {
+    const entries = n.standings?.entries ?? [];
+    if (entries.length) {
+      // A soccer table's season says its name too ("2026-27 English Premier League"): the season alone.
+      season ??= str(n.standings?.seasonDisplayName)?.match(/^\d{4}(?:-\d{2,4})?/)?.[0] ?? str(n.standings?.seasonDisplayName);
+      const parent = up && up !== raw ? up : null;
+      if (parent) parents.set(String(parent.id), { id: String(parent.id), name: str(parent.name) ?? "", short: str(parent.abbreviation) });
+      const name = (str(n.name) ?? "").replace(/^\d{4}(?:-\d{2,4})?\s+/, "");
+      groups.push({ id: String(n.id ?? n.name), name, short: str(n.abbreviation), parent: parent ? String(parent.id) : null, entries: entries.flatMap((e) => (e.team?.id == null ? [] : [standingOf(e, league)])) });
+    }
+    for (const c of n.children ?? []) walk(c, n);
+  };
+  walk(raw, null);
+  // A table of people, not teams (racing's drivers), has no rows here.
+  for (let i = groups.length - 1; i >= 0; i--) if (!groups[i].entries.length) groups.splice(i, 1);
+  if (!groups.length) return null;
+  // Two levels only when every group has its conference (college's mix of conferences with and without divisions reads flat).
+  const two = groups.every((g) => g.parent);
+  return { league, season, parents: two ? [...parents.values()] : [], groups: two ? groups : groups.map((g) => ({ ...g, parent: null })), asOf };
+}
+
+function standingOf(e: { team?: RawTeam; stats?: RawStat[]; note?: { description?: string; color?: string } }, league: string): StandingEntry {
+  const stats = e.stats ?? [];
+  const find = (names: string[]) => names.map((n) => stats.find((s) => s.name === n || s.type === n)).find(Boolean);
+  const shown = (s: RawStat | undefined) => str(s?.summary) ?? str(s?.displayValue);
+  const num = (names: string[]) => {
+    const v = find(names)?.value;
+    return typeof v === "number" && Number.isFinite(v) && v > 0 ? v : null;
+  };
+  const out: StandingEntry["stats"] = {};
+  for (const [key, names] of STAND_KEYS) {
+    const v = shown(find(names));
+    if (v != null && v !== "") out[key] = v;
+  }
+  const wins = num(["wins"]) ?? 0;
+  const losses = num(["losses"]) ?? 0;
+  const ties = num(["ties"]);
+  const otl = num(["otLosses", "otlosses", "overtimeLosses"]);
+  const total = shown(stats.find((s) => s.type === "total" || s.name === "overall"));
+  // Soccer's record as its tables say it, wins-draws-losses (ESPN's summary is wins-losses-draws).
+  const soccer = league.startsWith("soccer/");
+  const record = soccer ? `${wins}-${ties ?? 0}-${losses}` : (total ?? (stats.some((s) => s.name === "wins") ? [wins, losses, ...(otl ? [otl] : ties ? [ties] : [])].join("-") : null));
+  const clincher = str(find(["clincher"])?.displayValue)?.toLowerCase() ?? null;
+  const t = e.team ?? {};
+  return {
+    team: String(t.id),
+    short: str(t.shortDisplayName) ?? str(t.name) ?? str(t.displayName) ?? String(t.id),
+    abbreviation: str(t.abbreviation),
+    color: str(t.color),
+    wins: stats.some((s) => s.name === "wins") ? wins : null,
+    losses: stats.some((s) => s.name === "losses") ? losses : null,
+    seed: num(["playoffSeed", "playoffseed"]),
+    rank: num(["rank"]),
+    record,
+    stats: out,
+    clinch: clincher === "e" ? "out" : clincher && /^[xyzw*p]$/.test(clincher) ? "in" : null,
+    // Its colour as given, once with its # (ESPN wrote one "##B5E7CE").
+    note: e.note?.description ? { text: e.note.description, color: str(e.note.color) ? `#${str(e.note.color)!.replace(/^#+/, "")}` : null } : null,
+  };
+}
+
 /**
  * One of ESPN's answers: its body, or null for its "none" (404 or 400: no such league, team, game, athlete or event). ESPN not
  * answering, answering otherwise than 2xx, or with something that isn't JSON: SportsUnavailable.
@@ -557,6 +685,9 @@ export function espn(base?: string): SportsProvider {
     },
     async teams(league) {
       return readTeams(league, await get(`${site}/apis/site/v2/sports/${path(league)}/teams?limit=1000`));
+    },
+    async standings(league) {
+      return readStandings(league, await get(`${site}/apis/v2/sports/${path(league)}/standings?level=3`));
     },
     async roster(league, team) {
       const raw = await get<Parameters<typeof readRoster>[0]>(`${site}/apis/site/v2/sports/${path(league)}/teams/${encodeURIComponent(team)}/roster`);

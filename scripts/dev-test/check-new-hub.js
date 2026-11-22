@@ -440,6 +440,12 @@ const EASTERN_TODAY = "(now() AT TIME ZONE 'America/New_York')::date";
     // Get the couch going is real since step 9 (check-new-couches.js covers it).
     // The guide is real since step 11 part 1 (check-new-guide.js), its Also on since part 2 (check-new-listings.js).
     check((await page.locator("[data-guide]").count()) === 1 && !seen.has("hub.all-of-tv") && going, "the guide is on the hub (no Preview left in it), and a new couch gets Get the couch going");
+    // Sports moved out of Your shows into the scores strip under On TV (docs/PLAN-sports-couch.md A1; check-sports-couch.js covers a
+    // couch with teams): this couch follows none, so no strip, no Scoreboard and no sports cards.
+    check(
+      (await page.locator("[data-scores-strip], [data-scoreboard], [data-score-card], [data-on-tv] [data-guide-card^='sport:']").count()) === 0,
+      "no teams, no games: no scores strip, and no Scoreboard in Your shows"
+    );
 
     // ---- the status line, Up next, posters and the feed ----
     await hubReady();

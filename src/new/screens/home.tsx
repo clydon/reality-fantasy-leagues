@@ -10,6 +10,7 @@ import { ProfileSheet } from "../hub/profile";
 import { BothWatch, CouchWatching, Feed, Foot, GetGoing, GrowNote, nextShow, StatusLine, UpNext } from "../hub/sections";
 import { SoloHub } from "../hub/solo-hub";
 import { ShowBands } from "../hub/bands";
+import { ScoresStrip } from "../hub/scores-strip";
 import { NotesBell } from "../hub/notes";
 import { useMe } from "../session";
 import { usePracticeReveal, withPracticeReveal } from "../tour/practice-shows";
@@ -94,13 +95,14 @@ function FocusHub({ home, couch, hub }: { home: Home; couch: Couch | null; hub: 
   );
 }
 
-/** What follows the next thing (the design round's step 7): On TV (the guide's door), then Your shows as Bands, sports first as a
- *  scoreboard (hub/bands.tsx; the user chose Bands over the posters, Your week, the couch first and Previously on). `after`: a new
- *  couch's first steps, between the two. */
+/** What follows the next thing (the design round's step 7): On TV (the guide's door), then your games' scores right under it at its
+ *  height (docs/PLAN-sports-couch.md A1: hub/scores-strip.tsx), then Your shows as Bands (hub/bands.tsx; the user chose Bands over
+ *  the posters, Your week, the couch first and Previously on). `after`: a new couch's first steps, before Your shows. */
 function Middle({ home, couch, hub, after }: { home: Home; couch: Couch | null; hub: CouchHub | undefined; after?: ReactNode }) {
   return (
     <>
       <OnTvRow home={home} couch={couch} />
+      <ScoresStrip home={home} couch={couch} />
       {after}
       <ShowBands home={home} couch={couch} hub={hub} />
     </>

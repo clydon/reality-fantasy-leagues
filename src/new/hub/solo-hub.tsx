@@ -14,6 +14,7 @@ import { PoolCard, poolShown } from "../show/solo";
 import { openTrivia } from "../show/trivia";
 import { Foot, nextShow, StatusLine, UpNext, YourShows } from "./sections";
 import { OnTvRow } from "./guide";
+import { ScoresStrip } from "./scores-strip";
 
 // The solo hub (docs/PLAN-new-design.md step 9 part 3; the mock's round2.js soloHub + solo.js): someone on no couch, first
 // run's "Just me for now". Welcome, Watching solo (start a couch), what's due and Up next when something is, the guide
@@ -32,6 +33,8 @@ export function SoloHub({ home }: { home: Home }) {
       {/* The design round's step 7: the next thing (the status line folded into it), then On TV, then Watching solo. */}
       {up && (due || up.upNext) ? <UpNext home={home} show={up} couch={null} /> : due && <StatusLine home={home} />}
       <OnTvRow home={home} couch={null} />
+      {/* Your teams' games and the games you play, under the guide bar (docs/PLAN-sports-couch.md A1). */}
+      <ScoresStrip home={home} couch={null} />
       <button
         type="button"
         onClick={() => openCouchSheet({ kind: "new" })}
