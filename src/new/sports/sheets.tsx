@@ -135,32 +135,42 @@ export function useLeagueWeek(league: string, from: string | null = null, to: st
  * Starting a game on a league (U0's board: "a league opens This week and Next week"): Play this week's games (Pick'em on every game
  * still to come, one tap) and the season week by week. The one yellow only while nothing of yours is due (the One Chyron Rule).
  */
-export function LeagueStart({ league, leagueName, from, to, quiet }: { league: string; leagueName: string; from?: string | null; to?: string | null; quiet?: boolean }) {
+export function LeagueStart({ league, leagueName, from, to, quiet, rows }: { league: string; leagueName: string; from?: string | null; to?: string | null; quiet?: boolean; rows?: boolean }) {
   const { games } = useLeagueWeek(league, from ?? null, to ?? null);
   const { due } = useLeagueGames(league);
-  const home = useHome().data;
-  const solo = !home?.couches?.length;
-  const { start, busy } = useStartSport();
+  const { start, busy, couch } = useStartSport();
   const now = useNow();
   const left = games.filter((g) => !begun(g, now)).length;
+  // A sports start needs a couch today (C4 brings solo play): with none, nothing here that would only say so (the Games tab's
+  // spec: a solo player's This week offered a start that dead-ended).
+  if (!couch) return null;
   const play = () => void start({ league, slate: {}, game: "pickem", only: true });
   return (
     <div data-league-start>
       {/* `quiet` (This week): never the yellow there, and only this week's; the season is the Games tab's. */}
+      {/* The plate's line stops at the count: "· tells the couch" wrapped it to three lines (the Games tab's check); the toast says
+          the couch hears. `rows` (Games): when it isn't the plate, a start is a quiet row, not a box (PFD: boxes outweighed a due move). */}
       {left > 0 &&
         (due || quiet ? (
-          <MoreAction data="week" title="Play this week's games" line={`Pick'em on every game still to come · ${left} ${left === 1 ? "game" : "games"}`} onClick={play} />
+          rows ? (
+            <OpenRow data="week" title="Play this week's games" line={`Pick'em on every game still to come · ${left} ${left === 1 ? "game" : "games"}`} onClick={play} />
+          ) : (
+            <MoreAction data="week" title="Play this week's games" line={`Pick'em on every game still to come · ${left} ${left === 1 ? "game" : "games"}`} onClick={play} />
+          )
         ) : (
-          <PlayPlate data="week" disabled={busy} title="Play this week's games" line={`Pick'em on every game still to come · ${left} ${left === 1 ? "game" : "games"}${solo ? "" : " · tells the couch"}`} onClick={play} />
+          <PlayPlate data="week" disabled={busy} title="Play this week's games" line={`Pick'em on every game still to come · ${left} ${left === 1 ? "game" : "games"}`} onClick={play} />
         ))}
-      {!quiet && (
-      <MoreAction
-        data="league-season"
-        title="Play the season, week by week"
-        line="A season-long league, or pick'em every week"
-        onClick={() => openSports({ kind: "start", target: { kind: "slate", league, leagueName } })}
-      />
-      )}
+      {!quiet &&
+        (rows ? (
+          <OpenRow data="league-season" title="Play the season, week by week" line="A season-long league, or pick'em every week" onClick={() => openSports({ kind: "start", target: { kind: "slate", league, leagueName } })} />
+        ) : (
+          <MoreAction
+            data="league-season"
+            title="Play the season, week by week"
+            line="A season-long league, or pick'em every week"
+            onClick={() => openSports({ kind: "start", target: { kind: "slate", league, leagueName } })}
+          />
+        ))}
     </div>
   );
 }

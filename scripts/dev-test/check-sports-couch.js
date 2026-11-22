@@ -26,7 +26,8 @@
 //   Follow, and a league followed alone getting its page (leagueFollowBrowser). story-league-page.js shoots its situations.
 //   Its Scores tab (B1 session 2): league-now's weeks and game days, the week read of one league alone and a longer week
 //   (leaguePageChecks); on screen the switcher on this week, the game on now as a full-width scorebug with its score, the week
-//   before (its final), and This week back.
+//   before (its final), and This week back. Its Games tab (B1 session 3): the couch's starts, your team's season (handing off to Start
+//   a game), no results.
 //
 //   npm run dev -- -p 3004   (the sports lane; BASE=http://localhost:3004)
 //   node scripts/dev-test/check-sports-couch.js <outDir> [--width=390] [--keep] [--api | --browser]
@@ -507,7 +508,8 @@ async function browserChecks(pool, headers, couch) {
     });
     check(hub.strip === 88 && hub.tv === 88 && hub.after, "the scores strip: right after On TV, at its height (88 px)", hub);
     check(hub.scoreboard === 0 && hub.tvSports === 0, "no Scoreboard in Your shows, no sports cards in On TV", hub);
-    check(hub.bucket === "started" && /Started/.test(hub.words) && !/\b14\b|\b10\b(?!:\d)|6:41|Q3/.test(hub.words), "scores hidden: the game on says Started, no score, clock or quarter", hub.words);
+    // A kickoff's minutes ("Started 2:10 PM") are never the score: neither number counts next to a colon.
+    check(hub.bucket === "started" && /Started/.test(hub.words) && !/(?<!:)\b14\b(?!:\d)|(?<!:)\b10\b(?!:\d)|6:41|Q3/.test(hub.words), "scores hidden: the game on says Started, no score, clock or quarter", hub.words);
     await wide("the hub with the strip");
     await shot("0-hub-strip-hidden");
     await page.click('[data-bug="93103"]');
@@ -577,6 +579,20 @@ async function browserChecks(pool, headers, couch) {
     check(!!prev && last === "final", "the week before: its final", { prev, last });
     await page.click("[data-scores-now]");
     check(await page.locator('[data-step][aria-pressed="true"][data-now]').waitFor({ timeout: 5000 }).then(() => true, () => false), "This week takes it back to now");
+    // Games (B1 session 3): your games here, the couch's starts, your team's season; its Start a game hands off.
+    await page.click('nav[aria-label="League"] a[href$="/games"]');
+    await page.locator("[data-league-games-tab]").waitFor({ timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(2500);
+    const gt = await page.evaluate(() => ({
+      couch: !!document.querySelector("[data-games-couch] [data-league-start]"),
+      team: !!document.querySelector('[data-games-team-season="9301"]'),
+      results: /d+[–-]d+/.test(document.querySelector("[data-league-games-tab]")?.textContent ?? ""),
+    }));
+    check(gt.couch && gt.team && !gt.results, "its Games tab: the couch's starts, your team's season, no results", gt);
+    await page.click('[data-games-team-season="9301"]');
+    check(await page.locator("[data-sport-handoff]").waitFor({ timeout: 10000 }).then(() => true, () => false), "a team's season row hands off to Start a game");
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(800);
     await leagueFollowBrowser(page, shot, wide, headers);
     // Seen live on the strip counts as shown for the visit (scores.tsx noteSeen): forget it, so the sheet below starts hidden.
     await page.evaluate(() => sessionStorage.removeItem("gys-shown-scores"));

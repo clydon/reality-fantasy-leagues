@@ -518,7 +518,11 @@ longer marks a game seen before it (the leak that kept it shown, fixed); the fla
 season you follow with it") reads hard (both reviewers in B1 session 2's check): one short line per choice, on the strip and Scores
 alike. (m) The shared game row on the guide's Sports and a team's schedule (round 1's R3: one row everywhere): the guide in its own
 review, the schedule with B2's team page. (n) **Decided** (the user, 2026-11-22, approving B1 session 2): no Play on Scores' rows; a row opens its
-game, and B4's sheet holds Play.
+game, and B4's sheet holds Play. (o) Noticed in B1 session 3 (the Games tab's check, both reviewers): the couch's join sheet speaks
+a show's words on a sports game ("It plays Episode 12 only: make your pick before you watch it"); a sports game's join sheet in
+its own words (the week or game it covers, when picks lock). (p) Solo sports play (C4): a sports start needs a couch today, so
+a solo player's Games tab offers Start a couch · Join one and nothing to start. **Decided** (the user, 2026-11-22): wait for
+C4; nothing interim that C4 would make obsolete.
 [S · sports]
 
 **222. A game the daily job misses for three days is never read again.** The daily job reads a linked game only from three days

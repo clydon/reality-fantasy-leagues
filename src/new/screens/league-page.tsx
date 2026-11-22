@@ -23,6 +23,7 @@ import { LeagueGameRows, LeagueStart, openSports, startOn, useLeagueGames, useLe
 import { rankTeams, recordWords, rivalriesOf, rivalryRecords, type Fan, type Rivalry, type TeamForm } from "@/lib/sports/couch-table";
 import type { LeagueNow } from "@/lib/sports/league-now";
 import { LeagueScores } from "./league-scores";
+import { LeagueGames } from "./league-games";
 
 const TABS: Record<LeagueTab, { label: string; icon: LucideIcon }> = {
   week: { label: "This week", icon: CalendarDays },
@@ -140,13 +141,7 @@ export function LeagueTabScreen({ league, tab }: { league: string; tab: LeagueTa
     <div data-league-tab={tab} key={tab} className="px-4">
       {tab === "week" && <ThisWeek league={league} name={name} now={now} />}
       {tab === "scores" && <LeagueScores league={league} name={name} lnow={now} loading={loading} />}
-      {tab === "games" && (
-        <div className="pt-1">
-          <SportsLabel>Your games</SportsLabel>
-          <LeagueGameRows league={league} />
-          <LeagueStart league={league} leagueName={name} from={now?.from} to={now?.to} />
-        </div>
-      )}
+      {tab === "games" && <LeagueGames league={league} name={name} lnow={now} />}
     </div>
   );
 }
@@ -591,8 +586,10 @@ function YourGamesHere({ league, name, lnow }: { league: string; name: string; l
   const { yours } = useLeagueGames(league);
   const { games } = useLeagueWeek(league, lnow?.from ?? null, lnow?.to ?? null);
   const now = useNow();
-  // Nothing of yours and nothing left to play this week (the off-season, a week played out): no heading over nothing (BACKLOG 254 j).
-  if (!yours.length && !games.some((g) => !begun(g, now))) return null;
+  const couch = useCurrentCouch(useHome().data);
+  // Nothing of yours and nothing to start (the off-season, a week played out, or no couch: a sports start needs one): no heading
+  // over nothing (BACKLOG 254 j; the Games tab's build, solo).
+  if (!yours.length && (!couch || !games.some((g) => !begun(g, now)))) return null;
   return (
     <section data-league-games className="mt-2">
       <SportsLabel>{yours.length ? "Your games here" : "Play"}</SportsLabel>

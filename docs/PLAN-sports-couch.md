@@ -2,7 +2,7 @@
 
 > **Status (2026-11-22): A1 and A2 approved as built (the user, 2026-11-22) and committed in the `sports-couch` lane (not
 > merged). A3 (following a league) approved as built too (the user, 2026-11-22) and committed in the lane. B1's first session (the page and This week) approved as built (the user, 2026-11-22) and
-> committed in the lane. B1's Scores tab (session 2) approved as built (the user, 2026-11-22) and committed in the lane; Games is next.** The user's calls are in. Lines are Phase D, detailed in
+> committed in the lane. B1's Scores tab (session 2) approved as built (the user, 2026-11-22) and committed in the lane. B1's Games tab (session 3) approved as built (the user, 2026-11-22) and committed in the lane; Standings and Chat are next.** The user's calls are in. Lines are Phase D, detailed in
 > [PLAN-sports-lines.md](PLAN-sports-lines.md). March Madness (E1) is dated: working by Fri 2027-02-26.
 
 ## Read first
@@ -251,6 +251,26 @@ recommendations: decisions.md). The design: [league-scores-spec.md](design-round
   tsc clean; `npm test` 2,580 of 2,581 (the one, gameplay-matrix's gates test, a timing flake under load: passes alone); ESLint
   clean on the changed files.
 - **Leftovers:** BACKLOG 254 (k)–(n).
+
+**B1's build notes, session 3: Games (2026-11-22, lane `sports-couch`, port 3019; not merged; no migration).** Story: https://claude.ai/artifact/4ncmkRanywVoPbH6N7pTjh. **Approved as built** (the user, 2026-11-22, taking both
+recommendations: decisions.md). The design: [league-games-spec.md](design-round/league-games-spec.md) (Intent), `-first-view.md` (PFD), `-shape.md`
+(Impeccable), `-check.md` (the check and its one batch).
+- **Where:** `src/new/screens/league-games.tsx` (`LeagueGames`), round 2's groups: **Your games here** (the show launcher's
+  `LaunchRow`, due first, the move in chyron line, else "All set"; faces from the couch's games read), **With the couch** (its games
+  here to join with the show's Join button and sheet, four and a fold; then Play this week's games, the plate while nothing of
+  yours is due, and Play the season, as quiet rows otherwise: `LeagueStart rows`), **Rivals** (the couch's rivalry games still to
+  come, yours first, "You vs Riley · Sun 1:00 PM", a quiet Start on that one game; a pair's every meeting a line under it:
+  `StartWhen` meetings), **Your team** (each team you follow here, your team first: "Every Eagles game", Start a game on its season).
+  "Your team", not round 2's "On your own": every start is on the couch (the user's call, 2026-11-22).
+- **Solo:** a sports start needs a couch today, so `LeagueStart` draws nothing without one (This week's dead-end start went too)
+  and Games says so, with Start a couch · Join one. Solo sports play waits for C4 (the user, 2026-11-22: nothing interim that C4 would make obsolete).
+- **Data:** no new read: home, the couch's games read, `/api/sports/mine`'s seasons (which couch games are this league's), the
+  couch's table read for meetings. No migration, no engine change; HOSTING.md unchanged.
+- **Checks:** story-league-page.js `--only=games` (Riley's Pick'em to join in the gameday world; every world's Games; solo's This
+  week); check-sports-couch.js's browser Games steps (the couch's starts, your team's season handing off, no results), passing.
+  Fixed in that check: A1's "scores hidden" step read a kickoff's minutes ("Started 2:10 PM") as the score 10, failing only at
+  some times of day; the app was right. tsc clean; ESLint clean on the changed files.
+- **Leftovers:** BACKLOG 254 (o)–(p).
 
 **B2. A team's page** (M): a full page instead of today's sheet (src/new/sports/team.tsx): the live or next game, Up next with
 Play, the schedule by month with results and the bye, Month view for daily sports with series, homestands and trips grouped,

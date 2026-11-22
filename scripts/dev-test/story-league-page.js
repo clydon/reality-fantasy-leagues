@@ -21,6 +21,10 @@
 // hidden-scores-ask (a row's eye: the ask sheet), hidden-scores-confirm (Show scores asks first), hidden-scores-shown (shown), daily-scores (today's game day) and
 // daily-scores-yesterday, none-scores (no couch group), solo-scores, off-scores, studio-scores. --only=scores shoots just these
 // (each world's Scores frames, without its This week ones); a world's name shoots both.
+// Games (B1 session 3; docs/design-round/league-games-spec.md): gameday-games (a pick due, Riley's Pick'em on Bears at Lions to join,
+// the couch's rivals to come, your team), gameday-games-join (its Join), gameday-games-rival (a rival's Start), midweek-games (nothing
+// due: Play this week's games is the plate), none-games (a spectator), daily-games, off-games, studio-games, solo-games and solo-week
+// (no start offered on no couch). --only=games shoots just these.
 // Each frame: a .jpg at --width × --height, the page's words in a .txt, and words that sit on other words as OVERLAP lines (kept in
 // overlaps.json). Prints the first view's groups in order, the rivalry's and the table's words, and the page's width.
 //
@@ -47,10 +51,10 @@ const args = process.argv.slice(2);
 const opt = (k, d) => args.find((a) => a.startsWith(`--${k}=`))?.slice(k.length + 3) ?? d;
 const has = (k) => args.includes(`--${k}`);
 const OUT = path.resolve(opt("out", ".ui-atlas/stories/league-page/after"));
-// --only=scores: every world's Scores frames and nothing else.
-const SCORES_ONLY = opt("only", "") === "scores";
+// --only=scores or --only=games: that tab's frames in every world and nothing else.
+const TAB = ["scores", "games"].includes(opt("only", "")) ? opt("only") : null;
 const W = Number(opt("width", 390)), H = Number(opt("height", 844));
-const ONLY = opt("only", "") && !SCORES_ONLY ? opt("only").split(",") : null;
+const ONLY = opt("only", "") && !TAB ? opt("only").split(",") : null;
 const { FB, BB, MB } = world;
 const HR = 3600_000;
 const D = 24 * HR;
@@ -178,9 +182,9 @@ async function main() {
       espn.events.push(...eventsFor(name));
       for (const [who, league, team] of follows) await (await call(who, o)).call("POST", "/api/sports/follow", team ? { league, team, follow: true } : { league, follow: true });
     };
-    const pickem = async (eventId) => {
-      const me = await call("alex");
-      const p = await me.call("POST", `/api/sports/start?couch=${couch}`, { league: FB, team: C, games: [eventId], game: "pickem", tell: false });
+    const pickem = async (eventId, who = "alex", team = C) => {
+      const me = await call(who);
+      const p = await me.call("POST", `/api/sports/start?couch=${couch}`, { league: FB, team, games: [eventId], game: "pickem", tell: false });
       if (p.status !== 200) console.log(`[league] Pick'em not started (${p.status} ${JSON.stringify(p.body).slice(0, 200)})`);
       return p.body;
     };
@@ -242,8 +246,14 @@ async function main() {
         await b.close();
       }
     };
-    const run = (n) => SCORES_ONLY || !ONLY || ONLY.includes(n);
-    const tw = !SCORES_ONLY;
+    const run = (n) => !!TAB || !ONLY || ONLY.includes(n);
+    const tw = !TAB;
+    const sc = !TAB || TAB === "scores";
+    const gm = !TAB || TAB === "games";
+    const gamesAt = (league = FB) => ({ path: `/league/${league}/games`, wait: "[data-league-games-tab]" });
+    const settleGames = async (pg) => {
+      await pg.waitForTimeout(3000);
+    };
     const scoresAt = (league = FB) => ({ path: `/league/${league}/scores`, wait: "[data-league-scores], [data-scores-off]" });
     const settle = async (pg) => {
       await pg.locator("[data-scores-list] [data-bug], [data-scores-empty], [data-scores-off]").first().waitFor({ timeout: 20000 }).catch(() => {});
@@ -260,9 +270,25 @@ async function main() {
     if (run("gameday")) {
       await setWorld("gameday", COUCH);
       await pickem(pickemGame("gameday"));
-      await shoot("gameday-scores", settle, { ...scoresAt(), full: true });
-      await shoot("gameday-scores-last", chip(-1), scoresAt());
-      await shoot("gameday-scores-next", chip(1), scoresAt());
+      await pickem(eventsFor("gameday").find((e) => e.id.endsWith("52")).id, "riley", L);
+      if (sc) {
+        await shoot("gameday-scores", settle, { ...scoresAt(), full: true });
+        await shoot("gameday-scores-last", chip(-1), scoresAt());
+        await shoot("gameday-scores-next", chip(1), scoresAt());
+      }
+      if (gm) {
+        await shoot("gameday-games", settleGames, { ...gamesAt(), full: true });
+        await shoot("gameday-games-join", async (pg) => {
+          await settleGames(pg);
+          await pg.locator("[data-games-join] [data-join-row] button").first().click();
+          await pg.waitForTimeout(1500);
+        }, { ...gamesAt(), sheet: true });
+        await shoot("gameday-games-rival", async (pg) => {
+          await settleGames(pg);
+          await pg.locator("[data-games-rival-start]").first().click();
+          await pg.waitForTimeout(2500);
+        }, { ...gamesAt(), sheet: true });
+      }
     }
     if (run("gameday") && tw) {
       await shoot(
@@ -289,10 +315,10 @@ async function main() {
         await pg.locator('nav[aria-label="League"] a[href$="/scores"]').click();
         await settle(pg);
       }, { sheet: true });
-      await shoot("gameday-games", async (pg) => {
+      await shoot("gameday-games-tab", async (pg) => {
         await pg.locator('nav[aria-label="League"] a[href$="/games"]').click();
-        await pg.locator("[data-league-start]").waitFor({ timeout: 15000 });
-        await pg.waitForTimeout(1200);
+        await pg.locator("[data-league-games-tab]").waitFor({ timeout: 15000 });
+        await pg.waitForTimeout(1500);
       }, { sheet: true });
       await shoot("gameday-team", async (pg) => {
         await pg.locator(`[data-couch-team="${C}"]`).click();
@@ -300,13 +326,16 @@ async function main() {
         await pg.waitForTimeout(1200);
       }, { sheet: true });
     }
-    if (run("midweek") && tw) {
+    if (run("midweek")) {
       await setWorld("midweek", COUCH);
-      await shoot("midweek", null, { full: true });
-      await shoot("midweek-start", async (pg) => {
-        await pg.locator("[data-rivalry-start]").click();
-        await pg.waitForTimeout(2500);
-      }, { sheet: true });
+      if (tw) {
+        await shoot("midweek", null, { full: true });
+        await shoot("midweek-start", async (pg) => {
+          await pg.locator("[data-rivalry-start]").click();
+          await pg.waitForTimeout(2500);
+        }, { sheet: true });
+      }
+      if (gm) await shoot("midweek-games", settleGames, { ...gamesAt(), full: true });
     }
     if (run("hidden")) {
       await setWorld("hidden", COUCH);
@@ -319,6 +348,7 @@ async function main() {
           await pg.waitForTimeout(1500);
         });
       }
+      if (sc) {
       await shoot("hidden-scores", settle, scoresAt());
       await shoot("hidden-scores-ask", async (pg) => {
         await settle(pg);
@@ -338,6 +368,7 @@ async function main() {
         await pg.locator("[data-show-scores-yes]").click();
         await pg.waitForTimeout(1500);
       }, scoresAt());
+      }
       await setting(pool, alex, "hide_sports_scores", false);
     }
     if (run("lone")) {
@@ -347,25 +378,31 @@ async function main() {
     if (run("none")) {
       await setWorld("none", [["alex", FB, null]]);
       if (tw) await shoot("none");
-      await shoot("none-scores", settle, scoresAt());
+      if (sc) await shoot("none-scores", settle, scoresAt());
+      if (gm) await shoot("none-games", settleGames, gamesAt());
     }
     if (run("daily")) {
       await setWorld("daily", [["alex", BB, "9401"], ["riley", BB, "9402"]]);
       if (tw) await shoot("daily", null, { league: BB });
-      await shoot("daily-scores", settle, scoresAt(BB));
-      await shoot("daily-scores-yesterday", chip(-1), scoresAt(BB));
+      if (sc) {
+        await shoot("daily-scores", settle, scoresAt(BB));
+        await shoot("daily-scores-yesterday", chip(-1), scoresAt(BB));
+      }
+      if (gm) await shoot("daily-games", settleGames, gamesAt(BB));
     }
     if (run("off")) {
       await setWorld("off", [["alex", MB, "9501"]]);
       if (tw) await shoot("off", null, { league: MB });
-      await shoot("off-scores", null, scoresAt(MB));
+      if (sc) await shoot("off-scores", null, scoresAt(MB));
+      if (gm) await shoot("off-games", settleGames, gamesAt(MB));
     }
     if (run("studio")) {
       await setWorld("studio", COUCH);
       await pickem(pickemGame("studio"));
       await setting(pool, alex, "theme", "studio");
       if (tw) await shoot("studio", null, { full: true });
-      await shoot("studio-scores", settle, scoresAt());
+      if (sc) await shoot("studio-scores", settle, scoresAt());
+      if (gm) await shoot("studio-games", settleGames, gamesAt());
       await setting(pool, alex, "theme", "night");
     }
     if (run("solo")) {
@@ -376,7 +413,11 @@ async function main() {
       const soMe = await signIn({ user: so, pass: soloFx.PASSWORD, headers });
       for (const team of [E, L]) await soMe.call("POST", "/api/sports/follow", { league: FB, team, follow: true });
       if (tw) await shoot("solo", null, { user: so, pass: soloFx.PASSWORD });
-      await shoot("solo-scores", settle, { ...scoresAt(), user: so, pass: soloFx.PASSWORD });
+      if (sc) await shoot("solo-scores", settle, { ...scoresAt(), user: so, pass: soloFx.PASSWORD });
+      if (gm) {
+        await shoot("solo-games", settleGames, { ...gamesAt(), user: so, pass: soloFx.PASSWORD });
+        await shoot("solo-week", null, { user: so, pass: soloFx.PASSWORD, full: true });
+      }
     }
   } finally {
     if (soloUp) await soloFx.down(pool).catch((e) => console.log(`solo fixture not taken down: ${e.message}`));

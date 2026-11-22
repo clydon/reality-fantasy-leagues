@@ -1823,3 +1823,13 @@
 - Also settled in the check, by the process's rules: the chosen chip's rule in ink, not yellow (one yellow a view); the bar keeps the
   league's now on every tab; the strip's eye box, possession triangle and faces kept (A1's approved bug).
 - Rests on: docs/design-round/league-scores-spec.md, -first-view.md, -shape.md, -check.md; docs/PLAN-sports-couch.md, B1 session 2.
+
+## 2026-11-22 · A league's Games tab (sports-couch B1, session 3)
+- Decided by: the user ("I'll go with your calls on the recs. I don't want to build anything now that would be obsolete soon"), on
+  B1 session 3's story https://claude.ai/artifact/4ncmkRanywVoPbH6N7pTjh; approved as built.
+- What: (1) Solo sports play waits for C4: no interim sports game with computer players on no couch (it would be obsolete once C4
+  designs the lone fan); meanwhile a solo player's Games offers Start a couch · Join one and nothing that can't be done. (2) The
+  group is "Your team", not round 2's "On your own": every start is on the couch.
+- Also settled in the check, by the process's rules: starts are quiet rows on Games unless this week's is the plate; a rival's
+  Start is a quiet text button; the focus ring, the marks' 11 px letters and the folds stay as the app has them elsewhere.
+- Rests on: docs/design-round/league-games-spec.md, -first-view.md, -shape.md, -check.md; docs/PLAN-sports-couch.md, B1 session 3.

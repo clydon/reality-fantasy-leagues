@@ -128,7 +128,11 @@ Newest first. The plan or archive section named holds the detail.
 - **Sports on the couch, B1 session 2: Scores** (2026-11-22, the same lane; not merged; no migration): a sticky
   switcher (football's weeks, a daily sport's game days) over the couch's games and every other game by day, each the shared game
   row (A1's scorebug, moved to sports/scorebug.tsx); the week read of one league; BACKLOG 254 (j) fixed; a hidden live score's leak
-  fixed. Story: https://claude.ai/artifact/SChZpFJzYWthMNrxmr5Whm. Notes: [PLAN-sports-couch.md](PLAN-sports-couch.md) B1 session 2. **Approved as built** (the user, 2026-11-22, taking the three recommendations) and committed in the lane. Next there: B1's Games tab.
+  fixed. Story: https://claude.ai/artifact/SChZpFJzYWthMNrxmr5Whm. Notes: [PLAN-sports-couch.md](PLAN-sports-couch.md) B1 session 2. **Approved as built** (the user, 2026-11-22, taking the three recommendations) and committed in the lane.
+- **Sports on the couch, B1 session 3: Games** (2026-11-22, the same lane; not merged; no migration): your games
+  here, with the couch (games to join, this week's and the season's starts), rivals (a Start on each rivalry game to come), your
+  team (its season); no start offered on no couch. Story: https://claude.ai/artifact/4ncmkRanywVoPbH6N7pTjh. Notes: [PLAN-sports-couch.md](PLAN-sports-couch.md) B1 session 3. **Approved as built**
+  (the user, 2026-11-22, both recommendations: solo sports play waits for C4) and committed in the lane. Next there: B1's Standings.
 
 - **A castaway opened from a week opens on that week, BACKLOG 251** (2026-11-22, approved, committed on master, not pushed; no
   migration): the castaway sheet leads with the week a door hands it; one name per moment everywhere (moment-names.ts); the
