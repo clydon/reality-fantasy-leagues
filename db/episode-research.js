@@ -138,9 +138,36 @@ function holdingsSection(format) {
     .describe(`WHAT PEOPLE HOLD: ${things}. Answer it once, for the whole cast. Null only if the sources say nothing about them.`);
 }
 
+/**
+ * BACKLOG 116 (PLAYTEST-REPORT finding 1): on a show that crowns a winner, the checklist says plainly that at the finale the winner
+ * and every finalist leave the game, and with which exits. Every finale taped had the full answer say they stayed ("left the game"
+ * read as "was voted out"), which took the quick check's winner away, so no season-long game ever ended. The words are the
+ * format's own exits ("Sole Survivor"; a finalist's "Lost Final Tribal (Jury Vote)"). A show nobody wins asks as before. Pure.
+ */
+function finaleWords(format) {
+  // A built-in format keeps its exits on `data`; a compiled one (a rulebook's) on itself.
+  const of = (key) => (format && format.data && format.data[key] != null ? format.data[key] : format && format[key]);
+  const winner = of("winnerExitMethod");
+  if (!winner) return null;
+  const endgame = (of("endgameExitMethods") || []).filter((m) => m !== winner);
+  const q = (m) => `"${m}"`;
+  return {
+    left: "At the finale the winner and every finalist leave the game too: 'yes' for each of them.",
+    exit: `At the finale the winner's is ${q(winner)}${endgame.length ? `, and each finalist's is how they finished (${endgame.map(q).join(", ")})` : ""}.`,
+  };
+}
+function withFinaleWords(entry, format) {
+  const words = finaleWords(format);
+  const shape = entry && entry.shape;
+  if (!words || !shape || !shape.leftTheGame || !shape.exitMethod) return entry;
+  const add = (field, more) => field.describe(`${field.description || ""} ${more}`.trim());
+  return entry.extend({ leftTheGame: add(shape.leftTheGame, words.left), exitMethod: add(shape.exitMethod, words.exit) });
+}
+
 function researchSchemaFor(format, withBets = false, word = null) {
   const group = (word || (format.terms && format.terms.tribe) || "tribe").toLowerCase();
   let entry = format.research.checklistSchema(z, Answer);
+  entry = withFinaleWords(entry, format);
   if (format.hasGroups) entry = entry.extend({ newGroup: z.string().nullable().describe(asksFormat(format) ? leftFromText(group) : newGroupText(group)) });
   return z.object({
     episodeTitle: z.string().nullable(),

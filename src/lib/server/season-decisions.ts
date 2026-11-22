@@ -347,10 +347,14 @@ export async function syncLeagueDecisions(client: PoolClient, leagueId: string, 
     orderPlacementsByEpisode(state, within);
   }
   // Where each episode this changed stands: final once any scoring moment is in, or once someone sent the full results
-  // (an episode where nothing scored is still finished); early while only who went home is.
-  if (touched.size) {
+  // (an episode where nothing scored is still finished); early while only who went home is. BACKLOG 116 (PLAYTEST-REPORT finding
+  // 20): an early episode the full answer didn't change (a finale that scores nothing, its exits as the quick check had them) is
+  // finished too, so it's looked at whether this sync touched it or not.
+  const early = state.episodes.filter((e) => StateLogic.episodeHasResults(e) && StateLogic.resultsStage(e) === "early").map((e) => e.number);
+  const restage = new Set([...touched, ...early]);
+  if (restage.size) {
     const finals = season ? await fullAnswers(client, season.showId, season.season) : new Set<number>();
-    for (const n of touched) {
+    for (const n of restage) {
       const ep = state.episodes.find((e) => e.number === n);
       if (!ep) continue;
       const scored = (ep.scoringEvents ?? []).length > 0 || finals.has(n);

@@ -184,6 +184,23 @@ export function removeOwn(state: LeagueState, n: number, own: OwnResult) {
   undoDetail(state, { episodeNumber: n, castawayId: own.castawayId, kind: own.kind, eventType: own.eventType, eventId: own.eventId });
 }
 
+/**
+ * BACKLOG 116 (PLAYTEST-REPORT finding 17): where an exit ranks within its night, so a finale's places follow how each finished, not
+ * the order research named them in (the bot names the winner first: Dancing with the Stars' winner finished 5th). Anyone knocked out
+ * first (0: an exit that isn't one of the format's endgame exits, Survivor's fire-making loser among them), then the endgame exits in
+ * the format's order (its lists run lowest place first: "Fifth place" … "Runner-up"), the winner above them all wherever it's listed.
+ */
+export function finishRank(state: LeagueState): (method: string | null | undefined) => number {
+  const f = StateLogic.formatOf(state);
+  const endgame: string[] = f.endgameExitMethods ?? [];
+  const winner = f.winnerExitMethod ?? null;
+  return (method) => {
+    if (!method) return 0;
+    if (winner != null && method === winner) return endgame.length + 1;
+    return endgame.indexOf(method) + 1;
+  };
+}
+
 // Placement is "order of elimination", and addElimination hands out the next number -- so a season
 // whose episodes were accepted out of order (episode 3 before 2) would rank the episode-3 boot above
 // the episode-2 one. Re-deriving it from episode order after a sync keeps it right whatever order
@@ -197,13 +214,16 @@ export function removeOwn(state: LeagueState, n: number, own: OwnResult) {
 export function orderPlacementsByEpisode(state: LeagueState, within?: Map<number, string[]>) {
   const epNumber = new Map(state.episodes.map((e) => [e.id, e.number]));
   const out = state.castaways.filter((c) => c.status === "eliminated" && typeof c.placementOrder === "number");
+  const finish = finishRank(state);
+  const finishOf = (id: string) => finish(state.castaways.find((c) => c.id === id)?.exitMethod);
   if (!out.some((c) => !c.exitEpisodeId || !epNumber.has(c.exitEpisodeId))) {
-    out.sort((a, b) => epNumber.get(a.exitEpisodeId!)! - epNumber.get(b.exitEpisodeId!)! || a.placementOrder! - b.placementOrder!);
+    out.sort((a, b) => epNumber.get(a.exitEpisodeId!)! - epNumber.get(b.exitEpisodeId!)! || finish(a.exitMethod) - finish(b.exitMethod) || a.placementOrder! - b.placementOrder!);
     out.forEach((c, i) => (c.placementOrder = i + 1));
   }
   for (const [n, ids] of within ?? []) {
     const rank = new Map(ids.map((id, i) => [id, i]));
-    const byRank = (a: string, b: string) => rank.get(a)! - rank.get(b)!;
+    // BACKLOG 116: how they finished first (a finale's places by rank), the season's order between two of the same.
+    const byRank = (a: string, b: string) => finishOf(a) - finishOf(b) || rank.get(a)! - rank.get(b)!;
     const night = out.filter((c) => rank.has(c.id) && c.exitEpisodeId && epNumber.get(c.exitEpisodeId) === n);
     const places = night.map((c) => c.placementOrder!).sort((a, b) => a - b);
     night.sort((a, b) => byRank(a.id, b.id)).forEach((c, i) => (c.placementOrder = places[i]));
