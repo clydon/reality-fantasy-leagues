@@ -115,10 +115,11 @@ Newest first. The plan or archive section named holds the detail.
 
 ## Next
 
-1. **Before Ep 10 (Wed 2026-11-25):** nothing left; nothing merges on the Wednesday.
+1. **Before Ep 10 (Wed 2026-11-25):** BACKLOG 247 (the bot's ChatGPT route fails; check production falls back to Codex).
+   Nothing merges on the Wednesday.
 2. **Before the finale (Wed 2026-12-16):** BACKLOG 115 built on branch `pool-finale` (8d009b5b; the user OKs its words), 116 built
-   on branch `finale-research` (165f8cf8; the user OKs the research words; the bot's re-ask of the four taped finales, then
-   blind.js, then Survivor 51's finale path on the desk).
+   on branch `finale-research` (165f8cf8; proven on the tapes; the user OKs the research words, then Survivor 51's finale path
+   on the desk). 248 (finding 21) is what's left of it.
 3. **The quick sessions** in BACKLOG's "Now": the stale checks, the small engine fixes, the UI polish pass, the
    Designs-needed words batch, and the production check-ups.
 4. **C8, the 2-on-1 head to head**, on a fresh branch from master (its seven answers are in decisions.md, 2026-11-19; who plays

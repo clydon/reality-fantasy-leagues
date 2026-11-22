@@ -6,7 +6,7 @@ and in flight is in [HANDOFF.md](HANDOFF.md).
 
 **How this file works**
 - **Numbers are permanent.** Code, tests and commits cite "BACKLOG 57", so a number never changes and is never reused. A new
-  item takes the next free number: **the next is 247.**
+  item takes the next free number: **the next is 249.**
 - **Closing an item:** delete it here and add one line under "Closed since the cleanup" at the end: the number, done or
   dropped, and the commit or the reason. Numbers closed in the cleanup itself are listed, with their full old text, in
   [archive/BACKLOG-2026-11-19.md](archive/BACKLOG-2026-11-19.md).
@@ -33,13 +33,29 @@ was seen. (Takes in the old 65.) [S · tonight]
 and show it on the finale's pick. Proposed words: "In the finale only the winner survives, so pick who you think wins." The
 words go through impeccable's clarify and need the user's OK. Done with tests/describe updated. [S · game page]
 
-**116. The finale through research: the winner and the places.** *Before Dec 16.* On every taped finale, research's "did they
-leave the game permanently in THIS episode?" left the winner and the finalists in the game (survivor.js:333,
-rulebook-compile.js:669). Survivor 51's results are the admin's, so the desk can add the winner by hand, but a paste or One tap
-would leave the season with no winner. Change the question for a finale (or add "how they finished" for endgame exits), order a
-night's endgame exits by place (`decision-apply.ts orderPlacementsByEpisode`), and mark a finale with no scoring moments final.
-Prove it with blind.js on the taped finales (Survivor 49, Traitors 4, Challenge 41, Dancing with the Stars 34), then walk
-Survivor 51's finale path once on the desk. (PLAYTEST-REPORT findings 1, 8, 17, 20 and 21.) [M · research]
+**116. The finale through research: the winner and the places.** *Before Dec 16.* **Built on branch `finale-research`
+(165f8cf8); waits on the user's OK of the research words, then Survivor 51's finale path once on the desk.** A night's places by
+how each finished (decision-apply.ts finishRank: knocked out, the endgame exits in the format's order, the winner last); a finale
+that scores nothing goes final once a full answer is in; and the checklist says on any show with a winner: leftTheGame "At the
+finale the winner and every finalist leave the game too: 'yes' for each of them.", exitMethod "At the finale the winner's is
+"Sole Survivor", and each finalist's is how they finished ("Lost Final Tribal (Jury Vote)")." (each show's own exits). Proven on
+the tapes (a scratch copy; the local rows taken out after): Dancing with the Stars 34's replay places its winner 1st (was 5th) and
+Outlast's winner flips as finding 17 predicted; Challenge 41 on plain Autopilot ends, its finale final, the two Winners on top. The
+bot asked again through Codex with the new words crowned every winner (Traitors 4, Challenge 41, Survivor 49), but Codex crowned
+the Traitors' with the old words too: ChatGPT's web page gave the wrong answers on tape, and its route fails today (247), so the
+words are a belt not yet proven where they matter. Production's 2026-11-21 backup: no league's places would move. Finding 21
+moved to 248. [M · research]
+
+**247. The bot's ChatGPT route fails: "no thinking effort 'Instant' on offer".** *Before Ep 10.* Asking the local bot
+(llm-browser-api, 127.0.0.1:8765) with ChatGPT on 2026-11-22 failed in 21 s with that message, and its health showed no ChatGPT
+success since it started; Codex answered. ChatGPT's web page seems to have dropped the mode the bot picks. Check the production
+bot's last ChatGPT and Codex successes and that research falls back to Codex on its own before Wednesday; the fix is the bot's
+(its own repo). [S · hosting]
+
+**248. Someone the results never removed outranks the crowned winner.** PLAYTEST-REPORT finding 21, left from 116: once a
+winner is crowned, anyone research never filed an exit for (held, missed) is still in, so Outlast scores them above the winner
+and a pool's pick of them survives the finale. The Challenge 41 replay of 2026-11-22 still ends with two in (finding 6's). Hold
+them as a doubt for whoever runs it and never score them above the winner (the report's direction and failing test). [M · engine]
 
 ---
 
