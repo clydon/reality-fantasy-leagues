@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { openSports } from "../sports/sheets";
 import { useCouchOthers, usePlayerLog, useSeasonStats, type CastStat, type GameView, type SeasonStats } from "../data";
 import { GAME_NAMES } from "@/lib/server/league-season";
@@ -13,7 +13,7 @@ import { Avatar, Faces } from "../ui/bars";
 import { FaceWall, PastSeasons, StoryBody } from "./cast";
 import type { Door } from "./game-sheets";
 import { AthleteChart, slotWord } from "./game-week";
-import { signed } from "./lineup-sheet";
+import { shortWhy, signed } from "./lineup-sheet";
 import { castName, first } from "./moves";
 import { Face } from "./parts";
 import { finishWord, goneHome } from "./finish";
@@ -98,7 +98,7 @@ type Column = { parts: [string, number][]; label: string | null; gone: boolean; 
  *  its total over it, the episode numbers in a row of their own under the lowest bar (the one they left in live red), a bone dot
  *  under the ones that counted for you when not every one did. A column is a door when `onEpisode` is given (their story at that
  *  episode). */
-function Columns({ cols, colour, out, counted, words, aria, onEpisode, fixedW, cap = false, h = 104, scale, gap = 2 }: { cols: Column[]; colour: (k: string) => string; out: number | null; counted: number[]; words: Words; aria: string; onEpisode?: (n: number) => void; fixedW?: number; cap?: boolean; h?: number; scale?: { top: number; bot: number }; gap?: number }) {
+function Columns({ cols, colour, out, counted, words, aria, onEpisode, fixedW, cap = false, h = 104, scale, gap = 2, at = null }: { cols: Column[]; colour: (k: string) => string; out: number | null; counted: number[]; words: Words; aria: string; onEpisode?: (n: number) => void; fixedW?: number; cap?: boolean; h?: number; scale?: { top: number; bot: number }; gap?: number; at?: number | null }) {
   const n = cols.length;
   const pos = cols.map((c) => c.parts.filter(([, v]) => v > 0).reduce((t, [, v]) => t + v, 0));
   const neg = cols.map((c) => c.parts.filter(([, v]) => v < 0).reduce((t, [, v]) => t + v, 0));
@@ -117,6 +117,8 @@ function Columns({ cols, colour, out, counted, words, aria, onEpisode, fixedW, c
     <div className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none]">
       <div className="relative" style={{ width: W, height: tall }}>
         <svg width={W} height={tall} role="img" aria-label={aria} className="block">
+          {/* The week the sheet leads with (BACKLOG 251): the raised fill behind its column, as the week strip marks a week. */}
+          {at !== null && at >= 1 && at <= n && <rect data-chart-at={at} x={(at - 1) * colW} y={0} width={colW} height={tall} rx={3} fill="var(--secondary)" />}
           <line x1={0} x2={W} y1={y(0)} y2={y(0)} stroke="var(--edge)" strokeWidth={1} />
           {cols.map((c, i) => {
             const bw = barW, x = i * colW + (colW - bw) / 2;
@@ -152,8 +154,8 @@ function Columns({ cols, colour, out, counted, words, aria, onEpisode, fixedW, c
                     y={axis}
                     textAnchor="middle"
                     fontSize={colW < 18 ? 10 : 11}
-                    fontWeight={out === ep ? 700 : 400}
-                    fill={out === ep ? "var(--live)" : "var(--muted-foreground)"}
+                    fontWeight={out === ep || at === ep ? 700 : 400}
+                    fill={out === ep ? "var(--live)" : at === ep ? "var(--foreground)" : "var(--muted-foreground)"}
                   >
                     {ep}
                   </text>
@@ -327,7 +329,7 @@ function seasonScale(d: SeasonStats, bands: Map<string, Band>) {
  * over the line over each column (to 14 episodes); one key of the four bands, the same words on every sheet. A column opens that
  * episode in their story. It stops at the viewer's mark (the stats are cut there).
  */
-export function SeasonChart({ d, c, words, onEpisode, span }: { d: SeasonStats; c: CastStat; words: Words; onEpisode?: (n: number) => void; span: number }) {
+export function SeasonChart({ d, c, words, onEpisode, span, at = null }: { d: SeasonStats; c: CastStat; words: Words; onEpisode?: (n: number) => void; span: number; at?: number | null }) {
   const n = d.through;
   if (!n) return null;
   const bands = bandsOf(d);
@@ -353,7 +355,7 @@ export function SeasonChart({ d, c, words, onEpisode, span }: { d: SeasonStats; 
         <p className="text-[14px] text-muted-foreground">Nothing recorded for {c.first} yet.</p>
       ) : (
         <>
-          <Columns cols={cols} colour={(k) => bandColour(k as Band)} out={goneHome(c) ? c.out : null} counted={[]} words={words} aria={`What ${c.first} did each ${words.episode.toLowerCase()}, by the show's points: ${said.join("; ")}`} onEpisode={onEpisode} fixedW={fitW(n, span)} cap scale={seasonScale(d, bands)} gap={0} />
+          <Columns cols={cols} colour={(k) => bandColour(k as Band)} out={goneHome(c) ? c.out : null} counted={[]} words={words} aria={`What ${c.first} did each ${words.episode.toLowerCase()}, by the show's points: ${said.join("; ")}`} onEpisode={onEpisode} fixedW={fitW(n, span)} cap scale={seasonScale(d, bands)} gap={0} at={at} />
           <ul className="mt-1.5 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[13px] text-muted-foreground" data-cast-chart-key data-band-key>
             {BANDS.map((k) => (
               <li key={k} className="flex items-center gap-1.5">
@@ -423,7 +425,7 @@ function Figures({ d, c, go, words, span }: { d: SeasonStats; c: CastStat; go: G
 
 /** A game row open on the scored sheet: their points there each episode on the season chart's own columns, shorter, in the game's
  *  colour, a dot under the weeks they counted for you when only some did. */
-function GameWeeks({ g, id, n, out, words, name, span, onEpisode }: { g: GameView; id: string; n: number; out: number | null; words: Words; name: string; span: number; onEpisode?: (n: number) => void }) {
+function GameWeeks({ g, id, n, out, words, name, span, onEpisode, at = null }: { g: GameView; id: string; n: number; out: number | null; words: Words; name: string; span: number; onEpisode?: (n: number) => void; at?: number | null }) {
   if (!g.castWeeks || !n) return null;
   const cols = weekColumns(g, id, n, out);
   if (!cols.some((x) => x.parts.length)) return null;
@@ -432,7 +434,7 @@ function GameWeeks({ g, id, n, out, words, name, span, onEpisode }: { g: GameVie
   const all = Object.values(g.castWeeks.points).flat().filter((v): v is number => typeof v === "number");
   return (
     <div className="pb-1" data-game-weeks={g.leagueId}>
-      <Columns cols={cols} colour={() => gameColour(g.gameName)} out={out} counted={counted} words={words} aria={`${first(name)}'s points in ${gameName(g)} each ${words.episode.toLowerCase()}`} onEpisode={onEpisode} fixedW={fitW(n, span)} cap h={72} scale={{ top: Math.max(1, ...all), bot: Math.min(0, ...all) }} />
+      <Columns cols={cols} colour={() => gameColour(g.gameName)} out={out} counted={counted} words={words} aria={`${first(name)}'s points in ${gameName(g)} each ${words.episode.toLowerCase()}`} onEpisode={onEpisode} fixedW={fitW(n, span)} cap h={72} scale={{ top: Math.max(1, ...all), bot: Math.min(0, ...all) }} at={at} />
       <ChartKey items={[]} out={null} counted={countedWord(counted, cols)} words={words} />
     </div>
   );
@@ -622,7 +624,7 @@ function holderRows(g: GameView, id: string, words: Words) {
  *  sheet (`scored`) lists every active game on the couch, yours or not (the user, 2026-11-17: a game over by your mark or archived
  *  drops off, the one you came from stays), each with their points there and their place in its cast, opening to their points each
  *  episode on the season chart's columns; an athlete's lists your games. */
-export function GamesRows({ show, seasonId, name, go, from = null, scored = false, n = 0, out = null, span = 358, onEpisode }: { show: ShowData; seasonId?: string; name: string; go: Go; from?: string | null; scored?: boolean; n?: number; out?: number | null; span?: number; onEpisode?: (n: number) => void }) {
+export function GamesRows({ show, seasonId, name, go, from = null, scored = false, n = 0, out = null, span = 358, onEpisode, at = null }: { show: ShowData; seasonId?: string; name: string; go: Go; from?: string | null; scored?: boolean; n?: number; out?: number | null; span?: number; onEpisode?: (n: number) => void; at?: number | null }) {
   const [open, setOpen] = useState<string | null>(from);
   const box = useRef<HTMLElement>(null);
   const tapped = useRef(false);
@@ -696,7 +698,7 @@ export function GamesRows({ show, seasonId, name, go, from = null, scored = fals
             </button>
             {on && (
               <div className={`pb-1.5 ${scored ? "" : "pl-3"}`} data-game-holders={g.leagueId}>
-                {scored && <GameWeeks g={g} id={id} n={n} out={out} words={w} name={name} span={span} onEpisode={onEpisode} />}
+                {scored && <GameWeeks g={g} id={id} n={n} out={out} words={w} name={name} span={span} onEpisode={onEpisode} at={g.leagueId === from ? at : null} />}
                 {rows.length === 0 && <p className={`py-2 text-[13px] text-muted-foreground ${scored ? "pl-3" : ""}`}>Nobody here holds or has picked {first(name)} so far.</p>}
                 {rows.map((r) => (
                   <button key={r.playerId} type="button" data-door-person={r.playerId} onClick={() => go.open({ kind: "person", playerId: r.playerId, episode: null, game: g.leagueId })} className={`nd-press flex min-h-[52px] w-full items-center gap-3 border-t border-border py-1.5 text-left ${scored ? "pl-3" : ""}`}>
@@ -813,16 +815,194 @@ function BioLine({ line }: { line: string }) {
 
 const reduced = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+// ---------- the week they were opened from (BACKLOG 251) ----------
+
+/** A door's week: the game, the episode, and whose lineup they were in then (none: Everyone in this game, a compare). */
+export type WeekCtx = { g: GameView; episode: number; holder: string | null };
+
+type WeekRow = { name: string; points: number; n: number; band: Band | null; factor?: boolean };
+
+/** Their week in that game, as the week block reads it, or null where the game doesn't score people week by week or has no results
+ *  for that episode at the viewer's mark. The rows add up to `total`: the moments at the game's scoring, then each factor (a captain,
+ *  the episode's window) as the points it added, then anything else the game's rules changed. */
+function weekOf(w: WeekCtx, d: SeasonStats, c: CastStat) {
+  const g = w.g;
+  const cw = g.castWeeks;
+  if (!cw || !countsWeekly(g)) return null;
+  const face = g.cast.find((x) => same(x.name, c.name));
+  const i = cw.episodes.indexOf(w.episode);
+  if (!face || i < 0) return null;
+  const bands = bandsOf(d);
+  // Each moment by its key, named as the rest of this sheet names it (Their numbers, their story: the show's words, which can differ
+  // from the game's: the check, 2026-11-22), the game's own words (their aside dropped) where the show has none; its band the same way.
+  const named = (l: number) => {
+    const key = cw.moments!.keys?.[l] ?? "";
+    return { key, name: d.stats.find((s) => s.key === key)?.name ?? shortWhy(cw.moments!.labels[l] ?? "") };
+  };
+  const moments = cw.moments ? (cw.moments.of[face.id]?.[i] ?? []).map(([l, p, n]) => ({ ...named(l), points: p, n })) : [];
+  const raw = cw.points[face.id]?.[i] ?? 0;
+  const scoring: WeekRow[] = moments.filter((m) => m.points !== 0).sort((a, b) => b.points - a.points).map((m) => ({ name: m.name, points: m.points, n: m.n, band: bands.get(m.key) ?? null }));
+  const unscored = moments.filter((m) => m.points === 0).map((m) => m.name);
+  const r = w.holder ? (g.table.find((x) => x.playerId === w.holder) ?? null) : null;
+  const hw = r?.weeks.find((x) => x.episode === w.episode) ?? null;
+  const started = hw?.started.find((x) => x.id === face.id) ?? null;
+  const benched = hw?.bench.find((x) => x.id === face.id) ?? null;
+  const times = cw.times?.[i] ?? 1;
+  const captain = started && hw?.captain?.id === face.id ? hw.captain.times : 1;
+  const factors: WeekRow[] = [];
+  // Whose captain: the doubling is the holder's, not the castaway's (their own points are what the game's row below shows).
+  if (captain !== 1) factors.push({ name: `${r!.you ? "Your" : `${r!.name}'s`} captain ×${fmt(captain)}`, points: round(raw * (captain - 1)), n: 1, band: null, factor: true });
+  if (times !== 1) factors.push({ name: times === 2 ? "Double points this episode" : `Points ×${fmt(times)} this episode`, points: round(raw * captain * (times - 1)), n: 1, band: null, factor: true });
+  const line = started ?? benched;
+  const total = line ? line.points : round(raw * times);
+  const rest = round(total - raw * captain * times);
+  if (Math.abs(rest) >= 0.01) factors.push({ name: "Changed by this game's rules", points: rest, n: 1, band: null, factor: true });
+  const counted: "started" | "bench" | "off" | null = !r ? null : started ? "started" : benched ? "bench" : "off";
+  // Before any factor, their own points that week (a receipt's subtotal): the number the game's row below marks.
+  const own: WeekRow | null = factors.length ? { name: "Their own points", points: raw, n: 1, band: null, factor: true } : null;
+  return { g, r, total, scoring, factors, own, unscored, counted, nothing: moments.length === 0, best: cw.best ?? null, out: c.out !== null && w.episode > c.out, left: c.out === w.episode, steps: cw.episodes.filter((e) => c.out === null || e <= c.out) };
+}
+
+const round = (n: number) => Math.round(n * 100) / 100;
+
+/** The line under the week's title: "Weekly Lineup · Started for ahaskell", "Weekly Lineup · On your bench: scored, didn't count";
+ *  with nobody's lineup to read, "Their points in Weekly Lineup". */
+function countedWords(x: NonNullable<ReturnType<typeof weekOf>>): string {
+  const r = x.r;
+  if (!r || !x.counted) return `Their points in ${gameName(x.g)}`;
+  return `${gameName(x.g)} · ${howCounted(x, r)}`;
+}
+
+function howCounted(x: NonNullable<ReturnType<typeof weekOf>>, r: NonNullable<NonNullable<ReturnType<typeof weekOf>>["r"]>): string {
+  const who = r.you ? "you" : r.name;
+  const whose = r.you ? "your" : `${r.name}'s`;
+  if (x.counted === "off") return `Not on ${whose} team that week`;
+  if (x.best) return x.counted === "started" ? `Counted for ${who}: one of ${r.you ? "your" : "their"} best ${x.best}` : `Not in ${whose} best ${x.best}: didn't count`;
+  // (A 0 on the bench scored nothing: it only didn't count. The check, 2026-11-22.)
+  return x.counted === "started" ? `Started for ${who}` : x.total === 0 ? `On ${whose} bench: didn't count` : `On ${whose} bench: scored, didn't count`;
+}
+
+/** One row of the week: the moment's band mark (a factor has none), its name and how many, its points in the column under the total. */
+function WeekLine({ row, quiet, rule = false }: { row: WeekRow; quiet: boolean; rule?: boolean }) {
+  return (
+    <div data-week-moment={row.factor ? "factor" : row.name} className={`flex min-h-9 items-center gap-2.5 text-[14px] leading-snug ${rule ? "border-t border-dashed border-edge" : ""}`}>
+      {row.band ? <BandMark k={row.band} /> : <i className="w-1 flex-none" aria-hidden />}
+      <span className={`min-w-0 flex-1 ${quiet ? "text-muted-foreground" : ""}`}>
+        {row.band && <span className="sr-only">{BAND_ONE[row.band][0]}: </span>}
+        {row.name}
+        {row.n > 1 && <span className="text-muted-foreground"> ×{row.n}</span>}
+      </span>
+      <b className={`type-num flex-none text-[17px] ${quiet || row.points < 0 ? "text-muted-foreground" : ""}`}>{signed(row.points)}</b>
+    </div>
+  );
+}
+
+const FOLD = 5;
+
+/**
+ * The week a door handed the sheet, first (docs/design-round/week-door-spec.md, -first-view.md, -shape.md): the episode (a door to
+ * the night) with the game and how it counted for whose lineup under it, their total for it at the right in the week's own form;
+ * then the moments that scored, each with its points in one column that adds up to the total, and each factor as a row; the moments
+ * this game gives nothing for in one muted line; ‹ › to their other weeks at the foot. A bench week is in muted ink.
+ */
+function WeekBlock({ x, c, episode, words, onNight, onWeek }: { x: NonNullable<ReturnType<typeof weekOf>>; c: CastStat; episode: number; words: Words; onNight: (n: number) => void; onWeek?: (n: number) => void }) {
+  const [all, setAll] = useState(false);
+  // A new week (‹ ›): the fold closes and the rows cross-fade; never on the sheet's first paint (state kept from the last render, as
+  // React keeps a previous prop).
+  const [shown, setShown] = useState(episode);
+  const [swapped, setSwapped] = useState(false);
+  if (shown !== episode) {
+    setShown(episode);
+    setSwapped(true);
+    setAll(false);
+  }
+  const quiet = x.counted === "bench" || x.counted === "off";
+  const rows = all ? x.scoring : x.scoring.slice(0, FOLD);
+  const at = x.steps.indexOf(episode);
+  const prev = at > 0 ? x.steps[at - 1] : null;
+  const next = at >= 0 && at < x.steps.length - 1 ? x.steps[at + 1] : null;
+  return (
+    <section data-week-block={episode} data-week-counted={x.counted ?? "none"} className="mt-3 border-b border-border pb-1.5">
+      <div className="flex items-end gap-3">
+        <div className="min-w-0 flex-1">
+          <h3 className="type-caption text-[26px]">
+            <button type="button" data-week-night={episode} aria-label={`${words.episode} ${episode}: the night`} onClick={() => onNight(episode)} className="-my-2 inline-flex min-h-11 items-center text-left underline decoration-edge decoration-2 underline-offset-[5px]">
+              {words.episode} {episode}
+            </button>
+          </h3>
+          <p className="mt-1 text-[13px] text-muted-foreground" data-week-line>
+            {countedWords(x)}
+          </p>
+        </div>
+        <b data-week-total={x.total} className={`type-num flex-none text-[34px] leading-none ${quiet || x.total === 0 ? "text-muted-foreground" : ""}`}>
+          {signed(x.total)}
+        </b>
+      </div>
+      <div key={episode} className={`mt-2 ${swapped ? "motion-safe:animate-[nd-fade-in_160ms_ease-out_both]" : ""}`}>
+        {x.out ? (
+          <p className="flex min-h-9 items-center pl-3.5 text-[14px] text-muted-foreground">Already out</p>
+        ) : (
+          <>
+            {/* Nothing at all, as their story says it; or moments this game gives nothing for (named in the line below). */}
+            {x.scoring.length === 0 && <p className="flex min-h-9 items-center pl-3.5 text-[14px] text-muted-foreground" data-week-nothing>{x.nothing ? "Nothing recorded" : "Nothing that scores in this game"}</p>}
+            {rows.map((row, i) => (
+              <WeekLine key={`${row.name}-${i}`} row={row} quiet={quiet} />
+            ))}
+            {!all && x.scoring.length > FOLD && (
+              <button type="button" data-week-more onClick={() => setAll(true)} className="inline-flex min-h-11 items-center pl-3.5 text-[14px] font-semibold">
+                {x.scoring.length - FOLD} more
+              </button>
+            )}
+            {x.own && <WeekLine row={x.own} quiet={quiet} rule />}
+            {x.factors.map((row) => (
+              <WeekLine key={row.name} row={row} quiet={quiet} />
+            ))}
+            {x.left && <p className={`flex min-h-9 items-center pl-3.5 text-[14px] ${c.finish === "won" ? "text-(--nd-good)" : c.finish ? "" : "text-live"}`} data-week-left>{c.how ?? "Left the game"}</p>}
+            {x.unscored.length > 0 && (
+              <p className="mt-1 pl-3.5 text-[13px] leading-snug text-muted-foreground" data-week-unscored>
+                {x.scoring.length ? "Also: " : "What they did: "}
+                {x.unscored.join(", ")} (no points in this game)
+              </p>
+            )}
+          </>
+        )}
+      </div>
+      {onWeek && (prev !== null || next !== null) && (
+        <div className="mt-1 flex items-center justify-between" data-week-steps>
+          {prev !== null ? (
+            <button type="button" data-week-prev={prev} aria-label={`Previous week: ${words.episode} ${prev}`} onClick={() => onWeek(prev)} className="-ml-1 inline-flex min-h-11 items-center gap-0.5 px-1 text-[13px] font-semibold text-muted-foreground">
+              <ChevronLeft className="size-4" aria-hidden />
+              {words.ep} {prev}
+            </button>
+          ) : (
+            <span />
+          )}
+          {next !== null && (
+            <button type="button" data-week-next={next} aria-label={`Next week: ${words.episode} ${next}`} onClick={() => onWeek(next)} className="-mr-1 inline-flex min-h-11 items-center gap-0.5 px-1 text-[13px] font-semibold text-muted-foreground">
+              {words.ep} {next}
+              <ChevronRight className="size-4" aria-hidden />
+            </button>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
 /** The castaway's sheet, one part: who; their figures; each episode in its bands; In the couch's games; Their numbers; their story;
- *  Compare with…. `lens`: the game it was opened from, for the stat's board's holders. */
-export function CastSheet({ d, c, show, seasonId, lens, go, onFlag, from = null, episode = null }: { d: SeasonStats; c: CastStat; show: ShowData; seasonId: string; lens: GameView | null; go: Go; onFlag?: ((episode: number, who: string) => void) | null; from?: string | null; episode?: number | null }) {
+ *  Compare with…. `lens`: the game it was opened from, for the stat's board's holders. `week`: the week a door handed it (BACKLOG
+ *  251), which it leads with when that game scores people week by week; `onWeek` steps it to another week in place. */
+export function CastSheet({ d, c, show, seasonId, lens, go, onFlag, from = null, episode = null, week = null, onWeek }: { d: SeasonStats; c: CastStat; show: ShowData; seasonId: string; lens: GameView | null; go: Go; onFlag?: ((episode: number, who: string) => void) | null; from?: string | null; episode?: number | null; week?: WeekCtx | null; onWeek?: (n: number) => void }) {
   const w = show.words;
+  const wk = week ? weekOf(week, d, c) : null;
+  const leads = wk ? week!.episode : null;
   const ref = useRef<HTMLDivElement>(null);
   const [lit, setLit] = useState<number | null>(null);
   // Opened at an episode (a number in a game's table, a week in a compare): that episode in their story, as a chart column
   // opens it, once the sheet has risen.
   useEffect(() => {
-    if (episode == null) return;
+    // (A week the sheet leads with is already in view: nothing to scroll to.)
+    if (episode == null || leads !== null) return;
     const t = setTimeout(() => {
       const el = ref.current?.querySelector<HTMLElement>(`[data-story-ep="${episode}"]`);
       if (!el) return;
@@ -830,7 +1010,7 @@ export function CastSheet({ d, c, show, seasonId, lens, go, onFlag, from = null,
       if (!reduced()) setLit(episode);
     }, 420);
     return () => clearTimeout(t);
-  }, [episode]);
+  }, [episode, leads]);
   // The sheet's own width, for every chart and strip on it to share one rail (358 at 390; less on a narrower phone).
   const [span, setSpan] = useState(358);
   useEffect(() => {
@@ -856,10 +1036,11 @@ export function CastSheet({ d, c, show, seasonId, lens, go, onFlag, from = null,
   };
   return (
     <div ref={ref} className="pb-2" data-person={c.first} data-cast-sheet={c.name}>
+      {wk && <WeekBlock x={wk} c={c} episode={leads!} words={w} onNight={(n) => go.open({ kind: "night", episode: n })} onWeek={onWeek} />}
       <Who d={d} c={c} words={w} onNight={(n) => go.open({ kind: "night", episode: n })} />
       <Figures d={d} c={c} go={go} words={w} span={span} />
       <SeasonChart d={d} c={c} words={w} onEpisode={toStory} span={span} />
-      <GamesRows key={c.name} show={show} seasonId={seasonId} name={c.name} go={go} from={from} scored n={d.through} out={goneHome(c) ? c.out : null} span={span} onEpisode={toStory} />
+      <GamesRows key={c.name} show={show} seasonId={seasonId} name={c.name} go={go} from={from} scored n={d.through} out={goneHome(c) ? c.out : null} span={span} onEpisode={toStory} at={leads} />
       <NumbersRows d={d} c={c} lens={lens} go={go} span={span} onEpisode={toStory} />
       <SheetCaption right="Newest first">Their story</SheetCaption>
       <StoryBody d={d} c={c} onFlag={onFlag ?? null} onEpisode={(n) => go.open({ kind: "night", episode: n })} group={false} photo={false} points={false} lit={lit} marks={bandColours(d)} />

@@ -281,7 +281,7 @@ function fullAnswer(prompt, { danny = true, eric = true, devin = true } = {}) {
     const bell = async (who) => (await pool.query("SELECT title, body FROM notifications WHERE user_id = $1 AND type = 'resultsChanged'", [fx.users[who]])).rows;
     const jBell = await bell("jordan");
     check(
-      jBell.length === 1 && jBell[0].title === "Ep 6 results changed" && /Eric Macksoud: Reward win taken out after final results\./.test(jBell[0].body),
+      jBell.length === 1 && jBell[0].title === "Ep 6 results changed" && /Eric Macksoud: Won the Reward challenge taken out after final results\./.test(jBell[0].body),
       "jordan (he's seen Episode 6) is told: Ep 6 results changed, what, and his points",
       JSON.stringify(jBell)
     );

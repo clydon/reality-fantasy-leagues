@@ -1,3 +1,4 @@
+import { momentName } from "@/lib/game/moment-names";
 import crypto from "crypto";
 import StateLogic from "@/lib/game/state-logic.js";
 import { applyDecision, orderPlacementsByEpisode, undoDetail, type DecisionFact, type LedgerDetail } from "@/lib/game/decision-apply";
@@ -279,7 +280,7 @@ export async function rulingsFor(leagueIds: string[], episode: number): Promise<
     const k = r.keeps as DecisionFact;
     const label =
       k.kind === "event"
-        ? ((state ? StateLogic.formatOf(state).events.find((e) => e.id === k.event_type)?.label : null) ?? k.event_type)
+        ? (state ? momentName(state, k.event_type) : k.event_type)
         : k.kind === "noexit"
           ? "Nobody went home"
           : k.method || k.kind;

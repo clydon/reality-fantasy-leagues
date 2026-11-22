@@ -1,3 +1,4 @@
+import { momentName } from "@/lib/game/moment-names";
 import crypto from "crypto";
 import { holdingLabel, propLabel } from "@/lib/game/dated-fact-words";
 import type { PoolClient } from "pg";
@@ -136,7 +137,7 @@ const keptOf = (d: DecisionRow): KeptFact => ({
 /** "Found an idol", "Voted Out": what a fact is, in the show's words. */
 function labelOf(state: LeagueState, d: Pick<DecisionRow, "kind" | "method" | "event_type" | "applied">): string {
   const type = d.applied?.eventType || d.event_type;
-  if (d.kind === "event") return StateLogic.formatOf(state).events.find((e) => e.id === type)?.label ?? type;
+  if (d.kind === "event") return momentName(state, type);
   if (d.kind === "group") return `moved to ${d.applied?.method ?? d.method}`;
   if (d.kind === "prop") return propLabel(type, d.applied?.method ?? d.method);
   if (d.kind === "holding") return holdingLabel(type, d.applied?.method ?? d.method);

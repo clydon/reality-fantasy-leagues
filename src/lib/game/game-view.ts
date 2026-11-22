@@ -14,7 +14,7 @@ import { pickWindow } from "./pool-view";
 import { pointsPerLine } from "./bingo";
 import { isBetSettled, isKnockedOut, publicMediaSrc } from "./selectors";
 import { scoredEpisodes, teamEpisodeBreakdown } from "./team-episode-breakdown";
-import { castWeeks, leagueWeek, lockedMatchup, sideBetsOf, statWeeksOf, type SideBets, type WeekGame } from "./week-view";
+import { castWeeks, leagueWeek, lockedMatchup, sideBetsOf, statWeeksOf, type CastWeeks, type SideBets, type WeekGame } from "./week-view";
 
 // One of your season games on a show, as the new design's show space reads it (docs/PLAN-new-design.md step 1):
 // your moves for the next episode (the lineup, the pick, open predictions), the game's table, its rules, its cast,
@@ -404,7 +404,7 @@ export interface GameView extends GameRefIn {
   /** Step 2b: the league's games for the week about to be played (week-view.ts leagueWeek); null outside head to head. */
   games?: { episode: number; games: WeekGame[] } | null;
   /** Step 2c: every player's points each week at this game's scoring (week-view.ts castWeeks); null before any results. */
-  castWeeks?: { episodes: number[]; points: Record<string, number[]> } | null;
+  castWeeks?: CastWeeks | null;
   /** Tonight's night (docs/design-round/tonight-night-spec.md): each seat's place before the latest counted episode (`through`), by
    *  player id, from the engine's own table at the mark before it; null before a second episode, or for a game the server ranks
    *  outside its state (calls, bingo, a game of questions: Tonight works theirs out from `plays`). */

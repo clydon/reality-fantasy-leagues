@@ -172,6 +172,28 @@ test("2c: every player's points each week at the game's scoring, matching each l
   }
 });
 
+test("BACKLOG 251: each castaway's moments that week add up to their points then, each named as the lineup's reasons name it", () => {
+  const { g } = card("show-results");
+  const cw = g.castWeeks;
+  assert.ok(cw.moments && cw.moments.labels.length > 0, "a show's weeks carry their moments");
+  let checked = 0;
+  for (const [id, row] of Object.entries(cw.points)) {
+    row.forEach((pts, i) => {
+      const ms = cw.moments.of[id]?.[i] ?? [];
+      const sum = Math.round(ms.reduce((t, m) => t + m[1], 0) * 100) / 100;
+      assert.equal(sum, pts, `${id} in ep ${cw.episodes[i]}: moments ${sum} vs points ${pts}`);
+      if (ms.length) checked++;
+    });
+  }
+  assert.ok(checked > 5, "some weeks had moments to add up");
+  // The Started card's reason is one of the moments the sheet lists (the same words on both).
+  for (const r of g.table) for (const w of r.weeks) for (const s of w.started) {
+    const i = cw.episodes.indexOf(w.episode);
+    const names = (cw.moments.of[s.id]?.[i] ?? []).map((m) => cw.moments.labels[m[0]]);
+    for (const why of s.why) assert.ok(names.includes(why), `${s.id} ep ${w.episode}: "${why}" among ${names.join(", ")}`);
+  }
+});
+
 test("2c: a sport's weeks come from its stat lines (BACKLOG 74), and a week's lines add up to its result", () => {
   const { g } = card("nfl-real-pool-due");
   const me = g.table.find((r) => r.you);

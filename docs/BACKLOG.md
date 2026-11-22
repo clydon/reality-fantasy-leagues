@@ -595,6 +595,31 @@ mid-season: moment-votes.ts over stage_change_votes); this widens it, on the cou
 scoring and span changes ask by default; the vote binds; only the maker starts one. Through the design process. [M–L · engine +
 design]
 
+**251. A castaway opened from a week opens on that week** (the user, 2026-11-22, on Survivor 51's Weekly Lineup: "Carter scored
+6 this week, I want to see how he gained all those points ... in the context I think it should be assumed I want to see his
+week"). A starter's face on a person's week opens the castaway's sheet on their season, with nothing about that week. The doors
+that do keep a week (the season table's numbers, the game table's, the compare) only scroll to Their story, whose moments carry
+no points. A head-to-head matchup's lines, a game's episode blocks (CastRow in game-sheets.tsx), the episode page's best scorers
+and Tonight's Last time drop the week too. The server already works out each starter's moments with their points at the game's
+scoring (team-episode-breakdown.ts `items`); game-view.ts `whyOf` keeps three labels and drops the points.
+**Recommended:** every door inside a week passes it on, and a castaway sheet opened with a game and a week leads with that week
+under their name: the week's total, each moment with its points at that game's scoring adding up to it (a captain's ×N, "on the
+bench, didn't count", whose lineup it was), the night one tap away; their season below as today. Doors with no week open as now,
+so it's still one castaway sheet from every way in (2026-11-16). Goes with 169. Through the design process (Intent, PFD,
+Impeccable), then a screenshot story on Survivor 51 at 390. [M · game page + view]
+**Built and approved 2026-11-22 (the user: "yes continue here", then took all three recommendations):** story
+https://claude.ai/artifact/DAwdM1gZTD4PtVQ1twyioq; papers docs/design-round/week-door-spec.md, -first-view.md, -shape.md,
+-critique.md, -pfd-eval.md, -decisions.md; frames by scripts/dev-test/story-week-door.js (--up/--down), the cards' alignment by
+check-lineup-week-cards.js; check-drill-doors.js's season-cell and table-cell now expect the week, and it gained pool-pick. The
+data: week-view.ts castWeeks carries each castaway's moments (`moments`), an episode's multiplier (`times`) and best ball's
+count (`best`). **Decided:** (1) one name per moment everywhere, the show's: src/lib/game/moment-names.ts names a moment as the
+rulebook does wherever a game shows one (team-episode-breakdown.ts: the Started cards, a matchup's lines, the reveal; castWeeks;
+results-changed notifications, rulings, the desk's facts, a card's line), the format keeping its labels underneath; (2) no ‹ ›
+through the lineup on the castaway's sheet (Back and tap); (3) no hint on the Started card. **Noticed, not done:** athletes' sheets don't get the block (each stat's points and the sport's words aren't in
+the game view; their doors already pass the week); not rendered: a head-to-head matchup's lines, a week of 6+ moments (the fold),
+a finale's double; the ‹ › row moves with the moments' count; a stint's factor reads "Changed by this game's rules"; a pool's pick
+lands mid-sheet under a half-cut line (as before).
+
 Each one names the question and Claude's recommendation. "Yes to all the recommendations" is a fine answer; Claude records it
 and builds.
 

@@ -1,3 +1,4 @@
+import { momentNamer } from "./moment-names";
 import StateLogic from "./state-logic.js";
 import type { LeagueState } from "./types";
 import { predictionKind } from "./game-view";
@@ -186,7 +187,21 @@ export function leagueWeek(view: LeagueState, seats: string[], set: Record<strin
  * line at the game's table (StatsLogic.scored: everyone the league has, held or not). Only episodes with results in this copy,
  * so nothing past the viewer's mark. Null before any.
  */
-export function castWeeks(view: LeagueState): { episodes: number[]; points: Record<string, number[]> } | null {
+export interface CastWeeks {
+  episodes: number[];
+  points: Record<string, number[]>;
+  /** BACKLOG 251 (a castaway's sheet opened from a week leads with it): a show's moments behind each week's points, per castaway and
+   *  episode (`episodes`' order), each [its name's index in `labels`, its points at the game's scoring, how many]; every moment,
+   *  those this game gives nothing for too; `keys[i]` is `labels[i]`'s moment key (the show's stats key it the same way). Absent for
+   *  a sport (its lines are stats, not moments). */
+  moments?: { labels: string[]; keys: string[]; of: Record<string, [number, number, number][][]> };
+  /** What each episode's points multiply by (a finale's double, a phase's window, the top scorer's twist), only when one isn't 1. */
+  times?: number[];
+  /** Best ball: how many of a team count each week. */
+  best?: number;
+}
+
+export function castWeeks(view: LeagueState): CastWeeks | null {
   // Never past what this copy counts as results (a viewer's copy can keep a sport's lines past their mark: the campaign's
   // history-past-mark oracle).
   const latest = StateLogic.SpoilerLogic.latestWithResults(view);
@@ -198,15 +213,46 @@ export function castWeeks(view: LeagueState): { episodes: number[]; points: Reco
     const row = (points[id] ??= eps.map(() => 0));
     row[i] = StateLogic.roundPoints(row[i] + p);
   };
+  const nameOf = momentNamer(view);
+  const labels: string[] = [];
+  const keys: string[] = [];
+  const of: Record<string, [number, number, number][][]> = {};
+  let shows = false;
   eps.forEach((ep, i) => {
     const stats = StateLogic.StatsLogic.scored(view, ep);
     if (stats) {
       for (const m of stats) add(m.castawayId, i, m.points);
       return;
     }
-    for (const ev of StateLogic.ActiveRosterLogic.episodeEvents(view, ep)) if (ev.castawayId) add(ev.castawayId, i, StateLogic.ActiveRosterLogic.eventPoints(view, ev, ep.number));
+    shows = true;
+    for (const ev of StateLogic.ActiveRosterLogic.episodeEvents(view, ep)) {
+      if (!ev.castawayId) continue;
+      const p = StateLogic.ActiveRosterLogic.eventPoints(view, ev, ep.number);
+      add(ev.castawayId, i, p);
+      // The moment in the show's words (the Started card's reason is the same string), one entry a name and its count.
+      const label = nameOf(ev.type);
+      let at = labels.indexOf(label);
+      if (at < 0) {
+        at = labels.push(label) - 1;
+        keys.push(ev.type);
+      }
+      const week = ((of[ev.castawayId] ??= eps.map(() => []))[i] ??= []);
+      const had = week.find((x) => x[0] === at);
+      if (had) {
+        had[1] = StateLogic.roundPoints(had[1] + p);
+        had[2] += 1;
+      } else week.push([at, p, 1]);
+    }
   });
-  return { episodes: eps.map((e) => e.number), points };
+  const times = eps.map((ep) => StateLogic.ActiveRosterLogic.timesFor(view, ep.number) as number);
+  const best = StateLogic.ActiveRosterLogic.bestOf(view) as number | null;
+  return {
+    episodes: eps.map((e) => e.number),
+    points,
+    ...(shows ? { moments: { labels, keys, of } } : {}),
+    ...(times.some((t) => t !== 1) ? { times } : {}),
+    ...(best ? { best } : {}),
+  };
 }
 
 /**

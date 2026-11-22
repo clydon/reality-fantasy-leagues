@@ -36,13 +36,14 @@ import { PriceEnd } from "./price-end";
 
 /** `game`: the game a door reads, when it isn't the drill's own (a person from a castaway's In your games, any door on the Cast
  *  tab). A castaway: by `id` in that game or by `name`; `lens` the game their sheet counts by (null: the show; left out: the game
- *  it was opened from, when that game counts people week by week). A stat's board: `from` the castaway whose sheet opened it. */
+ *  it was opened from, when that game counts people week by week); `episode` the week it was opened from and `holder` whose lineup
+ *  they were in that week (BACKLOG 251: the sheet leads with that week). A stat's board: `from` the castaway whose sheet opened it. */
 type In = { game?: string };
 export type Door =
   | ({ kind: "person"; playerId: string; episode: number | null } & In)
   | ({ kind: "episode"; episode: number } & In)
   | ({ kind: "night"; episode: number } & In)
-  | ({ kind: "cast"; id?: string; name?: string; lens?: string | null; episode?: number } & In)
+  | ({ kind: "cast"; id?: string; name?: string; lens?: string | null; episode?: number; holder?: string } & In)
   | ({ kind: "rules" } & In)
   | ({ kind: "matchup"; playerId: string; episode: number } & In)
   | ({ kind: "bets" } & In)
@@ -172,7 +173,7 @@ function Level({ level, drill, crumb, plain, ...ctx }: Ctx & { level: Level; dri
           ctx.onFlag!(episode, who);
         }
       : null;
-    return <CastLevel show={show} seasonId={seasonId} g={g} d={d} sheet={sheet} go={go} onLens={(lens) => drill.swap(level.key, { ...d, lens })} onFlag={onFlag} />;
+    return <CastLevel show={show} seasonId={seasonId} g={g} d={d} sheet={sheet} go={go} onLens={(lens) => drill.swap(level.key, { ...d, lens })} onWeek={(n) => drill.swap(level.key, { ...d, episode: n })} onFlag={onFlag} />;
   }
   if (d.kind === "stat") {
     const onRank = ctx.onRank
@@ -258,7 +259,7 @@ function Level({ level, drill, crumb, plain, ...ctx }: Ctx & { level: Level; dri
         subtitle={t.subtitle}
         stepper={eps.length > 1 ? { prev: at > 0 ? `${show.words.ep} ${eps[at - 1]}` : null, next: at >= 0 && at < eps.length - 1 ? `${show.words.ep} ${eps[at + 1]}` : null, onStep: step } : undefined}
       >
-        <MatchupBody key={`${d.playerId}:${d.episode}`} g={wg} pid={d.playerId} n={d.episode} words={show.words} sport={sport} onFace={(id) => go.open({ kind: "cast", id })} onCompare={(a, b) => go.open({ kind: "compare", a, b, episode: d.episode })} onPerson={(playerId) => go.open({ kind: "person", playerId, episode: d.episode })} />
+        <MatchupBody key={`${d.playerId}:${d.episode}`} g={wg} pid={d.playerId} n={d.episode} words={show.words} sport={sport} onFace={(id, holder) => go.open({ kind: "cast", id, episode: d.episode, ...(holder ? { holder } : {}) })} onCompare={(a, b) => go.open({ kind: "compare", a, b, episode: d.episode })} onPerson={(playerId) => go.open({ kind: "person", playerId, episode: d.episode })} />
       </Sheet>
     );
   }
@@ -304,7 +305,7 @@ function Level({ level, drill, crumb, plain, ...ctx }: Ctx & { level: Level; dri
 
 /** A castaway's (or athlete's) sheet: the one part, at the lens its door asks for, else the game it was opened from when that
  *  game counts people week by week, else the show. The lens changes in place (the door swapped, no new step back). */
-function CastLevel({ show, seasonId, g, d, sheet, go, onLens, onFlag }: { show: ShowData; seasonId: string; g: GameView | null; d: Extract<Door, { kind: "cast" }>; sheet: SheetBits; go: Drill; onLens: (lens: string | null) => void; onFlag: ((episode: number, who: string) => void) | null }) {
+function CastLevel({ show, seasonId, g, d, sheet, go, onLens, onWeek, onFlag }: { show: ShowData; seasonId: string; g: GameView | null; d: Extract<Door, { kind: "cast" }>; sheet: SheetBits; go: Drill; onLens: (lens: string | null) => void; onWeek: (n: number) => void; onFlag: ((episode: number, who: string) => void) | null }) {
   const sport = show.header?.show.kind === "sport";
   const stats = useSeasonStats(seasonId, show.couch?.id ?? null, null, !sport);
   const roster = useRoster(seasonId, sport);
@@ -342,7 +343,7 @@ function CastLevel({ show, seasonId, g, d, sheet, go, onLens, onFlag }: { show: 
         <Waiting />
       ) : c ? (
         <div key={name} data-sheet-cast={name}>
-          <CastSheet d={stats.data} c={c} show={show} seasonId={seasonId} lens={lens} go={go} onFlag={onFlag} from={g?.leagueId ?? null} episode={d.episode ?? null} />
+          <CastSheet d={stats.data} c={c} show={show} seasonId={seasonId} lens={lens} go={go} onFlag={onFlag} from={g?.leagueId ?? null} episode={d.episode ?? null} week={g && d.episode != null ? { g, episode: d.episode, holder: d.holder ?? null } : null} onWeek={onWeek} />
         </div>
       ) : (
         <p className="mt-3 text-[14px] text-muted-foreground">Nothing recorded for {name} yet.</p>
@@ -489,7 +490,7 @@ export function PersonBody({ g, show, seasonId, r, episode, onEpisode, go, onClo
   if (lineup)
     return (
       <>
-        <LineupSheet g={g} r={r} week={episode ?? r.weeks.at(-1)?.episode ?? null} onWeek={onEpisode} words={show.words} onClose={onClose} onFace={(id) => go.open({ kind: "cast", id })} openEpisode={(n) => go.open({ kind: "episode", episode: n })} noTeam={compact || r.weeks.length > 0} />
+        <LineupSheet g={g} r={r} week={episode ?? r.weeks.at(-1)?.episode ?? null} onWeek={onEpisode} words={show.words} onClose={onClose} onFace={(id, n) => go.open({ kind: "cast", id, ...(n != null ? { episode: n, holder: r.playerId } : {}) })} openEpisode={(n) => go.open({ kind: "episode", episode: n })} noTeam={compact || r.weeks.length > 0} />
         {!compact && (
           <PersonSeason
             g={g}
@@ -499,7 +500,7 @@ export function PersonBody({ g, show, seasonId, r, episode, onEpisode, go, onClo
             at={episode ?? r.weeks.at(-1)?.episode ?? null}
             onMatchup={(n) => go.open({ kind: "matchup", playerId: r.playerId, episode: n })}
             onWeek={onEpisode}
-            onFace={(id, n) => go.open({ kind: "cast", id, ...(n != null ? { episode: n } : {}) })}
+            onFace={(id, n) => go.open({ kind: "cast", id, ...(n != null ? { episode: n, holder: r.playerId } : {}) })}
           />
         )}
       </>
@@ -752,10 +753,10 @@ const Caption = ({ children, right }: { children: ReactNode; right?: ReactNode }
 );
 
 /** A castaway's row in a block: their face and name open them in this game. */
-function CastRow({ g, id, line, end, dim, go }: { g: GameView; id: string; line?: ReactNode; end?: ReactNode; dim?: boolean; go: Drill }) {
+function CastRow({ g, id, line, end, dim, go, at }: { g: GameView; id: string; line?: ReactNode; end?: ReactNode; dim?: boolean; go: Drill; at?: { episode: number; holder: string } }) {
   const c = faceIn(g, id);
   return (
-    <button type="button" data-door-cast={id} onClick={() => go.open({ kind: "cast", id })} className={`nd-press flex min-h-14 w-full items-center gap-3 border-t border-border py-1.5 text-left ${dim ? "text-muted-foreground" : ""}`}>
+    <button type="button" data-door-cast={id} onClick={() => go.open({ kind: "cast", id, ...(at ?? {}) })} className={`nd-press flex min-h-14 w-full items-center gap-3 border-t border-border py-1.5 text-left ${dim ? "text-muted-foreground" : ""}`}>
       <Face src={c?.photo ?? null} name={c?.name} out={c?.knocked} className={`size-10 flex-none rounded-[3px] ${dim ? "opacity-55 grayscale-[0.5]" : ""}`} />
       <span className="min-w-0 flex-1">
         <b className="block truncate text-[15px] font-semibold">{c?.name ?? "Someone"}</b>
@@ -766,7 +767,7 @@ function CastRow({ g, id, line, end, dim, go }: { g: GameView; id: string; line?
   );
 }
 
-function PickBlock({ g, r, s, go }: BlockProps) {
+function PickBlock({ g, r, n, s, go }: BlockProps) {
   if (s?.pick?.skipped) return null;
   if (!s?.pick?.id) return <p className="mt-3 text-sm text-muted-foreground">{r.you ? "You made no pick that counted." : "No pick that counted."}</p>;
   const pk = s.pick;
@@ -775,12 +776,13 @@ function PickBlock({ g, r, s, go }: BlockProps) {
   return (
     <>
       <Caption>{two ? "The picks" : "The pick"}</Caption>
-      <CastRow g={g} id={pk.id!} go={go} line={`${two ? "Your pick · " : ""}${pk.correct === null ? "Still to be decided" : pk.correct ? "Stayed in" : "Went home"}`} end={pk.correct !== null ? <Tick ok={pk.correct} className="size-5 flex-none" /> : undefined} dim={pk.correct === false} />
+      <CastRow g={g} id={pk.id!} go={go} at={{ episode: n, holder: r.playerId }} line={`${two ? "Your pick · " : ""}${pk.correct === null ? "Still to be decided" : pk.correct ? "Stayed in" : "Went home"}`} end={pk.correct !== null ? <Tick ok={pk.correct} className="size-5 flex-none" /> : undefined} dim={pk.correct === false} />
       {two && (
         <CastRow
           g={g}
           id={pk.second!.id}
           go={go}
+          at={{ episode: n, holder: r.playerId }}
           line={pk.second!.void ? "Second pick · didn't count: one went home" : `Second pick · counted · ${pk.second!.correct === null ? "still to be decided" : pk.second!.correct ? "stayed in" : "went home"}`}
           end={!pk.second!.void && pk.second!.correct !== null ? <Tick ok={pk.second!.correct} className="size-5 flex-none" /> : undefined}
           dim={pk.second!.void || pk.second!.correct === false}
@@ -804,7 +806,7 @@ function fateLine(r: TableRow, pk: NonNullable<Square["pick"]>): { icon: ReactNo
   return null;
 }
 
-function BootsBlock({ g, s, go, show }: BlockProps) {
+function BootsBlock({ g, r, n, s, go, show }: BlockProps) {
   const held = s?.held ?? [];
   if (!held.length) return null;
   const left = new Set(s?.left ?? []);
@@ -812,7 +814,7 @@ function BootsBlock({ g, s, go, show }: BlockProps) {
     <>
       <Caption right={left.size ? `${left.size} left in ${show.words.ep} ${s?.episode}` : "Nobody left"}>The team that {show.words.episode.toLowerCase()}</Caption>
       {[...held].sort((a, b) => Number(left.has(b)) - Number(left.has(a))).map((id) => (
-        <CastRow key={id} g={g} id={id} go={go} line={left.has(id) ? "Went home" : "Still in"} dim={left.has(id)} />
+        <CastRow key={id} g={g} id={id} go={go} at={{ episode: n, holder: r.playerId }} line={left.has(id) ? "Went home" : "Still in"} dim={left.has(id)} />
       ))}
     </>
   );
@@ -1003,7 +1005,7 @@ function EpisodeBody({ g, show, episode, go }: GameCtx & { episode: number; go: 
               </span>
             </button>
             {k === "pick" && pickId ? (
-              <button type="button" data-door-cast={pickId} onClick={() => go.open({ kind: "cast", id: pickId })} className="relative flex-none">
+              <button type="button" data-door-cast={pickId} onClick={() => go.open({ kind: "cast", id: pickId, episode, holder: r.playerId })} className="relative flex-none">
                 <Face src={face?.photo ?? null} name={face?.name} className={`size-10 rounded-[3px] ${s?.pick?.correct === false ? "opacity-50 grayscale" : ""}`} />
                 {s?.pick && <PersonNight pk={s.pick} />}
               </button>

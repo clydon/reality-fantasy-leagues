@@ -608,7 +608,7 @@ function EpisodeBody({
                 <div data-ep-scorers className="mb-2 ml-[128px] flex flex-col">
                   <small className="pb-1 text-[13px] text-muted-foreground">{named(l.gameName)}&rsquo;s best this episode</small>
                   {e.scorers!.slice(0, 4).map((c) => (
-                    <button key={c.name} type="button" data-door-cast={c.name} onClick={() => open({ kind: "cast", name: c.name, game: l.leagueId })} className="nd-press flex h-10 w-full items-center gap-2 text-left text-[14px] font-semibold">
+                    <button key={c.name} type="button" data-door-cast={c.name} onClick={() => open({ kind: "cast", name: c.name, game: l.leagueId, episode: e.number })} className="nd-press flex h-10 w-full items-center gap-2 text-left text-[14px] font-semibold">
                       <Face src={c.photo} name={c.name} className="size-7 rounded-[3px] text-xs" />
                       <span className="min-w-0 flex-1 truncate">{first(c.name)}</span>
                       <span className="type-num text-[18px]">+{c.points}</span>

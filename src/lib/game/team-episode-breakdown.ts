@@ -2,6 +2,7 @@ import type { Castaway, LeagueState } from "./types";
 import StateLogic from "./state-logic.js";
 import { rosterAtEpisode } from "./active-roster-rows";
 import { playerBetRows, type PlayerBetRow } from "./bet-rows";
+import { momentNamer } from "./moment-names";
 
 /** Episodes that have scored for this league, newest first. */
 export function scoredEpisodes(state: LeagueState) {
@@ -47,13 +48,14 @@ export function teamEpisodeBreakdown(state: LeagueState, epId: string, playerId:
   const ep = state.episodes.find((e) => e.id === epId);
   const empty: TeamEpisodeBreakdown = { started: [], benched: [], slots: [], bets: [], captain: null, captainTimes: 1, lineup: 0, predictions: 0, total: 0 };
   if (!ep || !StateLogic.inPlay(state, ep.number)) return empty;
-  const defs = StateLogic.formatOf(state).events;
+  // Each moment in the show's words (BACKLOG 251: one name everywhere), as the castaway's sheet names it.
+  const nameOf = momentNamer(state);
   const evs = StateLogic.ActiveRosterLogic.episodeEvents(state, ep);
   const startedIds = StateLogic.activeRosterLineupFor(state, ep.id, playerId);
   const line = (c: Castaway): TeamEpisodeLine => {
     const items = evs
       .filter((e) => e.castawayId === c.id)
-      .map((e) => ({ id: e.id, label: defs.find((d) => d.id === e.type)?.label ?? e.type, points: StateLogic.ActiveRosterLogic.eventPoints(state, e, ep.number) }));
+      .map((e) => ({ id: e.id, label: nameOf(e.type), points: StateLogic.ActiveRosterLogic.eventPoints(state, e, ep.number) }));
     return { c, items, points: StateLogic.roundPoints(items.reduce((t, i) => t + i.points, 0)) };
   };
   const roster = rosterAtEpisode(state, playerId, ep.id);

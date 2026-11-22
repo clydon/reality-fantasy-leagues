@@ -1,3 +1,4 @@
+import { momentName } from "@/lib/game/moment-names";
 import StateLogic from "@/lib/game/state-logic.js";
 import * as Spec from "@/lib/game/game-spec/index.js";
 import type { AnswerFacts, FormatGroups, Question, SpecContext, SportsGameFacts, Verdict } from "@/lib/game/game-spec/index.js";
@@ -455,7 +456,7 @@ function cardView(state: LeagueState, q: Question, ep: number, facts: AnswerFact
   if (Spec.cardWaiting(q, ep, choice)) return { from: q.card.from, moment: null, label: null, waiting: true };
   const moment = Spec.cardMoment(q, ep, choice);
   if (!moment) return null;
-  const label = (StateLogic.formatOf(state).events.find((e) => e.id === moment)?.label ?? moment).replace(/\.\s*$/, "");
+  const label = momentName(state, moment).replace(/\.\s*$/, "");
   return { from: q.card.from, moment, label };
 }
 

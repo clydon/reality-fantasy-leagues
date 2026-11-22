@@ -19,9 +19,10 @@
 //   episode-winner     the same page's What happened: a person (not a tribe) opens their sheet
 //   episode-scorer     the same page's game best this episode: a castaway opens their sheet in that game
 //   lineup-title       Lineup League, alex's season sheet: a played week's title opens everyone's plays that week (the game's episode)
-//   season-cell        the same sheet's season table, a number: that castaway's sheet at that episode of their story
+//   season-cell        the same sheet's season table, a number: that castaway's sheet led by that week (BACKLOG 251)
 //   season-week        the same table's week heading: the lineup above turns to that week, in place (one back still takes the sheet)
-//   table-cell         the game page's Everyone in this game, a number: that castaway at that episode of their story
+//   table-cell         the game page's Everyone in this game, a number: that castaway's sheet led by that week (BACKLOG 251)
+//   pool-pick          Survival Pool, alex's sheet, the night's pick: that castaway at that episode of their story
 //   compare-week       a castaway's Compare with…, someone picked, a week's column: the heads read that week, in place
 //   best-lineup        a matchup's "Best lineup … X for Y": the two side by side that week (SKIP: no head to head on the test couch)
 //   story-night        a castaway's story, "Episode N ›": the night (the episode's page as a level) over their sheet
@@ -183,6 +184,7 @@ const wanted = (id) => !ONLY || new RegExp(ONLY).test(id);
     if (SETS.includes("couch")) {
       const season = (await one(`SELECT ss.id FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE s.slug = 'zt-nd-survivor' AND ss.season_number = 51`))?.id;
       const lineup = (await one(`SELECT id FROM leagues WHERE slug = 'zt-nd-lineup'`))?.id;
+      const poolGame = (await one(`SELECT id FROM leagues WHERE slug = 'zt-nd-pool'`))?.id;
       if (!season || !lineup) throw new Error("new-fixture.js isn't up (no zt-nd season or Lineup League): node scripts/dev-test/new-fixture.js up, or --set=draft,waivers");
       await as("zt_nd_alex");
       await door("chat-face", {
@@ -288,9 +290,16 @@ const wanted = (id) => !ONLY || new RegExp(ONLY).test(id);
       const storyAt = (sel, attr) => async () => {
         // The castaway's sheet opened at that episode: their story's episode in view (the story runs newest first, so its first
         // episode can only come up as far as the sheet's end allows).
-        const n = (await p.locator(sel).first().getAttribute(attr))?.split(":")[1];
+        const v = await p.locator(sel).first().getAttribute(attr);
+        const n = v?.includes(":") ? v.split(":")[1] : v;
         const box = await p.locator(`[data-cast-sheet] [data-story-ep="${n}"]`).last().boundingBox({ timeout: 5000 }).catch(() => null);
         return box && box.y > 0 && box.y + 24 < H ? null : `Episode ${n} of their story isn't in view (${box ? Math.round(box.y) : "missing"})`;
+      };
+      // A number in a game that scores people week by week (BACKLOG 251): the castaway's sheet leads with that week, at its top.
+      const weekAt = (sel, attr) => async () => {
+        const n = (await p.locator(sel).first().getAttribute(attr))?.split(":")[1];
+        const box = await p.locator(`[data-cast-sheet] [data-week-block="${n}"]`).last().boundingBox({ timeout: 5000 }).catch(() => null);
+        return box && box.y > 0 && box.y < H / 2 ? null : `Episode ${n}'s week isn't leading the sheet (${box ? Math.round(box.y) : "missing"})`;
       };
       // The one of several in view (a pager keeps every week's pane in the page, side by side).
       const inView = async (loc) => {
@@ -307,7 +316,7 @@ const wanted = (id) => !ONLY || new RegExp(ONLY).test(id);
         still: "[data-sheet-player]",
         skip: "no played week in alex's lineup",
       });
-      await door("season-cell", { go: yourSheet, door: async () => p.locator("[data-season-cell]").first(), opened: castSheet, check: storyAt("[data-season-cell]", "data-season-cell"), still: "[data-sheet-player]", skip: "no numbers in alex's season" });
+      await door("season-cell", { go: yourSheet, door: async () => p.locator("[data-season-cell]").first(), opened: castSheet, check: weekAt("[data-season-cell]", "data-season-cell"), still: "[data-sheet-player]", skip: "no numbers in alex's season" });
       // A week's heading changes the sheet in place (no new level): the lineup turns to it, and one back still takes the sheet.
       await step("season-week", async () => {
         await yourSheet();
@@ -339,8 +348,24 @@ const wanted = (id) => !ONLY || new RegExp(ONLY).test(id);
         },
         door: async () => p.locator("[data-game-table] [data-table-cell]").first(),
         opened: castSheet,
-        check: storyAt("[data-game-table] [data-table-cell]", "data-table-cell"),
+        check: weekAt("[data-game-table] [data-table-cell]", "data-table-cell"),
         still: "[data-game-table]",
+      });
+      // A pick in Survival Pool's night (no game arithmetic for one castaway): their sheet lands on that episode of their story.
+      await door("pool-pick", {
+        go: async () => {
+          await p.goto(`${BASE}/show/${season}/game/${poolGame}`, { waitUntil: "domcontentloaded" });
+          await p.locator("[data-game-page]").first().waitFor({ timeout: 45000 });
+          await wait(p, 1200);
+          await p.locator("[data-door-you]").first().click();
+          await p.locator("[data-sheet-player]").last().waitFor({ timeout: 15000 });
+          await wait(p, 900);
+        },
+        door: async () => p.locator('[role="dialog"] [data-episode-block] [data-door-cast]').first(),
+        opened: castSheet,
+        check: storyAt('[role="dialog"] [data-episode-block]', "data-episode-block"),
+        still: "[data-sheet-player]",
+        skip: "no pick in alex's pool night",
       });
       // A compare's week: a castaway's Compare with…, someone picked, then a week's column (in place, the heads read it).
       await step("compare-week", async () => {

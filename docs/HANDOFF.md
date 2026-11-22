@@ -108,6 +108,9 @@ Newest first. The plan or archive section named holds the detail.
 
 ## In flight
 
+- **A castaway opened from a week opens on that week, BACKLOG 251** (2026-11-22, approved, committed on master, not pushed; no
+  migration): the castaway sheet leads with the week a door hands it; one name per moment everywhere (moment-names.ts); the
+  Started cards' alignment fix. Story: https://claude.ai/artifact/DAwdM1gZTD4PtVQ1twyioq. **Waits on the user:** the push.
 - **Admin, the full audit** (2026-11-22, on master as docs): phone first (the user uses admin on a phone more often than not).
   docs/design-round/admin-audit.md and https://claude.ai/artifact/6ijx8Nziw3NVn6fzCbhMoA. Waits on the user's 18 decisions and the four fix-now items (BACKLOG 250 the
   Back loop first); then three design rounds. Round 0's wide-screen shapes are replaced.

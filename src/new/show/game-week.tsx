@@ -658,7 +658,7 @@ function sideLines(g: GameView, who: TableRow | null, w: TableRow["weeks"][numbe
  *  starters on one signed points scale, then its bench (or, before the lock, the other side's whole team, by position); once
  *  played, each side's best lineup from the same people, named as the swap that would have made it (shows only: a sport's slots
  *  by position would make it wrong). Your side, before the lock, opens your lineup. */
-export function MatchupBody({ g, pid, n, words, sport, onFace, onCompare, onPerson }: { g: GameView; pid: string; n: number; words: ShowData["words"]; sport?: boolean; onFace: (id: string) => void; onCompare: (a: string, b: string) => void; onPerson?: (playerId: string) => void }) {
+export function MatchupBody({ g, pid, n, words, sport, onFace, onCompare, onPerson }: { g: GameView; pid: string; n: number; words: ShowData["words"]; sport?: boolean; onFace: (id: string, holder?: string) => void; onCompare: (a: string, b: string) => void; onPerson?: (playerId: string) => void }) {
   const m = matchupOf(g, pid, n);
   const A = sideLines(g, m.a, m.wa, m.lockA, n, m.played, m.sq?.result?.us ?? m.sq?.points ?? null);
   const B = sideLines(g, m.b, m.wb, m.lockB, n, m.played, m.sq?.result?.them ?? null);
@@ -712,8 +712,8 @@ export function MatchupBody({ g, pid, n, words, sport, onFace, onCompare, onPers
         <PairedLineups g={g} pairs={pairs} a={A.starters!} b={B.starters!} played={m.played} onCompare={onCompare} />
       ) : (
       <div className="mt-2 grid grid-cols-2 gap-3">
-        <Column g={g} who={null} total={null} lines={A.team ?? A.starters} max={max} neg={neg} played={m.played} collapse={!!A.team} label={A.team ? "Their team · season pts" : m.played ? "Starting" : "Starting · season pts"} onFace={onFace} />
-        <Column g={g} who={null} total={null} lines={B.team ?? B.starters ?? (m.b ? [] : null)} max={max} neg={neg} played={m.played} collapse={!!B.team} label={B.team ? "Their team · season pts" : m.played ? "Starting" : "Starting · season pts"} onFace={onFace} />
+        <Column g={g} who={null} total={null} lines={A.team ?? A.starters} max={max} neg={neg} played={m.played} collapse={!!A.team} label={A.team ? "Their team · season pts" : m.played ? "Starting" : "Starting · season pts"} onFace={(id) => onFace(id, m.a?.playerId)} />
+        <Column g={g} who={null} total={null} lines={B.team ?? B.starters ?? (m.b ? [] : null)} max={max} neg={neg} played={m.played} collapse={!!B.team} label={B.team ? "Their team · season pts" : m.played ? "Starting" : "Starting · season pts"} onFace={(id) => onFace(id, m.b?.playerId)} />
       </div>
       )}
       {(A.team || B.team) && (
@@ -724,8 +724,8 @@ export function MatchupBody({ g, pid, n, words, sport, onFace, onCompare, onPers
       )}
       {(A.bench || B.bench) && (
         <div className="mt-3 grid grid-cols-2 gap-3 border-t border-border pt-1" data-matchup-bench>
-          {A.bench ? <Column g={g} who={null} total={null} lines={A.bench} max={max} neg={neg} played={m.played} dim noBars label={m.played ? "Bench" : "Bench · season pts"} onFace={onFace} /> : <div />}
-          {B.bench ? <Column g={g} who={null} total={null} lines={B.bench} max={max} neg={neg} played={m.played} dim noBars label={m.played ? "Bench" : "Bench · season pts"} onFace={onFace} /> : <div />}
+          {A.bench ? <Column g={g} who={null} total={null} lines={A.bench} max={max} neg={neg} played={m.played} dim noBars label={m.played ? "Bench" : "Bench · season pts"} onFace={(id) => onFace(id, m.a?.playerId)} /> : <div />}
+          {B.bench ? <Column g={g} who={null} total={null} lines={B.bench} max={max} neg={neg} played={m.played} dim noBars label={m.played ? "Bench" : "Bench · season pts"} onFace={(id) => onFace(id, m.b?.playerId)} /> : <div />}
         </div>
       )}
       {m.played && !sport && (A.best || B.best) && (

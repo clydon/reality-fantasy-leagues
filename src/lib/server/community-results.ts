@@ -1,3 +1,4 @@
+import { momentName } from "@/lib/game/moment-names";
 import crypto from "crypto";
 import { holdingLabel, propLabel } from "@/lib/game/dated-fact-words";
 import type { PoolClient } from "pg";
@@ -773,7 +774,7 @@ export async function couchFillsResults(couchId: string): Promise<boolean> {
 
 /** A league's results for an episode as a label each, for the plate and the dispute sheet ("Found an idol"). */
 export function factLabel(state: LeagueState, f: { kind: string; method: string; eventType: string }): string {
-  if (f.kind === "event") return StateLogic.formatOf(state).events.find((e) => e.id === f.eventType)?.label ?? f.eventType;
+  if (f.kind === "event") return momentName(state, f.eventType);
   if (f.kind === "group") return `Moved to ${f.method}`;
   if (f.kind === "prop") return propLabel(f.eventType, f.method);
   if (f.kind === "holding") return holdingLabel(f.eventType, f.method);

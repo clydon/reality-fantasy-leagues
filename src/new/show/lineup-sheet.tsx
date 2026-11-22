@@ -62,7 +62,7 @@ export function latestWeek(g: GameView, r: TableRow): number | null {
 }
 
 /** What scored, without the rulebook's aside: "Voted with the majority (voted for who went home)" is "Voted with the majority". */
-const shortWhy = (label: string) => label.replace(/\s*\([^)]*\)\s*$/, "") || label;
+export const shortWhy = (label: string) => label.replace(/\s*\([^)]*\)\s*$/, "") || label;
 
 const PEEK_KEY = "gys.lineup-weeks.peeked";
 const BAR = 64;
@@ -70,7 +70,7 @@ const BAR = 64;
 const pillAt = (i: number, n: number) => `translateX(calc(${Math.max(0, Math.min(n - 1, i))} * (100% + 4px)))`;
 const reduced = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-export function LineupSheet({ g, r, week, onWeek, words, onClose, onFace, openEpisode, noTeam }: { g: GameView; r: TableRow; week: number | null; onWeek: (episode: number) => void; words: Words; onClose: () => void; onFace?: (id: string) => void; openEpisode?: (episode: number) => void; noTeam?: boolean }) {
+export function LineupSheet({ g, r, week, onWeek, words, onClose, onFace, openEpisode, noTeam }: { g: GameView; r: TableRow; week: number | null; onWeek: (episode: number) => void; words: Words; onClose: () => void; onFace?: (id: string, episode?: number) => void; openEpisode?: (episode: number) => void; noTeam?: boolean }) {
   const next = nextWeek(g);
   const items: Item[] = [...r.weeks.map((w) => ({ n: w.episode, w })), ...(next ? [{ n: next.episode, w: null }] : [])];
   const found = items.findIndex((x) => x.n === week);
@@ -174,8 +174,10 @@ export function LineupSheet({ g, r, week, onWeek, words, onClose, onFace, openEp
 }
 
 /** One week: who started and the bench with that episode's points, or for the episode being set, who's set. */
-function WeekPane({ g, r, it, next, words, onClose, onFace, openEpisode }: { g: GameView; r: TableRow; it: Item; next: ReturnType<typeof nextWeek>; words: Words; onClose: () => void; onFace?: (id: string) => void; openEpisode?: (episode: number) => void }) {
+function WeekPane({ g, r, it, next, words, onClose, onFace: face, openEpisode }: { g: GameView; r: TableRow; it: Item; next: ReturnType<typeof nextWeek>; words: Words; onClose: () => void; onFace?: (id: string, episode?: number) => void; openEpisode?: (episode: number) => void }) {
   const w = it.w;
+  // A starter or the bench, tapped: their sheet on this week (BACKLOG 251: how they scored it, the season under it).
+  const onFace = face && w ? (id: string) => face(id, it.n) : undefined;
   const title = `${words.episode} ${it.n}`;
   if (!w) {
     const lateYou = r.you && g.late?.episode === it.n;
@@ -279,7 +281,9 @@ function WeekPane({ g, r, it, next, words, onClose, onFace, openEpisode }: { g: 
       </div>
       <p className="type-caption mb-2 mt-[18px] text-[14px] tracking-[0.02em] text-muted-foreground">Started</p>
       {w.started.length === 0 && <p className="text-sm text-muted-foreground">Nobody started this week.</p>}
-      <div className="grid grid-cols-3 gap-2">
+      {/* Cells to the top: a card is a button, and a button stretched to the row's height centres what's in it, so a starter with
+          a shorter line under the name (none, for a 0) sat lower than the rest (the user, 2026-11-22; check-lineup-week-cards.js). */}
+      <div className="grid grid-cols-3 items-start gap-2">
         {started.map((s) => {
           const c = faceIn(g, s.id);
           const captain = cap?.id === s.id;
