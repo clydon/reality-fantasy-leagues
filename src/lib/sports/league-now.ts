@@ -24,6 +24,11 @@ export interface LeagueNow {
   to: string | null;
   /** Off-season: the day (the East's) its next stage starts, when the calendar lists it. */
   back: string | null;
+  /** A league cut by weeks (football): every week of its season and playoffs, in order, for its Scores tab's switcher
+   *  (docs/design-round/league-scores-spec.md); none for a league by days. */
+  weeks: { label: string; from: string; to: string }[];
+  /** A league by days (the NBA, NHL, MLB, soccer): the days it plays this season (ESPN's calendar), its Scores tab's chips. */
+  days: string[];
 }
 
 /** The Monday and Sunday of a day's week ("2026-11-22", a Sunday: Nov 16 to Nov 22). */
@@ -57,6 +62,9 @@ export function nowOf(league: string, calendar: LeagueCalendar, cadence: "day" |
       span = !e ? null : calendar.weeks.length ? { from: e.from, to: e.to } : mondayToSunday(today);
     }
   }
+  // The season's weeks or game days for the Scores tab's switcher: the calendar's own, both stages.
+  const weeks = calendar.weeks.length ? (["regular", "post"] as const).flatMap((st) => slateEpisodes(calendar, st, "week").map((e) => ({ label: e.label, from: e.from, to: e.to }))) : [];
+  const days = calendar.weeks.length || !from || !to ? [] : [...new Set(calendar.days)].filter((d) => d >= from && d <= to).sort();
   const back = on ? null : ([regular?.from, post?.from].filter((d): d is string => !!d && d > today).sort()[0] ?? null);
-  return { league, leagueName: leagueName(league, calendar.leagueName ?? null), season: seasonWords(calendar), on, stage, week, from: span?.from ?? null, to: span?.to ?? null, back };
+  return { league, leagueName: leagueName(league, calendar.leagueName ?? null), season: seasonWords(calendar), on, stage, week, from: span?.from ?? null, to: span?.to ?? null, back, weeks, days };
 }

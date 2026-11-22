@@ -9,7 +9,7 @@
 // Every result on it (a record, a form tick, a score, a rivalry's winner, the table's order) goes through Hide sports scores: with it
 // on, none shows, the table is ordered yours first then by fans, and Show records shows them all for the visit (showScore).
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { CalendarDays, ChevronLeft, ChevronRight, Eye, ListOrdered, Swords, Trophy, type LucideIcon } from "lucide-react";
 import { useCouchTeams, useCurrentCouch, useHome, useLeaguesNow, useLeagueTeams, useYourTeams, type WeekGame } from "../data";
@@ -19,9 +19,10 @@ import { Avatar, Faces } from "../ui/bars";
 import { FollowToggle, theLeague, useLeagueFollow } from "../sports/follow";
 import { SportsLabel, TeamMark } from "../sports/parts";
 import { begun, clockOf, dayOf, showScore, useGameScore, useHideSports, useNow, useShownScores } from "../sports/scores";
-import { LeagueDays, LeagueGameRows, LeagueStart, openSports, startOn, useLeagueGames, useLeagueWeek } from "../sports/sheets";
+import { LeagueGameRows, LeagueStart, openSports, startOn, useLeagueGames, useLeagueWeek } from "../sports/sheets";
 import { rankTeams, recordWords, rivalriesOf, rivalryRecords, type Fan, type Rivalry, type TeamForm } from "@/lib/sports/couch-table";
 import type { LeagueNow } from "@/lib/sports/league-now";
+import { LeagueScores } from "./league-scores";
 
 const TABS: Record<LeagueTab, { label: string; icon: LucideIcon }> = {
   week: { label: "This week", icon: CalendarDays },
@@ -48,6 +49,19 @@ export function LeagueFrame({ league, children }: { league: string; children: Re
   const nav = useNav();
   const { yours } = useLeagueGames(league);
   const f = useLeagueFollow(league, name, { playsHere: yours.length > 0 });
+  // The bar's height, for what sticks under it (Scores' switcher).
+  const bar = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = bar.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const root = document.documentElement;
+    const ro = new ResizeObserver(() => root.style.setProperty("--league-bar", `${el.offsetHeight}px`));
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      root.style.removeProperty("--league-bar");
+    };
+  }, []);
   const sub = !now
     ? null
     : now.on
@@ -57,6 +71,7 @@ export function LeagueFrame({ league, children }: { league: string; children: Re
     <>
       {/* The show bar's compact form, without art (a league has none: our marks, never logos), Night in both themes. */}
       <header
+        ref={bar}
         data-league-bar={league}
         className="dark sticky top-[var(--nd-top,0px)] z-20 bg-[linear-gradient(135deg,#2a2633,#100e15)] px-2 pb-3 pt-[calc(8px+env(safe-area-inset-top,0px))] text-foreground"
       >
@@ -120,11 +135,11 @@ function LeagueTabBar({ league, current }: { league: string; current: LeagueTab 
 }
 
 export function LeagueTabScreen({ league, tab }: { league: string; tab: LeagueTab }) {
-  const { now, name } = useLeague(league);
+  const { now, name, loading } = useLeague(league);
   return (
     <div data-league-tab={tab} key={tab} className="px-4">
       {tab === "week" && <ThisWeek league={league} name={name} now={now} />}
-      {tab === "scores" && <LeagueDays league={league} leagueName={name} from={now?.from} to={now?.to} />}
+      {tab === "scores" && <LeagueScores league={league} name={name} lnow={now} loading={loading} />}
       {tab === "games" && (
         <div className="pt-1">
           <SportsLabel>Your games</SportsLabel>
@@ -138,10 +153,10 @@ export function LeagueTabScreen({ league, tab }: { league: string; tab: LeagueTa
 
 // ---------- This week ----------
 
-type Team = { id: string; league: string; short: string; abbreviation: string | null; color: string | null; followers: Fan[]; you: boolean };
+export type Team = { id: string; league: string; short: string; abbreviation: string | null; color: string | null; followers: Fan[]; you: boolean };
 
 /** The couch's teams in the league (yours alone, on no couch), each with who follows it. */
-function useTableTeams(league: string): { teams: Team[]; solo: boolean; meId: string; ready: boolean } {
+export function useTableTeams(league: string): { teams: Team[]; solo: boolean; meId: string; ready: boolean } {
   const home = useHome().data;
   const couch = useCurrentCouch(home);
   const couchQ = useCouchTeams(couch?.id ?? null);
@@ -259,10 +274,12 @@ function MoveStrip({ league }: { league: string }) {
           Your move
         </span>
         <span className="flex min-w-0 flex-1 flex-col justify-center gap-[3px] py-2 pl-5 pr-1">
-          <b className="line-clamp-2 text-[16px] font-bold leading-tight [text-wrap:balance]">{m.text.replace(/ \(([^)]+)\)$/, " · $1")}</b>
+          {/* The move on its own ("Fill in your sheet"), its count on the small line with the game ("Predictions · Game 12 · 1
+              question"): a count after the move broke the line wherever it wrapped (BACKLOG 254 j). */}
+          <b className="line-clamp-2 text-[16px] font-bold leading-tight [text-wrap:balance]">{m.text.replace(/ \(([^)]+)\)$/, "")}</b>
           <small className="truncate text-[14px] leading-tight text-plate-muted">
-            {m.leagueName}
-            {moves.length > 1 ? ` · +${moves.length - 1} more` : ""}
+            {/* The count first: a truncation then cuts the game's name, never how much there is to do. */}
+            {[/ \(([^)]+)\)$/.exec(m.text)?.[1], m.leagueName, moves.length > 1 ? `+${moves.length - 1} more` : null].filter(Boolean).join(" · ")}
           </small>
         </span>
         <span className="grid flex-none place-items-center px-2.5">
@@ -552,7 +569,8 @@ function SeasonRivalryRow({ r, teams, hidden, who, league }: { r: Rivalry; teams
     <li data-season-rivalry={r.id} className="border-b border-border">
       <button type="button" onClick={() => openSports({ kind: "game", league, team: r.home, game: r.id })} className="nd-press flex min-h-[56px] w-full items-center gap-3 py-1.5 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-foreground">
       <span className="w-[74px] flex-none text-[13px] font-bold">{r.at ? dayOf(r.at) : "To be set"}</span>
-      <span className="flex flex-none -space-x-1">
+      {/* Side by side, not overlapped: the overlap cut a four-letter code's last letter (BACKLOG 254 j). */}
+      <span className="flex flex-none gap-1">
         <TeamMark abbr={a?.abbreviation ?? a?.short.slice(0, 3)} color={a?.color} size="xs" />
         <TeamMark abbr={b?.abbreviation ?? b?.short.slice(0, 3)} color={b?.color} size="xs" />
       </span>
@@ -571,6 +589,10 @@ function SeasonRivalryRow({ r, teams, hidden, who, league }: { r: Rivalry; teams
 /** Your games in the league, then starting one: the old sheet's rows, under the table (PFD's R5: never above it). */
 function YourGamesHere({ league, name, lnow }: { league: string; name: string; lnow: LeagueNow | null }) {
   const { yours } = useLeagueGames(league);
+  const { games } = useLeagueWeek(league, lnow?.from ?? null, lnow?.to ?? null);
+  const now = useNow();
+  // Nothing of yours and nothing left to play this week (the off-season, a week played out): no heading over nothing (BACKLOG 254 j).
+  if (!yours.length && !games.some((g) => !begun(g, now))) return null;
   return (
     <section data-league-games className="mt-2">
       <SportsLabel>{yours.length ? "Your games here" : "Play"}</SportsLabel>

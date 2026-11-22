@@ -287,6 +287,18 @@ new: it reads the team schedules a team's sheet already reads.
   league per ten minutes while someone looks. Nothing polled.
 - **The week** is the guide's week read from the league's own first day (league-now now answers its `from` and `to`); no new call.
 
+**A league's page, Scores (docs/PLAN-sports-couch.md B1 session 2, 2026-11-22, the `sports-couch` lane; not live)** asks ESPN
+nothing new and asks it less than before:
+- **One league's week** (`GET /api/sports/week?from=&also=<league>&only=1&to=`): the week read of that league alone, not every pro
+  league's (7 day scoreboards at most, 14 for a calendar week with a gap, each **cached in `sports_cache`** as the guide's are:
+  three minutes while a game's on, an hour before, 30 days once over). A league's This week moved to it too. Any week of the
+  season can be asked (the switcher), so a past week costs at most 7 cached day reads the first time anyone looks. The edge keeps
+  a week with a game on a minute (`s-maxage=60`), else five.
+- **The switcher** is league-now's answer, a little longer (`weeks` for football, `days` for a daily sport: ~3 KB at most); no new
+  call.
+- **A live row** asks the small live read (`/api/sports/now`, A1's) every 15 s only while it's on screen and shown live, so a
+  Sunday afternoon's list polls the five or six rows you can see, not every game on.
+
 **The league card in Your shows (docs/PLAN-sports-couch.md A2, 2026-11-22, the `sports-couch` lane; not live)** asks ESPN nothing
 new either:
 - **A league's now** (`GET /api/sports/league/now?league=`, open signed out): its week ("Week 12"), or the off-season and when

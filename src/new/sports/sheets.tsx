@@ -121,9 +121,9 @@ export function LeagueGameRows({ league, quiet }: { league: string; quiet?: bool
   );
 }
 
-/** The week's games still to come in a league (`from`: the week's first day in the East; else from today). */
-export function useLeagueWeek(league: string, from: string | null = null, to: string | null = null) {
-  const week = useSportsWeek(from, [league]);
+/** A league's week of games (`from`: the week's first day in the East, else from today; `to` its last), that league's alone. */
+export function useLeagueWeek(league: string, from: string | null = null, to: string | null = null, enabled = true) {
+  const week = useSportsWeek(from, [league], enabled, { only: true, to });
   const days = (week.data?.days ?? [])
     .filter((d) => !to || d.day <= to)
     .map((d) => ({ ...d, games: d.games.filter((g) => g.league === league) }))

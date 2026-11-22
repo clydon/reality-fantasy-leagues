@@ -2,7 +2,7 @@
 
 > **Status (2026-11-22): A1 and A2 approved as built (the user, 2026-11-22) and committed in the `sports-couch` lane (not
 > merged). A3 (following a league) approved as built too (the user, 2026-11-22) and committed in the lane. B1's first session (the page and This week) approved as built (the user, 2026-11-22) and
-> committed in the lane; B1's Scores tab is next.** The user's calls are in. Lines are Phase D, detailed in
+> committed in the lane. B1's Scores tab (session 2) approved as built (the user, 2026-11-22) and committed in the lane; Games is next.** The user's calls are in. Lines are Phase D, detailed in
 > [PLAN-sports-lines.md](PLAN-sports-lines.md). March Madness (E1) is dated: working by Fri 2027-02-26.
 
 ## Read first
@@ -224,6 +224,33 @@ Story: https://claude.ai/artifact/Nksn54s8dmHHRPYMxuJJ9c. **Approved as built** 
   test` 2,580 pass, ESLint clean on the changed files.
 - **Open:** the check doc's three (the move's "· 1 question" break, off-season's empty Play heading, xs marks cutting 4-letter codes).
 - **Next sessions:** Scores (a week or day switcher, the shared game row), Games, Standings (a new read), Chat (a league room).
+
+**B1's build notes, session 2: Scores (2026-11-22, lane `sports-couch`, port 3019; not merged; no migration).** Story: https://claude.ai/artifact/SChZpFJzYWthMNrxmr5Whm. **Approved as built** (the user, 2026-11-22, taking the three
+recommendations: decisions.md). The design: [league-scores-spec.md](design-round/league-scores-spec.md) (Intent), `-first-view.md` (PFD), `-shape.md`
+(Impeccable), `-check.md` (the check and its one batch). BACKLOG 254 (j) fixed first.
+- **Where:** `src/new/screens/league-scores.tsx` (`LeagueScores`: the switcher, then the list); the shared game row is A1's scorebug,
+  moved to `src/new/sports/scorebug.tsx` (`Scorebug`, `AskSheet`, `bugStateOf`) and drawn by the hub's strip and Scores alike: full
+  width (`wide`) it names the teams, its status column 78 px; `grouped` (under a day heading) says only the time; `finalsOpen` shows
+  a final's score unless hidden (B1's decision 2); `pollOnScreen` asks a live row's clock only while it's on screen. LeagueFrame
+  measures its bar into `--league-bar` so the switcher sticks under it.
+- **The switcher:** football's every week and playoff week (chips: "Week 12" over its dates, now's "This week"), a daily sport's (and
+  soccer's) game days (chips: weekday over date, "Today"); opens on now with the chip before it showing; the chosen chip's rule in
+  the foreground (one yellow a view); away from now, "This week ›" (or "Today ›") pinned at its end. A daily sport's chips are its
+  game days, not the spec's Monday-to-Sunday seven with arrows (38 px chips): the user's call in the story.
+- **The list:** the couch's games first (solo: your teams'; a game you play too), each saying its day when it isn't under one; then
+  every other game a day at a time; kickoff order everywhere. Hiding: Started and the eye per row (A1's ask), and one Show scores
+  for the chosen week that asks first (Show all N or Keep hiding). Empty, failed, off-season and loading states.
+- **Data:** league-now answers `weeks` (football) and `days` (a daily sport's game days) (tests/sports-league-now.test.js); the week
+  read takes `only=1` (that league alone) and `to` (up to 14 days), and This week moved to it; a week with a game on is edge-kept a
+  minute. HOSTING.md: "A league's page, Scores". No migration, no engine change.
+- **Found and fixed in the build:** a live game's score could leak to someone hiding scores (the profile read's moment; the
+  scorebug no longer marks a game seen before the setting is known: `useHideSportsKnown`, scores.tsx; the hub's strip too).
+- **Checks:** story-league-page.js shoots Scores in every world (`--only=scores`; a fuller Sunday of stand-in teams; a daily
+  calendar of every day); check-sports-couch.js's leaguePageChecks (league-now's weeks and days, the one-league week read) and the
+  browser's Scores steps (opens on now, the live bug at full width with its score, the week before's final, This week back).
+  tsc clean; `npm test` 2,580 of 2,581 (the one, gameplay-matrix's gates test, a timing flake under load: passes alone); ESLint
+  clean on the changed files.
+- **Leftovers:** BACKLOG 254 (k)–(n).
 
 **B2. A team's page** (M): a full page instead of today's sheet (src/new/sports/team.tsx): the live or next game, Up next with
 Play, the schedule by month with results and the bye, Month view for daily sports with series, homestands and trips grouped,

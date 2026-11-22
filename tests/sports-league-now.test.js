@@ -78,3 +78,15 @@ test("a league cut by rounds has no week to say", () => {
   const n = nowOf("soccer/eng.1", epl, "round", "2026-11-22");
   assert.deepEqual([n.on, n.week, n.season], [true, null, "2026-27"]);
 });
+
+test("the Scores tab's switcher (B1 session 2): football's every week in order, a daily sport's game days of its season", () => {
+  const n = nowOf("football/nfl", nfl, "week", "2026-11-22");
+  assert.deepEqual(n.weeks.map((w) => w.label), ["Week 11", "Week 12", "Wild Card"]);
+  assert.deepEqual([n.weeks[0].from, n.weeks[1].from], ["2026-11-17", "2026-11-24"]);
+  assert.deepEqual(n.days, []);
+  const b = nowOf("basketball/nba", nba, "week", "2026-11-22");
+  assert.deepEqual(b.weeks, []);
+  assert.deepEqual(b.days, ["2026-10-20", "2026-10-21", "2026-10-27", "2026-11-03", "2026-11-17", "2026-11-22", "2027-04-20"]);
+  // Off-season too: the calendar's coming season, so a page can say when it's back without a switcher.
+  assert.equal(nowOf("basketball/nba", nba, "week", "2026-09-30").days.length, 7);
+});

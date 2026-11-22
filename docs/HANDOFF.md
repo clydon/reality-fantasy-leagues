@@ -124,7 +124,11 @@ Newest first. The plan or archive section named holds the detail.
   the league card opens `/league/<sport>/<code>/week` (the couch's rivalry, its teams by record, rivalries this season, your games);
   Scores and Games carry the old sheet's parts; one new read (`/api/sports/league/teams`). Story:
   https://claude.ai/artifact/Nksn54s8dmHHRPYMxuJJ9c. Notes: [PLAN-sports-couch.md](PLAN-sports-couch.md) B1. **Approved as built** (the
-  user, 2026-11-22, the four recommendations: decisions.md) and committed in the lane. Next there: B1's Scores tab, with BACKLOG 254 (j).
+  user, 2026-11-22, the four recommendations: decisions.md) and committed in the lane.
+- **Sports on the couch, B1 session 2: Scores** (2026-11-22, the same lane; not merged; no migration): a sticky
+  switcher (football's weeks, a daily sport's game days) over the couch's games and every other game by day, each the shared game
+  row (A1's scorebug, moved to sports/scorebug.tsx); the week read of one league; BACKLOG 254 (j) fixed; a hidden live score's leak
+  fixed. Story: https://claude.ai/artifact/SChZpFJzYWthMNrxmr5Whm. Notes: [PLAN-sports-couch.md](PLAN-sports-couch.md) B1 session 2. **Approved as built** (the user, 2026-11-22, taking the three recommendations) and committed in the lane. Next there: B1's Games tab.
 
 - **A castaway opened from a week opens on that week, BACKLOG 251** (2026-11-22, approved, committed on master, not pushed; no
   migration): the castaway sheet leads with the week a door hands it; one name per moment everywhere (moment-names.ts); the

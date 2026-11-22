@@ -509,7 +509,16 @@ only order and words so far: the couch's table by team and rivalries (B1, C1) ar
 `myTeam` already in the couch's read. (i) **Decided** (the user, 2026-11-22, at A3's review): Following stays the quiet fill with a
 check everywhere, the team sheet's toggle too. (j) **B1 session 1's open look items** (league-page-check.md; the user, 2026-11-22: with
 B1's next tab): the move strip breaks as "Fill in your sheet / · 1 question"; off-season leaves an empty "Play" heading on This week;
-the season rivalries' overlapped xs marks cut four-letter codes. (d) is answered by B1's page (Off-season in its bar and rows).
+the season rivalries' overlapped xs marks cut four-letter codes. **Done in B1 session 2** (not merged): the move alone on its line,
+its count first on the small line; no Play heading over nothing; the marks side by side. (d) is answered by B1's page (Off-season in
+its bar and rows). (k) Noticed in B1 session 2: before the profile read answers, Hide sports scores reads as off, so a sports screen
+can show a hidden result for a moment (the hub's strip, the team sheet). Scores waits for the setting and the shared scorebug no
+longer marks a game seen before it (the leak that kept it shown, fixed); the flash elsewhere is open: hold results until
+`useHideSportsKnown` on every sports screen. (l) The ask sheet's explanation ("moves how far you've watched to its week, on every
+season you follow with it") reads hard (both reviewers in B1 session 2's check): one short line per choice, on the strip and Scores
+alike. (m) The shared game row on the guide's Sports and a team's schedule (round 1's R3: one row everywhere): the guide in its own
+review, the schedule with B2's team page. (n) **Decided** (the user, 2026-11-22, approving B1 session 2): no Play on Scores' rows; a row opens its
+game, and B4's sheet holds Play.
 [S · sports]
 
 **222. A game the daily job misses for three days is never read again.** The daily job reads a linked game only from three days

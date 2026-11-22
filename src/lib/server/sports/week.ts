@@ -54,6 +54,7 @@ export interface SportsWeek {
 export const proLeagues = () => teamLeagues().filter((l) => !/college/.test(l));
 
 const DAYS = 7;
+const MAX_DAYS = 14;
 
 function sideOf(c: SportsEvent["competitors"][number]): WeekSide | null {
   if (!c.team) return null;
@@ -92,13 +93,18 @@ function gameOf(e: SportsEvent): WeekGame | null {
 }
 
 /** A week of games from `from` (a day in the East; today's when not given), each league's own and `also`'s. */
-export async function sportsWeek(opts: { from?: string | null; also?: string[]; providers?: SportsProvider[]; now?: Date } = {}): Promise<SportsWeek> {
+export async function sportsWeek(opts: { from?: string | null; to?: string | null; also?: string[]; only?: boolean; providers?: SportsProvider[]; now?: Date } = {}): Promise<SportsWeek> {
   const p = (opts.providers ?? sportsProviders())[0];
   const today = easternDay(opts.now ?? new Date());
-  const from = opts.from && /^\d{4}-\d{2}-\d{2}$/.test(opts.from) ? opts.from : today;
+  const iso = /^\d{4}-\d{2}-\d{2}$/;
+  const from = opts.from && iso.test(opts.from) ? opts.from : today;
   const start = new Date(`${from}T12:00:00Z`);
-  const days = Array.from({ length: DAYS }, (_, i) => new Date(start.getTime() + i * 86_400_000).toISOString().slice(0, 10));
-  const leagues = [...new Set([...proLeagues(), ...(opts.also ?? [])])];
+  // `to`: a calendar's week can run past seven days (the gap before a Super Bowl): up to MAX_DAYS, a league page's week (B1).
+  const span = opts.to && iso.test(opts.to) ? Math.round((Date.parse(`${opts.to}T12:00:00Z`) - start.getTime()) / 86_400_000) + 1 : DAYS;
+  const length = Math.min(MAX_DAYS, Math.max(1, Number.isFinite(span) ? span : DAYS));
+  const days = Array.from({ length }, (_, i) => new Date(start.getTime() + i * 86_400_000).toISOString().slice(0, 10));
+  // `only`: just the asked leagues (a league's page reads its own league's scoreboards, not every pro league's).
+  const leagues = opts.only && opts.also?.length ? [...new Set(opts.also)] : [...new Set([...proLeagues(), ...(opts.also ?? [])])];
   const down = new Set<string>();
   const out: SportsWeek = { days: days.map((day) => ({ day, games: [] })), down: [] };
   if (!p) return { ...out, down: leagues };

@@ -103,6 +103,13 @@ export function useHideSports(): boolean {
   return !!useProfile().data?.hideSportsScores;
 }
 
+/** Whether Hide sports scores is known yet (the profile read has answered, or failed). Until then a screen can't tell whether to
+ *  hide, so it must neither show a result nor count one as seen (a live row's "watching it here is seeing it" would otherwise mark
+ *  a hidden game seen in the moment before the setting arrives: the Scores tab's check, 2026-11-22). */
+export function useHideSportsKnown(): boolean {
+  return useProfile().isFetched;
+}
+
 /** The games shown this visit. */
 export function useShownScores(): Set<string> {
   return useSyncExternalStore(subscribe, read, () => NONE);

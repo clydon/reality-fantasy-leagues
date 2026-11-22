@@ -24,6 +24,9 @@
 //   A league's page (docs/PLAN-sports-couch.md B1): league-now's week dates and the couch's table read (leaguePageChecks); on screen
 //   the league card opening the page, This week's table with your team's row and your games after it, the Scores tab, the bar's
 //   Follow, and a league followed alone getting its page (leagueFollowBrowser). story-league-page.js shoots its situations.
+//   Its Scores tab (B1 session 2): league-now's weeks and game days, the week read of one league alone and a longer week
+//   (leaguePageChecks); on screen the switcher on this week, the game on now as a full-width scorebug with its score, the week
+//   before (its final), and This week back.
 //
 //   npm run dev -- -p 3004   (the sports lane; BASE=http://localhost:3004)
 //   node scripts/dev-test/check-sports-couch.js <outDir> [--width=390] [--keep] [--api | --browser]
@@ -219,6 +222,14 @@ async function leaguePageChecks(me) {
   const none = await me.call("GET", `/api/sports/league/teams?league=${FB}&teams=`);
   const many = await me.call("GET", `/api/sports/league/teams?league=${FB}&teams=${Array.from({ length: 17 }, (_, i) => 9000 + i).join(",")}`);
   check(none.status === 400 && many.status === 400, "the table read asks for some teams, at most 16", [none.status, many.status]);
+  // Scores (B1 session 2): the switcher's weeks and game days, and a week of one league alone, up to 14 days.
+  check(ln.weeks?.some((w) => w.label === "Week 12" && w.from === ln.from) && ln.weeks.at(-1)?.label === "Super Bowl" && ln.days?.length === 0, "league-now: football's every week, now's among them", ln.weeks?.map((w) => w.label));
+  const bn = (await me.call("GET", `/api/sports/league/now?league=${BB}`)).body;
+  check(bn.weeks?.length === 0 && bn.days?.length > 0, "league-now: a daily sport's game days", bn.days?.length);
+  const to = new Date(Date.parse(`${ln.from}T12:00:00Z`) + 9 * 86_400_000).toISOString().slice(0, 10);
+  const one = await me.call("GET", `/api/sports/week?from=${ln.from}&also=${FB}&only=1&to=${to}`);
+  const leagues = new Set((one.body.days ?? []).flatMap((d) => d.games.map((g) => g.league)));
+  check(one.status === 200 && one.body.days?.length === 10 && [...leagues].every((l) => l === FB) && leagues.size === 1, "the week read of one league alone, ten days asked", { days: one.body.days?.length, leagues: [...leagues] });
 }
 
 async function apiChecks(pool, me, couch, started) {
@@ -548,7 +559,24 @@ async function browserChecks(pool, headers, couch) {
     await wide("the league's page");
     await shot("6b-league-page");
     await page.click('nav[aria-label="League"] a[href$="/scores"]');
-    check(await page.locator("[data-league-days]").waitFor({ timeout: 15000 }).then(() => true, () => false), "its Scores tab: the week by day");
+    check(await page.locator("[data-scores-switcher]").waitFor({ timeout: 15000 }).then(() => true, () => false), "its Scores tab: the week switcher");
+    await page.locator('[data-league-scores] [data-bug="93103"]').waitFor({ timeout: 15000 }).catch(() => {});
+    const sc = await page.evaluate(() => {
+      const chosen = document.querySelector('[data-step][aria-pressed="true"]');
+      const bug = document.querySelector('[data-league-scores] [data-bug="93103"]');
+      return { now: chosen?.hasAttribute("data-now"), bucket: bug?.getAttribute("data-bucket"), h: bug ? Math.round(bug.getBoundingClientRect().height) : 0, w: bug ? Math.round(bug.getBoundingClientRect().width) : 0, label: bug?.getAttribute("aria-label") ?? "" };
+    });
+    check(sc.now && sc.bucket === "live" && sc.h === 72 && sc.w > 300 && /14 to 10/.test(sc.label), "Scores opens on this week, the game on now a full-width scorebug with its score", sc);
+    const prev = await page.evaluate(() => {
+      const all = [...document.querySelectorAll("[data-step]")];
+      const i = all.findIndex((e) => e.hasAttribute("data-now"));
+      all[i - 1]?.click();
+      return all[i - 1]?.getAttribute("data-step");
+    });
+    const last = await page.locator('[data-league-scores] [data-bug="93102"]').waitFor({ timeout: 15000 }).then(() => page.locator('[data-league-scores] [data-bug="93102"]').getAttribute("data-bucket"), () => null);
+    check(!!prev && last === "final", "the week before: its final", { prev, last });
+    await page.click("[data-scores-now]");
+    check(await page.locator('[data-step][aria-pressed="true"][data-now]').waitFor({ timeout: 5000 }).then(() => true, () => false), "This week takes it back to now");
     await leagueFollowBrowser(page, shot, wide, headers);
     // Seen live on the strip counts as shown for the visit (scores.tsx noteSeen): forget it, so the sheet below starts hidden.
     await page.evaluate(() => sessionStorage.removeItem("gys-shown-scores"));

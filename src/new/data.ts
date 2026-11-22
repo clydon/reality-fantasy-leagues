@@ -2014,11 +2014,15 @@ export function useLeagueSlates(league: string | null) {
 }
 
 /** A week of games from `from` (a day in the East), the pro leagues and `also`'s. */
-export function useSportsWeek(from: string | null, also: string[] = [], enabled = true) {
+export function useSportsWeek(from: string | null, also: string[] = [], enabled = true, one: { only?: boolean; to?: string | null } = {}) {
   const extra = [...new Set(also)].sort().join(",");
+  // `only`: just `also`'s leagues, to `to` (a league's page's week, docs/PLAN-sports-couch.md B1).
+  const only = !!one.only && !!extra;
+  const to = only ? (one.to ?? null) : null;
   return useQuery({
-    queryKey: ["new-design", "sports-week", from, extra],
-    queryFn: () => get<SportsWeek>(`/api/sports/week?${from ? `from=${from}&` : ""}${extra ? `also=${encodeURIComponent(extra)}` : ""}`),
+    queryKey: ["new-design", "sports-week", from, extra, only, to],
+    queryFn: () =>
+      get<SportsWeek>(`/api/sports/week?${from ? `from=${from}&` : ""}${extra ? `also=${encodeURIComponent(extra)}` : ""}${only ? `&only=1${to ? `&to=${to}` : ""}` : ""}`),
     enabled,
     staleTime: 2 * 60_000,
     placeholderData: keepPreviousData,

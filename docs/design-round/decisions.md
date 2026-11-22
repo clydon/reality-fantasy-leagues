@@ -1814,3 +1814,12 @@
 - Also settled in the check, by the process's rules: Play this week's games never yellow on This week (Play the season on Games
   only); one reveal (Show records), not a Show the score on the rivalry too; a hidden old game still says "Started" (2026-11-09).
 - Rests on: docs/design-round/league-page-spec.md, -first-view.md, -shape.md, -check.md; docs/PLAN-sports-couch.md, B1's build notes.
+
+## 2026-11-22 · A league's Scores tab (sports-couch B1, session 2)
+- Decided by: the user ("Approve, take recs"), on B1 session 2's story https://claude.ai/artifact/SChZpFJzYWthMNrxmr5Whm; approved as built.
+- What: (1) No Play button on Scores' rows: a row opens its game, whose sheet holds Start a game on it (B4 makes it the Play sheet).
+  (2) Show scores for the chosen week stays beside each row's eye, and asks first. (3) A daily sport's switcher is a scroller of its
+  season's game days, not the spec's Monday-to-Sunday seven with arrows (38 px chips).
+- Also settled in the check, by the process's rules: the chosen chip's rule in ink, not yellow (one yellow a view); the bar keeps the
+  league's now on every tab; the strip's eye box, possession triangle and faces kept (A1's approved bug).
+- Rests on: docs/design-round/league-scores-spec.md, -first-view.md, -shape.md, -check.md; docs/PLAN-sports-couch.md, B1 session 2.
