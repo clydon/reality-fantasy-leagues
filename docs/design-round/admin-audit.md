@@ -11,6 +11,36 @@
 > - **T1–T16**, your jobs on a phone, tap by tap, and every page's length at 390: [admin-audit-tasks.md](admin-audit-tasks.md).
 > - **The Back loop**, confirmed on the running app: `scripts/dev-test/check-admin-back.js` (fails today).
 
+## The direction (the user, 2026-11-22)
+
+- **The goal: complete admin control over whatever we need to run the site.** Results and the research bot; shows, seasons,
+  cast and rulebooks; people and sign-ups; couches and games; reports; the site's switches and its health.
+- **Admin and game making are two different things, and must never be confused.**
+  - A game's maker (its Commissioner, in Manage this game) runs one game for their couch.
+  - Admin runs the site, for us.
+  - Admin can reach into any game when the site needs it, as the site's override. But its place, its name and its look stay
+    distinct from the maker's tools.
+- **Phone first,** at 390. Admin is used on a phone more often than not. A wide layout comes later.
+- **Free to deviate.** Today's admin, Round 0's mock-ups and this audit's own organization (§6) are starting points, not
+  approved designs. A better idea wins; a disagreement goes to the user as a named choice.
+- **The philosophy** is the user's settings philosophy (UIUX Studio's steps, minus user testing):
+  1. audit every setting;
+  2. group by what you want to do;
+  3. labels that say the outcome, in plain words;
+  4. smart defaults;
+  5. the right control for each setting;
+  6. search at the top;
+  7. confirm changes clearly, with Undo.
+
+  With it, the app's standing rules:
+  - literal names;
+  - the AI settles first and a person corrects after;
+  - Delete last, named and once;
+  - Back never loops;
+  - no spoilers;
+  - the urgent things first;
+  - "Nothing needs you" shows its proof.
+
 ## The short version
 
 Admin has everything a one-person site needs to run, but it was built page by page, as the features arrived. On a phone that
