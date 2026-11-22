@@ -1,7 +1,8 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { useHome, useMySportsGames, useSportsWeek, useTeamSchedule } from "../data";
+import { useCouchTeams, useCurrentCouch, useHome, useMySportsGames, useSportsWeek, useTeamSchedule } from "../data";
+import { FollowFaces, FollowToggle, theLeague, useLeagueFollow } from "./follow";
 import { useNav } from "../nav";
 import { paths } from "../routes";
 import { Sheet } from "../ui/sheet";
@@ -86,6 +87,50 @@ function GameFromSchedule({ league, team, game }: { league: string; team: string
   return <GameView g={g} s={s} onStarted={() => openSports(null)} onStart={(when) => openSports(startOn(league, team, s.team.short, when, { kind: "game", league, team, game }))} />;
 }
 
+/** "Riley", "Riley and Sam", "Riley, Sam and 2 more". */
+const namesOf = (who: string[]) => (who.length <= 2 ? who.join(" and ") : `${who.slice(0, 2).join(", ")} and ${who.length - 2} more`);
+
+/**
+ * A league's follow row, first on its sheet (docs/PLAN-sports-couch.md A3; docs/design-round/league-follow-spec.md): the couch's
+ * faces who follow it (yours first), one line, the toggle. The line names why it's on your shows when you didn't follow it here
+ * (a team you follow there, a game of yours there: the first-view check's R4), the first that holds.
+ */
+function LeagueFollowRow({ league, leagueName, playsHere }: { league: string; leagueName: string; playsHere: boolean }) {
+  const { data: home } = useHome();
+  const couch = useCurrentCouch(home);
+  const couchQ = useCouchTeams(couch?.id ?? null);
+  const f = useLeagueFollow(league, leagueName, { playsHere });
+  const me = home?.user;
+  const fans = couch ? (couchQ.data?.leagues.find((l) => l.league === league)?.followers ?? []) : f.on && me ? [{ id: me.id, name: me.name }] : [];
+  // As it is on screen now (the toggle answers at once): you in or out of the faces with it.
+  const others = fans.filter((x) => x.id !== me?.id);
+  const faces = f.on && me ? [{ id: me.id, name: me.name }, ...others] : others;
+  const mine = f.teamsHere.find((t) => t.myTeam) ?? f.teamsHere[0];
+  const line = f.on
+    ? f.teamsHere.length > 1
+      ? `On your shows · your team, the ${mine.short}`
+      : f.teamsHere.length === 1
+        ? `On your shows · you follow the ${mine.short}`
+        : others.length
+          ? `On your shows · ${others.length > 2 ? `you and ${others.length} others` : `you and ${namesOf(others.map((x) => x.name))}`} follow it`
+          : "On your shows"
+    : playsHere
+      ? "Your game here keeps it on your shows"
+      : others.length
+        ? `${namesOf(others.map((x) => x.name))} ${others.length === 1 ? "follows" : "follow"} it`
+        : "Follow it to keep it on your shows";
+  return (
+    <div className="mb-3 flex min-h-11 items-center gap-2" data-league-follow={f.on ? "on" : "off"}>
+      <FollowFaces who={faces} />
+      {/* Two lines at most, never cut at the cause (the check: "your team, th…" lost the very words R4 asks for). */}
+      <span data-league-follow-line className="line-clamp-2 min-w-0 flex-1 text-[13px] leading-snug text-muted-foreground">
+        {f.ready ? line : ""}
+      </span>
+      <FollowToggle on={f.on} disabled={!f.ready || f.busy} onClick={() => void f.toggle()} label={theLeague(leagueName)} data="league-sheet" />
+    </div>
+  );
+}
+
 /** A league's week (U0's board: "a league opens This week and Next week, each row a game"): Play this week's games (Pick'em on every
  *  game still to come, one tap), and the season week by week (Start a game on its slate). */
 export function LeagueView({ league, leagueName, onStarted }: { league: string; leagueName: string; onStarted?: () => void }) {
@@ -109,6 +154,7 @@ export function LeagueView({ league, leagueName, onStarted }: { league: string; 
   };
   return (
     <div data-league-view={league}>
+      <LeagueFollowRow league={league} leagueName={leagueName} playsHere={yours.length > 0} />
       {yours.length > 0 && (
         <div data-league-yours className="mb-4">
           <SportsLabel>Your games</SportsLabel>

@@ -1788,3 +1788,19 @@
   the off-season line (the brief's example); DESIGN.md's chyron focus ring over the strip's (A1's) inset ring.
 - Rests on: docs/design-round/hub-scorebug-shape.md; docs/design-round/hub-league-card-check.md; docs/PLAN-sports-couch.md, A2's
   build notes; BACKLOG 254.
+
+## 2026-11-22 · A league follow is its own table, and your team a flag on the team follow (sports-couch A3)
+- Decided by: the build session (the step's to decide, PLAN-sports-couch.md A3), pending the user's review.
+- What: `league_follows` (user, league) answers "is this league on my shows"; following a team follows its league; unfollowing a
+  league leaves its teams followed; your team in a league is `team_follows.my_team` (one a league: the first followed, changeable
+  on the team's sheet). Migration 0313 carries existing team follows over, so no card moves.
+- Rejected: a league-wide row in `team_follows` (its key and columns are a team's, and every reader would have to skip it);
+  your team on `league_follows` (it would be lost with an unfollowed league while the teams stay followed).
+- Rests on: docs/design-round/league-follow-spec.md; docs/PLAN-sports-couch.md, A3's build notes.
+
+## 2026-11-22 · Following is a quiet fill with a check, everywhere (sports-couch A3)
+- Decided by: the user ("I'll go with your recommendation"), on A3's story https://claude.ai/artifact/FJGQbCjxmyTgSqkEKWmtd3.
+- What: the follow toggle's on state is a raised panel fill with a check and the foreground's text, one width either way; Follow an
+  outline. One look on search's league row, the league's sheet and the team's sheet (which had a filled white pill).
+- Rejected: the white pill everywhere (the check: the loudest thing on a sheet after the yellow, against R2's "quieter than a due move").
+- Rests on: docs/design-round/league-follow-check.md.

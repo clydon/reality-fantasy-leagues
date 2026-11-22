@@ -115,7 +115,11 @@ Newest first. The plan or archive section named holds the detail.
 - **Sports on the couch, A2: the league card in Your shows** (2026-11-22, the same lane; not merged; no migration): each league you
   follow a team in or play in, a 72 px card among the show bands by its next game; one small new read (a league's week). Story:
   https://claude.ai/artifact/XixM9yKB4CeHeANg5zcZg9. Notes: [PLAN-sports-couch.md](PLAN-sports-couch.md) A2; leftovers BACKLOG 254.
-  **Approved as built** (the user, 2026-11-22) and committed in the lane. Next there: A3 (following a league), a fresh session.
+  **Approved as built** (the user, 2026-11-22) and committed in the lane.
+- **Sports on the couch, A3: following a league** (2026-11-22, the same lane; not merged; **migration 0313, run only on the
+  lane's local database**): Follow on search's league row and at the top of the league's sheet, a league's card with no team
+  needed, your team per league on the team's sheet. Story: https://claude.ai/artifact/FJGQbCjxmyTgSqkEKWmtd3. Notes: [PLAN-sports-couch.md](PLAN-sports-couch.md) A3;
+  leftovers BACKLOG 254 (g)–(i). **Approved as built** (the user, 2026-11-22) and committed in the lane; production only on their word. Next there: B1.
 
 - **A castaway opened from a week opens on that week, BACKLOG 251** (2026-11-22, approved, committed on master, not pushed; no
   migration): the castaway sheet leads with the week a door hands it; one name per moment everywhere (moment-names.ts); the

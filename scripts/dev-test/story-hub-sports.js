@@ -18,6 +18,11 @@
 //   studio        many and hidden in the light theme (Studio): studio-hub, studio-hidden
 //   one           one league (A2): alex follows only the Eagles, every game of the couch's teams still to come today, so the
 //                 card's line can say who leads the couch's teams by record
+//   follow        following a league (A3): alex follows the Eagles then the Lions, Riley the basketball league alone: search's
+//                 league row (follow-search), Follow tapped (follow-search-on), the card with no team (follow-cards), its sheet
+//                 (follow-league-alone), Unfollow there (follow-unfollowed), the football sheet (follow-league), the Lions' sheet
+//                 offering Make them your team (follow-team), made (follow-team-mine), the Eagles' sheet after (follow-team-eagles),
+//                 and the football sheet on Studio (follow-league-studio); --before shoots the first three on the old code
 // The league cards in Your shows (A2: hub/league-cards.tsx): each world also shoots <world>-cards (scrolled to Your shows) and
 // each card alone at twice the size (<world>-cards.card-N.png); many also the card's tap (many-league, the league's sheet). In
 // many alex also follows the ZT Yankees (a stand-in baseball league in its off-season: one line), and Riley and Sam join the
@@ -72,8 +77,15 @@ const TEAMS = [
 
 /** A scenario's games, with ids of its own (the live route keeps a game's answer 10 s: a new world gets new games). */
 function eventsFor(name) {
-  const n = { many: 1, pick: 2, hidden: 3, recording: 4, bye: 5, none: 6, basketball: 7, solo: 8, studio: 9, one: 10 }[name];
+  const n = { many: 1, pick: 2, hidden: 3, recording: 4, bye: 5, none: 6, basketball: 7, solo: 8, studio: 9, one: 10, follow: 11 }[name];
   const id = (k) => `95${n}${k}`;
+  // Following a league (A3): the football league's games later today, and a basketball game in two days for the league followed alone.
+  if (name === "follow")
+    return [
+      { league: FB, id: id(1), at: today(2 * HR), home: "9304", away: "9301", state: "pre", records: ["5-5", "7-3"], network: "FOX" },
+      { league: FB, id: id(2), at: today(4 * HR), home: "9306", away: "9302", state: "pre", records: ["8-2", "6-4"], network: "CBS" },
+      { league: BB, id: id(3), at: at(2 * D), home: "9401", away: "9402", state: "pre", records: ["11-6", "9-8"], network: "ESPN" },
+    ];
   if (name === "bye") return [{ league: FB, id: id(1), at: at(8 * D + 2 * HR), home: "9302", away: "9301", state: "pre", records: ["6-4", "7-3"], network: "CBS", odds: { details: "ZDAL -2.5", overUnder: 44.5, spread: -2.5 } }];
   if (name === "none") return [];
   // One league, nothing on yet: every couch team's game later today, each with its record (the card's record line).
@@ -186,8 +198,11 @@ async function main() {
             tvSports: document.querySelectorAll('[data-on-tv] [data-guide-card^="sport:"]').length,
             bugs,
             shelf,
+            // A3: the follow row's words and state where one's on screen.
+            follow: [...document.querySelectorAll("[role=dialog] [data-league-follow], [role=dialog] [data-team-follow], [role=dialog] [data-league-row]")].map((x) => x.textContent.trim()),
           };
         });
+        for (const x of info.follow) console.log(`      follow: ${x}`);
         console.log(`PASS ${name}  strip ${info.strip ?? "none"} px (On TV ${info.tv} px), page ${info.wide} px wide${info.scoreboard ? ", old Scoreboard" : ""}${info.tvSports ? `, ${info.tvSports} sports cards in On TV` : ""}`);
         for (const x of info.bugs) console.log(`      ${x}`);
         if (o.cards) for (const x of info.shelf) console.log(`      ${x}`);
@@ -343,6 +358,74 @@ async function main() {
     if (run("one")) {
       await setWorld("one", [...alexIn("one"), ...OTHERS]);
       await cardsOf("one");
+    }
+    if (run("follow")) {
+      // Following a league (A3): alex follows the Eagles then the Lions (the Eagles are their team), Riley follows the basketball
+      // league alone. Before: today's search row, league sheet and team sheet. After: Follow on search's row and its toast, the
+      // league's card with no team, its sheet's follow row, Unfollow there, the football sheet naming the Eagles, and the Lions'
+      // sheet offering Make them your team, then saying it.
+      await setWorld("follow", [["alex", FB, "9301"], ["alex", FB, "9306"], ...OTHERS]);
+      await (await call("riley")).call("POST", "/api/sports/follow", { league: BB, follow: true }).catch(() => {});
+      const openAdd = async (pg, words) => {
+        await pg.goto(BASE + "/home?page=guide", { waitUntil: "load" });
+        await pg.locator("[data-guide-add]").first().waitFor({ timeout: 30000 });
+        await pg.locator("[data-guide-add]").first().click();
+        await pg.fill("[data-add-input]", words);
+        await pg.locator('[data-hit-kind="league"], [data-hit-kind="team"]').first().waitFor({ timeout: 15000 });
+        await pg.waitForTimeout(900);
+      };
+      const openCard = async (pg, league) => {
+        await toShows(pg);
+        await pg.locator(`[data-league-card="${league}"]`).click();
+        await pg.locator(`[data-league-view="${league}"]`).waitFor({ timeout: 10000 });
+        await pg.waitForTimeout(900);
+      };
+      const openTeam = async (pg, name) => {
+        await openAdd(pg, name.toLowerCase());
+        await pg.locator(`[data-hit-kind="team"][data-hit="${name}"]`).click();
+        await pg.locator("[data-team-view]").waitFor({ timeout: 15000 });
+        await pg.waitForTimeout(1200);
+      };
+      const sheet = { sheet: true };
+      await shoot("follow-search", (pg) => openAdd(pg, "zt couch basketball"), sheet);
+      await shoot("follow-league", (pg) => openCard(pg, FB), sheet);
+      await shoot("follow-team", (pg) => openTeam(pg, "ZT Lions"), sheet);
+      if (!BEFORE) {
+        await shoot(
+          "follow-search-on",
+          async (pg) => {
+            await openAdd(pg, "zt couch basketball");
+            await pg.locator(`[data-league-row="${BB}"] [data-follow-toggle]`).click();
+            await pg.waitForTimeout(700);
+          },
+          sheet
+        );
+        await cardsOf("follow");
+        await shoot("follow-league-alone", (pg) => openCard(pg, BB), sheet);
+        await shoot(
+          "follow-unfollowed",
+          async (pg) => {
+            await openCard(pg, BB);
+            await pg.locator(`[data-league-view="${BB}"] [data-follow-toggle]`).click();
+            await pg.waitForTimeout(700);
+          },
+          sheet
+        );
+        await shoot(
+          "follow-team-mine",
+          async (pg) => {
+            await openTeam(pg, "ZT Lions");
+            await pg.locator("[data-make-my-team]").click();
+            await pg.locator("[data-team-follow][data-my-team]").waitFor({ timeout: 8000 });
+            await pg.waitForTimeout(500);
+          },
+          sheet
+        );
+        await shoot("follow-team-eagles", (pg) => openTeam(pg, "ZT Eagles"), sheet);
+        await theme(pool, alex, "studio");
+        await shoot("follow-league-studio", (pg) => openCard(pg, FB), sheet);
+        await theme(pool, alex, "night");
+      }
     }
     if (run("basketball") && !BEFORE) {
       await setWorld("basketball", alexIn("basketball"));

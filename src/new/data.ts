@@ -1965,14 +1965,14 @@ export const togetherApi = {
 
 export type { FoundTeams, TeamSchedule } from "@/lib/server/sports/find";
 export type { SportsWeek, WeekGame, WeekSide } from "@/lib/server/sports/week";
-export type { CouchTeam, FollowedTeam } from "@/lib/server/sports/team-follows";
+export type { CouchLeague, CouchTeam, FollowedTeam, YourFollows } from "@/lib/server/sports/team-follows";
 export type { RailGame } from "@/lib/sports/start-games";
 export type { SportStarted } from "@/lib/server/sports/start";
 export type { LeagueSlates } from "@/lib/server/sports/slate";
 import type { LeagueSlates } from "@/lib/server/sports/slate";
 import type { FoundTeams, TeamSchedule } from "@/lib/server/sports/find";
 import type { SportsWeek } from "@/lib/server/sports/week";
-import type { CouchTeam, FollowedTeam } from "@/lib/server/sports/team-follows";
+import type { CouchLeague, CouchTeam, YourFollows } from "@/lib/server/sports/team-follows";
 import type { MyGame, SportSeason } from "@/lib/server/sports/mine";
 import type { LeagueNow } from "@/lib/sports/league-now";
 import type { Situation } from "@/lib/sports/situation";
@@ -2024,11 +2024,11 @@ export function useSportsWeek(from: string | null, also: string[] = [], enabled 
   });
 }
 
-/** The couch's teams: those anyone on it follows, and those in the games it plays. */
+/** The couch's teams (those anyone on it follows, and those in the games it plays) and its leagues (those anyone on it follows). */
 export function useCouchTeams(couchId: string | null) {
   return useQuery({
     queryKey: ["new-design", "couch-teams", couchId],
-    queryFn: () => get<{ teams: CouchTeam[] }>(`/api/sports/couch?couch=${couchId}`),
+    queryFn: () => get<{ teams: CouchTeam[]; leagues: CouchLeague[] }>(`/api/sports/couch?couch=${couchId}`),
     enabled: !!couchId,
     staleTime: 60_000,
   });
@@ -2055,11 +2055,12 @@ export function useSportsRecordings(enabled = true) {
   });
 }
 
-/** The teams you follow, in the order you followed them (the solo hub's scores strip: no couch to read them from). */
+/** The teams you follow, in the order you followed them (the solo hub's scores strip: no couch to read them from), each saying
+ *  whether it's your team in its league, and the leagues you follow (a league's Follow; its card in Your shows). */
 export function useYourTeams(enabled = true) {
   return useQuery({
     queryKey: ["new-design", "your-teams"],
-    queryFn: () => get<{ teams: FollowedTeam[] }>("/api/sports/follow"),
+    queryFn: () => get<YourFollows>("/api/sports/follow"),
     staleTime: 60_000,
     enabled,
   });
@@ -2123,8 +2124,12 @@ export function useSetRecording() {
 }
 
 export const sportsApi = {
-  /** Follow or stop following a team; answers your teams. */
-  follow: (league: string, team: string, follow: boolean) => sendJson<{ teams: FollowedTeam[] }>("/api/sports/follow", "POST", { league, team, follow }),
+  /** Follow or stop following a team (following one follows its league); answers what you follow. */
+  follow: (league: string, team: string, follow: boolean) => sendJson<YourFollows>("/api/sports/follow", "POST", { league, team, follow }),
+  /** Follow or stop following a league, no team needed (its teams stay as they are); answers what you follow. */
+  followLeague: (league: string, follow: boolean) => sendJson<YourFollows>("/api/sports/follow", "POST", { league, follow }),
+  /** Make a team you follow your team in its league; answers what you follow. */
+  myTeam: (league: string, team: string) => sendJson<YourFollows>("/api/sports/follow", "POST", { league, team, myTeam: true }),
   /** Add a team's games (or its season, or their meetings with `against`): made or found, and followed. */
   add: (body: { league: string; team: string; games?: string[]; whole?: "season" | "meetings"; against?: string }) =>
     sendJson<{ seasonId: string; made: boolean; name: string; games: string[] }>("/api/sports/add", "POST", body),

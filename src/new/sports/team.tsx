@@ -3,9 +3,9 @@
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronDown } from "lucide-react";
-import { sportsApi, useCouchTeams, useHome, useCurrentCouch, useTeamSchedule, type TeamSchedule } from "../data";
-import { Avatar } from "../ui/bars";
+import { sportsApi, useCouchTeams, useHome, useCurrentCouch, useTeamSchedule, useYourTeams, type TeamSchedule } from "../data";
 import { toast } from "../ui/toast";
+import { FollowFaces, FollowToggle, theLeague } from "./follow";
 import { GameRow, MoreAction, OpenRow, PlayPlate, SportsLabel, TeamMark, TeamPlate, type TeamGame } from "./parts";
 import { begun, clockOf, dayOf, ShowScore, useGameScore, useHideSports, useNow } from "./scores";
 import { useStartSport } from "./start";
@@ -74,6 +74,7 @@ export function TeamView({
   const [against, setAgainst] = useState<string | null>(firstAgainst ?? null);
   const sched = useTeamSchedule(league, team);
   const couchTeams = useCouchTeams(couch?.id ?? null);
+  const mine = useYourTeams();
   const hidden = useHideSports();
   const { start, busy } = useStartSport();
   const [allRivals, setAllRivals] = useState(false);
@@ -110,24 +111,51 @@ export function TeamView({
   if (!s || !view) return <p className="mt-4 text-[14px] text-muted-foreground">{sched.error ? "Couldn't load their season. Try again in a minute." : "No such team."}</p>;
 
   const followers = couchTeams.data?.teams.find((t) => t.league === league && t.id === team)?.followers ?? [];
-  const youFollow = following ?? followers.some((f) => f.id === me);
+  const youFollow = following ?? (couch ? followers.some((f) => f.id === me) : !!mine.data?.teams.some((t) => t.league === league && t.id === team));
   const others = followers.filter((f) => f.id !== me);
-  const followLine = youFollow
+  // Your team in this league (docs/PLAN-sports-couch.md A3): said only when you follow two or more teams here (with one there's
+  // no choice to show: the first-view check's R4); the others offer Make them your team.
+  const here = (mine.data?.teams ?? []).filter((t) => t.league === league);
+  const choice = youFollow && here.length > 1 && here.some((t) => t.id === team);
+  const isMine = choice && !!here.find((t) => t.id === team)?.myTeam;
+  const short = s.leagueName ?? league.split("/").pop()!.toUpperCase();
+  const yourTeamWords = short.length <= 6 ? `Your ${short} team` : `Your team in ${theLeague(short)}`;
+  const theirs = here.find((t) => t.myTeam);
+  const followLine = isMine
     ? others.length
-      ? `You and ${others.length === 1 ? others[0].name : `${others.length} others`} follow them`
-      : "You follow them: their games lead your guide"
-    : others.length
-      ? `${others.slice(0, 2).map((f) => f.name).join(" and ")}${others.length > 2 ? ` and ${others.length - 2} more` : ""} ${others.length === 1 ? "follows" : "follow"} them`
-      : "Nobody on your couch follows them yet";
+      ? `${yourTeamWords} · ${others.length === 1 ? `${others[0].name} follows them too` : `${others.length} others follow them too`}`
+      : yourTeamWords
+    : choice && theirs
+      ? `${yourTeamWords}: the ${theirs.short}`
+      : youFollow
+      ? others.length
+        ? `You and ${others.length === 1 ? others[0].name : `${others.length} others`} follow them`
+        : "You follow them: their games lead your guide"
+      : others.length
+        ? `${others.slice(0, 2).map((f) => f.name).join(" and ")}${others.length > 2 ? ` and ${others.length - 2} more` : ""} ${others.length === 1 ? "follows" : "follow"} them`
+        : couch
+          ? "Nobody on your couch follows them yet"
+          : "Follow them: their games lead your guide";
   const follow = async () => {
     const next = !youFollow;
+    // Following a team follows its league too: say so when that puts the league on your shows.
+    const newLeague = next && !!mine.data && !mine.data.leagues.includes(league);
     setFollowing(next);
     try {
-      await sportsApi.follow(league, team, next);
+      qc.setQueryData(["new-design", "your-teams"], await sportsApi.follow(league, team, next));
       await qc.invalidateQueries({ queryKey: ["new-design", "couch-teams"] });
-      toast(next ? `Following the ${s.team.short}: their games lead your guide` : `Unfollowed: their games leave your guide`);
+      toast(next ? (newLeague ? `Following the ${s.team.short}: ${theLeague(short)} is on your shows` : `Following the ${s.team.short}: their games lead your guide`) : `Unfollowed: their games leave your guide`);
     } catch (e) {
       setFollowing(!next);
+      toast.quiet((e as Error).message);
+    }
+  };
+  const makeMine = async () => {
+    try {
+      qc.setQueryData(["new-design", "your-teams"], await sportsApi.myTeam(league, team));
+      await qc.invalidateQueries({ queryKey: ["new-design", "couch-teams"] });
+      toast(`The ${s.team.short} are your ${short.length <= 6 ? `${short} team` : "team there"}`);
+    } catch (e) {
       toast.quiet((e as Error).message);
     }
   };
@@ -147,24 +175,25 @@ export function TeamView({
   return (
     <div data-team-view={`${league}/${team}`}>
       <TeamPlate name={s.team.name} color={s.team.color} sub={`${s.leagueName ?? league}${record}`} />
-      <div className="mt-3 flex min-h-11 items-center gap-2" data-team-follow>
-        {followers.length > 0 && (
-          <span className="flex -space-x-1.5">
-            {followers.slice(0, 3).map((f) => (
-              <Avatar key={f.id} id={f.id} name={f.name} size={24} />
-            ))}
+      <div className="mt-3 flex min-h-11 items-center gap-2" data-team-follow data-my-team={isMine || undefined}>
+        <FollowFaces who={followers} />
+        <span className="min-w-0 flex-1 text-[13px] leading-snug text-muted-foreground">
+          <span data-team-follow-line className={isMine ? "font-semibold text-foreground" : undefined}>
+            {followLine}
           </span>
-        )}
-        <span className="min-w-0 flex-1 text-[13px] leading-snug text-muted-foreground">{followLine}</span>
-        <button
-          type="button"
-          aria-pressed={youFollow}
-          data-follow-team
-          onClick={follow}
-          className={`nd-press min-h-11 flex-none rounded-full px-4 text-[14px] font-bold ${youFollow ? "bg-foreground text-background" : "outline-1 -outline-offset-1 outline-edge"}`}
-        >
-          {youFollow ? "Following" : "Follow"}
-        </button>
+          {choice && !isMine && (
+            // Named, not "them": the line above names your team now, so "them" read as that team (the check).
+            <button
+              type="button"
+              data-make-my-team
+              onClick={() => void makeMine()}
+              className="nd-press -my-1 flex min-h-11 items-center text-[13px] font-bold text-foreground underline underline-offset-[3px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground"
+            >
+              Make the {s.team.short} your team
+            </button>
+          )}
+        </span>
+        <FollowToggle on={youFollow} onClick={() => void follow()} label={`the ${s.team.short}`} data="team" />
       </div>
       {form.length > 0 && (
         <div className="mt-3 flex gap-1" role="img" aria-label={`Their last ${form.length}: ${form.map((g) => g.result).join(", ")}`} data-team-form>

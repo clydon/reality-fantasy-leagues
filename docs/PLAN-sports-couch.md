@@ -1,7 +1,7 @@
 # Plan: sports on the couch (the hub's scores strip, a league's page, playing as a couch, lines)
 
 > **Status (2026-11-22): A1 and A2 approved as built (the user, 2026-11-22) and committed in the `sports-couch` lane (not
-> merged). A3 (following a league) is next, in a fresh session.** The user's calls are in. Lines are Phase D, detailed in
+> merged). A3 (following a league) approved as built too (the user, 2026-11-22) and committed in the lane. B1 (a league's page) is next.** The user's calls are in. Lines are Phase D, detailed in
 > [PLAN-sports-lines.md](PLAN-sports-lines.md). March Madness (E1) is dated: working by Fri 2027-02-26.
 
 ## Read first
@@ -159,6 +159,36 @@ The check: [design-round/hub-league-card-check.md](design-round/hub-league-card-
 
 **A3. Follow a league** (S, a migration). A league follow (a `league_follows` table, or a league-wide row beside `team_follows`:
 decide in the step) from search's league card and the league's page; "my team" per league.
+
+**A3's build notes (2026-11-22, lane `sports-couch`, port 3019; not merged).** **Approved as built** (the user, 2026-11-22), Following's quiet look kept everywhere (BACKLOG 254 i). Story:
+https://claude.ai/artifact/FJGQbCjxmyTgSqkEKWmtd3. The design: [league-follow-spec.md](design-round/league-follow-spec.md) (Intent), `-first-view.md` (PFD), `-shape.md`
+(Impeccable), `-check.md` (the check and its one batch).
+- **Decided in the step: a `league_follows` table** (migration 0313, hand-written, additive; **run only on the lane's local
+  database**), not a league-wide row in `team_follows`: that table's key and its name, short and colour are a team's, and every
+  reader of it (the couch's teams, the strip, the guide, the cards) takes its rows as teams. **Your team** is `team_follows.my_team`
+  (a partial unique index: one a league). The migration carries every league someone follows a team in over as a league follow
+  and makes each person's first team there theirs, so no card moves.
+- **The rules** (team-follows.ts): following a team follows its league and, if none is, makes it your team there; unfollowing your
+  team passes it to the next you followed there; a league follows alone (a team sport's that its provider lists: `listedLeague`,
+  find.ts; else 404); unfollowing a league takes its card off and leaves its teams followed; a game you play keeps its league's
+  card either way. `GET /api/sports/follow` answers `{ teams (each with myTeam), leagues }`; POST `{ league, follow }` a league,
+  `{ league, team, follow }` a team, `{ league, team, myTeam: true }` your team (409 unless followed). `/api/sports/couch` adds
+  `leagues` (who on the couch follows each) and each follower's `myTeam`. No new external read (HOSTING.md unchanged).
+- **The screens:** `FollowToggle`, `FollowFaces` and `useLeagueFollow` (src/new/sports/follow.tsx, one toggle everywhere); search's
+  league row with Follow in the chevron's slot (search.tsx `LeagueRow`); the league sheet's follow row first, its line naming why
+  it's on your shows (sheets.tsx `LeagueFollowRow`); the team sheet's "Your NFL team" and "Make the Lions your team" only with two
+  or more teams followed in the league (team.tsx); the league cards from your league follows and your games (league-cards.tsx),
+  your team first among yours, "Followed by" counting the league's own followers.
+- **The check (once):** PFD 73 (L3 58: the sheet's line cut at its cause; "them" ambiguous); Impeccable dual-agent 26/36, 19
+  advisory font-size findings (3 carried over into this change). One batch: the line wraps to two lines; "Make the Lions your
+  team" with a focus ring; Following a quiet fill with a check, one width either way (the team sheet's too); one voice for the
+  toasts. Kept: no chevron on the search row (PFD's R1), "Follow" for a league, 14 px on the toggle.
+- **Checks:** check-sports-couch.js `leagueFollowChecks` (API: 11) and `leagueFollowBrowser` (390: 12), all passing; the run
+  still stops at BACKLOG 252's Start a game step, as on master. Its guide step waits for the guide's button, not a quiet network
+  (BACKLOG 254 g). story-hub-sports.js's `follow` world (and `--before`). tsc clean, `npm test` 2,573 pass, ESLint clean on the
+  changed files.
+- **Noticed and fixed:** on no couch, the team sheet never showed Following (it read followers from the couch only).
+- **Leftovers:** BACKLOG 254 (g)–(i).
 
 ### Phase B: the league's page and finding sports (round 1, with round 2's This week)
 

@@ -493,15 +493,21 @@ guide's Sports has words over words (an avatar's letter over "Cowboys, 2026 seas
 a sports game you play while the strip shows it too (by design for now: Up next is your next move). (e) A1b: baseball's inning,
 outs and bases, hockey's power play, soccer's minute and red cards, each as its season starts. [S–M · sports]
 
-**254. The league card's leftovers (A2, PLAN-sports-couch.md; the sports-couch lane, 2026-11-22).** (a) A sports Pick'em is
+**254. The league card's and the league follow's leftovers (A2 and A3, PLAN-sports-couch.md; the sports-couch lane, 2026-11-22).** (a) A sports Pick'em is
 named "Predictions · Game 1" (the engine's spec family and its span: describe.js), on the league card, the Games tab and the
 feed alike; "Pick'em" (and the game it's on) would read better: name it in its own step, every surface at once. (b) A soccer
-league's card shows its season ("2026-27"), not a round: a round needs every fixture (league-now.ts). (c) A card names the
-couch's teams only when you follow a team in that league or play there; a league followed for itself is A3. (d) The league sheet
+league's card shows its season ("2026-27"), not a round: a round needs every fixture (league-now.ts). (c) **Done in A3:** a
+league followed for itself has its card (league_follows). (d) The league sheet
 an off-season card opens says only "No games this week": B1's page. (e) **Decided** (the user, 2026-11-22, approving A2 as
 built): the week stays quiet caps, not the caption tag the critique suggested. (f) Noticed: story-hub-sports.js's "solo" world was never the solo hub (the home read puts a game's
 player back on the couch); A1's story frame was the couch hub. Fixed in the script (solo-fixture.js's zt_so_alex); A1's approved
-design is unchanged. [S · sports]
+design is unchanged. (g) Noticed in A3: in check-sports-couch.js's browser, once the run reaches the guide step, the hub's sports
+reads (`/api/sports/week`, `/api/sports/league/now`, `/api/listings/week`) stay open past 30 s, on A2's code too, though each
+answers in under 200 ms when asked alone against the same stand-in; the check now waits for the guide's button instead of a quiet
+network. Find what holds them (the dev server's ESPN fetches for the check's stand-in, most likely). (h) Your team (A3) changes
+only order and words so far: the couch's table by team and rivalries (B1, C1) are what will use it, with each follower's
+`myTeam` already in the couch's read. (i) **Decided** (the user, 2026-11-22, at A3's review): Following stays the quiet fill with a
+check everywhere, the team sheet's toggle too. [S · sports]
 
 **222. A game the daily job misses for three days is never read again.** The daily job reads a linked game only from three days
 back (matchup.ts `refreshSportsEvents`), so a game whose day the job skipped for three days (the bot VM down over a long

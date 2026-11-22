@@ -1,7 +1,7 @@
 "use client";
 
 // The league card in Your shows (docs/PLAN-sports-couch.md A2; the shape: docs/design-round/hub-scorebug-shape.md, "The league
-// card in Your shows"): a league you follow through a team, or play a game in, is one 72 px card among the show bands, sorted by
+// card in Your shows"): a league you follow (alone, or by following a team in it: A3), or play a game in, is one 72 px card among the show bands, sorted by
 // its next game the way a show sorts by its next episode. No art, no live score, no red: live is the scores strip's job, and this
 // card never repeats what the strip says (a game's time, score or due move). It says the league, its week, the couch's teams as
 // marks (yours first, ringed as your face is on a band) and one muted line of what the couch has going in it: your games and your
@@ -76,7 +76,11 @@ export function useLeagueCards(home: Home, couch: Couch | null, hub: CouchHub | 
   const leagueOf = useMemo(() => new Map((seasons ?? []).map((s) => [s.seasonId, s.league])), [seasons]);
   // Your sports seasons (a game of yours is on each), by league.
   const played = home.shows.filter((s) => s.show.kind === "sport" && s.games.some((g) => !g.archived) && leagueOf.has(s.seasonId));
-  const leagues = [...new Set([...(teams ?? []).filter((t) => t.you).map((t) => t.league), ...played.map((s) => leagueOf.get(s.seasonId)!)])].sort();
+  // The leagues you follow (A3: following a team follows its league, and a league can be followed alone; unfollowing one takes its
+  // card off though its teams stay followed), and each a game of yours is in.
+  const couchLeagues = couchTeamsQ.data?.leagues;
+  const followed = couch ? (couchLeagues ?? []).filter((l) => l.you).map((l) => l.league) : (ownTeamsQ.data?.leagues ?? []);
+  const leagues = [...new Set([...followed, ...played.map((s) => leagueOf.get(s.seasonId)!)])].sort();
   // The same week the scores strip reads (from yesterday, its leagues), so it's one read between them.
   const stripLeagues = [...new Set([...(teams ?? []).filter((t) => t.you).map((t) => t.league), ...(mineQ.data?.games ?? []).map((g) => g.league)])];
   const also = [...new Set([...stripLeagues, ...leagues])];
@@ -97,7 +101,8 @@ export function useLeagueCards(home: Home, couch: Couch | null, hub: CouchHub | 
   return leagues.map((league, i): LeagueCardData => {
     const nowOf = nows[i]?.data ?? null;
     const mine = teams.filter((t) => t.league === league);
-    const ranked = [...mine].sort((a, b) => +b.you - +a.you || b.followers.length - a.followers.length || a.short.localeCompare(b.short));
+    // Yours first, your team in the league first among them (A3), then the most followed.
+    const ranked = [...mine].sort((a, b) => +b.you - +a.you || +(b.you && b.myTeam) - +(a.you && a.myTeam) || b.followers.length - a.followers.length || a.short.localeCompare(b.short));
     const leagueGames = games.filter((g) => g.league === league);
     const name = nowOf?.leagueName ?? leagueGames[0]?.leagueName ?? league.split("/").pop()!.toUpperCase();
     const seasonIds = new Set([...leagueOf].filter(([, l]) => l === league).map(([id]) => id));
@@ -142,7 +147,9 @@ export function useLeagueCards(home: Home, couch: Couch | null, hub: CouchHub | 
       }
     }
     if (!line && couch) {
-      const fans = [...new Map(ranked.flatMap((t) => t.followers).map((f) => [f.id, f.id === me.id ? "you" : f.name])).entries()];
+      // Its teams' fans and the league's own (A3: a league followed with no team counts).
+      const leagueFans = couchLeagues?.find((l) => l.league === league)?.followers ?? [];
+      const fans = [...new Map([...ranked.flatMap((t) => t.followers), ...leagueFans].map((f) => [f.id, f.id === me.id ? "you" : f.name])).entries()];
       const names = [...fans.filter(([id]) => id === me.id), ...fans.filter(([id]) => id !== me.id)].map(([, n]) => n);
       // You alone says nothing the marks don't.
       if (names.length > 1) line = `Followed by ${namesOf(names)}`;

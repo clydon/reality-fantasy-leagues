@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 import { useSportsSearch, type FoundTeams } from "../data";
+import { FollowToggle, theLeague, useLeagueFollow } from "./follow";
 import { TeamMark } from "./parts";
 import { begun, clockOf, dayOf } from "./scores";
 
@@ -84,15 +85,26 @@ export function SportsResults({ data, onPick }: { data: FoundTeams | undefined; 
       ))}
       {leagues.length > 0 && <Group label="Leagues" />}
       {leagues.slice(0, 3).map((l) => (
-        <Row
-          key={l.league}
-          data="league"
-          start={<span className="type-caption grid size-10 flex-none place-items-center rounded-[3px] bg-secondary text-[14px]">{l.leagueName.slice(0, 4)}</span>}
-          title={l.name ?? l.leagueName}
-          sub="Every game, week by week"
-          onClick={() => onPick({ kind: "league", league: l.league, leagueName: l.leagueName })}
-        />
+        <LeagueRow key={l.league} league={l.league} leagueName={l.leagueName} title={l.name ?? l.leagueName} onOpen={() => onPick({ kind: "league", league: l.league, leagueName: l.leagueName })} />
       ))}
+    </div>
+  );
+}
+
+/** A league found: its row opens the league; Follow sits in the chevron's slot, its own button (docs/PLAN-sports-couch.md A3: one
+ *  tap puts the league on your shows from here, no second screen; the first-view check's R1, one end-of-row cue, not two). */
+function LeagueRow({ league, leagueName, title, onOpen }: { league: string; leagueName: string; title: string; onOpen: () => void }) {
+  const f = useLeagueFollow(league, leagueName);
+  return (
+    <div className="flex min-h-16 items-center gap-3 border-b border-border" data-league-row={league}>
+      <button type="button" data-hit={title} data-hit-kind="league" onClick={onOpen} className="nd-press flex min-h-16 min-w-0 flex-1 items-center gap-3 text-left">
+        <span className="type-caption grid size-10 flex-none place-items-center rounded-[3px] bg-secondary text-[14px]">{leagueName.slice(0, 4)}</span>
+        <span className="min-w-0 flex-1">
+          <b className="block truncate text-[16px]">{title}</b>
+          <small className="block truncate text-[12px] text-muted-foreground">Every game, week by week</small>
+        </span>
+      </button>
+      <FollowToggle on={f.on} disabled={!f.ready || f.busy} onClick={() => void f.toggle()} label={theLeague(leagueName)} data="league" />
     </div>
   );
 }

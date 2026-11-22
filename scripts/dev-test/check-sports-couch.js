@@ -18,6 +18,9 @@
 //   up), Start a game… (the team's games added, the gallery on them, Squares on just the next game, Every game left), Squares
 //   started and its page; the guide's Sports (the
 //   couch's team first, other games by league); Settings' Sports scores too. Nothing wider than the screen, no page errors.
+//   Following a league (docs/PLAN-sports-couch.md A3): the API's league follows and your team per league (leagueFollowChecks), and
+//   on screen the league sheet's follow row, search's league row with Follow, a league followed alone getting its card, Unfollow
+//   on its sheet, and Make them your team on a second team's sheet (leagueFollowBrowser).
 //
 //   npm run dev -- -p 3004   (the sports lane; BASE=http://localhost:3004)
 //   node scripts/dev-test/check-sports-couch.js <outDir> [--width=390] [--keep] [--api | --browser]
@@ -122,6 +125,7 @@ async function cleanup(pool) {
   }
   await pool.query("DELETE FROM sports_events WHERE league = ANY($1::text[])", [LEAGUES_]);
   await pool.query("DELETE FROM team_follows WHERE league = ANY($1::text[])", [LEAGUES_]);
+  await pool.query("DELETE FROM league_follows WHERE league = ANY($1::text[])", [LEAGUES_]);
   await pool.query("DELETE FROM sports_recordings WHERE league = ANY($1::text[])", [LEAGUES_]);
   await pool.query("DELETE FROM sports_cache WHERE key LIKE 'zt-standin:%'");
   await pool.query("UPDATE user_settings SET hide_sports_scores = false WHERE user_id IN (SELECT id FROM \"user\" WHERE username LIKE 'zt_nd_%')");
@@ -157,6 +161,44 @@ async function main() {
   process.exit(failures ? 1 : 0);
 }
 
+/**
+ * Following a league (docs/PLAN-sports-couch.md A3; team-follows.ts): following a team follows its league and makes it your team
+ * there; a second team isn't, until you make it; your team passes on when it's unfollowed; a league follows alone (no team), and
+ * unfollowing one leaves its teams followed; the couch's read names who follows each league; a league nobody lists, or an event
+ * sport's, is a 404. Leaves alex following the Eagles and their league, as the checks after it expect.
+ */
+async function leagueFollowChecks(me, couch) {
+  const mine = async () => (await me.call("GET", "/api/sports/follow")).body;
+  let f = await mine();
+  check(f.leagues?.includes(FB) && f.teams?.find((t) => t.id === "9301")?.myTeam === true, "following a team follows its league, and it's your team there", f);
+  await me.call("POST", "/api/sports/follow", { league: FB, team: "9302", follow: true });
+  f = await mine();
+  check(f.teams?.find((t) => t.id === "9302")?.myTeam === false && f.teams.find((t) => t.id === "9301")?.myTeam, "a second team in the league isn't your team", f.teams);
+  const made = await me.call("POST", "/api/sports/follow", { league: FB, team: "9302", myTeam: true });
+  check(made.status === 200 && made.body.teams?.filter((t) => t.league === FB && t.myTeam).map((t) => t.id).join() === "9302", "Make them your team: one your team a league", made.body);
+  const notFollowed = await me.call("POST", "/api/sports/follow", { league: FB, team: "9303", myTeam: true });
+  check(notFollowed.status === 409, "a team you don't follow can't be your team", notFollowed.status);
+  await me.call("POST", "/api/sports/follow", { league: FB, team: "9302", follow: false });
+  f = await mine();
+  check(f.teams?.find((t) => t.id === "9301")?.myTeam === true, "unfollowing your team passes it to the next you followed there", f.teams);
+  // A league alone: no team, then off again.
+  const lf = await me.call("POST", "/api/sports/follow", { league: BB, follow: true });
+  check(lf.status === 200 && lf.body.leagues?.includes(BB) && !lf.body.teams?.some((t) => t.league === BB), "a league follows alone, no team needed", lf.body);
+  const ctl = await me.call("GET", `/api/sports/couch?couch=${couch}`);
+  const bbFans = ctl.body.leagues?.find((l) => l.league === BB);
+  check(bbFans?.you && bbFans.followers.length === 1, "the couch's read names who follows each league", ctl.body.leagues);
+  check(ctl.body.teams?.[0]?.id === "9301" && ctl.body.teams[0].myTeam, "the couch's teams: yours first, saying it's your team", ctl.body.teams?.[0]);
+  await me.call("POST", "/api/sports/follow", { league: BB, follow: false });
+  const off = await me.call("POST", "/api/sports/follow", { league: FB, follow: false });
+  check(!off.body.leagues?.includes(FB) && off.body.teams?.some((t) => t.id === "9301"), "unfollowing a league leaves its teams followed", off.body);
+  await me.call("POST", "/api/sports/follow", { league: FB, follow: true });
+  const golf = await me.call("POST", "/api/sports/follow", { league: "golf/pga", follow: true });
+  const nobody = await me.call("POST", "/api/sports/follow", { league: "football/zt-nobody", follow: true });
+  check(golf.status === 404 && nobody.status === 404, "an event sport's league, or one nobody lists, can't be followed", [golf.status, nobody.status]);
+  const bad = await me.call("POST", "/api/sports/follow", { league: FB, follow: "yes" });
+  check(bad.status === 400, "a follow says yes or no", bad.status);
+}
+
 async function apiChecks(pool, me, couch, started) {
   console.log("— API");
   const s1 = await me.call("GET", `/api/sports/search?q=${encodeURIComponent("zt eagles")}`);
@@ -176,6 +218,7 @@ async function apiChecks(pool, me, couch, started) {
   check(bad.status === 404, "following a team the list doesn't have is a 404", bad.status);
   const ct = await me.call("GET", `/api/sports/couch?couch=${couch}`);
   check(ct.body.teams?.[0]?.id === "9301" && ct.body.teams[0].you && ct.body.teams[0].followers.length === 1, "the couch's teams: yours first, with who follows", ct.body);
+  await leagueFollowChecks(me, couch);
 
   const wk = await me.call("GET", `/api/sports/week?also=${FB},${BB}`);
   const games = (wk.body.days ?? []).flatMap((d) => d.games);
@@ -316,6 +359,94 @@ async function apiChecks(pool, me, couch, started) {
   }
 }
 
+/**
+ * Following a league on screen (A3), from the NFL-like league's sheet the card just opened: its follow row first (Following, the
+ * line naming the Eagles as why, never the yellow); then Add a show's search for the basketball league: Follow on its row puts it
+ * on your shows (its card in Your shows), and the league's sheet says so; Unfollow there takes it off. Then your team: alex follows
+ * the Cowboys too, whose sheet offers Make them your team, and once made says "Your ZTCF team". Leaves alex as it found them (the
+ * Eagles, their league, no Cowboys, no basketball league).
+ */
+async function leagueFollowBrowser(page, shot, wide, headers) {
+  const me = await signIn({ user: fixture.username("alex"), pass: fixture.PASSWORD, headers });
+  const row = await page.evaluate(() => {
+    const v = document.querySelector("[data-league-view]");
+    const r = v?.querySelector("[data-league-follow]");
+    const y = v?.querySelector("[data-league-yours]");
+    const t = r?.querySelector("[data-follow-toggle]");
+    return {
+      on: r?.getAttribute("data-league-follow"),
+      line: r?.querySelector("[data-league-follow-line]")?.textContent ?? "",
+      pressed: t?.getAttribute("aria-pressed"),
+      yellow: !!t && /bg-chyron|bg-primary/.test(t.className),
+      first: !!r && (!y || !!(r.compareDocumentPosition(y) & Node.DOCUMENT_POSITION_FOLLOWING)),
+      h: r?.getBoundingClientRect().height,
+    };
+  });
+  check(row.on === "on" && row.pressed === "true" && /On your shows · you follow the Eagles/.test(row.line) && !row.yellow, "the league's sheet: Following, the line naming why (the Eagles), never yellow", row);
+  check(row.first && row.h <= 52, "the follow row comes first, one row", row);
+  await shot("7-league-follow-row");
+  await page.keyboard.press("Escape");
+
+  // Search: the basketball league's row, Follow in the chevron's slot.
+  await page.goto(BASE + "/home?page=guide", { waitUntil: "networkidle" });
+  await page.evaluate(() => document.querySelector("[data-guide-add]")?.scrollIntoView());
+  await page.click("[data-guide-add]");
+  await page.fill("[data-add-input]", "zt couch basketball");
+  const lrow = page.locator(`[data-league-row="${BB}"]`);
+  const found = await lrow.waitFor({ timeout: 15000 }).then(() => true, () => false);
+  check(found, "search finds the league, its row with Follow");
+  if (found) {
+    const r = await lrow.evaluate((el) => ({ chevron: !!el.querySelector("svg.lucide-chevron-right"), toggle: el.querySelector("[data-follow-toggle]")?.textContent, nested: !!el.querySelector("button button") }));
+    check(!r.chevron && r.toggle === "Follow" && !r.nested, "the league's row: Follow where the chevron was, its own button", r);
+    await wide("search with a league's Follow");
+    await lrow.locator("[data-follow-toggle]").click();
+    await page.waitForFunction((bb) => document.querySelector(`[data-league-row="${bb}"] [data-follow-toggle]`)?.getAttribute("aria-pressed") === "true", BB, { timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(600);
+    check((await me.call("GET", "/api/sports/follow")).body.leagues?.includes(BB), "Follow on the row follows the league");
+    await shot("8-search-league-following");
+    // Its card in Your shows, no team needed.
+    await page.goto(BASE + "/home", { waitUntil: "load" });
+    const card = await page.locator(`[data-your-shows] [data-league-card="${BB}"]`).waitFor({ timeout: 20000 }).then(() => true, () => false);
+    check(card, "a league followed alone has its card in Your shows");
+    if (card) {
+      await page.locator(`[data-league-card="${BB}"]`).click();
+      await page.locator(`[data-league-view="${BB}"] [data-league-follow="on"]`).waitFor({ timeout: 8000 }).catch(() => {});
+      const line = await page.textContent(`[data-league-view="${BB}"] [data-league-follow-line]`).catch(() => "");
+      check(/^On your shows/.test(line ?? ""), "its sheet says it's on your shows", line);
+      await page.locator(`[data-league-view="${BB}"] [data-follow-toggle]`).click();
+      await page.locator(`[data-league-view="${BB}"] [data-league-follow="off"]`).waitFor({ timeout: 8000 }).catch(() => {});
+      await page.waitForTimeout(400);
+      check(!(await me.call("GET", "/api/sports/follow")).body.leagues?.includes(BB), "Unfollow on the sheet stops following the league");
+      await shot("9-league-unfollowed");
+      await page.keyboard.press("Escape");
+    }
+  }
+  await me.call("POST", "/api/sports/follow", { league: BB, follow: false });
+
+  // Your team: a second team in the league offers Make them your team; made, it says so.
+  await me.call("POST", "/api/sports/follow", { league: FB, team: "9302", follow: true });
+  await page.goto(BASE + "/home?page=guide", { waitUntil: "networkidle" });
+  await page.evaluate(() => document.querySelector("[data-guide-add]")?.scrollIntoView());
+  await page.click("[data-guide-add]");
+  await page.fill("[data-add-input]", "zt cowboys");
+  await page.waitForSelector('[data-hit-kind="team"]', { timeout: 15000 });
+  await page.click('[data-hit-kind="team"][data-hit="ZT Cowboys"]');
+  const make = await page.locator("[data-make-my-team]").waitFor({ timeout: 15000 }).then(() => true, () => false);
+  check(make, "a second team you follow in a league offers Make them your team");
+  await shot("10-team-make-mine");
+  if (make) {
+    await page.click("[data-make-my-team]");
+    await page.locator("[data-team-follow][data-my-team]").waitFor({ timeout: 8000 }).catch(() => {});
+    const line = await page.textContent("[data-team-follow-line]");
+    check(/^Your ZTCF team/.test(line) && !(await page.$("[data-make-my-team]")), "made, the sheet says it's your team", line);
+    check((await me.call("GET", "/api/sports/follow")).body.teams?.find((t) => t.id === "9302")?.myTeam === true, "the Cowboys are your team in the league");
+    await shot("11-team-is-mine");
+  }
+  await page.keyboard.press("Escape");
+  await me.call("POST", "/api/sports/follow", { league: FB, team: "9302", follow: false });
+  await me.call("POST", "/api/sports/follow", { league: FB, follow: true });
+}
+
 async function browserChecks(pool, headers, couch) {
   console.log(`— browser at ${width}`);
   await pool.query("INSERT INTO user_settings (user_id) SELECT id FROM \"user\" WHERE username = $1 ON CONFLICT (user_id) DO NOTHING", [fixture.username("alex")]);
@@ -397,12 +528,15 @@ async function browserChecks(pool, headers, couch) {
       return { rows: y?.querySelectorAll("[data-open-row]").length ?? 0, first: !!y && (!w || !!(y.compareDocumentPosition(w) & Node.DOCUMENT_POSITION_FOLLOWING)) };
     });
     check(only !== null || (lead.rows > 0 && lead.first), "the league's sheet leads with your games in it", lead);
+    await leagueFollowBrowser(page, shot, wide, headers);
     await page.keyboard.press("Escape");
     // Seen live on the strip counts as shown for the visit (scores.tsx noteSeen): forget it, so the sheet below starts hidden.
     await page.evaluate(() => sessionStorage.removeItem("gys-shown-scores"));
     await pool.query("UPDATE user_settings SET hide_sports_scores = true WHERE user_id = (SELECT id FROM \"user\" WHERE username = $1)", [fixture.username("alex")]);
-    // The guide is its own page over the hub now (?page=guide), its Add a show in its header.
-    await page.goto(BASE + "/home?page=guide", { waitUntil: "networkidle" });
+    // The guide is its own page over the hub now (?page=guide), its Add a show in its header. Waits for its button, not for the
+    // network to go quiet: here the hub's sports reads stay open past 30 s in this browser (on A2's code too; BACKLOG 254 g).
+    await page.goto(BASE + "/home?page=guide", { waitUntil: "load" });
+    await page.locator("[data-guide-add]").first().waitFor({ timeout: 30000 });
     await page.evaluate(() => document.querySelector("[data-guide-add]")?.scrollIntoView());
     await page.click("[data-guide-add]");
     await page.fill("[data-add-input]", "zt eagles");
