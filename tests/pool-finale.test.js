@@ -150,3 +150,34 @@ test("a game of questions grades the finale the same way: the winner stays, ever
   assert.deepEqual(verdict(STAYS).right, [4, 5].map((i) => cid(s, i)));
   assert.deepEqual(verdict(OUT).right, [2, 3].map((i) => cid(s, i)));
 });
+
+// BACKLOG 115: the rule said where it's played. How it plays says it for a pool that stays in, to the finale, on a show that crowns a
+// winner; the finale's pick knows it's the finale (PickEmLogic.finaleEpisode, from the season's length the server stamps).
+const FINALE_RULE = "In the finale only the winner survives, so pick who you think wins.";
+const rulesOf = (spec, ctx) => G.describeSpec(spec, ctx).rules;
+
+test("How it plays says the finale rule only where the engine plays it", () => {
+  const pool = { preset: "survival-pool" };
+  assert.ok(rulesOf(pool, { winner: true }).includes(FINALE_RULE), "a pool to the finale on a show with a winner");
+  assert.ok(!rulesOf(pool, {}).includes(FINALE_RULE), "a show nobody wins (or unsaid): nothing about the finale");
+  assert.ok(!rulesOf({ preset: "survival-pool", span: { from: 1, to: 6 } }, { winner: true }).includes(FINALE_RULE), "a pool that ends before the finale");
+  assert.ok(!rulesOf({ preset: "survival-pool", score: { by: "survive", means: "scores" } }, { winner: true }).includes(FINALE_RULE), "a pool that survives by scoring");
+  assert.ok(!rulesOf({ preset: "weekly-lineup" }, { winner: true }).includes(FINALE_RULE), "not a pool");
+});
+
+test("the finale's episode: a pool that stays in to the finale, on a show with a winner, once the season's length is known", () => {
+  const s = league(POOL);
+  assert.equal(S.PickEmLogic.winnerFinale(s), true);
+  assert.equal(S.PickEmLogic.finaleEpisode(s), null, "no length stamped yet");
+  s.seasonEpisodes = 3;
+  assert.equal(S.PickEmLogic.finaleEpisode(s), 3);
+  const short = league({ preset: "survival-pool", span: { from: 1, to: 2 } });
+  short.seasonEpisodes = 3;
+  assert.equal(S.PickEmLogic.finaleEpisode(short), null, "a pool that ends at Episode 2 never reaches it");
+  const data = JSON.parse(JSON.stringify(Formats.FORMATS.survivor.data));
+  data.winnerExitMethod = null;
+  const nobody = league(POOL, { leagueRulesetData: data });
+  nobody.seasonEpisodes = 3;
+  assert.equal(S.PickEmLogic.winnerFinale(nobody), false);
+  assert.equal(S.PickEmLogic.finaleEpisode(nobody), null, "a show nobody wins");
+});

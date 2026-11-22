@@ -146,7 +146,8 @@ function roundTrip(state, label, sport) {
   assert.deepEqual(G.specOf(G.withSpec(S.defaultState().settings, spec)), spec, `${label}: written onto a new league, it reads as the same spec`);
   assert.deepEqual(G.fullSpec(spec), spec, `${label}: specOf gives a whole spec`);
   const f = S.formatOf(state);
-  const ctx = { castaway: f.terms.castaway.toLowerCase(), groups: f.eventCategories.map((c) => c.label).filter(Boolean) };
+  // `winner`: the show crowns one, so a pool's finale is winner-only (BACKLOG 115), as game-rules.ts says it.
+  const ctx = { castaway: f.terms.castaway.toLowerCase(), groups: f.eventCategories.map((c) => c.label).filter(Boolean), winner: f.winnerExitMethod != null };
   // The Rules sheet reads the league's spec (A2): the one it carries, or this one.
   assert.deepEqual(G.describeSpec(spec, ctx).rules, gameRules(state), `${label}: How it works is the Rules sheet's`);
   return spec;
@@ -283,6 +284,8 @@ test("the Rules sheet (game-rules.ts, describeSpec since A2) says what it always
   assert.deepEqual(sheet("pickem"), [
     "No draft. Before each episode, pick one castaway you think stays in.",
     "Right: your streak grows. Wrong, or no pick: it resets. Your best streak still counts.",
+    // BACKLOG 115: Survivor crowns a winner, so only the winner survives the finale.
+    "In the finale only the winner survives, so pick who you think wins.",
     "You can't pick the same castaway again until you've used everyone still in, and never two episodes in a row.",
     "Longest streak wins; ties go to the most right picks.",
   ]);

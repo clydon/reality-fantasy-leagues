@@ -240,6 +240,10 @@ declare const StateLogic: {
     /** R1 part 3: whether a pick went home in an episode, as a pool that stays in grades it (on the finale, anyone but the
      *  winner did; false before its results). */
     wentHome(state: LeagueState, ep: Episode, castawayId: string): boolean;
+    /** BACKLOG 115: the finale is winner-only for this game (a pool that stays in, on a show that crowns a winner). */
+    winnerFinale(state: LeagueState): boolean;
+    /** BACKLOG 115: the finale's episode (state.seasonEpisodes) when this game is winner-only there and its span reaches it; else null. */
+    finaleEpisode(state: LeagueState): number | null;
     secondCounted(state: LeagueState, ep: Episode, parts?: PoolParts | null): boolean;
     canBuyBack(state: LeagueState, buyback: PoolParts["buyback"], number: number): boolean;
     /** C5: everyone a pick names, in order (a game picking several each episode: its first, then `more`). */

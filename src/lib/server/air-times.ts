@@ -232,7 +232,10 @@ export async function sportLocks(db: Pool | PoolClient, seasonId: string, closes
  */
 export async function stampSeasonLength(db: Pool | PoolClient, state: LeagueState): Promise<void> {
   const { showId, wikiSeason } = state.settings;
-  if (!StateLogic.MatchupLogic.readsSeasonLength(state) || !showId || wikiSeason == null) {
+  // BACKLOG 115: a pool whose finale is winner-only reads the length too, so the finale's pick can say the rule (PickEmLogic
+  // finaleEpisode). Nothing else in a pool reads it, and it has no playoffs.
+  const playoffs = StateLogic.MatchupLogic.readsSeasonLength(state);
+  if ((!playoffs && !StateLogic.PickEmLogic.winnerFinale(state)) || !showId || wikiSeason == null) {
     delete state.seasonEpisodes;
     delete state.playoffsBy;
     return;
@@ -250,7 +253,7 @@ export async function stampSeasonLength(db: Pool | PoolClient, state: LeagueStat
   const to = StateLogic.endEpisode(state);
   const inRegular = rows[0]?.stage === "regular" || (rows[0]?.stage === "full" && to !== null && regular !== null && to <= regular);
   const rest = inRegular && typeof rows[0]?.league === "string" ? playoffsEndBefore(rows[0].league) : 0;
-  if (rest && regular !== null && regular - rest >= 1) state.playoffsBy = regular - rest;
+  if (playoffs && rest && regular !== null && regular - rest >= 1) state.playoffsBy = regular - rest;
   else delete state.playoffsBy;
 }
 

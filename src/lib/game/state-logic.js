@@ -5505,6 +5505,17 @@ class PickEmLogic {
   // Whether a pick went home in an episode, as the pool grades it (nightOf: on the finale, anyone but the winner did). False
   // before its results; a pool that survives by scoring grades by points instead (scored), so this is a staying-in pool's.
   static wentHome(state, ep, castawayId){ return wentHome(nightOf(state, ep), castawayId); }
+  // BACKLOG 115: whether the finale is winner-only for this game (nightOf), for its words to say so: a pool that stays in, on a show
+  // that crowns a winner. (A pool that survives by scoring, or a show nobody wins, keeps the rule of every night.)
+  static winnerFinale(state){ return gameOf(state).score.by === 'survive' && !PickEmLogic.byScore(state) && formatOf(state).winnerExitMethod != null; }
+  // The finale's episode, for its pick to say the rule: the season's last as its schedule says (state.seasonEpisodes, the server's,
+  // air-times.ts), when this game is winner-only there and its span reaches it; else null.
+  static finaleEpisode(state){
+    const n = Number.isInteger(state.seasonEpisodes) && state.seasonEpisodes >= 1 ? state.seasonEpisodes : null;
+    if(n === null || !PickEmLogic.winnerFinale(state) || endPhase(state) !== null) return null;
+    const to = endEpisode(state);
+    return to === null || to >= n ? n : null;
+  }
   // Whether an episode's second picks counted: it's decided, and two or more went home in it (or the pool's second pick counts
   // every night: fallback 'counts'). `parts`: the pool's, when the caller has them (a walk over every episode reads them once).
   static secondCounted(state, ep, parts){

@@ -148,6 +148,8 @@ export interface PickMove {
   /** Step A11 part 2: "used", a pick that never repeats: picked before. */
   blocked: { id: string; episode: number; reason: "cycle" | "backToBack" | "used" }[];
   streak: number;
+  /** BACKLOG 115: this pick is for the finale, where only the winner survives (PickEmLogic.finaleEpisode). Optional: older readers omit it. */
+  finale?: boolean;
   /**
    * Round 5 (B2, Designs needed 27): a pool's second pick (get.second), beside the first and never the same person: who (null: none
    * yet), and whether it counts every night (`always`) or only on a night two or more go home. Null without one.
@@ -829,6 +831,7 @@ function pickOf(view: LeagueState, me: string, now?: number): PickMove | null {
     available,
     blocked: Object.entries(blocked).map(([id, b]) => ({ id, ...b })),
     streak: StateLogic.pickEmHistory(view, me).currentStreak,
+    finale: StateLogic.PickEmLogic.finaleEpisode(view) === ep.number,
     second: parts?.second ? { id: (mine as { second?: string } | null)?.second ?? null, always: parts.second.fallback === "counts" } : null,
   };
 }

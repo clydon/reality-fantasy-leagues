@@ -772,6 +772,11 @@ function PoolPanel({ g, chosen, onPick, pieces }: { g: GameView; chosen: string[
           <>
             Pick {p.each} for Episode {p.episode} · {chosen.length} of {p.each} chosen.
           </>
+        ) : p.finale ? (
+          // BACKLOG 115: on the finale only the winner survives (the engine's nightOf), in How it plays' own words.
+          <span data-pick-finale>
+            Who wins? In the finale only the winner survives. {p.streak ? `Streak ${p.streak}. ` : ""}Not someone you&rsquo;ve used.
+          </span>
         ) : (
           <>
             Who survives Episode {p.episode}? {p.streak ? `Streak ${p.streak}. ` : ""}Not someone you&rsquo;ve used.

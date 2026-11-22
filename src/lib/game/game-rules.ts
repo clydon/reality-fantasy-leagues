@@ -14,7 +14,8 @@ import { fnv1a } from "./fnv.js";
 export function gameRules(state: LeagueState, castaway = StateLogic.formatOf(state).terms.castaway.toLowerCase(), newMoments?: "start" | "next"): string[] {
   const format = StateLogic.formatOf(state);
   const groups = format.eventCategories.map((c) => c.label).filter(Boolean) as string[];
-  return describeSpec(StateLogic.gameOf(state), { castaway, groups, group: format.terms.tribe, running: runningOf(state, newMoments) }).rules;
+  // `winner`: the show crowns one, so a pool's finale is winner-only (BACKLOG 115).
+  return describeSpec(StateLogic.gameOf(state), { castaway, groups, group: format.terms.tribe, running: runningOf(state, newMoments), winner: format.winnerExitMethod != null }).rules;
 }
 
 /** Settings Round 4 (BACKLOG 243): the game's own rules that live in its settings, not its spec, for How it plays: an empty slot filled

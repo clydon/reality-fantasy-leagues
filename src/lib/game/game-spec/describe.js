@@ -75,7 +75,17 @@ function wordsOf(ctx) {
     // plays: benchFill, the first episode an empty starting slot fills from the bench; newMoments, when a moment the show adds
     // mid-season counts (the game's choice, else the show's default, which the caller reads).
     running: isObj(c.running) ? c.running : null,
+    // BACKLOG 115: the show crowns a winner (its format's winnerExitMethod), so a pool that stays in is winner-only at the finale
+    // (state-logic.js nightOf). Unsaid, nothing is said about the finale.
+    winner: c.winner === true,
   };
+}
+/** BACKLOG 115: a pool's finale rule, said where the engine plays it (PickEmLogic.winnerFinale): a pool that stays in, on a show that
+ *  crowns a winner, whose span reaches the finale (not one that ends at an episode or a phase, nor a stage's). */
+function finaleRule(s, w) {
+  if (!w.winner || s.score.by !== 'survive' || s.score.means === 'scores') return [];
+  if (spanEnd(s.span) !== null || spanEndPhase(s.span) || w.stage || w.untilChange) return [];
+  return ['In the finale only the winner survives, so pick who you think wins.'];
 }
 /** Settings Round 4 (BACKLOG 243): a running game's bench rule in How it plays, in Manage this game's words. */
 function benchRule(s, w) {
@@ -1533,6 +1543,7 @@ function rulesOf(s, w) {
     rules.push(points
       ? `Right: you score ${isNum(s.score.points) && s.score.points !== 1 ? pointsWord(s.score.points) : 'a point'}. Wrong, or no pick: nothing.`
       : 'Right: your streak grows. Wrong, or no pick: it resets. Your best streak still counts.');
+    rules.push(...finaleRule(s, w));
     rules.push(...poolRules(s, w));
     // A11 part 2: a pick that never repeats, and what a night with nobody left to pick does.
     const never = poolOf(s).never;
