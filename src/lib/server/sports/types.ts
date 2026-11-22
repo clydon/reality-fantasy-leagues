@@ -7,6 +7,7 @@
 
 import type { StoredFinal } from "@/lib/sports/final";
 import type { LeagueCalendar } from "@/lib/sports/slate";
+import type { Standings } from "@/lib/sports/standings";
 
 /** A league as the provider names it. `id` is the provider's own handle for it (ESPN's "baseball/mlb"). */
 export interface League {
@@ -220,6 +221,8 @@ export interface SportsProvider {
    * the postseason); without them, the provider's season and stage now.
    */
   schedule(league: string, team: string, opts?: { season?: number; type?: number }): Promise<SportsEvent[] | null>;
+  /** A league's standings now (B1's Standings tab: its groups, each team's line), or null when the provider has no table for it. */
+  standings(league: string): Promise<Standings | null>;
   /** L7: a league's teams (the active ones), or null when the provider has no such league or no list for it. */
   teams(league: string): Promise<LeagueTeams | null>;
   /** A team's players, or null when the provider has no such team. Can be empty (AFL's rosters on ESPN are). */

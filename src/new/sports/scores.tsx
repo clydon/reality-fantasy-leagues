@@ -98,9 +98,12 @@ export function useNow(): number {
   return now;
 }
 
-/** Whether you hide sports scores (Settings' Sports scores too; off by default). */
+/** Whether you hide sports scores (Settings' Sports scores too; off by default). Hidden until the profile read answers: reading it
+ *  as off for that moment drew a result someone hides on every sports screen (the hub's strip, the team sheet, a league's page;
+ *  BACKLOG 254 k), so the safe side is the default and a shown result arrives a moment later. A failed read falls back to off. */
 export function useHideSports(): boolean {
-  return !!useProfile().data?.hideSportsScores;
+  const p = useProfile();
+  return p.isFetched ? !!p.data?.hideSportsScores : true;
 }
 
 /** Whether Hide sports scores is known yet (the profile read has answered, or failed). Until then a screen can't tell whether to

@@ -2,7 +2,7 @@
 
 > **Status (2026-11-22): A1 and A2 approved as built (the user, 2026-11-22) and committed in the `sports-couch` lane (not
 > merged). A3 (following a league) approved as built too (the user, 2026-11-22) and committed in the lane. B1's first session (the page and This week) approved as built (the user, 2026-11-22) and
-> committed in the lane. B1's Scores tab (session 2) approved as built (the user, 2026-11-22) and committed in the lane. B1's Games tab (session 3) approved as built (the user, 2026-11-22) and committed in the lane; Standings and Chat are next.** The user's calls are in. Lines are Phase D, detailed in
+> committed in the lane. B1's Scores tab (session 2) approved as built (the user, 2026-11-22) and committed in the lane. B1's Games tab (session 3) approved as built (the user, 2026-11-22) and committed in the lane. B1's Standings (session 4, with BACKLOG 254 k) committed in the lane, the story's four recommendations taken on the user's "Continue"; Chat is next.** The user's calls are in. Lines are Phase D, detailed in
 > [PLAN-sports-lines.md](PLAN-sports-lines.md). March Madness (E1) is dated: working by Fri 2027-02-26.
 
 ## Read first
@@ -271,6 +271,39 @@ recommendations: decisions.md). The design: [league-games-spec.md](design-round/
   Fixed in that check: A1's "scores hidden" step read a kickoff's minutes ("Started 2:10 PM") as the score 10, failing only at
   some times of day; the app was right. tsc clean; ESLint clean on the changed files.
 - **Leftovers:** BACKLOG 254 (o)–(p).
+
+**B1's build notes, session 4: Standings, with BACKLOG 254 (k) (2026-11-22, lane `sports-couch`, port 3019; not merged; no
+migration; one new ESPN read).** Story: https://claude.ai/artifact/9ydPz541VZbpKE5u8sZXvY. **The four recommendations taken** on the user's "Continue" (decisions.md; open to change): the faces under the name, no playoff line of our own, basketball on Conference, Night's chosen view outlined. The design:
+[league-standings-spec.md](design-round/league-standings-spec.md) (Intent), `-first-view.md` (PFD), `-shape.md` (Impeccable),
+`-check.md` (the check and its one batch).
+- **254 (k) first:** `useHideSports` (sports/scores.tsx) reads as on until the profile answers, so every sports screen holds a result
+  by itself (the hub's strip, the team sheet, a league's page); check-sports-couch.js holds the profile back eight seconds and finds
+  no score on the strip and no record on a league's table meanwhile.
+- **Where:** `src/new/screens/league-standings.tsx` (`LeagueStandings`), the fourth tab (`LEAGUE_TABS`, routes.ts; This week ·
+  Scores · Games · Standings). `src/lib/sports/standings.ts` (pure; tests/sports-standings.test.js on trimmed real answers in
+  tests/fixtures/espn-standings/): the shape, each sport's columns (its vocabulary: the numbers are ESPN's), a group in the
+  league's own order (by seed: ESPN lists a division unordered; soccer by rank), the two views and their words (Division ·
+  Conference, MLB's League; basketball opens on Conference), games behind by conference counted from its leader, the couch's
+  groups first (yours, then by fans; nothing inside a group moves), soccer's places key.
+- **The tab:** the switch (two-level leagues only; the chosen one inverted; kept per league for the visit), then each group: its
+  name, column heads ("Div", "Seed" or "#", then the sport's), one-line rows (place, mark, name, up to two faces, the numbers, a
+  chevron) with what qualifies a team on a line under its name (by conference "1st East" for each division leader; In or Out where
+  ESPN marks a clinch; a soccer place's name on its first row). Your team's row raised. A row opens its splits in place (home,
+  road, division, conference, last ten, points for and against, streak: whichever the sport has) and "Open the Eagles ›" (the
+  team's sheet). Switching to Conference brings your row into view. Out of season: "Final standings · 2026". Under the table:
+  soccer's key, "From ESPN · as of 4:15 PM".
+- **Held as one:** the whole tab is results, so Hide sports scores (or a game in the league watched as if live, named) shows only
+  the first group's name and one outlined Show the standings (Show anyway), a key of its own in showScore's set that moves no
+  season's mark; before the setting is known, the skeleton.
+- **Data:** `GET /api/sports/league/standings?league=` (route; league-standings.ts joins the teams' colours from the league's team
+  list); the provider's `standings(league)` (types.ts; espn.ts `readStandings` on `apis/v2/sports/<league>/standings?level=3`),
+  cached 15 minutes (an hour past 100 teams: cache.ts). HOSTING.md: "A league's page, Standings". No migration, no engine change.
+- **Checks:** story-league-page.js `--only=standings` (the stand-in's worlds; its table counted from its own finals: fake-espn.js
+  `standings`) and the real tables (`--only=real`: the couch following real teams for the shoot, unfollowed after);
+  check-sports-couch.js's standings read (API) and the tab on screen (your row and record, a row's splits, the team's sheet, the
+  whole table held while hiding). tsc clean; `npm test` 2,588 pass; ESLint clean on the changed files.
+- **Left open:** the longest names still cut ("Comman…"); a soccer place's words under a long name; the team sheet's "A team"
+  title (B2).
 
 **B2. A team's page** (M): a full page instead of today's sheet (src/new/sports/team.tsx): the live or next game, Up next with
 Play, the schedule by month with results and the bye, Month view for daily sports with series, homestands and trips grouped,

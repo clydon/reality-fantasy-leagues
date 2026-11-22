@@ -1833,3 +1833,15 @@
 - Also settled in the check, by the process's rules: starts are quiet rows on Games unless this week's is the plate; a rival's
   Start is a quiet text button; the focus ring, the marks' 11 px letters and the folds stay as the app has them elsewhere.
 - Rests on: docs/design-round/league-games-spec.md, -first-view.md, -shape.md, -check.md; docs/PLAN-sports-couch.md, B1 session 3.
+
+## 2026-11-22 · A league's Standings tab, with BACKLOG 254 (k) (sports-couch B1, session 4)
+- Decided by: Claude, on the user's "Continue" after B1 session 4's story https://claude.ai/artifact/9ydPz541VZbpKE5u8sZXvY, read as
+  taking the four recommendations (as at the earlier tabs' reviews); open to the user's change.
+- What: (1) The couch's faces go on the line under a team's name, so the name has its line (a face beside it cut it to "Cow…").
+  (2) No playoff line we keep ourselves: seeds in Conference and ESPN's In and Out carry it. (3) Basketball opens on Conference,
+  every other league on Division. (4) The chosen view: Studio's ink fill, Night's raised panel with an ink outline (the white fill
+  was the tab's loudest thing).
+- Also settled in the check, by the process's rules: every division leader says so by conference; each sport's deciding number in
+  ink; rows carry a chevron; the whole tab held as one behind Show the standings for anyone hiding sports scores or watching one
+  of its games as if live; 254 (k): Hide sports scores reads as on until it's known.
+- Rests on: docs/design-round/league-standings-spec.md, -first-view.md, -shape.md, -check.md; docs/PLAN-sports-couch.md, B1 session 4.

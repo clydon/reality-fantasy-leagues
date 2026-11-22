@@ -3,8 +3,8 @@
 **Keep this current.** Update it in the same commit as any change that adds or changes polling, a scheduled
 job, stored data, or a service, and whenever usage is checked (date the numbers). It exists so that, when a
 free plan stops being enough, choosing the cheapest fit is arithmetic, not research. Last updated
-**2026-11-22** (the hub's scores strip: its small live read, your games and the week after a bye, under "The hub's scores
-strip"), and before that **2026-11-15** (live games asked by the app, not the phone: Live games), and before that **2026-10-28** (Cost by size; live
+**2026-11-22** (a league's Standings: one new ESPN read, under "A league's page, Standings"; the hub's scores strip: its small
+live read, your games and the week after a bye, under "The hub's scores strip"), and before that **2026-11-15** (live games asked by the app, not the phone: Live games), and before that **2026-10-28** (Cost by size; live
 games' polling from phones, L2 on the `sports` branch; a live soccer match measured, L5 part 1).
 
 ## The stack
@@ -298,6 +298,17 @@ nothing new and asks it less than before:
   call.
 - **A live row** asks the small live read (`/api/sports/now`, A1's) every 15 s only while it's on screen and shown live, so a
   Sunday afternoon's list polls the five or six rows you can see, not every game on.
+
+**A league's page, Standings (docs/PLAN-sports-couch.md B1 session 4, 2026-11-22, the `sports-couch` lane; not live)** asks ESPN
+**one new kind of call**, its standings (`site.api.espn.com/apis/v2/sports/<league>/standings?level=3`, verified 2026-11-22: free,
+no key, the same unofficial host as the rest):
+- **The table** (`GET /api/sports/league/standings?league=`, open signed out, the same for everyone): each group and each team's
+  line, read into our shape (`readStandings`, espn.ts: a few numbers a team), ~9 KB a pro league (the NFL's 32 teams; ESPN's raw
+  answer is 160 KB, 9 KB gzipped), ~4 KB a soccer table, ~40 KB a college sport (ESPN's raw is 2.6 MB for college football, 6 MB for
+  men's college basketball). **Cached in `sports_cache`** 15 minutes (a final moves it), an hour for a league of more than 100
+  teams; the edge keeps each league's answer five minutes for everyone (`s-maxage=300`). So ESPN is asked at most four times an hour
+  a league, and only while someone looks; one cache row a league (~9 KB). The teams' colours come from the league's team list,
+  already cached a week. Asked once a visit to a league's Standings (React Query keeps it five minutes). Nothing polled.
 
 **The league card in Your shows (docs/PLAN-sports-couch.md A2, 2026-11-22, the `sports-couch` lane; not live)** asks ESPN nothing
 new either:

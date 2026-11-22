@@ -20,6 +20,11 @@
 //   GET /apis/common/v3/sports/:sport/:league/athletes/:id/stats?season= an athlete's season lines from `seasons` (ESPN's
 //                                     categories, each with that year's row), { categories: [] } for one it has none for
 //   GET /v2/sports, /v2/sports/:sport/leagues                           the index, as refs
+//   GET /apis/v2/sports/:sport/:league/standings                        a league's table from `standings` (B1's Standings tab), as
+//                                     ESPN's level=3 answer nests it (its top groups, their divisions; or one level), each team's
+//                                     line counted from the stand-in's own finals (so it agrees with the schedules): W-L(-T),
+//                                     PCT, GB, PF, PA, DIFF, home, road, streak, and a seed in its top group (division leaders
+//                                     first, then by PCT), else 404
 //
 //   const espn = await require("./fake-espn").start({ teams, leagues, events, seasons });
 //   // teams:   [{ id, name, short, location, abbreviation, league: "baseball/zt-mlb", color?, logo?,
@@ -40,6 +45,8 @@
 //   // seasons: { [athleteId]: [{ year, name: "career-batting", displayName: "Career Batting", season?: "2026", labels, stats }] }
 //   // calendars: { [league]: { season, label, now?, stages: [{ type, name, from, to }], days?: ["2026-11-02"], weeks?: [{ type,
 //   //             label, detail?, from, to }] } } (L8; days and bounds as ESPN writes them: ISO instants, a day at 07:00Z)
+//   // standings: { [league]: { season: "2026", groups: [{ id, name, abbreviation, parent?: { id, name, abbreviation },
+//   //             teams: [teamId], notes?: { [teamId]: { description, color } }, clinch?: { [teamId]: "x" | "e" } }] } }
 //   espn.url (pass to espn(base));  espn.asked (paths asked, in order);  espn.down = true (every call 503s);
 //   espn.events.push(...) (a game scheduled later);  await espn.close();
 //
@@ -70,7 +77,7 @@ const holds = (name, q) => {
 };
 
 async function start(opts = {}) {
-  const espn = { asked: [], down: false, url: null, teams: opts.teams || [], leagues: opts.leagues || [], events: opts.events || [], seasons: opts.seasons || {}, calendars: opts.calendars || {}, replays: [], answers: [] };
+  const espn = { asked: [], down: false, url: null, teams: opts.teams || [], leagues: opts.leagues || [], events: opts.events || [], seasons: opts.seasons || {}, calendars: opts.calendars || {}, standings: opts.standings || {}, replays: [], answers: [] };
   espn.replay = (summary, { speed = 60, from } = {}) => {
     const { league, event } = summary._recorded ?? {};
     const sport = sportsCode().sportOf(league);
@@ -135,6 +142,89 @@ async function start(opts = {}) {
           ...(e.odds && e.state === "pre" ? { odds: [line(e.odds)] } : {}),
         },
       ],
+    };
+  };
+  /** A team's line from the stand-in's finals in its league, as ESPN's standings write each number. */
+  const lineOf = (league, id) => {
+    const games = espn.events.filter((e) => e.league === league && e.state === "post" && e.score && !e.off && (e.home === id || e.away === id)).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+    const n = { w: 0, l: 0, t: 0, pf: 0, pa: 0, hw: 0, hl: 0, rw: 0, rl: 0 };
+    const results = [];
+    for (const e of games) {
+      const home = e.home === id;
+      const us = home ? e.score[0] : e.score[1];
+      const them = home ? e.score[1] : e.score[0];
+      n.pf += us;
+      n.pa += them;
+      const r = us > them ? "W" : us < them ? "L" : "T";
+      results.push(r);
+      if (r === "W") {
+        n.w++;
+        home ? n.hw++ : n.rw++;
+      } else if (r === "L") {
+        n.l++;
+        home ? n.hl++ : n.rl++;
+      } else n.t++;
+    }
+    const last = results[results.length - 1];
+    let k = 0;
+    for (let i = results.length - 1; i >= 0 && results[i] === last; i--) k++;
+    const pct = n.w + n.l + n.t ? (n.w + n.t / 2) / (n.w + n.l + n.t) : 0;
+    return { ...n, pct, streak: last ? `${last}${k}` : "-" };
+  };
+  const stat = (name, type, value, displayValue, summary) => ({ name, type, value, displayValue: String(displayValue), ...(summary ? { summary } : {}) });
+  const standingsOf = (league, st) => {
+    const lines = new Map(st.groups.flatMap((g) => g.teams).map((id) => [id, lineOf(league, id)]));
+    const diff = (id) => lines.get(id).pf - lines.get(id).pa;
+    const byPct = (a, b) => lines.get(b).pct - lines.get(a).pct || diff(b) - diff(a);
+    // Seeds in each top group: its divisions' leaders first, then the rest, each by PCT (a league of one level: by PCT).
+    const seeds = new Map();
+    const tops = [...new Set(st.groups.map((g) => g.parent?.id ?? "_"))];
+    for (const top of tops) {
+      const gs = st.groups.filter((g) => (g.parent?.id ?? "_") === top);
+      const leaders = top === "_" ? [] : gs.map((g) => [...g.teams].sort(byPct)[0]);
+      const rest = gs.flatMap((g) => g.teams).filter((id) => !leaders.includes(id));
+      [...leaders.sort(byPct), ...rest.sort(byPct)].forEach((id, i) => seeds.set(id, i + 1));
+    }
+    const entry = (g, id, lead) => {
+      const n = lines.get(id);
+      const gb = (lines.get(lead).w - n.w + (n.l - lines.get(lead).l)) / 2;
+      const t = teamOf(id);
+      const rec = n.t ? `${n.w}-${n.l}-${n.t}` : `${n.w}-${n.l}`;
+      return {
+        team: { id, abbreviation: t.abbreviation, displayName: t.name, shortDisplayName: t.short, location: t.location },
+        ...(g.notes?.[id] ? { note: g.notes[id] } : {}),
+        stats: [
+          stat("wins", "wins", n.w, n.w),
+          stat("losses", "losses", n.l, n.l),
+          stat("ties", "ties", n.t, n.t),
+          stat("winPercent", "winpercent", n.pct, n.pct.toFixed(3).replace(/^0/, "")),
+          stat("gamesBehind", "gamesbehind", gb, gb <= 0 ? "-" : String(gb)),
+          stat("playoffSeed", "playoffseed", seeds.get(id), seeds.get(id)),
+          stat("pointsFor", "pointsfor", n.pf, n.pf),
+          stat("pointsAgainst", "pointsagainst", n.pa, n.pa),
+          stat("pointDifferential", "pointdifferential", diff(id), `${diff(id) > 0 ? "+" : ""}${diff(id)}`),
+          stat("streak", "streak", 0, n.streak),
+          ...(g.clinch?.[id] ? [stat("clincher", "clincher", 0, g.clinch[id])] : []),
+          stat("overall", "total", 0, rec, rec),
+          stat("Home", "home", 0, `${n.hw}-${n.hl}`, `${n.hw}-${n.hl}`),
+          stat("Road", "road", 0, `${n.rw}-${n.rl}`, `${n.rw}-${n.rl}`),
+        ],
+      };
+    };
+    // ESPN lists a division's teams in no order of its own: by id here.
+    const node = (g) => {
+      const lead = [...g.teams].sort(byPct)[0];
+      return { id: g.id, name: g.name, abbreviation: g.abbreviation, standings: { seasonDisplayName: st.season, entries: [...g.teams].sort().map((id) => entry(g, id, lead)) } };
+    };
+    const named = espn.leagues.find((l) => l.league === league);
+    const root = { id: "0", name: named?.name ?? league, abbreviation: named?.short ?? league };
+    if (tops[0] === "_") return { ...root, children: st.groups.map(node) };
+    return {
+      ...root,
+      children: tops.map((top) => {
+        const p = st.groups.find((g) => g.parent.id === top).parent;
+        return { id: p.id, name: p.name, abbreviation: p.abbreviation, children: st.groups.filter((g) => g.parent.id === top).map(node) };
+      }),
     };
   };
   const server = http.createServer((req, res) => {
@@ -255,6 +345,12 @@ async function start(opts = {}) {
       if (!m[4]) return send(200, { count: c.stages.length, items: c.stages.map((s) => ({ $ref: `http://sports.core.api.espn.com/v2/sports/${m[1]}/leagues/${m[2]}/seasons/${m[3]}/types/${s.type}?lang=en` })) });
       const s = c.stages.find((x) => x.type === Number(m[4]));
       return s ? send(200, { type: s.type, name: s.name, startDate: s.from, endDate: s.to }) : send(404, { code: 404 });
+    }
+    if ((m = u.pathname.match(/^\/apis\/v2\/sports\/([^/]+)\/([^/]+)\/standings$/))) {
+      const league = `${m[1]}/${m[2]}`;
+      const st = espn.standings[league];
+      if (!st) return send(404, { code: 404 });
+      return send(200, standingsOf(league, st));
     }
     if (u.pathname === "/v2/sports") {
       const sports = [...new Set([...espn.teams.map((t) => t.league), ...espn.leagues.map((l) => l.league)].map((l) => l.split("/")[0]))];

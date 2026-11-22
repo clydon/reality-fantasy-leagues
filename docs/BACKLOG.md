@@ -514,7 +514,8 @@ its count first on the small line; no Play heading over nothing; the marks side 
 its bar and rows). (k) Noticed in B1 session 2: before the profile read answers, Hide sports scores reads as off, so a sports screen
 can show a hidden result for a moment (the hub's strip, the team sheet). Scores waits for the setting and the shared scorebug no
 longer marks a game seen before it (the leak that kept it shown, fixed); the flash elsewhere is open: hold results until
-`useHideSportsKnown` on every sports screen. (l) The ask sheet's explanation ("moves how far you've watched to its week, on every
+`useHideSportsKnown` on every sports screen. **Done in B1 session 4** (not merged): `useHideSports` reads as on until the
+profile answers, so every sports screen holds results by itself; check-sports-couch.js holds the profile back and finds no score. (l) The ask sheet's explanation ("moves how far you've watched to its week, on every
 season you follow with it") reads hard (both reviewers in B1 session 2's check): one short line per choice, on the strip and Scores
 alike. (m) The shared game row on the guide's Sports and a team's schedule (round 1's R3: one row everywhere): the guide in its own
 review, the schedule with B2's team page. (n) **Decided** (the user, 2026-11-22, approving B1 session 2): no Play on Scores' rows; a row opens its

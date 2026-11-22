@@ -27,7 +27,9 @@
 //   Its Scores tab (B1 session 2): league-now's weeks and game days, the week read of one league alone and a longer week
 //   (leaguePageChecks); on screen the switcher on this week, the game on now as a full-width scorebug with its score, the week
 //   before (its final), and This week back. Its Games tab (B1 session 3): the couch's starts, your team's season (handing off to Start
-//   a game), no results.
+//   a game), no results. Its Standings tab (B1 session 4): the standings read (one group, in the league's order, records agreeing
+//   with the couch's table; a league with none: null), and on screen the tab with your team's row raised, its record, a row opening
+//   its splits and the team's sheet from there, and the whole table held for someone hiding sports scores.
 //
 //   npm run dev -- -p 3004   (the sports lane; BASE=http://localhost:3004)
 //   node scripts/dev-test/check-sports-couch.js <outDir> [--width=390] [--keep] [--api | --browser]
@@ -93,6 +95,8 @@ const LEAGUE_NAMES = [
 const MB = "baseball/zt-scm";
 const MB_TEAMS = [{ id: "9501", name: "ZT Yankees", short: "Yankees", location: "ZT Bronx", abbreviation: "ZNYY", league: MB, color: "0c2340", roster: roster("95010", ["P", "C", "SS", "CF"]) }];
 const MB_NAME = { league: MB, name: "ZT Couch Baseball", short: "ZTCM" };
+// The stand-in's football table (B1's Standings): one conference of one division, each line counted from the finals above.
+const STANDINGS = { [FB]: { season: "2026", groups: [{ id: "zt-e", name: "ZTC East", abbreviation: "EAST", parent: { id: "zt-c", name: "ZTC Conference", abbreviation: "ZTC" }, teams: ["9304", "9303", "9302", "9301"] }] } };
 
 /**
  * The stand-in's calendars around `now`, for the league card's week (A2): football's weeks with Week 12 holding today (ESPN's own
@@ -142,7 +146,7 @@ async function main() {
   const pool = new Pool({ connectionString: DB });
   await cleanup(pool);
   const fx = await fixture.up(pool);
-  const espn = await fakeEspn.start({ teams: [...TEAMS, ...MB_TEAMS], leagues: [...LEAGUE_NAMES, MB_NAME], events: EVENTS, calendars: calendarsAround() });
+  const espn = await fakeEspn.start({ teams: [...TEAMS, ...MB_TEAMS], leagues: [...LEAGUE_NAMES, MB_NAME], events: EVENTS, calendars: calendarsAround(), standings: STANDINGS });
   const headers = { "x-gys-sports": espn.url };
   // The league shows a first add would make (find.ts reads the lists of any league a show's been made for).
   const { pool: appPool } = jiti("../../src/lib/server/db.ts");
@@ -231,6 +235,14 @@ async function leaguePageChecks(me) {
   const one = await me.call("GET", `/api/sports/week?from=${ln.from}&also=${FB}&only=1&to=${to}`);
   const leagues = new Set((one.body.days ?? []).flatMap((d) => d.games.map((g) => g.league)));
   check(one.status === 200 && one.body.days?.length === 10 && [...leagues].every((l) => l === FB) && leagues.size === 1, "the week read of one league alone, ten days asked", { days: one.body.days?.length, leagues: [...leagues] });
+  // Standings (B1 session 4): the league's table, its teams in the league's order (the stand-in lists them unordered), each
+  // team's record as the couch's table counts it, our colours on them; a league with no table: null.
+  const st = await me.call("GET", `/api/sports/league/standings?league=${FB}`);
+  const g = st.body.standings?.groups?.[0];
+  const eagles = g?.entries?.find((x) => x.team === "9301");
+  check(st.status === 200 && st.body.standings.parents.length === 1 && g?.entries.length === 4 && eagles?.record === `${e?.w}-${e?.l}` && eagles.color === "004c54" && eagles.seed != null, "the standings read: one division, the Eagles' record as the couch's table has it, their colour", { g: g?.entries?.map((x) => [x.short, x.record, x.seed]) });
+  const nb = await me.call("GET", `/api/sports/league/standings?league=${BB}`);
+  check(nb.status === 200 && nb.body.standings === null, "a league with no table: null", nb.body);
 }
 
 async function apiChecks(pool, me, couch, started) {
@@ -515,6 +527,31 @@ async function browserChecks(pool, headers, couch) {
     await page.click('[data-bug="93103"]');
     check(await page.locator('[data-score-ask="93103"]').isVisible({ timeout: 5000 }).catch(() => false), "a hidden game's bug asks before anything shows");
     await page.keyboard.press("Escape");
+    // BACKLOG 254 (k): until the profile read answers, Hide sports scores isn't known, and every sports screen holds results. The
+    // profile held back (up to 8 s): the strip's game on still says Started, and a league's page shows no record.
+    let release = () => {};
+    const held = new Promise((r) => (release = r));
+    const hold = async (route) => {
+      await Promise.race([held, new Promise((r) => setTimeout(r, 8000))]);
+      await route.continue().catch(() => {});
+    };
+    await page.route("**/api/me/profile", hold);
+    try {
+      await page.goto(BASE + "/home", { waitUntil: "load" });
+      await page.locator('[data-bug="93103"]').waitFor({ timeout: 8000 });
+      const early = await page.evaluate(() => {
+        const bug = document.querySelector('[data-bug="93103"]');
+        return { bucket: bug?.getAttribute("data-bucket"), label: bug?.getAttribute("aria-label") ?? "", words: bug?.textContent ?? "" };
+      });
+      check(early.bucket === "started" && !/14 to 10|third quarter/.test(early.label), "before the profile answers: the strip's game on says Started, no score", early);
+      await page.goto(BASE + `/league/${FB}/week`, { waitUntil: "load" });
+      await page.locator("[data-couch-table]").waitFor({ timeout: 8000 });
+      const table = (await page.textContent("[data-couch-table]")) ?? "";
+      check(!/\b\d{1,2}[–-]\d{1,2}\b/.test(table), "before the profile answers: a league's table shows no record", table.slice(0, 160));
+    } finally {
+      release();
+      await page.unroute("**/api/me/profile", hold);
+    }
     // Scores shown: the strip's game on is live, its score, quarter, clock, the ball and the down from the small live read.
     await pool.query("UPDATE user_settings SET hide_sports_scores = false WHERE user_id = (SELECT id FROM \"user\" WHERE username = $1)", [fixture.username("alex")]);
     await page.goto(BASE + "/home", { waitUntil: "load" });
@@ -593,10 +630,31 @@ async function browserChecks(pool, headers, couch) {
     check(await page.locator("[data-sport-handoff]").waitFor({ timeout: 10000 }).then(() => true, () => false), "a team's season row hands off to Start a game");
     await page.keyboard.press("Escape");
     await page.waitForTimeout(800);
+    // Standings (B1 session 4): the table, your team's row raised with its record; a row opens its splits, and the team's sheet.
+    await page.click('nav[aria-label="League"] a[href$="/standings"]');
+    const rowAt = page.locator('[data-standing-row="9301"]');
+    const drawn = await rowAt.waitFor({ timeout: 15000 }).then(() => true, () => false);
+    const sr = drawn ? await page.evaluate(() => {
+      const r = document.querySelector('[data-standing-row="9301"]');
+      return { yours: r?.hasAttribute("data-yours"), label: r?.getAttribute("aria-label") ?? "", h: r?.getBoundingClientRect().height, rows: document.querySelectorAll("[data-standing-row]").length };
+    }) : null;
+    check(!!sr && sr.yours && /W-L \d+-\d+/.test(sr.label) && sr.rows === 4 && sr.h >= 44 && sr.h <= 52, "its Standings tab: four rows, the Eagles yours with their record, one line each", sr);
+    await wide("the Standings tab");
+    await shot("standings");
+    await rowAt.click();
+    check(await page.locator('[data-standings-splits="9301"]').waitFor({ timeout: 5000 }).then(() => true, () => false), "a row opens its splits in place");
+    await page.click('[data-standings-team="9301"]');
+    check(await page.locator("[data-team-view]").waitFor({ timeout: 10000 }).then(() => true, () => false), "Open the Eagles: the team's sheet");
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(800);
     await leagueFollowBrowser(page, shot, wide, headers);
     // Seen live on the strip counts as shown for the visit (scores.tsx noteSeen): forget it, so the sheet below starts hidden.
     await page.evaluate(() => sessionStorage.removeItem("gys-shown-scores"));
     await pool.query("UPDATE user_settings SET hide_sports_scores = true WHERE user_id = (SELECT id FROM \"user\" WHERE username = $1)", [fixture.username("alex")]);
+    // Standings hidden: one Show over the whole table, no row and no record drawn.
+    await page.goto(BASE + `/league/${FB}/standings`, { waitUntil: "load" });
+    const tableHeld = await page.locator("[data-standings-hidden]").waitFor({ timeout: 15000 }).then(() => true, () => false);
+    check(tableHeld && (await page.locator("[data-standing-row]").count()) === 0 && !/\b\d+-\d+\b/.test((await page.textContent("[data-league-tab]")) ?? ""), "scores hidden: the Standings tab holds the whole table behind one Show");
     // The guide is its own page over the hub now (?page=guide), its Add a show in its header. Waits for its button, not for the
     // network to go quiet: here the hub's sports reads stay open past 30 s in this browser (on A2's code too; BACKLOG 254 g).
     await page.goto(BASE + "/home?page=guide", { waitUntil: "load" });
@@ -696,7 +754,7 @@ async function browserChecks(pool, headers, couch) {
 }
 
 // Its stand-in world is shared with scripts/dev-test/story-hub-sports.js (the design round's step 7: a live game day on the hub).
-module.exports = { TEAMS, EVENTS, LEAGUE_NAMES, LEAGUES, FB, BB, MB, MB_TEAMS, MB_NAME, calendarsAround, cleanup };
+module.exports = { STANDINGS, TEAMS, EVENTS, LEAGUE_NAMES, LEAGUES, FB, BB, MB, MB_TEAMS, MB_NAME, calendarsAround, cleanup };
 
 if (require.main === module)
   main().catch((e) => {

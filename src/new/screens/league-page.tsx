@@ -3,15 +3,15 @@
 // A league's page (docs/PLAN-sports-couch.md B1; the design: docs/design-round/league-page-spec.md, -first-view.md, -shape.md): its
 // own page, reached from the league's card in Your shows and search's league row, with its tabs under a bar of its own. This week
 // is the couch in the league this week, in the first-view order PFD set: your due move (the one yellow), this week's rivalry, the
-// couch's teams ranked by record; then rivalries this season, your games, and the rest of the league one row into Scores. Scores and
-// Games carry the old league sheet's parts until their own sessions; Standings and Chat join the tab bar when they're built.
+// couch's teams ranked by record; then rivalries this season, your games, and the rest of the league one row into Scores. Scores,
+// Games and Standings are their own files (league-scores.tsx, league-games.tsx, league-standings.tsx); Chat joins when it's built.
 //
 // Every result on it (a record, a form tick, a score, a rivalry's winner, the table's order) goes through Hide sports scores: with it
 // on, none shows, the table is ordered yours first then by fans, and Show records shows them all for the visit (showScore).
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { CalendarDays, ChevronLeft, ChevronRight, Eye, ListOrdered, Swords, Trophy, type LucideIcon } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Eye, ListOrdered, Swords, TableProperties, Trophy, type LucideIcon } from "lucide-react";
 import { useCouchTeams, useCurrentCouch, useHome, useLeaguesNow, useLeagueTeams, useYourTeams, type WeekGame } from "../data";
 import { NavLink, useNav } from "../nav";
 import { isLeagueTab, LEAGUE_TABS, paths, type LeagueTab } from "../routes";
@@ -24,11 +24,13 @@ import { rankTeams, recordWords, rivalriesOf, rivalryRecords, type Fan, type Riv
 import type { LeagueNow } from "@/lib/sports/league-now";
 import { LeagueScores } from "./league-scores";
 import { LeagueGames } from "./league-games";
+import { LeagueStandings } from "./league-standings";
 
 const TABS: Record<LeagueTab, { label: string; icon: LucideIcon }> = {
   week: { label: "This week", icon: CalendarDays },
   scores: { label: "Scores", icon: ListOrdered },
   games: { label: "Games", icon: Trophy },
+  standings: { label: "Standings", icon: TableProperties },
 };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -142,6 +144,7 @@ export function LeagueTabScreen({ league, tab }: { league: string; tab: LeagueTa
       {tab === "week" && <ThisWeek league={league} name={name} now={now} />}
       {tab === "scores" && <LeagueScores league={league} name={name} lnow={now} loading={loading} />}
       {tab === "games" && <LeagueGames league={league} name={name} lnow={now} />}
+      {tab === "standings" && <LeagueStandings league={league} name={name} lnow={now} />}
     </div>
   );
 }

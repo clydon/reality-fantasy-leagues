@@ -8,6 +8,8 @@ import { SportsUnavailable, type SportsEvent, type SportsProvider } from "./type
 // How long each answer is good for comes from the answer itself:
 //   leagues, search      a week
 //   a league's teams     a week (L7: finding a game by team)
+//   a league's standings 15 minutes (B1's Standings tab: a final moves it); an hour for a league of more than 100 teams (college:
+//                        its answer is 2.6-6 MB raw) and for a league with none
 //   a league's calendar  a day (L8: a league's slate: its season's stages and days or weeks)
 //   a month's games      as a team's schedule; 30 days once the month is a week gone and every game in it over (L8)
 //   a day's games        3 minutes while one is being played; 30 days once the day is two days gone and every game on it is over;
@@ -116,6 +118,7 @@ export function withCache(p: SportsProvider, opts: { prefix?: string; db?: Query
       return cached(key("schedule", league, team, sopts.season ?? "now", sopts.type ?? "now"), () => p.schedule(league, team, sopts), (events) => keepSchedule(events, o.now ?? Date.now()), o);
     },
     teams: (league) => cached(key("teams", league), () => p.teams(league), () => 7 * DAY, at()),
+    standings: (league) => cached(key("standings", league), () => p.standings(league), (s) => (s && s.groups.reduce((n, g) => n + g.entries.length, 0) <= 100 ? 15 * MIN : HOUR), at()),
     roster: (league, team) => cached(key("roster", league, team), () => p.roster(league, team), () => DAY, at()),
     boxScore: (league, event) =>
       cached(key("box", league, event), () => p.boxScore(league, event), (b) => (b?.final ? null : b?.state === "in" ? 3 * MIN : b?.state === "post" ? DAY : HOUR), at()),

@@ -25,6 +25,15 @@
 // the couch's rivals to come, your team), gameday-games-join (its Join), gameday-games-rival (a rival's Start), midweek-games (nothing
 // due: Play this week's games is the plate), none-games (a spectator), daily-games, off-games, studio-games, solo-games and solo-week
 // (no start offered on no couch). --only=games shoots just these.
+// Standings (B1 session 4; docs/design-round/league-standings-spec.md): the stand-in's table counted from its own finals, in two
+// conferences of two divisions: gameday-standings (Division, the couch's division first), gameday-standings-conf (Conference, by
+// seed), gameday-standings-open (alex's row opened: its splits), gameday-standings-team (Open the Eagles: the team's sheet),
+// recording-standings (a game watched as if live: held, Show anyway), hidden-standings and hidden-standings-shown (Hide sports
+// scores), none-standings (a spectator: the league's order), daily-standings (basketball opens on Conference), solo-standings,
+// studio-standings, failed-standings (the stand-in down). And real ESPN tables (public league data, the round's "judge on a real
+// game"), with alex, Riley, Sam and Jordan following real teams for the shoot (unfollowed after): real-nfl, real-nfl-conf, real-nba,
+// real-nhl, real-mlb (its season over: final, clinched and out), real-epl (one table, its places key). --only=standings shoots just
+// these; --only=real only the real ones.
 // Each frame: a .jpg at --width × --height, the page's words in a .txt, and words that sit on other words as OVERLAP lines (kept in
 // overlaps.json). Prints the first view's groups in order, the rivalry's and the table's words, and the page's width.
 //
@@ -52,7 +61,7 @@ const opt = (k, d) => args.find((a) => a.startsWith(`--${k}=`))?.slice(k.length 
 const has = (k) => args.includes(`--${k}`);
 const OUT = path.resolve(opt("out", ".ui-atlas/stories/league-page/after"));
 // --only=scores or --only=games: that tab's frames in every world and nothing else.
-const TAB = ["scores", "games"].includes(opt("only", "")) ? opt("only") : null;
+const TAB = ["scores", "games", "standings", "real"].includes(opt("only", "")) ? opt("only") : null;
 const W = Number(opt("width", 390)), H = Number(opt("height", 844));
 const ONLY = opt("only", "") && !TAB ? opt("only").split(",") : null;
 const { FB, BB, MB } = world;
@@ -149,6 +158,34 @@ const pickemGame = (name) => eventsFor(name).find((e) => e.id.endsWith("51"))?.i
 
 const COUCH = [["alex", FB, E], ["riley", FB, J], ["sam", FB, C], ["jordan", FB, G]];
 
+// The stand-in's standings (B1 session 4): two conferences of two divisions, each team's line counted from its finals above.
+const ZTN = { id: "zt-ztn", name: "ZTN Conference", abbreviation: "ZTN" };
+const ZTA = { id: "zt-zta", name: "ZTA Conference", abbreviation: "ZTA" };
+const STANDINGS = {
+  [FB]: {
+    season: "2026",
+    groups: [
+      { id: "zt-ztn-e", name: "ZTN East", abbreviation: "EAST", parent: ZTN, teams: [E, C, G, J] },
+      { id: "zt-ztn-n", name: "ZTN North", abbreviation: "NORTH", parent: ZTN, teams: [B, L, GB, PIT] },
+      { id: "zt-zta-w", name: "ZTA West", abbreviation: "WEST", parent: ZTA, teams: [SF, LAR, KC] },
+      { id: "zt-zta-s", name: "ZTA South", abbreviation: "SOUTH", parent: ZTA, teams: [BUF, BAL, CIN] },
+    ],
+  },
+  [BB]: { season: "2026-27", groups: [{ id: "zt-atl", name: "ZT Atlantic", abbreviation: "ATL", parent: { id: "zt-east", name: "ZT Eastern Conference", abbreviation: "ZT East" }, teams: ["9401", "9402"] }] },
+};
+// The real tables' couch: each person's team, by the abbreviation ESPN gives it (ids read from the recorded answers).
+const REAL = [
+  ["football/nfl", "nfl", [["alex", "PHI"], ["riley", "NYJ"], ["sam", "DAL"], ["jordan", "NYG"]]],
+  ["basketball/nba", "nba", [["alex", "PHI"], ["riley", "NY"]]],
+  ["hockey/nhl", "nhl", [["alex", "PHI"]]],
+  ["baseball/mlb", "mlb", [["alex", "NYY"], ["riley", "TOR"]]],
+  ["soccer/eng.1", "eng.1", [["alex", "ARS"], ["sam", "CHE"]]],
+];
+const realId = (file, abbr) => {
+  const walk = (n) => [...(n.standings?.entries ?? []).map((e) => e.team), ...(n.children ?? []).flatMap(walk)];
+  return walk(require(`../../tests/fixtures/espn-standings/${file}.json`)).find((t) => t.abbreviation === abbr)?.id;
+};
+
 async function setting(pool, user, col, v) {
   await pool.query('INSERT INTO user_settings (user_id) SELECT id FROM "user" WHERE username = $1 ON CONFLICT (user_id) DO NOTHING', [user]);
   await pool.query(`UPDATE user_settings SET ${col} = $2 WHERE user_id = (SELECT id FROM "user" WHERE username = $1)`, [user, v]);
@@ -164,7 +201,7 @@ async function main() {
   const calendars = world.calendarsAround();
   const eastDay = (ms) => new Date(ms).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
   calendars[BB].days = Array.from({ length: 76 }, (_, i) => eastDay(now - 35 * D + i * D));
-  const espn = await fakeEspn.start({ teams: [...TEAMS, ...world.MB_TEAMS], leagues: [...world.LEAGUE_NAMES, world.MB_NAME], events: [], calendars });
+  const espn = await fakeEspn.start({ teams: [...TEAMS, ...world.MB_TEAMS], leagues: [...world.LEAGUE_NAMES, world.MB_NAME], events: [], calendars, standings: STANDINGS });
   const headers = { "x-gys-sports": espn.url };
   const { pool: appPool } = jiti("../../src/lib/server/db.ts");
   const { leagueShow } = jiti("../../src/lib/server/sports/matchup.ts");
@@ -190,7 +227,7 @@ async function main() {
     };
 
     const shoot = async (name, go, o = {}) => {
-      const b = await open({ user: o.user ?? alex, pass: o.pass ?? fixture.PASSWORD, width: W, height: H, headers, motion: "reduce" });
+      const b = await open({ user: o.user ?? alex, pass: o.pass ?? fixture.PASSWORD, width: W, height: H, headers: o.real ? {} : headers, motion: "reduce" });
       try {
         await b.page.goto(BASE + (o.path ?? `/league/${o.league ?? FB}/week`), { waitUntil: "domcontentloaded" });
         await b.page.locator(o.wait ?? "[data-this-week], [data-hub], [data-league-scores], [data-scores-off]").first().waitFor({ timeout: 45000 });
@@ -251,6 +288,22 @@ async function main() {
     const sc = !TAB || TAB === "scores";
     const gm = !TAB || TAB === "games";
     const gamesAt = (league = FB) => ({ path: `/league/${league}/games`, wait: "[data-league-games-tab]" });
+    const st = !TAB || TAB === "standings";
+    const standingsAt = (league = FB) => ({ path: `/league/${league}/standings`, wait: "[data-standings], [data-standings-failed], [data-standings-none]" });
+    const settleStandings = async (pg) => {
+      await pg.locator("[data-standing-row], [data-standings-hidden], [data-standings-failed], [data-standings-none]").first().waitFor({ timeout: 20000 }).catch(() => {});
+      await pg.waitForTimeout(1200);
+    };
+    const view = (v) => async (pg) => {
+      await settleStandings(pg);
+      await pg.locator(`[data-standings-view] [data-view="${v}"]`).click();
+      await pg.waitForTimeout(900);
+    };
+    const openRow = (team) => async (pg) => {
+      await settleStandings(pg);
+      await pg.locator(`[data-standing-row="${team}"]`).first().click();
+      await pg.waitForTimeout(700);
+    };
     const settleGames = async (pg) => {
       await pg.waitForTimeout(3000);
     };
@@ -289,6 +342,27 @@ async function main() {
           await pg.waitForTimeout(2500);
         }, { ...gamesAt(), sheet: true });
       }
+    }
+    if (run("gameday") && st && TAB !== "real") {
+      await shoot("gameday-standings", settleStandings, { ...standingsAt(), full: true });
+      await shoot("gameday-standings-conf", view("parent"), { ...standingsAt(), full: true });
+      await shoot("gameday-standings-open", openRow(E), standingsAt());
+      await shoot("gameday-standings-team", async (pg) => {
+        await openRow(E)(pg);
+        await pg.locator(`[data-standings-team="${E}"]`).click();
+        await pg.locator("[data-team-view]").waitFor({ timeout: 15000 });
+        await pg.waitForTimeout(1200);
+      }, { ...standingsAt(), sheet: true });
+      // Watching the Eagles at the Jets as if live: the table would give it away.
+      const live = eventsFor("gameday").find((e) => e.state === "in" && e.home === J);
+      const me = await call("alex");
+      await me.call("POST", "/api/sports/recordings", { game: live.id, league: FB, on: true });
+      await shoot("recording-standings", settleStandings, standingsAt());
+      await me.call("POST", "/api/sports/recordings", { game: live.id, league: FB, on: false });
+      espn.down = true;
+      await pool.query("DELETE FROM sports_cache WHERE key LIKE '%standings%zt-%'");
+      await shoot("failed-standings", settleStandings, standingsAt());
+      espn.down = false;
     }
     if (run("gameday") && tw) {
       await shoot(
@@ -348,6 +422,14 @@ async function main() {
           await pg.waitForTimeout(1500);
         });
       }
+      if (st && TAB !== "real") {
+        await shoot("hidden-standings", settleStandings, standingsAt());
+        await shoot("hidden-standings-shown", async (pg) => {
+          await settleStandings(pg);
+          await pg.locator("[data-show-standings]").click();
+          await pg.waitForTimeout(1200);
+        }, standingsAt());
+      }
       if (sc) {
       await shoot("hidden-scores", settle, scoresAt());
       await shoot("hidden-scores-ask", async (pg) => {
@@ -380,6 +462,7 @@ async function main() {
       if (tw) await shoot("none");
       if (sc) await shoot("none-scores", settle, scoresAt());
       if (gm) await shoot("none-games", settleGames, gamesAt());
+      if (st && TAB !== "real") await shoot("none-standings", settleStandings, { ...standingsAt(), full: true });
     }
     if (run("daily")) {
       await setWorld("daily", [["alex", BB, "9401"], ["riley", BB, "9402"]]);
@@ -389,6 +472,7 @@ async function main() {
         await shoot("daily-scores-yesterday", chip(-1), scoresAt(BB));
       }
       if (gm) await shoot("daily-games", settleGames, gamesAt(BB));
+      if (st && TAB !== "real") await shoot("daily-standings", settleStandings, standingsAt(BB));
     }
     if (run("off")) {
       await setWorld("off", [["alex", MB, "9501"]]);
@@ -403,6 +487,7 @@ async function main() {
       if (tw) await shoot("studio", null, { full: true });
       if (sc) await shoot("studio-scores", settle, scoresAt());
       if (gm) await shoot("studio-games", settleGames, gamesAt());
+      if (st && TAB !== "real") await shoot("studio-standings", settleStandings, standingsAt());
       await setting(pool, alex, "theme", "night");
     }
     if (run("solo")) {
@@ -417,6 +502,30 @@ async function main() {
       if (gm) {
         await shoot("solo-games", settleGames, { ...gamesAt(), user: so, pass: soloFx.PASSWORD });
         await shoot("solo-week", null, { user: so, pass: soloFx.PASSWORD, full: true });
+      }
+      if (st && TAB !== "real") await shoot("solo-standings", settleStandings, { ...standingsAt(), user: so, pass: soloFx.PASSWORD });
+    }
+    // Real ESPN tables (asked by the dev server itself: no stand-in header), the couch following real teams for the shoot.
+    if (TAB === "real" || TAB === "standings" || (!TAB && (!ONLY || ONLY.includes("real")))) {
+      await setWorld("real", []);
+      const real = (who) => signIn({ user: fixture.username(who), pass: fixture.PASSWORD, headers: {} });
+      try {
+        for (const [league, file, fans] of REAL) {
+          for (const [who, abbr] of fans) await (await real(who)).call("POST", "/api/sports/follow", { league, team: realId(file, abbr), follow: true });
+          const name = `real-${file === "eng.1" ? "epl" : file}`;
+          await shoot(name, settleStandings, { ...standingsAt(league), real: true, full: true });
+          if (file === "nfl") {
+            await shoot(`${name}-conf`, view("parent"), { ...standingsAt(league), real: true, full: true });
+            await shoot(`${name}-open`, openRow(realId(file, "PHI")), { ...standingsAt(league), real: true });
+          }
+        }
+      } finally {
+        for (const [league, file, fans] of REAL)
+          for (const [who, abbr] of fans) {
+            const me = await real(who);
+            await me.call("POST", "/api/sports/follow", { league, team: realId(file, abbr), follow: false }).catch(() => {});
+            await me.call("POST", "/api/sports/follow", { league, follow: false }).catch(() => {});
+          }
       }
     }
   } finally {

@@ -132,7 +132,11 @@ Newest first. The plan or archive section named holds the detail.
 - **Sports on the couch, B1 session 3: Games** (2026-11-22, the same lane; not merged; no migration): your games
   here, with the couch (games to join, this week's and the season's starts), rivals (a Start on each rivalry game to come), your
   team (its season); no start offered on no couch. Story: https://claude.ai/artifact/4ncmkRanywVoPbH6N7pTjh. Notes: [PLAN-sports-couch.md](PLAN-sports-couch.md) B1 session 3. **Approved as built**
-  (the user, 2026-11-22, both recommendations: solo sports play waits for C4) and committed in the lane. Next there: B1's Standings.
+  (the user, 2026-11-22, both recommendations: solo sports play waits for C4) and committed in the lane.
+- **Sports on the couch, B1 session 4: Standings, with BACKLOG 254 (k)** (2026-11-22, the same lane; not merged; no migration; **one new
+  ESPN read**, the league's standings, in HOSTING.md): the fourth tab, by division or conference, the couch's teams marked, held as one for
+  anyone hiding sports scores; (k): Hide sports scores reads as on until it's known. Story: https://claude.ai/artifact/9ydPz541VZbpKE5u8sZXvY.
+  Notes: [PLAN-sports-couch.md](PLAN-sports-couch.md) B1 session 4. **The four recommendations taken** on the user's "Continue" (decisions.md) and committed in the lane. Next there: B1's Chat.
 
 - **A castaway opened from a week opens on that week, BACKLOG 251** (2026-11-22, approved, committed on master, not pushed; no
   migration): the castaway sheet leads with the week a door hands it; one name per moment everywhere (moment-names.ts); the
