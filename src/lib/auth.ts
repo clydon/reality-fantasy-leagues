@@ -1,13 +1,12 @@
 import { betterAuth } from "better-auth";
 import { username, admin } from "better-auth/plugins";
 import { previewSession } from "./preview-session";
-import { Pool } from "pg";
 import { isPlaceholderEmail } from "@/lib/no-email";
 import { signupModeOf } from "@/lib/signups";
+import { pool as authPool } from "@/lib/server/pool";
 
-const authPool = new Pool({
-  connectionString: process.env.AUTH_DATABASE_URL,
-});
+// The app's own pool (pool.ts), not one of its own: that one had no guard for an idle connection Neon drops, which can end the
+// server instance (BACKLOG 39).
 
 // Google sign-in (docs/PLAN-new-design.md step 9 part 2), only once its OAuth app's keys are in the environment: without
 // them there's no provider, and the way in shows no Google button (way-in.ts googleOn). Its redirect URI is
@@ -41,6 +40,9 @@ async function openSignups(): Promise<boolean> {
 // 2026 community choice rather than defaulting to older training-data familiarity with NextAuth.
 export const auth = betterAuth({
   database: authPool,
+  // No schema check at a cold start: every auth request waits on it, so one that fails on a dropped connection was a first-load 500
+  // and a "[Better Auth] Could not validate" line (BACKLOG 39). Our migrations (db/migrations) own the schema, not Better Auth.
+  advanced: { database: { validateSchema: false } },
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL,
   trustedOrigins: [

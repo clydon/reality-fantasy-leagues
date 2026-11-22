@@ -863,8 +863,10 @@ export const useMembers = (seasonId: string, couchId: string | null) => useBs<Me
 /** Backstage home's Reminders card (backstage-remind.ts): who still has a move open in the games you run here, and who heard lately. */
 export const useRemindPreview = (seasonId: string, couchId: string | null, enabled = true) => useBs<RemindPreview>("remind", seasonId, couchId, enabled);
 
-async function sendJson<T>(url: string, method: "PUT" | "PATCH" | "POST", body: unknown): Promise<T> {
-  const res = await fetch(url, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+/** `keepalive`: the write outlives the page (a reload, the app swiped away), for an answer the screen shows before it's saved
+ *  (BACKLOG 111: Not yet said, then the app closed at once). Only for small bodies: the browser caps keepalive at 64 KB. */
+async function sendJson<T>(url: string, method: "PUT" | "PATCH" | "POST", body: unknown, opts?: { keepalive?: boolean }): Promise<T> {
+  const res = await fetch(url, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body), keepalive: opts?.keepalive });
   const out = await res.json().catch(() => ({}));
   if (!res.ok) throw Object.assign(new Error(out.error || `Couldn't save (${res.status})`), { status: res.status });
   return out as T;
@@ -1274,9 +1276,10 @@ export function useListingSeason(tvmazeId: number | null, season: number | null 
 export const watching = {
   /** Add a show from its listing (its season on now, or `season` by number) or by name, at where you are. */
   add: (body: ({ listing: number; season?: number } | { name: string }) & { seenThrough?: number; live?: boolean; private?: boolean }) => post<AddedShow>("/api/me/shows", body),
-  /** Follow (or stop following) a season here, watch it privately, say where you are, answer the nudge, or how it keeps up. */
+  /** Follow (or stop following) a season here, watch it privately, say where you are, answer the nudge, or how it keeps up.
+   *  Kept alive past the page: Not yet and Seen it show at once and save behind (BACKLOG 111). */
   follow: (seasonId: string, change: { following?: boolean; private?: boolean; seenThrough?: number; nudgeOff?: boolean; keepUp?: KeepUp; notYet?: number; results?: "wait" | "now" | null }) =>
-    sendJson<{ seenThrough: number; following: boolean; private: boolean; keepUp: KeepUp; notYet: number | null; results: "wait" | "now" | null }>(`/api/me/follows/${seasonId}`, "PUT", change),
+    sendJson<{ seenThrough: number; following: boolean; private: boolean; keepUp: KeepUp; notYet: number | null; results: "wait" | "now" | null }>(`/api/me/follows/${seasonId}`, "PUT", change, { keepalive: true }),
 };
 
 export type { KeepUp } from "@/lib/server/keep-up";

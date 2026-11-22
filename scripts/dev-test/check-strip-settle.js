@@ -45,10 +45,12 @@ const check = (ok, what, extra = "") => {
     });
     for (let i = 0; i < 3 && (await p.locator('[data-strip="due"]').count()); i++) {
       await p.locator("[data-strip] button").first().click();
-      // The Your moves sheet (pushed pages are dialogs too, hidden: wait on the sheet's own picks).
-      await p.locator("[data-pick]:visible").first().waitFor({ timeout: 10000 });
+      // The Your moves sheet (pushed pages are dialogs too, hidden: wait on the sheet's own picks). Its games sit side by side in a
+      // pager that slides to the due one: only the pane in view (data-pane="1") is the one to pick in.
+      const here = p.locator('[data-moves-games] [data-pane="1"]');
+      await here.locator("[data-pick]").first().waitFor({ timeout: 10000 });
       await p.waitForTimeout(600);
-      const pick = p.locator("[data-pick]:visible:not([disabled])").first();
+      const pick = here.locator('[data-pick]:not([disabled]):not([aria-pressed="true"])').first();
       if (await pick.count()) await pick.click();
       await p.locator('button:visible:has-text("Save")').last().click();
       await p.waitForTimeout(1200);
@@ -74,7 +76,11 @@ const check = (ok, what, extra = "") => {
     const yes = p.locator("[data-ask-yes]");
     check((await yes.getAttribute("class"))?.includes("bg-chyron") === true, "Yes holds the yellow (the pick waits on the reveal)");
     await p.screenshot({ path: path.join(OUT, "sam-asks.jpg"), type: "jpeg", quality: 82 });
+    // The answer shows at once and saves behind it: reload once the save has answered, or the reload's read can beat the write (a
+    // cold dev route takes over a second; BACKLOG 111 was this race, the save itself sound).
+    const saved = p.waitForResponse((r) => /\/api\/me\/follows\//.test(r.url()) && r.request().method() === "PUT", { timeout: 30000 });
     await p.locator("[data-ask-later]").click();
+    check((await saved).ok(), "Not yet is saved");
     await p.waitForTimeout(500);
     check((await p.locator("[data-ask-line]").count()) === 0 && /Catching up/.test(await p.locator("[data-progress]").innerText()), "Not yet: catching up, no question");
     await p.reload();
