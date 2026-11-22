@@ -22,12 +22,7 @@ and in flight is in [HANDOFF.md](HANDOFF.md).
 
 Survivor 51's Ep 10 airs Wed 2026-11-25. Its finale is Wed 2026-12-16.
 
-**111. Tonight's "Seen Ep N?" forgets a Not yet.** *Before Ep 10.* Someone catching up answers Not yet, but a reload asks
-again, and so does a second phone. The answer should hold until a new episode airs. Trace the save (`watching.follow` with
-`notYet`, follows.ts) and the read (`show.notYet` from the space route, progress.tsx:137). Done when
-scripts/dev-test/check-strip-settle.js passes every case. [S–M · tonight]
-
-**39. The sign-in database pool can crash a server instance.** *Before Ep 10.* Better Auth's pool (src/lib/auth.ts:7) has
+**39. The sign-in database pool can crash a server instance.** *Before Ep 10.* **Built on branch before-ep10 (cb3e9091), waits on its push:** sign-in shares the app's guarded pool (src/lib/server/pool.ts) and the schema check is off; checked locally by dropping idle connections mid-session. What's left is the live look after the push. Better Auth's pool (src/lib/auth.ts:7) has
 no `on("error")` handler, so an idle connection Neon drops can take the process down. The app's own pool got that guard in
 1905e7d2 after the same crash. Give Better Auth the app's guarded pool (or add the handler), and set
 `advanced.database.validateSchema: false` to stop the cold-start schema check. Done when a deploy's live look shows no
@@ -864,3 +859,5 @@ One line each: the number, done or dropped, and the commit or the reason.
   season; check-sports-new-players.js.
 - **221** done (bb35bea6): a roster's position is ESPN's abbreviation, so football's slots take real players;
   check-nfl-defenses.js's BACKLOG 221 lines.
+- **111** done (cb3e9091): the save was sound; the check reloaded before a cold route's save answered. The check waits for it,
+  Riley's part picks in the pane in view, and the follow write is sent with keepalive so a Not yet survives the app closing.

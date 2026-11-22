@@ -113,8 +113,9 @@ Newest first. The plan or archive section named holds the detail.
 
 ## Next
 
-1. **Before Ep 10 (Wed 2026-11-25):** BACKLOG 111 (Tonight forgets a Not yet) and 39 (the sign-in pool's crash risk). Nothing
-   merges on the Wednesday.
+1. **Before Ep 10 (Wed 2026-11-25):** push branch `before-ep10` (BACKLOG 39 built, 111 closed; no migration, no scoring change)
+   when the user says, then 39's live look: no "[Better Auth] Could not validate" line, no first-load 500. Nothing merges on the
+   Wednesday.
 2. **Before the finale (Wed 2026-12-16):** BACKLOG 115 (tell pool players the finale rule; the user OKs the words) and 116 (the
    finale through research).
 3. **The quick sessions** in BACKLOG's "Now": the stale checks, the small engine fixes, the UI polish pass, the
