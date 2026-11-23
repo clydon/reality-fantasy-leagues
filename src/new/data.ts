@@ -1,9 +1,10 @@
 "use client";
 
 import { keepPreviousData, useInfiniteQuery, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useMemo, useSyncExternalStore } from "react";
 import { api, phoneTimeZone } from "@/lib/api";
 import type { DraftSoon } from "@/lib/game/draft-soon";
+import type { LeagueArtState } from "@/lib/sports/league-art";
 import type { GameView, WeekProgress } from "@/lib/game/game-view";
 import type { HowItWorks } from "@/lib/game/formats/rulebook-describe";
 import type { SeasonEpisodes, SeasonReveal } from "@/lib/server/season-episodes";
@@ -1198,6 +1199,64 @@ const PROFILE_KEY = ["new-design", "profile"] as const;
 
 export function useProfile(enabled = true) {
   return useQuery({ queryKey: PROFILE_KEY, queryFn: () => get<Profile>("/api/me/profile"), enabled, staleTime: 5 * 60_000 });
+}
+
+// ---- a league's art (docs/design-round/league-art-spec.md; src/lib/sports/league-art.ts artInUse; /api/me/league-art) ----
+
+const leagueArtKey = (couchId: string | null) => ["new-design", "league-art", couchId ?? "none"] as const;
+
+/** Your choices, your pictures and the couch's art (the couch you name: the hub's). Every band and the league's bar read it. */
+export function useLeagueArt(couchId: string | null) {
+  return useQuery({
+    queryKey: leagueArtKey(couchId),
+    queryFn: () => get<LeagueArtState>(`/api/me/league-art${couchId ? `?couch=${couchId}` : ""}`),
+    staleTime: 5 * 60_000,
+  });
+}
+
+/**
+ * Change a league's art: choose one (an art's id, "upload" for your picture, or null for none: the couch's), upload your own picture
+ * (it becomes your choice), or take your picture away. A choice shows at once (the state every band reads changes before the save),
+ * then the answer; a refusal puts the one before back and throws. Nothing else is read again: art changes nothing but itself.
+ */
+export function useLeagueArtActions(couchId: string | null) {
+  const qc = useQueryClient();
+  return useMemo(() => {
+    const key = leagueArtKey(couchId);
+    const q = (league?: string) => `/api/me/league-art?${[league ? `league=${encodeURIComponent(league)}` : null, couchId ? `couch=${couchId}` : null].filter(Boolean).join("&")}`;
+    const landed = (s: LeagueArtState) => {
+      qc.setQueryData(key, s);
+      // Another couch's read (a second couch) has your choices too.
+      void qc.invalidateQueries({ queryKey: ["new-design", "league-art"], predicate: (x) => x.queryKey[2] !== (couchId ?? "none") });
+      return s;
+    };
+    const send = async (url: string, init: RequestInit) => {
+      const res = await fetch(url, init);
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) throw Object.assign(new Error(out.error || `Couldn't save (${res.status})`), { status: res.status });
+      return landed(out as LeagueArtState);
+    };
+    return {
+      choose: async (league: string, art: string | null) => {
+        const before = qc.getQueryData<LeagueArtState>(key);
+        if (before) {
+          const mine = { ...before.mine };
+          if (art) mine[league] = art;
+          else delete mine[league];
+          qc.setQueryData<LeagueArtState>(key, { ...before, mine });
+        }
+        try {
+          return landed(await sendJson<LeagueArtState>(q(), "PUT", { league, art }));
+        } catch (e) {
+          if (before) qc.setQueryData(key, before);
+          throw e;
+        }
+      },
+      /** Your picture, already made 1280 by 720 in the browser. */
+      upload: (league: string, picture: Blob) => send(q(league), { method: "PUT", headers: { "content-type": picture.type }, body: picture }),
+      remove: (league: string) => send(q(league), { method: "DELETE" }),
+    };
+  }, [qc, couchId]);
 }
 
 /** A face as the home read has it: you, or someone on one of your couches. Only watches the home that's been read. */

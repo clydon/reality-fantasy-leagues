@@ -13,6 +13,15 @@ Generated study images are saved as versioned project assets so implementation r
 
 All four are 1024 × 1024 PNGs, generated through Nano Banana MCP using `gemini-2.5-flash-image` on 2026-11-10. They remain candidates until the user selects a direction; saving them does not approve every proposed layout. The first three images were copied byte for byte from the successful study generation, without another provider call or image transformation. The TV companion was generated separately for a distinct decorative role and saved directly into this library; it does not replace functional vector icons.
 
+## League art (band crops)
+
+A league's band in Your shows and its page's bar wear a 16:9 crop of a generated photo (docs/design-round/league-art-spec.md;
+`src/lib/sports/league-art.ts`): `public/art/generated/league/<id>-wide.webp`, made by `scripts/league-art-derive.js` (a 576-row strip
+where the sport is, its exposure lifted so it reads under a band's dark fade, WebP; each a derived manifest entry, no provider
+call). In use: Football night as "Under the lights" (football) and Event night as "Arena" (any league). Event night's source has
+"#16141d" rendered into its bottom-left corner (a generation artifact), so its strip stays above it. The next sports' photos wait on
+Gemini's billing (403, outstanding balance, 2026-11-23); their prompts are ready in `docs/design-round/league-art-photo-jobs.json`.
+
 The [manifest](../public/art/generated/manifest.json) records full prompts, model/server provenance, dimensions, SHA-256 hashes and file sizes. It contains no credentials or private user data. These files are eligible for normal version control; unlike the ignored `captures/` directory, they travel with the project when committed.
 
 Real show key art, cast photos and team logos are distinct source assets. Keep their source and attribution records separate from generated atmosphere; do not regenerate identities or factual graphics. The review's public source URLs remain in its local `media-sources.json`.

@@ -21,7 +21,10 @@
 1. **No separate sports hub.** A league card on Your shows is the way in (Patriots → NFL, Yankees → MLB), and it opens the league's
    page: "what teams the couch watches/follows, the schedule, and maybe an option for a game for the league or game" (2026-11-21).
 2. **Your shows keeps its name** (2026-11-22): not "Your shows & sports".
-3. **The league card is shorter and a smidge subtler** (2026-11-22): 72 px, no live score, no red (round 3).
+3. **The league card is shorter and a smidge subtler** (2026-11-22): 72 px, no live score, no red (round 3). **Changed 2026-11-23:**
+   "Sports need to have the same static height as shows. They also need artwork. Allow this to be set by user in settings." A
+   league is now a 126 px band like a show's, in art each person chooses under a gear on the league's bar; no live score and no red
+   still stand (A2b below).
 4. **Your followed games, live and upcoming, sit in a strip right below the guide bar, never taller than it** (88 px),
    swipeable, with a sign there's more, as a bold sports-app scorebug (2026-11-22; round 3's design).
 5. **The couch plays as fans** (2026-11-21): a lone fan shows off through watching and the games he makes; many play solo; a
@@ -157,6 +160,40 @@ The check: [design-round/hub-league-card-check.md](design-round/hub-league-card-
   errors are master's (game-page.tsx, lineup-sheet.tsx, use-sheet-swipe.ts, format-timeline.js). The check still stops at
   BACKLOG 252's Start a game step, as on master.
 - **Leftovers:** BACKLOG 254.
+
+**A2b. League art: the band and its gear** (2026-11-23, lane `league-art`, `../rfl-league-art`, port 3021, branched from
+sports-couch 79783be3; not merged). The user's ask is settled call 3's change above; their calls in the round: **the gear on the
+league's bar** (over a picture icon), and **photos only** (no drawn art) while Gemini's billing blocks generation, so a sport with no
+photo of its own wears Arena until one is made. Design: [design-round/league-art-spec.md](design-round/league-art-spec.md) (Intent),
+[-first-view.md](design-round/league-art-first-view.md) (PFD), [-check.md](design-round/league-art-check.md) (the check). Story:
+https://claude.ai/artifact/9r85M529majKLKSBUKZHTk (waiting on the user's review).
+- **The band** (hub/league-cards.tsx): a show band's frame slot for slot, 126 px always; the league's art under the show band's fade;
+  name and week top left, the line under them (A2's rule; the place moved to a Best tag); the show band's signs top right (Best, the
+  games mark carrying the due dot); the season as a ruler at the foot with the couch's teams at now (football by its weeks, "12" of
+  "18"; a daily sport by its weeks as its title counts them; soccer by the date; full in the playoffs, the stage named); off-season
+  the marks at the foot's left, no ruler.
+- **Whose art** (src/lib/sports/league-art.ts `artInUse`, pure, tests/league-art.test.js): **yours**, else **the couch's** (its
+  owner's choice, else the first member's to choose, by when they joined), else **the league's own** first photo. The user,
+  2026-11-23, after the first story: "I actually want per user but me as the admin can set it for everyone… End goal is everyone in
+  my couch sees art without action on their end, if they want to change it they can."
+- **The art:** the app's own generated photos (football "Under the lights", then "Arena" for any league; band crops in
+  public/art/generated/league/*-wide.webp by `scripts/league-art-derive.js`), or **your own picture** (the user: "bypass this
+  guardrail for now and implement it"; PLAN-team-logos.md's exception): made 1280 x 720 in the browser, `league_art_pictures`
+  (migration 0455), seen by its uploader and anyone on a couch with them.
+- **Where it's set:** the gear on the league's bar (Round 0's one gear on every bar) opens Your settings for the league
+  (settings/league-page.tsx, `?page=you`): each choice is your own band in that art (the couch's pick named, "Conor's pick for the
+  couch"), a tap saves with Undo; then Your own picture (Upload, Replace, Remove, which asks first).
+- **Storage and routes** (src/lib/server/league-art.ts): `user_settings.league_art` (migration 0454: your choices, an art's id or
+  "upload"); `GET /api/me/league-art?couch=` (yours and the couch's), `PUT` `{ league, art | null }` or a picture with `?league=`,
+  `DELETE ?league=`; `GET /api/people/[userId]/league-art?league=&v=` (the picture, private, by version). HOSTING.md: "League art".
+- **The bar** (screens/league-page.tsx): the league's art behind it, lighter at the top than a show's, and the gear after Follow.
+- **Checks:** `scripts/dev-test/check-league-art.js` (13, API: the couch's pick, the owner over a member, uploads, refusals,
+  removal); check-sports-couch.js's league-art steps (the band, the bar, the gear's page, a choice saved); story-hub-sports.js's
+  many-art-* frames (Riley seeing alex's picture as the couch's).
+- **Next, the user's:** pay Gemini's balance (aistudio.google.com/billing); then `node scripts/dev-test/check-nano-banana.js
+  --jobs=docs/design-round/league-art-photo-jobs.json` (eight sports: baseball, basketball, hockey, soccer, golf, racing, tennis,
+  MMA), each photo's manifest entry, `node scripts/league-art-derive.js <id> --top <row> --sheet <preview.jpg>`, and one line in
+  `SOURCES` (league-art.ts), first in its sport.
 
 **A3. Follow a league** (S, a migration). A league follow (a `league_follows` table, or a league-wide row beside `team_follows`:
 decide in the step) from search's league card and the league's page; "my team" per league.

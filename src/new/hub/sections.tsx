@@ -2,7 +2,7 @@
 
 import { draftRoomPage, draftSoonWords, draftWhen } from "../show/draft-words";
 import { useState } from "react";
-import { ChartColumn, Check, ChevronDown, ChevronRight, Crown, Gamepad2, Hourglass, Link2, Plus, RotateCcw, Tv, Trophy } from "lucide-react";
+import { ChartColumn, Check, ChevronDown, ChevronRight, Crown, Hourglass, Link2, Plus, RotateCcw, Tv, Trophy } from "lucide-react";
 import { airTime, calmWhen, ticks } from "../clock";
 import { START_EARLY_MS } from "@/lib/game/watch-along";
 import { UNFRAMED } from "@/lib/art-frame";
@@ -42,6 +42,7 @@ import { NoSignal } from "../show/getting-ready";
 import { LapResultLine } from "../sports/lap";
 import { useHideSports, useShownScores } from "../sports/scores";
 import { LeagueCard, useLeagueCards } from "./league-cards";
+import { GamesMark } from "./games-mark";
 import { openWatching } from "../watching/sheets";
 import { useOpenTogether } from "../show/watch-along";
 import { usePracticeShows } from "../tour/practice-shows";
@@ -576,21 +577,8 @@ function Poster({ show, due, places }: { show: HomeShow; due: boolean; places: P
   );
 }
 
-/** A game's going on this show (the user, 2026-11-15: "a game controller in the corner of the show's block"; the guide's card
- *  says it the same way): a white controller, with a yellow dot on it when a move of yours is due there. */
-export function GamesMark({ due, className = "" }: { due: boolean; className?: string }) {
-  return (
-    <span
-      data-games-mark={due ? "due" : "on"}
-      role="img"
-      aria-label={due ? "You play a game on it, and a move is due" : "You play a game on it"}
-      className={`grid size-[26px] place-items-center text-white [filter:drop-shadow(0_1px_3px_rgba(0,0,0,.85))] ${className}`}
-    >
-      <Gamepad2 className="size-[22px]" strokeWidth={2.2} aria-hidden />
-      {due && <i className="absolute -right-0.5 top-0 size-2.5 rounded-full bg-chyron-line shadow-[0_0_0_1.5px_rgba(10,8,14,.9)]" />}
-    </span>
-  );
-}
+/** A game's going on this show (games-mark.tsx, shared with the league's band). */
+export { GamesMark };
 
 /**
  * Finished, for the whole couch (the user, 2026-11-15: a season stays while anyone's catching up): it's all aired, you've seen it

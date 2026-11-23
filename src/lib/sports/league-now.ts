@@ -29,6 +29,10 @@ export interface LeagueNow {
   weeks: { label: string; from: string; to: string }[];
   /** A league by days (the NBA, NHL, MLB, soccer): the days it plays this season (ESPN's calendar), its Scores tab's chips. */
   days: string[];
+  /** Its regular season's first and last days (the East's), when the calendar says: a daily sport's band places today between
+   *  them (docs/design-round/league-art-spec.md: league-art.ts rulerOf), and how many weeks it has, counted as `week` counts them
+   *  ("Week 6" of 25), for a league cut by weeks or days; null for one cut by rounds. */
+  regular: { from: string; to: string; weeks: number | null } | null;
 }
 
 /** The Monday and Sunday of a day's week ("2026-11-22", a Sunday: Nov 16 to Nov 22). */
@@ -66,5 +70,5 @@ export function nowOf(league: string, calendar: LeagueCalendar, cadence: "day" |
   const weeks = calendar.weeks.length ? (["regular", "post"] as const).flatMap((st) => slateEpisodes(calendar, st, "week").map((e) => ({ label: e.label, from: e.from, to: e.to }))) : [];
   const days = calendar.weeks.length || !from || !to ? [] : [...new Set(calendar.days)].filter((d) => d >= from && d <= to).sort();
   const back = on ? null : ([regular?.from, post?.from].filter((d): d is string => !!d && d > today).sort()[0] ?? null);
-  return { league, leagueName: leagueName(league, calendar.leagueName ?? null), season: seasonWords(calendar), on, stage, week, from: span?.from ?? null, to: span?.to ?? null, back, weeks, days };
+  return { league, leagueName: leagueName(league, calendar.leagueName ?? null), season: seasonWords(calendar), on, stage, week, from: span?.from ?? null, to: span?.to ?? null, back, weeks, days, regular: regular ? { from: regular.from, to: regular.to, weeks: cadence && cadence !== "round" ? slateEpisodes(calendar, "regular", "week").length || null : null } : null };
 }

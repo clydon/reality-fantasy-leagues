@@ -5,7 +5,8 @@
 // faces standing there, someone away (behind, and not on since the latest aired: the home read's `away`) faded with a dotted trail
 // to the latest episode; finished seasons (for the whole couch) folded at the foot. Sports left for the scores strip under the
 // guide bar (docs/PLAN-sports-couch.md A1: hub/scores-strip.tsx), with the Scoreboard's ask (Show the score, or Watch it as if
-// live); each league you follow through a team, or play in, is a quieter card among the bands (A2: hub/league-cards.tsx).
+// live); each league you follow through a team, or play in, is a band too, the same height, in the art you choose for it
+// (A2: hub/league-cards.tsx; the user, 2026-11-23: docs/design-round/league-art-spec.md).
 
 import { useState } from "react";
 import { Plus } from "lucide-react";

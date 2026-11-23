@@ -11,8 +11,8 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { CalendarDays, ChevronLeft, ChevronRight, Eye, ListOrdered, MessageCircle, TableProperties, Trophy, type LucideIcon } from "lucide-react";
-import { useCouchTeams, useCurrentCouch, useHome, useLeaguesNow, useLeagueTeams, useRivalryGames, useRoomBadge, useRoomLatest, useSportsRecordings, useWatching, useYourTeams, useLaps, type Watching, type WeekGame } from "../data";
+import { CalendarDays, ChevronLeft, ChevronRight, Eye, ListOrdered, MessageCircle, Settings, TableProperties, Trophy, type LucideIcon } from "lucide-react";
+import { useCouchTeams, useCurrentCouch, useHome, useLeaguesNow, useLeagueArt, useLeagueTeams, useRivalryGames, useRoomBadge, useRoomLatest, useSportsRecordings, useWatching, useYourTeams, useLaps, type Watching, type WeekGame } from "../data";
 import { NavLink, useNav } from "../nav";
 import { isLeagueTab, LEAGUE_TABS, paths, type LeagueTab } from "../routes";
 import { Avatar, Faces } from "../ui/bars";
@@ -30,6 +30,9 @@ import { LeagueGames } from "./league-games";
 import { LeagueStandings } from "./league-standings";
 import { LeagueChat } from "./league-chat";
 import { teamKeyOf } from "@/lib/sports/team-badge";
+import { artInUse } from "@/lib/sports/league-art";
+import { ShowArt } from "../ui/show-bar";
+import { LeagueSettingsPage, useLeagueSettings } from "../settings/league-page";
 
 const TABS: Record<LeagueTab, { label: string; icon: LucideIcon }> = {
   week: { label: "This week", icon: CalendarDays },
@@ -58,6 +61,13 @@ export function LeagueFrame({ league, children }: { league: string; children: Re
   const nav = useNav();
   const { yours } = useLeagueGames(league);
   const f = useLeagueFollow(league, name, { playsHere: yours.length > 0 });
+  const settings = useLeagueSettings();
+  // The league's art for you (league-art.ts artInUse: yours, else the couch's, else its own), once its read says which: a band's art
+  // carried onto its page, as a show's is.
+  const home = useHome().data;
+  const couch = useCurrentCouch(home);
+  const artQ = useLeagueArt(couch?.id ?? null);
+  const art = home && artQ.isFetched ? artInUse(league, artQ.data, home.user).art : null;
   // The bar's height, for what sticks under it (Scores' switcher).
   const bar = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -78,12 +88,22 @@ export function LeagueFrame({ league, children }: { league: string; children: Re
       : `Off-season${now.back ? ` · back ${shortDay(now.back)}` : ""}`;
   return (
     <>
-      {/* The show bar's compact form, without art (a league has none: our marks, never logos), Night in both themes. */}
+      {/* The show bar's compact form, with the league's art behind it under the show bar's own fade (league-art.ts: the app's own
+          photos, never a logo), Night in both themes. */}
       <header
         ref={bar}
         data-league-bar={league}
-        className="dark sticky top-[var(--nd-top,0px)] z-20 bg-[linear-gradient(135deg,#2a2633,#100e15)] px-2 pb-3 pt-[calc(8px+env(safe-area-inset-top,0px))] text-foreground"
+        data-art={art?.id}
+        className="dark sticky top-[var(--nd-top,0px)] isolate z-20 overflow-hidden bg-[linear-gradient(135deg,#2a2633,#100e15)] px-2 pb-3 pt-[calc(8px+env(safe-area-inset-top,0px))] text-foreground"
       >
+        {art && (
+          <>
+            <ShowArt seasonId={`league-bar-${league}`} artUrl={art.src} name={name} position={art.position} bare className="absolute inset-0 -z-[2] size-full" />
+            {/* Lighter at the top than a show's (night photos, not bright key art: the check found the art all but gone), as dark at
+                the foot, under the name and its line. */}
+            <span aria-hidden className="absolute inset-0 -z-[1] bg-[linear-gradient(180deg,rgba(16,14,21,.3),rgba(16,14,21,.55)_45%,rgba(16,14,21,.92))]" />
+          </>
+        )}
         <div className="flex items-center gap-1.5">
           <button
             type="button"
@@ -93,17 +113,31 @@ export function LeagueFrame({ league, children }: { league: string; children: Re
             <ChevronLeft className="size-5" aria-hidden />
             Home
           </button>
-          <span className="ml-auto">
+          {/* 8 px between Follow and the gear: a slip onto Following unfollows (the check). */}
+          <span className="ml-auto flex items-center gap-2">
             <FollowToggle on={f.on} disabled={!f.ready || f.busy} onClick={() => void f.toggle()} label={theLeague(name)} data="league-bar" />
+            {/* The gear: this league's settings for you (Round 0's one gear on every bar; its art first). Last, so it stays put
+                while Follow's width changes. */}
+            <button
+              type="button"
+              aria-label="Your settings for this league"
+              data-league-gear
+              onClick={() => settings.show()}
+              className="grid size-11 place-items-center rounded-[3px] text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-foreground"
+            >
+              <Settings className="size-5" aria-hidden />
+            </button>
           </span>
         </div>
         <h1 className="type-caption truncate px-2 pt-2 text-[28px] leading-none">{loading ? " " : name}</h1>
-        <p data-league-sub className="mt-1.5 h-[18px] truncate px-2 text-[13.5px] font-semibold text-muted-foreground">
+        {/* Over a picture, the ink at 80%, not muted grey (DESIGN.md's Show Art: muted can't hold its contrast on a picture). */}
+        <p data-league-sub className="mt-1.5 h-[18px] truncate px-2 text-[13.5px] font-semibold text-foreground/80">
           {sub}
         </p>
       </header>
       <main style={{ paddingBottom: "calc(96px + env(safe-area-inset-bottom, 0px))" }}>{children}</main>
       <LeagueTabBar league={league} current={tab} />
+      <LeagueSettingsPage league={league} name={name} now={now} />
     </>
   );
 }

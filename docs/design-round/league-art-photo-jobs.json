@@ -1,0 +1,58 @@
+[
+  {
+    "tool": "generate_image",
+    "saveAs": "public/art/generated/baseball-dusk-v1.png",
+    "arguments": {
+      "prompt": "Create an original cinematic editorial background photograph for a baseball viewing companion. An empty professional-style ballpark at dusk seen from low behind home plate: raked infield dirt, crisp white chalk foul lines, the pitcher's mound, deep green outfield grass, the outfield wall and light towers just switching on against a deep violet-blue sky. No people or players close enough to identify, no team or league logos, no text, no numbers, no scoreboard, no advertising, no flags, no fake UI. Keep the LEFT 45% of the frame dark, calm and uncluttered (deep shadow toward near-black plum #16141d) so app titles can sit over it; the interest sits in the right half and across the middle band of the frame. Plum-black shadows, restrained natural colour, believable geometry, sophisticated sports broadcast photography, subtle film grain, no neon, no giant glow, no poster typography. An illustrative generic venue, not a claim about a specific real one. Square 1024 x 1024."
+    }
+  },
+  {
+    "tool": "generate_image",
+    "saveAs": "public/art/generated/basketball-court-v1.png",
+    "arguments": {
+      "prompt": "Create an original cinematic editorial background photograph for a basketball viewing companion. An empty professional-style arena from courtside at night: warm polished hardwood with its painted key and three-point arc, one hoop and backboard in soft focus on the right, tiers of dark seats rising into shadow, pools of cool white light on the floor. No people or players close enough to identify, no team or league logos, no text, no numbers, no scoreboard, no advertising, no flags, no fake UI. Keep the LEFT 45% of the frame dark, calm and uncluttered (deep shadow toward near-black plum #16141d) so app titles can sit over it; the interest sits in the right half and across the middle band of the frame. Plum-black shadows, restrained natural colour, believable geometry, sophisticated sports broadcast photography, subtle film grain, no neon, no giant glow, no poster typography. An illustrative generic venue, not a claim about a specific real one. Square 1024 x 1024."
+    }
+  },
+  {
+    "tool": "generate_image",
+    "saveAs": "public/art/generated/hockey-rink-v1.png",
+    "arguments": {
+      "prompt": "Create an original cinematic editorial background photograph for an ice hockey viewing companion. An empty professional-style rink from low at the boards: fresh ice with a faint sheen and scrape marks, red and blue lines under the ice, one goal net on the right, dark stands, cool white overhead light falling off into shadow. No people or players close enough to identify, no team or league logos, no text, no numbers, no scoreboard, no advertising, no flags, no fake UI. Keep the LEFT 45% of the frame dark, calm and uncluttered (deep shadow toward near-black plum #16141d) so app titles can sit over it; the interest sits in the right half and across the middle band of the frame. Plum-black shadows, restrained natural colour, believable geometry, sophisticated sports broadcast photography, subtle film grain, no neon, no giant glow, no poster typography. An illustrative generic venue, not a claim about a specific real one. Square 1024 x 1024."
+    }
+  },
+  {
+    "tool": "generate_image",
+    "saveAs": "public/art/generated/soccer-pitch-v1.png",
+    "arguments": {
+      "prompt": "Create an original cinematic editorial background photograph for a soccer (football) viewing companion. An empty professional-style stadium pitch at night from near the touchline: mown stripes in the grass, the white halfway line and centre circle, a goal in soft focus on the right, floodlights and dark stands in the distance. No people or players close enough to identify, no team or league logos, no text, no numbers, no scoreboard, no advertising, no flags, no fake UI. Keep the LEFT 45% of the frame dark, calm and uncluttered (deep shadow toward near-black plum #16141d) so app titles can sit over it; the interest sits in the right half and across the middle band of the frame. Plum-black shadows, restrained natural colour, believable geometry, sophisticated sports broadcast photography, subtle film grain, no neon, no giant glow, no poster typography. An illustrative generic venue, not a claim about a specific real one. Square 1024 x 1024."
+    }
+  },
+  {
+    "tool": "generate_image",
+    "saveAs": "public/art/generated/golf-green-v1.png",
+    "arguments": {
+      "prompt": "Create an original cinematic editorial background photograph for a golf viewing companion. A championship-style putting green at golden hour seen low across the grass: the flagstick and cup on the right (plain flag, no text or emblem), soft rolling fairway behind, long shadows, trees in silhouette. No people or players close enough to identify, no team or league logos, no text, no numbers, no scoreboard, no advertising, no flags, no fake UI. Keep the LEFT 45% of the frame dark, calm and uncluttered (deep shadow toward near-black plum #16141d) so app titles can sit over it; the interest sits in the right half and across the middle band of the frame. Plum-black shadows, restrained natural colour, believable geometry, sophisticated sports broadcast photography, subtle film grain, no neon, no giant glow, no poster typography. An illustrative generic venue, not a claim about a specific real one. Square 1024 x 1024."
+    }
+  },
+  {
+    "tool": "generate_image",
+    "saveAs": "public/art/generated/racing-track-v1.png",
+    "arguments": {
+      "prompt": "Create an original cinematic editorial background photograph for a motor racing viewing companion. An empty racing circuit corner at dusk from low on the apex: red and white kerbs, dark asphalt with rubber lines, gravel run-off, distant empty grandstand and track lights coming on. No cars, no sponsor boards. No people or players close enough to identify, no team or league logos, no text, no numbers, no scoreboard, no advertising, no flags, no fake UI. Keep the LEFT 45% of the frame dark, calm and uncluttered (deep shadow toward near-black plum #16141d) so app titles can sit over it; the interest sits in the right half and across the middle band of the frame. Plum-black shadows, restrained natural colour, believable geometry, sophisticated sports broadcast photography, subtle film grain, no neon, no giant glow, no poster typography. An illustrative generic venue, not a claim about a specific real one. Square 1024 x 1024."
+    }
+  },
+  {
+    "tool": "generate_image",
+    "saveAs": "public/art/generated/tennis-court-v1.png",
+    "arguments": {
+      "prompt": "Create an original cinematic editorial background photograph for a tennis viewing companion. An empty professional-style hard court at night from low behind the baseline: crisp white lines, the net in soft focus on the right, dark stands, cool white light pooling on the court surface. No people or players close enough to identify, no team or league logos, no text, no numbers, no scoreboard, no advertising, no flags, no fake UI. Keep the LEFT 45% of the frame dark, calm and uncluttered (deep shadow toward near-black plum #16141d) so app titles can sit over it; the interest sits in the right half and across the middle band of the frame. Plum-black shadows, restrained natural colour, believable geometry, sophisticated sports broadcast photography, subtle film grain, no neon, no giant glow, no poster typography. An illustrative generic venue, not a claim about a specific real one. Square 1024 x 1024."
+    }
+  },
+  {
+    "tool": "generate_image",
+    "saveAs": "public/art/generated/mma-cage-v1.png",
+    "arguments": {
+      "prompt": "Create an original cinematic editorial background photograph for a mixed martial arts viewing companion. An empty fight cage from just outside the fence at night: the chain-link fence and padded posts in soft focus, the canvas floor lit by a hard white overhead rig, the surrounding arena in darkness. No people, no logos on the canvas. No people or players close enough to identify, no team or league logos, no text, no numbers, no scoreboard, no advertising, no flags, no fake UI. Keep the LEFT 45% of the frame dark, calm and uncluttered (deep shadow toward near-black plum #16141d) so app titles can sit over it; the interest sits in the right half and across the middle band of the frame. Plum-black shadows, restrained natural colour, believable geometry, sophisticated sports broadcast photography, subtle film grain, no neon, no giant glow, no poster typography. An illustrative generic venue, not a claim about a specific real one. Square 1024 x 1024."
+    }
+  }
+]

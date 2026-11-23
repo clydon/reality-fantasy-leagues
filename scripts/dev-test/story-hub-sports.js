@@ -24,9 +24,16 @@
 //                 offering Make them your team (follow-team), made (follow-team-mine), the Eagles' sheet after (follow-team-eagles),
 //                 and the football sheet on Studio (follow-league-studio); --before shoots the first three on the old code
 // The league cards in Your shows (A2: hub/league-cards.tsx): each world also shoots <world>-cards (scrolled to Your shows) and
-// each card alone at twice the size (<world>-cards.card-N.png); many also the card's tap (many-league, the league's sheet). In
-// many alex also follows the ZT Yankees (a stand-in baseball league in its off-season: one line), and Riley and Sam join the
-// Pick'em. The stand-in's calendars (check-sports-couch.js calendarsAround) give each league its week.
+// each card alone at twice the size (<world>-cards.card-N.png); many also the card's tap (many-league, the league's page). In
+// many alex also follows the ZT Yankees (a stand-in baseball league in its off-season), and Riley and Sam join the Pick'em. The
+// stand-in's calendars (check-sports-couch.js calendarsAround) give each league its week.
+// League art (docs/design-round/league-art-spec.md), in many: the league's page in its art with the gear (many-art-league), the
+// gear's page (many-art-settings), Arena tapped there (many-art-arena), the hub's bands after (many-art-hub-cards), and the
+// baseball league's page with its one choice (many-art-baseball); alex (the couch's owner) uploads a picture for football
+// (many-art-own: the app's island photo standing in), and Riley, who hasn't chosen, sees it as the couch's (many-art-riley-cards,
+// many-art-riley-settings); every choice and picture is put back after.
+// --hold=<world> (many, one, bye...): only that world, held up with its stand-in ESPN answering until stopped, printing the base,
+// the user, the password and the header a browser needs (a reviewer's browser on the real pages); cleans up when stopped.
 // --before: the same worlds on a server running the code before the change (A1's: the old Scoreboard in Your shows and On TV's
 // sports cards; A2's: A1's tree, no league cards): the hub and cards frames only. Each frame prints the strip's height, the page's width and every
 // bug's words (its screen-reader sentence); words that sit on other words print as OVERLAP lines (overlaps.js), kept in
@@ -40,6 +47,7 @@
 require("dotenv").config({ path: ".env.local", quiet: true });
 const fs = require("fs");
 const path = require("path");
+const sharp = require("sharp");
 const { Pool } = require("pg");
 const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "..", "src"), "@db": path.join(__dirname, "..", "..", "db") } });
 const { open, api: signIn, BASE } = require("./browser");
@@ -228,19 +236,78 @@ async function main() {
     };
     const cardsOf = (w, o = {}) => shoot(`${w}-cards`, toShows, { cards: true, ...o });
     const run = (n) => !ONLY || ONLY.includes(n);
+    // Nobody's league art chosen, no pictures (docs/design-round/league-art-spec.md): each league's own first.
+    const artReset = async () => {
+      await pool.query("DELETE FROM league_art_pictures WHERE league = ANY($1)", [[FB, BB, MB]]);
+      await pool.query("UPDATE user_settings SET league_art = league_art - $1::text - $2::text - $3::text WHERE user_id IN (SELECT id FROM \"user\" WHERE username LIKE 'zt_nd_%')", [FB, BB, MB]);
+    };
+
+    // --hold=<world>: that world up (its follows, many's Pick'em), its stand-in ESPN kept answering, and what a browser needs printed,
+    // until this is stopped (Ctrl+C, or a kill): for a reviewer's own browser (a critique's detector pass) on the real pages. A
+    // browser reaches the stand-in only with the header, e.g. scripts/dev-test/browser.js open({ user, pass, headers }). Cleans up
+    // after, as ever.
+    const hold = opt("hold", "");
+    if (hold) {
+      await setWorld(hold, [...alexIn(hold), ...OTHERS]);
+      if (hold === "many") await pickem(eventsFor("many")[2].id, ["riley", "sam"]);
+      console.log(`HOLD ${hold}: ${JSON.stringify({ base: BASE, user: alex, pass: fixture.PASSWORD, headers, leagues: { football: FB, baseball: MB, basketball: BB } })}`);
+      await new Promise((done) => {
+        process.once("SIGINT", done);
+        process.once("SIGTERM", done);
+      });
+      return;
+    }
 
     if (run("many")) {
       await setWorld("many", [...alexIn("many"), ...OTHERS]);
       await pickem(eventsFor("many")[2].id, ["riley", "sam"]);
+      await artReset();
       await shoot("many-hub", toStrip, { full: true });
       await cardsOf("many");
+      if (!BEFORE) {
+        // League art (docs/design-round/league-art-spec.md): the league's page in its art with the gear; the gear's page (your band
+        // over the art's choices); Arena tapped there; the hub's band in Arena after; baseball's page, one choice so far.
+        const toLeague = (league, settings) => async (pg) => {
+          await pg.goto(`${BASE}/league/${league}/week${settings ? "?page=you" : ""}`, { waitUntil: "domcontentloaded" });
+          await pg.locator(`[data-league-bar="${league}"]`).waitFor({ timeout: 20000 });
+          if (settings) await pg.locator("[data-league-settings-band] [data-league-preview]").waitFor({ timeout: 20000 });
+          await pg.waitForTimeout(1200);
+        };
+        await shoot("many-art-league", toLeague(FB, false), { sheet: true });
+        await shoot("many-art-settings", toLeague(FB, true), { sheet: true });
+        await shoot(
+          "many-art-arena",
+          async (pg) => {
+            await toLeague(FB, true)(pg);
+            await pg.click('[data-art-choice="event-night-v1"]');
+            await pg.locator('[data-league-settings-band] [data-league-preview][data-art="event-night-v1"]').waitFor({ timeout: 10000 });
+            await pg.waitForTimeout(900);
+          },
+          { sheet: true }
+        );
+        await cardsOf("many-art-hub");
+        await artReset();
+        await shoot("many-art-baseball", toLeague(MB, true), { sheet: true });
+        // Your own picture, and the couch's pick (the user, 2026-11-23): alex (the couch's owner) uploads one for the football league
+        // (a stand-in: the app's own island photo, never a real team's picture in a story); alex's page with it in use; then Riley,
+        // who hasn't chosen, sees alex's picture on the hub's band and on the gear's page, named as alex's pick for the couch.
+        const island = await sharp(path.join(__dirname, "..", "..", "public/art/generated/island-night-v1.png")).resize(1280, 720, { fit: "cover" }).jpeg({ quality: 82 }).toBuffer();
+        const up = await me.raw("PUT", `/api/me/league-art?league=${encodeURIComponent(FB)}`, { body: island, type: "image/jpeg" });
+        if (up.status !== 200) console.log(`[art] alex's picture not saved (${up.status})`);
+        await shoot("many-art-own", toLeague(FB, true), { sheet: true });
+        const riley = { user: fixture.username("riley"), pass: fixture.PASSWORD };
+        await cardsOf("many-art-riley", riley);
+        await shoot("many-art-riley-settings", toLeague(FB, true), { sheet: true, ...riley });
+        await artReset();
+      }
       if (!BEFORE)
         await shoot(
           "many-league",
           async (pg) => {
             await toShows(pg);
             await pg.locator(`[data-league-card="${FB}"]`).click();
-            await pg.locator("[data-league-view]").waitFor({ timeout: 10000 });
+            // B1 made the tap a page of its own (it was the league's sheet).
+            await pg.locator(`[data-league-bar="${FB}"]`).waitFor({ timeout: 10000 });
             await pg.waitForTimeout(900);
           },
           { sheet: true }

@@ -117,7 +117,9 @@ function calendarsAround(t = now) {
   const week = (i) => ({ from: day(w12 + (i - 12) * 7 * D), to: day(w12 + (i - 11) * 7 * D) });
   const POST = ["Wild Card", "Divisional Round", "Conference Championship", "Super Bowl"];
   const weeks = [...Array.from({ length: 18 }, (_, i) => ({ type: 2, label: `Week ${i + 1}`, ...week(i + 1) })), ...POST.map((label, i) => ({ type: 3, label, ...week(19 + i) }))];
-  const bbDays = Array.from({ length: 25 }, (_, i) => day(t - 35 * D + i * 2 * D).slice(0, 10));
+  // A game every other day through the regular season and the playoffs, as ESPN's calendar lists a whole season (a band's ruler
+  // counts the season's weeks from them: docs/design-round/league-art-spec.md; 25 days from five weeks back made it "6 of 7").
+  const bbDays = [...Array.from({ length: 88 }, (_, i) => t - 35 * D + i * 2 * D), ...Array.from({ length: 31 }, (_, i) => t + 150 * D + i * 2 * D)].map((ms) => day(ms).slice(0, 10));
   return {
     [FB]: { season: 2026, label: "2026", now: 2, weeks, stages: [{ type: 2, name: "Regular Season", from: weeks[0].from, to: weeks[17].to }, { type: 3, name: "Postseason", from: weeks[18].from, to: weeks[21].to }] },
     [BB]: { season: 2027, label: "2026-27", now: 2, days: bbDays, stages: [{ type: 2, name: "Regular Season", from: day(t - 35 * D), to: day(t + 140 * D) }, { type: 3, name: "Postseason", from: day(t + 150 * D), to: day(t + 210 * D) }] },
@@ -635,27 +637,37 @@ async function browserChecks(pool, headers, couch) {
       }));
       check(drawn.strip >= 2 && drawn.card >= 1, `(--pictures) the couch's pictures in the strip's bugs (${drawn.strip}) and the league card (${drawn.card})`, drawn);
     }
-    // The league card in Your shows (A2): among the bands, 72 px, the league, its week, the couch's teams as marks (the Eagles
-    // yours, ringed), one line; never a live score or red. The Yankees' league in its off-season, one 48 px line. A tap opens the
-    // league's sheet.
+    // The league's band in Your shows (A2, then docs/design-round/league-art-spec.md): among the show bands and their height, 126 px,
+    // in its art (football's own photo by default: league-art.ts), the league, its week, the couch's teams as marks on its season's
+    // ruler (the Eagles yours, ringed), one line; never a live score or red. The Yankees' league in its off-season: the same 126 px,
+    // Arena (baseball has no photo of its own yet), when it's back, the Yankees' mark at the foot, no ruler.
     await page.locator(`[data-your-shows] [data-league-card="${FB}"]`).waitFor({ timeout: 20_000 });
     const cards = await page.evaluate(([fb, mb]) => {
       const c = document.querySelector(`[data-your-shows] [data-league-card="${fb}"]`);
       const off = document.querySelector(`[data-your-shows] [data-league-card="${mb}"]`);
+      const band = c?.closest("[data-your-shows]")?.querySelector("[data-band]");
       return {
         h: c?.getBoundingClientRect().height,
+        bandH: band?.getBoundingClientRect().height ?? null,
         words: c?.textContent ?? "",
-        you: !!c?.querySelector('[data-league-mark="you"]'),
+        art: c?.getAttribute("data-art"),
+        img: c?.querySelector("img")?.getAttribute("src") ?? null,
+        ruler: c?.querySelector("[data-league-ruler]")?.getAttribute("data-league-ruler") ?? null,
+        you: !!c?.querySelector('[data-league-ruler] [data-league-mark="you"]'),
         red: !!c?.querySelector('[class*="bg-live"], [class*="text-live"]'),
         offH: off?.getBoundingClientRect().height,
         offOn: off?.hasAttribute("data-league-off"),
+        offArt: off?.getAttribute("data-art"),
         offWords: off?.textContent ?? "",
-        among: !!c?.closest("[data-your-shows]")?.querySelector("[data-band]"),
+        offMark: !!off?.querySelector("[data-league-mark]"),
+        offRuler: !!off?.querySelector("[data-league-ruler]"),
+        among: !!band,
       };
     }, [FB, MB]);
-    check(cards.h === 72 && /ZTCF/.test(cards.words) && /Week 12/.test(cards.words) && cards.you && !cards.red && !/14|6:41/.test(cards.words), "the league card: 72 px, its league and week, your team's mark, no score, no red", cards);
-    check(cards.among, "the league card sits among the show bands");
-    check(cards.offH === 48 && cards.offOn && /Off-season/.test(cards.offWords) && /Yankees/.test(cards.offWords) && /back /.test(cards.offWords), "off-season: one 48 px line with the team and when it's back", cards);
+    check(cards.h === 126 && cards.bandH === 126 && /ZTCF/.test(cards.words) && /Week 12/.test(cards.words) && cards.you && !cards.red && !/14|6:41/.test(cards.words), "the league's band: 126 px as a show's, its league and week, your team's mark on its ruler, no score, no red", cards);
+    check(cards.art === "football-night-v1" && /football-night-v1-wide\.webp$/.test(cards.img ?? "") && cards.ruler === "12", "the band wears football's own photo, and its ruler stands at week 12", cards);
+    check(cards.among, "the league's band sits among the show bands");
+    check(cards.offH === 126 && cards.offOn && cards.offArt === "event-night-v1" && /Off-season/.test(cards.offWords) && /back /.test(cards.offWords) && cards.offMark && !cards.offRuler, "off-season: the same 126 px in Arena, when it's back, the Yankees' mark, no ruler", cards);
     // B1: the tap opens the league's page on This week: the couch's table with your team's row, your games in the league after the
     // table (the API half started Squares on the Eagles' season), then starting another.
     await page.locator(`[data-league-card="${FB}"]`).click();
@@ -672,6 +684,32 @@ async function browserChecks(pool, headers, couch) {
     check(lead.mine && (only !== null || (lead.rows > 0 && lead.order)), "This week: your team's row, then your games in the league, then starting one", lead);
     await wide("the league's page");
     await shot("6b-league-page");
+    // League art (docs/design-round/league-art-spec.md): the bar wears the band's art; its gear opens Your settings for the league,
+    // your band as Your shows has it over the art's choices (football: Under the lights, then Arena); a tap repaints the band and
+    // the bar and saves it (GET /api/me/league-art's `mine`), and the choice is put back after. The couch's pick and uploads have
+    // their own check (check-league-art.js).
+    const barArt = await page.getAttribute(`[data-league-bar="${FB}"]`, "data-art");
+    check(barArt === "football-night-v1" && (await page.locator(`[data-league-bar="${FB}"] img`).count()) === 1, "the league's bar wears its art", barArt);
+    await page.click("[data-league-gear]");
+    const opened = await page.locator("[data-league-settings-band] [data-league-preview]").waitFor({ timeout: 15000 }).then(() => true, () => false);
+    const choices = await page.$$eval("[data-art-choice]", (els) => els.map((e) => `${e.getAttribute("data-art-choice")}${e.getAttribute("aria-pressed") === "true" ? "*" : ""}`));
+    check(opened && page.url().includes("page=you") && choices.join() === "football-night-v1*,event-night-v1", "the gear opens Your settings: your band, then the art's choices, the one in use checked", { url: page.url(), choices });
+    await shot("6c-league-settings");
+    await page.click('[data-art-choice="event-night-v1"]');
+    await page.locator('[data-league-settings-band] [data-league-preview][data-art="event-night-v1"]').waitFor({ timeout: 10000 }).catch(() => {});
+    const picked = await page.evaluate(async (fb) => ({
+      preview: document.querySelector("[data-league-settings-band] [data-league-preview]")?.getAttribute("data-art"),
+      bar: document.querySelector(`[data-league-bar="${fb}"]`)?.getAttribute("data-art"),
+      checked: document.querySelector('[data-art-choice][aria-pressed="true"]')?.getAttribute("data-art-choice"),
+      saved: (await (await fetch("/api/me/league-art")).json()).mine?.[fb] ?? null,
+    }), FB);
+    check(picked.preview === "event-night-v1" && picked.bar === "event-night-v1" && picked.checked === "event-night-v1" && picked.saved === "event-night-v1", "Arena tapped: the band and the bar repaint, and it's saved", picked);
+    await shot("6d-league-settings-arena");
+    const refused = await page.evaluate(async () => (await fetch("/api/me/league-art", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ league: "baseball/zt-scm", art: "football-night-v1" }) })).status);
+    check(refused === 400, "a baseball league can't wear football's photo (400)", refused);
+    await page.evaluate(async (fb) => fetch("/api/me/league-art", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ league: fb, art: null }) }), FB);
+    await page.goBack();
+    await page.locator(`[data-league-bar="${FB}"]`).waitFor({ timeout: 10000 }).catch(() => {});
     await page.click('nav[aria-label="League"] a[href$="/scores"]');
     check(await page.locator("[data-scores-switcher]").waitFor({ timeout: 15000 }).then(() => true, () => false), "its Scores tab: the week switcher");
     await page.locator('[data-league-scores] [data-bug="93103"]').waitFor({ timeout: 15000 }).catch(() => {});
