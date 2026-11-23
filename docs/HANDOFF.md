@@ -17,9 +17,16 @@ puts its build notes in its plan, not here.
 
 ---
 
-## Live (production = origin/master, 5b2ec44d+, deployed 2026-11-23)
+## Live (production = origin/master, 4d78f775+, deployed 2026-11-23)
 
 Newest first. The plan or archive section named holds the detail.
+- **Every show gets write-ups and headlines** (2026-11-23, pushed 30db5e3f and 4d78f775; no migration). The bot research clock's
+  last job asks for the newest 10 aired episodes of every followed or played season that lack one, two hours after each ends.
+  It retries after 6 hours, or a day if an ask found none (episode-recaps.ts runDueRecaps). Before, a game's season (Survivor)
+  never got one. The reveal's "In this episode" plays after the vote cards when someone left. The answer reader takes the
+  bot's whole JSON even after a cut-off copy. Survivor 51's 9 were filled at once (scripts/recaps-now.js, two asks; Ep 2 came
+  without a headline). Production's 4 followed seasons and the couch's leagues fill by the clock. The AI's vote counts aren't
+  checked and vary between asks (Ep 1: 6-2, 5-3, 2-1): BACKLOG 259.
 - **"In this episode" on Tonight** (2026-11-23, pushed 5b2ec44d; migration 0456 not rehearsed: it only adds a nullable column with
   a length check): Last time shows the episode's write-up under who left, as the stat plate's dark sibling, with an AI headline
   of at most 45 characters (recap-text.ts HEADLINE_MAX: one line on an ordinary phone, two at most). The recap search writes a
