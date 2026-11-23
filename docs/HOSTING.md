@@ -326,6 +326,14 @@ the last day's rows) when This week, a team's page or a game's sheet opens, and 
 made on another phone shows during a game); `POST` one row. **Migration 0451** (`sports_watching`: a row a person, couch and game; a
 few a person a week, nothing sweeps them: the read takes the last day's).
 
+**Solo: your calls and the season call (docs/PLAN-sports-couch.md C4, 2026-11-23, not merged)** asks ESPN nothing new. `GET
+/api/sports/own?league=&teams=` (your own calls and season-call games in the league, a few indexed queries, and each asked team's season
+schedule: the provider's cached read C2's calls already make, eight teams at most) when a team's page, This week or a solo Games tab opens;
+never edge-kept, never polled. `POST` makes your call (the first starts your calls: one league, as any game) or the season call (one
+league a fan a team a season). The home's moves read adds nothing (your calls' move words come from its name). A sport's game started on
+no couch is your own (a draft with computer players included): an ordinary league, `leagues.solo = 'own'`. **Migration 0453** (widens
+`leagues.solo`'s check; no new table).
+
 **A victory lap (docs/PLAN-sports-couch.md C3, 2026-11-23, not merged)** asks ESPN nothing new. `GET /api/sports/laps?couch=&league=&teams=`
 (your open laps: each of your couch teams' last final from its season schedule, the provider's cached read C2's calls already make, eight
 teams at most; and the couch's laps, one indexed query) when This week opens and when a final game's sheet opens; never edge-kept, never

@@ -47,7 +47,7 @@ export interface Input {
   made: MadeGame[];
   tells: number;
   asksLeft: number | null;
-  couch: { id: string; name: string; members: number };
+  couch: { id: string | null; name: string; members: number };
   marks: { userId: string; name: string; seen: number; you: boolean }[];
   sport: boolean;
   /** Step 2.7 (docs/PLAN-sports-ready.md): a sport's season that goes on into its playoffs: where its regular season ends (`fantasy`

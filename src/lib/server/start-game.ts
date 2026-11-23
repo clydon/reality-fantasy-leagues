@@ -168,7 +168,8 @@ export interface StartOptions {
    *  sport's is at your own pace (docs/PLAN-sports-ready.md step 2.6, part c: Claude's call, reversible; live for a league of
    *  people, own one tap away). */
   runs: { choices: PaceMode[]; recommended: PaceMode; exclusive: PaceMode; alone: PaceMode | null };
-  couch: { id: string; name: string; members: number };
+  /** The couch it's started on; null for your own (a sport's game on no couch: C4). */
+  couch: { id: string | null; name: string; members: number };
   /** Run it back: the game it plays again (the same game, name and settings), and, when that was a span, the next one's last
    *  episode (to start with; null: to the season's end). `label` says which it was ("ZT Survivor 51 · Episodes 6–7"). `phase`:
    *  it started when a phase did, and this season has that phase still to come (the sheet starts it there too). */
@@ -307,16 +308,21 @@ export async function startOptions(
   start: number | null = null
 ): Promise<StartOptions> {
   if (!isUuid(seasonId)) throw new HttpError(404, "Season not found");
-  if (!couchId || !isUuid(couchId)) throw new HttpError(400, "couch required");
-  const role = await requireCouch(user, couchId);
-  if (role === "viewer") throw new HttpError(403, "Join the couch to start a game on it");
+  // C4 (docs/PLAN-sports-couch.md, solo): a sport's game can be your own, on no couch (leagues.solo 'own'); every other start is a
+  // couch's.
+  if (couchId !== null && !isUuid(couchId)) throw new HttpError(400, "couch required");
+  if (couchId) {
+    const role = await requireCouch(user, couchId);
+    if (role === "viewer") throw new HttpError(403, "Join the couch to start a game on it");
+  }
   const [headers, schedules, members, { rows: couchRows }, { rows: leagueRows }] = await Promise.all([
     seasonHeaders([seasonId]),
     seasonSchedules([seasonId], now),
-    couchMembers([couchId]),
-    pool.query("SELECT name FROM couches WHERE id = $1", [couchId]),
+    couchMembers(couchId ? [couchId] : []),
+    couchId ? pool.query("SELECT name FROM couches WHERE id = $1", [couchId]) : Promise.resolve({ rows: [] as { name: string }[] }),
     pool.query("SELECT s.sports_league FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1 AND s.kind = 'sport'", [seasonId]),
   ]);
+  if (!couchId && !leagueRows.length) throw new HttpError(400, "couch required");
   // "espn:football/nfl": the provider's league path after its id.
   const sportLeague = typeof leagueRows[0]?.sports_league === "string" ? (leagueRows[0].sports_league as string).replace(/^[a-z]+:/, "") : null;
   // Step 2.7: a sport's season that goes on into its playoffs (a full slate, a team's season): where its regular season ends, for the
@@ -326,8 +332,8 @@ export async function startOptions(
   const h = headers.get(seasonId);
   if (!h) throw new HttpError(404, "Season not found");
   const schedule = schedules.get(seasonId);
-  const people = members.get(couchId) ?? [];
-  const here = await couchGamesOn(user, couchId, seasonId);
+  const people = couchId ? (members.get(couchId) ?? []) : [];
+  const here = couchId ? await couchGamesOn(user, couchId, seasonId) : [];
 
   const season = await seasonBlocks(seasonId);
   const { blocks: book, compiled } = season;
@@ -482,7 +488,7 @@ export async function startOptions(
     runs: ownPace
       ? { choices: ["own"], recommended: "own", exclusive: "own", alone: "own" }
       : { choices: ["own", "live", "strict"], recommended: sporting ? "live" : "own", exclusive: "live", alone: sporting ? "own" : null },
-    couch: { id: couchId, name: couchRows[0]?.name ?? "Your couch", members: people.length },
+    couch: { id: couchId, name: couchId ? (couchRows[0]?.name ?? "Your couch") : "Just you", members: people.length },
     again,
   };
 }
@@ -621,6 +627,8 @@ export async function startGame(
   if (bots && !choice.bots) throw new HttpError(409, `Computer players don't play ${choice.name}`);
   const level: BotLevel = body.level === "easy" || body.level === "sharp" ? body.level : "normal";
   const couch = opts.couch.id;
+  // The season games' sheet is a couch's (your own sports games start from a spec: start-spec.ts).
+  if (!couch) throw new HttpError(400, "couch required");
   const here = await couchGamesOn(user, couch, seasonId);
   const part = opts.part.singular.replace(/^./, (c) => c.toUpperCase());
   const name = gameName(opts.again && opts.again.key === choice.key ? opts.again.name : choice.name, here, to !== null && to === opts.from ? { episode: opts.from, word: part } : null, false);

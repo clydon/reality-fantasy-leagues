@@ -13,7 +13,7 @@ import { useCouchGames, useCurrentCouch, useHome, useLeagueTeams, useMySportsGam
 import { joinable, JoinButton, JoinGameSheet } from "../couch/join-game";
 import { LaunchRow, People } from "../show/whats-on";
 import { paths } from "../routes";
-import { openCouchSheet } from "../couch/couch-sheets";
+import { CouchLine } from "./team-page";
 import { SportsLabel, TeamMark } from "../sports/parts";
 import { clockOf, dayOf, useNow } from "../sports/scores";
 import { LeagueStart, openSports, startOn, useLeagueGames } from "../sports/sheets";
@@ -71,19 +71,21 @@ export function LeagueGames({ league, name, lnow }: { league: string; name: stri
         </section>
       )}
       {!couch ? (
-        // Solo: a sports start needs a couch today (C4 brings solo play): said once, nothing offered that can't be done.
-        <div data-games-solo className="mt-6 text-[14px] leading-snug text-muted-foreground">
-          <p>{rows.length ? "" : `You don’t play a game in ${name} yet. `}Starting a sports game needs a couch for now.</p>
-          {/* The next step there is (the check: the line was a dead end). */}
-          <p className="mt-1 flex gap-4">
-            <button type="button" data-games-new-couch onClick={() => openCouchSheet({ kind: "new" })} className="nd-press inline-flex h-11 items-center font-semibold text-foreground underline underline-offset-[3px] focus-visible:outline-2 focus-visible:outline-foreground">
-              Start a couch
-            </button>
-            <button type="button" data-games-join-couch onClick={() => openCouchSheet({ kind: "join" })} className="nd-press inline-flex h-11 items-center font-semibold text-foreground underline underline-offset-[3px] focus-visible:outline-2 focus-visible:outline-foreground">
-              Join one
-            </button>
-          </p>
-        </div>
+        // Solo (C4): your own games are above; Your team starts one on no couch (computer players are offered there); the couch line
+        // last and quiet.
+        <>
+          {off ? (
+            <p data-games-off className="mt-6 text-[14px] text-muted-foreground">
+              Nothing to start until the season does.
+            </p>
+          ) : (
+            <YourTeam league={league} teams={teams.filter((t) => t.followers.some((f) => f.id === meId))} meId={meId} />
+          )}
+          <div data-games-solo className="mt-4">
+            {!rows.length && <p className="text-[14px] leading-snug text-muted-foreground">You don’t play a game in {name} yet.</p>}
+            <CouchLine />
+          </div>
+        </>
       ) : off ? (
         <p data-games-off className="mt-6 text-[14px] text-muted-foreground">
           Nothing to start until the season does.

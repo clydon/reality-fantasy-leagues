@@ -554,6 +554,17 @@ say whose team it is; fold them in B2's head when it's next touched. (d) The hub
 watching read polls every two minutes while This week, a team's page or a game's sheet is open; if Neon's compute hours tighten, poll
 only while a couch team's game is on. [S–M · sports]
 
+**258. Solo's leftovers (C4, PLAN-sports-couch.md; the sports-couch lane, 2026-11-23).** (a) The team page's Schedule still offers
+Start a game on one game only with a couch (`canStart`); a solo fan starts from More on the team. (b) Open a solo game to a couch later
+(round 2's "any solo game can be opened to the couch"): a game moving between couches is its own step. (c) A solo fan's record carried
+onto a couch once he joins one (C2's record counts couch calls only), with Privacy's "show my record" (the plan's default). (d) The couch
+seeing each other's season calls on the fan card once made (the review's open choice). (e) Seen while seeding the story: an archived game
+of yours still lists on a league's Games tab "Your games here" (`useLeagueGames` filters `archived`, so home's games may not carry it);
+check with a real archived game. (f) The stand-in ESPN keeps no stored finals, so a game over a whole season can't move past its first
+week in a check; a fixture that writes `sports_events` finals would let checks play a season. (g) A one-person game's page keeps the
+generic words of a game of questions ("Everyone answers one question", a table of one): your calls and the season call could say it as a
+fan's own (and the season call's answer could read as the record, "13–3–1", not "5"). [S–M · sports]
+
 **257. The victory lap's leftovers (C3, PLAN-sports-couch.md; the sports-couch lane, 2026-11-23).** (a) A fan's call game shows on the hub's
 feed as a started game ("Jordan started a Jordan's call · tap to join"): C2's call and C1's rivalry games should leave the feed's
 "started" rows (their card is the way in). (b) A lap only for the winning team's fans: after a real Sunday, decide whether a right back

@@ -260,7 +260,7 @@ export async function soloFor(user: SessionUser, now = new Date()): Promise<{ se
   const { rows } = await pool.query(
     `SELECT season_id FROM show_follows WHERE user_id = $1 AND following
      UNION SELECT solo_season_id FROM leagues l JOIN league_memberships m ON m.league_id = l.id
-      WHERE m.user_id = $1 AND l.solo IS NOT NULL AND l.solo_season_id IS NOT NULL`,
+      WHERE m.user_id = $1 AND l.solo IN ('public', 'practice') AND l.solo_season_id IS NOT NULL`,
     [user.id]
   );
   const ids = rows.map((r) => r.season_id as string);
@@ -270,7 +270,7 @@ export async function soloFor(user: SessionUser, now = new Date()): Promise<{ se
     const row = seasons.get(id);
     const schedule = schedules.get(id);
     // A season with nothing to play and nothing of yours is left out.
-    const mine = await pool.query("SELECT 1 FROM leagues l JOIN league_memberships m ON m.league_id = l.id WHERE m.user_id = $1 AND l.solo IS NOT NULL AND l.solo_season_id = $2", [user.id, id]);
+    const mine = await pool.query("SELECT 1 FROM leagues l JOIN league_memberships m ON m.league_id = l.id WHERE m.user_id = $1 AND l.solo IN ('public', 'practice') AND l.solo_season_id = $2", [user.id, id]);
     if (soloBlocked(row, schedule, now) && !mine.rows.length) continue;
     const here = mine.rows.length ? await yoursOn(user, id) : [];
     out.push({ seasonId: id, pool: await poolFor(user, id, now, here) });

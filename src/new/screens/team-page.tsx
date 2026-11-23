@@ -14,7 +14,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronLeft, ChevronRight, Gamepad2, House, MessageCircle, Plane } from "lucide-react";
-import { sportsApi, useCouchGames, useCouchTeams, useCurrentCouch, useGameSeasons, useHome, useLeaguesNow, useLeagueStandings, useMySportsGames, useRoomCounts, useSportsRecordings, useTeamSchedule, useWatching, type JoinGame, type TeamSchedule, type WeekGame } from "../data";
+import { sportsApi, useCouchGames, useCouchTeams, useCurrentCouch, useGameSeasons, useHome, useLeaguesNow, useLeagueStandings, useMySportsGames, useRoomCounts, useSportsRecordings, useTeamSchedule, useWatching, useOwnCalls, type JoinGame, type TeamSchedule, type WeekGame } from "../data";
 import { NavLink, useNav } from "../nav";
 import { paths } from "../routes";
 import { toast } from "../ui/toast";
@@ -28,6 +28,7 @@ import { AskSheet } from "../sports/scorebug";
 import { GameBug } from "../sports/game-bug";
 import { begun, clockOf, dayOf, showScore, useGameScore, useHideSports, useHideSportsKnown, useNow, useShownScores } from "../sports/scores";
 import { openSports, startOn } from "../sports/sheets";
+import { SeasonCallRow } from "../sports/season-call";
 import { useStartSport } from "../sports/start";
 import { asRow, CouchGameRow, couchName, versus, type StartWhen } from "../sports/team";
 import { teamKeyOf } from "@/lib/sports/team-badge";
@@ -194,8 +195,15 @@ function TeamPageBody({ league, team, s, against: firstAgainst }: { league: stri
   const fans = couchTeamsHere.find((t) => t.id === team)?.followers ?? [];
   const meId = f.me ?? "";
   const lite = { id: s.team.id, short: s.team.short, abbreviation: s.team.abbreviation ?? null, color: s.team.color ?? null };
+  // C4, solo: a fan on no couch calls their games into their own calls (no backing), and anyone following them calls the season.
+  const solo = !f.couch;
+  const ownQ = useOwnCalls(league, [team], f.on && !!meId);
+  const ownCalls = ownQ.data?.calls ?? [];
+  const seasonCall = ownQ.data?.seasons.find((c) => c.team === team) ?? null;
+  const since = here.find((t) => t.id === team) as { since?: string } | undefined;
+  const soloFans = [{ id: meId, name: "You", since: since?.since }];
   const callEntry = (() => {
-    if (!couchId || !nowGame?.opponent) return null;
+    if ((!couchId && !(solo && f.on)) || !nowGame?.opponent) return null;
     const opp = { id: nowGame.opponent.id, short: nowGame.opponent.short, abbreviation: nowGame.opponent.abbreviation, color: couchTeamsHere.find((t) => t.id === nowGame.opponent!.id)?.color ?? null };
     const away = nowGame.home === false ? lite : opp;
     const home = nowGame.home === false ? opp : lite;
@@ -205,6 +213,7 @@ function TeamPageBody({ league, team, s, against: firstAgainst }: { league: stri
     const us = couchTeamsHere.find((t) => t.id === team)?.followers ?? [];
     const them = couchTeamsHere.find((t) => t.id === opp.id)?.followers ?? [];
     const rivalry = us.some((x) => !them.some((y) => y.id === x.id)) && them.some((x) => !us.some((y) => y.id === x.id));
+    if (solo) return callEntries({ matches: [m], teams: [{ ...lite, followers: soloFans }] as never, calls: ownCalls, meId, rivalryIds: new Set(), now })[0] ?? null;
     return callEntries({ matches: [m], teams: couchTeamsHere as never, calls, meId, rivalryIds: new Set(rivalry ? [m.id] : []), now })[0] ?? null;
   })();
   // Your own call to make is the page's one yellow; Play the next game steps down (the call is a Pick'em on that same game).
@@ -241,6 +250,19 @@ function TeamPageBody({ league, team, s, against: firstAgainst }: { league: stri
             <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
           </NavLink>
         </div>
+        {solo && f.on && known && (
+          <FanCard
+            league={league}
+            team={lite}
+            fans={soloFans}
+            meId={meId}
+            season={games.filter((g) => !g.calledOff).map((g) => ({ id: g.id, at: g.at }))}
+            calls={ownCalls}
+            told={told}
+            onShow={() => showScore(seasonKey(league, team))}
+            solo
+          />
+        )}
         {couchId && fans.length > 0 && known && (
           <FanCard
             league={league}
@@ -262,8 +284,19 @@ function TeamPageBody({ league, team, s, against: firstAgainst }: { league: stri
             {/* Its day here, so the bug's status column says only the time (a day's word overran it: "TOMORROW"). */}
             <p data-team-now-label className="type-caption mb-2 text-[14px] tracking-[0.05em] text-muted-foreground">{live ? "On now" : !nowGame.at ? "Next game" : dayOf(nowGame.at) === "Today" ? "Today" : `Next game · ${dayOf(nowGame.at)}${/^(Tomorrow|[A-Z][a-z]{2})$/.test(dayOf(nowGame.at)) ? `, ${shortDate(nowGame.at)}` : ""}`}</p>
             <GameBug g={nowGame} s={s} now={now} onAsk={setAsking} />
-            {callEntry && couchId && (
-              <CallRow e={callEntry} league={league} calls={calls} loading={callsQ.isLoading} hidden={!told} meId={meId} couchId={couchId} yellow={callYellow} watchers={watching.filter((w) => w.game === callEntry.m.id)} bare />
+            {callEntry && (couchId || solo) && (
+              <CallRow
+                e={callEntry}
+                league={league}
+                calls={solo ? ownCalls : calls}
+                loading={solo ? ownQ.isLoading : callsQ.isLoading}
+                hidden={!told}
+                meId={meId}
+                couchId={couchId}
+                yellow={callYellow}
+                watchers={watching.filter((w) => w.game === callEntry.m.id)}
+                bare
+              />
             )}
           </>
         ) : (
@@ -272,6 +305,8 @@ function TeamPageBody({ league, team, s, against: firstAgainst }: { league: stri
           </p>
         )}
         {f.couch && next && <PlayNext g={next} busy={busy} quiet={callYellow} onPlay={(g) => void start({ league, team, games: [g.id], game: "pickem" })} />}
+        {/* C4: the season call, for anyone following them (yours alone, couch or not). */}
+        {f.on && known && <SeasonCallRow league={league} team={lite} season={ownQ.data?.schedules[team] ?? []} call={seasonCall} told={told} now={now} loading={ownQ.isLoading} />}
       </section>
 
       {games.length > 0 && (
@@ -333,17 +368,19 @@ function TeamPageBody({ league, team, s, against: firstAgainst }: { league: stri
       )}
       {/* C2: the couch's games on this team's next game (by their maker, Join or Open); its call and rivalry are the rows above. */}
       {f.couch && next && <TeamCouchGames league={league} short={s.team.short} next={next} now={now} skip={new Set(calls.map((c) => c.leagueId))} />}
-      {!f.couch && next && (
-        <p data-team-solo className="mt-5 text-[14px] leading-snug text-muted-foreground">
-          Starting a sports game needs a couch for now.{" "}
-          <button type="button" onClick={() => openCouchSheet({ kind: "new" })} className="nd-press inline-flex h-11 items-center font-semibold text-foreground underline underline-offset-[3px]">
-            Start a couch
-          </button>{" "}
-          ·{" "}
-          <button type="button" onClick={() => openCouchSheet({ kind: "join" })} className="nd-press inline-flex h-11 items-center font-semibold text-foreground underline underline-offset-[3px]">
-            Join one
-          </button>
-        </p>
+      {/* C4, solo: more on the team, your own games (a draft against computer players, or any game on their season); the couch last. */}
+      {solo && next && (
+        <section data-team-more>
+          <SportsLabel>{`More on the ${s.team.short}`}</SportsLabel>
+          <OpenRow
+            data="solo-draft"
+            title={`A draft of ${s.team.short} players`}
+            line="You and computer players · the rest of the season"
+            onClick={() => openSports({ kind: "start", target: { kind: "team", league, team, teamName: s.team.short, when: { kind: "season" }, base: SOLO_DRAFT, bots: SOLO_BOTS } })}
+          />
+          <OpenRow data="solo-season" title={`Every ${s.team.short} game`} line="Pick’em on each, or Best Ball" onClick={() => onStart({ kind: "season" })} />
+          <CouchLine />
+        </section>
       )}
 
       <Schedule
@@ -918,5 +955,25 @@ function MonthCell({ g, d, league, today, told, recorded, onOpen }: { g: Game; d
       <TeamMark abbr={g.opponent?.abbreviation ?? g.opponent?.short.slice(0, 3)} color={g.opponent?.color} size="xs" team={g.opponent && teamKeyOf(league, g.opponent.id)} />
       <span className={`h-3 text-[11px] font-extrabold leading-3 ${g.result === "W" ? "text-(--nd-good)" : "text-muted-foreground"}`}>{open ? g.result : ""}</span>
     </button>
+  );
+}
+
+/** C4: the solo draft (the gallery's draft on a team's season) and its computer players. */
+const SOLO_DRAFT = "sp-game-draft";
+const SOLO_BOTS = 3;
+
+/** C4: a solo fan's way to friends, last and quiet (the solo play is the page, not a consolation). */
+export function CouchLine() {
+  return (
+    <p data-couch-line className="mt-3 text-[13px] leading-snug text-muted-foreground">
+      Play with friends:{" "}
+      <button type="button" onClick={() => openCouchSheet({ kind: "new" })} className="nd-press inline-flex h-11 items-center font-semibold text-foreground underline underline-offset-[3px] focus-visible:outline-2 focus-visible:outline-foreground">
+        Start a couch
+      </button>{" "}
+      ·{" "}
+      <button type="button" onClick={() => openCouchSheet({ kind: "join" })} className="nd-press inline-flex h-11 items-center font-semibold text-foreground underline underline-offset-[3px] focus-visible:outline-2 focus-visible:outline-foreground">
+        Join one
+      </button>
+    </p>
   );
 }

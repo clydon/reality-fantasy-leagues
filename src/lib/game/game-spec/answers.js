@@ -400,6 +400,8 @@ function outsideVerdict(q, episode, facts) {
  */
 function standingIn(st, g, q) {
   const lines = isObj(g.lines) ? g.lines : {};
+  // C4: a team's wins over the span (spanWins).
+  if (st.by === 'final' && st.take === 'wins') return isNum(g.wins) ? { value: g.wins } : { off: "The games' results aren't known" };
   if (st.by === 'final') {
     if (isObj(g.bouts)) {
       const bouts = Object.entries(g.bouts);
@@ -459,6 +461,7 @@ function standingIn(st, g, q) {
  */
 function spanGame(q, facts) {
   if (facts.from === null) return null;
+  if (q.settle.by === 'final' && q.settle.take === 'wins') return spanWins(q.settle.of, facts);
   if (q.settle.by !== 'stat' || facts.to === facts.from) return facts.games.get(facts.from) || null;
   const last = facts.to !== null ? facts.to : Math.max(facts.from, ...facts.games.keys());
   const games = [];
@@ -480,6 +483,27 @@ function spanGame(q, facts) {
   const over = (counted === null ? facts.over : games.length === counted) && games.every((g) => g.status === 'final' || g.status === 'off');
   const status = over ? 'final' : games.some((g) => g.status !== 'pre') ? 'in' : 'pre';
   return { status, sides: [], lines, teams, placed: games[0].placed };
+}
+
+/**
+ * C4 (docs/PLAN-sports-couch.md, the season call): a team's wins over the span's games, as one game's facts ({ status, wins }): each
+ * final game it won (who wins as standingIn reads it: a shootout's winner on a level score), a tie or a loss none, a game called off
+ * nothing; final once every game of the span is (or called off), the span's end known; else where it stands so far.
+ */
+function spanWins(team, facts) {
+  const last = facts.to !== null ? facts.to : Math.max(facts.from, ...facts.games.keys());
+  const games = [];
+  for (let n = facts.from; n <= last; n++) if (facts.games.has(n)) games.push(facts.games.get(n));
+  if (!games.length) return null;
+  let wins = 0;
+  for (const g of games) {
+    if (g.status !== 'final') continue;
+    const won = standingIn({ by: 'final', take: 'winner' }, g, null).right;
+    if (Array.isArray(won) && won.includes(team)) wins++;
+  }
+  const counted = facts.to !== null ? last - facts.from + 1 : null;
+  const over = (counted === null ? facts.over : games.length === counted) && games.every((g) => g.status === 'final' || g.status === 'off');
+  return { status: over ? 'final' : games.some((g) => g.status !== 'pre') ? 'in' : 'pre', sides: [], wins };
 }
 
 /**
@@ -1085,6 +1109,11 @@ function pointsFor(q, v, answers, facts) {
     // A14 part 7: how far off, to a millionth, so two guesses a tenth either side of a rating tie (8.2 and 8.4 on an 8.3 aren't
     // 0.0999... and 0.1000...1 apart); a count's are whole numbers, as before.
     const gap = (a) => Math.round(Math.abs(a.answer - value) * 1e6) / 1e6;
+    // C4: within `within` of it, each answer on its own (0: exactly); else the closest (ties all).
+    if (isInt(q.within)) {
+      for (const a of given) if (gap(a) <= q.within) out.set(a.playerId, (out.get(a.playerId) || 0) + pts);
+      return out;
+    }
     const best = Math.min(...given.map(gap));
     for (const a of given) if (gap(a) === best) out.set(a.playerId, (out.get(a.playerId) || 0) + pts);
     return out;

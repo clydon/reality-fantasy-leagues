@@ -1938,3 +1938,20 @@
   flush with no score (the bug says it); one lap language (the tag over the result) in the room, the feed, the sheet and the preview.
 - Rests on: src/new/sports/lap.tsx, src/lib/server/sports/laps.ts (migration 0452); docs/design-round/victory-lap-spec.md, -first-view.md,
   -shape.md, -check.md; docs/PLAN-sports-couch.md, C3's build notes; BACKLOG 257.
+
+## 2026-11-23 · Solo (sports-couch C4)
+- Decided by: the user ("Looks good"), on C4's story https://claude.ai/artifact/GS383SzAf6scVnf1mRkjXL; approved as built, with both
+  recommendations.
+- What: a fan on no couch plays his own games (leagues.solo 'own': no couch made around them, nobody told, nobody joins). He calls his
+  team's next game in one tap on its page or This week (the first call starts one standing game, "Lions calls"; each week asks again;
+  changeable until kickoff; a record with a tick a game; the move says "Call the Lions game"). Anyone following a team calls the season
+  ("Where do they finish?": a stepper whose figure is the season's record, drawn as a bar; shown with the record it was made at; "Spot on"
+  or "Off by 1" at the end). "A draft of Lions players" opens Start a game on the draft with three computer players; Start a game runs
+  with no couch for a sport. (1) The couch seeing each other's season calls is its own small step later (BACKLOG 258 d). (2) A season
+  call can change until the team's next game starts, then it's pinned (the engine's lock).
+- Also settled in the check, by the process's rules: no fan band before the first call; the band says "Your calls on the Lions" (not
+  "Your team"); the season row asks the question rather than repeating the record; nothing of a record for anyone hiding scores; the
+  season row and More never yellow.
+- Rests on: src/lib/sports/own-calls.ts, src/lib/server/sports/own.ts, src/new/sports/season-call.tsx (migration 0453; the engine's
+  `final:wins` settle and a number `within`); docs/design-round/solo-fan-spec.md, -first-view.md, -shape.md, -check.md;
+  docs/PLAN-sports-couch.md, C4's build notes; BACKLOG 258.

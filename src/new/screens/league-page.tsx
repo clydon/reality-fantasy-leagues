@@ -12,7 +12,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { CalendarDays, ChevronLeft, ChevronRight, Eye, ListOrdered, MessageCircle, TableProperties, Trophy, type LucideIcon } from "lucide-react";
-import { useCouchTeams, useCurrentCouch, useHome, useLeaguesNow, useLeagueTeams, useRivalryGames, useRoomBadge, useRoomLatest, useSportsRecordings, useWatching, useYourTeams, useLaps, type Watching, type WeekGame } from "../data";
+import { useCouchTeams, useCurrentCouch, useHome, useLeaguesNow, useLeagueTeams, useRivalryGames, useRoomBadge, useRoomLatest, useSportsRecordings, useWatching, useYourTeams, useLaps, useOwnCalls, type Watching, type WeekGame } from "../data";
 import { NavLink, useNav } from "../nav";
 import { isLeagueTab, LEAGUE_TABS, paths, type LeagueTab } from "../routes";
 import { Avatar, Faces } from "../ui/bars";
@@ -229,18 +229,24 @@ function ThisWeek({ league, name, now: lnow }: { league: string; name: string; n
   // C2: this week's calls (a couch team's game that isn't a rivalry), under the rivalries. Yours may take the page's one yellow
   // when neither the move strip nor a rivalry you're a fan in (with your call still to make) holds it.
   const callsQ = useCallGames(solo ? null : couchId, league, teams.map((t) => t.id));
+  // C4: solo, your own calls on your teams (no couch: nobody backs them).
+  const ownQ = useOwnCalls(league, teams.filter((t) => t.followers.some((f) => f.id === meId)).map((t) => t.id), solo);
+  const callsRead = solo ? ownQ : callsQ;
+  const callGames = (solo ? ownQ.data?.calls : callsQ.data?.games) ?? [];
   const watching = useWatching(solo ? null : couchId, league).data?.watching ?? [];
   const rivalryPicks = useRivalryGames(solo ? null : couchId, league).data?.games ?? [];
   const rivalryYellow = shownRivalries.some((r) => r.fans.some((f) => f.id === meId) && !(r.at && Date.parse(r.at) <= now) && !rivalryPicks.find((g) => g.event === r.id)?.picks.some((x) => x.userId === meId && x.side));
   const entries = callEntries({
     matches: week.games.map(matchOfWeek).filter((m): m is CallMatch => !!m),
     teams,
-    calls: callsQ.data?.games ?? [],
+    calls: callGames,
     meId,
     rivalryIds: new Set(thisWeek.map((r) => r.id)),
     now,
   });
-  const callAbove = new Map(entries.map((e) => [e.m.id, `${e.call ? (e.call.userId === meId ? "Your" : `${e.fan.name}’s`) : "Your"} call, above`]));
+  // Solo (C4), once called: what you called ("You called Lions, above").
+  const sideShort = (e: (typeof entries)[number], id: string) => (e.m.home.id === id ? e.m.home.short : e.m.away.short);
+  const callAbove = new Map(entries.map((e) => [e.m.id, solo && e.call ? `You called ${sideShort(e, e.call.side)}, above` : `${e.call ? (e.call.userId === meId ? "Your" : `${e.fan.name}’s`) : "Your"} call, above`]));
   // C3: your victory lap, when a team of yours just won (the newest unanswered; nothing while its result is hidden from you).
   const lapsQ = useLaps(solo ? null : couchId, league, teams.filter((t) => t.followers.some((f) => f.id === meId)).map((t) => t.id));
   const openLap = useOpenLap(lapsQ.data?.open);
@@ -273,17 +279,17 @@ function ThisWeek({ league, name, now: lnow }: { league: string; name: string; n
           heading={i ? "Also this week" : undefined}
         />
       ))}
-      {!solo && couchId && (
+      {(solo || couchId) && (
         <CallsCard
           league={league}
           entries={entries}
-          calls={callsQ.data?.games ?? []}
-          loading={callsQ.isLoading}
-          failed={callsQ.isError}
-          retry={() => void callsQ.refetch()}
+          calls={callGames}
+          loading={callsRead.isLoading}
+          failed={callsRead.isError}
+          retry={() => void callsRead.refetch()}
           hidden={hidden}
           meId={meId}
-          couchId={couchId}
+          couchId={solo ? null : couchId}
           yellowFree={!yellowTaken && !rivalryYellow}
           watching={watching}
         />

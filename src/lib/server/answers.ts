@@ -1,5 +1,6 @@
 import { momentName } from "@/lib/game/moment-names";
 import StateLogic from "@/lib/game/state-logic.js";
+import { ownKindOf } from "@/lib/sports/own-calls";
 import * as Spec from "@/lib/game/game-spec/index.js";
 import type { AnswerFacts, FormatGroups, Question, SpecContext, SportsGameFacts, Verdict } from "@/lib/game/game-spec/index.js";
 import type { BracketField } from "@/lib/game/sequence/bracket";
@@ -999,13 +1000,20 @@ export async function questionMoves(
         })
     )
   );
+  // C4 (solo): a fan's own calls say the call, by the team ("Call the Lions game", its name being "<team> calls"), never a sheet.
+  const callOf = (g: (typeof sheets)[number]) => {
+    if (ownKindOf({ ask: StateLogic.AnswerLogic.questions(states.get(g.leagueId) as LeagueState) }) !== "calls") return null;
+    const team = /^(.+) calls$/.exec(g.name)?.[1];
+    return team ? `Call the ${team} game` : "Make your call";
+  };
   const out = [];
   for (const [i, g] of sheets.entries()) {
     const m = reads[i];
     if (!m || m.answered >= m.of) continue;
+    const call = callOf(g);
     out.push({
       kind: "questions" as const,
-      text: m.answered ? `Finish your sheet (${m.of - m.answered} to go)` : `Fill in your sheet (${m.of} ${m.of === 1 ? "question" : "questions"})`,
+      text: call ? call : m.answered ? `Finish your sheet (${m.of - m.answered} to go)` : `Fill in your sheet (${m.of} ${m.of === 1 ? "question" : "questions"})`,
       href: `/show/${g.seasonId}/tonight`,
       leagueId: g.leagueId,
       leagueName: g.name,

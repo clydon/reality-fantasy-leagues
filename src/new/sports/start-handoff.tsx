@@ -14,7 +14,9 @@ import type { StartWhen } from "./team";
 // game set to just the next one), their season (every game that can run it opening on it), a rival's meetings, or a run of games.
 
 /** What a game starts on: a team's games (from its sheet), or a league's slate (its sheet). */
-export type SportTarget = { kind: "team"; league: string; team: string; teamName: string; when: StartWhen } | { kind: "slate"; league: string; leagueName: string };
+export type SportTarget =
+  | { kind: "team"; league: string; team: string; teamName: string; when: StartWhen; base?: string; bots?: number }
+  | { kind: "slate"; league: string; leagueName: string };
 
 export function SportStartHandoff({ target, onOpenChange, onBack }: { target: SportTarget | null; onOpenChange: (o: boolean) => void; onBack?: () => void }) {
   const { data: home } = useHome();
@@ -22,7 +24,8 @@ export function SportStartHandoff({ target, onOpenChange, onBack }: { target: Sp
   const [error, setError] = useState<string | null>(null);
   const couchId = couch?.id ?? null;
   useEffect(() => {
-    if (!target || !couchId) return;
+    // C4: with no couch, your own game (a sport's season starts one: start-spec.ts).
+    if (!target) return;
     let gone = false;
     const add =
       target.kind === "slate"
@@ -38,7 +41,12 @@ export function SportStartHandoff({ target, onOpenChange, onBack }: { target: Sp
       (r) => {
         if (gone) return;
         onOpenChange(false);
-        openStartGame({ seasonId: r.seasonId, couchId, length: target.kind === "team" && target.when.kind === "next" ? "next" : target.kind === "team" && target.when.kind === "season" ? "season" : null });
+        openStartGame({
+          seasonId: r.seasonId,
+          couchId,
+          length: target.kind === "team" && target.when.kind === "next" ? "next" : target.kind === "team" && target.when.kind === "season" ? "season" : null,
+          ...(target.kind === "team" && target.base ? { base: target.base, bots: target.bots ?? null } : {}),
+        });
       },
       (e: Error) => !gone && setError(e.message)
     );
@@ -51,10 +59,8 @@ export function SportStartHandoff({ target, onOpenChange, onBack }: { target: Sp
   const name = target?.kind === "team" ? target.teamName : target?.kind === "slate" ? target.leagueName : "";
   return (
     <Sheet open={!!target} onOpenChange={onOpenChange} title="Start a game" subtitle={name} back={onBack ? { label: "Back", onClick: onBack } : undefined}>
-      <div data-sport-handoff={error ? "error" : !couchId ? "no-couch" : "adding"} className="flex flex-col gap-3 pb-2">
-        {!couchId ? (
-          <p className="text-[15px] leading-snug text-muted-foreground">Start or join a couch first: a game is played on one.</p>
-        ) : error ? (
+      <div data-sport-handoff={error ? "error" : "adding"} className="flex flex-col gap-3 pb-2">
+        {error ? (
           <>
             <p className="text-[15px] leading-snug">{error}</p>
             {onBack && (

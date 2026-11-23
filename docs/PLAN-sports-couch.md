@@ -517,6 +517,39 @@ recommendations: decisions.md): no push for a lap; "You called it" stays on both
 - **Noticed, not fixed:** BACKLOG 257.
 - **C4. Solo** (M): your team's calls (Pick'em on a team's games, started by your first call, no setup screen); the season call
   (a new long prediction); a team draft with computer players (plays today).
+**C4's build notes (2026-11-23, lane `sports-couch`, port 3019; migration 0453; no new ESPN read; one engine change).**
+Story: https://claude.ai/artifact/GS383SzAf6scVnf1mRkjXL. **Approved as built** (the user, 2026-11-23, taking both recommendations:
+decisions.md): the couch's season calls later (BACKLOG 258 d); a season call can change until the next kickoff, then it's pinned. The design: [solo-fan-spec.md](design-round/solo-fan-spec.md) (Intent),
+`-first-view.md` (PFD), `-shape.md` (Impeccable), `-check.md` (the check and its one batch).
+- **The model:** a fan on no couch plays his own games (`leagues.solo = 'own'`, migration 0453: the couch-healing read skips them; no push,
+  nobody joins). **Your calls:** one standing game a fan a team, Pick'em on the team's games (`src/lib/sports/own-calls.ts`
+  OWN_CALLS_SPEC, its question `yourCall`), started by the first call from that game to the regular season's end, each later game asked on
+  the same row (the engine opens the next game only), changeable until kickoff, live-paced. **The season call** (anyone following a team,
+  couch or not): one game a fan a team a season (`seasonCallSpec`), "how many of the games left do they win", framed as the season's record
+  ("13–3–1, called at 8–2–1"), changeable on its own game page until the next kickoff, then pinned. **A draft with computer players:** the wizard on no couch for a sport's season (a show
+  still asks for a couch), opened from "A draft of Lions players" on the gallery's Game-night draft with three computer players
+  (`StartTarget.base`/`bots`). A game is your calls or a season call by its question's id: nothing new stored.
+- **The engine change:** a settle `{ by: 'final', take: 'wins', of: <team> }` (a team's wins over the game's games, asked once; answers.js
+  `spanWins`) and a number answer right `within` N of it (0: exactly), each answer on its own rather than the closest (schema.js, answers.js
+  `pointsFor`, describe.js: "1 point if you're exactly right"). Reviewed per UI-REVIEW-MAP (a new dial value, a sport's capability): the
+  season call's and the calls' own game pages and How it plays (story frames `season-game`, `calls-game`); `tests/game-page.test.js` passes.
+- **Where:** the team's page (team-page.tsx), solo: the fan band ("Your calls on the Lions", the record, a tick a game; drawn only once
+  there's a call), Your call under the scorebug (C2's `CallRow` with no couch: the page's yellow, "Your record starts here · change it until
+  kickoff"), the season call row (`src/new/sports/season-call.tsx`: "Where do they finish?" and Call the season; called, the record called,
+  what it was made at and a track of the games it covers; settled, "Off by 1" or "Spot on"), More on the Lions (the draft, Every Lions game)
+  and the couch line last (`CouchLine`). A couch fan gets the season call row too. This week, solo: the calls card as "Your calls" (a row a
+  team's game this week; "You called Lions, above" on the table). Games, solo: your games, then Your team (into the wizard), then the couch
+  line. Your calls' move: "Call the Lions game" (answers.ts `questionMoves`).
+- **Data:** `GET/POST /api/sports/own?league=&teams=` (src/lib/server/sports/own.ts: your calls in C2's `CallGame` shape, with `own`, the
+  team whose calls each is; your season calls; each team's regular season from the cached schedules). Starting with no couch:
+  start-game.ts `startOptions` takes a null couch on a sport's season, start-spec.ts makes it `solo = 'own'` (never a game in stages).
+  HOSTING.md, "Solo: your calls and the season call".
+- **Checks:** `scripts/dev-test/story-solo-fan.js` (24 frames and 29 checks on the stand-in, with a made-up season of calls: the first call
+  starts one game on no couch with no couch made and no push, a later game's call waits for its week, a change until kickoff, a call after
+  kickoff refused, one season call a season, wins past the games left refused, the move's words, the draft started with three computer
+  players, hiding shows no record, the season call settled off by 1; `--before` shot the old team page). story-lone-fan.js re-run.
+  `npm test` 2,630 pass; tsc clean; ESLint clean on the changed files.
+- **Noticed, not fixed:** BACKLOG 258.
 - **C5. The couch's games** (M): a slate of only the games a couch member's team plays, the default weekly Pick'em, offered first.
 - **C6. Rivalry stakes** (S–M): cosmetic, both fans agree, shown on faces for a week.
 

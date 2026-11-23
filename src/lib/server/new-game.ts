@@ -27,7 +27,7 @@ export interface MakeOpts {
   /** settings.leagueTypeId. */
   type: string;
   /** A game on no couch (0120): a season's public pool, or someone's practice couch; only one of each can be made. */
-  solo?: "public" | "practice" | null;
+  solo?: "public" | "practice" | "own" | null;
   /** The couch it's a game on (step 10 part 2b). */
   couchId?: string | null;
   /** A couch's own copy of the season's rulebook (Make it ours, step 6b part 3) that its games play by. */
@@ -63,7 +63,7 @@ export async function makeLeague(row: SeasonRef, opts: MakeOpts): Promise<string
       [opts.name, slugify(opts.name), genJoinCode(), JSON.stringify(state), opts.createdBy, opts.solo ?? null, opts.solo ? row.id : null, opts.couchId ?? null, opts.rulebookId ?? null]
     );
     if (rows.length) id = rows[0].id as string;
-    else if (opts.solo && (await existingSolo(opts.solo, row.id, opts.createdBy))) return null; // made by someone else meanwhile
+    else if ((opts.solo === "public" || opts.solo === "practice") && (await existingSolo(opts.solo, row.id, opts.createdBy))) return null; // made by someone else meanwhile
     // Otherwise the join code was taken: try another.
   }
   if (!id) throw new HttpError(500, "Couldn't make the game, try again");

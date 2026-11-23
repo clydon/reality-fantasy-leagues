@@ -13,7 +13,7 @@
 
 import { useState } from "react";
 import { Check, Megaphone, Tv } from "lucide-react";
-import { useCallGames, useCallPick, useSetWatching, useWatching, type CallGame, type Watching, type WeekGame } from "../data";
+import { useCallGames, useCallPick, useOwnPick, useSetWatching, useWatching, type CallGame, type Watching, type WeekGame } from "../data";
 import { Avatar } from "../ui/bars";
 import { TeamMark } from "./parts";
 import { clockOf, dayOf, useGameScore } from "./scores";
@@ -113,7 +113,8 @@ export function CallsCard(p: {
   retry: () => void;
   hidden: boolean;
   meId: string;
-  couchId: string;
+  /** C4: null, solo: your own calls (nobody backs them). */
+  couchId: string | null;
   /** Nothing above holds the page's one yellow: your own call may take it. */
   yellowFree: boolean;
   watching: Watching[];
@@ -123,14 +124,14 @@ export function CallsCard(p: {
   const shown = all ? p.entries : p.entries.slice(0, 3);
   const firstYellow = p.yellowFree ? p.entries.find((e) => e.act && !e.call && e.fan.id === p.meId)?.m.id ?? null : null;
   return (
-    <section data-calls-card={p.entries.length} aria-label="This week's calls" className="mt-4 rounded-[4px] bg-card px-3.5 pb-1 pt-3">
+    <section data-calls-card={p.entries.length} data-calls-solo={p.couchId ? undefined : ""} aria-label={p.couchId ? "This week's calls" : "Your calls"} className="mt-4 rounded-[4px] bg-card px-3.5 pb-1 pt-3">
       <div className="flex items-center gap-2">
         <Megaphone className="size-4 flex-none text-muted-foreground" aria-hidden />
-        <h2 className="type-caption text-[17px] tracking-[0.03em]">This week&rsquo;s calls</h2>
+        <h2 className="type-caption text-[17px] tracking-[0.03em]">{p.couchId ? <>This week&rsquo;s calls</> : "Your calls"}</h2>
       </div>
       {p.failed ? (
         <button type="button" onClick={p.retry} className="nd-press my-2 flex h-11 w-full items-center justify-center rounded-[4px] text-[14px] font-semibold outline-1 -outline-offset-1 outline-edge">
-          Couldn&rsquo;t load calls · Try again
+          {p.couchId ? "Couldn’t load calls · Try again" : "Couldn’t load your calls · Try again"}
         </button>
       ) : (
         <div className="flex flex-col">
@@ -156,14 +157,17 @@ export function CallRow(p: {
   loading: boolean;
   hidden: boolean;
   meId: string;
-  couchId: string;
+  /** C4: null, solo: your own call, kept in your calls (nobody backs it; change it until kickoff). */
+  couchId: string | null;
   yellow: boolean;
   watchers: Watching[];
   bare?: boolean;
 }) {
   const { e, league, meId } = p;
   const { m, team, fan, call } = e;
+  const solo = !p.couchId;
   const pickOn = useCallPick(p.couchId, league);
+  const ownPick = useOwnPick(league);
   const s = useGameScore({ id: m.id, at: m.at, state: m.state, final: m.final, called: m.called });
   const open = s.open && !p.hidden;
   const begun = s.started || m.state !== "pre" || !!e.game?.begun;
@@ -183,7 +187,8 @@ export function CallRow(p: {
     setFailed(null);
     setPending({ side });
     try {
-      await pickOn({ event: m.id, team: m.home.id, side });
+      if (solo) await ownPick({ team: team.id, event: m.id, side });
+      else await pickOn({ event: m.id, team: m.home.id, side });
       setChanging(false);
     } catch (err) {
       setFailed((err as Error).message?.includes("stands") ? "It's been backed: your call stands" : "Didn’t save · Try again");
@@ -198,13 +203,15 @@ export function CallRow(p: {
   const backing = theCall ? backingOf({ picks: shownPicks }, shownPicks.find((x) => x.userId === theCall.userId) ?? theCall) : { back: [], fade: [] };
   const myPick = shownPicks.find((x) => x.userId === meId) ?? null;
   const iCalled = !!theCall && theCall.userId === meId;
-  const backed = picks.length > 1;
+  const backed = !solo && picks.length > 1;
+  // Solo: the first call ever says where the record starts.
+  const firstEver = solo && !p.calls.some((g) => g.picks.some((x) => x.userId === meId));
 
   // The result, once final and shown.
   const winner = open && final && m.score ? (m.score[0] > m.score[1] ? m.away.id : m.score[1] > m.score[0] ? m.home.id : "tie") : null;
   const verdict = winner && theCall ? (winner === "tie" ? "tie" : theCall.side === winner ? "right" : "wrong") : null;
   // The team's page shows the record big in the fan card just above: the row doesn't say it again (the check).
-  const record = !p.hidden && !p.bare ? record3Words(fanRecord(p.calls, fan.id, team.id)) : null;
+  const record = !p.hidden && !p.bare ? record3Words(fanRecord(solo ? p.calls.filter((c) => !c.own || c.own === team.id) : p.calls, fan.id, team.id)) : null;
 
   const status = postponed ? "Postponed" : !s.started ? (m.at ? `${dayOf(m.at)} ${clockOf(m.at)}` : "Time to be set") : open ? (final ? "Final" : "On now") : s.when;
   const live = s.started && open && !final;
@@ -215,7 +222,8 @@ export function CallRow(p: {
     <div data-call-row={m.id} data-call-moment={!begun ? "before" : final && open ? "over" : "on"} className={p.bare ? "mt-3" : "border-t border-border py-3 first:border-t-0"}>
       {/* The voice: the fan and their side (or yours to make); their record at the right. */}
       <div className="flex min-h-6 items-center gap-2">
-        <Avatar id={fan.id} name={fan.name} size={20} />
+        {/* Solo: it's only ever you (no face: the shape's). */}
+        {!solo && <Avatar id={fan.id} name={fan.name} size={20} />}
         <p className="min-w-0 flex-1 truncate text-[15px] leading-tight">
           {theCall ? (
             <>
@@ -266,7 +274,7 @@ export function CallRow(p: {
       {(backing.back.length > 0 || backing.fade.length > 0) && <BackingLine back={backing.back} fade={backing.fade} won={verdict === "right" ? "back" : verdict === "wrong" ? "fade" : null} />}
 
       {!begun && !postponed && (
-        <div data-call-action className="mt-2.5">
+        <div data-call-action className={solo && iCalled && !changing ? "mt-0.5" : "mt-2.5"}>
           {p.loading ? (
             <div className="h-12 animate-pulse rounded-[4px] bg-secondary" />
           ) : !theCall || (iCalled && changing) ? (
@@ -293,11 +301,13 @@ export function CallRow(p: {
                   );
                 })}
               </div>
-              <p className="mt-1.5 text-[13px] text-muted-foreground">{changing ? "Change it until someone backs or fades it" : "The couch can back or fade it · one tap"}</p>
+              <p className="mt-1.5 text-[13px] text-muted-foreground">
+                {solo ? (firstEver ? "Your record starts here · change it until kickoff" : "Change it until kickoff") : changing ? "Change it until someone backs or fades it" : "The couch can back or fade it · one tap"}
+              </p>
             </>
           ) : iCalled ? (
             <div className="flex min-h-11 items-center justify-between gap-3">
-              <p className="min-w-0 text-[13px] text-muted-foreground">{backed ? "It’s backed: your call stands" : "Nobody’s backed or faded it yet"}</p>
+              <p className="min-w-0 text-[13px] text-muted-foreground">{solo ? "Yours alone until kickoff" : backed ? "It’s backed: your call stands" : "Nobody’s backed or faded it yet"}</p>
               {!backed && (
                 <button type="button" data-call-change onClick={() => setChanging(true)} className="nd-press inline-flex h-11 flex-none items-center text-[14px] font-semibold underline underline-offset-[3px] focus-visible:outline-2 focus-visible:outline-foreground">
                   Change
@@ -458,6 +468,8 @@ export function FanCard(p: {
   calls: CallGame[];
   told: boolean;
   onShow: () => void;
+  /** C4: solo, your own calls: "Your team", nothing about a couch, and nothing drawn before your first call (PFD's R1). */
+  solo?: boolean;
 }) {
   const { fans, meId, calls } = p;
   // Whose team it is: yours first when it's yours, else its first fan (as the couch's table does).
@@ -473,27 +485,28 @@ export function FanCard(p: {
   const fadeW = record3Words(couch.fade);
   const others = fans.filter((f) => f.id !== fan.id).map((f) => ({ f, r: record3Words(fanRecord(calls, f.id, p.team.id)) })).filter((x) => x.r);
   const since = sinceWords(fan.since);
+  if (p.solo && !made) return null;
   return (
     <section data-fan-card={fan.id} aria-label={`${you ? "Your" : `${fan.name}'s`} calls on the ${p.team.short}`} className="mt-3 rounded-[4px] bg-card px-3.5 py-3">
       <div className="flex items-center gap-2">
-        <Avatar id={fan.id} name={fan.name} size={24} />
+        {!p.solo && <Avatar id={fan.id} name={fan.name} size={24} />}
         <p className="min-w-0 flex-1 truncate text-[14px]">
-          <b className="font-semibold">{you ? "Your team on the couch" : `${fan.name}’s team on the couch`}</b>
+          <b className="font-semibold">{p.solo ? `Your calls on the ${p.team.short}` : you ? "Your team on the couch" : `${fan.name}’s team on the couch`}</b>
           {since && <span className="text-muted-foreground"> · {since}</span>}
         </p>
       </div>
       {!made ? (
-        <p className="mt-2 text-[13px] text-muted-foreground">{you ? "No calls yet. Call their next game below: the couch can back or fade it." : `No calls from ${fan.name} yet this season.`}</p>
+        p.solo ? null : <p className="mt-2 text-[13px] text-muted-foreground">{you ? "No calls yet. Call their next game below: the couch can back or fade it." : `No calls from ${fan.name} yet this season.`}</p>
       ) : p.told ? (
         <>
           <div className="mt-2.5 flex items-center gap-3">
             <span className="flex flex-none flex-col">
-              <span className="text-[13px] text-muted-foreground">{you ? "Your calls" : "Calls"}</span>
+              <span className="text-[13px] text-muted-foreground">{p.solo ? "This season" : you ? "Your calls" : "Calls"}</span>
               <span data-fan-record className="type-num text-[28px] leading-none">{recWords ?? "–"}</span>
             </span>
             <CallTicks ticks={ticks} />
           </div>
-          {(backW || fadeW) && (
+          {!p.solo && (backW || fadeW) && (
             <p data-fan-couch className="mt-2.5 text-[13px] text-muted-foreground">
               {[backW ? `Backing ${you ? "you" : fan.name} ${backW}` : null, fadeW ? `fading ${you ? "you" : "them"} ${fadeW}` : null].filter(Boolean).join(" · ")}
             </p>

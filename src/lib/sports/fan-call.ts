@@ -46,6 +46,8 @@ export interface CallGame {
   winner: string | null;
   /** Its two teams, away then home (null when the schedules asked didn't have it). */
   teams: [string, string] | null;
+  /** C4: a solo fan's own call, the team whose calls it's in (a game against another of his teams counts for this one only). */
+  own?: string;
 }
 
 /** The call on a game: the first pick by a fan of either of its teams (`fansOf`: who follows a team on the couch). */

@@ -1591,9 +1591,10 @@ export function useWizardOptions(seasonId: string | null, couchId: string | null
   return useQuery({
     queryKey: ["new-design", "start-wizard", seasonId, couchId, late, start, again],
     queryFn: () =>
-      get<WizardOptions>(seasonUrl(seasonId!, "/start", { couch: couchId!, wizard: "1", ...(late ? { late: "1" } : {}), ...(start ? { start: String(start) } : {}), ...(again ? { again } : {}) })),
+      get<WizardOptions>(seasonUrl(seasonId!, "/start", { ...(couchId ? { couch: couchId } : {}), wizard: "1", ...(late ? { late: "1" } : {}), ...(start ? { start: String(start) } : {}), ...(again ? { again } : {}) })),
     placeholderData: (prev) => prev,
-    enabled: enabled && !!seasonId && !!couchId,
+    // C4: with no couch, a sport's season starts your own game (the server refuses any other season).
+    enabled: enabled && !!seasonId,
     staleTime: 0,
     // A team's season just added fills its players after the add: read again until they're in, so the sheet can count them.
     refetchInterval: (q) => (q.state.data?.wizard?.scope?.filling ? 3000 : false),
@@ -1614,10 +1615,11 @@ export const savedApi = {
 
 export const wizardApi = {
   /** Start from a spec: the wizard's game, checked again on the server; the couch hears after the hold. */
-  start: (seasonId: string, couchId: string, body: { spec: unknown; name?: string; tell: boolean; bots?: number; level?: BotLevel; late?: boolean; made?: Record<string, unknown>; pace?: "own" | "live" | "strict"; timing?: "final" }) =>
-    post<SpecStarted>(seasonUrl(seasonId, "/start", { couch: couchId }), body),
+  // C4: couchId null starts your own game (a sport's, on no couch).
+  start: (seasonId: string, couchId: string | null, body: { spec: unknown; name?: string; tell: boolean; bots?: number; level?: BotLevel; late?: boolean; made?: Record<string, unknown>; pace?: "own" | "live" | "strict"; timing?: "final" }) =>
+    post<SpecStarted>(seasonUrl(seasonId, "/start", couchId ? { couch: couchId } : {}), body),
   /** Take back a game you just started (inside the hold, nobody hears). */
-  undo: (seasonId: string, couchId: string, leagueId: string) => post<{ undone: true }>(seasonUrl(seasonId, "/start", { couch: couchId }), { undo: leagueId }),
+  undo: (seasonId: string, couchId: string | null, leagueId: string) => post<{ undone: true }>(seasonUrl(seasonId, "/start", couchId ? { couch: couchId } : {}), { undo: leagueId }),
   /** Your words to a game (G1, game-words.ts): our bot drafts it, our check decides. About 40 seconds on the free bot. */
   words: (seasonId: string, couchId: string | null, words: string) => post<GameWordsResult>(seasonUrl(seasonId, "/game-words", {}), { words, ...(couchId ? { couch: couchId } : {}) }),
   /** A typed change: to an ask (`from`), or to a game the sheet holds (`spec` and its words), maybe a quick change's button. */
@@ -2438,6 +2440,33 @@ export function useCallPick(couchId: string | null, league: string) {
       return r.game;
     },
     [client, couchId, league]
+  );
+}
+
+/** C4 (solo): your own calls on some teams this season, your season calls, and the teams' regular seasons. */
+export type OwnRead = import("@/lib/server/sports/own").OwnRead;
+export function useOwnCalls(league: string, teams: string[], enabled = true) {
+  const ids = [...new Set(teams)].sort();
+  return useQuery({
+    queryKey: ["new-design", "own-calls", league, ids.join(",")],
+    queryFn: () => get<OwnRead>(`/api/sports/own?league=${encodeURIComponent(league)}&teams=${ids.join(",")}`),
+    enabled: enabled && ids.length > 0,
+    staleTime: 30_000,
+  });
+}
+
+/** Your own call on a team's game (side null takes it back), or the season call ({ wins }); every own read refreshed. */
+export function useOwnPick(league: string) {
+  const client = useQueryClient();
+  return useCallback(
+    async (body: { team: string; event: string; side: string | null } | { team: string; wins: number }) => {
+      const r = await post<OwnRead>("/api/sports/own", { league, ...body });
+      await client.invalidateQueries({ queryKey: ["new-design", "own-calls", league] });
+      void client.invalidateQueries({ queryKey: HOME_KEY });
+      void client.invalidateQueries({ queryKey: ["new-design", "mine"] });
+      return r;
+    },
+    [client, league]
   );
 }
 
