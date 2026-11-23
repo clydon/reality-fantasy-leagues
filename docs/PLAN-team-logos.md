@@ -150,7 +150,12 @@ screens, because it needs only the store and the display:
   `rehearse-logos-2026-11-22`, rollback snapshot `pre-logos-2026-11-22`): then the load ran once against production (the
   user's okay: "only one couch live", all leagues): 124 pictures into its one couch, NFL 32, NBA 30, MLB 30, NHL 32, set by
   its owner (`.session-loop/load-team-pictures.ps1`, `--couch only --by owner`).
-- **Where they show today:** a team defense's picture in that couch's games, once the daily roster refresh has given the
+- **TeamMark and the scorebug (2026-11-22, branch team-marks):** `TeamMark` takes the team's key and shows the couch's picture
+  at its size (no clip: the picture carries its own corner); the scorebug's slab becomes a 22 px picture. Keyed everywhere a
+  team's league and id are known (league cards, Up next, a league's page, games and standings, the guide, game rows, search,
+  the team page). Not the couch's gallery sheets (no league on their marks). `check-sports-couch.js --pictures` checks it
+  (made-up pictures; the strip's bugs and the league card draw them).
+- **Where they showed first:** a team defense's picture in that couch's games, once the daily roster refresh has given the
   defenses their badge (migration 0449 cleared ESPN's logos to initials). **Next, small:** `TeamMark` takes the team's key
   and draws the couch's picture in its square, so the hub's scores strip, the league cards, a league's page and its games
   show them too (every call site has the league and the team's id); through impeccable, seen at 390.
@@ -179,6 +184,12 @@ L0 first: it's a correctness fix and needs no design. L1 is done. L2 is the user
 live once both addresses receive mail. L4 and L5 ship together after it. L4 and L5 ship together: no uploads without the takedown button.
 
 ## Noticed, not fixed
+
+- **check-sports-couch.js fails "its Chat tab: the room, the thread's chip, About the game on now over the composer"** on master
+  too (9f771ed4, 2026-11-22, run at 390 with --browser): not from the logos. The sports-couch lane's to look at.
+- **A four-letter code beside a face truncates on the scorebug** once a couch picture replaces the slab (22 px against 4): seen
+  as "ZP…" on the fixture's ZPHI. Real codes are mostly three letters; UTAH (NBA, NHL) would truncate the same way. A small
+  design pass if it bothers anyone.
 
 - **The badge's letters are a system face** (Arial Narrow inside the SVG: a data: image can't load Archivo). The craft floor
   wants the app's own face: outline Archivo's capitals and digits into paths at build time (the brand logo is outlined the same

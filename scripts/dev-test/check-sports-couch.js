@@ -35,7 +35,11 @@
 //   the thread chip, and for someone hiding sports scores the thread's talk since kickoff folded until Show the score.
 //
 //   npm run dev -- -p 3004   (the sports lane; BASE=http://localhost:3004)
-//   node scripts/dev-test/check-sports-couch.js <outDir> [--width=390] [--keep] [--api | --browser]
+//   node scripts/dev-test/check-sports-couch.js <outDir> [--width=390] [--keep] [--api | --browser] [--pictures]
+//
+// --pictures: the couch has its own pictures for the ZT football teams (made up here: a coloured disc with ZT on it, never a real
+// logo; docs/PLAN-team-logos.md), so the hub's scores strip, the league card and the league's page draw them in place of the
+// marks, and the browser half checks that they do.
 //
 // Brings new-fixture.js up and takes it down (--keep leaves it); its own rows are keyed on the zt-scf / zt-scb leagues (their
 // league shows, seasons, matchups, events, links, follows and games) and the stand-in's "zt-standin:" cache rows, removed at the
@@ -56,6 +60,7 @@ const outDir = args.find((a) => !a.startsWith("--")) || path.join(require("os").
 const width = Number((args.find((a) => a.startsWith("--width=")) || "--width=390").split("=")[1]);
 const keep = args.includes("--keep");
 const only = args.includes("--api") ? "api" : args.includes("--browser") ? "browser" : null;
+const pictures = args.includes("--pictures");
 if (require.main === module) fs.mkdirSync(outDir, { recursive: true });
 
 const FB = "football/zt-scf";
@@ -161,6 +166,7 @@ async function main() {
   const me = await signIn({ user: alex, pass: fixture.PASSWORD, headers });
   const couch = fx.couchId;
   const started = { espn };
+  if (pictures) await couchPictures(couch);
   try {
     if (only !== "browser") await apiChecks(pool, me, couch, started);
     if (only !== "api") await browserChecks(pool, headers, couch);
@@ -522,6 +528,18 @@ async function leagueFollowBrowser(page, shot, wide, headers) {
   await me.call("POST", "/api/sports/follow", { league: FB, follow: true });
 }
 
+/** --pictures: made-up pictures (a disc in the team's colour with ZT on it) for the ZT football teams, on the couch. */
+async function couchPictures(couch) {
+  const sharp = require("sharp");
+  const { compose } = require("../couch-team-pictures.js");
+  const { setCouchPicture, teamKey } = jiti("../../src/lib/server/couch-pictures.ts");
+  const { rows } = await new Pool({ connectionString: DB }).query("SELECT user_id FROM couch_members WHERE couch_id = $1 LIMIT 1", [couch]);
+  for (const [id, fill] of [["9301", "004c54"], ["9302", "041e42"], ["9303", "0b2265"], ["9304", "125740"]]) {
+    const disc = await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><ellipse cx="150" cy="100" rx="140" ry="90" fill="#${fill}"/><text x="150" y="125" font-size="80" text-anchor="middle" fill="#fff" font-family="Arial">ZT</text></svg>`)).png().toBuffer();
+    await setCouchPicture(couch, teamKey(FB, id), { bytes: await compose(disc, fill), type: "image/webp" }, rows[0].user_id, "load");
+  }
+}
+
 async function browserChecks(pool, headers, couch) {
   console.log(`— browser at ${width}`);
   await pool.query("INSERT INTO user_settings (user_id) SELECT id FROM \"user\" WHERE username = $1 ON CONFLICT (user_id) DO NOTHING", [fixture.username("alex")]);
@@ -598,6 +616,15 @@ async function browserChecks(pool, headers, couch) {
     const liveBug = await page.getAttribute('[data-bug="93103"]', "aria-label");
     check(/14 to 10/.test(liveBug) && /third quarter, 6:41/.test(liveBug) && /Eagles' ball, 2nd and 7/.test(liveBug) && (await page.locator('[data-scores-strip] [data-bug-live]').count()) === 1 && /1 live/.test(await page.textContent("[data-scores-open]")), "scores shown: the game on is live, with its score, clock, ball and down", liveBug);
     await shot("10-hub-strip-live");
+    if (pictures) {
+      // The couch's own pictures (PLAN-team-logos.md): the strip's bugs and the league card draw them in place of the marks.
+      await page.locator("[data-scores-strip] [data-bug-picture]").first().waitFor({ timeout: 20_000 }).catch(() => {});
+      const drawn = await page.evaluate(() => ({
+        strip: document.querySelectorAll("[data-scores-strip] [data-bug-picture]").length,
+        card: document.querySelectorAll("[data-your-shows] [data-league-card] img[src*='/pictures?key=']").length,
+      }));
+      check(drawn.strip >= 2 && drawn.card >= 1, `(--pictures) the couch's pictures in the strip's bugs (${drawn.strip}) and the league card (${drawn.card})`, drawn);
+    }
     // The league card in Your shows (A2): among the bands, 72 px, the league, its week, the couch's teams as marks (the Eagles
     // yours, ringed), one line; never a live score or red. The Yankees' league in its off-season, one 48 px line. A tap opens the
     // league's sheet.
