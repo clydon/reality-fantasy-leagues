@@ -9,6 +9,7 @@ import { joinedLeague } from "./couches";
 import { followLeagueProgress } from "./follows";
 import { EVERYTHING, seenThrough } from "./guard";
 import { shareCheck } from "./shared-seats";
+import { pickedKindOf } from "@/lib/sports/fan-call";
 
 export interface JoinLeagueResult {
   league: { id: string; name: string };
@@ -117,7 +118,10 @@ export async function joinLeague(
     const joinedAs = state.players.find((p) => p.id === playerId)?.name || (user as { username?: string | null }).username || user.name;
     // A late joiner (StateLogic.GhostLogic) is out of the league's sight: nobody hears they joined. Their
     // commissioners hear once they've chosen where to start (the late-join route).
-    if (!StateLogic.GhostLogic.isGhost(state.players.find((p) => p.id === playerId))) {
+    // A game of public picks (a rivalry's sides, a fan's call: docs/PLAN-sports-couch.md C1, C2) is joined by picking: each side or
+    // back is news on the card, never a push ("no push but the challenge").
+    const picked = pickedKindOf({ ask: StateLogic.AnswerLogic.questions(state) }) !== null;
+    if (!picked && !StateLogic.GhostLogic.isGhost(state.players.find((p) => p.id === playerId))) {
       notifyMemberJoined(league.id, user.id, joinedAs, !!disabledOwn);
     }
     return { league: { id: league.id, name: league.name }, reclaimed: !!disabledOwn };

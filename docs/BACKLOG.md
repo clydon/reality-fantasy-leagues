@@ -545,6 +545,15 @@ September; **decided**, the user 2026-11-22). (d) The rivalry's result push is B
 is a meeting, not round 2's series: three meetings, three rivalry games; a series frame waits for daily sports' own pass.
 [S–M · sports]
 
+**256. The lone fan's leftovers (C2, PLAN-sports-couch.md; the sports-couch lane, 2026-11-22).** (a) A call is news on This week only:
+no push and no feed line (the spec's rule); watch a real Sunday, then decide whether the couch's feed says "Andrew called Giants". (b) A
+fan who takes their call back before anyone backs it stays in its game with nothing answered, so it shows as a due move until kickoff (a
+rivalry spectator who clears a side, the same); leave the game on a take-back. (c) The team page's follow line and the fan card both
+say whose team it is; fold them in B2's head when it's next touched. (d) The hub's league card and scores strip don't show a call (round
+3's settled card); later. (e) A daily sport's call is a game, as C1's rivalry; a series frame waits for daily sports' own pass. (f) The
+watching read polls every two minutes while This week, a team's page or a game's sheet is open; if Neon's compute hours tighten, poll
+only while a couch team's game is on. [S–M · sports]
+
 **222. A game the daily job misses for three days is never read again.** The daily job reads a linked game only from three days
 back (matchup.ts `refreshSportsEvents`), so a game whose day the job skipped for three days (the bot VM down over a long
 weekend) stays "to play" for good, and its slate week never completes. Read every linked game that's started and isn't final,

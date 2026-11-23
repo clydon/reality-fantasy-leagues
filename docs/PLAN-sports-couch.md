@@ -459,6 +459,35 @@ and its one batch).
 
 - **C2. The lone fan** (M): a fan's call with Back and Fade (Pick'em on one game, framed); his calls record; the fan card and his
   games on the team's page; watching marks for sports.
+**C2's build notes (2026-11-22, lane `sports-couch`, port 3019; migration 0451; no new ESPN read; no engine change).**
+Story: https://claude.ai/artifact/QXySaFvezheqFjLXPKY6zS. **Approved as built** (the user, 2026-11-23, taking the recommendations:
+decisions.md): a call stands once backed; Play the next game keeps its yellow after a call. The design: [lone-fan-spec.md](design-round/lone-fan-spec.md)
+(Intent), `-first-view.md` (PFD), `-shape.md` (Impeccable), `-check.md` (the check and its one batch).
+- **The model:** a fan's call is one game a game of a couch team's that isn't a rivalry, Pick'em on that one game with its picks public
+  (`src/lib/sports/fan-call.ts` CALL_SPEC: C1's `shown: 'picked'`, no margin; pure, tests/sports-fan-call.test.js), started by a fan's
+  call (a follower on the couch of either team: start.ts `game: "call"`), with no push. Anyone else backs (the call's side) or fades (the
+  other); a call stands once anyone has. A game is a call's or a rivalry's by its spec (`pickedKindOf`: a margin makes it a rivalry), so
+  nothing new is stored for it. **The calls record:** every pick of a fan's on their team's game, in a call or a rivalry, right or wrong
+  once final; the couch on a fan's calls (backing and fading him, right or wrong).
+- **Where:** `src/new/sports/fan-call.tsx`. This week's calls (`CallsCard`, under the rivalries, league-page.tsx): a row a couch team's
+  game with a call, or yours to make; yours to act on first, three, then folded; the couch's table says "Jordan's call, above". The
+  team's page (team-page.tsx): the fan card under the head (whose team, since when, the record big, a tick a game, the couch on his
+  calls); the next game's call row under the scorebug (`CallRow bare`), Play the next game outlined while your own call is the yellow;
+  "Games on the <team>": the couch's games on its next game, by their maker, with Join or Open. The game sheet (team.tsx `GameView`):
+  I'm watching from the hour before until it's over, who's watching beside it (`WatchingRow`); watchers' faces on This week's row.
+- **Data:** `GET/POST /api/sports/calls?couch=&league=&teams=` (src/lib/server/sports/calls.ts: the couch's call and rivalry games this
+  season with their winner picks, and finals from the asked teams' cached schedules; a pick joins and answers under an advisory lock);
+  `GET/POST /api/sports/watching?couch=&league=` (src/lib/server/sports/watching.ts; migration 0451 `sports_watching`: shown only on that
+  couch and only for someone sharing When I'm watching). HOSTING.md, "A fan's call" and "I'm watching".
+- **Also fixed (C1's too):** joining a game of public picks (a rivalry's side, a back or fade) sent its members "New league member":
+  join-league.ts no longer announces a joiner there. The couch's games list carries `picked` (couch-joins.ts), so the game sheet names a
+  call or rivalry game once and sends its action to the card ("Back or fade", "Pick a side").
+- **Checks:** `scripts/dev-test/story-lone-fan.js` (16 frames and 15 checks on the stand-in, with a season of made-up calls: the call
+  starts the game with no push, a back before a call refused, the call stands once backed, a back after kickoff refused, the record,
+  two watching and one hidden once she stops sharing, hiding holds the result; `--before` shot today's pages). story-rivalry.js re-run: 13
+  pass. `npm test` 2,624 pass; tsc clean; ESLint clean on the changed files. UI-REVIEW-MAP: no engine change (the spec reuses C1's
+  `shown: 'picked'`; the call game's own page is C1's reviewed one-game sides).
+- **Noticed, not fixed:** BACKLOG 256.
 - **C3. The victory lap** (S–M): one prompt after a win; a GIF and a line to the couch's feed and the league's room; held for
   anyone hiding scores.
 - **C4. Solo** (M): your team's calls (Pick'em on a team's games, started by your first call, no setup screen); the season call

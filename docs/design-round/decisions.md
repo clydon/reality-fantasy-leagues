@@ -1908,3 +1908,19 @@
   move strip's, else the first card you're a fan in); this week's cards on now, then next, then the last played (a final stays).
 - Rests on: src/new/sports/rivalry.tsx, src/lib/sports/rivalry.ts, src/lib/server/sports/rivalry.ts; docs/design-round/rivalry-spec.md,
   -first-view.md, -shape.md, -check.md; docs/PLAN-sports-couch.md, C1's build notes; BACKLOG 255.
+
+## 2026-11-23 · The lone fan (sports-couch C2)
+- Decided by: the user ("I'll go with your recs"), on C2's story https://claude.ai/artifact/QXySaFvezheqFjLXPKY6zS; approved as built,
+  with the recommendation.
+- What: when a couch member's team plays a team nobody on the couch follows (not a rivalry), the fan calls it in one tap on This week's
+  calls; anyone else backs or fades the call in one tap, public as picked; no push. One Pick'em a game, started by the call. A fan's
+  calls keep a won–lost record (rivalry calls count too); the team's page carries the fan card (whose team, since when, the record, a
+  tick a game, the couch on their calls), the call row under the scorebug, and the couch's games on the team's next game. I'm watching
+  on a game's sheet puts your face on that game for your couch while it's on (only when sharing When I'm watching). (1) A call stands
+  once anyone backs or fades it (backs are stored as a team: a moved call would turn them over). (2) Play the next game keeps its
+  yellow on the team's page once the fan has called (as built).
+- Also settled in the check, by the process's rules: a wrong call's tick a muted fill (open is the hollow outline); the team page's row
+  without the record; "1 backs · 2 fade"; a long name leaves the Back/Fade buttons; a call's or rivalry's game named once on the game
+  sheet with its card's action. Fixed for C1 too: joining a game of public picks no longer pushes "New league member".
+- Rests on: src/new/sports/fan-call.tsx, src/lib/sports/fan-call.ts, src/lib/server/sports/calls.ts, watching.ts (migration 0451);
+  docs/design-round/lone-fan-spec.md, -first-view.md, -shape.md, -check.md; docs/PLAN-sports-couch.md, C2's build notes; BACKLOG 256.

@@ -317,6 +317,15 @@ small queries, a few rows; never edge-kept, it's the couch's), once when This we
 answer written, and the first tap on a meeting also starts its game on the team's season (Play the next game's path: the team's
 schedule, cached as it is). A fan's first call sends the other fan one push (the invite kind). No migration.
 
+**A fan's call and I'm watching (docs/PLAN-sports-couch.md C2, 2026-11-22, not merged)** ask ESPN nothing new. `GET
+/api/sports/calls?couch=&league=&teams=` (the couch's call and rivalry games this season and their winner picks: two small queries; the
+finals from each asked team's season schedule, the provider's cached read the couch's table already makes, sixteen teams at most), once
+when This week or a team's page opens and after a pick; never edge-kept. A pick (`POST`) is one answer, and a fan's first call on a game
+starts its game on the team's season (Play the next game's path). No push. `GET /api/sports/watching?couch=&league=` (one indexed query,
+the last day's rows) when This week, a team's page or a game's sheet opens, and **every two minutes while one stays open** (so a mark
+made on another phone shows during a game); `POST` one row. **Migration 0451** (`sports_watching`: a row a person, couch and game; a
+few a person a week, nothing sweeps them: the read takes the last day's).
+
 **A game's sheet (docs/PLAN-sports-couch.md B4, 2026-11-22, not merged)** asks ESPN nothing new. One small read of ours:
 `GET /api/sports/game/seasons?league=&event=` (the seasons a real game is in, from `season_events`; a few rows; the same for everyone,
 edge-kept a minute), asked once when a game's sheet opens. Everything else is reads the screens already make (the team's schedule,

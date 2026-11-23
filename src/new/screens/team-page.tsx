@@ -14,20 +14,22 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronLeft, ChevronRight, Gamepad2, House, MessageCircle, Plane } from "lucide-react";
-import { sportsApi, useCouchTeams, useCurrentCouch, useHome, useLeaguesNow, useLeagueStandings, useMySportsGames, useRoomCounts, useSportsRecordings, useTeamSchedule, type TeamSchedule, type WeekGame } from "../data";
+import { sportsApi, useCouchGames, useCouchTeams, useCurrentCouch, useGameSeasons, useHome, useLeaguesNow, useLeagueStandings, useMySportsGames, useRoomCounts, useSportsRecordings, useTeamSchedule, useWatching, type JoinGame, type TeamSchedule, type WeekGame } from "../data";
 import { NavLink, useNav } from "../nav";
 import { paths } from "../routes";
 import { toast } from "../ui/toast";
 import { Avatar } from "../ui/bars";
 import { openCouchSheet } from "../couch/couch-sheets";
 import { FollowFaces, FollowToggle, theLeague, useTeamFollow } from "../sports/follow";
-import { OpenRow, PlayPlate, SportsLabel, TeamMark, TeamPlate } from "../sports/parts";
+import { MoreAction, OpenRow, PlayPlate, SportsLabel, TeamMark, TeamPlate } from "../sports/parts";
+import { CallRow, FanCard, callEntries, useCallGames, type CallMatch } from "../sports/fan-call";
+import { joinable, JoinGameSheet } from "../couch/join-game";
 import { AskSheet } from "../sports/scorebug";
 import { GameBug } from "../sports/game-bug";
 import { begun, clockOf, dayOf, showScore, useGameScore, useHideSports, useHideSportsKnown, useNow, useShownScores } from "../sports/scores";
 import { openSports, startOn } from "../sports/sheets";
 import { useStartSport } from "../sports/start";
-import { asRow, versus, type StartWhen } from "../sports/team";
+import { asRow, CouchGameRow, couchName, versus, type StartWhen } from "../sports/team";
 import { teamKeyOf } from "@/lib/sports/team-badge";
 import { byesOf, eastDay, eastMonth, focusMonth, ordinal, recordOf, runsOf, seriesPlaces, streakOf, stripOf, stripWords, type Run, type StripItem } from "@/lib/sports/team-season";
 
@@ -182,11 +184,36 @@ function TeamPageBody({ league, team, s, against: firstAgainst }: { league: stri
     }
   };
   const onStart = (when: StartWhen) => openSports(startOn(league, team, s.team.short, when));
+
+  // C2, the lone fan: the couch's calls in the league (this team's fans' record, the next game's call), who's watching.
+  const couchId = f.couch?.id ?? null;
+  const couchTeamsHere = (useCouchTeams(couchId).data?.teams ?? []).filter((t) => t.league === league && t.followers.length);
+  const callsQ = useCallGames(couchId, league, [...couchTeamsHere.map((t) => t.id), team]);
+  const calls = callsQ.data?.games ?? [];
+  const watching = useWatching(couchId, league).data?.watching ?? [];
+  const fans = couchTeamsHere.find((t) => t.id === team)?.followers ?? [];
+  const meId = f.me ?? "";
+  const lite = { id: s.team.id, short: s.team.short, abbreviation: s.team.abbreviation ?? null, color: s.team.color ?? null };
+  const callEntry = (() => {
+    if (!couchId || !nowGame?.opponent) return null;
+    const opp = { id: nowGame.opponent.id, short: nowGame.opponent.short, abbreviation: nowGame.opponent.abbreviation, color: couchTeamsHere.find((t) => t.id === nowGame.opponent!.id)?.color ?? null };
+    const away = nowGame.home === false ? lite : opp;
+    const home = nowGame.home === false ? opp : lite;
+    const score = nowGame.score ? (nowGame.home === false ? nowGame.score : ([nowGame.score[1], nowGame.score[0]] as [number, number])) : null;
+    const m: CallMatch = { id: nowGame.id, at: nowGame.at, state: nowGame.state, final: nowGame.final, called: nowGame.calledOff ? "postponed" : null, away, home, score };
+    // A rivalry (each side has a fan the other hasn't) is This week's rivalry card's, not a call.
+    const us = couchTeamsHere.find((t) => t.id === team)?.followers ?? [];
+    const them = couchTeamsHere.find((t) => t.id === opp.id)?.followers ?? [];
+    const rivalry = us.some((x) => !them.some((y) => y.id === x.id)) && them.some((x) => !us.some((y) => y.id === x.id));
+    return callEntries({ matches: [m], teams: couchTeamsHere as never, calls, meId, rivalryIds: new Set(rivalry ? [m.id] : []), now })[0] ?? null;
+  })();
+  // Your own call to make is the page's one yellow; Play the next game steps down (the call is a Pick'em on that same game).
+  const callYellow = !!callEntry && !callEntry.call && callEntry.fan.id === meId;
   const onGame = (g: Game) => openSports({ kind: "game", league, team, game: g.id });
 
   return (
     <div data-team-page={`${league}/${team}`}>
-      {/* Who: the lower third, its league (up to its page), record and place; the couch's faces. The fan card (C2) goes under. */}
+      {/* Who: the lower third, its league (up to its page), record and place; the couch's faces; the fan card under (C2). */}
       <div data-team-head className="pt-2">
         <TeamPlate name={s.team.name} color={s.team.color} sub={sub} />
         <div className="mt-2.5 flex min-h-11 items-center gap-2" data-team-follow data-my-team={isMine || undefined}>
@@ -214,6 +241,18 @@ function TeamPageBody({ league, team, s, against: firstAgainst }: { league: stri
             <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
           </NavLink>
         </div>
+        {couchId && fans.length > 0 && known && (
+          <FanCard
+            league={league}
+            team={lite}
+            fans={fans}
+            meId={meId}
+            season={games.filter((g) => !g.calledOff).map((g) => ({ id: g.id, at: g.at }))}
+            calls={calls}
+            told={told}
+            onShow={() => showScore(seasonKey(league, team))}
+          />
+        )}
       </div>
 
       {/* Now: the game on now, else the next, as the shared scorebug; Play the next game under it (the one yellow). */}
@@ -223,13 +262,16 @@ function TeamPageBody({ league, team, s, against: firstAgainst }: { league: stri
             {/* Its day here, so the bug's status column says only the time (a day's word overran it: "TOMORROW"). */}
             <p data-team-now-label className="type-caption mb-2 text-[14px] tracking-[0.05em] text-muted-foreground">{live ? "On now" : !nowGame.at ? "Next game" : dayOf(nowGame.at) === "Today" ? "Today" : `Next game · ${dayOf(nowGame.at)}${/^(Tomorrow|[A-Z][a-z]{2})$/.test(dayOf(nowGame.at)) ? `, ${shortDate(nowGame.at)}` : ""}`}</p>
             <GameBug g={nowGame} s={s} now={now} onAsk={setAsking} />
+            {callEntry && couchId && (
+              <CallRow e={callEntry} league={league} calls={calls} loading={callsQ.isLoading} hidden={!told} meId={meId} couchId={couchId} yellow={callYellow} watchers={watching.filter((w) => w.game === callEntry.m.id)} bare />
+            )}
           </>
         ) : (
           <p data-team-over className="text-[14px] text-muted-foreground">
             {lastGame?.at ? `Season over · their last game ${weekday(lastGame.at)}, ${shortDate(lastGame.at)}` : "No games listed for them yet."}
           </p>
         )}
-        {f.couch && next && <PlayNext g={next} busy={busy} onPlay={(g) => void start({ league, team, games: [g.id], game: "pickem" })} />}
+        {f.couch && next && <PlayNext g={next} busy={busy} quiet={callYellow} onPlay={(g) => void start({ league, team, games: [g.id], game: "pickem" })} />}
       </section>
 
       {games.length > 0 && (
@@ -289,6 +331,8 @@ function TeamPageBody({ league, team, s, against: firstAgainst }: { league: stri
           </div>
         </section>
       )}
+      {/* C2: the couch's games on this team's next game (by their maker, Join or Open); its call and rivalry are the rows above. */}
+      {f.couch && next && <TeamCouchGames league={league} short={s.team.short} next={next} now={now} skip={new Set(calls.map((c) => c.leagueId))} />}
       {!f.couch && next && (
         <p data-team-solo className="mt-5 text-[14px] leading-snug text-muted-foreground">
           Starting a sports game needs a couch for now.{" "}
@@ -328,13 +372,62 @@ function TeamPageBody({ league, team, s, against: firstAgainst }: { league: stri
 }
 
 
+/** The couch's games on a team's next game (C2: "his games on the team's page"): a season, series or one-game game that covers it,
+ *  by its maker, with Join or Open, as the game's sheet lists them (B4). A call's and a rivalry's games are left out (`skip`). */
+function TeamCouchGames({ league, short, next, now, skip }: { league: string; short: string; next: Game; now: number; skip: Set<string> }) {
+  const home = useHome().data;
+  const couch = useCurrentCouch(home);
+  const nav = useNav();
+  const [joining, setJoining] = useState<JoinGame | null>(null);
+  const couchGames = useCouchGames(couch?.id ?? null, !!couch).data?.games ?? [];
+  const seasons = useGameSeasons(league, next.id).data?.seasons ?? [];
+  const covering = couchGames.filter((c) => {
+    if (c.ended || !c.seasonId || skip.has(c.leagueId)) return false;
+    const at = seasons.find((x) => x.seasonId === c.seasonId);
+    if (!at) return false;
+    const from = c.span?.from ?? c.start ?? 1;
+    const to = c.span?.to ?? Infinity;
+    return at.episode >= from && at.episode <= to;
+  });
+  if (!couch || !covering.length) return null;
+  const moveOf = (c: JoinGame) => home?.moves.find((m) => m.leagueId === c.leagueId) ?? null;
+  return (
+    <section data-team-couch-games={covering.length}>
+      <SportsLabel>Games on the {short}</SportsLabel>
+      {covering.slice(0, 3).map((c) => (
+        <CouchGameRow
+          key={c.leagueId}
+          c={c}
+          started={begun(next, now)}
+          spans={!(c.span && c.span.from === c.span.to)}
+          move={moveOf(c)?.text ?? null}
+          joinBelow={false}
+          onOpen={() => nav.push(paths.gamePage(c.seasonId!, c.leagueId))}
+          onJoin={() => (joinable(c) ? setJoining(c) : nav.push(paths.gamePage(c.seasonId!, c.leagueId)))}
+        />
+      ))}
+      {covering.length > 3 && <p className="mt-2 text-[13px] text-muted-foreground">+{covering.length - 3} more on the Games tab · {couchName(covering[3])}</p>}
+      <JoinGameSheet couchId={couch.id} game={joining} onOpenChange={(o) => !o && setJoining(null)} />
+    </section>
+  );
+}
+
 /** Play the next game: Pick'em on it, one tap, its line naming the game (so with a game on above it, there's no doubt which). */
-function PlayNext({ g, busy, onPlay }: { g: Game; busy: boolean; onPlay: (g: Game) => void }) {
+function PlayNext({ g, busy, quiet, onPlay }: { g: Game; busy: boolean; quiet?: boolean; onPlay: (g: Game) => void }) {
   // The game first, then a short day (a weekday within the week, else the date), so the line holds one line at 390 (the check).
   const d = g.at ? dayOf(g.at) : null;
   const day = !g.at ? "time to be set" : /,/.test(d!) ? shortDate(g.at) : d!;
   const when = !g.at ? day : timeOf(g.at) === "TBD" ? `${day}, time to be set` : `${day} ${clockOf(g.at)}`;
-  return <PlayPlate data="next" disabled={busy} title={d === "Today" ? "Play the game tonight" : "Play the next game"} line={`Pick'em ${versus(g)} · ${when} · tells the couch`} onClick={() => onPlay(g)} />;
+  const title = d === "Today" ? "Play the game tonight" : "Play the next game";
+  const line = `Pick'em ${versus(g)} · ${when} · tells the couch`;
+  // C2: outlined while your own call on this game is the page's yellow.
+  if (quiet)
+    return (
+      <div className="mt-3">
+        <MoreAction data="next" title={title} line={line} onClick={() => !busy && onPlay(g)} />
+      </div>
+    );
+  return <PlayPlate data="next" disabled={busy} title={title} line={line} onClick={() => onPlay(g)} />;
 }
 
 /** The season as a bar a game: up for a win, down for a loss, its height the margin; a tie a tick; to come a faint tick; the bye a

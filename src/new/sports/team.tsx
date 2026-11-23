@@ -13,6 +13,7 @@ import { MoreAction, OpenRow, PlayPlate, SportsLabel, type TeamGame } from "./pa
 import { AskSheet } from "./scorebug";
 import { clockOf, dayOf, useGameScore, useNow } from "./scores";
 import { useStartSport } from "./start";
+import { WatchingRow } from "./fan-call";
 
 // A team's games' parts (the team's page, docs/PLAN-sports-couch.md B2, is src/new/screens/team-page.tsx; it replaced the team's
 // sheet): what Start a game on is asked for (StartWhen), a schedule game as a game row's moment, "vs Cowboys", and one game's sheet:
@@ -125,6 +126,8 @@ export function GameView({ g, s, onStart, onStarted, onSlate }: { g: Game; s: Te
           {couchLine}
         </p>
       )}
+      {/* C2: I'm watching, from the hour before it starts until it's over (presence, for the couch). */}
+      {couch && !called && g.state !== "post" && !g.final && g.at && Date.parse(g.at) - now < 3_600_000 && <WatchingRow league={s.league} game={g.id} couchId={couch.id} meId={meId} />}
 
       {covering.length > 0 && (
         <section data-on-couch>
@@ -138,7 +141,8 @@ export function GameView({ g, s, onStart, onStarted, onSlate }: { g: Game; s: Te
               move={moveOf(c)?.text ?? null}
               joinBelow={!started && c.leagueId === toJoin?.leagueId}
               onOpen={() => nav.push(paths.gamePage(c.seasonId!, c.leagueId))}
-              onJoin={() => setJoining(c)}
+              // A rivalry's or a call's game is joined by picking on This week's card (a side, a back or a fade), not a join sheet.
+              onJoin={() => (c.picked ? nav.push(paths.league(s.league)) : setJoining(c))}
             />
           ))}
           {couch && !started && toJoin && !(mineSame && moveOf(mineSame)) && (
@@ -249,7 +253,9 @@ function TypeTile({ id, title, line, chosen, onPick }: { id: string; title: stri
 const TYPE_LINES: Record<string, string> = { pickem: "Who wins", pickAFew: "Three players", short: "A few players each", squares: "A grid of score digits" };
 
 /** A couch game by its maker ("Riley's Pick'em"), not the engine's name for it ("Pick'em · Game 12"). */
-function couchName(c: JoinGame): string {
+export function couchName(c: JoinGame): string {
+  // A rivalry's or a fan's call is named by its people already ("Riley vs Andrew", "Andrew's call").
+  if (c.picked) return c.name.replace(/\s*·\s*(Game|Week|Episode)\s*\d+.*$/i, "");
   const kind = (c.gameName || c.name).replace(/\s*·\s*(Game|Week|Episode)\s*\d+.*$/i, "");
   return c.runners[0] ? `${c.runners[0]}'s ${kind}` : kind;
 }
@@ -262,11 +268,13 @@ function seriesDates(from: string, to: string): string {
 }
 
 /** A couch game that covers this game: its name, who's in, and its action (Join, Open, or Full). */
-function CouchGameRow({ c, started, spans, move, joinBelow, onOpen, onJoin }: { c: JoinGame; started: boolean; spans: boolean; move: string | null; joinBelow: boolean; onOpen: () => void; onJoin: () => void }) {
+export function CouchGameRow({ c, started, spans, move, joinBelow, onOpen, onJoin }: { c: JoinGame; started: boolean; spans: boolean; move: string | null; joinBelow: boolean; onOpen: () => void; onJoin: () => void }) {
   const playing = !!c.you?.playing;
   const names = c.faces.map((f) => f.name);
   const who = names.length ? `${names.slice(0, 2).join(", ")}${names.length > 2 ? ` +${names.length - 2}` : ""} · ${c.players} in` : `${c.players} in`;
-  const action = playing ? (move ? <span className="font-semibold text-chyron-line">{move}</span> : "Open") : !started && joinable(c) && !joinBelow ? "Join" : null;
+  // A rivalry's or a call's game is joined by picking on This week's card (C1, C2): its words say what you'd do there.
+  const join = c.picked === "call" ? "Back or fade" : c.picked === "rivalry" ? "Pick a side" : "Join";
+  const action = playing ? (move ? <span className="font-semibold text-chyron-line">{move}</span> : "Open") : !started && (joinable(c) || !!c.picked) && !joinBelow ? join : null;
   return (
     <button
       type="button"

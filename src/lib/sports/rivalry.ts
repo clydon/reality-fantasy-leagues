@@ -4,6 +4,8 @@
 // margin hidden until kickoff. The two fans make calls (both); anyone else picks a side (the winner; a margin if they like). Pure:
 // the server (src/lib/server/sports/rivalry.ts) and the card (src/new/sports/rivalry.tsx) share it; tests/sports-rivalry.test.js.
 
+import { pickedKindOf } from "./fan-call";
+
 /** The rivalry game's spec, on one game (the span is set where it starts, as the rail's games are). */
 export const RIVALRY_SPEC: Record<string, unknown> = {
   spec: 1,
@@ -19,10 +21,9 @@ export const RIVALRY_SPEC: Record<string, unknown> = {
   ],
 };
 
-/** Whether a game's spec is a rivalry's: its winner shown as it's picked (only a rivalry asks that). */
+/** Whether a game's spec is a rivalry's: its winner shown as it's picked, with a margin (C2's fan's call asks the winner alone). */
 export function isRivalrySpec(spec: unknown): boolean {
-  const ask = (spec as { ask?: unknown } | null)?.ask;
-  return Array.isArray(ask) && ask.some((q) => q && typeof q === "object" && (q as { shown?: unknown }).shown === "picked");
+  return pickedKindOf(spec) === "rivalry";
 }
 
 /** The margin a call starts at: a sport's usual one (a field goal; a basket and a bit; a run, a goal). */

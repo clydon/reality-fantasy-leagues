@@ -12,7 +12,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { CalendarDays, ChevronLeft, ChevronRight, Eye, ListOrdered, MessageCircle, TableProperties, Trophy, type LucideIcon } from "lucide-react";
-import { useCouchTeams, useCurrentCouch, useHome, useLeaguesNow, useLeagueTeams, useRoomBadge, useRoomLatest, useSportsRecordings, useYourTeams, type WeekGame } from "../data";
+import { useCouchTeams, useCurrentCouch, useHome, useLeaguesNow, useLeagueTeams, useRivalryGames, useRoomBadge, useRoomLatest, useSportsRecordings, useWatching, useYourTeams, type Watching, type WeekGame } from "../data";
 import { NavLink, useNav } from "../nav";
 import { isLeagueTab, LEAGUE_TABS, paths, type LeagueTab } from "../routes";
 import { Avatar, Faces } from "../ui/bars";
@@ -22,6 +22,7 @@ import { begun, clockOf, dayOf, showScore, useGameScore, useHideSports, useNow, 
 import { LeagueGameRows, LeagueStart, openSports, useLeagueGames, useLeagueWeek } from "../sports/sheets";
 import { pairRecord, rankTeams, recordWords, rivalriesOf, rivalryRecords, type Fan, type Rivalry, type TeamForm } from "@/lib/sports/couch-table";
 import { RivalryCard } from "../sports/rivalry";
+import { CallsCard, callEntries, matchOfWeek, useCallGames, type CallMatch } from "../sports/fan-call";
 import type { LeagueNow } from "@/lib/sports/league-now";
 import { LeagueScores } from "./league-scores";
 import { LeagueGames } from "./league-games";
@@ -224,6 +225,21 @@ function ThisWeek({ league, name, now: lnow }: { league: string; name: string; n
   const couchId = useCurrentCouch(useHome().data)?.id ?? null;
   const yellowTaken = useLeagueGames(league).moves.length > 0;
   const call = useSearchParams().get("call");
+  // C2: this week's calls (a couch team's game that isn't a rivalry), under the rivalries. Yours may take the page's one yellow
+  // when neither the move strip nor a rivalry you're a fan in (with your call still to make) holds it.
+  const callsQ = useCallGames(solo ? null : couchId, league, teams.map((t) => t.id));
+  const watching = useWatching(solo ? null : couchId, league).data?.watching ?? [];
+  const rivalryPicks = useRivalryGames(solo ? null : couchId, league).data?.games ?? [];
+  const rivalryYellow = shownRivalries.some((r) => r.fans.some((f) => f.id === meId) && !(r.at && Date.parse(r.at) <= now) && !rivalryPicks.find((g) => g.event === r.id)?.picks.some((x) => x.userId === meId && x.side));
+  const entries = callEntries({
+    matches: week.games.map(matchOfWeek).filter((m): m is CallMatch => !!m),
+    teams,
+    calls: callsQ.data?.games ?? [],
+    meId,
+    rivalryIds: new Set(thisWeek.map((r) => r.id)),
+    now,
+  });
+  const callAbove = new Map(entries.map((e) => [e.m.id, `${e.call ? (e.call.userId === meId ? "Your" : `${e.fan.name}’s`) : "Your"} call, above`]));
   const rest = week.games.filter((g) => !g.sides.some((s) => teams.some((t) => t.id === s.id)));
   const showAll = () => {
     for (const id of results) showScore(id);
@@ -250,6 +266,21 @@ function ThisWeek({ league, name, now: lnow }: { league: string; name: string; n
           heading={i ? "Also this week" : undefined}
         />
       ))}
+      {!solo && couchId && (
+        <CallsCard
+          league={league}
+          entries={entries}
+          calls={callsQ.data?.games ?? []}
+          loading={callsQ.isLoading}
+          failed={callsQ.isError}
+          retry={() => void callsQ.refetch()}
+          hidden={hidden}
+          meId={meId}
+          couchId={couchId}
+          yellowFree={!yellowTaken && !rivalryYellow}
+          watching={watching}
+        />
+      )}
       <CouchTable
         league={league}
         name={name}
@@ -264,6 +295,8 @@ function ThisWeek({ league, name, now: lnow }: { league: string; name: string; n
         weekFailed={week.error}
         retry={() => void (formsQ.isError && formsQ.refetch(), week.error && week.refetch())}
         rivalryIds={shownRivalries.map((r) => r.id)}
+        callAbove={callAbove}
+        watching={watching}
         onShow={hide && hidden ? showAll : null}
         weekly={league.startsWith("football/")}
         off={!!lnow && !lnow.on}
@@ -358,6 +391,10 @@ function CouchTable(p: {
   retry: () => void;
   /** The rivalries drawn above as cards: their teams' rows say so instead of repeating the game. */
   rivalryIds: string[];
+  /** C2: the games in This week's calls, and what their rows say instead ("Jordan's call, above"). */
+  callAbove: Map<string, string>;
+  /** Who's watching each game now (C2). */
+  watching: Watching[];
   onShow: (() => void) | null;
   weekly: boolean;
   off: boolean;
@@ -407,6 +444,11 @@ function CouchTable(p: {
               week={weekGameOf(team.id, p.games, p.now)}
               weekFailed={p.weekFailed}
               rivalry={p.games.some((g) => p.rivalryIds.includes(g.id) && g.sides.some((s) => s.id === team.id))}
+              callAbove={(() => {
+                const g = weekGameOf(team.id, p.games, p.now).g;
+                return g ? (p.callAbove.get(g.id) ?? null) : null;
+              })()}
+              watching={p.watching}
               solo={p.solo}
               meId={meId}
               weekly={p.weekly}
@@ -428,12 +470,15 @@ function CouchTable(p: {
   );
 }
 
-function TeamRow({ t, place, ranked, leader, form, week, weekFailed, rivalry, solo, meId, weekly, off, league }: { t: Team; place: number | null; leader: boolean; form: TeamForm | undefined; week: { g: WeekGame | null; more: number }; weekFailed: boolean; ranked: boolean; rivalry: boolean; solo: boolean; meId: string; weekly: boolean; off: boolean; league: string }) {
+function TeamRow({ t, place, ranked, leader, form, week, weekFailed, rivalry, callAbove, watching, solo, meId, weekly, off, league }: { t: Team; place: number | null; leader: boolean; form: TeamForm | undefined; week: { g: WeekGame | null; more: number }; weekFailed: boolean; ranked: boolean; rivalry: boolean; callAbove: string | null; watching: Watching[]; solo: boolean; meId: string; weekly: boolean; off: boolean; league: string }) {
   const words = useSideWords(week.g, t.id);
   const yours = t.followers.some((f) => f.id === meId);
   const record = form ? recordWords(form) : null;
   const more = week.more ? ` · +${week.more} more this week` : "";
-  const game = weekFailed ? "" : rivalry ? `Rivalry, above${more}` : week.g ? `${words.text}${more}` : off ? "Off-season" : weekly ? "Bye" : "No games this week";
+  const game = weekFailed ? "" : rivalry ? `Rivalry, above${more}` : callAbove ? `${callAbove}${more}` : week.g ? `${words.text}${more}` : off ? "Off-season" : weekly ? "Bye" : "No games this week";
+  const above = rivalry || !!callAbove;
+  // C2: who's watching its game now (faces after the words, three at most).
+  const watchers = words.live && week.g ? watching.filter((w) => w.game === week.g!.id) : [];
   const fans = t.followers.map((f) => (f.id === meId ? "you" : f.name));
   return (
     <li>
@@ -456,9 +501,10 @@ function TeamRow({ t, place, ranked, leader, form, week, weekFailed, rivalry, so
         {ranked && <span />}
         <span className="col-span-3 flex min-w-0 items-center gap-2">
           {form && form.form.length > 0 && <FormTicks form={form.form} />}
-          <span className={`flex min-w-0 items-center gap-1.5 text-[13px] ${words.live && !rivalry ? "text-foreground" : "text-muted-foreground"}`}>
-            {words.live && !rivalry && <i className="size-[7px] flex-none rounded-full bg-live" aria-hidden />}
+          <span className={`flex min-w-0 items-center gap-1.5 text-[13px] ${words.live && !above ? "text-foreground" : "text-muted-foreground"}`}>
+            {words.live && !above && <i className="size-[7px] flex-none rounded-full bg-live" aria-hidden />}
             <span className="truncate">{game}</span>
+            {!above && watchers.length > 0 && <Faces marks={watchers.map((w) => ({ userId: w.userId, name: w.name, you: w.userId === meId }))} size={16} max={3} ground={yours && !solo ? "var(--secondary)" : "var(--background)"} />}
           </span>
         </span>
       </button>

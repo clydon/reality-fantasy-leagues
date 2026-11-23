@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { pickedKindOf } from "@/lib/sports/fan-call";
 import type { PoolClient } from "pg";
 import StateLogic from "@/lib/game/state-logic.js";
 import { castOf } from "@/lib/game/game-view";
@@ -285,6 +286,8 @@ export interface JoinGame {
   name: string;
   gameName: string;
   gameType: string;
+  /** A game of public picks (docs/PLAN-sports-couch.md C1, C2): a rivalry's or a fan's call, joined by picking on its card. */
+  picked?: "rivalry" | "call" | null;
   seasonId: string | null;
   /** Castaways can be on several teams (or there are no teams): a new player takes nothing and may catch up. */
   shared: boolean;
@@ -374,6 +377,7 @@ async function couchGameList(viewer: SessionUser | null, couchId: string): Promi
       name: g.name,
       gameName: g.gameName,
       gameType: g.gameType,
+      picked: pickedKindOf({ ask: StateLogic.AnswerLogic.questions(s) }),
       seasonId: g.seasonId,
       shared: G.sharedJoin(s),
       mode: G.joinMode(s),

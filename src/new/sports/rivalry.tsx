@@ -500,16 +500,16 @@ function CallSheet(p: {
   );
 }
 
-/** One side's faces, four then a count. */
-function FaceStack({ xs, right }: { xs: RivalryPick[]; right?: boolean }) {
+/** One side's faces, four then a count (C2's backing line and watchers share it). */
+export function FaceStack({ xs, right, size = 22, max = 4 }: { xs: { userId: string; name: string }[]; right?: boolean; size?: number; max?: number }) {
   return (
     <span className={`flex items-center ${right ? "flex-row-reverse" : ""}`}>
-      {xs.slice(0, 4).map((x, i) => (
+      {xs.slice(0, max).map((x, i) => (
         <span key={x.userId} className={`relative rounded-[3px] ${i ? (right ? "-mr-1.5" : "-ml-1.5") : ""}`} style={{ boxShadow: "0 0 0 2px var(--card)" }}>
-          <Avatar id={x.userId} name={x.name} size={22} />
+          <Avatar id={x.userId} name={x.name} size={size} />
         </span>
       ))}
-      {xs.length > 4 && <span className={`text-[12px] font-semibold text-muted-foreground ${right ? "mr-1.5" : "ml-1.5"}`}>+{xs.length - 4}</span>}
+      {xs.length > max && <span className={`text-[12px] font-semibold text-muted-foreground ${right ? "mr-1.5" : "ml-1.5"}`}>+{xs.length - max}</span>}
     </span>
   );
 }

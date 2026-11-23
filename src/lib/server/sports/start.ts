@@ -1,5 +1,6 @@
 import { railSpec, sportRail, type RailGame } from "@/lib/sports/start-games";
 import { RIVALRY_SPEC } from "@/lib/sports/rivalry";
+import { CALL_SPEC } from "@/lib/sports/fan-call";
 import type { SessionUser } from "../auth-helpers";
 import { HttpError, pool } from "../db";
 import { startFromSpec, type SpecStarted } from "../start-spec";
@@ -133,9 +134,10 @@ export async function startSport(
   const { rows: slates } = await pool.query("SELECT 1 FROM sports_slates WHERE season_id = $1", [seasonId]);
   const rail = sportRail(o.sport.league, { count: last, slate: slates.length > 0 });
   // C1: a rivalry's game (Winner and margin with public sides) is never on the rail; only rivalry.ts starts it, on one game.
-  const pick = game === "rivalry" ? { spec: RIVALRY_SPEC, name: "Rivalry" } : rail.find((g) => g.id === game);
+  // C2: a fan's call (Pick'em on one game with public picks) likewise, only from calls.ts.
+  const pick = game === "rivalry" ? { spec: RIVALRY_SPEC, name: "Rivalry" } : game === "call" ? { spec: CALL_SPEC, name: "Call" } : rail.find((g) => g.id === game);
   if (!pick) throw new HttpError(400, "That game isn't one this sport plays here");
-  if (game === "rivalry" && !(body.only === true || teamEpisode !== null)) throw new HttpError(400, "A rivalry is one game");
+  if ((game === "rivalry" || game === "call") && !(body.only === true || teamEpisode !== null)) throw new HttpError(400, "A rivalry or a call is one game");
   // `only`: that one game (or that one week of a slate). Else to the week asked for, or the season's end: for a game scored by
   // players' stats on the NFL's regular season, the fantasy season's (Week 17: BACKLOG 226).
   // Step 2.7: on a season that goes on into its playoffs (a full slate, a team's season), the season's end is its regular season's

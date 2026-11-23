@@ -2354,7 +2354,68 @@ export function useRivalryPick(couchId: string | null, league: string) {
       });
       void client.invalidateQueries({ queryKey: HOME_KEY });
       void client.invalidateQueries({ queryKey: ["new-design", "mine"] });
+      // A fan's rivalry call is one of their calls (C2's record).
+      void client.invalidateQueries({ queryKey: ["new-design", "calls", couchId, league] });
       return r.game;
+    },
+    [client, couchId, league]
+  );
+}
+
+// ---- a fan's call, and I'm watching (docs/PLAN-sports-couch.md C2: src/lib/server/sports/calls.ts, watching.ts) ----
+
+export type { CallGame } from "@/lib/sports/fan-call";
+export type { Watching } from "@/lib/server/sports/watching";
+
+/** The couch's call and rivalry games in a league this season (every winner pick, public), each with its teams and final. */
+export function useCallGames(couchId: string | null, league: string, teams: string[]) {
+  const ids = [...new Set(teams)].sort();
+  return useQuery({
+    queryKey: ["new-design", "calls", couchId, league, ids.join(",")],
+    queryFn: () => get<{ games: import("@/lib/sports/fan-call").CallGame[] }>(`/api/sports/calls?couch=${couchId}&league=${encodeURIComponent(league)}&teams=${ids.join(",")}`),
+    enabled: !!couchId && ids.length > 0,
+    staleTime: 30_000,
+  });
+}
+
+/** Call, back or fade (side null takes it back); the read put in place. */
+export function useCallPick(couchId: string | null, league: string) {
+  const client = useQueryClient();
+  return useCallback(
+    async (body: { event: string; team: string; side: string | null }) => {
+      const r = await post<{ game: import("@/lib/sports/fan-call").CallGame | null }>(`/api/sports/calls?couch=${couchId}`, { league, ...body });
+      client.setQueriesData<{ games: import("@/lib/sports/fan-call").CallGame[] }>({ queryKey: ["new-design", "calls", couchId, league] }, (old) => {
+        if (!old) return old;
+        const prev = old.games.find((g) => g.event === body.event && g.kind === "call");
+        const rest = old.games.filter((g) => !(g.event === body.event && g.kind === "call"));
+        return { games: r.game ? [...rest, { ...r.game, winner: prev?.winner ?? r.game.winner, teams: prev?.teams ?? r.game.teams }] : rest };
+      });
+      void client.invalidateQueries({ queryKey: HOME_KEY });
+      void client.invalidateQueries({ queryKey: ["new-design", "mine"] });
+      return r.game;
+    },
+    [client, couchId, league]
+  );
+}
+
+/** Who on the couch is watching a game in the league now (sharing When I'm watching; yours always). */
+export function useWatching(couchId: string | null, league: string) {
+  return useQuery({
+    queryKey: ["new-design", "watching", couchId, league],
+    queryFn: () => get<{ watching: import("@/lib/server/sports/watching").Watching[] }>(`/api/sports/watching?couch=${couchId}&league=${encodeURIComponent(league)}`),
+    enabled: !!couchId,
+    staleTime: 30_000,
+    refetchInterval: 120_000,
+  });
+}
+
+export function useSetWatching(couchId: string | null, league: string) {
+  const client = useQueryClient();
+  return useCallback(
+    async (game: string, on: boolean) => {
+      const r = await post<{ watching: import("@/lib/server/sports/watching").Watching[] }>(`/api/sports/watching?couch=${couchId}`, { league, game, on });
+      client.setQueryData(["new-design", "watching", couchId, league], r);
+      return r.watching;
     },
     [client, couchId, league]
   );
