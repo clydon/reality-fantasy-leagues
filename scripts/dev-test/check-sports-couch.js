@@ -475,16 +475,18 @@ async function leagueFollowBrowser(page, shot, wide, headers) {
   await page.goto(BASE + "/home?page=guide", { waitUntil: "networkidle" });
   await page.evaluate(() => document.querySelector("[data-guide-add]")?.scrollIntoView());
   await page.click("[data-guide-add]");
+  await page.click('[data-search-scope="all"]');
   await page.fill("[data-add-input]", "zt couch basketball");
-  const lrow = page.locator(`[data-league-row="${BB}"]`);
+  // A league named exactly is search's card (B3), Follow beside its name.
+  const lrow = page.locator(`[data-search-card="league"]`);
   const found = await lrow.waitFor({ timeout: 15000 }).then(() => true, () => false);
-  check(found, "search finds the league, its row with Follow");
+  check(found, "search finds the league, its card with Follow");
   if (found) {
-    const r = await lrow.evaluate((el) => ({ chevron: !!el.querySelector("svg.lucide-chevron-right"), toggle: el.querySelector("[data-follow-toggle]")?.textContent, nested: !!el.querySelector("button button") }));
-    check(!r.chevron && r.toggle === "Follow" && !r.nested, "the league's row: Follow where the chevron was, its own button", r);
+    const r = await lrow.evaluate((el) => ({ toggle: el.querySelector("[data-follow-toggle]")?.textContent, nested: !!el.querySelector("button button") }));
+    check(r.toggle === "Follow" && !r.nested, "the league's card: Follow beside its name, its own button", r);
     await wide("search with a league's Follow");
     await lrow.locator("[data-follow-toggle]").click();
-    await page.waitForFunction((bb) => document.querySelector(`[data-league-row="${bb}"] [data-follow-toggle]`)?.getAttribute("aria-pressed") === "true", BB, { timeout: 8000 }).catch(() => {});
+    await page.waitForFunction(() => document.querySelector('[data-search-card="league"] [data-follow-toggle]')?.getAttribute("aria-pressed") === "true", null, { timeout: 8000 }).catch(() => {});
     await page.waitForTimeout(600);
     check((await me.call("GET", "/api/sports/follow")).body.leagues?.includes(BB), "Follow on the row follows the league");
     await shot("8-search-league-following");
@@ -513,9 +515,11 @@ async function leagueFollowBrowser(page, shot, wide, headers) {
   await page.goto(BASE + "/home?page=guide", { waitUntil: "networkidle" });
   await page.evaluate(() => document.querySelector("[data-guide-add]")?.scrollIntoView());
   await page.click("[data-guide-add]");
+  await page.click('[data-search-scope="all"]');
   await page.fill("[data-add-input]", "zt cowboys");
-  await page.waitForSelector('[data-hit-kind="team"]', { timeout: 15000 });
-  await page.click('[data-hit-kind="team"][data-hit="ZT Cowboys"]');
+  // The team the words name is search's card (B3): its name opens the page.
+  await page.waitForSelector('[data-search-open="team"]', { timeout: 15000 });
+  await page.click('[data-search-open="team"]');
   const make = await page.locator("[data-make-my-team]").waitFor({ timeout: 15000 }).then(() => true, () => false);
   check(make, "a second team you follow in a league offers Make them your team");
   await shot("10-team-make-mine");
@@ -746,10 +750,11 @@ async function browserChecks(pool, headers, couch) {
     await page.locator("[data-guide-add]").first().waitFor({ timeout: 30000 });
     await page.evaluate(() => document.querySelector("[data-guide-add]")?.scrollIntoView());
     await page.click("[data-guide-add]");
+    await page.click('[data-search-scope="all"]');
     await page.fill("[data-add-input]", "zt eagles");
     await page.waitForSelector('[data-hit-kind="team"]', { timeout: 15000 });
     const order = await page.evaluate(() => {
-      const t = document.querySelector("[data-sports-results]");
+      const t = document.querySelector("[data-search-card], [data-sports-results]");
       const s = document.querySelector("[data-search-results]");
       return t && s ? !!(t.compareDocumentPosition(s) & Node.DOCUMENT_POSITION_FOLLOWING) : null;
     });

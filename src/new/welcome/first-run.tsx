@@ -16,7 +16,9 @@ import { Sheet } from "../ui/sheet";
 import { ShowArt } from "../ui/show-bar";
 import { toast } from "../ui/toast";
 import { followsOf, listingKey, nameKeyOf, whereCap, writeFirstRun, type ExtraPick, type FirstRunPicks } from "../way-in";
-import { AddNewBlock, ListingsCredit, SearchNote, SearchRows, useShowSearch } from "../watching/search";
+import { AddNewBlock, ListingsCredit, SearchNote, ShowGroups, useShowSearch } from "../watching/search";
+import { pickKey, SportsCard, SportsRows, useRankedSports, useTeamSearch, type Picking, type TeamPick } from "../sports/search";
+import { TeamMark, teamBg } from "../sports/parts";
 import { AccountForm, CheckEmail, GoogleButton, OrLine, UsernameSheet } from "./account";
 import { firstRunChanged, forgetFirstRun, useFirstRun, useHydrated } from "./hooks";
 
@@ -48,7 +50,7 @@ export function StartScreen({ step, way, error }: { step: number; way: WayIn; er
   const loaded = useHydrated();
   // A change keeps the picks from the TV listings and by name (step 10) unless it says otherwise.
   const update = (p: Omit<FirstRunPicks, "at">) => {
-    writeFirstRun({ extra: picks.extra, ...p });
+    writeFirstRun({ extra: picks.extra, teams: picks.teams, ...p });
     firstRunChanged();
   };
   const byId = useMemo(() => new Map((catalog ?? []).map((s) => [s.seasonId, s])), [catalog]);
@@ -83,7 +85,7 @@ export function StartScreen({ step, way, error }: { step: number; way: WayIn; er
           {step} of {START_STEPS}
         </span>
       </header>
-      {step === 1 && <PickShows catalog={catalog} picks={picks} update={update} openSearch={loaded && new URLSearchParams(window.location.search).has("search")} onNext={() => nav.push(paths.start(2))} />}
+      {step === 1 && <PickShows catalog={catalog} picks={picks} update={update} openSearch={loaded && new URLSearchParams(window.location.search).has("search")} onNext={() => nav.push(paths.start(chosen.length ? 2 : 3))} />}
       {step === 2 && <WhereYouAre catalog={catalog} byId={byId} chosen={chosen} picks={picks} update={update} loaded={loaded} way={way} />}
       {step === 3 && <SaveShows way={way} chosen={chosen} byId={byId} picks={picks} error={error} />}
       {step === START_STEPS && way.me && <YourPeople way={way} picks={picks} byId={byId} loaded={loaded} catalogReady={!!catalog} />}
@@ -141,10 +143,25 @@ function PickShows({
     if (on.has(key)) return;
     update({ picked: [...picks.picked, key], where: { ...picks.where, [key]: 0 }, extra: { ...picks.extra, [key]: e } });
   };
+  // Teams and leagues (B3): picked by their key, kept beside the shows, followed once there's an account.
+  const teams = picks.teams ?? {};
+  const picking: Picking = {
+    has: (k) => !!teams[k],
+    toggle: (t: TeamPick) => {
+      const k = pickKey(t);
+      const next = { ...teams };
+      if (next[k]) delete next[k];
+      else {
+        next[k] = t.kind === "team" ? { league: t.league, team: t.team, name: t.name, abbr: t.abbr ?? null, color: t.color ?? null } : { league: t.league, name: t.leagueName };
+        toast(`${t.kind === "team" ? t.name : t.leagueName} picked`);
+      }
+      update({ picked: picks.picked, where: picks.where, teams: next });
+    },
+  };
   // The wall, then anything found by searching that isn't on it.
   const shown = catalog ? [...catalog.filter((s) => s.wall), ...catalog.filter((s) => !s.wall && on.has(s.seasonId))] : null;
   const extras = picks.picked.filter((id) => picks.extra?.[id]);
-  const n = catalog ? picks.picked.filter((id) => catalog.some((s) => s.seasonId === id) || picks.extra?.[id]).length : 0;
+  const n = (catalog ? picks.picked.filter((id) => catalog.some((s) => s.seasonId === id) || picks.extra?.[id]).length : 0) + Object.keys(teams).length;
   return (
     <>
       <Heading step={1} />
@@ -155,7 +172,7 @@ function PickShows({
         className="mt-[18px] flex h-[50px] w-full items-center gap-2.5 rounded-[3px] bg-card px-3.5 text-left text-[15px] text-muted-foreground outline-1 -outline-offset-1 outline-input"
       >
         <Search className="size-[18px]" aria-hidden />
-        Search any show
+        Search shows and teams
       </button>
       <div className="mt-3 grid grid-cols-2 gap-2.5" data-show-wall>
         {shown === null
@@ -204,6 +221,28 @@ function PickShows({
               <small className="text-[12px] opacity-85">{id.startsWith("tv:") ? "From the TV listings" : "Added by name"} · not a game yet</small>
             </button>
           ))}
+        {shown &&
+          Object.entries(teams).map(([k, t]) => (
+            <button
+              key={k}
+              type="button"
+              data-pick={t.name}
+              data-pick-team={k}
+              aria-pressed
+              onClick={() => picking.toggle(t.team ? { kind: "team", league: t.league, team: t.team, name: t.name } : { kind: "league", league: t.league, leagueName: t.name })}
+              className="relative isolate flex aspect-[3/4] scale-[.97] flex-col justify-end overflow-hidden rounded-[4px] bg-card p-2.5 text-left shadow-[0_0_0_3px_var(--chyron-line)]"
+              style={t.color ? { background: `linear-gradient(160deg, ${teamBg(t.color)} 0%, ${teamBg(t.color)} 45%, var(--card) 100%)` } : undefined}
+            >
+              <span className="absolute left-2.5 top-2.5">
+                {t.team ? <TeamMark abbr={t.abbr ?? t.name.slice(0, 3)} color={t.color} size="lg" /> : <span className="type-caption grid size-16 place-items-center rounded-[6px] bg-secondary text-[20px]">{t.name.slice(0, 4)}</span>}
+              </span>
+              <span aria-hidden className="absolute right-2 top-2 grid size-[30px] scale-110 place-items-center rounded-full bg-chyron text-chyron-foreground">
+                <Check className="size-4" strokeWidth={3} />
+              </span>
+              <b className="type-caption text-[20px]">{t.name}</b>
+              <small className="text-[12px] text-muted-foreground">{t.team ? "A team to follow" : "A league to follow"}</small>
+            </button>
+          ))}
         {shown && (
           <button
             type="button"
@@ -221,6 +260,7 @@ function PickShows({
         onOpenChange={setSearching}
         catalog={catalog ?? []}
         picked={on}
+        picking={picking}
         onPick={(s) => {
           if (!on.has(s.seasonId)) toggle(s.seasonId);
           setSearching(false);
@@ -247,6 +287,7 @@ function SearchSheet({
   onOpenChange,
   catalog,
   picked,
+  picking,
   onPick,
   onPickExtra,
 }: {
@@ -254,6 +295,7 @@ function SearchSheet({
   onOpenChange: (o: boolean) => void;
   catalog: CatalogSeason[];
   picked: Set<string>;
+  picking: Picking;
   onPick: (s: CatalogSeason) => void;
   onPickExtra: (key: string, e: ExtraPick) => void;
 }) {
@@ -267,12 +309,18 @@ function SearchSheet({
   const t = q.trim().toLowerCase();
   const none = useMemo(() => new Set<string>(), []);
   const search = useShowSearch(q, catalog, none);
+  // Teams and leagues too (docs/PLAN-sports-couch.md B3, BACKLOG 43): Add's card and rows, picked instead of followed.
+  const teams = useTeamSearch(q);
+  const ranked = useRankedSports(teams.data);
+  const hereFirst = search.rows.some((r) => r.kind === "season");
+  const [more, setMore] = useState(false);
   const wall = catalog.filter((s) => s.wall);
+  const pickRow = (r: (typeof search.rows)[number]) => (r.kind === "season" ? onPick(r.season) : onPickExtra(listingKey(r.hit.tvmazeId), { name: r.hit.name, artUrl: r.hit.thumb }));
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Find a show" subtitle="Anything on TV. Playing is optional.">
+    <Sheet open={open} onOpenChange={onOpenChange} title="Find a show or team" subtitle="Shows, teams and leagues." tall>
       <label className="flex h-[50px] items-center gap-2.5 rounded-[3px] bg-background px-3 outline-2 -outline-offset-2 outline-chyron-line">
         <Search className="size-[18px] text-muted-foreground" aria-hidden />
-        <input ref={input} data-search-input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search or add a show" autoComplete="off" aria-label="Search or add a show" className="h-full flex-1 bg-transparent text-[16px] outline-none" />
+        <input ref={input} data-search-input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Shows, teams, leagues" autoComplete="off" aria-label="Search shows, teams and leagues" className="h-full flex-1 bg-transparent text-[16px] outline-none" />
       </label>
       {!t ? (
         <>
@@ -294,13 +342,20 @@ function SearchSheet({
         </>
       ) : (
         <>
-          <SearchRows
+          {!hereFirst && <SportsCard ranked={ranked} onOpen={picking.toggle} pick={picking} />}
+          {!hereFirst && ranked.lead && <SportsRows ranked={ranked} onOpen={picking.toggle} pick={picking} loading={teams.loading} failed={teams.failed} retry={teams.retry} />}
+          <ShowGroups
             rows={search.rows}
+            limit={hereFirst || more ? Infinity : ranked.card || ranked.lead ? 3 : ranked.teams.length || ranked.leagues.length || ranked.tours.length ? 5 : Infinity}
+            onMore={() => setMore(true)}
+            onFewer={more ? () => setMore(false) : undefined}
             picked={picked}
-            onPick={(r) => (r.kind === "season" ? onPick(r.season) : onPickExtra(listingKey(r.hit.tvmazeId), { name: r.hit.name, artUrl: r.hit.thumb }))}
+            onPick={pickRow}
           />
           <SearchNote loading={search.loading} unavailable={search.unavailable} />
-          {!search.exact && !search.loading && t.length >= 2 && (
+          {hereFirst && <SportsCard ranked={ranked} onOpen={picking.toggle} pick={picking} />}
+          {!(!hereFirst && ranked.lead) && <SportsRows ranked={ranked} onOpen={picking.toggle} pick={picking} loading={teams.loading} failed={teams.failed} retry={teams.retry} />}
+          {!search.exact && !ranked.card && !search.loading && !teams.loading && t.length >= 2 && (
             <AddNewBlock q={q} any={search.rows.length > 0} onPick={() => onPickExtra(nameKeyOf(q), { name: q.trim().replace(/\s+/g, " "), artUrl: null })} />
           )}
         </>
@@ -336,8 +391,8 @@ function WhereYouAre({
   const saved = useRef(false);
   // Nothing picked (a reload on a new phone): back to the shows.
   useEffect(() => {
-    if (!saved.current && loaded && catalog && !chosen.length) router.replace(paths.start(1));
-  }, [loaded, catalog, chosen.length, router]);
+    if (!saved.current && loaded && catalog && !chosen.length) router.replace(paths.start(Object.keys(picks.teams ?? {}).length ? 3 : 1));
+  }, [loaded, catalog, chosen.length, router, picks.teams]);
   return (
     <>
       <Heading step={2} />
@@ -361,7 +416,7 @@ function WhereYouAre({
             // Signed in already: saved now, and on to your people.
             setBusy(true);
             try {
-              await saveFirstRun(followsOf({ ...picks, picked: chosen }, (sid) => byId.get(sid)?.aired));
+              await saveFirstRun(followsOf({ ...picks, picked: chosen }, (sid) => byId.get(sid)?.aired), teamsOf(picks));
               saved.current = true;
               forgetFirstRun();
               nav.push(paths.start(START_STEPS));
@@ -449,7 +504,7 @@ function SaveShows({ way, chosen, byId, picks, error }: { way: WayIn; chosen: st
               onMade={async (m) => {
                 if ("checkEmail" in m) return setCheck(m.checkEmail);
                 try {
-                  await saveFirstRun(followsOf({ ...picks, picked: chosen }, (sid) => byId.get(sid)?.aired));
+                  await saveFirstRun(followsOf({ ...picks, picked: chosen }, (sid) => byId.get(sid)?.aired), teamsOf(picks));
                   forgetFirstRun();
                 } catch {
                   /* kept on the device: step 4 saves them */
@@ -500,9 +555,9 @@ function YourPeople({ way, picks, byId, loaded, catalogReady }: { way: WayIn; pi
   // Back from Google or an emailed link: the shows still on this device are saved now.
   const saved = useRef(false);
   useEffect(() => {
-    if (!loaded || !catalogReady || saved.current || !picks.picked.length) return;
+    if (!loaded || !catalogReady || saved.current || (!picks.picked.length && !Object.keys(picks.teams ?? {}).length)) return;
     saved.current = true;
-    saveFirstRun(followsOf(picks, (sid) => byId.get(sid)?.aired))
+    saveFirstRun(followsOf(picks, (sid) => byId.get(sid)?.aired), teamsOf(picks))
       .then(() => forgetFirstRun())
       .catch(() => {
         saved.current = false;
@@ -551,3 +606,6 @@ function YourPeople({ way, picks, byId, loaded, catalogReady }: { way: WayIn; pi
     </>
   );
 }
+
+/** The teams and leagues picked, as the save takes them (B3). */
+const teamsOf = (p: FirstRunPicks) => Object.values(p.teams ?? {}).map((t) => (t.team ? { league: t.league, team: t.team } : { league: t.league }));

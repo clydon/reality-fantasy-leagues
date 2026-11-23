@@ -1332,7 +1332,7 @@ export function useCatalog(enabled = true) {
 
 /** First run's shows for the account just made (or signed into), and the new design as the one it opens on. A show from the
  *  TV listings, or one added by name (step 10), is made if it has to be. */
-export const saveFirstRun = (follows: FirstRunFollow[]) => post<{ saved: number }>("/api/me/first-run", { follows, ui: "new" });
+export const saveFirstRun = (follows: FirstRunFollow[], teams: { league: string; team?: string }[] = []) => post<{ saved: number }>("/api/me/first-run", { follows, teams, ui: "new" });
 export type FirstRunFollow = ({ seasonId: string } | { listing: number } | { name: string }) & { seenThrough: number };
 
 // ---- watching (step 10 part 1; add-show.ts, listings.ts, follows.ts): Add a show, where you are, watch privately. Read when
@@ -2081,6 +2081,8 @@ export function useSportsSearch(q: string) {
     queryKey: ["new-design", "sports-search", t.toLowerCase()],
     queryFn: () => get<FoundTeams>(`/api/sports/search?q=${encodeURIComponent(t)}`),
     enabled: t.length >= 2,
+    // Once more, then say so (Add's search shows "Teams didn't load": the check's P2), not three tries in silence.
+    retry: 1,
     staleTime: 3600_000,
     placeholderData: keepPreviousData,
   });

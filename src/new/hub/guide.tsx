@@ -747,7 +747,7 @@ export function GuidePage({ home, couch }: { home: Home; couch: Couch | null }) 
         <button
           type="button"
           data-guide-add
-          onClick={() => openWatching({ kind: "add" })}
+          onClick={() => openWatching({ kind: "add", scope: "shows" })}
           className="nd-press flex h-11 flex-none items-center gap-1 rounded-[3px] px-3 text-[15px] font-semibold text-foreground outline-1 -outline-offset-1 outline-input"
         >
           <Plus className="size-4" aria-hidden />

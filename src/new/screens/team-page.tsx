@@ -14,13 +14,13 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronLeft, ChevronRight, Gamepad2, House, MessageCircle, Plane } from "lucide-react";
-import { sportsApi, useCouchTeams, useCurrentCouch, useHome, useLeaguesNow, useLeagueStandings, useMySportsGames, useRoomCounts, useSportsRecordings, useTeamSchedule, useYourTeams, type TeamSchedule, type WeekGame } from "../data";
+import { sportsApi, useCouchTeams, useCurrentCouch, useHome, useLeaguesNow, useLeagueStandings, useMySportsGames, useRoomCounts, useSportsRecordings, useTeamSchedule, type TeamSchedule, type WeekGame } from "../data";
 import { NavLink, useNav } from "../nav";
 import { paths } from "../routes";
 import { toast } from "../ui/toast";
 import { Avatar } from "../ui/bars";
 import { openCouchSheet } from "../couch/couch-sheets";
-import { FollowFaces, FollowToggle, theLeague } from "../sports/follow";
+import { FollowFaces, FollowToggle, theLeague, useTeamFollow } from "../sports/follow";
 import { OpenRow, PlayPlate, SportsLabel, TeamMark, TeamPlate } from "../sports/parts";
 import { AskSheet } from "../sports/scorebug";
 import { GameBug } from "../sports/game-bug";
@@ -94,7 +94,7 @@ export function TeamPageScreen({ league, team, against }: { league: string; team
 
 /** The page's own bar: Back and Follow, Night in both themes (the league bar's ground); the plate below is the title. */
 function TeamBar({ league, team, s, onBack }: { league: string; team: string; s: TeamSchedule | null; onBack: () => void }) {
-  const f = useTeamFollow(league, team, s);
+  const f = useTeamFollow(league, team, s && { short: s.team.short, leagueName: s.leagueName });
   return (
     <header data-team-bar className="dark sticky top-[var(--nd-top,0px)] z-20 flex h-[calc(56px+env(safe-area-inset-top,0px))] items-center gap-1.5 bg-[linear-gradient(135deg,#2a2633,#100e15)] px-2 pt-[env(safe-area-inset-top,0px)] text-foreground">
       <button type="button" data-team-back onClick={onBack} className="flex h-11 items-center gap-0.5 rounded-[3px] pl-1 pr-2.5 text-[15px] font-semibold focus-visible:outline-2 focus-visible:outline-foreground">
@@ -110,39 +110,9 @@ function TeamBar({ league, team, s, onBack }: { league: string; team: string; s:
   );
 }
 
-/** Following this team: yours (the couch's read, or your own without a couch), toggled with the old sheet's words. */
-function useTeamFollow(league: string, team: string, s: TeamSchedule | null) {
-  const { data: home } = useHome();
-  const couch = useCurrentCouch(home);
-  const me = home?.user.id ?? "";
-  const qc = useQueryClient();
-  const couchTeams = useCouchTeams(couch?.id ?? null);
-  const mine = useYourTeams();
-  const [over, setOver] = useState<boolean | null>(null);
-  const followers = couchTeams.data?.teams.find((t) => t.league === league && t.id === team)?.followers ?? [];
-  const on = over ?? (couch ? followers.some((f) => f.id === me) : !!mine.data?.teams.some((t) => t.league === league && t.id === team));
-  const short = s?.leagueName ?? league.split("/").pop()!.toUpperCase();
-  const toggle = async () => {
-    if (!s) return;
-    const next = !on;
-    // Following a team follows its league too: say so when that puts the league on your shows.
-    const newLeague = next && !!mine.data && !mine.data.leagues.includes(league);
-    setOver(next);
-    try {
-      qc.setQueryData(["new-design", "your-teams"], await sportsApi.follow(league, team, next));
-      await qc.invalidateQueries({ queryKey: ["new-design", "couch-teams"] });
-      toast(next ? (newLeague ? `Following the ${s.team.short}: ${theLeague(short)} is on your shows` : `Following the ${s.team.short}: their games lead your guide`) : `Unfollowed: their games leave your guide`);
-    } catch (e) {
-      setOver(!next);
-      toast.quiet((e as Error).message);
-    }
-  };
-  return { on, toggle, followers, couch, me, mine, short };
-}
-
 function TeamPageBody({ league, team, s, against: firstAgainst }: { league: string; team: string; s: TeamSchedule; against: string | null }) {
   const now = useNow();
-  const f = useTeamFollow(league, team, s);
+  const f = useTeamFollow(league, team, s && { short: s.team.short, leagueName: s.leagueName });
   const qc = useQueryClient();
   const hide = useHideSports();
   const known = useHideSportsKnown();

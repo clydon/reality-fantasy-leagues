@@ -668,7 +668,7 @@ export function YourShows({ home, hub, couch = null }: { home: Home; hub: CouchH
           <span className="grid size-11 place-items-center rounded-[3px] bg-card text-foreground">
             <Plus className="size-6" aria-hidden />
           </span>
-          <b className="type-caption text-[22px] text-foreground">Add a show</b>
+          <b className="type-caption text-[22px] text-foreground">Add a show or team</b>
           <small className="text-[13px] leading-snug">Tell the couch what you&rsquo;re watching.</small>
         </button>
       </div>

@@ -13,7 +13,7 @@ import { eastDay } from "@/lib/sports/team-season";
 type Game = TeamSchedule["games"][number];
 
 /** A team's game as the shared scorebug (wide): its clock, network and line from the league's week read when it's there. */
-export function GameBug({ g, s, now, onAsk }: { g: Game; s: TeamSchedule; now: number; onAsk: (g: WeekGame) => void }) {
+export function GameBug({ g, s, now, onAsk, onOpened }: { g: Game; s: TeamSchedule; now: number; onAsk: (g: WeekGame) => void; onOpened?: () => void }) {
   const home = useHome().data;
   const couch = useCurrentCouch(home);
   const couchTeams = useCouchTeams(couch?.id ?? null).data?.teams ?? [];
@@ -33,5 +33,5 @@ export function GameBug({ g, s, now, onAsk }: { g: Game; s: TeamSchedule; now: n
   const due = !!p && !!home?.moves.some((m) => m.leagueId === p.leagueId && (m.episode == null || m.episode === p.episode));
   const hidden = !!recordings?.some((r) => r.game === g.id) || (hide && !shown.has(g.id));
   const bug: Bug = { g: wg, bucket: bugStateOf(wg, hidden, now), fans: [fans.get(wg.sides[0].id) ?? [], fans.get(wg.sides[1].id) ?? []], played: p, due };
-  return <Scorebug bug={bug} meId={home?.user.id ?? ""} now={now} onAsk={() => onAsk(wg)} wide grouped finalsOpen pollOnScreen />;
+  return <Scorebug bug={bug} meId={home?.user.id ?? ""} now={now} onAsk={() => onAsk(wg)} onOpened={onOpened} wide grouped finalsOpen pollOnScreen />;
 }

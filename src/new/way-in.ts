@@ -10,6 +10,9 @@ export interface FirstRunPicks {
   picked: string[];
   where: Record<string, number>;
   extra?: Record<string, ExtraPick>;
+  /** Teams and leagues picked (docs/PLAN-sports-couch.md B3: first run finds them too), by `team:<league>/<id>` or `league:<league>`;
+   *  followed once there's an account. Not in `picked`: Where are you is a show's. */
+  teams?: Record<string, SportPick>;
   /** When they were last changed: picks a week old are let go. */
   at: number;
 }
@@ -18,6 +21,15 @@ export interface FirstRunPicks {
 export interface ExtraPick {
   name: string;
   artUrl: string | null;
+}
+
+/** A team or league first run picked: enough to draw its tile until it's followed. */
+export interface SportPick {
+  league: string;
+  team?: string;
+  name: string;
+  abbr?: string | null;
+  color?: string | null;
 }
 
 /** A pick's key for a show from the TV listings, or one added by name. */
@@ -48,7 +60,13 @@ export function parseFirstRun(raw: string | null, now = Date.now()): FirstRunPic
       const n = p.where?.[id];
       where[id] = Number.isInteger(n) && (n as number) >= 0 ? (n as number) : 0;
     }
-    return Object.keys(extra).length ? { picked, where, extra, at: p.at } : { picked, where, at: p.at };
+    // Teams and leagues: a league's path, a name to show, a team's id when it's a team.
+    const teams: Record<string, SportPick> = {};
+    for (const [k, t] of Object.entries(p.teams ?? {}).slice(0, 20)) {
+      if (!/^(team|league):[a-z0-9-]+\/[a-z0-9.-]+(\/[A-Za-z0-9-]+)?$/.test(k) || !t || typeof t.league !== "string" || typeof t.name !== "string") continue;
+      teams[k] = { league: t.league, name: t.name.slice(0, 80), ...(typeof t.team === "string" ? { team: t.team } : {}), abbr: typeof t.abbr === "string" ? t.abbr.slice(0, 5) : null, color: typeof t.color === "string" ? t.color.slice(0, 8) : null };
+    }
+    return { picked, where, ...(Object.keys(extra).length ? { extra } : {}), ...(Object.keys(teams).length ? { teams } : {}), at: p.at };
   } catch {
     return EMPTY();
   }

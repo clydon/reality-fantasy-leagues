@@ -25,8 +25,8 @@ import { Btn, BtnLink } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { useReducedMotion } from "../welcome/hooks";
-import { AddNewBlock, ListingsCredit, SearchNote, SearchRows, SuggestionCard, seasonLine, useShowSearch, type SearchRow } from "./search";
-import { SportsResults, useTeamSearch, type TeamPick } from "../sports/search";
+import { AddNewBlock, ListingsCredit, ScopeSwitch, SearchNote, ShowGroups, SuggestionCard, seasonLine, useShowSearch, type SearchRow } from "./search";
+import { CouchFollows, LeagueTiles, SportsCard, SportsRows, useCouchFollows, useRankedSports, useTeamSearch, type TeamPick } from "../sports/search";
 import { WhereAsk, type SeasonPick, type WhereSeason } from "./where";
 import { episodeWordFromTitles } from "@/lib/game/show-words";
 
@@ -58,8 +58,10 @@ export type WhereTarget = WhereSeason & {
  *  listing; `onDemo` hears the ones it added, `onAdded` that you added yours. */
 export type AddPractice = { name: string | null; seasonId: string | null; demo?: AddDemo[]; onDemo?: (tvmazeIds: number[]) => void; onAdded?: () => void; onClose: () => void };
 export type AddDemo = { query: string; tvmazeId: number };
+/** Add's scopes (docs/design-round/search-spec.md): All, or only shows, or only sports. */
+export type SearchScope = "all" | "shows" | "sports";
 type WatchingSheet =
-  | { kind: "add"; practice?: AddPractice }
+  | { kind: "add"; practice?: AddPractice; scope?: SearchScope }
   | { kind: "where"; target: WhereTarget }
   | { kind: "listing"; hit: ListingHit; then?: (seasonId: string) => void };
 
@@ -105,7 +107,7 @@ export function WatchingSheets() {
   };
   return (
     <>
-      <AddShowSheet key={`add-${n}`} open={sheet?.kind === "add"} practice={practice} onOpenChange={onOpenChange} />
+      <AddShowSheet key={`add-${n}`} open={sheet?.kind === "add"} practice={practice} scope={sheet?.kind === "add" ? sheet.scope : undefined} onOpenChange={onOpenChange} />
       <WhereSheet key={`where-${n}`} target={sheet?.kind === "where" ? sheet.target : null} onOpenChange={onOpenChange} />
       <ListingSheet key={`listing-${n}`} hit={sheet?.kind === "listing" ? sheet.hit : null} then={sheet?.kind === "listing" ? sheet.then : undefined} onOpenChange={onOpenChange} />
     </>
@@ -251,7 +253,7 @@ const PRESS = 220;
 const SEE = 1000;
 const READ = 1700;
 
-function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practice?: AddPractice; onOpenChange: (o: boolean) => void }) {
+function AddShowSheet({ open, practice, scope: firstScope, onOpenChange }: { open: boolean; practice?: AddPractice; scope?: SearchScope; onOpenChange: (o: boolean) => void }) {
   const { data: home } = useHome();
   const nav = useNav();
   const reduce = useReducedMotion();
@@ -274,8 +276,14 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
   const search = useShowSearch(q, catalog, mine, watchers);
   // Teams and leagues beside the shows (not in the tour's practice, which types a show).
   const teams = useTeamSearch(practice ? "" : q);
+  const ranked = useRankedSports(teams.data);
+  const couchFollows = useCouchFollows();
+  // All · Shows · Sports (the spec's scopes): a filter that keeps the words; the tour's practice is shows alone, with no switch.
+  const [scope, setScope] = useState<SearchScope>(practice ? "shows" : (firstScope ?? "all"));
+  const [moreShows, setMoreShows] = useState(false);
   // A league opens its own page (docs/PLAN-sports-couch.md B1) and a team its own (B2), leaving Add behind; a matchup opens the
   // first team's page on their meetings.
+  const hereFirst = search.rows.some((r) => r.kind === "season");
   const pickTeam = (p: TeamPick) => {
     onOpenChange(false);
     nav.push(p.kind === "league" ? paths.league(p.league) : paths.team(p.league, p.team, p.against));
@@ -484,7 +492,9 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
   const yoursDone = step?.kind === "practiced" && !step.demo;
   const demoMore = !!practice?.demo?.length;
   const title = !step
-    ? "Add a show"
+    ? practice
+      ? "Add a show"
+      : "Add a show or team"
     : step.kind === "demoed"
       ? "Shows you add"
       : step.kind === "ready"
@@ -499,7 +509,9 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
               ? step.leagueName
               : "Where are you?";
   const subtitle = !step
-    ? "Everything on TV. Playing is optional."
+    ? practice
+      ? "Everything on TV. Playing is optional."
+      : "Shows, teams and leagues."
     : step.kind === "ready"
       ? `${step.label} is on your shows`
       : step.kind === "practiced" || step.kind === "demoed"
@@ -530,7 +542,7 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
   // Where are you: Add to my shows is what moves it on, so it shows itself.
   useNudge(!!practice && !demoOn && (step?.kind === "season" || step?.kind === "listing"), "[data-where-save]");
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title={title} subtitle={subtitle}>
+    <Sheet open={open} onOpenChange={onOpenChange} title={title} subtitle={subtitle} tall={!step && !practice}>
       <div data-add-show={step ? step.kind : "search"} data-practice-path={path ? "" : undefined} onClickCapture={keepToPath(path)}>
         {practice && !yoursDone && step?.kind !== "demoed" && <PracticeStrip />}
         {step?.kind === "practiced" &&
@@ -563,6 +575,7 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
         )}
         {!step && (
           <>
+            <div data-search-head className="sticky top-0 z-10 -mx-4 bg-card px-4 pb-0.5">
             <label className="flex h-[50px] items-center gap-2.5 rounded-[3px] bg-background px-3 outline-2 -outline-offset-2 outline-chyron-line">
               <Search className="size-[18px] text-muted-foreground" aria-hidden />
               <input
@@ -572,36 +585,73 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
                 // The tour's practice types the name for you.
                 readOnly={!!practice?.name}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Search or add a show"
-                aria-label="Search or add a show"
+                placeholder={scope === "shows" ? "Search or add a show" : scope === "sports" ? "Teams, leagues" : "Shows, teams, leagues"}
+                aria-label={scope === "shows" ? "Search or add a show" : scope === "sports" ? "Search teams and leagues" : "Search shows, teams and leagues"}
                 autoComplete="off"
                 className="h-full flex-1 bg-transparent text-[16px] outline-none"
               />
             </label>
+            {!practice && <ScopeSwitch scope={scope} onScope={setScope} />}
+            </div>
             {!q.trim() ? (
-              suggestions.length ? (
-                <div className="mt-3 grid grid-cols-2 gap-2.5" data-suggestions>
-                  {suggestions.map((x) => (
-                    <SuggestionCard key={x.key} title={x.title} sub={x.sub} art={x.art} position={x.position} on={mine.has(x.key)} onClick={() => pickSeason(x.s, x.ready)} />
-                  ))}
+              scope === "sports" ? (
+                <div data-before-typing="sports">
+                  <LeagueTiles onOpen={pickTeam} />
+                  <CouchFollows teams={couchFollows} onOpen={pickTeam} />
                 </div>
               ) : (
-                <p className="mt-4 text-[14px] leading-normal text-muted-foreground">Type any show: what&rsquo;s here, and everything in the TV listings.</p>
+                <div data-before-typing={scope}>
+                  {/* The couch's teams first when the couch follows more teams than it watches shows you don't have (the first view's gap). */}
+                  {scope === "all" && couchFollows.length > suggestions.length && <CouchFollows teams={couchFollows} onOpen={pickTeam} />}
+                  {suggestions.length ? (
+                    <>
+                    {!practice && <p className="type-caption mb-1 mt-5 text-[14px] tracking-[0.04em] text-muted-foreground">Shows to add</p>}
+                    <div className="mt-3 grid grid-cols-2 gap-2.5" data-suggestions>
+                      {suggestions.map((x) => (
+                        <SuggestionCard key={x.key} title={x.title} sub={x.sub} art={x.art} position={x.position} on={mine.has(x.key)} onClick={() => pickSeason(x.s, x.ready)} />
+                      ))}
+                    </div>
+                    </>
+                  ) : (
+                    (scope === "shows" || !couchFollows.length) && (
+                      <p className="mt-4 text-[14px] leading-normal text-muted-foreground">
+                        {scope === "shows" ? <>Type any show: what&rsquo;s here, and everything in the TV listings.</> : "Type any show, team or league."}
+                      </p>
+                    )
+                  )}
+                  {scope === "all" && couchFollows.length <= suggestions.length && <CouchFollows teams={couchFollows} onOpen={pickTeam} />}
+                </div>
               )
             ) : (
               <>
-                {/* Shows Â· Teams Â· Leagues; a team the words name exactly comes first. */}
-                {teams.strong && !search.exact && <SportsResults data={teams.data} onPick={pickTeam} />}
-                {teams.data && (teams.data.teams.length > 0 || teams.data.matchup) && search.rows.length > 0 && (
-                  <p className="type-caption mb-1 mt-4 text-[14px] tracking-[0.04em] text-muted-foreground">Shows</p>
+                {/* A show here leads for its words; else a strong sports meaning's card (never a TV listing above it: R4). */}
+                {scope !== "shows" && !hereFirst && <SportsCard ranked={ranked} onOpen={pickTeam} onGame={() => onOpenChange(false)} />}
+                {/* A sport's own word ("golf"): its leagues and tours before the TV listings. */}
+                {scope === "all" && !hereFirst && ranked.lead && <SportsRows ranked={ranked} onOpen={pickTeam} loading={teams.loading} failed={teams.failed} retry={teams.retry} />}
+                {scope !== "sports" && (
+                  <ShowGroups
+                    rows={search.rows}
+                    limit={scope !== "all" || hereFirst || moreShows ? Infinity : ranked.card || ranked.lead ? 3 : ranked.teams.length || ranked.leagues.length || ranked.tours.length ? 5 : Infinity}
+                    onMore={() => setMoreShows(true)}
+                    onFewer={moreShows ? () => setMoreShows(false) : undefined}
+                    onPick={pick}
+                    ringed={ringedKey ?? (demoOn ? undefined : (practice?.seasonId ?? undefined))}
+                  />
                 )}
-                <SearchRows rows={search.rows} onPick={pick} ringed={ringedKey ?? (demoOn ? undefined : (practice?.seasonId ?? undefined))} />
-                <SearchNote loading={search.loading} unavailable={search.unavailable} />
-                {!(teams.strong && !search.exact) && <SportsResults data={teams.data} onPick={pickTeam} />}
-                {!search.exact && !teams.strong && !search.loading && q.trim().length >= 2 && <AddNewBlock q={q} any={search.rows.length > 0} onPick={() => setStep({ kind: "name", name: q.trim() })} />}
+                {scope !== "sports" && <SearchNote loading={search.loading} unavailable={search.unavailable} />}
+                {scope !== "shows" && hereFirst && <SportsCard ranked={ranked} onOpen={pickTeam} onGame={() => onOpenChange(false)} />}
+                {scope !== "shows" && !(scope === "all" && !hereFirst && ranked.lead) && <SportsRows ranked={ranked} onOpen={pickTeam} loading={teams.loading} failed={teams.failed} retry={teams.retry} />}
+                {scope !== "sports" && !search.exact && !ranked.card && !search.loading && !teams.loading && q.trim().length >= 2 && (
+                  <AddNewBlock q={q} any={search.rows.length > 0} onPick={() => setStep({ kind: "name", name: q.trim() })} />
+                )}
+                {scope === "sports" && !teams.loading && !teams.failed && !!teams.data && !ranked.card && !ranked.teams.length && !ranked.leagues.length && !ranked.tours.length && (
+                  <p data-sports-none className="mt-5 text-[14px] text-muted-foreground">
+                    No team or league by that name.
+                  </p>
+                )}
               </>
             )}
-            <ListingsCredit />
+            {(q.trim() ? scope !== "sports" && search.rows.some((r) => r.kind === "listing") : scope !== "sports" && !!suggestions.length) && <ListingsCredit />}
           </>
         )}
         {step?.kind === "season" && (

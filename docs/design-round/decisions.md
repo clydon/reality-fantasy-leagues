@@ -1880,3 +1880,17 @@
 - Kept: the day alone under the title (the time stays in the scorebug); the line in ESPN's short form ("NYG by 3").
 - Rests on: src/new/sports/team.tsx (`GameView`), src/new/sports/game-bug.tsx; docs/design-round/game-sheet-spec.md, -first-view.md,
   -shape.md, -check.md; docs/PLAN-sports-couch.md, B4's build notes.
+
+## 2026-11-22 · Add a show or team: search (sports-couch B3)
+- Decided by: Claude, on the user's "Continue" after B3's story https://claude.ai/artifact/1ocBH869YU9C7LfigoRE7s, read as taking
+  the recommendation and the two kept calls (as at B1's Standings review); open to the user's change.
+- What: (1) Event sports' tours (golf, F1, the UFC) are listed in search with no action and "Their own pages and games come later"
+  said once; no Follow until event sports have a page (the no-interim-builds rule). (2) A team the words name outranks a TV listing
+  ("bear": the Bears' card, The Bear first among shows under it); a show here always outranks a team. (3) Search's card has no panel
+  of its own (the sheet is the card colour; the scorebug its only fill).
+- Also settled in the check, by the process's rules: one or many of a team's name is the name; sports search fails fast and says so;
+  the search sheet holds its height with the field pinned; one form for a game's day in search ("Thu, Nov 26"); first run's matchup
+  Pick picks both teams.
+- Rests on: src/new/sports/search.tsx, src/lib/sports/search-rank.ts, src/new/watching/sheets.tsx (`AddShowSheet`),
+  src/new/welcome/first-run.tsx; docs/design-round/search-spec.md, -first-view.md, -shape.md, -check.md; docs/PLAN-sports-couch.md,
+  B3's build notes.

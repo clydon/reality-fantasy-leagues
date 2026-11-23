@@ -367,6 +367,33 @@ check and its one batch). With BACKLOG 254 (m)'s team half.
 sports match (src/new/sports/search.tsx, src/new/watching/sheets.tsx); event sports in results (dropped today); first run uses
 the same search (BACKLOG 43).
 
+**B3's build notes (2026-11-22, lane `sports-couch`, port 3019; not committed; no migration, no new external read, no engine change).**
+Story: https://claude.ai/artifact/1ocBH869YU9C7LfigoRE7s. **Approved as built** (the user's "Continue", 2026-11-22: decisions.md; tours listed only). The design: [search-spec.md](design-round/search-spec.md)
+(Intent), `-first-view.md` (PFD), `-shape.md` (Impeccable), `-check.md` (the check and its one batch; `-check-findings.md`, the
+checking agent's full findings).
+- **Where:** Add's sheet (watching/sheets.tsx `AddShowSheet`, "Add a show or team"; the hub's row and poster say so; the guide keeps
+  "Add a show" and opens on Shows: `openWatching({ kind: "add", scope })`) and first run's search (welcome/first-run.tsx). One
+  set of parts in src/new/sports/search.tsx (`SportsCard`, `SportsRows`, `LeagueTiles`, `CouchFollows`, `useRankedSports`) and
+  watching/search.tsx (`ShowGroups`, `ScopeSwitch`); the ranking is pure, src/lib/sports/search-rank.ts (tests/sports-search-rank.test.js).
+- **The rules:** a show here leads its words; else one card for a clear sports meaning (a matchup; among the top-scored teams the
+  couch's, else the one pro team in season, else the one pro team; else a league named exactly), then shows (TV listings as their own
+  group, three under a card, five above sports rows), then teams (the couch's, in season, pro, college past two folded), leagues,
+  tours (golf, F1, the UFC: listed, no action, "Their own pages and games come later" once), Add by name (only once sports answered).
+  A sport's own word with no team ("golf") puts its tours first. teams.ts `teamScore`: one or many of a short name is the name ("bear").
+- **The card:** a team's short name over its city and league, the couch line (others only), Follow (`useTeamFollow`, lifted from the
+  team page into sports/follow.tsx), its game on now or next as `GameBug` (B4's; now with `onOpened`, closing Add as the game's sheet
+  opens); a matchup's next meeting as the bug (into B4's sheet); a league's week and Follow. `Sheet tall` holds the search's height;
+  the field and scopes stick. Sports search retries once, then "Teams didn't load · Try again"; "Looking for teams…" meanwhile.
+- **First run (BACKLOG 43):** the same card and rows with Pick (a matchup picks both); picks kept on the device (way-in.ts
+  `FirstRunPicks.teams`), a wall tile in the team's colour, step 2 skipped with no shows, followed at the save (POST /api/me/first-run
+  `teams`, server way-in.ts through `setTeamFollow`/`setLeagueFollow`).
+- **Checks:** `scripts/dev-test/story-search.js` (23 situations; real ESPN and the stand-in couch; `--before` shot the old sheet).
+  check-sports-couch.js updated (a league named exactly is a card; the guide's Add switches to All): 128 pass, no failures (stops at
+  BACKLOG 252). `npm test` 2,611 pass; tsc and ESLint clean.
+- **Noticed, not fixed:** the league week words are LeagueNow's,
+  shared (the NBA's "Week 5"); Studio's sheet scrim is faint for every sheet; SuggestionCard's poster-less name overlaps its title;
+  first run's picked-team mark sits on its own colour.
+
 **B4. A game's sheet with Play** (M): every game row opens one sheet; before kickoff its job is Play (Pick'em chosen, the other
 types beside it, bigger sizes a row down, "already on the couch" first so nobody starts a duplicate).
 

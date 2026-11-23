@@ -86,7 +86,7 @@ export function ShowBands({ home, couch, hub }: { home: Home; couch: Couch | nul
           className="nd-press flex h-14 items-center justify-center gap-1.5 rounded-[4px] text-[15px] font-semibold text-muted-foreground outline-2 -outline-offset-2 outline-dashed outline-input"
         >
           <Plus className="size-4" aria-hidden />
-          Add a show
+          Add a show or team
         </button>
       </div>
       {finished.length > 0 && (
