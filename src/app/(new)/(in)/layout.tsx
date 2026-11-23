@@ -15,6 +15,8 @@ import { TriviaSheets } from "@/new/show/trivia";
 import { WatchingSheets } from "@/new/watching/sheets";
 import { SportsSheets } from "@/new/sports/sheets";
 import { TourBack } from "@/new/tour/back";
+import { RememberPage } from "@/new/last-page";
+import { Suspense } from "react";
 import { paths, START_STEPS } from "@/new/routes";
 import { viewAsFor } from "@/lib/server/view-as";
 
@@ -58,6 +60,10 @@ export default async function SignedInLayout({ children }: { children: React.Rea
       <BingoSheets />
       <TriviaSheets />
       <TourBack />
+      {/* Where a relaunch of the installed app picks up (lib/resume-page.ts). */}
+      <Suspense fallback={null}>
+        <RememberPage />
+      </Suspense>
     </SessionProvider>
   );
 }

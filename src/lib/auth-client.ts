@@ -2,6 +2,7 @@
 
 import { createAuthClient } from "better-auth/react";
 import { usernameClient, adminClient } from "better-auth/client/plugins";
+import { forgetResumePage } from "@/lib/resume-page";
 
 // This app's own, and now only, session (see src/lib/auth.ts for why "now only"). No baseURL: it
 // defaults to the same-origin "/api/auth" (better-auth/dist/client/config.mjs), which is correct
@@ -58,6 +59,7 @@ export async function logOut() {
     await endAnyHour();
     await phoneOff();
     await signOut();
+    forgetResumePage();
   } catch {
     // ignored on purpose -- see above
   }
@@ -71,6 +73,7 @@ export async function logOutTo(to: string) {
     await endAnyHour();
     await phoneOff();
     await signOut();
+    forgetResumePage();
   } catch {
     // ignored on purpose, as logOut
   }

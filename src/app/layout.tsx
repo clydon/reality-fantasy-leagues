@@ -9,6 +9,7 @@ import { PhoneBack } from "@/components/phone-back";
 import { QueryProvider } from "@/components/query-provider";
 import { ServiceWorkerRegistrar } from "@/components/service-worker-registrar";
 import { THEME_BOOT_SCRIPT } from "@/lib/theme-script";
+import { RESUME_BOOT_SCRIPT } from "@/lib/resume-page";
 
 // Archivo is the one UI family (docs/PLAN-ux-redesign.md, direction A "Lower Third"). It's variable on
 // both weight and width: normal width for everything you read, the condensed end (font-stretch 62%,
@@ -98,6 +99,8 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         {/* Applies the saved theme (src/lib/theme.ts) before the first paint, so choosing dark
             doesn't flash light on every load. Per Next's "preventing flash before hydration" guide. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+        {/* A fresh launch of the installed app goes back to the page you were on (lib/resume-page.ts), before it paints Home. */}
+        {hasSession && <script dangerouslySetInnerHTML={{ __html: RESUME_BOOT_SCRIPT }} />}
       </head>
       <body className="min-h-full flex flex-col bg-background">
         <ServiceWorkerRegistrar />
