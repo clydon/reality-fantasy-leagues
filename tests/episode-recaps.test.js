@@ -76,3 +76,14 @@ test("the clock's write-up asks: two hours after an episode ends, then a wait be
   assert.equal(recapsDueAt([0, 100 * H], { at: 3 * H, filled: 0 }), 27 * H, "the old one's wait");
   assert.equal(recapsDueAt([100 * H], { at: 3 * H, filled: 0 }), 102 * H, "a new episode never waits on an old ask");
 });
+
+test("an answer with a cut-off copy before the whole one is still read (the bot, 2026-11-23)", () => {
+  const ep = (n) => ({ number: n, headline: `Someone left ${n}-3`, summary: `What happened in episode ${n}, and someone left ${n}-3.` });
+  const whole = JSON.stringify({ episodes: [ep(1), ep(2), ep(3)] });
+  const cut = whole.slice(0, whole.indexOf("},") + 1);
+  const answer = `${cut}\n\n\n${whole}`;
+  assert.equal(readRecaps(answer, [1, 2, 3]).size, 3);
+  assert.equal(readHeadlines(answer, [1, 2, 3]).size, 3);
+  const broken = `Here: {"episodes":[${JSON.stringify(ep(1))}, ${JSON.stringify(ep(2))}, {"number": 3, "summary": "cut off`;
+  assert.deepEqual([...readRecaps(broken, [1, 2, 3]).keys()], [1, 2], "none whole: each episode that parses is kept");
+});

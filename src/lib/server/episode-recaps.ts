@@ -98,18 +98,36 @@ export function recapPrompt(plan: Plan): string {
   ].join("\n");
 }
 
-/** An answer's episodes: its JSON (fenced or not), or none. */
+/**
+ * An answer's episodes: its JSON (fenced or not), or none. The bot's answer can hold a cut-off copy of the JSON before the whole
+ * one (seen 2026-11-23 asking for Survivor 51's nine: the first `{` to the last `}` spanned both, so nothing was read), so each
+ * `{` that opens an "episodes" object is tried, the last first, as far as the last `}`. With none whole, each episode object
+ * that parses on its own is kept.
+ */
 function answerEpisodes(answer: string): unknown[] {
   const text = answer.replace(/```(?:json)?/gi, "");
-  const from = text.indexOf("{");
   const to = text.lastIndexOf("}");
-  if (from < 0 || to <= from) return [];
-  try {
-    const list = (JSON.parse(text.slice(from, to + 1)) as { episodes?: unknown })?.episodes;
-    return Array.isArray(list) ? list : [];
-  } catch {
-    return [];
+  if (to < 0) return [];
+  const starts = [...text.matchAll(/\{\s*"episodes"\s*:/g)].map((m) => m.index ?? 0).reverse();
+  for (const from of starts.length ? starts : [text.indexOf("{")]) {
+    if (from < 0 || to <= from) continue;
+    try {
+      const list = (JSON.parse(text.slice(from, to + 1)) as { episodes?: unknown })?.episodes;
+      if (Array.isArray(list)) return list;
+    } catch {
+      // a cut-off copy: try the next
+    }
   }
+  const salvaged = new Map<number, unknown>();
+  for (const m of text.matchAll(/\{\s*"number"\s*:\s*\d+[^{}]*\}/g)) {
+    try {
+      const e = JSON.parse(m[0]) as { number?: unknown };
+      salvaged.set(Number(e.number), e);
+    } catch {
+      // not a whole object
+    }
+  }
+  return [...salvaged.values()];
 }
 
 /** The recaps in an answer: its JSON (fenced or not), each one for an episode we asked about, trimmed. */
