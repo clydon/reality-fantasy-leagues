@@ -1,0 +1,105 @@
+{
+  "_about": "The one-time headline ask's answer for production's 25 write-ups (backups/prod-2026-11-21), written 2026-11-23 from each write-up's own words, at most 45 characters (recap-text.ts HEADLINE_MAX), naming who left (a finale: who won), no semicolons. Apply with: node scripts/headlines-once.js apply scripts/headlines-once.prod-answer.json --db=<production url>, once migration 0456 is live and the user says so.",
+  "headlines": [
+    {
+      "id": "207789eb-bcdf-41f1-80ae-03678808c6c5:1",
+      "headline": "Engine trouble put the first charter at risk"
+    },
+    {
+      "id": "207789eb-bcdf-41f1-80ae-03678808c6c5:2",
+      "headline": "Rainbeau's style rattled the interior team"
+    },
+    {
+      "id": "207789eb-bcdf-41f1-80ae-03678808c6c5:3",
+      "headline": "Demanding guests, and Kerry doubted the deck"
+    },
+    {
+      "id": "207789eb-bcdf-41f1-80ae-03678808c6c5:4",
+      "headline": "Allergy scare at dinner, Kaylee in tears"
+    },
+    {
+      "id": "e06ec895-685f-4848-8512-c4d1135dcc5c:2",
+      "headline": "Reilly lost Line 'Em Up to Deb and went home"
+    },
+    {
+      "id": "e06ec895-685f-4848-8512-c4d1135dcc5c:3",
+      "headline": "Bananas beat Brad Fiorenza in elimination"
+    },
+    {
+      "id": "e06ec895-685f-4848-8512-c4d1135dcc5c:4",
+      "headline": "Nurys eliminated amid cheating claims"
+    },
+    {
+      "id": "e06ec895-685f-4848-8512-c4d1135dcc5c:5",
+      "headline": "Keanu eliminated, an ACL injury ended Sydney"
+    },
+    {
+      "id": "e06ec895-685f-4848-8512-c4d1135dcc5c:6",
+      "headline": "Cara Maria sent Deb home, a mutiny failed"
+    },
+    {
+      "id": "e06ec895-685f-4848-8512-c4d1135dcc5c:7",
+      "headline": "Cory left for his daughter in hospital"
+    },
+    {
+      "id": "e06ec895-685f-4848-8512-c4d1135dcc5c:8",
+      "headline": "Josh, Leo, Nelson removed, Izzy eliminated"
+    },
+    {
+      "id": "e06ec895-685f-4848-8512-c4d1135dcc5c:9",
+      "headline": "Chris Underwood lost and went home"
+    },
+    {
+      "id": "e06ec895-685f-4848-8512-c4d1135dcc5c:10",
+      "headline": "Mercenaries Rachel and Sarah arrived"
+    },
+    {
+      "id": "e06ec895-685f-4848-8512-c4d1135dcc5c:11",
+      "headline": "Tori beat Anna Leigh to make the final"
+    },
+    {
+      "id": "e06ec895-685f-4848-8512-c4d1135dcc5c:12",
+      "headline": "Leti beat Justin, the final teams were set"
+    },
+    {
+      "id": "e06ec895-685f-4848-8512-c4d1135dcc5c:13",
+      "headline": "Orange led day one, Bananas found $25,000"
+    },
+    {
+      "id": "e06ec895-685f-4848-8512-c4d1135dcc5c:14",
+      "headline": "Tori, Bananas, CT, Michele, Will won it all"
+    },
+    {
+      "id": "4e162285-6673-4a9f-b044-35b558581c20:1",
+      "headline": "Joe and Tomica became the first Traitors"
+    },
+    {
+      "id": "4e162285-6673-4a9f-b044-35b558581c20:2",
+      "headline": "Kim murdered, Madeline banished 13–7–1"
+    },
+    {
+      "id": "4e162285-6673-4a9f-b044-35b558581c20:3",
+      "headline": "Katie joined the Traitors, Xavier murdered"
+    },
+    {
+      "id": "4e162285-6673-4a9f-b044-35b558581c20:4",
+      "headline": "Arisa banished 13–5–1, Logan murdered"
+    },
+    {
+      "id": "4e162285-6673-4a9f-b044-35b558581c20:5",
+      "headline": "Sherry banished 11–5–1, then a poisoned apple"
+    },
+    {
+      "id": "4e162285-6673-4a9f-b044-35b558581c20:6",
+      "headline": "Niyyah murdered, Michael banished 8–3–3–1"
+    },
+    {
+      "id": "4e162285-6673-4a9f-b044-35b558581c20:7",
+      "headline": "Mark murdered, Victor's banishment paused"
+    },
+    {
+      "id": "4e162285-6673-4a9f-b044-35b558581c20:8",
+      "headline": "Victor pardoned, Tomica banished as a Traitor"
+    }
+  ]
+}

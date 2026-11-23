@@ -1,6 +1,7 @@
 import StateLogic from "@/lib/game/state-logic.js";
 import { episodesSeen, revealAcross, revealIn, seasonEpisodesSeen, type EpisodeSeen, type Happened, type OutFace, type RevealGame, type RevealPart, type RevealSheet, type RevealTable } from "@/lib/game/episode-view";
 import { publicMediaSrc } from "@/lib/game/selectors";
+import { plainHeadline, plainRecap } from "@/lib/game/recap-text";
 import { latestIn, resultsDue, stageAcross } from "@/lib/game/results-due";
 import type { SessionUser } from "./auth-helpers";
 import { couchFillsResults } from "./community-results";
@@ -47,6 +48,8 @@ export interface EpisodeRow extends Partial<Omit<EpisodeSeen, "number" | "stage"
   title?: string | null;
   /** What happened (Fill in what happened: episode-recaps.ts, 0143), once you've seen it. */
   summary?: string | null;
+  /** Its headline, one line over the write-up in Tonight's Last time (0456), once you've seen it. The reveal never shows it. */
+  headline?: string | null;
   /** React with a GIF (docs/PLAN-gif-reactions.md): how many GIFs and a few of them, on an episode you've seen (episode-gifs.ts
    *  seasonGifs; the couch's people who share the show, or only yours with nobody else on the couch). */
   gifs?: EpisodeGifLine;
@@ -96,9 +99,10 @@ export async function seasonEpisodes(user: SessionUser, seasonId: string, couchI
     gamesHere(user, seasonId, couchId, ro),
     seasonSchedules([seasonId]),
     pool.query("SELECT early_seen FROM show_follows WHERE user_id = $1 AND season_id = $2", [user.id, seasonId]),
-    pool.query("SELECT number, summary FROM season_episodes WHERE season_id = $1 AND summary IS NOT NULL", [seasonId]),
+    pool.query("SELECT number, summary, headline FROM season_episodes WHERE season_id = $1 AND summary IS NOT NULL", [seasonId]),
   ]);
-  const recaps = new Map(recapRows.rows.map((r) => [r.number as number, r.summary as string]));
+  const recaps = new Map(recapRows.rows.map((r) => [r.number as number, plainRecap(r.summary as string)]));
+  const headlines = new Map(recapRows.rows.map((r) => [r.number as number, plainHeadline(r.headline)]));
   // A game scored from calls or bingo cards (Weekly Calls, Weekly Bingo: step 12) has no results of its own: its show's episodes
   // list as a show you only watch does, every one that's aired.
   // Step R1: each game's pieces (what its spec is made of), read once.
@@ -150,13 +154,15 @@ export async function seasonEpisodes(user: SessionUser, seasonId: string, couchI
   }
   if (!here.length) for (const ep of await notPlaying(user, seasonId, couchId, mark)) seenRows.set(ep.number, ep);
 
-  const rows: EpisodeRow[] = [...seenRows.values()].map((ep) => ({ ...ep, airAt: airAt(ep.number), finalAt: finalAt(ep.number), status: "seen" as const }));
+  // An episode you've seen carries its write-up too (Tonight's Last time, the episode's page: docs/design-round/tonight-writeup-spec.md),
+  // not only a show's with no results: a competition's says how the vote went, which its Out plate can't.
+  const rows: EpisodeRow[] = [...seenRows.values()].map((ep) => ({ ...ep, airAt: airAt(ep.number), finalAt: finalAt(ep.number), status: "seen" as const, summary: recaps.get(ep.number) ?? null, headline: headlines.get(ep.number) ?? null }));
   // A show you only watch (step 10): every episode that's aired is listed, with results or not, seen by you or not yet.
   if (!here.length) {
     for (const e of schedule?.episodes ?? []) {
       if (finished(e.number) && !seenRows.has(e.number)) {
         const watched = e.number <= mark;
-        rows.push({ number: e.number, airAt: e.airAt, status: "aired", stage: null, watched, title: watched ? e.title : null, summary: watched ? (recaps.get(e.number) ?? null) : null });
+        rows.push({ number: e.number, airAt: e.airAt, status: "aired", stage: null, watched, title: watched ? e.title : null, summary: watched ? (recaps.get(e.number) ?? null) : null, headline: watched ? (headlines.get(e.number) ?? null) : null });
       }
     }
   }
@@ -254,7 +260,8 @@ export interface SeasonReveal {
 /** One episode's write-up (season_episodes.summary), for the reveal: only ever read for someone who's seen it. */
 async function recapOf(seasonId: string, n: number): Promise<string | null> {
   const { rows } = await pool.query("SELECT summary FROM season_episodes WHERE season_id = $1 AND number = $2", [seasonId, n]);
-  return (rows[0]?.summary as string | null | undefined) ?? null;
+  const s = rows[0]?.summary as string | null | undefined;
+  return s ? plainRecap(s) : null;
 }
 
 /** Your first Weekly Lineup's night at an early reveal (show_follows.early_night, migration 0118), kept until its final

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import { ChevronRight, EyeOff, MessageCircle, Plus, Tv, Users } from "lucide-react";
 import { airTime, calm, justAired, ticks } from "../clock";
@@ -36,6 +36,7 @@ import { SeenItCard } from "./seen-it";
 import { useOpenWatch } from "./watch-along";
 import { TonightNights } from "./whats-on";
 import { EpisodeExtras, JoinRows, latestSeen, YourNight } from "./night";
+import { headlineAgrees, keepCounts, namesAnyone } from "@/lib/game/recap-text";
 
 // Tonight (the design round's step 3: docs/design-round/step3-tonight-spec.md, its first view step3-tonight-first-view.md, its
 // look step3-tonight-shape.md). Where you are, the couch and the one watching action are the show bar's progress control
@@ -295,6 +296,7 @@ function LastTime({ seasonId, show, open }: { seasonId: string; show: ShowData; 
   const e = show.episodes?.episodes.find((x) => x.number === n);
   const ep = show.words.ep;
   const target = { seasonId, couchId, episode: n, label: showLabel(show), solo: show.solo };
+  const outs = (e?.out ?? []).map((c) => c.name);
   return (
     <Block title={`Last time · ${ep} ${n}`} aside={e?.stage === "early" ? "Early results" : undefined}>
       <div data-last-time={n} className="flex flex-col gap-3">
@@ -311,6 +313,18 @@ function LastTime({ seasonId, show, open }: { seasonId: string; show: ShowData; 
             <ChevronRight className="mr-3 size-4 flex-none self-center text-plate-muted" aria-hidden />
           </button>
         ))}
+        {/* What happened in it, the episode's own words: under who left (the outcome first, then how), or first with nobody out
+            (docs/design-round/tonight-writeup-spec.md). Only ever an episode you've watched: the server sends no other's. Only one
+            that names someone who left, so another episode's write-up never sits under them; its headline only when that agrees
+            too (names someone who left, and its count is the write-up's). */}
+        {e?.summary && namesAnyone(e.summary, outs) && (
+          <WriteUp
+            text={e.summary}
+            headline={e.headline && headlineAgrees(e.headline, e.summary, outs) ? e.headline : null}
+            label={`${ep} ${n}`}
+            word={show.words.episode.toLowerCase()}
+          />
+        )}
         {show.ready && show.header.show.kind !== "sport" && e && e.out?.length === 0 && <p className="text-[15px] text-muted-foreground">Nobody left in {ep} {n}.</p>}
         {/* The stat of the week: picked from this episode, so it's part of what happened (stats.tsx; the rest of Stats stays below). */}
         <StatOfTheWeek seasonId={seasonId} show={show} />
@@ -336,6 +350,139 @@ function LastTime({ seasonId, show, open }: { seasonId: string; show: ShowData; 
         <EpisodeExtras show={show} n={n} />
       </div>
     </Block>
+  );
+}
+
+/** How many lines a write-up shows in Last time before "more": three alone, two under a headline. */
+const WRITEUP_LINES = 3;
+const WRITEUP_LINES_UNDER = 2;
+/** Words cut short end on a word, never on its punctuation ("together.…"). */
+const trimEnd = (s: string) => s.replace(/[\s.,;:!?–—-]+$/, "");
+const capital = (w: string | undefined) => !!w && /^["“'‘(]?\p{Lu}/u.test(w);
+/** Small words a cut never ends on, since they need the next one ("a minor cut on his… more"). */
+const LEANS = new Set(["a", "an", "the", "and", "or", "but", "of", "to", "in", "on", "at", "by", "for", "with", "from", "into", "as", "his", "her", "their", "its", "my", "your", "our", "after", "before", "than", "that", "who", "while"]);
+
+/**
+ * An episode's write-up in Last time: "In this episode" (docs/design-round/tonight-writeup-bolder.md, the user's pick B,
+ * 2026-11-23). The stat plate's sibling, built the same way: a raised panel (Night's raised fill, Studio's raised grey, so it
+ * stays apart from the white plates in both), the system's angled caption tag in the show's own word ("In this game"), the
+ * headline in the caption caps at the stat title's size, never more than two lines (HEADLINE_MAX, 45 characters, is one on an
+ * ordinary phone), then the write-up. Under a headline it's quiet and two lines; alone, or once opened, the foreground. A vote
+ * count never breaks at its dash. The lines end on "… more", which opens the rest in place, ending in "less". The cut is measured
+ * on a hidden copy at the same width and type (the most words that fit with "… more" after them), again when the width changes or
+ * the font arrives, and until then CSS clamps it, so nothing jumps. It ends on a sentence when one ends in the second half of what
+ * fits, never inside a name, never on a small word that needs the next. One that fits shows whole. Tapping the panel opens it;
+ * only "less" closes it, and a tap that ends a text selection does nothing. A screen reader hears the whole write-up either way.
+ */
+function WriteUp({ text, headline, label, word }: { text: string; headline: string | null; label: string; word: string }) {
+  const lines = headline ? WRITEUP_LINES_UNDER : WRITEUP_LINES;
+  const shown = keepCounts(text);
+  const box = useRef<HTMLDivElement>(null);
+  const probe = useRef<HTMLParagraphElement>(null);
+  const [open, setOpen] = useState(false);
+  // undefined: not measured yet; null: it fits whole; a string: the words that fit before "… more".
+  const [cut, setCut] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    const b = box.current;
+    const p = probe.current;
+    if (!b || !p) return;
+    const more = document.createElement("b");
+    more.className = "font-semibold";
+    more.textContent = "more";
+    const fits = (words: string | null) => {
+      if (words == null) p.replaceChildren(shown);
+      else p.replaceChildren(`${words}… `, more);
+      return Math.round(p.getBoundingClientRect().height / parseFloat(getComputedStyle(p).lineHeight)) <= lines;
+    };
+    const fit = () => {
+      if (fits(null)) return setCut(null);
+      const words = shown.split(" ");
+      let lo = 1;
+      let hi = words.length - 1;
+      while (lo < hi) {
+        const mid = Math.ceil((lo + hi) / 2);
+        if (fits(trimEnd(words.slice(0, mid).join(" ")))) lo = mid;
+        else hi = mid - 1;
+      }
+      let k = lo;
+      for (let i = lo; i >= Math.ceil(lo / 2); i--)
+        if (/[.!?]["”’)]?$/.test(words[i - 1])) {
+          k = i;
+          break;
+        }
+      if (k === lo) {
+        while (k > 1 && capital(words[k - 1]) && capital(words[k])) k--;
+        while (k > 1 && LEANS.has(trimEnd(words[k - 1]).toLowerCase())) k--;
+      }
+      setCut(trimEnd(words.slice(0, k).join(" ")));
+    };
+    fit();
+    let width = b.clientWidth;
+    const watch = new ResizeObserver(() => {
+      if (b.clientWidth === width) return;
+      width = b.clientWidth;
+      fit();
+    });
+    watch.observe(b);
+    document.fonts?.ready.then(fit).catch(() => {});
+    return () => watch.disconnect();
+  }, [shown, lines]);
+  const show = (to: boolean) => (e: MouseEvent) => {
+    e.stopPropagation();
+    if (!to && window.getSelection()?.toString()) return;
+    setOpen(to);
+  };
+  const tapText = () => {
+    if (window.getSelection()?.toString()) return;
+    setOpen(true);
+  };
+  const id = `writeup-${label.replace(/\W+/g, "-")}`;
+  const closed = !!cut && !open;
+  const type = "text-[15px] leading-relaxed";
+  return (
+    <div
+      data-last-writeup={open ? "open" : cut ? "cut" : cut === null ? "whole" : "measuring"}
+      data-writeup-headline={headline ? "yes" : "no"}
+      onClick={closed ? tapText : undefined}
+      className={`rounded-[4px] bg-secondary p-3.5 pt-3 ${closed ? "nd-press cursor-pointer" : ""}`}
+    >
+      <span className="type-caption inline-block bg-foreground py-[3px] pl-1.5 pr-3 text-[11px] tracking-[0.06em] text-background [clip-path:polygon(0_0,100%_0,calc(100%_-_7px)_100%,0_100%)]">
+        In this {word}
+      </span>
+      {headline && <b className="type-caption mt-1.5 line-clamp-2 text-[18px] leading-tight [text-wrap:pretty]">{keepCounts(headline)}</b>}
+      <div ref={box} className={`relative ${headline ? "mt-1" : "mt-2"}`}>
+        <p id={id} className={`${type} ${headline && !open ? "text-muted-foreground" : "text-foreground/90"} ${cut === undefined ? (lines === 2 ? "line-clamp-2" : "line-clamp-3") : ""}`}>
+          {closed ? (
+            <>
+              <span aria-hidden>{`${cut}… `}</span>
+              <span className="sr-only">{text} </span>
+            </>
+          ) : (
+            shown
+          )}
+          {cut && (
+            <>
+              {open && " "}
+              <button
+                type="button"
+                aria-expanded={open}
+                aria-controls={id}
+                onClick={show(!open)}
+                className="relative font-semibold text-foreground underline decoration-foreground/35 underline-offset-4 after:absolute after:-inset-x-2 after:-inset-y-2.5 after:content-['']"
+              >
+                <span className="sr-only">Show </span>
+                {open ? "less" : "more"}
+                <span className="sr-only"> of what happened in {label}</span>
+              </button>
+            </>
+          )}
+        </p>
+        {/* The hidden copy the cut is measured on: the same width and type, no height of its own. */}
+        <div aria-hidden className="pointer-events-none invisible absolute inset-x-0 top-0 h-0 overflow-hidden">
+          <p ref={probe} className={type} />
+        </div>
+      </div>
+    </div>
   );
 }
 

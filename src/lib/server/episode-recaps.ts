@@ -1,4 +1,5 @@
 import { after } from "next/server";
+import { capRecap, HEADLINE_MAX, plainHeadline, plainRecap } from "@/lib/game/recap-text";
 import { showWords } from "@/lib/game/show-words";
 import { askBot, askBotStatus } from "./ask-bot";
 import { isUuid, type SessionUser } from "./auth-helpers";
@@ -80,50 +81,72 @@ export function recapPrompt(plan: Plan): string {
   const lines = plan.missing.map((e) => `- ${plan.words.episode} ${e.number}${e.airAt ? `, aired ${day(e.airAt)}` : ""}${e.title ? `: "${e.title}"` : ""}`);
   return [
     `Search the web for what happened in each of these ${plan.words.episodes.toLowerCase()} of ${plan.show} (${plan.seasonLabel}). Answer with JSON only, in this shape:`,
-    `{"episodes": [{"number": 1, "summary": "..."}]}`,
+    `{"episodes": [{"number": 1, "headline": "...", "summary": "..."}]}`,
     sport
-      ? `Each summary is two or three plain sentences: the final score and who won first, then what decided it and who stood out.`
-      : `Each summary is two or three plain sentences: the main things that happened in that ${word}, and who left or won anything, if anyone did.`,
-    `Say only what the recaps and reports say. Leave out any ${word} you can't find a recap of. "number" is the ${word}'s number below.`,
+      ? `Each summary is two or three plain sentences in the past tense: the final score and who won first, then what decided it and who stood out.`
+      : `Each summary is two or three plain sentences in the past tense: the main things that happened in that ${word}, and who left or won anything, if anyone did.`,
+    sport
+      ? `Each headline is one line of ${HEADLINE_MAX} characters or fewer: the final score with who won, the way a scoreboard puts it.`
+      : `Each headline is one line of ${HEADLINE_MAX} characters or fewer, in the past tense, the way a TV recap would title it: who left and how (the vote and its count, a quit, a twist), or the ${word}'s biggest moment if nobody left. Name everyone who left. No semicolons: join two facts with a comma.`,
+    `Say only what the recaps and reports say, in plain words: no links, sources or citations. Leave out any ${word} you can't find a recap of. "number" is the ${word}'s number below.`,
     ``,
     `The ${plan.words.episodes.toLowerCase()}:`,
     ...lines,
   ].join("\n");
 }
 
-/** The recaps in an answer: its JSON (fenced or not), each one for an episode we asked about, trimmed. */
-export function readRecaps(answer: string, asked: number[]): Map<number, string> {
-  const out = new Map<number, string>();
+/** An answer's episodes: its JSON (fenced or not), or none. */
+function answerEpisodes(answer: string): unknown[] {
   const text = answer.replace(/```(?:json)?/gi, "");
   const from = text.indexOf("{");
   const to = text.lastIndexOf("}");
-  if (from < 0 || to <= from) return out;
-  let parsed: unknown;
+  if (from < 0 || to <= from) return [];
   try {
-    parsed = JSON.parse(text.slice(from, to + 1));
+    const list = (JSON.parse(text.slice(from, to + 1)) as { episodes?: unknown })?.episodes;
+    return Array.isArray(list) ? list : [];
   } catch {
-    return out;
+    return [];
   }
-  const list = (parsed as { episodes?: unknown })?.episodes;
-  if (!Array.isArray(list)) return out;
+}
+
+/** The recaps in an answer: its JSON (fenced or not), each one for an episode we asked about, trimmed. */
+export function readRecaps(answer: string, asked: number[]): Map<number, string> {
+  const out = new Map<number, string>();
+  const list = answerEpisodes(answer);
+  if (!list.length) return out;
   const want = new Set(asked);
   for (const e of list) {
     const n = Number((e as { number?: unknown })?.number);
     const s = (e as { summary?: unknown })?.summary;
     if (!want.has(n) || typeof s !== "string" || !s.trim()) continue;
-    out.set(n, s.trim().replace(/\s+/g, " ").slice(0, RECAP_MAX));
+    const clean = capRecap(plainRecap(s), RECAP_MAX);
+    if (clean) out.set(n, clean);
   }
   return out;
 }
 
-/** Write the recaps (never over one that's there). Answers how many were new. */
-async function saveRecaps(seasonId: string, recaps: Map<number, string>, db: Queryable = pool): Promise<number> {
+/** The headlines in an answer (migration 0456), each one for an episode we asked about, one clean line of HEADLINE_MAX (45)
+ *  characters or none (plainHeadline: a headline too long is dropped, never cut). */
+export function readHeadlines(answer: string, asked: number[]): Map<number, string> {
+  const out = new Map<number, string>();
+  const want = new Set(asked);
+  for (const e of answerEpisodes(answer)) {
+    const n = Number((e as { number?: unknown })?.number);
+    const h = plainHeadline((e as { headline?: unknown })?.headline);
+    if (want.has(n) && h) out.set(n, h);
+  }
+  return out;
+}
+
+/** Write the recaps with their headlines (never over a recap that's there). Answers how many were new. */
+async function saveRecaps(seasonId: string, recaps: Map<number, string>, headlines: Map<number, string> = new Map(), db: Queryable = pool): Promise<number> {
   let n = 0;
   for (const [number, summary] of recaps) {
     const { rowCount } = await db.query(
-      `INSERT INTO season_episodes (season_id, number, summary, summary_at, source) VALUES ($1, $2, $3, now(), 'listing')
-       ON CONFLICT (season_id, number) DO UPDATE SET summary = EXCLUDED.summary, summary_at = now() WHERE season_episodes.summary IS NULL`,
-      [seasonId, number, summary]
+      `INSERT INTO season_episodes (season_id, number, summary, headline, summary_at, source) VALUES ($1, $2, $3, $4, now(), 'listing')
+       ON CONFLICT (season_id, number) DO UPDATE SET summary = EXCLUDED.summary, headline = EXCLUDED.headline, summary_at = now()
+        WHERE season_episodes.summary IS NULL`,
+      [seasonId, number, summary, headlines.get(number) ?? null]
     );
     n += rowCount ?? 0;
   }
@@ -205,9 +228,10 @@ async function runAsk(seasonId: string, bot?: string, budgetMs = BUDGET_MS): Pro
   try {
     const plan = await planOf(seasonId);
     const { answer } = await askBot(recapPrompt(plan), { bot, budgetMs });
-    const recaps = readRecaps(answer, plan.missing.map((e) => e.number));
+    const asked = plan.missing.map((e) => e.number);
+    const recaps = readRecaps(answer, asked);
     if (!recaps.size) throw new Error("ChatGPT didn't find any recaps. Try again later, or paste an answer.");
-    const filled = await saveRecaps(seasonId, recaps);
+    const filled = await saveRecaps(seasonId, recaps, readHeadlines(answer, asked));
     await done(null, filled);
     return filled;
   } catch (e) {
@@ -244,8 +268,9 @@ export async function pasteRecaps(user: SessionUser, seasonId: string, answer: u
   if (!text) throw new HttpError(400, "Paste the AI's whole answer");
   if (text.length > 100_000) throw new HttpError(400, "That's too long to be the answer");
   const plan = await planOf(seasonId);
-  const recaps = readRecaps(text, plan.missing.map((e) => e.number));
+  const asked = plan.missing.map((e) => e.number);
+  const recaps = readRecaps(text, asked);
   if (!recaps.size) throw new HttpError(400, "That answer has no recaps in it. Paste the AI's whole answer, JSON and all.");
-  const filled = await saveRecaps(seasonId, recaps);
+  const filled = await saveRecaps(seasonId, recaps, readHeadlines(text, asked));
   return { ...(await recapState(user, seasonId)), filled };
 }

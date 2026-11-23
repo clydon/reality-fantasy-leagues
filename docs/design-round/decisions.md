@@ -1955,3 +1955,18 @@
 - Rests on: src/lib/sports/own-calls.ts, src/lib/server/sports/own.ts, src/new/sports/season-call.tsx (migration 0453; the engine's
   `final:wins` settle and a number `within`); docs/design-round/solo-fan-spec.md, -first-view.md, -shape.md, -check.md;
   docs/PLAN-sports-couch.md, C4's build notes; BACKLOG 258.
+
+## 2026-11-23 · The episode write-up on Tonight: "In this episode" (look B) with a 45-character headline
+- Decided by: the user ("Let's do B. I think it not only looks the best, but it's the lightest weight. I love the headline";
+  "Make sure the headline has a stated character limit"), on the stories https://claude.ai/artifact/DVvqZf4rPqJqxi5Aop41xb and
+  https://claude.ai/artifact/PHncgS4a9MKWFuQjAjZUr7; "Commit and push".
+- What: Last time shows the episode's write-up under who left, as the stat plate's sibling. That's a raised panel with the
+  "In this {episode}" tag, the AI's headline in 18 px caps, and the write-up under it (quiet and two lines under a headline, three
+  alone), with "… more" opening it in place. A headline is at most 45 characters (recap-text.ts HEADLINE_MAX: one line on an
+  ordinary phone, two at 320). The recap search writes one with each new write-up; production's 25 get theirs once, from their
+  own words (scripts/headlines-once.js). The panel shows only when the write-up names someone who left, and the headline only
+  when it agrees too (namesAnyone, headlineAgrees). The reveal never shows the headline.
+- Why: Tonight answers "what happened last episode", and nothing on it said what the episode was. The first, plain version read
+  flat ("nothing grabbing the users attention").
+- Rests on: docs/design-round/tonight-writeup-spec.md, -first-view.md, -shape.md, -check.md, -bolder.md; migration 0456;
+  BACKLOG 259-261.

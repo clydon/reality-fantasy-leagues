@@ -451,6 +451,30 @@ in the open episode's lineup, add one button, "Start Rob in Carter's place", hid
 needs ("Needs: 1 Interior"), as the snake room does (`DraftGame.needs`). Also add a needs game mid-waivers to a fixture, so the
 waivers page's "Needs: 1 Deck · Out · Ep 5" is seen once at 390. [S · cast]
 
+**259. A wrong episode write-up or headline can't be fixed.** The AI search's write-up and headline (season_episodes.summary,
+.headline: "In this episode" on Tonight, the reveal, Episodes) are saved once and never re-asked or edited. Tonight hides one that
+names nobody who left, or a headline whose vote count isn't in the write-up (recap-text.ts namesAnyone, headlineAgrees), but a
+wrong count or a wrong twist with the right names still shows. Add an edit and a clear on the desk's season page, a re-ask when
+an episode's results go final, and a "Something wrong?" on the panel, in line with "the AI settles, a person overrides" (memory
+ai-settles-by-default). [M · tonight]
+
+**260. "In this episode", what the round left open** (docs/design-round/tonight-writeup-bolder.md, "Open"):
+- The headline on the episode's own page: Episodes' "What happened", which "Ep N recap" opens, shows the write-up but not the
+  headline.
+- The tag says "In this episode", repeating the block heading. The design review's idea: the air date or the episode's title,
+  which is what Joanna can't place.
+- A sport's write-up opens with the final score, which its headline already gives.
+- DESIGN.md's type scale is behind the code: the stat title and the headline are 18 px, used 36 times in src/new. The detector
+  flags them as off the scale.
+
+Each goes through impeccable. [S · tonight]
+
+**261. Noticed in the write-up round, not fixed.**
+- The reveal's "In this episode" plays before "who went home", and a write-up in story order names who left in its last sentence,
+  a beat before the Out cards. The reveal's own order is for its owner.
+- "Nobody left in Ep N." shows for any show that isn't a sport, a talk show included, where nobody ever leaves.
+(docs/design-round/tonight-writeup-check.md, "Noticed, not fixed".) [S · reveal]
+
 ### Design rounds from the explorer's Designs needed
 
 Each is one round through the design process, ending in a screenshot story and a pause.
