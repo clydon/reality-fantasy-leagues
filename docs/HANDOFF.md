@@ -17,9 +17,16 @@ puts its build notes in its plan, not here.
 
 ---
 
-## Live (production = origin/master, 4e26b302+, deployed 2026-11-23)
+## Live (production = origin/master, 5b2ec44d+, deployed 2026-11-23)
 
 Newest first. The plan or archive section named holds the detail.
+- **"In this episode" on Tonight** (2026-11-23, pushed 5b2ec44d; migration 0456 not rehearsed: it only adds a nullable column with
+  a length check): Last time shows the episode's write-up under who left, as the stat plate's dark sibling, with an AI headline
+  of at most 45 characters (recap-text.ts HEADLINE_MAX: one line on an ordinary phone, two at most). The recap search writes a
+  headline with every new write-up; production's 25 were filled once on the user's word (scripts/headlines-once.js, through
+  .session-loop/headlines-prod.ps1; none left without). The panel shows only when the write-up names someone who left, the
+  headline only when it agrees too; Episodes' "What happened" now shows a competition's write-up. Notes:
+  design-round/tonight-writeup-*.md; leftovers BACKLOG 259-261.
 - **League art** (2026-11-23, merged and pushed 4e26b302; migrations 0454-0455, not rehearsed on the user's word: both only add a
   column with a default and a table): a sports league in Your shows is a 126 px band like a show's, with art and its season as a
   ruler; a gear on the league's bar opens Your settings for the league (each choice shown as your own band). Art is yours, else the

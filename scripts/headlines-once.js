@@ -9,9 +9,11 @@
 //
 //   node scripts/headlines-once.js prompt [--from-backup=backups/prod-2026-11-21] [--out=<file>]
 //        the prompt, from the database (AUTH_DATABASE_URL) or from a production backup's JSON (reads files only)
-//   node scripts/headlines-once.js apply <answer.json or .txt> [--db=<url>] [--dry-run]
+//   node scripts/headlines-once.js apply <answer.json or .txt> [--db=<url> | --production] [--dry-run]
 //        writes each headline where that episode has a write-up and still no headline (never over one); prints every line.
-//        Refuses a database that isn't local unless --db names it outright (production only with the user's OK, after 0456 is live).
+//        Refuses a database that isn't local unless --db names it or --production says so (AUTH_DATABASE_URL set by a clipboard
+//        window, never on the command line: .session-loop/headlines-prod.ps1). Production only with the user's OK.
+//   `prompt` reads AUTH_DATABASE_URL too, read-only: after the fill, what's still without a headline.
 require("dotenv").config({ path: ".env.local", quiet: true });
 const fs = require("fs");
 const path = require("path");
@@ -90,7 +92,7 @@ function answerOf(text) {
   if (cmd === "apply") {
     if (!file) throw new Error("usage: apply <answer file>");
     const url = opt("db", process.env.AUTH_DATABASE_URL || "");
-    if (!LOCAL.test(url) && !opt("db", null)) throw new Error("refusing a database that isn't local: name it with --db=<url>");
+    if (!LOCAL.test(url) && !opt("db", null) && !has("production")) throw new Error("refusing a database that isn't local: name it with --db=<url>, or say --production");
     const dry = has("dry-run");
     const pool = new Pool({ connectionString: url });
     let wrote = 0;
