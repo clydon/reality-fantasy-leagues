@@ -62,3 +62,17 @@ test("headlines: asked for with each recap, one clean line each, dropped when to
   assert.deepEqual([...got], [[1, "Patt blindsided 6–5"]]);
   assert.equal(readRecaps(answer, [1, 2]).size, 2, "a recap without a usable headline is still a recap");
 });
+
+test("the clock's write-up asks: two hours after an episode ends, then a wait before asking again", () => {
+  const { recapsDueAt, RECAP_WINDOW } = jiti("../src/lib/server/episode-recaps.ts");
+  const H = 3600_000;
+  assert.equal(RECAP_WINDOW, 10);
+  assert.equal(recapsDueAt([], null), null, "nothing missing: never due");
+  assert.equal(recapsDueAt([10 * H], null), 12 * H, "never asked: two hours after it ended");
+  assert.equal(recapsDueAt([10 * H, 4 * H], null), 6 * H, "the earliest missing one");
+  assert.equal(recapsDueAt([0], { at: 3 * H, filled: 2 }), 9 * H, "asked, some found: 6 hours after that ask");
+  assert.equal(recapsDueAt([0], { at: 3 * H, filled: 0 }), 27 * H, "asked, none found: a day after");
+  assert.equal(recapsDueAt([0], { at: 3 * H, filled: null }), 27 * H, "a failed ask: a day after");
+  assert.equal(recapsDueAt([0, 100 * H], { at: 3 * H, filled: 0 }), 27 * H, "the old one's wait");
+  assert.equal(recapsDueAt([100 * H], { at: 3 * H, filled: 0 }), 102 * H, "a new episode never waits on an old ask");
+});

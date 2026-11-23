@@ -100,3 +100,19 @@ All 25 production headlines pass (`check-prod-agree`, run 2026-11-23).
 Open: the headline on the episode's own page ("What happened"); the tag carrying the air date instead of "In this episode" (the
 design review's question: Joanna can't place "Ep 3"); a sports summary that opens with the score its headline already gives;
 DESIGN.md's type ramp brought up to the code (18 px).
+
+## Every show (the user, 2026-11-23)
+
+Seen live: Survivor had no headline. Production had no Survivor write-ups at all, because write-ups were asked for only for a
+show nobody plays (a tap on Episodes, or Getting it ready). The Survivor frames in the stories used write-ups from the local copy;
+that should have been flagged. The user: "Automatic and fill S51 now. All shows should have summaries. The challenge, traitors,
+survivor etc, I think even sports." For the reveal: "Summary after the vote".
+
+- **The research clock's last job** (episode-recaps.ts runDueRecaps, recapsNextAt; api/cron/bot-research). It runs on a call that
+  ran no results, Getting it ready or catch-up job. It covers every season someone follows or plays, and only its newest 10 aired
+  episodes (RECAP_WINDOW), so a sport's long season never backfills a year. An episode is asked about two hours after it ends,
+  and again 6 hours after an ask that found some, a day after one that found none or failed. A new episode never waits on an old
+  one's retry (`recapsDueAt`, tested). One ask brings the write-ups and their headlines.
+- **The reveal** (reveal.tsx): "In this episode" plays after the vote cards when someone left, and first when nobody did.
+- **Production's catch-up** after the deploy: Survivor 51's aired episodes, filled at once on the user's word; then, by the clock,
+  whatever else is missing among each followed or played season's newest 10.

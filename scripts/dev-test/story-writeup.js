@@ -12,6 +12,9 @@
 //   story-short       the same, through Ep 1, whose write-up fits in three lines: shown whole, with no "more".
 //   guard             survivor-player with another episode's write-up on Ep 6 (names Ori, not Cristian): Tonight leaves it out.
 //   guard-headline    survivor-player with a headline whose count isn't the write-up's: the headline is left off, the write-up shows.
+//   reveal-survivor   casey replays the real Survivor 51's Ep 3 reveal (two out): In this episode must come after the vote cards.
+//   reveal-story      alex replays ZT Yacht's Ep 2 reveal (nobody out): In this episode stays first.
+//                     Each records its slides in order (index.json `<id>.beats`) and shoots the vote and recap slides.
 // `--theme=studio` draws each page in Studio (light), in the page only (appearance.tsx paint's classes; nothing saved).
 // Frames per situation, under --out: <situation>.first.jpg (the page's top), .last.jpg (scrolled to Last time), .open.jpg (the
 // write-up opened; not with --before), .episodes.jpg (survivor-watcher only), .full.jpg; each one's words in a .txt; index.json
@@ -217,12 +220,56 @@ async function episodes(state, { id, who, season, n }) {
   }
 }
 
+/** Replay an episode's reveal from its page, step through its slides, and record their order (the reveal's order rule:
+ *  In this episode after the vote cards when someone left, first when nobody did; reveal.tsx). */
+async function reveal(state, { id, who, season, n }) {
+  const { page: p, close } = await open({ user: NF.username(who), pass: NF.PASSWORD, width: W, height: H, motion: "off" });
+  try {
+    // A game's episode has its own page with Replay the reveal; a show you only watch replays from its row on Episodes.
+    await p.goto(`${process.env.BASE || "http://localhost:3000"}/show/${season}/episodes?page=ep${n}`, { waitUntil: "domcontentloaded" });
+    await p.locator(`[data-replay-reveal], [data-ep-replay="${n}"]`).first().waitFor({ timeout: 90000 }).catch(() => {});
+    if (!(await p.locator("[data-replay-reveal]").count())) await p.goto(`${process.env.BASE || "http://localhost:3000"}/show/${season}/episodes`, { waitUntil: "domcontentloaded" });
+    const replay = p.locator(`[data-replay-reveal], [data-ep-replay="${n}"]`).first();
+    await replay.waitFor({ timeout: 90000 });
+    await replay.click();
+    const dlg = p.locator("[role=dialog][aria-label='The reveal']");
+    await dlg.locator("[data-beat]").first().waitFor({ timeout: 30000 });
+    const beats = [];
+    for (let k = 0; k < 14; k++) {
+      await p.waitForTimeout(700);
+      const b = await dlg.locator("[data-beat]").getAttribute("data-beat").catch(() => null);
+      if (!b) break;
+      if (beats.at(-1) !== b) {
+        beats.push(b);
+        if (b === "recap" || b === "out") {
+          await p.waitForTimeout(1800);
+          await shoot(p, `${id}.${b}`);
+        }
+      }
+      if (b === "gifs") break;
+      await dlg.locator("[data-stage]").click();
+    }
+    index.push({ id: `${id}.beats`, beats });
+    console.log(`[writeup] ${id} beats: ${beats.join(" > ")}`);
+  } finally {
+    await close();
+  }
+}
+
 async function run() {
   const state = JSON.parse(fs.readFileSync(STATE, "utf8"));
   const pool = new Pool({ connectionString: process.env.AUTH_DATABASE_URL });
   const situations = [
     { id: "survivor-watcher", go: async () => (await tonight(state, { id: "survivor-watcher", who: "casey", season: state.real }), await episodes(state, { id: "survivor-watcher", who: "casey", season: state.real, n: 3 })) },
     { id: "survivor-player", go: () => tonight(state, { id: "survivor-player", who: "jordan", season: state.zt }) },
+    { id: "reveal-survivor", go: () => reveal(state, { id: "reveal-survivor", who: "casey", season: state.real, n: 3 }) },
+    {
+      id: "reveal-story",
+      go: async () => {
+        await pool.query(`UPDATE show_follows SET seen_through = 2 WHERE user_id = $1 AND season_id = $2`, [state.users.alex, state.yacht]);
+        await reveal(state, { id: "reveal-story", who: "alex", season: state.yacht, n: 2 });
+      },
+    },
     {
       id: "guard-headline",
       go: async () => {

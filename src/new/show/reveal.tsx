@@ -285,10 +285,13 @@ function Beats({
   const beats: { key: string; node: ReactNode; action?: ReactNode }[] = r
     ? [
         { key: "open", node: <Opener r={r} name={name} season={season} replay={replay} /> },
-        ...(r.summary ? [{ key: "recap", node: <Recap r={r} /> }] : []),
+        // In this episode: first when nobody left, but after the vote cards when someone did, since a write-up says who went home
+        // and would give the boot away a beat early (the user, 2026-11-23: "Summary after the vote").
+        ...(r.summary && !r.out.length ? [{ key: "recap", node: <Recap r={r} /> }] : []),
         ...(r.happened.length ? [{ key: "happened", node: <Challenges r={r} /> }] : []),
         // Who went home: always in a game's reveal ("Nobody went home" is news there); on a show you only watch, only when someone did.
         ...(r.out.length || r.lineup || r.games.length || r.predictions.length || r.table ? [{ key: "out", node: <VoteCards r={r} /> }] : []),
+        ...(r.summary && r.out.length ? [{ key: "recap", node: <Recap r={r} /> }] : []),
         ...(gifs ? [{ key: "gifs", node: gifs.node, action: gifs.action }] : []),
         ...(r.lineup ? [{ key: "lineup", node: <LineupBeat r={r} /> }] : []),
         // Round 3: the night's one-episode games, ended tonight, one beat between them.

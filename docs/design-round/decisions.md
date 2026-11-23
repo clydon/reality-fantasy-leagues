@@ -1970,3 +1970,14 @@
   flat ("nothing grabbing the users attention").
 - Rests on: docs/design-round/tonight-writeup-spec.md, -first-view.md, -shape.md, -check.md, -bolder.md; migration 0456;
   BACKLOG 259-261.
+
+## 2026-11-23 · Every show gets write-ups and headlines; in the reveal, after the vote
+- Decided by: the user, after "I don't see any headline for survivor?": "Automatic and fill S51 now. All shows should have
+  summaries. The challenge, traitors, survivor etc, I think even sports"; for the reveal, "Summary after the vote".
+- What: the bot research clock asks for the write-up and headline of the newest aired episodes (up to 10) of every season someone
+  follows or plays, two hours after each ends, as its last job of a call. It waits 6 hours before asking about the same episode
+  again, a day if the last ask found none (episode-recaps.ts runDueRecaps, recapsNextAt). Survivor 51's aired episodes are filled
+  at once. In the reveal, "In this episode" plays after the vote cards when someone left; it stays first when nobody did.
+- Why: write-ups were asked only for a show nobody plays, so Survivor, the couch's main show, never had one. A write-up names
+  who went home, so before the vote cards it gave the boot away.
+- Rests on: docs/design-round/tonight-writeup-bolder.md, "Every show".
