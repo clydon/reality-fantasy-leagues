@@ -311,13 +311,13 @@ no key, the same unofficial host as the rest):
   a league, and only while someone looks; one cache row a league (~9 KB). The teams' colours come from the league's team list,
   already cached a week. Asked once a visit to a league's Standings (React Query keeps it five minutes). Nothing polled.
 
-**Rivalries (docs/PLAN-sports-couch.md C1, 2026-11-22, not merged)** ask ESPN nothing new. One read of ours, `GET
+**Rivalries (docs/PLAN-sports-couch.md C1, 2026-11-22, merged and live 2026-11-23)** ask ESPN nothing new. One read of ours, `GET
 /api/sports/rivalry?couch=&league=` (the couch's rivalry games in the league from ten days back to two weeks on and their picks: two
 small queries, a few rows; never edge-kept, it's the couch's), once when This week opens and after a pick. A pick (`POST`) is one
 answer written, and the first tap on a meeting also starts its game on the team's season (Play the next game's path: the team's
 schedule, cached as it is). A fan's first call sends the other fan one push (the invite kind). No migration.
 
-**A fan's call and I'm watching (docs/PLAN-sports-couch.md C2, 2026-11-22, not merged)** ask ESPN nothing new. `GET
+**A fan's call and I'm watching (docs/PLAN-sports-couch.md C2, 2026-11-22, merged and live 2026-11-23)** ask ESPN nothing new. `GET
 /api/sports/calls?couch=&league=&teams=` (the couch's call and rivalry games this season and their winner picks: two small queries; the
 finals from each asked team's season schedule, the provider's cached read the couch's table already makes, sixteen teams at most), once
 when This week or a team's page opens and after a pick; never edge-kept. A pick (`POST`) is one answer, and a fan's first call on a game
@@ -326,7 +326,7 @@ the last day's rows) when This week, a team's page or a game's sheet opens, and 
 made on another phone shows during a game); `POST` one row. **Migration 0451** (`sports_watching`: a row a person, couch and game; a
 few a person a week, nothing sweeps them: the read takes the last day's).
 
-**Solo: your calls and the season call (docs/PLAN-sports-couch.md C4, 2026-11-23, not merged)** asks ESPN nothing new. `GET
+**Solo: your calls and the season call (docs/PLAN-sports-couch.md C4, 2026-11-23, merged and live 2026-11-23)** asks ESPN nothing new. `GET
 /api/sports/own?league=&teams=` (your own calls and season-call games in the league, a few indexed queries, and each asked team's season
 schedule: the provider's cached read C2's calls already make, eight teams at most) when a team's page, This week or a solo Games tab opens;
 never edge-kept, never polled. `POST` makes your call (the first starts your calls: one league, as any game) or the season call (one
@@ -334,19 +334,19 @@ league a fan a team a season). The home's moves read adds nothing (your calls' m
 no couch is your own (a draft with computer players included): an ordinary league, `leagues.solo = 'own'`. **Migration 0453** (widens
 `leagues.solo`'s check; no new table).
 
-**A victory lap (docs/PLAN-sports-couch.md C3, 2026-11-23, not merged)** asks ESPN nothing new. `GET /api/sports/laps?couch=&league=&teams=`
+**A victory lap (docs/PLAN-sports-couch.md C3, 2026-11-23, merged and live 2026-11-23)** asks ESPN nothing new. `GET /api/sports/laps?couch=&league=&teams=`
 (your open laps: each of your couch teams' last final from its season schedule, the provider's cached read C2's calls already make, eight
 teams at most; and the couch's laps, one indexed query) when This week opens and when a final game's sheet opens; never edge-kept, never
 polled. `POST` posts one room message (no push) and one row, or one row for Not this time; `DELETE` removes the message. The hub's read
 adds one indexed query (the couch's laps of the last two weeks, twelve at most). GIFs are KLIPY's, through `/api/gifs` as every GIF is
 (the picker's searches are edge-kept an hour). **Migration 0452** (`sports_laps`: a row a fan a win at most, a few a person a week).
 
-**A game's sheet (docs/PLAN-sports-couch.md B4, 2026-11-22, not merged)** asks ESPN nothing new. One small read of ours:
+**A game's sheet (docs/PLAN-sports-couch.md B4, 2026-11-22, merged and live 2026-11-23)** asks ESPN nothing new. One small read of ours:
 `GET /api/sports/game/seasons?league=&event=` (the seasons a real game is in, from `season_events`; a few rows; the same for everyone,
 edge-kept a minute), asked once when a game's sheet opens. Everything else is reads the screens already make (the team's schedule,
 the couch's games and teams, the one-day week read, the sport's rail, the room's counts).
 
-**A team's page (docs/PLAN-sports-couch.md B2, 2026-11-22, not merged)** asks ESPN **nothing new**: the team's schedule read (the
+**A team's page (docs/PLAN-sports-couch.md B2, 2026-11-22, merged and live 2026-11-23)** asks ESPN **nothing new**: the team's schedule read (the
 old team sheet's, cached as it was), the league's standings read above for the team's place (only once results may show; one
 cached answer a league), league-now's weeks for football's bye (cached), and the league's one-day week read for the game on now's
 clock and line (Scores' read, edge-kept a minute while a game is on). A live game on the page polls the small live read only while

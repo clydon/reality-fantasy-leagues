@@ -1,8 +1,8 @@
 # Plan: sports on the couch (the hub's scores strip, a league's page, playing as a couch, lines)
 
-> **Status (2026-11-22): A1-A3 and B1 (This week, Scores, Games, Standings, Chat) merged and live (56127b49, pushed 2026-11-22;
-> migrations 0313 and 0314 rehearsed on a copy of production, the snapshot `pre-sports-couch-2026-11-22` keeps 7 days). Next:
-> BACKLOG 254's leftovers, then B2, B3 and B4 apart (How the sessions go from here).** The user's calls are in. Lines are Phase D, detailed in
+> **Status (2026-11-23): A1-A3, B1-B4 and C1-C4 merged and live** (A1-A3 and B1: 56127b49, 2026-11-22; BACKLOG 254's leftovers,
+> B2-B4 and C1-C4: 03b87f38, pushed 2026-11-23, migrations 0451-0453 rehearsed on a copy of production, the snapshot
+> `pre-sports-couch-c-2026-11-23` keeps 7 days). **Next: C5, the couch's games.** The user's calls are in. Lines are Phase D, detailed in
 > [PLAN-sports-lines.md](PLAN-sports-lines.md). March Madness (E1) is dated: working by Fri 2027-02-26.
 
 ## Read first

@@ -17,9 +17,15 @@ puts its build notes in its plan, not here.
 
 ---
 
-## Live (production = origin/master, 56127b49+, deployed 2026-11-22)
+## Live (production = origin/master, 03b87f38+, deployed 2026-11-23)
 
 Newest first. The plan or archive section named holds the detail.
+- **Sports on the couch, B2-B4 and C1-C4** (2026-11-23, merged and pushed 03b87f38; migrations 0451-0453, rehearsed on a copy of
+  production; the snapshot `pre-sports-couch-c-2026-11-23` keeps 7 days): a team's own page, Add a show or team's search, a game's
+  sheet with Play; rivalries (a quick Winner and margin game when two couch members' teams meet), a lone fan's calls (back or fade,
+  a calls record, I'm watching), the victory lap (a GIF after a win), and solo play (a fan on no couch calls his team's games, calls
+  the season, drafts against computer players; one engine change: a team's wins as a question). Stories and notes:
+  [PLAN-sports-couch.md](PLAN-sports-couch.md); leftovers BACKLOG 255-258. Next: C5, the couch's games.
 - **Sports on the couch, A1-A3 and B1** (2026-11-22, merged and pushed 56127b49; migrations 0313 and 0314, rehearsed on a copy of
   production; the snapshot `pre-sports-couch-2026-11-22` keeps 7 days): the hub's scores strip under the guide bar, the league card in
   Your shows, following a league (your team per league), and a league's page with This week, Scores, Games, Standings (ESPN's
@@ -113,14 +119,6 @@ Newest first. The plan or archive section named holds the detail.
 
 ## In flight
 
-- **Sports on the couch, B4: a game's sheet with Play** (2026-11-22, lane `sports-couch`; not committed; no migration): every game
-  row's sheet, titled by the matchup, with the couch's games on it first (Join as the yellow so nobody starts a duplicate), the
-  one-game types as tiles, one decision, Go bigger; after kickoff the score, the couch's games and the thread. Story: https://claude.ai/artifact/BqzTDp21SuBUZ7raWkf7Qx.
-  Approved and committed in the lane (not merged). Next: B3, search.
-- **Sports on the couch, B2: a team's page** (2026-11-22, lane `sports-couch`, port 3019; committed e11cd936, not merged; no migration, no new
-  external read): the team sheet becomes a page at /league/<sport>/<code>/team/<id> (the game on now as the scorebug, Play, the
-  season as a bar a game, one schedule by month with Against, homestands and road trips, Month view), BACKLOG 254 (m)'s team half.
-  Story: https://claude.ai/artifact/GxZgu7KEX38h59Y2Kyq46g. The rows decided (one-team, with the couch on them: decisions.md). **Waits on the user's review** of the updated story.
 - **A castaway opened from a week opens on that week, BACKLOG 251** (2026-11-22, approved, committed on master, not pushed; no
   migration): the castaway sheet leads with the week a door hands it; one name per moment everywhere (moment-names.ts); the
   Started cards' alignment fix. Story: https://claude.ai/artifact/DAwdM1gZTD4PtVQ1twyioq. **Waits on the user:** the push.
