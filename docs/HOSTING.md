@@ -364,6 +364,15 @@ nothing; it's Neon only, as the show's Chat is:
 - **Pushes:** one per message to the couch's members who follow the league (league_follows), through the push sender already in
   use; nothing scheduled. No new external call.
 
+**League art (docs/PLAN-sports-couch.md A2b, 2026-11-23, lane league-art, not merged)** asks ESPN nothing:
+- **The art's state** (`GET /api/me/league-art?couch=`, private, no-store): your choices, your pictures' versions and the
+  couch's picks, ~100-400 bytes, three small queries. Once a hub load (React Query keeps it five minutes) and on a league's page.
+- **A person's own picture** (`GET /api/people/[userId]/league-art?league=&v=`): 100-250 KB once per picture and version, kept by
+  the browser for good (`private, max-age=31536000, immutable`); never through a shared cache. Stored in Postgres
+  (`league_art_pictures`, at most 400 KB each, one a person a league): a couch where everyone uploads one for each of three
+  leagues is a few MB.
+- **The app's own photos** are static files (`public/art/generated/league/*.webp`, 7-67 KB), served by the CDN.
+
 **The league card in Your shows (docs/PLAN-sports-couch.md A2, 2026-11-22, live 2026-11-22, 56127b49)** asks ESPN nothing
 new either:
 - **A league's now** (`GET /api/sports/league/now?league=`, open signed out): its week ("Week 12"), or the off-season and when

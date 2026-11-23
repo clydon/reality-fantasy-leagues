@@ -188,6 +188,15 @@ at sign-up. Athletes' ESPN headshots (L0's open question) stay out of this round
 L0 first: it's a correctness fix and needs no design. L1 is done. L2 is the user's, any time. L3 can be built now and goes
 live once both addresses receive mail. L4 and L5 ship together after it. L4 and L5 ship together: no uploads without the takedown button.
 
+**An exception, the user's (2026-11-23): league art uploads ship ahead of L5.** On the league art round (PLAN-sports-couch.md A2b),
+asked about "your own picture" as a league's art: "bypass this guardrail for now and implement it". Built that day in the lane
+`league-art`: one picture a person a league (`league_art_pictures`, migration 0455), seen by its uploader and by anyone on a couch
+with them, as faces are. What it keeps: the browser re-draws it (metadata gone), the server checks its first bytes (JPEG, PNG or
+WebP) and size (400 KB), and serves it privately; the words say "Use a picture you have the right to use. People on your couches
+can see it." What it skips: L5's takedown on the desk, the strikes, and the safety step below (re-encode on the server, a
+classifier, CSAM scanning, a report button). Those still apply to these pictures before the app opens beyond the user's own
+couches, and to profile pictures, which skip them today too.
+
 ## Noticed, not fixed
 
 - **check-sports-couch.js fails "its Chat tab: the room, the thread's chip, About the game on now over the composer"** on master
