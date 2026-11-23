@@ -491,6 +491,26 @@ export function useRoomBadge(league: string, couchId: string | null) {
   });
 }
 
+/** The room's newest few, read once (This week's line: never polled). */
+export function useRoomLatest(league: string, couchId: string | null) {
+  return useQuery({
+    queryKey: ["new-design", "room-latest", league, couchId],
+    queryFn: () => get<{ messages: RoomLine[] }>(roomUrl(league, couchId as string, "", { latest: "1" })),
+    enabled: !!couchId,
+    staleTime: 60_000,
+  });
+}
+
+/** How many messages each game's thread in the room has had lately (Scores' link into a thread), kept a minute. */
+export function useRoomCounts(league: string, couchId: string | null) {
+  return useQuery({
+    queryKey: ["new-design", "room-counts", league, couchId],
+    queryFn: () => get<{ counts: Record<string, number> }>(roomUrl(league, couchId as string, "/counts")),
+    enabled: !!couchId,
+    staleTime: 60_000,
+  });
+}
+
 /** The 100 before a message of the room (Earlier messages), on a tap; never polled. */
 export function roomEarlier(league: string, couchId: string, before: Pick<RoomLine, "id" | "at">) {
   return get<{ messages: RoomLine[]; more: boolean }>(roomUrl(league, couchId, "", { before: before.id, at: before.at }));

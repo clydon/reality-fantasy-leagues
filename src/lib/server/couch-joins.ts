@@ -315,6 +315,10 @@ export interface JoinGame {
   ownPace: boolean;
   /** You, signed in: in it, your request waiting, let in (yours to use). */
   you: { playing: boolean; asked: boolean; letIn: boolean } | null;
+  /** A sports game (its show a league's): the join sheet speaks in games and kickoffs, not episodes (BACKLOG 254 o). */
+  sport?: boolean;
+  /** A game of one sports game: when that game starts (its pick locks then). */
+  kickoff?: string | null;
 }
 
 /** It's over: a winner, or nobody left, or its span's last episode is in (StateLogic.gameOver); for a game scored outside its
@@ -334,7 +338,7 @@ async function couchGameList(viewer: SessionUser | null, couchId: string): Promi
   if (!list.length) return [];
   const ids = list.map((g) => g.leagueId);
   const seasonIds = [...new Set(list.map((g) => g.seasonId).filter((id): id is string => !!id))];
-  const [states, { rows: memberRows }, { rows: asks }, schedules] = await Promise.all([
+  const [states, { rows: memberRows }, { rows: asks }, schedules, { rows: sportRows }] = await Promise.all([
     leagueStates(ids),
     pool.query(
       `SELECT m.league_id, m.role, m.user_id, COALESCE(u.username, u.name) AS name FROM league_memberships m JOIN "user" u ON u.id = m.user_id
@@ -349,7 +353,9 @@ async function couchGameList(viewer: SessionUser | null, couchId: string): Promi
         )
       : Promise.resolve({ rows: [] as { league_id: string; decided_at: Date | null; outcome: string | null }[] }),
     seasonSchedules(seasonIds),
+    pool.query("SELECT ss.id FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE s.kind = 'sport' AND ss.id = ANY($1::uuid[])", [seasonIds]),
   ]);
+  const sports = new Set(sportRows.map((r) => r.id as string));
   // A game of questions that knocks players out or ends early (step A11 part 2b of docs/PLAN-start-a-game-gpt.md) as it stands: walked
   // over its answers, so who may join (nobody new once someone's out: part 5c) and whether it's over read the walk. One answers read
   // per such game, side by side; any other game, its state as it is. Step A12 part 4b: a game in stages' stage on another season at your
@@ -389,6 +395,15 @@ async function couchGameList(viewer: SessionUser | null, couchId: string): Promi
       lockedDown: G.lockedDown(s),
       ownPace: G.ownPace(s),
       you: viewer ? { playing: !!g.yourRole, asked: !!ask && !ask.decided_at, letIn: ask?.outcome === "let-in" } : null,
+      ...(g.seasonId && sports.has(g.seasonId)
+        ? {
+            sport: true,
+            kickoff:
+              StateLogic.startEpisode(s) !== null && StateLogic.startEpisode(s) === StateLogic.endEpisode(s)
+                ? (schedules.get(g.seasonId)?.episodes.find((e) => e.number === StateLogic.startEpisode(s))?.airAt ?? null)
+                : null,
+          }
+        : {}),
     });
   }
   return out;

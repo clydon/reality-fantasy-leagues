@@ -528,7 +528,7 @@ Sunday, then decide whether a game's chat shows inside the room (tagged by its g
 (p) Solo sports play (C4): a sports start needs a couch today, so
 a solo player's Games tab offers Start a couch · Join one and nothing to start. **Decided** (the user, 2026-11-22): wait for
 C4; nothing interim that C4 would make obsolete.
-[S · sports]
+[S · sports] **Done 2026-11-22 (after the merge, in the lane; not pushed):** (a) a sports start takes the board's name for its game ("Pick'em", "Squares") unless named; (l) the ask sheet says one short line under each choice, and Scores' Show all one line; (o) the join sheet speaks of games and kickoffs on a sports game ("It covers one game, Sun 1:00 PM: make your pick before it starts"); (q) Scores' rows carry "N messages in its thread" into the room (a count, never a word); (r) This week ends with the room's latest line, passing over a thread's talk since kickoff for anyone hiding scores.
 
 **222. A game the daily job misses for three days is never read again.** The daily job reads a linked game only from three days
 back (matchup.ts `refreshSportsEvents`), so a game whose day the job skipped for three days (the bot VM down over a long

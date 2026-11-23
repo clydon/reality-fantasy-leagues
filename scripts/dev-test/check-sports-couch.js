@@ -283,6 +283,10 @@ async function roomChecks(me, couch) {
   const extra = await me.call("POST", url(), { text: "ZT delete me" });
   const del = await me.call("DELETE", url(`/${extra.body.message.id}`));
   check(del.status === 200 && !(await me.call("GET", url())).body.messages.some((m) => m.id === extra.body.message.id), "delete your own");
+  // Scores' thread link and This week's line (BACKLOG 254 q, r): counts by game, and the newest few.
+  const counts = (await me.call("GET", url("/counts"))).body.counts;
+  const latest = (await me.call("GET", url() + "&latest=1")).body.messages;
+  check(counts?.["93103"] === 1 && latest?.length >= 2 && !("v" in ((await me.call("GET", url() + "&latest=1")).body)), "the thread counts by game, and the room's newest few", { counts, n: latest?.length });
   const casey = await signIn({ user: fixture.username("casey"), pass: fixture.PASSWORD, headers: me.headers }).catch(() => null);
   const off = casey ? await casey.call("GET", `/api/sports/league/chat?league=${encodeURIComponent(FB)}&couch=00000000-0000-4000-8000-000000000000`) : { status: 404 };
   check(off.status === 404 || off.status === 403, "a couch you're not on: refused", off.status);

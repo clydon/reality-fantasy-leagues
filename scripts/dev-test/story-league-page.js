@@ -39,6 +39,9 @@
 // thread), gameday-chat-badge (This week with the Chat tab's unread count), hidden-chat (Hide sports scores: the thread's talk since
 // kickoff folded) and hidden-chat-shown (Show the score), none-chat (nobody has said anything), studio-chat, solo-chat (no couch).
 // --only=chat shoots just these. Each world's room is cleared after (its zt- league's rows).
+// BACKLOG 254's leftovers (--only=extras): extras-week (This week's room line), extras-scores (a row's link into its thread),
+// extras-join (the join sheet's words on a one-game Pick'em, named Pick'em), extras-ask (the ask sheet, a line per choice) and
+// extras-hidden-week (hiding scores: the room line passes over a thread's talk since kickoff).
 // Each frame: a .jpg at --width × --height, the page's words in a .txt, and words that sit on other words as OVERLAP lines (kept in
 // overlaps.json). Prints the first view's groups in order, the rivalry's and the table's words, and the page's width.
 //
@@ -66,7 +69,7 @@ const opt = (k, d) => args.find((a) => a.startsWith(`--${k}=`))?.slice(k.length 
 const has = (k) => args.includes(`--${k}`);
 const OUT = path.resolve(opt("out", ".ui-atlas/stories/league-page/after"));
 // --only=scores or --only=games: that tab's frames in every world and nothing else.
-const TAB = ["scores", "games", "standings", "real", "chat"].includes(opt("only", "")) ? opt("only") : null;
+const TAB = ["scores", "games", "standings", "real", "chat", "extras"].includes(opt("only", "")) ? opt("only") : null;
 const W = Number(opt("width", 390)), H = Number(opt("height", 844));
 const ONLY = opt("only", "") && !TAB ? opt("only").split(",") : null;
 const { FB, BB, MB } = world;
@@ -373,6 +376,24 @@ async function main() {
         }, { ...gamesAt(), sheet: true });
       }
     }
+    if (run("gameday") && TAB === "extras") {
+      await clearRoom();
+      await seedRoom("gameday");
+      await shoot("extras-week", async (pg) => {
+        await pg.locator("[data-room-line]").waitFor({ timeout: 20000 }).catch(() => {});
+        await pg.locator("[data-room-line]").scrollIntoViewIfNeeded().catch(() => {});
+        await pg.waitForTimeout(800);
+      }, { wait: "[data-this-week]" });
+      await shoot("extras-scores", settle, { ...scoresAt(), full: true });
+      await shoot("extras-join", async (pg) => {
+        await settleGames(pg);
+        await pg.locator("[data-games-join] [data-join-row] button").first().click();
+        await pg.locator("[data-join-simple], [data-join-confirm]").first().waitFor({ timeout: 15000 }).catch(() => {});
+        await pg.waitForTimeout(800);
+      }, { ...gamesAt(), sheet: true });
+      await shoot("extras-games", settleGames, gamesAt());
+      await clearRoom();
+    }
     if (run("gameday") && ch && TAB === "chat") {
       await clearRoom();
       await seedRoom("gameday");
@@ -462,6 +483,22 @@ async function main() {
       await setWorld("hidden", COUCH);
       await pickem(pickemGame("hidden"));
       await setting(pool, alex, "hide_sports_scores", true);
+      if (TAB === "extras") {
+        await clearRoom();
+        await seedRoom("hidden");
+        await shoot("extras-hidden-week", async (pg) => {
+          await pg.locator("[data-room-line]").waitFor({ timeout: 20000 }).catch(() => {});
+          await pg.locator("[data-room-line]").scrollIntoViewIfNeeded().catch(() => {});
+          await pg.waitForTimeout(800);
+        }, { wait: "[data-this-week]" });
+        await shoot("extras-ask", async (pg) => {
+          await settle(pg);
+          await pg.locator('[data-league-scores] [data-bucket="started"]').first().click();
+          await pg.locator("[data-score-ask]").waitFor({ timeout: 10000 });
+          await pg.waitForTimeout(900);
+        }, { ...scoresAt(), sheet: true });
+        await clearRoom();
+      }
       if (tw) {
         await shoot("hidden", null, { full: true });
         await shoot("hidden-shown", async (pg) => {

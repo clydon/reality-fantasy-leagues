@@ -12,7 +12,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { CalendarDays, ChevronLeft, ChevronRight, Eye, ListOrdered, MessageCircle, Swords, TableProperties, Trophy, type LucideIcon } from "lucide-react";
-import { useCouchTeams, useCurrentCouch, useHome, useLeaguesNow, useLeagueTeams, useRoomBadge, useYourTeams, type WeekGame } from "../data";
+import { useCouchTeams, useCurrentCouch, useHome, useLeaguesNow, useLeagueTeams, useRoomBadge, useRoomLatest, useSportsRecordings, useYourTeams, type WeekGame } from "../data";
 import { NavLink, useNav } from "../nav";
 import { isLeagueTab, LEAGUE_TABS, paths, type LeagueTab } from "../routes";
 import { Avatar, Faces } from "../ui/bars";
@@ -247,6 +247,7 @@ function ThisWeek({ league, name, now: lnow }: { league: string; name: string; n
       />
       <SeasonRivalries rivalries={rivalries.filter((r) => r.id !== rivalry?.id)} teams={teams} hidden={hidden} meId={meId} league={league} />
       <YourGamesHere league={league} name={name} lnow={lnow} />
+      <RoomLine league={league} />
       {rest.length > 0 && (
         <NavLink
           href={paths.league(league, "scores")}
@@ -593,6 +594,35 @@ function SeasonRivalryRow({ r, teams, hidden, who, league }: { r: Rivalry; teams
       <span className="type-num flex-none text-[15px] text-muted-foreground">{right}</span>
       </button>
     </li>
+  );
+}
+
+/** The room's latest line (round 2's item 5; BACKLOG 254 r): who said what last, one row into Chat. For anyone hiding a game's score
+ *  (or watching it as if live), a thread's message written after its kickoff is passed over for the newest they may read. */
+function RoomLine({ league }: { league: string }) {
+  const couch = useCurrentCouch(useHome().data);
+  const latest = useRoomLatest(league, couch?.id ?? null).data?.messages ?? [];
+  const hide = useHideSports();
+  const shown = useShownScores();
+  const recorded = new Set((useSportsRecordings().data?.recordings ?? []).map((r) => r.game));
+  const held = (m: (typeof latest)[number]) => !!m.event && !!m.eventAt && Date.parse(m.at) >= Date.parse(m.eventAt) && ((hide && !shown.has(m.event)) || recorded.has(m.event));
+  const m = [...latest].reverse().find((x) => !held(x));
+  if (!couch || !m) return null;
+  return (
+    <NavLink href={paths.league(league, "chat")} replace data-room-line className="nd-press mt-6 flex min-h-[60px] items-center gap-3 border-y border-border py-2 focus-visible:outline-2 focus-visible:outline-foreground">
+      <Avatar id={m.userId ?? m.name} name={m.name} size={28} />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[15px]">
+          <b className="font-semibold">{m.name}</b>
+          {m.gif ? " sent a GIF" : `: ${m.text}`}
+        </span>
+        <span className="mt-[3px] block truncate text-[13px] text-muted-foreground">
+          {m.eventName ? `${m.eventName} · ` : ""}
+          {clockOf(m.at)} · Chat
+        </span>
+      </span>
+      <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
+    </NavLink>
   );
 }
 

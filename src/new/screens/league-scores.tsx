@@ -8,8 +8,10 @@
 // hidden, a game that has begun says Started, its eye asks, and one Show scores shows the chosen week's.
 
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight, Eye } from "lucide-react";
-import { useHome, useMySportsGames, useSportsRecordings, type WeekGame } from "../data";
+import { ChevronRight, Eye, MessageCircle } from "lucide-react";
+import { useCurrentCouch, useHome, useMySportsGames, useRoomCounts, useSportsRecordings, type WeekGame } from "../data";
+import { NavLink } from "../nav";
+import { paths } from "../routes";
 import { SportsLabel } from "../sports/parts";
 import { Btn } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
@@ -149,6 +151,7 @@ function ScoresList({ league, step, next, onNext, byDay, today, now }: { league:
   // Nothing drawn until Hide sports scores is known: a moment's open row would be a spoiler (scores.tsx useHideSportsKnown).
   const known = useHideSportsKnown();
   const shownNow = useShownScores();
+  const talk = useRoomCounts(league, useCurrentCouch(home)?.id ?? null).data?.counts ?? {};
   const [asking, setAsking] = useState<WeekGame | null>(null);
   const [showing, setShowing] = useState(false);
 
@@ -173,6 +176,19 @@ function ScoresList({ league, step, next, onNext, byDay, today, now }: { league:
   const row = (g: WeekGame, dated = false) => (
     <li key={g.id}>
       <Scorebug bug={bugOf(g)} meId={meId} now={now} onAsk={() => setAsking(g)} wide grouped={!dated} finalsOpen pollOnScreen />
+      {/* The couch's talk about it, a link into its thread (BACKLOG 254 q): a count, never a word, so nothing about the game shows. */}
+      {!!talk[g.id] && (
+        <NavLink
+          href={`${paths.league(league, "chat")}?thread=${encodeURIComponent(g.id)}`}
+          replace
+          data-row-thread={g.id}
+          className="nd-press -mt-1 mb-1 ml-1 inline-flex h-11 items-center gap-1.5 px-1 text-[13px] font-semibold text-muted-foreground focus-visible:outline-2 focus-visible:outline-foreground"
+        >
+          <MessageCircle className="size-4" aria-hidden />
+          {talk[g.id]} {talk[g.id] === 1 ? "message" : "messages"} in its thread
+          <ChevronRight className="size-3.5" aria-hidden />
+        </NavLink>
+      )}
     </li>
   );
   const dayName = (d: string) => `${d === today ? "Today · " : ""}${new Date(`${d}T12:00:00`).toLocaleDateString([], { weekday: d === today ? "short" : "long", month: "short", day: "numeric" })}`;
@@ -247,8 +263,7 @@ function ScoresList({ league, step, next, onNext, byDay, today, now }: { league:
           </Btn>
           {/* What it moves, as the one game's Show the score says it. */}
           <p className="text-[14px] leading-snug text-muted-foreground">
-            They show everywhere until you close the app, and how far you&rsquo;ve watched moves to {byDay ? "this day" : "this week"} on every season you follow with them.
-            To watch one as if live instead, tap its eye.
+            Shows them until you close the app, and counts {byDay ? "this day" : "this week"} as watched in your games. To watch one as if live, tap its eye.
           </p>
         </div>
       </Sheet>

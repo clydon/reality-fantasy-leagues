@@ -160,6 +160,19 @@ export function JoinGameRow({ couchId, g, strong, onJoin }: { couchId: string; g
  *  says the same: night.tsx quickName); any other by its kind. */
 const joinName = (g: JoinGame) => (g.span && g.span.from === g.span.to ? kindOf(g.name).replace(/[\s·]*\b(ep|episode)\s*\d+$/i, "") : g.gameName);
 
+/** What joining gets you, in the game's own words: a sports game speaks of games and kickoffs (BACKLOG 254 o), a show's of episodes. */
+function joinWhat(game: JoinGame): string {
+  if (game.teamSize) return "You'll draft with everyone when the draft starts.";
+  const one = !!game.span && game.span.from === game.span.to;
+  if (game.sport) {
+    if (!one) return "You're in from the next game.";
+    const at = game.kickoff ? new Date(game.kickoff) : null;
+    const when = at ? ` ${at.toLocaleDateString([], { weekday: "short" })} ${at.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "";
+    return `It covers one game${when ? `,${when}` : ""}: make your pick before it starts.`;
+  }
+  return one ? `It plays Episode ${game.span!.from} only: make your pick before you watch it.` : "You're in from the next episode.";
+}
+
 /** The episodes aired so far, in words: "Episode 1 has aired", "Episodes 1 to 4 have aired". */
 const airedWords = (n: number) => (n === 1 ? "Episode 1 has aired" : `Episodes 1 to ${n} have aired`);
 
@@ -286,7 +299,7 @@ export function JoinGameSheet({ couchId, game, onOpenChange }: { couchId: string
                       {p.name}
                       {p.bot && <span className="ml-1.5 rounded-[2px] bg-secondary px-1.5 py-px align-middle text-[10px] font-bold uppercase tracking-[0.06em] text-muted-foreground">Computer</span>}
                     </span>
-                    <span className="text-[13px] font-semibold text-muted-foreground">{p.bot ? "Keeps pace" : p.week !== null ? `On Episode ${p.week}` : "Finished"}</span>
+                    <span className="text-[13px] font-semibold text-muted-foreground">{p.bot ? "Keeps pace" : p.week !== null ? `On ${game.sport ? "game" : "Episode"} ${p.week}` : "Finished"}</span>
                   </li>
                 ))}
               </ul>
@@ -298,7 +311,7 @@ export function JoinGameSheet({ couchId, game, onOpenChange }: { couchId: string
         </div>
       ) : !o.starts ? (
         <div data-join-simple>
-          <p className="text-[15px] leading-snug">{game.teamSize ? "You'll draft with everyone when the draft starts." : game.span && game.span.from === game.span.to ? `It plays Episode ${game.span.from} only: make your pick before you watch it.` : "You're in from the next episode."}</p>
+          <p className="text-[15px] leading-snug">{joinWhat(game)}</p>
           <Btn tone="must" wide className="mt-4" data-join-confirm disabled={busy} onClick={() => join(null, [])}>
             {busy ? "Joining…" : `Join ${joinName(game)}`}
           </Btn>

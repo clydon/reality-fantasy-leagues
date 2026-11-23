@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireAuth } from "@/lib/server/auth-helpers";
 import { gifsFor } from "@/lib/server/gifs";
-import { postRoom, readEarlierRoom, readRoom } from "@/lib/server/league-chat";
+import { postRoom, readEarlierRoom, readLatest, readRoom } from "@/lib/server/league-chat";
 import { roomOf } from "./scope";
 
 // A league's room (docs/PLAN-sports-couch.md B1 session 5; league-chat.ts): `?league=football/nfl&couch=<id>`. GET reads the newest
@@ -15,6 +15,8 @@ export const GET = apiRoute(async (req) => {
   const q = new URL(req.url).searchParams;
   const at = q.get("at");
   if (q.has("before")) return NextResponse.json(await readEarlierRoom(scope, { before: q.get("before"), at }));
+  // This week's line: the newest few, once.
+  if (q.has("latest")) return NextResponse.json({ messages: await readLatest(scope) });
   const read = await readRoom(user, scope, { v: q.get("v"), since: q.get("since"), at });
   return NextResponse.json("messages" in read ? { ...read, gifs: !!gifsFor(req) } : read);
 });

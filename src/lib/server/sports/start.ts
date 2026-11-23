@@ -149,7 +149,9 @@ export async function startSport(
   const started = await startFromSpec(user, seasonId, couchId, {
     spec: railSpec(pick.spec, from, to),
     timing: final ? "final" : undefined,
-    name: isObj(body) && typeof body.name === "string" ? body.name : undefined,
+    // Named as the board names the game picked ("Pick'em", "Squares"), unless the maker named it (BACKLOG 254 a: a Pick'em was the
+    // engine's family name, "Predictions · Game 1", on every surface).
+    name: isObj(body) && typeof body.name === "string" ? body.name : pick.name,
     tell: body.tell,
     // Step 2.6 (docs/PLAN-sports-ready.md): how it runs (at your own pace, live or strict: checked as the sheet's is) and computer
     // players (a game alone with them), as the wizard's start takes them.

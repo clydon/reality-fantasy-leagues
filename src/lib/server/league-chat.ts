@@ -184,6 +184,23 @@ export async function markRoomRead(userId: string, scope: RoomScope, at: unknown
   );
 }
 
+/** The room's newest few (This week's line, BACKLOG 254 r): read once, never polled; the phone picks the newest it may show. */
+export async function readLatest(scope: RoomScope, n = 20): Promise<RoomLine[]> {
+  const { rows } = await pool.query<Row>(`SELECT ${COLUMNS} FROM chat_messages WHERE ${WHERE} ORDER BY created_at DESC, id DESC LIMIT ${n}`, [scope.couchId, scope.league]);
+  return (await linesOf(rows)).reverse();
+}
+
+/** How many messages each game's thread has had in the last two weeks (a game row's link to its thread, BACKLOG 254 q): counts only,
+ *  never a word of them, so nothing about a game shows. */
+export async function roomCounts(scope: RoomScope): Promise<Record<string, number>> {
+  const { rows } = await pool.query(
+    `SELECT sports_event, count(*)::int AS n FROM chat_messages WHERE ${WHERE} AND sports_event IS NOT NULL AND created_at > now() - interval '14 days'
+      GROUP BY sports_event`,
+    [scope.couchId, scope.league]
+  );
+  return Object.fromEntries(rows.map((r) => [r.sports_event as string, r.n as number]));
+}
+
 /** The Chat tab's badge: others' messages among the newest 300 that are newer than what you've read. */
 export async function roomUnread(userId: string, scope: RoomScope): Promise<{ unread: number }> {
   const { rows } = await pool.query(

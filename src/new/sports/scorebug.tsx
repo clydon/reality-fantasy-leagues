@@ -375,6 +375,10 @@ export function AskSheet({ g, onClose }: { g: WeekGame | null; onClose: () => vo
                 <Tv className="size-5" aria-hidden />
                 Watch it as if live
               </Btn>
+              {/* One short line per choice, under it (BACKLOG 254 l: the paragraph about both read hard). */}
+              <p data-ask-line="live" className="-mt-1 mb-1 text-[13px] leading-snug text-muted-foreground">
+                Says &ldquo;Started&rdquo; everywhere, on every device, until you&rsquo;ve watched it.
+              </p>
               <Btn
                 wide
                 data-show-fresh
@@ -385,10 +389,8 @@ export function AskSheet({ g, onClose }: { g: WeekGame | null; onClose: () => vo
               >
                 Show the score
               </Btn>
-              {/* Settings Round 2: what each one moves, in a line (Show the score moves your mark for the game's whole week). */}
-              <p className="text-[14px] leading-snug text-muted-foreground">
-                Watching as if live keeps it saying &ldquo;Started&rdquo; everywhere, on every device, until you say you&rsquo;ve watched it. Show the score shows it now and moves
-                how far you&rsquo;ve watched to its week, on every season you follow with it.
+              <p data-ask-line="show" className="-mt-1 mb-1 text-[13px] leading-snug text-muted-foreground">
+                Shows it now, and counts its week as watched in your games.
               </p>
             </>
           )}
