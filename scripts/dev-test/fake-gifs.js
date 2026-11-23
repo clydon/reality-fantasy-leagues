@@ -3,7 +3,7 @@
 // /v2/featured in KLIPY's v2 shape (Tenor's: each result's media_formats, mediumgif and tinygif with dims), and serves those
 // pictures itself: the mock's coloured tiles with a word (watching.js GIFS), as SVG. Every request is kept in `asked`.
 //
-//   const gifs = await require("./fake-gifs").start();
+//   const gifs = await require("./fake-gifs").start();   // or start({ extra: [["Giants win", "#1f4fb4", "#0b2a6b"]] })
 //   // point the dev server at it for a request or a browser: header  x-gys-gifs: gifs.url   (next dev only, loopback only)
 //   gifs.down = true (searches fail);  gifs.asked;  gifs.GIFS;  await gifs.close();
 //
@@ -28,8 +28,10 @@ function svg(word, a, b, w, h) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><rect width="${w}" height="${h}" fill="url(#g)"/><text x="50%" y="54%" text-anchor="middle" font-family="Arial Narrow, Arial, sans-serif" font-weight="800" font-size="${Math.round(h / 5)}" fill="#fff">${word.toUpperCase()}</text></svg>`;
 }
 
-async function start() {
-  const fake = { url: null, down: false, asked: [], GIFS };
+/** `extra`: more tiles for a check's own searches ([word, colour, darker]: the victory lap's "Giants win"), found as the mock's are. */
+async function start({ extra = [] } = {}) {
+  const GIFS_ = [...GIFS, ...extra];
+  const fake = { url: null, down: false, asked: [], GIFS: GIFS_ };
   const server = http.createServer((req, res) => {
     const u = new URL(req.url, "http://x");
     fake.asked.push(u.pathname + u.search);
@@ -39,7 +41,7 @@ async function start() {
     };
     const pic = u.pathname.match(/^\/media\/([a-z0-9]+)\/(200w|100w)\.svg$/);
     if (pic) {
-      const g = GIFS.find((x) => idOf(x[0]) === pic[1]);
+      const g = GIFS_.find((x) => idOf(x[0]) === pic[1]);
       if (!g) return json(404, {});
       const w = pic[2] === "200w" ? 200 : 100;
       res.writeHead(200, { "content-type": "image/svg+xml" });
@@ -49,7 +51,7 @@ async function start() {
       if (fake.down) return json(503, { message: "the stand-in is down" });
       if (!u.searchParams.get("key")) return json(401, { message: "no key" });
       const q = (u.searchParams.get("q") || "").toLowerCase();
-      const list = u.pathname.endsWith("featured") ? GIFS : GIFS.filter((g) => g[0].toLowerCase().includes(q));
+      const list = u.pathname.endsWith("featured") ? GIFS : GIFS_.filter((g) => g[0].toLowerCase().includes(q));
       return json(200, {
         results: list.map(([word]) => {
           const id = idOf(word);

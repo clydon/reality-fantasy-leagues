@@ -1924,3 +1924,17 @@
   sheet with its card's action. Fixed for C1 too: joining a game of public picks no longer pushes "New league member".
 - Rests on: src/new/sports/fan-call.tsx, src/lib/sports/fan-call.ts, src/lib/server/sports/calls.ts, watching.ts (migration 0451);
   docs/design-round/lone-fan-spec.md, -first-view.md, -shape.md, -check.md; docs/PLAN-sports-couch.md, C2's build notes; BACKLOG 256.
+
+## 2026-11-23 · The victory lap (sports-couch C3)
+- Decided by: the user ("Agree with recs"), on C3's story https://claude.ai/artifact/9vvuad5i6GPUmx9jxzTK48; approved as built, with both
+  recommendations.
+- What: when a couch member's team wins, each of its fans on the couch gets one prompt (This week's lap card under the move strip, and the
+  game's sheet once final), open until the team plays again: a GIF (the picker starting on "<team> win") and an optional line, posted in
+  two taps to the game's thread in the league's room and to the hub's On the couch, wearing the final that earned it. Not this time ends it
+  on every phone (the sheet keeps a quiet link). Nothing of a lap, the prompt included, for anyone hiding scores until they've shown the
+  game. Nothing for the losing fan. (1) No push for a lap (a moment found, not a buzz after every win). (2) "You called it" stays on both
+  the lap card and the call row below it (the fan's moment and the couch's call each stand alone).
+- Also settled in the check, by the process's rules: the card is never yellow (the ink button) and at most 120 px; the sheet's ask sits
+  flush with no score (the bug says it); one lap language (the tag over the result) in the room, the feed, the sheet and the preview.
+- Rests on: src/new/sports/lap.tsx, src/lib/server/sports/laps.ts (migration 0452); docs/design-round/victory-lap-spec.md, -first-view.md,
+  -shape.md, -check.md; docs/PLAN-sports-couch.md, C3's build notes; BACKLOG 257.

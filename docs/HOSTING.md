@@ -326,6 +326,13 @@ the last day's rows) when This week, a team's page or a game's sheet opens, and 
 made on another phone shows during a game); `POST` one row. **Migration 0451** (`sports_watching`: a row a person, couch and game; a
 few a person a week, nothing sweeps them: the read takes the last day's).
 
+**A victory lap (docs/PLAN-sports-couch.md C3, 2026-11-23, not merged)** asks ESPN nothing new. `GET /api/sports/laps?couch=&league=&teams=`
+(your open laps: each of your couch teams' last final from its season schedule, the provider's cached read C2's calls already make, eight
+teams at most; and the couch's laps, one indexed query) when This week opens and when a final game's sheet opens; never edge-kept, never
+polled. `POST` posts one room message (no push) and one row, or one row for Not this time; `DELETE` removes the message. The hub's read
+adds one indexed query (the couch's laps of the last two weeks, twelve at most). GIFs are KLIPY's, through `/api/gifs` as every GIF is
+(the picker's searches are edge-kept an hour). **Migration 0452** (`sports_laps`: a row a fan a win at most, a few a person a week).
+
 **A game's sheet (docs/PLAN-sports-couch.md B4, 2026-11-22, not merged)** asks ESPN nothing new. One small read of ours:
 `GET /api/sports/game/seasons?league=&event=` (the seasons a real game is in, from `season_events`; a few rows; the same for everyone,
 edge-kept a minute), asked once when a game's sheet opens. Everything else is reads the screens already make (the team's schedule,

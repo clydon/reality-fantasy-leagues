@@ -12,7 +12,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { CalendarDays, ChevronLeft, ChevronRight, Eye, ListOrdered, MessageCircle, TableProperties, Trophy, type LucideIcon } from "lucide-react";
-import { useCouchTeams, useCurrentCouch, useHome, useLeaguesNow, useLeagueTeams, useRivalryGames, useRoomBadge, useRoomLatest, useSportsRecordings, useWatching, useYourTeams, type Watching, type WeekGame } from "../data";
+import { useCouchTeams, useCurrentCouch, useHome, useLeaguesNow, useLeagueTeams, useRivalryGames, useRoomBadge, useRoomLatest, useSportsRecordings, useWatching, useYourTeams, useLaps, type Watching, type WeekGame } from "../data";
 import { NavLink, useNav } from "../nav";
 import { isLeagueTab, LEAGUE_TABS, paths, type LeagueTab } from "../routes";
 import { Avatar, Faces } from "../ui/bars";
@@ -23,6 +23,7 @@ import { LeagueGameRows, LeagueStart, openSports, useLeagueGames, useLeagueWeek 
 import { pairRecord, rankTeams, recordWords, rivalriesOf, rivalryRecords, type Fan, type Rivalry, type TeamForm } from "@/lib/sports/couch-table";
 import { RivalryCard } from "../sports/rivalry";
 import { CallsCard, callEntries, matchOfWeek, useCallGames, type CallMatch } from "../sports/fan-call";
+import { LapCard, useOpenLap } from "../sports/lap";
 import type { LeagueNow } from "@/lib/sports/league-now";
 import { LeagueScores } from "./league-scores";
 import { LeagueGames } from "./league-games";
@@ -240,6 +241,9 @@ function ThisWeek({ league, name, now: lnow }: { league: string; name: string; n
     now,
   });
   const callAbove = new Map(entries.map((e) => [e.m.id, `${e.call ? (e.call.userId === meId ? "Your" : `${e.fan.name}’s`) : "Your"} call, above`]));
+  // C3: your victory lap, when a team of yours just won (the newest unanswered; nothing while its result is hidden from you).
+  const lapsQ = useLaps(solo ? null : couchId, league, teams.filter((t) => t.followers.some((f) => f.id === meId)).map((t) => t.id));
+  const openLap = useOpenLap(lapsQ.data?.open);
   const rest = week.games.filter((g) => !g.sides.some((s) => teams.some((t) => t.id === s.id)));
   const showAll = () => {
     for (const id of results) showScore(id);
@@ -248,6 +252,9 @@ function ThisWeek({ league, name, now: lnow }: { league: string; name: string; n
   return (
     <div data-this-week>
       <MoveStrip league={league} />
+      {!solo && couchId && (
+        <LapCard lap={openLap} laps={lapsQ.data?.laps ?? []} league={league} couchId={couchId} meId={meId} gifs={!!lapsQ.data?.gifs} fansOf={(id) => teams.find((t) => t.id === id)?.followers ?? []} />
+      )}
       {shownRivalries.map((r, i) => (
         <RivalryCard
           key={r.id}
@@ -614,7 +621,7 @@ function RoomLine({ league }: { league: string }) {
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[15px]">
           <b className="font-semibold">{m.name}</b>
-          {m.gif ? " sent a GIF" : `: ${m.text}`}
+          {m.lap ? " took a victory lap" : m.gif ? " sent a GIF" : `: ${m.text}`}
         </span>
         <span className="mt-[3px] block truncate text-[13px] text-muted-foreground">
           {m.eventName ? `${m.eventName} · ` : ""}

@@ -490,6 +490,31 @@ decisions.md): a call stands once backed; Play the next game keeps its yellow af
 - **Noticed, not fixed:** BACKLOG 256.
 - **C3. The victory lap** (S–M): one prompt after a win; a GIF and a line to the couch's feed and the league's room; held for
   anyone hiding scores.
+**C3's build notes (2026-11-23, lane `sports-couch`, port 3019; not committed; migration 0452; no new ESPN read; no engine change).**
+Story: https://claude.ai/artifact/9vvuad5i6GPUmx9jxzTK48. **Approved as built** (the user, 2026-11-23, taking both
+recommendations: decisions.md): no push for a lap; "You called it" stays on both the lap card and the call row. The design: [victory-lap-spec.md](design-round/victory-lap-spec.md) (Intent),
+`-first-view.md` (PFD), `-shape.md` (Impeccable), `-check.md` (the check and its one batch).
+- **The model:** a lap is one a fan a win: every follower on the couch of the team that won, from the final until the team plays again,
+  answered once (posted, or Not this time, kept so the prompt ends on every phone). A GIF (KLIPY's picker, starting on "<team> win") and
+  a line (optional; the line alone with GIFs off). It wears the final that earned it (the team's side, kept with the lap), lands in the
+  game's thread in the league's room with no push, and on the couch's feed. Nothing of it (the prompt included) for anyone hiding scores
+  who hasn't shown the game. Take it back deletes the room message, and the lap with it.
+- **Where:** `src/new/sports/lap.tsx`. This week's lap card under the move strip (the ink button, never the page's yellow; 120 px): the
+  team's mark, "Giants won", the score, "vs Bears" or "at Riley's Jets", "You called it" when the fan's call or rivalry pick was right.
+  The lap sheet: the picker, then the GIF big, the line and Post it, then posted with Take it back. The game's sheet once final: the ask
+  under the couch line (after Not this time, a quiet "Take a victory lap") and **Victory laps** (each GIF with its name strip and line).
+  The room's lap message (show/chat.tsx `Line` takes a `lap` head: the tag and the result over the GIF, the line under it). The hub's
+  feed: a `lap` row opening the game's thread, held on the phone for a hider. This week's room line says "took a victory lap".
+- **Data:** `GET/POST/DELETE /api/sports/laps?couch=` (src/lib/server/sports/laps.ts: open laps from the teams' cached schedules as C2's
+  calls read finals; the posts through league-chat.ts `postRoom`, now with `quiet` and a lap's line beside its GIF); the room's read
+  carries a message's `lap`; couch-hub.ts adds a `lap` feed kind. Migration 0452 `sports_laps`. HOSTING.md, "A victory lap".
+- **Checks:** `scripts/dev-test/story-victory-lap.js` (16 frames and 21 checks on the stand-in ESPN and KLIPY: the card, no yellow,
+  120 px, the picker's search, the lap in the room with its final, no push, a non-fan refused, Sam's sheet, room and feed, nothing for
+  Casey hiding until Show records, the rivalry's "at riley's Jets", Not this time kept, the sheet's quiet link, nothing for the loser,
+  Take it back; `--before` shot the old pages). fake-gifs.js takes `extra` tiles. check-sports-couch.js's cleanup removes laps.
+  story-lone-fan.js re-run: 15 pass. `npm test` 2,624 pass; tsc clean; ESLint clean on the changed files. UI-REVIEW-MAP: no engine
+  change.
+- **Noticed, not fixed:** BACKLOG 257.
 - **C4. Solo** (M): your team's calls (Pick'em on a team's games, started by your first call, no setup screen); the season call
   (a new long prediction); a team draft with computer players (plays today).
 - **C5. The couch's games** (M): a slate of only the games a couch member's team plays, the default weekly Pick'em, offered first.

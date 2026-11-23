@@ -54,6 +54,15 @@ export interface RoomLine {
   eventAt: string | null;
   /** The game in words ("Eagles at Jets"), as its author's screen named it. */
   eventName: string | null;
+  /** A victory lap (C3, sports/laps.ts): the final that earned it, from the fan's team's side. */
+  lap?: LapResult;
+}
+
+/** The final a victory lap wears: the fan's team, its opponent, the score from the team's side. */
+export interface LapResult {
+  team: { id: string; short: string; abbreviation: string | null; color: string | null };
+  opponent: { id: string; short: string; abbreviation: string | null; color: string | null };
+  score: [number, number];
 }
 
 export interface RoomChat {
@@ -70,7 +79,14 @@ const WHERE = "couch_id = $1 AND sports_league = $2 AND league_id IS NULL AND ty
 
 async function linesOf(rows: Row[]): Promise<RoomLine[]> {
   const reacted = new Map((await withReactions(rows)).map((m) => [m.id, m.reactions]));
+  // Victory laps (C3): a GIF message (or a line alone, with GIFs off) that a lap row points at wears the final that earned it.
+  const laps = new Map<string, LapResult>();
+  if (rows.length) {
+    const { rows: ls } = await pool.query(`SELECT message_id, team, opponent, score FROM sports_laps WHERE message_id = ANY($1::uuid[])`, [rows.map((m) => m.id)]);
+    for (const l of ls) laps.set(l.message_id, { team: l.team, opponent: l.opponent, score: l.score as [number, number] });
+  }
   return rows.map((m) => ({
+    ...(laps.has(m.id) ? { lap: laps.get(m.id) } : {}),
     id: m.id,
     userId: m.user_id,
     name: m.author_name,
@@ -141,7 +157,9 @@ export async function postRoom(
   user: SessionUser,
   scope: RoomScope,
   body: { text?: unknown; gif?: unknown; event?: unknown; eventAt?: unknown; eventName?: unknown },
-  src?: GifSource | null
+  src?: GifSource | null,
+  /** A victory lap (sports/laps.ts): no push (a moment to find, not a buzz after every win), and its line kept beside its GIF. */
+  opts: { quiet?: boolean; line?: string | null } = {}
 ): Promise<RoomLine> {
   if (scope.role === "viewer") throw new HttpError(403, "Only people on the couch can post here");
   let gif: Gif | null = null;
@@ -150,7 +168,7 @@ export async function postRoom(
     gif = gifFrom(src, body.gif);
     if (!gif) throw new HttpError(400, "That GIF isn't one of KLIPY's");
   }
-  const text = gif ? "GIF" : messageText(body.text);
+  const text = opts.line ? messageText(opts.line) : gif ? "GIF" : messageText(body.text);
   const event = typeof body.event === "string" && /^[A-Za-z0-9-]{1,40}$/.test(body.event) ? body.event : null;
   const at = event && typeof body.eventAt === "string" ? new Date(body.eventAt) : null;
   const eventAt = at && !Number.isNaN(at.getTime()) ? at.toISOString() : null;
@@ -161,7 +179,7 @@ export async function postRoom(
      VALUES ($1, $2, $3, $4, $5, $6, $7, 'message', $8, $9) RETURNING ${COLUMNS}`,
     [scope.couchId, scope.league, event, eventAt, eventName, user.id, name, text, gif ? JSON.stringify(gif) : null]
   );
-  notifyLeagueChat({ messageId: rows[0].id, authorId: user.id, authorName: name, text, couchId: scope.couchId, league: scope.league, event, eventName });
+  if (!opts.quiet) notifyLeagueChat({ messageId: rows[0].id, authorId: user.id, authorName: name, text, couchId: scope.couchId, league: scope.league, event, eventName });
   return (await linesOf(rows))[0];
 }
 

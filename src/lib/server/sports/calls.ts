@@ -31,7 +31,7 @@ const ID = /^[\w.-]{1,40}$/;
 type Opts = { providers?: SportsProvider[]; now?: Date };
 
 /** The couch's call and rivalry games in a league this season, with every winner pick (public in both). */
-async function couchPicked(couchId: string, league: string, event: string | null, now: Date): Promise<CallGame[]> {
+export async function couchPicked(couchId: string, league: string, event: string | null, now: Date): Promise<CallGame[]> {
   const { rows } = await pool.query(
     `SELECT l.id AS league_id, l.state, ss.id AS season_id, e.event_id, e.episode, e.starts_at
        FROM leagues l ${LEAGUE_SEASON_JOIN}

@@ -147,6 +147,7 @@ async function cleanup(pool) {
   await pool.query("DELETE FROM league_follows WHERE league = ANY($1::text[])", [LEAGUES_]);
   await pool.query("DELETE FROM sports_recordings WHERE league = ANY($1::text[])", [LEAGUES_]);
   await pool.query("DELETE FROM sports_watching WHERE league = ANY($1::text[])", [LEAGUES_]).catch(() => {}); // 0451 (C2)
+  await pool.query("DELETE FROM sports_laps WHERE league = ANY($1::text[])", [LEAGUES_]).catch(() => {}); // 0452 (C3)
   await pool.query("DELETE FROM chat_messages WHERE sports_league = ANY($1::text[])", [LEAGUES_]);
   await pool.query("DELETE FROM league_chat_reads WHERE league = ANY($1::text[])", [LEAGUES_]);
   await pool.query("DELETE FROM sports_cache WHERE key LIKE 'zt-standin:%'");

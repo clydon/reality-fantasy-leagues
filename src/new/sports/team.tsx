@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Check, ChevronRight, MessageCircle } from "lucide-react";
-import { useCouchGames, useCouchTeams, useGameSeasons, useHome, useRoomCounts, useSportRail, type JoinGame, type TeamSchedule, type WeekGame } from "../data";
+import { useCouchGames, useCouchTeams, useGameSeasons, useHome, useLaps, useRoomCounts, useSportRail, type JoinGame, type TeamSchedule, type WeekGame } from "../data";
 import { NavLink, useNav } from "../nav";
 import { paths } from "../routes";
 import { Avatar } from "../ui/bars";
@@ -14,6 +14,7 @@ import { AskSheet } from "./scorebug";
 import { clockOf, dayOf, useGameScore, useNow } from "./scores";
 import { useStartSport } from "./start";
 import { WatchingRow } from "./fan-call";
+import { LapPrompt, VictoryLaps, useLapShown, useOpenLap } from "./lap";
 
 // A team's games' parts (the team's page, docs/PLAN-sports-couch.md B2, is src/new/screens/team-page.tsx; it replaced the team's
 // sheet): what Start a game on is asked for (StartWhen), a schedule game as a game row's moment, "vs Cowboys", and one game's sheet:
@@ -74,6 +75,11 @@ export function GameView({ g, s, onStart, onStarted, onSlate }: { g: Game; s: Te
   const talk = useRoomCounts(s.league, couch?.id ?? null).data?.counts?.[g.id] ?? 0;
   const started = sc.started || g.state !== "pre";
   const called = g.calledOff;
+  // C3: once it's final, the winning fan's victory lap and the couch's laps on it (nothing while its result is hidden from you).
+  const lapsQ = useLaps(couch && g.final ? couch.id : null, s.league, [s.team.id, ...(g.opponent ? [g.opponent.id] : [])]);
+  const myLap = useOpenLap(lapsQ.data?.open, { event: g.id });
+  const lapsShown = useLapShown(g.final ? { event: g.id, at: g.at } : null);
+  const lapsHere = lapsShown ? (lapsQ.data?.laps ?? []).filter((l) => l.event === g.id) : [];
 
   const away = g.home === false ? s.team : g.opponent;
   const homeSide = g.home === false ? g.opponent : s.team;
@@ -128,6 +134,8 @@ export function GameView({ g, s, onStart, onStarted, onSlate }: { g: Game; s: Te
       )}
       {/* C2: I'm watching, from the hour before it starts until it's over (presence, for the couch). */}
       {couch && !called && g.state !== "post" && !g.final && g.at && Date.parse(g.at) - now < 3_600_000 && <WatchingRow league={s.league} game={g.id} couchId={couch.id} meId={meId} />}
+      {/* C3: the winning fan's ask, under the couch line (the bug above says the score). */}
+      {couch && g.final && <LapPrompt lap={myLap && !lapsHere.some((l) => l.userId === meId) ? myLap : null} league={s.league} couchId={couch.id} gifs={!!lapsQ.data?.gifs} />}
 
       {covering.length > 0 && (
         <section data-on-couch>
@@ -219,6 +227,7 @@ export function GameView({ g, s, onStart, onStarted, onSlate }: { g: Game; s: Te
             </NavLink>
           )}
           {g.state === "in" && covering.length > 0 && <p className="mt-2 text-[14px] text-muted-foreground">Picks closed at kickoff.</p>}
+          <VictoryLaps laps={lapsHere} meId={meId} />
         </>
       )}
       <AskSheet g={asking} onClose={() => setAsking(null)} />

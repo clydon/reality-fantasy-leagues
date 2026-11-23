@@ -2366,6 +2366,49 @@ export function useRivalryPick(couchId: string | null, league: string) {
 
 export type { CallGame } from "@/lib/sports/fan-call";
 export type { Watching } from "@/lib/server/sports/watching";
+export type { Lap, OpenLap } from "@/lib/server/sports/laps";
+export type { LapResult } from "@/lib/server/league-chat";
+
+type LapsRead = { open: import("@/lib/server/sports/laps").OpenLap[]; laps: import("@/lib/server/sports/laps").Lap[]; gifs?: boolean };
+
+/** The victory lap (C3): your open laps among `teams` (the couch's teams you follow) and the couch's laps in the league. */
+export function useLaps(couchId: string | null, league: string, teams: string[]) {
+  const ids = [...new Set(teams)].sort();
+  return useQuery({
+    queryKey: ["new-design", "laps", couchId, league, ids.join(",")],
+    queryFn: () => get<LapsRead>(`/api/sports/laps?couch=${couchId}&league=${encodeURIComponent(league)}&teams=${ids.join(",")}`),
+    enabled: !!couchId,
+    staleTime: 30_000,
+  });
+}
+
+/** Take a lap (a GIF and a line), say Not this time (`skip`), or take yours back; then what shows laps reads again. */
+export function useLapActions(couchId: string | null, league: string) {
+  const client = useQueryClient();
+  const after = useCallback(() => {
+    void client.invalidateQueries({ queryKey: ["new-design", "laps", couchId, league] });
+    void client.invalidateQueries({ queryKey: ["new-design", "couch-hub"] });
+    void client.invalidateQueries({ queryKey: ["new-design", "room-latest", league, couchId] });
+    void client.invalidateQueries({ queryKey: ["new-design", "room-counts", league, couchId] });
+  }, [client, couchId, league]);
+  const take = useCallback(
+    async (body: { event: string; team: string; gif?: GifHit | null; line?: string; skip?: boolean }) => {
+      const r = await post<LapsRead>(`/api/sports/laps?couch=${couchId}`, { league, ...body });
+      after();
+      return r;
+    },
+    [after, couchId, league]
+  );
+  const takeBack = useCallback(
+    async (event: string) => {
+      const res = await fetch(`/api/sports/laps?couch=${couchId}&league=${encodeURIComponent(league)}&event=${encodeURIComponent(event)}`, { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Couldn't take it back (${res.status})`);
+      after();
+    },
+    [after, couchId, league]
+  );
+  return { take, takeBack };
+}
 
 /** The couch's call and rivalry games in a league this season (every winner pick, public), each with its teams and final. */
 export function useCallGames(couchId: string | null, league: string, teams: string[]) {

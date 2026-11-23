@@ -25,6 +25,9 @@ import { latestAired, seasonSchedules } from "./schedule";
 import { runItBack } from "./start-game";
 import { followsOf, games, seasonHeaders, type Game } from "./show-space";
 import { plansLately, type PlanHow } from "./watch-plans";
+import type { LapResult } from "./league-chat";
+import { lapsForFeed } from "./sports/laps";
+import { leagueName } from "@/lib/sports/matchup";
 
 // The hub's couch, for More on the couch, your profile's numbers and the feed (docs/PLAN-new-design.md step 8; GET
 // /api/couches/[id]/hub): every game the couch plays, read as you may see it, turned into head to head, the trophy
@@ -65,8 +68,10 @@ export interface FeedItem {
   id: string;
   /** started: someone started a game on the couch (step 10 part 2b; `text` is the game, "Weekly Lineup"). planned: someone
    *  planned a watch along (step 11 part 3; `episode`, `how`, `startsAt`, `going`). bingo: someone called BINGO on an episode
-   *  (docs/PLAN-bingo-bank.md step 3; `episode`), opening their card. */
-  kind: "said" | "revealed" | "joined" | "watching" | "started" | "planned" | "bingo";
+   *  (docs/PLAN-bingo-bank.md step 3; `episode`), opening their card. lap: someone took a victory lap after their team won
+   *  (docs/PLAN-sports-couch.md C3; `lap`, `gif`, `text` their line), held on the phone for anyone hiding scores who hasn't shown
+   *  the game (`lap.event`), opening its thread in the league's room. */
+  kind: "said" | "revealed" | "joined" | "watching" | "started" | "planned" | "bingo" | "lap";
   userId: string | null;
   name: string;
   at: string;
@@ -83,6 +88,8 @@ export interface FeedItem {
   how?: PlanHow;
   startsAt?: string;
   going?: number;
+  /** A victory lap's game and the final that earned it ("NFL": `label`). */
+  lap?: LapResult & { league: string; event: string; eventAt: string | null };
 }
 
 export interface CouchHub {
@@ -566,6 +573,21 @@ async function feedFor(
       at: new Date(w.created_at).toISOString(),
       seasonId: w.season_id,
       label: `${h.show.name.replace(/^The /, "")}${h.seasonNumber ? ` ${h.seasonNumber}` : ""}`,
+    });
+  }
+  // Victory laps (C3): the league rooms are left out of the feed, but a lap is the couch's news. Held on the phone for anyone hiding
+  // scores who hasn't shown its game (a lap says who won).
+  for (const l of await lapsForFeed(couchId).catch(() => [])) {
+    items.push({
+      id: `lap-${l.messageId}`,
+      kind: "lap",
+      userId: l.userId,
+      name: member.get(l.userId) ?? l.name,
+      at: l.at,
+      ...(l.line ? { text: l.line } : {}),
+      ...(l.gif ? { gif: l.gif } : {}),
+      label: leagueName(l.league),
+      lap: { team: l.team, opponent: l.opponent, score: l.score, league: l.league, event: l.event, eventAt: l.eventAt },
     });
   }
   return items.sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, FEED_SIZE);

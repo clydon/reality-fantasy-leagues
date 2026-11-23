@@ -554,6 +554,12 @@ say whose team it is; fold them in B2's head when it's next touched. (d) The hub
 watching read polls every two minutes while This week, a team's page or a game's sheet is open; if Neon's compute hours tighten, poll
 only while a couch team's game is on. [S–M · sports]
 
+**257. The victory lap's leftovers (C3, PLAN-sports-couch.md; the sports-couch lane, 2026-11-23).** (a) A fan's call game shows on the hub's
+feed as a started game ("Jordan started a Jordan's call · tap to join"): C2's call and C1's rivalry games should leave the feed's
+"started" rows (their card is the way in). (b) A lap only for the winning team's fans: after a real Sunday, decide whether a right back
+or fade, or the pool's week, earns one too. (c) The fan card could count a fan's laps; not yet worth the space. (d) A hider who shows a
+game days later still gets the prompt until the team plays again (by design); a daily sport closes it the next day. [S · sports]
+
 **222. A game the daily job misses for three days is never read again.** The daily job reads a linked game only from three days
 back (matchup.ts `refreshSportsEvents`), so a game whose day the job skipped for three days (the bot VM down over a long
 weekend) stays "to play" for good, and its slate week never completes. Read every linked game that's started and isn't final,
