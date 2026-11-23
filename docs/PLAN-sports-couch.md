@@ -161,12 +161,12 @@ The check: [design-round/hub-league-card-check.md](design-round/hub-league-card-
   BACKLOG 252's Start a game step, as on master.
 - **Leftovers:** BACKLOG 254.
 
-**A2b. League art: the band and its gear** (2026-11-23, lane `league-art`, `../rfl-league-art`, port 3021, branched from
-sports-couch 79783be3; not merged). The user's ask is settled call 3's change above; their calls in the round: **the gear on the
+**A2b. League art: the band and its gear** (2026-11-23, **merged and live 4e26b302**; built in lane `league-art`, `../rfl-league-art`, branched from
+sports-couch 79783be3). The user's ask is settled call 3's change above; their calls in the round: **the gear on the
 league's bar** (over a picture icon), and **photos only** (no drawn art) while Gemini's billing blocks generation, so a sport with no
 photo of its own wears Arena until one is made. Design: [design-round/league-art-spec.md](design-round/league-art-spec.md) (Intent),
 [-first-view.md](design-round/league-art-first-view.md) (PFD), [-check.md](design-round/league-art-check.md) (the check). Story:
-https://claude.ai/artifact/9r85M529majKLKSBUKZHTk (waiting on the user's review).
+https://claude.ai/artifact/9r85M529majKLKSBUKZHTk.
 - **The band** (hub/league-cards.tsx): a show band's frame slot for slot, 126 px always; the league's art under the show band's fade;
   name and week top left, the line under them (A2's rule; the place moved to a Best tag); the show band's signs top right (Best, the
   games mark carrying the due dot); the season as a ruler at the foot with the couch's teams at now (football by its weeks, "12" of

@@ -17,9 +17,15 @@ puts its build notes in its plan, not here.
 
 ---
 
-## Live (production = origin/master, 03b87f38+, deployed 2026-11-23)
+## Live (production = origin/master, 4e26b302+, deployed 2026-11-23)
 
 Newest first. The plan or archive section named holds the detail.
+- **League art** (2026-11-23, merged and pushed 4e26b302; migrations 0454-0455, not rehearsed on the user's word: both only add a
+  column with a default and a table): a sports league in Your shows is a 126 px band like a show's, with art and its season as a
+  ruler; a gear on the league's bar opens Your settings for the league (each choice shown as your own band). Art is yours, else the
+  couch's (its owner's choice, else the first member's), else the league's own photo; anyone can upload their own picture (the
+  takedown and safety steps skipped by the user's call: PLAN-team-logos.md, "An exception"). Only football has a photo of its own;
+  the rest wear Arena until Gemini's billing is paid (prompts ready). Notes: [PLAN-sports-couch.md](PLAN-sports-couch.md) A2b.
 - **Sports on the couch, B2-B4 and C1-C4** (2026-11-23, merged and pushed 03b87f38; migrations 0451-0453, rehearsed on a copy of
   production; the snapshot `pre-sports-couch-c-2026-11-23` keeps 7 days): a team's own page, Add a show or team's search, a game's
   sheet with Play; rivalries (a quick Winner and margin game when two couch members' teams meet), a lone fan's calls (back or fade,
