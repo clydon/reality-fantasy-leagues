@@ -383,7 +383,7 @@ async function main() {
       const openTeam = async (pg, name) => {
         await openAdd(pg, name.toLowerCase());
         await pg.locator(`[data-hit-kind="team"][data-hit="${name}"]`).click();
-        await pg.locator("[data-team-view]").waitFor({ timeout: 15000 });
+        await pg.locator("[data-team-page]").waitFor({ timeout: 15000 });
         await pg.waitForTimeout(1200);
       };
       const sheet = { sheet: true };

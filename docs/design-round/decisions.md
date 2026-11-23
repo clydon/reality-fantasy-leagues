@@ -1856,3 +1856,15 @@
 - Also settled in the check, by the process's rules: a hidden game is "on" by the clock alone (the leak); the game tag is words, not
   a control; the chosen chip in ink; the fold compact; the couch hub's feed leaves room rows out.
 - Rests on: docs/design-round/league-chat-spec.md, -first-view.md, -shape.md, -check.md; docs/PLAN-sports-couch.md, B1 session 5.
+
+## 2026-11-22 · A team's schedule rows: the one-team form, with the couch on them (sports-couch B2)
+- Decided by: the user, asking for "the best UI/UX decision plus the most engaging", taking Claude's recommendation; then "you can
+  still use faces, because if they did upload I agree it'd look better" (many people won't upload a photo).
+- What: a team's schedule rows stay the scorebug's one-team form (the date, the opponent, the bug's status column and spoiler rule;
+  the team isn't repeated on every row). Engagement comes from the couch, not the team: a rival's row says whose team it is with
+  their face and their name ("at Jets", a face, "Riley's team"); a game you play carries the bug's controller mark, with its chyron
+  dot while a pick is due; the room's talk about a game is a count under its row ("3 messages"), into its thread.
+- Rejected: the two-team bug on every row (the team named 17 to 162 times, the list twice as tall); faces alone (many have no
+  photo: the name carries who it is, the face is the garnish).
+- Rests on: src/new/screens/team-page.tsx (`SchedRow`); docs/design-round/team-page-spec.md, "The game row"; the memory rule
+  "faces with names".

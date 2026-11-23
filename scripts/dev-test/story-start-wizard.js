@@ -243,7 +243,7 @@ async function main() {
         const row = p.locator("[data-sports-results] button").filter({ hasText: new RegExp(TEAM, "i") }).first();
         await row.waitFor({ timeout: 30000 });
         await row.click();
-        await p.locator("[data-team-view]").last().waitFor({ timeout: 25000 });
+        await p.locator("[data-team-page]").last().waitFor({ timeout: 25000 });
         await wait(p, 1500);
         const start = top(p).locator('[data-more="start"]').first();
         await start.click();

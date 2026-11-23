@@ -113,6 +113,10 @@ Newest first. The plan or archive section named holds the detail.
 
 ## In flight
 
+- **Sports on the couch, B2: a team's page** (2026-11-22, lane `sports-couch`, port 3019; not committed; no migration, no new
+  external read): the team sheet becomes a page at /league/<sport>/<code>/team/<id> (the game on now as the scorebug, Play, the
+  season as a bar a game, one schedule by month with Against, homestands and road trips, Month view), BACKLOG 254 (m)'s team half.
+  Story: https://claude.ai/artifact/GxZgu7KEX38h59Y2Kyq46g. The rows decided (one-team, with the couch on them: decisions.md). **Waits on the user's review** of the updated story.
 - **A castaway opened from a week opens on that week, BACKLOG 251** (2026-11-22, approved, committed on master, not pushed; no
   migration): the castaway sheet leads with the week a door hands it; one name per moment everywhere (moment-names.ts); the
   Started cards' alignment fix. Story: https://claude.ai/artifact/DAwdM1gZTD4PtVQ1twyioq. **Waits on the user:** the push.

@@ -311,6 +311,12 @@ no key, the same unofficial host as the rest):
   a league, and only while someone looks; one cache row a league (~9 KB). The teams' colours come from the league's team list,
   already cached a week. Asked once a visit to a league's Standings (React Query keeps it five minutes). Nothing polled.
 
+**A team's page (docs/PLAN-sports-couch.md B2, 2026-11-22, not merged)** asks ESPN **nothing new**: the team's schedule read (the
+old team sheet's, cached as it was), the league's standings read above for the team's place (only once results may show; one
+cached answer a league), league-now's weeks for football's bye (cached), and the league's one-day week read for the game on now's
+clock and line (Scores' read, edge-kept a minute while a game is on). A live game on the page polls the small live read only while
+it's on screen, as on Scores. No new route, no migration.
+
 **A league's page, Chat (docs/PLAN-sports-couch.md B1 session 5, 2026-11-22, live 2026-11-22, 56127b49)** asks ESPN
 nothing; it's Neon only, as the show's Chat is:
 - **The room** (`/api/sports/league/chat?league=&couch=`, signed in, couch members): rows in `chat_messages` (migration 0314: a

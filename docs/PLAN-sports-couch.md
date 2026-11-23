@@ -331,6 +331,38 @@ lane's local database**; no new external read).** Story: https://claude.ai/artif
 Play, the schedule by month with results and the bye, Month view for daily sports with series, homestands and trips grouped,
 and (C2) the fan card.
 
+**B2's build notes (2026-11-22, lane `sports-couch`, port 3019; not merged; no migration, no new external read, no engine change).**
+Story: https://claude.ai/artifact/GxZgu7KEX38h59Y2Kyq46g. **Waiting on the user's review.** The design:
+[team-page-spec.md](design-round/team-page-spec.md) (Intent), `-first-view.md` (PFD), `-shape.md` (Impeccable), `-check.md` (the
+check and its one batch). With BACKLOG 254 (m)'s team half.
+- **Where:** `/league/<sport>/<code>/team/<id>` (routes.ts `paths.team`, depth 2, up to the league's This week; `?against=` opens
+  the schedule on their meetings); `src/new/screens/team-page.tsx` (`TeamPageScreen`). The sheet is gone: `openSports({ kind:
+  "team" })` now pushes the page (sheets.tsx), so every old door (This week's rows, Standings' Open, the guide, cast and roster team
+  doors, scorebugs' teams) opens it; Add's team pick and a matchup close Add and push it. team.tsx keeps `StartWhen`, `asRow`,
+  `versus` and the game's sheet (`GameView`, B4's); its "Back to the team" went (the page is under it).
+- **The page:** a bar (Back: where you came from, else up; Follow); the lower third with the league, record and place ("1st in ZTN
+  East", the standings read's; only once a final this season is in); the couch's faces and A3's line (yours alone draws no
+  sentence); the game on now or next as the shared scorebug (wide, grouped: its day in the caption over it) and Play the next game
+  ("Pick'em vs Giants · Nov 29 4:25 PM · tells the couch"); the season as a bar a game by margin (wins up in good teal, losses down,
+  a bye named, games to come as ticks, the playoffs' start dashed, a live dot; `src/lib/sports/team-season.ts`, pure,
+  tests/sports-team-season.test.js), held behind Show the season (`season:<league>/<team>`, moving no mark) while hiding; Start a
+  game on (2.8's rows, one series and only within two weeks); the schedule: Against chips (All, the couch's teams, All opponents),
+  months with Earlier folded and counted, the bye a row, each row the scorebug's one-side form (date, opponent, the bug's status
+  column), a series joined, a daily sport's homestands and road trips with Start a game on it, List · Month (a calendar, home
+  filled, away outlined). A season not begun says so in one line; no games, one line. ESPN's unset times say TBD.
+- **Checks:** `scripts/dev-test/story-team-page.js` (worlds gameday, midweek, hidden, daily, off, studio, solo, failed, and real
+  ESPN: the Eagles, the Knicks, the Yankees; `--before` shot the old sheet); the stand-in world now shared with the league story
+  (`league-story-world.js`). check-sports-couch.js moved to the page (Standings' Open → the page → Back; search's team → the page,
+  hidden: the bug Started, the season held, no result in the schedule, one yellow; Show the score; Show the season; Start a game on's
+  The next game → the gallery, which also replaces BACKLOG 252's dead `[data-more="start"]` step). Fixed there too: five regexes
+  whose `\b` had become backspace characters (they tested nothing). The older stories that opened the sheet point at the page
+  (story-sports-scope.js, story-start-wizard.js, story-hub-sports.js, check-drill-doors.js): not re-run.
+- **The rows, decided** (the user, 2026-11-22, decisions.md): the one-team form, with the couch on it: a rival's row names whose
+  team it is (a face and the name: many have no photo), a game you play carries the bug's controller (its dot while a pick is due),
+  and the room's talk is a count under the row into its thread. The story's gameday world seeds a Pick'em and the thread's talk.
+- **Open for the user:** the strip's bars read, not tapped; a 162-game strip's density. **Noticed, not fixed:** the game's sheet still says "A GAME" and "It's over." (B4); the scorebug's records use
+  hyphens and "8:20PM" (A1's, every surface at once if changed).
+
 **B3. Search** (M): "Add a show or team" with All, Shows, Sports; a team's, a matchup's and a league's card first for a strong
 sports match (src/new/sports/search.tsx, src/new/watching/sheets.tsx); event sports in results (dropped today); first run uses
 the same search (BACKLOG 43).

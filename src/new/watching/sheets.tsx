@@ -27,8 +27,6 @@ import { toast } from "../ui/toast";
 import { useReducedMotion } from "../welcome/hooks";
 import { AddNewBlock, ListingsCredit, SearchNote, SearchRows, SuggestionCard, seasonLine, useShowSearch, type SearchRow } from "./search";
 import { SportsResults, useTeamSearch, type TeamPick } from "../sports/search";
-import { openSports, startOn } from "../sports/sheets";
-import { TeamView } from "../sports/team";
 import { WhereAsk, type SeasonPick, type WhereSeason } from "./where";
 import { episodeWordFromTitles } from "@/lib/game/show-words";
 
@@ -232,7 +230,6 @@ type Step =
   | { kind: "listing"; hit: ListingHit; season?: number }
   | { kind: "name"; name: string }
   // A team or a league the search found (U1's sports slice): its season, Play the next game and Start a gameâ€¦
-  | { kind: "team"; league: string; team: string; name: string; against?: string }
   | { kind: "league"; league: string; leagueName: string }
   // The tour's practice, where the save would have been (`demo`: one the tour added itself), and the end of its demo.
   | { kind: "practiced"; label: string; demo?: boolean }
@@ -277,14 +274,11 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
   const search = useShowSearch(q, catalog, mine, watchers);
   // Teams and leagues beside the shows (not in the tour's practice, which types a show).
   const teams = useTeamSearch(practice ? "" : q);
-  // A league opens its own page (docs/PLAN-sports-couch.md B1), leaving Add behind; a team is a step here.
+  // A league opens its own page (docs/PLAN-sports-couch.md B1) and a team its own (B2), leaving Add behind; a matchup opens the
+  // first team's page on their meetings.
   const pickTeam = (p: TeamPick) => {
-    if (p.kind === "league") {
-      onOpenChange(false);
-      nav.push(paths.league(p.league));
-      return;
-    }
-    setStep({ kind: "team", league: p.league, team: p.team, name: p.name, against: p.against });
+    onOpenChange(false);
+    nav.push(p.kind === "league" ? paths.league(p.league) : paths.team(p.league, p.team, p.against));
   };
   // Not for the tour's practice: the name's typed in for you, and a phone's keyboard coming up would only cover it.
   useEffect(() => {
@@ -501,9 +495,7 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
           : "That's how you add a show"
         : step.kind === "name"
           ? `Add ${step.name}?`
-          : step.kind === "team"
-            ? "A team"
-            : step.kind === "league"
+          : step.kind === "league"
               ? step.leagueName
               : "Where are you?";
   const subtitle = !step
@@ -516,9 +508,7 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
         ? "A show nobody here has added yet"
         : step.kind === "season"
           ? step.s.label
-          : step.kind === "team"
-            ? "Play a game of theirs with the couch"
-            : step.kind === "league"
+          : step.kind === "league"
               ? "Every game, week by week"
               : step.hit.name;
   // The practice's one path (tour/practice.tsx keepToPath): the show it typed in, where you are and Add to my shows, then its finish;
@@ -613,22 +603,6 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
             )}
             <ListingsCredit />
           </>
-        )}
-        {step?.kind === "team" && (
-          <TeamView
-            league={step.league}
-            team={step.team}
-            against={step.against}
-            onStart={(when, name) => {
-              onOpenChange(false);
-              openSports(startOn(step.league, step.team, name, when, { kind: "team", league: step.league, team: step.team }));
-            }}
-            onGame={(g) => {
-              onOpenChange(false);
-              openSports({ kind: "game", league: step.league, team: step.team, game: g.id });
-            }}
-            onStarted={() => onOpenChange(false)}
-          />
         )}
         {step?.kind === "season" && (
           <CatalogWhere

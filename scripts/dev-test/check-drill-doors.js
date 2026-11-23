@@ -770,7 +770,7 @@ const wanted = (id) => !ONLY || new RegExp(ONLY).test(id);
         await door("roster-team", {
           go: players,
           door: async () => p.locator("[data-roster] [data-team-door]").first(),
-          opened: async () => p.locator("[data-team-view]").last().waitFor({ timeout: 20000 }),
+          opened: async () => p.locator("[data-team-page]").last().waitFor({ timeout: 20000 }),
           still: "[data-roster]",
           skip: "no team with its id on the Players tab",
         });
@@ -796,7 +796,7 @@ const wanted = (id) => !ONLY || new RegExp(ONLY).test(id);
           await door("cast-team", {
             go: () => sportCast(gameSeason),
             door: async () => p.locator("[data-sport-list] [data-team-door]").first(),
-            opened: async () => p.locator("[data-team-view]").last().waitFor({ timeout: 20000 }),
+            opened: async () => p.locator("[data-team-page]").last().waitFor({ timeout: 20000 }),
             still: "[data-sport-list]",
             skip: `no team door on the Cast tab (the game's start: ${started.status})`,
           });

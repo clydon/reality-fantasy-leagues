@@ -69,7 +69,9 @@ Grouped so each group is about one session. Take them in any order.
 check-sports-couch.js's browser half stops at "Start a game…" from a team's sheet (`[data-gallery=gallery]` never shows in 30 s,
 check-sports-couch.js after "Show the score lets that game's score out"), so the steps after it don't run. check-new-hub.js fails
 "On now is real: riley is watching ZT Survivor, Episode 4" and then a 30 s `locator.textContent` timeout. Find what moved and fix
-the checks (or the screens). [S · checks]
+the checks (or the screens). **The first step moved in B2** (sports-couch lane, not merged): the check now starts a game from the
+team's page (Start a game on › The next game) and reaches the gallery; it stops at the next stale step, `[data-gallery-option=length-rest]`
+(no "rest of the season" length on a one-game start). [S · checks]
 
 **244. Run the two checks settings Round 3a moved but never ran.** check-explorer-page.js's Waivers step and check-new-studio.js's
 list were moved to Manage this game in 3a (2026-11-21) but need UI Atlas on the main app, so they haven't run since. Run each once
@@ -518,7 +520,9 @@ longer marks a game seen before it (the leak that kept it shown, fixed); the fla
 profile answers, so every sports screen holds results by itself; check-sports-couch.js holds the profile back and finds no score. (l) The ask sheet's explanation ("moves how far you've watched to its week, on every
 season you follow with it") reads hard (both reviewers in B1 session 2's check): one short line per choice, on the strip and Scores
 alike. (m) The shared game row on the guide's Sports and a team's schedule (round 1's R3: one row everywhere): the guide in its own
-review, the schedule with B2's team page. (n) **Decided** (the user, 2026-11-22, approving B1 session 2): no Play on Scores' rows; a row opens its
+review, the schedule with B2's team page. **The team's half done in B2** (not merged): the page's game on now is the shared scorebug
+and its schedule rows the bug's one-side form (its status column and spoiler rule; the two-team form is the user's named choice in
+B2's story); the guide's Sports still to do. (n) **Decided** (the user, 2026-11-22, approving B1 session 2): no Play on Scores' rows; a row opens its
 game, and B4's sheet holds Play. (o) Noticed in B1 session 3 (the Games tab's check, both reviewers): the couch's join sheet speaks
 a show's words on a sports game ("It plays Episode 12 only: make your pick before you watch it"); a sports game's join sheet in
 its own words (the week or game it covers, when picks lock). (q) After the lane's merge (the user, 2026-11-22, B1 Chat's review): a chat count on each game row (Scores, the hub's strip)
