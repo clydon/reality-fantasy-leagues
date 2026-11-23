@@ -54,7 +54,9 @@ test("headlines: one stated limit, 45 characters, asked for and enforced alike",
 test("headlines: asked for with each recap, one clean line each, dropped when too long, never cut", () => {
   assert.match(recapPrompt(plan("competition", "Episode")), /"headline": "\.\.\.", "summary"/);
   assert.match(recapPrompt(plan("competition", "Episode")), /Each headline is one line of 45 characters or fewer, in the past tense, the way a TV recap would title it: who left and how/);
-  assert.ok(recapPrompt(plan("competition", "Episode")).includes("Name everyone who left. No semicolons: join two facts with a comma."));
+  assert.ok(recapPrompt(plan("competition", "Episode")).includes("Name everyone who left. No vote counts. No semicolons: join two facts with a comma."));
+  assert.ok(recapPrompt(plan("competition", "Episode")).includes('leave out vote counts and tallies (no "6–5")'), "a show's summary: no tallies");
+  assert.ok(!recapPrompt(plan("sport", "Game")).includes("No vote counts"), "a sport keeps its score");
   assert.match(recapPrompt(plan("sport", "Game")), /Each headline is one line of 45 characters or fewer: the final score with who won/);
   const json = { episodes: [{ number: 1, headline: "Patt blindsided 6–5.", summary: "Patt went home." }, { number: 2, headline: "x".repeat(90), summary: "Nobody left." }, { number: 3, headline: "Not asked", summary: "Never asked." }] };
   const answer = "```json\n" + JSON.stringify(json) + "\n```";

@@ -1,7 +1,7 @@
 import StateLogic from "@/lib/game/state-logic.js";
 import { episodesSeen, revealAcross, revealIn, seasonEpisodesSeen, type EpisodeSeen, type Happened, type OutFace, type RevealGame, type RevealPart, type RevealSheet, type RevealTable } from "@/lib/game/episode-view";
 import { publicMediaSrc } from "@/lib/game/selectors";
-import { plainHeadline, plainRecap } from "@/lib/game/recap-text";
+import { asShown, plainHeadline, plainRecap } from "@/lib/game/recap-text";
 import { latestIn, resultsDue, stageAcross } from "@/lib/game/results-due";
 import type { SessionUser } from "./auth-helpers";
 import { couchFillsResults } from "./community-results";
@@ -99,10 +99,20 @@ export async function seasonEpisodes(user: SessionUser, seasonId: string, couchI
     gamesHere(user, seasonId, couchId, ro),
     seasonSchedules([seasonId]),
     pool.query("SELECT early_seen FROM show_follows WHERE user_id = $1 AND season_id = $2", [user.id, seasonId]),
-    pool.query("SELECT number, summary, headline FROM season_episodes WHERE season_id = $1 AND summary IS NOT NULL", [seasonId]),
+    pool.query(
+      `SELECT se.number, se.summary, se.headline, s.kind FROM season_episodes se JOIN show_seasons ss ON ss.id = se.season_id JOIN shows s ON s.id = ss.show_id
+        WHERE se.season_id = $1 AND se.summary IS NOT NULL`,
+      [seasonId]
+    ),
   ]);
-  const recaps = new Map(recapRows.rows.map((r) => [r.number as number, plainRecap(r.summary as string)]));
-  const headlines = new Map(recapRows.rows.map((r) => [r.number as number, plainHeadline(r.headline)]));
+  // As people read them: a show's without its vote tallies (unchecked AI counts), a sport's with its score (recap-text.ts asShown).
+  const recaps = new Map(recapRows.rows.map((r) => [r.number as number, asShown(plainRecap(r.summary as string), r.kind)]));
+  const headlines = new Map(
+    recapRows.rows.map((r) => {
+      const h = plainHeadline(r.headline);
+      return [r.number as number, h ? plainHeadline(asShown(h, r.kind)) : null];
+    })
+  );
   // A game scored from calls or bingo cards (Weekly Calls, Weekly Bingo: step 12) has no results of its own: its show's episodes
   // list as a show you only watch does, every one that's aired.
   // Step R1: each game's pieces (what its spec is made of), read once.
@@ -259,9 +269,13 @@ export interface SeasonReveal {
 
 /** One episode's write-up (season_episodes.summary), for the reveal: only ever read for someone who's seen it. */
 async function recapOf(seasonId: string, n: number): Promise<string | null> {
-  const { rows } = await pool.query("SELECT summary FROM season_episodes WHERE season_id = $1 AND number = $2", [seasonId, n]);
+  const { rows } = await pool.query(
+    `SELECT se.summary, s.kind FROM season_episodes se JOIN show_seasons ss ON ss.id = se.season_id JOIN shows s ON s.id = ss.show_id
+      WHERE se.season_id = $1 AND se.number = $2`,
+    [seasonId, n]
+  );
   const s = rows[0]?.summary as string | null | undefined;
-  return s ? plainRecap(s) : null;
+  return s ? asShown(plainRecap(s), rows[0]?.kind as string | null) : null;
 }
 
 /** Your first Weekly Lineup's night at an early reveal (show_follows.early_night, migration 0118), kept until its final

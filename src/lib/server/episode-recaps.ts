@@ -87,10 +87,10 @@ export function recapPrompt(plan: Plan): string {
     `{"episodes": [{"number": 1, "headline": "...", "summary": "..."}]}`,
     sport
       ? `Each summary is two or three plain sentences in the past tense: the final score and who won first, then what decided it and who stood out.`
-      : `Each summary is two or three plain sentences in the past tense: the main things that happened in that ${word}, and who left or won anything, if anyone did.`,
+      : `Each summary is two or three plain sentences in the past tense: the main things that happened in that ${word}, and who left or won anything, if anyone did. Say who was voted out and how, but leave out vote counts and tallies (no "6–5").`,
     sport
       ? `Each headline is one line of ${HEADLINE_MAX} characters or fewer: the final score with who won, the way a scoreboard puts it.`
-      : `Each headline is one line of ${HEADLINE_MAX} characters or fewer, in the past tense, the way a TV recap would title it: who left and how (the vote and its count, a quit, a twist), or the ${word}'s biggest moment if nobody left. Name everyone who left. No semicolons: join two facts with a comma.`,
+      : `Each headline is one line of ${HEADLINE_MAX} characters or fewer, in the past tense, the way a TV recap would title it: who left and how (a vote, a blindside, a quit, a twist), or the ${word}'s biggest moment if nobody left. Name everyone who left. No vote counts. No semicolons: join two facts with a comma.`,
     `Say only what the recaps and reports say, in plain words: no links, sources or citations. Leave out any ${word} you can't find a recap of. "number" is the ${word}'s number below.`,
     ``,
     `The ${plan.words.episodes.toLowerCase()}:`,

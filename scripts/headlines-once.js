@@ -63,7 +63,7 @@ function promptOf(list) {
   return [
     `Write a headline for each of these TV episode write-ups. Use only what each write-up says. Answer with JSON only, in this shape:`,
     `{"headlines": [{"id": "...", "headline": "..."}]}`,
-    `Each headline is one line of ${HEADLINE_MAX} characters or fewer, in the past tense, the way a TV recap would title it: who left and how (the vote and its count, a quit, a twist), or the episode's biggest moment if nobody left. Name everyone who left. For a sports game: the final score with who won. Plain words, no quotes, no semicolons (join two facts with a comma), no full stop at the end. "id" is the id given before each write-up.`,
+    `Each headline is one line of ${HEADLINE_MAX} characters or fewer, in the past tense, the way a TV recap would title it: who left and how (a vote, a blindside, a quit, a twist), or the episode's biggest moment if nobody left. Name everyone who left. No vote counts. For a sports game: the final score with who won. Plain words, no quotes, no semicolons (join two facts with a comma), no full stop at the end. "id" is the id given before each write-up.`,
     ``,
     ...list.map((e) => `id ${e.id} · ${e.show} ${e.season}, ${e.word} ${e.number}${e.kind === "sport" ? " (sport)" : ""}:\n${plainRecap(e.summary)}\n`),
   ].join("\n");

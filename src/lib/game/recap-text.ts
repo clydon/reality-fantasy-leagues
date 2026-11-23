@@ -81,3 +81,24 @@ export function headlineAgrees(headline: string, summary: string, out: string[])
 
 /** A count never breaks across lines at its dash ("8–3–" / "3–1"): a word joiner each side of the dash. */
 export const keepCounts = (s: string) => s.replace(/(\d)\s*([–-])\s*(?=\d)/g, "$1⁠$2⁠");
+
+/**
+ * A write-up or headline without its vote tallies ("voted out 6–5", "banished by a 13–7–1 vote", "with 10 votes"). The AI's
+ * counts vary between asks (Survivor 51's Ep 1 came back 6–2, 5–3 and 2–1) and nothing checks them against the results yet
+ * (BACKLOG 259), so a show's write-ups say who left and how, never the tally (the user, 2026-11-23). Applied where write-ups are
+ * read, so what's saved keeps them for when they can be checked; the recap search is asked to leave them out too.
+ */
+export function withoutTallies(text: string): string {
+  return text
+    .replace(/,?\s*\b(?:by|in|with)\s+an?\s+\d+(?:\s*[–-]\s*\d+)+\s+(?:vote|decision|split)\b/gi, "")
+    .replace(/,?\s*\b(?:by|with)\s+\d+\s+votes?\b/gi, "")
+    .replace(/\s*\(?\b\d+(?:\s*[–-]\s*\d+)+\)?(?=[\s.,;:!?)]|$)/g, "")
+    .replace(/\s+([.,;:!?])/g, "$1")
+    .replace(/\s{2,}/g, " ")
+    .replace(/[\s,;:]+$/, "")
+    .trim();
+}
+
+/** A write-up or headline as a show's people read it: a sport keeps its score (that's the point of its write-up); any other show
+ *  loses its vote tallies (withoutTallies). */
+export const asShown = (text: string, kind: string | null | undefined) => (kind === "sport" ? text : withoutTallies(text));

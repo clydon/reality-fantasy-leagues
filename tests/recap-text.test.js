@@ -82,3 +82,24 @@ test("a count keeps its dashes on one line", () => {
   assert.equal(keepCounts("voted out 6 - 5"), "voted out 6⁠-⁠5");
   assert.equal(keepCounts("a well-run tribe"), "a well-run tribe");
 });
+
+const { withoutTallies, asShown } = jiti("../src/lib/game/recap-text.ts");
+
+test("vote tallies come out of a show's write-ups and headlines, never a sport's score", () => {
+  const cases = [
+    ["Aaliyah Fell 2–1 After Two Failed Shots", "Aaliyah Fell After Two Failed Shots"],
+    ["Rob Quit, Patt Was Blindsided 6-5", "Rob Quit, Patt Was Blindsided"],
+    ["Alexis Fell 3–1, Linnea Went After Two Ties", "Alexis Fell, Linnea Went After Two Ties"],
+    ["Kim murdered, Madeline banished 13–7–1", "Kim murdered, Madeline banished"],
+    ["Ori Jean-Charles Was Voted Out 2-0", "Ori Jean-Charles Was Voted Out"],
+    ["Ana Sani was voted out 5–4 after the plan fell apart.", "Ana Sani was voted out after the plan fell apart."],
+    ["Madeline Kostopulos is banished by a 13–7–1 vote after Kriste accuses her.", "Madeline Kostopulos is banished after Kriste accuses her."],
+    ["The group banishes Michael Foote by an 8–3–3–1 vote; Michael is a Faithful.", "The group banishes Michael Foote; Michael is a Faithful."],
+    ["Tomica was banished with 10 votes and revealed herself.", "Tomica was banished and revealed herself."],
+    ["The mission adds $15,300 to the pot, bringing it to $97,000.", "The mission adds $15,300 to the pot, bringing it to $97,000."],
+    ["Victor receives the most votes, with five, but the vote is paused.", "Victor receives the most votes, with five, but the vote is paused."],
+  ];
+  for (const [from, to] of cases) assert.equal(withoutTallies(from), to, from);
+  assert.equal(asShown("Rays 5, Brewers 3: a 2-1 lead held", "sport"), "Rays 5, Brewers 3: a 2-1 lead held", "a sport keeps its numbers");
+  assert.equal(asShown("Patt blindsided 6–5", "competition"), "Patt blindsided");
+});

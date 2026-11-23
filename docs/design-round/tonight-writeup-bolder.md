@@ -116,3 +116,10 @@ survivor etc, I think even sports." For the reveal: "Summary after the vote".
 - **The reveal** (reveal.tsx): "In this episode" plays after the vote cards when someone left, and first when nobody did.
 - **Production's catch-up** after the deploy: Survivor 51's aired episodes, filled at once on the user's word; then, by the clock,
   whatever else is missing among each followed or played season's newest 10.
+
+## No vote counts (the user, 2026-11-23)
+
+Three AI asks gave Survivor 51's Ep 1 three counts (6-2, 5-3, 2-1), and nothing checks them. A show's write-ups and headlines
+now lose their tallies where they're read (recap-text.ts withoutTallies: "voted out 6–5" becomes "voted out", "banished by a
+13–7–1 vote" becomes "banished"; run over all 68 real texts, 22 changed, all reading cleanly), and the recap search is told to leave them out. A
+sport keeps its score. The saved text keeps the counts for when BACKLOG 259 can check or correct them.

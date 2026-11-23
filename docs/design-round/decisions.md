@@ -1981,3 +1981,11 @@
 - Why: write-ups were asked only for a show nobody plays, so Survivor, the couch's main show, never had one. A write-up names
   who went home, so before the vote cards it gave the boot away.
 - Rests on: docs/design-round/tonight-writeup-bolder.md, "Every show".
+
+## 2026-11-23 · Write-ups and headlines say who left and how, never the vote count
+- Decided by: the user ("Go ahead"), on Claude's recommendation after three AI asks gave Survivor 51's Ep 1 three counts (6-2,
+  5-3, 2-1).
+- What: a show's write-ups and headlines lose their vote tallies where they're read (recap-text.ts withoutTallies, asShown in
+  season-episodes.ts: Tonight, Episodes, the reveal). The saved text keeps them for when they can be checked. The recap search is
+  told to leave them out. A sport keeps its score.
+- Why: nothing checks the AI's counts against the results, and nobody can correct one yet (BACKLOG 259, next).
