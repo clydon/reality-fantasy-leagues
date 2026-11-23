@@ -1868,3 +1868,15 @@
   photo: the name carries who it is, the face is the garnish).
 - Rests on: src/new/screens/team-page.tsx (`SchedRow`); docs/design-round/team-page-spec.md, "The game row"; the memory rule
   "faces with names".
+
+## 2026-11-22 · A game's sheet with Play (sports-couch B4)
+- Decided by: the user ("Looks good!"), on B4's story https://claude.ai/artifact/BqzTDp21SuBUZ7raWkf7Qx; approved as built, with
+  the two kept calls as they are.
+- What: the sheet every game row opens is titled by the matchup and leads with the couch's games already on it; when one is the
+  chosen kind, Join it is the one yellow (under its row) and Start another is outlined, so a duplicate is never the default. Play
+  is four one-game tiles (Pick'em chosen; "Pick a side" in a rivalry) and one decision with its lock and undo words; Go bigger
+  (series, the team's season, this week) and More options below. After kickoff: the score through hiding, the couch's games on it,
+  the thread. Solo: Start a couch is the yellow.
+- Kept: the day alone under the title (the time stays in the scorebug); the line in ESPN's short form ("NYG by 3").
+- Rests on: src/new/sports/team.tsx (`GameView`), src/new/sports/game-bug.tsx; docs/design-round/game-sheet-spec.md, -first-view.md,
+  -shape.md, -check.md; docs/PLAN-sports-couch.md, B4's build notes.

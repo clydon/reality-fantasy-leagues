@@ -311,6 +311,11 @@ no key, the same unofficial host as the rest):
   a league, and only while someone looks; one cache row a league (~9 KB). The teams' colours come from the league's team list,
   already cached a week. Asked once a visit to a league's Standings (React Query keeps it five minutes). Nothing polled.
 
+**A game's sheet (docs/PLAN-sports-couch.md B4, 2026-11-22, not merged)** asks ESPN nothing new. One small read of ours:
+`GET /api/sports/game/seasons?league=&event=` (the seasons a real game is in, from `season_events`; a few rows; the same for everyone,
+edge-kept a minute), asked once when a game's sheet opens. Everything else is reads the screens already make (the team's schedule,
+the couch's games and teams, the one-day week read, the sport's rail, the room's counts).
+
 **A team's page (docs/PLAN-sports-couch.md B2, 2026-11-22, not merged)** asks ESPN **nothing new**: the team's schedule read (the
 old team sheet's, cached as it was), the league's standings read above for the team's place (only once results may show; one
 cached answer a league), league-now's weeks for football's bye (cached), and the league's one-day week read for the game on now's

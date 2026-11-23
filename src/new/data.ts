@@ -2201,6 +2201,17 @@ export function useLeagueStandings(league: string, enabled = true) {
   });
 }
 
+/** The seasons a real game is in and its episode in each (/api/sports/game/seasons; docs/PLAN-sports-couch.md B4): a game's sheet
+ *  matches the couch's games to it. */
+export function useGameSeasons(league: string, event: string | null) {
+  return useQuery({
+    queryKey: ["new-design", "game-seasons", league, event],
+    queryFn: () => get<{ seasons: { seasonId: string; episode: number }[] }>(`/api/sports/game/seasons?league=${encodeURIComponent(league)}&event=${encodeURIComponent(event!)}`),
+    enabled: !!event,
+    staleTime: 60_000,
+  });
+}
+
 export function useLeagueTeams(league: string, teams: string[], enabled = true) {
   const ids = [...new Set(teams)].sort().join(",");
   return useQuery({

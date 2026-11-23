@@ -370,6 +370,30 @@ the same search (BACKLOG 43).
 **B4. A game's sheet with Play** (M): every game row opens one sheet; before kickoff its job is Play (Pick'em chosen, the other
 types beside it, bigger sizes a row down, "already on the couch" first so nobody starts a duplicate).
 
+**B4's build notes (2026-11-22, lane `sports-couch`, port 3019; not committed; no migration; one small new read of ours, no ESPN).**
+Story: https://claude.ai/artifact/BqzTDp21SuBUZ7raWkf7Qx. **Approved as built** (the user, 2026-11-22: decisions.md). The design: [game-sheet-spec.md](design-round/game-sheet-spec.md) (Intent),
+`-first-view.md` (PFD), `-shape.md` (Impeccable), `-check.md` (the check and its one batch).
+- **Where:** the game's sheet every game row opens (`openSports({ kind: "game" })`, sheets.tsx): titled by the matchup ("Cowboys at
+  Giants"), `GameView` in src/new/sports/team.tsx. The team page's scorebug moved to `src/new/sports/game-bug.tsx` (`GameBug`) so
+  both draw one.
+- **Before kickoff:** the day; the shared scorebug; the couch line in names ("Your Eagles at Riley's Jets"); **On the couch**: the
+  couch's games that cover this game (Riley's Pick'em, who's in; a longer game says "this game counts in it"), with **Join** as the
+  one yellow under its row when it's the chosen kind (PFD's R5: the duplicate is never the default); **Play** (or "Or start your
+  own"): the sport's one-game types as tiles (Pick'em, Pick a few, A draft, Squares; a radio group; chosen, an ink outline and a
+  check), and one decision: Start the chosen type ("Picks lock at kickoff, Sun 4:25 PM · You have 10 seconds to undo, then the
+  couch is told"), or Start another under Join; Pick'em says "Pick a side" in a rivalry; **Go bigger**: their series, every game
+  left of the team's season, this week's games; **More options** (Start a game's screens). Solo: "Start a couch" is the yellow.
+- **After kickoff:** the score through hiding (the bug's ask), the couch line, the couch's games on it (Open), the thread link
+  ("3 messages in its thread", or "Talk about it"), "Picks closed at kickoff." only when a couch game covers it.
+- **Data:** `GET /api/sports/game/seasons?league=&event=` (season_events: the seasons a real game is in and its episode in each; the
+  same for everyone, edge-kept a minute); the sheet matches the couch's games read to it. HOSTING.md: "A game's sheet".
+- **Checks:** `scripts/dev-test/story-game-sheet.js` (pre, pre-none, types, bigger, rivalry, live, live-hidden, final, daily, solo,
+  studio, real-nfl; `--before` shot the old sheet). check-sports-couch.js: 128 pass, no failures (the same stale gallery step as
+  B2, BACKLOG 252). `npm test` 2,599 pass; tsc and ESLint clean on the app files.
+- **Open for the user:** the day alone under the title (the time stays in the bug); the line in ESPN's short form ("NYG by 3"),
+  the scorebug's since A1. **Noticed, not fixed:** a couch game row repeats its maker on its second line; "is the couch's game
+  the same kind" matches by the game's name (Pick'em, Squares): a game named otherwise isn't matched.
+
 ### Phase C: playing as a couch (round 2)
 
 - **C1. Rivalries** (L): found from follows and the schedule; the rivalry card; the challenge (Winner and margin, an invite to one

@@ -113,7 +113,11 @@ Newest first. The plan or archive section named holds the detail.
 
 ## In flight
 
-- **Sports on the couch, B2: a team's page** (2026-11-22, lane `sports-couch`, port 3019; not committed; no migration, no new
+- **Sports on the couch, B4: a game's sheet with Play** (2026-11-22, lane `sports-couch`; not committed; no migration): every game
+  row's sheet, titled by the matchup, with the couch's games on it first (Join as the yellow so nobody starts a duplicate), the
+  one-game types as tiles, one decision, Go bigger; after kickoff the score, the couch's games and the thread. Story: https://claude.ai/artifact/BqzTDp21SuBUZ7raWkf7Qx.
+  Approved and committed in the lane (not merged). Next: B3, search.
+- **Sports on the couch, B2: a team's page** (2026-11-22, lane `sports-couch`, port 3019; committed e11cd936, not merged; no migration, no new
   external read): the team sheet becomes a page at /league/<sport>/<code>/team/<id> (the game on now as the scorebug, Play, the
   season as a bar a game, one schedule by month with Against, homestands and road trips, Month view), BACKLOG 254 (m)'s team half.
   Story: https://claude.ai/artifact/GxZgu7KEX38h59Y2Kyq46g. The rows decided (one-team, with the couch on them: decisions.md). **Waits on the user's review** of the updated story.

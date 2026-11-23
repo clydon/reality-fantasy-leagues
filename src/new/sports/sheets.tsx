@@ -54,13 +54,17 @@ export function SportsSheets() {
     nav.push(paths.team(view.league, view.team));
   }, [view, nav]);
   const browse = view && view.kind === "game" ? view : null;
+  // The sheet's title is the matchup ("Cowboys at Giants", B4), read from the team's schedule the sheet reads anyway.
+  const sched = useTeamSchedule(browse?.league ?? null, browse?.team ?? null).data;
+  const sg = browse ? sched?.games.find((x) => x.id === browse.game) : null;
+  const title = sched && sg ? `${(sg.home === false ? sched.team : sg.opponent)?.short ?? "To be decided"} at ${(sg.home === false ? sg.opponent : sched.team)?.short ?? "To be decided"}` : "A game";
   return (
     <>
       <Sheet
         key={`sports-${n}`}
         open={!!browse}
         onOpenChange={close}
-        title="A game"
+        title={title}
       >
         {browse && <GameFromSchedule league={browse.league} team={browse.team} game={browse.game} />}
       </Sheet>
@@ -79,7 +83,15 @@ function GameFromSchedule({ league, team, game }: { league: string; team: string
   const s = sched.data;
   const g = s?.games.find((x) => x.id === game);
   if (!s || !g) return <p className="text-[14px] text-muted-foreground">{sched.isLoading ? "Loading…" : "That game isn't on their schedule."}</p>;
-  return <GameView g={g} s={s} onStarted={() => openSports(null)} onStart={(when) => openSports(startOn(league, team, s.team.short, when, { kind: "game", league, team, game }))} />;
+  return (
+    <GameView
+      g={g}
+      s={s}
+      onStarted={() => openSports(null)}
+      onStart={(when) => openSports(startOn(league, team, s.team.short, when, { kind: "game", league, team, game }))}
+      onSlate={() => openSports({ kind: "start", target: { kind: "slate", league, leagueName: s.leagueName ?? league }, back: { kind: "game", league, team, game } })}
+    />
+  );
 }
 
 /** Your games in a league (each game of yours on one of its sports seasons) and the move due in each: a league's page's This week
