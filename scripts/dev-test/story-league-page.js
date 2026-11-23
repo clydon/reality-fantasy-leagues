@@ -6,8 +6,8 @@
 //   gameday      Week 12, Sunday: the Eagles on now at the Jets (alex vs Riley, 14-10), Cowboys at Giants later today (alex's
 //                Pick'em on it, a pick due), Bears at Lions tonight: the hub's card (gameday-card), its tap: the page (gameday,
 //                gameday.full), the Scores tab (gameday-scores), the Games tab (gameday-games), a team row's tap (gameday-team)
-//   midweek      the same season, this week's games later in the week: the rivalry before kickoff with Start a game on it
-//                (midweek), its tap (midweek-start)
+//   midweek      the same season, this week's games later in the week: the rivalry before kickoff (midweek), its Other games
+//                on it (midweek-start; the rivalry's own call and sides: story-rivalry.js)
 //   hidden       gameday with Hide sports scores on: no numbers, Show records (hidden), and after it's tapped (hidden-shown)
 //   lone         alex alone follows a football team: one row, no rivalry (lone)
 //   none         nobody follows a football team; alex follows the league: the empty table (none)
@@ -354,7 +354,9 @@ async function main() {
       if (tw) {
         await shoot("midweek", null, { full: true });
         await shoot("midweek-start", async (pg) => {
-          await pg.locator("[data-rivalry-start]").click();
+          // C1: the card's own Make your call replaced "Start a game on it"; Other games on it opens the game's sheet (story-rivalry.js
+          // shoots the call itself).
+          await pg.locator("[data-rivalry-more]").first().click();
           await pg.waitForTimeout(2500);
         }, { sheet: true });
       }

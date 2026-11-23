@@ -1894,3 +1894,17 @@
 - Rests on: src/new/sports/search.tsx, src/lib/sports/search-rank.ts, src/new/watching/sheets.tsx (`AddShowSheet`),
   src/new/welcome/first-run.tsx; docs/design-round/search-spec.md, -first-view.md, -shape.md, -check.md; docs/PLAN-sports-couch.md,
   B3's build notes.
+
+## 2026-11-22 · Rivalries (sports-couch C1)
+- Decided by: the user ("I agree with all"), on C1's story https://claude.ai/artifact/7nq5aqBuq4o2Eh5YnsfAt7; approved as built, with
+  the three recommendations.
+- What: when two couch members' teams meet, This week's card is the game: one Winner and margin game a meeting, started by the first
+  tap; the two fans make calls (the first fan's call is the challenge: one push to the other fan, the only push); anyone else picks a
+  side in one tap, public as picked; margins hidden until kickoff; the result in names ("Andrew called it") over the pair's record.
+  (1) Anyone may add a margin, and the closest of all scores the point; the duel's headline compares the two fans alone. (2) The
+  record across seasons waits for a second season: built when the NFL's 2027 season starts (September), from the follows' dates.
+  (3) The decided push is BACKLOG 217's, built once for every sports game, not a rivalry one-off.
+- Also settled in the check, by the process's rules: a picked side makes the margin optional (never a move); one yellow a page (the
+  move strip's, else the first card you're a fan in); this week's cards on now, then next, then the last played (a final stays).
+- Rests on: src/new/sports/rivalry.tsx, src/lib/sports/rivalry.ts, src/lib/server/sports/rivalry.ts; docs/design-round/rivalry-spec.md,
+  -first-view.md, -shape.md, -check.md; docs/PLAN-sports-couch.md, C1's build notes; BACKLOG 255.

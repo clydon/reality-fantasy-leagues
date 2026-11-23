@@ -26,7 +26,7 @@ export interface FollowedTeam {
 }
 
 /** Someone on a couch who follows a team or a league; `myTeam` when the team is theirs in its league. */
-export type Follower = { id: string; name: string; myTeam?: boolean };
+export type Follower = { id: string; name: string; myTeam?: boolean; since?: string };
 
 /** A couch's team: who follows it there (names), and whether the couch plays a game with it. */
 export type CouchTeam = FollowedTeam & { followers: Follower[]; you: boolean; plays: boolean };
@@ -167,7 +167,8 @@ export async function couchFollows(userId: string, couchId: string): Promise<{ t
     const k = `${r.league}|${r.team_id}`;
     // A couch team's own myTeam is yours (whether it's your team in its league); each follower says whether it's theirs.
     const t = byKey.get(k) ?? { ...rowOf({ ...r, my_team: false }), followers: [], you: false, plays: false };
-    t.followers.push({ id: r.user_id as string, name: r.who as string, myTeam: !!r.my_team });
+    // `since`: when they followed it (C1: the couch's rivalry record counts the seasons since both fans of a meeting followed).
+    t.followers.push({ id: r.user_id as string, name: r.who as string, myTeam: !!r.my_team, since: new Date(r.created_at).toISOString() });
     if (r.mine) {
       t.you = true;
       t.myTeam = !!r.my_team;

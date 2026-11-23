@@ -2327,3 +2327,35 @@ export const momentVotes = {
   decide: (seasonId: string, couchId: string, leagueId: string, id: string, to: "start" | "next") =>
     sendJson<{ batch: string }>(seasonUrl(seasonId, "/backstage/settings", { couch: couchId }), "PATCH", { leagueId, moment: { id, to } }),
 };
+
+// ---- a rivalry's game (docs/PLAN-sports-couch.md C1: src/lib/server/sports/rivalry.ts) ----
+
+export type { RivalryGame } from "@/lib/server/sports/rivalry";
+
+/** The couch's rivalry games in a league, with every pick (sides public; margins only once begun, yours always). */
+export function useRivalryGames(couchId: string | null, league: string) {
+  return useQuery({
+    queryKey: ["new-design", "rivalries", couchId, league],
+    queryFn: () => get<{ games: import("@/lib/server/sports/rivalry").RivalryGame[] }>(`/api/sports/rivalry?couch=${couchId}&league=${encodeURIComponent(league)}`),
+    enabled: !!couchId,
+    staleTime: 30_000,
+  });
+}
+
+/** Make, change or take back (side null) a pick on a rivalry; the read put in place, and what counts games read again. */
+export function useRivalryPick(couchId: string | null, league: string) {
+  const client = useQueryClient();
+  return useCallback(
+    async (body: { event: string; team: string; side: string | null; margin?: number | null; name?: string; rival?: string }) => {
+      const r = await post<{ game: import("@/lib/server/sports/rivalry").RivalryGame | null }>(`/api/sports/rivalry?couch=${couchId}`, { league, ...body });
+      client.setQueryData<{ games: import("@/lib/server/sports/rivalry").RivalryGame[] }>(["new-design", "rivalries", couchId, league], (old) => {
+        const rest = (old?.games ?? []).filter((g) => g.event !== body.event);
+        return { games: r.game ? [...rest, r.game] : rest };
+      });
+      void client.invalidateQueries({ queryKey: HOME_KEY });
+      void client.invalidateQueries({ queryKey: ["new-design", "mine"] });
+      return r.game;
+    },
+    [client, couchId, league]
+  );
+}

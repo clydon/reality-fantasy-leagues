@@ -311,6 +311,12 @@ no key, the same unofficial host as the rest):
   a league, and only while someone looks; one cache row a league (~9 KB). The teams' colours come from the league's team list,
   already cached a week. Asked once a visit to a league's Standings (React Query keeps it five minutes). Nothing polled.
 
+**Rivalries (docs/PLAN-sports-couch.md C1, 2026-11-22, not merged)** ask ESPN nothing new. One read of ours, `GET
+/api/sports/rivalry?couch=&league=` (the couch's rivalry games in the league from ten days back to two weeks on and their picks: two
+small queries, a few rows; never edge-kept, it's the couch's), once when This week opens and after a pick. A pick (`POST`) is one
+answer written, and the first tap on a meeting also starts its game on the team's season (Play the next game's path: the team's
+schedule, cached as it is). A fan's first call sends the other fan one push (the invite kind). No migration.
+
 **A game's sheet (docs/PLAN-sports-couch.md B4, 2026-11-22, not merged)** asks ESPN nothing new. One small read of ours:
 `GET /api/sports/game/seasons?league=&event=` (the seasons a real game is in, from `season_events`; a few rows; the same for everyone,
 edge-kept a minute), asked once when a game's sheet opens. Everything else is reads the screens already make (the team's schedule,

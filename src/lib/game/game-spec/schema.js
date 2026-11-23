@@ -405,7 +405,8 @@ const VOCAB = {
 //   answer  person (`pick` of them, each right one scores; `from` the cast still in, or a draft's own team) | group (a
 //           tribe, a team: `pick` of them, from the groups someone still in is on) | yesNo | number (the closest wins,
 //           ties all) | overUnder (with line: a number, or null for the wizard to ask) | choice (with options) | calls
-//           (the show's two calls each episode, Call it's: CALLS); sports: side. A8:
+//           (the show's two calls each episode, Call it's: CALLS); sports: side (C1: with `shown: 'picked'`, everyone's
+//           answer shown to the game as it's given, not only at the lock: a rivalry's public sides). A8:
 //             order       `pick` people in order (the boot order, a leaderboard): its points for each in their right place, or
 //                         within `within` places of it
 //             confidence  `pick` people, most sure first: each right one scores its points times its weight (the first
@@ -2919,6 +2920,12 @@ function questionProblems(q, at, s, ids, league) {
     if (q.closes !== 'start') add('closes', 'A question about each person closes as it starts');
   }
   if (q.confidence !== undefined && q.each !== 'game') add('confidence', "Only a question about each game ranks its picks by confidence");
+  // C1 (docs/PLAN-sports-couch.md, rivalries): a side's answers shown to the game as they're given (a rivalry's public sides), not
+  // only at the lock. Only who wins: a number or a person would be copied.
+  if (q.shown !== undefined) {
+    if (q.shown !== 'picked') add('shown', "Shown as they're picked (shown: 'picked'), or leave it out");
+    else if (q.answer !== 'side') add('shown', 'Only who wins (a side) is shown before the lock');
+  }
   // Only what the finale decides waits for it: anything else could be settled before then (an idol played this season, who
   // finished fifth), and answered once it's known.
   if (q.closes === 'finale' && q.asked === 'once') {
@@ -3092,7 +3099,7 @@ const KEYS = {
   windows: ['schedule', 'every', 'swaps'],
   draft: ['at', 'timer', 'away', 'opens'],
   bets: ['points'],
-  question: ['id', 'ask', 'answer', 'points', 'settle', 'asked', 'closes', 'pick', 'from', 'line', 'options', 'each', 'every', 'over', 'within', 'chips', 'pairs', 'wager', 'odds', 'share', 'rollover', 'shrink', 'fallback', 'beat', 'legs', 'pays', 'card', 'draw', 'rounds', 'confidence'],
+  question: ['id', 'ask', 'answer', 'points', 'settle', 'asked', 'closes', 'pick', 'from', 'line', 'options', 'each', 'every', 'over', 'within', 'chips', 'pairs', 'wager', 'odds', 'share', 'rollover', 'shrink', 'fallback', 'beat', 'legs', 'pays', 'card', 'draw', 'rounds', 'confidence', 'shown'],
   settle: ['by', 'take', 'moment', 'role', 'phase', 'stat', 'place', 'fact', 'of', 'tie', 'source', 'after'],
   beat: ['by', 'none'],
 };

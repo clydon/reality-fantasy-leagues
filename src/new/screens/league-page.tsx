@@ -10,8 +10,8 @@
 // on, none shows, the table is ordered yours first then by fans, and Show records shows them all for the visit (showScore).
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { usePathname } from "next/navigation";
-import { CalendarDays, ChevronLeft, ChevronRight, Eye, ListOrdered, MessageCircle, Swords, TableProperties, Trophy, type LucideIcon } from "lucide-react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { CalendarDays, ChevronLeft, ChevronRight, Eye, ListOrdered, MessageCircle, TableProperties, Trophy, type LucideIcon } from "lucide-react";
 import { useCouchTeams, useCurrentCouch, useHome, useLeaguesNow, useLeagueTeams, useRoomBadge, useRoomLatest, useSportsRecordings, useYourTeams, type WeekGame } from "../data";
 import { NavLink, useNav } from "../nav";
 import { isLeagueTab, LEAGUE_TABS, paths, type LeagueTab } from "../routes";
@@ -19,8 +19,9 @@ import { Avatar, Faces } from "../ui/bars";
 import { FollowToggle, theLeague, useLeagueFollow } from "../sports/follow";
 import { SportsLabel, TeamMark } from "../sports/parts";
 import { begun, clockOf, dayOf, showScore, useGameScore, useHideSports, useNow, useShownScores } from "../sports/scores";
-import { LeagueGameRows, LeagueStart, openSports, startOn, useLeagueGames, useLeagueWeek } from "../sports/sheets";
-import { rankTeams, recordWords, rivalriesOf, rivalryRecords, type Fan, type Rivalry, type TeamForm } from "@/lib/sports/couch-table";
+import { LeagueGameRows, LeagueStart, openSports, useLeagueGames, useLeagueWeek } from "../sports/sheets";
+import { pairRecord, rankTeams, recordWords, rivalriesOf, rivalryRecords, type Fan, type Rivalry, type TeamForm } from "@/lib/sports/couch-table";
+import { RivalryCard } from "../sports/rivalry";
 import type { LeagueNow } from "@/lib/sports/league-now";
 import { LeagueScores } from "./league-scores";
 import { LeagueGames } from "./league-games";
@@ -210,13 +211,19 @@ function ThisWeek({ league, name, now: lnow }: { league: string; name: string; n
   const hidden = hide && [...results, ...weekBegun.map((g) => g.id)].some((id) => !shown.has(id));
   const rivalries = rivalriesOf(teams, forms, meId);
   const inWeek = new Set(week.games.map((g) => g.id));
-  // This week's rivalry: the one on now, else the next, else the one just played.
   const thisWeek = rivalries.filter((r) => inWeek.has(r.id));
   const live = thisWeek.find((r) => {
     const g = week.games.find((x) => x.id === r.id);
     return g && begun(g, now) && g.state !== "post" && !g.final;
   });
-  const rivalry = live ?? thisWeek.find((r) => !r.at || Date.parse(r.at) > now) ?? thisWeek[thisWeek.length - 1] ?? null;
+  // C1: a card for each of this week's rivalries, two at most (the rest in Rivalries this season): on now, then the next to come,
+  // then the last played (its result is the story: a final mustn't vanish because another rivalry is still to come).
+  const upcoming = thisWeek.filter((r) => r !== live && (!r.at || Date.parse(r.at) > now));
+  const played = thisWeek.filter((r) => r !== live && !upcoming.includes(r)).reverse();
+  const shownRivalries = [...(live ? [live] : []), ...upcoming, ...played].slice(0, 2);
+  const couchId = useCurrentCouch(useHome().data)?.id ?? null;
+  const yellowTaken = useLeagueGames(league).moves.length > 0;
+  const call = useSearchParams().get("call");
   const rest = week.games.filter((g) => !g.sides.some((s) => teams.some((t) => t.id === s.id)));
   const showAll = () => {
     for (const id of results) showScore(id);
@@ -225,7 +232,24 @@ function ThisWeek({ league, name, now: lnow }: { league: string; name: string; n
   return (
     <div data-this-week>
       <MoveStrip league={league} />
-      {rivalry && <RivalryCard r={rivalry} g={week.games.find((x) => x.id === rivalry.id) ?? null} teams={teams} forms={forms} hidden={hidden} league={league} meId={meId} />}
+      {shownRivalries.map((r, i) => (
+        <RivalryCard
+          key={r.id}
+          r={r}
+          g={week.games.find((x) => x.id === r.id) ?? null}
+          teams={teams}
+          forms={forms}
+          hidden={hidden}
+          league={league}
+          meId={meId}
+          couchId={solo ? null : couchId}
+          // One yellow a page: the move strip's, else the first card you're a fan in (its call).
+          yellowTaken={yellowTaken || shownRivalries.slice(0, i).some((x) => x.fans.some((f) => f.id === meId))}
+          record={{ ...pairRecord(rivalries, r.fans[0], r.fans[1]), since: null }}
+          openCall={call === r.id}
+          heading={i ? "Also this week" : undefined}
+        />
+      ))}
       <CouchTable
         league={league}
         name={name}
@@ -239,13 +263,13 @@ function ThisWeek({ league, name, now: lnow }: { league: string; name: string; n
         failed={formsQ.isError}
         weekFailed={week.error}
         retry={() => void (formsQ.isError && formsQ.refetch(), week.error && week.refetch())}
-        rivalryId={rivalry?.id ?? null}
+        rivalryIds={shownRivalries.map((r) => r.id)}
         onShow={hide && hidden ? showAll : null}
         weekly={league.startsWith("football/")}
         off={!!lnow && !lnow.on}
         now={now}
       />
-      <SeasonRivalries rivalries={rivalries.filter((r) => r.id !== rivalry?.id)} teams={teams} hidden={hidden} meId={meId} league={league} />
+      <SeasonRivalries rivalries={rivalries.filter((r) => !shownRivalries.some((x) => x.id === r.id))} teams={teams} hidden={hidden} meId={meId} league={league} />
       <YourGamesHere league={league} name={name} lnow={lnow} />
       <RoomLine league={league} />
       {rest.length > 0 && (
@@ -318,77 +342,6 @@ function useSideWords(g: WeekGame | null, team: string): { text: string; live: b
   return { text: `On now · ${score} ${vs}`.trim(), live: true };
 }
 
-/** This week's rivalry: two couch members' teams meeting, read through the people, their teams and records (no VS: 2026-11-12). */
-function RivalryCard({ r, g, teams, forms, hidden, league, meId }: { r: Rivalry; g: WeekGame | null; teams: Team[]; forms: Map<string, TeamForm>; hidden: boolean; league: string; meId: string }) {
-  const who = (f: Fan) => (f.id === meId ? "You" : f.name);
-  const moment = g ?? { id: r.id, at: r.at, state: r.state, final: r.final };
-  const s = useGameScore(moment);
-  const open = s.open && !hidden;
-  const final = !!g && (g.state === "post" || g.final);
-  const live = s.started && open && !final;
-  const status = !s.started ? (r.at ? `${dayOf(r.at)} ${clockOf(r.at)}` : "Time to be set") : open ? (final ? "Final" : "On now") : s.when;
-  const team = (id: string) => teams.find((t) => t.id === id);
-  const away = team(r.away);
-  const home = team(r.home);
-  const sideOf = (id: string) => g?.sides.find((x) => x.id === id);
-  const winner = open && final ? (sideOf(r.away)?.winner ? r.away : sideOf(r.home)?.winner ? r.home : null) : null;
-  const say = (t: Team | undefined, fan: Fan) => `${fan.id === meId ? "Your" : `${fan.name}'s`} ${t?.short ?? "team"}${open && forms.get(t?.id ?? "") ? `, ${recordWords(forms.get(t!.id)!) ?? "no record yet"}` : ""}`;
-  return (
-    <section data-rivalry={r.id} aria-label={`This week's rivalry: ${say(away, r.fans[0])} at ${say(home, r.fans[1])}. ${status}.`} className="mt-4 rounded-[4px] bg-card px-3.5 pb-3 pt-3">
-      <div className="flex items-center gap-2">
-        <Swords className="size-4 flex-none text-muted-foreground" aria-hidden />
-        <h2 className="type-caption text-[17px] tracking-[0.03em]">This week&rsquo;s rivalry</h2>
-        <span data-rivalry-status className="ml-auto flex items-center gap-1.5 text-[13px] font-semibold text-muted-foreground">
-          {live && <i className="size-[7px] rounded-full bg-live motion-safe:animate-pulse" aria-hidden />}
-          <span className={live ? "text-foreground" : undefined}>{status}</span>
-        </span>
-      </div>
-      <button
-        type="button"
-        data-rivalry-open
-        onClick={() => openSports({ kind: "game", league, team: r.home, game: r.id })}
-        aria-label={`Open ${away?.short ?? ""} at ${home?.short ?? ""}`}
-        className="nd-press -mx-1.5 mt-1.5 flex w-[calc(100%+12px)] flex-col gap-2 rounded-[3px] px-1.5 py-1 text-left focus-visible:outline-2 focus-visible:outline-foreground"
-      >
-        {([r.away, r.home] as const).map((id, i) => (
-          <RivalrySide key={id} league={league} t={team(id)} fan={r.fans[i]} name={who(r.fans[i])} form={forms.get(id)} side={sideOf(id)} open={open} started={s.started} lost={!!winner && winner !== id} />
-        ))}
-      </button>
-      {!s.started && (
-        <button
-          type="button"
-          data-rivalry-start
-          onClick={() => openSports(startOn(league, r.home, home?.short ?? "", { kind: "games", games: [r.id] }))}
-          className="nd-press mt-3 flex h-11 w-full items-center justify-center rounded-[4px] text-[15px] font-bold outline-1 -outline-offset-1 outline-edge focus-visible:outline-2 focus-visible:outline-foreground"
-        >
-          Start a game on it
-        </button>
-      )}
-    </section>
-  );
-}
-
-/** One side of the rivalry: the team's mark and name, its fan's face and name under it with the record, the score at the right. */
-function RivalrySide({ league, t, fan, name, form, side, open, started, lost }: { league: string; t: Team | undefined; fan: Fan; name: string; started: boolean; form: TeamForm | undefined; side: WeekGame["sides"][number] | undefined; open: boolean; lost: boolean }) {
-  const record = open && form ? recordWords(form) : null;
-  return (
-    <div className={`flex min-h-[48px] items-center gap-3 ${lost ? "text-muted-foreground" : ""}`} data-rivalry-side={t?.id}>
-      <TeamMark abbr={t?.abbreviation ?? t?.short.slice(0, 3)} color={t?.color} size="sm" team={t && teamKeyOf(league, t.id)} />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[16px] font-bold leading-tight">{t?.short}</span>
-        <span className="mt-1 flex min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground">
-          <Avatar id={fan.id} name={fan.name} size={18} />
-          <span className="truncate">
-            {name}
-            {record ? ` · ${record}` : ""}
-          </span>
-        </span>
-      </span>
-      {open && started && side?.score != null && <span className="type-num flex-none text-[26px] leading-none">{side.score}</span>}
-    </div>
-  );
-}
-
 /** The couch's teams ranked by record: standings rows of two lines, yours on the raised row. */
 function CouchTable(p: {
   league: string;
@@ -403,7 +356,8 @@ function CouchTable(p: {
   failed: boolean;
   weekFailed: boolean;
   retry: () => void;
-  rivalryId: string | null;
+  /** The rivalries drawn above as cards: their teams' rows say so instead of repeating the game. */
+  rivalryIds: string[];
   onShow: (() => void) | null;
   weekly: boolean;
   off: boolean;
@@ -452,7 +406,7 @@ function CouchTable(p: {
               form={hidden ? undefined : forms.get(team.id)}
               week={weekGameOf(team.id, p.games, p.now)}
               weekFailed={p.weekFailed}
-              rivalry={!!p.rivalryId && p.games.some((g) => g.id === p.rivalryId && g.sides.some((s) => s.id === team.id))}
+              rivalry={p.games.some((g) => p.rivalryIds.includes(g.id) && g.sides.some((s) => s.id === team.id))}
               solo={p.solo}
               meId={meId}
               weekly={p.weekly}

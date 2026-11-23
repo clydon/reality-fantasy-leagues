@@ -425,6 +425,38 @@ Story: https://claude.ai/artifact/BqzTDp21SuBUZ7raWkf7Qx. **Approved as built** 
 
 - **C1. Rivalries** (L): found from follows and the schedule; the rivalry card; the challenge (Winner and margin, an invite to one
   person); sides as public picks; margins hidden until kickoff; the result; the couch's rivalry record across seasons.
+**C1's build notes (2026-11-22, lane `sports-couch`, port 3019; not committed; no migration, no new ESPN read; one engine change).**
+Story: https://claude.ai/artifact/7nq5aqBuq4o2Eh5YnsfAt7. **Approved as built** (the user, 2026-11-22, taking the three recommendations:
+decisions.md). The design:
+[rivalry-spec.md](design-round/rivalry-spec.md) (Intent), `-first-view.md` (PFD), `-shape.md` (Impeccable), `-check.md` (the check
+and its one batch).
+- **The model:** one game a meeting, "<fan> vs <fan>", Winner and margin with its winner shown as it's picked
+  (`src/lib/sports/rivalry.ts` RIVALRY_SPEC; pure, tests/sports-rivalry.test.js), started by the first tap on the card (a fan's call
+  or anyone's side) on the team's season, that game only (start.ts takes `game: "rivalry"`, never on the rail), with no "started"
+  push. A game is a rivalry's by its spec, so nothing new is stored. The two fans make calls; anyone else picks a side, a margin
+  optional (once a side is picked the rest is never a move: answers.ts `summaryOf`). The duel: a point for the winner, a point for
+  the closest margin among everyone who called one; the fan with more wins, level is a tie.
+- **The engine change:** a question's `shown: 'picked'` (schema.js: only on a side): its answers leave the server as they're given
+  (answers.ts: `people` before the lock, nothing settled; `QuestionView.shown`). Reviewed per UI-REVIEW-MAP's "who sees others'
+  moves": the game page lists the sides before the lock and says so in its count line; a side answer now says its team's name
+  (questions.tsx `answerWords`: it said the team's id, on every one-game Pick'em after the lock too); the person sheet keeps answers
+  until the lock (BACKLOG 255 b).
+- **Where:** `src/new/sports/rivalry.tsx` (`RivalryCard`, `CallSheet`), on This week (league-page.tsx): a card for each of this
+  week's rivalries, two at most, on now then next then the last played (a final no longer vanishes behind the next rivalry); one
+  yellow a page (the move strip's, else the first card you're a fan in). The challenge push (`notifyRivalryCall`, push-events.ts,
+  the invite kind) opens `/league/<sport>/<code>/week?call=<event>` with Your call open. The pair's record on the card
+  (couch-table.ts `pairRecord`), this season; follow dates now ride on the couch's teams read (`Follower.since`) for the record
+  across seasons (BACKLOG 255 c).
+- **Data:** `GET/POST /api/sports/rivalry?couch=` (src/lib/server/sports/rivalry.ts: the couch's rivalry games and every pick,
+  margins only once begun or your own; a pick joins you and answers, under an advisory lock a couch and game). HOSTING.md,
+  "Rivalries".
+- **Checks:** `scripts/dev-test/story-rivalry.js` (16 frames and 13 checks on the stand-in: the call starts the game, one push to the
+  rival, his margin hidden from the other fan, sides public, a pick after kickoff refused, hiding holds the result; `--before` shot
+  the old card). `npm test` 2,619 pass; tsc clean; ESLint clean on the changed files. check-sports-couch.js not re-run (its This week
+  steps read the card's `data-rivalry`, unchanged).
+- **Decided** (the user): anyone may add a margin; the record across seasons from September 2027 (BACKLOG 255 c); the decided push
+  is BACKLOG 217's. **Noticed, not fixed:** BACKLOG 255 (a) a one-game matchup listed home first on the game page.
+
 - **C2. The lone fan** (M): a fan's call with Back and Fade (Pick'em on one game, framed); his calls record; the fan card and his
   games on the team's page; watching marks for sports.
 - **C3. The victory lap** (S–M): one prompt after a win; a GIF and a line to the couch's feed and the league's room; held for

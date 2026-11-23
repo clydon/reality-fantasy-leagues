@@ -338,6 +338,8 @@ export interface SpecQuestion {
   /** L3 part 2f part 2, a question about each game (each: "game", a side answer): the picks ranked by how sure you are, each
    *  { answer, confidence } (the ranks each used once, 1 to the episode's games), a right pick worth its rank times its points. */
   confidence?: true;
+  /** C1 (rivalries): a side's answers shown to the game as they're given (public sides), not only at the lock. */
+  shown?: "picked";
   /** F3 part 2: a group answer asked each episode, on a season played in groups the league doesn't hold (pairs, from the format's
    *  state over time): void (the default) when its groups aren't sure, no points either way; carry-on follows the people;
    *  next-stage is A12's. */

@@ -1069,3 +1069,24 @@ export function notifyFlagsSettled(flags: { id: string; userId: string; seasonId
     });
   }
 }
+
+/**
+ * A rivalry's challenge (docs/PLAN-sports-couch.md C1): the first fan's call on a meeting of two couch members' teams reaches the
+ * other fan, once (an invite: invites always reach). Nothing of the margin: it's hidden until kickoff. Found rivalries send nothing.
+ */
+export function notifyRivalryCall(o: { to: string; from: string; matchup: string; href: string; key: string; couchId: string; seasonId: string }) {
+  notifyAfter("invite", async () => ({
+    userIds: [o.to],
+    seasonId: o.seasonId,
+    couchId: o.couchId,
+    message: {
+      title: `${o.from} made a call on ${o.matchup}`,
+      body: "Your call? Sides are public; margins stay hidden until kickoff.",
+      url: o.href,
+      next: o.href,
+      tag: `rivalry-${o.key}`,
+      key: o.key,
+      seasonId: o.seasonId,
+    },
+  }));
+}

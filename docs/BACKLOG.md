@@ -534,6 +534,17 @@ a solo player's Games tab offers Start a couch · Join one and nothing to start.
 C4; nothing interim that C4 would make obsolete.
 [S · sports] **Done 2026-11-22 (after the merge, in the lane; not pushed):** (a) a sports start takes the board's name for its game ("Pick'em", "Squares") unless named; (l) the ask sheet says one short line under each choice, and Scores' Show all one line; (o) the join sheet speaks of games and kickoffs on a sports game ("It covers one game, Sun 1:00 PM: make your pick before it starts"); (q) Scores' rows carry "N messages in its thread" into the room (a count, never a word); (r) This week ends with the room's latest line, passing over a thread's talk since kickoff for anyone hiding scores.
 
+**255. Rivalries' leftovers (C1, PLAN-sports-couch.md; the sports-couch lane, 2026-11-22).** (a) A game page's one-game sides are
+listed home first ("ZT Jets at ZT Eagles" for Eagles at Jets): the listing's team order (answers.ts `sideFaces`), every Pick'em on
+one game; away first, as everywhere else. (b) A person's episode sheet (game-sheets.tsx) shows their answers only after the lock, so a
+rivalry's public side isn't on it before kickoff; show a `shown` side there too. (c) The couch's rivalry record across seasons: the
+card says "this season"; earlier seasons' meetings since both fans followed (each follow's date now rides on the couch's teams read)
+need each team's schedule for each earlier season: build it when the first follows cross a season (the NFL's 2027 season,
+September; **decided**, the user 2026-11-22). (d) The rivalry's result push is BACKLOG 217's (one push when any sports game is decided; **decided**, the user 2026-11-22: build
+217 once, not a rivalry one-off). (e) A daily sport's rivalry
+is a meeting, not round 2's series: three meetings, three rivalry games; a series frame waits for daily sports' own pass.
+[S–M · sports]
+
 **222. A game the daily job misses for three days is never read again.** The daily job reads a linked game only from three days
 back (matchup.ts `refreshSportsEvents`), so a game whose day the job skipped for three days (the bot VM down over a long
 weekend) stays "to play" for good, and its slate week never completes. Read every linked game that's started and isn't final,
