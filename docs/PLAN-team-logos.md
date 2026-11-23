@@ -135,7 +135,12 @@ screens, because it needs only the store and the display:
   swaps in your couch's picture, drawn by `Face`, `CastawayAvatar` and the roster's rows only for a badge, so a long list asks
   nothing extra. **Not yet:** `TeamMark` (the hub's bands, the guide, the couch's sheets) still draws the badge only: those
   places know a team's id but not always its league; the design round's hub call settles it.
-- **Composition** (impeccable, 2026-11-22; the design system's Tags Not Fills rule): the white caption plate, the logo contained
+- **Composition, as now (the user, 2026-11-22: "the background the team color", little white padding):** the team's colour as
+  the plate in the badge's own shape (the cut corner, the faint inner edge), the logo contained with 8% padding, and the logo
+  the version drawn for that colour: ESPN's "primary logo on primary colour" when it has one, else its dark-ground version for a
+  dark colour, else the default (Chiefs red on red, Jets on green, Celtics, Lakers, Warriors all checked at 26, 44 and 96 px).
+  The user's call over the design system's Tags Not Fills rule, as the badge already is. It replaced the first composition:
+- **Composition, first** (impeccable, 2026-11-22; the design system's Tags Not Fills rule): the white caption plate, the logo contained
   in a box inset 10% top, left and right and 18% at the bottom, the team's colour on the badge's cut corner as the plate's
   angled tag. Logos read on white (Chiefs red, Bears navy, Raiders black and silver all checked); the tag keeps the badge's
   silhouette. One fix batch from the check: the padding trimmed from 12%/20% so logos read at 36-44 px.

@@ -8,8 +8,8 @@
 //   --couch only: the database's one couch (refused, listing them, when there are more); --by owner: that couch's owner
 //
 // For each team in each league: ESPN's team list (its default logo and its colour; the app's own reader drops logos on purpose),
-// the logo downloaded once, composed into a finished 256 by 256 square (compose(), the plan's "Composition": the white caption
-// plate, the logo contained in a box inset 10% top, left and right and 18% at the bottom, the team's colour on the cut corner),
+// the logo downloaded once, composed into a finished 256 by 256 square (compose(), the plan's "Composition": the team's colour
+// as the plate in the badge's shape, the logo for that colour contained with 8% padding),
 // and saved with couch-pictures.ts setCouchPicture under the team's key (team:<league>:<ESPN id>, the key our badges carry).
 // --by must be on the couch. --dry-run composes and writes nothing (--out saves the squares as files to look at, outside the repo).
 //
@@ -19,12 +19,16 @@ require("dotenv").config({ path: require("path").join(__dirname, "..", ".env.loc
 const fs = require("fs");
 const path = require("path");
 const sharp = require("sharp");
+const { teamInk } = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } })("../src/lib/sports/team-badge.ts");
 
 const SIZE = 256;
 // The composition (docs/PLAN-team-logos.md, "Composition", decided through impeccable 2026-11-22).
-const BOX = { left: 0.1, top: 0.1, right: 0.1, bottom: 0.18 };
-const CUT = { right: 0.68, bottom: 0.76 }; // the badge's cut: from 68% down the right edge to 76% along the bottom
-const PLATE = "#ffffff";
+// The composition (docs/PLAN-team-logos.md, "Composition"; the user's call 2026-11-22: the team's colour behind, little padding):
+// the team's colour as the plate in the badge's own shape (its corner cut from 68% down the right edge to 76% along the bottom, its
+// faint white inner edge), the logo contained in a box inset 8% all round. The logo is the version drawn for the team's colour.
+const PAD = 0.08;
+const CUT = { right: 0.68, bottom: 0.76 };
+const SHAPE = `M0 0H${SIZE}V${SIZE * CUT.right}L${SIZE * CUT.bottom} ${SIZE}H0Z`;
 
 const arg = (name) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -34,22 +38,29 @@ const flag = (name) => process.argv.includes(`--${name}`);
 
 /** A logo (any image bytes) and a team's colour (hex, no #) as the finished square: WebP bytes. */
 async function compose(logo, color) {
-  const box = { w: Math.round(SIZE * (1 - BOX.left - BOX.right)), h: Math.round(SIZE * (1 - BOX.top - BOX.bottom)) };
-  const fitted = await sharp(logo).resize(box.w, box.h, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
-  const tag = /^[0-9a-f]{6}$/i.test(color ?? "") ? `#${color}` : "#4a4558";
-  const corner = Buffer.from(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}"><path d="M${SIZE} ${SIZE * CUT.right}L${SIZE} ${SIZE}L${SIZE * CUT.bottom} ${SIZE}Z" fill="${tag}"/></svg>`
-  );
-  return sharp({ create: { width: SIZE, height: SIZE, channels: 4, background: PLATE } })
-    .composite([
-      { input: fitted, left: Math.round(SIZE * BOX.left), top: Math.round(SIZE * BOX.top) },
-      { input: corner, left: 0, top: 0 },
-    ])
-    .webp({ quality: 90 })
+  const box = Math.round(SIZE * (1 - 2 * PAD));
+  const fitted = await sharp(logo).resize(box, box, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
+  const plate = /^[0-9a-f]{6}$/i.test(color ?? "") ? `#${color}` : "#4a4558";
+  const svg = (body) => Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}">${body}</svg>`);
+  const edge = svg(`<clipPath id="c"><path d="${SHAPE}"/></clipPath><path d="${SHAPE}" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width="6" clip-path="url(#c)"/>`);
+  const shaped = await sharp(svg(`<path d="${SHAPE}" fill="${plate}"/>`))
+    .composite([{ input: fitted, left: Math.round(SIZE * PAD), top: Math.round(SIZE * PAD) }, { input: edge }, { input: svg(`<path d="${SHAPE}" fill="#000"/>`), blend: "dest-in" }])
+    .png()
     .toBuffer();
+  return sharp(shaped).webp({ quality: 90, alphaQuality: 100 }).toBuffer();
 }
 
-/** ESPN's teams in a league ("football/nfl"): id, name, colour and its default (light-ground) logo. */
+/** The logo to put on the team's colour: ESPN's own "on primary colour" version when there is one, else the version for a dark
+ *  ground when the colour is dark (most are), else the default. */
+function logoFor(logos, color) {
+  const rel = (l) => l.rel ?? [];
+  const onPrimary = logos.find((l) => rel(l).includes("primary_logo_on_primary_color"));
+  if (onPrimary) return onPrimary;
+  const dark = teamInk(color) === "#fff";
+  return (dark && logos.find((l) => rel(l).includes("dark") && !rel(l).includes("scoreboard"))) || logos.find((l) => rel(l).includes("default") && !rel(l).includes("dark")) || logos[0];
+}
+
+/** ESPN's teams in a league ("football/nfl"): id, name, colour and the logo for its colour (logoFor). */
 async function espnTeams(league) {
   const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${league}/teams?limit=1000`);
   if (!r.ok) throw new Error(`ESPN ${league}: ${r.status}`);
@@ -58,7 +69,7 @@ async function espnTeams(league) {
   return teams
     .map(({ team: t }) => {
       const logos = t.logos ?? [];
-      const best = logos.find((l) => (l.rel ?? []).includes("default") && !(l.rel ?? []).includes("dark")) ?? logos.find((l) => !(l.rel ?? []).includes("dark")) ?? logos[0];
+      const best = logos.length ? logoFor(logos, t.color) : null;
       return { id: String(t.id), name: t.displayName, color: t.color ?? null, logo: best?.href ?? null, active: t.isActive !== false };
     })
     .filter((t) => t.active && t.logo);

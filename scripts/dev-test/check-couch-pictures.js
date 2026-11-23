@@ -69,9 +69,9 @@ async function main() {
     const red = await compose(await madeUp("#c8102e"), "c8102e");
     const meta = await sharp(red).metadata();
     check(meta.width === 256 && meta.height === 256 && meta.format === "webp" && red.length < pics.COUCH_PICTURE_MAX, `the composition: a 256 by 256 WebP of ${red.length} bytes`, meta);
-    const corner = await sharp(red).extract({ left: 250, top: 250, width: 1, height: 1 }).raw().toBuffer();
-    const plate = await sharp(red).extract({ left: 4, top: 4, width: 1, height: 1 }).raw().toBuffer();
-    check(corner[0] > 150 && corner[1] < 80 && plate[0] > 240 && plate[1] > 240, "the team's colour on the cut corner, the white plate elsewhere", { corner: [...corner], plate: [...plate] });
+    const corner = await sharp(red).ensureAlpha().extract({ left: 252, top: 252, width: 1, height: 1 }).raw().toBuffer();
+    const plate = await sharp(red).ensureAlpha().extract({ left: 8, top: 8, width: 1, height: 1 }).raw().toBuffer();
+    check(corner[3] < 20 && plate[0] > 150 && plate[1] < 60 && plate[3] > 240, "the team's colour as the plate, its corner cut away as the badge's", { corner: [...corner], plate: [...plate] });
 
     // The badge carries its team.
     check(badgeTeamOf(teamBadgeSrc("ZTU", "c8102e", "ZT United", KEY)) === KEY && badgeTeamOf(teamBadgeSrc("ZTU", "c8102e")) === null && badgeTeamOf("https://x.test/a.png") === null, "a badge says its team; a photo or a badge without one says none");
