@@ -199,6 +199,10 @@ export interface StartCtx {
   /** "next": every game opens on just the next episode or game (a team's Next game); "season": on the season (a team's Their
    *  season), where the game can run it. */
   length: "next" | "season" | null;
+  /** C4 (solo): a game to open on (its base's id), with `bots` computer players in it ("A draft of Lions players, you and computer
+   *  players"); the gallery stays one Back away. */
+  base?: string | null;
+  bots?: number | null;
 }
 
 export function BoldSheet({ open, onOpenChange, o, loading, error, couchId, start }: { open: boolean; onOpenChange: (o: boolean) => void; o: WizardOptions | undefined; loading: boolean; error: Error | null; couchId: string | null; start: StartCtx }) {
@@ -209,13 +213,15 @@ export function BoldSheet({ open, onOpenChange, o, loading, error, couchId, star
   // A sport's season: the same gallery, its shelves from the sports catalog (the user, 2026-11-18).
   const sm = useSportsModule(!!o?.sport);
   const sport = useMemo(() => (o?.sport && o.wizard && sm ? sportView(sm, o.wizard.page, o.sport.league) : null), [o, sm]);
-  const stop = !couchId || error || o?.blocked;
+  // C4: with no couch, a sport's season starts your own game; any other season (the read refuses it) is a couch's.
+  const noCouch = !couchId && (o ? !o.sport : !!error);
+  const stop = noCouch || error || o?.blocked;
   // The first read only: a read again (Include it, where it starts) keeps the sheet where it is, Start held until it's in.
   if (stop || !o || !gm || !input || (o.sport && !sport)) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange} title="Start a game" subtitle={o ? `${o.label} · ${o.couch.name}` : undefined}>
-        <div data-gallery={!couchId ? "no-couch" : error ? "error" : o?.blocked ? "blocked" : "loading"} className="flex flex-col gap-3 pb-2">
-          {!couchId ? (
+        <div data-gallery={noCouch ? "no-couch" : error ? "error" : o?.blocked ? "blocked" : "loading"} className="flex flex-col gap-3 pb-2">
+          {noCouch ? (
             <>
               <p className="text-[15px] leading-snug text-muted-foreground">Games are played on a couch. Start one and send the code, or join one with a code.</p>
               {!start.practice && (
@@ -433,6 +439,17 @@ function Gallery({ open, onOpenChange, gm, o, input, sport, start, refreshing }:
       setLevels([{ k: "gallery" }, { k: "base" }]);
     }
   }
+  // C4: a game asked for by its base (a solo fan's "A draft of Lions players"), opened once its verdict is in, with its computer players.
+  // (An effect: opening a base reaches the levels' ref.)
+  const baseOpened = useRef(false);
+  useEffect(() => {
+    if (baseOpened.current || !start.base || game) return;
+    const b = bases.find((x) => x.id === start.base && verdicts.get(x.id)?.state === "plays");
+    if (b || verdicts.size) baseOpened.current = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- once, when the verdicts are in (opening reaches the levels' ref)
+    if (b) openBase(b, undefined, undefined, "base", undefined, start.bots ? { n: start.bots, level: "normal" } : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [start.base, verdicts, game]);
   // Include it, or a different start at your own pace: the options come again from the new start, and the game moves with them.
   const [fromWas, setFromWas] = useState(input.from);
   if (fromWas !== input.from) {

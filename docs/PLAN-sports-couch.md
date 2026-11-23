@@ -331,23 +331,225 @@ lane's local database**; no new external read).** Story: https://claude.ai/artif
 Play, the schedule by month with results and the bye, Month view for daily sports with series, homestands and trips grouped,
 and (C2) the fan card.
 
+**B2's build notes (2026-11-22, lane `sports-couch`, port 3019; not merged; no migration, no new external read, no engine change).**
+Story: https://claude.ai/artifact/GxZgu7KEX38h59Y2Kyq46g. **Waiting on the user's review.** The design:
+[team-page-spec.md](design-round/team-page-spec.md) (Intent), `-first-view.md` (PFD), `-shape.md` (Impeccable), `-check.md` (the
+check and its one batch). With BACKLOG 254 (m)'s team half.
+- **Where:** `/league/<sport>/<code>/team/<id>` (routes.ts `paths.team`, depth 2, up to the league's This week; `?against=` opens
+  the schedule on their meetings); `src/new/screens/team-page.tsx` (`TeamPageScreen`). The sheet is gone: `openSports({ kind:
+  "team" })` now pushes the page (sheets.tsx), so every old door (This week's rows, Standings' Open, the guide, cast and roster team
+  doors, scorebugs' teams) opens it; Add's team pick and a matchup close Add and push it. team.tsx keeps `StartWhen`, `asRow`,
+  `versus` and the game's sheet (`GameView`, B4's); its "Back to the team" went (the page is under it).
+- **The page:** a bar (Back: where you came from, else up; Follow); the lower third with the league, record and place ("1st in ZTN
+  East", the standings read's; only once a final this season is in); the couch's faces and A3's line (yours alone draws no
+  sentence); the game on now or next as the shared scorebug (wide, grouped: its day in the caption over it) and Play the next game
+  ("Pick'em vs Giants · Nov 29 4:25 PM · tells the couch"); the season as a bar a game by margin (wins up in good teal, losses down,
+  a bye named, games to come as ticks, the playoffs' start dashed, a live dot; `src/lib/sports/team-season.ts`, pure,
+  tests/sports-team-season.test.js), held behind Show the season (`season:<league>/<team>`, moving no mark) while hiding; Start a
+  game on (2.8's rows, one series and only within two weeks); the schedule: Against chips (All, the couch's teams, All opponents),
+  months with Earlier folded and counted, the bye a row, each row the scorebug's one-side form (date, opponent, the bug's status
+  column), a series joined, a daily sport's homestands and road trips with Start a game on it, List · Month (a calendar, home
+  filled, away outlined). A season not begun says so in one line; no games, one line. ESPN's unset times say TBD.
+- **Checks:** `scripts/dev-test/story-team-page.js` (worlds gameday, midweek, hidden, daily, off, studio, solo, failed, and real
+  ESPN: the Eagles, the Knicks, the Yankees; `--before` shot the old sheet); the stand-in world now shared with the league story
+  (`league-story-world.js`). check-sports-couch.js moved to the page (Standings' Open → the page → Back; search's team → the page,
+  hidden: the bug Started, the season held, no result in the schedule, one yellow; Show the score; Show the season; Start a game on's
+  The next game → the gallery, which also replaces BACKLOG 252's dead `[data-more="start"]` step). Fixed there too: five regexes
+  whose `\b` had become backspace characters (they tested nothing). The older stories that opened the sheet point at the page
+  (story-sports-scope.js, story-start-wizard.js, story-hub-sports.js, check-drill-doors.js): not re-run.
+- **The rows, decided** (the user, 2026-11-22, decisions.md): the one-team form, with the couch on it: a rival's row names whose
+  team it is (a face and the name: many have no photo), a game you play carries the bug's controller (its dot while a pick is due),
+  and the room's talk is a count under the row into its thread. The story's gameday world seeds a Pick'em and the thread's talk.
+- **Open for the user:** the strip's bars read, not tapped; a 162-game strip's density. **Noticed, not fixed:** the game's sheet still says "A GAME" and "It's over." (B4); the scorebug's records use
+  hyphens and "8:20PM" (A1's, every surface at once if changed).
+
 **B3. Search** (M): "Add a show or team" with All, Shows, Sports; a team's, a matchup's and a league's card first for a strong
 sports match (src/new/sports/search.tsx, src/new/watching/sheets.tsx); event sports in results (dropped today); first run uses
 the same search (BACKLOG 43).
 
+**B3's build notes (2026-11-22, lane `sports-couch`, port 3019; not committed; no migration, no new external read, no engine change).**
+Story: https://claude.ai/artifact/1ocBH869YU9C7LfigoRE7s. **Approved as built** (the user's "Continue", 2026-11-22: decisions.md; tours listed only). The design: [search-spec.md](design-round/search-spec.md)
+(Intent), `-first-view.md` (PFD), `-shape.md` (Impeccable), `-check.md` (the check and its one batch; `-check-findings.md`, the
+checking agent's full findings).
+- **Where:** Add's sheet (watching/sheets.tsx `AddShowSheet`, "Add a show or team"; the hub's row and poster say so; the guide keeps
+  "Add a show" and opens on Shows: `openWatching({ kind: "add", scope })`) and first run's search (welcome/first-run.tsx). One
+  set of parts in src/new/sports/search.tsx (`SportsCard`, `SportsRows`, `LeagueTiles`, `CouchFollows`, `useRankedSports`) and
+  watching/search.tsx (`ShowGroups`, `ScopeSwitch`); the ranking is pure, src/lib/sports/search-rank.ts (tests/sports-search-rank.test.js).
+- **The rules:** a show here leads its words; else one card for a clear sports meaning (a matchup; among the top-scored teams the
+  couch's, else the one pro team in season, else the one pro team; else a league named exactly), then shows (TV listings as their own
+  group, three under a card, five above sports rows), then teams (the couch's, in season, pro, college past two folded), leagues,
+  tours (golf, F1, the UFC: listed, no action, "Their own pages and games come later" once), Add by name (only once sports answered).
+  A sport's own word with no team ("golf") puts its tours first. teams.ts `teamScore`: one or many of a short name is the name ("bear").
+- **The card:** a team's short name over its city and league, the couch line (others only), Follow (`useTeamFollow`, lifted from the
+  team page into sports/follow.tsx), its game on now or next as `GameBug` (B4's; now with `onOpened`, closing Add as the game's sheet
+  opens); a matchup's next meeting as the bug (into B4's sheet); a league's week and Follow. `Sheet tall` holds the search's height;
+  the field and scopes stick. Sports search retries once, then "Teams didn't load · Try again"; "Looking for teams…" meanwhile.
+- **First run (BACKLOG 43):** the same card and rows with Pick (a matchup picks both); picks kept on the device (way-in.ts
+  `FirstRunPicks.teams`), a wall tile in the team's colour, step 2 skipped with no shows, followed at the save (POST /api/me/first-run
+  `teams`, server way-in.ts through `setTeamFollow`/`setLeagueFollow`).
+- **Checks:** `scripts/dev-test/story-search.js` (23 situations; real ESPN and the stand-in couch; `--before` shot the old sheet).
+  check-sports-couch.js updated (a league named exactly is a card; the guide's Add switches to All): 128 pass, no failures (stops at
+  BACKLOG 252). `npm test` 2,611 pass; tsc and ESLint clean.
+- **Noticed, not fixed:** the league week words are LeagueNow's,
+  shared (the NBA's "Week 5"); Studio's sheet scrim is faint for every sheet; SuggestionCard's poster-less name overlaps its title;
+  first run's picked-team mark sits on its own colour.
+
 **B4. A game's sheet with Play** (M): every game row opens one sheet; before kickoff its job is Play (Pick'em chosen, the other
 types beside it, bigger sizes a row down, "already on the couch" first so nobody starts a duplicate).
+
+**B4's build notes (2026-11-22, lane `sports-couch`, port 3019; not committed; no migration; one small new read of ours, no ESPN).**
+Story: https://claude.ai/artifact/BqzTDp21SuBUZ7raWkf7Qx. **Approved as built** (the user, 2026-11-22: decisions.md). The design: [game-sheet-spec.md](design-round/game-sheet-spec.md) (Intent),
+`-first-view.md` (PFD), `-shape.md` (Impeccable), `-check.md` (the check and its one batch).
+- **Where:** the game's sheet every game row opens (`openSports({ kind: "game" })`, sheets.tsx): titled by the matchup ("Cowboys at
+  Giants"), `GameView` in src/new/sports/team.tsx. The team page's scorebug moved to `src/new/sports/game-bug.tsx` (`GameBug`) so
+  both draw one.
+- **Before kickoff:** the day; the shared scorebug; the couch line in names ("Your Eagles at Riley's Jets"); **On the couch**: the
+  couch's games that cover this game (Riley's Pick'em, who's in; a longer game says "this game counts in it"), with **Join** as the
+  one yellow under its row when it's the chosen kind (PFD's R5: the duplicate is never the default); **Play** (or "Or start your
+  own"): the sport's one-game types as tiles (Pick'em, Pick a few, A draft, Squares; a radio group; chosen, an ink outline and a
+  check), and one decision: Start the chosen type ("Picks lock at kickoff, Sun 4:25 PM · You have 10 seconds to undo, then the
+  couch is told"), or Start another under Join; Pick'em says "Pick a side" in a rivalry; **Go bigger**: their series, every game
+  left of the team's season, this week's games; **More options** (Start a game's screens). Solo: "Start a couch" is the yellow.
+- **After kickoff:** the score through hiding (the bug's ask), the couch line, the couch's games on it (Open), the thread link
+  ("3 messages in its thread", or "Talk about it"), "Picks closed at kickoff." only when a couch game covers it.
+- **Data:** `GET /api/sports/game/seasons?league=&event=` (season_events: the seasons a real game is in and its episode in each; the
+  same for everyone, edge-kept a minute); the sheet matches the couch's games read to it. HOSTING.md: "A game's sheet".
+- **Checks:** `scripts/dev-test/story-game-sheet.js` (pre, pre-none, types, bigger, rivalry, live, live-hidden, final, daily, solo,
+  studio, real-nfl; `--before` shot the old sheet). check-sports-couch.js: 128 pass, no failures (the same stale gallery step as
+  B2, BACKLOG 252). `npm test` 2,599 pass; tsc and ESLint clean on the app files.
+- **Open for the user:** the day alone under the title (the time stays in the bug); the line in ESPN's short form ("NYG by 3"),
+  the scorebug's since A1. **Noticed, not fixed:** a couch game row repeats its maker on its second line; "is the couch's game
+  the same kind" matches by the game's name (Pick'em, Squares): a game named otherwise isn't matched.
 
 ### Phase C: playing as a couch (round 2)
 
 - **C1. Rivalries** (L): found from follows and the schedule; the rivalry card; the challenge (Winner and margin, an invite to one
   person); sides as public picks; margins hidden until kickoff; the result; the couch's rivalry record across seasons.
+**C1's build notes (2026-11-22, lane `sports-couch`, port 3019; not committed; no migration, no new ESPN read; one engine change).**
+Story: https://claude.ai/artifact/7nq5aqBuq4o2Eh5YnsfAt7. **Approved as built** (the user, 2026-11-22, taking the three recommendations:
+decisions.md). The design:
+[rivalry-spec.md](design-round/rivalry-spec.md) (Intent), `-first-view.md` (PFD), `-shape.md` (Impeccable), `-check.md` (the check
+and its one batch).
+- **The model:** one game a meeting, "<fan> vs <fan>", Winner and margin with its winner shown as it's picked
+  (`src/lib/sports/rivalry.ts` RIVALRY_SPEC; pure, tests/sports-rivalry.test.js), started by the first tap on the card (a fan's call
+  or anyone's side) on the team's season, that game only (start.ts takes `game: "rivalry"`, never on the rail), with no "started"
+  push. A game is a rivalry's by its spec, so nothing new is stored. The two fans make calls; anyone else picks a side, a margin
+  optional (once a side is picked the rest is never a move: answers.ts `summaryOf`). The duel: a point for the winner, a point for
+  the closest margin among everyone who called one; the fan with more wins, level is a tie.
+- **The engine change:** a question's `shown: 'picked'` (schema.js: only on a side): its answers leave the server as they're given
+  (answers.ts: `people` before the lock, nothing settled; `QuestionView.shown`). Reviewed per UI-REVIEW-MAP's "who sees others'
+  moves": the game page lists the sides before the lock and says so in its count line; a side answer now says its team's name
+  (questions.tsx `answerWords`: it said the team's id, on every one-game Pick'em after the lock too); the person sheet keeps answers
+  until the lock (BACKLOG 255 b).
+- **Where:** `src/new/sports/rivalry.tsx` (`RivalryCard`, `CallSheet`), on This week (league-page.tsx): a card for each of this
+  week's rivalries, two at most, on now then next then the last played (a final no longer vanishes behind the next rivalry); one
+  yellow a page (the move strip's, else the first card you're a fan in). The challenge push (`notifyRivalryCall`, push-events.ts,
+  the invite kind) opens `/league/<sport>/<code>/week?call=<event>` with Your call open. The pair's record on the card
+  (couch-table.ts `pairRecord`), this season; follow dates now ride on the couch's teams read (`Follower.since`) for the record
+  across seasons (BACKLOG 255 c).
+- **Data:** `GET/POST /api/sports/rivalry?couch=` (src/lib/server/sports/rivalry.ts: the couch's rivalry games and every pick,
+  margins only once begun or your own; a pick joins you and answers, under an advisory lock a couch and game). HOSTING.md,
+  "Rivalries".
+- **Checks:** `scripts/dev-test/story-rivalry.js` (16 frames and 13 checks on the stand-in: the call starts the game, one push to the
+  rival, his margin hidden from the other fan, sides public, a pick after kickoff refused, hiding holds the result; `--before` shot
+  the old card). `npm test` 2,619 pass; tsc clean; ESLint clean on the changed files. check-sports-couch.js not re-run (its This week
+  steps read the card's `data-rivalry`, unchanged).
+- **Decided** (the user): anyone may add a margin; the record across seasons from September 2027 (BACKLOG 255 c); the decided push
+  is BACKLOG 217's. **Noticed, not fixed:** BACKLOG 255 (a) a one-game matchup listed home first on the game page.
+
 - **C2. The lone fan** (M): a fan's call with Back and Fade (Pick'em on one game, framed); his calls record; the fan card and his
   games on the team's page; watching marks for sports.
+**C2's build notes (2026-11-22, lane `sports-couch`, port 3019; migration 0451; no new ESPN read; no engine change).**
+Story: https://claude.ai/artifact/QXySaFvezheqFjLXPKY6zS. **Approved as built** (the user, 2026-11-23, taking the recommendations:
+decisions.md): a call stands once backed; Play the next game keeps its yellow after a call. The design: [lone-fan-spec.md](design-round/lone-fan-spec.md)
+(Intent), `-first-view.md` (PFD), `-shape.md` (Impeccable), `-check.md` (the check and its one batch).
+- **The model:** a fan's call is one game a game of a couch team's that isn't a rivalry, Pick'em on that one game with its picks public
+  (`src/lib/sports/fan-call.ts` CALL_SPEC: C1's `shown: 'picked'`, no margin; pure, tests/sports-fan-call.test.js), started by a fan's
+  call (a follower on the couch of either team: start.ts `game: "call"`), with no push. Anyone else backs (the call's side) or fades (the
+  other); a call stands once anyone has. A game is a call's or a rivalry's by its spec (`pickedKindOf`: a margin makes it a rivalry), so
+  nothing new is stored for it. **The calls record:** every pick of a fan's on their team's game, in a call or a rivalry, right or wrong
+  once final; the couch on a fan's calls (backing and fading him, right or wrong).
+- **Where:** `src/new/sports/fan-call.tsx`. This week's calls (`CallsCard`, under the rivalries, league-page.tsx): a row a couch team's
+  game with a call, or yours to make; yours to act on first, three, then folded; the couch's table says "Jordan's call, above". The
+  team's page (team-page.tsx): the fan card under the head (whose team, since when, the record big, a tick a game, the couch on his
+  calls); the next game's call row under the scorebug (`CallRow bare`), Play the next game outlined while your own call is the yellow;
+  "Games on the <team>": the couch's games on its next game, by their maker, with Join or Open. The game sheet (team.tsx `GameView`):
+  I'm watching from the hour before until it's over, who's watching beside it (`WatchingRow`); watchers' faces on This week's row.
+- **Data:** `GET/POST /api/sports/calls?couch=&league=&teams=` (src/lib/server/sports/calls.ts: the couch's call and rivalry games this
+  season with their winner picks, and finals from the asked teams' cached schedules; a pick joins and answers under an advisory lock);
+  `GET/POST /api/sports/watching?couch=&league=` (src/lib/server/sports/watching.ts; migration 0451 `sports_watching`: shown only on that
+  couch and only for someone sharing When I'm watching). HOSTING.md, "A fan's call" and "I'm watching".
+- **Also fixed (C1's too):** joining a game of public picks (a rivalry's side, a back or fade) sent its members "New league member":
+  join-league.ts no longer announces a joiner there. The couch's games list carries `picked` (couch-joins.ts), so the game sheet names a
+  call or rivalry game once and sends its action to the card ("Back or fade", "Pick a side").
+- **Checks:** `scripts/dev-test/story-lone-fan.js` (16 frames and 15 checks on the stand-in, with a season of made-up calls: the call
+  starts the game with no push, a back before a call refused, the call stands once backed, a back after kickoff refused, the record,
+  two watching and one hidden once she stops sharing, hiding holds the result; `--before` shot today's pages). story-rivalry.js re-run: 13
+  pass. `npm test` 2,624 pass; tsc clean; ESLint clean on the changed files. UI-REVIEW-MAP: no engine change (the spec reuses C1's
+  `shown: 'picked'`; the call game's own page is C1's reviewed one-game sides).
+- **Noticed, not fixed:** BACKLOG 256.
 - **C3. The victory lap** (S–M): one prompt after a win; a GIF and a line to the couch's feed and the league's room; held for
   anyone hiding scores.
+**C3's build notes (2026-11-23, lane `sports-couch`, port 3019; not committed; migration 0452; no new ESPN read; no engine change).**
+Story: https://claude.ai/artifact/9vvuad5i6GPUmx9jxzTK48. **Approved as built** (the user, 2026-11-23, taking both
+recommendations: decisions.md): no push for a lap; "You called it" stays on both the lap card and the call row. The design: [victory-lap-spec.md](design-round/victory-lap-spec.md) (Intent),
+`-first-view.md` (PFD), `-shape.md` (Impeccable), `-check.md` (the check and its one batch).
+- **The model:** a lap is one a fan a win: every follower on the couch of the team that won, from the final until the team plays again,
+  answered once (posted, or Not this time, kept so the prompt ends on every phone). A GIF (KLIPY's picker, starting on "<team> win") and
+  a line (optional; the line alone with GIFs off). It wears the final that earned it (the team's side, kept with the lap), lands in the
+  game's thread in the league's room with no push, and on the couch's feed. Nothing of it (the prompt included) for anyone hiding scores
+  who hasn't shown the game. Take it back deletes the room message, and the lap with it.
+- **Where:** `src/new/sports/lap.tsx`. This week's lap card under the move strip (the ink button, never the page's yellow; 120 px): the
+  team's mark, "Giants won", the score, "vs Bears" or "at Riley's Jets", "You called it" when the fan's call or rivalry pick was right.
+  The lap sheet: the picker, then the GIF big, the line and Post it, then posted with Take it back. The game's sheet once final: the ask
+  under the couch line (after Not this time, a quiet "Take a victory lap") and **Victory laps** (each GIF with its name strip and line).
+  The room's lap message (show/chat.tsx `Line` takes a `lap` head: the tag and the result over the GIF, the line under it). The hub's
+  feed: a `lap` row opening the game's thread, held on the phone for a hider. This week's room line says "took a victory lap".
+- **Data:** `GET/POST/DELETE /api/sports/laps?couch=` (src/lib/server/sports/laps.ts: open laps from the teams' cached schedules as C2's
+  calls read finals; the posts through league-chat.ts `postRoom`, now with `quiet` and a lap's line beside its GIF); the room's read
+  carries a message's `lap`; couch-hub.ts adds a `lap` feed kind. Migration 0452 `sports_laps`. HOSTING.md, "A victory lap".
+- **Checks:** `scripts/dev-test/story-victory-lap.js` (16 frames and 21 checks on the stand-in ESPN and KLIPY: the card, no yellow,
+  120 px, the picker's search, the lap in the room with its final, no push, a non-fan refused, Sam's sheet, room and feed, nothing for
+  Casey hiding until Show records, the rivalry's "at riley's Jets", Not this time kept, the sheet's quiet link, nothing for the loser,
+  Take it back; `--before` shot the old pages). fake-gifs.js takes `extra` tiles. check-sports-couch.js's cleanup removes laps.
+  story-lone-fan.js re-run: 15 pass. `npm test` 2,624 pass; tsc clean; ESLint clean on the changed files. UI-REVIEW-MAP: no engine
+  change.
+- **Noticed, not fixed:** BACKLOG 257.
 - **C4. Solo** (M): your team's calls (Pick'em on a team's games, started by your first call, no setup screen); the season call
   (a new long prediction); a team draft with computer players (plays today).
+**C4's build notes (2026-11-23, lane `sports-couch`, port 3019; migration 0453; no new ESPN read; one engine change).**
+Story: https://claude.ai/artifact/GS383SzAf6scVnf1mRkjXL. **Approved as built** (the user, 2026-11-23, taking both recommendations:
+decisions.md): the couch's season calls later (BACKLOG 258 d); a season call can change until the next kickoff, then it's pinned. The design: [solo-fan-spec.md](design-round/solo-fan-spec.md) (Intent),
+`-first-view.md` (PFD), `-shape.md` (Impeccable), `-check.md` (the check and its one batch).
+- **The model:** a fan on no couch plays his own games (`leagues.solo = 'own'`, migration 0453: the couch-healing read skips them; no push,
+  nobody joins). **Your calls:** one standing game a fan a team, Pick'em on the team's games (`src/lib/sports/own-calls.ts`
+  OWN_CALLS_SPEC, its question `yourCall`), started by the first call from that game to the regular season's end, each later game asked on
+  the same row (the engine opens the next game only), changeable until kickoff, live-paced. **The season call** (anyone following a team,
+  couch or not): one game a fan a team a season (`seasonCallSpec`), "how many of the games left do they win", framed as the season's record
+  ("13–3–1, called at 8–2–1"), changeable on its own game page until the next kickoff, then pinned. **A draft with computer players:** the wizard on no couch for a sport's season (a show
+  still asks for a couch), opened from "A draft of Lions players" on the gallery's Game-night draft with three computer players
+  (`StartTarget.base`/`bots`). A game is your calls or a season call by its question's id: nothing new stored.
+- **The engine change:** a settle `{ by: 'final', take: 'wins', of: <team> }` (a team's wins over the game's games, asked once; answers.js
+  `spanWins`) and a number answer right `within` N of it (0: exactly), each answer on its own rather than the closest (schema.js, answers.js
+  `pointsFor`, describe.js: "1 point if you're exactly right"). Reviewed per UI-REVIEW-MAP (a new dial value, a sport's capability): the
+  season call's and the calls' own game pages and How it plays (story frames `season-game`, `calls-game`); `tests/game-page.test.js` passes.
+- **Where:** the team's page (team-page.tsx), solo: the fan band ("Your calls on the Lions", the record, a tick a game; drawn only once
+  there's a call), Your call under the scorebug (C2's `CallRow` with no couch: the page's yellow, "Your record starts here · change it until
+  kickoff"), the season call row (`src/new/sports/season-call.tsx`: "Where do they finish?" and Call the season; called, the record called,
+  what it was made at and a track of the games it covers; settled, "Off by 1" or "Spot on"), More on the Lions (the draft, Every Lions game)
+  and the couch line last (`CouchLine`). A couch fan gets the season call row too. This week, solo: the calls card as "Your calls" (a row a
+  team's game this week; "You called Lions, above" on the table). Games, solo: your games, then Your team (into the wizard), then the couch
+  line. Your calls' move: "Call the Lions game" (answers.ts `questionMoves`).
+- **Data:** `GET/POST /api/sports/own?league=&teams=` (src/lib/server/sports/own.ts: your calls in C2's `CallGame` shape, with `own`, the
+  team whose calls each is; your season calls; each team's regular season from the cached schedules). Starting with no couch:
+  start-game.ts `startOptions` takes a null couch on a sport's season, start-spec.ts makes it `solo = 'own'` (never a game in stages).
+  HOSTING.md, "Solo: your calls and the season call".
+- **Checks:** `scripts/dev-test/story-solo-fan.js` (24 frames and 29 checks on the stand-in, with a made-up season of calls: the first call
+  starts one game on no couch with no couch made and no push, a later game's call waits for its week, a change until kickoff, a call after
+  kickoff refused, one season call a season, wins past the games left refused, the move's words, the draft started with three computer
+  players, hiding shows no record, the season call settled off by 1; `--before` shot the old team page). story-lone-fan.js re-run.
+  `npm test` 2,630 pass; tsc clean; ESLint clean on the changed files.
+- **Noticed, not fixed:** BACKLOG 258.
 - **C5. The couch's games** (M): a slate of only the games a couch member's team plays, the default weekly Pick'em, offered first.
 - **C6. Rivalry stakes** (S–M): cosmetic, both fans agree, shown on faces for a week.
 

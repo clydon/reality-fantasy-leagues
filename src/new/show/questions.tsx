@@ -109,6 +109,8 @@ export function answerWords(q: QuestionView, v: unknown, cast: Map<string, Quest
   }
   if (q.answer === "yesNo") return v === "yes" ? "Yes" : "No";
   if (q.answer === "overUnder") return `${v === "over" ? "Over" : "Under"} ${q.line ?? ""}`.trim();
+  // A side: the team by name (its game's faces, or each game's sides), never its id (C1's public sides showed "9301").
+  if (q.answer === "side") return [...(q.faces ?? []), ...(q.games ?? []).flatMap((g) => g.sides)].find((f) => f.id === v)?.name ?? "a team";
   return String(v);
 }
 
@@ -279,7 +281,8 @@ export function QuestionsBody({ target, d, onDone, place = "sheet" }: { target: 
       {open.length > 0 && (
         <>
           <p data-sheet-count className="mt-4 text-[13px] leading-snug text-muted-foreground">
-            {answered ? `${answered} on the couch ${answered === 1 ? "has" : "have"} answered` : "Nobody on the couch has answered yet"} · nobody sees an answer until it locks. Tap an answer again to take it back.
+            {answered ? `${answered} on the couch ${answered === 1 ? "has" : "have"} answered` : "Nobody on the couch has answered yet"} ·{" "}
+            {open.some((q) => q.shown) ? "everyone sees who's picked which side; nobody sees any other answer until it locks" : "nobody sees an answer until it locks"}. Tap an answer again to take it back.
           </p>
           {place === "page" ? (
             <button
@@ -322,6 +325,20 @@ function Question({ q, d, cast, value, onValue, others }: { q: QuestionView; d: 
       ) : q.status === "open" ? (
         <div className="mt-2.5">
           <Answer q={q} value={value} onValue={onValue} others={others} />
+          {/* C1: a side shown as it's picked (a rivalry's public sides): who's on which, before the lock. */}
+          {q.shown && q.people.some((p) => !p.you) && (
+            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-2" data-question-sides>
+              {q.people
+                .filter((p) => !p.you)
+                .map((p) => (
+                  <span key={p.playerId} className="flex items-center gap-1.5 text-sm" data-question-person={p.name}>
+                    {p.userId ? <Avatar id={p.userId} name={p.name} size={24} /> : null}
+                    <span className="text-muted-foreground">{p.name}</span>
+                    <b className="font-semibold">{answerWords(q, p.answer, cast)}</b>
+                  </span>
+                ))}
+            </div>
+          )}
         </div>
       ) : q.status === "behind" ? (
         <p data-question-behind={q.catchUp ?? "game"} className="mt-2.5 rounded-[4px] bg-background p-3 text-sm leading-snug text-muted-foreground outline-1 -outline-offset-1 outline-border">

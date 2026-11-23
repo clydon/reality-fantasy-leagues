@@ -81,7 +81,8 @@ export function teamScore(typed: string[], t: ListedTeam): number {
   const n = namesOf(t);
   if (n.abbreviation && typed.length === 1 && q.length >= 2 && q === n.abbreviation) return 100;
   if (q === n.full) return 100;
-  if (n.others.includes(q)) return 96;
+  // One or many of a name is the name ("bear" the Bears, "eagle" the Eagles: docs/design-round/search-check-findings.md P1).
+  if (n.others.includes(q) || n.others.includes(`${q}s`) || (q.length > 3 && q.endsWith("s") && n.others.includes(q.slice(0, -1)))) return 96;
   if (n.full.startsWith(q) || n.others.some((x) => x.startsWith(q))) return 85;
   return typed.every((w) => n.words.some((x) => fitsWord(w, x))) ? FITS : 0;
 }

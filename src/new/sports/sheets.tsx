@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { useHome, useMySportsGames, useSportsWeek, useTeamSchedule } from "../data";
 import { useNav } from "../nav";
 import { paths } from "../routes";
@@ -9,12 +9,12 @@ import { MoreAction, OpenRow, PlayPlate, SportsLabel, WeekRow } from "./parts";
 import { begun, useNow } from "./scores";
 import { useStartSport } from "./start";
 import { SportStartHandoff, type SportTarget } from "./start-handoff";
-import { GameView, TeamView, type StartWhen } from "./team";
+import { GameView, type StartWhen } from "./team";
 
-// The sports sheets (docs/PLAN-start-a-game-gpt.md U1's sports slice): a team's (a sheet, as the user decided 2026-11-08), one of
-// its games, and Start a game on any of them, opened from anywhere (the guide's Sports, a search's row, a sport's season) with
-// openSports. Add a show draws a team as a step of its own sheet instead (watching/sheets.tsx), on the same TeamView. A league has
-// a page of its own (docs/PLAN-sports-couch.md B1: src/new/screens/league-page.tsx), built from the league's parts below.
+// The sports sheets (docs/PLAN-start-a-game-gpt.md U1's sports slice): one game's, and Start a game on a team's games, opened from
+// anywhere (the guide's Sports, a search's row, a sport's season) with openSports. A team opened this way goes to its page
+// (docs/PLAN-sports-couch.md B2: src/new/screens/team-page.tsx; it was a sheet until then), as a league goes to its own (B1:
+// src/new/screens/league-page.tsx, built from the league's parts below).
 
 export type SportsView =
   | { kind: "team"; league: string; team: string }
@@ -45,27 +45,28 @@ export const startOn = (league: string, team: string, teamName: string, when: St
 
 export function SportsSheets() {
   const { view, n } = useView();
+  const nav = useNav();
   const close = (o: boolean) => !o && openSports(null);
-  const browse = view && view.kind !== "start" ? view : null;
+  // A team is a page now (B2): opening one pushes it, and nothing stays open here.
+  useEffect(() => {
+    if (view?.kind !== "team") return;
+    openSports(null);
+    nav.push(paths.team(view.league, view.team));
+  }, [view, nav]);
+  const browse = view && view.kind === "game" ? view : null;
+  // The sheet's title is the matchup ("Cowboys at Giants", B4), read from the team's schedule the sheet reads anyway.
+  const sched = useTeamSchedule(browse?.league ?? null, browse?.team ?? null).data;
+  const sg = browse ? sched?.games.find((x) => x.id === browse.game) : null;
+  const title = sched && sg ? `${(sg.home === false ? sched.team : sg.opponent)?.short ?? "To be decided"} at ${(sg.home === false ? sg.opponent : sched.team)?.short ?? "To be decided"}` : "A game";
   return (
     <>
       <Sheet
         key={`sports-${n}`}
         open={!!browse}
         onOpenChange={close}
-        title={browse?.kind === "game" ? "A game" : "A team"}
-        back={browse?.kind === "game" ? { label: "Back to the team", onClick: () => openSports({ kind: "team", league: browse.league, team: browse.team }) } : undefined}
+        title={title}
       >
-        {browse?.kind === "team" && (
-          <TeamView
-            league={browse.league}
-            team={browse.team}
-            onStart={(when, name) => openSports(startOn(browse.league, browse.team, name, when, browse))}
-            onGame={(g) => openSports({ kind: "game", league: browse.league, team: browse.team, game: g.id })}
-            onStarted={() => openSports(null)}
-          />
-        )}
-        {browse?.kind === "game" && <GameFromSchedule league={browse.league} team={browse.team} game={browse.game} />}
+        {browse && <GameFromSchedule league={browse.league} team={browse.team} game={browse.game} />}
       </Sheet>
       <SportStartHandoff
         key={`sports-start-${n}`}
@@ -82,7 +83,15 @@ function GameFromSchedule({ league, team, game }: { league: string; team: string
   const s = sched.data;
   const g = s?.games.find((x) => x.id === game);
   if (!s || !g) return <p className="text-[14px] text-muted-foreground">{sched.isLoading ? "Loading…" : "That game isn't on their schedule."}</p>;
-  return <GameView g={g} s={s} onStarted={() => openSports(null)} onStart={(when) => openSports(startOn(league, team, s.team.short, when, { kind: "game", league, team, game }))} />;
+  return (
+    <GameView
+      g={g}
+      s={s}
+      onStarted={() => openSports(null)}
+      onStart={(when) => openSports(startOn(league, team, s.team.short, when, { kind: "game", league, team, game }))}
+      onSlate={() => openSports({ kind: "start", target: { kind: "slate", league, leagueName: s.leagueName ?? league }, back: { kind: "game", league, team, game } })}
+    />
+  );
 }
 
 /** Your games in a league (each game of yours on one of its sports seasons) and the move due in each: a league's page's This week

@@ -750,7 +750,7 @@ function questionRule(q, w, each, ask, bank, s) {
   const pts = typeof q.points === 'number' ? q.points : null;
   let earn = pts === null ? '' : ` ${cap(pointsWord(pts))} if you're right.`;
   if (NAMES.includes(q.answer) && q.pick > 1 && pts !== null) earn = ` Name ${say(q.pick)}: ${pointsWord(pts)} for each one right.`;
-  if (q.answer === 'number' && pts !== null) earn = ` The closest wins ${pointsWord(pts)}.`;
+  if (q.answer === 'number' && pts !== null) earn = Number.isInteger(q.within) ? ` ${cap(pointsWord(pts))} if you're ${q.within ? `within ${say(q.within)} of it` : 'exactly right'}.` : ` The closest wins ${pointsWord(pts)}.`;
   // A8's answers.
   if (pts !== null) {
     if (q.answer === 'order') earn = ` Put ${say(q.pick)} in order: ${pointsWord(pts)} for each in its place${q.within ? `, or within ${say(q.within)} ${q.within === 1 ? 'place' : 'places'} of it` : ''}.`;

@@ -69,7 +69,9 @@ Grouped so each group is about one session. Take them in any order.
 check-sports-couch.js's browser half stops at "Start a game…" from a team's sheet (`[data-gallery=gallery]` never shows in 30 s,
 check-sports-couch.js after "Show the score lets that game's score out"), so the steps after it don't run. check-new-hub.js fails
 "On now is real: riley is watching ZT Survivor, Episode 4" and then a 30 s `locator.textContent` timeout. Find what moved and fix
-the checks (or the screens). [S · checks]
+the checks (or the screens). **The first step moved in B2** (sports-couch lane, not merged): the check now starts a game from the
+team's page (Start a game on › The next game) and reaches the gallery; it stops at the next stale step, `[data-gallery-option=length-rest]`
+(no "rest of the season" length on a one-game start). [S · checks]
 
 **244. Run the two checks settings Round 3a moved but never ran.** check-explorer-page.js's Waivers step and check-new-studio.js's
 list were moved to Manage this game in 3a (2026-11-21) but need UI Atlas on the main app, so they haven't run since. Run each once
@@ -518,7 +520,9 @@ longer marks a game seen before it (the leak that kept it shown, fixed); the fla
 profile answers, so every sports screen holds results by itself; check-sports-couch.js holds the profile back and finds no score. (l) The ask sheet's explanation ("moves how far you've watched to its week, on every
 season you follow with it") reads hard (both reviewers in B1 session 2's check): one short line per choice, on the strip and Scores
 alike. (m) The shared game row on the guide's Sports and a team's schedule (round 1's R3: one row everywhere): the guide in its own
-review, the schedule with B2's team page. (n) **Decided** (the user, 2026-11-22, approving B1 session 2): no Play on Scores' rows; a row opens its
+review, the schedule with B2's team page. **The team's half done in B2** (not merged): the page's game on now is the shared scorebug
+and its schedule rows the bug's one-side form (its status column and spoiler rule; the two-team form is the user's named choice in
+B2's story); the guide's Sports still to do. (n) **Decided** (the user, 2026-11-22, approving B1 session 2): no Play on Scores' rows; a row opens its
 game, and B4's sheet holds Play. (o) Noticed in B1 session 3 (the Games tab's check, both reviewers): the couch's join sheet speaks
 a show's words on a sports game ("It plays Episode 12 only: make your pick before you watch it"); a sports game's join sheet in
 its own words (the week or game it covers, when picks lock). (q) After the lane's merge (the user, 2026-11-22, B1 Chat's review): a chat count on each game row (Scores, the hub's strip)
@@ -529,6 +533,43 @@ Sunday, then decide whether a game's chat shows inside the room (tagged by its g
 a solo player's Games tab offers Start a couch · Join one and nothing to start. **Decided** (the user, 2026-11-22): wait for
 C4; nothing interim that C4 would make obsolete.
 [S · sports] **Done 2026-11-22 (after the merge, in the lane; not pushed):** (a) a sports start takes the board's name for its game ("Pick'em", "Squares") unless named; (l) the ask sheet says one short line under each choice, and Scores' Show all one line; (o) the join sheet speaks of games and kickoffs on a sports game ("It covers one game, Sun 1:00 PM: make your pick before it starts"); (q) Scores' rows carry "N messages in its thread" into the room (a count, never a word); (r) This week ends with the room's latest line, passing over a thread's talk since kickoff for anyone hiding scores.
+
+**255. Rivalries' leftovers (C1, PLAN-sports-couch.md; the sports-couch lane, 2026-11-22).** (a) A game page's one-game sides are
+listed home first ("ZT Jets at ZT Eagles" for Eagles at Jets): the listing's team order (answers.ts `sideFaces`), every Pick'em on
+one game; away first, as everywhere else. (b) A person's episode sheet (game-sheets.tsx) shows their answers only after the lock, so a
+rivalry's public side isn't on it before kickoff; show a `shown` side there too. (c) The couch's rivalry record across seasons: the
+card says "this season"; earlier seasons' meetings since both fans followed (each follow's date now rides on the couch's teams read)
+need each team's schedule for each earlier season: build it when the first follows cross a season (the NFL's 2027 season,
+September; **decided**, the user 2026-11-22). (d) The rivalry's result push is BACKLOG 217's (one push when any sports game is decided; **decided**, the user 2026-11-22: build
+217 once, not a rivalry one-off). (e) A daily sport's rivalry
+is a meeting, not round 2's series: three meetings, three rivalry games; a series frame waits for daily sports' own pass.
+[S–M · sports]
+
+**256. The lone fan's leftovers (C2, PLAN-sports-couch.md; the sports-couch lane, 2026-11-22).** (a) A call is news on This week only:
+no push and no feed line (the spec's rule); watch a real Sunday, then decide whether the couch's feed says "Andrew called Giants". (b) A
+fan who takes their call back before anyone backs it stays in its game with nothing answered, so it shows as a due move until kickoff (a
+rivalry spectator who clears a side, the same); leave the game on a take-back. (c) The team page's follow line and the fan card both
+say whose team it is; fold them in B2's head when it's next touched. (d) The hub's league card and scores strip don't show a call (round
+3's settled card); later. (e) A daily sport's call is a game, as C1's rivalry; a series frame waits for daily sports' own pass. (f) The
+watching read polls every two minutes while This week, a team's page or a game's sheet is open; if Neon's compute hours tighten, poll
+only while a couch team's game is on. [S–M · sports]
+
+**258. Solo's leftovers (C4, PLAN-sports-couch.md; the sports-couch lane, 2026-11-23).** (a) The team page's Schedule still offers
+Start a game on one game only with a couch (`canStart`); a solo fan starts from More on the team. (b) Open a solo game to a couch later
+(round 2's "any solo game can be opened to the couch"): a game moving between couches is its own step. (c) A solo fan's record carried
+onto a couch once he joins one (C2's record counts couch calls only), with Privacy's "show my record" (the plan's default). (d) The couch
+seeing each other's season calls on the fan card once made (the review's open choice). (e) Seen while seeding the story: an archived game
+of yours still lists on a league's Games tab "Your games here" (`useLeagueGames` filters `archived`, so home's games may not carry it);
+check with a real archived game. (f) The stand-in ESPN keeps no stored finals, so a game over a whole season can't move past its first
+week in a check; a fixture that writes `sports_events` finals would let checks play a season. (g) A one-person game's page keeps the
+generic words of a game of questions ("Everyone answers one question", a table of one): your calls and the season call could say it as a
+fan's own (and the season call's answer could read as the record, "13–3–1", not "5"). [S–M · sports]
+
+**257. The victory lap's leftovers (C3, PLAN-sports-couch.md; the sports-couch lane, 2026-11-23).** (a) A fan's call game shows on the hub's
+feed as a started game ("Jordan started a Jordan's call · tap to join"): C2's call and C1's rivalry games should leave the feed's
+"started" rows (their card is the way in). (b) A lap only for the winning team's fans: after a real Sunday, decide whether a right back
+or fade, or the pool's week, earns one too. (c) The fan card could count a fan's laps; not yet worth the space. (d) A hider who shows a
+game days later still gets the prompt until the team plays again (by design); a daily sport closes it the next day. [S · sports]
 
 **222. A game the daily job misses for three days is never read again.** The daily job reads a linked game only from three days
 back (matchup.ts `refreshSportsEvents`), so a game whose day the job skipped for three days (the bot VM down over a long

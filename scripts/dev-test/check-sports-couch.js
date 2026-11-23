@@ -146,6 +146,8 @@ async function cleanup(pool) {
   await pool.query("DELETE FROM team_follows WHERE league = ANY($1::text[])", [LEAGUES_]);
   await pool.query("DELETE FROM league_follows WHERE league = ANY($1::text[])", [LEAGUES_]);
   await pool.query("DELETE FROM sports_recordings WHERE league = ANY($1::text[])", [LEAGUES_]);
+  await pool.query("DELETE FROM sports_watching WHERE league = ANY($1::text[])", [LEAGUES_]).catch(() => {}); // 0451 (C2)
+  await pool.query("DELETE FROM sports_laps WHERE league = ANY($1::text[])", [LEAGUES_]).catch(() => {}); // 0452 (C3)
   await pool.query("DELETE FROM chat_messages WHERE sports_league = ANY($1::text[])", [LEAGUES_]);
   await pool.query("DELETE FROM league_chat_reads WHERE league = ANY($1::text[])", [LEAGUES_]);
   await pool.query("DELETE FROM sports_cache WHERE key LIKE 'zt-standin:%'");
@@ -442,7 +444,7 @@ async function apiChecks(pool, me, couch, started) {
     check(!!fin?.final && !!fin.lines_at, "the daily job keeps the game's final and its lines", { r, kept, fin });
     const after = await me.call("GET", `/api/seasons/${ss.body.seasonId}/answers?league=${ss.body.leagueId}&episode=${ss.body.from}`);
     const mine = JSON.stringify(after.body);
-    check(/"right":true|"correct":true|"points":1/.test(mine), "the pick is graded right once the game is final", mine.slice(400, 2600));
+    check(/"right":true|"correct":true|"points":1\b/.test(mine), "the pick is graded right once the game is final", mine.slice(400, 2600));
     Object.assign(ev, { state: "pre", score: undefined, box: undefined, at: at(2 * D) });
   }
 
@@ -475,16 +477,18 @@ async function leagueFollowBrowser(page, shot, wide, headers) {
   await page.goto(BASE + "/home?page=guide", { waitUntil: "networkidle" });
   await page.evaluate(() => document.querySelector("[data-guide-add]")?.scrollIntoView());
   await page.click("[data-guide-add]");
+  await page.click('[data-search-scope="all"]');
   await page.fill("[data-add-input]", "zt couch basketball");
-  const lrow = page.locator(`[data-league-row="${BB}"]`);
+  // A league named exactly is search's card (B3), Follow beside its name.
+  const lrow = page.locator(`[data-search-card="league"]`);
   const found = await lrow.waitFor({ timeout: 15000 }).then(() => true, () => false);
-  check(found, "search finds the league, its row with Follow");
+  check(found, "search finds the league, its card with Follow");
   if (found) {
-    const r = await lrow.evaluate((el) => ({ chevron: !!el.querySelector("svg.lucide-chevron-right"), toggle: el.querySelector("[data-follow-toggle]")?.textContent, nested: !!el.querySelector("button button") }));
-    check(!r.chevron && r.toggle === "Follow" && !r.nested, "the league's row: Follow where the chevron was, its own button", r);
+    const r = await lrow.evaluate((el) => ({ toggle: el.querySelector("[data-follow-toggle]")?.textContent, nested: !!el.querySelector("button button") }));
+    check(r.toggle === "Follow" && !r.nested, "the league's card: Follow beside its name, its own button", r);
     await wide("search with a league's Follow");
     await lrow.locator("[data-follow-toggle]").click();
-    await page.waitForFunction((bb) => document.querySelector(`[data-league-row="${bb}"] [data-follow-toggle]`)?.getAttribute("aria-pressed") === "true", BB, { timeout: 8000 }).catch(() => {});
+    await page.waitForFunction(() => document.querySelector('[data-search-card="league"] [data-follow-toggle]')?.getAttribute("aria-pressed") === "true", null, { timeout: 8000 }).catch(() => {});
     await page.waitForTimeout(600);
     check((await me.call("GET", "/api/sports/follow")).body.leagues?.includes(BB), "Follow on the row follows the league");
     await shot("8-search-league-following");
@@ -513,9 +517,11 @@ async function leagueFollowBrowser(page, shot, wide, headers) {
   await page.goto(BASE + "/home?page=guide", { waitUntil: "networkidle" });
   await page.evaluate(() => document.querySelector("[data-guide-add]")?.scrollIntoView());
   await page.click("[data-guide-add]");
+  await page.click('[data-search-scope="all"]');
   await page.fill("[data-add-input]", "zt cowboys");
-  await page.waitForSelector('[data-hit-kind="team"]', { timeout: 15000 });
-  await page.click('[data-hit-kind="team"][data-hit="ZT Cowboys"]');
+  // The team the words name is search's card (B3): its name opens the page.
+  await page.waitForSelector('[data-search-open="team"]', { timeout: 15000 });
+  await page.click('[data-search-open="team"]');
   const make = await page.locator("[data-make-my-team]").waitFor({ timeout: 15000 }).then(() => true, () => false);
   check(make, "a second team you follow in a league offers Make them your team");
   await shot("10-team-make-mine");
@@ -692,14 +698,14 @@ async function browserChecks(pool, headers, couch) {
     const gt = await page.evaluate(() => ({
       couch: !!document.querySelector("[data-games-couch] [data-league-start]"),
       team: !!document.querySelector('[data-games-team-season="9301"]'),
-      results: /d+[–-]d+/.test(document.querySelector("[data-league-games-tab]")?.textContent ?? ""),
+      results: /\b\d+[–-]\d+\b/.test(document.querySelector("[data-league-games-tab]")?.textContent ?? ""),
     }));
     check(gt.couch && gt.team && !gt.results, "its Games tab: the couch's starts, your team's season, no results", gt);
     await page.click('[data-games-team-season="9301"]');
     check(await page.locator("[data-sport-handoff]").waitFor({ timeout: 10000 }).then(() => true, () => false), "a team's season row hands off to Start a game");
     await page.keyboard.press("Escape");
     await page.waitForTimeout(800);
-    // Standings (B1 session 4): the table, your team's row raised with its record; a row opens its splits, and the team's sheet.
+    // Standings (B1 session 4): the table, your team's row raised with its record; a row opens its splits, and the team's page (B2).
     await page.click('nav[aria-label="League"] a[href$="/standings"]');
     const rowAt = page.locator('[data-standing-row="9301"]');
     const drawn = await rowAt.waitFor({ timeout: 15000 }).then(() => true, () => false);
@@ -713,9 +719,9 @@ async function browserChecks(pool, headers, couch) {
     await rowAt.click();
     check(await page.locator('[data-standings-splits="9301"]').waitFor({ timeout: 5000 }).then(() => true, () => false), "a row opens its splits in place");
     await page.click('[data-standings-team="9301"]');
-    check(await page.locator("[data-team-view]").waitFor({ timeout: 10000 }).then(() => true, () => false), "Open the Eagles: the team's sheet");
-    await page.keyboard.press("Escape");
-    await page.waitForTimeout(800);
+    check(await page.locator('[data-team-page="' + FB + '/9301"]').waitFor({ timeout: 15000 }).then(() => true, () => false), "Open the Eagles: the team's page");
+    await page.click("[data-team-back]");
+    check(await page.locator('[data-standing-row="9301"]').waitFor({ timeout: 15000 }).then(() => true, () => false), "the team's Back returns to Standings");
     // Chat (B1 session 5): the room, its thread chip for the game on now; then hidden (below) folds the thread's talk.
     await page.click('nav[aria-label="League"] a[href$="/chat"]');
     const roomUp = await page.locator("[data-league-chat] [data-msg]").first().waitFor({ timeout: 15000 }).then(() => true, () => false);
@@ -746,34 +752,41 @@ async function browserChecks(pool, headers, couch) {
     await page.locator("[data-guide-add]").first().waitFor({ timeout: 30000 });
     await page.evaluate(() => document.querySelector("[data-guide-add]")?.scrollIntoView());
     await page.click("[data-guide-add]");
+    await page.click('[data-search-scope="all"]');
     await page.fill("[data-add-input]", "zt eagles");
     await page.waitForSelector('[data-hit-kind="team"]', { timeout: 15000 });
     const order = await page.evaluate(() => {
-      const t = document.querySelector("[data-sports-results]");
+      const t = document.querySelector("[data-search-card], [data-sports-results]");
       const s = document.querySelector("[data-search-results]");
       return t && s ? !!(t.compareDocumentPosition(s) & Node.DOCUMENT_POSITION_FOLLOWING) : null;
     });
     check(order !== false, "a team the words name comes above the shows");
     await shot("1-search");
+    // A team from search opens its page (B2), Add left behind.
     await page.click('[data-hit-kind="team"]');
-    await page.waitForSelector("[data-team-view]", { timeout: 15000 });
-    await page.waitForSelector("[data-live-now]", { timeout: 15000 });
-    const live = await page.textContent("[data-live-now]");
+    await page.waitForSelector("[data-team-page]", { timeout: 20000 });
+    await page.waitForSelector("[data-team-now] [data-bug]", { timeout: 15000 });
+    const live = await page.textContent("[data-team-now]");
     check(/Started/.test(live) && !/14|10–|–10/.test(live), "scores hidden: the game on now says only when it started", live);
-    check(!(await page.$("[data-team-form]")), "scores hidden: no form strip");
+    check(!(await page.$("[data-season-strip]")) && !!(await page.$("[data-season-hidden]")), "scores hidden: the season held behind Show the season");
     const plate = await page.textContent("[data-team-plate]");
     check(!/\d+–\d+/.test(plate), "scores hidden: no record on the plate", plate);
+    check(!/\b(W|L) \d|\d+–\d+/.test((await page.textContent("[data-team-schedule]")) ?? ""), "scores hidden: no result in the schedule");
     check(!!(await page.$('[data-play="next"]')), "Play the next game is there");
-    const yellows = await page.$$eval("[role=dialog] .bg-chyron", (els) => els.length);
-    check(yellows === 1, "one yellow on the team's sheet", yellows);
-    await wide("the team's sheet");
+    const yellows = await page.$$eval("[data-team-page] .bg-chyron", (els) => els.length);
+    check(yellows === 1, "one yellow on the team's page", yellows);
+    await wide("the team's page");
     await shot("2-team-hidden");
-    await page.click("[data-live-now] [data-show-score]");
-    await page.waitForFunction(() => /14/.test(document.querySelector("[data-live-now]")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
-    check(/14/.test(await page.textContent("[data-live-now]")), "Show the score lets that game's score out");
-    // Start a game… (docs/PLAN-start-a-game-redo.md B1): the team's games added, then the same gallery as a show's on that season,
-    // every game opening on just the next one (what Start a game… picked).
-    await page.click('[data-more="start"]');
+    await page.click("[data-team-now] [data-bug]");
+    await page.locator("[data-show-fresh]").click({ timeout: 10000 }).catch(() => {});
+    await page.waitForFunction(() => /14/.test(document.querySelector("[data-team-now]")?.textContent ?? ""), null, { timeout: 8000 }).catch(() => {});
+    check(/14/.test(await page.textContent("[data-team-now]")), "Show the score lets that game's score out", (await page.textContent("[data-team-now]"))?.slice(0, 80));
+    await page.keyboard.press("Escape");
+    await page.click("[data-show-season]");
+    check(await page.locator("[data-season-strip]").waitFor({ timeout: 5000 }).then(() => true, () => false), "Show the season draws the season's bars");
+    // Start a game on (docs/PLAN-start-a-game-redo.md B1): the team's games added, then the same gallery as a show's on that season,
+    // every game opening on just the next one (what The next game picked).
+    await page.click('[data-open-row="scope-next"]');
     await page.waitForSelector("[data-gallery=gallery]", { timeout: 30000 });
     const sq = page.locator('[data-gallery-base="sp-squares"], [data-gallery-lead="sp-squares"]').first();
     await sq.scrollIntoViewIfNeeded();
@@ -793,7 +806,7 @@ async function browserChecks(pool, headers, couch) {
     await shot("4-squares-page");
     check(/\/game\//.test(page.url()), "Start it lands on the game's page");
     const title = await page.textContent("[data-game-title]");
-    check(!/Ga/.test(title), "the page's unit is the sport's (G, never Ga)", title);
+    check(!/\bGa\b/.test(title), "the page's unit is the sport's (G, never Ga)", title);
 
     // A draft on the Sixers' series: its page, a player's position beside their name, and their game log.
     const me = await signIn({ user: fixture.username("alex"), pass: fixture.PASSWORD, headers });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, Plus } from "lucide-react";
+import { Check, ChevronDown, Plus } from "lucide-react";
 import { nameKey, sameShow } from "@/lib/game/listing";
 import { useListingSearch, type CatalogSeason, type ListingHit } from "../data";
 import { ShowArt } from "../ui/show-bar";
@@ -101,7 +101,7 @@ export function StatePill({ state }: { state: RowState }) {
 
 /** The rows, each a tap: its art, name, one line, and where it stands (or `picked` instead, in first run). `ringed`: the row the
  *  first-time tour's practice asks for (its key), ringed. */
-export function SearchRows({ rows, onPick, picked, ringed }: { rows: SearchRow[]; onPick: (r: SearchRow) => void; picked?: Set<string>; ringed?: string }) {
+export function SearchRows({ rows, onPick, picked, ringed, quietNew }: { rows: SearchRow[]; onPick: (r: SearchRow) => void; picked?: Set<string>; ringed?: string; quietNew?: boolean }) {
   return (
     <div className="mt-1" data-search-results>
       {rows.map((r) => (
@@ -122,7 +122,7 @@ export function SearchRows({ rows, onPick, picked, ringed }: { rows: SearchRow[]
           {picked ? (
             picked.has(r.key) && <span className="type-caption flex-none rounded-[2px] bg-chyron px-[7px] py-[3px] text-[11px] tracking-[0.05em] text-chyron-foreground">Picked</span>
           ) : (
-            <StatePill state={r.state} />
+            !(quietNew && r.state === "new") && <StatePill state={r.state} />
           )}
         </button>
       ))}
@@ -190,5 +190,59 @@ export function SuggestionCard({ title, sub, art, position, on, onClick }: { tit
       <b className="type-caption text-[18px] leading-none">{title}</b>
       <small className="mt-1 block truncate text-[12px] opacity-85">{on ? "On your list" : sub}</small>
     </button>
+  );
+}
+
+/** Shows found, in two groups (docs/design-round/search-first-view.md R1: a label every row shares is said once): the shows here, then
+ *  From the TV listings (no "Not a game yet" on each: the group says it). `limit` rows in all (three under a sports card), then
+ *  "More shows · N". */
+export function ShowGroups({ rows, limit, onMore, onFewer, onPick, picked, ringed }: { rows: SearchRow[]; limit: number; onMore: () => void; onFewer?: () => void; onPick: (r: SearchRow) => void; picked?: Set<string>; ringed?: string }) {
+  const here = rows.filter((r) => r.kind === "season");
+  const listed = rows.filter((r) => r.kind === "listing");
+  const shownHere = here.slice(0, limit);
+  const shownListed = listed.slice(0, Math.max(0, limit - shownHere.length));
+  const hidden = rows.length - shownHere.length - shownListed.length;
+  if (!rows.length) return null;
+  return (
+    <div data-show-groups>
+      {shownHere.length > 0 && <GroupLabel>Shows</GroupLabel>}
+      <SearchRows rows={shownHere} onPick={onPick} picked={picked} ringed={ringed} />
+      {shownListed.length > 0 && <GroupLabel>From the TV listings</GroupLabel>}
+      <SearchRows rows={shownListed} onPick={onPick} picked={picked} ringed={ringed} quietNew />
+      {hidden > 0 && (
+        <button type="button" data-more-shows onClick={onMore} className="nd-press flex min-h-12 w-full items-center gap-1 border-b border-border text-left text-[14px] font-semibold text-muted-foreground">
+          More shows · {hidden}
+          <ChevronDown className="size-4" aria-hidden />
+        </button>
+      )}
+      {hidden === 0 && onFewer && (
+        <button type="button" data-fewer-shows onClick={onFewer} className="nd-press flex min-h-12 w-full items-center gap-1 border-b border-border text-left text-[14px] font-semibold text-muted-foreground">
+          Fewer shows
+          <ChevronDown className="size-4 rotate-180" aria-hidden />
+        </button>
+      )}
+    </div>
+  );
+}
+
+const GroupLabel = ({ children }: { children: React.ReactNode }) => <p className="type-caption mb-0 mt-5 text-[14px] tracking-[0.04em] text-muted-foreground">{children}</p>;
+
+/** All · Shows · Sports: text tabs under the field, the chosen one in ink with an ink rule (B1's chosen-chip rule: never yellow). */
+export function ScopeSwitch<S extends string>({ scope, onScope, scopes = [["all", "All"], ["shows", "Shows"], ["sports", "Sports"]] as [S, string][] }: { scope: S; onScope: (s: S) => void; scopes?: [S, string][] }) {
+  return (
+    <div role="group" aria-label="Search in" data-search-scopes className="mt-2 flex border-b border-border">
+      {scopes.map(([k, label]) => (
+        <button
+          key={k}
+          type="button"
+          aria-pressed={scope === k}
+          data-search-scope={k}
+          onClick={() => onScope(k)}
+          className={`nd-press relative h-11 px-3.5 text-[15px] first:pl-1 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-foreground ${scope === k ? "font-bold text-foreground after:absolute after:inset-x-3.5 after:bottom-[-1px] after:h-0.5 after:bg-foreground first:after:left-1" : "font-semibold text-muted-foreground"}`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
   );
 }

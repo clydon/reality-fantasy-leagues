@@ -152,7 +152,7 @@ const WORDS = {
       players: 'the players\' own answers (take: majority or minority)',
       legs: "a ticket's legs (of: the question ids)",
       outside: 'a number from an outside source',
-      final: "a sport's game at its final (take: winner, total, margin; a field's top, with place: a podium's 3)",
+      final: "a sport's game at its final (take: winner, total, margin; a field's top, with place: a podium's 3; wins, with of: a team's wins over the game's games, asked once)",
       stat: "a stat in a sport's game (stat; take: most, least, value)",
     },
     sport: ['final', 'stat'],

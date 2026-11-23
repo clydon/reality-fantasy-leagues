@@ -11,8 +11,8 @@ import { Sheet } from "./sheet";
 // GifPicker is the picker alone (React with a GIF's sheet holds it); GifSheet is it in a sheet of its own.
 
 /** The picker: search, then a grid to tap. It asks for GIFs only while `active` (its sheet is open). */
-export function GifPicker({ active, onPick, placeholder = "Search GIFs" }: { active: boolean; onPick: (g: GifHit) => void; placeholder?: string }) {
-  const [q, setQ] = useState("");
+export function GifPicker({ active, onPick, placeholder = "Search GIFs", initial = "" }: { active: boolean; onPick: (g: GifHit) => void; placeholder?: string; /** A search to start on (the victory lap's "Giants win"). */ initial?: string }) {
+  const [q, setQ] = useState(initial);
   const [asked, setAsked] = useState<string | null>(null);
   const [hits, setHits] = useState<GifHit[] | null>(null);
   const [error, setError] = useState<string | null>(null);

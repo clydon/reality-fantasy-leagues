@@ -24,6 +24,7 @@ import { begun, showScore, useHideSports, useHideSportsKnown, useNow, useShownSc
 import { useLeagueWeek } from "../sports/sheets";
 import type { LeagueNow } from "@/lib/sports/league-now";
 import { useTableTeams } from "./league-page";
+import { LapResultLine, LapTag } from "../sports/lap";
 
 const RUN_MS = 10 * 60_000;
 /** A game counts as on for this long after its start, by the clock alone, for anyone hiding its score (the league card's rule). */
@@ -321,6 +322,14 @@ export function LeagueChat({ league, name, lnow }: { league: string; name: strin
             tag={item.starts ? tagOf(item.m, prevLine(items, i)) : null}
             onOpen={() => setOpen(item.m)}
             onReact={(e) => actions.react(item.m.id, e).catch((err) => toast.quiet(`Not sent: ${err.message}`))}
+            lap={
+              item.m.lap ? (
+                <span data-room-lap className="flex flex-col gap-1">
+                  <LapTag />
+                  <LapResultLine r={item.m.lap} league={league} />
+                </span>
+              ) : undefined
+            }
           />
         );
       })}

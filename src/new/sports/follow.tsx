@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Check } from "lucide-react";
-import { sportsApi, useYourTeams, type YourFollows } from "../data";
+import { sportsApi, useCouchTeams, useCurrentCouch, useHome, useYourTeams, type YourFollows } from "../data";
 import { Avatar } from "../ui/bars";
 import { toast } from "../ui/toast";
 
@@ -79,4 +79,35 @@ export function useLeagueFollow(league: string, leagueName: string, opts: { play
     }
   };
   return { on, ready: !!follows, busy, toggle, teamsHere };
+}
+
+/** Following a team: yours (the couch's read, or your own without a couch), toggled with the old sheet's words. A team's page and
+ *  search's card share it (docs/PLAN-sports-couch.md B2, B3). `names` once the team is known (its short name, its league's). */
+export function useTeamFollow(league: string, team: string, names: { short: string; leagueName: string | null } | null) {
+  const { data: home } = useHome();
+  const couch = useCurrentCouch(home);
+  const me = home?.user.id ?? "";
+  const qc = useQueryClient();
+  const couchTeams = useCouchTeams(couch?.id ?? null);
+  const mine = useYourTeams();
+  const [over, setOver] = useState<boolean | null>(null);
+  const followers = couchTeams.data?.teams.find((t) => t.league === league && t.id === team)?.followers ?? [];
+  const on = over ?? (couch ? followers.some((f) => f.id === me) : !!mine.data?.teams.some((t) => t.league === league && t.id === team));
+  const short = names?.leagueName ?? league.split("/").pop()!.toUpperCase();
+  const toggle = async () => {
+    if (!names) return;
+    const next = !on;
+    // Following a team follows its league too: say so when that puts the league on your shows.
+    const newLeague = next && !!mine.data && !mine.data.leagues.includes(league);
+    setOver(next);
+    try {
+      qc.setQueryData(["new-design", "your-teams"], await sportsApi.follow(league, team, next));
+      await qc.invalidateQueries({ queryKey: ["new-design", "couch-teams"] });
+      toast(next ? (newLeague ? `Following the ${names.short}: ${theLeague(short)} is on your shows` : `Following the ${names.short}: their games lead your guide`) : `Unfollowed: their games leave your guide`);
+    } catch (e) {
+      setOver(!next);
+      toast.quiet((e as Error).message);
+    }
+  };
+  return { on, toggle, followers, couch, me, mine, short, ready: !!names && (couch ? couchTeams.isSuccess : mine.isSuccess) };
 }

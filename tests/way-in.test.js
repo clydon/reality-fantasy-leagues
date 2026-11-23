@@ -94,3 +94,23 @@ test("who gets in: unset means invites let people in; a bad value waits for an a
   assert.equal(S.signupModeOf("open"), "open");
   assert.ok(!S.invitesLetIn("approve") && S.invitesLetIn("invites") && S.invitesLetIn("open"));
 });
+
+test("first run's teams and leagues (sports-couch B3): kept with a name, cleaned, a bad key let go", () => {
+  const now = Date.now();
+  const raw = {
+    picked: [],
+    where: {},
+    teams: {
+      "team:football/nfl/21": { league: "football/nfl", team: "21", name: "Philadelphia Eagles", abbr: "PHI", color: "06424d" },
+      "league:football/nfl": { league: "football/nfl", name: "NFL" },
+      "nonsense": { league: "x", name: "y" },
+      "team:football/nfl/22": { league: "football/nfl", team: "22" },
+    },
+    at: now - 1000,
+  };
+  const kept = W.parseFirstRun(JSON.stringify(raw), now);
+  assert.deepEqual(Object.keys(kept.teams), ["team:football/nfl/21", "league:football/nfl"]);
+  assert.equal(kept.teams["team:football/nfl/21"].team, "21");
+  assert.equal(kept.teams["league:football/nfl"].team, undefined);
+  assert.equal(W.parseFirstRun(JSON.stringify({ picked: [], where: {}, at: now }), now).teams, undefined);
+});

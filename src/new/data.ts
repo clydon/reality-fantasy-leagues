@@ -1332,7 +1332,7 @@ export function useCatalog(enabled = true) {
 
 /** First run's shows for the account just made (or signed into), and the new design as the one it opens on. A show from the
  *  TV listings, or one added by name (step 10), is made if it has to be. */
-export const saveFirstRun = (follows: FirstRunFollow[]) => post<{ saved: number }>("/api/me/first-run", { follows, ui: "new" });
+export const saveFirstRun = (follows: FirstRunFollow[], teams: { league: string; team?: string }[] = []) => post<{ saved: number }>("/api/me/first-run", { follows, teams, ui: "new" });
 export type FirstRunFollow = ({ seasonId: string } | { listing: number } | { name: string }) & { seenThrough: number };
 
 // ---- watching (step 10 part 1; add-show.ts, listings.ts, follows.ts): Add a show, where you are, watch privately. Read when
@@ -1591,9 +1591,10 @@ export function useWizardOptions(seasonId: string | null, couchId: string | null
   return useQuery({
     queryKey: ["new-design", "start-wizard", seasonId, couchId, late, start, again],
     queryFn: () =>
-      get<WizardOptions>(seasonUrl(seasonId!, "/start", { couch: couchId!, wizard: "1", ...(late ? { late: "1" } : {}), ...(start ? { start: String(start) } : {}), ...(again ? { again } : {}) })),
+      get<WizardOptions>(seasonUrl(seasonId!, "/start", { ...(couchId ? { couch: couchId } : {}), wizard: "1", ...(late ? { late: "1" } : {}), ...(start ? { start: String(start) } : {}), ...(again ? { again } : {}) })),
     placeholderData: (prev) => prev,
-    enabled: enabled && !!seasonId && !!couchId,
+    // C4: with no couch, a sport's season starts your own game (the server refuses any other season).
+    enabled: enabled && !!seasonId,
     staleTime: 0,
     // A team's season just added fills its players after the add: read again until they're in, so the sheet can count them.
     refetchInterval: (q) => (q.state.data?.wizard?.scope?.filling ? 3000 : false),
@@ -1614,10 +1615,11 @@ export const savedApi = {
 
 export const wizardApi = {
   /** Start from a spec: the wizard's game, checked again on the server; the couch hears after the hold. */
-  start: (seasonId: string, couchId: string, body: { spec: unknown; name?: string; tell: boolean; bots?: number; level?: BotLevel; late?: boolean; made?: Record<string, unknown>; pace?: "own" | "live" | "strict"; timing?: "final" }) =>
-    post<SpecStarted>(seasonUrl(seasonId, "/start", { couch: couchId }), body),
+  // C4: couchId null starts your own game (a sport's, on no couch).
+  start: (seasonId: string, couchId: string | null, body: { spec: unknown; name?: string; tell: boolean; bots?: number; level?: BotLevel; late?: boolean; made?: Record<string, unknown>; pace?: "own" | "live" | "strict"; timing?: "final" }) =>
+    post<SpecStarted>(seasonUrl(seasonId, "/start", couchId ? { couch: couchId } : {}), body),
   /** Take back a game you just started (inside the hold, nobody hears). */
-  undo: (seasonId: string, couchId: string, leagueId: string) => post<{ undone: true }>(seasonUrl(seasonId, "/start", { couch: couchId }), { undo: leagueId }),
+  undo: (seasonId: string, couchId: string | null, leagueId: string) => post<{ undone: true }>(seasonUrl(seasonId, "/start", couchId ? { couch: couchId } : {}), { undo: leagueId }),
   /** Your words to a game (G1, game-words.ts): our bot drafts it, our check decides. About 40 seconds on the free bot. */
   words: (seasonId: string, couchId: string | null, words: string) => post<GameWordsResult>(seasonUrl(seasonId, "/game-words", {}), { words, ...(couchId ? { couch: couchId } : {}) }),
   /** A typed change: to an ask (`from`), or to a game the sheet holds (`spec` and its words), maybe a quick change's button. */
@@ -2081,6 +2083,8 @@ export function useSportsSearch(q: string) {
     queryKey: ["new-design", "sports-search", t.toLowerCase()],
     queryFn: () => get<FoundTeams>(`/api/sports/search?q=${encodeURIComponent(t)}`),
     enabled: t.length >= 2,
+    // Once more, then say so (Add's search shows "Teams didn't load": the check's P2), not three tries in silence.
+    retry: 1,
     staleTime: 3600_000,
     placeholderData: keepPreviousData,
   });
@@ -2201,6 +2205,17 @@ export function useLeagueStandings(league: string, enabled = true) {
   });
 }
 
+/** The seasons a real game is in and its episode in each (/api/sports/game/seasons; docs/PLAN-sports-couch.md B4): a game's sheet
+ *  matches the couch's games to it. */
+export function useGameSeasons(league: string, event: string | null) {
+  return useQuery({
+    queryKey: ["new-design", "game-seasons", league, event],
+    queryFn: () => get<{ seasons: { seasonId: string; episode: number }[] }>(`/api/sports/game/seasons?league=${encodeURIComponent(league)}&event=${encodeURIComponent(event!)}`),
+    enabled: !!event,
+    staleTime: 60_000,
+  });
+}
+
 export function useLeagueTeams(league: string, teams: string[], enabled = true) {
   const ids = [...new Set(teams)].sort().join(",");
   return useQuery({
@@ -2314,3 +2329,166 @@ export const momentVotes = {
   decide: (seasonId: string, couchId: string, leagueId: string, id: string, to: "start" | "next") =>
     sendJson<{ batch: string }>(seasonUrl(seasonId, "/backstage/settings", { couch: couchId }), "PATCH", { leagueId, moment: { id, to } }),
 };
+
+// ---- a rivalry's game (docs/PLAN-sports-couch.md C1: src/lib/server/sports/rivalry.ts) ----
+
+export type { RivalryGame } from "@/lib/server/sports/rivalry";
+
+/** The couch's rivalry games in a league, with every pick (sides public; margins only once begun, yours always). */
+export function useRivalryGames(couchId: string | null, league: string) {
+  return useQuery({
+    queryKey: ["new-design", "rivalries", couchId, league],
+    queryFn: () => get<{ games: import("@/lib/server/sports/rivalry").RivalryGame[] }>(`/api/sports/rivalry?couch=${couchId}&league=${encodeURIComponent(league)}`),
+    enabled: !!couchId,
+    staleTime: 30_000,
+  });
+}
+
+/** Make, change or take back (side null) a pick on a rivalry; the read put in place, and what counts games read again. */
+export function useRivalryPick(couchId: string | null, league: string) {
+  const client = useQueryClient();
+  return useCallback(
+    async (body: { event: string; team: string; side: string | null; margin?: number | null; name?: string; rival?: string }) => {
+      const r = await post<{ game: import("@/lib/server/sports/rivalry").RivalryGame | null }>(`/api/sports/rivalry?couch=${couchId}`, { league, ...body });
+      client.setQueryData<{ games: import("@/lib/server/sports/rivalry").RivalryGame[] }>(["new-design", "rivalries", couchId, league], (old) => {
+        const rest = (old?.games ?? []).filter((g) => g.event !== body.event);
+        return { games: r.game ? [...rest, r.game] : rest };
+      });
+      void client.invalidateQueries({ queryKey: HOME_KEY });
+      void client.invalidateQueries({ queryKey: ["new-design", "mine"] });
+      // A fan's rivalry call is one of their calls (C2's record).
+      void client.invalidateQueries({ queryKey: ["new-design", "calls", couchId, league] });
+      return r.game;
+    },
+    [client, couchId, league]
+  );
+}
+
+// ---- a fan's call, and I'm watching (docs/PLAN-sports-couch.md C2: src/lib/server/sports/calls.ts, watching.ts) ----
+
+export type { CallGame } from "@/lib/sports/fan-call";
+export type { Watching } from "@/lib/server/sports/watching";
+export type { Lap, OpenLap } from "@/lib/server/sports/laps";
+export type { LapResult } from "@/lib/server/league-chat";
+
+type LapsRead = { open: import("@/lib/server/sports/laps").OpenLap[]; laps: import("@/lib/server/sports/laps").Lap[]; gifs?: boolean };
+
+/** The victory lap (C3): your open laps among `teams` (the couch's teams you follow) and the couch's laps in the league. */
+export function useLaps(couchId: string | null, league: string, teams: string[]) {
+  const ids = [...new Set(teams)].sort();
+  return useQuery({
+    queryKey: ["new-design", "laps", couchId, league, ids.join(",")],
+    queryFn: () => get<LapsRead>(`/api/sports/laps?couch=${couchId}&league=${encodeURIComponent(league)}&teams=${ids.join(",")}`),
+    enabled: !!couchId,
+    staleTime: 30_000,
+  });
+}
+
+/** Take a lap (a GIF and a line), say Not this time (`skip`), or take yours back; then what shows laps reads again. */
+export function useLapActions(couchId: string | null, league: string) {
+  const client = useQueryClient();
+  const after = useCallback(() => {
+    void client.invalidateQueries({ queryKey: ["new-design", "laps", couchId, league] });
+    void client.invalidateQueries({ queryKey: ["new-design", "couch-hub"] });
+    void client.invalidateQueries({ queryKey: ["new-design", "room-latest", league, couchId] });
+    void client.invalidateQueries({ queryKey: ["new-design", "room-counts", league, couchId] });
+  }, [client, couchId, league]);
+  const take = useCallback(
+    async (body: { event: string; team: string; gif?: GifHit | null; line?: string; skip?: boolean }) => {
+      const r = await post<LapsRead>(`/api/sports/laps?couch=${couchId}`, { league, ...body });
+      after();
+      return r;
+    },
+    [after, couchId, league]
+  );
+  const takeBack = useCallback(
+    async (event: string) => {
+      const res = await fetch(`/api/sports/laps?couch=${couchId}&league=${encodeURIComponent(league)}&event=${encodeURIComponent(event)}`, { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Couldn't take it back (${res.status})`);
+      after();
+    },
+    [after, couchId, league]
+  );
+  return { take, takeBack };
+}
+
+/** The couch's call and rivalry games in a league this season (every winner pick, public), each with its teams and final. */
+export function useCallGames(couchId: string | null, league: string, teams: string[]) {
+  const ids = [...new Set(teams)].sort();
+  return useQuery({
+    queryKey: ["new-design", "calls", couchId, league, ids.join(",")],
+    queryFn: () => get<{ games: import("@/lib/sports/fan-call").CallGame[] }>(`/api/sports/calls?couch=${couchId}&league=${encodeURIComponent(league)}&teams=${ids.join(",")}`),
+    enabled: !!couchId && ids.length > 0,
+    staleTime: 30_000,
+  });
+}
+
+/** Call, back or fade (side null takes it back); the read put in place. */
+export function useCallPick(couchId: string | null, league: string) {
+  const client = useQueryClient();
+  return useCallback(
+    async (body: { event: string; team: string; side: string | null }) => {
+      const r = await post<{ game: import("@/lib/sports/fan-call").CallGame | null }>(`/api/sports/calls?couch=${couchId}`, { league, ...body });
+      client.setQueriesData<{ games: import("@/lib/sports/fan-call").CallGame[] }>({ queryKey: ["new-design", "calls", couchId, league] }, (old) => {
+        if (!old) return old;
+        const prev = old.games.find((g) => g.event === body.event && g.kind === "call");
+        const rest = old.games.filter((g) => !(g.event === body.event && g.kind === "call"));
+        return { games: r.game ? [...rest, { ...r.game, winner: prev?.winner ?? r.game.winner, teams: prev?.teams ?? r.game.teams }] : rest };
+      });
+      void client.invalidateQueries({ queryKey: HOME_KEY });
+      void client.invalidateQueries({ queryKey: ["new-design", "mine"] });
+      return r.game;
+    },
+    [client, couchId, league]
+  );
+}
+
+/** C4 (solo): your own calls on some teams this season, your season calls, and the teams' regular seasons. */
+export type OwnRead = import("@/lib/server/sports/own").OwnRead;
+export function useOwnCalls(league: string, teams: string[], enabled = true) {
+  const ids = [...new Set(teams)].sort();
+  return useQuery({
+    queryKey: ["new-design", "own-calls", league, ids.join(",")],
+    queryFn: () => get<OwnRead>(`/api/sports/own?league=${encodeURIComponent(league)}&teams=${ids.join(",")}`),
+    enabled: enabled && ids.length > 0,
+    staleTime: 30_000,
+  });
+}
+
+/** Your own call on a team's game (side null takes it back), or the season call ({ wins }); every own read refreshed. */
+export function useOwnPick(league: string) {
+  const client = useQueryClient();
+  return useCallback(
+    async (body: { team: string; event: string; side: string | null } | { team: string; wins: number }) => {
+      const r = await post<OwnRead>("/api/sports/own", { league, ...body });
+      await client.invalidateQueries({ queryKey: ["new-design", "own-calls", league] });
+      void client.invalidateQueries({ queryKey: HOME_KEY });
+      void client.invalidateQueries({ queryKey: ["new-design", "mine"] });
+      return r;
+    },
+    [client, league]
+  );
+}
+
+/** Who on the couch is watching a game in the league now (sharing When I'm watching; yours always). */
+export function useWatching(couchId: string | null, league: string) {
+  return useQuery({
+    queryKey: ["new-design", "watching", couchId, league],
+    queryFn: () => get<{ watching: import("@/lib/server/sports/watching").Watching[] }>(`/api/sports/watching?couch=${couchId}&league=${encodeURIComponent(league)}`),
+    enabled: !!couchId,
+    staleTime: 30_000,
+    refetchInterval: 120_000,
+  });
+}
+
+export function useSetWatching(couchId: string | null, league: string) {
+  const client = useQueryClient();
+  return useCallback(
+    async (game: string, on: boolean) => {
+      const r = await post<{ watching: import("@/lib/server/sports/watching").Watching[] }>(`/api/sports/watching?couch=${couchId}`, { league, game, on });
+      client.setQueryData(["new-design", "watching", couchId, league], r);
+      return r.watching;
+    },
+    [client, couchId, league]
+  );
+}

@@ -1,5 +1,6 @@
 import { momentName } from "@/lib/game/moment-names";
 import StateLogic from "@/lib/game/state-logic.js";
+import { ownKindOf } from "@/lib/sports/own-calls";
 import * as Spec from "@/lib/game/game-spec/index.js";
 import type { AnswerFacts, FormatGroups, Question, SpecContext, SportsGameFacts, Verdict } from "@/lib/game/game-spec/index.js";
 import type { BracketField } from "@/lib/game/sequence/bracket";
@@ -36,7 +37,7 @@ import { PLAYOFFS } from "@/lib/sports/playoffs";
 // are. Weekly Calls' are Call it's (calls.ts). A question locks as a lineup does, at the start of the
 // episode that closes it (closedForPlay: whoever runs the game can keep it open or lock it early), once it has results or
 // data has settled it; finale predictions when the season's last episode starts. Nobody else's answer leaves the server
-// before then, only how many have answered. Graded on read from the league's results at your mark (the spoiler guard's view
+// before then, only how many have answered (C1: but a side asked with `shown: 'picked'`, a rivalry's public sides, as it's given). Graded on read from the league's results at your mark (the spoiler guard's view
 // of the state, as every table is), never stored. Nothing polls (docs/HOSTING.md).
 
 export interface QuestionFace {
@@ -119,6 +120,8 @@ export interface QuestionView {
   each: "person" | "game" | null;
   /** L3 part 2f part 2, a question about each game: whether its picks are ranked by confidence (1 to the episode's games). */
   confidence: boolean;
+  /** C1: its answers show as they're given (a rivalry's public sides): `people` holds them before the lock, none settled. */
+  shown: boolean;
   /** L3 part 2f part 2, a question about each game: the episode's games as linked, in the order they start, each with its sides
    *  (a side answer's faces: the teams by name) and whether it's started (its pick locked, kept as it was); null for any other. */
   games: { id: string; name: string | null; startsAt: string | null; started: boolean; sides: QuestionFace[]; line: number | null; called: "postponed" | "canceled" | null }[] | null;
@@ -623,6 +626,7 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
       pairs: q.answer === "pairs" && !behind ? pairsOf(h.state, q).map((p) => ({ key: p.key, faces: [castFace(view, p.ids[0]), castFace(view, p.ids[1])] })) : null,
       each: q.each ?? null,
       confidence: q.confidence === true,
+      shown: q.shown === "picked",
       games: q.each === "game" ? gamesView(r.facts, q, ep, r.now.getTime()) : null,
       episode: each ? ep : null,
       status: closed ? "closed" : behind ? "behind" : lineComing ? "waiting" : "open",
@@ -645,6 +649,12 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
       people: [],
       bot: made && Spec.isBeat(q) ? { called: made.has(Spec.botKey(q, ep)), answer: null, right: null } : null,
     };
+    if (!closed && q.shown === "picked" && !behind) {
+      // C1 (a rivalry's public sides): who's picked which side, as they pick, nothing settled yet. Only a side (our check).
+      view1.people = theirs
+        .map((a) => ({ playerId: a.playerId, userId: h.userOf(a.playerId), name: names.get(a.playerId) ?? "Someone", you: a.playerId === me, answer: a.answer, right: null, earned: 0 }))
+        .sort((x, y) => Number(y.you) - Number(x.you) || x.name.localeCompare(y.name));
+    }
     if (closed) {
       // Locked: everyone's answers, and how each stands as far as you've seen (the view is cut at your mark).
       view1.verdict = v;
@@ -941,7 +951,10 @@ function summaryOf(g: GameQuestions, finale: boolean, skip: Set<string> = new Se
   const questions = g.questions.filter((q) => !skip.has(q.id));
   // A13: a trivia round with nothing you can answer yet (no questions, or every one played in the trivia sheet) asks nothing of you.
   // A14 part 6: nor do the lines of a card you chose and sit out.
-  const open = questions.filter((q) => q.status === "open" && !q.card?.sitOut && !(q.trivia && !q.trivia.some((t) => !t.played)));
+  const all = questions.filter((q) => q.status === "open" && !q.card?.sitOut && !(q.trivia && !q.trivia.some((t) => !t.played)));
+  // C1: a rivalry's side picked, the rest of it is yours to add or not (a margin): never a move (src/lib/sports/rivalry.ts).
+  const sided = all.some((q) => q.shown && answered(q.mine));
+  const open = sided ? all.filter((q) => q.shown || answered(q.mine)) : all;
   const behind = questions.find((q) => q.status === "behind")?.catchUp ?? null;
   if (!open.length && behind === null) return null;
   const locks = open.map((q) => (q.closesAt ? Date.parse(q.closesAt) : Infinity));
@@ -987,13 +1000,20 @@ export async function questionMoves(
         })
     )
   );
+  // C4 (solo): a fan's own calls say the call, by the team ("Call the Lions game", its name being "<team> calls"), never a sheet.
+  const callOf = (g: (typeof sheets)[number]) => {
+    if (ownKindOf({ ask: StateLogic.AnswerLogic.questions(states.get(g.leagueId) as LeagueState) }) !== "calls") return null;
+    const team = /^(.+) calls$/.exec(g.name)?.[1];
+    return team ? `Call the ${team} game` : "Make your call";
+  };
   const out = [];
   for (const [i, g] of sheets.entries()) {
     const m = reads[i];
     if (!m || m.answered >= m.of) continue;
+    const call = callOf(g);
     out.push({
       kind: "questions" as const,
-      text: m.answered ? `Finish your sheet (${m.of - m.answered} to go)` : `Fill in your sheet (${m.of} ${m.of === 1 ? "question" : "questions"})`,
+      text: call ? call : m.answered ? `Finish your sheet (${m.of - m.answered} to go)` : `Fill in your sheet (${m.of} ${m.of === 1 ? "question" : "questions"})`,
       href: `/show/${g.seasonId}/tonight`,
       leagueId: g.leagueId,
       leagueName: g.name,

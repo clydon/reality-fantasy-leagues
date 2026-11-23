@@ -8,6 +8,8 @@ import { cardArtSql } from "./art-sql";
 import { pool, HttpError } from "./db";
 import { setFollow } from "./follows";
 import { addShow } from "./add-show";
+import { setLeagueFollow, setTeamFollow } from "./sports/team-follows";
+import type { SportsProvider } from "./sports/types";
 import { latestAired, seasonSchedules, upNext } from "./schedule";
 
 // The way in (docs/PLAN-new-design.md step 9 part 2; the mock's landing.js): what the landing, first run, sign-in and a
@@ -165,7 +167,10 @@ const MAX_FOLLOWS = 40;
  * design as the one this account opens on. Open to an account still waiting to get in (its own shows are all it
  * saves). A season you already play keeps its mark (it moves with your games' reveals).
  */
-export async function saveFirstRun(user: SessionUser, body: { follows?: unknown; ui?: unknown }, listings?: string): Promise<{ saved: number }> {
+/** First run's teams and leagues at most (docs/PLAN-sports-couch.md B3: first run finds teams too, BACKLOG 43). */
+const MAX_TEAMS = 20;
+
+export async function saveFirstRun(user: SessionUser, body: { follows?: unknown; teams?: unknown; ui?: unknown }, listings?: string, sports: { providers?: SportsProvider[] } = {}): Promise<{ saved: number }> {
   const follows = Array.isArray(body.follows) ? body.follows : [];
   if (follows.length > MAX_FOLLOWS) throw new HttpError(400, `At most ${MAX_FOLLOWS} shows at once`);
   let saved = 0;
@@ -193,6 +198,18 @@ export async function saveFirstRun(user: SessionUser, body: { follows?: unknown;
       if (!(e instanceof HttpError) || e.status === 404) continue;
       await setFollow(user.id, f.seasonId, { following: true });
       saved++;
+    }
+  }
+  // Teams and leagues first run picked (B3): followed as Follow does (a team follows its league too). One that's refused is let go.
+  const teams = Array.isArray(body.teams) ? body.teams.slice(0, MAX_TEAMS) : [];
+  for (const t of teams as { league?: unknown; team?: unknown }[]) {
+    try {
+      if (t?.team === undefined) await setLeagueFollow(user.id, { league: t?.league, follow: true }, sports);
+      else await setTeamFollow(user.id, { league: t?.league, team: t?.team, follow: true }, sports);
+      saved++;
+    } catch (e) {
+      if (!(e instanceof HttpError)) throw e;
+      console.error(`[first-run] ${user.id} couldn't follow a team:`, e.message);
     }
   }
   if (body.ui === "new") {

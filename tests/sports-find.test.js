@@ -60,6 +60,8 @@ test("a team by the words people type: its abbreviation, its name or the start o
   assert.equal(wordsOf("Texas A&M").join(" "), "texas am");
   const nyy = lists[1].teams.find((t) => t.id === "10");
   assert.deepEqual(["NYY", "new york yankees", "yankees", "new york y", "york yank", "yanks", "mets"].map((q) => teamScore(wordsOf(q), nyy)), [100, 100, 96, 85, FITS, FITS, 0]);
+  // One of a name is the name (Add's search, sports-couch B3: "bear" the Bears).
+  assert.equal(teamScore(wordsOf("yankee"), nyy), 96);
   assert.deepEqual(names(find("yanks").teams), ["New York Yankees (MLB)"]);
   assert.deepEqual(names(find("NYY").teams), ["New York Yankees (MLB)"]);
   assert.equal(find("new york y").teams[0].name, "New York Yankees");

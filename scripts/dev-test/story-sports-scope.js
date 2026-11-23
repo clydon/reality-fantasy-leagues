@@ -83,7 +83,7 @@ async function frame(page, id) {
       const door = p.locator("[data-team-door]").filter({ hasText: new RegExp(TEAM.split(" ").pop(), "i") }).first();
       await door.waitFor({ timeout: 90000 });
       await tap(door);
-      await top().locator("[data-team-view]").waitFor({ timeout: 45000 });
+      await top().locator("[data-team-page]").waitFor({ timeout: 45000 });
       await top().locator('[data-play="next"], [data-no-next]').first().waitFor({ timeout: 45000 });
       await sleep(900);
     };
@@ -125,10 +125,10 @@ async function frame(page, id) {
         await frame(p, "team-ways");
       }
       if (want("rival")) {
-        await tap(top().locator("[data-rival]").first());
+        await tap(top().locator("[data-against-chip]:not([data-against-chip=all])").first());
         await toView(top().locator("[data-rivals]").first(), "center");
         await frame(p, "rival");
-        await tap(top().locator("[data-rival]").first());
+        await tap(top().locator("[data-against-chip]:not([data-against-chip=all])").first());
       }
       if (want("game") || want("draft-game")) {
         const row = top().locator("[data-game-row]").first();

@@ -36,6 +36,9 @@ export type StartTarget = {
   /** How long a game starts out: "next" for just the next episode or game (a team's Next game), "season" for the season where a game
    *  can run it (a team's Their season), else each game's own default. */
   length?: "next" | "season" | null;
+  /** C4 (solo): open straight on one of the gallery's games (its base's id), with this many computer players in it. */
+  base?: string | null;
+  bots?: number | null;
 };
 
 type Store = { target: StartTarget | null; n: number };
@@ -119,7 +122,7 @@ function StartRouter({ target: asked, onOpenChange }: { target: StartTarget | nu
       loading={wiz.isLoading || (wiz.isPlaceholderData && wiz.isFetching)}
       error={(wiz.error as Error | null) ?? null}
       couchId={couchId}
-      start={{ late, setLate, catchUp, setCatchUp, practice: target.practice, again: target.again ?? null, screen: target.screen ?? null, length: target.length ?? null }}
+      start={{ late, setLate, catchUp, setCatchUp, practice: target.practice, again: target.again ?? null, screen: target.screen ?? null, length: target.length ?? null, base: target.base ?? null, bots: target.bots ?? null }}
     />
   );
 }

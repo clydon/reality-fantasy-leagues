@@ -14,6 +14,7 @@ import {
   useInviteCode,
   useOnNow,
   useSetPlans,
+  useSportsRecordings,
   watching,
   type Couch,
   type CouchHub,
@@ -38,6 +39,8 @@ import { Btn, SectionHead } from "../ui/parts";
 import { ShowArt } from "../ui/show-bar";
 import { toast } from "../ui/toast";
 import { NoSignal } from "../show/getting-ready";
+import { LapResultLine } from "../sports/lap";
+import { useHideSports, useShownScores } from "../sports/scores";
 import { LeagueCard, useLeagueCards } from "./league-cards";
 import { openWatching } from "../watching/sheets";
 import { useOpenTogether } from "../show/watch-along";
@@ -668,7 +671,7 @@ export function YourShows({ home, hub, couch = null }: { home: Home; hub: CouchH
           <span className="grid size-11 place-items-center rounded-[3px] bg-card text-foreground">
             <Plus className="size-6" aria-hidden />
           </span>
-          <b className="type-caption text-[22px] text-foreground">Add a show</b>
+          <b className="type-caption text-[22px] text-foreground">Add a show or team</b>
           <small className="text-[13px] leading-snug">Tell the couch what you&rsquo;re watching.</small>
         </button>
       </div>
@@ -916,7 +919,9 @@ function FeedRow({ e }: { e: FeedItem }) {
               ? "planned a watch along"
               : e.kind === "bingo"
                 ? `called BINGO on Episode ${e.episode} · look at their card`
-                : null;
+                : e.kind === "lap"
+                  ? "took a victory lap"
+                  : null;
   const body = (
     <>
       <Avatar id={e.userId ?? e.name} name={e.name} size={34} />
@@ -931,6 +936,17 @@ function FeedRow({ e }: { e: FeedItem }) {
         {e.kind === "planned" && (
           <span data-feed-plan className="mt-0.5 block text-xs text-muted-foreground">
             {e.label} · Ep {e.episode} · {e.how === "live" ? "the live airing" : "starting together"} · {e.startsAt ? airTime(Date.parse(e.startsAt)) : ""} · {e.going} going
+          </span>
+        )}
+        {/* C3: a victory lap wears the final that earned it, then the GIF and the line. */}
+        {e.kind === "lap" && e.lap && (
+          <span data-feed-lap className="mt-0.5 block">
+            <LapResultLine r={e.lap} league={e.lap.league} after={e.label} />
+            {e.gif && (
+              // eslint-disable-next-line @next/next/no-img-element -- a GIF from KLIPY's own hosts (0156)
+              <img src={e.gif.url} alt={e.gif.title || "GIF"} data-feed-gif className="mt-[5px] block max-h-[120px] w-[150px] rounded-[3px] object-cover" style={{ aspectRatio: `${e.gif.w} / ${e.gif.h}` }} />
+            )}
+            {e.text && <span className="mt-[5px] block break-words text-[15px]">{e.text}</span>}
           </span>
         )}
         {e.kind === "said" && (
@@ -961,6 +977,13 @@ function FeedRow({ e }: { e: FeedItem }) {
     </>
   );
   const cls = "flex items-start gap-2.5 border-t border-border py-[11px] text-left first:border-t-0";
+  // A lap opens its game's thread in the league's room.
+  if (e.kind === "lap" && e.lap)
+    return (
+      <NavLink data-feed="lap" href={`${paths.league(e.lap.league, "chat")}?thread=${encodeURIComponent(e.lap.event)}`} className={`${cls} nd-press`}>
+        {body}
+      </NavLink>
+    );
   if (!e.seasonId) return <div data-feed={e.kind} className={cls}>{body}</div>;
   return (
     <NavLink
@@ -985,7 +1008,12 @@ export function Feed({ hub }: { hub: CouchHub | undefined }) {
   const chat = hub?.feed.find((e) => e.kind === "said" && e.seasonId);
   const [all, setAll] = useState(false);
   // "Revealed Ep 5" lines are where everyone is, which the hub shows already (the people row, a band's faces): left out.
-  const feed = (hub?.feed ?? []).filter((e) => e.kind !== "revealed");
+  // A victory lap says who won: held for anyone hiding scores who hasn't shown its game (or is watching it as if live).
+  const hide = useHideSports();
+  const shownGames = useShownScores();
+  const recorded = new Set((useSportsRecordings().data?.recordings ?? []).map((r) => r.game));
+  const held = (e: FeedItem) => e.kind === "lap" && (!e.lap || (hide && !shownGames.has(e.lap.event)) || recorded.has(e.lap.event));
+  const feed = (hub?.feed ?? []).filter((e) => e.kind !== "revealed" && !held(e));
   const shown = all ? feed : feed.slice(0, FEED_FEW);
   return (
     <section className="mt-8" data-feed-list>

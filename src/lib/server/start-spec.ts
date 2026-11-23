@@ -79,7 +79,7 @@ export async function wizardOptions(user: SessionUser, seasonId: string, couchId
   const opts = await startOptions(user, seasonId, couchId, again, now, late, start);
   // An aired season at your own pace takes the wizard too (the user, 2026-11-09): it starts where the season's starts say.
   if (opts.blocked) return { ...opts, wizard: null, againSpec: null };
-  const [{ pack, ctx }, asks, tells, made, teams] = await Promise.all([packFor(user, seasonId, opts.couch.id, now), asksToday(user), audience(user, opts.couch.id, seasonId), madeGames(seasonId), teamScopeOf(seasonId)]);
+  const [{ pack, ctx }, asks, tells, made, teams] = await Promise.all([packFor(user, seasonId, opts.couch.id, now), asksToday(user), (opts.couch.id ? audience(user, opts.couch.id, seasonId) : Promise.resolve([])), madeGames(seasonId), teamScopeOf(seasonId)]);
   const scope = pack.kind === "sport" ? { team: teams && teams.length === 1 ? teams[0] : null, filling: !(Array.isArray(ctx.poolOf) && ctx.poolOf.length) } : null;
   const listed = Math.max(0, ...opts.starts.map((e) => e.number));
   const last = pack.episodes.total ?? (listed >= opts.from ? listed : null);
@@ -165,6 +165,7 @@ export async function startFromSpec(
   // A game in stages (A12): its game and a league for each stage (engine-lab.ts makeStages, as the lab makes them), on this season.
   const staged = Array.isArray(spec.stages);
   if (staged && opts.ownPace) throw new HttpError(409, "A game in stages can't be played at your own pace yet");
+  if (staged && !opts.couch.id) throw new HttpError(409, "A game in stages is played on a couch");
 
   // Where it starts: the next to air (or the one on now, with `late`), a later listed one, or a phase still to come; where it ends:
   // the season's end, a later episode, or a phase.
@@ -222,7 +223,8 @@ export async function startFromSpec(
   if (bots < 0 || bots > MAX_BOTS) throw new HttpError(400, `Up to ${MAX_BOTS} computer players`);
   const level: BotLevel = body.level === "easy" || body.level === "sharp" ? body.level : "normal";
   const describe = Spec.describeSpec(spec as never, ctx);
-  const here = await couchGamesOn(user, couch, seasonId);
+  // C4: your own game (a sport's, on no couch) has no couch's games beside it and tells nobody.
+  const here = couch ? await couchGamesOn(user, couch, seasonId) : [];
   const want = typeof body.name === "string" && body.name.trim() ? body.name.trim().slice(0, 60) : describe.short.title || "A game";
   const { rows: seasonRow } = await pool.query("SELECT ss.season_number, s.slug FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1", [seasonId]);
   // A one-episode game says its episode (start-game.ts gameName: Round 3's archive reads a game's kind from its name).
@@ -254,6 +256,7 @@ export async function startFromSpec(
     // stages too (its stages are leagues of their own).
     type: type === "questions" || type === "stages" ? "pickem" : type,
     couchId: couch,
+    solo: couch ? null : "own",
     rulebookId: copy?.id ?? null,
     before: (s) => {
       seat = StateLogic.addPlayer(s, starter).id;
@@ -319,7 +322,7 @@ export async function startFromSpec(
   });
   if (!leagueId) throw new HttpError(500, "Couldn't make the game, try again");
   if (staged) {
-    await makeStages(user, leagueId, name, spec, { ...row, label: opts.label }, couch, copy?.id ?? null, ctx, new Map(), false).catch(async (e) => {
+    await makeStages(user, leagueId, name, spec, { ...row, label: opts.label }, couch!, copy?.id ?? null, ctx, new Map(), false).catch(async (e) => {
       await pool.query("DELETE FROM leagues WHERE id = $1 AND created_by = $2", [leagueId, user.id]);
       throw e;
     });
@@ -336,7 +339,7 @@ export async function startFromSpec(
   // At your own pace, bingo needs a bank the season may not have: asked of our bot, not waited on (start-game.ts's).
   if (opts.ownPace && o.origin) after(() => queueSeasonBingo(user.id, seasonId, o.origin!, now, o.bot));
 
-  const told = body.tell === false ? [] : (await audience(user, couch, seasonId)).map((p) => p.userId);
+  const told = body.tell === false || !couch ? [] : (await audience(user, couch, seasonId)).map((p) => p.userId);
   notifyGameStarted({
     userIds: told,
     seasonId,

@@ -1,4 +1,7 @@
 import { railSpec, sportRail, type RailGame } from "@/lib/sports/start-games";
+import { RIVALRY_SPEC } from "@/lib/sports/rivalry";
+import { CALL_SPEC } from "@/lib/sports/fan-call";
+import { OWN_CALLS_SPEC, seasonCallSpec } from "@/lib/sports/own-calls";
 import type { SessionUser } from "../auth-helpers";
 import { HttpError, pool } from "../db";
 import { startFromSpec, type SpecStarted } from "../start-spec";
@@ -131,8 +134,22 @@ export async function startSport(
   const last = Math.max(...listed);
   const { rows: slates } = await pool.query("SELECT 1 FROM sports_slates WHERE season_id = $1", [seasonId]);
   const rail = sportRail(o.sport.league, { count: last, slate: slates.length > 0 });
-  const pick = rail.find((g) => g.id === game);
+  // C1: a rivalry's game (Winner and margin with public sides) is never on the rail; only rivalry.ts starts it, on one game.
+  // C2: a fan's call (Pick'em on one game with public picks) likewise, only from calls.ts.
+  // C4: your own calls on a team (Pick'em on its games) and the season call (its wins over the rest), only from own.ts.
+  const ownTeam = typeof body.team === "string" && /^[\w.-]{1,40}$/.test(body.team) ? body.team : null;
+  const pick =
+    game === "rivalry"
+      ? { spec: RIVALRY_SPEC, name: "Rivalry" }
+      : game === "call"
+        ? { spec: CALL_SPEC, name: "Call" }
+        : game === "own-calls"
+          ? { spec: OWN_CALLS_SPEC, name: "Calls" }
+          : game === "season-call" && ownTeam
+            ? { spec: seasonCallSpec(ownTeam), name: "Season call" }
+            : rail.find((g) => g.id === game);
   if (!pick) throw new HttpError(400, "That game isn't one this sport plays here");
+  if ((game === "rivalry" || game === "call") && !(body.only === true || teamEpisode !== null)) throw new HttpError(400, "A rivalry or a call is one game");
   // `only`: that one game (or that one week of a slate). Else to the week asked for, or the season's end: for a game scored by
   // players' stats on the NFL's regular season, the fantasy season's (Week 17: BACKLOG 226).
   // Step 2.7: on a season that goes on into its playoffs (a full slate, a team's season), the season's end is its regular season's

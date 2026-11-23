@@ -1,24 +1,24 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { ChevronDown } from "lucide-react";
-import { sportsApi, useCouchTeams, useHome, useCurrentCouch, useTeamSchedule, useYourTeams, type TeamSchedule } from "../data";
-import { toast } from "../ui/toast";
-import { FollowFaces, FollowToggle, theLeague } from "./follow";
-import { GameRow, MoreAction, OpenRow, PlayPlate, SportsLabel, TeamMark, TeamPlate, type TeamGame } from "./parts";
-import { begun, clockOf, dayOf, ShowScore, useGameScore, useHideSports, useNow } from "./scores";
+import { useState } from "react";
+import { Check, ChevronRight, MessageCircle } from "lucide-react";
+import { useCouchGames, useCouchTeams, useGameSeasons, useHome, useLaps, useRoomCounts, useSportRail, type JoinGame, type TeamSchedule, type WeekGame } from "../data";
+import { NavLink, useNav } from "../nav";
+import { paths } from "../routes";
+import { Avatar } from "../ui/bars";
+import { openCouchSheet } from "../couch/couch-sheets";
+import { joinable, JoinGameSheet } from "../couch/join-game";
+import { GameBug } from "./game-bug";
+import { MoreAction, OpenRow, PlayPlate, SportsLabel, type TeamGame } from "./parts";
+import { AskSheet } from "./scorebug";
+import { clockOf, dayOf, useGameScore, useNow } from "./scores";
 import { useStartSport } from "./start";
-import { teamKeyOf } from "@/lib/sports/team-badge";
+import { WatchingRow } from "./fan-call";
+import { LapPrompt, VictoryLaps, useLapShown, useOpenLap } from "./lap";
 
-// A team's sheet (docs/PLAN-start-a-game-gpt.md U1's sports slice; U0's board "Find a team", the user's calls of 2026-11-08 and
-// 2026-11-09): you go to a team to start a game, and the game then lives on the couch. Its lower third and Follow (the couch's
-// faces who do); a game on now (only when it may be told); **Play the next game**, the one yellow (one tap: Pick'em on it, the
-// couch told after the 10-second Undo); **Start a game on** (step 2.8's design round, docs/design-round/sports-scope-spec.md): the
-// scopes as one group of rows, each saying how many games and, where it decides a draft, whose players (the next game; their season,
-// their players only; the series still to finish); its rivals (the couch's teams first, four, then All opponents · N), filtering
-// what's below to their meetings and adding Every <rival> game under them; Coming up (five, then folded by month); Earlier, folded.
-// A record, a form strip and every result go through Hide scores.
+// A team's games' parts (the team's page, docs/PLAN-sports-couch.md B2, is src/new/screens/team-page.tsx; it replaced the team's
+// sheet): what Start a game on is asked for (StartWhen), a schedule game as a game row's moment, "vs Cowboys", and one game's sheet:
+// the game, the couch line, the couch's games on it, Play (the one-game types, one decision), Go bigger (B4).
 
 export type StartWhen =
   | { kind: "next" }
@@ -31,12 +31,9 @@ export interface TeamRef {
   team: string;
 }
 
-const COMING = 5;
-const RIVALS = 4;
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 type Game = TeamSchedule["games"][number];
-const asRow = (g: Game): TeamGame => ({
+export const asRow = (g: Game): TeamGame => ({
   id: g.id,
   at: g.at,
   state: g.state,
@@ -52,328 +49,261 @@ const asRow = (g: Game): TeamGame => ({
 /** "vs Cowboys", "at Cowboys". */
 export const versus = (g: Pick<Game, "home" | "opponent">) => `${g.home === false ? "at" : "vs"} ${g.opponent?.short ?? "To be decided"}`;
 
-/** Their record from the finals, "7–2" (a tie as a third number). */
-function recordOf(games: Game[]): string | null {
-  const done = games.filter((g) => g.final && g.result && g.stage !== "pre");
-  if (!done.length) return null;
-  const n = (r: string) => done.filter((g) => g.result === r).length;
-  return [n("W"), n("L"), ...(n("T") ? [n("T")] : [])].join("–");
-}
-
-export function TeamView({
-  league,
-  team,
-  against: firstAgainst,
-  onStart,
-  onGame,
-  onStarted,
-}: TeamRef & { against?: string; onStart: (when: StartWhen, teamName: string) => void; onGame: (g: Game, s: TeamSchedule) => void; onStarted?: () => void }) {
-  const { data: home } = useHome();
-  const couch = useCurrentCouch(home);
-  const me = home?.user.id ?? "";
-  const qc = useQueryClient();
-  const [against, setAgainst] = useState<string | null>(firstAgainst ?? null);
-  const sched = useTeamSchedule(league, team);
-  const couchTeams = useCouchTeams(couch?.id ?? null);
-  const mine = useYourTeams();
-  const hidden = useHideSports();
-  const { start, busy } = useStartSport();
-  const [allRivals, setAllRivals] = useState(false);
-  const [open, setOpen] = useState<Set<string>>(new Set());
-  const [earlier, setEarlier] = useState(false);
-  const [following, setFollowing] = useState<boolean | null>(null);
-  const s = sched.data;
-  const now = useNow();
-
-  const view = useMemo(() => {
-    if (!s) return null;
-    const games = s.games.filter((g) => !g.calledOff);
-    const mine = against ? games.filter((g) => g.opponent?.id === against) : games;
-    const live = games.find((g) => g.state === "in") ?? null;
-    const coming = mine.filter((g) => !begun(g, now));
-    const past = mine.filter((g) => begun(g, now) && g.id !== live?.id).reverse();
-    // The rivals: the couch's teams first, then by how soon they meet.
-    const ours = new Set((couchTeams.data?.teams ?? []).filter((t) => t.league === league).map((t) => t.id));
-    const opps = new Map<string, { id: string; short: string; abbreviation: string | null; color: string | null; next: Game | null; n: number }>();
-    for (const g of games) {
-      if (!g.opponent) continue;
-      const o = opps.get(g.opponent.id) ?? { ...g.opponent, next: null, n: 0 };
-      o.n++;
-      if (!o.next && !begun(g, now)) o.next = g;
-      opps.set(g.opponent.id, o);
-    }
-    const rivals = [...opps.values()]
-      .filter((o) => o.next)
-      .sort((a, b) => +ours.has(b.id) - +ours.has(a.id) || (a.next!.at ?? "").localeCompare(b.next!.at ?? ""));
-    return { games, live, coming, past, rivals, ours, left: games.filter((g) => !begun(g, now)).length, record: recordOf(games) };
-  }, [s, against, couchTeams.data, league, now]);
-
-  if (sched.isLoading) return <p className="mt-4 text-[14px] text-muted-foreground">Loading their season…</p>;
-  if (!s || !view) return <p className="mt-4 text-[14px] text-muted-foreground">{sched.error ? "Couldn't load their season. Try again in a minute." : "No such team."}</p>;
-
-  const followers = couchTeams.data?.teams.find((t) => t.league === league && t.id === team)?.followers ?? [];
-  const youFollow = following ?? (couch ? followers.some((f) => f.id === me) : !!mine.data?.teams.some((t) => t.league === league && t.id === team));
-  const others = followers.filter((f) => f.id !== me);
-  // Your team in this league (docs/PLAN-sports-couch.md A3): said only when you follow two or more teams here (with one there's
-  // no choice to show: the first-view check's R4); the others offer Make them your team.
-  const here = (mine.data?.teams ?? []).filter((t) => t.league === league);
-  const choice = youFollow && here.length > 1 && here.some((t) => t.id === team);
-  const isMine = choice && !!here.find((t) => t.id === team)?.myTeam;
-  const short = s.leagueName ?? league.split("/").pop()!.toUpperCase();
-  const yourTeamWords = short.length <= 6 ? `Your ${short} team` : `Your team in ${theLeague(short)}`;
-  const theirs = here.find((t) => t.myTeam);
-  const followLine = isMine
-    ? others.length
-      ? `${yourTeamWords} · ${others.length === 1 ? `${others[0].name} follows them too` : `${others.length} others follow them too`}`
-      : yourTeamWords
-    : choice && theirs
-      ? `${yourTeamWords}: the ${theirs.short}`
-      : youFollow
-      ? others.length
-        ? `You and ${others.length === 1 ? others[0].name : `${others.length} others`} follow them`
-        : "You follow them: their games lead your guide"
-      : others.length
-        ? `${others.slice(0, 2).map((f) => f.name).join(" and ")}${others.length > 2 ? ` and ${others.length - 2} more` : ""} ${others.length === 1 ? "follows" : "follow"} them`
-        : couch
-          ? "Nobody on your couch follows them yet"
-          : "Follow them: their games lead your guide";
-  const follow = async () => {
-    const next = !youFollow;
-    // Following a team follows its league too: say so when that puts the league on your shows.
-    const newLeague = next && !!mine.data && !mine.data.leagues.includes(league);
-    setFollowing(next);
-    try {
-      qc.setQueryData(["new-design", "your-teams"], await sportsApi.follow(league, team, next));
-      await qc.invalidateQueries({ queryKey: ["new-design", "couch-teams"] });
-      toast(next ? (newLeague ? `Following the ${s.team.short}: ${theLeague(short)} is on your shows` : `Following the ${s.team.short}: their games lead your guide`) : `Unfollowed: their games leave your guide`);
-    } catch (e) {
-      setFollowing(!next);
-      toast.quiet((e as Error).message);
-    }
-  };
-  const makeMine = async () => {
-    try {
-      qc.setQueryData(["new-design", "your-teams"], await sportsApi.myTeam(league, team));
-      await qc.invalidateQueries({ queryKey: ["new-design", "couch-teams"] });
-      toast(`The ${s.team.short} are your ${short.length <= 6 ? `${short} team` : "team there"}`);
-    } catch (e) {
-      toast.quiet((e as Error).message);
-    }
-  };
-
-  const next = view.games.find((g) => !begun(g, now)) ?? null;
-  const record = !hidden && view.record ? ` · ${view.record}` : "";
-  const form = hidden ? [] : view.games.filter((g) => g.final && g.result).slice(-8);
-  const rivals = allRivals ? view.rivals : view.rivals.slice(0, RIVALS);
-  const rival = against ? view.rivals.find((r) => r.id === against) : null;
-  const shown = view.coming.slice(0, COMING);
-  const months = new Map<string, Game[]>();
-  for (const g of view.coming.slice(COMING)) {
-    const k = g.at ? `${MONTHS[new Date(g.at).getMonth()]} ${new Date(g.at).getFullYear()}` : "To be set";
-    months.set(k, [...(months.get(k) ?? []), g]);
-  }
-
-  return (
-    <div data-team-view={`${league}/${team}`}>
-      <TeamPlate name={s.team.name} color={s.team.color} sub={`${s.leagueName ?? league}${record}`} />
-      <div className="mt-3 flex min-h-11 items-center gap-2" data-team-follow data-my-team={isMine || undefined}>
-        <FollowFaces who={followers} />
-        <span className="min-w-0 flex-1 text-[13px] leading-snug text-muted-foreground">
-          <span data-team-follow-line className={isMine ? "font-semibold text-foreground" : undefined}>
-            {followLine}
-          </span>
-          {choice && !isMine && (
-            // Named, not "them": the line above names your team now, so "them" read as that team (the check).
-            <button
-              type="button"
-              data-make-my-team
-              onClick={() => void makeMine()}
-              className="nd-press -my-1 flex min-h-11 items-center text-[13px] font-bold text-foreground underline underline-offset-[3px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground"
-            >
-              Make the {s.team.short} your team
-            </button>
-          )}
-        </span>
-        <FollowToggle on={youFollow} onClick={() => void follow()} label={`the ${s.team.short}`} data="team" />
-      </div>
-      {form.length > 0 && (
-        <div className="mt-3 flex gap-1" role="img" aria-label={`Their last ${form.length}: ${form.map((g) => g.result).join(", ")}`} data-team-form>
-          {form.map((g) => (
-            <span
-              key={g.id}
-              className={`grid h-[26px] min-w-0 flex-1 place-items-center rounded-[3px] text-[11px] font-extrabold outline-1 -outline-offset-1 ${g.result === "W" ? "bg-good/15 text-(--nd-good) outline-transparent" : "text-muted-foreground outline-border"}`}
-            >
-              {g.result}
-            </span>
-          ))}
-        </div>
-      )}
-      {view.live && <LiveNow g={view.live} league={league} />}
-      {next ? (
-        <PlayPlate
-          data="next"
-          disabled={busy}
-          title={`Play the ${dayOf(next.at ?? "") === "Today" ? "game tonight" : "next game"}`}
-          line={`Pick'em · ${next.at ? `${dayOf(next.at)} ${clockOf(next.at)}` : "time to be set"} ${versus(next)} · tells the couch`}
-          onClick={() => void start({ league, team, games: [next.id], game: "pickem" }, onStarted)}
-        />
-      ) : (
-        <p className="mt-4 text-[14px] text-muted-foreground" data-no-next>
-          No games coming up this season.
-        </p>
-      )}
-      {next && (
-        <>
-          <SportsLabel>Start a game on</SportsLabel>
-          <div data-scopes>
-            <OpenRow data="scope-next" title="The next game" line={`${versus(next)} · a draft, squares or props`} onClick={() => onStart({ kind: "next" }, s.team.short)} />
-            <OpenRow
-              data="scope-season"
-              title="Their season"
-              line={`${view.left} ${view.left === 1 ? "game" : "games"} left · ${s.team.short} players only`}
-              onClick={() => onStart({ kind: "season" }, s.team.short)}
-            />
-            {s.series
-              .filter((x) => x.state === "coming" && x.games.length >= 2)
-              .slice(0, 4)
-              .map((x) => (
-                <OpenRow key={x.games.join()} data="series" title={x.name} line={`${x.games.length} games · both teams' players`} onClick={() => onStart({ kind: "games", games: x.games }, s.team.short)} />
-              ))}
-          </div>
-        </>
-      )}
-
-      {view.rivals.length > 0 && (
-        <>
-          <SportsLabel>Against a rival</SportsLabel>
-          <div className="flex flex-wrap gap-1.5" data-rivals>
-            {rivals.map((r) => {
-              const on = against === r.id;
-              return (
-                <button
-                  key={r.id}
-                  type="button"
-                  aria-pressed={on}
-                  data-rival={r.id}
-                  onClick={() => setAgainst(on ? null : r.id)}
-                  className={`nd-press inline-flex min-h-11 flex-col items-start justify-center rounded-[4px] px-3 py-1 text-left text-[14px] font-bold leading-tight outline-1 -outline-offset-1 ${on ? "bg-foreground text-background outline-foreground" : "outline-edge"}`}
-                >
-                  {r.short}
-                  <span className="text-[12px] font-normal opacity-85">{view.ours.has(r.id) ? "Your couch's · " : ""}{r.next?.at ? dayOf(r.next.at) : ""}</span>
-                </button>
-              );
-            })}
-          </div>
-          {view.rivals.length > RIVALS && (
-            <button type="button" onClick={() => setAllRivals(!allRivals)} className="mt-3 text-[13px] font-bold underline underline-offset-[3px]" data-all-rivals>
-              {allRivals ? "Fewer opponents" : `All opponents · ${view.rivals.length}`}
-            </button>
-          )}
-          {rival && (
-            // The rival's scope, under the chip that made it: their meetings, both teams' players (a matchup's own season).
-            <div className="mt-2" data-against-note>
-              <OpenRow
-                data="scope-rival"
-                title={`Every ${rival.short} game`}
-                line={`${view.coming.length} ${view.coming.length === 1 ? "game" : "games"} · ${rival.short} and ${s.team.short} players`}
-                onClick={() => onStart({ kind: "meetings", against: rival.id }, s.team.short)}
-              />
-            </div>
-          )}
-        </>
-      )}
-
-      {shown.length > 0 && (
-        <>
-          <SportsLabel>{rival ? `Coming up against the ${rival.short}` : `Coming up · ${view.coming.length}`}</SportsLabel>
-          {shown.map((g) => (
-            <GameRow key={g.id} g={asRow(g)} league={league} onClick={() => onGame(g, s)} />
-          ))}
-          {[...months].map(([m, rows]) => (
-            <div key={m}>
-              <button
-                type="button"
-                aria-expanded={open.has(m)}
-                onClick={() => setOpen((o) => new Set(o.has(m) ? [...o].filter((x) => x !== m) : [...o, m]))}
-                className="nd-press flex min-h-[52px] w-full items-center gap-3 border-b border-border text-left"
-              >
-                <span className="flex-1 text-[15px] font-semibold">
-                  {m} <span className="font-normal text-muted-foreground">· {rows.length}</span>
-                </span>
-                <ChevronDown className={`size-4 text-muted-foreground transition-transform ${open.has(m) ? "rotate-180" : ""}`} aria-hidden />
-              </button>
-              {open.has(m) && rows.map((g) => <GameRow key={g.id} g={asRow(g)} league={league} onClick={() => onGame(g, s)} />)}
-            </div>
-          ))}
-        </>
-      )}
-      {view.past.length > 0 && (
-        <div className="mt-4">
-          <button type="button" onClick={() => setEarlier(!earlier)} className="text-[13px] font-bold underline underline-offset-[3px]" data-earlier>
-            {earlier ? "Hide earlier games" : `Earlier · ${view.past.length}`}
-          </button>
-          {earlier && view.past.map((g) => <GameRow key={g.id} g={asRow(g)} league={league} onClick={() => onGame(g, s)} />)}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** A game of theirs on now: its score only when it may be told; else when it started, and Show the score. */
-function LiveNow({ g, league }: { g: Game; league: string }) {
-  const s = useGameScore(asRow(g));
-  return (
-    <div className="mt-3.5" data-live-now>
-      <div className="flex h-10 overflow-hidden rounded-[3px] bg-plate shadow-[0_6px_18px_rgba(0,0,0,.3)]">
-        <span className="type-caption relative z-[1] -mr-3 flex items-center bg-secondary pl-2.5 pr-[22px] text-[14px] tracking-[0.04em] [clip-path:polygon(0_0,100%_0,calc(100%-12px)_100%,0_100%)]">
-          {s.open ? "On now" : "Started"}
-        </span>
-        <span className="type-caption flex min-w-0 flex-1 items-center truncate pl-5 pr-3 text-[17px] text-plate-foreground">
-          {s.open && g.score ? `${versus(g)} · ${g.score[0]}–${g.score[1]}` : versus(g)}
-        </span>
-      </div>
-      <p className="mt-2 text-[13px] text-muted-foreground">{s.open ? "Picks closed when it started." : `${s.when}. Picks closed when it started.`}</p>
-      {!s.open && <ShowScore id={g.id} league={league} className="mt-2" />}
-    </div>
-  );
-}
-
-/** One game's sheet: the two marks, its name and time, Show the score once it's begun, and Play this game. */
-export function GameView({ g, s, onStart, onStarted }: { g: Game; s: TeamSchedule; onStart: (when: StartWhen) => void; onStarted?: () => void }) {
+/**
+ * One game's sheet (docs/PLAN-sports-couch.md B4; the design: docs/design-round/game-sheet-spec.md, -first-view.md, -shape.md): the
+ * game as the shared scorebug; the couch line (whose team each side is, in names); the couch's games that already cover it (Join,
+ * Open), above Play so nobody starts a second one; Play: the sport's one-game types as tiles, Pick'em chosen, and one decision (Start
+ * the chosen type, or Join the couch's game of that kind, PFD's R5), its lock words in full; Go bigger (the series, the team's season,
+ * this week's games) and More options (Start a game's screens). Once it's on or over: the score through hiding, your games on it, the
+ * couch's talk about it.
+ */
+export function GameView({ g, s, onStart, onStarted, onSlate }: { g: Game; s: TeamSchedule; onStart: (when: StartWhen) => void; onStarted?: () => void; onSlate?: () => void }) {
   const row = asRow(g);
+  const now = useNow();
   const sc = useGameScore(row);
-  const { start, busy } = useStartSport();
+  const { start, busy, couch } = useStartSport();
+  const home = useHome().data;
+  const meId = home?.user.id ?? "";
+  const nav = useNav();
+  const [asking, setAsking] = useState<WeekGame | null>(null);
+  const [joining, setJoining] = useState<JoinGame | null>(null);
+  const [chosen, setChosen] = useState("pickem");
+  const couchTeams = useCouchTeams(couch?.id ?? null).data?.teams ?? [];
+  const couchGames = useCouchGames(couch?.id ?? null, !!couch).data?.games ?? [];
+  const seasons = useGameSeasons(s.league, g.id).data?.seasons ?? [];
+  const rail = (useSportRail(s.league, 1).data?.games ?? []).filter((t) => !t.why && t.id !== "bestBall").slice(0, 4);
+  const talk = useRoomCounts(s.league, couch?.id ?? null).data?.counts?.[g.id] ?? 0;
+  const started = sc.started || g.state !== "pre";
+  const called = g.calledOff;
+  // C3: once it's final, the winning fan's victory lap and the couch's laps on it (nothing while its result is hidden from you).
+  const lapsQ = useLaps(couch && g.final ? couch.id : null, s.league, [s.team.id, ...(g.opponent ? [g.opponent.id] : [])]);
+  const myLap = useOpenLap(lapsQ.data?.open, { event: g.id });
+  const lapsShown = useLapShown(g.final ? { event: g.id, at: g.at } : null);
+  const lapsHere = lapsShown ? (lapsQ.data?.laps ?? []).filter((l) => l.event === g.id) : [];
+
   const away = g.home === false ? s.team : g.opponent;
   const homeSide = g.home === false ? g.opponent : s.team;
-  const title = `${away?.short ?? "To be decided"} at ${homeSide?.short ?? "To be decided"}`;
+  // The couch line: whose team each side is, in names (faces ride on the bug; the name carries it: many have no photo).
+  const fansOf = (id: string | undefined) => (id ? (couchTeams.find((t) => t.league === s.league && t.id === id)?.followers ?? []) : []);
+  const sideWords = (t: typeof away) => {
+    if (!t) return "To be decided";
+    const f = fansOf(t.id);
+    const you = f.some((x) => x.id === meId);
+    const others = f.filter((x) => x.id !== meId).map((x) => x.name);
+    const theirs = others.length === 1 ? `${others[0]}'s` : others.length === 2 ? `${others[0]} and ${others[1]}'s` : others.length ? `${others[0]} and ${others.length - 1} others'` : "";
+    return you ? (theirs ? `Your and ${theirs} ${t.short}` : `Your ${t.short}`) : theirs ? `${theirs} ${t.short}` : t.short;
+  };
+  const couchLine = fansOf(away?.id).length || fansOf(homeSide?.id).length ? `${sideWords(away)} at ${sideWords(homeSide)}` : null;
+
+  // The couch's games that cover this game: a season this game is in, inside the game's span, not over.
+  const covering = couchGames.filter((c) => {
+    if (c.ended || !c.seasonId) return false;
+    const at = seasons.find((x) => x.seasonId === c.seasonId);
+    if (!at) return false;
+    const from = c.span?.from ?? c.start ?? 1;
+    const to = c.span?.to ?? Infinity;
+    return at.episode >= from && at.episode <= to;
+  });
+  const oneGame = (c: JoinGame) => !!c.span && c.span.from === c.span.to;
+  const chosenType = rail.find((t) => t.id === chosen) ?? rail[0] ?? null;
+  const sameKind = (c: JoinGame) => !!chosenType && oneGame(c) && (c.gameName ?? "").toLowerCase().includes(chosenType.name.toLowerCase());
+  const yours = covering.filter((c) => c.you?.playing);
+  const moveOf = (c: JoinGame) => home?.moves.find((m) => m.leagueId === c.leagueId) ?? null;
+  const toJoin = covering.find((c) => sameKind(c) && !c.you?.playing && joinable(c)) ?? null;
+  const mineSame = yours.find((c) => sameKind(c)) ?? null;
+  const when = g.at ? `${dayOf(g.at)} ${clockOf(g.at)}` : "when its time is set";
+  const lockWhen = `${chosenType?.id === "pickem" ? "Picks lock" : `${chosenType?.name ?? "It"} locks`} at kickoff, ${when}`;
+  const told = "You have 10 seconds to undo, then the couch is told";
+  const lock = `${lockWhen} · ${told}`;
+  const rivalry = !!(away && homeSide && fansOf(away.id).length && fansOf(homeSide.id).length);
+  // The day only: the bug says the time, the network and the line (said once).
+  const sub = !started && !called ? (g.at ? dayOf(g.at) : "Time to be set") : null;
+
+  // Go bigger: the series this game is in (still to finish), the season of the couch's side (else home's), this week's games.
+  const series = s.series.find((x) => x.state !== "past" && x.games.length >= 2 && x.games.includes(g.id)) ?? null;
+  const left = s.games.filter((x) => !x.calledOff && x.at && Date.parse(x.at) > now).length;
+
   return (
-    <div data-game-view={g.id}>
-      <div className="flex items-center gap-3">
-        <TeamMark abbr={away?.abbreviation ?? away?.short.slice(0, 3)} color={(away as { color?: string | null } | null)?.color} size="lg" team={away && teamKeyOf(s.league, away.id)} />
-        <span className="type-caption text-[18px] text-muted-foreground">at</span>
-        <TeamMark abbr={homeSide?.abbreviation ?? homeSide?.short.slice(0, 3)} color={(homeSide as { color?: string | null } | null)?.color} size="lg" team={homeSide && teamKeyOf(s.league, homeSide.id)} />
-      </div>
-      <h2 className="type-caption mt-3 text-[28px]">{title}</h2>
-      <p className="mt-1 text-[14px] text-muted-foreground">
-        {sc.started ? sc.when : g.at ? `${dayOf(g.at)} · ${clockOf(g.at)}` : "Time to be set"}
-        {sc.open && sc.started && g.score ? ` · ${g.score[0]}–${g.score[1]}` : ""}
-        {g.note ? ` · ${g.note}` : ""}
-      </p>
-      {sc.started && !sc.open && <ShowScore id={g.id} league={s.league} className="mt-3" />}
-      {!sc.started ? (
-        <>
-          <PlayPlate
-            data="game"
-            disabled={busy}
-            title="Play this game"
-            line={`Pick'em on it, one tap · tells the couch`}
-            onClick={() => void start({ league: s.league, team: s.team.id, games: [g.id], game: "pickem" }, onStarted)}
-          />
-          <MoreAction data="game-start" title="Another game on it…" line="Squares, a draft or Pick a few · both teams' players" onClick={() => onStart({ kind: "games", games: [g.id] })} />
-        </>
-      ) : (
-        <p className="mt-4 text-[14px] text-muted-foreground">{sc.open && (g.state === "post" || g.final) ? "It's over." : "It's already on: picks closed at the start."}</p>
+    <div data-game-sheet={g.id} data-game-view={g.id}>
+      {sub && <p className="-mt-1 mb-3 text-[14px] text-muted-foreground" data-game-when>{sub}</p>}
+      <GameBug g={g} s={s} now={now} onAsk={setAsking} />
+      {couchLine && (
+        <p data-couch-line className="mt-2 text-[14px] font-semibold">
+          {couchLine}
+        </p>
       )}
+      {/* C2: I'm watching, from the hour before it starts until it's over (presence, for the couch). */}
+      {couch && !called && g.state !== "post" && !g.final && g.at && Date.parse(g.at) - now < 3_600_000 && <WatchingRow league={s.league} game={g.id} couchId={couch.id} meId={meId} />}
+      {/* C3: the winning fan's ask, under the couch line (the bug above says the score). */}
+      {couch && g.final && <LapPrompt lap={myLap && !lapsHere.some((l) => l.userId === meId) ? myLap : null} league={s.league} couchId={couch.id} gifs={!!lapsQ.data?.gifs} />}
+
+      {covering.length > 0 && (
+        <section data-on-couch>
+          <SportsLabel>On the couch</SportsLabel>
+          {covering.slice(0, 2).map((c) => (
+            <CouchGameRow
+              key={c.leagueId}
+              c={c}
+              started={started}
+              spans={!oneGame(c)}
+              move={moveOf(c)?.text ?? null}
+              joinBelow={!started && c.leagueId === toJoin?.leagueId}
+              onOpen={() => nav.push(paths.gamePage(c.seasonId!, c.leagueId))}
+              // A rivalry's or a call's game is joined by picking on This week's card (a side, a back or a fade), not a join sheet.
+              onJoin={() => (c.picked ? nav.push(paths.league(s.league)) : setJoining(c))}
+            />
+          ))}
+          {couch && !started && toJoin && !(mineSame && moveOf(mineSame)) && (
+            <PlayPlate data="game-join" title={`Join ${couchName(toJoin)}`} line={`${toJoin.players} in · ${lockWhen}`} onClick={() => setJoining(toJoin)} />
+          )}
+          {covering.length > 2 && <p className="mt-2 text-[13px] text-muted-foreground">+{covering.length - 2} more on the Games tab</p>}
+        </section>
+      )}
+
+      {called ? (
+        <p className="mt-5 text-[14px] text-muted-foreground">Postponed: its makeup is a game of its own.</p>
+      ) : !started ? (
+        <section data-play-section>
+          {couch && <SportsLabel>{toJoin ? "Or start your own" : "Play"}</SportsLabel>}
+          {!couch ? null : rail.length === 0 ? (
+            <div className="grid grid-cols-2 gap-2">
+              {[0, 1, 2, 3].map((k) => (
+                <div key={k} className="h-16 animate-pulse rounded-[4px] bg-card" />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Which game">
+              {rail.map((t) => (
+                <TypeTile key={t.id} id={t.id} title={t.name} line={t.id === "pickem" && rivalry ? "Pick a side" : (TYPE_LINES[t.id] ?? t.sub)} chosen={chosenType?.id === t.id} onPick={() => setChosen(t.id)} />
+              ))}
+            </div>
+          )}
+          {!couch ? (
+            // Solo: a sports game is played on a couch for now (C4 brings solo play); the one move there is, the yellow.
+            <div data-game-solo className="mt-5">
+              <PlayPlate data="game-couch" title="Start a couch" line="A sports game is played on a couch for now" onClick={() => openCouchSheet({ kind: "new" })} />
+              <button type="button" onClick={() => openCouchSheet({ kind: "join" })} className="nd-press mt-1 inline-flex h-11 items-center text-[14px] font-semibold underline underline-offset-[3px]">
+                Join one with a code
+              </button>
+            </div>
+          ) : mineSame && moveOf(mineSame) ? (
+            <PlayPlate data="game-move" title="Make your pick" line={`You're in ${couchName(mineSame)} · ${lockWhen}`} onClick={() => nav.push(paths.gamePage(mineSame.seasonId!, mineSame.leagueId))} />
+          ) : toJoin ? (
+            <MoreAction data="game-start-another" title={`Start another ${chosenType?.name ?? "game"}`} line={told} onClick={() => chosenType && void start({ league: s.league, team: s.team.id, games: [g.id], game: chosenType.id }, onStarted)} />
+          ) : (
+            chosenType && (
+              <PlayPlate
+                data="game"
+                disabled={busy}
+                title={mineSame ? `Start another ${chosenType.name}` : `Start ${chosenType.name}`}
+                line={lock}
+                onClick={() => void start({ league: s.league, team: s.team.id, games: [g.id], game: chosenType.id }, onStarted)}
+              />
+            )
+          )}
+          {couch && (
+            <section data-go-bigger>
+              <SportsLabel>Go bigger</SportsLabel>
+              {series && <OpenRow data="bigger-series" title="Their series" line={`${series.games.length} games${series.from && series.to ? ` · ${seriesDates(series.from, series.to)}` : ""} · both teams' players`} onClick={() => onStart({ kind: "games", games: series.games })} />}
+              {left > 1 && <OpenRow data="bigger-season" title={`Every ${s.team.short} game left`} line={`${left} games · ${s.team.short} players only`} onClick={() => onStart({ kind: "season" })} />}
+              {onSlate && <OpenRow data="bigger-week" title="All of this week's games" line="Pick'em on this week's games still to come" onClick={onSlate} />}
+              <button type="button" data-more-options onClick={() => onStart({ kind: "games", games: [g.id] })} className="nd-press mt-1 inline-flex h-11 items-center text-[13px] font-bold underline underline-offset-[3px] focus-visible:outline-2 focus-visible:outline-foreground">
+                More options for {chosenType?.name ?? "a game"}…
+              </button>
+            </section>
+          )}
+        </section>
+      ) : (
+        <>
+          {couch && (
+            <NavLink
+              href={`${paths.league(s.league, "chat")}?thread=${encodeURIComponent(g.id)}`}
+              data-game-thread
+              className="nd-press mt-3 inline-flex h-11 items-center gap-1.5 text-[14px] font-semibold text-foreground focus-visible:outline-2 focus-visible:outline-foreground"
+            >
+              <MessageCircle className="size-4" aria-hidden />
+              {talk ? `${talk} ${talk === 1 ? "message" : "messages"} in its thread` : "Talk about it"}
+              <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
+            </NavLink>
+          )}
+          {g.state === "in" && covering.length > 0 && <p className="mt-2 text-[14px] text-muted-foreground">Picks closed at kickoff.</p>}
+          <VictoryLaps laps={lapsHere} meId={meId} />
+        </>
+      )}
+      <AskSheet g={asking} onClose={() => setAsking(null)} />
+      {couch && <JoinGameSheet couchId={couch.id} game={joining} onOpenChange={(o) => !o && setJoining(null)} />}
     </div>
+  );
+}
+
+/** A game type to choose: a night panel with a hairline; chosen, the white plate with a check (never yellow: the sheet's one yellow is
+ *  its decision, PFD's R2). */
+function TypeTile({ id, title, line, chosen, onPick }: { id: string; title: string; line: string; chosen: boolean; onPick: () => void }) {
+  return (
+    <button
+      type="button"
+      data-gallery-option={`type-${id}`}
+      data-chosen={chosen ? "" : undefined}
+      role="radio"
+      aria-checked={chosen}
+      onClick={onPick}
+      className={`nd-press flex min-h-16 w-full flex-col justify-center rounded-[4px] bg-secondary px-3 py-2.5 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground ${chosen ? "outline-2 -outline-offset-2 outline-foreground" : "outline-1 -outline-offset-1 outline-border"}`}
+    >
+      <span className="flex items-start justify-between gap-2">
+        <b className="text-[16px] font-semibold leading-tight">{title}</b>
+        {chosen && <Check className="size-5 flex-none" strokeWidth={3} aria-hidden />}
+      </span>
+      <span className="mt-1 text-[14px] leading-snug text-muted-foreground">{line}</span>
+    </button>
+  );
+}
+
+/** Each type's few words (a fan's, not the engine's). */
+const TYPE_LINES: Record<string, string> = { pickem: "Who wins", pickAFew: "Three players", short: "A few players each", squares: "A grid of score digits" };
+
+/** A couch game by its maker ("Riley's Pick'em"), not the engine's name for it ("Pick'em · Game 12"). */
+export function couchName(c: JoinGame): string {
+  // A rivalry's or a fan's call is named by its people already ("Riley vs Andrew", "Andrew's call").
+  if (c.picked) return c.name.replace(/\s*·\s*(Game|Week|Episode)\s*\d+.*$/i, "");
+  const kind = (c.gameName || c.name).replace(/\s*·\s*(Game|Week|Episode)\s*\d+.*$/i, "");
+  return c.runners[0] ? `${c.runners[0]}'s ${kind}` : kind;
+}
+
+/** "Nov 23–24", "Nov 30–Dec 2". */
+function seriesDates(from: string, to: string): string {
+  const d = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" });
+  const [a, b] = [d(from), d(to)];
+  return a.split(" ")[0] === b.split(" ")[0] ? `${a}–${b.split(" ")[1]}` : `${a}–${b}`;
+}
+
+/** A couch game that covers this game: its name, who's in, and its action (Join, Open, or Full). */
+export function CouchGameRow({ c, started, spans, move, joinBelow, onOpen, onJoin }: { c: JoinGame; started: boolean; spans: boolean; move: string | null; joinBelow: boolean; onOpen: () => void; onJoin: () => void }) {
+  const playing = !!c.you?.playing;
+  const names = c.faces.map((f) => f.name);
+  const who = names.length ? `${names.slice(0, 2).join(", ")}${names.length > 2 ? ` +${names.length - 2}` : ""} · ${c.players} in` : `${c.players} in`;
+  // A rivalry's or a call's game is joined by picking on This week's card (C1, C2): its words say what you'd do there.
+  const join = c.picked === "call" ? "Back or fade" : c.picked === "rivalry" ? "Pick a side" : "Join";
+  const action = playing ? (move ? <span className="font-semibold text-chyron-line">{move}</span> : "Open") : !started && (joinable(c) || !!c.picked) && !joinBelow ? join : null;
+  return (
+    <button
+      type="button"
+      data-couch-game={c.leagueId}
+      onClick={playing ? onOpen : !started && joinable(c) ? onJoin : onOpen}
+      className="nd-press flex min-h-[60px] w-full items-center gap-3 border-b border-border py-2 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-foreground"
+    >
+      <span className="flex flex-none -space-x-1.5">
+        {c.faces.slice(0, 3).map((f) => (
+          <Avatar key={f.userId} id={f.userId} name={f.name} size={24} />
+        ))}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[16px] font-semibold">{couchName(c)}</span>
+        <span className="mt-[3px] block truncate text-[13px] text-muted-foreground">
+          {playing ? "You're in" : who}
+          {spans ? " · this game counts in it" : ""}
+        </span>
+      </span>
+      {action && <span className="flex flex-none items-center gap-0.5 text-[14px] font-bold">{action}<ChevronRight className="size-4 text-muted-foreground" aria-hidden /></span>}
+    </button>
   );
 }

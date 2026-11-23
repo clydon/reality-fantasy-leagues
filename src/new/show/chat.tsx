@@ -331,7 +331,7 @@ export function Chat({ seasonId, show }: { seasonId: string; show: ShowData }) {
 export type LineItem = { m: ChatLine; starts: boolean; ends: boolean };
 
 /** One message, or a reveal line. `tag`: what the run is about, on its name line (a league room's game thread: "Eagles at Jets"). */
-export function Line({ item, me, couchId = null, onOpen, onReact, tag }: { item: LineItem; me: string; couchId?: string | null; onOpen: () => void; onReact: (emoji: string) => void; tag?: ReactNode }) {
+export function Line({ item, me, couchId = null, onOpen, onReact, tag, lap }: { item: LineItem; me: string; couchId?: string | null; onOpen: () => void; onReact: (emoji: string) => void; tag?: ReactNode; /** A victory lap's head (the league room, C3): the result and its tag over the GIF, the line under it. */ lap?: ReactNode }) {
   const { m, starts, ends } = item;
   if (m.type === "reveal") {
     return (
@@ -368,11 +368,11 @@ export function Line({ item, me, couchId = null, onOpen, onReact, tag }: { item:
           aria-haspopup="dialog"
           className={`max-w-[78%] whitespace-pre-wrap break-words rounded-[4px] text-left text-[15px] leading-[1.35] [overflow-wrap:anywhere] ${
             // A GIF of yours shows bare; someone else's keeps a slim card for their name over it.
-            m.gif ? (mine ? "" : "bg-card p-1.5") : `px-[11px] py-2 ${mine ? "bg-foreground text-background" : "bg-card"}`
+            lap ? "bg-card p-1.5" : m.gif ? (mine ? "" : "bg-card p-1.5") : `px-[11px] py-2 ${mine ? "bg-foreground text-background" : "bg-card"}`
           }`}
         >
           {!mine && starts && (
-            <small className={`mb-0.5 flex items-baseline gap-1.5 text-[11px] font-bold text-muted-foreground ${m.gif ? "px-1 pt-0.5" : ""}`}>
+            <small className={`mb-0.5 flex items-baseline gap-1.5 text-[11px] font-bold text-muted-foreground ${m.gif || lap ? "px-1 pt-0.5" : ""}`}>
               {m.name}
               {tag}
               <time dateTime={m.at} className="font-medium">
@@ -380,12 +380,14 @@ export function Line({ item, me, couchId = null, onOpen, onReact, tag }: { item:
               </time>
             </small>
           )}
+          {lap && <span className="block px-1 pb-1.5">{lap}</span>}
           {m.gif ? (
             // eslint-disable-next-line @next/next/no-img-element -- a GIF from KLIPY's own hosts (0156)
             <img data-chat-gif src={m.gif.url} alt={m.gif.title || "GIF"} className="block max-h-[200px] w-[200px] max-w-full rounded-[3px] object-cover" style={{ aspectRatio: `${m.gif.w} / ${m.gif.h}` }} />
-          ) : (
+          ) : lap ? null : (
             m.text
           )}
+          {lap && m.text && m.text !== "GIF" && <span data-lap-line className={`block px-1 ${m.gif ? "pt-1.5" : ""}`}>{m.text}</span>}
           {m.edited && <span className="ml-1.5 text-[12px] opacity-60">edited</span>}
         </button>
       </div>

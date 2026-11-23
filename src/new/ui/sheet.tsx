@@ -34,6 +34,7 @@ export function Sheet({
   foot,
   crumb,
   plain,
+  tall,
   children,
 }: {
   open: boolean;
@@ -47,6 +48,8 @@ export function Sheet({
   crumb?: ReactNode;
   /** A sheet over another sheet: no second scrim darkening the one below. */
   plain?: boolean;
+  /** Its full height whatever it holds (a search: the field and its results never move as the results change). */
+  tall?: boolean;
   children: ReactNode;
 }) {
   const popupRef = useRef<HTMLDivElement>(null);
@@ -75,11 +78,11 @@ export function Sheet({
           }}
           {...swipe}
           data-keyboard={keyboard ? "" : undefined}
-          className="nd-fixed-x fixed bottom-0 z-[81] flex max-h-[88dvh] flex-col rounded-t-[14px] bg-card text-foreground shadow-sheet outline-none transition-transform duration-[380ms] ease-[cubic-bezier(.16,1,.3,1)] motion-reduce:transition-none data-[ending-style]:translate-y-[105%] data-[starting-style]:translate-y-[105%]"
+          className={`nd-fixed-x fixed bottom-0 z-[81] flex max-h-[88dvh] ${tall ? "h-[88dvh]" : ""} flex-col rounded-t-[14px] bg-card text-foreground shadow-sheet outline-none transition-transform duration-[380ms] ease-[cubic-bezier(.16,1,.3,1)] motion-reduce:transition-none data-[ending-style]:translate-y-[105%] data-[starting-style]:translate-y-[105%]`}
           style={
             keyboard
               ? // Over the keyboard: its bottom on it, and no taller than the viewport that's left (the handle at the top of it).
-                { bottom: keyboard.lift, maxHeight: keyboard.height, paddingBottom: 0 }
+                { bottom: keyboard.lift, maxHeight: keyboard.height, ...(tall ? { height: keyboard.height } : {}), paddingBottom: 0 }
               : { paddingBottom: "env(safe-area-inset-bottom, 0px)" }
           }
         >

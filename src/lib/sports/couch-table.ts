@@ -55,7 +55,7 @@ export const recordWords = (f: Pick<TeamForm, "w" | "l" | "t">): string | null =
 /** A share of games won, a tie counting half (as standings count); null before any final. */
 export const winShare = (f: Pick<TeamForm, "w" | "l" | "t">): number | null => (f.w + f.l + f.t ? (f.w + f.t / 2) / (f.w + f.l + f.t) : null);
 
-export type Fan = { id: string; name: string; myTeam?: boolean };
+export type Fan = { id: string; name: string; myTeam?: boolean; since?: string };
 export type TableTeam = { id: string; short: string; followers: Fan[] };
 
 /**
@@ -137,4 +137,26 @@ export function rivalryRecords(rivalries: Rivalry[]): { fan: Fan; w: number; l: 
     }
   }
   return [...rec.values()].sort((a, b) => b.w + b.t / 2 - (a.w + a.t / 2) || a.l - b.l || a.fan.name.localeCompare(b.fan.name));
+}
+
+/**
+ * Two fans' record in their rivalries (C1: the rivalry card's foot): every played meeting where one stands for each side, whoever's
+ * team won. `lead` null when level. Counts the rivalries given (this season's; earlier seasons' since both followed, when given).
+ */
+export function pairRecord(rivalries: Rivalry[], a: Fan, b: Fan): { lead: Fan | null; first: Fan; other: Fan; w: number; l: number; t: number } {
+  let wa = 0;
+  let wb = 0;
+  let t = 0;
+  for (const r of rivalries) {
+    if (!r.final || !r.score) continue;
+    const ids = r.fans.map((f) => f.id);
+    if (!(ids.includes(a.id) && ids.includes(b.id))) continue;
+    if (!r.winner) t++;
+    else {
+      const winnerFan = r.winner === r.away ? r.fans[0] : r.fans[1];
+      if (winnerFan.id === a.id) wa++;
+      else wb++;
+    }
+  }
+  return wa >= wb ? { lead: wa === wb ? null : a, first: a, other: b, w: wa, l: wb, t } : { lead: b, first: b, other: a, w: wb, l: wa, t };
 }

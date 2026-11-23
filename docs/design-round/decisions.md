@@ -1856,3 +1856,102 @@
 - Also settled in the check, by the process's rules: a hidden game is "on" by the clock alone (the leak); the game tag is words, not
   a control; the chosen chip in ink; the fold compact; the couch hub's feed leaves room rows out.
 - Rests on: docs/design-round/league-chat-spec.md, -first-view.md, -shape.md, -check.md; docs/PLAN-sports-couch.md, B1 session 5.
+
+## 2026-11-22 · A team's schedule rows: the one-team form, with the couch on them (sports-couch B2)
+- Decided by: the user, asking for "the best UI/UX decision plus the most engaging", taking Claude's recommendation; then "you can
+  still use faces, because if they did upload I agree it'd look better" (many people won't upload a photo).
+- What: a team's schedule rows stay the scorebug's one-team form (the date, the opponent, the bug's status column and spoiler rule;
+  the team isn't repeated on every row). Engagement comes from the couch, not the team: a rival's row says whose team it is with
+  their face and their name ("at Jets", a face, "Riley's team"); a game you play carries the bug's controller mark, with its chyron
+  dot while a pick is due; the room's talk about a game is a count under its row ("3 messages"), into its thread.
+- Rejected: the two-team bug on every row (the team named 17 to 162 times, the list twice as tall); faces alone (many have no
+  photo: the name carries who it is, the face is the garnish).
+- Rests on: src/new/screens/team-page.tsx (`SchedRow`); docs/design-round/team-page-spec.md, "The game row"; the memory rule
+  "faces with names".
+
+## 2026-11-22 · A game's sheet with Play (sports-couch B4)
+- Decided by: the user ("Looks good!"), on B4's story https://claude.ai/artifact/BqzTDp21SuBUZ7raWkf7Qx; approved as built, with
+  the two kept calls as they are.
+- What: the sheet every game row opens is titled by the matchup and leads with the couch's games already on it; when one is the
+  chosen kind, Join it is the one yellow (under its row) and Start another is outlined, so a duplicate is never the default. Play
+  is four one-game tiles (Pick'em chosen; "Pick a side" in a rivalry) and one decision with its lock and undo words; Go bigger
+  (series, the team's season, this week) and More options below. After kickoff: the score through hiding, the couch's games on it,
+  the thread. Solo: Start a couch is the yellow.
+- Kept: the day alone under the title (the time stays in the scorebug); the line in ESPN's short form ("NYG by 3").
+- Rests on: src/new/sports/team.tsx (`GameView`), src/new/sports/game-bug.tsx; docs/design-round/game-sheet-spec.md, -first-view.md,
+  -shape.md, -check.md; docs/PLAN-sports-couch.md, B4's build notes.
+
+## 2026-11-22 · Add a show or team: search (sports-couch B3)
+- Decided by: Claude, on the user's "Continue" after B3's story https://claude.ai/artifact/1ocBH869YU9C7LfigoRE7s, read as taking
+  the recommendation and the two kept calls (as at B1's Standings review); open to the user's change.
+- What: (1) Event sports' tours (golf, F1, the UFC) are listed in search with no action and "Their own pages and games come later"
+  said once; no Follow until event sports have a page (the no-interim-builds rule). (2) A team the words name outranks a TV listing
+  ("bear": the Bears' card, The Bear first among shows under it); a show here always outranks a team. (3) Search's card has no panel
+  of its own (the sheet is the card colour; the scorebug its only fill).
+- Also settled in the check, by the process's rules: one or many of a team's name is the name; sports search fails fast and says so;
+  the search sheet holds its height with the field pinned; one form for a game's day in search ("Thu, Nov 26"); first run's matchup
+  Pick picks both teams.
+- Rests on: src/new/sports/search.tsx, src/lib/sports/search-rank.ts, src/new/watching/sheets.tsx (`AddShowSheet`),
+  src/new/welcome/first-run.tsx; docs/design-round/search-spec.md, -first-view.md, -shape.md, -check.md; docs/PLAN-sports-couch.md,
+  B3's build notes.
+
+## 2026-11-22 · Rivalries (sports-couch C1)
+- Decided by: the user ("I agree with all"), on C1's story https://claude.ai/artifact/7nq5aqBuq4o2Eh5YnsfAt7; approved as built, with
+  the three recommendations.
+- What: when two couch members' teams meet, This week's card is the game: one Winner and margin game a meeting, started by the first
+  tap; the two fans make calls (the first fan's call is the challenge: one push to the other fan, the only push); anyone else picks a
+  side in one tap, public as picked; margins hidden until kickoff; the result in names ("Andrew called it") over the pair's record.
+  (1) Anyone may add a margin, and the closest of all scores the point; the duel's headline compares the two fans alone. (2) The
+  record across seasons waits for a second season: built when the NFL's 2027 season starts (September), from the follows' dates.
+  (3) The decided push is BACKLOG 217's, built once for every sports game, not a rivalry one-off.
+- Also settled in the check, by the process's rules: a picked side makes the margin optional (never a move); one yellow a page (the
+  move strip's, else the first card you're a fan in); this week's cards on now, then next, then the last played (a final stays).
+- Rests on: src/new/sports/rivalry.tsx, src/lib/sports/rivalry.ts, src/lib/server/sports/rivalry.ts; docs/design-round/rivalry-spec.md,
+  -first-view.md, -shape.md, -check.md; docs/PLAN-sports-couch.md, C1's build notes; BACKLOG 255.
+
+## 2026-11-23 · The lone fan (sports-couch C2)
+- Decided by: the user ("I'll go with your recs"), on C2's story https://claude.ai/artifact/QXySaFvezheqFjLXPKY6zS; approved as built,
+  with the recommendation.
+- What: when a couch member's team plays a team nobody on the couch follows (not a rivalry), the fan calls it in one tap on This week's
+  calls; anyone else backs or fades the call in one tap, public as picked; no push. One Pick'em a game, started by the call. A fan's
+  calls keep a won–lost record (rivalry calls count too); the team's page carries the fan card (whose team, since when, the record, a
+  tick a game, the couch on their calls), the call row under the scorebug, and the couch's games on the team's next game. I'm watching
+  on a game's sheet puts your face on that game for your couch while it's on (only when sharing When I'm watching). (1) A call stands
+  once anyone backs or fades it (backs are stored as a team: a moved call would turn them over). (2) Play the next game keeps its
+  yellow on the team's page once the fan has called (as built).
+- Also settled in the check, by the process's rules: a wrong call's tick a muted fill (open is the hollow outline); the team page's row
+  without the record; "1 backs · 2 fade"; a long name leaves the Back/Fade buttons; a call's or rivalry's game named once on the game
+  sheet with its card's action. Fixed for C1 too: joining a game of public picks no longer pushes "New league member".
+- Rests on: src/new/sports/fan-call.tsx, src/lib/sports/fan-call.ts, src/lib/server/sports/calls.ts, watching.ts (migration 0451);
+  docs/design-round/lone-fan-spec.md, -first-view.md, -shape.md, -check.md; docs/PLAN-sports-couch.md, C2's build notes; BACKLOG 256.
+
+## 2026-11-23 · The victory lap (sports-couch C3)
+- Decided by: the user ("Agree with recs"), on C3's story https://claude.ai/artifact/9vvuad5i6GPUmx9jxzTK48; approved as built, with both
+  recommendations.
+- What: when a couch member's team wins, each of its fans on the couch gets one prompt (This week's lap card under the move strip, and the
+  game's sheet once final), open until the team plays again: a GIF (the picker starting on "<team> win") and an optional line, posted in
+  two taps to the game's thread in the league's room and to the hub's On the couch, wearing the final that earned it. Not this time ends it
+  on every phone (the sheet keeps a quiet link). Nothing of a lap, the prompt included, for anyone hiding scores until they've shown the
+  game. Nothing for the losing fan. (1) No push for a lap (a moment found, not a buzz after every win). (2) "You called it" stays on both
+  the lap card and the call row below it (the fan's moment and the couch's call each stand alone).
+- Also settled in the check, by the process's rules: the card is never yellow (the ink button) and at most 120 px; the sheet's ask sits
+  flush with no score (the bug says it); one lap language (the tag over the result) in the room, the feed, the sheet and the preview.
+- Rests on: src/new/sports/lap.tsx, src/lib/server/sports/laps.ts (migration 0452); docs/design-round/victory-lap-spec.md, -first-view.md,
+  -shape.md, -check.md; docs/PLAN-sports-couch.md, C3's build notes; BACKLOG 257.
+
+## 2026-11-23 · Solo (sports-couch C4)
+- Decided by: the user ("Looks good"), on C4's story https://claude.ai/artifact/GS383SzAf6scVnf1mRkjXL; approved as built, with both
+  recommendations.
+- What: a fan on no couch plays his own games (leagues.solo 'own': no couch made around them, nobody told, nobody joins). He calls his
+  team's next game in one tap on its page or This week (the first call starts one standing game, "Lions calls"; each week asks again;
+  changeable until kickoff; a record with a tick a game; the move says "Call the Lions game"). Anyone following a team calls the season
+  ("Where do they finish?": a stepper whose figure is the season's record, drawn as a bar; shown with the record it was made at; "Spot on"
+  or "Off by 1" at the end). "A draft of Lions players" opens Start a game on the draft with three computer players; Start a game runs
+  with no couch for a sport. (1) The couch seeing each other's season calls is its own small step later (BACKLOG 258 d). (2) A season
+  call can change until the team's next game starts, then it's pinned (the engine's lock).
+- Also settled in the check, by the process's rules: no fan band before the first call; the band says "Your calls on the Lions" (not
+  "Your team"); the season row asks the question rather than repeating the record; nothing of a record for anyone hiding scores; the
+  season row and More never yellow.
+- Rests on: src/lib/sports/own-calls.ts, src/lib/server/sports/own.ts, src/new/sports/season-call.tsx (migration 0453; the engine's
+  `final:wins` settle and a number `within`); docs/design-round/solo-fan-spec.md, -first-view.md, -shape.md, -check.md;
+  docs/PLAN-sports-couch.md, C4's build notes; BACKLOG 258.

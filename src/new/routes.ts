@@ -77,6 +77,8 @@ export const paths = {
   show: (seasonId: string, tab: ShowTab = "tonight") => `/show/${seasonId}/${tab}`,
   /** A league's page (B1), on one of its tabs: `league` as its provider names it ("football/nfl"). */
   league: (league: string, tab: LeagueTab = "week") => `/league/${league}/${tab}`,
+  /** A team's page (docs/PLAN-sports-couch.md B2), under its league: `against` opens its schedule on their meetings. */
+  team: (league: string, team: string, against?: string | null) => `/league/${league}/team/${encodeURIComponent(team)}${against ? `?against=${encodeURIComponent(against)}` : ""}`,
   /** The Games tab at one game's table, on an episode (Weekly Lineup's view of it): a game's line on Tonight or an episode page. */
   game: (seasonId: string, leagueId: string, ep?: number | null) => `/show/${seasonId}/games?game=${encodeURIComponent(leagueId)}${ep ? `&ep=${ep}` : ""}`,
   /** The show's Tonight with its watch along open (step 13): your next episode, or `ep`; a planned night's, together (`plan`). */
@@ -178,6 +180,8 @@ export function depthOf(href: string): number {
       if ((SHOW_PAGES as readonly string[]).includes(p[2])) return p[3] && p[2] !== "game" ? 3 : 2;
       return 1;
     case "league":
+      // A team's page is a level under its league's tabs (B2).
+      return p[3] === "team" && p[4] ? 2 : 1;
     case "settings":
     case "start":
     case "join":
@@ -207,7 +211,8 @@ export function upFrom(href: string, { signedIn = true }: { signedIn?: boolean }
       return null;
     // A league's tabs are all up to the hub, as a show's are.
     case "league":
-      return paths.home;
+      // A team's page (B2) is up to its league's This week.
+      return p[3] === "team" && p[1] && p[2] ? paths.league(`${p[1]}/${p[2]}`) : paths.home;
     case "signin":
       return paths.welcome;
     case "start": {
