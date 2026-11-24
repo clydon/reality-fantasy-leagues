@@ -49,3 +49,21 @@ test("only a commissioner gets it, first, pointing at research or the episode by
   const noSeason = league({ season: false });
   assert.equal(resultsHref(noSeason, noSeason.episodes[1]), "/episodes/2");
 });
+
+// 2026-11-23: an NFL pick'em said "Fill in episode 10's results" and its link opened a Survivor game's research page. A game graded
+// by a sport's own games (StatsLogic.readsGames) gets its results from the game's final by itself: nothing for anyone to fill in.
+test("a game graded by a sport's own games never asks for results", () => {
+  const G = require("../src/lib/game/game-spec/index.js");
+  const s = league();
+  s.settings.game = G.fullSpec({
+    pool: { of: "cast", where: null },
+    get: { by: "none" },
+    score: { by: "answers" },
+    rank: { by: "total" },
+    closes: "start",
+    ask: [{ id: "winner", ask: "Who wins?", answer: "side", points: 1, settle: { by: "final", take: "winner" }, asked: "each", closes: "start" }],
+  });
+  assert.ok(StateLogic.StatsLogic.readsGames(s), "the spec reads a sport's games");
+  assert.equal(resultsDueEpisode(s, NOW), null);
+  assert.ok(!actionItems(s, "p1", null, { commissioner: true, now: NOW }).some((it) => it.kind === "results"));
+});

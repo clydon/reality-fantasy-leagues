@@ -4,6 +4,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { useHome, useMySportsGames, useSportsWeek, useTeamSchedule } from "../data";
 import { useNav } from "../nav";
 import { paths } from "../routes";
+import { moveCard } from "../show/moves";
 import { Sheet } from "../ui/sheet";
 import { MoreAction, OpenRow, PlayPlate, SportsLabel, WeekRow } from "./parts";
 import { begun, useNow } from "./scores";
@@ -101,7 +102,17 @@ export function useLeagueGames(league: string) {
   const seasons = useMySportsGames(true).data?.seasons;
   const here = new Set((seasons ?? []).filter((s) => s.league === league).map((s) => s.seasonId));
   const yours = (home?.shows ?? []).filter((s) => here.has(s.seasonId)).flatMap((s) => s.games.filter((g) => !g.archived).map((g) => ({ g, seasonId: s.seasonId })));
-  const moveOf = (leagueId: string) => home?.moves.find((m) => m.leagueId === leagueId) ?? null;
+  const seasonOf = new Map(yours.map(({ g, seasonId }) => [g.leagueId, seasonId]));
+  // A move's own href is the classic app's, inside "the league you're in" ("/lineup", "/episodes/10/research"): from a sports page that
+  // league is whichever you last opened (a Survivor game's results page, 2026-11-23). Here it goes to its game's own door instead: the
+  // show strip's (a draft room, waivers), else the game's page, which says the move.
+  const moveOf = (leagueId: string) => {
+    const m = home?.moves.find((x) => x.leagueId === leagueId);
+    const seasonId = seasonOf.get(leagueId);
+    if (!m || !seasonId) return null;
+    const href = m.href?.startsWith("/show/") ? m.href : (moveCard(m, seasonId, false).href ?? paths.gamePage(seasonId, leagueId));
+    return { ...m, href };
+  };
   const moves = yours.map(({ g }) => moveOf(g.leagueId)).filter((m): m is NonNullable<typeof m> => !!m);
   return { yours, moveOf, moves, due: moves.length > 0, ready: !!home && !!seasons };
 }

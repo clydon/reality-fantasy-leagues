@@ -109,7 +109,8 @@ export function useResultsDue(now: number | null): Episode | null {
   const touring = useLeagueStore((s) => s.touring);
   const tourKind = useTourStore((s) => s.kind);
   const mine = touring ? tourKind === "commissioner" : mode === "live";
-  if (!canManage || !mine || now === null || StateLogic.RevealLogic.isCatchingUp(state)) return null;
+  // A game graded by a sport's own games has its results from their finals (action-items.js resultsDueEpisode says why).
+  if (!canManage || !mine || now === null || StateLogic.RevealLogic.isCatchingUp(state) || StateLogic.StatsLogic.readsGames(state)) return null;
   return (
     [...state.episodes]
       .sort((a, b) => a.number - b.number)

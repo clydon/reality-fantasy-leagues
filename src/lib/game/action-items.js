@@ -119,8 +119,11 @@ function byDue(a, b) {
 function resultsDueEpisode(state, now) {
   // Weekly Calls and Weekly Bingo (step 12) have no results of their own: the couch's calls, its bingo cards and what it says
   // happened score them.
+  // A game graded by a sport's own games (a pick on the winner, a stat, a lineup scored by stats: StatsLogic.readsGames) has its
+  // results from the game's final, by itself (sports/finals.ts): nobody fills them in, and the show's research page asks a show's
+  // questions (2026-11-23: an NFL pick'em said "Fill in episode 10's results").
   const type = StateLogic.getLeagueType(state);
-  if (StateLogic.RevealLogic.isCatchingUp(state) || type.hasCalls || type.hasBingo) return null;
+  if (StateLogic.RevealLogic.isCatchingUp(state) || type.hasCalls || type.hasBingo || StateLogic.StatsLogic.readsGames(state)) return null;
   const t = now || Date.now();
   return (
     [...state.episodes]
