@@ -98,3 +98,11 @@ test("the line in words: the favourite and the points, never the book", () => {
   assert.equal(lineWords(null), null);
   assert.equal(lineWords("o/u 44.5"), null);
 });
+
+// The user, 2026-11-23: a game of theirs on now was gone from the strip after reopening the app (seen on an earlier visit). Seen
+// drops a final and a hidden game, never one still on that's shown.
+test("a game still on stays however often it was seen; its final goes once seen", () => {
+  const games = [game("on", "NE", "NYJ", -1 * H, "in"), game("done", "DAL", "NYG", -4 * H, "post")];
+  assert.deepEqual(ids(run(games, { seen: () => true })), ["on:live"]);
+  assert.deepEqual(ids(run(games, { seen: () => true, hidden: () => true })), []);
+});

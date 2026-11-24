@@ -186,6 +186,8 @@ export interface SeasonHeader {
   gameNames?: Record<number, { long: string; short: string; tag: string; col?: string; sides?: string[] }>;
   /** A sport's season: its league ("football/nfl"), for its art and its teams' pictures; absent for a show. */
   sportsLeague?: string;
+  /** A sport's league's season of whole days or weeks (a slate: "NFL 2026"), whose episode is never one game. */
+  sportsSlate?: true;
 }
 
 export interface UpNext {

@@ -71,8 +71,12 @@ export function stripGames<G extends StripGameIn>(o: StripOptions<G>): { g: G; b
   for (const g of all) {
     if (!playable(g)) continue;
     if (begun(g, o.now)) {
-      if (!(o.now - ms(g.at) < FRESH_MS) || o.seen(g.id)) continue;
-      if (o.hidden(g)) out.push({ g, bucket: "started" });
+      if (!(o.now - ms(g.at) < FRESH_MS)) continue;
+      const hidden = o.hidden(g);
+      // Seen on an earlier visit: a final is done with, and a hidden game (on or over: where it sits says nothing). One still on and
+      // shown stays, however often it was seen (the user, 2026-11-23: a game of theirs on now was off the strip after a reopen).
+      if (o.seen(g.id) && (hidden || g.state === "post" || g.final)) continue;
+      if (hidden) out.push({ g, bucket: "started" });
       else if (g.state === "in" && !g.final) out.push({ g, bucket: "live" });
       else if (g.state === "post" || g.final) out.push({ g, bucket: "final" });
       // Begun by the clock, not yet by the provider: on, as far as anyone can say.

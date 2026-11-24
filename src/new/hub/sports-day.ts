@@ -35,10 +35,18 @@ export function useSportsDay(couchId: string | null) {
   const todays = (week?.days.find((d) => d.day === today)?.games ?? [])
     .filter((g) => mine(g) && g.state !== "post" && !g.final)
     .sort((a, b) => Number(b.state === "in") - Number(a.state === "in"));
+  // A sports season's next game: one of its own league's starting then, its own two teams' when the season names them (a team's
+  // season). Never a slate's (a week of games is no one matchup), and never by the time alone: an NBA game at the minute an NFL week
+  // starts is another league's (the user, 2026-11-23: Clippers at Grizzlies on the NFL's Week 12).
   const gameOf = (s: HomeShow): WeekGame | null => {
-    if (s.show.kind !== "sport" || !s.upNext?.airAt) return null;
+    if (s.show.kind !== "sport" || !s.upNext?.airAt || !s.sportsLeague || s.sportsSlate) return null;
     const at = Date.parse(s.upNext.airAt);
-    return (week?.days ?? []).flatMap((d) => d.games).find((g) => g.at && Math.abs(Date.parse(g.at) - at) < 60_000) ?? null;
+    const sides = s.gameNames?.[s.upNext.number]?.sides;
+    return (
+      (week?.days ?? [])
+        .flatMap((d) => d.games)
+        .find((g) => g.league === s.sportsLeague && g.at && Math.abs(Date.parse(g.at) - at) < 60_000 && (!sides || g.sides.every((x) => sides.includes(x.id)))) ?? null
+    );
   };
   const fansOf = (g: WeekGame, side: number): Fan[] => ours.get(`${g.league}|${g.sides[side].id}`)?.followers ?? [];
   const teamOf = (userId: string) => teams.find((t) => t.followers.some((f) => f.id === userId)) ?? null;

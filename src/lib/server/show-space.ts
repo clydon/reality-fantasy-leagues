@@ -52,6 +52,9 @@ export interface SeasonHeader {
   gameNames?: Record<number, GameLabel>;
   /** A sport's season: its league as the provider names it ("football/nfl"), for its art and its teams' pictures; absent for a show. */
   sportsLeague?: string;
+  /** A sport's league's season of whole days or weeks (a slate: "NFL 2026", each episode many games); absent otherwise. An episode
+   *  of it is never one game, so nothing shows it as one matchup (the hub's Up next: hub/sports-day.ts gameOf). */
+  sportsSlate?: true;
 }
 
 /** Each season's header (show, number, status, art), by season id. */
@@ -68,7 +71,8 @@ export async function seasonHeaders(seasonIds: string[]): Promise<Map<string, Se
                       AND NOT EXISTS (SELECT 1 FROM season_cast c WHERE c.season_id = ss.id) THEN 'missing'
             END AS filling,
             s.id AS show_id, s.slug, s.name AS show_name, s.kind, ${cardArtSql()} AS art_url, s.art_url AS own_art, s.art_style,
-            CASE WHEN s.art_off THEN NULL ELSE s.backdrop_url END AS backdrop_url, s.backdrop_style, s.castaway_term, s.castaway_plural, s.tribe_term, s.episode_term, s.tvmaze_id, s.listing->>'network' AS network, s.sports_league
+            CASE WHEN s.art_off THEN NULL ELSE s.backdrop_url END AS backdrop_url, s.backdrop_style, s.castaway_term, s.castaway_plural, s.tribe_term, s.episode_term, s.tvmaze_id, s.listing->>'network' AS network, s.sports_league,
+            EXISTS (SELECT 1 FROM sports_slates x WHERE x.season_id = ss.id) AS slate
        FROM show_seasons ss JOIN shows s ON s.id = ss.show_id LEFT JOIN season_fills f ON f.season_id = ss.id
       WHERE ss.id = ANY($1::uuid[])`,
     [ids]
@@ -105,6 +109,7 @@ export async function seasonHeaders(seasonIds: string[]): Promise<Map<string, Se
         network: r.network ?? null,
       },
       ...(league ? { sportsLeague: league } : {}),
+      ...(league && r.slate ? { sportsSlate: true as const } : {}),
     });
   }
   // A team's season's games by what they are ("Week 11 at Bengals"), never its index.
