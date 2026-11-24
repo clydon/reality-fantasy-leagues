@@ -15,6 +15,7 @@ import { namesOf } from "../hub/sections";
 import { PlayIt } from "./games";
 import { Avatar, useNow } from "../ui/bars";
 import { useFinalWhen } from "../final-words";
+import { epName, type ShowWords } from "@/lib/game/show-words";
 import { Btn } from "../ui/parts";
 import { toast } from "../ui/toast";
 import { openMoves } from "./moves";
@@ -158,7 +159,7 @@ function Following({ show }: { show: ShowData }) {
 // ---------- after an episode, before you've seen its results ----------
 
 /** The three stages of an episode's results, for the wait and early results. */
-function StageBar({ episode, stage, airAt, finalAt }: { episode: number; stage: "waiting" | "early" | "final"; airAt: string | null; finalAt: string | null }) {
+function StageBar({ episode, stage, airAt, finalAt, words }: { episode: number; stage: "waiting" | "early" | "final"; airAt: string | null; finalAt: string | null; words: ShowWords }) {
   // When the final results come (final-words.ts: 12:00 noon the day after it airs, in your own time).
   const finalWhen = useFinalWhen(stage === "final" ? null : finalAt);
   const steps: [typeof stage, string, string][] = [
@@ -169,7 +170,7 @@ function StageBar({ episode, stage, airAt, finalAt }: { episode: number; stage: 
   const at = steps.findIndex((s) => s[0] === stage);
   return (
     <div data-stage-bar={stage} className="mt-3 rounded-[4px] p-3.5 outline-1 -outline-offset-1 outline-border">
-      <span className="type-caption block text-[13px] tracking-[0.04em] text-muted-foreground">Episode {episode} results</span>
+      <span className="type-caption block text-[13px] tracking-[0.04em] text-muted-foreground">{epName({ ...words, ep: words.episode }, episode, "tag")} results</span>
       <div className="mt-2.5 grid grid-cols-3 gap-2">
         {steps.map(([k, title, line], i) => (
           <div key={k} aria-current={i === at ? "step" : undefined}>
@@ -192,15 +193,15 @@ function AfterEpisode({ show }: { show: ShowData }) {
   if (eps.reveal?.stage === "early") {
     const r = eps.reveal;
     return (
-      <Block title={`${show.words.ep} ${r.episode}`} aside="Early results">
-        <StageBar episode={r.episode} stage="early" airAt={eps.episodes.find((e) => e.number === r.episode)?.airAt ?? null} finalAt={r.finalAt} />
+      <Block title={epName(show.words, r.episode, "tag")} aside="Early results">
+        <StageBar episode={r.episode} stage="early" airAt={eps.episodes.find((e) => e.number === r.episode)?.airAt ?? null} finalAt={r.finalAt} words={show.words} />
       </Block>
     );
   }
   if (eps.reveal) return null;
   if (eps.waiting) {
     return (
-      <Block title={`${show.words.ep} ${eps.waiting.episode}`} aside={justAired(eps.waiting.airAt) ? "Just aired" : "Aired"}>
+      <Block title={epName(show.words, eps.waiting.episode, "tag")} aside={justAired(eps.waiting.airAt) ? "Just aired" : "Aired"}>
         <div data-waiting={eps.waiting.episode} className="flex items-start gap-3 rounded-[4px] bg-card p-4">
           <span className="mt-1 grid size-6 flex-none place-items-center rounded-full bg-foreground/10">
             <i className="size-2.5 animate-pulse rounded-full bg-foreground/70" />
@@ -210,7 +211,7 @@ function AfterEpisode({ show }: { show: ShowData }) {
             <small className="mt-1.5 block text-sm leading-snug text-muted-foreground">Who went home usually lands a little after the episode ends. Nothing is spoiled in the meantime.</small>
           </span>
         </div>
-        <StageBar episode={eps.waiting.episode} stage="waiting" airAt={eps.waiting.airAt} finalAt={eps.waiting.finalAt ?? null} />
+        <StageBar episode={eps.waiting.episode} stage="waiting" airAt={eps.waiting.airAt} finalAt={eps.waiting.finalAt ?? null} words={show.words} />
       </Block>
     );
   }
@@ -229,7 +230,7 @@ function AfterEpisode({ show }: { show: ShowData }) {
           </span>
           <span className="flex flex-1 flex-col justify-center gap-[3px] py-[7px] pl-5 pr-2.5">
             <span className="text-[17px] font-bold">Final results are in</span>
-            <span className="text-[13px] text-plate-muted">Episode {n} · every point counted</span>
+            <span className="text-[13px] text-plate-muted">{epName({ ...show.words, ep: show.words.episode }, n, "tag")} · every point counted</span>
           </span>
           <span className="grid place-items-center px-3">
             <ChevronRight className="size-5" aria-hidden />
@@ -260,15 +261,15 @@ function FillItIn({ seasonId, show }: { seasonId: string; show: ShowData }) {
       <button type="button" data-fill-it={n} onClick={() => setOpen(true)} className="nd-press flex min-h-[64px] w-full items-center gap-3 rounded-[4px] bg-card p-3.5 text-left outline-1 -outline-offset-1 outline-input">
         <span className="min-w-0 flex-1">
           <b className="block text-[16px]">Full scores need one paste</b>
-          <small className="block text-[13px] text-muted-foreground">Episode {n} · anyone on the couch can do it · about 2 minutes</small>
+          <small className="block text-[13px] text-muted-foreground">{epName({ ...show.words, ep: show.words.episode }, n, "tag")} · anyone on the couch can do it · about 2 minutes</small>
         </span>
         <span className="text-[15px] font-bold">Fill it in</span>
       </button>
       <AskAiSheet
         open={open}
         onOpenChange={setOpen}
-        title={`Fill in Episode ${n}`}
-        what={`An AI searches the web for everything that happened in Episode ${n}, then answers in a format we can read: every game on the couch scores.`}
+        title={`Fill in ${epName(show.words, n, "long")}`}
+        what={`An AI searches the web for everything that happened in ${epName(show.words, n, "long")}, then answers in a format we can read: every game on the couch scores.`}
         seasonId={seasonId}
         couchId={couchId}
         episode={n}
@@ -295,10 +296,10 @@ function LastTime({ seasonId, show, open }: { seasonId: string; show: ShowData; 
   if (!n || !show.header) return null;
   const e = show.episodes?.episodes.find((x) => x.number === n);
   const ep = show.words.ep;
-  const target = { seasonId, couchId, episode: n, label: showLabel(show), solo: show.solo };
+  const target = { seasonId, couchId, episode: n, label: showLabel(show), solo: show.solo, name: show.words.names?.[n]?.short };
   const outs = (e?.out ?? []).map((c) => c.name);
   return (
-    <Block title={`Last time · ${ep} ${n}`} aside={e?.stage === "early" ? "Early results" : undefined}>
+    <Block title={`Last time · ${epName(show.words, n, "tag")}`} aside={e?.stage === "early" ? "Early results" : undefined}>
       <div data-last-time={n} className="flex flex-col gap-3">
         {(e?.out ?? []).map((c) => (
           <button key={c.id} type="button" data-last-out={c.name} data-door-cast={c.name} onClick={() => open({ kind: "cast", name: c.name })} className="nd-press flex min-h-[64px] w-full items-stretch overflow-hidden rounded-[3px] bg-plate text-left text-plate-foreground shadow-plate">
@@ -321,11 +322,11 @@ function LastTime({ seasonId, show, open }: { seasonId: string; show: ShowData; 
           <WriteUp
             text={e.summary}
             headline={e.headline && headlineAgrees(e.headline, e.summary, outs) ? e.headline : null}
-            label={`${ep} ${n}`}
+            label={epName(show.words, n, "tag")}
             word={show.words.episode.toLowerCase()}
           />
         )}
-        {show.ready && show.header.show.kind !== "sport" && e && e.out?.length === 0 && <p className="text-[15px] text-muted-foreground">Nobody left in {ep} {n}.</p>}
+        {show.ready && show.header.show.kind !== "sport" && e && e.out?.length === 0 && <p className="text-[15px] text-muted-foreground">Nobody left in {epName(show.words, n, "short")}.</p>}
         {/* The stat of the week: picked from this episode, so it's part of what happened (stats.tsx; the rest of Stats stays below). */}
         <StatOfTheWeek seasonId={seasonId} show={show} />
         {/* The couch's GIFs for it, your slot first (react.tsx: the same strip ends each recap). */}
@@ -334,7 +335,7 @@ function LastTime({ seasonId, show, open }: { seasonId: string; show: ShowData; 
           {!show.solo && couchId && !show.readOnly && (
             <NavLink href={paths.show(seasonId, "chat")} data-last-discuss className="nd-press flex h-12 items-center justify-center gap-2 rounded-[4px] font-bold outline-1 -outline-offset-1 outline-edge">
               <MessageCircle className="size-[18px]" aria-hidden />
-              Discuss {ep} {n}
+              Discuss {epName(show.words, n, "tag")}
             </NavLink>
           )}
           <NavLink
@@ -342,7 +343,7 @@ function LastTime({ seasonId, show, open }: { seasonId: string; show: ShowData; 
             data-last-recap
             className={`nd-press flex h-12 items-center justify-center gap-1 rounded-[4px] font-bold outline-1 -outline-offset-1 outline-edge ${show.solo || !couchId || show.readOnly ? "col-span-2" : ""}`}
           >
-            {ep} {n} recap
+            {epName(show.words, n, "tag")} recap
             <ChevronRight className="size-4" aria-hidden />
           </NavLink>
         </div>
@@ -548,7 +549,7 @@ function NextEpisode({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const plans = (show.home?.plans ?? []).filter((p) => p.couchId === couchId && p.seasonId === seasonId);
   const together = !show.solo && couchId && !plans.some((p) => p.episode === up.number);
   return (
-    <Block title={`Next · ${show.words.ep} ${up.number}`}>
+    <Block title={`Next · ${epName(show.words, up.number, "tag")}`}>
       <div data-next-episode={up.number} className="flex flex-col">
         <button type="button" data-next-watch onClick={() => openWatch(up.number)} className="nd-press flex min-h-[60px] w-full items-center gap-3 border-t border-border py-2 text-left first:border-t-0">
           <Tv className="size-5 flex-none text-muted-foreground" aria-hidden />
@@ -633,7 +634,7 @@ function OnTonight({ show }: { show: ShowData }) {
   const up = show.upNext;
   if (!up?.live || toBingo(show) !== up.number || !show.header) return null;
   return (
-    <Block title={`${show.words.ep} ${up.number}`} aside="On air">
+    <Block title={epName(show.words, up.number, "tag")} aside="On air">
       <BingoRow target={bingoTarget(show, up.number)} />
     </Block>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { epName, inShowWords } from "@/lib/game/show-words";
+import { useGameArt } from "./game-art";
 import { useWithRoles } from "../sports/faces";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, Clock, Heart, Hourglass, Minus, MoreHorizontal, Settings } from "lucide-react";
@@ -123,7 +124,7 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
   const waivers = useSeasonWaivers(seasonId, couchId, !!show.header && playsWaivers(show)).data?.games;
   // A time as far off as it is: "Wed 8:00 PM" within the week, the date too past it (clock.ts lockTime).
   const when = (iso: string) => lockTime(Date.parse(iso));
-  const moveOf = (x: GameView) => yourMove(x, { seasonId, episode: show.words.episode, when, draft: x.leagueId === g.leagueId || x.stageOf === g.leagueId ? drafts?.find((d) => d.leagueId === x.leagueId) : undefined, waivers: waivers?.find((w) => w.leagueId === x.leagueId) });
+  const moveOf = (x: GameView) => yourMove(x, { seasonId, episode: show.words.episode, names: show.words.names, when, draft: x.leagueId === g.leagueId || x.stageOf === g.leagueId ? drafts?.find((d) => d.leagueId === x.leagueId) : undefined, waivers: waivers?.find((w) => w.leagueId === x.leagueId) });
   const move = moveOf(g);
   // Secret roles and the top scorer's twist live on the server (their own routes): read only on a game that has them.
   const roles = useLeagueRoles(g.leagueId, has(g.page, "badge", "role")).data ?? null;
@@ -175,7 +176,10 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
   const afterReveal = useAfterReveal();
   // The card's name scrolled under the top: the bar that stays names the game.
   const [away, setAway] = useState(false);
-  const art = show.header?.show.backdropUrl ?? show.header?.show.artUrl ?? null;
+  // A sport's game: the couch's pictures for its teams, else the league's art as you see it (game-art.ts); a show's, its own art.
+  const gameArt = useGameArt(show, g);
+  const photo = gameArt?.kind === "photo" ? gameArt : gameArt?.kind === "logos" ? gameArt.photo : null;
+  const art = photo?.src ?? show.header?.show.backdropUrl ?? show.header?.show.artUrl ?? null;
   const [colour, setColour] = useState<string | null>(null);
   useEffect(() => {
     let on = true;
@@ -249,7 +253,7 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
     try {
       await couches.catchUp(seasonId, couchId, wg.leagueId);
       await afterCouch();
-      toast(`${show.words.episode} ${revealEp} revealed`);
+      toast(`${epName(show.words, revealEp!, "long")} revealed`);
     } catch (e) {
       toast.quiet((e as Error).message);
     } finally {
@@ -260,7 +264,7 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
     week && (week.tone === "behind" || week.tone === "early") && revealEp !== null ? (
       <div className="mt-3" data-week-reveal>
         <Btn tone="ink" wide disabled={revealing} onClick={() => (paced ? revealHere() : nav.push(paths.reveal(seasonId, revealEp)))}>
-          {revealing ? "Revealing…" : paced ? `I've watched ${show.words.ep} ${revealEp} · Reveal` : week.tone === "early" ? `Reveal ${show.words.ep} ${revealEp}'s early results` : `Reveal ${show.words.ep} ${revealEp}`}
+          {revealing ? "Revealing…" : paced ? `I've watched ${epName(show.words, revealEp, "short")} · Reveal` : week.tone === "early" ? `Reveal ${epName(show.words, revealEp, "short")}'s early results` : `Reveal ${epName(show.words, revealEp, "short")}`}
         </Btn>
         <p className="mt-1.5 text-[13px] text-muted-foreground">{paced ? "Results for this game, at your own pace." : `One reveal for every game you play on ${show.header?.show.name ?? "this show"}.`}</p>
       </div>
@@ -282,11 +286,12 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
         </div>
       </div>
       <header className="relative overflow-hidden pb-3" data-game-title>
-        <Backdrop art={art} colour={colour} />
+        <Backdrop art={art} colour={colour} position={photo?.position ?? null} />
         <div className="relative">
           {/* The bar's centre stays empty: the card under it names the game, once (b1-title-card-spec.md, "The header"). */}
           <TopBar onBack={onBack} show="" onMenu={() => setMenu(true)} onManage={manage} />
         </div>
+        {gameArt?.kind === "logos" && <Logos srcs={gameArt.srcs} />}
         <GameTitleCard kicker={show.header ? kickerOf(show.header.show.name, show.header.seasonNumber) : ""} name={g.name} sentence={firstVisit && g.sentence ? inShowWords(g.sentence, show.words) : null} onAway={setAway} />
         {m.hero.stages && <Stages stages={m.hero.stages} seasonId={seasonId} />}
         {g.plays.kind === "staged" && (
@@ -313,8 +318,8 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
       </header>
       <SideBetsRow g={wg} words={show.words} runs={runs} onOpen={() => drill.open({ kind: "bets" })} />
       {week?.tone !== "out" && <WeekGames g={wg} words={show.words} onOpen={(pid, n) => drill.open({ kind: "matchup", playerId: pid, episode: n })} />}
-      {m.inPlace === "questions" && <InPlaceQuestions seasonId={seasonId} g={g} />}
-      {m.inPlace === "twist" && twist?.next && <TwistChooser leagueId={g.leagueId} t={twist} />}
+      {m.inPlace === "questions" && <InPlaceQuestions seasonId={seasonId} g={g} onPlayer={(_, name) => drill.open({ kind: "cast", name, lens: null })} />}
+      {m.inPlace === "twist" && twist?.next && <TwistChooser leagueId={g.leagueId} t={twist} words={show.words} />}
       {m.inPlace === "slots" && <SlotPicker g={g} seasonId={seasonId} />}
       {stage && g.you && g.from !== null && g.through >= g.from && (
         <p className="mx-4 mt-4 text-[15px]" data-game-overall>
@@ -425,7 +430,23 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
 // ---------- the top: the show's art behind This week ----------
 
 /** The show's art in its own colours (the user, 2026-11-08), washed toward Night so the faces and numbers over it read. */
-function Backdrop({ art, colour }: { art: string | null; colour: string | null }) {
+/** A sport's game with the couch's pictures for its teams: away "at" home (or the one team), a row of their own above the title, over
+ *  the league's photo, so neither fights the title's words. */
+function Logos({ srcs }: { srcs: string[] }) {
+  return (
+    <div aria-hidden className="relative mx-4 mt-2 flex items-center gap-3" data-game-art="logos">
+      {srcs.map((src, i) => (
+        <span key={src} className="contents">
+          {i === 1 && <span className="type-caption text-[17px] text-muted-foreground">at</span>}
+          {/* eslint-disable-next-line @next/next/no-img-element -- a couch's own picture, served at its size */}
+          <img src={src} alt="" className="size-14 rounded-[4px] object-contain shadow-[0_2px_10px_rgba(0,0,0,.35)]" />
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function Backdrop({ art, colour, position = null }: { art: string | null; colour: string | null; position?: string | null }) {
   const { src, frame } = splitFrame(art);
   if (!src)
     return colour ? (
@@ -434,7 +455,7 @@ function Backdrop({ art, colour }: { art: string | null; colour: string | null }
   return (
     <span aria-hidden className="absolute inset-0">
       {/* eslint-disable-next-line @next/next/no-img-element -- art_url can be an arbitrary external URL */}
-      <img src={src} alt="" className="size-full object-cover" style={frame ? frameStyle(frame) : { objectPosition: "center 25%" }} />
+      <img src={src} alt="" className="size-full object-cover" style={frame ? frameStyle(frame) : { objectPosition: position ?? "center 25%" }} />
       <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(22,20,29,.55),rgba(22,20,29,.78)_38%,rgba(22,20,29,.93)_72%,var(--background))]" />
     </span>
   );
@@ -617,7 +638,7 @@ function Stages({ stages, seasonId }: { stages: NonNullable<HeroM["stages"]>; se
 
 /** A game of questions answered on the page. Once every open question has your answer it folds to one line, your answers and
  *  "Change your answers" (as the twist chooser folds), so the season grid comes back into the first screen. */
-function InPlaceQuestions({ seasonId, g }: { seasonId: string; g: GameView }) {
+function InPlaceQuestions({ seasonId, g, onPlayer }: { seasonId: string; g: GameView; onPlayer?: (id: string, name: string) => void }) {
   const r = useGameQuestions(seasonId, g.leagueId, null);
   const d = r.data;
   const [editing, setEditing] = useState<boolean | null>(null);
@@ -641,7 +662,7 @@ function InPlaceQuestions({ seasonId, g }: { seasonId: string; g: GameView }) {
       ) : !d ? (
         <p className="text-sm text-muted-foreground">Couldn&apos;t load the questions. Try again in a moment.</p>
       ) : (
-        <QuestionsBody key={JSON.stringify(d.questions.map((q) => [q.id, q.mine, q.status]))} target={{ seasonId, leagueId: g.leagueId, episode: null, game: g.gameName }} d={d} onDone={() => setEditing(false)} place="page" />
+        <QuestionsBody key={JSON.stringify(d.questions.map((q) => [q.id, q.mine, q.status]))} target={{ seasonId, leagueId: g.leagueId, episode: null, game: g.gameName }} d={d} onDone={() => setEditing(false)} place="page" onPlayer={onPlayer} />
       )}
     </section>
   );
@@ -649,7 +670,7 @@ function InPlaceQuestions({ seasonId, g }: { seasonId: string; g: GameView }) {
 
 /** The top scorer's twist, chosen on the page: each option a plate with its multiplier on the tag (the chosen one white, the rest
  *  dim), a named white confirm only while there's a change to save; once chosen it folds to one line, "Change it" opening it. */
-function TwistChooser({ leagueId, t }: { leagueId: string; t: LeagueTwist }) {
+function TwistChooser({ leagueId, t, words }: { leagueId: string; t: LeagueTwist; words: ShowData["words"] }) {
   const qc = useQueryClient();
   const [picked, setPicked] = useState<string | null>(t.next?.choice ?? null);
   const [saving, setSaving] = useState(false);
@@ -663,7 +684,7 @@ function TwistChooser({ leagueId, t }: { leagueId: string; t: LeagueTwist }) {
       await chooseTwist(leagueId, picked);
       await qc.invalidateQueries({ queryKey: ["new-design", "twist", leagueId] });
       setEditing(false);
-      toast(`${name}: it's set for Episode ${t.next?.episode}`);
+      toast(`${name}: it's set for ${epName(words, t.next?.episode ?? 0)}`);
     } catch (e) {
       toast.quiet(`Not saved: ${(e as Error).message}`);
     } finally {
@@ -857,7 +878,7 @@ function SeasonGrid({ g, m, words, due, drill }: { g: GameView; m: PageModel; wo
                   {cutAt(i) && <CutRow />}
                   <div data-restack={s.playerId} data-row-out={s.out && p.kind !== "result" ? "" : undefined} className={`grid ${ROW} border-t border-border ${s.you ? "bg-secondary" : ""} ${s.out && p.kind !== "result" ? "[&>*]:opacity-55" : ""}`} style={{ gridTemplateColumns: tmpl }}>
                     {sq.map((x) => (
-                      <button key={x.episode} type="button" data-square={`${s.playerId}:${x.episode}`} data-late={x.late ? "" : undefined} aria-label={`${s.name}, ${words.episode} ${x.episode}${x.result ? `: ${x.result.r === "W" ? "won" : x.result.r === "L" ? "lost" : "tied"}` : x.points !== null && x.points !== undefined ? `: ${num(x.points)} points` : ""}${x.late ? `. ${LATE_SET}` : ""}`} onClick={() => square(s.playerId, x.episode)} className={`nd-press relative grid place-items-center ${x.episode === latest ? (s.you ? "bg-input/45" : "bg-secondary/60") : ""}`}>
+                      <button key={x.episode} type="button" data-square={`${s.playerId}:${x.episode}`} data-late={x.late ? "" : undefined} aria-label={`${s.name}, ${epName(words, x.episode, "long")}${x.result ? `: ${x.result.r === "W" ? "won" : x.result.r === "L" ? "lost" : "tied"}` : x.points !== null && x.points !== undefined ? `: ${num(x.points)} points` : ""}${x.late ? `. ${LATE_SET}` : ""}`} onClick={() => square(s.playerId, x.episode)} className={`nd-press relative grid place-items-center ${x.episode === latest ? (s.you ? "bg-input/45" : "bg-secondary/60") : ""}`}>
                         <Cell g={g} x={x} />
                         {x.late && <LateMark className="right-px top-px" />}
                       </button>
@@ -916,7 +937,7 @@ function SeasonGrid({ g, m, words, due, drill }: { g: GameView; m: PageModel; wo
         {[m.couch.note, m.couch.players > all.length ? `${m.couch.players} playing` : null].filter(Boolean).map((x) => ` ${x}.`)}
         {g.waiting?.length > 0 && p.kind === "result" && (
           <span data-waiting-key className="mt-1 block">
-            {g.waiting.map((w) => `${words.episode} ${w.episode}: waiting on ${w.name}'s ${p.blocks.some((b) => b === "pick" || b === "picks") ? "pick" : "lineup"}.`).join(" ")}
+            {g.waiting.map((w) => `${epName(words, w.episode, "long")}: waiting on ${w.name}'s ${p.blocks.some((b) => b === "pick" || b === "picks") ? "pick" : "lineup"}.`).join(" ")}
           </span>
         )}
         {nightKey(g).length > 0 && (

@@ -3,6 +3,7 @@ import type { Base, PageFacts, Spec } from "@/lib/game/start-gallery/index.js";
 import type { MadeGame } from "@/lib/server/made-games";
 import type { Home, WizardOptions } from "../../data";
 import { dayDiff, lockTime } from "../../clock";
+import { epName, type GameLabel } from "@/lib/game/show-words";
 
 // Start a game's gallery, the screens' model (docs/design-round/wizard-r2-spec.md; Round 2 of the redo): what the gallery's screens
 // read from the wizard's own page (start-spec.ts wizardOptions: the season's ctx and pack, its made-for games, its starts, how a
@@ -54,6 +55,8 @@ export interface Input {
    *  for a game scored by players' stats: the NFL's Week 17) and its final's name ("the Super Bowl"); else null. */
   playoffs: { through: number; fantasy: number; final: string } | null;
   nouns: Nouns;
+  /** A team's season: each game's name (show-words.ts epName); absent for a show. */
+  names?: Record<number, GameLabel> | null;
 }
 
 const plain = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, "").trim() || name;
@@ -110,12 +113,19 @@ export function inputOf(o: WizardOptions, home: Home | undefined, couchId: strin
     sport: !!o.sport,
     playoffs: o.sport?.playoffs ?? null,
     nouns: nounsOf({ show: o.show }, (pack as { words?: { person?: string; people?: string; group?: string } }).words),
+    names: (show ?? home?.couchShows?.find((s) => s.seasonId === o.seasonId))?.gameNames ?? null,
   };
 }
 
 // ---------- words ----------
 
 const cap = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
+/** An episode by name: a team's game ("Chiefs at Bills"; "KC @ BUF" as a tag), else the input's word and number as before. */
+export function epOf(input: Pick<Input, "ep" | "names">, n: number, form: "long" | "short" | "tag" | "col" = "short"): string {
+  if (form === "tag") return epName({ episode: "Episode", ep: "Ep", names: input.names }, n, "tag");
+  const E = cap(input.ep);
+  return epName({ episode: E, ep: E, names: input.names }, n, form);
+}
 /** "Wed 18", "Thu 26": an episode's air date, short, for the strip. */
 export function shortDate(airAt: string | null): string | null {
   const t = airAt ? Date.parse(airAt) : NaN;
@@ -151,7 +161,7 @@ export interface Length {
 export function lengthsOf(spec: Spec | null, input: Input, gm: G): Length[] {
   const { from, stages } = input;
   const later = stages.filter((s, i) => i > 0 && !(s.at != null && s.at <= from));
-  const out: { id: string; label: string; span: Span }[] = [{ id: "next", label: `Just ${cap(input.ep)} ${from}`, span: { from, to: from } }];
+  const out: { id: string; label: string; span: Span }[] = [{ id: "next", label: `Just ${epOf(input, from)}`, span: { from, to: from } }];
   if (later.length === 1) {
     out.push({ id: `until:${later[0].id}`, label: `Till ${startOf(later[0])}`, span: { from, to: { phase: later[0].id } } });
     out.push({ id: `from:${later[0].id}`, label: `From ${startOf(later[0])}`, span: { from: { phase: later[0].id }, to: null } });
@@ -264,7 +274,7 @@ export function stripOf(input: Input, span: Span): { cells: Cell[]; stages: { id
   }
   if (aired > 0) cells.push({ key: "aired", top: aired > 1 ? `1–${aired}` : "1", under: "aired", aired: true, in: false, stage: stageOfN(aired) });
   const shown = listed.filter((e) => e.number >= from).slice(0, 2);
-  for (const e of shown) cells.push({ key: `e${e.number}`, top: String(e.number), under: shortDate(e.airAt) ?? "date not out", in: inRange(e.number), stage: stageOfN(e.number) });
+  for (const e of shown) cells.push({ key: `e${e.number}`, top: epOf(input, e.number, "col"), under: shortDate(e.airAt) ?? "date not out", in: inRange(e.number), stage: stageOfN(e.number) });
   const lastShown = shown.length ? shown[shown.length - 1].number : from - 1;
   const undated = stages.find((s, i) => i > 0 && s.at == null);
   const restIn = !waits && (toN === Infinity || toN > lastShown + 1);
@@ -273,7 +283,7 @@ export function stripOf(input: Input, span: Span): { cells: Cell[]; stages: { id
     const laterStart = typeof span.from === "object" && waits;
     cells.push({ key: "rest", top: "…", under: laterStart ? "waits for it" : "the rest", gap: true, in: restIn || laterStart, stage: restStage });
   }
-  cells.push({ key: "finale", top: "Finale", under: total ? `Ep ${total}` : "no date", in: toN === Infinity && !waits ? true : waits ? span.to === null : false, stage: stages.length ? stages[stages.length - 1].id : null });
+  cells.push({ key: "finale", top: "Finale", under: total ? epOf(input, total, "tag") : "no date", in: toN === Infinity && !waits ? true : waits ? span.to === null : false, stage: stages.length ? stages[stages.length - 1].id : null });
   const runs: { id: string; label: string; under: string; cells: number }[] = [];
   for (const c of cells) {
     const last = runs[runs.length - 1];
@@ -281,7 +291,7 @@ export function stripOf(input: Input, span: Span): { cells: Cell[]; stages: { id
     else {
       const st = stages.find((s) => s.id === c.stage);
       const first = stages[0]?.id === c.stage;
-      runs.push({ id: c.stage ?? "", label: st ? (first ? st.name : `From ${st.start}`) : "", under: st ? (st.now ? "now" : st.at == null ? "no date yet" : `Ep ${st.at}`) : "", cells: 1 });
+      runs.push({ id: c.stage ?? "", label: st ? (first ? st.name : `From ${st.start}`) : "", under: st ? (st.now ? "now" : st.at == null ? "no date yet" : epOf(input, st.at, "tag")) : "", cells: 1 });
     }
   }
   return { cells, stages: stages.length > 1 ? runs : [] };
@@ -289,13 +299,12 @@ export function stripOf(input: Input, span: Span): { cells: Cell[]; stages: { id
 
 /** Start's line: the stretch and the first lock ("Episode 9 to the finale · picks by Wed 8 PM"). */
 export function stretchLine(span: Span, input: Input): string {
-  const E = cap(input.ep);
   const st = (id: string) => input.stages.find((s) => s.id === id);
   const f = span.from;
   const t = span.to;
-  const fromWords = typeof f === "number" ? `${E} ${f}` : `From ${st(f.phase) ? startOf(st(f.phase)!) : f.phase}`;
-  if (typeof f === "number" && t === f) return `Just ${E} ${f}`;
-  const toWords = t === null ? "the finale" : typeof t === "number" ? `${E} ${t}` : `${st(t.phase) ? startOf(st(t.phase)!) : t.phase}`;
+  const fromWords = typeof f === "number" ? epOf(input, f) : `From ${st(f.phase) ? startOf(st(f.phase)!) : f.phase}`;
+  if (typeof f === "number" && t === f) return `Just ${epOf(input, f)}`;
+  const toWords = t === null ? "the finale" : typeof t === "number" ? epOf(input, t) : `${st(t.phase) ? startOf(st(t.phase)!) : t.phase}`;
   return typeof f === "number" ? `${fromWords} to ${toWords}` : `${fromWords} to ${toWords}`;
 }
 
@@ -304,7 +313,7 @@ export function stretchLine(span: Span, input: Input): string {
 /** What a lock costs someone behind, in one wording for the closed line and the opened choice. */
 export function costWords(m: Pace, b: { name: string; behind: number }, input: Input): string {
   if (m === "strict") return `${b.name} is ${b.behind} ${b.behind === 1 ? input.ep : input.eps} behind and would choose before seeing ${b.behind === 1 ? "it" : "them"}.`;
-  return `${b.name} is ${b.behind} ${input.eps} behind: they'd have to catch up before ${input.ep[0].toUpperCase()}${input.ep.slice(1)} ${input.from + 1} airs, or miss moves.`;
+  return `${b.name} is ${b.behind} ${input.eps} behind: they'd have to catch up before ${epOf(input, input.from + 1)} airs, or miss moves.`;
 }
 
 export interface LockState {

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { Face } from "../show/parts";
 import { seasonChoiceLine, type SeasonChoice } from "@/lib/game/listing";
+import { epName, type GameLabel } from "@/lib/game/show-words";
 import { useAiredEpisodes, type CatalogSeason, type KeepUp, type StepEpisode } from "../data";
 import { SwitchRow } from "../settings/controls";
 import { Btn, Stepper } from "../ui/parts";
@@ -33,6 +34,8 @@ export type WhereSeason = Pick<CatalogSeason, "seasonId" | "label" | "show" | "a
   episodeWord?: string;
   /** Its short word ("Ep"), for the ledger's lines. */
   epWord?: string;
+  /** A team's season: each game's name (show-words.ts epName), said in place of "Game 4". */
+  names?: Record<number, GameLabel> | null;
   /** How many episodes it has, when known, and the next to air: the ledger's Still to air. */
   total?: number | null;
   next?: { number: number; airAt: string | null } | null;
@@ -42,13 +45,17 @@ export type WhereSeason = Pick<CatalogSeason, "seasonId" | "label" | "show" | "a
   outs?: Record<number, { name: string; photo: string | null }[]>;
 };
 
+/** An episode of the season by name: a team's game ("Chiefs at Bills"), else "Episode 4" / "Ep 4" as before. */
+const nameOf = (s: Pick<WhereSeason, "episodeWord" | "epWord" | "names">, n: number, form: "long" | "short" = "long") =>
+  epName({ episode: s.episodeWord ?? "Episode", ep: s.epWord ?? "Ep", names: s.names }, n, form);
+
 const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
 /** "Game 2: Rays at Brewers · Sat, Oct 24", "Episode 5 · Tue, Oct 20": which episode a step is. */
-function stepLine(ep: StepEpisode | undefined, word = "Episode"): string | null {
+function stepLine(ep: StepEpisode | undefined, s: Pick<WhereSeason, "episodeWord" | "epWord" | "names">): string | null {
   if (!ep) return null;
   const day = ep.airAt ? new Date(ep.airAt).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : null;
-  return [ep.title ?? `${word} ${ep.number}`, day].filter(Boolean).join(" · ");
+  return [ep.title ?? nameOf(s, ep.number), day].filter(Boolean).join(" · ");
 }
 
 /** One season's row: its art, where you are in words (and which episode that is), and the stepper (none before its premiere). */
@@ -67,7 +74,7 @@ export function WhereRow({
   line?: string;
   episodes?: StepEpisode[];
 }) {
-  const step = seen > 0 ? stepLine(episodes?.find((e) => e.number === seen), s.episodeWord) : null;
+  const step = seen > 0 ? stepLine(episodes?.find((e) => e.number === seen), s) : null;
   return (
     <div className="flex min-h-[76px] items-center gap-3 border-t border-border py-2 first:border-t-0" data-where={s.label}>
       <ShowArt seasonId={`where-${s.seasonId}`} artUrl={s.artUrl} name={s.show[0]} position={s.artPosition} className="h-12 w-16 flex-none rounded-[3px] text-[22px]" />
@@ -114,7 +121,6 @@ export function EpisodeLedger({
   /** The first row: the behind question's picker (show/step-through.tsx) lists only what's out past your mark. */
   from?: number;
 }) {
-  const ep = s.epWord ?? "Ep";
   const aired = s.aired ?? 0;
   const rows = Array.from({ length: Math.max(0, aired - from + 1) }, (_, i) => from + i);
   // It opens at your boundary, not at Ep 1: on a 30-episode season "You're here" would start out of sight (settings Round 2's PFD).
@@ -129,7 +135,7 @@ export function EpisodeLedger({
   const here = (
     <div data-ledger-here={seen} className="flex items-center gap-2 py-1.5" aria-hidden>
       <i className="h-[2px] flex-1 bg-chyron-line" />
-      <span className="type-caption text-[13px] tracking-[0.04em] text-chyron-line">{seen > 0 ? `You're here · through ${ep} ${seen}` : "You're here · not started"}</span>
+      <span className="type-caption text-[13px] tracking-[0.04em] text-chyron-line">{seen > 0 ? `You're here · through ${nameOf(s, seen, "short")}` : "You're here · not started"}</span>
       <i className="h-[2px] w-4 bg-chyron-line" />
     </div>
   );
@@ -162,7 +168,7 @@ export function EpisodeLedger({
               )}
               <span className="min-w-0 flex-1">
                 <b className={`block truncate text-[15px] font-semibold ${isSeen ? "" : "text-muted-foreground"}`}>
-                  {title ?? (out.length ? `${out.map((c) => c.name.split(" ")[0]).join(" and ")} out` : (dayOf(e?.airAt) ?? `${s.episodeWord ?? "Episode"} ${n}`))}
+                  {title ?? (out.length ? `${out.map((c) => c.name.split(" ")[0]).join(" and ")} out` : (dayOf(e?.airAt) ?? nameOf(s, n)))}
                 </b>
                 <small className="block text-[12.5px] text-muted-foreground">
                   {[title || out.length ? dayOf(e?.airAt) : null, waiting ? "Results in · hidden" : isSeen ? "Seen" : "Aired · not seen yet"].filter(Boolean).join(" · ")}
@@ -252,7 +258,6 @@ export function WhereAsk({
   const canLive = s.status !== "completed";
   const word = (s.episodeWord ?? "Episode").toLowerCase();
   if (plays && ledger) {
-    const ep = s.epWord ?? "Ep";
     return (
       <div data-where-plays data-where-ledger>
         <EpisodeLedger s={s} seen={start} named={start} episodes={episodes} fixed />
@@ -261,7 +266,7 @@ export function WhereAsk({
         </p>
         {s.reveal != null && onReveal && (
           <Btn tone="ink" wide className="mt-4" data-where-reveal={s.reveal} onClick={() => onReveal(s.reveal!)}>
-            Reveal {ep} {s.reveal} · every game
+            Reveal {nameOf(s, s.reveal, "short")} · every game
           </Btn>
         )}
       </div>
@@ -347,7 +352,7 @@ export function WhereAsk({
       <p className="mt-2 text-[13px] leading-normal text-muted-foreground">Nothing past where you are shows: results, stats, the couch&rsquo;s chat. Change it any time.</p>
       {/* On a show's page, Save holds the yellow only once it would change something (step 4's check: no "due" colour on a no-op). */}
       <Btn tone={ledger && seen === start ? "optional" : "must"} wide className="mt-4" data-where-save disabled={busy || reading} onClick={() => onSave(seen, !!couch && priv, !!lookUp && lookAll)}>
-        {busy ? "Saving…" : ledger ? `${cta} · ${seen > 0 ? `through ${s.epWord ?? "Ep"} ${seen}` : "not started"}` : cta}
+        {busy ? "Saving…" : ledger ? `${cta} · ${seen > 0 ? `through ${nameOf(s, seen, "short")}` : "not started"}` : cta}
       </Btn>
     </div>
   );

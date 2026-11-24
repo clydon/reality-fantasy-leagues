@@ -13,7 +13,9 @@ import { finalAtOf, seasonSchedules } from "./schedule";
 import { finalWhen } from "@/lib/game/final-results.js";
 import { after } from "next/server";
 import { clock, nudgeMessage, resultsLine, sendWindow, type WindowSnapshot } from "./waiver-pushes";
-import { showWords } from "@/lib/game/show-words";
+import { epName, showWords } from "@/lib/game/show-words";
+import type { GameLabel } from "@/lib/game/show-words";
+import { sportsGameNames } from "./sports/game-names";
 
 // One function per pushable event, so each route's trigger is a single line and all the "who gets this, and what does it say"
 // decisions live together in one reviewable place.
@@ -51,12 +53,14 @@ interface LeagueSeason {
   leagueName: string;
   couchId: string | null;
   airTz: string;
+  /** A sport's season: its games may have names (gameNames). */
+  sport: boolean;
 }
 
 /** The season a league plays, as pushes need it (null season: a league not in the catalog, which classic still has). */
 export async function leagueSeason(leagueId: string): Promise<LeagueSeason> {
   const { rows } = await pool.query(
-    `SELECT l.name, l.couch_id, ss.id AS season_id, ss.season_number, ss.air_tz, s.name AS show_name
+    `SELECT l.name, l.couch_id, ss.id AS season_id, ss.season_number, ss.air_tz, s.name AS show_name, s.kind
        FROM leagues l LEFT JOIN shows s ON s.slug = l.state->'settings'->>'showId'
        LEFT JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number::text = l.state->'settings'->>'wikiSeason'
       WHERE l.id = $1`,
@@ -69,17 +73,26 @@ export async function leagueSeason(leagueId: string): Promise<LeagueSeason> {
     leagueName: r?.name ?? "your league",
     couchId: (r?.couch_id as string) ?? null,
     airTz: (r?.air_tz as string) || DEFAULT_TZ,
+    sport: r?.kind === "sport",
   };
 }
 
 /** A season's label and time zone. */
-export async function seasonInfo(seasonId: string): Promise<{ label: string; airTz: string; showId: string } | null> {
+export async function seasonInfo(seasonId: string): Promise<{ label: string; airTz: string; showId: string; sport: boolean } | null> {
   const { rows } = await pool.query(
-    "SELECT s.id AS show_id, s.name AS show_name, ss.season_number, ss.air_tz FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1",
+    "SELECT s.id AS show_id, s.name AS show_name, s.kind, ss.season_number, ss.air_tz FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1",
     [seasonId]
   );
-  return rows[0] ? { label: seasonLabel(rows[0].show_name, rows[0].season_number), airTz: rows[0].air_tz || DEFAULT_TZ, showId: rows[0].show_id } : null;
+  return rows[0] ? { label: seasonLabel(rows[0].show_name, rows[0].season_number), airTz: rows[0].air_tz || DEFAULT_TZ, showId: rows[0].show_id, sport: rows[0].kind === "sport" } : null;
 }
+
+/** A team's season's game names (sports/game-names.ts), read only for a sport's season; null for a show. */
+async function gameNames(seasonId: string | null | undefined, sport: boolean): Promise<Record<number, GameLabel> | null> {
+  return sport && seasonId ? ((await sportsGameNames([seasonId])).get(seasonId) ?? null) : null;
+}
+
+/** An episode in a push (epName): "Episode 6", "Ep 6" as ever; a team's game by its name ("Chiefs at Bills, Week 12", "KC @ BUF"). */
+const pushEp = (names: Record<number, GameLabel> | null, n: number, form: "long" | "tag" = "long") => epName({ episode: "Episode", ep: "Ep", names }, n, form);
 
 /**
  * How far someone may be told about on a season (the guard's mark), or on a league with no season (its own mark, everything
@@ -193,6 +206,7 @@ export function notifyEpisodeResults(leagueId: string, state: LeagueState, epId:
     if (!userIds.length) return null;
     const ls = await leagueSeason(leagueId);
     const scope = ls.seasonId ?? leagueId;
+    const epTag = pushEp(await gameNames(ls.seasonId, ls.sport), n, "tag");
     const R = `results:${scope}:${n}`;
     const F = `final:${scope}:${n}`;
     const names = outNames(state, ep);
@@ -211,12 +225,12 @@ export function notifyEpisodeResults(leagueId: string, state: LeagueState, epId:
       const waiver = kind === "final" ? "" : await resultsLine(pool, state, n, reader.tz);
       // "Ep 6", number first: a phone cuts a notification's title after a dozen letters or so (the user, 2026-11-01).
       const safe = {
-        title: `Ep ${n} ${kind === "final" ? "final results are" : "results are"} in`,
+        title: `${epTag} ${kind === "final" ? "final results are" : "results are"} in`,
         body: `${ls.label} · Reveal when you've watched.${waiver}`,
       };
       const named = kind !== "final" && sees;
       const words = named
-        ? { title: `Ep ${n}: ${names} went home`, body: `${ls.label} · ${kind === "both" ? "Final results are in." : finalNote(reader)}${waiver}` }
+        ? { title: `${epTag}: ${names} went home`, body: `${ls.label} · ${kind === "both" ? "Final results are in." : finalNote(reader)}${waiver}` }
         : kind === "final" && sees
           ? { title: safe.title, body: `${ls.label} · See where you stand.` }
           : safe;
@@ -341,11 +355,13 @@ export function notifyCouchChat(posted: ChatPosted) {
     let seasonId = posted.seasonId ?? null;
     let label = "";
     let leagueIds: string[] = [];
+    let sport = false;
     if (posted.leagueId) {
       const ls = await leagueSeason(posted.leagueId);
       couchId = ls.couchId;
       seasonId = ls.seasonId;
       label = ls.label;
+      sport = ls.sport;
       // The couch's games on the season, and the league's linked group (classic's conversation): one and the same today.
       const { rows } = couchId && seasonId
         ? await pool.query(
@@ -355,7 +371,9 @@ export function notifyCouchChat(posted: ChatPosted) {
         : { rows: [] as { id: string }[] };
       leagueIds = [...new Set([...rows.map((r) => r.id as string), ...(await groupLeagueIds(posted.leagueId))])];
     } else if (seasonId) {
-      label = (await seasonInfo(seasonId))?.label ?? "";
+      const info = await seasonInfo(seasonId);
+      label = info?.label ?? "";
+      sport = !!info?.sport;
     }
     if (!couchId && !leagueIds.length) return null;
 
@@ -384,6 +402,9 @@ export function notifyCouchChat(posted: ChatPosted) {
     // "Survivor 51 · Couch Council" (a couch named for the show says it once).
     const title = [...new Set([label, couch.rows[0]?.name].filter(Boolean))].join(" · ") || (posted.leagueId ? await leagueName(posted.leagueId) : "Couch chat");
     const tag = `chat-${couchId ?? posted.leagueId}-${seasonId ?? ""}`;
+    // A team's games' names, read once and only when a folded message needs one.
+    let names: Promise<Record<number, GameLabel> | null> | null = null;
+    const namesNow = () => (names ??= gameNames(seasonId, sport));
     return {
       userIds,
       seasonId,
@@ -402,7 +423,7 @@ export function notifyCouchChat(posted: ChatPosted) {
           body: folded
             ? byAuthorMark(message)
               ? `${posted.authorName} sent a message from further along. Catch up to read it.`
-              : `${posted.authorName} sent a message. It may be about Episode ${fold!.episode}: catch up when you reveal.`
+              : `${posted.authorName} sent a message. It may be about ${pushEp(await namesNow(), fold!.episode)}: catch up when you reveal.`
             : truncate(`${posted.authorName}: ${posted.text}`),
           url: inGames ? link("/chat", inGames) : "/",
           next: seasonId ? `/show/${seasonId}/chat` : "/home",
@@ -507,12 +528,13 @@ export function notifyLateJoinerStarted(leagueId: string, name: string, startEpi
     const { rows } = await pool.query("SELECT user_id FROM league_memberships WHERE league_id=$1 AND role='commissioner'", [leagueId]);
     if (!rows.length) return null;
     const ls = await leagueSeason(leagueId);
+    const from = epName({ episode: "episode", names: await gameNames(ls.seasonId, ls.sport) }, startEpisode);
     return {
       userIds: rows.map((r) => r.user_id as string),
       seasonId: ls.seasonId,
       message: {
         title: "A late joiner started",
-        body: `${name} is playing ${ls.leagueName} from episode ${startEpisode}, out of sight until you add them.`,
+        body: `${name} is playing ${ls.leagueName} from ${from}, out of sight until you add them.`,
         url: link("/setup/players", leagueId),
         next: ls.seasonId ? manageNext(ls.seasonId, leagueId) : "/home",
         tag: `joined-${leagueId}`,
@@ -740,15 +762,16 @@ export function notifyPlanned(o: { planId: string; userIds: string[]; seasonId: 
   notifyAfter("planned", async () => {
     const info = await seasonInfo(o.seasonId);
     if (!info) return null;
+    const ep = pushEp(await gameNames(o.seasonId, info.sport), o.episode);
     return {
       userIds: o.userIds,
       seasonId: o.seasonId,
       message: (reader: PushReader) => ({
         // Start now (Tonight's Up next): it's happening, not planned.
-        title: o.now ? `${o.host} is starting Episode ${o.episode} now` : `${o.host} planned a watch along`,
+        title: o.now ? `${o.host} is starting ${ep} now` : `${o.host} planned a watch along`,
         body: o.now
           ? `${info.label} · Join the watch along: you start at the same moment, anyone can pause.`
-          : `${info.label} · Episode ${o.episode} · ${o.live ? "the live airing" : "starting together"}, ${readerClock(o.at, reader, info.airTz)}. Are you in?`,
+          : `${info.label} · ${ep} · ${o.live ? "the live airing" : "starting together"}, ${readerClock(o.at, reader, info.airTz)}. Are you in?`,
         next: `/show/${o.seasonId}/tonight`,
         tag: `plan-${o.planId}`,
         key: `planned:${o.planId}`,
@@ -780,6 +803,7 @@ export function notifyPlanOff(o: { planId: string; byUserId: string; byName: str
       if (!p?.cancelled_at || new Date(p.cancelled_at).toISOString() !== o.cancelledAt || !p.people.length) return;
       const info = await seasonInfo(p.season_id);
       if (!info) return;
+      const ep = pushEp(await gameNames(p.season_id, info.sport), p.episode);
       await sendPush(
         pool,
         p.people,
@@ -788,7 +812,7 @@ export function notifyPlanOff(o: { planId: string; byUserId: string; byName: str
           const day = new Intl.DateTimeFormat("en-US", { timeZone: reader.tz || info.airTz, weekday: "long" }).format(new Date(p.starts_at));
           return {
             title: `${o.byName} called off ${day}'s watch along`,
-            body: `${info.label} · Episode ${p.episode}.`,
+            body: `${info.label} · ${ep}.`,
             next: `/show/${p.season_id}/tonight`,
             tag: `plan-${o.planId}`,
             key: `plan-off:${o.planId}:${o.cancelledAt}`,
@@ -814,6 +838,7 @@ export function notifyPoll(o: { pollId: string; couchId: string; seasonId: strin
       [o.couchId, o.seasonId, o.byUserId]
     );
     if (!rows.length) return null;
+    const ep = pushEp(await gameNames(o.seasonId, info.sport), o.episode);
     return {
       userIds: rows.map((r) => r.user_id as string),
       seasonId: o.seasonId,
@@ -821,7 +846,7 @@ export function notifyPoll(o: { pollId: string; couchId: string; seasonId: strin
         (await seenThrough(reader.userId, o.seasonId)) >= o.episode - 1
           ? {
               title: `${o.byName} started a poll`,
-              body: truncate(`${info.label} · Episode ${o.episode}: ${o.question}`),
+              body: truncate(`${info.label} · ${ep}: ${o.question}`),
               next: `/show/${o.seasonId}/tonight`,
               tag: `poll-${o.pollId}`,
               key: `poll:${o.pollId}`,
@@ -844,6 +869,7 @@ export function notifyBingoLines(o: { seasonId: string; episode: number; lines: 
     if (!lines.length) return null;
     const info = await seasonInfo(o.seasonId);
     if (!info) return null;
+    const ep = pushEp(await gameNames(o.seasonId, info.sport), o.episode);
     // Each reader's notices: their own line, then whoever else's they may hear of.
     const about = new Map<string, { userId: string; name: string }[]>();
     for (const l of lines) {
@@ -865,7 +891,7 @@ export function notifyBingoLines(o: { seasonId: string; episode: number; lines: 
         const yours = first.userId === reader.userId;
         return {
           title: yours ? "You got a bingo line" : `${first.name} got a bingo line`,
-          body: `${info.label} · Episode ${o.episode}.`,
+          body: `${info.label} · ${ep}.`,
           next: `/show/${o.seasonId}/episodes`,
           tag: `bingo-${o.seasonId}-${o.episode}`,
           key: `bingo:${o.seasonId}:${o.episode}:${first.userId}`,
@@ -895,6 +921,7 @@ export function notifyBingoCall(o: { seasonId: string; episode: number; couchId:
     );
     if (!rows.length) return null;
     const name = rows[0].caller as string;
+    const ep = pushEp(await gameNames(o.seasonId, info.sport), o.episode);
     const key = `bingo:${o.seasonId}:${o.episode}:${o.caller}`;
     return {
       userIds: rows.map((r) => r.user_id as string),
@@ -904,7 +931,7 @@ export function notifyBingoCall(o: { seasonId: string; episode: number; couchId:
         if ((await keysOf(reader.userId, [key])).has(key)) return null;
         return {
           title: `${name} called BINGO`,
-          body: `${info.label} · Episode ${o.episode} · Look at their card`,
+          body: `${info.label} · ${ep} · Look at their card`,
           next: `/show/${o.seasonId}/tonight?bingo=${o.episode}&of=${o.caller}`,
           tag: `bingo-${o.seasonId}-${o.episode}`,
           key,
@@ -927,14 +954,15 @@ export function notifyBingoCall(o: { seasonId: string; episode: number; couchId:
 export function notifyResearched(o: { userId: string; seasonId: string; episode: number; askedAt: Date; ok: boolean; found: number | null }) {
   notifyAfter("researchDone", async () => {
     const { rows } = await pool.query(
-      "SELECT s.name AS show_name, s.castaway_term, s.castaway_plural, s.episode_term, ss.season_number FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1",
+      "SELECT s.name AS show_name, s.kind, s.castaway_term, s.castaway_plural, s.episode_term, ss.season_number FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1",
       [o.seasonId]
     );
     if (!rows[0]) return null;
     const label = seasonLabel(rows[0].show_name, rows[0].season_number);
     const w = showWords({ castaway: rows[0].castaway_term, people: rows[0].castaway_plural, episode: rows[0].episode_term });
-    // The show's short word, number first ("Ep 12", "Game 4"): a phone cuts the title after a dozen letters or so.
-    const ep = `${w.ep} ${o.episode}`;
+    // The show's short word, number first ("Ep 12", "Game 4"), a team's game by its teams ("KC @ BUF"): a phone cuts the title
+    // after a dozen letters or so.
+    const ep = epName({ ...w, names: await gameNames(o.seasonId, rows[0].kind === "sport") }, o.episode, "tag");
     const found = o.found ?? 0;
     const words = o.ok
       ? {
@@ -1014,6 +1042,7 @@ export function notifyResultsChanged(o: { seasonId: string; batch: string; games
       seats.set(r.user_id, [...(seats.get(r.user_id) ?? []), { game, playerId: r.player_id }]);
     }
     if (!seats.size) return null;
+    const names = await gameNames(o.seasonId, info.sport);
     const message = async (reader: PushReader): Promise<PushMessage | null> => {
       const mine = seats.get(reader.userId) ?? [];
       const mark = await markOf(reader.userId, o.seasonId, null);
@@ -1034,7 +1063,7 @@ export function notifyResultsChanged(o: { seasonId: string; batch: string; games
       const points = seen.length === all.length ? mine.map((m) => ({ game: m.game.name, d: m.playerId ? (m.game.deltas[m.playerId] ?? 0) : 0 })).filter((x) => x.d !== 0) : null;
       const pointsLine = points === null ? "" : points.length ? ` Your points: ${points.map((p) => `${signed(p.d)} in ${p.game}`).join(", ")}.` : " Your points didn't change.";
       return {
-        title: seen.length === 1 ? `Ep ${seen[0]} results changed` : `Eps ${andList(seen.map(String))} results changed`,
+        title: seen.length === 1 ? `${pushEp(names, seen[0], "tag")} results changed` : `Eps ${andList(seen.map(String))} results changed`,
         body: `${info.label} · ${what}${pointsLine}`,
         url: link("/episodes", mine[0].game.leagueId),
         next: `/show/${o.seasonId}/episodes`,
@@ -1052,15 +1081,16 @@ export function notifyFlagsSettled(flags: { id: string; userId: string; seasonId
     notifyAfter("flagSettled", async () => {
       const info = await seasonInfo(f.seasonId);
       if (!info) return null;
+      const ep = pushEp(await gameNames(f.seasonId, info.sport), f.episode, "tag");
       // "Danny Kilby · individual immunity": the result as the flag named it (an event's id read as words).
       const [who, kind] = (f.what ?? "").split(" · ");
       const what = f.what ? `${who}${kind ? ` · ${kind.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase()}` : ""}: ` : "";
       const words =
         f.status === "upheld"
-          ? { title: `Ep ${f.episode}: you were right`, body: `${info.label} · ${what}every game has it put right.` }
+          ? { title: `${ep}: you were right`, body: `${info.label} · ${what}every game has it put right.` }
           : f.status === "kept"
-            ? { title: `Ep ${f.episode}: the result stands`, body: `${info.label} · ${what}it was checked and stays.` }
-            : { title: `Ep ${f.episode} was checked again`, body: `${info.label} · A full answer came in after your flag; anything it found is in.` };
+            ? { title: `${ep}: the result stands`, body: `${info.label} · ${what}it was checked and stays.` }
+            : { title: `${ep} was checked again`, body: `${info.label} · A full answer came in after your flag; anything it found is in.` };
       return {
         userIds: [f.userId],
         seasonId: f.seasonId,

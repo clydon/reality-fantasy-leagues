@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Check, Copy, Loader2, Sparkles, X } from "lucide-react";
 import { recaps, useRecaps, type AskedEpisode, type ResearchNow, type SeasonEpisodes } from "../data";
 import type { ShowData } from "../screens/show-space";
+import { epName } from "@/lib/game/show-words";
 import { Btn, CaptionPlate } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
@@ -22,7 +23,7 @@ import { toast } from "../ui/toast";
 /** "Episode 4", "Episodes 1–7". */
 function episodesLabel(ns: number[], w: ShowData["words"]): string {
   const [lo, hi] = [Math.min(...ns), Math.max(...ns)];
-  return ns.length === 1 ? `${w.episode} ${lo}` : `${w.episodes} ${lo}–${hi}`;
+  return ns.length === 1 ? epName(w, lo, "long") : w.names ? `${epName(w, lo, "short")} to ${epName(w, hi, "short")}` : `${w.episodes} ${lo}–${hi}`;
 }
 
 export function RecapsCard({ seasonId, show, eps }: { seasonId: string; show: ShowData; eps: SeasonEpisodes | null }) {
@@ -83,7 +84,7 @@ export function RecapsCard({ seasonId, show, eps }: { seasonId: string; show: Sh
   // One ask covers every episode that's out without one, seen or not (the user, 2026-11-01: with several out, say so, not just
   // the ones you've seen): how many aired isn't a spoiler, and each shows once you've seen it.
   const out = state.data?.missing.length ? state.data.missing : blank;
-  const outLabel = out.length > 1 ? `All ${out.length} ${w.episodes.toLowerCase()} that are out` : `${w.episode} ${out[0] ?? blank[0]}`;
+  const outLabel = out.length > 1 ? `All ${out.length} ${w.episodes.toLowerCase()} that are out` : epName(w, out[0] ?? blank[0], "long");
   const line = busyNow
     ? going.length
       ? `ChatGPT is looking it up, one ${ep} at a time. We'll tell you as each one comes in, so you can leave this page.`
@@ -198,7 +199,7 @@ function ResultsProgress({ asked, now, words: w }: { asked: AskedEpisode[]; now:
               key={`${a.episode}:${landed.has(a.episode) ? landings : 0}`}
               data-result-ep={a.episode}
               data-status={a.status}
-              aria-label={`${w.episode} ${a.episode}${a.again ? ` (${AGAIN_WORDS[a.again].toLowerCase()})` : ""}: ${STATUS_WORDS[a.status]}${a.status === "done" && a.found != null ? `, ${a.found} results` : ""}`}
+              aria-label={`${epName(w, a.episode, "long")}${a.again ? ` (${AGAIN_WORDS[a.again].toLowerCase()})` : ""}: ${STATUS_WORDS[a.status]}${a.status === "done" && a.found != null ? `, ${a.found} results` : ""}`}
               className={`relative isolate flex h-8 min-w-10 items-center justify-center gap-1 overflow-hidden rounded-[3px] px-2 text-[13px] font-bold tabular-nums ${
                 a.status === "done"
                   ? "bg-foreground text-background"
@@ -221,7 +222,7 @@ function ResultsProgress({ asked, now, words: w }: { asked: AskedEpisode[]; now:
               {a.status === "done" && <Check className="size-3.5" aria-hidden />}
               {((a.status === "asking" && !live) || starting) && <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" aria-hidden />}
               {a.status === "failed" && <X className="size-3.5" aria-hidden />}
-              {a.episode}
+              {epName(w, a.episode, "col")}
             </li>
           );
         })}
@@ -265,7 +266,7 @@ function RollCall({ now, again, words: w, arrived, queued }: { now: ResearchNow;
       <CaptionPlate
         size="sm"
         tone="quiet"
-        tag={`${w.ep} ${now.episode}`}
+        tag={epName(w, now.episode, "tag")}
         title={
           <span key={titleCue} className={`block ${titleCue ? "chat-in" : ""}`} style={RISE}>
             {title}

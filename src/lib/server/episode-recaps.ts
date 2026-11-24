@@ -1,6 +1,6 @@
 import { after } from "next/server";
 import { capRecap, HEADLINE_MAX, plainHeadline, plainRecap } from "@/lib/game/recap-text";
-import { showWords } from "@/lib/game/show-words";
+import { epName, showWords } from "@/lib/game/show-words";
 import { askBot, askBotStatus } from "./ask-bot";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { pool, HttpError } from "./db";
@@ -8,6 +8,7 @@ import { EVERYTHING, seenThrough } from "./guard";
 import { LEAGUE_SEASON_JOIN } from "./league-season";
 import { askResults, resultsResearch, type ResultsResearch } from "./research-asks";
 import { DEFAULT_RUNTIME_MIN, latestEnded, seasonSchedules } from "./schedule";
+import { sportsGameNames } from "./sports/game-names";
 
 // Fill in what happened (db/migrations/0143): a short recap of each aired episode of a show you watch, so its Episodes tab says
 // more than "Aired Fri" ("Rays 5, Brewers 3: Arozarena's two-run homer in the 8th decided it"). One ask covers every aired
@@ -68,7 +69,8 @@ async function planOf(seasonId: string, db: Queryable = pool): Promise<Plan> {
     show,
     seasonLabel: r.season_name || (r.season_number ? `season ${r.season_number}` : "this season"),
     kind: r.kind,
-    words: showWords({ castaway: r.castaway_term, people: r.castaway_plural, episode: r.episode_term }),
+    // A team's season names its games ("Chiefs at Bills, Week 12"): the prompt says which game each number is.
+    words: { ...showWords({ castaway: r.castaway_term, people: r.castaway_plural, episode: r.episode_term }), names: r.kind === "sport" ? ((await sportsGameNames([seasonId])).get(seasonId) ?? null) : null },
     // Only the newest RECAP_WINDOW aired episodes (a sport's long season never asks about a whole year at once).
     missing: schedule.episodes
       .filter((e) => e.number <= ended && e.number > ended - RECAP_WINDOW && !done.has(e.number))
@@ -81,7 +83,7 @@ export function recapPrompt(plan: Plan): string {
   const word = plan.words.episode.toLowerCase();
   const sport = plan.kind === "sport";
   const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric", timeZone: "America/New_York" }) : null);
-  const lines = plan.missing.map((e) => `- ${plan.words.episode} ${e.number}${e.airAt ? `, aired ${day(e.airAt)}` : ""}${e.title ? `: "${e.title}"` : ""}`);
+  const lines = plan.missing.map((e) => `- ${plan.words.episode} ${e.number}${plan.words.names?.[e.number] ? ` (${epName(plan.words, e.number)})` : ""}${e.airAt ? `, aired ${day(e.airAt)}` : ""}${e.title ? `: "${e.title}"` : ""}`);
   return [
     `Search the web for what happened in each of these ${plan.words.episodes.toLowerCase()} of ${plan.show} (${plan.seasonLabel}). Answer with JSON only, in this shape:`,
     `{"episodes": [{"number": 1, "headline": "...", "summary": "..."}]}`,

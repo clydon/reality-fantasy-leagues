@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, ChevronDown, Minus, Plus } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Minus, Plus } from "lucide-react";
 import type { QuestionFace, QuestionView } from "../data";
 import { Chip } from "../ui/parts";
 import { toast } from "../ui/toast";
@@ -15,7 +15,7 @@ import { Face } from "./parts";
 // Call it's sheet (calls.tsx), so `calls` is never answered here.
 
 type Value = unknown;
-type Props = { q: QuestionView; value: Value; onValue: (v: Value) => void; others?: QuestionView[] };
+type Props = { q: QuestionView; value: Value; onValue: (v: Value) => void; others?: QuestionView[]; onPlayer?: (id: string, name: string) => void };
 
 const first = (name: string) => name.split(" ")[0];
 /** Short names for the people in one control: first names, unless two share one (a cast can: two Mikes); then the first name and
@@ -37,14 +37,14 @@ const idsOf = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]) : ty
 export const ANSWERED_HERE: QuestionView["answer"][] = ["person", "group", "yesNo", "number", "overUnder", "choice", "order", "confidence", "chips", "split", "pairs", "side", "bracket", "trivia", "ticket"];
 
 /** One question's control and its riders. A wager wraps the answer as { answer, stake }. */
-export function Answer({ q, value, onValue, others = [] }: Props) {
+export function Answer({ q, value, onValue, others = [], onPlayer }: Props) {
   if (q.wager !== null && q.answer !== "ticket") {
     const bet = isObj(value) && "answer" in value ? (value as { answer: Value; stake?: number }) : null;
     const inner = { ...q, wager: null };
     const set = (answer: Value, stake: number) => onValue(answer === null || answer === undefined ? null : { answer, stake });
     return (
       <>
-        <Control q={inner} value={bet?.answer ?? null} onValue={(a) => set(a, bet?.stake ?? 0)} others={others} />
+        <Control q={inner} value={bet?.answer ?? null} onValue={(a) => set(a, bet?.stake ?? 0)} others={others} onPlayer={onPlayer} />
         <Stake q={q} stake={bet?.stake ?? 0} disabled={!bet} onStake={(n) => bet && set(bet.answer, n)} />
         <Riders q={q} />
       </>
@@ -52,19 +52,19 @@ export function Answer({ q, value, onValue, others = [] }: Props) {
   }
   return (
     <>
-      <Control q={q} value={value} onValue={onValue} others={others} />
+      <Control q={q} value={value} onValue={onValue} others={others} onPlayer={onPlayer} />
       <Riders q={q} />
     </>
   );
 }
 
-function Control({ q, value, onValue, others = [] }: Props) {
+function Control({ q, value, onValue, others = [], onPlayer }: Props) {
   if (q.each === "game") return <EachGame q={q} value={value} onValue={onValue} />;
   if (q.each === "person") return <EachPerson q={q} value={value} onValue={onValue} />;
   switch (q.answer) {
     case "person":
     case "group":
-      return <Faces q={q} value={value} onValue={onValue} />;
+      return <Faces q={q} value={value} onValue={onValue} onPlayer={onPlayer} />;
     case "number":
       return <NumberStep value={typeof value === "number" ? value : null} max={(q.settle as { by?: string } | null)?.by === "outside" ? 10 : 100000} onValue={onValue} />;
     case "order":
@@ -141,7 +141,7 @@ const POSITION_ORDER = ["QB", "RB", "FB", "WR", "TE", "K", "P", "DEF", "OL", "OT
  * scrolled to. Ranked by the stat; the top five who have it are the first view, the rest fold. A row is the pick (a tap again takes
  * it back); any header sorts.
  */
-function StatPicker({ q, value, onValue }: Props) {
+function StatPicker({ q, value, onValue, onPlayer }: Props) {
   const s = q.stats!;
   const pick = q.pick ?? 1;
   const chosen = idsOf(value);
@@ -285,13 +285,23 @@ function StatPicker({ q, value, onValue }: Props) {
       {!pos && fold(`More with ${s.stat.label.toLowerCase()}`, extra.length, more, () => setMore((x) => !x), "more")}
       {!pos && fold("Everyone else", others.length, rest, () => setRest((x) => !x), "rest")}
       {pick > 1 && <p className="mt-2 px-4 text-[13px] text-muted-foreground" data-answer-count>{`${chosen.length} of ${pick} named`}</p>}
+      {/* The pick's door (BACKLOG 263): their season, week by week (the athlete sheet), over the page; back keeps the pick. */}
+      {onPlayer &&
+        faces
+          .filter((f) => chosen.includes(f.id))
+          .map((f) => (
+            <button key={f.id} type="button" data-answer-player={f.id} onClick={() => onPlayer(f.id, f.name)} className="nd-press flex min-h-11 w-full items-center justify-between border-b border-border px-4 text-left text-[14px] font-semibold">
+              <span>{short(f.name)}&apos;s season</span>
+              <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
+            </button>
+          ))}
     </div>
   );
 }
 
 /** Someone, or a group (A6): faces. Naming more than one, up to its pick. */
-function Faces({ q, value, onValue }: Props) {
-  if (q.stats && q.answer === "person") return <StatPicker q={q} value={value} onValue={onValue} />;
+function Faces({ q, value, onValue, onPlayer }: Props) {
+  if (q.stats && q.answer === "person") return <StatPicker q={q} value={value} onValue={onValue} onPlayer={onPlayer} />;
   const pick = q.pick ?? 1;
   const short = shortNames(q.faces ?? []);
   const chosen = idsOf(value);

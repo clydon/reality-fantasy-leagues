@@ -4,7 +4,8 @@ import * as Spec from "@/lib/game/game-spec/index.js";
 import type { GameSpec, SpecStage } from "@/lib/game/game-spec/index.js";
 import { at, groupsGone, sideTriggers, stageTriggers, withGone } from "@/lib/game/formats/format-timeline.js";
 import type { Timeline } from "@/lib/game/formats/format-timeline.js";
-import { showWords } from "@/lib/game/show-words";
+import { epName, showWords } from "@/lib/game/show-words";
+import type { GameLabel } from "@/lib/game/show-words";
 import type { LeagueState } from "@/lib/game/types";
 import { timelineForShow } from "@db/format-timeline.js";
 import { recordChange } from "./change-log";
@@ -12,6 +13,7 @@ import { HttpError, pool, syncStages, tx, withLeagueLock } from "./db";
 import { makeLeague } from "./new-game";
 import { leaguePhases, openEpisode, scheduleOf, settleIn } from "./phase-starts";
 import type { SeasonSchedule } from "./schedule";
+import { sportsGameNames } from "./sports/game-names";
 import { seatIn, seatsToMirror, takeStageAway } from "./stages";
 
 // A stage a format change starts (docs/PLAN-start-a-game-gpt.md step A12 part 2; the tracker's p7: "automatically start a new draft
@@ -45,8 +47,8 @@ import { seatIn, seatsToMirror, takeStageAway } from "./stages";
 // grouping's research has a gap now stands as it is. The game's own stages are never moved by one.
 
 type Season = { id: string; number: number; slug: string };
-type Reads = { tl: Timeline | null; schedule: SeasonSchedule | undefined };
-/** What a season's settles share: its format state over time and its schedule, read once (settleSeasonChanges). */
+type Reads = { tl: Timeline | null; schedule: SeasonSchedule | undefined; names: Record<number, GameLabel> | null };
+/** What a season's settles share: its format state over time, its schedule and a team's games' names, read once (settleSeasonChanges). */
 type SeasonReads = Map<string, Promise<Reads>>;
 
 /** The kinds of change in words ("everyone went on to play on their own"), for Recent changes. The words are the user's (U1). */
@@ -96,6 +98,8 @@ interface Read {
   createdBy: string | null;
   season: Season;
   episodeWord: string;
+  /** An episode by name: "Episode 4", a team's game "Chiefs at Bills, Week 12" (epName). */
+  epOf: (n: unknown) => string;
   stages: Stage[];
   input: ChangePlanInput;
 }
@@ -170,7 +174,7 @@ function triggersFor(parent: LeagueState, tl: Timeline | null, live: Stage[]): C
 /** A game in stages whose stages a format change starts, read with everything its plan needs; null for any other game. */
 async function readGame(parentId: string, now: Date, reads?: SeasonReads): Promise<Read | null> {
   const { rows } = await pool.query(
-    `SELECT l.state, l.name, l.couch_id, l.rulebook_id, l.created_by, ss.id AS season_id, ss.season_number, s.slug, s.episode_term
+    `SELECT l.state, l.name, l.couch_id, l.rulebook_id, l.created_by, ss.id AS season_id, ss.season_number, s.slug, s.episode_term, s.kind
        FROM leagues l
        JOIN shows s ON s.slug = l.state->'settings'->>'showId'
        JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number::text = l.state->'settings'->>'wikiSeason'
@@ -187,9 +191,10 @@ async function readGame(parentId: string, now: Date, reads?: SeasonReads): Promi
   const read = async (): Promise<Reads> => ({
     tl: await timelineForShow(pool, parent.settings.showId, parent.settings.wikiSeason, parent.castaways.map((c) => c.name)),
     schedule: await scheduleOf(r.season_id, now),
+    names: r.kind === "sport" ? ((await sportsGameNames([r.season_id])).get(r.season_id) ?? null) : null,
   });
   if (reads && !reads.has(r.season_id)) reads.set(r.season_id, read());
-  const { tl, schedule } = await (reads ? (reads.get(r.season_id) as Promise<Reads>) : read());
+  const { tl, schedule, names } = await (reads ? (reads.get(r.season_id) as Promise<Reads>) : read());
   const starts: ChangePlanInput["starts"] = {};
   const copies: ChangePlanInput["copies"] = {};
   for (const s of live) {
@@ -216,6 +221,7 @@ async function readGame(parentId: string, now: Date, reads?: SeasonReads): Promi
     createdBy: r.created_by,
     season: { id: r.season_id, number: r.season_number, slug: r.slug },
     episodeWord: showWords({ episode: r.episode_term }).episode,
+    epOf: (n) => epName({ ...showWords({ episode: r.episode_term }), names }, n as number),
     stages,
     input,
   };
@@ -244,15 +250,15 @@ function linesFor(g: Read, state: LeagueState, plan: ChangePlan, gone: string[])
   };
   const unanswered = StateLogic.StageLogic.changesOf(state)?.unanswered;
   // A12 part 3: a grouping that lasted, in words ("The teams held 2 episodes (to Episode 11)").
-  const lasted = (t: StageTrigger) => `${cap(heldWords(group, t.held, ep))} (to ${ep} ${t.episode})`;
+  const lasted = (t: StageTrigger) => `${cap(heldWords(group, t.held, ep))} (to ${g.epOf(t.episode)})`;
   for (const e of plan.entries.filter((x) => x.copy !== null && x.trigger)) {
     const t = e.trigger as StageTrigger;
     if (e.side) {
-      say(`open:${e.key}@${e.from}`, t, `${lasted(t)}: ${stageName(state, e.stage)} opens with ${ep} ${e.from}`);
-      if (t.closes && Number.isInteger(e.to)) say(`close:${e.key}@${e.to}`, { ...t, episode: t.closes.episode }, `The ${group}s changed (${endedWords(t.closes.ended, group)}, at ${ep} ${t.closes.episode}): ${stageName(state, e.stage)} ends with ${ep} ${e.to}, its points kept`);
+      say(`open:${e.key}@${e.from}`, t, `${lasted(t)}: ${stageName(state, e.stage)} opens with ${g.epOf(e.from)}`);
+      if (t.closes && Number.isInteger(e.to)) say(`close:${e.key}@${e.to}`, { ...t, episode: t.closes.episode }, `The ${group}s changed (${endedWords(t.closes.ended, group)}, at ${g.epOf(t.closes.episode)}): ${stageName(state, e.stage)} ends with ${g.epOf(e.to)}, its points kept`);
       continue;
     }
-    say(`start:${e.key}@${e.from}`, t, `The format changed (${changeWords(t)}, from ${ep} ${t.from}): ${stageName(state, e.stage)} starts with ${ep} ${e.from}`);
+    say(`start:${e.key}@${e.from}`, t, `The format changed (${changeWords(t)}, from ${g.epOf(t.from)}): ${stageName(state, e.stage)} starts with ${g.epOf(e.from)}`);
   }
   // A14 part 1: or the players' vote.
   const vote = StateLogic.StageLogic.changesOf(state)?.ok === "vote";
@@ -261,22 +267,22 @@ function linesFor(g: Read, state: LeagueState, plan: ChangePlan, gone: string[])
     const tail = vote
       ? unanswered === "start" ? `a tie or no votes and it ${opens} anyway` : "a tie or no votes and the game carries on as it is"
       : unanswered === "start" ? `else it ${opens} by itself` : "else the game carries on as it is";
-    const ask = vote ? `Vote before ${ep} ${x.until} starts (more than half of you saying the same decides it), ${tail}` : `Say so before ${ep} ${x.until} starts, ${tail}`;
+    const ask = vote ? `Vote before ${g.epOf(x.until)} starts (more than half of you saying the same decides it), ${tail}` : `Say so before ${g.epOf(x.until)} starts, ${tail}`;
     if (x.trigger.kind === "lasted") say(`ask:${x.key}`, x.trigger, `${lasted(x.trigger)}: open ${stageName(state, x.stage)}? ${ask}`);
-    else say(`ask:${x.key}`, x.trigger, `The format changed (${changeWords(x.trigger)}, from ${ep} ${x.trigger.from}): start ${stageName(state, x.stage)}? ${ask}`);
+    else say(`ask:${x.key}`, x.trigger, `The format changed (${changeWords(x.trigger)}, from ${g.epOf(x.trigger.from)}): start ${stageName(state, x.stage)}? ${ask}`);
   }
   const nobody = vote ? "The vote on whether" : "Nobody said whether";
-  for (const x of plan.lapsed) say(`lapsed:${x.key}`, x.trigger, `${nobody} to ${x.trigger.kind === "lasted" ? "open" : "start"} ${stageName(state, x.stage)} for ${changeWords(x.trigger)} at ${ep} ${x.trigger.from}${vote ? " tied, or nobody voted" : ""}: the game carries on as it is`);
+  for (const x of plan.lapsed) say(`lapsed:${x.key}`, x.trigger, `${nobody} to ${x.trigger.kind === "lasted" ? "open" : "start"} ${stageName(state, x.stage)} for ${changeWords(x.trigger)} at ${g.epOf(x.trigger.from)}${vote ? " tied, or nobody voted" : ""}: the game carries on as it is`);
   // A14 part 1: a vote the lock decided against it (one decided before then has its own line, voteChange's).
   if (vote) {
     const rec = StateLogic.StageLogic.changeRecord(state);
-    for (const x of plan.skipped) if (x.key && !rec.decided[x.key]) say(`voted:${x.key}`, x.trigger, `The players voted not to ${x.trigger.kind === "lasted" ? "open" : "start"} ${stageName(state, x.stage)} for ${changeWords(x.trigger)} at ${ep} ${x.trigger.from}: the game carries on as it is`);
+    for (const x of plan.skipped) if (x.key && !rec.decided[x.key]) say(`voted:${x.key}`, x.trigger, `The players voted not to ${x.trigger.kind === "lasted" ? "open" : "start"} ${stageName(state, x.stage)} for ${changeWords(x.trigger)} at ${g.epOf(x.trigger.from)}: the game carries on as it is`);
   }
   for (const x of plan.held) {
     const t = x.trigger;
-    if (t.kind === "lasted" && x.key && t.closing) say(`held:${x.key}:close`, t, `Research isn't sure the ${group}s changed at ${ep} ${t.closing.episode}, so ${stageName(state, x.stage)} plays on`);
-    else if (t.kind === "lasted") say(`held:${x.stage}@${t.id}`, t, `Research isn't sure ${heldWords(group, t.held, ep)} (to ${ep} ${t.episode}), so ${stageName(state, x.stage)} doesn't open`);
-    else say(`held:${t.id}`, t, `Research isn't sure ${changeWords(t)} at ${ep} ${t.from}, so the game carries on as it is`);
+    if (t.kind === "lasted" && x.key && t.closing) say(`held:${x.key}:close`, t, `Research isn't sure the ${group}s changed at ${g.epOf(t.closing.episode)}, so ${stageName(state, x.stage)} plays on`);
+    else if (t.kind === "lasted") say(`held:${x.stage}@${t.id}`, t, `Research isn't sure ${heldWords(group, t.held, ep)} (to ${g.epOf(t.episode)}), so ${stageName(state, x.stage)} doesn't open`);
+    else say(`held:${t.id}`, t, `Research isn't sure ${changeWords(t)} at ${g.epOf(t.from)}, so the game carries on as it is`);
   }
   for (const x of plan.late) {
     if (x.trigger.kind === "lasted") say(`late:${x.key}`, x.trigger, `${lasted(x.trigger)} too late in the season for ${stageName(state, x.stage)} to open`);
@@ -284,21 +290,21 @@ function linesFor(g: Read, state: LeagueState, plan: ChangePlan, gone: string[])
   }
   for (const x of plan.capped) {
     if (x.trigger.kind === "lasted") say(`capped:${x.key}`, x.trigger, `${lasted(x.trigger)}, but ${stageName(state, x.stage)} has had its ${Spec.MAX_COPIES} copies: no more open`);
-    else say(`capped:${x.key}`, x.trigger, `The format changed again (${changeWords(x.trigger)}, from ${ep} ${x.trigger.from}), but ${stageName(state, x.stage)} has had its ${Spec.MAX_COPIES} copies: the last plays on`);
+    else say(`capped:${x.key}`, x.trigger, `The format changed again (${changeWords(x.trigger)}, from ${g.epOf(x.trigger.from)}), but ${stageName(state, x.stage)} has had its ${Spec.MAX_COPIES} copies: the last plays on`);
   }
   // A12 part 3: a side copy's close research no longer says (a corrected report): it plays on, said; a close moved is said by its new line.
   for (const t of told) {
     const m = /^close:(.+)@(\d+)$/.exec(t);
     const e = m ? plan.entries.find((x) => x.side && x.key === m[1]) : undefined;
-    if (m && e && !Number.isInteger(e.to)) say(`reopen:${m[1]}@${m[2]}`, null, `Research no longer says the ${group}s changed at ${ep} ${m[2]}: ${stageName(state, e.stage)} plays on`);
+    if (m && e && !Number.isInteger(e.to)) say(`reopen:${m[1]}@${m[2]}`, null, `Research no longer says the ${group}s changed at ${g.epOf(m[2])}: ${stageName(state, e.stage)} plays on`);
   }
   for (const key of gone) {
     const skip = plan.skipped.find((x) => x.key === key);
     const sup = plan.superseded.find((x) => x.key === key);
     const unplayed = plan.unplayed.find((x) => x.key === key);
     const name = stageName(state, StateLogic.StageLogic.copyOf(key) ?? "");
-    if (skip) say(`undone:${key}`, skip.trigger, `${name} for ${changeWords(skip.trigger)} at ${ep} ${skip.trigger.from} is called off, and what it scored with it`);
-    else if (sup) say(`undone:${key}`, sup.trigger, `${name} for ${changeWords(sup.trigger)} at ${ep} ${sup.trigger.from} is called off: another change came before it started`);
+    if (skip) say(`undone:${key}`, skip.trigger, `${name} for ${changeWords(skip.trigger)} at ${g.epOf(skip.trigger.from)} is called off, and what it scored with it`);
+    else if (sup) say(`undone:${key}`, sup.trigger, `${name} for ${changeWords(sup.trigger)} at ${g.epOf(sup.trigger.from)} is called off: another change came before it started`);
     else if (unplayed) say(`undone:${key}`, unplayed.trigger, `${name} is called off: the ${group}s changed before it played an ${ep}`);
     else say(`undone:${key}`, null, `${name} (${key.split("@")[1]}) is called off: research no longer says ${key.includes("@s") ? `the ${group}s lasted` : "the format changed"} there, so what it scored is taken back`);
   }
@@ -382,8 +388,8 @@ async function makeCopy(g: Read, e: ChangePlanEntry): Promise<boolean> {
         tier: 1,
         episode: t.episode,
         text: e.side
-          ? `${st.name || "A side stage"} of ${g.name}, from ${g.episodeWord} ${e.from}: ${heldWords(groupOf(g.parent), t.held, g.episodeWord)}`
-          : `${st.name || "A new stage"} of ${g.name}, from ${g.episodeWord} ${e.from}: the format changed (${wordsOfChange(t, groupOf(g.parent))})`,
+          ? `${st.name || "A side stage"} of ${g.name}, from ${g.epOf(e.from)}: ${heldWords(groupOf(g.parent), t.held, g.episodeWord)}`
+          : `${st.name || "A new stage"} of ${g.name}, from ${g.epOf(e.from)}: the format changed (${wordsOfChange(t, groupOf(g.parent))})`,
         detail: { stageOf: g.parentId, change: t },
       });
     },

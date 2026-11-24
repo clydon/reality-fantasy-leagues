@@ -2,6 +2,7 @@ import { draftSoonWords, draftWhen } from "./draft-words";
 import type { DraftGame, GameView, WaiverWeek } from "../data";
 import { ordinal } from "../games";
 import { paths } from "../routes";
+import { epName, type GameLabel } from "@/lib/game/show-words";
 import type { MovesTab } from "./moves";
 
 // Your move in a game, as the Games tab's card under the game's name says it (the user, 2026-10-31: option D of the "Your moves
@@ -31,6 +32,8 @@ export interface MoveContext {
   seasonId: string;
   /** The show's word for an episode ("Episode", "Game"). */
   episode: string;
+  /** A sport's games by name ("Chiefs at Bills"): show-words.ts epName. */
+  names?: Record<number, GameLabel> | null;
   /** A time as the app says it ("Wed 8:00 PM"): clock.ts airTime. */
   when: (iso: string) => string;
   draft?: DraftGame;
@@ -44,6 +47,8 @@ const names = (xs: string[]) => (xs.length < 3 ? xs.join(" and ") : `${xs.slice(
 export function movesOf(g: GameView, o: MoveContext): YourMove[] {
   if (g.over) return [];
   const E = o.episode;
+  // Mid-sentence: a team's game by its matchup ("Chiefs at Bills"), a show's by its whole word ("Episode 4").
+  const epAt = (n: number) => epName({ episode: o.episode, ep: o.episode, names: o.names }, n, "short");
   const castName = (id: string | null | undefined) => first(g.cast.find((c) => c.id === id)?.name ?? "someone");
   const found: YourMove[] = [];
 
@@ -56,7 +61,7 @@ export function movesOf(g: GameView, o: MoveContext): YourMove[] {
     const room = { kind: "draft" as const, faces, out: [], empty: Math.max(0, Math.min(3, d.size) - faces.length), go: { href } };
     const seat = (id: string | undefined) => d.seats.find((s) => s.playerId === id)?.name ?? "Someone";
     if (d.revealFirst) {
-      found.push({ ...room, title: `Reveal ${E} ${d.revealFirst} first`, line: "Who's left to draft depends on it", action: "Draft room", due: false });
+      found.push({ ...room, title: `Reveal ${epAt(d.revealFirst)} first`, line: "Who's left to draft depends on it", action: "Draft room", due: false });
     } else if (d.phase === "waiting") {
       // Before it starts (docs/design-round/draft-start-spec.md): whoever runs it has it to start (due: nobody can pick until they
       // do); everyone else is told who it waits for, or when it starts, in the strip's own words (draft-words.ts).
@@ -159,17 +164,17 @@ export function movesOf(g: GameView, o: MoveContext): YourMove[] {
   const L = g.lineup;
   // No team yet (before its draft): no lineup to set or change (round 5's check: never "Set" for a seat with nobody to start).
   if (L && g.gameType === "active-roster" && L.roster.length > 0) {
-    const title = `Your ${E} ${L.episode} lineup`;
+    const title = `Your ${epAt(L.episode)} lineup`;
     const faces = L.starters.slice(0, L.slots);
     const lineup = { kind: "lineup" as const, faces, out: [], go: { tab: "lineup" as const } };
     if (late && late.episode === L.episode && !L.locked) {
       found.push(
         !L.set
-          ? { ...lineup, empty: Math.max(0, L.need - faces.length), title: `Set your ${E} ${L.episode} lineup`, line: lateWhy, action: "Set", due: true }
+          ? { ...lineup, empty: Math.max(0, L.need - faces.length), title: `Set your ${epAt(L.episode)} lineup`, line: lateWhy, action: "Set", due: true }
           : { ...lineup, empty: 0, title, line: L.carried ? "Last week's lineup · locks when you start watching" : lateOpen, action: "Edit", due: false }
       );
     } else if (g.revealFirst) {
-      found.push({ ...lineup, faces: [], empty: 0, title: `Reveal ${E} ${g.revealFirst} first`, line: "Who went home decides who you can start", action: "Open", due: false });
+      found.push({ ...lineup, faces: [], empty: 0, title: `Reveal ${epAt(g.revealFirst)} first`, line: "Who went home decides who you can start", action: "Open", due: false });
     } else if (L.locked) {
       // (Locked by its day or its week before its own game: nothing has aired yet, and there's nothing to reveal. BACKLOG 76.)
       found.push({ ...lineup, empty: 0, title, line: L.lockedBy ? `Locked when the ${L.lockedBy}'s first game began` : "Locked at airtime · scores hidden until you reveal", action: "See", due: false });
@@ -177,13 +182,13 @@ export function movesOf(g: GameView, o: MoveContext): YourMove[] {
       // Game by game (TEMP-UI, Designs needed item 38): each player locks at their own game, the whole lineup by the week's last.
       const by = L.eachGame.until ? ` · all by ${o.when(L.eachGame.until)}` : "";
       found.push(!L.set
-        ? { ...lineup, empty: Math.max(0, L.need - faces.length), title: `Set your ${E} ${L.episode} lineup`, line: `Each player locks at their game${by}`, action: "Set", due: true }
+        ? { ...lineup, empty: Math.max(0, L.need - faces.length), title: `Set your ${epAt(L.episode)} lineup`, line: `Each player locks at their game${by}`, action: "Set", due: true }
         : { ...lineup, empty: 0, title, line: `Each player locks at their game${by}`, action: "Edit", due: false });
     } else if (!L.set) {
       found.push({
         ...lineup,
         empty: Math.max(0, L.need - faces.length),
-        title: `Set your ${E} ${L.episode} lineup`,
+        title: `Set your ${epAt(L.episode)} lineup`,
         line: (L.locksAt ?? L.airsAt) ? `Locks ${o.when((L.locksAt ?? L.airsAt)!)}${L.carried ? " · last week's stands in till then" : ""}` : g.catchingUp ? "Locks when you reveal it" : "Locks at airtime",
         action: "Set",
         due: true,
@@ -200,22 +205,22 @@ export function movesOf(g: GameView, o: MoveContext): YourMove[] {
     if (late && late.episode === P.episode && P.open) {
       found.push(
         P.pick
-          ? { ...pick, faces: [P.pick], empty: 0, title: `Your ${E} ${P.episode} pick: ${castName(P.pick)}`, line: lateOpen, action: "Edit", due: false }
-          : { ...pick, faces: [], empty: 1, title: `Pick a survivor for ${E} ${P.episode}`, line: lateWhy, action: "Pick", due: true }
+          ? { ...pick, faces: [P.pick], empty: 0, title: `Your ${epAt(P.episode)} pick: ${castName(P.pick)}`, line: lateOpen, action: "Edit", due: false }
+          : { ...pick, faces: [], empty: 1, title: `Pick a survivor for ${epAt(P.episode)}`, line: lateWhy, action: "Pick", due: true }
       );
     } else if (g.revealFirst) {
-      found.push({ ...pick, faces: [], empty: 0, title: `Reveal ${E} ${g.revealFirst} first`, line: "Who went home decides who you can pick", action: "Open", due: false });
+      found.push({ ...pick, faces: [], empty: 0, title: `Reveal ${epAt(g.revealFirst)} first`, line: "Who went home decides who you can pick", action: "Open", due: false });
     } else if (!P.open) {
-      if (P.pick) found.push({ ...pick, faces: [P.pick], empty: 0, title: `Your ${E} ${P.episode} pick: ${castName(P.pick)}`, line: "Locked at airtime", action: "See", due: false });
+      if (P.pick) found.push({ ...pick, faces: [P.pick], empty: 0, title: `Your ${epAt(P.episode)} pick: ${castName(P.pick)}`, line: "Locked at airtime", action: "See", due: false });
     } else if (!P.pick) {
       // Catching up (a late joiner's week, or a game at your own pace): the episode aired long ago; your pick locks when you reveal it.
-      found.push({ ...pick, faces: [], empty: 1, title: `Pick a survivor for ${E} ${P.episode}`, line: P.airsAt ? `Locks ${o.when(P.airsAt)}` : g.catchingUp ? "Locks when you reveal it" : "Locks at airtime", action: "Pick", due: true });
+      found.push({ ...pick, faces: [], empty: 1, title: `Pick a survivor for ${epAt(P.episode)}`, line: P.airsAt ? `Locks ${o.when(P.airsAt)}` : g.catchingUp ? "Locks when you reveal it" : "Locks at airtime", action: "Pick", due: true });
     } else {
       found.push({
         ...pick,
         faces: [P.pick],
         empty: 0,
-        title: `Your ${E} ${P.episode} pick: ${castName(P.pick)}`,
+        title: `Your ${epAt(P.episode)} pick: ${castName(P.pick)}`,
         line: P.airsAt ? `Change until ${o.when(P.airsAt)}` : g.catchingUp ? "Change until you reveal it" : "Change until airtime",
         action: "Edit",
         due: false,
@@ -230,7 +235,7 @@ export function movesOf(g: GameView, o: MoveContext): YourMove[] {
     if (at >= 0) {
       found.push({
         kind: "swaps",
-        title: `Swaps open after ${E} ${lanes.episodes[at]}`,
+        title: `Swaps open after ${epAt(lanes.episodes[at])}`,
         line: "Swap castaways on your team then",
         faces: w.team.filter((f) => f.out == null).map((f) => f.id).slice(0, 3),
         out: [],

@@ -26,15 +26,19 @@ export interface GameLabel {
   tag: string;
   /** A narrow column's (a season grid's): the opponent from the team's side, "KC", "@CIN". */
   col?: string;
+  /** The two teams' ids, away then home (or the season's team first when neither is home): their pictures (game-art.ts). */
+  sides?: string[];
 }
 
 /**
  * An episode as people name it: a team's game by its opponent ("Week 11 at Bengals"; `short` "at Bengals", `tag` "@CIN"), else the
  * show's word and its number ("Episode 4", "Ep 4"). Never "Game 10" for a game that has a name (docs/design-round/props-table-spec.md).
  */
-export function epName(words: { episode: string; ep?: string; names?: Record<number, GameLabel> | null }, n: number, form: "long" | "short" | "tag" | "col" = "long"): string {
+export function epName(words: { episode: string; ep?: string; names?: Record<number, GameLabel> | null }, n: number, form: "long" | "short" | "tag" | "col" | "narrow" = "long"): string {
   const g = words.names?.[n];
   if (form === "col") return g?.col ?? String(n);
+  // A narrow cell that said "Ep 4" (a week strip, a chart's axis): the opponent for a team's game, else "Ep 4" as it was.
+  if (form === "narrow") return g?.col ?? `${words.ep ?? epShort(words.episode)} ${n}`;
   if (g) return g[form];
   return form === "long" ? `${words.episode} ${n}` : `${words.ep ?? epShort(words.episode)} ${n}`;
 }

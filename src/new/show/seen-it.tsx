@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Radio } from "lucide-react";
 import { useAfterWatching, useAiredEpisodes, watching } from "../data";
 import { type ShowData } from "../screens/show-space";
+import { epName } from "@/lib/game/show-words";
 import { Btn } from "../ui/parts";
 import { toast } from "../ui/toast";
 import { useOpenReveal } from "./reveal";
@@ -37,7 +38,7 @@ export function SeenItCard({ show }: { show: ShowData }) {
     try {
       await watching.follow(seasonId, seen ? { seenThrough: n } : { notYet: n });
       await after();
-      if (seen) toast(`Caught up through ${w.episode} ${n}`);
+      if (seen) toast(`Caught up through ${epName(w, n, "long")}`);
       else toast("It stays hidden until you say you've seen it");
     } catch (e) {
       toast.quiet((e as Error).message);
@@ -52,15 +53,15 @@ export function SeenItCard({ show }: { show: ShowData }) {
           <Radio className="size-4" aria-hidden />
           Live
         </span>
-        <b className="text-[17px] leading-tight">{many ? `${w.episodes} ${from}${n - from > 1 ? `–${n}` : ` and ${n}`} have aired` : `${w.episode} ${n} just aired`}</b>
+        <b className="text-[17px] leading-tight">{many ? `${w.names ? `${epName(w, from, "short")}${n - from > 1 ? " to " : " and "}${epName(w, n, "short")}` : `${w.episodes} ${from}${n - from > 1 ? `–${n}` : ` and ${n}`}`} have aired` : `${epName(w, n, "long")} just aired`}</b>
         {title && <small className="text-[13.5px] font-semibold leading-snug">{title}</small>}
-        {many && firstAired && <small className="text-[13.5px] font-semibold leading-snug">{w.ep} {from} aired {firstAired}</small>}
+        {many && firstAired && <small className="text-[13.5px] font-semibold leading-snug">{epName(w, from, "short")} aired {firstAired}</small>}
         <small className="text-[13.5px] leading-snug text-muted-foreground">
-          {many ? `Seen ${w.ep} ${from}?` : "Seen it?"} Its results, stats and the couch&rsquo;s chat open when you say, not before.
+          {many ? `Seen ${epName(w, from, "short")}?` : "Seen it?"} Its results, stats and the couch&rsquo;s chat open when you say, not before.
         </small>
         <div className="mt-1 flex gap-2">
           <Btn tone="must" className="flex-1" data-seen-it-yes disabled={busy} onClick={() => (many ? setGuard(true) : answer(true))}>
-            {many ? `Seen ${w.ep} ${from}` : "Seen it, show me"}
+            {many ? `Seen ${epName(w, from, "tag")}` : "Seen it, show me"}
           </Btn>
           <Btn className="flex-1" data-seen-it-not-yet disabled={busy} onClick={() => answer(false)}>
             Not yet

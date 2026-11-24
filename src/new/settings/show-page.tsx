@@ -16,6 +16,7 @@ import { ShowArt } from "../ui/show-bar";
 import { toast } from "../ui/toast";
 import { muteEnd } from "./api";
 import { Choice, Fold } from "./controls";
+import { epName } from "@/lib/game/show-words";
 
 // A show's settings for you (settings Round 2; docs/design-round/settings-r2-spec.md, -first-view.md, -shape.md): the page behind
 // the gear on the show's bar (Round 0's "one gear on every bar"). It answers "how does this show treat me?" with a value on every
@@ -135,7 +136,6 @@ export function ShowSettingsPage({ seasonId, show }: { seasonId: string; show: S
 
   const name = `${h.show.name.replace(/\s*\([^)]*\)\s*$/, "")}${h.seasonNumber ? ` ${h.seasonNumber}` : ""}`;
   const back = h.show.name.replace(/\s*\([^)]*\)\s*$/, "").replace(/^The /, "");
-  const ep = show.words.ep;
   const sport = h.show.kind === "sport";
   const finished = h.status === "completed";
   // Your account's choice, in this kind's words; then this season's own, if it has one.
@@ -179,7 +179,7 @@ export function ShowSettingsPage({ seasonId, show }: { seasonId: string; show: S
           : "Not started"
         : finished && total && seen >= total && !show.plays
           ? `All ${total} · finished`
-          : `Through ${ep} ${seen}${seenDay ? ` · ${seenDay}` : ""}${show.plays ? " · moves as you reveal" : ""}`;
+          : `Through ${epName(show.words, seen, "short")}${seenDay ? ` · ${seenDay}` : ""}${show.plays ? " · moves as you reveal" : ""}`;
 
   // 4. What this show may send you: a mute first, then kinds off here, then whether anything reaches you at all.
   const offHere = (notify?.moments ?? []).filter((m) => m.on && !m.here).map((m) => m.title.toLowerCase());

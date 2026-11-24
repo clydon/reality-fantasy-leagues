@@ -9,6 +9,7 @@ import { ordinal } from "../games";
 import { useNav } from "../nav";
 import { paths } from "../routes";
 import type { ShowData } from "../screens/show-space";
+import { epName, type GameLabel } from "@/lib/game/show-words";
 import { Btn } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
@@ -101,10 +102,10 @@ export function usePaceReveal(show: ShowData, r: PaceReveal | null) {
   const lineup = missing.length > 0 && missing.every(lineupIn);
   const node = (
     <>
-      <Sheet open={asking} onOpenChange={setAsking} title={`No ${lineup ? "lineup" : "pick"} for ${show.words.ep} ${r?.n ?? ""}`} subtitle={missing.map((g) => g.gameName).join(" · ")}>
+      <Sheet open={asking} onOpenChange={setAsking} title={`No ${lineup ? "lineup" : "pick"} for ${r ? epName(show.words, r.n, "short") : `${show.words.ep} `}`} subtitle={missing.map((g) => g.gameName).join(" · ")}>
         <div data-pace-ask className="flex flex-col gap-2">
           <p className="text-[15px] leading-normal text-muted-foreground">
-            Without one, {show.words.ep} {r?.n} counts for nothing for you{missing.length > 1 ? " in those games" : ""}.
+            Without one, {r ? epName(show.words, r.n, "short") : show.words.ep} counts for nothing for you{missing.length > 1 ? " in those games" : ""}.
           </p>
           <Btn
             tone="ink"
@@ -139,7 +140,7 @@ export function OwnPacePlates({ show }: { show: ShowData }) {
         g.pace?.draft ? (
           <DraftPlate key={g.leagueId} show={show} g={g} />
         ) : g.pace?.team ? (
-          <TeamPlate key={g.leagueId} g={g} />
+          <TeamPlate key={g.leagueId} g={g} names={show.words.names} />
         ) : g.pace?.gather ? (
           <GatherPlate key={g.leagueId} show={show} g={g} />
         ) : (
@@ -150,11 +151,15 @@ export function OwnPacePlates({ show }: { show: ShowData }) {
   );
 }
 
+/** "Episode 4" as these plates say it, a team's game by name ("Chiefs at Bills", a tag "KC @ BUF"): show-words.ts epName. */
+const epOf = (names: Record<number, GameLabel> | null | undefined, n: number, form: "short" | "tag" = "short") => epName({ episode: "Episode", ep: "Episode", names }, n, form);
+
 const TAG = "type-caption self-start bg-plate-foreground py-1 pl-[7px] pr-3.5 text-[11px] tracking-[0.06em] text-plate [clip-path:polygon(0_0,100%_0,calc(100%_-_8px)_100%,0_100%)]";
 
 /** Exclusive teams at your own pace (sync point 1): before anyone plays, everyone drafts together in the usual draft room, on the
  *  cast as it stood before the start. Whoever runs the game starts it; then it's the draft room for everyone. */
 function DraftPlate({ show, g }: { show: ShowData; g: GameView }) {
+  const names = show.words.names;
   const nav = useNav();
   const after = useAfterCouch();
   const [busy, setBusy] = useState(false);
@@ -180,11 +185,11 @@ function DraftPlate({ show, g }: { show: ShowData; g: GameView }) {
   return (
     <div data-pace-draft-plate={g.leagueId} data-pace-draft={g.pace!.draft} className="flex flex-col gap-2.5 rounded-[4px] bg-plate p-3.5 text-plate-foreground shadow-plate">
       <span className={TAG}>
-        Before Episode {week} · {g.gameName}
+        Before {epOf(names, week, "tag")} · {g.gameName}
       </span>
       <b className="type-caption text-[28px] leading-none">{live ? "The draft's on" : "Draft together"}</b>
       <p className="text-[14px] leading-snug text-plate-muted">
-        Take turns picking from who was still in before Episode {week}. Each person on one team. Then everyone plays at their own pace.
+        Take turns picking from who was still in before {epOf(names, week)}. Each person on one team. Then everyone plays at their own pace.
       </p>
       <p className="text-[13px] leading-snug text-plate-muted">
         {namesLine([...people.map((p) => p.name), ...bots.map((b) => `${b} (computer)`)], 5)}
@@ -217,7 +222,7 @@ function GatherPlate({ show, g }: { show: ShowData; g: GameView }) {
     return (
       <div data-pace-waivers={g.leagueId} className="flex flex-col gap-2.5 rounded-[4px] bg-plate p-3.5 text-plate-foreground shadow-plate">
         <span className={TAG}>
-          After Episode {gather.episode} · {g.gameName}
+          After {epOf(show.words.names, gather.episode, "tag")} · {g.gameName}
         </span>
         <b className="type-caption text-[28px] leading-none">Everyone&rsquo;s here: waivers</b>
         <p className="text-[14px] leading-snug text-plate-muted">{lost}. Claims settle once everyone owed a replacement has put theirs in.</p>
@@ -232,9 +237,9 @@ function GatherPlate({ show, g }: { show: ShowData; g: GameView }) {
   return (
     <div data-pace-gather={g.leagueId} data-pace-gather-episode={gather.episode} className="flex flex-col gap-2.5 rounded-[4px] bg-plate p-3.5 text-plate-foreground shadow-plate">
       <span className={TAG}>
-        After Episode {gather.episode} · {g.gameName}
+        After {epOf(show.words.names, gather.episode, "tag")} · {g.gameName}
       </span>
-      <b className="type-caption text-[28px] leading-none">Waivers after Episode {gather.episode}</b>
+      <b className="type-caption text-[28px] leading-none">Waivers after {epOf(show.words.names, gather.episode)}</b>
       <p className="text-[14px] leading-snug text-plate-muted">
         {lost}. Wait for everyone else before watching more episodes, so the waivers are fair.
       </p>
@@ -242,41 +247,41 @@ function GatherPlate({ show, g }: { show: ShowData; g: GameView }) {
         Waiting on {namesLine(gather.waiting)}.
       </p>
       {waits ? (
-        <small className="text-[13px] text-plate-muted">Thanks: the waivers open once everyone&rsquo;s on Episode {gather.episode}.</small>
+        <small className="text-[13px] text-plate-muted">Thanks: the waivers open once everyone&rsquo;s on {epOf(show.words.names, gather.episode)}.</small>
       ) : (
         <Btn tone="ink" wide data-pace-gather-wait onClick={() => setWaits(true)}>
           OK, I&rsquo;ll wait
         </Btn>
       )}
-      {g.catchUp && <small className="text-[13px] text-plate-muted">Going on anyway? Reveal {show.words.ep} {g.catchUp.week} at the top.</small>}
+      {g.catchUp && <small className="text-[13px] text-plate-muted">Going on anyway? Reveal {epName(show.words, g.catchUp.week, "short")} at the top.</small>}
     </div>
   );
 }
 
 /** A game with teams where yours isn't picked yet (part 3a): the plate's first step, before Pick · Watch · Reveal. */
-function TeamPlate({ g }: { g: GameView }) {
+function TeamPlate({ g, names }: { g: GameView; names?: Record<number, GameLabel> | null }) {
   const [open, setOpen] = useState(false);
   const team = g.pace!.team!;
   const week = g.catchUp?.week ?? 1;
   return (
     <div data-pace-team-plate={g.leagueId} className="flex flex-col gap-2.5 rounded-[4px] bg-plate p-3.5 text-plate-foreground shadow-plate">
       <span className={TAG}>
-        Before Episode {week} · {g.gameName}
+        Before {epOf(names, week, "tag")} · {g.gameName}
       </span>
       <b className="type-caption text-[28px] leading-none">Pick your team</b>
       <p className="text-[14px] leading-snug text-plate-muted">
-        {team.need} from who was still in before Episode {week}. They&rsquo;re yours for the whole game.
+        {team.need} from who was still in before {epOf(names, week)}. They&rsquo;re yours for the whole game.
       </p>
       <Btn tone="must" wide data-pace-team-open onClick={() => setOpen(true)}>
         Pick your team
       </Btn>
-      <TeamSheet g={g} open={open} onOpenChange={setOpen} />
+      <TeamSheet g={g} open={open} onOpenChange={setOpen} names={names} />
     </div>
   );
 }
 
 /** Who you can have, as faces: tap to take, tap again to put back; the button counts down to your team. */
-function TeamSheet({ g, open, onOpenChange }: { g: GameView; open: boolean; onOpenChange: (o: boolean) => void }) {
+function TeamSheet({ g, open, onOpenChange, names }: { g: GameView; open: boolean; onOpenChange: (o: boolean) => void; names?: Record<number, GameLabel> | null }) {
   const after = useAfterCouch();
   const [team, setTeam] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -295,7 +300,7 @@ function TeamSheet({ g, open, onOpenChange }: { g: GameView; open: boolean; onOp
     }
   };
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Pick your team" subtitle={`${need} · from who was still in before Episode ${g.catchUp?.week ?? 1}`}>
+    <Sheet open={open} onOpenChange={onOpenChange} title="Pick your team" subtitle={`${need} · from who was still in before ${epOf(names, g.catchUp?.week ?? 1)}`}>
       <div data-pace-team-pick className="grid grid-cols-4 gap-2">
         {pool.map((id) => {
           const c = faceIn(g, id);
@@ -347,7 +352,7 @@ function RevealedSheet({ show, done, onClose }: { show: ShowData; done: { games:
         {games.map((x, i) =>
           x.you ? (
             <p key={x.leagueId} className="text-center text-[14px] text-muted-foreground">
-              {games.length > 1 ? `${x.gameName}: through` : "Through"} Episode {done!.reveals[i]?.episode ?? r.episode}, you&rsquo;re {placeWords(x.you.rank)} of {x.players}.
+              {games.length > 1 ? `${x.gameName}: through` : "Through"} {epOf(show.words.names, done!.reveals[i]?.episode ?? r.episode)}, you&rsquo;re {placeWords(x.you.rank)} of {x.players}.
             </p>
           ) : null
         )}
@@ -362,7 +367,7 @@ function RevealedSheet({ show, done, onClose }: { show: ShowData; done: { games:
                 openMoves(lineup ? "lineup" : "pool", g.leagueId);
               }}
             >
-              {lineup ? "Set your lineup" : "Pick"} for Episode {next}
+              {lineup ? "Set your lineup" : "Pick"} for {epOf(show.words.names, next)}
             </Btn>
             <button type="button" data-pace-later onClick={onClose} className="h-11 text-[15px] font-semibold text-muted-foreground">
               Done for now
@@ -376,7 +381,7 @@ function RevealedSheet({ show, done, onClose }: { show: ShowData; done: { games:
           // Caught up on a season still airing: you play the next one as it airs, like everyone there.
           <>
             <p data-pace-caught-up className="text-center text-[14px] text-muted-foreground">
-              You&rsquo;re caught up: {show.words.ep} {r.episode + 1} is next, as it airs.
+              You&rsquo;re caught up: {epName(show.words, r.episode + 1, "short")} is next, as it airs.
             </p>
             <Btn tone="ink" wide data-pace-done onClick={onClose}>
               Done
@@ -393,7 +398,7 @@ function FinishPlate({ show, g }: { show: ShowData; g: GameView }) {
   const nav = useNav();
   const behind = g.pace!.others.filter((o) => o.week !== null) as { name: string; week: number }[];
   const line = behind.length
-    ? `${behind.map((o) => `${o.name} is on Episode ${o.week}`).join(" · ")}: the final standings stay hidden from ${behind.length === 1 ? "them" : "them all"} until they get there.`
+    ? `${behind.map((o) => `${o.name} is on ${epOf(show.words.names, o.week)}`).join(" · ")}: the final standings stay hidden from ${behind.length === 1 ? "them" : "them all"} until they get there.`
     : g.pace!.others.length
       ? "Everyone's finished it."
       : null;

@@ -9,6 +9,7 @@ import { Btn } from "../ui/parts";
 import { ComputerPlayers } from "../backstage/computer-players";
 import { ClaimFor } from "../backstage/waivers";
 import { airTime } from "../clock";
+import { epName, type GameLabel } from "@/lib/game/show-words";
 import { manageApi, type OutOfGame } from "../settings/api";
 import { Avatar } from "../ui/bars";
 import { HoldSheet } from "../ui/guards";
@@ -53,6 +54,7 @@ export function WhoIsPlaying({
   waivers,
   missing = null,
   ep = "Ep",
+  names = null,
 }: {
   seasonId: string;
   couchId: string;
@@ -65,7 +67,10 @@ export function WhoIsPlaying({
   missing?: GameSettings["missing"];
   /** The show's word for an episode ("Ep"). */
   ep?: string;
+  /** A team's season: each game's name (show-words.ts epName), said in place of "Ep 4". */
+  names?: Record<number, GameLabel> | null;
 }) {
+  const at = (n: number) => epName({ episode: ep, ep, names }, n, "short");
   const data = useMembers(seasonId, couchId);
   const [person, setPerson] = useState<string | null>(null);
   const [helping, setHelping] = useState<{ playerId: string; name: string } | null>(null);
@@ -106,7 +111,7 @@ export function WhoIsPlaying({
               </b>
               <small className="block text-[13px] text-muted-foreground">
                 {ROLE_WORDS[m.roles[leagueId]]}
-                {missingFor(m) && <span data-person-missing> · {missing!.kind === "lineup" ? `no lineup for ${ep} ${missing!.episode} yet` : `no pick for ${ep} ${missing!.episode} yet`}</span>}
+                {missingFor(m) && <span data-person-missing> · {missing!.kind === "lineup" ? `no lineup for ${at(missing!.episode)} yet` : `no pick for ${at(missing!.episode)} yet`}</span>}
               </small>
             </span>
             {door && <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />}
@@ -130,7 +135,7 @@ export function WhoIsPlaying({
           members={people}
           commissioner={commissioner}
           pickFor={pickable(chosen)}
-          moveFor={missingFor(chosen) && missing ? { kind: missing.kind, episode: missing.episode, ep } : null}
+          moveFor={missingFor(chosen) && missing ? { kind: missing.kind, name: at(missing.episode) } : null}
           onMoveFor={() => {
             setMoving(chosen.userId);
             setPerson(null);
@@ -145,7 +150,7 @@ export function WhoIsPlaying({
       )}
       {moving && missing && (() => {
         const who = missing.people.find((x) => x.userId === moving);
-        return who ? <MoveFor key={who.playerId} leagueId={leagueId} missing={missing} who={who} ep={ep} onClose={() => setMoving(null)} /> : null;
+        return who ? <MoveFor key={who.playerId} leagueId={leagueId} missing={missing} who={who} name={at(missing.episode)} onClose={() => setMoving(null)} /> : null;
       })()}
       {open && <ClaimFor key={helping?.playerId ?? "none"} seasonId={seasonId} couchId={couchId} game={open} who={helping} onClose={() => setHelping(null)} />}
     </div>
@@ -179,7 +184,7 @@ function PersonSheet({
   due: string | null;
   onPickFor: (who: { playerId: string; name: string }) => void;
   /** Settings Round 3b (166): this episode's lineup or pick they haven't set: Set it for them, first. */
-  moveFor?: { kind: "lineup" | "pick"; episode: number; ep: string } | null;
+  moveFor?: { kind: "lineup" | "pick"; name: string } | null;
   onMoveFor?: () => void;
   onClose: () => void;
 }) {
@@ -225,7 +230,7 @@ function PersonSheet({
               <span className="min-w-0 flex-1">
                 <b className="block text-[16px] font-semibold leading-tight">{moveFor.kind === "lineup" ? "Set their lineup" : "Make their pick"}</b>
                 <small className="block text-[13px] leading-snug text-muted-foreground">
-                  Nothing set for {moveFor.ep} {moveFor.episode} yet. It shows as set by you, and they can change it until the lock.
+                  Nothing set for {moveFor.name} yet. It shows as set by you, and they can change it until the lock.
                 </small>
               </span>
               <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
@@ -313,7 +318,7 @@ function PersonSheet({
  * pick for a pool, chosen here and sent as theirs (the lineup and pick routes take a runner's, logged "Set Joanna's lineup"). Only
  * what's public: their team, who's still in. Their earlier moves aren't shown.
  */
-function MoveFor({ leagueId, missing, who, ep, onClose }: { leagueId: string; missing: NonNullable<GameSettings["missing"]>; who: NonNullable<GameSettings["missing"]>["people"][number]; ep: string; onClose: () => void }) {
+function MoveFor({ leagueId, missing, who, name, onClose }: { leagueId: string; missing: NonNullable<GameSettings["missing"]>; who: NonNullable<GameSettings["missing"]>["people"][number]; name: string; onClose: () => void }) {
   const after = useAfter();
   const lineup = missing.kind === "lineup";
   const need = Math.min(missing.starters, who.options.length);
@@ -327,7 +332,7 @@ function MoveFor({ leagueId, missing, who, ep, onClose }: { leagueId: string; mi
       if (lineup) await moves.lineup(leagueId, missing.epId, who.playerId, chosen);
       else await moves.pick(leagueId, missing.epId, who.playerId, chosen[0]);
       await after();
-      toast(`${lineup ? `Set ${who.name}'s lineup` : `Made ${who.name}'s pick`} for ${ep} ${missing.episode}`);
+      toast(`${lineup ? `Set ${who.name}'s lineup` : `Made ${who.name}'s pick`} for ${name}`);
       onClose();
     } catch (e) {
       toast.quiet((e as Error).message);
@@ -337,7 +342,7 @@ function MoveFor({ leagueId, missing, who, ep, onClose }: { leagueId: string; mi
   };
   const ready = lineup ? chosen.length === need : chosen.length === 1;
   return (
-    <Sheet open onOpenChange={(o) => !o && onClose()} title={lineup ? `${who.name}'s lineup` : `${who.name}'s pick`} subtitle={`${ep} ${missing.episode} · ${lineup ? `${need} start` : "who survives"}`}>
+    <Sheet open onOpenChange={(o) => !o && onClose()} title={lineup ? `${who.name}'s lineup` : `${who.name}'s pick`} subtitle={`${name} · ${lineup ? `${need} start` : "who survives"}`}>
       <div data-move-for={who.name} className="flex flex-col gap-3 pb-2">
         <p className="text-[14px] leading-snug text-muted-foreground">
           {lineup ? `Choose ${need} of their team to start.` : "Choose who they think survives."} It goes in as theirs, and they can change it until the lock.

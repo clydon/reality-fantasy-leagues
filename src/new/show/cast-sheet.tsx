@@ -1,5 +1,6 @@
 "use client";
 
+import { epName } from "@/lib/game/show-words";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { openSports } from "../sports/sheets";
@@ -173,7 +174,7 @@ function Columns({ cols, colour, out, counted, words, aria, onEpisode, fixedW, c
                 type="button"
                 data-chart-episode={i + 1}
                 disabled={c.gone}
-                aria-label={`${words.episode} ${i + 1} in their story`}
+                aria-label={`${epName(words, i + 1, "long")} in their story`}
                 onClick={() => onEpisode(i + 1)}
                 className="h-full flex-none rounded-[3px] active:bg-foreground/[0.06] disabled:pointer-events-none"
                 style={{ width: colW }}
@@ -237,7 +238,7 @@ function ChartKey({ items, out, counted, words }: { items: { key: string; name: 
       {counted === "all" && <li>Counted for you every {words.episode.toLowerCase()}</li>}
       {out !== null && (
         <li className="text-live">
-          {words.ep} {out}: went home
+          {epName(words, out, "tag")}: went home
         </li>
       )}
     </ul>
@@ -343,7 +344,7 @@ export function SeasonChart({ d, c, words, onEpisode, span, at = null }: { d: Se
     const parts = STACK.filter((k) => m.get(k)).map((k) => [k, k === "setback" ? -m.get(k)! : m.get(k)!] as [string, number]);
     const over = BANDS.reduce((t, k) => t + (k === "setback" ? 0 : (m.get(k) ?? 0)), 0);
     const gone = c.out !== null && i + 1 > c.out;
-    said.push(`${words.ep} ${i + 1}: ${gone ? "out" : bandSaid(m) || "nothing"}`);
+    said.push(`${epName(words, i + 1, "short")}: ${gone ? "out" : bandSaid(m) || "nothing"}`);
     // The count over the bar is what's over the line; a setback's bar, on the season's scale, says its own.
     return { parts, label: over ? String(over) : null, gone };
   });
@@ -365,12 +366,12 @@ export function SeasonChart({ d, c, words, onEpisode, span, at = null }: { d: Se
             ))}
             {goneHome(c) && (
               <li className="text-live">
-                {words.ep} {c.out}: went home
+                {epName(words, c.out!, "tag")}: went home
               </li>
             )}
             {c.finish && c.out !== null && (
               <li className={c.finish === "won" ? "text-(--nd-good)" : ""} data-finish={c.finish}>
-                {words.ep} {c.out}: {finishWord(c)}
+                {epName(words, c.out, "tag")}: {finishWord(c)}
               </li>
             )}
           </ul>
@@ -408,7 +409,7 @@ function Figures({ d, c, go, words, span }: { d: SeasonStats; c: CastStat; go: G
               </small>
               <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
             </span>
-            <svg width={n * colW} height={27} className="mt-2 block" role="img" aria-label={`${s.name} each ${words.episode.toLowerCase()}: ${per.map((x, i) => `${words.ep} ${i + 1}, ${amountWord(x)}`).join("; ")}`}>
+            <svg width={n * colW} height={27} className="mt-2 block" role="img" aria-label={`${s.name} each ${words.episode.toLowerCase()}: ${per.map((x, i) => `${epName(words, i + 1, "short")}, ${amountWord(x)}`).join("; ")}`}>
               <line x1={0} x2={n * colW} y1={26.5} y2={26.5} stroke="var(--edge)" strokeWidth={1} />
               {per.map((x, i) => {
                 if (!x || (c.out !== null && i + 1 > c.out)) return null;
@@ -442,7 +443,7 @@ function GameWeeks({ g, id, n, out, words, name, span, onEpisode, at = null }: {
 
 /** A numbers row, open: the season's episodes on the chart's own columns, a dot in each it happened (a count in it where more than
  *  one), a tick where it didn't, nothing after they left, the episode numbers under; then the stat's board. */
-function KindStrip({ c, k, n, band, name, of, span, onBoard, onEpisode }: { c: CastStat; k: string; n: number; band: Band; name: string; of: number; span: number; onBoard: () => void; onEpisode?: (n: number) => void }) {
+function KindStrip({ c, k, n, band, name, of, span, onBoard, onEpisode, words }: { words: Words; c: CastStat; k: string; n: number; band: Band; name: string; of: number; span: number; onBoard: () => void; onEpisode?: (n: number) => void }) {
   const colW = fitW(n, span);
   const colour = bandColour(band);
   const per = Array.from({ length: n }, (_, i) => c.events.filter((e) => e[1] === k && e[0] === i + 1).reduce((t, e) => t + (e[3] || 1), 0));
@@ -489,7 +490,7 @@ function KindStrip({ c, k, n, band, name, of, span, onBoard, onEpisode }: { c: C
               type="button"
               data-strip-episode={i + 1}
               disabled={c.out !== null && i + 1 > c.out}
-              aria-label={`Episode ${i + 1} in their story${x ? `: ${name}${x > 1 ? ` (${x})` : ""}` : ""}`}
+              aria-label={`${epName(words, i + 1)} in their story${x ? `: ${name}${x > 1 ? ` (${x})` : ""}` : ""}`}
               onClick={() => onEpisode(i + 1)}
               className="h-full flex-none rounded-[3px] active:bg-foreground/[0.06] disabled:pointer-events-none"
               style={{ width: colW }}
@@ -512,7 +513,7 @@ function KindStrip({ c, k, n, band, name, of, span, onBoard, onEpisode }: { c: C
 /** Their numbers: each kind they have, most valuable first (the show's points for one; a tie, more of it first), a row each: its
  *  band's mark, the name and its worth, the count and its place in the cast; ⌄ opens in place the episodes it happened in, then the
  *  stat's board (several can be open, to set two side by side). */
-function NumbersRows({ d, c, lens, go, span, onEpisode }: { d: SeasonStats; c: CastStat; lens: GameView | null; go: Go; span: number; onEpisode?: (n: number) => void }) {
+function NumbersRows({ d, c, lens, go, span, onEpisode, words }: { words: Words; d: SeasonStats; c: CastStat; lens: GameView | null; go: Go; span: number; onEpisode?: (n: number) => void }) {
   const [open, setOpen] = useState<string[]>([]);
   const bands = bandsOf(d);
   const rows = d.stats
@@ -548,7 +549,7 @@ function NumbersRows({ d, c, lens, go, span, onEpisode }: { d: SeasonStats; c: C
               </span>
               <ChevronDown className={`size-4 flex-none text-muted-foreground ${on ? "rotate-180" : ""}`} aria-hidden />
             </button>
-            {on && <KindStrip c={c} k={s.key} n={d.through} band={k} name={s.name} of={d.cast.length} span={span} onBoard={() => go.open({ kind: "stat", key: s.key, title: s.name, from: c.name, lens: lens?.leagueId ?? null })} onEpisode={onEpisode} />}
+            {on && <KindStrip words={words} c={c} k={s.key} n={d.through} band={k} name={s.name} of={d.cast.length} span={span} onBoard={() => go.open({ kind: "stat", key: s.key, title: s.name, from: c.name, lens: lens?.leagueId ?? null })} onEpisode={onEpisode} />}
           </div>
         );
       })}
@@ -564,7 +565,7 @@ const countedWord = (counted: number[], cols: Column[]): "some" | "all" | null =
 type GameLine = { g: GameView; id: string; line: string; marks: { userId: string; name: string; you?: boolean }[]; points: number | null };
 
 /** Where someone stands in each of these games: who holds or picked them, by face, yours first; their points there. */
-export function gamesFor(list: GameView[], name: string, ep = "Ep"): GameLine[] {
+export function gamesFor(list: GameView[], name: string, words: Parameters<typeof epName>[0] = { episode: "Episode", ep: "Ep" }): GameLine[] {
   const out: GameLine[] = [];
   for (const g of list) {
     const c = g.cast.find((x) => same(x.name, name));
@@ -588,7 +589,7 @@ export function gamesFor(list: GameView[], name: string, ep = "Ep"): GameLine[] 
             ? `On ${others.length} teams`
             : `On ${list}'s ${others.length > 1 ? "teams" : "team"}`
       : pickers.length
-        ? `Picked by ${[you ? "you" : "", others.length > 2 ? `${others.length} more` : list].filter(Boolean).join(" and ")} · ${ep} ${Math.max(...pickers.flatMap((r) => (g.plays.rows[r.playerId] ?? []).filter((s) => s.pick?.id === c.id).map((s) => s.episode)))}`
+        ? `Picked by ${[you ? "you" : "", others.length > 2 ? `${others.length} more` : list].filter(Boolean).join(" and ")} · ${epName(words, Math.max(...pickers.flatMap((r) => (g.plays.rows[r.playerId] ?? []).filter((s) => s.pick?.id === c.id).map((s) => s.episode))), "tag")}`
         : c.left
           ? "Out"
           : "On nobody's team";
@@ -606,7 +607,7 @@ function holderRows(g: GameView, id: string, words: Words) {
     const picked = (g.plays.rows[r.playerId] ?? []).filter((s) => s.pick?.id === id);
     const base = { playerId: r.playerId, userId: r.userId ?? r.playerId, name: r.you ? "You" : r.name, you: r.you };
     if (picked.length) {
-      rows.push({ ...base, line: `Picked ${castName(c, g)} for ${picked.map((s) => `${words.ep} ${s.episode}`).join(", ")}`, points: null });
+      rows.push({ ...base, line: `Picked ${castName(c, g)} for ${picked.map((s) => `${epName(words, s.episode, "short")}`).join(", ")}`, points: null });
       continue;
     }
     const starts = r.weeks.filter((w) => w.started.some((x) => x.id === id));
@@ -638,7 +639,7 @@ export function GamesRows({ show, seasonId, name, go, from = null, scored = fals
   const w = show.words;
   const mine = show.play ?? [];
   const active = (g: GameView) => !scored || g.leagueId === from || (!g.over && !g.archived);
-  const games = gamesFor([...mine, ...(others ?? []).filter((g) => !mine.some((x) => x.leagueId === g.leagueId))].filter(active), name, w.ep).sort(
+  const games = gamesFor([...mine, ...(others ?? []).filter((g) => !mine.some((x) => x.leagueId === g.leagueId))].filter(active), name, w).sort(
     (p, q) => Number(q.g.leagueId === from) - Number(p.g.leagueId === from)
   );
   if (!games.length) return null;
@@ -737,11 +738,11 @@ function Who({ d, c, words, onNight }: { d: SeasonStats; c: CastStat; words: Wor
   const colour = d.groups.find((g) => g.name === c.group)?.colour ?? null;
   const status =
     c.finish === "won"
-      ? `${finishWord(c)} · ${words.ep} ${c.out}`
+      ? `${finishWord(c)} · ${epName(words, c.out!, "tag")}`
       : c.finish === "final"
-        ? `Finalist · ${words.ep} ${c.out}${c.how && c.how !== "Finalist" ? ` · ${cap(c.how.toLowerCase())}` : ""}`
+        ? `Finalist · ${epName(words, c.out!, "tag")}${c.how && c.how !== "Finalist" ? ` · ${cap(c.how.toLowerCase())}` : ""}`
         : c.out !== null
-          ? `Out · ${words.ep} ${c.out}${c.how ? ` · ${cap(c.how.toLowerCase())}` : ""}`
+          ? `Out · ${epName(words, c.out, "tag")}${c.how ? ` · ${cap(c.how.toLowerCase())}` : ""}`
           : "Still in";
   const statusInk = `text-[15px] font-semibold ${c.finish === "won" ? "text-(--nd-good)" : ""}`;
   const what = propsLine(c.props, d.properties) || c.position || null;
@@ -926,8 +927,8 @@ function WeekBlock({ x, c, episode, words, onNight, onWeek }: { x: NonNullable<R
       <div className="flex items-end gap-3">
         <div className="min-w-0 flex-1">
           <h3 className="type-caption text-[26px]">
-            <button type="button" data-week-night={episode} aria-label={`${words.episode} ${episode}: the night`} onClick={() => onNight(episode)} className="-my-2 inline-flex min-h-11 items-center text-left underline decoration-edge decoration-2 underline-offset-[5px]">
-              {words.episode} {episode}
+            <button type="button" data-week-night={episode} aria-label={`${epName(words, episode, "long")}: the night`} onClick={() => onNight(episode)} className="-my-2 inline-flex min-h-11 items-center text-left underline decoration-edge decoration-2 underline-offset-[5px]">
+              {epName(words, episode, "long")}
             </button>
           </h3>
           <p className="mt-1 text-[13px] text-muted-foreground" data-week-line>
@@ -970,16 +971,16 @@ function WeekBlock({ x, c, episode, words, onNight, onWeek }: { x: NonNullable<R
       {onWeek && (prev !== null || next !== null) && (
         <div className="mt-1 flex items-center justify-between" data-week-steps>
           {prev !== null ? (
-            <button type="button" data-week-prev={prev} aria-label={`Previous week: ${words.episode} ${prev}`} onClick={() => onWeek(prev)} className="-ml-1 inline-flex min-h-11 items-center gap-0.5 px-1 text-[13px] font-semibold text-muted-foreground">
+            <button type="button" data-week-prev={prev} aria-label={`Previous week: ${epName(words, prev, "long")}`} onClick={() => onWeek(prev)} className="-ml-1 inline-flex min-h-11 items-center gap-0.5 px-1 text-[13px] font-semibold text-muted-foreground">
               <ChevronLeft className="size-4" aria-hidden />
-              {words.ep} {prev}
+              {epName(words, prev, "tag")}
             </button>
           ) : (
             <span />
           )}
           {next !== null && (
-            <button type="button" data-week-next={next} aria-label={`Next week: ${words.episode} ${next}`} onClick={() => onWeek(next)} className="-mr-1 inline-flex min-h-11 items-center gap-0.5 px-1 text-[13px] font-semibold text-muted-foreground">
-              {words.ep} {next}
+            <button type="button" data-week-next={next} aria-label={`Next week: ${epName(words, next, "long")}`} onClick={() => onWeek(next)} className="-mr-1 inline-flex min-h-11 items-center gap-0.5 px-1 text-[13px] font-semibold text-muted-foreground">
+              {epName(words, next, "tag")}
               <ChevronRight className="size-4" aria-hidden />
             </button>
           )}
@@ -1041,7 +1042,7 @@ export function CastSheet({ d, c, show, seasonId, lens, go, onFlag, from = null,
       <Figures d={d} c={c} go={go} words={w} span={span} />
       <SeasonChart d={d} c={c} words={w} onEpisode={toStory} span={span} />
       <GamesRows key={c.name} show={show} seasonId={seasonId} name={c.name} go={go} from={from} scored n={d.through} out={goneHome(c) ? c.out : null} span={span} onEpisode={toStory} at={leads} />
-      <NumbersRows d={d} c={c} lens={lens} go={go} span={span} onEpisode={toStory} />
+      <NumbersRows d={d} c={c} lens={lens} go={go} span={span} onEpisode={toStory} words={w} />
       <SheetCaption right="Newest first">Their story</SheetCaption>
       <StoryBody d={d} c={c} onFlag={onFlag ?? null} onEpisode={(n) => go.open({ kind: "night", episode: n })} group={false} photo={false} points={false} lit={lit} marks={bandColours(d)} />
       {/* Nothing to compare before anything's counted (a draft before the premiere). */}

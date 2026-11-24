@@ -20,15 +20,17 @@ import { Avatar } from "../ui/bars";
 import { SectionHead } from "../ui/parts";
 import { ShowArt } from "../ui/show-bar";
 import { openWatching } from "../watching/sheets";
-import { showWords } from "@/lib/game/show-words";
+import { epName, showWords } from "@/lib/game/show-words";
 import { usePracticeShows } from "../tour/practice-shows";
 import { FinishedFold, finishedFor, GamesMark, shelfOrder, showOfMove } from "./sections";
 import { LeagueCard, useLeagueCards } from "./league-cards";
 
 const nameOf = (s: { show: { name: string }; seasonNumber: number | null }) => `${plainName(s.show.name)}${s.seasonNumber ? ` ${s.seasonNumber}` : ""}`;
+/** A season's episode namer: a team's game by its name ("KC @ BUF"), else "Ep 4" (a one-letter short word in full). */
 const epOf = (s: HomeShow) => {
-  const w = showWords(s.show.terms);
-  return w.ep.length > 1 ? w.ep : w.episode;
+  const w = showWords(s.show.terms, s.gameNames);
+  const words = { episode: w.episode, ep: w.ep.length > 1 ? w.ep : w.episode, names: w.names };
+  return (n: number, form: "tag" | "short" | "col" = "tag") => epName(words, n, form);
 };
 
 /** Where each person is on a season: you from the home read, the couch's from what they share. */
@@ -118,7 +120,7 @@ function ShowBand({ home, couch, show, due, hub }: { home: Home; couch: Couch | 
   const when = show.upNext?.live
     ? "On now"
     : show.upNext?.airAt
-      ? `${ep} ${show.upNext.number} · ${airTime(Date.parse(show.upNext.airAt))}`
+      ? `${ep(show.upNext.number)} · ${airTime(Date.parse(show.upNext.airAt))}`
       : show.status === "completed"
         ? `All ${total} out`
         : null;
@@ -157,7 +159,7 @@ function ShowBand({ home, couch, show, due, hub }: { home: Home; couch: Couch | 
         className="absolute inset-x-3 bottom-2 block h-[52px]"
         role="img"
         aria-label={marks
-          .map((m) => `${m.you ? "You" : m.name} on ${ep} ${m.seen}${m.away ? ", not on since the latest aired" : ""}`)
+          .map((m) => `${m.you ? "You" : m.name} on ${ep(m.seen, "short")}${m.away ? ", not on since the latest aired" : ""}`)
           .join("; ")}
       >
         <span className="absolute inset-x-0 bottom-[14px] h-[3px] rounded-full bg-white/20" />
@@ -176,8 +178,8 @@ function ShowBand({ home, couch, show, due, hub }: { home: Home; couch: Couch | 
             />
           ))}
         {/* The ends' numbers, unless a mark's number stands there. */}
-        {![...byMark.keys()].some((n) => at(n) < 9) && <small className="type-num absolute bottom-0 left-0 text-[12px] leading-none text-white/55">1</small>}
-        {![...byMark.keys()].some((n) => at(n) > 91) && <small className="type-num absolute bottom-0 right-0 text-[12px] leading-none text-white/55">{total}</small>}
+        {![...byMark.keys()].some((n) => at(n) < 9) && <small className="type-num absolute bottom-0 left-0 text-[12px] leading-none text-white/55">{ep(1, "col")}</small>}
+        {![...byMark.keys()].some((n) => at(n) > 91) && <small className="type-num absolute bottom-0 right-0 text-[12px] leading-none text-white/55">{ep(total, "col")}</small>}
         {[...byMark.entries()].map(([seen, people]) => {
           const shown = [...people.filter((p) => p.you), ...people.filter((p) => !p.you)].slice(0, 2);
           const more = people.length - shown.length;
@@ -202,7 +204,7 @@ function ShowBand({ home, couch, show, due, hub }: { home: Home; couch: Couch | 
                 className={`type-num absolute bottom-0 -translate-x-1/2 text-[12px] leading-none ${caught ? "text-white" : "text-white/70"}`}
                 style={{ left: `${at(seen)}%` }}
               >
-                {seen}
+                {ep(seen, "col")}
               </small>
             </span>
           );

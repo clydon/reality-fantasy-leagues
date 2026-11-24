@@ -21,6 +21,10 @@ import { openSheet } from "./questions";
 import { oneGame } from "./this-week";
 import { kindOf, spanName } from "@/lib/game/spans";
 import { yourMove, type YourMove } from "./your-move";
+import { epName, type GameLabel, type ShowWords } from "@/lib/game/show-words";
+
+/** A run of episodes as a tag: "Eps 4 to 8", a team's games by name ("KC @ BUF to NYJ @ BUF"); one alone is its tag. */
+const runTag = (w: ShowWords, a: number, b: number, W = w.ep) => (a === b ? epName({ ...w, ep: W }, a, "tag") : w.names ? `${epName(w, a, "tag")} to ${epName(w, b, "tag")}` : `${W}s ${a} to ${b}`);
 
 // The Games tab as the way into games (docs/design-round/games-launcher-spec.md, -first-view.md, -shape.md, -check.md; 2026-11-21),
 // after Round 3's "what's on" (docs/design-round/round3-short-games-spec.md, 2026-11-18): the next episode's one-episode games first
@@ -148,7 +152,7 @@ export function AgainRow({ show, g }: { show: ShowData; g: GameView }) {
       >
         <RotateCcw className="size-5 flex-none" aria-hidden />
         <span className="min-w-0 flex-1">
-          <b className="block text-[15px] font-bold">{`Again ${oneGame(g) ? "for" : "from"} ${show.words.episode} ${n}`}</b>
+          <b className="block text-[15px] font-bold">{`Again ${oneGame(g) ? "for" : "from"} ${epName(show.words, n, "long")}`}</b>
           <small className="block text-[13px] text-muted-foreground">{kind}, the same people and rules</small>
         </span>
       </button>
@@ -168,7 +172,7 @@ function AgainLine({ show, games }: { show: ShowData; games: ArchivedGame[] }) {
     <div data-again-line className="border-t border-border py-2.5">
       <p className="flex items-center gap-1.5 text-[15px] font-semibold">
         <RotateCcw className="size-4 flex-none" aria-hidden />
-        {`Again for ${show.words.episode} ${n}`}
+        {`Again for ${epName(show.words, n!, "long")}`}
       </p>
       <div className="mt-1.5 flex flex-wrap gap-x-2">
         {ready.map((a) => (
@@ -317,7 +321,7 @@ export function WhatsOn({ show, moves, row, oneNight, start }: { show: ShowData;
             <section key={n} data-night={n} data-night-folded="yes" className="mt-[26px] px-4">
               <button type="button" onClick={() => setOpened(new Set([...opened, n]))} className="nd-press flex min-h-14 w-full items-center gap-3 border-y border-border py-2 text-left">
                 <span className="min-w-0 flex-1">
-                  <b className="type-caption block text-[17px]">{`For ${E} ${n}`}</b>
+                  <b className="type-caption block text-[17px]">{`For ${epName(show.words, n, "tag")}`}</b>
                   <small className="mt-0.5 block truncate text-[13px] text-muted-foreground">{`${mine.length} ${mine.length === 1 ? "game" : "games"} · ${done === mine.length ? "answered" : `${done} of ${mine.length} answered`} · results when you reveal it`}</small>
                 </span>
                 <ChevronDown className="size-4 flex-none text-muted-foreground" aria-hidden />
@@ -326,7 +330,7 @@ export function WhatsOn({ show, moves, row, oneNight, start }: { show: ShowData;
           );
         }
         return (
-          <Block key={n} title={`For ${E} ${n}`} aside={aired ? "Results when you reveal it" : when ?? undefined}>
+          <Block key={n} title={`For ${epName(show.words, n, "tag")}`} aside={aired ? "Results when you reveal it" : when ?? undefined}>
             <div data-night={n} data-games-quick={n === home ? "home" : n} className="flex flex-col">
               {mine.map((g) => (
                 <QuickRow key={g.leagueId} show={show} g={g} move={moves.get(g.leagueId) ?? null} />
@@ -388,7 +392,7 @@ export function WhatsOn({ show, moves, row, oneNight, start }: { show: ShowData;
                 second={
                   <>
                     <People faces={g.faces.map((f) => ({ id: f.userId, name: f.name }))} />
-                    <small className="min-w-0 truncate text-[13px] text-muted-foreground">{startWords(g, E)}</small>
+                    <small className="min-w-0 truncate text-[13px] text-muted-foreground">{startWords(g, E, show.words.names)}</small>
                   </>
                 }
                 right={<JoinButton couchId={couchId} g={g} onJoin={setJoining} />}
@@ -435,9 +439,9 @@ export function askOf(g: JoinGame): string {
 }
 
 /** Where joining a longer game puts you, in a few words. */
-export function startWords(g: JoinGame, E: string): string {
+export function startWords(g: JoinGame, E: string, names?: Record<number, GameLabel> | null): string {
   const ask = g.mode === "ask" && !g.you?.letIn ? `${g.runners[0] ? first(g.runners[0]) : "Whoever runs it"} decides who joins` : null;
-  const where = g.ownPace ? "start where you are" : !g.underway ? (g.teamSize ? "you'd draft with everyone" : "from the start") : `from ${E} ${g.latest + 1}`;
+  const where = g.ownPace ? "start where you are" : !g.underway ? (g.teamSize ? "you'd draft with everyone" : "from the start") : `from ${epName({ episode: E, ep: E, names }, g.latest + 1, "short")}`;
   return [ask ?? `${g.faces.length} in`, where].join(" · ");
 }
 
@@ -514,7 +518,6 @@ function QuickRow({ show, g, move }: { show: ShowData; g: GameView; move: YourMo
   const nav = useNav();
   const seasonId = show.header?.seasonId ?? "";
   const ep = g.from as number;
-  const E = show.words.ep;
   const inSet = g.sheetIn ? new Set(g.sheetIn) : g.progress && g.progress.episode === ep ? new Set(g.progress.people.filter((p) => p.done).map((p) => p.playerId)) : null;
   const isIn = (id: string) => (inSet ? inSet.has(id) : true);
   const mineIn = !!g.you && isIn(g.you.playerId);
@@ -530,7 +533,7 @@ function QuickRow({ show, g, move }: { show: ShowData; g: GameView; move: YourMo
     state = all ? `Answered${lock ? ` · change until ${lock}` : " · change before you watch"}` : sheet.answered ? `${sheet.of - sheet.answered} to answer${lock ? ` · locks ${lock}` : ""}` : `${sheet.of} ${sheet.of === 1 ? "question" : "questions"}${lock ? ` · locks ${lock}` : ""}`;
     action = all ? "Change" : "Answer";
     go = () => openSheet({ seasonId, leagueId: g.leagueId, episode: sheet.episode, game: g.name });
-  } else if (sheet?.behind) state = `After you reveal ${E} ${sheet.behind}`;
+  } else if (sheet?.behind) state = `After you reveal ${epName(show.words, sheet.behind, "short")}`;
   else if (move) {
     // Behind ("Reveal Ep 4 first"): its words and no button; there's nothing to pick until then.
     const set = !move.due && move.faces.length > 0;
@@ -579,8 +582,8 @@ function StartQuick({ show, n, first: alone }: { show: ShowData; n: number; firs
       </span>
       <span className="min-w-0 flex-1">
         {/* A sport's episode is a game ("a one-game game" says nothing): it names the game instead. */}
-        <b className="block text-[15px] font-bold">{/^game$/i.test(show.words.episode) ? `Start a game on ${show.words.ep} ${n} only` : "Start a one-episode game"}</b>
-        <small className="mt-0.5 block truncate text-[13px] text-muted-foreground">{/^game$/i.test(show.words.episode) ? "Anyone on the couch can join" : `For ${show.words.ep} ${n} · anyone on the couch can join`}</small>
+        <b className="block text-[15px] font-bold">{/^game$/i.test(show.words.episode) ? `Start a game on ${epName(show.words, n, "short")} only` : "Start a one-episode game"}</b>
+        <small className="mt-0.5 block truncate text-[13px] text-muted-foreground">{/^game$/i.test(show.words.episode) ? "Anyone on the couch can join" : `For ${epName(show.words, n, "short")} · anyone on the couch can join`}</small>
       </span>
     </button>
   );
@@ -705,7 +708,7 @@ export function ArchivePage({ show, open, onClose }: { show: ShowData; open: boo
               [...byEp].map(([n, list]) => (
                 <section key={n} className="mt-6 px-2" data-archive-ep={n}>
                   <h2 className="flex items-baseline gap-2 px-2 pb-2">
-                    <b className="type-caption text-[15px] tracking-[0.04em]">{`${E} ${n}`}</b>
+                    <b className="type-caption text-[15px] tracking-[0.04em]">{epName({ ...show.words, ep: E }, n, "tag")}</b>
                     <small className="text-[13px] text-muted-foreground">{[aired(n), list.length === 1 ? "1 game" : `${list.length} games`].filter(Boolean).join(" · ")}</small>
                   </h2>
                   <div className="rounded-[10px] bg-card px-3.5 py-1">
@@ -719,7 +722,7 @@ export function ArchivePage({ show, open, onClose }: { show: ShowData; open: boo
             {q.hasNextPage && (
               <div className="px-4 pt-5">
                 <button type="button" data-archive-more disabled={q.isFetchingNextPage} onClick={() => q.fetchNextPage()} className="nd-press grid h-12 w-full place-items-center rounded-[4px] text-[15px] font-bold outline-[1.5px] -outline-offset-[1.5px] outline-input disabled:opacity-60">
-                  {q.isFetchingNextPage ? "Loading…" : range ? (range[0] === range[1] ? `${E} ${range[0]}` : `${E}s ${range[0]} to ${range[1]}`) : "Older episodes"}
+                  {q.isFetchingNextPage ? "Loading…" : range ? runTag(show.words, range[0], range[1], E) : "Older episodes"}
                 </button>
               </div>
             )}
@@ -748,19 +751,18 @@ export function TonightNights({ show, under = true, part = "all" }: { show: Show
   const n = eps.find((x) => !waiting.includes(x)) ?? null;
   const here = n === null ? [] : nights.filter((g) => g.from === n);
   const held = nights.filter((g) => waiting.includes(g.from as number)).length;
-  const E = show.words.ep;
   if (!last.length && !here.length && !held) return null;
   if (part === "next") {
     return (
       <div data-tonight-nights="next" className="flex flex-col border-t border-border">
         {held > 0 && (
           <p className="flex min-h-11 items-center border-t border-border text-[15px] text-muted-foreground" data-tonight-waiting>
-            {`${waiting.length === 1 ? `${E} ${waiting[0]}` : `${E}s ${waiting[0]} to ${waiting.at(-1)}`} · ${held} ${held === 1 ? "game" : "games"} waiting on your reveal`}
+            {`${runTag(show.words, waiting[0], waiting.at(-1)!)} · ${held} ${held === 1 ? "game" : "games"} waiting on your reveal`}
           </p>
         )}
         {/* The Games tab's one-episode row (BACKLOG 241, the user's yes, 2026-11-21): one game looks the same on both tabs. */}
         {here.map((g) => (
-          <QuickRow key={g.leagueId} show={show} g={g} move={yourMove(g, { seasonId, episode: show.words.episode, when: (iso) => airTime(Date.parse(iso)) })} />
+          <QuickRow key={g.leagueId} show={show} g={g} move={yourMove(g, { seasonId, episode: show.words.episode, names: show.words.names, when: (iso) => airTime(Date.parse(iso)) })} />
         ))}
       </div>
     );
@@ -769,7 +771,7 @@ export function TonightNights({ show, under = true, part = "all" }: { show: Show
     <div data-tonight-nights className={`flex flex-col gap-4 ${under ? "mt-2 border-t border-border pt-3" : ""}`}>
       {last.length > 0 && (
         <div>
-          <p className="type-caption pb-1 text-[15px] tracking-[0.04em] text-muted-foreground">{`${E} ${newest}'s results`}</p>
+          <p className="type-caption pb-1 text-[15px] tracking-[0.04em] text-muted-foreground">{`${epName(show.words, newest!, "tag")}'s results`}</p>
           {last.map((a) => (
             <ResultRow key={a.leagueId} a={a} seasonId={seasonId} />
           ))}
@@ -777,15 +779,15 @@ export function TonightNights({ show, under = true, part = "all" }: { show: Show
       )}
       {held > 0 && (
         <p className="flex min-h-11 items-center text-[15px] text-muted-foreground" data-tonight-waiting>
-          {`${waiting.length === 1 ? `${E} ${waiting[0]}` : `${E}s ${waiting[0]} to ${waiting.at(-1)}`} · ${held} ${held === 1 ? "game" : "games"} waiting on your reveal`}
+          {`${runTag(show.words, waiting[0], waiting.at(-1)!)} · ${held} ${held === 1 ? "game" : "games"} waiting on your reveal`}
         </p>
       )}
       {here.length > 0 && (
         <div>
-          <p className="type-caption pb-1 text-[15px] tracking-[0.04em] text-muted-foreground">{`For ${E} ${n}`}</p>
+          <p className="type-caption pb-1 text-[15px] tracking-[0.04em] text-muted-foreground">{`For ${epName(show.words, n!, "tag")}`}</p>
           {here.map((g) => {
             const s = g.sheet;
-            const state = s && s.of > 0 ? (s.answered === s.of ? "Answered" : `${s.of - s.answered} to answer`) : s?.behind ? `After you reveal ${E} ${s.behind}` : answeredIn(g) ? "Answered" : "Not open yet";
+            const state = s && s.of > 0 ? (s.answered === s.of ? "Answered" : `${s.of - s.answered} to answer`) : s?.behind ? `After you reveal ${epName(show.words, s.behind, "short")}` : answeredIn(g) ? "Answered" : "Not open yet";
             return (
               <NavLink key={g.leagueId} href={paths.gamePage(seasonId, g.leagueId)} data-tonight-night={g.leagueId} className="nd-press flex min-h-11 items-center gap-2 border-t border-border first:border-t-0">
                 <b className="min-w-0 flex-1 truncate text-[15px] font-semibold">{kindOf(g.name)}</b>

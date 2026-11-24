@@ -24,7 +24,7 @@ import { BaseSquare, CatHead, ChipRow, ChoiceSquare, Controls, EffortMark, Finde
 import { Avatar } from "../../ui/bars";
 import { colourOf } from "@/lib/people";
 import { toast } from "../../ui/toast";
-import { baseOfGame, communityOf, costWords, effortOf, fitWords, inputOf, isSentence, lengthId, lengthsOf, lockOf, lockWords, readyOf, regularTo, say, shortDate, shortWhy, sizeFit, stretchLine, stripOf, withSpan, type Community, type Input, type Pace, type Span } from "./model";
+import { baseOfGame, communityOf, costWords, effortOf, epOf, fitWords, inputOf, isSentence, lengthId, lengthsOf, lockOf, lockWords, readyOf, regularTo, say, shortDate, shortWhy, sizeFit, stretchLine, stripOf, withSpan, type Community, type Input, type Pace, type Span } from "./model";
 import { keyOf, savedRows, useSaved, useToggleSaved, type SavedRow } from "./saved";
 import { nextStep, type Goal, type Step } from "./ladders";
 import { OwnMomentsBody, type OwnMoment } from "./own-moments";
@@ -972,7 +972,7 @@ function GalleryBody(p: {
               <div className="p-2">
                 <button type="button" data-gallery-ready-start onClick={() => p.onReady(ready)} className="nd-press flex h-[60px] w-full overflow-hidden rounded-[3px] bg-plate text-left text-plate-foreground shadow-plate">
                   <span className="tag-cut type-caption grid flex-none place-items-center bg-quiet-tag pl-2.5 pr-5 text-[14px] tracking-[0.04em] text-quiet-tag-foreground" style={p.sport ? homeTag : undefined}>
-                    {p.readyTag ?? `${input.ep === "episode" ? "Ep" : input.ep[0].toUpperCase() + input.ep.slice(1)} ${input.from}`}
+                    {p.readyTag ?? (input.names?.[input.from] ? epOf(input, input.from, "tag") : `${input.ep === "episode" ? "Ep" : input.ep[0].toUpperCase() + input.ep.slice(1)} ${input.from}`)}
                   </span>
                   <span className="tag-tuck flex min-w-0 flex-1 flex-col justify-center pl-5 pr-2">
                     <b className="type-caption truncate text-[19px] leading-none">{ready.name}</b>
@@ -1187,7 +1187,7 @@ function BaseBody(p: {
   const lengthLine = (l: (typeof lengths)[number]) => {
     // Step 2.7 (impeccable clarify): the regular season says where it ends (a stats game's is Week 17, not the 18th), and through the
     // final says what it adds.
-    if (l.id === "regular" && typeof l.span.to === "number") return `Through ${input.ep.replace(/^./, (c) => c.toUpperCase())} ${l.span.to}`;
+    if (l.id === "regular" && typeof l.span.to === "number") return `Through ${epOf(input, l.span.to, "long")}`;
     if (l.id === "final") return "Playoffs included";
     if (l.id === "next") {
       const e = input.listed.find((x) => x.number === input.from);
@@ -1789,15 +1789,14 @@ function DoneBody({ gm, input, game, onWait, onAsk }: { gm: GM; input: Input; ga
 /** Where it starts, when that's a choice: Include the episode on now (its moves open past the start until its results are in), or,
  *  at your own pace, where you are or from the top (the old list's Starts, as option cards). */
 function StartsFrom({ o, start, input }: { o: WizardOptions; start: StartCtx; input: Input }) {
-  const E = input.ep[0].toUpperCase() + input.ep.slice(1);
   const pace = o.pace;
   const finished = !!pace && o.starts.length === 0;
   const opts: { id: string; title: string; line: string; n: number | null }[] = [];
   if (pace && pace.here !== null && !start.late) {
-    if (!finished) opts.push({ id: "next", title: `With ${E} ${o.nextEpisode}`, line: "The next to air, together with everyone", n: null });
+    if (!finished) opts.push({ id: "next", title: `With ${epOf(input, o.nextEpisode)}`, line: "The next to air, together with everyone", n: null });
     const seen = pace.here - 1;
-    opts.push({ id: "here", title: `${E} ${pace.here} · where you are`, line: seen <= 0 ? "You haven't watched any yet" : seen === 1 ? `You've seen ${E} 1` : `You've seen 1 to ${seen}; catch up one at a time`, n: pace.here });
-    if (finished && pace.here !== pace.top) opts.push({ id: "top", title: `${E} ${pace.top} · from the top`, line: "A rewatch", n: pace.top });
+    opts.push({ id: "here", title: `${epOf(input, pace.here)} · where you are`, line: seen <= 0 ? "You haven't watched any yet" : seen === 1 ? `You've seen ${epOf(input, 1)}` : `You've seen 1 to ${seen}; catch up one at a time`, n: pace.here });
+    if (finished && pace.here !== pace.top) opts.push({ id: "top", title: `${epOf(input, pace.top)} · from the top`, line: "A rewatch", n: pace.top });
   }
   const chosen = (n: number | null) => (n === null ? !input.ownPace : input.ownPace && input.from === n);
   return (
@@ -1806,7 +1805,7 @@ function StartsFrom({ o, start, input }: { o: WizardOptions; start: StartCtx; in
         <div className="mt-2">
           <OptionCard
             data="late"
-            title={`Include ${E} ${o.onAir.number} · on now`}
+            title={`Include ${epOf(input, o.onAir.number)} · on now`}
             line={`Moves stay open past its start, on the honor system, until its results are in.`}
             chosen={start.late}
             onPick={() => {

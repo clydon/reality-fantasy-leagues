@@ -84,6 +84,7 @@ export async function sportsGameNames(seasonIds: string[]): Promise<Map<string, 
         short: pair,
         tag: `${abbr(a)} ${home ? "@" : "vs"} ${abbr(b)}`,
         col: `${home && home !== mine ? "@" : ""}${abbr(them)}`,
+        sides: [String(a.id), String(b.id)],
       };
     }
     if (Object.keys(names).length) out.set(seasonId, names);

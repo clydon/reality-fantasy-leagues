@@ -1,5 +1,5 @@
 import { ownPace } from "@/lib/game/streaming";
-import { showWords } from "@/lib/game/show-words";
+import { epName, showWords } from "@/lib/game/show-words";
 import { whereWords } from "@/lib/sharing";
 import type { Couch, CouchShow, Home, HomeShow, OnNow, Space } from "../data";
 
@@ -68,7 +68,7 @@ export function personShows(
     const yours = mine.get(seasonId);
     let line: string | null = null;
     if (priv) line = priv;
-    else if (on) line = `Watching ${word} ${on.episode} now`;
+    else if (on) line = `Watching ${epName({ episode: word, names: s.gameNames }, on.episode)} now`;
     else if (userId !== me && !yours) line = "You don't watch it";
     else if (userId !== me && yours && seen > myMark(yours) && s.latestAired > 0) line = `${seen - myMark(yours)} ahead of you`;
     out.push({ seasonId, label: seasonLabel(s), season: s, word, where, line, now: !!on, yours: !!yours, private: !!priv });

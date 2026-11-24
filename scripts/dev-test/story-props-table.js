@@ -12,6 +12,10 @@
 //   position the QB chip: every quarterback in the game, both teams, ranked
 //   wide     the table scrolled sideways (the stat group's other counts)
 //   sides    "Who wins?": both teams' whole names
+//   player   the picked player's door: their season (the athlete sheet), over the page (BACKLOG 263)
+//   tonight, episodes, games   the team's season's Tonight, Episodes and Games tabs: each game by its two teams (BACKLOG 262)
+//   art-logos the game page's top with the couch's pictures for both teams (stand-ins: a square in each team's colour with its
+//            abbreviation, uploaded as a member would, couch-pictures.ts); without them (page) it wears the league's art
 // For each it keeps <prefix><id>.jpg and <prefix><id>.txt under --out, and prints OVERLAP lines (overlaps.js).
 //
 // Needs: the app (BASE, `npm run dev`), the local database and the NFL recording. Brings the fixture up and takes it down after unless
@@ -139,6 +143,41 @@ async function frame(page, id) {
       if (want("sides")) {
         const sides = p.locator("[data-answer-side]").first();
         if (await sides.count()) (await toView(sides.locator("xpath=ancestor::*[@data-question][1]")), await frame(p, "sides"));
+      }
+      if (want("player")) {
+        const door = p.locator("[data-answer-player]").first();
+        if (!(await door.count())) await tap(p.locator("[data-answer-table] tbody tr").first());
+        if (await door.count()) {
+          await tap(door);
+          await p.locator('[role="dialog"]').last().waitFor({ timeout: 30000 });
+          await sleep(1500);
+          await frame(p, "player");
+          await p.keyboard.press("Escape").catch(() => {});
+          await sleep(600);
+        }
+      }
+      for (const tab of ["tonight", "episodes", "games"]) {
+        if (!want(tab)) continue;
+        await p.goto(`${b.BASE}/show/${started.seasonId}/${tab}`, { waitUntil: "domcontentloaded", timeout: 90000 });
+        await p.waitForLoadState("networkidle", { timeout: 30000 }).catch(() => {});
+        await sleep(2500);
+        await frame(p, tab);
+      }
+      if (want("art-logos")) {
+        // The couch's pictures for both teams, as a member uploads them (stand-ins, never a real logo).
+        const sharp = require("sharp");
+        const { setCouchPicture, teamKey } = fx.app("../../src/lib/server/couch-pictures.ts");
+        const { rows: lg } = await w.pool.query("SELECT sports_league FROM shows s JOIN show_seasons ss ON ss.show_id = s.id WHERE ss.id = $1", [started.seasonId]);
+        const league = /([a-z0-9-]+\/[a-z0-9.-]+)$/.exec(lg[0].sports_league)[1];
+        const them = input.teams.find((t) => t.id === (next.home === team.id ? next.away : next.home));
+        for (const t of [team, them]) {
+          const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" rx="28" fill="#${t.color || "444444"}"/><text x="128" y="150" font-family="Arial" font-weight="700" font-size="72" fill="#fff" text-anchor="middle">${t.abbreviation || t.name.slice(0, 3)}</text></svg>`;
+          await setCouchPicture(w.couchId, teamKey(league, t.id), { bytes: await sharp(Buffer.from(svg)).png().toBuffer(), type: "image/png" }, w.users.ann.id, "upload");
+        }
+        await p.goto(`${b.BASE}/show/${started.seasonId}/game/${started.leagueId}`, { waitUntil: "domcontentloaded", timeout: 90000 });
+        await p.locator('[data-game-move="questions"]').first().waitFor({ timeout: 90000 });
+        await sleep(2500);
+        await frame(p, "art-logos");
       }
       if (b.errors?.length) console.log("page errors:", b.errors.slice(0, 3));
     } finally {

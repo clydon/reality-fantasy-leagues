@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 import { ownPace } from "@/lib/game/streaming";
-import { showWords } from "@/lib/game/show-words";
+import { epName, showWords } from "@/lib/game/show-words";
 import { useOnNow, useSpace } from "../data";
 import { useMe } from "../session";
 import { Avatar } from "../ui/bars";
@@ -46,7 +46,7 @@ export function WhereSheet({ couchId, seasonId, onOpenChange }: { couchId: strin
   };
   const lineOf = (m: Mark): { text: string; now: boolean } => {
     const w = m.you ? undefined : on?.now.find((x) => x.userId === m.userId && x.seasonId === seasonId);
-    if (w) return { text: `Watching ${word} ${w.episode} now`, now: true };
+    if (w) return { text: `Watching ${epName({ episode: word, names: s?.gameNames }, w.episode)} now`, now: true };
     const plays = games(m.userId);
     return { text: plays.length ? `Plays ${namesLine(plays, 4)}` : "Watches it", now: false };
   };

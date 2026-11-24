@@ -183,7 +183,9 @@ export interface SeasonHeader {
     network?: string | null;
   };
   /** A team's season: each game's name by episode ("Week 11 at Bengals"; show-words.ts epName). */
-  gameNames?: Record<number, { long: string; short: string; tag: string; col?: string }>;
+  gameNames?: Record<number, { long: string; short: string; tag: string; col?: string; sides?: string[] }>;
+  /** A sport's season: its league ("football/nfl"), for its art and its teams' pictures; absent for a show. */
+  sportsLeague?: string;
 }
 
 export interface UpNext {

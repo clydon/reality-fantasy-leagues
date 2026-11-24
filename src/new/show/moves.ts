@@ -4,6 +4,7 @@ import { useSyncExternalStore } from "react";
 import { airTime } from "../clock";
 import type { CastFace, GameView, Move } from "../data";
 import { paths } from "../routes";
+import { epName, type GameLabel } from "@/lib/game/show-words";
 
 // Your moves on a show (docs/PLAN-new-design.md step 1; the mock's refine.js Tonight cards and dock.js): the moves
 // due in this show's games, as the home lists them (/api/me/home: actionItems, the classic action bar's), turned
@@ -42,14 +43,16 @@ export interface MoveCard {
 /** A required move as Tonight's card. `twin`: another move of the same kind is due here (two leagues), so name it. `paced`: you're
  *  catching up in that game (a late joiner's week, a game at your own pace): the episode aired long ago, so it locks when you
  *  reveal it, not at airtime. */
-export function moveCard(m: Move, seasonId: string, twin: boolean, paced = false, episodeWord = "Episode"): MoveCard {
+export function moveCard(m: Move, seasonId: string, twin: boolean, paced = false, episodeWord = "Episode", names?: Record<number, GameLabel> | null): MoveCard {
+  // Mid-sentence: a team's game by its matchup ("Chiefs at Bills"), a show's by its whole word ("Episode 4").
+  const epAt = (n: number) => epName({ episode: episodeWord, ep: episodeWord, names }, n, "short");
   const when = m.deadline ? airTime(Date.parse(m.deadline)) : null;
   const which = twin ? ` · ${m.leagueName}` : "";
   const key = `${m.kind}-${m.leagueId}`;
   // Playing at your own pace (docs/PLAN-own-pace-games.md): the episode aired and you haven't watched it, so it's still yours, and
   // the card says why.
   if (m.late && (m.kind === "lineup" || m.kind === "pick")) {
-    const why = `${episodeWord} ${m.episode} aired · you haven't watched it · ${m.kind === "lineup" ? "set your lineup" : "pick"} first${which}`;
+    const why = `${m.episode != null ? epAt(m.episode) : `${episodeWord} ${m.episode}`} aired · you haven't watched it · ${m.kind === "lineup" ? "set your lineup" : "pick"} first${which}`;
     return m.kind === "lineup"
       ? { key, title: "Set your lineup", line: why, action: "Set lineup", tab: "lineup", leagueId: m.leagueId }
       : { key, title: "Pick who survives", line: why, action: "Make my pick", tab: "pool", leagueId: m.leagueId };
@@ -65,7 +68,7 @@ export function moveCard(m: Move, seasonId: string, twin: boolean, paced = false
       // Whoever runs the game (action-items.js runnerItems): nobody picks until they start it (docs/design-round/draft-start-spec.md).
       return {
         key,
-        title: m.draftLate && m.episode != null ? `Move the draft before ${episodeWord} ${m.episode}` : "Start the draft",
+        title: m.draftLate && m.episode != null ? `Move the draft before ${epAt(m.episode)}` : "Start the draft",
         line: `${m.draftLate ? "It's set for after it airs" : "Nobody can pick until you do"}${which}`,
         action: "Draft room",
         href: `${paths.showPage(seasonId, m.draft === "blind" ? "blind" : "draft")}?game=${m.leagueId}`,
@@ -137,7 +140,7 @@ export const faceIn = (g: GameView, id: string): CastFace | undefined => g.cast.
  * What you've already set for the next episode, as done cards (each with Change): a lineup that's in, a pick
  * that's made. Only while they can still change. `twin`: two games of a kind here, so each says which.
  */
-export function doneCards(play: GameView[]): MoveCard[] {
+export function doneCards(play: GameView[], names?: Record<number, GameLabel> | null): MoveCard[] {
   const twin = (g: GameView) => play.filter((x) => x.gameType === g.gameType).length > 1;
   const cards: MoveCard[] = [];
   for (const g of play) {
@@ -160,7 +163,7 @@ export function doneCards(play: GameView[]): MoveCard[] {
       const line = b.open
         ? `${b.ticked ? `${b.ticked} ticked${b.lines ? ` · ${b.lines} ${b.lines === 1 ? "line" : "lines"}` : ""}` : "Tap squares as it happens"}${which}`
         : `Opens ${b.airsAt ? airTime(Date.parse(b.airsAt)) : "at airtime"} · tap squares as it happens${which}`;
-      cards.push({ key: `bingo-${g.leagueId}`, title: `Your card for Episode ${b.episode}`, line, action: "Open my card", bingo: b.episode, leagueId: g.leagueId });
+      cards.push({ key: `bingo-${g.leagueId}`, title: `Your card for ${epName({ episode: "Episode", ep: "Episode", names }, b.episode, "short")}`, line, action: "Open my card", bingo: b.episode, leagueId: g.leagueId });
     }
     // A Prediction Sheet you've filled in (step A4 part 2): change it until it locks.
     const sh = g.sheet;

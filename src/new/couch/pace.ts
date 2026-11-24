@@ -2,15 +2,17 @@
 // episode, and the reveal button's gap. Nothing locks: the words are the guardrail, read at the moment of tapping. Pure;
 // tests/own-pace.test.js.
 
+import { epName, type GameLabel } from "@/lib/game/show-words";
+
 /** Someone else in the game: the episode they're on (their week), or null once they've finished it. */
 export type PaceOther = { name: string; week: number | null };
 
 /** "casey · Ep 4 · riley · Ep 2 · sam finished": furthest along first, finished last; null with nobody else in it. */
-export function othersLine(week: number, others: PaceOther[], word = "Ep"): string | null {
+export function othersLine(week: number, others: PaceOther[], word = "Ep", names?: Record<number, GameLabel> | null): string | null {
   if (!others.length) return null;
   const going = others.filter((o) => o.week !== null).sort((a, b) => (b.week as number) - (a.week as number) || a.name.localeCompare(b.name));
   const done = others.filter((o) => o.week === null).sort((a, b) => a.name.localeCompare(b.name));
-  return [...going.map((o) => `${o.name} · ${word} ${o.week}`), ...done.map((o) => `${o.name} finished`)].join(" · ");
+  return [...going.map((o) => `${o.name} · ${epName({ episode: word, ep: word, names }, o.week as number, "tag")}`), ...done.map((o) => `${o.name} finished`)].join(" · ");
 }
 
 /** Everyone else still playing is on your episode (and there is someone). */

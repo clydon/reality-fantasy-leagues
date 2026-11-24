@@ -1,5 +1,6 @@
 "use client";
 
+import { epName } from "@/lib/game/show-words";
 import { useEffect, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { Archive, BookOpen, ChevronRight, Plus, RotateCcw } from "lucide-react";
@@ -63,7 +64,7 @@ const spanOf = (g: GameView, words: ShowData["words"], aired: number) =>
       : `Starts when ${g.phase ?? "its phase"} starts`
     : g.to === null
     ? g.from > aired + 1 && !g.over
-      ? `Starts with ${words.episode} ${g.from}`
+      ? `Starts with ${epName(words, g.from, "long")}`
       : null
     : `${g.over ? "Final · " : ""}${spanName(g.from, g.to, { singular: words.episode.toLowerCase(), plural: words.episodes.toLowerCase() })}`;
 const anchor = (g: GameView) => `game-${g.leagueId}`;
@@ -90,7 +91,7 @@ function ReadOnlyGames({ show }: { show: ShowData }) {
     <>
       <Standings play={[g]} words={show.words} aired={show.latestAired} scope={null} onPlayer={people.openPerson} onRules={setRules} readOnly />
       <p data-read-only-foot className="px-4 pt-4 text-[13px] text-muted-foreground">
-        {g.through ? `Through ${show.words.episode} ${g.through}, where you are.` : "Nothing counted yet, as far as you've watched."} {seats}.
+        {g.through ? `Through ${epName(show.words, g.through, "long")}, where you are.` : "Nothing counted yet, as far as you've watched."} {seats}.
       </p>
       {people.sheets}
       <RulesSheet game={rules} play={[g]} onGame={setRules} waivers={[]} />
@@ -157,6 +158,7 @@ function YourGamesHere({ show }: { show: ShowData }) {
     const m = yourMove(g, {
       seasonId: show.header?.seasonId ?? "",
       episode: show.words.episode,
+      names: show.words.names,
       when: (iso) => airTime(Date.parse(iso)),
       draft: drafts.find((d) => d.leagueId === g.leagueId),
       waivers: wv.data?.games.find((w) => w.leagueId === g.leagueId),
@@ -236,8 +238,8 @@ function LongRow({ show, g, name, move, draft }: { show: ShowData; g: GameView; 
   const starts = g.from === null || g.from > show.latestAired + 1;
   const href = draft ? `${paths.showPage(seasonId, draft.kind === "blind" ? "blind" : "draft")}?game=${g.leagueId}` : paths.gamePage(seasonId, g.leagueId);
   const ds = draft ? draftState(draft, E) : null;
-  const s = draft || d.faces === "none" ? null : glanceShape(g, move);
-  const length = starts ? (g.from === null ? `When ${g.phase ?? "its phase"} starts` : `Starts ${E} ${g.from}`) : lengthOf(g, show, latestSeen(show) ?? show.latestAired);
+  const s = draft || d.faces === "none" ? null : glanceShape(g, move, show.words);
+  const length = starts ? (g.from === null ? `When ${g.phase ?? "its phase"} starts` : `Starts ${epName(show.words, g.from, "short")}`) : lengthOf(g, show, latestSeen(show) ?? show.latestAired);
   // A draft's own due move (yours to start, as whoever runs it) is the strip's too: the dot, and its words.
   const due = ds ? ds.up || !!move?.due : !!move?.due;
   const words = ds
@@ -256,7 +258,7 @@ function LongRow({ show, g, name, move, draft }: { show: ShowData; g: GameView; 
             : s?.kind === "team"
               ? `${s.faces.filter((f) => !f.out).length} of ${s.faces.length} still in`
               : // The game's own measure as Tonight's row says it (night-rows.ts: lives left, a race's distance, weeks won, worth).
-                lineFor(d.line, g, null, latestSeen(show) ?? show.latestAired, yourLine(g));
+                lineFor(d.line, g, null, latestSeen(show) ?? show.latestAired, yourLine(g, show.words.names));
   // The right: your place in the game's own measure (head to head, the record); none for a co-op game, or before anything counts.
   const me = g.you;
   const counted = !starts && !ds && countedYet(g) && !!me;
@@ -313,7 +315,7 @@ const CELLS = 3;
 const pts = (n: number | null | undefined) => `${String(Math.round((n ?? 0) * 10) / 10).replace("-", "−")} pts`;
 const listed = (xs: string[]) => (xs.length < 3 ? xs.join(" and ") : `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}`);
 
-function glanceShape(g: GameView, m: YourMove | null): GlanceShape | null {
+function glanceShape(g: GameView, m: YourMove | null, words: ShowData["words"]): GlanceShape | null {
   if (m?.kind === "lineup" && g.lineup) {
     const L = g.lineup;
     const ls = L.lineupSlots;
@@ -363,7 +365,7 @@ function glanceShape(g: GameView, m: YourMove | null): GlanceShape | null {
       kind: "team",
       faces: ids.map((id) => {
         const c = faceIn(g, id);
-        return { id, out: !!c?.knocked, sub: c?.knocked ? (c.out ? `Out · Ep ${c.out}` : "Out") : "Still in" };
+        return { id, out: !!c?.knocked, sub: c?.knocked ? (c.out ? `Out · ${epName(words, c.out, "tag")}` : "Out") : "Still in" };
       }),
       gaps: [],
       note: null,
@@ -508,10 +510,10 @@ function Standings({
           {/* A talk show's games have nothing to reveal: they move as you watch and the couch says what happened (Noticed). */}
           {play.every((g) => g.gameType === "weekly-calls" || g.gameType === "weekly-bingo")
             ? through
-              ? `Through Episode ${through}. Standings move as you watch and the couch says what happened.`
+              ? `Through ${epName(words, through)}. Standings move as you watch and the couch says what happened.`
               : "Nothing counted yet. Standings start once a show's aired and you've watched it."
             : through
-              ? `Through Episode ${through}. Standings move when you reveal.`
+              ? `Through ${epName(words, through)}. Standings move when you reveal.`
               : "No results yet. Standings start once an episode's in and you've revealed it."}
         </p>
       )}
@@ -618,7 +620,7 @@ function LineupTable({ g, words, onPlayer }: { g: GameView; words: ShowData["wor
   };
   return (
     <>
-      <Columns mid={latest !== null ? `Started ${words.ep} ${latest}` : undefined} end="Season" />
+      <Columns mid={latest !== null ? `Started ${epName(words, latest, "short")}` : undefined} end="Season" />
       {g.table.map((r) => {
         const w = latest === null ? undefined : r.weeks.find((x) => x.episode === latest);
         return (
@@ -881,7 +883,7 @@ function ThisWeek({ show, bare }: { show: ShowData; bare?: boolean }) {
   );
   if (bare) return rows;
   return (
-    <Block title={paced ? `Your Episode ${next}` : "This week"} aside={paced ? "Before you watch" : "One night each"}>
+    <Block title={paced ? `Your ${epName(show.words, next)}` : "This week"} aside={paced ? "Before you watch" : "One night each"}>
       {rows}
     </Block>
   );

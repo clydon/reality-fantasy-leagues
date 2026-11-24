@@ -10,6 +10,10 @@ import { Btn } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { showLabel } from "./react";
+import { epName, type ShowWords } from "@/lib/game/show-words";
+
+/** A run of episodes in a sentence: "Ep 9 to 12", a team's games by name ("Chiefs at Bills to Jets at Bills"). */
+const runOf = (w: ShowWords, a: number, b: number) => (w.names ? `${epName(w, a, "short")} to ${epName(w, b, "short")}` : `${w.ep} ${a} to ${b}`);
 
 // One episode at a time (the user, 2026-11-17: through Ep 8 with 9 and 10 out, "Seen Ep 9 and 10?" had no answer for "just 9", its
 // Yes played Ep 10's recap and skipped 9's, and Not yet left no way to say 9 was seen). Behind on an airing show, Tonight's
@@ -48,7 +52,7 @@ function MarkDoor({ show, seen, text }: { show: ShowData; seen: number; text: st
       type="button"
       data-progress-mark
       onClick={() => openWhere(show)}
-      aria-label={`${text}. Through ${show.words.ep} ${seen}: where you are`}
+      aria-label={`${text}. Through ${epName(show.words, seen, "short")}: where you are`}
       className="nd-press -mx-1 mt-0.5 flex min-h-8 max-w-full items-center gap-0.5 px-1 text-left text-[14px] leading-tight text-white/85"
     >
       <span className="truncate" data-fit>
@@ -70,17 +74,16 @@ const onArt = (kind: "primary" | "plate" | "outline") =>
 /** The control's line while behind: "Seen Ep 9?", when it aired and how many are out (the ruler's dashed run shows which), Yes
  *  (the one yellow only when the reveal holds it) and Not yet. */
 export function StepLine({ show, seen, latest, primary, onYes, onLater }: { show: ShowData; seen: number; latest: number; primary: boolean; onYes: () => void; onLater: () => void }) {
-  const ep = show.words.ep;
   const next = seen + 1;
   const air = useAirDates(show.header?.seasonId ?? null);
   const aired = airedOn(air.of(next));
   const out = latest > next ? `${latest - seen} out` : null;
-  const text = [aired ? `Aired ${aired}` : `Through ${ep} ${seen}`, out].filter(Boolean).join(" · ");
+  const text = [aired ? `Aired ${aired}` : `Through ${epName(show.words, seen, "short")}`, out].filter(Boolean).join(" · ");
   return (
     <div className="flex items-center gap-3" data-ask-line>
       <div className="min-w-0 flex-1">
         <b className="type-caption block text-[26px] leading-[0.95]" data-step-question>
-          Seen {ep} {next}?
+          Seen {epName(show.words, next, "short")}?
         </b>
         <MarkDoor show={show} seen={seen} text={text} />
       </div>
@@ -99,7 +102,6 @@ export function StepLine({ show, seen, latest, primary, onYes, onLater }: { show
 /** After Not yet: the line keeps its form, its answers in the same places: the next one's act where Yes was (Seen Ep 9, or Reveal
  *  Ep 9 on a show you play; the same guard), Watch along where Not yet was. No question any more, so no data-ask-line. */
 export function StepLaterLine({ show, seen, play, primary, onYes, onWatch }: { show: ShowData; seen: number; play: boolean; primary: boolean; onYes: () => void; onWatch: () => void }) {
-  const ep = show.words.ep;
   const next = seen + 1;
   const air = useAirDates(show.header?.seasonId ?? null);
   const aired = airedOn(air.of(next));
@@ -107,11 +109,11 @@ export function StepLaterLine({ show, seen, play, primary, onYes, onWatch }: { s
     <div className="flex items-center gap-2" data-step-later-line>
       <div className="min-w-0 flex-1">
         <b className="block text-[17px] font-bold leading-tight">Catching up</b>
-        <MarkDoor show={show} seen={seen} text={aired ? `${ep} ${next} aired ${aired}` : `Through ${ep} ${seen}`} />
+        <MarkDoor show={show} seen={seen} text={aired ? `${epName(show.words, next, "short")} aired ${aired}` : `Through ${epName(show.words, seen, "short")}`} />
       </div>
       <span className="flex flex-none gap-1.5">
         <button type="button" data-step-seen={next} onClick={onYes} className={`nd-press h-11 whitespace-nowrap rounded-[4px] px-2.5 text-[15px] font-bold ${onArt(primary ? "primary" : "plate")}`}>
-          {play ? "Reveal" : "Seen"} {ep} {next}
+          {play ? "Reveal" : "Seen"} {epName(show.words, next, "tag")}
         </button>
         <button type="button" data-ask-watch onClick={onWatch} className={`nd-press h-11 whitespace-nowrap rounded-[4px] px-2.5 text-[15px] font-bold ${onArt("outline")}`}>
           Watch along
@@ -134,7 +136,7 @@ function useStepTo(show: ShowData, seasonId: string, seen: number, play: boolean
     try {
       await watching.follow(seasonId, { seenThrough: through });
       await after();
-      toast(`You're through ${show.words.episode} ${through}`, {
+      toast(`You're through ${epName(show.words, through, "long")}`, {
         undo: async () => {
           await watching.follow(seasonId, { seenThrough: seen });
           await after();
@@ -188,7 +190,7 @@ export function StepGuard({
   const next = seen + 1;
   const missed = show.moves
     .filter((m) => m.late && m.episode != null && m.episode <= (picking ? draft : next) && (m.kind === "lineup" || m.kind === "pick"))
-    .map((m) => `Your ${ep} ${m.episode} ${m.kind === "pick" ? "pick" : "lineup"} in ${m.leagueName} isn't in, so it counts as none.`);
+    .map((m) => `Your ${epName(show.words, m.episode!, "short")} ${m.kind === "pick" ? "pick" : "lineup"} in ${m.leagueName} isn't in, so it counts as none.`);
   const finish = async (to: number, start?: number) => {
     change(false);
     await go(to, start);
@@ -199,7 +201,7 @@ export function StepGuard({
     <Sheet
       open={open}
       onOpenChange={change}
-      title={picking ? "Seen up to which?" : `Seen ${ep} ${next}?`}
+      title={picking ? "Seen up to which?" : `Seen ${epName(show.words, next, "short")}?`}
       subtitle={[showLabel(show), !picking && on ? `aired ${on}` : null].filter(Boolean).join(" · ")}
     >
       {picking ? (
@@ -208,7 +210,7 @@ export function StepGuard({
               here". A hairline at its foot: a long run scrolls, and a row cut by the edge mustn't run into the words under it. */}
           <div className="border-b border-border">
             <EpisodeLedger
-              s={{ aired: latest, epWord: ep, episodeWord: show.words.episode } as WhereSeason}
+              s={{ aired: latest, epWord: ep, episodeWord: show.words.episode, names: show.words.names } as WhereSeason}
               seen={draft}
               named={seen}
               episodes={air.episodes}
@@ -225,20 +227,20 @@ export function StepGuard({
             <p className="flex h-[52px] items-center justify-center text-[15px] text-muted-foreground">Tap the last one you&rsquo;ve seen</p>
           ) : draft === next ? (
             <Btn tone="ink" wide data-step-guard-yes disabled={busy} onClick={() => finish(next)}>
-              Yes, {ep} {next}
+              Yes, {epName(show.words, next, "tag")}
             </Btn>
           ) : (
             <>
               <p className="text-[15px] leading-normal text-muted-foreground">
                 {play
-                  ? `${ep} ${next} to ${draft}'s results: one at a time, or straight to ${ep} ${draft}'s. Your games move to ${ep} ${draft} either way.`
-                  : `${ep} ${next} to ${draft}: recap each in turn, or skip to ${ep} ${draft}'s.`}
+                  ? `${runOf(show.words, next, draft)}'s results: one at a time, or straight to ${epName(show.words, draft, "short")}'s. Your games move to ${epName(show.words, draft, "short")} either way.`
+                  : `${runOf(show.words, next, draft)}: recap each in turn, or skip to ${epName(show.words, draft, "short")}'s.`}
               </p>
               <Btn tone="ink" wide data-step-recap disabled={busy} onClick={() => finish(draft, next)}>
-                {play ? `Reveal ${ep} ${next} to ${draft} in turn` : `Recap ${ep} ${next} to ${draft}`}
+                {play ? `Reveal ${runOf(show.words, next, draft)} in turn` : `Recap ${runOf(show.words, next, draft)}`}
               </Btn>
               <Btn wide data-step-skip disabled={busy} onClick={() => finish(draft, draft)}>
-                Skip to {ep} {draft}
+                Skip to {epName(show.words, draft, "tag")}
               </Btn>
             </>
           )}
@@ -250,8 +252,8 @@ export function StepGuard({
         <div data-step-guard={next} className="flex flex-col gap-2">
           <p className="text-[15px] leading-normal text-muted-foreground">
             {play
-              ? `${ep} ${next}'s results play next, every game at once.${more ? ` ${ep} ${next + 1}'s are there after it, when you want them.` : ""}`
-              : `${ep} ${next}'s recap plays next: what happened, who left, the couch's GIFs.`}
+              ? `${epName(show.words, next, "short")}'s results play next, every game at once.${more ? ` ${epName(show.words, next + 1, "short")}'s are there after it, when you want them.` : ""}`
+              : `${epName(show.words, next, "short")}'s recap plays next: what happened, who left, the couch's GIFs.`}
           </p>
           {missed.map((m) => (
             <p key={m} className="text-[15px] leading-normal">
@@ -260,7 +262,7 @@ export function StepGuard({
           ))}
           <div className="mt-2 flex gap-2">
             <Btn tone="ink" className="min-w-0 flex-1" data-step-guard-yes disabled={busy} onClick={() => finish(next)}>
-              Yes, {ep} {next}
+              Yes, {epName(show.words, next, "tag")}
             </Btn>
             {more && (
               <Btn
@@ -271,7 +273,7 @@ export function StepGuard({
                   setDraft(seen);
                   setPicking(true);
                 }}
-                aria-label={`Seen more than ${ep} ${next}? Pick the last one`}
+                aria-label={`Seen more than ${epName(show.words, next, "short")}? Pick the last one`}
               >
                 Up to&hellip;
               </Btn>

@@ -8,6 +8,7 @@ import { useNav } from "../nav";
 import { paths } from "../routes";
 import { draftRoomPage, draftSoonWords, draftWhen } from "./draft-words";
 import type { ShowData } from "../screens/show-space";
+import { epName } from "@/lib/game/show-words";
 import { openCall } from "./calls";
 import { doneCards, first, isRequired, moveCard, openMoves, tabOf, type MovesTab } from "./moves";
 import { Face } from "./parts";
@@ -44,7 +45,7 @@ export interface StripState {
   href?: string;
   /** Episode night (strip-night.ts): while your moves for an episode on now or aired stay open, you've locked in, or one locked at
    *  airtime is on: who you've got, game by game. */
-  night?: { groups: NightGroup[]; episode: number; onAir: boolean };
+  night?: { groups: NightGroup[]; episode: number; onAir: boolean; /** The episode by name ("Chiefs at Bills, Week 12"): epName. */ name?: string };
 }
 
 /**
@@ -56,19 +57,18 @@ export interface StripState {
  */
 function nightState(show: ShowData, open: Move[]): StripState | null {
   const up = show.upNext;
-  const ep = show.words.ep;
   const n = windowEpisode(show);
   const sid = show.header?.seasonId ?? "";
   // A move's own words, never split inside ("Pick who survives"); moves joined so a line breaks between them, the dot leading. A
   // pick names its game when another pick game is on for the episode (pickWords).
-  const words = (ms: Move[]) => [...new Set(ms.map((m) => pickWords(show, m) ?? moveCard(m, sid, false, false, show.words.episode).title))].map((t) => t.replace(/ /g, "\u00a0"));
+  const words = (ms: Move[]) => [...new Set(ms.map((m) => pickWords(show, m) ?? moveCard(m, sid, false, false, show.words.episode, show.words.names).title))].map((t) => t.replace(/ /g, "\u00a0"));
   const join = (xs: string[]) => xs.join(" ·\u00a0");
   // You said you're watching it (Lock in, Your moves' question, or Watch along): locked in, in every game, by the server's lock.
   const watching = lockedInEpisode(show);
   if (n == null && watching != null) {
     const groups = nightGroups(show, watching, new Set()).map((g) => ({ ...g, locked: true, open: 0 }));
     if (!groups.length) return null;
-    return { tone: "locked", tag: `${ep} ${watching}`, title: "Locked in", line: "You're watching it", open: { tab: groups[0].tab, leagueId: groups[0].leagueId }, night: { groups, episode: watching, onAir: !!up?.live && up.number === watching } };
+    return { tone: "locked", tag: epName(show.words, watching, "tag"), title: "Locked in", line: "You're watching it", open: { tab: groups[0].tab, leagueId: groups[0].leagueId }, night: { groups, episode: watching, onAir: !!up?.live && up.number === watching, name: epName(show.words, watching, "long") } };
   }
   if (n != null && (!up || (up.live ? up.number === n : up.number > n))) {
     // The episode's own moves lead (they're the ones before you start watching); anything else due (a replacement owed) after them.
@@ -77,7 +77,7 @@ function nightState(show: ShowData, open: Move[]): StripState | null {
     const groups = nightGroups(show, n, new Set(due.filter((m) => m.kind !== "pickup").map((m) => m.leagueId)), replace);
     if (!groups.length && !due.length) return null;
     // The tag names the episode, so the title doesn't again (the critique: "Ep 6" five times in a view).
-    const tag = `${ep} ${n}`;
+    const tag = epName(show.words, n, "tag");
     const night = { groups, episode: n, onAir: !!up?.live };
     const lead = groups.find((g) => g.due && !g.locked && g.kind !== "replace") ?? groups.find((g) => !g.locked && g.kind !== "replace") ?? groups[0];
     const opens = lead && lead.kind !== "replace" ? { tab: lead.tab, leagueId: lead.leagueId } : undefined;
@@ -104,7 +104,7 @@ function nightState(show: ShowData, open: Move[]): StripState | null {
   if (n == null && up?.live) {
     const groups = nightGroups(show, up.number, new Set()).filter((g) => g.locked);
     if (!groups.length) return null;
-    return { tone: "locked", tag: `${ep} ${up.number}`, title: "Locked at airtime", line: null, open: { tab: groups[0].tab, leagueId: groups[0].leagueId }, night: { groups, episode: up.number, onAir: true } };
+    return { tone: "locked", tag: epName(show.words, up.number, "tag"), title: "Locked at airtime", line: null, open: { tab: groups[0].tab, leagueId: groups[0].leagueId }, night: { groups, episode: up.number, onAir: true, name: epName(show.words, up.number, "long") } };
   }
   return null;
 }
@@ -128,17 +128,17 @@ export function stripState(show: ShowData): StripState | null {
     const more = mine.length + open.length - 1;
     return {
       tone: "due",
-      tag: `${ep} ${g.catchUp!.week}`,
+      tag: epName(show.words, g.catchUp!.week, "tag"),
       title: `${lineup ? "Set your lineup" : "Pick who survives"}${more > 0 ? ` · ${more} more` : ""}`,
       line: "Before you reveal it",
       open: { tab: lineup ? "lineup" : "pool", leagueId: g.leagueId },
     };
   }
   const n = open[0]?.episode ?? up?.number ?? null;
-  const tag = n != null ? `${ep} ${n}` : "Your move";
+  const tag = n != null ? epName(show.words, n, "tag") : "Your move";
   // On air with nothing of yours drawn for it (no window, no lineup or pick). "Scores stay hidden until you reveal" left the strip
   // (decisions.md, 2026-11-18): no scores exist while it's on, and the progress control says what's waiting once they do.
-  if (up?.live) return { tone: "locked", tag: `${ep} ${up.number}`, title: `Locked for ${ep} ${up.number}`, line: null };
+  if (up?.live) return { tone: "locked", tag: epName(show.words, up.number, "tag"), title: `Locked for ${epName(show.words, up.number, "short")}`, line: null };
   // A draft that waits for you to start it: nobody else can pick until you do, so it leads, whatever else is due (the draft spec).
   const start = open.find((m) => m.kind === "draftStart");
   if (start) {
@@ -149,20 +149,20 @@ export function stripState(show: ShowData): StripState | null {
     return {
       tone: "due",
       tag: "Draft",
-      title: `${late ? `Move the draft before ${ep} ${start.episode}` : "Start the draft"}${more ? ` · ${more} more` : ""}`,
+      title: `${late ? `Move the draft before ${epName(show.words, start.episode!, "short")}` : "Start the draft"}${more ? ` · ${more} more` : ""}`,
       line: `${late ? "It's set for after it airs" : "Nobody can pick until you do"}${twin ? ` · ${start.leagueName}` : ""}`,
     };
   }
   if (open.length) {
     // A draft turn is due now, not at a lock: it leads, and the line says so (step 6's check).
     const turn = open.some((m) => m.kind === "draftTurn");
-    const titles = [...new Set([...open].sort((x, y) => Number(y.kind === "draftTurn") - Number(x.kind === "draftTurn")).map((m) => pickWords(show, m) ?? moveCard(m, show.header?.seasonId ?? "", false, false, show.words.episode).title))];
+    const titles = [...new Set([...open].sort((x, y) => Number(y.kind === "draftTurn") - Number(x.kind === "draftTurn")).map((m) => pickWords(show, m) ?? moveCard(m, show.header?.seasonId ?? "", false, false, show.words.episode, show.words.names).title))];
     const title = titles.slice(0, 2).join(" · ") + (titles.length > 2 ? ` · ${titles.length - 2} more` : "");
     const dues = open.map((m) => (m.deadline ? Date.parse(m.deadline) : null)).filter((d): d is number => d != null);
     const first = dues.length ? Math.min(...dues) : up?.airAt ? Date.parse(up.airAt) : null;
     // A due move whose game waits on results you haven't revealed comes after the reveal (the control holds it, and the yellow).
     const waitsOn = open.map((m) => (m.late ? null : (show.play?.find((g) => g.leagueId === m.leagueId)?.revealFirst ?? null))).find((x) => x != null) ?? null;
-    if (waitsOn != null) return { tone: "waits", tag, title, line: `After you reveal ${ep} ${waitsOn}` };
+    if (waitsOn != null) return { tone: "waits", tag, title, line: `After you reveal ${epName(show.words, waitsOn, "short")}` };
     const lockWord = open.some((m) => m.kind === "pickup") ? "due" : open.length > 1 ? "first locks" : "locks";
     // A lock at airtime is said by the control's air time: the strip says when in words, not the time again (R1: each fact once).
     const atAir = first != null && up?.airAt != null && first === Date.parse(up.airAt) && lockWord !== "due";
@@ -180,13 +180,13 @@ export function stripState(show: ShowData): StripState | null {
   // Every own-pace move in for the episode you're on: all set until you reveal it.
   if (behind.length) {
     const w = Math.min(...behind.map((g) => g.catchUp!.week));
-    if (behind.some((g) => g.pick || g.lineup)) return { tone: "set", tag: `${ep} ${w}`, title: `All set for ${ep} ${w}`, line: "Change it until you reveal" };
+    if (behind.some((g) => g.pick || g.lineup)) return { tone: "set", tag: epName(show.words, w, "tag"), title: `All set for ${epName(show.words, w, "short")}`, line: "Change it until you reveal" };
   }
   const others = (show.play ?? []).filter((g) => !paced.has(g.leagueId));
   if (!up || !others.length || others.every((g) => g.over)) return null;
-  const done = doneCards(others);
+  const done = doneCards(others, show.words.names);
   // The air time is the control's: the strip says until when in words (R1: each fact once).
-  return { tone: "set", tag: `${ep} ${up.number}`, title: `All set for ${ep} ${up.number}`, line: done.length ? "Change anything until it airs" : null };
+  return { tone: "set", tag: epName(show.words, up.number, "tag"), title: `All set for ${epName(show.words, up.number, "short")}`, line: done.length ? "Change anything until it airs" : null };
 }
 
 /** The strip, and under it a runner's job when there's one (Settings Round 3b: manage/jobs.tsx RunnerLine, quiet, never a second
@@ -412,7 +412,7 @@ function NightPlate({ s, settled, seasonId }: { s: StripState; settled: boolean;
   const go = (g: NightGroup) => (g.kind === "replace" ? nav.push(`${paths.showPage(seasonId, "waivers")}?game=${g.leagueId}`) : openMoves(g.tab, g.leagueId));
   const lockIn = () => {
     setAsk(false);
-    void lock(n, `Locked in for Episode ${n}. ${s.night!.onAir ? "Enjoy the episode." : "Results when they're in."}`);
+    void lock(n, `Locked in for ${s.night!.name ?? `Episode ${n}`}. ${s.night!.onAir ? "Enjoy the episode." : "Results when they're in."}`);
   };
   return (
     <section className={`px-3 pt-3 ${settled ? "nd-settle" : ""}`} data-strip={s.tone} data-night-plate data-night-games={groups.length}>
@@ -503,9 +503,9 @@ function NightPlate({ s, settled, seasonId }: { s: StripState; settled: boolean;
 export function WatchLockSheet({ show, n, open, onOpenChange, onStart, onChange }: { show: ShowData; n: number; open: boolean; onOpenChange: (o: boolean) => void; onStart: () => void; onChange: () => void }) {
   const groups = stripState(show)?.night?.groups ?? [];
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title={`Start watching ${show.words.ep} ${n}?`} subtitle="Watching along locks your moves for it">
+    <Sheet open={open} onOpenChange={onOpenChange} title={`Start watching ${epName(show.words, n, "short")}?`} subtitle="Watching along locks your moves for it">
       <div data-watch-lock={n} className="flex flex-col gap-3 pb-1">
-        <p className="text-[15px] leading-snug">Your {show.words.episode} {n} moves lock in as you start, in every game:</p>
+        <p className="text-[15px] leading-snug">Your {epName({ ...show.words, ep: show.words.episode }, n, "short")} moves lock in as you start, in every game:</p>
         <NightFaces groups={groups} plate={false} />
         <Btn tone="must" wide className="mt-1" data-watch-lock-start onClick={onStart}>
           Start watching

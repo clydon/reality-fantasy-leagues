@@ -6,6 +6,8 @@ import { chatScope, postCouchChat } from "./couch-chat";
 import { notifyPlanned, notifyPlanOff } from "./push-events";
 import { DEFAULT_RUNTIME_MIN, latestAired, seasonSchedules, type SeasonSchedule } from "./schedule";
 import { followsOf, games, seasonHeaders, type SeasonHeader } from "./show-space";
+import { sportsGameNames } from "./sports/game-names";
+import { epName } from "@/lib/game/show-words";
 
 // Planned nights (docs/PLAN-new-design.md step 11 part 3; the mock's watching.js inviteWatch and streaming.js plans;
 // db/migrations/0127): someone on a couch plans a watch along for an episode, the live airing or a shared start at a time
@@ -350,7 +352,8 @@ export async function planNight(
     // The couch chat hears it from you (a plain message, so it folds and reads like anything you'd say there). Best effort: a
     // chat you can't post in (a game you're out of) leaves the push and the plan to say it.
     try {
-      await postCouchChat(user, await chatScope(user, seasonId, couchId), `Starting Episode ${episode} now. Join me in the watch along?`);
+      const names = h.show.kind === "sport" ? (await sportsGameNames([seasonId])).get(seasonId) : null;
+      await postCouchChat(user, await chatScope(user, seasonId, couchId), `Starting ${epName({ episode: "Episode", names }, episode as number)} now. Join me in the watch along?`);
     } catch {
       /* the plan and its push stand */
     }

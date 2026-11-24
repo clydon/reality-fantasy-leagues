@@ -359,7 +359,7 @@ function GameSettingsBody({ seasonId, couchId, show, g, write, line, siblings }:
         {/* Settings Round 3b (A17): when the show adds a moment mid-season, and the moments this game has gained. */}
         {g.moments && (
           <SettingLine id="moments" icon="twist" label="When the show adds a moment" value={newMomentsValue(g.moments)} changed={g.moments.set && g.moments.rule !== g.moments.rec} open={open === "moments"} onToggle={() => toggle("moments")}>
-            <NewMoments seasonId={seasonId} couchId={couchId} g={g} ep={show.words.ep} />
+            <NewMoments seasonId={seasonId} couchId={couchId} g={g} ep={show.words.ep} names={show.words.names} />
           </SettingLine>
         )}
       </div>
@@ -373,7 +373,7 @@ function GameSettingsBody({ seasonId, couchId, show, g, write, line, siblings }:
           </span>
         )}
       </Label>
-      <WhoIsPlaying seasonId={seasonId} couchId={couchId} leagueId={g.leagueId} gameName={g.name} commissioner={g.commissioner} waivers={waivers} missing={g.missing} ep={show.words.ep} />
+      <WhoIsPlaying seasonId={seasonId} couchId={couchId} leagueId={g.leagueId} gameName={g.name} commissioner={g.commissioner} waivers={waivers} missing={g.missing} ep={show.words.ep} names={show.words.names} />
 
       <Label>This season&apos;s rules on this couch</Label>
       <p className="-mt-0.5 pb-2 text-[13px] leading-snug text-muted-foreground">

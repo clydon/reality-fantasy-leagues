@@ -46,7 +46,7 @@ import { WatchAlongPage } from "../show/watch-along";
 import { ShowNotifySheet } from "../show/notify-sheet";
 import { ShowSettingsPage, useShowSettings } from "../settings/show-page";
 import { ownPace } from "@/lib/game/streaming";
-import { showWords } from "@/lib/game/show-words";
+import { epName, showWords } from "@/lib/game/show-words";
 
 // A show space (/show/[seasonId]/[tab]): the show bar (the show's art, where the next episode is, the ⋯ menu), the
 // five tabs (Tonight · Episodes · Games · Cast · Chat; solo drops Chat; each in src/new/show/), the moves dock above
@@ -176,6 +176,7 @@ export function whereTarget(show: ShowData): WhereTarget | null {
     keepUp: show.keepUp,
     episodeWord: show.words.episode,
     epWord: show.words.ep,
+    names: show.words.names ?? null,
     total: h.episodeCount ?? null,
     next: show.upNext && !show.upNext.live ? { number: show.upNext.number, airAt: show.upNext.airAt ?? null } : null,
     reveal: show.plays ? (show.episodes?.reveal?.episode ?? null) : null,
@@ -211,7 +212,8 @@ export function allOut(show: ShowData): string {
  *  (calm days, a ticking clock inside the last day). A streaming season (step 14): when it drops, then all of it out. */
 function useAirStatus(show: ShowData): ReactNode {
   const { upNext, latestAired, episodes } = show;
-  const ep = show.words.ep;
+  // A team's game by its name ("KC @ BUF"), else "Ep 4".
+  const ep = (n: number) => epName(show.words, n, "tag");
   const t = upNext?.airAt ? Date.parse(upNext.airAt) : null;
   const now = useNow(t != null && ticks(t));
   if (show.streaming && !episodes?.reveal) {
@@ -223,15 +225,15 @@ function useAirStatus(show: ShowData): ReactNode {
     return (
       <>
         <i className="size-2 animate-pulse rounded-full bg-live" aria-hidden />
-        On air · {ep} {upNext.number}
+        On air · {ep(upNext.number)}
       </>
     );
   }
-  if (episodes?.reveal) return `${ep} ${episodes.reveal.episode} ${episodes.reveal.stage === "early" ? "early results" : "results are in"}`;
-  if (episodes?.waiting) return `${ep} ${episodes.waiting.episode} ${justAired(episodes.waiting.airAt) ? "just aired" : "aired"}`;
-  if (upNext && t != null) return `${ep} ${upNext.number} · ${calm(t, now)}`;
+  if (episodes?.reveal) return `${ep(episodes.reveal.episode)} ${episodes.reveal.stage === "early" ? "early results" : "results are in"}`;
+  if (episodes?.waiting) return `${ep(episodes.waiting.episode)} ${justAired(episodes.waiting.airAt) ? "just aired" : "aired"}`;
+  if (upNext && t != null) return `${ep(upNext.number)} · ${calm(t, now)}`;
   if (seasonOver(show)) return "Season over";
-  if (latestAired) return `${ep} ${latestAired} aired`;
+  if (latestAired) return `${ep(latestAired)} aired`;
   return null;
 }
 
@@ -638,7 +640,7 @@ export function TabScreen({ seasonId, tab }: { seasonId: string; tab: ShowTab })
             every other tab in its place). */}
         {tab !== "tonight" && show.readOnly && tab !== "chat" && (
           <div className="px-4 pt-4">
-            <GuardChip seenThrough={show.seenThrough} ep={show.words.ep} onChange={() => openWhere(show)} />
+            <GuardChip seenThrough={show.seenThrough} ep={show.words.ep} names={show.words.names} onChange={() => openWhere(show)} />
           </div>
         )}
         {tab === "tonight" && (show.readOnly ? <ReadOnlyPanel game={show.readOnly} kind="tonight" /> : <Tonight seasonId={seasonId} show={show} />)}

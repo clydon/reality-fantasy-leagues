@@ -2,6 +2,8 @@
 // a signed-out invite, and checked by tests/way-in.test.js: first run's picks held on this device until there's an
 // account to save them to, and the words for where someone is in a season.
 
+import { epName, type GameLabel } from "@/lib/game/show-words";
+
 /** First run's picks: the seasons, and where you are in each. Kept on the device through making an account (a
  *  Google sign-in and an emailed link both leave the page), then saved (POST /api/me/first-run) and cleared. A pick is a
  *  season's id, or (step 10) a show from the TV listings (`tv:<TVmaze id>`) or one added by name (`name:<name>`), with
@@ -123,12 +125,13 @@ const DATE = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString("e
  * a season that hasn't started has "Premieres Oct 30" (no stepper). `aired` null: a finished season whose length isn't
  * listed ("Seen through Episode 3").
  */
-export function whereLabel(s: { aired: number | null; status: string; premiere: string | null; episodeWord?: string }, seen: number): string {
-  const ep = s.episodeWord ?? "Episode";
+export function whereLabel(s: { aired: number | null; status: string; premiere: string | null; episodeWord?: string; names?: Record<number, GameLabel> | null }, seen: number): string {
+  // A team's game by its name ("Chiefs at Bills, Week 12"), else "Episode 4".
+  const at = (n: number) => epName({ episode: s.episodeWord ?? "Episode", names: s.names }, n);
   if (s.aired === 0) return s.premiere ? `Premieres ${DATE(s.premiere)}` : "Premieres soon";
   if (seen <= 0) return "Haven't started";
-  if (s.aired == null) return `Seen through ${ep} ${seen}`;
-  return seen >= s.aired ? `Caught up through ${ep} ${s.aired}` : `Seen through ${ep} ${seen} of ${s.aired}`;
+  if (s.aired == null) return `Seen through ${at(seen)}`;
+  return seen >= s.aired ? `Caught up through ${at(s.aired)}` : `Seen through ${at(seen)} of ${s.aired}`;
 }
 
 /** The stepper's top: what's aired (a finished season of unknown length goes to 99). */

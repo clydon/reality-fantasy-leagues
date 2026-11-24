@@ -16,6 +16,7 @@ import { useShown } from "../ui/loaded";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { useOpenReveal } from "./reveal";
+import { epName, type GameLabel } from "@/lib/game/show-words";
 import { useNight } from "../appearance";
 
 // Chat (the mock's show.js tabChat and watching.js wChat; docs/PLAN-new-design.md step 4): the couch's one chat about
@@ -266,13 +267,13 @@ export function Chat({ seasonId, show }: { seasonId: string; show: ShowData }) {
                 // The episode itself (who left, what happened); a taller link than its chip, for the thumb.
                 <NavLink href={`${paths.show(seasonId, "episodes")}?page=ep${item.n}`} data-ep-door={item.n} className="nd-press -my-2 -mr-1 flex-none py-2">
                   <span className="type-caption flex h-7 items-center gap-0.5 bg-secondary pl-2.5 pr-3.5 text-[14px] tracking-[0.04em] [clip-path:polygon(0_0,100%_0,calc(100%_-_8px)_100%,0_100%)]">
-                    {epWord} {item.n}
+                    {epName(show.words, item.n, "tag")}
                     <ChevronRight className="size-3.5 text-muted-foreground" aria-hidden />
                   </span>
                 </NavLink>
               ) : (
                 <span className="type-caption -mr-1 flex h-7 items-center bg-secondary pl-2.5 pr-3.5 text-[14px] tracking-[0.04em] [clip-path:polygon(0_0,100%_0,calc(100%_-_8px)_100%,0_100%)]">
-                  {epWord} {item.n}
+                  {epName(show.words, item.n, "tag")}
                 </span>
               )}
               <span className="flex-none text-[13px] text-muted-foreground">
@@ -287,7 +288,7 @@ export function Chat({ seasonId, show }: { seasonId: string; show: ShowData }) {
           return (
             <button key={item.key} type="button" data-reveal-line onClick={() => setOpen(item.lines[0])} title={timeOf(item.lines[0].at)} className="my-3 flex w-full items-center justify-center gap-1.5 text-xs text-muted-foreground">
               <Eye className="size-3.5" aria-hidden />
-              {item.day} · {item.n != null ? `${who} revealed ${epWord} ${item.n}` : revealWords(item.lines[0].text ?? "")}
+              {item.day} · {item.n != null ? `${who} revealed ${epName(show.words, item.n, "short")}` : revealWords(item.lines[0].text ?? "")}
             </button>
           );
         }
@@ -303,7 +304,7 @@ export function Chat({ seasonId, show }: { seasonId: string; show: ShowData }) {
             </div>
           );
         }
-        if (item.kind === "fold") return <Fold key={item.key} lines={item.lines} fold={data.fold} reveal={reveal} epWord={epWord} onShow={showThem} onReveal={openReveal} />;
+        if (item.kind === "fold") return <Fold key={item.key} lines={item.lines} fold={data.fold} reveal={reveal} epWord={epWord} names={show.words.names} onShow={showThem} onReveal={openReveal} />;
         return <Line key={item.m.id} item={item} me={data.you.userId} couchId={couchId} onOpen={() => setOpen(item.m)} onReact={(e) => actions.react(item.m.id, e).catch((err) => toast.quiet(`Not sent: ${err.message}`))} />;
       })}
       {data.you.canPost && <Composer placeholder={placeholder} onGif={data.gifs ? () => setGifOpen(true) : undefined} onSend={async (text) => {
@@ -424,6 +425,7 @@ function Fold({
   fold,
   reveal,
   epWord,
+  names: gameNames,
   onShow,
   onReveal,
 }: {
@@ -431,13 +433,15 @@ function Fold({
   fold: CouchChat["fold"];
   reveal: number | null;
   epWord: string;
+  names?: Record<number, GameLabel> | null;
   onShow: () => void;
   onReveal: (n: number) => void;
 }) {
+  const W = { episode: epWord, ep: epWord, names: gameNames };
   const who = [...new Set(lines.map((l) => l.name))];
   const count = lines.length;
   // The landmark above says which episode (step 9): the fold says how many, and who's seen it.
-  const title = `${count} ${count === 1 ? "message" : "messages"}${!fold ? "" : fold.byMark ? " from further along" : ` since ${epWord} ${fold.episode} aired`}`;
+  const title = `${count} ${count === 1 ? "message" : "messages"}${!fold ? "" : fold.byMark ? " from further along" : ` since ${epName(W, fold.episode, "short")} aired`}`;
   const sub = fold?.revealed.length
     ? `${names(fold.revealed)} ${fold.revealed.length === 1 ? "has" : "have"} revealed it`
     : fold?.byMark
@@ -455,11 +459,11 @@ function Fold({
       {/* The safe way first, full width; reading them anyway is a quiet link that says what it risks (the critique's P1). */}
       {reveal && (
         <Btn wide data-fold-reveal className="mt-2.5 h-11 text-[15px] text-foreground" onClick={() => onReveal(reveal)}>
-          Reveal {epWord} {reveal}
+          Reveal {epName(W, reveal, "tag")}
         </Btn>
       )}
       <button type="button" data-fold-show onClick={onShow} className="mt-2 w-full py-1.5 text-center text-[13px] font-semibold text-muted-foreground underline underline-offset-4">
-        Show them anyway{fold && !fold.byMark ? ` (may spoil ${epWord} ${fold.episode})` : ""}
+        Show them anyway{fold && !fold.byMark ? ` (may spoil ${epName(W, fold.episode, "short")})` : ""}
       </button>
     </div>
   );

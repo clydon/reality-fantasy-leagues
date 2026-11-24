@@ -218,7 +218,8 @@ function QuestionSheet({ target, onOpenChange }: { target: SheetTarget | null; o
 /** Each group of questions (this episode's, then the season's), what you can still answer, and Save. In the sheet (Your moves) Save is
  *  the yellow; on a game's own page (`place` "page", the move made in place: game-page.tsx) the strip has the screen's one yellow, so
  *  Save is a white confirm that names what it saves, and the score is the page's big graphic, not a plate here. */
-export function QuestionsBody({ target, d, onDone, place = "sheet" }: { target: SheetTarget; d: GameQuestions; onDone: () => void; place?: "sheet" | "page" }) {
+/** `onPlayer`: open a named player's season (a sport's pick table: the game page's drill, BACKLOG 263). */
+export function QuestionsBody({ target, d, onDone, place = "sheet", onPlayer }: { target: SheetTarget; d: GameQuestions; onDone: () => void; place?: "sheet" | "page"; onPlayer?: (id: string, name: string) => void }) {
   const after = useAfterAnswers();
   // The groups (tribes) too, for a group answer (A6): their ids never meet a castaway's.
   const cast = new Map([...d.cast, ...(d.groups ?? [])].map((c) => [c.id, c]));
@@ -280,7 +281,7 @@ export function QuestionsBody({ target, d, onDone, place = "sheet" }: { target: 
               <LockLine at={lock} closed={!gOpen.length} />
             </div>
             {g.list.map((q) => (
-              <Question key={q.id} q={q} d={d} cast={cast} value={picked[q.id]} onValue={(v) => setPicked((x) => ({ ...x, [q.id]: v }))} others={d.questions} />
+              <Question key={q.id} q={q} d={d} cast={cast} value={picked[q.id]} onValue={(v) => setPicked((x) => ({ ...x, [q.id]: v }))} others={d.questions} onPlayer={onPlayer} />
             ))}
           </section>
         );
@@ -313,7 +314,7 @@ export function QuestionsBody({ target, d, onDone, place = "sheet" }: { target: 
 }
 
 /** One question: its answer to give (open), why it waits (behind, or its game's line not out yet), or how it went (closed). */
-function Question({ q, d, cast, value, onValue, others }: { q: QuestionView; d: GameQuestions; cast: Map<string, QuestionFace>; value: unknown; onValue: (v: unknown) => void; others: QuestionView[] }) {
+function Question({ q, d, cast, value, onValue, others, onPlayer }: { q: QuestionView; d: GameQuestions; cast: Map<string, QuestionFace>; value: unknown; onValue: (v: unknown) => void; others: QuestionView[]; onPlayer?: (id: string, name: string) => void }) {
   return (
     <div data-question={q.id} data-question-status={q.status} className="border-b border-border py-3.5 last:border-b-0">
       <div className="flex items-baseline justify-between gap-3">
@@ -331,7 +332,7 @@ function Question({ q, d, cast, value, onValue, others }: { q: QuestionView; d: 
         </p>
       ) : q.status === "open" ? (
         <div className="mt-2.5">
-          <Answer q={q} value={value} onValue={onValue} others={others} />
+          <Answer q={q} value={value} onValue={onValue} others={others} onPlayer={onPlayer} />
           {/* C1: a side shown as it's picked (a rivalry's public sides): who's on which, before the lock. */}
           {q.shown && q.people.some((p) => !p.you) && (
             <div className="mt-2 flex flex-wrap gap-x-3 gap-y-2" data-question-sides>

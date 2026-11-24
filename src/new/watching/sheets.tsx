@@ -28,7 +28,7 @@ import { useReducedMotion } from "../welcome/hooks";
 import { AddNewBlock, ListingsCredit, ScopeSwitch, SearchNote, ShowGroups, SuggestionCard, seasonLine, useShowSearch, type SearchRow } from "./search";
 import { CouchFollows, LeagueTiles, SportsCard, SportsRows, useCouchFollows, useRankedSports, useTeamSearch, type TeamPick } from "../sports/search";
 import { WhereAsk, type SeasonPick, type WhereSeason } from "./where";
-import { episodeWordFromTitles } from "@/lib/game/show-words";
+import { epName, episodeWordFromTitles, type GameLabel } from "@/lib/game/show-words";
 
 // The watching sheets (docs/PLAN-new-design.md step 10 part 1), opened from anywhere signed in with openWatching:
 //   add    Add a show (the mock's refine.js addShowSheet): "Search or add a show", suggestions before you type (what the
@@ -115,9 +115,9 @@ export function WatchingSheets() {
 }
 
 /** "Through Ep 4 on Survivor 51", "The Amazing Race 38 added to your shows" (one name for the mark: settings Round 2's PFD R4). */
-function savedLine(label: string, following: boolean, seen: number, ep = "Ep") {
+function savedLine(label: string, following: boolean, seen: number, ep = "Ep", names?: Record<number, GameLabel> | null) {
   if (!following) return `${label} added to your shows`;
-  return seen ? `Through ${ep} ${seen} on ${label}` : `Not started on ${label}`;
+  return seen ? `Through ${epName({ episode: ep, ep, names }, seen, "short")} on ${label}` : `Not started on ${label}`;
 }
 
 function WhereSheet({ target, onOpenChange }: { target: WhereTarget | null; onOpenChange: (o: boolean) => void }) {
@@ -151,7 +151,7 @@ function WhereSheet({ target, onOpenChange }: { target: WhereTarget | null; onOp
               const was = t.seen;
               await watching.follow(t.seasonId, { following: true, seenThrough: seen });
               await refresh();
-              toast(savedLine(t.label, t.following, seen, t.epWord), {
+              toast(savedLine(t.label, t.following, seen, t.epWord, t.names), {
                 undo: t.following
                   ? async () => {
                       try {

@@ -5,6 +5,7 @@ import { sharingOf, visibleFollows, type FollowShare } from "./guard";
 import type { LeagueRole } from "./roles";
 import { viewAsFor } from "./view-as";
 import { sportsGameNames } from "./sports/game-names";
+import { artOf } from "@/lib/sports/league-art";
 import type { GameLabel } from "@/lib/game/show-words";
 
 // The pieces the new design's read endpoints are built from (/api/me/home, /api/couches/[id],
@@ -47,8 +48,10 @@ export interface SeasonHeader {
     /** Where it airs, from its TV listing: the network, else the streaming service ("Netflix"; step 14); null without one. */
     network: string | null;
   };
-  /** A team's season: each game's name by episode ("Week 11 at Bengals": sports/game-names.ts); absent otherwise. */
+  /** A team's season: each game's name by episode ("Chiefs at Bills, Week 12": sports/game-names.ts); absent otherwise. */
   gameNames?: Record<number, GameLabel>;
+  /** A sport's season: its league as the provider names it ("football/nfl"), for its art and its teams' pictures; absent for a show. */
+  sportsLeague?: string;
 }
 
 /** Each season's header (show, number, status, art), by season id. */
@@ -65,7 +68,7 @@ export async function seasonHeaders(seasonIds: string[]): Promise<Map<string, Se
                       AND NOT EXISTS (SELECT 1 FROM season_cast c WHERE c.season_id = ss.id) THEN 'missing'
             END AS filling,
             s.id AS show_id, s.slug, s.name AS show_name, s.kind, ${cardArtSql()} AS art_url, s.art_url AS own_art, s.art_style,
-            CASE WHEN s.art_off THEN NULL ELSE s.backdrop_url END AS backdrop_url, s.backdrop_style, s.castaway_term, s.castaway_plural, s.tribe_term, s.episode_term, s.tvmaze_id, s.listing->>'network' AS network
+            CASE WHEN s.art_off THEN NULL ELSE s.backdrop_url END AS backdrop_url, s.backdrop_style, s.castaway_term, s.castaway_plural, s.tribe_term, s.episode_term, s.tvmaze_id, s.listing->>'network' AS network, s.sports_league
        FROM show_seasons ss JOIN shows s ON s.id = ss.show_id LEFT JOIN season_fills f ON f.season_id = ss.id
       WHERE ss.id = ANY($1::uuid[])`,
     [ids]
@@ -74,6 +77,11 @@ export async function seasonHeaders(seasonIds: string[]): Promise<Map<string, Se
     // A sport's league season (a matchup's or a slate's: "Cowboys at Eagles, Nov 11", "NFL 2026") reads as its own name everywhere
     // a season is named by its show and number ("NFL 3" says nothing), and is a game already: its rules are its sport's.
     const own = r.league_season && r.name;
+    // A sport's league ("football/nfl"), and its art for a season with none of its own (a team's season, a matchup): the league's
+    // photo (sports/league-art.ts), never a team's or a league's logo. A viewer's own choice and their couch's team pictures are
+    // the screens' to draw over it (the user, 2026-11-23: "the teams logos we have or the league artwork").
+    const league = r.kind === "sport" && typeof r.sports_league === "string" ? (/([a-z0-9-]+\/[a-z0-9.-]+)$/.exec(r.sports_league)?.[1] ?? null) : null;
+    const leagueArt = league ? artOf(league) : null;
     out.set(r.id, {
       seasonId: r.id,
       seasonNumber: own ? null : r.season_number,
@@ -90,12 +98,13 @@ export async function seasonHeaders(seasonIds: string[]): Promise<Map<string, Se
         slug: r.slug,
         name: own ? r.name : r.show_name,
         kind: r.kind,
-        artUrl: framedCard(r.art_url, r.art_style, r.own_art),
-        backdropUrl: framedHeader(r.backdrop_url, r.backdrop_style),
+        artUrl: framedCard(r.art_url, r.art_style, r.own_art) ?? leagueArt?.src ?? null,
+        backdropUrl: framedHeader(r.backdrop_url, r.backdrop_style) ?? leagueArt?.src ?? null,
         terms: { castaway: r.castaway_term, people: r.castaway_plural ?? null, tribe: r.tribe_term, episode: r.episode_term },
         tvmazeId: r.tvmaze_id ?? null,
         network: r.network ?? null,
       },
+      ...(league ? { sportsLeague: league } : {}),
     });
   }
   // A team's season's games by what they are ("Week 11 at Bengals"), never its index.

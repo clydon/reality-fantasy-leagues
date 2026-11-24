@@ -1,5 +1,6 @@
 "use client";
 
+import { epName } from "@/lib/game/show-words";
 import { useEffect, useRef, type ReactNode } from "react";
 import { Clock } from "lucide-react";
 import type { GameView, LineupWeek, TableRow } from "../data";
@@ -103,7 +104,7 @@ export function LineupSheet({ g, r, week, onWeek, words, onClose, onFace, openEp
         <p className="type-caption text-[14px] tracking-[0.02em] text-muted-foreground">Week by week</p>
         {totals.length > 0 && (
           <small data-week-avg className="text-[13px] text-muted-foreground">
-            {fmt(avg)} a week · best {signed(best)} ({words.ep} {r.weeks[totals.indexOf(best)].episode})
+            {fmt(avg)} a week · best {signed(best)} ({epName(words, r.weeks[totals.indexOf(best)].episode, "tag")})
           </small>
         )}
       </div>
@@ -125,7 +126,7 @@ export function LineupSheet({ g, r, week, onWeek, words, onClose, onFace, openEp
                 type="button"
                 data-week-bar={i}
                 aria-pressed={on}
-                aria-label={it.w ? `${words.episode} ${it.n}, ${fmt(it.w.total)} points` : `${words.episode} ${it.n}, ${set ? "set" : "not set yet"}`}
+                aria-label={it.w ? `${epName(words, it.n, "long")}, ${fmt(it.w.total)} points` : `${epName(words, it.n, "long")}, ${set ? "set" : "not set yet"}`}
                 onClick={() => pager.current?.go(i)}
                 className="relative flex flex-col items-center py-1.5"
               >
@@ -142,7 +143,7 @@ export function LineupSheet({ g, r, week, onWeek, words, onClose, onFace, openEp
                     <span className={`h-[18px] w-6 rounded-t-[2px] border-[1.5px] border-dashed transition-colors duration-[260ms] ${on ? "border-foreground" : "border-muted-foreground/60"}`} />
                   )}
                 </span>
-                <span className={`mt-1.5 text-[12px] transition-colors duration-200 ${on ? "font-bold" : "text-muted-foreground"}`}>{many ? it.n : `${words.ep} ${it.n}`}</span>
+                <span className={`mt-1.5 text-[12px] transition-colors duration-200 ${on ? "font-bold" : "text-muted-foreground"}`}>{many ? epName(words, it.n, "col") : epName(words, it.n, "tag")}</span>
               </button>
             );
           })}
@@ -178,7 +179,7 @@ function WeekPane({ g, r, it, next, words, onClose, onFace: face, openEpisode }:
   const w = it.w;
   // A starter or the bench, tapped: their sheet on this week (BACKLOG 251: how they scored it, the season under it).
   const onFace = face && w ? (id: string) => face(id, it.n) : undefined;
-  const title = `${words.episode} ${it.n}`;
+  const title = `${epName(words, it.n, "long")}`;
   if (!w) {
     const lateYou = r.you && g.late?.episode === it.n;
     // (A week that locks game by game, under way: its first game has begun, the rest to come. TEMP-UI, BACKLOG 80.)
@@ -191,7 +192,7 @@ function WeekPane({ g, r, it, next, words, onClose, onFace: face, openEpisode }:
     const carries = r.you ? !!g.lineup?.carried : r.last.length > 0;
     const outAfter = r.you ? g.twists?.outAfter : null;
     const note = outAfter != null
-      ? `You're out: cut after ${words.ep} ${outAfter}. Your points stand; the others play on.`
+      ? `You're out: cut after ${epName(words, outAfter, "short")}. Your points stand; the others play on.`
       : lateYou
       ? set
         ? "Yours to change until you watch it."
@@ -358,11 +359,11 @@ function SeasonTeam({ g, r, words, onFace }: { g: GameView; r: TableRow; words: 
     const weeksIn = r.weeks.filter((w) => [...w.started, ...w.bench].some((x) => x.id === id)).map((w) => w.episode);
     const joined = on && firstWeek !== null ? (weeksIn.length ? (weeksIn[0] > firstWeek ? weeksIn[0] : null) : (latest ?? 0) + 1) : null;
     const status = c?.left
-      ? `Out${c.out ? ` · ${words.episode} ${c.out}` : ""}`
+      ? `Out${c.out ? ` · ${epName(words, c.out, "long")}` : ""}`
       : !on
-        ? `Swapped out after ${words.ep} ${weeksIn.at(-1)}`
+        ? `Swapped out after ${epName(words, weeksIn.at(-1)!, "short")}`
         : joined
-          ? `Joined ${words.episode} ${joined}`
+          ? `Joined ${epName(words, joined, "long")}`
           : "Still in";
     const parts = [status, `${starts.length} ${starts.length === 1 ? "start" : "starts"}`, ...(c && !c.left && c.points !== null ? [`${fmt(c.points)} all season`] : [])];
     return { id, c, earned, gone: !on || !!c?.knocked, line: parts.join(" · ") };

@@ -19,6 +19,8 @@ import { leagueSeason, notifyCouchJoined, notifyJoinRequest, notifyLetIn, notify
 import { latestAired, seasonSchedules, upNext, type SeasonSchedule } from "./schedule";
 import { endedThrough } from "./calls";
 import { games, seasonHeaders, type Game } from "./show-space";
+import { sportsGameNames } from "./sports/game-names";
+import { epName } from "@/lib/game/show-words";
 
 // Couches you start, join and leave, and joining the games on them (docs/PLAN-new-design.md step 9; the mock's round2.js
 // newCouchSheet, joinRoute, catchupSheet, couchSwitch and settings.js' Who can join).
@@ -591,6 +593,11 @@ async function startInStages(user: SessionUser, late: LateStages["late"], picks:
   return waits;
 }
 
+/** Where a joiner starts, in the game's Recent changes: "Episode 6", a team's game by its name (epName; one small read a join). */
+async function joinEp(seasonId: string | null, n: number): Promise<string> {
+  return epName({ episode: "Episode", names: seasonId ? (await sportsGameNames([seasonId])).get(seasonId) : null }, n);
+}
+
 /**
  * Step A12 part 4c: someone joins a game in stages that has started (its join rule already read from its stages as they stand:
  * `join.mode`, StateLogic.StageLogic.closed). The team is checked against the stage that wants one before anything's written; then
@@ -612,6 +619,7 @@ async function joinStaged(user: SessionUser, game: Game, state: LeagueState, joi
   if (problem) throw new HttpError(400, problem);
   const seasonMark = game.seasonId ? await seenThrough(user.id, game.seasonId) : 0;
   const mark = Math.min(live - 1, seasonMark === EVERYTHING ? live - 1 : seasonMark);
+  const from = await joinEp(game.seasonId, live);
   let playerId = "";
   await withLeagueLock(
     leagueId,
@@ -638,7 +646,7 @@ async function joinStaged(user: SessionUser, game: Game, state: LeagueState, joi
       ]);
       await used(client);
     },
-    plainChange(user.id, "member", `${name} joined ${game.gameName} from Episode ${live}`)
+    plainChange(user.id, "member", `${name} joined ${game.gameName} from ${from}`)
   );
   const waits = await startInStages(user, late, picks, team, playerId);
   await joinedLeague(leagueId, user.id);
@@ -710,7 +718,8 @@ export async function joinGame(user: SessionUser, couchId: string, leagueId: str
   // Catching up: your league starts at the episode before your start. Live: where you are, so anything since stays for
   // your reveal, as for anyone behind.
   const mark = catchingUp ? start - 1 : Math.min(start - 1, seasonMark === EVERYTHING ? start - 1 : seasonMark);
-  const text = `${name} joined ${game.gameName}${catchingUp ? `, catching up from Episode ${start}` : ` from Episode ${start}`}`;
+  const from = await joinEp(game.seasonId, start);
+  const text = `${name} joined ${game.gameName}${catchingUp ? `, catching up from ${from}` : ` from ${from}`}`;
   await withLeagueLock(
     leagueId,
     async (s, client) => {

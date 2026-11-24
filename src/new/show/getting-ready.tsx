@@ -12,6 +12,7 @@ import { Btn } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { Face } from "./parts";
+import { epName } from "@/lib/game/show-words";
 
 // Getting it ready (docs/PLAN-getting-it-ready.md; season-fill.ts): a season someone adds gets its rules, its cast and its
 // episodes by itself, and this is how it looks while it does (the user's pick A, the Call sheet): a lower-third slate a step,
@@ -322,7 +323,7 @@ export function CallSheet({ f, onPaste }: { f: FillState; onPaste?: () => void }
           </span>
           <span className="min-w-0">
             <b className="type-caption block text-[19px] leading-tight">
-              {first.state === "done" ? `${f.words.episode} 1 is in` : "What happened is in"}
+              {first.state === "done" ? `${epName(f.words, 1, "long")} is in` : "What happened is in"}
             </b>
             <small className="mt-1 block text-[13px] leading-snug text-muted-foreground">
               We&rsquo;ll grab the rest one at a time, {restWords(f.resultsLeft, f.words, f.episodes.length)}, and let you know when they&rsquo;re all in. Have a look around meanwhile.

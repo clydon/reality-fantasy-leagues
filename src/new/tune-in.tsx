@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
-import { showWords } from "@/lib/game/show-words";
+import { epName, showWords } from "@/lib/game/show-words";
 import { splitFrame, UNFRAMED } from "@/lib/art-frame";
 import { airTime } from "./clock";
 import { useCouchForSeason, useHome, useSeasonEpisodes, useSeasonGames, useSpace, type CouchShow, type HomeShow } from "./data";
@@ -218,9 +218,9 @@ export function TuneIn() {
   const bannerSrc = show ? splitFrame(show.show.backdropUrl || show.show.artUrl).src : null;
   const bannerPosition = show?.show.backdropUrl ? `${UNFRAMED.header.x}% ${UNFRAMED.header.y}%` : "50% 40%";
   const name = show ? show.show.name.replace(/^The /, "") : "";
-  const words = showWords(show?.show.terms);
+  const words = showWords(show?.show.terms, show?.gameNames);
   const line = show
-    ? [show.seasonNumber ? `Season ${show.seasonNumber}` : show.seasonName, show.upNext ? `${words.ep} ${show.upNext.number}` : null, show.upNext?.airAt ? airTime(Date.parse(show.upNext.airAt)) : null]
+    ? [show.seasonNumber ? `Season ${show.seasonNumber}` : show.seasonName, show.upNext ? epName(words, show.upNext.number, "tag") : null, show.upNext?.airAt ? airTime(Date.parse(show.upNext.airAt)) : null]
         .filter(Boolean)
         .join(" · ")
     : "";

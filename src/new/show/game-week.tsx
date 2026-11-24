@@ -1,5 +1,6 @@
 "use client";
 
+import { epName } from "@/lib/game/show-words";
 import { matchSlots } from "@/lib/lineup-slots";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { PriceEnd } from "./price-end";
@@ -97,10 +98,10 @@ function NewsPlate({ last, onOpen, words }: { last: NonNullable<WeekCard["last"]
     <button type="button" data-open-last data-week-news onClick={onOpen} className="nd-press mt-3 block w-full text-left">
       <span className="flex min-h-[52px] overflow-hidden rounded-[3px] bg-plate text-plate-foreground shadow-plate">
         <span className={`tag-cut type-caption flex flex-none items-center whitespace-nowrap py-1 pl-3 pr-[26px] text-[15px] tracking-[0.04em] ${tone}`}>
-          {words.ep} {last.episode}
+          {epName(words, last.episode, "tag")}
         </span>
         <span className="tag-tuck flex min-w-0 flex-1 flex-col justify-center py-2 pl-[26px] pr-3">
-          <b className="type-caption text-[19px] [overflow-wrap:anywhere]">{last.line.replace(`${words.ep} ${last.episode} · `, "")}</b>
+          <b className="type-caption text-[19px] [overflow-wrap:anywhere]">{last.line.replace(`${epName(words, last.episode, "tag")} · `, "")}</b>
           <span className="mt-[3px] text-[13px] leading-[1.3] text-plate-muted">See how it went</span>
         </span>
         <span className="grid w-11 flex-none place-items-center">
@@ -185,9 +186,9 @@ export function WeekBlock({ g, w, colour, note, move, reveal, news, onMatchup, o
         ) : (
           <button type="button" data-open-last onClick={() => onLast(w.last!.episode, w.last!.playerId)} className="nd-press mt-3 flex min-h-11 w-full items-center gap-2.5 border-t border-border pt-2 text-left">
             <ResultSquare r={w.last.result} />
-            <span className="min-w-0 flex-1 text-[15px] font-semibold">{w.last.line.replace(`${words.ep} ${w.last.episode} · `, "")}</span>
+            <span className="min-w-0 flex-1 text-[15px] font-semibold">{w.last.line.replace(`${epName(words, w.last.episode, "tag")} · `, "")}</span>
             <span className="text-[13px] text-muted-foreground">
-              {words.ep} {w.last.episode}
+              {epName(words, w.last.episode, "tag")}
             </span>
             <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
           </button>
@@ -213,7 +214,7 @@ export function waiverLine(ww: WaiverWeek | undefined, g: GameView, when: (iso: 
       const order = spot.addIds.slice(0, 2).map((id) => name(id));
       return `Your claim is in: ${order[0]} first${order[1] ? `, then ${order[1]}` : ""}${ww.period.due ? ` · claims run ${when(ww.period.due)}` : ""}`;
     }
-    if (ww.replace.length) return `${name(ww.replace[0])} went home in ${words.ep} ${ww.period.episode}.${short ? "" : " You're owed a replacement."}`;
+    if (ww.replace.length) return `${name(ww.replace[0])} went home in ${epName(words, ww.period.episode, "short")}.${short ? "" : " You're owed a replacement."}`;
     return null;
   }
   if (ww.stage === "processed" && ww.run && ww.run.episode === ww.period.episode) {
@@ -237,11 +238,11 @@ export function SideBetsRow({ g, words, onOpen, runs }: { g: GameView; words: Sh
   const played = b.bets.filter((x) => x.played);
   const ep = open[0]?.episode ?? b.postTo;
   let detail: string;
-  if (runs && b.unsettled > 0) detail = `${b.unsettled} ${b.unsettled === 1 ? "call" : "calls"} to settle on ${words.ep} ${played[0]?.episode}${open.length ? ` · ${open.length} open on ${words.ep} ${ep}, you've called ${open.filter((x) => x.mine).length}` : ""}`;
-  else if (open.length) detail = `${open.length} on ${words.ep} ${ep} · you've called ${open.filter((x) => x.mine).length}`;
-  else if (played.length && played.every((x) => x.settled)) detail = `${words.ep} ${played[0].episode}: you called ${played.filter((x) => x.mine?.correct).length} of ${played.length} right`;
-  else if (played.length) detail = `${words.ep} ${played[0].episode}: ${played.some((x) => x.stage === "early") ? "settled with the final results" : "waiting to be settled"}`;
-  else if (b.postTo !== null) detail = `None on ${words.ep} ${b.postTo} yet · post one`;
+  if (runs && b.unsettled > 0) detail = `${b.unsettled} ${b.unsettled === 1 ? "call" : "calls"} to settle on ${epName(words, played[0]?.episode, "short")}${open.length ? ` · ${open.length} open on ${epName(words, ep, "short")}, you've called ${open.filter((x) => x.mine).length}` : ""}`;
+  else if (open.length) detail = `${open.length} on ${epName(words, ep, "short")} · you've called ${open.filter((x) => x.mine).length}`;
+  else if (played.length && played.every((x) => x.settled)) detail = `${epName(words, played[0].episode, "short")}: you called ${played.filter((x) => x.mine?.correct).length} of ${played.length} right`;
+  else if (played.length) detail = `${epName(words, played[0].episode, "short")}: ${played.some((x) => x.stage === "early") ? "settled with the final results" : "waiting to be settled"}`;
+  else if (b.postTo !== null) detail = `None on ${epName(words, b.postTo, "short")} yet · post one`;
   else return null;
   return (
     <button type="button" onClick={onOpen} data-side-bets-row className="nd-press mx-4 mt-1 flex min-h-[56px] w-[calc(100%-32px)] items-center gap-3 border-b border-border py-2 text-left">
@@ -300,7 +301,7 @@ function BetItem({ g, x, words, runs, onSaved, onPerson }: { g: GameView; x: Sid
   return (
     <article className="border-t border-border py-3.5 first:border-t-0" data-bet={x.betId} data-bet-state={x.open ? "open" : x.settled ? "settled" : x.played ? "to-settle" : "locked"}>
       <p className="text-[13px] text-muted-foreground">
-        {words.ep} {x.episode} · {meta}
+        {epName(words, x.episode, "tag")} · {meta}
       </p>
       <h3 className="mt-1 text-[17px] font-semibold leading-snug">{x.label}</h3>
       {x.open ? (
@@ -316,7 +317,7 @@ function BetItem({ g, x, words, runs, onSaved, onPerson }: { g: GameView; x: Sid
           ) : (
             <input value={call} onChange={(e) => setCall(e.target.value)} placeholder="Your call" aria-label="Your call" className="h-11 w-full rounded-[3px] bg-input/40 px-3 outline-1 -outline-offset-1 outline-input" />
           )}
-          <p className="mt-2 text-[13px] text-muted-foreground">Everyone&apos;s calls show when {words.ep} {x.episode} starts.{x.calls < 2 ? " It pays once two have called it." : ""}</p>
+          <p className="mt-2 text-[13px] text-muted-foreground">Everyone&apos;s calls show when {epName(words, x.episode, "tag")} starts.{x.calls < 2 ? " It pays once two have called it." : ""}</p>
           {changed && (
             <Btn tone="ink" wide disabled={busy} onClick={save} className="mt-2.5" data-call-save>
               {busy ? "Saving…" : call.trim() ? `Call it: ${call.trim()}` : "Take back your call"}
@@ -464,7 +465,7 @@ function PostBet({ g, episode, words, onSaved }: { g: GameView; episode: number;
       await betWrites.post(g.leagueId, label.trim(), points);
       setLabel("");
       await onSaved();
-      toast(`Posted for ${words.ep} ${episode}. Everyone's told.`);
+      toast(`Posted for ${epName(words, episode, "short")}. Everyone's told.`);
     } catch (e) {
       toast.quiet(`Not posted: ${(e as Error).message}`);
     } finally {
@@ -475,7 +476,7 @@ function PostBet({ g, episode, words, onSaved }: { g: GameView; episode: number;
     <section className="mt-2 border-t border-border pt-4" data-post-bet>
       <h3 className="type-caption text-[20px]">Post a side bet</h3>
       <p className="mt-1 text-[13px] text-muted-foreground">
-        On {words.ep} {episode}. Ask it so a call can be right or wrong: &ldquo;Will an idol be played?&rdquo;, &ldquo;Who goes home?&rdquo;
+        On {epName(words, episode, "short")}. Ask it so a call can be right or wrong: &ldquo;Will an idol be played?&rdquo;, &ldquo;Who goes home?&rdquo;
       </p>
       <input value={label} onChange={(e) => setLabel(e.target.value.slice(0, 200))} placeholder="Your question" aria-label="Your question" data-post-label className="mt-2.5 h-11 w-full rounded-[3px] bg-input/40 px-3 outline-1 -outline-offset-1 outline-input" />
       <div className="mt-2.5 flex items-center gap-1.5" role="radiogroup" aria-label="Worth">
@@ -538,7 +539,7 @@ export function YourTeam({ g, words, exclusive, onFace, onSheet }: { g: GameView
           const yours = r.team.includes(id);
           const paid = prices?.paid[id];
           const captain = !c.left && g.lineup && g.twists?.captain?.castawayId === id ? `Captain ×${g.twists.captain.times}` : null;
-          const line = !yours ? "No longer on your team" : c.left ? (c.out ? `Out · ${words.ep} ${c.out}` : "Out") : [captain, c.role, c.tribe?.name].filter(Boolean).join(" · ") || "Still in";
+          const line = !yours ? "No longer on your team" : c.left ? (c.out ? `Out · ${epName(words, c.out, "tag")}` : "Out") : [captain, c.role, c.tribe?.name].filter(Boolean).join(" · ") || "Still in";
           const points = lineup ? (counted.get(id) ?? 0) : (c.points ?? 0);
           const bench = lineup ? (benched.get(id) ?? 0) : 0;
           return (
@@ -615,7 +616,7 @@ export function MatchupTitle(g: GameView, pid: string, n: number, words: ShowDat
   const m = matchupOf(g, pid, n);
   const an = m.a ? (m.a.you ? "You" : first(m.a.name)) : "";
   const bn = m.b ? (m.b.you ? "you" : first(m.b.name)) : m.stand === "median" ? "the middle score" : "a bye";
-  const title = `${words.ep} ${n}`;
+  const title = `${epName(words, n, "short")}`;
   const pair = `${an} vs ${bn}`;
   let subtitle: string;
   if (m.quiet) subtitle = `${pair} · counted for nobody, records unchanged`;
@@ -865,7 +866,7 @@ export function WeekGames({ g, words, onOpen }: { g: GameView; words: ShowData["
       <div className="mb-1 flex items-baseline justify-between gap-3">
         <h2 className="type-caption text-[20px]">The other games</h2>
         <span className="text-[13px] text-muted-foreground">
-          {words.ep} {wk.episode}
+          {epName(words, wk.episode, "tag")}
         </span>
       </div>
       {others.map((x) => (
@@ -1002,11 +1003,11 @@ export function PersonSeason({ g, r, words, sport, at = null, onMatchup, onWeek,
                   <th key={w.episode} data-week-col className={`${COL} pb-1 align-bottom font-normal`}>
                     {h2h && s?.result ? (
                       // The week's matchup: its square, who against and the week's name, one door.
-                      <button type="button" data-person-week={w.episode} onClick={() => onMatchup(w.episode)} aria-label={`${words.episode} ${w.episode}: ${s.result.r === "W" ? "won" : s.result.r === "L" ? "lost" : "tied"} against ${o?.name ?? "the middle score"}, ${scoreWords(s.result.us, s.result.them)}`} className="nd-press flex min-h-11 w-full flex-col items-center justify-end gap-0.5">
+                      <button type="button" data-person-week={w.episode} onClick={() => onMatchup(w.episode)} aria-label={`${epName(words, w.episode, "long")}: ${s.result.r === "W" ? "won" : s.result.r === "L" ? "lost" : "tied"} against ${o?.name ?? "the middle score"}, ${scoreWords(s.result.us, s.result.them)}`} className="nd-press flex min-h-11 w-full flex-col items-center justify-end gap-0.5">
                         <ResultSquare r={s.result.r === "W" ? "win" : s.result.r === "L" ? "loss" : "tie"} />
                         <span className="text-[11px] font-semibold">{o ? (o.you ? "You" : first(o.name)) : "Mid"}</span>
                         <span className={`type-caption block text-center text-[13px] ${w.episode === at ? "text-foreground" : "text-muted-foreground"}`}>
-                          {words.ep} {w.episode}
+                          {epName(words, w.episode, "narrow")}
                         </span>
                       </button>
                     ) : onWeek ? (
@@ -1015,18 +1016,18 @@ export function PersonSeason({ g, r, words, sport, at = null, onMatchup, onWeek,
                         type="button"
                         data-season-week={w.episode}
                         aria-pressed={w.episode === at}
-                        aria-label={`${words.episode} ${w.episode}: their lineup that ${words.episode.toLowerCase()}`}
+                        aria-label={`${epName(words, w.episode, "long")}: their lineup that ${words.episode.toLowerCase()}`}
                         onClick={(ev) => {
                           onWeek(w.episode);
                           ev.currentTarget.closest<HTMLElement>("[data-sheet-player]")?.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
                         }}
                         className={`nd-press type-caption flex min-h-11 w-full items-end justify-center text-center text-[13px] underline decoration-border decoration-2 underline-offset-[4px] ${w.episode === at ? "text-foreground" : "text-muted-foreground"}`}
                       >
-                        {words.ep} {w.episode}
+                        {epName(words, w.episode, "narrow")}
                       </button>
                     ) : (
                       <span className="type-caption block text-center text-[13px] text-muted-foreground">
-                        {words.ep} {w.episode}
+                        {epName(words, w.episode, "narrow")}
                       </span>
                     )}
                   </th>
@@ -1055,7 +1056,7 @@ export function PersonSeason({ g, r, words, sport, at = null, onMatchup, onWeek,
                       <td key={w.episode} className={`relative ${COL} h-11 rounded-[2px] border-t border-border p-0 text-center align-middle ${x?.start ? "bg-secondary" : ""}`}>
                         {x ? (
                           // That castaway that week: their sheet, at that episode of their story (the drill pass, 2026-11-17).
-                          <button type="button" data-season-cell={`${id}:${w.episode}`} aria-label={`${castName(c, g)}, ${words.episode} ${w.episode}: ${signed(x.p)}${x.start ? "" : " on the bench"}`} onClick={() => onFace(id, w.episode)} className={`nd-press type-num grid h-11 w-full place-items-center text-[14px] ${x.start ? "text-foreground" : "text-muted-foreground"}`}>
+                          <button type="button" data-season-cell={`${id}:${w.episode}`} aria-label={`${castName(c, g)}, ${epName(words, w.episode, "long")}: ${signed(x.p)}${x.start ? "" : " on the bench"}`} onClick={() => onFace(id, w.episode)} className={`nd-press type-num grid h-11 w-full place-items-center text-[14px] ${x.start ? "text-foreground" : "text-muted-foreground"}`}>
                             {signed(x.p)}
                           </button>
                         ) : (
@@ -1317,7 +1318,7 @@ export function CompareBody({ g, a, b, episode, words, onFace, onEpisode }: { g:
       <span className="mt-0.5 text-[13px] text-muted-foreground">{[c.role ? slotWord(c.role.toUpperCase()) : null, whose(c.id)].filter(Boolean).join(" · ")}</span>
       {wk !== null && <b className="type-num mt-1 text-[26px] leading-none">{signed(wk)}</b>}
       <span className="mt-0.5 text-[13px] text-muted-foreground">
-        {wk !== null ? `${words.ep} ${episode} · ` : ""}
+        {wk !== null ? `${epName(words, episode!, "tag")} · ` : ""}
         {fmt(total)} over {n} {n === 1 ? "week" : "weeks"}
       </span>
     </button>
@@ -1332,7 +1333,7 @@ export function CompareBody({ g, a, b, episode, words, onFace, onEpisode }: { g:
       <p className="type-caption mb-1 mt-4 text-[14px] tracking-[0.04em] text-muted-foreground">Week by week</p>
       <div className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none]">
         <div className="relative" style={{ width: SW }}>
-        <svg width={SW} height={H + 20} role="img" aria-label={cw.episodes.map((e, i) => `${words.ep} ${e}: ${castName(ca, g)} ${signed(sa[i])}, ${castName(cb, g)} ${signed(sb[i])}`).join("; ")} className="block">
+        <svg width={SW} height={H + 20} role="img" aria-label={cw.episodes.map((e, i) => `${epName(words, e, "short")}: ${castName(ca, g)} ${signed(sa[i])}, ${castName(cb, g)} ${signed(sb[i])}`).join("; ")} className="block">
           {at >= 0 && <rect x={at * colW + 1} width={colW - 2} y={0} height={H + 2} rx={3} fill="var(--secondary)" />}
           <line x1={0} x2={SW} y1={y(0)} y2={y(0)} stroke="var(--edge)" strokeWidth={1} />
           {cw.episodes.map((e, i) => {
@@ -1354,7 +1355,7 @@ export function CompareBody({ g, a, b, episode, words, onFace, onEpisode }: { g:
                   );
                 })}
                 <text x={i * colW + colW / 2} y={H + 14} textAnchor="middle" fontSize={11} fontWeight={i === at ? 700 : 400} fill={i === at ? "var(--foreground)" : "var(--muted-foreground)"}>
-                  {words.ep} {e}
+                  {epName(words, e, "narrow")}
                 </text>
               </g>
             );
@@ -1364,7 +1365,7 @@ export function CompareBody({ g, a, b, episode, words, onFace, onEpisode }: { g:
         {onEpisode && (
           <div className="absolute inset-0 flex">
             {cw.episodes.map((e, i) => (
-              <button key={e} type="button" data-compare-week={e} aria-pressed={i === at} aria-label={`${words.ep} ${e}: ${castName(ca, g)} ${signed(sa[i])}, ${castName(cb, g)} ${signed(sb[i])}`} onClick={() => onEpisode(e)} className="h-full flex-none rounded-[3px] active:bg-foreground/[0.06]" style={{ width: colW }} />
+              <button key={e} type="button" data-compare-week={e} aria-pressed={i === at} aria-label={`${epName(words, e, "short")}: ${castName(ca, g)} ${signed(sa[i])}, ${castName(cb, g)} ${signed(sb[i])}`} onClick={() => onEpisode(e)} className="h-full flex-none rounded-[3px] active:bg-foreground/[0.06]" style={{ width: colW }} />
             ))}
           </div>
         )}
@@ -1385,11 +1386,11 @@ export function CompareBody({ g, a, b, episode, words, onFace, onEpisode }: { g:
                 <td className="text-muted-foreground">
                   {onEpisode ? (
                     <button type="button" data-compare-row={e} aria-pressed={i === at} onClick={() => onEpisode(e)} className="flex min-h-11 w-full items-center text-left underline decoration-border decoration-2 underline-offset-[4px]">
-                      {words.ep} {e}
+                      {epName(words, e, "tag")}
                     </button>
                   ) : (
                     <span className="block py-1.5">
-                      {words.ep} {e}
+                      {epName(words, e, "tag")}
                     </span>
                   )}
                 </td>
@@ -1455,7 +1456,7 @@ export function GameTable({ g, words, onFace, ground = "var(--background)" }: { 
             <span className="sr-only">, held by {said.length > 1 ? `${said.slice(0, -1).join(", ")} and ${said.at(-1)}` : said[0]}</span>
           </>
         ) : (
-          <span className="min-w-0 truncate">{c.left ? `Out · ${words.ep} ${c.out}` : "Free"}</span>
+          <span className="min-w-0 truncate">{c.left ? `Out · ${epName(words, c.out!, "tag")}` : "Free"}</span>
         )}
       </span>
     );
@@ -1479,7 +1480,7 @@ export function GameTable({ g, words, onFace, ground = "var(--background)" }: { 
         ))}
       </div>
       <p className="mb-1 text-[13px] text-muted-foreground">
-        {rows.length} shown · sorted by {sortBy === "total" ? "the total" : `${words.ep} ${eps[sortBy]}`} (tap a heading to sort by it)
+        {rows.length} shown · sorted by {sortBy === "total" ? "the total" : `${epName(words, eps[sortBy], "short")}`} (tap a heading to sort by it)
       </p>
       {rows.length === 0 ? (
         <p className="py-6 text-center text-[15px] text-muted-foreground">Nobody here by that name{filter !== "all" ? " in this filter" : ""}.</p>
@@ -1492,7 +1493,7 @@ export function GameTable({ g, words, onFace, ground = "var(--background)" }: { 
                 {eps.map((e, i) => (
                   <th key={e} data-week-col className="w-[46px] min-w-[46px] pb-1">
                     <button type="button" onClick={() => setSortBy(i)} aria-pressed={sortBy === i} className={`type-caption min-h-11 w-full text-center text-[13px] ${sortBy === i ? "text-foreground underline underline-offset-4" : "font-normal text-muted-foreground"}`}>
-                      {words.ep} {e}
+                      {epName(words, e, "narrow")}
                     </button>
                   </th>
                 ))}
@@ -1527,7 +1528,7 @@ export function GameTable({ g, words, onFace, ground = "var(--background)" }: { 
                           <span className="text-muted-foreground/60">·</span>
                         ) : (
                           // That castaway that week: their sheet, at that episode of their story (the drill pass, 2026-11-17).
-                          <button type="button" data-table-cell={`${c.id}:${e}`} aria-label={`${castName(c, g)}, ${words.ep} ${e}: ${signed(pts[i])}`} onClick={() => onFace(c.id, e)} className={`nd-press type-num grid h-12 w-full place-items-center text-[15px] ${pts[i] > 0 ? "text-foreground" : "text-muted-foreground"}`}>
+                          <button type="button" data-table-cell={`${c.id}:${e}`} aria-label={`${castName(c, g)}, ${epName(words, e, "short")}: ${signed(pts[i])}`} onClick={() => onFace(c.id, e)} className={`nd-press type-num grid h-12 w-full place-items-center text-[15px] ${pts[i] > 0 ? "text-foreground" : "text-muted-foreground"}`}>
                             {signed(pts[i])}
                           </button>
                         )}

@@ -46,7 +46,7 @@ import { GamesMark } from "./games-mark";
 import { openWatching } from "../watching/sheets";
 import { useOpenTogether } from "../show/watch-along";
 import { usePracticeShows } from "../tour/practice-shows";
-import { showWords } from "@/lib/game/show-words";
+import { epName, showWords, type GameLabel } from "@/lib/game/show-words";
 import { moveCard } from "../show/moves";
 import { TeamMark } from "../sports/parts";
 import { useSportsDay } from "./sports-day";
@@ -125,7 +125,7 @@ export function StatusLine({ home }: { home: Home }) {
       <span className="flex-1">
         {kind === "reveal" ? (
           <>
-            <b className="text-foreground">{reveal.results.reveal!.stage === "early" ? "Early results are in" : "Final results are in"}</b> · {showName(reveal)} Episode {reveal.results.reveal!.episode}
+            <b className="text-foreground">{reveal.results.reveal!.stage === "early" ? "Early results are in" : "Final results are in"}</b> · {showName(reveal)} {epName({ episode: "Episode", names: reveal.gameNames }, reveal.results.reveal!.episode)}
             {reveal.results.reveal!.stage === "early" && finalWords ? ` · ${midLine(finalWords)}` : ""}
             {moves.length ? ` · ${due}` : ""}
           </>
@@ -135,7 +135,7 @@ export function StatusLine({ home }: { home: Home }) {
           </>
         ) : kind === "final" ? (
           <>
-            <b className="text-foreground">Final results are in</b> · {showName(morning!)} Episode {morning!.results.final!.episode}
+            <b className="text-foreground">Final results are in</b> · {showName(morning!)} {epName({ episode: "Episode", names: morning!.gameNames }, morning!.results.final!.episode)}
           </>
         ) : (
           <>
@@ -218,9 +218,11 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
   // A sports game (the user, 2026-11-15: three lines for "Cowboys at Eagles, Nov 17 · Tue 10:07 PM · in 2 days"): the matchup with
   // its two marks on one line, the teams' colours behind it when there's no art, no repeated date or "Game 1".
   const game = useSportsDay(couch?.id ?? null).gameOf(show);
-  const words = showWords(show.show.terms);
+  const words = showWords(show.show.terms, show.gameNames);
   // A one-letter short form (a sport's "G") reads as the word in full here.
   const ep = words.ep.length > 1 ? words.ep : words.episode;
+  // A team's game by its name ("KC @ BUF"), else "Ep 4".
+  const tagOf = (n: number, form: "tag" | "short" = "tag") => epName({ episode: words.episode, ep, names: words.names }, n, form);
   const live = !reveal && !!up?.live;
   const playing = show.games.length > 0;
   // A game here whose draft hasn't started (the home's draft-soon.ts read), for the plate when nothing of yours is due.
@@ -231,7 +233,7 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
   const night = couch ? ((home.plans ?? []).find((p) => p.seasonId === show.seasonId && p.couchId === couch.id && p.episode <= next) ?? null) : null;
   // Something out to watch: on now, or an aired episode past your mark.
   const toWatch = live || (show.seenThrough != null && show.seenThrough < show.latestAired);
-  const card = move ? moveCard(move, show.seasonId, false, false, words.episode) : null;
+  const card = move ? moveCard(move, show.seasonId, false, false, words.episode, words.names) : null;
   const moveEp = move?.episode ?? up?.number ?? null;
   const lockAt = move?.deadline ? Date.parse(move.deadline) : null;
   // The lock in words only when it isn't the airtime (the head says the airtime: R1, each fact once).
@@ -247,7 +249,7 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
     const behind = show.seenThrough != null && show.latestAired - show.seenThrough >= 2 ? `You're ${show.latestAired - show.seenThrough} behind` : null;
     const why = reveal.stage === "early" ? (finalWords ? midLine(finalWords) : "Final results later") : (behind ?? "Every game at once");
     plate = {
-      tag: `${ep} ${reveal.episode}`,
+      tag: tagOf(reveal.episode),
       tone: "due",
       title: reveal.stage === "early" ? "Reveal the early results" : "Reveal the results",
       line: [why, then].filter(Boolean).join(" · "),
@@ -256,7 +258,7 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
   } else if (move && card) {
     const draft = move.kind === "draftStart" || move.kind === "draftTurn" || move.kind === "blindDraft";
     plate = {
-      tag: draft ? "Draft" : moveEp != null && !game ? `${ep} ${moveEp}` : (MOVE_TAG[move.kind] ?? "Your move"),
+      tag: draft ? "Draft" : moveEp != null && !game ? tagOf(moveEp) : (MOVE_TAG[move.kind] ?? "Your move"),
       tone: "due",
       title: card.title,
       line:
@@ -268,15 +270,15 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
       to: moveHref(move, show.seasonId),
     };
   } else if (final) {
-    plate = { tag: `${ep} ${final.episode}`, tone: "good", title: "Final results are in", line: "Every point counted", to: href };
+    plate = { tag: tagOf(final.episode), tone: "good", title: "Final results are in", line: "Every point counted", to: href };
   } else if (kind === "set" && soonGame?.draftSoon) {
     // A draft that hasn't started (docs/design-round/draft-start-spec.md): who it waits for, or when it starts, never "All set".
     const w = draftSoonWords(soonGame.draftSoon, soonGame.yourRole === "commissioner", (iso) => draftWhen(iso, now), ep);
     plate = { tag: "Draft", tone: w.due ? "due" : "soon", title: w.title, line: soonGame.name, to: w.backstage ? paths.backstage(show.seasonId) : `${paths.showPage(show.seasonId, draftRoomPage(soonGame.draftSoon.kind))}?game=${soonGame.leagueId}` };
   } else if (kind === "set" && up) {
-    plate = { tag: `${ep} ${up.number}`, tone: "set", title: `All set for ${ep} ${up.number}`, line: "Change anything until it airs", to: href };
+    plate = { tag: tagOf(up.number), tone: "set", title: `All set for ${tagOf(up.number, "short")}`, line: "Change anything until it airs", to: href };
   }
-  const head = game ? null : reveal ? `${ep} ${reveal.episode}` : up ? `${ep} ${up.number}` : null;
+  const head = game ? null : reveal ? tagOf(reveal.episode) : up ? tagOf(up.number) : null;
   // The season line, unless it only repeats the name (a sport's game: "Cowboys at Eagles, Nov 17").
   const season = game ? "" : show.seasonNumber ? `Season ${show.seasonNumber}` : show.seasonName && show.seasonName !== show.show.name ? show.seasonName : "";
   // More moves: the show's own (Tonight's strip lists them) and other shows' (the first one's move, or that show).
@@ -391,7 +393,7 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
         )}
         {night && (
           <div className="relative z-[1]">
-            <PlannedNight plan={night} me={home.user.id} />
+            <PlannedNight plan={night} me={home.user.id} names={show.gameNames} />
           </div>
         )}
         {(more > 0 || (!night && toWatch)) && (
@@ -433,7 +435,7 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
 /** The wall clock, read when Join is tapped (never while drawing). */
 const wallClock = () => Date.now();
 
-function PlannedNight({ plan, me }: { plan: WatchPlan; me: string }) {
+function PlannedNight({ plan, me, names }: { plan: WatchPlan; me: string; names?: Record<number, GameLabel> | null }) {
   const setPlans = useSetPlans();
   const openTogether = useOpenTogether();
   const [busy, setBusy] = useState(false);
@@ -446,7 +448,7 @@ function PlannedNight({ plan, me }: { plan: WatchPlan; me: string }) {
     try {
       setPlans((await plansApi.answer(plan.id, "in")).plans);
       if (at - (plan.how === "live" ? 0 : START_EARLY_MS) <= wallClock()) openTogether(plan);
-      else toast(`You're in · Episode ${plan.episode}, ${airTime(at)}`);
+      else toast(`You're in · ${epName({ episode: "Episode", names }, plan.episode)}, ${airTime(at)}`);
     } catch (e) {
       toast.quiet((e as Error).message);
     } finally {
@@ -461,7 +463,7 @@ function PlannedNight({ plan, me }: { plan: WatchPlan; me: string }) {
           Watch along · {going} going
         </b>
         <small className="block truncate text-xs text-white/75">
-          Ep {plan.episode} · {airTime(at)} · {plan.how === "live" ? "the live airing" : "starting together"}
+          {epName({ episode: "Episode", ep: "Ep", names }, plan.episode, "tag")} · {airTime(at)} · {plan.how === "live" ? "the live airing" : "starting together"}
           {plan.you === "invited" ? ` · ${plan.host.userId === me ? "you" : plan.host.name} asked you` : ""}
         </small>
       </span>
@@ -1083,7 +1085,7 @@ export function startShow(home: Home, couch: Couch | null): HomeShow | null {
 /** "Survival Pool needs no draft: Survivor 51 can start with Episode 6 on Wednesday." */
 function startLineOf(s: HomeShow): string {
   const label = `${plainName(s.show.name).replace(/^The /, "")}${s.seasonNumber ? ` ${s.seasonNumber}` : ""}`;
-  const when = s.upNext ? ` with Episode ${s.upNext.number}${s.upNext.airAt ? ` on ${new Date(s.upNext.airAt).toLocaleDateString("en-US", { weekday: "long" })}` : ""}` : " with the next episode";
+  const when = s.upNext ? ` with ${epName({ episode: "Episode", names: s.gameNames }, s.upNext.number)}${s.upNext.airAt ? ` on ${new Date(s.upNext.airAt).toLocaleDateString("en-US", { weekday: "long" })}` : ""}` : " with the next episode";
   if (s.show.kind === "series") return `Weekly Lineup on ${label}: draft the cast, and it can start${when}.`;
   if (s.show.kind === "sport") return `Weekly Lineup on ${label}: draft from the whole field, and it can start with the next event.`;
   return `Survival Pool needs no draft: ${label} can start${when}.`;

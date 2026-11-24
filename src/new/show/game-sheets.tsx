@@ -1,5 +1,6 @@
 "use client";
 
+import { epName } from "@/lib/game/show-words";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { Bot, Check, RotateCcw, ShieldCheck, X } from "lucide-react";
@@ -133,13 +134,13 @@ function titleOf(d: Door, ctx: Ctx): string {
   const g = gameOf(d, ctx);
   const { show } = ctx;
   if (d.kind === "person") return g?.table.find((r) => r.playerId === d.playerId)?.name ?? "";
-  if (d.kind === "episode" || d.kind === "night") return `${show.words.episode} ${d.episode}`;
+  if (d.kind === "episode" || d.kind === "night") return `${epName(show.words, d.episode, "long")}`;
   if (d.kind === "cast") {
     if (d.name) return show.header?.show.kind === "sport" ? d.name : first(d.name);
     const c = g && d.id ? faceIn(g, d.id) : undefined;
     return c?.role ? c.name : castName(c, g);
   }
-  if (d.kind === "matchup") return `${show.words.ep} ${d.episode}`;
+  if (d.kind === "matchup") return `${epName(show.words, d.episode, "short")}`;
   if (d.kind === "bets") return "Side bets";
   if (d.kind === "compare") return g ? `${castName(faceIn(g, d.a), g)} vs ${castName(faceIn(g, d.b), g)}` : "Side by side";
   if (d.kind === "table") return "Everyone";
@@ -231,9 +232,9 @@ function Level({ level, drill, crumb, plain, ...ctx }: Ctx & { level: Level; dri
         onOpenChange={onOpenChange}
         crumb={crumb}
         plain={plain}
-        title={`${show.words.episode} ${d.episode}`}
+        title={`${epName(show.words, d.episode, "long")}`}
         subtitle={episodeLine(g, d.episode)}
-        stepper={eps.length > 1 ? { prev: at > 0 ? `${show.words.ep} ${eps[at - 1]}` : null, next: at >= 0 && at < eps.length - 1 ? `${show.words.ep} ${eps[at + 1]}` : null, onStep: step } : undefined}
+        stepper={eps.length > 1 ? { prev: at > 0 ? `${epName(show.words, eps[at - 1], "tag")}` : null, next: at >= 0 && at < eps.length - 1 ? `${epName(show.words, eps[at + 1], "tag")}` : null, onStep: step } : undefined}
       >
         <EpisodeBody key={d.episode} {...gctx} episode={d.episode} go={go} />
       </Sheet>
@@ -257,7 +258,7 @@ function Level({ level, drill, crumb, plain, ...ctx }: Ctx & { level: Level; dri
         plain={plain}
         title={t.title}
         subtitle={t.subtitle}
-        stepper={eps.length > 1 ? { prev: at > 0 ? `${show.words.ep} ${eps[at - 1]}` : null, next: at >= 0 && at < eps.length - 1 ? `${show.words.ep} ${eps[at + 1]}` : null, onStep: step } : undefined}
+        stepper={eps.length > 1 ? { prev: at > 0 ? `${epName(show.words, eps[at - 1], "tag")}` : null, next: at >= 0 && at < eps.length - 1 ? `${epName(show.words, eps[at + 1], "tag")}` : null, onStep: step } : undefined}
       >
         <MatchupBody key={`${d.playerId}:${d.episode}`} g={wg} pid={d.playerId} n={d.episode} words={show.words} sport={sport} onFace={(id, holder) => go.open({ kind: "cast", id, episode: d.episode, ...(holder ? { holder } : {}) })} onCompare={(a, b) => go.open({ kind: "compare", a, b, episode: d.episode })} onPerson={(playerId) => go.open({ kind: "person", playerId, episode: d.episode })} />
       </Sheet>
@@ -283,7 +284,7 @@ function Level({ level, drill, crumb, plain, ...ctx }: Ctx & { level: Level; dri
     const wg = gctx.wg ?? g;
     const open = wg.bets?.bets.find((x) => x.open);
     return (
-      <Sheet open={level.open} onOpenChange={onOpenChange} crumb={crumb} plain={plain} title="Side bets" subtitle={open ? `${show.words.episode} ${open.episode} · calls close when it starts` : (wg.bets?.postTo ?? null) !== null ? `${show.words.episode} ${wg.bets!.postTo}` : g.gameName}>
+      <Sheet open={level.open} onOpenChange={onOpenChange} crumb={crumb} plain={plain} title="Side bets" subtitle={open ? `${epName(show.words, open.episode, "long")} · calls close when it starts` : (wg.bets?.postTo ?? null) !== null ? `${epName(show.words, wg.bets!.postTo!, "long")}` : g.gameName}>
         <BetsBody g={wg} words={show.words} seasonId={seasonId} runs={!!gctx.runs} onPerson={(playerId) => go.open({ kind: "person", playerId, episode: null })} />
       </Sheet>
     );
@@ -338,7 +339,7 @@ function CastLevel({ show, seasonId, g, d, sheet, go, onLens, onWeek, onFlag }: 
   const c = all.find((x) => same(x.name, name)) ?? (firsts.length === 1 ? firsts[0] : null);
   const through = stats.data?.through ?? g?.through ?? 0;
   return (
-    <Sheet {...sheet} open={sheet.open && !!name} title={c?.name ?? name} subtitle={through ? `${show.header?.show.name ?? ""} · up to ${show.words.ep} ${through}` : (show.header?.show.name ?? undefined)}>
+    <Sheet {...sheet} open={sheet.open && !!name} title={c?.name ?? name} subtitle={through ? `${show.header?.show.name ?? ""} · up to ${epName(show.words, through, "short")}` : (show.header?.show.name ?? undefined)}>
       {!stats.data ? (
         <Waiting />
       ) : c ? (
@@ -377,7 +378,7 @@ function StatLevel({ show, seasonId, d, sheet, go, onRank }: { show: ShowData; s
     </div>
   );
   return (
-    <Sheet {...sheet} title={s?.name ?? d.title ?? ""} subtitle={stats.data ? `${show.header?.show.name ?? ""} · up to ${show.words.ep} ${stats.data.through} · ${have} of ${stats.data.cast.length} ${have === 1 ? "has" : "have"} it` : undefined}>
+    <Sheet {...sheet} title={s?.name ?? d.title ?? ""} subtitle={stats.data ? `${show.header?.show.name ?? ""} · up to ${epName(show.words, stats.data.through, "short")} · ${have} of ${stats.data.cast.length} ${have === 1 ? "has" : "have"} it` : undefined}>
       {stats.data ? <StatBoard d={stats.data} statKey={d.key} from={d.from} lens={lens} games={teams} onLens={setHolds} onCast={(name) => go.open({ kind: "cast", name, lens: d.lens, ...(holds ?? d.lens ? { game: (holds ?? d.lens)! } : {}) })} foot={foot} /> : <Waiting />}
     </Sheet>
   );
@@ -409,7 +410,7 @@ function VersusLevel({ show, seasonId, d, sheet, go, onEpisode }: { show: ShowDa
   const a = stats.data?.cast.find((x) => same(x.name, d.a));
   const b = stats.data?.cast.find((x) => same(x.name, d.b));
   return (
-    <Sheet {...sheet} title="Side by side" subtitle={stats.data ? `${show.header?.show.name ?? ""} · ${show.words.ep} ${stats.data.from === stats.data.to ? stats.data.from : `${stats.data.from}–${stats.data.to}`}` : undefined}>
+    <Sheet {...sheet} title="Side by side" subtitle={stats.data ? `${show.header?.show.name ?? ""} · ${stats.data.from === stats.data.to ? epName(show.words, stats.data.from, "tag") : `${show.words.ep} ${stats.data.from}–${stats.data.to}`}` : undefined}>
       {stats.data && a && b ? <CompareCounts d={stats.data} a={a} b={b} words={show.words} /> : <Waiting />}
     </Sheet>
   );
@@ -430,9 +431,9 @@ function NightLevel({ show, seasonId, d, sheet, open, onStep }: { show: ShowData
   return (
     <Sheet
       {...sheet}
-      title={`${show.words.episode} ${d.episode}`}
+      title={`${epName(show.words, d.episode, "long")}`}
       subtitle={[e?.title, season].filter(Boolean).join(" · ") || undefined}
-      stepper={seen.length > 1 ? { prev: at > 0 ? `${show.words.ep} ${seen[at - 1]}` : null, next: at >= 0 && at < seen.length - 1 ? `${show.words.ep} ${seen[at + 1]}` : null, onStep: step } : undefined}
+      stepper={seen.length > 1 ? { prev: at > 0 ? `${epName(show.words, seen[at - 1], "tag")}` : null, next: at >= 0 && at < seen.length - 1 ? `${epName(show.words, seen[at + 1], "tag")}` : null, onStep: step } : undefined}
     >
       {e ? (
         <div key={d.episode} data-night-sheet={d.episode}>
@@ -543,7 +544,7 @@ function Strip({ g, r, sel, onPick, words }: { g: GameView; r: TableRow; sel: nu
         : k === "won"
           ? `${sq.filter((s) => s.won).length} won`
           : vals.length
-            ? `${fmt(avg)} a ${words.episode.toLowerCase()} · best ${signed(best)} (${words.ep} ${sq[vals.indexOf(best)].episode})`
+            ? `${fmt(avg)} a ${words.episode.toLowerCase()} · best ${signed(best)} (${epName(words, sq[vals.indexOf(best)].episode, "short")})`
             : null;
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -566,10 +567,10 @@ function Strip({ g, r, sel, onPick, words }: { g: GameView; r: TableRow; sel: nu
           {sq.map((s) => {
             const on = s.episode === sel;
             return (
-              <button key={s.episode} type="button" data-strip-ep={s.episode} aria-pressed={on} aria-label={`${words.episode} ${s.episode}${s.late ? `. ${LATE_SET}` : ""}`} onClick={() => onPick(s.episode)} className={`relative flex min-h-11 flex-col items-center rounded-[3px] py-1.5 ${on ? "bg-secondary" : ""}`}>
+              <button key={s.episode} type="button" data-strip-ep={s.episode} aria-pressed={on} aria-label={`${epName(words, s.episode, "long")}${s.late ? `. ${LATE_SET}` : ""}`} onClick={() => onPick(s.episode)} className={`relative flex min-h-11 flex-col items-center rounded-[3px] py-1.5 ${on ? "bg-secondary" : ""}`}>
                 <StripCell g={g} s={s} on={on} max={max} colour={colour} />
                 {s.late && <LateMark className="right-0.5 top-0.5" />}
-                <span className={`mt-1.5 text-[12px] ${on ? "font-bold" : "text-muted-foreground"}`}>{many ? s.episode : `${words.ep} ${s.episode}`}</span>
+                <span className={`mt-1.5 text-[12px] ${on ? "font-bold" : "text-muted-foreground"}`}>{many ? epName(words, s.episode, "col") : epName(words, s.episode, "tag")}</span>
               </button>
             );
           })}
@@ -579,7 +580,7 @@ function Strip({ g, r, sel, onPick, words }: { g: GameView; r: TableRow; sel: nu
               <span className="mt-1 flex w-full items-end justify-center" style={{ height: k === "pick" || k === "result" ? 40 : BAR }}>
                 <span className="h-[18px] w-6 rounded-t-[2px] border-[1.5px] border-dashed border-muted-foreground/60" />
               </span>
-              <span className="mt-1.5 text-[12px] text-muted-foreground">{many ? next.episode : `${words.ep} ${next.episode}`}</span>
+              <span className="mt-1.5 text-[12px] text-muted-foreground">{many ? epName(words, next.episode, "col") : epName(words, next.episode, "tag")}</span>
             </span>
           )}
         </div>
@@ -658,7 +659,7 @@ function EpisodeBlock({ g, show, seasonId, r, n, go }: { g: GameView; show: Show
       <div className="flex items-end gap-3">
         <div className="min-w-0 flex-1">
           <button type="button" data-door-episode={n} onClick={() => go.open({ kind: "episode", episode: n })} className="type-caption -my-1 py-1 text-left text-[26px] underline decoration-border decoration-2 underline-offset-[5px]">
-            {show.words.episode} {n}
+            {epName(show.words, n, "long")}
           </button>
           <p className="mt-1 text-[13px] text-muted-foreground">
             {blockLine(g, r, n, s)}
@@ -812,7 +813,7 @@ function BootsBlock({ g, r, n, s, go, show }: BlockProps) {
   const left = new Set(s?.left ?? []);
   return (
     <>
-      <Caption right={left.size ? `${left.size} left in ${show.words.ep} ${s?.episode}` : "Nobody left"}>The team that {show.words.episode.toLowerCase()}</Caption>
+      <Caption right={left.size ? `${left.size} left in ${epName(show.words, s!.episode, "short")}` : "Nobody left"}>The team that {show.words.episode.toLowerCase()}</Caption>
       {[...held].sort((a, b) => Number(left.has(b)) - Number(left.has(a))).map((id) => (
         <CastRow key={id} g={g} id={id} go={go} at={{ episode: n, holder: r.playerId }} line={left.has(id) ? "Went home" : "Still in"} dim={left.has(id)} />
       ))}
@@ -821,7 +822,7 @@ function BootsBlock({ g, r, n, s, go, show }: BlockProps) {
 }
 
 /** A game where the whole team (or the picks) count: the team as it stands, each opening its castaway. */
-function TeamBlock({ g, r, go }: BlockProps) {
+function TeamBlock({ g, r, go, show }: BlockProps) {
   if (!r.team.length) return null;
   const spent = g.prices ? g.prices.spent[r.playerId] : undefined;
   return (
@@ -830,7 +831,7 @@ function TeamBlock({ g, r, go }: BlockProps) {
       {r.team.map((id) => {
         const c = faceIn(g, id);
         const paid = g.prices?.paid[id];
-        return <CastRow key={id} g={g} id={id} go={go} line={c?.knocked ? `Out${c.out ? ` · Ep ${c.out}` : ""}` : c?.left ? `${c.place === 1 ? "Won" : "Finalist"}${c.out ? ` · Ep ${c.out}` : ""}` : "Still in"} dim={!!c?.knocked} end={c?.points != null ? <PriceEnd points={c.points} paid={paid} /> : undefined} />;
+        return <CastRow key={id} g={g} id={id} go={go} line={c?.knocked ? `Out${c.out ? ` · ${epName(show.words, c.out, "tag")}` : ""}` : c?.left ? `${c.place === 1 ? "Won" : "Finalist"}${c.out ? ` · ${epName(show.words, c.out, "tag")}` : ""}` : "Still in"} dim={!!c?.knocked} end={c?.points != null ? <PriceEnd points={c.points} paid={paid} /> : undefined} />;
       })}
     </>
   );
@@ -922,7 +923,7 @@ function CardBlock({ show, seasonId, r, n }: BlockProps) {
   const q = useEpisodeBingo(seasonId, show.couch?.id ?? null, n, !!r.userId, r.you ? null : r.userId);
   const d = q.data;
   if (q.isPending) return <div aria-busy className="mt-4 h-40 animate-pulse rounded-[3px] bg-background" />;
-  if (!d || d.catchUp !== null) return <p className="mt-3 text-sm text-muted-foreground">{d?.catchUp ? `See ${show.words.episode} ${d.catchUp} first.` : "Couldn't load the card. Try again in a moment."}</p>;
+  if (!d || d.catchUp !== null) return <p className="mt-3 text-sm text-muted-foreground">{d?.catchUp ? `See ${epName(show.words, d.catchUp, "long")} first.` : "Couldn't load the card. Try again in a moment."}</p>;
   const ticked = new Set(d.ticked);
   const size = Math.round(Math.sqrt(d.squares.length)) || 3;
   return (
@@ -962,7 +963,7 @@ function SeasonBlock({ g, r, go, words }: { g: GameView; r: TableRow; go: Drill;
         {r.team.map((id) => {
           const c = faceIn(g, id);
           const paid = prices?.paid[id];
-          return <CastRow key={id} g={g} id={id} go={go} line={c?.knocked ? `Out${c.out ? ` · ${words.episode} ${c.out}` : ""}${c.place ? ` · finished ${ordinal(c.place)}` : ""}` : c?.left ? `${c.place === 1 ? "Won" : `Finalist${c.place ? ` · finished ${ordinal(c.place)}` : ""}`}${c.out ? ` · ${words.episode} ${c.out}` : ""}` : "Still in"} dim={!!c?.knocked} end={<PriceEnd points={c?.points ?? 0} paid={paid} />} />;
+          return <CastRow key={id} g={g} id={id} go={go} line={c?.knocked ? `Out${c.out ? ` · ${epName(words, c.out, "long")}` : ""}${c.place ? ` · finished ${ordinal(c.place)}` : ""}` : c?.left ? `${c.place === 1 ? "Won" : `Finalist${c.place ? ` · finished ${ordinal(c.place)}` : ""}`}${c.out ? ` · ${epName(words, c.out, "long")}` : ""}` : "Still in"} dim={!!c?.knocked} end={<PriceEnd points={c?.points ?? 0} paid={paid} />} />;
         })}
       </>
     );

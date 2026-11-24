@@ -1,5 +1,6 @@
 "use client";
 
+import { epName } from "@/lib/game/show-words";
 import { useEffect, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { airTime, calmWhen, justAired, ticks } from "../clock";
@@ -44,17 +45,17 @@ export function progressWords(show: ShowData, now: number): ProgressWords {
   if (seen != null) {
     if (seen <= 0) mark = "Not started";
     else if (show.ownPace && total > 0 && seen >= total) mark = "You finished it";
-    else if (seen < aired) mark = `Through ${ep} ${seen} · ${aired - seen} behind`;
-    else mark = `Through ${ep} ${seen}`;
+    else if (seen < aired) mark = `Through ${epName(show.words, seen, "short")} · ${aired - seen} behind`;
+    else mark = `Through ${epName(show.words, seen, "short")}`;
   }
   let next: string | null = null;
   const t = up?.airAt ? Date.parse(up.airAt) : null;
   if (show.dropAt != null && show.dropAt > now) next = `Drops ${airTime(show.dropAt)}`;
-  else if (up?.live) next = `${ep} ${up.number} · on air now`;
-  else if (show.plays && show.episodes?.reveal) next = `${ep} ${show.episodes.reveal.episode} ${show.episodes.reveal.stage === "early" ? "early results are in" : "results are in"}`;
-  else if (show.plays && show.episodes?.waiting) next = `${ep} ${show.episodes.waiting.episode} ${justAired(show.episodes.waiting.airAt) ? "just aired" : "aired"} · results soon`;
-  else if (seen != null && seen < aired) next = aired - seen === 1 ? `${ep} ${aired} is out` : aired - seen === 2 ? `${ep} ${seen + 1} and ${aired} are out` : `${ep} ${seen + 1} to ${aired} are out`;
-  else if (up && t != null) next = `${ep} ${up.number} · ${calmWhen(t, now)}`;
+  else if (up?.live) next = `${epName(show.words, up.number, "tag")} · on air now`;
+  else if (show.plays && show.episodes?.reveal) next = `${epName(show.words, show.episodes.reveal.episode, "short")} ${show.episodes.reveal.stage === "early" ? "early results are in" : "results are in"}`;
+  else if (show.plays && show.episodes?.waiting) next = `${epName(show.words, show.episodes.waiting.episode, "short")} ${justAired(show.episodes.waiting.airAt) ? "just aired" : "aired"} · results soon`;
+  else if (seen != null && seen < aired) next = aired - seen === 1 ? `${epName(show.words, aired, "short")} is out` : aired - seen === 2 ? `${ep} ${seen + 1} and ${aired} are out` : `${ep} ${seen + 1} to ${aired} are out`;
+  else if (up && t != null) next = `${epName(show.words, up.number, "tag")} · ${calmWhen(t, now)}`;
   else if (show.ownPace && !up && total > 0 && (seen ?? 0) < total) next = `All ${total} are out`;
   else if (seasonOver(show)) next = "Season over";
   return { mark, next, live: !!up?.live };
@@ -106,7 +107,7 @@ export function ProgressControl({ show, compact }: { show: ShowData; compact?: b
       onStart={() => {
         const n = watchAsk;
         setWatchAsk(null);
-        void lock(n, `Locked in for Episode ${n}. Enjoy the episode.`).then(() => openWatch(n));
+        void lock(n, `Locked in for ${epName(show.words, n)}. Enjoy the episode.`).then(() => openWatch(n));
       }}
       onChange={() => {
         const lead = stripState(show)?.open;
@@ -128,7 +129,6 @@ export function ProgressControl({ show, compact }: { show: ShowData; compact?: b
   const ruler = known.length > 0 && show.latestAired + (up ? 1 : 0) > 0;
   const openWhereAll = () => (couchId && seasonId ? openCouchSheet({ kind: "where", couchId, seasonId }) : openWhere(show, openReveal));
   // Behind on an airing show, the control's line asks about the next episode (step-through.tsx: one at a time, the user's pick A).
-  const ep = show.words.ep;
   const latest = show.latestAired;
   // At your own pace being behind is the point: nothing to ask.
   const behind = !!action && action.kind !== "live" && action.kind !== "pace" && seen != null && seen < latest;
@@ -143,15 +143,15 @@ export function ProgressControl({ show, compact }: { show: ShowData; compact?: b
     const act =
       action?.kind === "pace" && pace ? (
         <SmallButton primary={action.primary} data-progress-pace={action.n} disabled={paced.busy} onClick={paced.start}>
-          {paced.busy ? "Revealing…" : `Reveal ${ep} ${action.n}`}
+          {paced.busy ? "Revealing…" : `Reveal ${epName(show.words, action.n, "short")}`}
         </SmallButton>
       ) : action?.kind === "reveal" ? (
         <SmallButton primary={action.primary || behind} data-progress-reveal={action.n} onClick={() => setConfirm(true)}>
-          Reveal {ep} {action.n}
+          Reveal {epName(show.words, action.n, "short")}
         </SmallButton>
       ) : action?.kind === "watched" ? (
         <SmallButton data-progress-watched={action.n} onClick={() => setConfirm(true)}>
-          I watched {ep} {action.n}
+          I watched {epName(show.words, action.n, "short")}
         </SmallButton>
       ) : action?.kind === "live" ? (
         <SmallButton data-progress-watch={action.n} onClick={() => startWatch(action.n)}>
@@ -226,7 +226,7 @@ export function ProgressControl({ show, compact }: { show: ShowData; compact?: b
           aired={aired}
           next={up && !up.live && up.number <= total ? up.number : null}
           live={up?.live ? up.number : null}
-          ep={show.words.ep}
+          words={show.words}
           couch={onRuler}
           onOpen={openWhereAll}
           mine={behind ? seen : null}
@@ -236,13 +236,13 @@ export function ProgressControl({ show, compact }: { show: ShowData; compact?: b
         <div className="mt-3 flex gap-2">
           {action.kind === "reveal" ? (
             <PlateButton primary={action.primary} fill data-progress-reveal={action.n} onClick={() => setConfirm(true)}>
-              Reveal {show.words.ep} {action.n}
+              Reveal {epName(show.words, action.n, "short")}
               <small className="font-semibold opacity-75">every game</small>
             </PlateButton>
           ) : action.kind === "pace" && pace ? (
             <PlateButton primary={action.primary} fill data-progress-pace={action.n} disabled={paced.busy} onClick={paced.start} className="h-auto min-h-12 py-1.5">
               <span className="flex flex-col items-center leading-tight">
-                <span className="whitespace-nowrap">{paced.busy ? "Revealing…" : `Reveal ${show.words.ep} ${action.n}`}</span>
+                <span className="whitespace-nowrap">{paced.busy ? "Revealing…" : `Reveal ${epName(show.words, action.n, "short")}`}</span>
                 {!paced.busy && (pace.ahead || pace.games.length > 1) && (
                   <small data-progress-ahead className="text-[13px] font-semibold opacity-75">
                     {pace.ahead ?? `${pace.games.length} games`}
@@ -252,7 +252,7 @@ export function ProgressControl({ show, compact }: { show: ShowData; compact?: b
             </PlateButton>
           ) : action.kind === "watched" ? (
             <PlateButton fill data-progress-watched={action.n} onClick={() => setConfirm(true)}>
-              I watched {show.words.ep} {action.n}
+              I watched {epName(show.words, action.n, "short")}
             </PlateButton>
           ) : null}
           <PlateButton fill={action.kind === "live"} data-progress-watch={action.n} onClick={() => startWatch(action.n)}>
@@ -314,7 +314,7 @@ function Ruler({
   aired,
   next,
   live,
-  ep,
+  words,
   couch,
   onOpen,
   mine = null,
@@ -325,7 +325,7 @@ function Ruler({
   aired: number;
   next: number | null;
   live: number | null;
-  ep: string;
+  words: ShowData["words"];
   couch: boolean;
   onOpen: () => void;
   /** Your mark while behind (step-through.tsx): the run from it to the latest aired is drawn dashed (out, unseen). */
@@ -355,7 +355,7 @@ function Ruler({
   const labelled = (n: number) => chosen.includes(n);
   const you = known.find((w) => w.you);
   const label = [
-    you ? `You're through ${ep} ${you.seen}` : null,
+    you ? `You're through ${epName(words, you.seen, "short")}` : null,
     ...known.filter((w) => !w.you).map((w) => `${w.name} ${w.seen}`),
     quietCount ? `${quietCount} not sharing` : null,
   ]

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { airTime } from "../clock";
+import { epName, type GameLabel } from "@/lib/game/show-words";
 import { gameAdmin, momentVotes, useMomentVotes, type GameSettings, type OpenVote } from "../data";
 import { useAfter, useServerUndo } from "../backstage/settings";
 import type { ShowData } from "../screens/show-space";
@@ -18,8 +19,10 @@ import { Choice } from "./choice";
 const pts = (n: number) => `${n > 0 ? "+" : ""}${Math.round(n * 100) / 100}`;
 
 /** When the show adds a moment: the game's rule, and the moments it's gained (Manage this game, How it plays). */
-export function NewMoments({ seasonId, couchId, g, ep }: { seasonId: string; couchId: string; g: GameSettings; ep: string }) {
+export function NewMoments({ seasonId, couchId, g, ep, names }: { seasonId: string; couchId: string; g: GameSettings; ep: string; names?: Record<number, GameLabel> | null }) {
   const m = g.moments!;
+  // A team's game by its name ("Chiefs at Bills"), else "Ep 4".
+  const at = (n: number) => epName({ episode: ep, ep, names }, n, "short");
   const after = useAfter();
   const undo = useServerUndo(seasonId, couchId);
   const [busy, setBusy] = useState(false);
@@ -42,7 +45,7 @@ export function NewMoments({ seasonId, couchId, g, ep }: { seasonId: string; cou
     try {
       const r = await momentVotes.decide(seasonId, couchId, g.leagueId, id, to);
       await after();
-      toast(to === "start" ? `"${name}" counts from the start` : `"${name}" counts from ${ep} ${from}`, undo(r.batch));
+      toast(to === "start" ? `"${name}" counts from the start` : `"${name}" counts from ${at(from)}`, undo(r.batch));
     } catch (e) {
       toast.quiet((e as Error).message);
     } finally {
@@ -72,7 +75,7 @@ export function NewMoments({ seasonId, couchId, g, ep }: { seasonId: string; cou
         <div data-moments-added className="mt-2">
           <p className="type-caption pb-1.5 text-[13px] tracking-[0.05em] text-muted-foreground">New this season</p>
           {m.added.map((a) => {
-            const now = a.settled ? (a.settled.to === "start" ? "Counts from the start" : `Counts from ${ep} ${a.from}`) : a.rule === "vote" ? `Counts from ${ep} ${a.from} for now · the players are voting` : `Counts from ${ep} ${a.from}`;
+            const now = a.settled ? (a.settled.to === "start" ? "Counts from the start" : `Counts from ${at(a.from)}`) : a.rule === "vote" ? `Counts from ${at(a.from)} for now · the players are voting` : `Counts from ${at(a.from)}`;
             const how = a.settled
               ? a.settled.by === "vote"
                 ? ` · the players voted ${Math.max(a.settled.start ?? 0, a.settled.next ?? 0)}–${Math.min(a.settled.start ?? 0, a.settled.next ?? 0)}`
@@ -98,7 +101,7 @@ export function NewMoments({ seasonId, couchId, g, ep }: { seasonId: string; cou
                   <div data-moment-call className="mt-2 flex flex-col gap-1.5">
                     <p className="text-[13px] font-semibold">{a.tally?.tie ? "The vote tied. Your call:" : "Your call, if the couch wants it different:"}</p>
                     <Choice data="moment-start" dataset={{ "data-moment-decide": "start" }} title="Count it from the start" line={`Scores it in the ${ep}s already played too.`} chosen={false} onPick={() => !busy && void decide(a.id, "start", a.name, a.from)} />
-                    <Choice data="moment-next" dataset={{ "data-moment-decide": "next" }} title={`Keep it from ${ep} ${a.from}`} line="Nothing already played changes." chosen={false} onPick={() => !busy && void decide(a.id, "next", a.name, a.from)} />
+                    <Choice data="moment-next" dataset={{ "data-moment-decide": "next" }} title={`Keep it from ${at(a.from)}`} line="Nothing already played changes." chosen={false} onPick={() => !busy && void decide(a.id, "next", a.name, a.from)} />
                   </div>
                 )}
               </div>
@@ -151,13 +154,15 @@ export function MomentVoteLine({ show }: { show: ShowData }) {
           </span>
         </button>
       </section>
-      {open && <MomentVoteSheet seasonId={seasonId} couchId={couchId} v={votes.find((x) => x.id === open.id && x.leagueId === open.leagueId) ?? open} ep={show.words.ep} onClose={() => setOpen(null)} />}
+      {open && <MomentVoteSheet seasonId={seasonId} couchId={couchId} v={votes.find((x) => x.id === open.id && x.leagueId === open.leagueId) ?? open} ep={show.words.ep} names={show.words.names} onClose={() => setOpen(null)} />}
     </>
   );
 }
 
 /** The vote itself: the moment and its points; two equal answers, each with what it does to the standings; the default named. */
-export function MomentVoteSheet({ seasonId, couchId, v, ep, onClose }: { seasonId: string; couchId: string; v: OpenVote; ep: string; onClose: () => void }) {
+export function MomentVoteSheet({ seasonId, couchId, v, ep, names, onClose }: { seasonId: string; couchId: string; v: OpenVote; ep: string; names?: Record<number, GameLabel> | null; onClose: () => void }) {
+  // A team's game by its name ("Chiefs at Bills"), else "Ep 4".
+  const at = (n: number) => epName({ episode: ep, ep, names }, n, "short");
   const after = useAfter();
   const [busy, setBusy] = useState(false);
   const vote = async (answer: "start" | "next") => {
@@ -165,7 +170,7 @@ export function MomentVoteSheet({ seasonId, couchId, v, ep, onClose }: { seasonI
     try {
       await momentVotes.cast(seasonId, couchId, v.leagueId, v.id, answer);
       await after();
-      toast(answer === "start" ? "Voted: from the start" : `Voted: from ${ep} ${v.from}`);
+      toast(answer === "start" ? "Voted: from the start" : `Voted: from ${at(v.from)}`);
     } catch (e) {
       toast.quiet((e as Error).message);
     } finally {
@@ -175,7 +180,7 @@ export function MomentVoteSheet({ seasonId, couchId, v, ep, onClose }: { seasonI
   const earlier = v.earlier.length
     ? v.earlier
         .slice(0, 4)
-        .map((x) => `${x.name} ${pts(x.points)} in ${ep} ${x.episode}`)
+        .map((x) => `${x.name} ${pts(x.points)} in ${at(x.episode)}`)
         .join(", ") + (v.earlier.length > 4 ? `, and ${v.earlier.length - 4} more` : "")
     : null;
   const startLine = earlier
@@ -186,11 +191,11 @@ export function MomentVoteSheet({ seasonId, couchId, v, ep, onClose }: { seasonI
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()} title={`“${v.name}” is new`} subtitle={`${pts(v.points)} in ${v.gameName} · the show added it this season`}>
       <div data-moment-vote={v.id} className="flex flex-col gap-2 pb-2">
-        <p className="text-[15px] leading-snug">Should it count in the {ep}s already played, or only from {ep} {v.from} on?</p>
+        <p className="text-[15px] leading-snug">Should it count in the {ep}s already played, or only from {at(v.from)} on?</p>
         <Choice data="vote-start" title="From the start" line={startLine} chosen={v.mine === "start"} onPick={() => !busy && void vote("start")} />
-        <Choice data="vote-next" title={`From ${ep} ${v.from}`} line={`Nothing already played changes. It counts from ${ep} ${v.from} on.`} chosen={v.mine === "next"} onPick={() => !busy && void vote("next")} />
+        <Choice data="vote-next" title={`From ${at(v.from)}`} line={`Nothing already played changes. It counts from ${at(v.from)} on.`} chosen={v.mine === "next"} onPick={() => !busy && void vote("next")} />
         <p className="text-[13px] leading-snug text-muted-foreground" data-vote-standing>
-          For now it counts from {ep} {v.from}. {v.voted} of {v.of} voted{v.closes ? `; the vote closes ${airTime(Date.parse(v.closes))}` : ""}. More than half decides it; nobody voting keeps {ep} {v.from}.
+          For now it counts from {at(v.from)}. {v.voted} of {v.of} voted{v.closes ? `; the vote closes ${airTime(Date.parse(v.closes))}` : ""}. More than half decides it; nobody voting keeps {at(v.from)}.
         </p>
         {/* Quiet (the check's fix): leaving isn't an answer, so it's never the heaviest thing here. */}
         <button type="button" onClick={onClose} className="mt-1 min-h-11 text-[15px] font-semibold text-muted-foreground">

@@ -3,13 +3,15 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { rulebookFor } from "@/lib/game/formats/blocks/index.js";
 import { phaseRanges } from "@/lib/game/formats/rulebook-compile.js";
 import type { RulebookBlocks } from "@/lib/game/formats/rulebook-schema";
-import { showWords } from "@/lib/game/show-words";
+import { epName, showWords } from "@/lib/game/show-words";
+import type { GameLabel } from "@/lib/game/show-words";
 import type { LeagueState } from "@/lib/game/types";
 import { ensureSeasonRulebook, seasonRulebook } from "@db/rulebooks.js";
 import { resolveFormat } from "@db/show-formats.js";
 import { recordChange } from "./change-log";
 import { pool, withLeagueLock } from "./db";
 import { latestAired, seasonSchedules, type SeasonSchedule } from "./schedule";
+import { sportsGameNames } from "./sports/game-names";
 
 // Games that start when a phase of the season starts (docs/PLAN-start-a-game-gpt.md step A3 part 2, "The phase start,
 // decided"): "When Merged starts" on Start a game and Game settings. The game's span starts at the phase ({ phase } in its
@@ -104,20 +106,21 @@ export function settleIn(state: LeagueState, phases: SeasonPhase[], schedule: Se
 }
 
 /** Recent changes' line for a settled start: "Starts with Merged, at Episode 9" (whether that's aired or still to come), or
- *  "Waits for Merged to start again". */
-export function settledLine(state: LeagueState, phases: SeasonPhase[], episodeWord: string): string {
+ *  "Waits for Merged to start again"; a team's game by its name (epName). */
+export function settledLine(state: LeagueState, phases: SeasonPhase[], episodeWord: string, names?: Record<number, GameLabel> | null): string {
+  const ep = (n: number) => epName({ episode: episodeWord, names }, n);
   const nameOf = (id: string | null) => phases.find((p) => p.id === id)?.name ?? "its phase";
   const out: string[] = [];
   const id = StateLogic.startPhase(state);
   if (id) {
     const at = StateLogic.startEpisode(state);
-    out.push(at === null ? `Waits for ${nameOf(id)} to start again` : `Starts with ${nameOf(id)}, at ${episodeWord} ${at}`);
+    out.push(at === null ? `Waits for ${nameOf(id)} to start again` : `Starts with ${nameOf(id)}, at ${ep(at)}`);
   }
   // Step A12 part 1: an end at a phase: "Ends before Merged, with Episode 8".
   const end = StateLogic.endPhase(state);
   if (end) {
     const last = StateLogic.endEpisode(state);
-    out.push(last === null ? `Runs until ${nameOf(end)} starts` : `Ends before ${nameOf(end)}, with ${episodeWord} ${last}`);
+    out.push(last === null ? `Runs until ${nameOf(end)} starts` : `Ends before ${nameOf(end)}, with ${ep(last)}`);
   }
   return out.join("; ");
 }
@@ -149,7 +152,9 @@ export async function settleLeague(client: PoolClient, leagueId: string, state: 
   if (!StateLogic.startPhase(state) && !StateLogic.endPhase(state) && !StateLogic.readsPhases(state)) return false;
   const phases = await leaguePhases(client, leagueId, seasonId, season);
   if (!settleIn(state, phases, schedule, now)) return false;
-  await recordChange(client, leagueId, state, { userId: null, kind: "game.settled", tier: 1, text: settledLine(state, phases, showWords({ episode: episodeTerm }).episode) });
+  // Read only when a game moved (rare): a team's season names its games.
+  const names = (await sportsGameNames([seasonId])).get(seasonId) ?? null;
+  await recordChange(client, leagueId, state, { userId: null, kind: "game.settled", tier: 1, text: settledLine(state, phases, showWords({ episode: episodeTerm }).episode, names) });
   return true;
 }
 

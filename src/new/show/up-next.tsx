@@ -6,6 +6,7 @@ import { chatCouch, plansApi, useAfterWatching, useChatBadge, useWatchCard, watc
 import { useFinalLine } from "../final-words";
 import { useMe } from "../session";
 import type { ShowData } from "../screens/show-space";
+import { epName } from "@/lib/game/show-words";
 import { Avatar } from "../ui/bars";
 import { usePushedPage } from "../ui/page";
 import { Btn } from "../ui/parts";
@@ -98,9 +99,9 @@ export function UpNext({ seasonId, show, below }: { seasonId: string; show: Show
       ? early
         ? `Who went home, Survival Pool and Outlast. ${finalWords ? `${finalWords}.` : "Weekly Lineup's full scores come later."}`
         : behind > 1
-          ? `You're up to ${w.episode} ${seen}. Its results are ready when you are.`
+          ? `You're up to ${epName(w, seen, "long")}. Its results are ready when you are.`
           : "Watched it? Your results are ready. Nothing shows until you say."
-      : `You're up to ${w.episode} ${seen}${show.header?.episodeCount ? ` of ${show.header.episodeCount}` : ""}.`,
+      : `You're up to ${epName(w, seen, "long")}${show.header?.episodeCount && !w.names?.[seen] ? ` of ${show.header.episodeCount}` : ""}.`,
     revealed.length
       ? `${revealedWords(revealed)} · chat is folded for you`
       : here.length && !play
@@ -123,7 +124,7 @@ export function UpNext({ seasonId, show, below }: { seasonId: string; show: Show
           {tag}
         </span>
         <b className="type-caption mt-2.5 block text-[54px] leading-[.86]">
-          {w.episode} {n}
+          {epName({ ...w, ep: w.episode }, n, "short")}
         </b>
         {lines.map((l, i) => (
           <p key={l} data-revealed={i === 1 && revealed.length ? "" : undefined} className={`flex items-center gap-2 text-sm leading-snug text-plate-muted ${i ? "mt-1.5" : "mt-2.5"}`}>
@@ -230,7 +231,7 @@ export function WatchedSheet({
       await watching.follow(seasonId, { seenThrough: n });
       await after();
       onOpenChange(false);
-      toast(`You're up to ${w.episode} ${n}`, {
+      toast(`You're up to ${epName(w, n, "long")}`, {
         undo: async () => {
           // Not watched after all: nothing about it stays open (its reveal, the GIF sheet over it).
           closeGif();
@@ -249,7 +250,7 @@ export function WatchedSheet({
     }
   };
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title={`Watched all of ${w.episode} ${n}?`} subtitle={showLabel(show)}>
+    <Sheet open={open} onOpenChange={onOpenChange} title={`Watched all of ${epName(w, n, "long")}?`} subtitle={showLabel(show)}>
       <p data-watched-sheet={n} className="text-[15px] leading-normal text-muted-foreground">
         {play
           ? "Its results play next: who went home, the couch's GIFs, then your games. Nothing shows until you say yes."
@@ -284,10 +285,10 @@ function AskSheet({ open, onOpenChange, show, seasonId, couchId, n }: { open: bo
             ? "Watches it"
             : "Not on their shows yet"
           : at === seen
-            ? `At your spot · up to ${w.ep} ${at}`
+            ? `At your spot · up to ${epName(w, at, "short")}`
             : at >= n
-              ? `Has seen it · up to ${w.ep} ${at}`
-              : `Up to ${w.ep} ${at}`;
+              ? `Has seen it · up to ${epName(w, at, "short")}`
+              : `Up to ${epName(w, at, "short")}`;
       return { userId: m.userId, name: m.name, at, line, rank: at === seen ? 0 : at != null && at >= n ? 1 : 2 };
     })
     .sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name));
@@ -302,7 +303,7 @@ function AskSheet({ open, onOpenChange, show, seasonId, couchId, n }: { open: bo
       const r = await plansApi.plan(seasonId, couchId, { episode: n, how: "start", startsAt: new Date().toISOString(), invite: chosen, now: true });
       onOpenChange(false);
       setPicked(null);
-      toast(`Asked ${r.told === 1 ? (people.find((p) => p.userId === chosen[0])?.name ?? "them") : `${r.told} people`} · starting ${w.episode} ${n}`);
+      toast(`Asked ${r.told === 1 ? (people.find((p) => p.userId === chosen[0])?.name ?? "them") : `${r.told} people`} · starting ${epName(w, n, "long")}`);
       openTogether({ seasonId, episode: n, id: r.plan.id });
     } catch (e) {
       toast.quiet((e as Error).message);
@@ -312,7 +313,7 @@ function AskSheet({ open, onOpenChange, show, seasonId, couchId, n }: { open: bo
   };
   const names = people.filter((p) => chosen.includes(p.userId)).map((p) => p.name);
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title={`Watch ${w.episode} ${n} with…`} subtitle={`${showLabel(show)} · you're up to ${w.ep} ${seen}`}>
+    <Sheet open={open} onOpenChange={onOpenChange} title={`Watch ${epName(w, n, "long")} with…`} subtitle={`${showLabel(show)} · you're up to ${epName(w, seen, "short")}`}>
       <div data-ask-sheet={n} className="flex flex-col">
         {people.map((p) => {
           const on = chosen.includes(p.userId);

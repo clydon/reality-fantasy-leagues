@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { kindOf } from "@/lib/game/spans";
+import { epName, type GameLabel } from "@/lib/game/show-words";
 import { nightRowOf, type NightChange, type NightLine } from "@/lib/game/night-rows";
 import { nightKind, type Square } from "@/lib/game/game-plays";
 import { GAME_NAMES } from "@/lib/server/league-season";
@@ -36,10 +37,10 @@ import { openTrivia } from "./trivia";
 export const countedYet = (g: GameView) => g.from !== null && g.through >= g.from;
 
 /** The line under your place: points, your streak now, or who's still in. */
-export function yourLine(g: GameView): string {
+export function yourLine(g: GameView, names?: Record<number, GameLabel> | null): string {
   const me = g.you;
   if (!me) return "Not on the table yet";
-  if (!countedYet(g)) return g.draftSoon ? "No team yet" : g.from === null ? "Starts with its phase" : `Starts with Episode ${g.from}`;
+  if (!countedYet(g)) return g.draftSoon ? "No team yet" : g.from === null ? "Starts with its phase" : `Starts with ${epName({ episode: "Episode", ep: "Episode", names }, g.from, "short")}`;
   if (g.gameType === "pickem") return `streak ${me.week ?? 0}`;
   if (g.gameType === "weekly-calls") return `${me.total} ${me.total === 1 ? "call" : "calls"} right`;
   // A line worth more than a point (step A9): its total is points.
@@ -376,7 +377,7 @@ export function fiveOf(table: TableRow[]): (TableRow | "gap")[] {
 }
 
 /** Everyone's night: a row each (place, how they moved, face, name, their picks, the night's change), you on the raised fill. */
-function Everyone({ g, n, open, mineAbove = false, ranked = true }: { g: GameView; n: number; open: (d: Door) => void; mineAbove?: boolean; ranked?: boolean }) {
+function Everyone({ g, n, open, mineAbove = false, ranked = true, names }: { g: GameView; n: number; open: (d: Door) => void; mineAbove?: boolean; ranked?: boolean; names?: Record<number, GameLabel> | null }) {
   const moves = movesOf(g, n);
   const top = topOf(g, n, waitingOn(g, n));
   const rows = fiveOf(g.table);
@@ -390,7 +391,7 @@ function Everyone({ g, n, open, mineAbove = false, ranked = true }: { g: GameVie
             ···
           </span>
         ) : (
-          <EveryoneRow key={r.playerId} g={g} r={r} n={n} top={top} moved={moves?.get(r.playerId)} behind={waiting.has(r.playerId)} quiet={strangers && !r.you} bare={mineAbove && r.you} ranked={ranked} open={open} />
+          <EveryoneRow key={r.playerId} g={g} r={r} n={n} top={top} moved={moves?.get(r.playerId)} behind={waiting.has(r.playerId)} quiet={strangers && !r.you} bare={mineAbove && r.you} ranked={ranked} open={open} names={names} />
         )
       )}
       {g.table.length > 5 && (
@@ -403,7 +404,7 @@ function Everyone({ g, n, open, mineAbove = false, ranked = true }: { g: GameVie
   );
 }
 
-function EveryoneRow({ g, r, n, top, moved, behind, quiet, bare, ranked, open }: { g: GameView; r: TableRow; n: number; top: number | null; moved: number | undefined; behind: boolean; quiet: boolean; bare: boolean; ranked: boolean; open: (d: Door) => void }) {
+function EveryoneRow({ g, r, n, top, moved, behind, quiet, bare, ranked, open, names }: { g: GameView; r: TableRow; n: number; top: number | null; moved: number | undefined; behind: boolean; quiet: boolean; bare: boolean; ranked: boolean; open: (d: Door) => void; names?: Record<number, GameLabel> | null }) {
   const s = sqAt(g, r.playerId, n);
   const picks = quiet || behind || bare ? [] : picksOf(g, r, n, s);
   const change = behind ? null : changeOf(g, s, top);
@@ -427,7 +428,7 @@ function EveryoneRow({ g, r, n, top, moved, behind, quiet, bare, ranked, open }:
       <Avatar id={r.userId ?? r.playerId} name={r.name} size={26} bot={r.bot} />
       <span className="min-w-0 flex-1">
         <b className="block truncate text-[15px] font-semibold leading-tight">{r.you ? "You" : r.name}</b>
-        {behind && <small className="mt-0.5 block truncate text-[13px] text-muted-foreground">Hasn&apos;t watched Ep {n} yet</small>}
+        {behind && <small className="mt-0.5 block truncate text-[13px] text-muted-foreground">Hasn&apos;t watched {epName({ episode: "Episode", ep: "Ep", names }, n, "short")} yet</small>}
       </span>
       {picks.length > 0 && <Picks g={g} picks={picks} size={24} max={3} />}
       {change && <b className={`type-num min-w-12 flex-none whitespace-nowrap text-right text-[17px] ${ink(change.tone)}`}>{change.text}</b>}
@@ -505,8 +506,8 @@ export function lengthOf(g: GameView, show: ShowData, n: number): string {
   const ep = show.words.ep;
   const last = g.to ?? episodesOf(show);
   const left = last - n;
-  const span = g.to === null ? (g.from !== null && g.from > 1 ? `From ${ep} ${g.from}` : "Season") : `${ep}s ${g.from ?? 1}–${g.to}`;
-  return left > 0 ? `${span} · ${left} left` : g.to === null ? span : `Ended ${ep} ${g.to}`;
+  const span = g.to === null ? (g.from !== null && g.from > 1 ? `From ${epName(show.words, g.from, "tag")}` : "Season") : `${ep}s ${g.from ?? 1}–${g.to}`;
+  return left > 0 ? `${span} · ${left} left` : g.to === null ? span : `Ended ${epName(show.words, g.to, "tag")}`;
 }
 
 /** One longer game's night as a row; open, everyone's night (yours among them), See all and the game's page. */
@@ -533,8 +534,8 @@ function NightCard({ night, name, show, parent = null, open: openDoor }: { night
   const team = g.plays.blocks.includes("boots") || g.plays.blocks.includes("team");
   // (A pick scored by what it does counts points, not a pool's streak.)
   const pointsPick = g.gameType === "pickem" && g.plays.kind === "points";
-  const measure = g.plays.kind === "result" && me?.record ? `${me.record.wins}–${me.record.losses}${me.record.ties ? `–${me.record.ties}` : ""}` : (team || pointsPick) && me && countedYet(g) ? `${fmt(me.total)} pts` : yourLine(g);
-  const line = news ? news.words : parent ? (parent.you ? `${fmt(parent.you.total)} pts overall` : yourLine(parent)) : played ? lineFor(d.line, g, s, n, measure) : yourLine(g);
+  const measure = g.plays.kind === "result" && me?.record ? `${me.record.wins}–${me.record.losses}${me.record.ties ? `–${me.record.ties}` : ""}` : (team || pointsPick) && me && countedYet(g) ? `${fmt(me.total)} pts` : yourLine(g, show.words.names);
+  const line = news ? news.words : parent ? (parent.you ? `${fmt(parent.you.total)} pts overall` : yourLine(parent, show.words.names)) : played ? lineFor(d.line, g, s, n, measure) : yourLine(g, show.words.names);
   return (
     <Row
       attach={attach}
@@ -577,7 +578,7 @@ function NightCard({ night, name, show, parent = null, open: openDoor }: { night
       {d.open === "matchups" && g.plays.kind === "result" ? (
         <EpisodeGames g={g} episode={n} unit={show.words.episode.toLowerCase()} onOpen={(pid) => openDoor({ kind: "matchup", playerId: pid, episode: n, game: g.leagueId })} />
       ) : (
-        <Everyone g={g} n={n} open={openDoor} ranked={d.place} />
+        <Everyone g={g} n={n} open={openDoor} ranked={d.place} names={show.words.names} />
       )}
       <GamePageLink seasonId={seasonId} leagueId={whole.leagueId} name={name} />
     </Row>
@@ -635,7 +636,7 @@ function QuickCard({ a, show, n, open: openDoor }: { a: ArchivedGame; show: Show
       }
       right={<Winner faces={a.nobody || a.level ? [] : a.winners.map((w) => ({ id: w.id, name: w.name, bot: w.bot }))} words={words} you={youWon} />}
     >
-      {g ? <Everyone g={g} n={n} open={openDoor} /> : <div aria-busy className="h-24 animate-pulse" />}
+      {g ? <Everyone g={g} n={n} open={openDoor} names={show.words.names} /> : <div aria-busy className="h-24 animate-pulse" />}
       <GamePageLink seasonId={seasonId} leagueId={a.leagueId} name={name} />
     </Row>
   );
@@ -685,7 +686,7 @@ export function EpisodeExtras({ show, n }: { show: ShowData; n: number }) {
         <div data-episode-extras-body className="mb-3 rounded-[4px] bg-card px-3 py-3">
           {cards.length > 0 && (
             <section data-episode-bingo-hits>
-              {label(`Bingo · ${show.words.ep} ${n}`)}
+              {label(`Bingo · ${epName(show.words, n, "tag")}`)}
               {hit.length ? (
                 <ul className="flex flex-wrap gap-1.5" aria-label="Moments that hit">
                   {hit.map((h) => (
@@ -799,7 +800,7 @@ export function YourNight({ show, open }: { show: ShowData; open: (d: Door) => v
   const short = quick.length > 0;
   return (
     // Early results (the final ones land at noon the next day): every number here is so far, said once.
-    <Block title={`Your night · ${show.words.ep} ${n}`} aside={early ? "So far" : undefined}>
+    <Block title={`Your night · ${epName(show.words, n, "tag")}`} aside={early ? "So far" : undefined}>
       <div data-your-night={n} className="flex flex-col">
         {short && (
           <div data-night-group="one-episode">
@@ -869,7 +870,7 @@ export function JoinRows({ show, ep }: { show: ShowData; ep: number }) {
             second={
               <>
                 <People faces={g.faces.map((f) => ({ id: f.userId, name: f.name }))} />
-                <small className="min-w-0 truncate text-[13px] text-muted-foreground">{quickOne ? `${askOf(g)} · before you watch` : startWords(g, show.words.ep)}</small>
+                <small className="min-w-0 truncate text-[13px] text-muted-foreground">{quickOne ? `${askOf(g)} · before you watch` : startWords(g, show.words.ep, show.words.names)}</small>
               </>
             }
             right={<JoinButton couchId={couchId} g={g} onJoin={setJoining} />}

@@ -1,5 +1,6 @@
 "use client";
 
+import { epName } from "@/lib/game/show-words";
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { BarChart3, ChevronRight, Sparkles, Users } from "lucide-react";
@@ -74,7 +75,7 @@ export function Roster({ seasonId, show }: { seasonId: string; show: ShowData })
     if (!r.canFill && r.held)
       return (
         <div data-roster-held>
-          <EmptyState icon={Users} title={`The ${people} show up once you've seen ${show.words.episode} ${r.held.episode}`} line={`${r.sportsName} lists each team's ${people} from the games they play. Who played is a spoiler until you've seen it.`} />
+          <EmptyState icon={Users} title={`The ${people} show up once you've seen ${epName(show.words, r.held.episode, "long")}`} line={`${r.sportsName} lists each team's ${people} from the games they play. Who played is a spoiler until you've seen it.`} />
         </div>
       );
     if (!r.canFill && r.waiting.length)
@@ -172,7 +173,7 @@ export function Roster({ seasonId, show }: { seasonId: string; show: ShowData })
                 <b className="block truncate text-[15px] font-semibold">{p.name}</b>
                 {p.role && <small className="block truncate text-[13px] text-muted-foreground">{p.role}</small>}
                 {p.stats?.soFar && r.stats.through != null && (
-                  <StatLine data="so-far" label={`Thru ${show.words.ep} ${r.stats.through}`} items={p.stats.soFar} />
+                  <StatLine data="so-far" label={`Thru ${epName(show.words, r.stats.through, "tag")}`} items={p.stats.soFar} />
                 )}
                 {p.stats?.comingIn && <StatLine data="coming-in" label={r.stats.comingInLabel ?? "Coming in"} items={p.stats.comingIn} />}
               </span>
@@ -183,7 +184,7 @@ export function Roster({ seasonId, show }: { seasonId: string; show: ShowData })
       ))}
       {r.held && (
         <p data-roster-held className="mx-4 mt-5 text-[13px] leading-snug text-muted-foreground">
-          More {people} show up once you&rsquo;ve seen {show.words.episode} {r.held.episode}.
+          More {people} show up once you&rsquo;ve seen {epName(show.words, r.held.episode, "long")}.
         </p>
       )}
       {r.waiting.length > 0 && (
@@ -202,8 +203,8 @@ export function Roster({ seasonId, show }: { seasonId: string; show: ShowData })
 }
 
 /** The games past where you are whose stats are in: "Game 3's stats open once you've seen it", "Games 1–3's ... as you see them". */
-const waitingLine = (ep: string, from: number, to: number) =>
-  from >= to ? `${ep} ${to}'s stats open once you've seen it.` : `${ep}s ${from}\u2013${to}'s stats open as you see them.`;
+const waitingLine = (words: ShowData["words"], from: number, to: number) =>
+  from >= to ? `${epName(words, to)}'s stats open once you've seen it.` : `${words.episode}s ${from}\u2013${to}'s stats open as you see them.`;
 
 /** "Fremantle", "Fremantle and Brisbane Lions", "A, B and C". */
 const listOf = (names: string[]) => (names.length < 3 ? names.join(" and ") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`);
@@ -245,13 +246,13 @@ function StatsBar({ show, r }: { show: ShowData; r: RosterData }) {
       <div className="flex flex-col gap-1.5 rounded-[4px] bg-card p-3.5 outline-1 -outline-offset-1 outline-border">
         <b className="flex items-center gap-2 text-[15px] leading-tight">
           <BarChart3 className="size-[17px] flex-none" aria-hidden />
-          {s.through != null ? `Stats through ${ep} ${s.through}` : any ? "Stats coming in" : asking ? "Getting their stats…" : "No stats yet"}
+          {s.through != null ? `Stats through ${epName(show.words, s.through)}` : any ? "Stats coming in" : asking ? "Getting their stats…" : "No stats yet"}
         </b>
         <small className="text-[13px] leading-snug text-muted-foreground" data-roster-statsline>
           {[
             s.comingInLabel ? `Coming in: ${s.comingInLabel}.` : null,
             s.through == null && s.newer == null && any ? `Each ${ep.toLowerCase()}'s stats add up here once you've seen it.` : null,
-            s.newer != null ? waitingLine(ep, (s.through ?? 0) + 1, s.newer) : null,
+            s.newer != null ? waitingLine(show.words, (s.through ?? 0) + 1, s.newer) : null,
             asking ? `Getting the latest from ${r.sportsName}.` : null,
           ]
             .filter(Boolean)

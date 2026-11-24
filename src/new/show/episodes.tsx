@@ -13,6 +13,7 @@ import { gameInk, ordinal } from "../games";
 import { NavLink, useCameFrom, useNav } from "../nav";
 import { paths, type ShowTab } from "../routes";
 import { episodesOf, isTabOf, type ShowData } from "../screens/show-space";
+import { epName, type GameLabel } from "@/lib/game/show-words";
 import { PushedPage, usePushedPage } from "../ui/page";
 import { Btn } from "../ui/parts";
 import { ShowArt, tabLabel } from "../ui/show-bar";
@@ -159,7 +160,7 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
             className="nd-press flex min-h-14 w-full items-stretch overflow-hidden rounded-[3px] bg-plate text-left text-plate-foreground shadow-plate"
           >
             <span className="type-caption -mr-[13px] flex items-center whitespace-nowrap bg-chyron py-0 pl-[11px] pr-[22px] text-sm tracking-[0.04em] text-chyron-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_13px)_100%,0_100%)]">
-              {show.words.ep} {eps.reveal.episode}
+              {epName(show.words, eps.reveal.episode, "tag")}
             </span>
             <span className="flex flex-1 flex-col justify-center gap-[3px] py-[7px] pl-5 pr-2.5">
               <span className="type-caption text-[19px]">{eps.reveal.stage === "early" ? "Early results are in" : "Final results are in"}</span>
@@ -183,13 +184,13 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
                 {groupOf(e) !== (i ? groupOf(list[i - 1]) : null) && <GroupLabel g={groupOf(e)} aside={groupOf(e) === "seen" ? aside : null} />}
                 {waiverRows(weeks(e.number))}
                 {e.status === "hidden" ? (
-                  <HiddenRow e={e} who={whoAt(e.number)} ep={show.words.ep} at={revealAt ?? e.number} onReveal={() => revealFrom(e.number)} />
+                  <HiddenRow e={e} who={whoAt(e.number)} ep={show.words.ep} names={show.words.names} at={revealAt ?? e.number} onReveal={() => revealFrom(e.number)} />
                 ) : e.status === "waiting" ? (
-                  <WaitingRow e={e} who={whoAt(e.number)} />
+                  <WaitingRow e={e} who={whoAt(e.number)} names={show.words.names} />
                 ) : e.status === "aired" ? (
-                  <AiredRow e={e} who={whoAt(e.number)} streaming={show.streaming} word={show.words.episode} looking={looking(e.number)} onGif={() => openGif(gifFor(e.number))} onReplay={() => openReveal(e.number, { replay: true })} />
+                  <AiredRow e={e} who={whoAt(e.number)} streaming={show.streaming} word={show.words.episode} names={show.words.names} looking={looking(e.number)} onGif={() => openGif(gifFor(e.number))} onReplay={() => openReveal(e.number, { replay: true })} />
                 ) : (
-                  <SeenRow e={e} who={whoAt(e.number)} ro={ro} word={show.header?.show.kind === "sport" ? show.words.episode : null} />
+                  <SeenRow e={e} who={whoAt(e.number)} ro={ro} word={show.header?.show.kind === "sport" ? show.words.episode : null} names={show.words.names} />
                 )}
               </div>
             ))}
@@ -197,7 +198,7 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
             {toAir && (
               <div data-ep-to-air={drop ? "drop" : toAir.from} className="flex min-h-[68px] items-center gap-3 border-y border-border opacity-(--nd-dim)">
                 {/* A lone number beside "More to come" read as if only that one were left (step 4's check). */}
-                <span className="type-num w-7 text-[28px] text-muted-foreground">{toAir.to || drop ? toAir.from : ""}</span>
+                {show.words.names?.[toAir.from] ? <span className="w-11 flex-none" /> : <span className="type-num w-7 text-[28px] text-muted-foreground">{toAir.to || drop ? toAir.from : ""}</span>}
                 <span className="min-w-0 flex-1">
                   <b className="block text-base font-semibold">
                     {drop
@@ -209,7 +210,7 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
                   {/* The row is dimmed already: muted on top of it fell under 4.5:1. */}
                   {toAir.to && toAir.to > toAir.from && (
                     <small className="mt-0.5 block text-[13px] text-foreground/85">
-                      {show.words.episodes} {toAir.from} to {toAir.to}
+                      {show.words.names?.[toAir.from] ? `${show.words.names[toAir.from].long}, then ${toAir.to - toAir.from} more` : `${show.words.episodes} ${toAir.from} to ${toAir.to}`}
                     </small>
                   )}
                 </span>
@@ -291,17 +292,25 @@ function GroupLabel({ g, aside }: { g: Group; aside: string | null }) {
 }
 
 /** The next episode, the list's top row: when (or on now), and who's set for it in your games here (the couch's readiness). */
+/** A row's episode mark: a show's big number; a team's game, its opponent ("@MIA", "KC": epName col), since "11" says nothing. */
+function EpNum({ n, names, className = "" }: { n: number; names?: Record<number, GameLabel> | null; className?: string }) {
+  const g = names?.[n];
+  if (g?.col) return <span className={`type-caption w-11 flex-none text-[17px] ${className}`}>{g.col}</span>;
+  return <span className={`type-num w-7 text-[28px] ${className}`}>{n}</span>;
+}
+
 function NextRow({ up, show, progress }: { up: NonNullable<ShowData["upNext"]>; show: ShowData; progress: string | null }) {
   const t = up.airAt ? Date.parse(up.airAt) : null;
   return (
     <div data-ep-up={up.number} className="flex min-h-[68px] items-center gap-3 pb-2 pt-4">
-      <span className="type-num w-7 text-[28px]">{up.number}</span>
+      <EpNum n={up.number} names={show.words.names} />
       <ShowArt seasonId={show.header!.seasonId} artUrl={show.header!.show.artUrl} name={show.header!.show.name} className="h-10 w-16 flex-none rounded-[3px] text-[10px]" />
       <span className="min-w-0 flex-1">
         <b className="flex items-center gap-1.5 text-base font-semibold">
           {up.live && <i className="size-2 flex-none animate-pulse rounded-full bg-live" aria-hidden />}
-          {up.live ? "On air now" : t != null ? `Airs ${airTime(t)}` : "Up next"}
+          {show.words.names?.[up.number] ? (up.live ? `${show.words.names[up.number].short} · on now` : show.words.names[up.number].short) : up.live ? "On air now" : t != null ? `Airs ${airTime(t)}` : "Up next"}
         </b>
+        {show.words.names?.[up.number] && !up.live && t != null && <small className="mt-0.5 block truncate text-[13px] text-muted-foreground">Airs {airTime(t)}</small>}
         {progress && <small className="mt-0.5 block truncate text-[13px] text-muted-foreground">{progress}</small>}
       </span>
     </div>
@@ -310,7 +319,7 @@ function NextRow({ up, show, progress }: { up: NonNullable<ShowData["upNext"]>; 
 
 /** Results in past your mark: the stripes say hidden; the reveal is the progress control's, so a row says no "Reveal" of its own
  *  (step 4's R1: the reveal once). A later one says it comes after the first; either opens the same reveal. */
-function HiddenRow({ e, who, ep, at, onReveal }: { e: EpisodeRow; who?: Mark[]; ep: string; at: number; onReveal: () => void }) {
+function HiddenRow({ e, who, ep, names, at, onReveal }: { e: EpisodeRow; who?: Mark[]; ep: string; names?: Record<number, GameLabel> | null; at: number; onReveal: () => void }) {
   const finalWords = useFinalLine(e.stage, e.finalAt);
   return (
     <button
@@ -319,14 +328,14 @@ function HiddenRow({ e, who, ep, at, onReveal }: { e: EpisodeRow; who?: Mark[]; 
       onClick={onReveal}
       className="nd-press flex min-h-[68px] w-full items-center gap-3 border-t border-border bg-[repeating-linear-gradient(135deg,transparent_0_10px,color-mix(in_srgb,var(--foreground)_3%,transparent)_10px_20px)] py-2 text-left"
     >
-      <span className="type-num w-7 text-[28px] text-muted-foreground">{e.number}</span>
+      <EpNum n={e.number} names={names} className="text-muted-foreground" />
       <span className="grid size-10 flex-none place-items-center rounded-[3px] bg-secondary text-muted-foreground">
         <Eye className="size-5" aria-hidden />
       </span>
       <span className="min-w-0 flex-1">
         <b className="block text-base font-semibold">{e.stage === "early" ? "Early results are in" : "Final results are in"}</b>
         <small className="mt-0.5 block text-[13px] text-muted-foreground">
-          {e.number > at ? `Hidden · after ${ep} ${at}` : e.stage === "early" && finalWords ? `Hidden until you reveal · ${midLine(finalWords)}` : "Hidden until you reveal"}
+          {e.number > at ? `Hidden · after ${epName({ episode: ep, ep, names }, at, "short")}` : e.stage === "early" && finalWords ? `Hidden until you reveal · ${midLine(finalWords)}` : "Hidden until you reveal"}
         </small>
         <WhoHere who={who} />
       </span>
@@ -338,13 +347,13 @@ function HiddenRow({ e, who, ep, at, onReveal }: { e: EpisodeRow; who?: Mark[]; 
 /** An episode of a show you only watch, with no results to show (step 10): when it aired, and whether you've seen it. One
  *  you've seen replays its reveal (the user, 2026-11-02: its write-up, who went home, the couch's GIFs), and its few GIFs on the
  *  row's end are a button of their own (React with a GIF). */
-function AiredRow({ e, who, streaming, word = "Episode", looking, onGif, onReplay }: { e: EpisodeRow; who?: Mark[]; streaming?: boolean; word?: string; looking?: boolean; onGif: () => void; onReplay: () => void }) {
+function AiredRow({ e, who, streaming, word = "Episode", names, looking, onGif, onReplay }: { e: EpisodeRow; who?: Mark[]; streaming?: boolean; word?: string; names?: Record<number, GameLabel> | null; looking?: boolean; onGif: () => void; onReplay: () => void }) {
   const lift = mineIn(who) ? LIFT : "";
   const body = (
     <>
-      <span className={`type-num w-7 text-[28px] ${e.watched ? "" : "text-muted-foreground"}`}>{e.number}</span>
+      <EpNum n={e.number} names={names} className={e.watched ? "" : "text-muted-foreground"} />
       <span className="min-w-0 flex-1">
-        <b className="block text-base font-semibold">{e.title ?? `${word} ${e.number}`}</b>
+        <b className="block text-base font-semibold">{e.title ?? epName({ episode: word, names }, e.number, "long")}</b>
         <small className="mt-0.5 block text-[13px] text-muted-foreground">
           {/* A streaming season's all came out at once: when isn't news. */}
           {e.airAt && !streaming ? `Aired ${airedAt(Date.parse(e.airAt))} · ` : ""}
@@ -379,23 +388,24 @@ function AiredRow({ e, who, streaming, word = "Episode", looking, onGif, onRepla
       <button type="button" data-ep-replay={e.number} onClick={onReplay} className="nd-press flex min-w-0 flex-1 items-center gap-3 py-2.5 text-left">
         {body}
       </button>
-      <button type="button" data-ep-gif={e.number} onClick={onGif} aria-label={`Your GIF for ${word} ${e.number}`} className="nd-press flex min-h-11 flex-none items-center pl-1">
+      <button type="button" data-ep-gif={e.number} onClick={onGif} aria-label={`Your GIF for ${epName({ episode: word, names }, e.number, "long")}`} className="nd-press flex min-h-11 flex-none items-center pl-1">
         <GifStack line={e.gifs} react />
       </button>
     </div>
   );
 }
 
-function WaitingRow({ e, who }: { e: EpisodeRow; who?: Mark[] }) {
+function WaitingRow({ e, who, names }: { e: EpisodeRow; who?: Mark[]; names?: Record<number, GameLabel> | null }) {
   return (
     <div data-ep-waiting={e.number} className={`flex min-h-[68px] items-center gap-3 border-t border-border py-2 ${mineIn(who) ? LIFT : ""}`}>
-      <span className="type-num w-7 text-[28px] text-muted-foreground">{e.number}</span>
+      <EpNum n={e.number} names={names} className="text-muted-foreground" />
       <span className="grid size-10 flex-none place-items-center rounded-[3px] bg-secondary text-muted-foreground">
         <Clock className="size-5" aria-hidden />
       </span>
       <span className="min-w-0 flex-1">
-        <b className="block text-base font-semibold">Waiting for results</b>
+        <b className="block text-base font-semibold">{names?.[e.number] ? names[e.number].short : "Waiting for results"}</b>
         <small className="mt-0.5 block text-[13px] text-muted-foreground">
+          {names?.[e.number] ? "Waiting for results · " : ""}
           {e.airAt ? `Aired ${airedAt(Date.parse(e.airAt))} · ` : ""}nothing is spoiled meanwhile
         </small>
         <WhoHere who={who} />
@@ -408,13 +418,13 @@ function WaitingRow({ e, who }: { e: EpisodeRow; who?: Mark[] }) {
 /** `from` null: a game waiting for a phase of the season (step A3 of docs/PLAN-start-a-game-gpt.md), not started yet. */
 type ReadOnlyLine = { name: string; from: number | null; to: number | null };
 
-function SeenRow({ e, who, ro, word }: { e: EpisodeRow; who?: Mark[]; ro: ReadOnlyLine | null; word?: string | null }) {
+function SeenRow({ e, who, ro, word, names }: { e: EpisodeRow; who?: Mark[]; ro: ReadOnlyLine | null; word?: string | null; names?: Record<number, GameLabel> | null }) {
   const page = usePushedPage(`ep${e.number}`);
   const out = e.out ?? [];
   const mine = mineIn(who);
   return (
     <button type="button" data-ep={e.number} onClick={page.show} className={`nd-press flex min-h-[68px] items-center gap-3 border-t border-border py-2 text-left ${mine ? LIFT : "w-full"}`}>
-      <span className={`type-num w-7 text-[28px] ${mine ? "" : "text-muted-foreground"}`}>{e.number}</span>
+      <EpNum n={e.number} names={names} className={mine ? "" : "text-muted-foreground"} />
       {out.length > 0 && (
         <span className="flex flex-none">
           {out.slice(0, 3).map((c, i) => (
@@ -423,7 +433,7 @@ function SeenRow({ e, who, ro, word }: { e: EpisodeRow; who?: Mark[]; ro: ReadOn
         </span>
       )}
       <span className="min-w-0 flex-1">
-        <b className="block truncate text-base font-semibold">{out.length ? `${out.map((c) => first(c.name)).join(" and ")} out` : word ? (e.title ?? `${word} ${e.number}`) : "No one out"}</b>
+        <b className="block truncate text-base font-semibold">{out.length ? `${out.map((c) => first(c.name)).join(" and ")} out` : word ? (e.title ?? epName({ episode: word, names }, e.number, "long")) : "No one out"}</b>
         <small className="mt-0.5 block truncate text-[13px] text-muted-foreground">
           {rowLine(e, ro)}
           {e.stage === "early" ? " · full scores to come" : ""}
@@ -455,7 +465,7 @@ function EpisodePage({ seasonId, show }: { seasonId: string; show: ShowData }) {
     ? { label: tabLabel(fromTab, { episodes: show.words.episodesTab, cast: show.words.peopleTab }), close: () => nav.back(paths.show(seasonId, fromTab)) }
     : { label: show.words.episodesTab, close: page.close };
   return (
-    <PushedPage open={ep != null} onClose={back.close} title={`${show.words.episode} ${shown ?? ""}`} back={back.label}>
+    <PushedPage open={ep != null} onClose={back.close} title={shown != null ? epName(show.words, shown, "long") : `${show.words.episode} `} back={back.label}>
       {e ? (
         <EpisodeNight seasonId={seasonId} show={show} e={e} open={drill.open} />
       ) : (
@@ -478,6 +488,7 @@ export function EpisodeNight({ seasonId, show, e, open, flush = false }: { seaso
       target={{ seasonId, couchId: show.couch?.id ?? null, episode: e.number, label: showLabel(show), solo: show.solo }}
       sheets={show.games.filter((g) => g.yourRole && g.gameType === "questions" && !g.archived).map((g) => ({ leagueId: g.leagueId, name: g.name }))}
       ep={show.words.ep}
+      names={show.words.names}
       talk={!show.solo && !!show.couch?.id && !show.readOnly}
       open={open}
       flush={flush}
@@ -512,6 +523,7 @@ function EpisodeBody({
   target,
   sheets,
   ep,
+  names,
   talk,
   open,
   flush,
@@ -524,6 +536,7 @@ function EpisodeBody({
   target: GifTarget;
   sheets: { leagueId: string; name: string }[];
   ep: string;
+  names?: Record<number, GameLabel> | null;
   talk: boolean;
   open: (d: Door) => void;
   flush: boolean;
@@ -593,7 +606,7 @@ function EpisodeBody({
         {talk && (
           <NavLink href={paths.show(seasonId, "chat")} data-ep-discuss className="nd-press mt-3 flex h-12 items-center justify-center gap-2 rounded-[4px] font-bold outline-1 -outline-offset-1 outline-edge">
             <MessageCircle className="size-[18px]" aria-hidden />
-            Discuss {ep} {e.number}
+            Discuss {epName({ episode: ep, ep, names }, e.number, "tag")}
           </NavLink>
         )}
       </section>

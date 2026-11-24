@@ -21,6 +21,8 @@ export type GifTarget = {
   seasonId: string;
   couchId: string | null;
   episode: number;
+  /** A team's game by its two teams ("Chiefs at Bills": show-words.ts epName), for its words; else "Episode 4". */
+  name?: string;
   /** "Survivor 51". */
   label: string;
   solo: boolean;
@@ -102,13 +104,13 @@ function EpisodeGifSheet({ target, onOpenChange }: { target: GifTarget | null; o
     <Sheet
       open={open}
       onOpenChange={onOpenChange}
-      title={picking ? `How was Episode ${n}?` : `Your GIF for Episode ${n}`}
+      title={picking ? `How was ${target?.name ?? `Episode ${n}`}?` : `Your GIF for ${target?.name ?? `Episode ${n}`}`}
       subtitle={target ? (picking ? `${target.label} · ${target.solo ? "a GIF just for you" : "the couch sees it once they've watched"}` : target.label) : undefined}
     >
       {v.isPending && open ? (
         <div aria-busy className="h-[260px] animate-pulse rounded-[4px] bg-secondary" />
       ) : !v.data ? (
-        <p className="py-4 text-sm text-muted-foreground">{status === 403 ? `You haven't seen Episode ${n} yet.` : "Couldn't load it. Try again in a moment."}</p>
+        <p className="py-4 text-sm text-muted-foreground">{status === 403 ? `You haven't seen ${target?.name ?? `Episode ${n}`} yet.` : "Couldn't load it. Try again in a moment."}</p>
       ) : picking ? (
         <div data-gif-react="pick" aria-busy={saving || undefined}>
           {target?.just && !mine && (
@@ -217,7 +219,7 @@ export function EpisodeGifStrip({ target, ep, cols = 3 }: { target: GifTarget; e
         <Plus className="size-5 flex-none" aria-hidden />
         <span className="min-w-0 flex-1">
           <b className="block text-[16px]">
-            Add your GIF for {ep} {target.episode}
+            Add your GIF for {target.name ?? `${ep} ${target.episode}`}
           </b>
           <small className="block text-[14px] text-muted-foreground">{target.solo ? "How was it? Any GIF you like" : "Nobody on the couch has yet"}</small>
         </span>
@@ -274,7 +276,7 @@ export function GifRow({ target, line }: { target: GifTarget; line: EpisodeGifLi
     >
       {!line?.urls.length && <span className="type-num grid size-11 flex-none place-items-center rounded-[4px] bg-chyron text-[17px] text-chyron-foreground">GIF</span>}
       <span className="min-w-0 flex-1">
-        <b className="block text-[15px] font-semibold">{line?.mine ? `Your GIF for Episode ${target.episode}` : `React to Episode ${target.episode}`}</b>
+        <b className="block text-[15px] font-semibold">{line?.mine ? `Your GIF for ${target.name ?? `Episode ${target.episode}`}` : `React to ${target.name ?? `Episode ${target.episode}`}`}</b>
         <small className="mt-0.5 block text-[13px] text-muted-foreground">
           {line?.mine
             ? target.solo
