@@ -25,6 +25,7 @@ import { leaguePhases, scheduleOf, settleIn } from "./phase-starts";
 import { queueSeasonBingo } from "./desk-research";
 import { madeGames, type MadeGame } from "./made-games";
 import { notifyGameStarted } from "./push-events";
+import { sportsGameNames } from "./sports/game-names";
 import { applyPace, couchGamesOn, gameName, linkIn, paceAsked, startOptions, watchersOf, type StartOptions } from "./start-game";
 
 // Start a game, the wizard (docs/PLAN-start-a-game-gpt.md U1; U0's settled board "B, settled"). The sheet rolls, checks and words
@@ -232,7 +233,9 @@ export async function startFromSpec(
   const only = typeof one === "number" && Spec.spanEnd(spec.span as never) === one;
   // (`typed`: the person typed the name, sent as typed: true. The sheet sends its base's name on every start and has no field to type
   // one yet, so a sent name alone isn't typed: the branch review, 2026-11-19.)
-  const name = gameName(want, here, only ? { episode: one as number, word: opts.part.singular.replace(/^./, (c) => c.toUpperCase()) } : null, body.typed === true && typeof body.name === "string" && !!body.name.trim());
+  // A team's game by what it is ("Week 11 at Bengals": sports/game-names.ts), never "Game 10" (the user, 2026-11-23).
+  const label = only ? ((await sportsGameNames([seasonId])).get(seasonId)?.[one as number]?.long ?? null) : null;
+  const name = gameName(want, here, only ? { episode: one as number, word: opts.part.singular.replace(/^./, (c) => c.toUpperCase()), label } : null, body.typed === true && typeof body.name === "string" && !!body.name.trim());
   const starter = (user as { username?: string | null }).username || user.name;
   const row = { id: seasonId, number: seasonRow[0].season_number as number, slug: seasonRow[0].slug as string };
   const copy = await copyOf(here.map((g) => g.leagueId));

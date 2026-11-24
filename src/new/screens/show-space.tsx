@@ -104,7 +104,7 @@ export function useShow(seasonId: string) {
     solo: !readOnly && (!couch || couch.members.length <= 1),
     seenThrough: space.data ? space.data.you.seenThrough : (cached?.seenThrough ?? 0),
     /** What the show calls its episodes and its people ("Game 4", "Players": lib/game/show-words.ts, 0142). */
-    words: showWords(header?.show.terms),
+    words: showWords(header?.show.terms, header?.gameNames),
     /** You follow it (step 10): on your shows, openly or privately. */
     following: space.data ? space.data.you.following : (cached?.following ?? false),
     /** Watched privately: the couch doesn't see it on your list. */

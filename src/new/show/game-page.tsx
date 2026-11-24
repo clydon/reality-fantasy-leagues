@@ -1,6 +1,6 @@
 "use client";
 
-import { inShowWords } from "@/lib/game/show-words";
+import { epName, inShowWords } from "@/lib/game/show-words";
 import { useWithRoles } from "../sports/faces";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, Clock, Heart, Hourglass, Minus, MoreHorizontal, Settings } from "lucide-react";
@@ -844,11 +844,11 @@ function SeasonGrid({ g, m, words, due, drill }: { g: GameView; m: PageModel; wo
           <div style={{ width: many ? "max-content" : undefined }}>
             <div className="grid h-[26px]" style={{ gridTemplateColumns: tmpl }}>
               {eps.map((n) => (
-                <button key={n} type="button" data-door-episode={n} aria-label={`${words.episode} ${n}`} onClick={() => drill.open({ kind: "episode", episode: n })} className={`type-caption grid h-[26px] place-items-center rounded-t-[3px] text-[13px] ${n === latest ? "bg-secondary/60 text-foreground" : "text-muted-foreground"}`}>
-                  {n}
+                <button key={n} type="button" data-door-episode={n} aria-label={epName(words, n)} onClick={() => drill.open({ kind: "episode", episode: n })} className={`type-caption grid h-[26px] place-items-center rounded-t-[3px] text-[13px] ${n === latest ? "bg-secondary/60 text-foreground" : "text-muted-foreground"}`}>
+                  {epName(words, n, "col")}
                 </button>
               ))}
-              {p.next && <span className="type-caption grid h-[26px] place-items-center text-[13px] text-muted-foreground">{p.next.episode}</span>}
+              {p.next && <span className="type-caption grid h-[26px] place-items-center text-[13px] text-muted-foreground">{epName(words, p.next.episode, "col")}</span>}
             </div>
             {rows.map((s, i) => {
               const sq = p.rows[s.playerId] ?? [];

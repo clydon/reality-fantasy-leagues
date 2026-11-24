@@ -192,7 +192,10 @@ function gamesFrom(state: LeagueState, data: SeasonRows, o: { mark?: number | nu
     if (playoffs) for (const [id, name] of named) if (!teamNames.get(id)) teamNames.set(id, name);
     for (const [id, name] of named) if (name && !out.teamIds[name]) out.teamIds[name] = id;
     // L3 part 3b: with the latest line read for it (an over/under on the game's own line keeps the one when it opened: answers.ts).
-    listing = { name: (r.title as string | null) ?? null, startsAt: r.starts_at ? (r.starts_at as Date).toISOString() : null, sides: teams.map((id) => ({ id, name: named.get(id) ?? null })), line: Number.isFinite(r.line) ? (r.line as number) : null, lineAt: r.line_at ? (r.line_at as Date).toISOString() : null };
+    // Shown away first, then home ("Chiefs at Bills"), as the Who wins? control reads them; the game's own sides keep the provider's order.
+    const home = new Set(((r.teams ?? r.linked ?? []) as { id: string; home?: boolean }[]).filter((t) => t.home === true).map((t) => String(t.id)));
+    const shown = [...teams].sort((a, b) => Number(home.has(a)) - Number(home.has(b)));
+    listing = { name: (r.title as string | null) ?? null, startsAt: r.starts_at ? (r.starts_at as Date).toISOString() : null, sides: shown.map((id) => ({ id, name: named.get(id) ?? null })), line: Number.isFinite(r.line) ? (r.line as number) : null, lineAt: r.line_at ? (r.line_at as Date).toISOString() : null };
     if (teams.length && !slate) out.sides.set(n, teams);
     const event = String(r.event_id);
     const sport = sportOf(r.league);

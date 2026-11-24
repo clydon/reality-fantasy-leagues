@@ -23,6 +23,10 @@ import { tvmazeLinked } from "./outside-numbers";
 import { drawNow, sidesFor } from "./sports/score";
 import { keepLines } from "./question-lines";
 import { PLAYOFFS } from "@/lib/sports/playoffs";
+import { pickStats, type PickStats } from "./pick-stats";
+import { sportsGameNames } from "./sports/game-names";
+import { sportsProviders } from "./sports/index";
+import type { GameLabel } from "@/lib/game/show-words";
 
 // A game's questions (docs/PLAN-start-a-game-gpt.md step A4; migration 0200 game_answers):
 //   GET  /api/seasons/[id]/answers?league=&episode=   the game's questions as you may see them: this week's (asked each
@@ -137,6 +141,9 @@ export interface QuestionView {
   /** Who a person answer can name: who's still in as far as you've seen (or, from your own team, yours); a group answer, the groups
    *  someone still in is on; a question about each person, who it asks about. */
   faces: QuestionFace[] | null;
+  /** A person a sport's stat settles ("Who throws for the most yards?"): each face's numbers for the pick table (pick-stats.ts), while
+   *  it's open; null otherwise. */
+  stats: PickStats | null;
   /** L3 part 2e: a bracket's draw as listed (sports/score.ts drawNow), the draw as it was made and nothing it's played since (no
    *  spoiler): how many rounds it is (`first`, the first round's distance from the final), its first round's matches, and who's in
    *  it, each with the round they enter in (a seed with a bye later). Null for any other question, a draw not listed yet, or while
@@ -184,6 +191,8 @@ export interface GameQuestions {
   /** Step A11 part 3: a co-op game's lives (the couch's together) and its result, won or lost by all, as far as you've seen; null
    *  for any other game. */
   coop: CoopWalk | null;
+  /** A team's season: each game's name by episode ("Week 11 at Bengals": sports/game-names.ts), else null ("Episode 4"). */
+  names: Record<number, GameLabel> | null;
 }
 
 
@@ -521,12 +530,13 @@ function needsSeen(r: Read, q: Question, episode: number): number | null {
 }
 
 /** A game's questions as you may see them. `episodeIn`: a past episode's (for how it went), else this week's. */
-export async function gameQuestions(user: SessionUser, seasonId: string, leagueId: unknown, episodeIn?: unknown, now = new Date()): Promise<GameQuestions> {
+/** `sports`: where a sport's season lines come from (sports/index.ts sportsFor: a check's stand-in, none, or ESPN). */
+export async function gameQuestions(user: SessionUser, seasonId: string, leagueId: unknown, episodeIn?: unknown, now = new Date(), sports?: string | null): Promise<GameQuestions> {
   const r = await readOf(user, seasonId, leagueId, now);
-  return readQuestions(r, episodeIn);
+  return readQuestions(r, episodeIn, sports);
 }
 
-async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestions> {
+async function readQuestions(r: Read, episodeIn?: unknown, sports?: string | null): Promise<GameQuestions> {
   const { h, view, facts } = r;
   const me = h.playerId;
   const qs = questionsOf(h.state);
@@ -640,6 +650,7 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
           : namesSomeone(q) && q.answer !== "pairs" && !behind
             ? facesFor(view, q, me, facts.formatGroups?.get(ep), ep)
             : null,
+      stats: null,
       draw: q.answer === "bracket" && !behind ? await drawView(view, h.state, q, ep || (StateLogic.startEpisode(h.state) ?? 1), facts) : null,
       offWhy: !behind ? (triviaOff ?? offWhy(q, facts.formatGroups?.get(ep))) : null,
       trivia: round,
@@ -649,6 +660,7 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
       people: [],
       bot: made && Spec.isBeat(q) ? { called: made.has(Spec.botKey(q, ep)), answer: null, right: null } : null,
     };
+    if (!closed && !behind && view1.faces?.length) view1.stats = await pickStats(r.seasonId, h.state, q, view1.faces.map((f) => f.id), ep || episode || 1, h.mark, sports === null ? null : sportsProviders({ base: sports }));
     if (!closed && q.shown === "picked" && !behind) {
       // C1 (a rivalry's public sides): who's picked which side, as they pick, nothing settled yet. Only a side (our check).
       view1.people = theirs
@@ -704,11 +716,12 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
     // Step C2 part 4c: a draft's own questions, where its knockouts or head to head ended it.
     ended: r.walk || r.lines ? endedAt(view) : null,
     coop: r.walk?.coop ?? null,
+    names: (await sportsGameNames([r.seasonId])).get(r.seasonId) ?? null,
   };
 }
 
 /** Answer, change or take back your answers before each question locks. */
-export async function answerQuestions(user: SessionUser, seasonId: string, leagueId: unknown, body: { episode?: unknown; answers?: unknown }, now = new Date()): Promise<GameQuestions> {
+export async function answerQuestions(user: SessionUser, seasonId: string, leagueId: unknown, body: { episode?: unknown; answers?: unknown }, now = new Date(), sports?: string | null): Promise<GameQuestions> {
   const r = await readOf(user, seasonId, leagueId, now);
   const { h, view } = r;
   const isMap = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
@@ -894,7 +907,7 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
   }
   // Read again with what was written: the state's, or the answers (an answer to an open question settles nothing, so the walk the
   // league carries still holds).
-  return readQuestions(stateWrites.length ? await readOf(user, seasonId, leagueId, now) : rows.length ? await readFrom({ ...h, answers: undefined }, seasonId, now, undefined, user.id) : r);
+  return readQuestions(stateWrites.length ? await readOf(user, seasonId, leagueId, now) : rows.length ? await readFrom({ ...h, answers: undefined }, seasonId, now, undefined, user.id) : r, undefined, sports);
 }
 
 /**

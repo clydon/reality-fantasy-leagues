@@ -4,6 +4,8 @@ import { gameName } from "./league-season";
 import { sharingOf, visibleFollows, type FollowShare } from "./guard";
 import type { LeagueRole } from "./roles";
 import { viewAsFor } from "./view-as";
+import { sportsGameNames } from "./sports/game-names";
+import type { GameLabel } from "@/lib/game/show-words";
 
 // The pieces the new design's read endpoints are built from (/api/me/home, /api/couches/[id],
 // /api/seasons/[id]/space): a season's header, the games (leagues) on a couch or a season, and who follows
@@ -45,6 +47,8 @@ export interface SeasonHeader {
     /** Where it airs, from its TV listing: the network, else the streaming service ("Netflix"; step 14); null without one. */
     network: string | null;
   };
+  /** A team's season: each game's name by episode ("Week 11 at Bengals": sports/game-names.ts); absent otherwise. */
+  gameNames?: Record<number, GameLabel>;
 }
 
 /** Each season's header (show, number, status, art), by season id. */
@@ -94,6 +98,10 @@ export async function seasonHeaders(seasonIds: string[]): Promise<Map<string, Se
       },
     });
   }
+  // A team's season's games by what they are ("Week 11 at Bengals"), never its index.
+  // (sportsGameNames takes only a team's season, by its key: a league's slate and a matchup keep their own names.)
+  const teams = rows.filter((r) => r.kind === "sport").map((r) => r.id as string);
+  if (teams.length) for (const [id, names] of await sportsGameNames(teams)) out.get(id)!.gameNames = names;
   return out;
 }
 

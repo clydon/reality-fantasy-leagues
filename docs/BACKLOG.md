@@ -475,6 +475,17 @@ Each goes through impeccable. [S · tonight]
 - "Nobody left in Ep N." shows for any show that isn't a sport, a talk show included, where nobody ever leaves.
 (docs/design-round/tonight-writeup-check.md, "Noticed, not fixed".) [S · reveal]
 
+**262. A sports game still called "Game N" outside the game page.** The prop sheet round (2026-11-23,
+docs/design-round/props-table-spec.md) named a team's game by both teams ("Chiefs at Bills, Week 12": show-words.ts `epName`,
+the season header's `gameNames`) on the game page, This week's card, the question sheet and new games' names. Still "Game N" or
+"G N": Tonight's rows and strip (strip.tsx `${ep} ${n}`), the Episodes tab, the reveal's button (game-page.tsx "Reveal G 11"),
+chat's "revealed Game N", reminders, pushes, Where you are, people.tsx. Each reads `epName` (long, short, tag or col), reviewed
+at 390 on a team's season. [M · sports]
+
+**263. A prop sheet's picked player doesn't open their season.** The pick table (answer-controls.tsx StatPicker) ticks a row; the
+spec's door, "See P. Mahomes's season" under the picked row opening the athlete sheet (his weekly graph), isn't built: the
+question sheet has no drill of its own. [S · sports]
+
 ### Design rounds from the explorer's Designs needed
 
 Each is one round through the design process, ending in a screenshot story and a pause.

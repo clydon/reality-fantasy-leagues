@@ -1,6 +1,7 @@
 "use client";
 
-import { Check, Minus, Plus } from "lucide-react";
+import { useState } from "react";
+import { Check, ChevronDown, Minus, Plus } from "lucide-react";
 import type { QuestionFace, QuestionView } from "../data";
 import { Chip } from "../ui/parts";
 import { toast } from "../ui/toast";
@@ -126,8 +127,171 @@ function FaceButton({ f, on, dim, badge, onClick, group, label }: { f: QuestionF
   );
 }
 
+/** At most this many contenders in the first view (props-table-first-view.md R4); the rest fold. */
+const CONTENDERS = 5;
+/** Before any game counts: the positions a stat group's question is about, first (football's; other sports list everyone). */
+const GROUP_POSITIONS: Record<string, string[]> = { passing: ["QB"], rushing: ["RB", "QB", "FB"], receiving: ["WR", "TE", "RB"], kicking: ["K"], defense: ["LB", "DE", "DT", "CB", "S"] };
+/** The position chips' order after the question's own, as Yahoo's Players tab runs them (the skill positions, then the lines and the
+ *  defense); a position not listed goes after, alphabetically. Football's; another sport's run alphabetically for now. */
+const POSITION_ORDER = ["QB", "RB", "FB", "WR", "TE", "K", "P", "DEF", "OL", "OT", "G", "C", "DL", "DE", "DT", "LB", "CB", "S", "LS"];
+
+/**
+ * A person a sport's stat settles, as a table (docs/design-round/props-table-spec.md): a sticky player column (headshot, short name,
+ * team · position, an injury tag) beside the settling stat per game, in their last game and over the season, then its group's counts
+ * scrolled to. Ranked by the stat; the top five who have it are the first view, the rest fold. A row is the pick (a tap again takes
+ * it back); any header sorts.
+ */
+function StatPicker({ q, value, onValue }: Props) {
+  const s = q.stats!;
+  const pick = q.pick ?? 1;
+  const chosen = idsOf(value);
+  const [sort, setSort] = useState<string>("per");
+  const [more, setMore] = useState(false);
+  const [rest, setRest] = useState(false);
+  // Yahoo's position chips: All (the ranked contenders, folded), or one position's players, both teams, ranked.
+  const [pos, setPos] = useState<string | null>(null);
+  // This game's two teams only, when they're known (a team's season casts every team it plays: the rest play other weeks).
+  const faces = (q.faces ?? []).filter((f) => s.rows[f.id]?.inGame !== false);
+  const short = (name: string) => {
+    const w = name.trim().split(/\s+/);
+    return w.length > 1 ? `${w[0][0]}. ${w.slice(1).join(" ")}` : name;
+  };
+  const tap = (id: string) => {
+    if (chosen.includes(id)) return onValue(pick === 1 ? null : chosen.filter((x) => x !== id));
+    if (pick === 1) return onValue(id);
+    if (chosen.length >= pick) return toast.quiet(`${pick} at most: take one off first`);
+    onValue([...chosen, id]);
+  };
+  const num = (id: string, k: string): number => {
+    const r = s.rows[id];
+    if (!r) return -1;
+    if (!r.games) return -1;
+    return k === "per" ? (r.per ?? -1) : k === "last" ? (r.last ?? -1) : k === "season" ? r.season : k === "gp" ? r.games : (r.more[k] ?? 0);
+  };
+  const byPos = (f: QuestionFace) => {
+    const p = s.rows[f.id]?.position ?? "";
+    const i = (GROUP_POSITIONS[s.group] ?? []).indexOf(p);
+    return i < 0 ? 99 : i;
+  };
+  const ranked = [...faces].sort((a, b) => num(b.id, sort) - num(a.id, sort) || byPos(a) - byPos(b) || a.name.localeCompare(b.name));
+  // Contenders: who has the stat (or, before any game, who plays the positions it's about); chosen ones always show.
+  const has = (f: QuestionFace) => (s.games ? (s.rows[f.id]?.season ?? 0) > 0 : byPos(f) < 99);
+  const all = ranked.filter(has);
+  const top = all.slice(0, CONTENDERS);
+  const extra = all.slice(CONTENDERS);
+  const others = [...faces].filter((f) => !has(f)).sort((a, b) => (s.rows[a.id]?.position ?? "").localeCompare(s.rows[b.id]?.position ?? "") || a.name.localeCompare(b.name));
+  // The positions in this game, the question's own first (QB for passing yards), then those with the stat, then the rest.
+  const posOf = (f: QuestionFace) => s.rows[f.id]?.position ?? null;
+  const positions = [...new Set(faces.map(posOf).filter((x): x is string => !!x))].sort((a, b) => {
+    const rank = (x: string) => {
+      const i = (GROUP_POSITIONS[s.group] ?? []).indexOf(x);
+      const j = POSITION_ORDER.indexOf(x);
+      return i >= 0 ? i : j >= 0 ? 10 + j : 100;
+    };
+    return rank(a) - rank(b) || a.localeCompare(b);
+  });
+  const shown = pos ? ranked.filter((f) => posOf(f) === pos) : [...top, ...(more ? extra : []), ...(rest ? others : [])];
+  for (const id of chosen) if (!shown.some((f) => f.id === id)) shown.push(...faces.filter((f) => f.id === id));
+  const cols: { key: string; short: string; label: string }[] = [
+    { key: "per", short: `${s.stat.short}/G`, label: `${s.stat.label} per game` },
+    { key: "last", short: "Last", label: `${s.stat.label}, last game` },
+    { key: "season", short: "Season", label: `${s.stat.label}, season` },
+    // Games played: what a per-game number is out of (one game's 382 isn't a season's).
+    { key: "gp", short: "GP", label: "Games played" },
+    ...s.more.map((m) => ({ key: m.key, short: m.short, label: m.label })),
+  ];
+  const lead = top[0]?.id;
+  const fmt = (n: number | null | undefined) => (n === null || n === undefined || n < 0 ? "·" : Number.isInteger(n) ? String(n) : n.toFixed(1));
+  const sticky = "sticky left-0 z-[1] bg-background shadow-[6px_0_8px_-6px_rgba(0,0,0,.25)] dark:shadow-[6px_0_8px_-6px_rgba(0,0,0,.7)]";
+  const fold = (label: string, n: number, open: boolean, onClick: () => void, data: string) =>
+    n > 0 && (
+      <button type="button" data-answer-fold={data} aria-expanded={open} onClick={onClick} className="nd-press flex min-h-11 w-full items-center justify-between border-b border-border px-4 text-left text-[14px] font-semibold text-muted-foreground">
+        <span>
+          {open ? "Fewer" : label} · {n}
+        </span>
+        <ChevronDown className={`size-4 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden />
+      </button>
+    );
+  return (
+    <div className="relative -mx-4" data-answer-table={s.stat.key}>
+      {!s.games && <p className="mb-2 px-4 text-[13px] text-muted-foreground">No games yet this season: sorted by position.</p>}
+      {positions.length > 1 && (
+        <div className="mb-2 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" role="group" aria-label="Position" data-answer-positions>
+          {[null, ...positions].map((x) => (
+            <Chip key={x ?? "all"} on={pos === x} data-answer-position={x ?? "all"} onClick={() => setPos(x)} className="h-11 flex-none px-4 text-[14px]">
+              {x ?? "All"}
+            </Chip>
+          ))}
+        </div>
+      )}
+      <span aria-hidden className="pointer-events-none absolute bottom-0 right-0 top-0 z-[2] w-8 bg-gradient-to-l from-background to-transparent" />
+      <div className="overflow-x-auto [scrollbar-width:thin]" data-answer-scroll>
+        <table className="min-w-full border-separate border-spacing-0" aria-label={q.ask}>
+          <thead>
+            <tr>
+              <th className={`${sticky} w-[164px] min-w-[164px] border-b border-border pb-2 pl-4 text-left align-bottom text-[11.5px] font-normal text-muted-foreground`}>Player</th>
+              {cols.map((c) => {
+                const on = c.key === sort;
+                return (
+                  <th key={c.key} aria-sort={on ? "descending" : "none"} className="min-w-[60px] border-b border-border p-0 align-bottom">
+                    <button type="button" data-sort={c.key} aria-label={`Sort by ${c.label}`} onClick={() => setSort(c.key)} className={`flex w-full flex-col items-center gap-0.5 px-1.5 pb-2 pt-1 text-[11.5px] leading-tight ${on ? "font-bold text-foreground" : "font-normal text-muted-foreground"}`}>
+                      <span className="whitespace-nowrap">{c.short}</span>
+                      <ChevronDown className={`size-3.5 ${on ? "" : "opacity-0"}`} aria-hidden />
+                    </button>
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((f) => {
+              const r = s.rows[f.id];
+              const on = chosen.includes(f.id);
+              return (
+                <tr key={f.id} data-answer-face={f.id} data-answer-name={f.name} aria-selected={on} onClick={() => tap(f.id)} className={`cursor-pointer ${on ? "bg-secondary" : ""}`}>
+                  <td className={`${sticky} ${on ? "!bg-secondary" : ""} border-b border-border pl-4`}>
+                    <button type="button" aria-pressed={on} aria-label={f.name} onClick={(e) => (e.stopPropagation(), tap(f.id))} className="flex h-[52px] w-full min-w-0 items-center gap-2.5 pr-2 text-left">
+                      {on ? (
+                        <span className="grid size-7 flex-none place-items-center rounded-[3px] bg-foreground text-background">
+                          <Check className="size-4" strokeWidth={3} aria-hidden />
+                        </span>
+                      ) : (
+                        <Face src={f.photo} name={f.name} className="size-7 flex-none rounded-[3px] text-[12px]" />
+                      )}
+                      <span className="min-w-0">
+                        <b className="block truncate text-[15px] font-semibold leading-tight">{short(f.name)}</b>
+                        <small className="flex items-center gap-1.5 truncate text-[12px] leading-tight text-muted-foreground">
+                          {[r?.team, r?.position].filter(Boolean).join(" · ")}
+                          {r?.injury && <span className="rounded-[2px] bg-live px-1 text-[10.5px] font-bold leading-[15px] text-live-foreground" title={`Injury: ${r.injury}`}>{r.injury}</span>}
+                        </small>
+                      </span>
+                    </button>
+                  </td>
+                  {cols.map((c) => {
+                    const v = num(f.id, c.key);
+                    const big = c.key === sort && f.id === lead && v > 0;
+                    return (
+                      <td key={c.key} className={`border-b border-border text-center ${c.key === sort && !on ? "bg-card" : ""}`}>
+                        <span className={`type-num ${big ? "text-[20px] text-foreground" : v > 0 ? "text-[17px]" : "text-[15px] text-muted-foreground"}`}>{fmt(v)}</span>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {!pos && fold(`More with ${s.stat.label.toLowerCase()}`, extra.length, more, () => setMore((x) => !x), "more")}
+      {!pos && fold("Everyone else", others.length, rest, () => setRest((x) => !x), "rest")}
+      {pick > 1 && <p className="mt-2 px-4 text-[13px] text-muted-foreground" data-answer-count>{`${chosen.length} of ${pick} named`}</p>}
+    </div>
+  );
+}
+
 /** Someone, or a group (A6): faces. Naming more than one, up to its pick. */
 function Faces({ q, value, onValue }: Props) {
+  if (q.stats && q.answer === "person") return <StatPicker q={q} value={value} onValue={onValue} />;
   const pick = q.pick ?? 1;
   const short = shortNames(q.faces ?? []);
   const chosen = idsOf(value);
@@ -300,8 +464,9 @@ function Sides({ faces, value, onValue, label, disabled }: { faces: QuestionFace
       {faces.map((f, i) => (
         <span key={f.id} className="contents">
           {i === 1 && <span className="flex-none text-[13px] text-muted-foreground">at</span>}
-          <button type="button" disabled={disabled} aria-pressed={value === f.id} data-answer-side={f.id} onClick={() => onValue(value === f.id ? null : f.id)} className={`nd-press type-caption flex min-h-14 min-w-0 flex-1 items-center justify-center rounded-[3px] px-2 text-[22px] disabled:opacity-50 ${value === f.id ? "bg-plate text-plate-foreground shadow-plate" : "bg-card outline-1 -outline-offset-1 outline-border"}`}>
-            <span className="truncate">{f.name}</span>
+          <button type="button" disabled={disabled} aria-pressed={value === f.id} data-answer-side={f.id} onClick={() => onValue(value === f.id ? null : f.id)} className={`nd-press type-caption flex min-h-14 min-w-0 flex-1 items-center justify-center rounded-[3px] px-2 py-2 text-[22px] disabled:opacity-50 ${value === f.id ? "bg-plate text-plate-foreground shadow-plate" : "bg-card outline-1 -outline-offset-1 outline-border"}`}>
+            {/* A team's whole name, wrapped (the user's 2026-11-23 screenshot: "WASHINGTON C…"), never cut. */}
+            <span className="line-clamp-2 text-balance text-center leading-[0.95] [overflow-wrap:anywhere]">{f.name}</span>
           </button>
         </span>
       ))}

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireAuth } from "@/lib/server/auth-helpers";
 import { answerQuestions, gameQuestions } from "@/lib/server/answers";
+import { sportsFor } from "@/lib/server/sports";
 
 // A game's questions (step A4 of docs/PLAN-start-a-game-gpt.md; answers.ts), for one of your games on the season (`?league=`):
 //   GET   ?episode=n (optional, a past one's for how it went; else this week's): the questions, yours, how many have answered;
@@ -15,12 +16,12 @@ export const GET = apiRoute(async (req, { params }: Params) => {
   const { seasonId } = await params;
   const user = await requireAuth(req);
   const q = new URL(req.url).searchParams;
-  return NextResponse.json(await gameQuestions(user, seasonId, q.get("league"), q.get("episode")));
+  return NextResponse.json(await gameQuestions(user, seasonId, q.get("league"), q.get("episode"), new Date(), sportsFor(req)));
 });
 
 export const POST = apiRoute(async (req, { params }: Params) => {
   const { seasonId } = await params;
   const user = await requireAuth(req);
   const body = (await req.json().catch(() => ({}))) as { episode?: unknown; answers?: unknown };
-  return NextResponse.json(await answerQuestions(user, seasonId, new URL(req.url).searchParams.get("league"), body));
+  return NextResponse.json(await answerQuestions(user, seasonId, new URL(req.url).searchParams.get("league"), body, new Date(), sportsFor(req)));
 });

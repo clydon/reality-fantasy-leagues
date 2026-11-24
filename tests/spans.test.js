@@ -275,3 +275,13 @@ test("kindOf: a one-episode game's name without its episode", () => {
   assert.equal(kindOf("Weekly Lineup 2"), "Weekly Lineup 2", "a season game's counter is its name");
   assert.equal(kindOf("Couch Cup"), "Couch Cup");
 });
+
+test("kindOf: a team's game named by its opponent", () => {
+  assert.equal(kindOf("Prop sheet · Week 11 at Bengals"), "Prop sheet");
+  assert.equal(kindOf("Prop sheet · Chiefs at Bills, Week 12"), "Prop sheet");
+  assert.equal(kindOf("Prop sheet · 49ers at Rams, Wild Card"), "Prop sheet");
+  assert.equal(kindOf("Pick'em · Rays vs Brewers, Fri, Jun 5"), "Pick'em");
+  assert.equal(kindOf("Prop sheet · vs Rays, Fri, Jun 5"), "Prop sheet");
+  assert.equal(kindOf("Prop sheet · Wild Card at Bengals"), "Prop sheet");
+  assert.equal(kindOf("Weekly Lineup"), "Weekly Lineup");
+});

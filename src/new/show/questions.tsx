@@ -71,6 +71,8 @@ export function QuestionSheets() {
 
 const first = (name: string) => name.split(" ")[0];
 const pts = (n: number) => `${n} ${n === 1 ? "point" : "points"}`;
+/** An episode as people name it: a team's game by its opponent ("Week 11 at Bengals"), else "Episode 4" (show-words.ts epName). */
+const epOf = (d: Pick<GameQuestions, "names">, n: number) => d.names?.[n]?.long ?? `Episode ${n}`;
 const isIn = (v: unknown) => v !== null && v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0);
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 const idsOf = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]) : typeof v === "string" && v ? [v] : []);
@@ -104,7 +106,12 @@ export function answerWords(q: QuestionView, v: unknown, cast: Map<string, Quest
   }
   if (q.answer === "group") return idsOf(v).map((id) => cast.get(id)?.name ?? "a group").join(", ");
   if (q.answer === "person") {
-    const names = idsOf(v).map((id) => first(cast.get(id)?.name ?? "someone"));
+    // An athlete reads as a scoreboard writes them ("P. Mahomes"), never by first name ("Patrick"); a cast member by first name.
+    const athlete = (name: string) => {
+      const w = name.trim().split(/\s+/);
+      return w.length > 1 ? `${w[0][0]}. ${w.slice(1).join(" ")}` : name;
+    };
+    const names = idsOf(v).map((id) => (q.stats ? athlete(cast.get(id)?.name ?? "someone") : first(cast.get(id)?.name ?? "someone")));
     return names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0];
   }
   if (q.answer === "yesNo") return v === "yes" ? "Yes" : "No";
@@ -124,10 +131,10 @@ export function verdictWords(q: QuestionView, d: GameQuestions, cast: Map<string
   const v = q.verdict;
   const ep = q.episode;
   if (!v || v.state === "waiting") {
-    if (ep !== null && d.mark !== null && d.mark < ep) return `See Episode ${ep} to find out`;
+    if (ep !== null && d.mark !== null && d.mark < ep) return `See ${epOf(d, ep)} to find out`;
     if (seasonal(q)) return "Settles when the season ends";
     if (ep === null && how(q) === "results:out") return "Waiting for the first to go home";
-    return ep !== null ? `Waiting for Episode ${ep}'s results` : "Waiting for the results";
+    return ep !== null ? `Waiting for ${epOf(d, ep)}'s results` : "Waiting for the results";
   }
   if (v.state === "off") return `${v.why}: it doesn't count`;
   // A8's: the split as said, an order's names in order, pairs one by one.
@@ -191,7 +198,7 @@ function QuestionSheet({ target, onOpenChange }: { target: SheetTarget | null; o
   const answering = !!d?.questions.some((q) => q.status === "open");
   const title = target?.finale ? "Finale predictions" : (target?.game ?? "");
   // Finale predictions are the game's own, not this week's: they say which game, not an episode.
-  const when = target?.finale ? target.game : d?.episode ? `Episode ${d.episode}` : null;
+  const when = target?.finale ? target.game : d?.episode ? epOf(d, d.episode) : null;
   const subtitle = !target ? undefined : answering ? `${when ? `${when} · ` : ""}private until it locks` : when ? `${when} · how it went` : target.game;
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title={title} subtitle={subtitle}>
@@ -221,7 +228,7 @@ export function QuestionsBody({ target, d, onDone, place = "sheet" }: { target: 
   const changed = open.filter((q) => !same(isIn(picked[q.id]) ? picked[q.id] : null, isIn(q.mine) ? q.mine : null));
   const groups = [
     // Asked each episode, and over a run or a phase (A7): this week's.
-    { key: "each", label: d.episode ? `Episode ${d.episode}` : "This episode", list: d.questions.filter((q) => q.asked !== "once") },
+    { key: "each", label: d.episode ? epOf(d, d.episode) : "This episode", list: d.questions.filter((q) => q.asked !== "once") },
     { key: "once", label: target.finale ? "The finale" : "For the season", list: d.questions.filter((q) => q.asked === "once") },
   ].filter((g) => g.list.length);
   const closedOnes = d.questions.filter((q) => q.status === "closed");
@@ -455,7 +462,7 @@ export function SheetResultRow({ target, heading }: { target: SheetTarget & { ep
     >
       <span className="min-w-0 flex-1">
         <b className="block text-[15px] font-semibold">
-          {mine.length ? (known.length ? `Episode ${d.episode}: your sheet, ${pts(earned)}` : `Your sheet for Episode ${d.episode}`) : `Episode ${d.episode}: the couch's sheets`}
+          {mine.length ? (known.length ? `${epOf(d, d.episode!)}: your sheet, ${pts(earned)}` : `Your sheet for ${epOf(d, d.episode!)}`) : `${epOf(d, d.episode!)}: the couch's sheets`}
         </b>
         <small className="mt-0.5 block text-[13px] text-muted-foreground">{settling ? "Still settling · see the couch's answers" : "See the couch's answers"}</small>
       </span>

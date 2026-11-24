@@ -15,6 +15,28 @@ export interface ShowWords {
   peopleTab: string;
   /** The episodes tab: "Episodes", "Races", else "Schedule" (when the word is long, or would read as the Games tab). */
   episodesTab: string;
+  /** A team's season: each game's name by episode (epName); absent for a show. */
+  names?: Record<number, GameLabel> | null;
+}
+
+/** A sport's game by what it is (server sports/game-names.ts): "Week 11 at Bengals", "at Bengals", "@CIN". */
+export interface GameLabel {
+  long: string;
+  short: string;
+  tag: string;
+  /** A narrow column's (a season grid's): the opponent from the team's side, "KC", "@CIN". */
+  col?: string;
+}
+
+/**
+ * An episode as people name it: a team's game by its opponent ("Week 11 at Bengals"; `short` "at Bengals", `tag` "@CIN"), else the
+ * show's word and its number ("Episode 4", "Ep 4"). Never "Game 10" for a game that has a name (docs/design-round/props-table-spec.md).
+ */
+export function epName(words: { episode: string; ep?: string; names?: Record<number, GameLabel> | null }, n: number, form: "long" | "short" | "tag" | "col" = "long"): string {
+  const g = words.names?.[n];
+  if (form === "col") return g?.col ?? String(n);
+  if (g) return g[form];
+  return form === "long" ? `${words.episode} ${n}` : `${words.ep ?? epShort(words.episode)} ${n}`;
 }
 
 const TAB_ROOM = 11;
@@ -50,7 +72,7 @@ export function inShowWords(text: string, words: Pick<ShowWords, "episode" | "ep
   return text.replace(/\bEpisodes\b/g, words.episodes).replace(/\bEpisode\b/g, words.episode).replace(/\bepisodes\b/g, words.episodes.toLowerCase()).replace(/\bepisode\b/g, words.episode.toLowerCase());
 }
 
-export function showWords(terms: { castaway?: string | null; people?: string | null; episode?: string | null } | null | undefined): ShowWords {
+export function showWords(terms: { castaway?: string | null; people?: string | null; episode?: string | null } | null | undefined, names?: Record<number, GameLabel> | null): ShowWords {
   const episode = cap((terms?.episode ?? "").trim()) || "Episode";
   const said = cap((terms?.castaway ?? "").trim()) || "Cast member";
   const person = COLLECTIVE.test(said) ? `${said} member` : said;
@@ -65,6 +87,7 @@ export function showWords(terms: { castaway?: string | null; people?: string | n
     people,
     peopleTab: people.length <= TAB_ROOM ? people : "Cast",
     episodesTab: episodes.length <= TAB_ROOM && episodes !== "Games" ? episodes : "Schedule",
+    ...(names && Object.keys(names).length ? { names } : {}),
   };
 }
 

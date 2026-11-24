@@ -1,5 +1,6 @@
 import type { GameView, TableRow } from "../data";
 import { ordinal } from "../games";
+import { epName, type GameLabel } from "@/lib/game/show-words";
 
 // This week on a game's own page (the design round's step 2: docs/design-round/step2-game-page-spec.md, "This week, by
 // situation"; the first view's requirements, step2-game-page-first-view.md): the one block that changes with the situation.
@@ -45,7 +46,7 @@ export interface WeekCard {
 
 export interface WeekContext {
   /** The show's word for an episode and its short form ("Episode", "Ep"; "Game", "G"). */
-  words: { episode: string; ep: string };
+  words: { episode: string; ep: string; names?: Record<number, GameLabel> | null };
   /** When the next episode airs ("Sun 8:00 PM"), and its number. */
   next: { number: number; when: string | null } | null;
   /** The move the page offers, as yourMove says it (its kind, and whether it's due). */
@@ -94,7 +95,7 @@ export function thisWeek(g: GameView, c: WeekContext): WeekCard | null {
   const single = oneGame(g);
   const sideOf = (r: TableRow): WeekSide => (single ? { ...sideOfRow(r), record: null, seed: null } : sideOfRow(r));
   const you = sideOf(me);
-  const E = c.words.ep;
+  const W = c.words;
   const row = (id: string | null | undefined) => (id ? (g.table.find((r) => r.playerId === id) ?? null) : null);
   const champ = g.table.find((r) => r.record?.champion) ?? null;
   const solo = g.players <= 1 || g.solo === "practice";
@@ -110,7 +111,7 @@ export function thisWeek(g: GameView, c: WeekContext): WeekCard | null {
   // ---- head to head ----
   const m = g.matchups;
   if (m && !solo) {
-    const last = m.last && m.last.points !== null ? lastLine(g, m.last, E) : null;
+    const last = m.last && m.last.points !== null ? lastLine(g, m.last, W) : null;
     if (g.over && single && m.last && m.last.points !== null) {
       // The game's result is the card: both sides, the score, who won and by how much.
       const l = m.last;
@@ -120,7 +121,7 @@ export function thisWeek(g: GameView, c: WeekContext): WeekCard | null {
         l.result === "win" ? `You won by ${by}` : l.result === "loss" ? `${opp ? first(opp.name) : "They"} won by ${by}` : l.result === "tie" ? "A tie" : "Counted for nobody";
       return {
         kind: "matchup",
-        label: `${E} ${l.episode} · Final`,
+        label: `${epName(W, l.episode, "tag")} · Final`,
         you,
         them: opp ? sideOf(opp) : null,
         stand: l.stand ?? null,
@@ -148,7 +149,7 @@ export function thisWeek(g: GameView, c: WeekContext): WeekCard | null {
               const [wp, lp] = fin.winner === fin.a ? [fin.aPoints!, fin.bPoints!] : [fin.bPoints!, fin.aPoints!];
               const name = (id: string) => (id === me.playerId ? "You" : first(row(id)?.name ?? "someone"));
               const ep = m.playoffs!.bracket.at(-1)!.episode;
-              return { episode: ep, line: `${E} ${ep} · The final · ${name(w)} beat ${name(l) === "You" ? "you" : name(l)} · ${scoreWords(wp, lp)}`, result: w === me.playerId ? "win" : l === me.playerId ? "loss" : "final" };
+              return { episode: ep, line: `${epName(W, ep, "tag")} · The final · ${name(w)} beat ${name(l) === "You" ? "you" : name(l)} · ${scoreWords(wp, lp)}`, result: w === me.playerId ? "win" : l === me.playerId ? "loss" : "final" };
             })()
           : null;
       const place = me.rank.startsWith("T") ? `tied ${ordinal(Number(me.rank.slice(1)))}` : ordinal(me.place);
@@ -176,7 +177,7 @@ export function thisWeek(g: GameView, c: WeekContext): WeekCard | null {
     const seeded = !!po?.seeds?.length;
     const round = next?.round ?? null;
     const roundName = round === null ? null : po && round >= po.rounds ? "The final" : `Playoffs · round ${round}`;
-    const label = [roundName, next ? `${E} ${next.episode}` : nextEp !== null ? `${E} ${nextEp}` : null, roundName ? null : when].filter(Boolean).join(" · ");
+    const label = [roundName, next ? `${epName(W, next.episode, "tag")}` : nextEp !== null ? `${epName(W, nextEp, "tag")}` : null, roundName ? null : when].filter(Boolean).join(" · ");
     // Out of the playoffs once they're seeded (said as such, never OUT): the final's two still shown, small.
     if (seeded && !me.record?.alive && !next) {
       const place = me.rank.startsWith("T") ? `tied ${ordinal(Number(me.rank.slice(1)))}` : ordinal(me.place);
@@ -186,11 +187,11 @@ export function thisWeek(g: GameView, c: WeekContext): WeekCard | null {
       const seedOf = (r: TableRow | null) => (r?.record?.seed ? ` (${r.record.seed})` : "");
       const finalLine: WeekCard["last"] =
         a && b && bracket
-          ? { episode: bracket.episode, line: `${E} ${bracket.episode} · The final · ${first(a.name)}${seedOf(a)} vs ${first(b.name)}${seedOf(b)}`, result: "final", playerId: a.playerId }
+          ? { episode: bracket.episode, line: `${epName(W, bracket.episode, "tag")} · The final · ${first(a.name)}${seedOf(a)} vs ${first(b.name)}${seedOf(b)}`, result: "final", playerId: a.playerId }
           : last;
       return {
         kind: "standing",
-        label: po && po.rounds === 1 ? `The final · ${E} ${po.from}` : `The playoffs · from ${E} ${po?.from}`,
+        label: po && po.rounds === 1 ? `The final · ${epName(W, po.from, "tag")}` : `The playoffs · from ${epName(W, po?.from, "tag")}`,
         you,
         them: null,
         stand: null,
@@ -211,8 +212,8 @@ export function thisWeek(g: GameView, c: WeekContext): WeekCard | null {
     let tone: WeekTone;
     if (behind) {
       const w = waitingEp as number;
-      const more = latest > w && !early ? `${E} ${w} ${latest === w + 1 ? "and" : "to"} ${latest} are` : `${E} ${w}'s ${early ? "early results are" : "results are"}`;
-      state = `You're up to ${E} ${w - 1}. ${more} waiting for you.`;
+      const more = latest > w && !early ? `${epName(W, w, "tag")} ${latest === w + 1 ? "and" : "to"} ${latest} are` : `${epName(W, w, "tag")}'s ${early ? "early results are" : "results are"}`;
+      state = `You're up to ${epName(W, w - 1, "tag")}. ${more} waiting for you.`;
       tone = early ? "early" : "behind";
     } else if (c.move && c.move.kind !== "lineup" && c.move.kind !== "pick") {
       state = "";
@@ -261,7 +262,7 @@ export function thisWeek(g: GameView, c: WeekContext): WeekCard | null {
     const best = me.weeks.length ? Math.max(...me.weeks.map((w) => w.total)) : null;
     return {
       kind: "solo",
-      label: [nextEp !== null ? `${E} ${nextEp}` : null, when].filter(Boolean).join(" · "),
+      label: [nextEp !== null ? `${epName(W, nextEp, "tag")}` : null, when].filter(Boolean).join(" · "),
       you,
       them: null,
       stand: null,
@@ -283,7 +284,7 @@ export function thisWeek(g: GameView, c: WeekContext): WeekCard | null {
   const place = me.rank.startsWith("T") ? `Tied ${ordinal(Number(me.rank.slice(1)))}` : ordinal(me.place);
   return {
     kind: "standing",
-    label: g.over ? "Final" : [nextEp !== null ? `${E} ${nextEp}` : null, when].filter(Boolean).join(" · "),
+    label: g.over ? "Final" : [nextEp !== null ? `${epName(W, nextEp, "tag")}` : null, when].filter(Boolean).join(" · "),
     you,
     them: null,
     stand: null,
@@ -303,10 +304,10 @@ export function thisWeek(g: GameView, c: WeekContext): WeekCard | null {
   };
 }
 
-function lastLine(g: GameView, l: NonNullable<NonNullable<GameView["matchups"]>["last"]>, E: string): WeekCard["last"] {
+function lastLine(g: GameView, l: NonNullable<NonNullable<GameView["matchups"]>["last"]>, W: WeekContext["words"]): WeekCard["last"] {
   const opp = g.table.find((r) => r.playerId === l.opponent);
   const who = opp ? first(opp.name) : l.stand === "median" ? "the middle score" : "a bye";
-  if (l.result === null) return { episode: l.episode, line: `${E} ${l.episode} · Counted for nobody · records unchanged`, result: "quiet" };
+  if (l.result === null) return { episode: l.episode, line: `${epName(W, l.episode, "tag")} · Counted for nobody · records unchanged`, result: "quiet" };
   const verb = l.result === "win" ? `Beat ${who}` : l.result === "loss" ? `Lost to ${who}` : `Tied ${who}`;
-  return { episode: l.episode, line: `${E} ${l.episode} · ${verb} · ${scoreWords(l.points ?? 0, l.against)}`, result: l.result };
+  return { episode: l.episode, line: `${epName(W, l.episode, "tag")} · ${verb} · ${scoreWords(l.points ?? 0, l.against)}`, result: l.result };
 }

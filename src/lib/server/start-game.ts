@@ -29,6 +29,7 @@ import { leaguePhases, phasesFrom, scheduleOf, seasonBlocks, settleIn } from "./
 import { notifyGameStarted } from "./push-events";
 import { latestAired, seasonSchedules, type SeasonSchedule } from "./schedule";
 import { regularEnd } from "./air-times";
+import { sportsGameNames } from "./sports/game-names";
 import { followsOf, games, seasonHeaders, type Game } from "./show-space";
 
 // Start a game that fits (docs/PLAN-new-design.md step 10 part 2b; the mock's rulebook.js newGameW, rbGameLine, RB_FITS and
@@ -523,12 +524,13 @@ function againParts(kept: Readonly<GameSpec>, mine: GameSpec): Partial<GameSpec>
  * someone typed keeps their words, the episode added only when the couch already uses it. Held to 60 characters with the suffix whole.
  * Then a name the couch doesn't use (freeName).
  */
-export function gameName(want: string, here: Game[], one: { episode: number; word: string } | null, typed: boolean): string {
+export function gameName(want: string, here: Game[], one: { episode: number; word: string; label?: string | null } | null, typed: boolean): string {
   if (!one) return freeName(want, here);
   // Run it back brings the old game's name, its episode with it ("Prediction sheet · Episode 20"): that ending goes before the new one
   // (the branch review, 2026-11-19), as the archive reads a kind (spans.ts kindOf).
   if (!typed) want = kindOf(want);
-  const suffix = ` · ${one.word} ${one.episode}`;
+  // A team's game by its name ("Prop sheet · Week 11 at Bengals"), else the show's word and number.
+  const suffix = ` · ${one.label ?? `${one.word} ${one.episode}`}`;
   const taken = here.some((g) => g.name.toLowerCase() === want.toLowerCase());
   return typed && !taken ? freeName(want, here) : freeName(`${want.slice(0, Math.max(1, 60 - suffix.length)).trim()}${suffix}`, here);
 }
@@ -631,7 +633,8 @@ export async function startGame(
   if (!couch) throw new HttpError(400, "couch required");
   const here = await couchGamesOn(user, couch, seasonId);
   const part = opts.part.singular.replace(/^./, (c) => c.toUpperCase());
-  const name = gameName(opts.again && opts.again.key === choice.key ? opts.again.name : choice.name, here, to !== null && to === opts.from ? { episode: opts.from, word: part } : null, false);
+  const label = to !== null && to === opts.from ? ((await sportsGameNames([seasonId])).get(seasonId)?.[opts.from]?.long ?? null) : null;
+  const name = gameName(opts.again && opts.again.key === choice.key ? opts.again.name : choice.name, here, to !== null && to === opts.from ? { episode: opts.from, word: part, label } : null, false);
   const starter = (user as { username?: string | null }).username || user.name;
   const { rows: seasonRow } = await pool.query("SELECT ss.season_number, s.slug FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1", [seasonId]);
   const row = { id: seasonId, number: seasonRow[0].season_number as number, slug: seasonRow[0].slug as string };

@@ -5,7 +5,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("path");
 const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
-const { showWords, pluralWord, episodeWordFromTitles } = jiti("../src/lib/game/show-words.ts");
+const { showWords, pluralWord, episodeWordFromTitles, epName } = jiti("../src/lib/game/show-words.ts");
 
 test("a show made of episodes keeps Episode, Ep and its people's word", () => {
   const w = showWords({ castaway: "Castaway", episode: "Episode" });
@@ -44,4 +44,13 @@ test("a sport's word from its titles: more than half start with it before a numb
   assert.equal(episodeWordFromTitles(["Race 1", "Bahrain Grand Prix", "Saudi Grand Prix"]), null);
   assert.equal(episodeWordFromTitles([]), null);
   assert.equal(episodeWordFromTitles(["Week 1: Bills at Jets", "Week 2: Jets at Pats"]), null, "a word that says when isn't one");
+});
+
+test("a team's game is named by its two teams, never its number (the user, 2026-11-23)", () => {
+  const names = { 10: { long: "Commanders at Bengals, Week 11", short: "Commanders at Bengals", tag: "WSH @ CIN" } };
+  const w = showWords({ episode: "Game" }, names);
+  assert.deepEqual([epName(w, 10), epName(w, 10, "short"), epName(w, 10, "tag")], ["Commanders at Bengals, Week 11", "Commanders at Bengals", "WSH @ CIN"]);
+  // A game with no name (not linked yet), and a show's episode, keep the word and number.
+  assert.equal(epName(w, 11), "Game 11");
+  assert.equal(epName(showWords({ episode: "Episode" }), 4, "short"), "Ep 4");
 });

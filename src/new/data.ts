@@ -182,6 +182,8 @@ export interface SeasonHeader {
     /** Where it airs, from its listing: the network, else the streaming service (step 14). */
     network?: string | null;
   };
+  /** A team's season: each game's name by episode ("Week 11 at Bengals"; show-words.ts epName). */
+  gameNames?: Record<number, { long: string; short: string; tag: string; col?: string }>;
 }
 
 export interface UpNext {
