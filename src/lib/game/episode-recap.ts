@@ -44,9 +44,11 @@ export function asOfEpisode(state: LeagueState, c: Castaway, ep: Episode): Casta
 /**
  * The episode's headline wins (the format's `recap` list: Reward, Immunity...), from its scoring
  * events. Winners are grouped by the tribe they were in that episode, and a group shows as the tribe
- * when it won as one, before the merge: a tribe event (Survivor's tribe immunity and rewards -- even
- * if only some of the tribe got logged), or every member still in the game won it. Anyone else -- an individual win, part of a tribe picked for a reward -- shows on
- * their own. Wins with nobody logged are left out.
+ * only when it was strictly a tribe contest, before the merge: a tribe event (Survivor's tribe
+ * immunity -- even if only some of the tribe got logged), or every member still in the game won it.
+ * Anyone else -- an individual win, a team picked for a reward -- shows by name. A contest every
+ * tribe won wasn't between tribes (a tribe contest has a loser), so it shows by name too: that's a
+ * merged game whose merge was never recorded. Wins with nobody logged are left out.
  */
 export function episodeRecapWins(state: LeagueState, ep: Episode): RecapWin[] {
   const format = StateLogic.formatOf(state);
@@ -66,7 +68,9 @@ export function episodeRecapWins(state: LeagueState, ep: Episode): RecapWin[] {
       // After the merge everyone's in one tribe, so a "tribe" win there is a team challenge split some
       // other way -- those winners show on their own.
       const inPlay = state.castaways.filter((c) => inGameFor(state, c, ep.number));
-      const merged = new Set(inPlay.map((c) => tribeAtEpisode(state, c, ep.number))).size <= 1;
+      const tribesInPlay = new Set(inPlay.map((c) => tribeAtEpisode(state, c, ep.number)));
+      const merged = !!ep.postMerge || tribesInPlay.size <= 1;
+      const everyTribeWon = [...tribesInPlay].every((t) => !!t && byTribe.has(t));
       const tribes: RecapWin["tribes"] = [];
       for (const [tribeId, members] of byTribe) {
         const tribe = state.tribes.find((t) => t.id === tribeId);
@@ -74,6 +78,7 @@ export function episodeRecapWins(state: LeagueState, ep: Episode): RecapWin[] {
         const asTribe =
           !!tribe &&
           !merged &&
+          !everyTribeWon &&
           (members.some((c) => tribeWinnerIds.has(c.id)) || (members.length > 1 && everyone.every((c) => winnerIds.has(c.id))));
         if (asTribe) tribes.push({ tribe: tribe!, members });
         else castaways.push(...members);

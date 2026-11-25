@@ -430,7 +430,8 @@ test("a show's own conditions as block fields: each compiles to its rule, and st
   // A team's win counts as winning the prize: one moment, either answer, both asked.
   assert.ok(!data.events.some((e) => e.id === "prizeGroupWon"), "no moment of its own");
   assert.deepEqual(rule("prizeWon"), { when: { any: [yes("prizeWon"), yes("prizeGroupWon")] }, award: "prizeWon" });
-  assert.deepEqual(data.recap.find((r) => r.label === "Prize"), { label: "Prize", events: ["prizeWon"], tribeEvents: ["prizeWon"] });
+  // A reward's team may be picked for it, so it shows as a tribe only when the whole tribe won (episode-recap.ts).
+  assert.deepEqual(data.recap.find((r) => r.label === "Prize"), { label: "Prize", events: ["prizeWon"] });
   // 2nd and 3rd from one finishing place, each scored once.
   assert.deepEqual([rule("shieldSecond"), rule("shieldThird")], [{ when: { answer: "shieldPlace", equals: 2 }, award: "shieldSecond" }, { when: { answer: "shieldPlace", equals: 3 }, award: "shieldThird" }]);
   // The team that wins the shield skips the council; whoever left scores none of its moments.

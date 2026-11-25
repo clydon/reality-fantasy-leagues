@@ -724,7 +724,9 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
     const ids = [won, group].filter((m) => m && built.has(ev(m.id)) && !covered(ev(m.id))).map((m) => ev(m.id));
     if (!ids.length) continue;
     // A group's win counted as winning it is the tribe's own headline before the merge, as a group's win is.
-    const tribe = group && ids.includes(ev(group.id)) ? [ev(group.id)] : won && list(won.also).length && ids.includes(ev(won.id)) ? [ev(won.id)] : null;
+    // Not a reward's: a team picked for it is a "group" too, so a reward shows as a tribe only when the
+    // whole tribe won it (episode-recap.ts).
+    const tribe = s.onTheLine === 'reward' ? null : group &&ids.includes(ev(group.id)) ? [ev(group.id)] : won && list(won.also).length && ids.includes(ev(won.id)) ? [ev(won.id)] : null;
     recap.push({ label: s.name, events: [...new Set(ids)], ...(tribe ? { tribeEvents: tribe } : {}) });
   }
 
